@@ -9,7 +9,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from .assistant_entry_fixtures import CARDS, build_assistant_tree, entry_text
+from .assistant_entry_fixtures import build_assistant_tree, entry_text
 
 
 SCRIPT = Path(__file__).resolve().parents[1] / "validate-profile-skills.py"
@@ -22,12 +22,9 @@ SPEC.loader.exec_module(VALIDATOR)
 class AssistantPipelineTreeTest(unittest.TestCase):
     def test_repository_tree_is_valid(self) -> None:
         errors: list[str] = []
-        refs, catalog = VALIDATOR.validate_assistant_pipeline(errors)
+        refs = VALIDATOR.validate_assistant_pipeline(errors)
         self.assertEqual([], errors)
         self.assertGreater(refs, 0)
-        self.assertGreater(len(catalog), 0)
-        for name, assignee in catalog.items():
-            self.assertIn(assignee, VALIDATOR.WORKER_PROFILES, name)
 
 
 class SandboxTreeTest(unittest.TestCase):
@@ -115,93 +112,9 @@ class SandboxTreeTest(unittest.TestCase):
         errors = self.validate()
         self.assertTrue(any("does not route references/pixel-art.md" in e for e in errors), errors)
 
-    def test_accepts_valid_card_units(self) -> None:
+    def test_accepts_valid_tree(self) -> None:
         self.build_minimal_tree()
         self.assertEqual([], self.validate())
-        errors: list[str] = []
-        _, catalog = VALIDATOR.validate_assistant_pipeline(errors)
-        self.assertEqual({unit: who for cards in CARDS.values() for unit, who in cards.items()}, catalog)
-        self.assertEqual(catalog, VALIDATOR.collect_card_catalog())
-
-    def test_rejects_card_unit_with_unknown_assignee(self) -> None:
-        self.build_minimal_tree()
-        self.write(
-            "execute-assistant-creative/SKILL.md",
-            "---\n"
-            "card_units:\n"
-            "  - name: anchored-image-batch\n"
-            "    assignee: assistant\n"
-            "    required_inputs: [approved-style-anchor]\n"
-            "    unit_cap: \"one batch\"\n"
-            "    runtime_cap: 1800\n"
-            "---\n# creative\n",
-        )
-        errors = self.validate()
-        self.assertTrue(
-            any("assignee must be a worker profile" in e for e in errors), errors
-        )
-
-    def test_rejects_card_unit_without_runtime_cap(self) -> None:
-        self.build_minimal_tree()
-        self.write(
-            "execute-assistant-creative/SKILL.md",
-            "---\n"
-            "card_units:\n"
-            "  - name: anchored-image-batch\n"
-            "    required_inputs: [anchor]\n"
-            "    unit_cap: \"one batch\"\n"
-            "---\n# creative\n",
-        )
-        errors = self.validate()
-        self.assertTrue(any("runtime_cap" in e for e in errors), errors)
-
-    def test_rejects_duplicate_card_unit_names(self) -> None:
-        self.build_minimal_tree()
-        unit = (
-            "  - name: same-unit\n"
-            "    required_inputs: [spec]\n"
-            "    unit_cap: \"one\"\n"
-            "    runtime_cap: 900\n"
-        )
-        self.write(
-            "execute-assistant-creative/SKILL.md",
-            f"---\ncard_units:\n{unit}{unit}---\n# a\n",
-        )
-        errors = self.validate()
-        self.assertTrue(any("duplicate card unit" in e for e in errors), errors)
-
-    def test_rejects_card_units_on_the_search_execute_entry(self) -> None:
-        self.build_minimal_tree()
-        self.write(
-            "execute-assistant-search/SKILL.md",
-            "---\n"
-            "card_units:\n"
-            "  - name: survey-enumeration\n"
-            "    assignee: searcher\n"
-            "    required_inputs: [spec]\n"
-            "    unit_cap: \"one\"\n"
-            "    runtime_cap: 900\n"
-            "---\n# search\n",
-        )
-        errors = self.validate()
-        self.assertTrue(
-            any("only legal on the creative Execute SKILL.md" in e and "execute-assistant-search" in e
-                for e in errors), errors)
-
-    def test_rejects_card_units_outside_execute(self) -> None:
-        self.build_minimal_tree()
-        self.write(
-            "plan-assistant-creative/SKILL.md",
-            "---\n"
-            "card_units:\n"
-            "  - name: sneaky-unit\n"
-            "    required_inputs: [spec]\n"
-            "    unit_cap: \"one\"\n"
-            "    runtime_cap: 900\n"
-            "---\n# plan\n",
-        )
-        errors = self.validate()
-        self.assertTrue(any("only legal on the creative Execute SKILL.md" in e for e in errors), errors)
 
     def test_rejects_missing_qa_contract(self) -> None:
         self.build_minimal_tree()
@@ -323,7 +236,7 @@ class SandboxTreeTest(unittest.TestCase):
     def test_missing_chat_and_shared_files(self) -> None:
         self.build_minimal_tree()
         (self.root / "chat-assistant/references/lookups.md").unlink()
-        (self.root / "references/execute/scheduled.md").unlink()
+        (self.root / "references/execute/resident-sessions.md").unlink()
         errors = self.validate()
         self.assertTrue(any("missing chat reference" in e for e in errors))
         self.assertTrue(any("missing shared mode file" in e for e in errors))
@@ -346,13 +259,6 @@ class SandboxTreeTest(unittest.TestCase):
                 path.write_text(original + f"\n[entry](../../{name}/SKILL.md)")
                 self.assertEqual([], self.validate())
 
-    def test_catalog_is_closed_and_assignees_cannot_drift(self) -> None:
-        self.build_minimal_tree()
-        original = entry_text("execute-assistant-creative")
-        for old, new in (("deterministic-render", "new-unit"), ("assignee: creator", "assignee: writer")):
-            self.write("execute-assistant-creative/SKILL.md", original.replace(old, new))
-            self.assertTrue(any("entry card catalog must be" in e for e in self.validate()))
-
     def test_chat_and_creative_reference_floors(self) -> None:
         self.build_minimal_tree()
         self.write("chat-assistant/references/extra.md", "# Extra\n")
@@ -360,25 +266,6 @@ class SandboxTreeTest(unittest.TestCase):
         errors = self.validate()
         self.assertTrue(any("unexpected chat reference" in e for e in errors))
         self.assertTrue(any("missing creative legacy index" in e for e in errors))
-
-    def test_catalog_ignores_and_validator_rejects_other_declarations(self) -> None:
-        self.build_minimal_tree()
-        expected = VALIDATOR.collect_card_catalog()
-        for rel in (
-            "SKILL.md", "plan-assistant-writing/SKILL.md", "execute-assistant-research/SKILL.md",
-            "references/execute/index.md", "execute-assistant-search/references/lookup.md",
-            "execute-assistant-creative/references/legacy/nested/hidden.md", "docs/cards.md",
-        ):
-            with self.subTest(rel=rel):
-                path = self.root / rel
-                original = path.read_text() if path.is_file() else None
-                self.write(rel, "---\ncard_units:\n- name: sneaky-unit\n  assignee: engineer\n---\n")
-                self.assertEqual(expected, VALIDATOR.collect_card_catalog())
-                self.assertTrue(any("card_units are only legal" in e and rel in e for e in self.validate()))
-                if original is not None:
-                    path.write_text(original)
-                else:
-                    path.unlink()
 
     def test_markdown_links_are_confined_in_every_domain(self) -> None:
         self.build_minimal_tree()
@@ -458,13 +345,12 @@ class AssistantCrossProfileStructureTest(unittest.TestCase):
             VALIDATOR, "HERMES_ROOT", public
         ):
             errors = []
-            refs, catalog = VALIDATOR.validate_assistant_pipeline(errors)
+            refs = VALIDATOR.validate_assistant_pipeline(errors)
             for capability in ("creative", "engineering", "writing", "research", "search"):
                 getattr(VALIDATOR, f"validate_{capability}_alignment")(errors)
             for profile in VALIDATOR.WORKER_PROFILES:
                 kernel = public / "profiles" / profile / "skills" / f"{profile}-pipeline/SKILL.md"
                 self.assertTrue(kernel.is_file(), f"public worker kernel missing: {kernel}")
-                VALIDATOR.validate_worker_card_gate(profile, catalog, errors)
             hands_leaves = {}
             for profile in VALIDATOR.HANDS_PROFILES:
                 hands_pipeline = public / "profiles" / profile / "skills" / f"{profile}-pipeline"
@@ -473,8 +359,6 @@ class AssistantCrossProfileStructureTest(unittest.TestCase):
             VALIDATOR.validate_hands_subjects(hands_leaves, errors)
             VALIDATOR.validate_hands_routing(hands_leaves, errors)
             self.assertGreater(refs, 0)
-            self.assertEqual({unit: who for cards in CARDS.values() for unit, who in cards.items()}, catalog)
-            self.assertEqual(catalog, VALIDATOR.collect_card_catalog())
             self.assertEqual([], errors, "\n".join(errors))
 
 
@@ -873,7 +757,7 @@ class LearnedPlacementTest(unittest.TestCase):
             "  external_dirs: []\n"
             "  create_dir: skills/learned\n"
             "plugins:\n"
-            "  enabled: [skill-topology, kanban-worker-mutation-guard]\n"
+            "  enabled: [skill-topology]\n"
         )
         errors: list[str] = []
         VALIDATOR.validate_plugin_enabled("researcher", config, errors)
@@ -883,7 +767,7 @@ class LearnedPlacementTest(unittest.TestCase):
         for skills_block in ("skills:\n  external_dirs: []\n", "skills:\n  create_dir: skills\n", ""):
             with self.subTest(skills_block=skills_block):
                 config = self.write_config(
-                    f"{skills_block}plugins:\n  enabled: [skill-topology, kanban-worker-mutation-guard]\n"
+                    f"{skills_block}plugins:\n  enabled: [skill-topology]\n"
                 )
                 errors: list[str] = []
                 VALIDATOR.validate_plugin_enabled("researcher", config, errors)

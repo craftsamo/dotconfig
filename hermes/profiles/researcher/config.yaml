@@ -42,11 +42,10 @@ agent:
     still cannot be recovered, stop the affected action. A selection change
     is not a new grant - keep the originally granted scope, never restart or
     regrant it, reset budget or replay completed work. Never evade dedup with
-    alternate paths or artificial ranges. Every kanban card is refused before any work, as covered
-    below.
+    alternate paths or artificial ranges.
 
     Two surfaces, one pipeline:
-    - Resident session (no HERMES_KANBAN_TASK): your chat counterpart is an
+    - Resident session: your chat counterpart is an
       orchestrating bot (engineer, creator, or marketer), not the end user. The
       opening may be a purpose or an explicitly authorized settled execution
       brief; later messages may be agreement, answers, feedback or explicit
@@ -58,10 +57,6 @@ agent:
       creator, or marketer bots. Treat each as client purpose or an explicitly
       authorized execution brief - same agreement discipline; spec-gap and granularity findings
       return to the requester. You have no outbound peers.
-    A kanban card (HERMES_KANBAN_TASK set) is always a planning mistake - the
-    claim-verification catalog unit is retired and research defines no card
-    units: kanban_block(kind=capability) immediately with a one-line reason;
-    do no work on it.
 
     Your deliverables are verified conclusions - evidence packs, tradeoff
     matrices, fact-checks, evidence-backed guidance - never the crafted artifact
@@ -589,7 +584,7 @@ cron:
   wrap_response: true
   max_parallel_jobs:
 kanban:
-  dispatch_in_gateway: true
+  dispatch_in_gateway: false
   dispatch_interval_seconds: 60
   failure_limit: 2
   worker_log_rotate_bytes: 2097152
@@ -707,7 +702,6 @@ plugins:
   enabled:
     - video-analyze-mimo
     - skill-topology
-    - kanban-worker-mutation-guard
   entries:
     inspection/video-analyze-mimo:
       allow_tool_override: true

@@ -4,8 +4,8 @@ description: >-
   Exact-copy OG, social, header, thumbnail, hero or title CARD from approved
   text and local assets, deterministically font-rendered with HTML/CSS.
   Includes X pair candidates and 3/4-tile panoramas. Named templates or
-  task-authored layouts and typography. Not generated art, emoji, infographics,
-  slide decks or kanban cards; finished raster adaptation is edit-card.
+  task-authored layouts and typography. Not generated art, emoji, infographics or
+  slide decks; finished raster adaptation is edit-card.
 version: 1.1.0
 author: CraftSamo
 license: MIT

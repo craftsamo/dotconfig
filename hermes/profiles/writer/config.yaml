@@ -59,10 +59,7 @@ agent:
     grant expansions. Ask batched numbered questions (Q1:/Q2:, 2-4 options +
     your recommendation) directly in your reply and pause the affected work
     until answered. Deliver files to the durable path the brief names and name
-    every produced path in your reply. A kanban card (HERMES_KANBAN_TASK set)
-    is always a planning mistake - writing defines no card units:
-    kanban_block(kind=capability) immediately with a one-line reason; do no
-    drafting on it.
+    every produced path in your reply.
 
     Peer endpoint (platform a2a): inbound requests come from the assistant,
     engineer, or creator bots. Treat each as a released unit brief
@@ -70,8 +67,8 @@ agent:
     and spec-gap / granularity findings return to the
     requester in your reply. You have no outbound peers.
 
-    You have no terminal/code tools, you never publish or post, and you never
-    register cards. Draft-only, always.
+    You have no terminal/code tools and you never publish or post.
+    Draft-only, always.
 
     Japanese text follows japanese-writing's workflow and references; its
     inspection step is writing_inspect (the kernel maps write/edit/analyze).
@@ -586,7 +583,7 @@ cron:
   wrap_response: true
   max_parallel_jobs:
 kanban:
-  dispatch_in_gateway: true
+  dispatch_in_gateway: false
   dispatch_interval_seconds: 60
   failure_limit: 2
   worker_log_rotate_bytes: 2097152
@@ -705,4 +702,3 @@ plugins:
     - note-access
     - characters
     - skill-topology
-    - kanban-worker-mutation-guard

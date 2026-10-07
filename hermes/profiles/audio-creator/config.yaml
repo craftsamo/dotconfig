@@ -727,7 +727,7 @@ cron:
   wrap_response: true
   max_parallel_jobs:
 kanban:
-  dispatch_in_gateway: true
+  dispatch_in_gateway: false
   dispatch_interval_seconds: 60
   failure_limit: 2
   worker_log_rotate_bytes: 2097152

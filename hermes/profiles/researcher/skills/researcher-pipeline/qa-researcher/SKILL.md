@@ -17,8 +17,7 @@ metadata:
 <ReadBeforeWork>
 
 Load `skill_view(name="researcher-pipeline")` first, including on direct entry,
-and run its card gate before checking: refuse every kanban card with
-`kanban_block(kind=capability)`. On every inbound turn/completion and before a
+before checking. On every inbound turn/completion and before a
 midturn phase, unit or scope change, reselect and load this phase and its
 selected unit using `skill_view(name="qa-researcher")` and
 `skill_view(name="qa-researcher", file_path="references/<unit>.md")`.

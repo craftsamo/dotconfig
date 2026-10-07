@@ -68,8 +68,6 @@ fallback for when `x_search` is unavailable, within a capped share of the
 shared X reads. It never gets the messaging tools, the user's own drafts,
 statistics or channels, or any write.
 
-Searcher defines no card units, like Researcher, Marketer, Engineer and Writer:
-a kanban card is refused with `kanban_block(kind=capability)` before any phase.
 Its last cards were the `survey-enumeration` and `exhaustive-hunt` units, which
 ran a hunt through a `goal_mode` loop with a completion judge. Both are gone,
 and so is `goal_mode`: a long or multi-hop retrieval is one resident

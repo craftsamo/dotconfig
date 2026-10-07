@@ -33,9 +33,7 @@ images + captions), the parts split per `composite-media.md`.
 
 ## Pitfalls
 
-- Batch before anchor approval — the classic budget burn; also
-  anchor exploration on a card (cards require an APPROVED anchor as
-  input).
+- Batch before anchor approval — the classic budget burn.
 - A "set" whose items have no shared anchor definition — that is N
   independent Part units, cheaper planned as such.
 - Adaptive per-item drift (fresh seeds, paraphrased prompts,

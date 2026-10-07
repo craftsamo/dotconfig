@@ -6,9 +6,10 @@ inline:
 - Use the appropriate profile's cron
   (`hermes/profiles/<name>/cron/jobs.json`). Most recurring jobs belong on
   `assistant` (which hosts the gateway and runs cron continuously).
-- The job body should reference the workspace skill or the catalog card
-  dispatch it performs — a cron-originated card follows
-  `../../references/execute/kanban-lite.md` like any other.
+- The job body should reference the workspace skill it performs. Heavy work
+  that a job starts runs in a resident specialist session like any other.
+- Time-deferred one-off work ("do X on <date>") is a one-shot cron job, never
+  a note in chat memory.
 - Confirm the schedule with the user via `clarify` before registering.
 
 ## Job scripts you write

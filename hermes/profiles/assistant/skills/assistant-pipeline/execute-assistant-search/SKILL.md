@@ -1,6 +1,6 @@
 ---
 name: execute-assistant-search
-description: "Execute search: release retrieval units and source handoffs. Supervise resident sessions, including a multi-hop hunt; search never rides kanban and searchers never issue verdicts."
+description: "Execute search: release retrieval units and source handoffs. Supervise resident sessions, including a multi-hop hunt; searchers never issue verdicts."
 version: 1.0.0
 author: CraftSamo
 license: MIT
@@ -33,8 +33,7 @@ Read only applicable detail references below.
 # Search — execute
 
 The specialist is the **searcher** — retrieval hands; it gathers,
-it never concludes. Search is resident-only: the searcher defines no card
-units and refuses every kanban card. You release the plan's units one at a
+it never concludes. Search is resident-only. You release the plan's units one at a
 time and gate between them.
 
 ## Resident session
@@ -76,16 +75,12 @@ orchestration and cross-role dependencies.
    everything unnamed is preserved.
 4. **Accept → hand off or release the next unit.**
 
-## No cards
-
-Search never rides kanban, and a search card you register is refused by the
-searcher with `kanban_block(kind=capability)`.
+## Long retrievals
 
 - A long or multi-hop retrieval is one conversation: keep the
   `conversation_id` and send a continue message; the searcher restates its
   ledger each turn and consumed budget carries over. A settled sweep or hunt
-  needs a full brief (question, coverage claim or done criteria, exclusions),
-  not a card.
+  needs a full brief (question, coverage claim or done criteria, exclusions).
 - Lookups run inline, through `delegate_task`, or as a session turn.
 - Gap-filling after QA (thin coverage, dead links) is a feedback turn in the
   same conversation, with a narrowed, itemized scope.
@@ -107,10 +102,9 @@ never reaches into the searcher's session:
 ## Pitfalls
 
 - Sending a 30-second lookup to a session.
-- Registering a search card: there is no search unit on the board.
 - Deep multi-hop retrieval inline — it floods your own context.
 - Treating a purpose-first Plan request as malformed because it lacks detailed
-  questions, or sending that unsettled purpose as a Build request or card.
+  questions, or sending that unsettled purpose as a Build request.
 - Accepting rankings, recommendations, or verdicts from the
   searcher — retrieval-only is its floor; the defect is yours if
   you asked for them.

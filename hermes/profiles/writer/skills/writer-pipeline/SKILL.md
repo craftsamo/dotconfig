@@ -5,7 +5,7 @@ description: >-
   installed leaf's form, and execute only the released writing unit.
   Leaves own their procedure, references, QA and report. Pre-draft advice
   uses a bounded consultation; unsupported requests return for clarification.
-  Drafts only: no publishing, sending, code execution or kanban card units.
+  Drafts only: no publishing, sending or code execution.
 version: 8.0.0
 author: CraftSamo
 license: MIT
@@ -40,8 +40,7 @@ them. Use granted writing discretion without another interview. Return the
 exact changed units and their dependencies so the requester can recheck affected
 diagrams, narration or destination rendering, not restart all accepted work.
 
-Writer defines no card units. A kanban card is refused with
-`kanban_block(kind=capability)` before drafting. No terminal or code tools.
+No terminal or code tools.
 
 </Client>
 

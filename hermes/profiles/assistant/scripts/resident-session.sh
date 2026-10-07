@@ -4,7 +4,7 @@
 # The primitive for the "resident session" execution tier: heavy
 # interactive work (creation, writing, research, engineering) runs in a
 # persistent `hermes -p <profile> chat` session that the CALLER supervises
-# conversationally, instead of a kanban card round-trip. The caller is the
+# conversationally. The caller is the
 # assistant by default; since the 2026-09 director rebuild other primaries such
 # as the creator (its hands) and marketer supervise sessions of their own, so the
 # registry lives under the calling profile's home (derived from the
@@ -78,9 +78,8 @@ POLL_INTERVAL="${POLL_INTERVAL:-1}"
 LOCK_STALE_AFTER="${LOCK_STALE_AFTER:-60}"
 KILL_GRACE="${KILL_GRACE:-10}"
 
-# The assistant may run inside a worker/gateway process; the child CLI
-# must resolve its own profile HOME, and must never think it is a
-# kanban worker.
+# The assistant may run inside a gateway process; the child CLI must
+# resolve its own profile HOME, and must not inherit a dispatcher task marker.
 unset HERMES_HOME HERMES_KANBAN_TASK 2>/dev/null || :
 
 die() { printf 'resident-session: %s\n' "$*" >&2; exit 1; }

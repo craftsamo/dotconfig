@@ -15,7 +15,6 @@ spec.loader.exec_module(validator)
 
 ENTRIES = ("plan-searcher", "build-searcher", "qa-searcher")
 UNITS = ("lookup", "sweep", "hunt")
-CATALOG = {"anchored-image-batch": "creator", "deterministic-render": "creator"}
 
 
 def test_exact_entries_and_owned_procedures():
@@ -62,7 +61,6 @@ def test_profile_selection_contract_and_unchanged_tool_surface():
         "full searcher-pipeline kernel", "not a past load, summary or root preload",
         "unchanged", "earlier body is unavailable", "read_file", "next_offset",
         "stop the affected search", "caller's release", "selected unit references",
-        "Searcher defines no card units", "kanban_block(kind=capability)",
     ):
         assert phrase in prompt
     assert "Workflow v5" not in prompt
@@ -82,13 +80,8 @@ def test_profile_selection_contract_and_unchanged_tool_surface():
     assert config["skills"]["inline_shell"] is False
 
 
-def test_kernel_defines_no_cards_and_keeps_release_boundaries():
-    errors = []
-    validator.validate_worker_card_gate("searcher", CATALOG, errors)
-    assert not errors
+def test_kernel_keeps_release_boundaries():
     text = " ".join((PIPELINE / "SKILL.md").read_text().split())
-    assert "Searcher defines no card units" in text
-    assert "refused with `kanban_block(kind=capability)`" in text
     for unit in ("survey-enumeration", "exhaustive-hunt"):
         assert unit not in text
     for phrase in (
@@ -101,7 +94,7 @@ def test_kernel_defines_no_cards_and_keeps_release_boundaries():
         assert "goal_mode" not in body and "kanban_complete" not in body, path.name
     for name in ENTRIES:
         block = (PIPELINE / name / "SKILL.md").read_text().split("</ReadBeforeWork>", 1)[0]
-        assert "Direct entry requires" in block and "kanban card" in block and "card gate" not in block
+        assert "Direct entry requires" in block and "card gate" not in block
         block = " ".join(block.split())
         assert "does not restart coverage or the frontier, reset a budget" in block
         assert "caller's release" in block
@@ -123,7 +116,7 @@ def test_missing_entry_fails(candidate, name):
 
 @pytest.mark.parametrize("token", (
     'skill_view(name="searcher-pipeline")', "${HERMES_SKILL_DIR}/../SKILL.md",
-    "not a past load or summary", "read_file", "next_offset", "stop", "kanban card",
+    "not a past load or summary", "read_file", "next_offset", "stop",
     "full-body", "current context", "unchanged", "earlier body is unavailable",
     "${HERMES_SKILL_DIR}/SKILL.md", "${HERMES_SKILL_DIR}/references/<unit>.md",
     "caller's release",
@@ -176,15 +169,6 @@ def test_incidental_dotfiles_do_not_change_topology(candidate):
     assert not errors
 
 
-@pytest.mark.parametrize("name", ENTRIES)
-def test_catalog_cannot_be_redeclared_on_child(candidate, name):
-    entry = candidate / name / "SKILL.md"
-    entry.write_text(entry.read_text().replace("version: 2.0.0", "card_units: []\nversion: 2.0.0"))
-    errors = []
-    validator.validate_searcher_entries(candidate, errors)
-    assert any("searcher must not declare card_units" in error for error in errors)
-
-
 @pytest.mark.parametrize("relative", (
     "SKILL.md", "build-searcher/SKILL.md", "build-searcher/references/hunt.md",
     "plan-searcher/references/hunt.md", "qa-searcher/references/hunt.md",
@@ -195,25 +179,6 @@ def test_goal_mode_cannot_return_without_cards(candidate, relative):
     errors = []
     validator.validate_searcher_entries(candidate, errors)
     assert any("has no goal_mode" in error and path.name in error for error in errors)
-
-
-def test_kernel_must_declare_no_card_units_and_refuse_cards(tmp_path, monkeypatch):
-    skills = tmp_path / "profiles/searcher/skills"
-    shutil.copytree(PIPELINE, skills / "searcher-pipeline")
-    kernel = skills / "searcher-pipeline/SKILL.md"
-    monkeypatch.setattr(validator, "HERMES_ROOT", tmp_path)
-    errors = []
-    validator.validate_worker_card_gate("searcher", CATALOG, errors)
-    assert not errors
-    original = kernel.read_text()
-    kernel.write_text(original.replace("defines no card units", "handles cards"))
-    errors = []
-    validator.validate_worker_card_gate("searcher", CATALOG, errors)
-    assert any('"defines no card units"' in error for error in errors)
-    kernel.write_text(original.replace("kanban_block(kind=capability)", "kanban_block()"))
-    errors = []
-    validator.validate_worker_card_gate("searcher", CATALOG, errors)
-    assert any("kanban_block(kind=capability)" in error for error in errors)
 
 
 @pytest.mark.parametrize("link, expected", (
@@ -247,7 +212,7 @@ def test_worker_wires_entries_and_detects_learned_collision(tmp_path, monkeypatc
     monkeypatch.setattr(validator, "validate_git_boundary", boundary)
     monkeypatch.setattr(validator, "validate_plugin_enabled", plugins)
     errors = []
-    assert validator.validate_worker("searcher", errors, catalog=CATALOG) == (3, 0)
+    assert validator.validate_worker("searcher", errors) == (3, 0)
     assert not errors
     boundary.assert_called_once()
     plugins.assert_called_once()
@@ -255,7 +220,7 @@ def test_worker_wires_entries_and_detects_learned_collision(tmp_path, monkeypatc
     learned.mkdir(parents=True)
     (learned / "SKILL.md").write_text(f"---\nname: {name}\ndescription: Collision\n---\n")
     errors = []
-    validator.validate_worker("searcher", errors, catalog=CATALOG)
+    validator.validate_worker("searcher", errors)
     assert f"duplicate searcher skill name: {name}" in errors
 
 
@@ -293,8 +258,7 @@ def test_declared_policy_not_model_routing_compliance():
     plan = " ".join((PIPELINE / "plan-searcher/SKILL.md").read_text().split())
     qa = " ".join((PIPELINE / "qa-searcher/SKILL.md").read_text().split())
     for phrase in (
-        "Searcher defines no card units", "refused with `kanban_block(kind=capability)`",
-        "before any phase", "no reset, new grant or replay", "Fields or transport",
+        "no reset, new grant or replay", "Fields or transport",
     ):
         assert phrase.lower() in root.lower()
     for gone in ("valid card is already released", "no new Plan negotiation or approval",
@@ -333,14 +297,6 @@ def test_kernel_must_link_every_phase(candidate, name):
 def test_phase_must_link_owned_reference(candidate, name, unit):
     entry = candidate / name / "SKILL.md"
     entry.write_text(entry.read_text().replace(f"(references/{unit}.md)", ""))
-    errors = []
-    validator.validate_searcher_entries(candidate, errors)
-    assert errors
-
-
-def test_reference_cannot_redeclare_cards(candidate):
-    ref = candidate / "build-searcher/references/sweep.md"
-    ref.write_text("---\ncard_units: []\n---\n" + ref.read_text())
     errors = []
     validator.validate_searcher_entries(candidate, errors)
     assert errors

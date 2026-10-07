@@ -60,7 +60,6 @@ def test_candidate_topology_and_always_on_contract():
     for token in ("every", "turn", "completion", "mid", "phase", "unit", "read_file",
                   "next_offset", "stop", "scope", "budget", "references/<unit>.md"):
         assert token in prompt.lower()
-    assert "kanban_block(kind=capability)" in prompt
     assert "artifact-vs-brief quality verdicts" in prompt
     assert "terminal" not in config["toolsets"]
     assert set(config["toolsets"]) == {"file", "web", "vision", "video", "skills", "memory", "delegation"}
@@ -97,7 +96,7 @@ def test_worker_integration(tmp_path, monkeypatch):
     # Only Git ownership is outside this synthetic structure test.
     monkeypatch.setattr(VALIDATOR, "validate_git_boundary", lambda *args: None)
     errors = []
-    count, learned = VALIDATOR.validate_worker("researcher", errors, catalog={})
+    count, learned = VALIDATOR.validate_worker("researcher", errors)
     assert count == 3 and learned == 0
     assert errors == []
 
@@ -119,8 +118,6 @@ def test_worker_integration(tmp_path, monkeypatch):
     ("missing_plan", "reference missing ## Plan"),
     ("missing_build", "reference missing ## Output template"),
     ("missing_qa", "reference missing ## Verification"),
-    ("card", "defines no card units"),
-    ("reference_card", "defines no card units"),
     ("reference_name", "reference must not declare a skill name"),
     ("escaping_link", "broken/escaping researcher link"),
     ("escaping_symlink", "must not contain symlinks"),
@@ -160,10 +157,9 @@ def test_invalid_entries(tmp_path, mutation, expected):
         reference = tree / f"{phase}-researcher/references/fact-check.md"
         heading = {"plan": "## Plan", "build": "## Output template", "qa": "## Verification"}[phase]
         reference.write_text(reference.read_text().replace(heading, "## Removed"))
-    elif mutation in {"reference_card", "reference_name"}:
+    elif mutation == "reference_name":
         reference = tree / "build-researcher/references/fact-check.md"
-        declaration = "card_units: []" if mutation == "reference_card" else "name: hidden-fact-check"
-        reference.write_text(f"---\n{declaration}\n---\n" + reference.read_text())
+        reference.write_text("---\nname: hidden-fact-check\n---\n" + reference.read_text())
     else:
         if mutation == "wrong_name":
             text = text.replace("name: build-researcher", "name: different")
@@ -179,8 +175,6 @@ def test_invalid_entries(tmp_path, mutation, expected):
             text = text.replace("Reuse only full bodies in current context", "Use remembered summaries")
         elif mutation == "missing_output":
             text = text.replace("## Output template", "## Unspecified output")
-        elif mutation == "card":
-            text = text.replace("version: 1.0.0", "version: 1.0.0\ncard_units: []")
         elif mutation == "escaping_link":
             (tmp_path / "outside.md").write_text("# Outside fixture\n")
             text += "\n[Outside](../../outside.md)\n"
@@ -217,15 +211,12 @@ def test_declared_phase_agreement_and_continuity_contract():
         text = " ".join((TREE / name / "SKILL.md").read_text().split())
         assert "not a new grant" in text
         assert "budget reset or permission to replay work" in text
-        assert "kanban_block(kind=capability)" in text
-        assert "every kanban card" in text
-        assert "direct entry" in text and "card gate before" in text
+        assert "direct entry" in text
         assert "every inbound turn/completion" in text and "midturn phase, unit or scope change" in text
         assert "Reuse only full bodies in current context" in text
         assert "unchanged with a missing body" in text or "unchanged with a missing" in text
         assert "next_offset" in text and "stop the affected action" in text
         assert "Never evade dedup with alternate paths or artificial ranges" in text
-        assert "kanban_attach" not in text and "**Card runtime:**" not in text
 
 
 @pytest.mark.parametrize("unit,fields", [
@@ -271,7 +262,6 @@ def test_declared_source_floors_and_shared_gather():
     gather = " ".join((TREE / "references/gather.md").read_text().split())
     for token in ("delegate_task", "Heavy breadth", "orchestrator", "trust scoring", "Open for researcher"):
         assert token in gather
-    assert "kanban runtime" not in gather
 
 
 def test_real_runtime_discovery_reads_and_recovery():

@@ -8,17 +8,6 @@ metadata:
   hermes:
     category: assistant-pipeline
     tags: ["execute", "creative"]
-card_units:
-  - name: anchored-image-batch
-    assignee: creator
-    required_inputs: [approved-style-anchor, approved-backend, per-item-spec-list, durable-output-path]
-    unit_cap: "one batch of independent images, all from the same approved anchor; per-item specs fixed in the body"
-    runtime_cap: 1800
-  - name: deterministic-render
-    assignee: creator
-    required_inputs: [final-data, template-or-format-spec, durable-output-path]
-    unit_cap: "one diagram/chart/render from fixed data — no creative interpretation"
-    runtime_cap: 900
 ---
 
 <ReadBeforeWork>
@@ -146,7 +135,7 @@ new approval, not a silent continuation on an obsolete preview.
 
 Stay in Execute on normal Creator completion; do not load
 `qa-assistant-creative` or request another Creator inspection. This also applies
-to confirmed legacy units and creative cards. Read the returned report for its
+to confirmed legacy units. Read the returned report for its
 output kind, durable paths, producer check status, obvious conflicts with settled
 constraints and spend. Do not mandate visual looks, remeasurements, a new QA
 report or autonomous aesthetic corrections before showing the candidate.
@@ -181,5 +170,4 @@ not an automatic revision grant.
 ## Confirmed legacy work
 
 Only Creator-confirmed legacy unit work loads
-[legacy/index.md](references/legacy/index.md). The two `card_units` above remain the
-entire creative kanban catalog; a new Client guide creates no new card type.
+[legacy/index.md](references/legacy/index.md).

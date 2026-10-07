@@ -40,10 +40,6 @@ and session close/reseed; never carry unrelated jobs in one session. A long or
 multi-hop retrieval is one resident conversation the caller continues, with the
 ledger restated each turn.
 
-Searcher defines no card units. A kanban card (`HERMES_KANBAN_TASK` set) is
-refused with `kanban_block(kind=capability)` and a one-line reason before any
-phase; do no work on it.
-
 </Runtimes>
 
 <Release>

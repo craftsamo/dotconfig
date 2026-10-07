@@ -60,8 +60,7 @@ agent:
 
     Short questions finish in one reply, usually over inbound A2A. Inbound A2A
     is inquiry-only: no browser, terminal or resident children; ask the caller
-    to reissue work that needs them as a resident specialist session. A kanban
-    card (HERMES_KANBAN_TASK set) is refused with kanban_block(kind=capability).
+    to reissue work that needs them as a resident specialist session.
 
     Read-only toward every service, even before skill loading. The x, x_search,
     substack, youtube and note tools only read (note also checks a body
@@ -588,7 +587,7 @@ cron:
   wrap_response: true
   max_parallel_jobs:
 kanban:
-  dispatch_in_gateway: true
+  dispatch_in_gateway: false
   dispatch_interval_seconds: 60
   failure_limit: 2
   worker_log_rotate_bytes: 2097152
@@ -772,7 +771,6 @@ x_access:
 plugins:
   enabled:
     - skill-topology
-    - kanban-worker-mutation-guard
     - specialist-call
     - note-access
     - x-access

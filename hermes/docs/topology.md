@@ -9,16 +9,16 @@ Process topology, the multiplex gateway and A2A peer graph, delegation layers, t
           │                │        │        │        │
         default        assistant engineer creator marketer   ← four PRIMARY bots
         (CLI)              │      (all adapters live in ONE multiplex gateway
-          │                │       process, hosted by default; + dispatcher)
+          │                │       process, hosted by default)
           └──────┬─────────┘
                  │                        peer graph (specialist_call; A2A = localhost HTTP):
         ┌────────┼──────────────────┐       assistant → engineer creator marketer writer (+ resident searcher)
         │ resident sessions         │       engineer  → marketer researcher writer
-        │ lean kanban cards         │       creator   → engineer marketer researcher writer
-        │ delegate_task             │                   + image-creator video-creator audio-creator
+        │ delegate_task             │       creator   → engineer marketer researcher writer
+        │                           │                   + image-creator video-creator audio-creator
         ▼                           ▼       marketer  → researcher
   hermes -p <specialist>   anonymous subagents      (writer / researcher / hands: receive-only;
-  chat --resume <id> / ~/.hermes/kanban.db           searcher: no endpoint — resident/kanban only)
+  chat --resume <id>                       searcher: no endpoint — resident only)
 ```
 
 Four profiles are **primaries** — assistant (the original front door),
@@ -31,8 +31,8 @@ persistent `hermes -p <specialist> chat` started by `specialist_call(kind="work"
 and supervised turn by turn); short `kind="inquiry"` requests use configured A2A
 peers. This grants assistant no direct researcher access and gives the hands no
 delegation tools. Allowlists, completion, ownership and failure handling:
-[specialist-calls](./profiles/specialist-calls.md). The board remains for work
-where conversation adds nothing.
+[specialist-calls](./profiles/specialist-calls.md). Work where conversation adds
+nothing runs as a cron job.
 
 ### Multiplex gateway and A2A peer graph
 
@@ -40,8 +40,7 @@ where conversation adds nothing.
   every profile directory under `profiles/` (there is no allowlist; a profile
   leaves only when parked by `hermes -p <name> gateway stop`, so never run that
   on a role that must stay reachable). It hosts their adapters, the A2A
-  endpoints and the embedded dispatcher, which sweeps **all** boards each tick
-  (`gateway/kanban_watchers.py`) and ticks each profile's cron store; secondary
+  endpoints and ticks each profile's cron store; secondary
   profiles never start their own (see [operations](./operations.md) "Gateway as
   a persistent service"). Profiles without platforms (searcher) are served
   too, so each carries `secrets.command` like the rest.
@@ -57,26 +56,19 @@ where conversation adds nothing.
   from `secrets.command` → `scripts/profile-secrets.sh <profile>`, and only
   raw-env readers (`BU_CDP_URL`, dashboard auth) see the launcher env. See
   [`models-auth.md`](./models-auth.md) "Secrets layering".
-- **One shared board** at the base `~/.hermes/kanban.db`
-  (`get_default_hermes_root()`, not profile-scoped).
-- **Workers spawn through the PATH `hermes`**: the dispatcher runs
-  `hermes -p <worker> … chat -q "work kanban task <id>"` via `shutil.which` (so the
-  `bin/hermes` shim is used) with a copy of the gateway env and `HERMES_HOME`
-  overridden, so workers get the `global` + `hermes` Keychain layers — no
-  per-worker secret is needed.
 
-## Three delegation layers
+## Two delegation layers
 
-|            | Resident session                                                    | Kanban                                                               | `delegate_task`          |
-| ---------- | ------------------------------------------------------------------- | -------------------------------------------------------------------- | ------------------------ |
-| Worker     | **named profile** session with living context                       | **named profile**, fresh process per run                             | anonymous subagent       |
-| Dialogue   | conversational turns (feedback in minutes)                          | STATE/Q<n>/DECISION comments + block round-trips                     | none — one shot          |
-| Durability | session registry + durable-path files                               | persistent queue, resumable                                          | dies with the turn       |
-| Requires   | terminal + the wrapper script                                       | a running gateway (the dispatcher)                                   | nothing                  |
-| Use for    | **default for heavy work**: anything you expect to give feedback on | fire-and-forget, cron-originated, mass-parallel, `scheduled` parking | in-turn parallel lookups |
+|            | Resident session                                                    | `delegate_task`          |
+| ---------- | ------------------------------------------------------------------- | ------------------------ |
+| Worker     | **named profile** session with living context                       | anonymous subagent       |
+| Dialogue   | conversational turns (feedback in minutes)                          | none — one shot          |
+| Durability | session registry + durable-path files                               | dies with the turn       |
+| Requires   | terminal + the wrapper script                                       | nothing                  |
+| Use for    | **default for heavy work**: anything you expect to give feedback on | in-turn parallel lookups |
 
 **Fallback story:** resident sessions work whenever `hermes` runs — no gateway
-needed. Gateway up adds the board for fire-and-forget work; gateway down,
+needed. Gateway up adds cron for fire-and-forget work; gateway down,
 `default` still parallelizes via `delegate_task`. A specialist may itself call
 `delegate_task` during its run.
 
@@ -84,8 +76,8 @@ needed. Gateway up adds the board for fire-and-forget work; gateway down,
 
 | Profile           | Role                                                                                                                                                                                                                                                                                         | Front door           | `terminal.cwd`         | Toolsets                                                                                                                                                           | Gateway                      | Tracked               |
 | ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------- | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------- | --------------------- |
-| **default**       | CLI front door — assistant's CLI counterpart (neutral persona); hosts the multiplex gateway                                                                                                                                                                                                  | CLI                  | `.` (launch dir)       | `web,browser,terminal,file,code_execution,vision,x_search,skills,todo,memory,clarify,delegation,cronjob,kanban`                                                    | host                         | yes                   |
-| **assistant**     | primary: messaging front door, dispatcher home board, non-creative quality gate, GitHub bookkeeping                                                                                                                                                                                          | Telegram + Discord   | `~/Workspaces`         | `web,browser,terminal,file,vision,x_search,skills,todo,memory,clarify,delegation,cronjob,computer_use,kanban,specialist,opencode,characters` + `unreal-engine` MCP | served                       | yes (private overlay) |
+| **default**       | CLI front door — assistant's CLI counterpart (neutral persona); hosts the multiplex gateway                                                                                                                                                                                                  | CLI                  | `.` (launch dir)       | `web,browser,terminal,file,code_execution,vision,x_search,skills,todo,memory,clarify,delegation,cronjob`                                                    | host                         | yes                   |
+| **assistant**     | primary: messaging front door, non-creative quality gate, GitHub bookkeeping                                                                                                                                                                                          | Telegram + Discord   | `~/Workspaces`         | `web,browser,terminal,file,vision,x_search,skills,todo,memory,clarify,delegation,cronjob,computer_use,specialist,opencode,characters` + `unreal-engine` MCP | served                       | yes (private overlay) |
 | **engineer**      | developer using OpenCode; human/Assistant Clients; technical planning, approved implementation through PR and UI QA; Issue writes only on explicit request                                                                                                                                   | Telegram (own bot)   | explicit task worktree | `terminal,file,web,browser,vision,skills,todo,memory,clarify,delegation,specialist,opencode`                                                                       | bot + inquiry-only a2a :9902 | yes                   |
 | **researcher**    | purpose-first depth Plan / Build / QA: evidence-pack / tradeoff-matrix / fact-check / guidance; proposes own-role scope, requests heavy breadth from the caller; serves engineer/creator/marketer only (not Assistant directly), cards refused                                               | — (A2A receive-only) | `.` (launch / task ws) | `file,web,vision,video,skills,memory,delegation`                                                                                                                   | served (a2a :9906)           | yes                   |
 | **searcher**      | purpose-first retrieval Plan / Build / QA: lookup / sweep / hunt; resident sessions only, cards refused; a multi-hop hunt is one conversation the caller continues                                                                                                                           | — (specialist)       | `.` (launch / task ws) | `file,web,x_search,x_access,youtube_access,note_access,substack_access,skills,memory`                                                                              | served (no platforms)        | yes                   |
@@ -102,9 +94,7 @@ The table lists each role's native capability allowlist.
 `platform_toolsets.<platform>` is the effective runtime allowlist and stays
 granular: the composite `hermes-cli` / `hermes-telegram` toolsets expand to a
 broad surface and strip default-off tools such as `video` / `video_gen`.
-Top-level `toolsets` mirrors the role; top-level `kanban` is also the front-door
-runtime gate, and dispatcher-spawned workers receive task-scoped Kanban lifecycle
-tools automatically.
+Top-level `toolsets` mirrors the role.
 
 - **Messaging lists.** The four bots (assistant, engineer, creator, marketer)
   carry real `telegram` lists; assistant alone adds `discord`. writer,
@@ -172,9 +162,6 @@ expose Writer's production leaves to solve a reference lookup.
 
 ### Two working directories per worker
 
-- **Kanban-dispatched work** runs in the task workspace
-  (`$HERMES_KANBAN_WORKSPACE`): `worktree:` for engineer (isolated + preserved),
-  `scratch` for the rest (ephemeral, deleted on completion).
 - **Direct / `delegate_task` work** starts in `terminal.cwd` — currently `.`
   (the launch dir) for most workers; pin an absolute path per worker for a fixed
   directory. `workspace/` is per-machine and never tracked.
@@ -206,11 +193,9 @@ Three per-profile layers, kept separate:
   remote-save consent before input; no publishing, scheduling or sending;
   reopened unpublished draft verification; uncertain effects never blindly
   retried); front doors = heavy work never runs in their
-  own turn, deliverables are verified before delivery, and blocked cards
-  resolve only through the guarded resolver after the one complete DECISION
-  batch; a second block or a capability/spec-gap block pulls the card back.
+  own turn, deliverables are verified before delivery.
   Each profile also states its **MEMORY.md policy**: durable cross-task facts
-  only (task state lives in the kanban thread + git/board; playbook-sized
+  only (task state lives in git and the session; playbook-sized
   knowledge becomes a skill), and `user_profile_enabled` is off for workers —
   they never converse with the human.
 
@@ -231,10 +216,9 @@ Three per-profile layers, kept separate:
   External directories remain provider-owned and never become local technics
   implicitly.
   - assistant → `assistant-pipeline` (Chat / Plan / Execute / Quality Assurance
-    over tiers inline / resident / kanban; `chat-assistant` and
+    over tiers inline / resident; `chat-assistant` and
     `{plan,execute,qa}-assistant-<domain>` children; resident sessions via
-    `resident-session.sh`; assistant-run QA contracts; the closed `card_units`
-    catalog only in authorized Execute SKILL frontmatter). Default's
+    `resident-session.sh`; assistant-run QA contracts). Default's
     `default-pipeline` records only terminal-specific deltas. External libraries
     via `skills.external_dirs`: official apple / creative / email / github / media
     / note-taking / productivity / research / smart-home / social-media plus

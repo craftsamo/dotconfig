@@ -74,7 +74,6 @@ RUNTIME_PYTEST_FILES = (
     "tests/agent/test_anthropic_oauth_invoke_recovery.py",
     "tests/agent/test_anthropic_oauth_billing_header.py",
     "tests/gateway/test_dm_topics.py",
-    "tests/gateway/test_kanban_notifier.py",
     "tests/gateway/test_auto_voice_reply_format.py",
     "tests/pm/test_runtime_journal_safety.py",
 )

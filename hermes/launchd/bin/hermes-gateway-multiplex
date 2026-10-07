@@ -5,8 +5,8 @@
 # `gateway.multiplex_profiles: true` (root config.yaml): the single process
 # hosts every served profile's adapters — assistant (Telegram + Discord),
 # engineer / creator / marketer (their own Telegram bots), and the A2A
-# peer endpoints (engineer/creator/marketer/writer/researcher) — plus the
-# embedded kanban dispatcher and each served profile's cron ticker.
+# peer endpoints (engineer/creator/marketer/writer/researcher) — plus each
+# served profile's cron ticker.
 #
 # Self-contained and machine-agnostic: every path is derived from $HOME, so the
 # tracked file has no hardcoded user/home. The LaunchAgent runs THIS script as
@@ -18,7 +18,7 @@
 # `secrets.command` fills from the Keychain via scripts/profile-secrets.sh.
 # The eval below still injects the `global` + `hermes` layers into the process
 # env for the raw-env readers (dashboard auth) and for the subprocesses that
-# inherit the gateway env (kanban workers, A2A forwards). No .env anywhere.
+# inherit the gateway env (A2A forwards). No .env anywhere.
 # BU_CDP_URL must NOT be in that layer: the browser-use driver copies it raw
 # from os.environ and it silently pre-empts real-profile browsing for every
 # multiplexed profile (tools/browser_use_cli.py: _has_cdp_env wins first).
@@ -30,8 +30,7 @@
 # takeover of another gateway. The ai.hermes.* job label (see the plist template) gives
 # Hermes its launchd identity for the drain budget.
 #
-# NOTE: no HERMES_PROFILE export here — the old assistant-only launcher pinned
-# it for the kanban comment identity, but under multiplex one process serves
+# NOTE: no HERMES_PROFILE export here — under multiplex one process serves
 # many profiles and a global pin would stamp every session with the wrong
 # author.
 set -e

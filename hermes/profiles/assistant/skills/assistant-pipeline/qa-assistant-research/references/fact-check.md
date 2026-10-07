@@ -4,8 +4,7 @@ The orchestrating assistant performs a read-only inspection of the
 verdicts in the reply — and the complete ledger at its durable path
 when the brief named a consumer — measured against the brief's
 claims list and source requirements. Applies wherever the unit
-traveled (a primary's session or its A2A peer request); the
-`claim-verification` card form is retired.
+traveled (a primary's session or its A2A peer request).
 
 ## Scope
 Inspect the verdict set as findings-only verification: claim

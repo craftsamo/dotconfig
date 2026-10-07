@@ -64,8 +64,7 @@ media) built on a conclusion is writer/creator work consuming it.
 
 A question that is really several questions, or a matrix whose option
 set keeps growing, is a **granularity finding** — decompose, never
-stretch the unit. No research unit rides kanban (the
-`claim-verification` card is retired) and none is released to the
+stretch the unit. No research unit is released to the
 researcher directly: the purpose or settled unit travels inside the brief of the
 consuming primary — engineer, creator, or marketer — whose peer the
 researcher is (`../execute-assistant-research/SKILL.md`).

@@ -155,13 +155,7 @@ class CreativeHandoffTest(unittest.TestCase):
                 )
         self.assertNotIn("voice-line sets", text(PLAN / "legacy/asset-set.md"))
 
-    def test_cards_stay_closed_and_unchanged(self):
-        execute = EXECUTE_ENTRY.read_text(encoding="utf-8")
-        frontmatter = execute.split("---", 2)[1]
-        self.assertEqual(re.findall(r"^  - name: (\S+)$", frontmatter, re.M),
-                         ["anchored-image-batch", "deterministic-render"])
-        self.assertEqual(re.findall(r"assignee: (\S+)", frontmatter), ["creator", "creator"])
-        self.assertEqual(re.findall(r"runtime_cap: (\d+)", frontmatter), ["1800", "900"])
+    def test_legacy_references_carry_no_frontmatter(self):
         for path in (EXECUTE / "legacy").rglob("*.md"):
             self.assertFalse(path.read_text(encoding="utf-8").startswith("---\n"))
 
@@ -199,8 +193,6 @@ class CreativeHandoffTest(unittest.TestCase):
         self.assertIn("Legacy is not an exception that restores routine Assistant QA",
                       text(EXECUTE / "legacy/index.md"))
         self.assertIn("ONLY for explicitly user-requested inspection", text(QA / "legacy/index.md"))
-        cards = text(ROOT / "references/execute/kanban-lite.md")
-        self.assertIn("Creative: use `../../execute-assistant-creative/SKILL.md` direct delivery", cards)
 
     def test_resident_handoff_distinguishes_outcome_from_authority_source(self):
         # Static contract check only, not live model behavior: the doc must

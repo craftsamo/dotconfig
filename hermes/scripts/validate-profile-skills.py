@@ -8,10 +8,9 @@
 The assistant profile owns a kernel and 19 flat, selectable entry skills
 under profiles/assistant/skills/assistant-pipeline/. Each entry owns its
 references; only common phase references remain beside the kernel.
-The closed kanban card catalog belongs to the creative and search Execute
-entries. The `default-pipeline` skill in the shared
+The `default-pipeline` skill in the shared
 skills/ dir is a thin CLI adapter over that tree. This validator checks the
-tree topology, the catalog schema, index routing completeness, worker
+tree topology, index routing completeness, worker
 pipeline/technic topology, plugin enablement, and Git ownership boundaries.
 """
 
@@ -53,7 +52,6 @@ HANDS_FIELD_TYPES = ("text", "image", "file", "path", "int")
 HANDS_NAME = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
 WRITER_VERBS = ("write", "edit", "analyze")
 ALL_PROFILES = ("assistant", *WORKER_PROFILES, *HANDS_PROFILES)
-WORKER_MUTATION_GUARD_PLUGIN = "kanban-worker-mutation-guard"
 EXPECTED_MODES = ("chat", "plan", "execute", "quality-assurance")
 EXPECTED_CAPABILITIES = {
     "creative",
@@ -75,15 +73,10 @@ ASSISTANT_ENTRIES = {
         for capability in EXPECTED_CAPABILITIES
     },
 }
-ASSISTANT_CARD_UNITS = {
-    "execute-assistant-creative": {
-        "anchored-image-batch": "creator", "deterministic-render": "creator"
-    },
-}
 # The sanctioned (mode, capability, subdir) shelf below entry references:
 # creative's legacy/, the flat home of retained production references with
 # fixed house prescriptions removed. Plan, execute and quality-assurance
-# each have one shelf; it never nests and never carries card_units.
+# each have one shelf; it never nests.
 CREATIVE_LEGACY_SHELVES = {
     ("plan", "creative", "legacy"),
     ("execute", "creative", "legacy"),
@@ -94,7 +87,7 @@ REQUIRED_MODE_FILES = {
     "chat": {"workspace-ops.md", "message-reply.md", "work-report.md", "cron.md", "lookups.md", "whatsapp.md",
              "signal.md", "discord.md", "telegram.md", "x.md", "note.md", "substack.md",
              "youtube.md", "google.md"},
-    "execute": {"resident-sessions.md", "kanban-lite.md", "scheduled.md"},
+    "execute": {"resident-sessions.md"},
 }
 # Verification contracts that must exist (migration-loss guard); extra
 # leaves may grow beside them as long as the dir index routes them.
@@ -126,7 +119,6 @@ REQUIRED_QA_CONTRACTS = {
     "search": {"lookup.md", "sweep.md", "hunt.md"},
     "writing": {"prose.md", "script.md"},
 }
-CARD_UNIT_NAME = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
 # Capabilities whose required QA contract floor lives under legacy/
 # rather than directly in qa-assistant-<capability>/references/.
 QA_CONTRACT_LEGACY_CAPABILITIES = {"creative"}
@@ -210,7 +202,7 @@ def validate_index_routes(directory: Path, errors: list[str]) -> None:
 
 
 def validate_creative_legacy_shelf(shelf: Path, mode: str, errors: list[str]) -> int:
-    """Retained legacy references stay flat and cannot register new cards."""
+    """Retained legacy references stay flat."""
     validate_index_routes(shelf, errors)
     files = 0
     for entry in sorted(shelf.iterdir()):
@@ -231,121 +223,25 @@ def validate_creative_legacy_shelf(shelf: Path, mode: str, errors: list[str]) ->
             errors.append(f"non-markdown reference: {rel_pipeline(entry)}")
             continue
         files += 1
-        if "card_units" in frontmatter(entry):
-            errors.append(
-                f"card_units are not permitted in the creative legacy shelf ({mode}): "
-                f"{rel_pipeline(entry)}"
-            )
     return files
 
 
-def validate_card_units(
-    path: Path,
-    seen: dict[str, Path],
-    errors: list[str],
-    catalog: dict[str, str] | None = None,
-) -> int:
-    units = frontmatter(path).get("card_units")
-    if units is None:
-        return 0
-    if not isinstance(units, list) or not units:
-        errors.append(f"card_units must be a non-empty list: {rel_pipeline(path)}")
-        return 0
-    count = 0
-    for unit in units:
-        if not isinstance(unit, dict):
-            errors.append(f"card_units entry must be a mapping: {rel_pipeline(path)}")
-            continue
-        name = unit.get("name")
-        if not isinstance(name, str) or not CARD_UNIT_NAME.match(name):
-            errors.append(
-                f"card_units name must be kebab-case: {name!r} in {rel_pipeline(path)}"
-            )
-            continue
-        if name in seen:
-            errors.append(
-                f"duplicate card unit {name}: {rel_pipeline(seen[name])} "
-                f"and {rel_pipeline(path)}"
-            )
-        seen[name] = path
-        assignee = unit.get("assignee")
-        if assignee not in WORKER_PROFILES:
-            errors.append(
-                f"card unit {name} assignee must be a worker profile "
-                f"({assignee!r}): {rel_pipeline(path)}"
-            )
-        elif catalog is not None:
-            catalog[name] = assignee
-        inputs = unit.get("required_inputs")
-        if (
-            not isinstance(inputs, list)
-            or not inputs
-            or any(not isinstance(item, str) or not item for item in inputs)
-        ):
-            errors.append(
-                f"card unit {name} required_inputs must be a non-empty "
-                f"string list: {rel_pipeline(path)}"
-            )
-        if not isinstance(unit.get("unit_cap"), str) or not unit["unit_cap"]:
-            errors.append(
-                f"card unit {name} unit_cap must be a non-empty string: "
-                f"{rel_pipeline(path)}"
-            )
-        runtime_cap = unit.get("runtime_cap")
-        if not isinstance(runtime_cap, int) or isinstance(runtime_cap, bool) or (
-            runtime_cap <= 0
-        ):
-            errors.append(
-                f"card unit {name} runtime_cap must be a positive integer: "
-                f"{rel_pipeline(path)}"
-            )
-        count += 1
-    return count
-
-
-def collect_card_catalog() -> dict[str, str]:
-    """Best-effort card catalog from the one authorized Execute entry (creative).
-
-    Used when validating a single worker profile without the full assistant
-    pass; schema errors are ignored here (the --all pass reports them).
-    """
-    catalog: dict[str, str] = {}
-    for name in sorted(ASSISTANT_CARD_UNITS):
-        path = ASSISTANT_PIPELINE / name / "SKILL.md"
-        if not path.is_file():
-            continue
-        units = frontmatter(path).get("card_units")
-        if not isinstance(units, list):
-            continue
-        for unit in units:
-            if not isinstance(unit, dict):
-                continue
-            name = unit.get("name")
-            assignee = unit.get("assignee")
-            if isinstance(name, str) and assignee in WORKER_PROFILES:
-                catalog[name] = assignee
-    return catalog
-
-
-def validate_assistant_pipeline(
-    errors: list[str],
-) -> tuple[int, dict[str, str]]:
+def validate_assistant_pipeline(errors: list[str]) -> int:
     """Validate the kernel, exhaustive entry set and owned reference trees.
 
-    Returns (markdown reference file count, card catalog name -> assignee).
+    Returns the markdown reference file count.
     """
-    catalog: dict[str, str] = {}
     # Hermes follows nested links but pathlib's recursive validation does
     # not, so reject them first.
     links = [path for path in ASSISTANT_PIPELINE.rglob("*") if path.is_symlink()]
     if links:
         for path in sorted(links):
             errors.append(f"assistant pipeline must not contain symlinks: {rel_pipeline(path)}")
-        return 0, catalog
+        return 0
     skill = ASSISTANT_PIPELINE / "SKILL.md"
     if not skill.is_file():
         errors.append(f"missing assistant pipeline skill: {skill}")
-        return 0, catalog
+        return 0
     validate_skill(skill, "assistant-pipeline", errors, expected_category="orchestration")
 
     allowed = {("SKILL.md",)} | {(name, "SKILL.md") for name in ASSISTANT_ENTRIES}
@@ -389,7 +285,6 @@ def validate_assistant_pipeline(
         ):
             errors.append(f"shared {mode} index must not recursively load an entry")
 
-    units: dict[str, Path] = {}
     for name, (mode, capability) in sorted(ASSISTANT_ENTRIES.items()):
         entry = ASSISTANT_PIPELINE / name
         entry_skill = entry / "SKILL.md"
@@ -470,23 +365,14 @@ def validate_assistant_pipeline(
                     errors.append(f"non-markdown reference: {rel_pipeline(leaf)}")
                 elif leaf.name == "index.md":
                     errors.append(f"entry index must be promoted to SKILL.md: {name}")
-        if name in ASSISTANT_CARD_UNITS:
-            entry_catalog: dict[str, str] = {}
-            validate_card_units(entry_skill, units, errors, entry_catalog)
-            if entry_catalog != ASSISTANT_CARD_UNITS[name]:
-                errors.append(f"assistant entry card catalog must be {ASSISTANT_CARD_UNITS[name]}: {name}")
-            catalog.update(entry_catalog)
 
     # Scan every document, including unexpected/nested directories, so an
-    # invalid shelf cannot hide a declaration or an escaping Markdown link.
+    # invalid shelf cannot hide an escaping Markdown link.
     files = 0
-    card_paths = {ASSISTANT_PIPELINE / name / "SKILL.md" for name in ASSISTANT_CARD_UNITS}
     for doc in sorted(ASSISTANT_PIPELINE.rglob("*.md")):
         files += doc.name != "SKILL.md"
         if doc.name == "SKILL.md" and doc.relative_to(ASSISTANT_PIPELINE).parts not in allowed:
             errors.append(f"unexpected skill root: {rel_pipeline(doc)}")
-        if doc not in card_paths and "card_units" in frontmatter(doc):
-            errors.append(f"card_units are only legal on the creative Execute SKILL.md: {rel_pipeline(doc)}")
         for link, target in markdown_links(doc):
             if not target.is_relative_to(ASSISTANT_PIPELINE.resolve()):
                 errors.append(f"assistant reference link escapes the pipeline: {link} in {rel_pipeline(doc)}")
@@ -505,7 +391,7 @@ def validate_assistant_pipeline(
                 f"QA contract file missing: {rel_pipeline(directory / name)}"
             )
 
-    return files, catalog
+    return files
 
 
 # ── Git ownership ───────────────────────────────────────────────────────
@@ -553,7 +439,6 @@ def untracked_managed_files() -> list[str]:
             "hermes/profiles/*/skills/*-pipeline/**",
             "hermes/profiles/*/skills/technic/**",
             "hermes/plugins/guards/skill-topology/**",
-            f"hermes/plugins/guards/{WORKER_MUTATION_GUARD_PLUGIN}/**",
         ],
         cwd=REPO_ROOT,
         check=True,
@@ -646,7 +531,7 @@ def validate_git_boundary(
 
 
 def validate_plugin_source(errors: list[str]) -> None:
-    for name in ("skill-topology", WORKER_MUTATION_GUARD_PLUGIN):
+    for name in ("skill-topology",):
         plugin = HERMES_ROOT / "plugins" / "guards" / name
         manifest = plugin / "plugin.yaml"
         implementation = plugin / "__init__.py"
@@ -677,12 +562,6 @@ def validate_plugin_enabled(profile: str, config: Path, errors: list[str]) -> No
     if create_dir != LEARNED_CREATE_DIR:
         errors.append(
             f"skills.create_dir must be {LEARNED_CREATE_DIR!r}, got {create_dir!r}: {config}"
-        )
-    if profile in WORKER_PROFILES and (
-        not isinstance(enabled, list) or WORKER_MUTATION_GUARD_PLUGIN not in enabled
-    ):
-        errors.append(
-            f"{WORKER_MUTATION_GUARD_PLUGIN} plugin is not enabled: {config}"
         )
 
 
@@ -826,57 +705,10 @@ def validate_assistant_messaging_config(
         )
 
 
-def validate_worker_card_gate(
-    profile: str, catalog: dict[str, str], errors: list[str]
-) -> None:
-    """The kernel's unit gate must mirror the assistant's card catalog.
-
-    A worker with catalog units must name each of them (backticked) in its
-    kernel; a worker with none must declare itself card-free. Every kernel
-    must carry the capability-refusal call, and none may claim another
-    profile's unit.
-    """
-    pipeline = (
-        HERMES_ROOT
-        / "profiles"
-        / profile
-        / "skills"
-        / f"{profile}-pipeline"
-        / "SKILL.md"
-    )
-    if not pipeline.is_file():
-        return
-    # Normalize whitespace so prose wrapped across lines still matches.
-    text = " ".join(pipeline.read_text(encoding="utf-8").split())
-    mine = sorted(name for name, who in catalog.items() if who == profile)
-    theirs = sorted(name for name, who in catalog.items() if who != profile)
-    for name in mine:
-        if f"`{name}`" not in text:
-            errors.append(
-                f"{profile} kernel does not name its catalog unit `{name}`"
-            )
-    if not mine and "defines no card units" not in text:
-        errors.append(
-            f"{profile} has no catalog units; its kernel must declare "
-            f'"defines no card units"'
-        )
-    if "kanban_block(kind=capability)" not in text:
-        errors.append(
-            f"{profile} kernel must refuse non-catalog cards with "
-            f"kanban_block(kind=capability)"
-        )
-    for name in theirs:
-        if f"`{name}`" in text:
-            errors.append(
-                f"{profile} kernel names another profile's catalog unit `{name}`"
-            )
-
-
 def validate_worker(
     profile: str,
     errors: list[str],
     dispatch: Path | None = None,
-    catalog: dict[str, str] | None = None,
 ) -> tuple[int, int]:
     profile_root = HERMES_ROOT / "profiles" / profile
     skills = profile_root / "skills"
@@ -962,8 +794,6 @@ def validate_worker(
                 if f"`{name}`" not in dispatch_text:
                     errors.append(f"dispatch reference does not name {name}")
 
-    if catalog is not None:
-        validate_worker_card_gate(profile, catalog, errors)
     if profile == "creator":
         validate_creator_references(pipeline_dir, errors)
     validate_git_boundary([pipeline_dir, technic_dir], learned_dir, errors)
@@ -976,7 +806,7 @@ SEARCHER_UNITS = ("lookup", "sweep", "hunt")
 
 
 def validate_searcher_entries(pipeline_dir: Path, errors: list[str]) -> dict[str, Path]:
-    """Three phase owners retain retrieval units; Searcher defines no card units."""
+    """Three phase owners retain retrieval units."""
     entries: dict[str, Path] = {}
     links = [path for path in pipeline_dir.rglob("*") if path.is_symlink()]
     if links:
@@ -1027,7 +857,7 @@ def validate_searcher_entries(pipeline_dir: Path, errors: list[str]) -> dict[str
             "${HERMES_SKILL_DIR}/references/<unit>.md",
             "full-body", "current context", "not a past load or summary",
             "unchanged", "earlier body is unavailable", "read_file", "next_offset",
-            "stop", "kanban card", "caller's release",
+            "stop", "caller's release",
         ):
             if required not in block:
                 errors.append(f"searcher entry ReadBeforeWork missing {required}: {name}")
@@ -1045,12 +875,9 @@ def validate_searcher_entries(pipeline_dir: Path, errors: list[str]) -> dict[str
                 if section not in body:
                     errors.append(f"searcher reference missing {section}: {reference.relative_to(pipeline_dir)}")
 
-    # Searcher defines no card units, and no goal_mode loop exists without a card.
     for path in sorted(pipeline_dir.rglob("*.md")):
-        if "card_units" in frontmatter(path):
-            errors.append(f"searcher must not declare card_units: {path}")
         if "goal_mode" in path.read_text(encoding="utf-8"):
-            errors.append(f"searcher defines no cards, so it has no goal_mode: {path}")
+            errors.append(f"searcher has no goal_mode loop: {path}")
         if path.name != "SKILL.md" and "name" in frontmatter(path):
             errors.append(f"searcher reference must not declare a skill name: {path}")
         for link, target in markdown_links(path):
@@ -1115,7 +942,7 @@ def validate_researcher_entries(pipeline_dir: Path, errors: list[str]) -> dict[s
             "${HERMES_SKILL_DIR}/../references/gather.md",
             "${HERMES_SKILL_DIR}/SKILL.md",
             "${HERMES_SKILL_DIR}/references/<unit>.md",
-            "read_file", "next_offset", "stop", "kanban_block(kind=capability)",
+            "read_file", "next_offset", "stop",
         ):
             if required not in before:
                 errors.append(f"researcher entry missing dependency/recovery {required}: {name}")
@@ -1137,8 +964,6 @@ def validate_researcher_entries(pipeline_dir: Path, errors: list[str]) -> dict[s
         if doc.is_symlink() or not doc.resolve().is_relative_to(pipeline_dir.resolve()):
             errors.append(f"researcher document escapes pipeline: {doc}")
             continue
-        if "card_units" in frontmatter(doc):
-            errors.append(f"researcher defines no card units: {doc.name}")
         if doc.name != "SKILL.md" and "name" in frontmatter(doc):
             errors.append(f"researcher reference must not declare a skill name: {doc}")
         for link, target in markdown_links(doc):
@@ -1224,8 +1049,6 @@ def validate_engineer_references(pipeline_dir: Path, errors: list[str]) -> dict[
                 errors.append(f"engineer {name} entry does not route {leaf}")
     root = pipeline_dir.resolve()
     for path in pipeline_dir.rglob("*.md"):
-        if "card_units" in frontmatter(path):
-            errors.append(f"engineer defines no card units: {path.relative_to(pipeline_dir)}")
         for link, target in markdown_links(path):
             if not target.is_relative_to(root):
                 errors.append(f"engineer reference escapes pipeline: {path.name}: {link}")
@@ -1331,8 +1154,6 @@ def validate_marketer_references(pipeline_dir: Path, errors: list[str]) -> dict[
     for doc in sorted(pipeline_dir.rglob("*.md")):
         if not doc.is_file():
             continue
-        if "card_units" in frontmatter(doc):
-            errors.append(f"marketer defines no card units: {doc.relative_to(pipeline_dir)}")
         linked = links_by_doc.setdefault(doc, set())
         for link, target in markdown_links(doc):
             if not target.is_relative_to(root):
@@ -1397,8 +1218,8 @@ def validate_writer_consultation(pipeline_dir: Path, errors: list[str]) -> dict[
         errors.append(f"Writer consultation description must frontload pre-draft advice: {path}")
     if not isinstance(meta.get("output"), str) or not meta["output"].strip():
         errors.append(f"Writer consultation must describe its advisory output: {path}")
-    if "form" in meta or "card_units" in data:
-        errors.append(f"Writer consultation is not a production form or card unit: {path}")
+    if "form" in meta:
+        errors.append(f"Writer consultation is not a production form: {path}")
     validate_writer_read_contract(path, pipeline_dir, errors)
     if (pipeline_dir / "references/consultation.md").exists():
         errors.append("retired Writer consultation reference must not duplicate the entry")
@@ -2288,15 +2109,13 @@ def validate_assistant_dm_topics(config: Path, errors: list[str]) -> None:
         )
 
 
-def validate_assistant(
-    errors: list[str],
-) -> tuple[int, dict[str, str], int, int]:
+def validate_assistant(errors: list[str]) -> tuple[int, int, int]:
     profile_root = HERMES_ROOT / "profiles" / "assistant"
     skills = profile_root / "skills"
     technic_dir = skills / "technic"
     learned_dir = skills / "learned"
 
-    refs, catalog = validate_assistant_pipeline(errors)
+    refs = validate_assistant_pipeline(errors)
     if not technic_dir.is_dir():
         errors.append(f"missing assistant technic directory: {technic_dir}")
     if (skills / "desks").exists():
@@ -2335,7 +2154,6 @@ def validate_assistant(
     validate_assistant_dm_topics(example_config, errors)
     return (
         refs,
-        catalog,
         len(technics) + private_technics,
         len(learned),
     )
@@ -2514,13 +2332,13 @@ def main() -> int:
         validate_plugin_source(errors)
         managed, learned = validate_shared(errors)
         summaries.append(f"shared={managed} managed/{learned} learned")
-        refs, catalog, technics, learned = validate_assistant(errors)
+        refs, technics, learned = validate_assistant(errors)
         summaries.append(
-            f"assistant-pipeline={refs} refs/{len(catalog)} card-units; "
+            f"assistant-pipeline={refs} refs; "
             f"assistant={technics} technics/{learned} learned"
         )
         for profile in WORKER_PROFILES:
-            technics, learned = validate_worker(profile, errors, catalog=catalog)
+            technics, learned = validate_worker(profile, errors)
             kind = "unit entries" if profile == "searcher" else "technics"
             summaries.append(f"{profile}={technics} {kind}/{learned} learned")
         hands_leaves: dict[str, dict[str, Path]] = {}
@@ -2541,9 +2359,9 @@ def main() -> int:
             message = f"managed skill file is untracked: {path}"
             (errors if args.strict_git else warnings).append(message)
     elif args.profile == "assistant":
-        refs, catalog, technics, learned = validate_assistant(errors)
+        refs, technics, learned = validate_assistant(errors)
         summaries.append(
-            f"assistant-pipeline={refs} refs/{len(catalog)} card-units; "
+            f"assistant-pipeline={refs} refs; "
             f"assistant={technics} technics/{learned} learned"
         )
     elif args.profile in HANDS_PROFILES:
@@ -2553,7 +2371,7 @@ def main() -> int:
         summaries.append(f"{args.profile}={len(leaves)} leaves/{learned} learned")
     else:
         technics, learned = validate_worker(
-            args.profile, errors, args.dispatch, catalog=collect_card_catalog()
+            args.profile, errors, args.dispatch
         )
         kind = "unit entries" if args.profile == "searcher" else "technics"
         summaries.append(f"{args.profile}={technics} {kind}/{learned} learned")
