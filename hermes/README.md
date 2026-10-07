@@ -541,7 +541,9 @@ keeps user keys.
   assistant, researcher, searcher and marketer — analysis of EVM chains and
   Solana (blocks, transactions with decoded calls, events and balance
   changes, addresses, portfolios, logs, tokens, allowances, raw decoding,
-  gas, prices) through `_shared/reader.py`; the assistant alone also gets the
+  gas, prices, contract and program analysis, `eth_call` and storage reads)
+  through `_shared/reader.py`, with ABIs from Sourcify and, given an
+  `ETHERSCAN_API_KEY`, Etherscan; the assistant alone also gets the
   wallet actions: the Keychain's seed phrases and private keys (any project,
   found by kind) and transfers from those named with `HERMES` through
   `_shared/signer.py`, the `pre_tool_call` hook letting a transfer to an own

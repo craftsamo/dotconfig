@@ -209,6 +209,7 @@ confirmation. Contract: [youtube-access.md](../youtube-access.md).
 EVM chains and Solana are read through `evm` and `solana` (`evm_access` and
 `solana_access` toolsets), shared with Researcher, Searcher and Marketer:
 transactions, blocks, addresses, tokens, approvals, balances, gas and prices,
+contracts and programs (who controls them, what they can do, test calls),
 decoded, with on-chain text marked untrusted. The Assistant's tools alone
 carry the wallet actions (never on A2A): the seed phrases and private keys in
 the user's Keychain, sending only from those named with `HERMES`; a transfer
