@@ -286,10 +286,10 @@ references ([`broker.md`](../broker.md) "References each side owns"), (4) a soak
 through the Assistant, recording what the form got wrong.
 
 Creator's former `creator-*` technics end with the advisor cutover. Five become
-hands leaves first: the SVG diagram (now `create-diagram`), and still to come
-grid-exact pixel art, official brand-asset sourcing (extending `source-icon`)
-and text-free generated illustration on image-creator, and pixel animation on
-video-creator. The other
+hands leaves first: the SVG diagram (now `create-diagram`) and grid-exact pixel
+art (now `create-pixel-art`), and still to come official brand-asset sourcing
+(extending `source-icon`) and text-free generated illustration on
+image-creator, and pixel animation on video-creator. The other
 fourteen are archived under `hermes/archive/creator-technic/`, which no profile
 reads; `image_gen` / `video_gen` / `tts` / `unreal-engine` leave Creator's
 toolsets with them.
@@ -303,6 +303,7 @@ toolsets with them.
 | kit             | image-creator | source, create, generate, edit, analyze                                                                           | none maps 1:1                                                                                        |
 | card            | image-creator | create, generate, edit, analyze                                                                                   | `creator-text-card` archived                                                                         |
 | diagram         | image-creator | create                                                                                                            | `creator-svg-diagram` archived                                                                       |
+| pixel-art       | image-creator | create                                                                                                            | `creator-pixel-art` archived                                                                         |
 | clip            | video-creator | generate, edit, analyze                                                                                           | `creator-generated-video` archived (local ComfyUI included)                                          |
 | music-video     | video-creator | generate                                                                                                          | none                                                                                                 |
 | tour            | video-creator | create                                                                                                            | `creator-html-motion` archived                                                                       |
