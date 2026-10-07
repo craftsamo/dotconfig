@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -108,6 +109,8 @@ def test_rejects_existing_out(tmp_path):
 
 
 @pytest.mark.skipif(not HAVE_RENDER, reason="agent-browser and magick are required")
+@pytest.mark.skipif(not os.environ.get("DIAGRAM_SMOKE"),
+                    reason="set DIAGRAM_SMOKE=1 for the real offline browser render (needs the real HOME)")
 def test_renders_tiny_diagram(tmp_path):
     result = render(tmp_path, GOOD)
     assert result.returncode == 0, result.stderr
