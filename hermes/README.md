@@ -124,6 +124,7 @@ scripts/               # profile-secrets.sh (secrets.command helper),
                        #   check-local-patches.sh, x-access.sh, substack-access.sh,
                        #   youtube-access.sh,
                        #   verify-work-continuity.py, audit-hands-references.py,
+                       #   audit-searcher-sessions.py,
                        #   qwen3_tts_server.py, qwen3_tts_reading_check.py,
                        #   stable_audio3.py, tests/ (pytest suites + fixtures)
 local/                 # ignored machine-local installs: engine venvs/weights,
@@ -483,7 +484,8 @@ keeps user keys.
   `launchd/telegram-access-launchctl.sh` (`login` / `install` / `status`).
   Behavior: [docs/telegram-access.md](docs/telegram-access.md).
 - **social/x-access** (`standalone`): `x` (toolset `x_access`) for the assistant and
-  marketer — read-only X as a separate sub-account through twscrape (`bridge.py` in the
+  marketer, and for searcher with `status` / `search` / `thread` / `verify` only —
+  read-only X as a separate sub-account through twscrape (`bridge.py` in the
   ignored `local/twscrape/venv`, pinned in `engines/twscrape/`): the main
   account's posts and mentions, search, threads, profiles, a post's media and
   a ledger of the main account's public counts (`snapshot` / `insights`);
@@ -494,7 +496,7 @@ keeps user keys.
 - **social/note-access** (`standalone`): `note` (toolset `note_access`) for the
   assistant (read, and save unpublished drafts from Markdown with images
   through the approval gate; a run without a person hands the save back to
-  its caller) and marketer (read only) — search, articles,
+  its caller), marketer (read only) and searcher (public reads only) — search, articles,
   creators, comments, hashtags and the user's own drafts and stats on
   note.com — plus an offline `check` of a draft body, the only action Writer
   gets. Standard library only: `bridge.py` alone reads the session
@@ -502,7 +504,8 @@ keeps user keys.
   reads and image uploads carry no cookie; its hook blocks the terminal path
   around it. Behavior: [docs/note-access.md](docs/note-access.md).
 - **social/substack-access** (`standalone`): `substack` (toolset `substack_access`)
-  for the assistant and marketer — the user's own Substack account through
+  for the assistant and marketer, and for searcher with `status` / `archive` /
+  `post` only — the user's own Substack account through
   python-substack (`bridge.py` in the ignored `local/python-substack/venv`,
   pinned in `engines/python-substack/`): any publication's posts and search,
   the inbox, and the user's published posts, drafts, pre-publish checks and
@@ -514,7 +517,8 @@ keeps user keys.
   `scripts/substack-access.sh` (`install` / `status`). Behavior:
   [docs/substack-access.md](docs/substack-access.md).
 - **social/youtube-access** (`standalone`): `youtube` (toolset `youtube_access`)
-  for the assistant and marketer — the user's own YouTube channels through
+  for the assistant and marketer, and for searcher with public reads only —
+  the user's own YouTube channels through
   the Data and Analytics APIs (search, videos, channels, playlists, comments,
   each channel's own uploads and analytics) plus transcripts and downloads of
   public videos through yt-dlp (`bridge.py` in the ignored
@@ -1154,6 +1158,12 @@ tool returns `status: "blocked"`.
   topology, metadata, routing registries, hands leaves, Creator's phase/subject
   references and Git ownership; add `--strict-git` in a staged/clean tree to
   fail on managed files that are still untracked.
+- `hermes-python hermes/scripts/audit-searcher-sessions.py --since 2026-09-13 [--db PATH] [--json] [--strict]`
+  — read-only scan of the Searcher's `state.db` for known failure signatures
+  (stopping early against the announced budget, claiming a commit or save that
+  never happened, skipping X search as "read-only", missing phase entries,
+  runtime refusals). It prints counts, never message text. Run it before and
+  after a Searcher change to compare.
 - Full suite:
   ```sh
   cd ~/.config/hermes &&

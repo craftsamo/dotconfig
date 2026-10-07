@@ -34,7 +34,7 @@ navigation for a changed domain, not a loop that reloads that entry.
 | creator | Media consultation, production, revision and analysis; coordinates production dependencies | [execute-assistant-creative](../../execute-assistant-creative/SKILL.md); Client brief, scoped grants and proposal relay; unit decomposition only for confirmed legacy work |
 | writer | text deliverables from released units: reader-facing prose and producer-facing scripts (台本, 絵コンテ); drafts only, never publishes | [execute-assistant-writing](../../execute-assistant-writing/SKILL.md) |
 | researcher | purpose-led depth proposal, agreed Build and self-check through the consuming primary; analysis, verification and guidance | [execute-assistant-research](../../execute-assistant-research/SKILL.md) |
-| searcher | purpose-led retrieval proposal, agreed Build and self-check; lookups, sweeps and hunts, with settled cards unchanged | [execute-assistant-search](../../execute-assistant-search/SKILL.md) |
+| searcher | purpose-led retrieval proposal, agreed Build and self-check; lookups, sweeps and hunts, all resident | [execute-assistant-search](../../execute-assistant-search/SKILL.md) |
 | engineer | developer using OpenCode: technical planning, implementation, independent QA and PR delivery | [execute-assistant-engineering](../../execute-assistant-engineering/SKILL.md); Client scope and explicit implementation approval; Issue management only on request |
 | marketer | strategy advisor: offer discovery, positioning, campaigns, review findings and outcome analysis; never commissions parts or saves drafts | [execute-assistant-marketing](../../execute-assistant-marketing/SKILL.md): you commission, accept and save the service draft after exact remote-save consent; no publishing |
 

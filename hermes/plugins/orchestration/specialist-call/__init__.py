@@ -34,6 +34,8 @@ TARGETS = {
     "marketer": {"researcher"},
     "engineer": {"marketer", "researcher", "writer"},
 }
+# Only these targets work on a task branch, so only their handoff asks for a committed checkpoint.
+COMMIT_TARGETS = {"engineer"}
 RESIDENT = Path(__file__).resolve().parents[3] / "profiles/assistant/scripts/resident-session.sh"
 TURN_TIMEOUT = 5400
 BUSY = {"accepted", "running", "unknown"}
@@ -279,10 +281,16 @@ def _handoff(data, message):
     if isinstance(deadline, (int, float)) and deadline > 0:
         remaining = max(0, int((deadline - time.time()) // 60))
         ends = time.strftime("%Y-%m-%d %H:%M %Z", time.localtime(deadline))
-        budget = (f"Turn budget: this turn is killed at {ends} (~{remaining} min from now); the whole "
-                  "process group dies with it and uncommitted work is stranded. Size each blocking tool "
-                  "call to fit, leave a committed checkpoint on the task branch before the limit, and "
-                  "stop with a checkpoint report rather than starting work that cannot finish.\n")
+        if data.get("target") in COMMIT_TARGETS:
+            budget = (f"Turn budget: this turn is killed at {ends} (~{remaining} min from now); the whole "
+                      "process group dies with it and uncommitted work is stranded. Size each blocking tool "
+                      "call to fit, leave a committed checkpoint on the task branch before the limit, and "
+                      "stop with a checkpoint report rather than starting work that cannot finish.\n")
+        else:
+            budget = (f"Turn budget: this turn is killed at {ends} (~{remaining} min from now); the whole "
+                      "process group dies with it and unsaved work is lost. Size each blocking tool "
+                      "call to fit, and stop with a checkpoint report rather than starting work that "
+                      "cannot finish.\n")
     reconcile = ""
     if data.get("turn_kind") == "reconcile":
         reconcile = ("Turn kind: RECONCILE-ONLY. This conversation was interrupted earlier. Inspect the "

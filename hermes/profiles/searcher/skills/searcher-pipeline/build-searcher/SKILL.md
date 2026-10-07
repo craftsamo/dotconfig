@@ -2,8 +2,8 @@
 name: build-searcher
 description: >-
   Build: retrieve agreed lookup, sweep or hunt findings with links and coverage.
-  Use for released execution or valid cards, not planning or truth adjudication.
-version: 1.0.0
+  Use for released execution or a settled brief, not planning or truth adjudication.
+version: 2.0.0
 author: CraftSamo
 license: MIT
 metadata:
@@ -14,12 +14,11 @@ metadata:
 
 <ReadBeforeWork>
 
-On every caller, judge, resume or completion turn and before a midturn phase,
+On every caller, resume or completion turn and before a midturn phase,
 unit or scope change, require full-body kernel, selected entry and selected unit
 references in current context, not a past load or summary. Direct entry requires
-`skill_view(name="searcher-pipeline")` and its card gate before retrieval: valid
-cards are already released for Build -> QA -> terminal without Plan negotiation;
-malformed cards immediately use `kanban_block(kind=capability)`.
+`skill_view(name="searcher-pipeline")` before retrieval; a kanban card is
+refused by the kernel before any phase.
 Load `skill_view(name="build-searcher")` and
 `skill_view(name="build-searcher", file_path="references/<unit>.md")`.
 If unchanged is returned while the earlier body is unavailable, or a body is
@@ -45,16 +44,24 @@ Read the method and output of the current unit before retrieving:
     or transport kind alone are not release. Unapproved work returns to Plan.
    For ambiguity that does not change the agreed question, coverage, exclusions
    or output, assume rather than stall: state `Interpreted as: ...` as the first
-   line of findings and proceed. This applies to valid cards and direct settled
-   briefs too. Never guess a deliverable-defining decision or authorization.
+   line of findings and proceed. This applies to direct settled briefs too.
+   Never guess a deliverable-defining decision or authorization.
 2. Execute the selected method with primary/official sources first, real URLs
    and dates. Preserve coverage matrix, query families, frontier/hop ledger,
    consumed and remaining budget across turns. Do not replay completed work.
 3. Corrections affect named findings only, within the same scope and remaining
    budget. Expansion or deliverable-defining spec gaps return to Plan and client
-   agreement, or the kernel's card protocol. Do not silently stretch the unit.
+   agreement. Do not silently stretch the unit.
 4. Stop at the agreed condition, saturation or effort cap as the unit prescribes;
    report shortfalls honestly. Preliminary Build stops at its own boundary.
+5. A stop needs a true reason. The handoff's `Turn budget:` line is the time
+   left in the turn, not a reason to stop: while most of it remains and the
+   done criteria, saturation or agreed cap are not reached, keep retrieving, and
+   never call the budget spent when it is not. If the turn must end first (the
+   budget is nearly out, or a tool keeps failing), save the findings and ledger
+   to the durable path the brief names, or name the file you wrote, state what
+   remains and why as the stop reason, and hand back. Never claim a commit or a
+   save that did not happen; a checkpoint here is a saved file, not a Git commit.
 
 ## Output template
 
@@ -66,12 +73,15 @@ Put the interpretation line first whenever a harmless assumption was needed.
 ## Verification
 
 The released unit reference was followed, its ledger retained, and the cap not
-expanded. No guessed URL, silent gap, new grant or synthesis entered the result.
+expanded. No guessed URL, silent gap, new grant or synthesis entered the result,
+and the stop reason is true: no budget called spent while most of it remained,
+no commit or save claimed that did not happen.
 Load QA before declaring delivery checked; Build is not independent acceptance.
 
 ## Handoff
 
 Load `qa-searcher` and its matching unit reference with the agreed brief, full
-findings and ledger. Goal-mode ongoing hops preserve state for the next judge
-turn; terminal delivery follows QA. A preliminary result goes through QA to
-refined Plan, never directly into an unapproved main search.
+findings and ledger. A hunt that ends a turn before saturation hands back its
+ledger and the gaps so the caller can continue the same conversation; delivery
+follows QA. A preliminary result goes through QA to refined Plan, never
+directly into an unapproved main search.

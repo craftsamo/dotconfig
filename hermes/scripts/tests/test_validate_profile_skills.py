@@ -158,20 +158,35 @@ class SandboxTreeTest(unittest.TestCase):
     def test_rejects_duplicate_card_unit_names(self) -> None:
         self.build_minimal_tree()
         unit = (
-            "card_units:\n"
             "  - name: same-unit\n"
             "    required_inputs: [spec]\n"
             "    unit_cap: \"one\"\n"
             "    runtime_cap: 900\n"
         )
         self.write(
-            "execute-assistant-creative/SKILL.md", f"---\n{unit}---\n# a\n"
-        )
-        self.write(
-            "execute-assistant-search/SKILL.md", f"---\n{unit}---\n# b\n"
+            "execute-assistant-creative/SKILL.md",
+            f"---\ncard_units:\n{unit}{unit}---\n# a\n",
         )
         errors = self.validate()
         self.assertTrue(any("duplicate card unit" in e for e in errors), errors)
+
+    def test_rejects_card_units_on_the_search_execute_entry(self) -> None:
+        self.build_minimal_tree()
+        self.write(
+            "execute-assistant-search/SKILL.md",
+            "---\n"
+            "card_units:\n"
+            "  - name: survey-enumeration\n"
+            "    assignee: searcher\n"
+            "    required_inputs: [spec]\n"
+            "    unit_cap: \"one\"\n"
+            "    runtime_cap: 900\n"
+            "---\n# search\n",
+        )
+        errors = self.validate()
+        self.assertTrue(
+            any("only legal on the creative Execute SKILL.md" in e and "execute-assistant-search" in e
+                for e in errors), errors)
 
     def test_rejects_card_units_outside_execute(self) -> None:
         self.build_minimal_tree()
@@ -186,7 +201,7 @@ class SandboxTreeTest(unittest.TestCase):
             "---\n# plan\n",
         )
         errors = self.validate()
-        self.assertTrue(any("only legal on creative/search Execute SKILL.md" in e for e in errors), errors)
+        self.assertTrue(any("only legal on the creative Execute SKILL.md" in e for e in errors), errors)
 
     def test_rejects_missing_qa_contract(self) -> None:
         self.build_minimal_tree()
