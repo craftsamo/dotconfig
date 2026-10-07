@@ -19,12 +19,20 @@ and report it.
 
 <PlanHandoff>
 
-When a plan is aligned in Plan mode, register it as todos shaped
+When a plan is aligned in Plan mode, publish a conversation task list shaped
 `Phase{N}.{m} - <task> (executor)` — Phase = dependency wave, {m} = reference
 id within the phase (no ordering implied), executor = Build | worker |
 reviewer | verifier | debugger (default Build; worker only for
-mechanical work) — then switch to Build. Build executes phases in order,
-delegates per the executor tag, and updates todo statuses as it goes.
+mechanical work).
+
+OpenCode V2 has no native Todo tool. Do not claim to have registered todos or
+create local TODO/plan files to simulate it. Keep the execution queue in the
+conversation; durable cross-session work belongs on GitHub Projects when asked.
+Ask the user to switch to Build; never switch automatically or start executing
+while still in Plan. Build executes phases in order, delegates per the executor
+tag, and updates the conversation list with pending, in-progress, completed,
+or blocked statuses in the user's language. At phase boundaries and handoffs,
+restate unfinished items, blockers, and the next step.
 
 </PlanHandoff>
 
@@ -119,8 +127,8 @@ Ordinary conversation and i18n tooling remain outside the skill's scope
 
 <ExplorationDelegation>
 
-For read-only codebase exploration, prefer the built-in `task` tool with the
-matching explore-* tier:
+For read-only codebase exploration, prefer the built-in `subagent` tool with
+`agent` set to the matching explore-* tier:
 
 - `explore-spark` — ONLY when the scope is pre-identified and narrow (specific
   files/dirs or a single symbol). Small context: never send it open-ended
@@ -134,9 +142,9 @@ matching explore-* tier:
 - `explore-max` — only for difficult, high-stakes, or previously failed
   exploration.
 
-These agents are pinned to their own models (small on the OpenAI pool, spark
+These agents have their own default models (small on the OpenAI pool, spark
 on Anthropic Haiku for narrow lookups, medium/high/max on the Claude pool) so
-exploration never rides the primary's model. Use the default `explore`
+normal exploration does not inherit the primary's model. Use the default `explore`
 subagent only when the primary model is specifically needed for the
 exploration.
 
@@ -145,8 +153,8 @@ exploration.
 <ResearchDelegation>
 
 For web research — external docs, library/API behavior, versions, changelogs,
-advisories, best practices, current events — prefer the built-in `task` tool
-with subagent_type `searcher` (fast sweeps, fact checks) or `searcher-deep`
+advisories, best practices, current events — prefer the built-in `subagent` tool
+with `agent: searcher` (fast sweeps, fact checks) or `agent: searcher-deep`
 (settling one topic: conflicting sources, primary-source verification). These
 agents run on the OpenAI subscription tier and absorb bulky web-page tokens;
 avoid running `websearch`/`webfetch` in the primary session except for a
@@ -160,19 +168,19 @@ queries.
 
 When a change is well-specified and mechanical — bulk edits, boilerplate,
 rote refactors, applying an already-decided design — run it through the built-in
-`task` tool with subagent_type `worker` and an exact spec instead of
+`subagent` tool with `agent: worker` and an exact spec instead of
 doing it in the primary session. Keep design decisions, ambiguous work, and
 difficult code in the primary. When the work belongs in a git worktree outside
 the session directory, give `worker` the worktree root as an absolute path.
-Before commits of non-trivial changes, consider a read-only pass through `task`
-with subagent_type `reviewer`.
+Before commits of non-trivial changes, consider a read-only pass through
+`subagent` with `agent: reviewer`.
 
 </ImplementationDelegation>
 
 <DebuggingDelegation>
 
 For bugs, regressions, failing tests, runtime errors, incidents, and root-cause
-questions, prefer the built-in `task` tool with subagent_type `debugger` for
+questions, prefer the built-in `subagent` tool with `agent: debugger` for
 read-only diagnosis. The `debugger` subagent owns reproduction, isolation,
 root-cause evidence, fix direction, and verification recommendations.
 
@@ -186,7 +194,7 @@ and failure-log summarization. Use `build` to implement fixes after diagnosis.
 
 For routine verification chores — configured formatter application, tests,
 typechecks, lint, format checks, builds, and summarizing failure logs — prefer
-the built-in `task` tool with subagent_type `verifier`. After code edits, when
+the built-in `subagent` tool with `agent: verifier`. After code edits, when
 the project config defines a formatter, always give `verifier` its exact apply
 command and the intended task-owned paths before other checks. Prefer formatting
 only those paths; when targeted formatting is unavailable, explicitly authorize
@@ -195,7 +203,32 @@ format-check-only.
 Keep root-cause analysis and design decisions in the primary session when
 failures are non-obvious or require code changes.
 
+Plan does not invoke `verifier`, `worker`, or `general`: investigate with
+read-only specialists and leave execution for Build. Debug and Review request
+verification only from `verifier`, never formatter application or source changes.
+
 </VerificationDelegation>
+
+<SubagentModels>
+
+Choose the role first; a model override does not replace the agent's instructions
+or permissions. Normally omit the `subagent` tool's `model` argument: a new child
+uses its configured model, or inherits the parent's model when none is configured.
+Only supply `model` when the user explicitly requests a particular model or
+variant, after checking that it is available. Use `provider/model#variant` for an
+override; it takes precedence over the agent's configured model. Report any
+requested override that cannot be used instead of silently substituting one.
+
+An approved subscription preflight plugin may choose a model only before a new
+specialist launch, in this order: the configured primary when its included quota
+is available; the role's allowlisted alternate when its included quota is
+available; existing credits only as a last resort, when both included quotas
+are verified fresh and exhausted. It never buys credits or changes accounts.
+Never apply a manual LLM model override as a fallback, and preserve an
+explicitly requested model and sessionID continuations. No mid-task switch or
+restart, and no substituting the general role.
+
+</SubagentModels>
 
 <SecretsPolicy>
 <StorageModel>

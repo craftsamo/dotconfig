@@ -1,9 +1,9 @@
 ---
-description: "Lightweight read-only review subagent for broad PR scans: project conventions, AGENTS.md violations, obvious bugs, missing tests, and low-cost regressions. Prefer invoking through the built-in task tool."
+description: "Lightweight read-only review subagent for broad PR scans: project conventions, AGENTS.md violations, obvious bugs, missing tests, and low-cost regressions. Prefer invoking through the built-in subagent tool."
 mode: subagent
 model: anthropic/claude-sonnet-5-5
 variant: medium
-hidden: true
+hidden: false
 permission:
   "*": deny
   glob: allow

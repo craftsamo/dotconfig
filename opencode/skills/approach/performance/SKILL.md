@@ -33,13 +33,16 @@ Non-trivial work runs through this spine; do not jump straight to edits:
    (commit-sized edit→verify moves). A sub-goal whose verification cannot be
    stated needs further decomposition. Persist durable or cross-session plans
    via `approach-github-projects`, not local TODO files.
-5. Hand off to execution: register the agreed plan as todos shaped
-   `Phase{N}.{m} - <task> (executor)` — Phase is the dependency wave, {m} a
-   reference id within the phase (no ordering implied), executor one of
-   Build | worker | reviewer | verifier | debugger (default
-   Build; worker only for mechanical work) — then switch to Build and
-   execute in phase order. The todos are the session's execution queue;
-   the board holds the durable plan.
+5. Hand off to execution: publish the agreed plan as a conversation
+   task list shaped `Phase{N}.{m} - <task> (executor)` — Phase is the
+   dependency wave, {m} a reference id within the phase (no ordering implied),
+   executor one of Build | worker | reviewer | verifier | debugger (default
+   Build; worker only for mechanical work). V2 has no native Todo tool; do not
+   create local TODO/plan files to simulate it. Ask the user to switch to
+   Build; do not switch automatically or execute until the user switches.
+   Build executes phases in order, delegates according to the tag, and updates
+   the conversation task statuses. The conversation list is the session's
+   execution queue; the board holds the durable plan.
 6. Execute in small reversible verified steps; checkpoint before anything
    irreversible.
 7. Close the loop — summarize what changed and what remains.
@@ -82,7 +85,7 @@ Questions to the user must be answerable in ~30 seconds without opening code:
    measured so it is repeatable.
 3. Locate the bottleneck: profile to find where time/resources actually go, not
    where they feel like they go. Rank candidates by impact. This read-only
-   diagnosis can be delegated to the `debugger` subagent (via the task tool)
+   diagnosis can be delegated to the `debugger` subagent (via the subagent tool, agent: debugger)
    when the profiling is involved or the cause is disputed.
 4. Form one hypothesis and improve: pick the highest-impact bottleneck, make
    the smallest change aimed at it, and keep behavior correct. Prefer doing

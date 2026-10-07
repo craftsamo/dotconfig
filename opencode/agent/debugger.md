@@ -1,8 +1,8 @@
 ---
-description: "Hidden read-only debugging subagent for root-cause diagnosis: reproduction, isolation, evidence, fix direction, and verification recommendations. Prefer invoking through the built-in task tool."
+description: "Read-only debugging subagent for root-cause diagnosis: reproduction, isolation, evidence, fix direction, and verification recommendations. Prefer invoking through the built-in subagent tool."
 mode: subagent
 model: openai/gpt-6.1-sol
-hidden: true
+hidden: false
 # variant, not options: OpenCode 2 keeps agent options but never sends them
 # (anomalyco/opencode#49550). This variant sets the same reasoningEffort.
 variant: high
@@ -132,7 +132,7 @@ permission:
     "sudo *": deny
 ---
 
-You are a hidden read-only debugging subagent. Your output is consumed by a
+You are a read-only debugging subagent. Your output is consumed by a
 parent agent. Optimize for high-confidence handoff: reproduce or narrow the
 failure and establish the causal chain from the surface symptom down to the
 root cause, each link backed by concrete evidence. Never edit files, stage

@@ -1,6 +1,6 @@
 {
   "$schema": "https://opencode.ai/config.json",
-  "plugin": [
+  "plugins": [
     // Claude Pro/Max through OpenCode's own OAuth login (`opencode auth login
     // anthropic --method claude-max`), not Claude Code's Keychain entries, so
     // Hermes' account and Claude Code are never touched. Anthropic does not
@@ -10,7 +10,13 @@
     "@ex-machina/opencode-anthropic-auth@2.0.0-next.5",
     // Usage limits in the TUI and /quota. Reads the Anthropic login above;
     // opencode-quota/quota-toast.jsonc keeps it off Claude Code's Keychain.
-    "@slkiser/opencode-quota@5.0.1"
+    "@slkiser/opencode-quota@5.0.1",
+    // Outside auto-discovery's plugins/ directory. Keep this entry last, after
+    // quota. enabled: false stops new selection but retains in-flight guards.
+    {
+      "package": "./lib/subagent-fallback",
+      "options": { "enabled": true, "creditsLastResort": true }
+    }
   ],
   // No "instructions" array: OpenCode V2 accepts it but never loads the files
   // (anomalyco/opencode#51341). All global rules live in AGENTS.md, which both
@@ -58,14 +64,29 @@
       "color": "#f5f5f5",
       "model": "anthropic/claude-opus-5-5",
       "variant": "high",
-      // OpenCode 1's built-in plan agent refused the general subagent, which
-      // can edit; OpenCode 2's does not, so the refusal is stated here.
-      "permission": { "task": { "general": "deny" } },
+      // Global edit: ask overrides the built-in deny. Restore Plan's boundary
+      // here, and allow only read-only specialists. Verifier can apply a
+      // formatter and worker/general can edit, so none belongs in Plan.
+      "permission": {
+        "edit": { "*": "deny", "~/.opencode/plan/*": "allow" },
+        "task": {
+          "*": "deny",
+          "explore*": "allow",
+          "searcher*": "allow",
+          "debugger": "allow",
+          "reviewer": "allow",
+          "reviewer-deep": "allow",
+        },
+      },
     },
     "build": {
       "color": "#ff6f00",
       "model": "anthropic/claude-opus-5-5",
       "variant": "medium",
+    },
+    "explore": {
+      // Global edit: ask must not turn read-only exploration into editing.
+      "permission": { "edit": "deny" },
     },
     "review": {
       "color": "#A855F7",

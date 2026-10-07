@@ -2,7 +2,7 @@
 description: "Fast/cheap read-only codebase lookups: find files, simple keyword search."
 mode: subagent
 model: openai/gpt-6-luna
-hidden: true
+hidden: false
 # variant, not options: OpenCode 2 keeps agent options but never sends them
 # (anomalyco/opencode#49550). This variant sets the same reasoningEffort.
 variant: low
