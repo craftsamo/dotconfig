@@ -31,7 +31,7 @@ This file does not restate agent behavior. Contracts:
 | Engineer modes, OpenCode runtime, resident turns, UI verification                | [docs/profiles/engineer.md](docs/profiles/engineer.md)                                                                   |
 | `specialist_call` / `specialist_session`, completion, deadlines, work continuity | [docs/profiles/specialist-calls.md](docs/profiles/specialist-calls.md)                                                   |
 | Assistant entry routing, creative early delivery, kanban catalog, pinned topics  | [docs/profiles/assistant.md](docs/profiles/assistant.md)                                                                 |
-| Writer v8 leaves, Marketer v8 entries, Researcher/Searcher phases                | [writer.md](docs/profiles/writer.md), [marketer.md](docs/profiles/marketer.md), [research.md](docs/profiles/research.md) |
+| Writer v8 leaves, Marketer v9 entries, Researcher/Searcher phases                | [writer.md](docs/profiles/writer.md), [marketer.md](docs/profiles/marketer.md), [research.md](docs/profiles/research.md) |
 | Entry loading contract, candidate rollout and cutover                            | [docs/topology.md](docs/topology.md)                                                                                     |
 | Creator v9 broker phases                                                         | [docs/broker.md](docs/broker.md)                                                                                         |
 | Hands entry routing and instruction context                                      | [docs/hands/overview.md](docs/hands/overview.md) "Skill tree"                                                            |
@@ -163,8 +163,7 @@ live under `profiles/creator/skills`. Skill placement (validator-enforced):
 - Researcher/Searcher entries own plain `references/<unit>.md` (4/3); Researcher
   shares parent `references/gather.md`; Searcher has no technics.
 - Writer reads the `japanese-writing` core through its curated
-  `external-skills/` symlink; Marketer reads Writer's pipeline as an external
-  reference for shared caller QA.
+  `external-skills/` symlink.
 - The assistant's `assistant-pipeline` (kernel + 19 child entries + shared mode
   references) is a private-overlay symlink; its pinned Telegram topics bind no
   skill (their contracts are `channel_prompts` entries).

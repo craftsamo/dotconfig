@@ -28,7 +28,7 @@ PRODUCTION = {f"{verb}-{subject}": f"{verb}/{subject}/SKILL.md"
               for subject in ("post", "article", "document", "message", "copy", "script")}
 PATHS = {ROOT: "SKILL.md", "consult-writer": "consult-writer/SKILL.md", **PRODUCTION}
 ENTRIES = set(PATHS) - {ROOT}
-CASES = ("discovery", "owner_reads", "caller_marketer", "caller_assistant")
+CASES = ("discovery", "owner_reads", "caller_assistant")
 
 
 @pytest.mark.parametrize("case", CASES)

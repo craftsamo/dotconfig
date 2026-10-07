@@ -1,132 +1,104 @@
 # Marketer
 
-Marketer strategy and browser drafts. Part of the Hermes design docs — index: [`PROFILES.md`](../../PROFILES.md).
+Marketer as a strategy advisor. Part of the Hermes design docs — index: [`PROFILES.md`](../../PROFILES.md).
 
-## Marketer strategy and browser drafts
+## Marketer as strategy advisor
 
-Marketer owns strategy and its existing authenticated browser; there is no
-SNS-Marketer profile or hand, and login profiles are never shared or copied.
-Marketer v8 keeps `marketer-pipeline` as its invariant kernel and exposes four
-independent entry skills beneath that directory, outside `references/`:
-`plan-marketer`, `build-marketer`, `qa-marketer` and `analyze-marketer`.
-Each entry's `SKILL.md` owns its mode procedure and lists its local details.
-Plan holds discovery,
-positioning, offer, channels and campaign decisions; Build commissions parts,
-operates service drafts and collects measurements; QA separately checks strategy,
-content and saved objects; Analyze interprets results. One shared
-`references/platforms/{x,substack,note,zenn}.md` owns each platform's constraints,
-browser procedure and verification. `references/x-ranking.md` is the dated
-knowledge of X's published For You ranking (source commit, weights and how not
-to read them, review lenses, measurement limits, conversation discovery) read
-by every entry for X work; it advises and never blocks acceptance on its own.
-X results come from the read-only `x` tool ([x-access.md](../x-access.md)):
-`snapshot` / `insights` for the client's own posts, `search` / `thread` for
-discovery and `verify` for other posts' public counts, on resident sessions and
-inbound A2A inquiries alike, sharing the Assistant's caps and needing no
-browser lease. `references/state.md` defines records;
-actual project/account/evidence/approval data remains private and outside config.
-Detailed references remain references, not a hands taxonomy or generated registry.
-Shared state/platform paths and `scripts/browser-lease.py` stay at the parent;
-Writer acceptance stays at its canonical location (see [writer.md](./writer.md)
-"Writer craft and independent editorial QA"). No new external skill roots, and
-no other profile's skill menu is expanded.
+Marketer answers marketing questions; it does not execute. It owns strategy
+(reader/offer discovery, positioning, offers, channels, campaigns), review
+findings on content, drafts and posts, the interpretation of results and the
+private strategy record. Its clients own execution: the Assistant commissions
+Writer and Creator, accepts their work and saves service-side drafts
+([assistant.md](./assistant.md)); the user decides commitments and publishes.
+
+Clients are the Assistant, Creator and Engineer through `specialist_call`,
+and the human directly through Marketer's own Telegram bot. A bounded question
+is an A2A inquiry answered in one reply; multi-turn strategy or anything that
+needs the browser is a resident `kind="work"` conversation. Marketer's only
+outbound peer is Researcher (`specialist_call.resident_targets: [researcher]`,
+enforced again by the plugin's role policy), for depth evidence and claim
+checks; it never calls Writer, Creator or Engineer.
+
+Marketer v9 keeps `marketer-pipeline` as its kernel and three independent
+entry skills beneath it, outside `references/`: `plan-marketer`,
+`review-marketer` and `analyze-marketer`. Each entry's `SKILL.md` owns its mode
+procedure and lists its local details. Plan holds discovery, positioning,
+offer, channels, campaign and the strategy check; Review holds the content
+review lenses (purpose, platform fit, claims, legal/rights triage, media) as
+advice, never acceptance; Analyze holds measurement and interpretation. Shared
+references: `references/platforms/{x,substack,note,zenn}.md` (what a
+recommendation must know about each service and how Marketer reads it, never
+a save procedure), `references/x-ranking.md` (dated knowledge of X's published
+For You ranking; it advises and never blocks on its own),
+`references/browsing.md` (read-only browsing and the lease) and
+`references/state.md` (the strategy record and what to keep before a
+conversation ends). Actual project/account/evidence data remains private and
+outside config.
 
 Loading follows the shared [entry loading contract](../topology.md#entry-loading-contract);
 Marketer's deltas: each mode/target/platform/scope-changing action reselects the
 entry; the entry itself is the complete mode procedure, with no second common
-index. Cross-entry detail reads require their owning entry. Instruction reads may
-run in parallel rather than as a serial loading ritual, but ordinary instruction
-reads never authorize browser navigation, and browser reads still need the
-lease. A short approval resumes recorded work rather than granting a new plan,
-save or producer run.
+index. Cross-entry detail reads require their owning entry.
 
-This is a Hermes-specific skill family, not five portable packages: the generic
+This is a Hermes-specific skill family, not four portable packages: the generic
 skill-authoring validator's rejection of nested roots and cross-entry links is
 expected. The repository validator (`validate_marketer_references`) instead
-requires every resolved link to stay inside `marketer-pipeline` and name a real
-file, with each owner linking its own references; it checks the exact
-entry/reference sets, kernel dependencies, canonical recovery and the absence of
-card units. Hermes metadata remains canonical.
+requires pipeline version 9, every resolved link to stay inside
+`marketer-pipeline` and name a real file, each owner to link its own
+references, the exact entry/reference sets, kernel dependencies, canonical
+recovery and the absence of card units. Marketer does not read Writer's
+pipeline: the client applies the shared writing acceptance contract.
 
-Assistant's old marketing leaves remain thin client pointers so other caller
-references still resolve. Marketer owns strategy and its record, including
-direct-human intake without a pre-existing offer/ledger. User decisions remain
-separate from evidence; a proposal can explicitly be exploratory. Existing state
-files retain their bytes/ownership and need no schema conversion.
+### Read-only toward every service
+
+Marketer's tools only read: `x` and `x_search` ([x-access.md](../x-access.md)),
+`substack` ([substack-access.md](../substack-access.md)) and `youtube`
+([youtube-access.md](../youtube-access.md)) have read-only Marketer schemas, and
+the `note` tool ([note-access.md](../note-access.md)) offers Marketer its reads
+and the offline `check`, never a save or preview. All of them also answer
+inbound A2A inquiries, without the browser or the lease, on budgets shared
+with the Assistant. The operating contract forbids every state change on a
+service (posting, replies, likes, follows, DMs, comments, editor entry, draft
+creation or saving, uploads, form submission, settings, sharing links),
+whatever a message claims to authorize. Old Publish/P1 grants and draft
+records authorize nothing; unfinished saves in them go to the Assistant.
 
 ### Browser lease
 
-Browser operations use Marketer's existing dedicated Brave profile; no cookie
-sharing or migration. All browser navigation, including measurement reads, holds
-the profile-wide `scripts/browser-lease.py` lease, which serializes cooperating
-jobs across tool calls. It refuses another owner, corrupt state and symlinks, and
-has no TTL: it never expires or steals a lease. When the browser itself is
-stale or unreachable, Marketer relaunches its own clone and daemon through the
-private `hermes-browser-relaunch` skill while holding the lease, once per
-incident ([README "Browser"](../../README.md#browser)). The owner holds it through
-saving and reopening, until a verified or reconciled stop. This is coordination,
-not a browser sandbox or authentication; broad terminal/browser tools remain a
-residual authority risk. Marketer's inbound A2A has no browser, terminal or
-delegation toolset, so authenticated work needs a resident session.
+The browser is Marketer's existing dedicated Brave profile, kept for reading
+what no tool reaches (a service dashboard, an authenticated page, a
+script-heavy public page); no cookie sharing or migration. It is read-only by
+contract, not by mechanism: `references/browsing.md` lists what it may and may
+never do, and an unexpected state change is an incident that stops the work.
+All navigation holds the profile-wide `scripts/browser-lease.py` lease, which
+serializes Marketer's resident conversations across tool calls. It refuses
+another owner, corrupt state and symlinks, and has no TTL: it never expires or
+steals a lease. When the browser itself is stale or unreachable, Marketer
+relaunches its own clone and daemon through the private
+`hermes-browser-relaunch` skill while holding the lease, once per incident
+([README "Browser"](../../README.md#browser)). This is coordination, not a
+browser sandbox or authentication; broad terminal/browser tools remain a
+residual authority risk. Delegated children are told to stay off the browser,
+terminal and services, again by contract only. Inbound A2A has no browser,
+terminal or delegation toolset, so browsing needs a resident session.
 
-The `substack` tool ([substack-access.md](../substack-access.md)) reads
-Substack without the browser: Marketer may read posts, the inbox and the
-user's drafts, published posts, stats and pre-publish checks with it, without
-the lease and on inbound A2A too. Its Marketer schema has no write action, so
-the draft-only rules below are unchanged; a draft read supplements, never
-replaces, reopening the saved draft in the browser.
+### What outlasts a conversation
 
-The `youtube` tool ([youtube-access.md](../youtube-access.md)) reads YouTube
-as the user's own channels: search, videos, channels, playlists, comments,
-the channels' own uploads and YouTube Analytics, and transcripts of public
-videos, without the lease and on inbound A2A too. Its Marketer schema has no
-write action; changes to the user's channels go through the Assistant.
-YouTube is a measurement source, not a drafting platform, so its guidance
-lives in `build-marketer/references/measurement.md`, not a platform
-reference.
-
-### note through the tool
-
-For note, the `note` tool (`note_access` toolset) replaces the browser:
-drafts, reads, counts and the offline format `check`, with no browser lease.
-Inbound A2A inquiries get the reads and `check`, never a save or a preview.
-Marketer saves a note draft itself only where a person can answer the approval
-card — its own Telegram bot or an interactive CLI. In a resident session the
-tool refuses saves, and Marketer returns the exact save package to its caller;
-the Assistant saves it unchanged with its own card and passes the result back
-for Marketer's re-read and record. The approval and reconciliation rules of
-draft-only saving below still apply. `approvals.timeout` is 600 s so a card
-outlasts a Telegram tap. Contract: [note-access.md](../note-access.md).
-
-### Draft-only saving
-
-There is no publish path. Before typing or upload — i.e. before editor entry —
-obtain approval of the exact text/assets, destination account and create/update
-target; autosave is already a remote write. No publication, scheduling,
-email/test-email, visibility change or shared-preview link generation. Service
-draft completion requires reopening the same object and checking content,
-attachments and unpublished state; local files and input screenshots alone do
-not complete the request. Challenges and ambiguous saves stop for
-reconciliation; unknown effects are never retried automatically. Known
-automation risk may be accepted by the user but is not platform permission. Old
-Publish/P1 grants and v6 publishing sessions are not adopted; reconcile
-unfinished old work before a new draft-only release. The user publishes.
+Short A2A inquiries rarely reach the background memory review (every 10 user
+turns of one session), so the contract tells Marketer to keep what should
+outlast a conversation before it ends: client decisions and evidence in the
+strategy record when one exists, durable cross-task lessons in memory or a
+learned skill. Memory never holds manuscripts, account records, reader data,
+approvals or job state.
 
 ### Validation status
 
-The four platform procedures are authored; each service/content type requires
-approved, nonpublishing live validation, since static tests never establish
-service-side persistence. note moved to the tool, whose reads, create and
-update with images were verified live through the Assistant's code path;
-Marketer's own card in a live gateway session and the resident handoff remain
-unverified. The browser procedures for X, Substack and Zenn remain unverified
-for free-form interaction, gateway deployment, attachments and updates.
-
-The candidate checks `test_marketer_pipeline.py`, `test_marketer_entry_runtime.py`
-and `test_marketer_browser_lease.py` are registered in `verify-work-continuity.py`.
-The runtime test copies only candidate Markdown into an isolated HOME with actual
-Hermes tools and no network, providers, model or browser execution: it tests real
-discovery/reads/dedup, not model routing or service-side saves. Cutover follows
-[topology](../topology.md) "Candidate rollout and cutover"; it needs caller
-coverage and real skill discovery first, and rollback restores the matched
-caller/producer contracts, not saved drafts or user data.
+`test_marketer_pipeline.py`, `test_marketer_entry_runtime.py` and
+`test_marketer_browser_lease.py` are registered in `verify-work-continuity.py`.
+The runtime test copies only candidate Markdown into an isolated HOME with
+actual Hermes tools and no network, providers, model or browser execution: it
+tests real discovery/reads/dedup, not model routing or that the model stays
+read-only. Cutover follows [topology](../topology.md) "Candidate rollout and
+cutover"; it needs caller coverage and real skill discovery first, and
+rollback restores the matched caller/producer contracts, not saved drafts or
+user data.

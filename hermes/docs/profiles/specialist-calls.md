@@ -16,7 +16,7 @@ caller has an explicit `specialist_call.resident_targets` allowlist:
 | --------- | --------------------------------------------------------------------------------------------------------------- |
 | assistant | engineer, creator, marketer, writer; searcher resident-only. Never the hands, never researcher directly         |
 | creator   | its seven configured peers: engineer, marketer, researcher, writer, image-creator, video-creator, audio-creator |
-| marketer  | engineer, creator, researcher, writer (keeps inbound A2A)                                                       |
+| marketer  | researcher only (keeps inbound A2A for its clients)                                                             |
 | engineer  | marketer, researcher, writer                                                                                    |
 
 The default CLI flow is unchanged. Short inquiries use an allowed target's

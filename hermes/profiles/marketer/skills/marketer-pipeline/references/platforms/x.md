@@ -1,44 +1,36 @@
-# X: post drafts
+# X: posts, threads and Articles
 
-## Scope and planning
+## What a recommendation must know
 
-Initial target: an ordinary Post draft in the web editor. Threads, X Articles,
-long-post entitlements and attachment combinations need their own verified scope;
-do not infer them from an ordinary text draft. Writer owns post text. X Article
-is a different article destination, not an automatic substitute.
+An ordinary Post, a thread and an X Article are different destinations with
+different reach and length; do not treat an Article as an automatic substitute
+for a post or assume long-post entitlements. Writer owns the text; the
+Assistant saves drafts the user approves and the user posts. Ranking facts,
+review lenses and discovery live in [X ranking](../x-ranking.md).
 
 The [automation rules](https://help.x.com/en/rules-and-policies/x-automation)
 prohibit non-API automation such as scripting the website; per-post approval or
-draft-only work is not a stated exception (reviewed 2026-09-10). Disclose this
-account risk and record the user's scoped decision. The user may knowingly
-choose browser drafting; do not describe that as X permission, bypass a
-challenge or silently substitute an API/local manuscript. Recheck material
-policy changes rather than promising compliance.
+draft-only work is not a stated exception (reviewed 2026-09-10). When a plan
+relies on browser-saved X drafts, disclose this account risk and let the user
+decide; do not describe that choice as X permission. Recheck material policy
+changes rather than promising compliance.
 
-## Browser procedure
+## Reading
 
-Follow [draft](../../build-marketer/references/draft.md): lease, accepted exact inputs and approval BEFORE
-editor entry. Verify account and inspect the current composer. Find its actual
-save-draft affordance and draft list without activating Post. Do not assume a
-mobile save path or that closing a dialog means server persistence.
-
-Create or update only the named draft. Record its available identity immediately.
-If no stable identifier is exposed, retain sufficient approved-content/list
-evidence to match it unambiguously; never modify text with an unapproved marker.
-On an uncertain save, find that object first and stop if several match.
-
-## Verification and measurement
-
-Reopen through the account's draft list, not just browser history; compare the
-whole text and every attachment. Cross-device/media draft persistence is not
-assumed. A local composer cache alone does not satisfy service-side delivery.
-If server persistence cannot be distinguished/verified, report `save-uncertain`.
-No click on Post, reply/send, scheduling or visibility controls.
+Use the `x` tool for X: `posts`, `thread`, `search` and `user` through the
+sub-account (paced and capped, shared with the Assistant), `verify` for public
+counts of up to 50 posts, `snapshot` / `insights` for the client's own posts.
+The browser on x.com is logged in to the user's account, and scripted
+activity there risks it under the rules above. Open it only for what the tool
+cannot show (the account's own analytics), when the user has decided to
+accept that risk for this reading, following [browsing](../browsing.md):
+analytics pages only, never the timeline, composer, notifications or messages.
 
 Published content is read-only for result collection. Record only metrics the
-current dashboard or approved source actually exposes; likes/impressions do not
-establish unique readers, link clicks or revenue attribution.
+tool actually exposes; likes and views do not establish unique readers, link
+clicks or revenue attribution.
 
-Runtime status: procedure authored, authenticated browser save/reopen unverified.
-Record the observed UI and capability result on the first approved live trial;
-never claim support from this document alone.
+## Sources and status
+
+Reviewed 2026-09-10 (automation rules) and 2026-10-05 (ranking, in
+[X ranking](../x-ranking.md)). Recheck before a recommendation depends on them.
