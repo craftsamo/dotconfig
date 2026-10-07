@@ -39,10 +39,10 @@ Every served hands subject has exactly one reference on each side, plain
 references rather than skills, landing together with their hands family and
 never as placeholder stubs:
 
-| Owner     | Path                                                         | Says                                                                                                                                                                                             |
-| --------- | ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Owner     | Path                                                 | Says                                                                                                                                                                                             |
+| --------- | ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Assistant | `execute-assistant-creative/references/<subject>.md` | transport (`inquiry` or `work`), the subject's round-trip (for example storyboard, approval, render), how each approval is relayed, the units it depends on, subject-specific budget and consent |
-| Creator   | `creator-pipeline/references/<hands>/<subject>.md`           | what the leaf can express: range, options, boundary with neighbouring leaves, where its examples live                                                                                            |
+| Creator   | `creator-pipeline/references/<hands>/<subject>.md`   | what the leaf can express: range, options, boundary with neighbouring leaves, where its examples live                                                                                            |
 
 The hands leaf's front matter remains the only form; neither side copies forms,
 option lists, provider defaults, size tables or approval hashes. The Assistant
@@ -79,10 +79,10 @@ recovery dependencies.
 ## Legacy routes
 
 There is no legacy production route. Of Creator's 19 former technics, five
-become hands leaves before the advisor cutover: the SVG diagram, grid-exact
-pixel art, official brand-asset sourcing (as an extension of `source-icon`) and
-text-free generated illustration on image-creator, and pixel animation on
-video-creator. The other fourteen are archived under
+became hands leaves before the advisor cutover: `create-diagram` (the SVG
+diagram), `create-pixel-art`, `generate-illustration` and the official path of
+`source-icon` (official brand-asset sourcing) on image-creator, and
+`create-pixel-animation` on video-creator. The other fourteen are archived under
 `hermes/archive/creator-technic/`, which no profile reads; a request only they
 covered returns `no leaf fits` until a leaf exists. The Assistant's legacy Plan
 and QA references retire with them. Existing frozen outputs, proposal hashes

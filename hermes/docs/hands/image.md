@@ -23,6 +23,21 @@ from the tool schema. After an upstream change, verify with
   glass / pixel / line / clay), `edit-icon`, `analyze-icon`. `source-icon` with
   `icon: twemoji:<name>` also covers published emoji glyphs, so there is no
   `source-emoji`.
+
+  **Official brand marks:** `source-icon` with `official: yes` (plus
+  `vendor`, `variant` glyph / lockup / wordmark and `backdrop` light / dark) delivers
+  a vendor's own logo file byte for byte from its brand page or press kit —
+  aggregators (Simple Icons, svgl) are named as such — with `provenance.json`
+  and a `terms.txt` usage summary; nothing is redrawn, recoloured or
+  generated, and a vendor without a distributed mark is reported, not
+  approximated. `brand-check.py` (stdlib plus `rsvg-convert` and `magick`, no
+  network): `render` requires each SVG to parse, carry a viewBox and render
+  non-blank over a grey backdrop; `provenance` records the sha256s, tests the
+  archive, byte-compares the delivery against the archive member and writes
+  `provenance.json`, never overwriting one. Vendor findings and the recipe for
+  bot-protected brand pages live in the leaf's `references/`. It replaces the
+  archived `creator-brand-asset-sourcing` technic.
+
 - **Emoji**: `emoji-fit.sh` is the ONE home of the platform table (slack /
   discord 128 PNG, telegram 512 WebP + stroke, telegram-emoji 100 WebP, line
   180 PNG; `--spec` prints a row for `analyze-emoji`). `generate-emoji` runs in
