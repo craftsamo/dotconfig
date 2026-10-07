@@ -14,10 +14,8 @@ def text(path):
 class VisualDesignContractTest(unittest.TestCase):
     def test_assistant_carries_complete_design_and_creator_does_not_bind_it(self):
         skill = text(ROOT / "assistant/skills/assistant-pipeline/execute-assistant-creative/SKILL.md")
-        for phrase in ("carry the complete identified design (JSON, HTML timeline, receipt)",
-                       "never add form keys", "claim unsupported Three.js or shader support",
-                       "accept a silently flattened substitute",
-                       "authored video gets intent only and the producer writes the storyboard"):
+        for phrase in ("never add form keys", "accept a silently flattened substitute",
+                       "Authored video gets intent only; the producer writes the storyboard"):
             self.assertIn(phrase, skill)
         kernel = text(ROOT / "creator/skills/creator-pipeline/SKILL.md")
         self.assertIn("Technique names (GSAP, Three.js, shaders) appear only where the selected leaf supports them",

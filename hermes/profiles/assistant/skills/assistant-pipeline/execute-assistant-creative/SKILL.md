@@ -103,7 +103,8 @@ a reviewer of a finished candidate.
 
 Infer before you ask: a colour named in passing, a pasted path or "transparent"
 is an answer. Ask the user only what is truly open, in ordinary language; never
-show them an internal form. A free-text answer goes into the field as written.
+show them an internal form. A free-text answer goes into the field as written;
+never add form keys.
 Keep the original purpose, audience and must-keep conditions in every
 dependent form.
 
@@ -175,15 +176,14 @@ dependents' evidence.
 - A proposal, storyboard or preview is an approval stop. Show the actual
   returned material with a short explanation, then relay the user's decision in
   the same conversation, quoting the user's own words and the exact path and
-  SHA-256 the hands returned.
+  SHA-256 the hands returned. Never compute, refresh or invent a hash. A Budget
+  line is not proposal approval, and proposal approval is not more spend. An
+  approved study is not an approved final.
 - Approvals and choices are the user's alone. When the user cannot be reached
   (a question tool fails, no reply arrives), stop and say in your reply what is
   waiting for them; never approve, pick a direction or answer a hands question
   on their behalf, and never read the original brief, a Budget line or
   "make it good" as approval.
-  Never compute, refresh or invent a hash. A Budget line is not proposal
-  approval, and proposal approval is not more spend. An approved study is not an
-  approved final.
 - A one-line procedure note from the hands goes to the maintainer verbatim.
 
 ## Direct delivery

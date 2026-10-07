@@ -54,7 +54,7 @@ class CreativeHandoffTest(unittest.TestCase):
         self.assertIn("not a live capability catalog", plan)
         self.assertFalse((PLAN / "character-music-video.md").exists())
         self.assertFalse(QA.exists() and any((QA / f"{name}.md").exists() for name in GUIDES))
-        for subject in GUIDES - {"video-design"}:
+        for subject in GUIDES - {"ui-design"}:
             self.assertTrue((EXECUTE / f"{subject}.md").is_file(), subject)
 
     def test_questions_are_not_a_mandatory_production_form(self):
