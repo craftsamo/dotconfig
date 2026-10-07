@@ -5,12 +5,6 @@ trim, conversion, mux, mix and any re-encoding. Your direct work is
 byte-preserving handling and the Execute entry's thin delivery checks. A delivery size problem
 is a correction request to Creator, not permission for your own ffmpeg fix.
 
-The narrow exception is Assistant's own planning-only HTML timeline under the
-Plan entry's visual-design guide. Its deterministic local diagram is not a
-production media operation. Deliver that unchanged as a document, retaining
-the JSON/receipt and actual agreement; never pass it off as rendered film or
-use this exception to edit a producer's source or preview.
-
 ## Handoff
 
 Keep original inputs and finished outputs distinct. Pass exact accepted paths

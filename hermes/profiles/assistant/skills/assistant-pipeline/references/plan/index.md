@@ -39,9 +39,8 @@ materially, cost balloons, a card comes back
 malformed) come back to the user as one plain update + `clarify` when a
 real decision is needed.
 
-Creative Plan passes intent for new authored video; it authors the local
-planning-only HTML timeline (`../../plan-assistant-creative/references/video-design.md`)
-only when the user explicitly asks for one.
+Creative Plan passes intent for new authored video; the producer designs
+the storyboard the user approves.
 
 ## Plan entries
 
