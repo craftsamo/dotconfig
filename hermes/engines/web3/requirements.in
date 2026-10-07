@@ -1,0 +1,11 @@
+# web3 engine (plugins/web3: chain-read's reader and wallet's signer). eth-account signs EVM
+# transactions and derives m/44'/60'/0'/0/i (its HD features are flagged unaudited, so tests pin
+# known MetaMask vectors); eth-abi decodes calldata and logs; mnemonic is Trezor's BIP39
+# reference; solders derives m/44'/501'/i'/0' from the 64-byte seed and signs Solana messages.
+# Recompile the hashed lock after a bump:
+#   uv pip compile requirements.in --python ../../local/web3/venv/bin/python \
+#     --generate-hashes --no-annotate -o requirements.lock
+eth-account==0.14.0
+eth-abi==6.0.0
+mnemonic==0.21
+solders==0.29.0
