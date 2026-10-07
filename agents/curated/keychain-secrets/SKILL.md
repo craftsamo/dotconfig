@@ -125,6 +125,12 @@ that keeps the value out of argv and the transcript. `.env` files are
 gitignored. Project mode reads only their variable names to avoid shadowing the
 app's own loader, never their values.
 
+An item stored with `--no-env` (`ENV no` in `secret ls --long`) is never
+emitted by `secret env`, so no shim or helper injects it; only `get` reads it.
+That is deliberate — a wallet seed phrase, say — so a "missing" variable that
+shows `ENV no` is not a bug to fix: never lift it with `update --env` unless
+the user asks.
+
 </SecretCli>
 
 <WrappingTools>
