@@ -1,21 +1,23 @@
 """The wallet's signer: one operation per process, run by the web3 venv's interpreter.
 
-The only code that reads seed phrases: ``WEB3_SEED_<NAME>`` items from the Keychain scope
-``web3-wallet``, stdin closed, one per seed the settings name. Seeds, derived keys and raw signed
-transactions stay in this process: replies carry addresses, quotes, approval card text and
-transaction hashes, and every string leaving is scrubbed of the phrases it read.
+The only code that reads wallet secrets: every Keychain item whose kind is a seed phrase or a private
+key, in any project, found by ``keychain.discover`` (other secrets are never read). Only those with
+HERMES in their name sign; the rest are watch-only. Seeds, keys and raw signed transactions stay in
+this process: replies carry addresses, quotes, approval card text and transaction hashes, and every
+string leaving is scrubbed of the values it read.
 
-    {"op": "derive" | "accounts" | "quote" | "send" | "status", "settings": {…normalized…},
-     "state": "<the wallet's state directory>", …the op's arguments}
+    {"op": "accounts" | "quote" | "send" | "status", "state": "<the wallet's state directory>",
+     …the op's arguments}
     → {"ok": true, "data": {…}} or {"ok": false, "error": "…"}
 
-A quote is the exact transfer, built and simulated, stored as a single-use file that expires after
-``QUOTE_TTL`` and carries an HMAC keyed from its sending seed, so neither its transaction nor its
-card can be edited between approval and send. ``send`` re-checks the MAC, the expiry, the hourly
-cap and — for a send approved as own — that the recipient really is one of the seeds' addresses;
-the quote is consumed and written to the ledger before it is broadcast. ``_seeds`` (name → phrase)
-and ``_rpc`` are honoured only under the engine's tests (``WEB3_ENGINE_TEST=1``).
-Contract: docs/web3.md "Transfers" and "Approval".
+Accounts are ``<source>#<index>`` for a seed (``hermes/HERMES_MAIN#0``) and ``<source>`` for a key, where a
+source is ``<project>[/<scope>]/<name>``. A quote is the exact transfer, built and simulated, stored
+as a single-use file that expires after ``QUOTE_TTL`` and carries an HMAC keyed from its sending
+secret, so neither its transaction nor its card can be edited between approval and send. ``send``
+re-checks the MAC, the expiry, the hourly cap and — for a send approved as own — that the recipient
+really is one of the secrets' addresses; the quote is consumed and written to the ledger before it is
+broadcast. ``_sources`` (a list of items with values) and ``_rpc`` are honoured only under the
+engine's tests (``WEB3_ENGINE_TEST=1``). Contract: docs/web3.md "Transfers" and "Approval".
 """
 
 from __future__ import annotations
@@ -38,14 +40,15 @@ sys.path[:0] = [str(HERE.parent / "_shared"), str(HERE)]
 
 import chains  # noqa: E402
 import evm  # noqa: E402
+import keychain  # noqa: E402
+import ledger  # noqa: E402
 import prices  # noqa: E402
 import rpc  # noqa: E402
 from rpc import ChainError  # noqa: E402
-import settings as conf  # noqa: E402
 
-SCOPE = "web3-wallet"
 QUOTE_TTL = 900            # outlives the 600 s approval wait
-OWN_INDEXES = 20           # each seed's accounts 0..19 count as own, configured or not
+OWN_INDEXES = 101          # each seed's accounts 0..100 count as own
+LIST_DEFAULT = 5           # accounts lists this many per seed unless asked for more
 GAS_MARGIN = Decimal("1.2")
 SOL_SIG_FEE = 5000
 ATA_SPACE = {"TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA": 165, "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb": 170}
@@ -53,70 +56,200 @@ SYSTEM = "11111111111111111111111111111111"
 ATA_PROGRAM = "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
 QUOTE_ID = re.compile(r"^q[0-9a-f]{8}$")
 SYMBOL = re.compile(r"^[A-Za-z0-9.$_-]{1,12}$")
+SETUP = ("store a Hermes-only seed phrase under a name with HERMES in it, like `secret set HERMES_MAIN -p <project> "
+         "-D MNEMONIC` (a private key: -D PRIVATE_KEY); seed phrases and keys under other names are watch-only")
 
 
-def seed_set(name: str) -> str:
-    return f"secret set {conf.seed_item(name)} -p hermes --scope {SCOPE} -D MNEMONIC"
+# --- secrets ------------------------------------------------------------------------------------
 
+class Secrets:
+    """The wallet secrets of one call, held in memory only: seeds by source id, and keys by source
+    id as (family, secret), each with its Keychain metadata. Only sources with HERMES in their name
+    (``use`` "sign") sign or count as own; the others are watch-only."""
 
-# --- keys ---------------------------------------------------------------------------------------
-
-class Keys:
-    """The seeds of one call, held in memory only."""
-
-    def __init__(self, payload: dict, names: list[str]):
+    def __init__(self, payload: dict):
         from eth_account.hdaccount import seed_from_mnemonic
         from mnemonic import Mnemonic
-        test = rpc.testing()
-        overrides = payload.get("_seeds") if test else None
+        items = payload.get("_sources") if rpc.testing() and payload.get("_sources") is not None else None
+        if items is None:
+            try:
+                items = keychain.discover()
+            except keychain.KeychainError as exc:
+                raise ChainError(str(exc)) from None
         self.seeds: dict[str, bytes] = {}
-        for name in names:
-            words = (overrides or {}).get(name) if overrides is not None else rpc.secret(conf.seed_item(name), SCOPE)
-            if not words:
-                raise ChainError(f"seed {name!r} is not in the Keychain; the user stores it with `{seed_set(name)}`")
-            rpc.SECRETS.append(words)
-            words = " ".join(words.split())
-            rpc.SECRETS.append(words)
-            if not Mnemonic("english").check(words):
-                raise ChainError(f"{conf.seed_item(name)} is not a valid English BIP39 phrase; the user stores it again")
-            self.seeds[name] = seed_from_mnemonic(words, "")
+        self.keys: dict[str, tuple[str, object]] = {}
+        self.meta: dict[str, dict] = {}
+        self.problems: list[dict] = []
+        fingerprints: dict[bytes, str] = {}
+        # the name decides, here as in discovery: a secret stored under both kinds of name is kept as
+        # the Hermes one, and anything without HERMES in its name is watch-only
+        def name_of(item):
+            return item.get("name") or str(item.get("id", "")).rsplit("/", 1)[-1]
 
-    def evm_key(self, seed: str, index: int) -> bytes:
-        from eth_account.hdaccount import key_from_seed
-        return key_from_seed(self.seeds[seed], f"m/44'/60'/0'/0/{index}")
+        items = sorted(items, key=lambda item: keychain.use_of(name_of(item)) != "sign")
+        for item in items:
+            value, source = item.get("value"), item.get("id") or keychain.source_id(item)
+            use = keychain.use_of(name_of(item))
+            if value:
+                rpc.SECRETS.append(value)
+            if not value:
+                self.problems.append({"source": source, "problem": "could not be read"})
+                continue
+            if item["role"] == "seed":
+                words = " ".join(value.split())
+                rpc.SECRETS.append(words)
+                if not Mnemonic("english").check(words):
+                    self.problems.append({"source": source, "problem": "labelled MNEMONIC but not a valid English "
+                                                                       "BIP39 phrase"})
+                    continue
+                secret = seed_from_mnemonic(words, "")
+            else:
+                parsed = self._parse_key(value.strip())
+                if parsed is None:
+                    self.problems.append({"source": source, "problem": "labelled PRIVATE_KEY but neither a 32-byte "
+                                                                       "hex EVM key nor a Solana keypair"})
+                    continue
+                secret = parsed
+            fingerprint = hashlib.sha256(self._material(secret)).digest()
+            if fingerprint in fingerprints:
+                self.problems.append({"source": source, "problem": f"the same secret as {fingerprints[fingerprint]}; "
+                                                                   "ignored"})
+                continue
+            fingerprints[fingerprint] = source
+            if item["role"] == "seed":
+                self.seeds[source] = secret
+            else:
+                self.keys[source] = secret
+            self.meta[source] = {"project": item.get("project"), "scope": item.get("scope"),
+                                 "name": item.get("name"), "label": item.get("label"),
+                                 "kind": item["role"], "use": use}
+        self._parents: dict[str, tuple[bytes, bytes]] = {}
 
-    def sol_keypair(self, seed: str, index: int):
+    def signable(self, source: str) -> bool:
+        return self.meta.get(source, {}).get("use") == "sign"
+
+    @staticmethod
+    def _material(secret) -> bytes:
+        """The raw bytes of a seed (bytes) or a key ((family, secret))."""
+        if isinstance(secret, bytes):
+            return secret
+        kind, value = secret
+        return value if kind == "evm" else bytes(value)
+
+    @staticmethod
+    def _parse_key(value: str):
+        text = value[2:] if value.startswith("0x") else value
+        if len(text) == 64 and all(c in "0123456789abcdefABCDEF" for c in text):
+            return "evm", bytes.fromhex(text)
         from solders.keypair import Keypair
-        return Keypair.from_seed_and_derivation_path(self.seeds[seed], f"m/44'/501'/{index}'/0'")
+        try:
+            if value.startswith("["):
+                return "solana", Keypair.from_bytes(bytes(json.loads(value)))
+            return "solana", Keypair.from_base58_string(value)
+        except Exception:
+            return None
+
+    def require_any(self) -> None:
+        if not any(self.signable(source) for source in [*self.seeds, *self.keys]):
+            raise ChainError("no Hermes seed phrase or private key is in the Keychain; " + SETUP)
+
+    # derivation
+
+    def _evm_parent(self, source: str) -> tuple[bytes, bytes]:
+        """m/44'/60'/0'/0 of a seed, derived once per call."""
+        from eth_account.hdaccount.deterministic import HDPath, derive_child_key, hmac_sha512
+        if source not in self._parents:
+            node = hmac_sha512(b"Bitcoin seed", self.seeds[source])
+            key, code = node[:32], node[32:]
+            for part in HDPath("m/44'/60'/0'/0")._path:
+                key, code = derive_child_key(key, code, part)
+            self._parents[source] = (key, code)
+        return self._parents[source]
+
+    def evm_key(self, source: str, index: int) -> bytes:
+        from eth_account.hdaccount.deterministic import SoftNode, derive_child_key
+        key, code = self._evm_parent(source)
+        return derive_child_key(key, code, SoftNode(index))[0]
+
+    def sol_keypair(self, source: str, index: int):
+        from solders.keypair import Keypair
+        return Keypair.from_seed_and_derivation_path(self.seeds[source], f"m/44'/501'/{index}'/0'")
 
     @staticmethod
     def evm_address(key: bytes) -> str:
-        from eth_account import Account
-        return Account.from_key(key).address
+        from eth_keys import keys
+        return keys.PrivateKey(key).public_key.to_checksum_address()
 
-    def address(self, seed: str, index: int, family: str) -> str:
-        if family == "evm":
-            return self.evm_address(self.evm_key(seed, index))
-        return str(self.sol_keypair(seed, index).pubkey())
+    def account(self, account_id) -> tuple[str, int | None]:
+        """(source, index) of an account id; index is None for a key."""
+        if not isinstance(account_id, str) or not account_id:
+            raise ChainError("account is required, like hermes/MAIN#0; wallet accounts lists them")
+        source, _, index = account_id.partition("#")
+        if index:
+            if source not in self.seeds:
+                raise ChainError(f"no seed phrase {source!r}; wallet accounts lists them")
+            if not index.isdigit() or int(index) > 2 ** 31 - 1:
+                raise ChainError("the account index must be a number, like #0")
+            return source, int(index)
+        if source in self.keys:
+            return source, None
+        if source in self.seeds:
+            raise ChainError(f"{source} is a seed phrase; name an account in it, like {source}#0")
+        raise ChainError(f"no account {account_id!r}; wallet accounts lists them")
 
-    def signer(self, account: dict, family: str):
-        """(address, signing secret) of a settings account on a chain family."""
+    def address_of(self, account_id: str, family: str) -> str:
+        """An account's address on a family, watch-only accounts included."""
+        return self._derive(account_id, family)[0]
+
+    def signer(self, account_id: str, family: str):
+        """(address, signing secret) of an account Hermes may sign with on a chain family."""
+        source, _ = self.account(account_id)
+        if not self.signable(source):
+            raise ChainError(f"{source} is watch-only (no HERMES in its name): Hermes reads its addresses but never "
+                             "signs with it; a Hermes wallet is stored under a name like HERMES_MAIN")
+        return self._derive(account_id, family)
+
+    def _derive(self, account_id: str, family: str):
+        source, index = self.account(account_id)
+        if index is None:
+            kind, secret = self.keys[source]
+            if kind != family:
+                raise ChainError(f"{source} is a{'n EVM' if kind == 'evm' else ' Solana'} key; it cannot sign on "
+                                 f"{'EVM chains' if family == 'evm' else 'Solana'}")
+            return (self.evm_address(secret), secret) if family == "evm" else (str(secret.pubkey()), secret)
         if family == "evm":
-            key = self.evm_key(account["seed"], account["index"])
+            key = self.evm_key(source, index)
             return self.evm_address(key), key
-        pair = self.sol_keypair(account["seed"], account["index"])
+        pair = self.sol_keypair(source, index)
         return str(pair.pubkey()), pair
 
-    def own(self, family: str, settings: dict) -> set[str]:
-        """Every address the seeds control: each seed's accounts 0..19 and every configured account."""
-        pairs = {(seed, i) for seed in self.seeds for i in range(OWN_INDEXES)}
-        pairs |= {(a["seed"], a["index"]) for a in settings["accounts"].values() if a["seed"] in self.seeds}
-        found = {self.address(seed, index, family) for seed, index in pairs}
-        return {a.lower() for a in found} if family == "evm" else found
+    def addresses(self, family: str, use: str) -> dict[str, str]:
+        """Address → account id for every source of a use ('sign' or 'watch'): each seed's accounts
+        0..100 and every key of the family. EVM addresses are lowercased."""
+        found: dict[str, str] = {}
+        for source in self.seeds:
+            if self.meta[source]["use"] != use:
+                continue
+            for index in range(OWN_INDEXES):
+                if family == "evm":
+                    found.setdefault(self.evm_address(self.evm_key(source, index)).lower(), f"{source}#{index}")
+                else:
+                    found.setdefault(str(self.sol_keypair(source, index).pubkey()), f"{source}#{index}")
+        for source, (kind, secret) in self.keys.items():
+            if self.meta[source]["use"] != use or kind != family:
+                continue
+            found.setdefault(self.evm_address(secret).lower() if kind == "evm" else str(secret.pubkey()), source)
+        return found
+
+    def own(self, family: str) -> set[str]:
+        """Every address the Hermes wallets control; watch-only wallets are not own."""
+        return set(self.addresses(family, "sign"))
 
     def mac(self, quote: dict) -> str:
-        """Keyed from the quote's sending seed; covers everything but the MAC and the consumed mark."""
-        key = hashlib.sha256(b"hermes-web3-quote\x00" + self.seeds[quote["seed"]]).digest()
+        """Keyed from the quote's sending secret; covers everything but the MAC and the consumed mark."""
+        source = quote["source"]
+        material = self._material(self.seeds[source] if source in self.seeds else self.keys[source])
+        key = hashlib.sha256(b"hermes-web3-quote\x00" + material).digest()
         body = json.dumps({k: v for k, v in quote.items() if k not in ("mac", "consumed")}, sort_keys=True,
                           ensure_ascii=False)
         return hmac.new(key, body.encode(), hashlib.sha256).hexdigest()
@@ -186,12 +319,17 @@ def card(quote: dict) -> str:
         what = f"{quote['amount']} of token \"{quote['symbol']}\""
     if quote.get("usd") is not None:
         what += f" (≈ ${quote['usd']:,.2f})"
-    lines = [f"Send {what} on {info['name']}"]
+    lines = [("" if info["testnet"] else "MAINNET (real funds): ") + f"Send {what} on {info['name']}"]
     if quote["asset"] != "native":
         lines.append(f"Token: {quote['asset_address']}")
-    lines.append(f"From: {quote['role']} {quote['from']}")
-    lines.append(f"To: {(quote['ens'] + ' = ') if quote.get('ens') else ''}{quote['to']} "
-                 f"({'your own account' if quote['own'] else 'external'})")
+    lines.append(f"From: {quote['account']} {quote['from']}")
+    if quote["own"]:
+        whose = "your own account"
+    elif quote.get("watched"):
+        whose = f"external; watch-only {quote['watched']}"
+    else:
+        whose = "external"
+    lines.append(f"To: {(quote['ens'] + ' = ') if quote.get('ens') else ''}{quote['to']} ({whose})")
     lines.append(f"Max fee: {quote['max_fee']} {info['symbol']}")
     expires = datetime.fromtimestamp(quote["expires"]).astimezone().strftime("%H:%M UTC%z")
     lines.append(f"Quote: {quote['id']}, expires {expires}")
@@ -410,68 +548,67 @@ def _override(payload: dict) -> str | None:
     return payload.get("_rpc") if rpc.testing() else None
 
 
-def _chain(settings: dict, chain) -> str:
+def _family(chain) -> str:
     family = chains.family(chain) if isinstance(chain, str) else None
     if family is None:
         raise ChainError(f"unknown chain {chain!r}; use one of: {', '.join(chains.CHAINS)}")
-    if not conf.chain_allowed(settings, chains.info(chain)["testnet"]):
-        raise ChainError(f"{chain} is a mainnet and mainnet is off; the user sets mainnet: true in "
-                         f"{conf.FILE} after trying the testnets")
     return family
 
 
-def _account(settings: dict, role) -> dict:
-    account = settings["accounts"].get(role)
-    if account is None:
-        raise ChainError(f"no account {role!r}; the accounts are " + ", ".join(settings["accounts"]))
-    return account
+def _balances(ctx: Ctx, family: str, addresses: list[str]) -> list[str | None]:
+    info = chains.info(ctx.chain)
+    if family == "evm":
+        got = ctx.rpc.batch([("eth_getBalance", [a, "latest"]) for a in addresses])
+        return [f"{evm.units(evm.h2i(g), info['decimals'])} {info['symbol']}" if g else None for g in got]
+    import sol
+    out: list[str | None] = []
+    for start in range(0, len(addresses), 100):
+        part = addresses[start:start + 100]
+        got = ctx.rpc.call("getMultipleAccounts", [part, {"commitment": "confirmed"}]) or {}
+        out += [f"{sol.sol((v or {}).get('lamports', 0))} SOL" for v in got.get("value") or [None] * len(part)]
+    return out
 
 
-def op_derive(payload: dict, settings: dict) -> dict:
-    """One seed's first accounts on both families, for funding before any account is named."""
-    seed, count = payload.get("seed"), payload.get("count", 3)
-    if not isinstance(seed, str) or not conf.NAME.match(seed):
-        raise ChainError("seed must be a seed name like main")
+def op_accounts(payload: dict) -> dict:
+    """Every labelled secret and its accounts' addresses; with chain, their native balances there."""
+    secrets_ = Secrets(payload)
+    count = payload.get("count", LIST_DEFAULT)
     if not isinstance(count, int) or not 1 <= count <= OWN_INDEXES:
         raise ChainError(f"count must be from 1 to {OWN_INDEXES}")
-    keys = Keys(payload, [seed])
-    return {"seed": seed, "accounts": [{"index": i, "evm": keys.address(seed, i, "evm"),
-                                        "solana": keys.address(seed, i, "solana")} for i in range(count)]}
-
-
-def op_accounts(payload: dict, settings: dict) -> dict:
-    """Every account's addresses; with chain, also its native balance there."""
-    keys = Keys(payload, settings["seeds"])
-    chain = payload.get("chain")
-    family = _chain(settings, chain) if chain else None
-    ctx = Ctx(chain, _override(payload)) if chain else None
     rows = []
-    for role, account in settings["accounts"].items():
-        row = {"account": role, "seed": account["seed"], "index": account["index"],
-               "evm": keys.address(account["seed"], account["index"], "evm"),
-               "solana": keys.address(account["seed"], account["index"], "solana")}
-        if ctx:
-            info = chains.info(chain)
-            try:
-                if family == "evm":
-                    wei = evm.h2i(ctx.rpc.call("eth_getBalance", [row["evm"], "latest"]))
-                    row["balance"] = f"{evm.units(wei, info['decimals'])} {info['symbol']}"
-                else:
-                    import sol
-                    got = ctx.rpc.call("getBalance", [row["solana"], {"commitment": "confirmed"}]) or {}
-                    row["balance"] = f"{sol.sol(got.get('value', 0))} SOL"
-            except ChainError as exc:
-                row["balance_error"] = str(exc)
-        rows.append(row)
-    return {"mainnet": settings["mainnet"], "accounts": rows,
-            "note": "token balances: chain portfolio on an address"}
-
-
-def op_quote(payload: dict, settings: dict) -> dict:
-    state = _state(payload)
-    account = _account(settings, payload.get("account"))
+    for source in secrets_.seeds:
+        for index in range(count):
+            account = f"{source}#{index}"
+            rows.append({"account": account, **secrets_.meta[source], "index": index,
+                         "evm": secrets_.address_of(account, "evm"), "solana": secrets_.address_of(account, "solana")})
+    for source, (kind, _) in secrets_.keys.items():
+        rows.append({"account": source, **secrets_.meta[source], kind: secrets_.address_of(source, kind)})
     chain = payload.get("chain")
-    family = _chain(settings, chain)
+    if chain:
+        family = _family(chain)
+        with_address = [row for row in rows if row.get(family)]
+        try:
+            for row, balance in zip(with_address, _balances(Ctx(chain, _override(payload)), family,
+                                                            [row[family] for row in with_address])):
+                row["balance"] = balance
+        except ChainError as exc:
+            for row in with_address:
+                row["balance_error"] = str(exc)
+    result = {"accounts": rows, "seeds_list": count,
+              "note": f"use sign: a Hermes wallet (HERMES in its name) that can send, and whose seeds' accounts "
+                      f"0-{OWN_INDEXES - 1} count as own; use watch: a wallet Hermes only reads, never signs with, "
+                      "and treats as external. Token balances: chain portfolio"}
+    if secrets_.problems:
+        result["skipped"] = secrets_.problems
+    if not rows:
+        result["setup"] = SETUP
+    return result
+
+
+def op_quote(payload: dict) -> dict:
+    state = _state(payload)
+    chain = payload.get("chain")
+    family = _family(chain)
     token = payload.get("token")
     if token in (None, "", "native"):
         asset = "native"
@@ -481,31 +618,36 @@ def op_quote(payload: dict, settings: dict) -> dict:
         asset = token
     else:
         raise ChainError("token must be a token contract (EVM) or mint (Solana) address; omit it for the native coin")
-    keys = Keys(payload, settings["seeds"])
-    sender, _ = keys.signer(account, family)
+    secrets_ = Secrets(payload)
+    secrets_.require_any()
+    account = payload.get("account")
+    source, index = secrets_.account(account)
+    sender, _ = secrets_.signer(account, family)
     ctx = Ctx(chain, _override(payload))
     built = evm_quote(ctx, sender, payload, asset) if family == "evm" else sol_quote(ctx, sender, payload, asset)
     try:
-        conf.check_rate(state)
-    except conf.SettingsError as exc:
+        ledger.check_rate(state)
+    except ledger.CapReached as exc:
         raise ChainError(str(exc)) from None
-    own = (built["to"].lower() if family == "evm" else built["to"]) in keys.own(family, settings)
+    recipient = built["to"].lower() if family == "evm" else built["to"]
+    own = recipient in secrets_.own(family)
+    watched = None if own else secrets_.addresses(family, "watch").get(recipient)
     now = time.time()
-    quote = {"id": "q" + random.token_hex(4), "created": now, "expires": now + QUOTE_TTL,
-             "role": payload["account"], "seed": account["seed"], "index": account["index"], "chain": chain,
-             "family": family, "from": sender, "asset": asset, "own": own, **built}
+    quote = {"id": "q" + random.token_hex(4), "created": now, "expires": now + QUOTE_TTL, "account": account,
+             "source": source, "index": index, "chain": chain, "family": family, "from": sender, "asset": asset,
+             "own": own, "watched": watched, **built}
     price = None
     if not chains.info(chain)["testnet"]:
         book = prices.Prices(online=not (rpc.testing() and payload.get("_offline")))
         price = book.native(chain) if asset == "native" else book.tokens_usd(chain, [built["asset_address"]]).get(asset)
     quote["usd"] = round(float(Decimal(built["amount"]) * Decimal(str(price))), 2) if price else None
     quote["card"] = card(quote)
-    quote["mac"] = keys.mac(quote)
+    quote["mac"] = secrets_.mac(quote)
     fd = os.open(state / "quotes" / f"{quote['id']}.json", os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     with os.fdopen(fd, "w", encoding="utf-8") as handle:
         json.dump(quote, handle, ensure_ascii=False)
     return {"quote": quote["id"], "own": own, "card": quote["card"], "expires_in_seconds": QUOTE_TTL,
-            "summary": {k: quote[k] for k in ("role", "chain", "from", "to", "ens", "amount", "symbol",
+            "summary": {k: quote[k] for k in ("account", "chain", "from", "to", "ens", "amount", "symbol",
                                               "asset_address", "max_fee", "usd")}}
 
 
@@ -518,45 +660,45 @@ def load_quote(state: Path, quote_id) -> dict:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-def op_send(payload: dict, settings: dict) -> dict:
+def op_send(payload: dict) -> dict:
     state = _state(payload)
     approval = payload.get("approval")
     if approval not in ("own", "card"):
         raise ChainError("a send needs the plugin's approval decision")
-    with conf.locked(state):
+    with ledger.locked(state):
         quote = load_quote(state, payload.get("quote"))
-        if quote.get("seed") not in settings["seeds"]:
-            raise ChainError("this quote's seed is no longer in the settings")
-        keys = Keys(payload, settings["seeds"])
-        if not hmac.compare_digest(str(quote.get("mac")), keys.mac(quote)):
+        secrets_ = Secrets(payload)
+        if quote.get("source") not in secrets_.seeds and quote.get("source") not in secrets_.keys:
+            raise ChainError("this quote's seed phrase or key is no longer in the Keychain")
+        if not hmac.compare_digest(str(quote.get("mac")), secrets_.mac(quote)):
             raise ChainError("this quote was changed after it was made; it is refused")
         if quote.get("consumed"):
             raise ChainError("this quote was already used; make a new one")
         now = time.time()
         if now > quote["expires"]:
             raise ChainError("this quote expired; make a new one")
-        family = _chain(settings, quote["chain"])
-        own = (quote["to"].lower() if family == "evm" else quote["to"]) in keys.own(family, settings)
+        family = _family(quote["chain"])
+        own = (quote["to"].lower() if family == "evm" else quote["to"]) in secrets_.own(family)
         if approval == "own" and not (own and quote["own"]):
             raise ChainError("this transfer is not to an own account, so it needs the approval card")
         try:
-            conf.check_rate(state, now)
-        except conf.SettingsError as exc:
+            ledger.check_rate(state, now)
+        except ledger.CapReached as exc:
             raise ChainError(str(exc)) from None
-        address, secret = keys.signer({"seed": quote["seed"], "index": quote["index"]}, family)
+        address, secret = secrets_.signer(quote["account"], family)
         if address != quote["from"]:
-            raise ChainError("this quote's sending account does not match its seed")
+            raise ChainError("this quote's sending account does not match its secret")
         quote["consumed"] = now
         path = state / "quotes" / f"{quote['id']}.json"
         tmp = path.with_suffix(".tmp")
         tmp.write_text(json.dumps(quote, ensure_ascii=False), encoding="utf-8")
         os.chmod(tmp, 0o600)
         tmp.replace(path)
-        row = {"time": now, "quote": quote["id"], "account": quote["role"], "seed": quote["seed"],
-               "chain": quote["chain"], "from": quote["from"], "to": quote["to"], "asset": quote["asset"],
-               "symbol": quote["symbol"], "amount": quote["amount"], "max_fee": quote["max_fee"], "own": own,
-               "approval": approval, "outcome": "unknown"}
-        conf.append(state, row)
+        row = {"time": now, "quote": quote["id"], "account": quote["account"], "chain": quote["chain"],
+               "from": quote["from"], "to": quote["to"], "asset": quote["asset"], "symbol": quote["symbol"],
+               "amount": quote["amount"], "max_fee": quote["max_fee"], "own": own, "approval": approval,
+               "outcome": "unknown"}
+        ledger.append(state, row)
         ctx = Ctx(quote["chain"], _override(payload))
         try:
             sent = evm_send(ctx, quote, secret) if family == "evm" else sol_send(ctx, quote, secret)
@@ -566,24 +708,23 @@ def op_send(payload: dict, settings: dict) -> dict:
                              "before making a new quote") from None
         except ChainError as exc:
             # refused before or at broadcast: nothing moved
-            conf.append(state, {**row, "outcome": "rejected", "error": str(exc)[:300]})
+            ledger.append(state, {**row, "outcome": "rejected", "error": str(exc)[:300]})
             raise ChainError(f"not sent: {exc}; make a new quote to try again") from None
         except Exception as exc:
-            conf.append(state, {**row, "outcome": "rejected", "error": type(exc).__name__})
+            ledger.append(state, {**row, "outcome": "rejected", "error": type(exc).__name__})
             raise ChainError(f"not sent: the signer failed before broadcasting ({type(exc).__name__})") from None
-        conf.append(state, {**row, "outcome": "sent", "hash": sent})
+        ledger.append(state, {**row, "outcome": "sent", "hash": sent})
     return {"sent": True, "hash": sent, "chain": quote["chain"], "amount": quote["amount"], "symbol": quote["symbol"],
             "to": quote["to"], "explorer": chains.explorer(quote["chain"], "tx", sent),
             "note": "use wallet status with this hash for confirmation"}
 
 
-def op_status(payload: dict, settings: dict) -> dict:
+def op_status(payload: dict) -> dict:
     chain = payload.get("chain")
-    if not isinstance(chain, str) or chains.family(chain) is None:
-        raise ChainError("status needs the chain")
+    family = _family(chain)
     ctx = Ctx(chain, _override(payload))
     tx_hash = payload.get("hash")
-    if chains.family(chain) == "evm":
+    if family == "evm":
         evm.require_hash(tx_hash)
         receipt = ctx.rpc.call("eth_getTransactionReceipt", [tx_hash])
         if not receipt:
@@ -600,20 +741,14 @@ def op_status(payload: dict, settings: dict) -> dict:
             "slot": value.get("slot")}
 
 
-OPS = {"derive": op_derive, "accounts": op_accounts, "quote": op_quote, "send": op_send, "status": op_status}
+OPS = {"accounts": op_accounts, "quote": op_quote, "send": op_send, "status": op_status}
 
 
 def run(payload: dict) -> dict:
     op = payload.get("op")
     if op not in OPS:
         raise ChainError(f"unknown op {op!r}")
-    if op == "derive":  # setup: no settings yet, nothing that signs
-        return op_derive(payload, {})
-    try:
-        settings = conf.parse(payload.get("settings"))
-    except conf.SettingsError as exc:
-        raise ChainError(f"{conf.FILE}: {exc}") from None
-    return OPS[op](payload, settings)
+    return OPS[op](payload)
 
 
 def main() -> int:
