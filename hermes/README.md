@@ -503,7 +503,8 @@ keeps user keys.
   reads and image uploads carry no cookie; its hook blocks the terminal path
   around it. Behavior: [docs/note-access.md](docs/note-access.md).
 - **social/substack-access** (`standalone`): `substack` (toolset `substack_access`)
-  for the assistant and marketer — the user's own Substack account through
+  for the assistant and marketer, and for searcher with `status` / `archive` /
+  `post` only — the user's own Substack account through
   python-substack (`bridge.py` in the ignored `local/python-substack/venv`,
   pinned in `engines/python-substack/`): any publication's posts and search,
   the inbox, and the user's published posts, drafts, pre-publish checks and
