@@ -2,8 +2,11 @@
   "enabledProviders": ["anthropic", "openai"],
   "formatStyle": "allWindows",
   "enableToast": false,
+  // Share Quota's cached public JSON with the local launch selector. No extra
+  // provider fetch: Quota's home footer writes this on its normal refresh.
+  "export": { "enabled": true, "path": "" },
   // Never fall back to Claude Code: its default Keychain entry is Hermes'
   // account. With no `claude` found, Anthropic usage comes only from
   // OpenCode's own login (the sub account).
-  "anthropicBinaryPath": "/nonexistent/claude-disabled"
+  "anthropicBinaryPath": "/nonexistent/claude-disabled",
 }
