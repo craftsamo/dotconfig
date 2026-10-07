@@ -21,8 +21,6 @@ SPEC.loader.exec_module(VALIDATOR)
 
 class AssistantPipelineTreeTest(unittest.TestCase):
     def test_repository_tree_is_valid(self) -> None:
-        if not VALIDATOR.ASSISTANT_PIPELINE.is_dir():
-            self.skipTest("deployment-only: repository private overlay is absent")
         errors: list[str] = []
         refs, catalog = VALIDATOR.validate_assistant_pipeline(errors)
         self.assertEqual([], errors)
@@ -435,37 +433,12 @@ class AssistantAlignmentIsolationTest(unittest.TestCase):
                 VALIDATOR.assistant_entry_dir("plan", "unknown")
 
 
-class PairedCandidateStructureTest(unittest.TestCase):
-    def test_absent_private_candidate_environment_skips(self) -> None:
-        with mock.patch.dict(os.environ, {}, clear=True), mock.patch.object(
-            VALIDATOR, "validate_assistant_pipeline"
-        ) as validate:
-            with self.assertRaisesRegex(unittest.SkipTest, "requires explicit HERMES_PRIVATE_ROOT"):
-                self.test_paired_candidate_structure()
-            validate.assert_not_called()
-
-    def test_invalid_private_candidate_environment_fails_without_live_fallback(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            for value, message in (
-                ("", "HERMES_PRIVATE_ROOT must not be empty"),
-                ("   ", "HERMES_PRIVATE_ROOT must not be empty"),
-                (str(Path(tmp) / "nonexistent"), "candidate pipeline missing"),
-            ):
-                with self.subTest(value=value), mock.patch.dict(
-                    os.environ, {"HERMES_PRIVATE_ROOT": value}
-                ), mock.patch.object(VALIDATOR, "validate_assistant_pipeline") as validate:
-                    with self.assertRaisesRegex(AssertionError, message):
-                        self.test_paired_candidate_structure()
-                    validate.assert_not_called()
-
-    def test_paired_candidate_structure(self) -> None:
-        private_root = os.environ.get("HERMES_PRIVATE_ROOT")
-        if private_root is None:
-            self.skipTest("opt-in paired-candidate check requires explicit HERMES_PRIVATE_ROOT")
-        self.assertTrue(private_root.strip(), "HERMES_PRIVATE_ROOT must not be empty")
-        pipeline = Path(private_root) / "hermes/profiles/assistant/skills/assistant-pipeline"
-        self.assertTrue(pipeline.is_dir(), f"candidate pipeline missing: {pipeline}")
+class AssistantCrossProfileStructureTest(unittest.TestCase):
+    def test_pipeline_matches_this_checkout_s_workers_and_hands(self) -> None:
         public = SCRIPT.parents[1]
+        pipeline = public / "profiles/assistant/skills/assistant-pipeline"
+        self.assertTrue(pipeline.is_dir(), f"assistant pipeline missing: {pipeline}")
+        self.assertFalse(pipeline.is_symlink(), f"assistant pipeline must be tracked here: {pipeline}")
         with mock.patch.object(VALIDATOR, "ASSISTANT_PIPELINE", pipeline), mock.patch.object(
             VALIDATOR, "HERMES_ROOT", public
         ):
@@ -1144,8 +1117,8 @@ class HandsLeafTest(unittest.TestCase):
 
 class EndToEndTest(unittest.TestCase):
     def test_all_profiles_pass(self) -> None:
-        if not VALIDATOR.ASSISTANT_PIPELINE.is_dir():
-            self.skipTest("deployment-only: repository private overlay is absent")
+        if not VALIDATOR.PRIVATE_OVERLAY.is_dir():
+            self.skipTest("deployment-only: private overlay is absent")
         # Invoke via sys.executable, not the script's `uv run --script` shebang:
         # this pins the actual provisioned interpreter running the test itself,
         # instead of letting uv/mise resolve one under a possibly-faked HOME.

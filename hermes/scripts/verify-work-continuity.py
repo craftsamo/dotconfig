@@ -80,7 +80,8 @@ RUNTIME_PYTEST_FILES = (
     "tests/pm/test_runtime_journal_safety.py",
 )
 
-PRIVATE_TESTS = "hermes/profiles/assistant/skills/assistant-pipeline/tests"
+ASSISTANT_PIPELINE = "hermes/profiles/assistant/skills/assistant-pipeline"
+ASSISTANT_TESTS = f"{ASSISTANT_PIPELINE}/tests"
 
 
 class ContinuityError(RuntimeError):
@@ -115,18 +116,16 @@ def check_runtime(runtime: Path) -> Path:
 
 
 def check_candidate_pairing(private: Path) -> None:
-    """The public assistant-pipeline must be a real symlink resolving under
-    the passed --private root, AND the real Path.home()/.config/private must
-    resolve to that SAME root -- never soften the original validator's own
-    symlink checks, just refuse an unpaired candidate here. (desks/ was the
-    second overlay link until the desk skills were retired on 2026-09-14.)"""
+    """The assistant-pipeline must be this checkout's own tracked directory,
+    never a leftover link into an overlay, AND the real
+    Path.home()/.config/private must resolve to the passed --private root,
+    which still owns the Assistant's config and private technics -- never
+    soften the validator's own checks, just refuse an unpaired candidate."""
     private = private.resolve()
-    for name in ("assistant-pipeline",):
-        link = HERMES_ROOT / "profiles/assistant/skills" / name
-        require(link.is_symlink(), f"{link} must be a real symlink into the private overlay")
-        target = link.resolve()
-        require(target.is_dir(), f"missing private pipeline directory: {target}")
-        require(target.is_relative_to(private), f"{link} resolves to {target}, not under --private {private}")
+    pipeline = HERMES_ROOT / "profiles/assistant/skills/assistant-pipeline"
+    require(not pipeline.is_symlink(), f"{pipeline} must be a tracked directory, not a link")
+    require(pipeline.is_dir(), f"missing assistant pipeline directory: {pipeline}")
+    require(private.is_dir(), f"missing --private checkout: {private}")
     home_private = (Path.home() / ".config" / "private").resolve()
     require(
         home_private == private,
@@ -169,9 +168,9 @@ def build_plan(runtime: Path, private: Path, python: Path) -> list[dict]:
             cwd=PUBLIC_ROOT, env=env,
         ),
         dict(
-            name="private assistant unittest",
-            argv=[str(python), "-m", "unittest", "discover", "-s", str(private / PRIVATE_TESTS)],
-            cwd=private, env=env,
+            name="assistant unittest",
+            argv=[str(python), "-m", "unittest", "discover", "-s", str(PUBLIC_ROOT / ASSISTANT_TESTS)],
+            cwd=PUBLIC_ROOT, env=env,
         ),
         dict(
             name="runtime pytest",
@@ -194,7 +193,7 @@ def main(argv: list[str] | None = None) -> int:
     check_files_exist(PUBLIC_ROOT, PUBLIC_PYTEST_FILES)
     check_files_exist(args.runtime, RUNTIME_PYTEST_FILES)
     check_candidate_pairing(args.private)
-    require(any((args.private / PRIVATE_TESTS).glob("test_*.py")), "paired Assistant tests are missing")
+    require(any((PUBLIC_ROOT / ASSISTANT_TESTS).glob("test_*.py")), "Assistant pipeline tests are missing")
     plan = build_plan(args.runtime, args.private, python)
     run_plan(plan)
     return 0

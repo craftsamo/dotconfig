@@ -1,8 +1,7 @@
-"""Opt-in, offline integration with the paired candidate and real Hermes source.
+"""Offline integration of this checkout's Assistant pipeline with real Hermes source.
 
-Run with the Hermes venv and source PYTHONPATH, plus HERMES_PRIVATE_ROOT pointing
-at the private candidate checkout. An absent variable skips; an invalid explicit
-path fails. Nothing falls back to ~/.config/private or a live Hermes profile.
+Run with the Hermes venv and source PYTHONPATH. The tree under test is this
+checkout's own; nothing falls back to ~/.config or a live Hermes profile.
 
 Only assistant-pipeline Markdown is copied, never config/persona/runtime state.
 Writer acceptance is an explicit synthetic external fixture: its absence is a
@@ -52,12 +51,9 @@ TREE = Path("hermes/profiles/assistant/skills/assistant-pipeline")
 
 @pytest.mark.parametrize("case", CASES)
 def test_assistant_entry_runtime(case):
-    private = os.environ.get("HERMES_PRIVATE_ROOT")
-    if private is None:
-        pytest.skip("Set HERMES_PRIVATE_ROOT to the paired private candidate for runtime integration")
-    candidate = Path(private).resolve() if private else None
-    if candidate is None or not (candidate / TREE / "SKILL.md").is_file():
-        pytest.fail("HERMES_PRIVATE_ROOT must name an existing paired candidate checkout")
+    candidate = Path(__file__).resolve().parents[3]
+    if not (candidate / TREE / "SKILL.md").is_file() or (candidate / TREE).is_symlink():
+        pytest.fail(f"this checkout must track the Assistant pipeline at {TREE}")
     # Resolve source without importing Hermes (imports can capture HOME).
     roots = [Path(p).resolve() for p in os.environ.get("PYTHONPATH", "").split(os.pathsep) if p]
     source = next((p for p in roots if (p / "agent/skill_utils.py").is_file()), None)
@@ -86,7 +82,7 @@ def test_assistant_entry_runtime(case):
              case, str(sandbox), str(candidate / TREE), str(source)],
             cwd=home, env=env, text=True, capture_output=True, timeout=120,
         )
-        # Child emits only public case/name/count diagnostics, never private bodies.
+        # Child emits only case/name/count diagnostics, never entry bodies.
         assert result.returncode == 0, result.stdout
         report = json.loads(result.stdout)
         assert report == {"case": case, "assistant_names": sorted(EXPECTED), "count": 20}
