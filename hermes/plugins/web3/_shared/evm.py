@@ -1,4 +1,4 @@
-"""EVM reads of the ``chain`` tool, run in the engine venv (docs/web3.md "Reads").
+"""EVM reads of the ``evm`` tool, run in the engine venv (docs/web3.md "Reads").
 
 Every action takes the engine context (``ctx.rpc``, ``ctx.decoder``, ``ctx.prices``, ``ctx.chain``)
 and the caller's arguments, and returns plain JSON. Text read from the chain (token names and

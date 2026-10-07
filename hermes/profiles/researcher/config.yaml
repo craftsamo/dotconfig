@@ -21,7 +21,8 @@ toolsets:
   - skills
   - memory
   - delegation
-  - web3_read
+  - evm_access
+  - solana_access
 max_concurrent_sessions:
 agent:
   system_prompt: |
@@ -677,27 +678,29 @@ platform_toolsets:
   cli:
     - connections
     - delegation
+    - evm_access
     - file
     - memory
     - no_mcp
     - skills
+    - solana_access
     - video
     - vision
     - web
-    - web3_read
   telegram: []
   discord: []
   a2a:
     - connections
     - delegation
+    - evm_access
     - file
     - memory
     - no_mcp
     - skills
+    - solana_access
     - video
     - vision
     - web
-    - web3_read
 video_analyze:
   provider: openrouter
   model: xiaomi/mimo-v2.5
@@ -705,7 +708,8 @@ plugins:
   enabled:
     - video-analyze-mimo
     - skill-topology
-    - chain-read
+    - evm-access
+    - solana-access
   entries:
     inspection/video-analyze-mimo:
       allow_tool_override: true

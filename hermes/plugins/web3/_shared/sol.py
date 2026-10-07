@@ -1,4 +1,4 @@
-"""Solana reads of the ``chain`` tool, run in the engine venv (docs/web3.md "Reads").
+"""Solana reads of the ``solana`` tool, run in the engine venv (docs/web3.md "Reads").
 
 Transactions and accounts are read with ``jsonParsed``, so the RPC itself decodes the System,
 Token, Token-2022, Associated Token Account, Memo and other native programs; other programs'

@@ -14,7 +14,7 @@ def _load(name, path):
     return module
 
 
-keychain = _load("web3_wallet_keychain_test", ROOT / "keychain.py")
+keychain = _load("web3_keychain_test", ROOT / "keychain.py")
 
 LISTING = """\
 NAME                SCOPE        KIND         MODIFIED          COMMENT
@@ -30,17 +30,29 @@ def test_only_wallet_kinds_are_picked_from_a_listing():
     found = keychain.parse_listing("work", LISTING)
     assert found == [
         {"project": "work", "scope": None, "name": "HERMES_MAIN", "label": "mnemonic", "role": "seed",
-         "use": "sign", "memo": "hermes only"},
+         "use": "sign", "memo": "hermes only", "env": "yes"},
         {"project": "work", "scope": "deploy-ops", "name": "DEPLOYER", "label": "private key", "role": "key",
-         "use": "watch", "memo": None},
+         "use": "watch", "memo": None, "env": "yes"},
         {"project": "work", "scope": None, "name": "OLD_SEED", "label": "seed phrase", "role": "seed",
-         "use": "watch", "memo": None},
+         "use": "watch", "memo": None, "env": "yes"},
     ]
     assert [keychain.source_id(item) for item in found] == ["work/HERMES_MAIN", "work/deploy-ops/DEPLOYER",
                                                              "work/OLD_SEED"]
 
 
+def test_the_env_column_is_read_when_secret_lists_it():
+    listing = ("NAME         SCOPE   KIND             MODIFIED          ENV  COMMENT\n"
+               "HERMES_MAIN  Shared  MNEMONIC PHRASE  2026-10-07 10:00  no   wallet memo\n"
+               "OTHER_SEED   Shared  MNEMONIC         2026-10-07 10:00  yes\n")
+    found = keychain.parse_listing("work", listing)
+    assert [(item["name"], item["role"], item["env"], item["memo"]) for item in found] == [
+        ("HERMES_MAIN", "seed", "no", "wallet memo"), ("OTHER_SEED", "seed", "yes", None)]
+    # an older secret without the column: assume it is injected
+    assert {item["env"] for item in keychain.parse_listing("work", LISTING)} == {"yes"}
+
+
 @pytest.mark.parametrize("label, role", [("MNEMONIC", "seed"), ("mnemonic", "seed"), ("seed phrase", "seed"),
+                                         ("MNEMONIC PHRASE", "seed"),
                                          ("PRIVATE_KEY", "key"), ("private-key", "key"), ("Private Key", "key"),
                                          ("api key", None), ("TOKEN", None), ("", None)])
 def test_kind_labels_are_matched_however_spelled(label, role):

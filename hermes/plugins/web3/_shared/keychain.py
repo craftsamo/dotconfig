@@ -8,6 +8,8 @@ value is ever read. Without the ``secret`` CLI the wallet is unavailable.
 The kind says what an item is; its name says whether Hermes may sign with it: a name with HERMES
 as one of its ``_`` / ``-`` separated words (``HERMES_MAIN``, ``PROJECTX_HERMES``) is a Hermes wallet
 ("sign"), any other name is watch-only ("watch"), so a project's own wallets never sign by accident.
+The listing's ENV column says whether ``secret env`` (and so every injected environment) carries the
+item; a Hermes wallet should be stored ``--no-env``.
 """
 
 from __future__ import annotations
@@ -18,7 +20,8 @@ import subprocess
 
 SECRET = Path.home() / ".config" / "bin" / "secret"
 TIMEOUT = 20
-KINDS = {"mnemonic": "seed", "seed phrase": "seed", "private key": "key", "privatekey": "key"}
+KINDS = {"mnemonic": "seed", "mnemonic phrase": "seed", "seed phrase": "seed", "private key": "key",
+         "privatekey": "key"}
 COLUMNS = ("NAME", "SCOPE", "KIND", "MODIFIED")
 MARK = "hermes"
 UNAVAILABLE = ("the secret CLI is not available on this machine, so the wallet cannot find seed phrases or "
@@ -62,16 +65,21 @@ def parse_listing(project: str, text: str) -> list[dict]:
     if min(starts) < 0:
         return []
     comment_at = header.find("COMMENT")
+    env_match = re.search(r"\bENV\b", header)
+    env_at = env_match.start() if env_match else -1
     found = []
     for row in lines[1:]:
         name = row[starts[0]:starts[1]].strip()
         scope = row[starts[1]:starts[2]].strip()
         label = row[starts[2]:starts[3]].strip()
         memo = row[comment_at:].strip() if comment_at > 0 else ""
+        env = row[env_at:comment_at if comment_at > env_at else None].strip() if env_at > 0 else ""
         role = kind_of(label)
         if name and role:
             found.append({"project": project, "scope": None if scope in ("", "Shared") else scope,
-                          "name": name, "label": label, "role": role, "use": use_of(name), "memo": memo or None})
+                          "name": name, "label": label, "role": role, "use": use_of(name), "memo": memo or None,
+                          # "no" when stored --no-env; "yes" or unknown (an older secret) means injectable
+                          "env": "no" if env == "no" else "yes"})
     return found
 
 

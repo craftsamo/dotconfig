@@ -19,7 +19,7 @@ import pytest
 
 HERMES = Path(__file__).resolve().parents[4]
 PYTHON = HERMES / "local" / "web3" / "venv" / "bin" / "python"
-SIGNER = HERMES / "plugins" / "web3" / "wallet" / "signer.py"
+SIGNER = HERMES / "plugins" / "web3" / "_shared" / "signer.py"
 READER = HERMES / "plugins" / "web3" / "_shared" / "reader.py"
 
 pytestmark = pytest.mark.skipif(not PYTHON.exists(), reason="web3 engine venv not installed (scripts/web3.sh install)")
@@ -77,6 +77,8 @@ def handle(method: str, params: list):
         return ("0x6080604052" if params[0].lower() == USDC.lower() else "0x"), None
     if method == "eth_call":
         data = params[0].get("data", "")
+        if params[0].get("to", "").lower() == "0x420000000000000000000000000000000000000f":
+            return "0x" + word(10 ** 12), None  # GasPriceOracle.getL1Fee
         if data.startswith("0x70a08231"):
             return "0x" + word(500 * 10 ** 6), None
         if data == "0x95d89b41":
@@ -177,6 +179,16 @@ def signer(tmp_path: Path, endpoint: str, op: str, **fields) -> dict:
     return json.loads(proc.stdout)
 
 
+def send(tmp_path: Path, endpoint: str, quote_id: str, approval: str, mac: str | None = None, **fields) -> dict:
+    """What the plugin does: verify the quote (the hook), then send it with the approved MAC."""
+    if mac is None:
+        verified = signer(tmp_path, endpoint, "verify", quote=quote_id, **fields)
+        if not verified["ok"]:
+            return verified
+        mac = verified["data"]["mac"]
+    return signer(tmp_path, endpoint, "send", quote=quote_id, approval=approval, mac=mac, **fields)
+
+
 def decode(tmp_path: Path, chain: str, data: str) -> dict:
     payload = {"action": "decode", "chain": chain, "data": data, "_offline": True}
     proc = subprocess.run([str(PYTHON), str(READER)], input=json.dumps(payload), capture_output=True, text=True,
@@ -215,7 +227,7 @@ def test_accounts_list_every_labelled_secret_with_its_metadata(tmp_path, endpoin
     assert list(rows) == [f"{MAIN}#0", f"{MAIN}#1", f"{WORK}#0", f"{WORK}#1", f"{TEAM}#0", f"{TEAM}#1", KEY]
     assert rows[f"{MAIN}#0"] == {"account": f"{MAIN}#0", "project": "hermes", "scope": None, "name": "HERMES_MAIN",
                                  "label": "MNEMONIC", "kind": "seed", "use": "sign", "memo": "main ops wallet",
-                                 "index": 0, "evm": OPS, "solana": SOL_OPS, "balance": "1 ETH"}
+                                 "env": "yes", "index": 0, "evm": OPS, "solana": SOL_OPS, "balance": "1 ETH"}
     assert rows[f"{WORK}#0"]["project"] == "projectx" and rows[f"{WORK}#0"]["scope"] == "ops"
     assert rows[f"{WORK}#0"]["use"] == "sign"
     assert rows[f"{MAIN}#1"]["evm"] == SPARE and rows[f"{WORK}#0"]["evm"] == WORK0
@@ -232,6 +244,14 @@ def test_bad_and_duplicate_secrets_are_skipped_keeping_the_hermes_copy(tmp_path,
     reordered = [SOURCES[5]] + SOURCES[:5]
     rows = {r["account"]: r for r in signer(tmp_path, endpoint, "accounts", count=1, _sources=reordered)["data"]["accounts"]}
     assert rows[f"{MAIN}#0"]["use"] == "sign" and "other/COPY#0" not in rows
+
+
+def test_each_tool_lists_its_own_familys_addresses(tmp_path, endpoint):
+    rows = {r["account"]: r for r in signer(tmp_path, endpoint, "accounts", count=1, family="solana")["data"]["accounts"]}
+    assert rows[f"{MAIN}#0"]["solana"] == SOL_OPS and "evm" not in rows[f"{MAIN}#0"]
+    assert KEY not in rows  # an EVM key has no place in the solana tool's list
+    reply = signer(tmp_path, endpoint, "accounts", family="solana", chain="sepolia")
+    assert reply["ok"] is False and "is not a Solana chain" in reply["error"]
 
 
 def test_solana_balances_come_in_one_batch(tmp_path, endpoint):
@@ -259,7 +279,7 @@ def test_a_watch_only_wallet_never_signs_and_is_not_own(tmp_path, endpoint):
     assert data["own"] is False and to_block == [
         "--- To ---", "Type: Watch-only (external)", "Project: team(Shared)", "Name: PROD_MNEMONIC",
         f"Address #0: {team0['evm']}"]
-    reply = signer(tmp_path, endpoint, "send", quote=data["quote"], approval="own")
+    reply = send(tmp_path, endpoint, data["quote"], "own")
     assert reply["ok"] is False and "needs the approval card" in reply["error"]
 
 
@@ -342,20 +362,20 @@ def test_a_long_card_sheds_memo_and_scope_before_falling_back_to_the_compact_one
 
 def test_an_external_quote_cannot_be_sent_as_own(tmp_path, endpoint):
     data = quote(tmp_path, endpoint, to=STRANGER, amount="0.01")
-    reply = signer(tmp_path, endpoint, "send", quote=data["quote"], approval="own")
+    reply = send(tmp_path, endpoint, data["quote"], "own")
     assert reply["ok"] is False and "needs the approval card" in reply["error"]
     assert FAKE["sent"] == [] and ledger(tmp_path) == []
 
 
 def test_a_quote_sends_once_exactly_as_quoted(tmp_path, endpoint):
     data = quote(tmp_path, endpoint, to=STRANGER, amount="10", token=USDC)
-    sent = signer(tmp_path, endpoint, "send", quote=data["quote"], approval="card")
+    sent = send(tmp_path, endpoint, data["quote"], "card")
     assert sent["ok"], sent
     tx = decode(tmp_path, "sepolia", FAKE["sent"][0])
     assert tx["from"] == OPS and tx["chain"] == "sepolia" and tx["to"] == USDC and tx["nonce"] == 4
     assert tx["call"]["function"] == "transfer" and tx["call"]["args"] == {"to": STRANGER, "amount": 10_000_000}
     assert [row["outcome"] for row in ledger(tmp_path)] == ["unknown", "sent"]
-    again = signer(tmp_path, endpoint, "send", quote=data["quote"], approval="card")
+    again = send(tmp_path, endpoint, data["quote"], "card")
     assert again["ok"] is False and "already used" in again["error"]
     assert len(FAKE["sent"]) == 1
 
@@ -363,13 +383,13 @@ def test_a_quote_sends_once_exactly_as_quoted(tmp_path, endpoint):
 def test_seed_accounts_and_keys_sign_with_their_own_secret(tmp_path, endpoint):
     data = quote(tmp_path, endpoint, account=f"{WORK}#0", to=OPS, amount="0.01")
     assert data["own"] is True and data["summary"]["from"] == WORK0
-    assert signer(tmp_path, endpoint, "send", quote=data["quote"], approval="own")["ok"]
+    assert send(tmp_path, endpoint, data["quote"], "own")["ok"]
     assert decode(tmp_path, "sepolia", FAKE["sent"][0])["from"] == WORK0
     data = quote(tmp_path, endpoint, account=KEY, to=OPS, amount="0.01")
     assert f"Address (key): {data['summary']['from']}" in data["card"]
     assert data["card"].endswith(f"--- To ---\nType: Your own\nProject: hermes(Shared)\nName: HERMES_MAIN\n"
                                  f"Address #0: {OPS}\nMemo: main ops wallet")
-    assert signer(tmp_path, endpoint, "send", quote=data["quote"], approval="own")["ok"]
+    assert send(tmp_path, endpoint, data["quote"], "own")["ok"]
     assert decode(tmp_path, "sepolia", FAKE["sent"][1])["from"] == data["summary"]["from"]
 
 
@@ -379,26 +399,88 @@ def test_an_edited_or_expired_quote_is_refused(tmp_path, endpoint):
     stored = json.loads(path.read_text())
     edited = {**stored, "to": STRANGER, "build": {**stored["build"], "to": STRANGER}}
     path.write_text(json.dumps(edited))
-    reply = signer(tmp_path, endpoint, "send", quote=data["quote"], approval="own")
+    reply = send(tmp_path, endpoint, data["quote"], "own")
     assert reply["ok"] is False and "changed after it was made" in reply["error"]
     expired = {**stored, "expires": stored["created"] - 1}
     expired["mac"] = remac(expired, MAIN_WORDS)
     path.write_text(json.dumps(expired))
-    reply = signer(tmp_path, endpoint, "send", quote=data["quote"], approval="own")
+    reply = send(tmp_path, endpoint, data["quote"], "own")
     assert reply["ok"] is False and "expired" in reply["error"]
     assert FAKE["sent"] == []
 
 
 def test_a_quote_whose_secret_is_gone_is_refused(tmp_path, endpoint):
     data = quote(tmp_path, endpoint, account=f"{WORK}#0", to=OPS, amount="0.01")
-    reply = signer(tmp_path, endpoint, "send", _sources=[SOURCES[0]], quote=data["quote"], approval="own")
+    reply = send(tmp_path, endpoint, data["quote"], "own", _sources=[SOURCES[0]])
     assert reply["ok"] is False and "no longer in the Keychain" in reply["error"]
+
+
+def test_verify_returns_the_authentic_cards_and_mac(tmp_path, endpoint):
+    data = quote(tmp_path, endpoint, to=STRANGER, amount="0.01")
+    verified = signer(tmp_path, endpoint, "verify", quote=data["quote"])["data"]
+    stored = json.loads(quote_file(tmp_path, data["quote"]).read_text())
+    assert verified == {"quote": data["quote"], "chain": "sepolia", "own": False, "card": stored["card"],
+                        "card_short": stored["card_short"], "mac": stored["mac"]}
+
+
+def test_another_quotes_file_under_this_id_is_refused(tmp_path, endpoint):
+    benign = quote(tmp_path, endpoint, to=SPARE, amount="0.01")
+    evil = quote(tmp_path, endpoint, to=STRANGER, amount="0.05")
+    quote_file(tmp_path, benign["quote"]).write_text(quote_file(tmp_path, evil["quote"]).read_text())
+    reply = signer(tmp_path, endpoint, "verify", quote=benign["quote"])
+    assert reply["ok"] is False and "holds another quote" in reply["error"]
+
+
+def test_a_send_must_present_the_approved_quotes_mac(tmp_path, endpoint):
+    data = quote(tmp_path, endpoint, to=STRANGER, amount="0.01")
+    reply = send(tmp_path, endpoint, data["quote"], "card", mac="0" * 64)
+    assert reply["ok"] is False and "not the quote that was approved" in reply["error"]
+    assert FAKE["sent"] == []
+
+
+def test_clearing_the_consumed_mark_does_not_send_twice(tmp_path, endpoint):
+    data = quote(tmp_path, endpoint, to=STRANGER, amount="0.01")
+    verified = signer(tmp_path, endpoint, "verify", quote=data["quote"])["data"]
+    assert send(tmp_path, endpoint, data["quote"], "card", mac=verified["mac"])["ok"]
+    path = quote_file(tmp_path, data["quote"])
+    stored = json.loads(path.read_text())
+    stored.pop("consumed")
+    path.write_text(json.dumps(stored))  # the MAC still checks out: consumed is outside it
+    for reply in (signer(tmp_path, endpoint, "verify", quote=data["quote"]),
+                  send(tmp_path, endpoint, data["quote"], "card", mac=verified["mac"])):
+        assert reply["ok"] is False and "already used" in reply["error"]
+    assert len(FAKE["sent"]) == 1
+
+
+def test_every_send_attempt_counts_on_its_own(tmp_path, endpoint):
+    for _ in range(3):
+        data = quote(tmp_path, endpoint, to=SPARE, amount="0.001")
+        assert send(tmp_path, endpoint, data["quote"], "own")["ok"]
+    rows = ledger(tmp_path)
+    assert len({row["attempt"] for row in rows}) == 3 and all(len(row["attempt"]) == 16 for row in rows)
+
+
+def test_an_op_stack_fee_includes_the_l1_data_fee(tmp_path, endpoint):
+    data = quote(tmp_path, endpoint, chain="base-sepolia", to=STRANGER, amount="0.01")
+    # 21000 gas at 3 gwei, plus twice the oracle's 1e12 wei L1 fee
+    assert data["summary"]["max_fee"] == "0.000065"
+    assert quote(tmp_path, endpoint, to=STRANGER, amount="0.01")["summary"]["max_fee"] == "0.000063"
+
+
+def test_a_hermes_wallet_in_the_environment_gets_a_warning(tmp_path, endpoint):
+    sources = [dict(SOURCES[0], env="no"), dict(SOURCES[1], env="yes"), SOURCES[3]]
+    data = signer(tmp_path, endpoint, "accounts", count=1, _sources=sources)["data"]
+    warned = {w["source"]: w["warning"] for w in data.get("warnings", [])}
+    assert set(warned) == {WORK}
+    assert "secret update PROJECTX-HERMES -p projectx --scope ops --no-env" in warned[WORK]
+    rows = {r["account"]: r for r in data["accounts"]}
+    assert rows[f"{MAIN}#0"]["env"] == "no" and rows[f"{WORK}#0"]["env"] == "yes"
 
 
 def test_the_hourly_cap_counts_every_send(tmp_path, endpoint):
     for _ in range(10):
         data = quote(tmp_path, endpoint, to=SPARE, amount="0.001")
-        assert signer(tmp_path, endpoint, "send", quote=data["quote"], approval="own")["ok"]
+        assert send(tmp_path, endpoint, data["quote"], "own")["ok"]
     capped = signer(tmp_path, endpoint, "quote", account=f"{MAIN}#0", chain="sepolia", to=SPARE, amount="0.001")
     assert capped["ok"] is False and "10 transfers in the last hour" in capped["error"]
 
@@ -423,12 +505,12 @@ def test_bad_transfers_are_refused(tmp_path, endpoint):
 def test_a_rejected_broadcast_is_not_counted_and_a_lost_one_is(tmp_path, endpoint):
     FAKE["broadcast"] = "reject"
     data = quote(tmp_path, endpoint, to=SPARE, amount="0.01")
-    reply = signer(tmp_path, endpoint, "send", quote=data["quote"], approval="own")
+    reply = send(tmp_path, endpoint, data["quote"], "own")
     assert reply["ok"] is False and "nonce too low" in reply["error"]
     assert ledger(tmp_path)[-1]["outcome"] == "rejected"
     FAKE["broadcast"] = "drop"
     data = quote(tmp_path, endpoint, to=SPARE, amount="0.01")
-    reply = signer(tmp_path, endpoint, "send", quote=data["quote"], approval="own")
+    reply = send(tmp_path, endpoint, data["quote"], "own")
     assert reply["ok"] is False and "outcome is unknown" in reply["error"]
     assert ledger(tmp_path)[-1]["outcome"] == "unknown"
 
@@ -438,7 +520,7 @@ def test_a_rejected_broadcast_is_not_counted_and_a_lost_one_is(tmp_path, endpoin
 def test_a_sol_transfer_signs_the_quoted_lamports(tmp_path, endpoint):
     data = quote(tmp_path, endpoint, chain="solana-devnet", to=SOL_SPARE, amount="0.25")
     assert data["own"] is True and data["summary"]["max_fee"] == "0.000005"
-    assert signer(tmp_path, endpoint, "send", quote=data["quote"], approval="own")["ok"]
+    assert send(tmp_path, endpoint, data["quote"], "own")["ok"]
     tx = decode(tmp_path, "solana-devnet", FAKE["sent"][0])
     assert tx["signers"] == [SOL_OPS] and tx["signatures_present"] == 1
     ix = tx["instructions"][0]
@@ -460,7 +542,7 @@ def test_an_spl_transfer_creates_the_recipients_token_account(tmp_path, endpoint
     data = quote(tmp_path, endpoint, chain="solana-devnet", to=SOL_STRANGER, amount="2.5", token=DEV_USDC)
     assert data["own"] is False and f"Token: {DEV_USDC}" in data["card"]
     assert data["summary"]["max_fee"] == "0.00204428"  # signature fee + the new token account's rent
-    assert signer(tmp_path, endpoint, "send", quote=data["quote"], approval="card")["ok"]
+    assert send(tmp_path, endpoint, data["quote"], "card")["ok"]
     create, move = decode(tmp_path, "solana-devnet", FAKE["sent"][0])["instructions"]
     assert create["name"] == "Associated Token Account" and create["accounts"][2] == SOL_STRANGER
     assert move["type"] == "transferChecked" and move["amount"] == 2_500_000 and move["decimals"] == 6
