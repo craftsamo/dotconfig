@@ -1,4 +1,4 @@
-"""note-access engine: note.com for the Assistant and Marketer (read, and save unpublished drafts).
+"""note-access engine: note.com for the Assistant (read, and save unpublished drafts) and Marketer (read).
 
 Public reads (search, articles, an article, a creator, comments, hashtags) go out from here with
 no cookie at all. Everything signed in — the user's own drafts and stats, creating and saving a

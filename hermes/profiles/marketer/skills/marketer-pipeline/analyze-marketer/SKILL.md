@@ -1,10 +1,10 @@
 ---
 name: analyze-marketer
 description: >-
-  Analyze marketing: interpret measured outcomes and gaps. Recommend the next
-  decision from comparable evidence; not artifact acceptance, content
+  Analyze marketing: collect and interpret measured outcomes. Recommend the
+  next decision from comparable evidence; not artifact review, content
   creation or automatic changes.
-version: 1.0.0
+version: 2.0.0
 author: CraftSamo
 license: MIT
 metadata:
@@ -36,24 +36,24 @@ owning skill directory. Follow next_offset until the required body is
 complete. Do not evade dedup with alternate paths or artificial ranges. If the
 body remains missing, stop the affected action and report it.
 
-Read shared [state](../references/state.md) for records, approvals or
-resumes. For a named service, read only its applicable shared procedure:
+Read shared [state](../references/state.md) for the strategy record. For a
+named service, read only its applicable shared reference:
 [X](../references/platforms/x.md), [Substack](../references/platforms/substack.md),
 [note](../references/platforms/note.md) or [Zenn](../references/platforms/zenn.md).
-X content review, X result analysis and X conversation discovery also read
+X result analysis and X conversation discovery also read
 [X ranking](../references/x-ranking.md).
-Instruction reads do not authorize browser work. Any actual browser action,
-including verification or measurement, requires the kernel's
-[browser lease](../scripts/browser-lease.py) contract and the relevant shared
-procedure.
+Instruction reads do not authorize browser work. Any actual browser page,
+including a dashboard read, follows [browsing](../references/browsing.md) and
+its lease.
 
 </ReadBeforeWork>
 
 # Analyze outcomes
 
 Start from the question, agreed purpose and actual observations. Load
-[state](../references/state.md) and use [measurement](../build-marketer/references/measurement.md) if data is
-missing. Analysis is an entry mode, not a requirement to create another campaign.
+[state](../references/state.md) and collect what is missing through
+[measurement](references/measurement.md). Analysis is an entry mode, not a
+requirement to create another campaign.
 
 1. Establish data health first: zero, unavailable, failed retrieval and a
    non-comparable measurement are different. Check period, denominator, source
@@ -71,7 +71,7 @@ missing. Analysis is an entry mode, not a requirement to create another campaign
 5. Recommend the few actions worth taking: continue, change, stop, observe or
    improve measurement. Zero changes is legitimate. State evidence, uncertainty,
    scope, burden and a useful review point, not ritual KPIs for every interaction.
-6. Record the client decision and context. Preserve rejected alternatives and
+6. Record the client's decision and context. Preserve rejected alternatives and
    reasons. A failed trial is not a permanent prohibition, and one success is
    not a universal playbook. Conditions and contradictory evidence survive reuse.
 
@@ -86,6 +86,7 @@ public counts are not the ranking score, and a format or hour difference over
 a few posts is a hypothesis for the next experiment, not a rule.
 
 A requested weekly review can follow these steps, but no cron or automatic
-start is implied. Changing thresholds, budgets, saving new drafts or starting
-experiments needs the relevant release. Quality acceptance and service saving
-are not performance success; report these as separate outcomes.
+start is implied. Changing thresholds, budgets or starting experiments is the
+user's decision and the client's execution; recommend, never start them.
+Quality acceptance and a saved draft are not performance success; report these
+as separate outcomes.

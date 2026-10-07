@@ -1,12 +1,12 @@
 ---
 name: x-twitter
-description: "Use for X (Twitter) work past a single lookup: verifying many posts' real authors and counts, pulling a post's video or images for analysis, reading the user's own posts and their numbers, or finishing an X Article draft the user asked for."
+description: "Use for X (Twitter) work past a single lookup: verifying many posts' real authors and counts, pulling a post's video or images for analysis, reading the user's own posts and their numbers, or saving a post draft or finishing an X Article draft the user asked for."
 version: 1.0.0
 author: CraftSamo
 license: MIT
 metadata:
   hermes:
-    tags: [x, twitter, x_access, verify, x-article, evidence]
+    tags: [x, twitter, x_access, verify, x-article, post-draft, evidence]
     category: technic
 ---
 
@@ -24,11 +24,11 @@ narrows the selection, follow it; the mechanics below still apply.
   official API is set up). A tool limit is a reason to tell the user, not to
   switch routes.
 - **The browser stays off x.com.** It carries the user's main login, and
-  scripted activity there risks that account. One exception: an X Article
-  draft the user asked you to finish, through
-  `references/article-draft.md`, ending at a saved draft. Publishing,
-  scheduling, posting, replying, liking, following, DMs and account pages
-  stay the user's.
+  scripted activity there risks that account. Two exceptions, each ending at
+  a saved draft the user asked for: an ordinary post draft through
+  `references/post-draft.md`, and an X Article draft through
+  `references/article-draft.md`. Publishing, scheduling, posting, replying,
+  liking, following, DMs and account pages stay the user's.
 - **Two budgets.** Sub-account reads (`posts`, `mentions`, `search`,
   `thread`, `user`, `media`, `snapshot`) are paced and capped at 30 an hour
   and 200 a day, shared with Marketer and the snapshot job. `verify` reads

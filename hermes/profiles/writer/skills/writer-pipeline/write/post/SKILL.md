@@ -83,7 +83,7 @@ or inherit Writer's role. Read only the detail references selected below.
    remains needs-media; do not remove its marker to pretend completion.
 6. Read the complete candidate and apply QA below. Save the complete draft
    at the requested path. For a thread, use labelled plain-text body blocks;
-   IDs, media assignments and notes stay outside them. Marketer receives
+   IDs, media assignments and notes stay outside them. The requester receives
    the exact bodies, not a rewrite brief. Never send, schedule or publish.
 
 </Procedure>
@@ -120,8 +120,8 @@ Name `write-post`, platform, format and the complete draft path. Identify
 post IDs and their media assignments. For applicable criteria report
 checked / unmet / unverified with a quote, source or actual count and method.
 List unresolved assets and decisions; distinguish text complete from a
-publishable unit. The requester performs independent acceptance; Marketer
-performs platform/claim inspection and obtains exact remote-save consent before
+publishable unit. The requester performs independent acceptance and
+platform/claim inspection and obtains exact remote-save consent before
 service-side draft entry. The user publishes. Nothing was posted.
 
 </Report>

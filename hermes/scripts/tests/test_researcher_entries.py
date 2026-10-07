@@ -78,7 +78,7 @@ def test_candidate_topology_and_always_on_contract():
 def test_primary_relays_acceptance_baseline_without_transferring_handle(caller):
     root = HERMES / "profiles" / caller
     if caller == "marketer":
-        source = (root / "skills/marketer-pipeline/build-marketer/references/parts.md").read_text()
+        source = (root / "skills/marketer-pipeline/SKILL.md").read_text()
     else:
         source = yaml.safe_load((root / "config.yaml").read_text())["agent"]["system_prompt"]
     text = " ".join(source.split())

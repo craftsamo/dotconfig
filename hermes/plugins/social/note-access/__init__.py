@@ -1,5 +1,5 @@
-"""note-access: note.com for the Assistant and Marketer — read, and save unpublished drafts — and
-an offline format check of a draft body for them and Writer.
+"""note-access: note.com for the Assistant (read, and save unpublished drafts) and Marketer (read),
+and an offline format check of a draft body for them and Writer.
 
 One tool, ``note`` (toolset ``note_access``), run by ``na.py`` beside this file. Public reads go
 out without any cookie; signed-in calls run through ``bridge.py``, the only process that reads the
@@ -36,9 +36,9 @@ na = _load("hermes_note_access_engine", Path(__file__).resolve().parent / "na.py
 
 # The actions each profile's schema offers (checked again by the gate, the handler and the engine),
 # and the ones an inbound A2A request may run there. The Assistant never serves a peer; Marketer
-# answers a peer's question with a read (the user's drafts and stats included, on the shared budget);
-# Writer only checks a body's format.
-PROFILES = {"assistant": na.ACTIONS, "marketer": na.ACTIONS, "writer": na.OFFLINE}
+# advises and never saves, so it reads and checks anywhere (the user's drafts and stats included, on
+# the shared budget); Writer only checks a body's format.
+PROFILES = {"assistant": na.ACTIONS, "marketer": na.READS + na.OFFLINE, "writer": na.OFFLINE}
 A2A = {"marketer": na.READS + na.OFFLINE, "writer": na.OFFLINE}
 
 READ_DESCRIPTION = (

@@ -49,14 +49,14 @@ def test_post_policy_does_not_expand_tools_or_publish():
     assert "Never change the" in source and "source" in source
 
 
-def test_marketer_does_not_bypass_writer_acceptance():
+def test_marketer_review_never_stands_in_for_writer_acceptance():
     root = HERMES / "profiles/marketer/skills/marketer-pipeline"
-    produce = " ".join((root / "build-marketer/references/parts.md").read_text().split())
-    assert "not writing-QA-gated" in produce
-    assert "before it can enter a message unit or approval relay" in produce
-    assert "No local shortening" in produce
-    assert "Missing shared QA blocks acceptance" in produce
-    assert "supported custom destination is not evidence" in produce
+    review = " ".join((root / "review-marketer/SKILL.md").read_text().split())
+    content = " ".join((root / "review-marketer/references/content.md").read_text().split())
+    assert "a clean review is not acceptance" in review
+    assert "neither repairs the target" in review
+    assert "the shared writing contract it applies to Writer's work is not repeated here" in content
+    assert "Do not score prose craft, shorten, strengthen, add urgency or run a humanizer" in content
 
 
 @pytest.mark.parametrize("verb", ["write", "edit", "analyze"])

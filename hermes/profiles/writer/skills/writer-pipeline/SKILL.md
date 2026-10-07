@@ -25,8 +25,8 @@ the writing craft within those decisions. You never publish, post or send.
 
 <Client>
 
-Resident and inbound A2A requests come from the assistant, engineer,
-creator or marketer. Read the initial brief and subsequent decisions as
+Resident and inbound A2A requests come from the assistant, engineer or
+creator. Read the initial brief and subsequent decisions as
 one job. Do not create a new bot, peer, tool grant or transport.
 Ask only unresolved questions that change the work, in one numbered
 `Q1:` block with options and a recommendation. Do not answer a missing
@@ -123,8 +123,8 @@ threads, and Instagram feed/reel captions. Use [write-post](write/post/SKILL.md)
 [edit-post](edit/post/SKILL.md) or [analyze-post](analyze/post/SKILL.md).
 X Articles, private messages and in-image text are different subjects.
 Post work uses the selected leaf's QA and never the legacy four-pass floor.
-Marketer consumes the resulting text unchanged and owns platform inspection
-and publication approval, not a second writing pass. An analysis is a report,
+The requester consumes the resulting text unchanged and owns platform
+inspection and publication approval, not a second writing pass. An analysis is a report,
 not a new post; it needs neither attachments nor Publish approval to exist.
 
 </PostFamily>
@@ -181,7 +181,7 @@ Existing marketing-copy briefs select this family. Landing page, email and
 announcement are local destination options; a custom destination uses its
 supplied constraints. Ordinary correspondence, social posts and factual
 release notes retain their separate families. Other social-platform posts
-retain Marketer's existing drafting contract. Purpose, not length, decides.
+retain the requester's existing drafting contract. Purpose, not length, decides.
 The requester owns the message and commercial conditions. Preserve evidence
 qualifications, prices, eligibility and disclosures; no style change grants
 a new claim or offer. A CTA is conditional on the purpose, not mandatory for

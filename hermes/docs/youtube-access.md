@@ -22,7 +22,7 @@ design docs — index: [`PROFILES.md`](../PROFILES.md).
 | Engine venv                                                                                                               | `scripts/youtube-access.sh`, `engines/yt-dlp/`                       | people              |
 | How the Assistant works with it: budget, actions, approvals, recovery, Studio settings, starting a channel                | the `youtube` technic (`profiles/assistant/skills/technic/youtube/`) | Assistant           |
 | When the Assistant uses it in Chat                                                                                        | the Assistant's private Chat reference `youtube.md`                  | Assistant           |
-| When Marketer reads with it                                                                                               | Marketer's prompt and `build-marketer/references/measurement.md`     | Marketer            |
+| When Marketer reads with it                                                                                               | Marketer's prompt and `analyze-marketer/references/measurement.md`   | Marketer            |
 
 Two back ends, one tool. The YouTube Data API v3 and the YouTube Analytics
 API v2 run in Hermes' own Python (the `google` extra `setup.sh` installs) as

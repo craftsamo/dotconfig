@@ -29,7 +29,7 @@ A2A = p._a2a
 EXECUTE_SYNC = p._execute_sync
 RESIDENT_IMPL = p._resident
 CREATOR_TARGETS = ("engineer", "marketer", "researcher", "writer", "image-creator", "video-creator", "audio-creator")
-MARKETER_TARGETS = ("engineer", "creator", "researcher", "writer")
+MARKETER_TARGETS = ("researcher",)
 
 
 @pytest.fixture
@@ -190,7 +190,8 @@ def test_marketer_configured_targets(marketer_caller, target, kind, backend):
     assert session("close", result["conversation_id"])["status"] == "closed"
 
 
-@pytest.mark.parametrize("target", ["assistant", "searcher", "image-creator", "arbitrary", "../creator", "http://127.0.0.1:9907"])
+@pytest.mark.parametrize("target", ["assistant", "engineer", "creator", "writer", "searcher", "image-creator", "arbitrary",
+                                    "../creator", "http://127.0.0.1:9907"])
 def test_marketer_arbitrary_targets_cannot_be_enabled(marketer_caller, target):
     home, calls = marketer_caller
     config = yaml.safe_load((home / "config.yaml").read_text())
@@ -238,7 +239,7 @@ def test_marketer_inbound_cannot_launch_work(marketer_caller, monkeypatch, targe
 
 def test_marketer_cross_profile_ownership_rejected(marketer_caller, monkeypatch):
     home, calls = marketer_caller
-    data = call("creator")
+    data = call("researcher")
     cid = data["conversation_id"]
     monkeypatch.setattr(p, "_scope", lambda: (home, "marketer-owner-two", False, False))
     assert session("list") == []

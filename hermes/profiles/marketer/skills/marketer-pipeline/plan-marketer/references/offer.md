@@ -18,10 +18,10 @@ or a universal acquisition-cost ratio for a project with no such measurements.
 
 Propose a bounded test and what it can establish. A paid pilot needs explicit
 scope, price, capacity, cancellation terms and user approval before any real
-commitment. This pipeline prepares service drafts, never opens sales or changes
-prices itself. A draft proposal is not an approved commercial claim.
+commitment. Marketer never opens sales or changes prices; it recommends. A
+draft proposal is not an approved commercial claim.
 
 Keep scarcity, deadlines, guarantees and results truthful. If an announced term
 changes, flag the communication/commitment issue for a user decision; do not
 force an obsolete plan merely to satisfy a slogan. Register decided terms and
-their evidence in [state](../../references/state.md); Writer receives those exact constraints.
+their evidence in [state](../../references/state.md); a brief for Writer carries those exact constraints.

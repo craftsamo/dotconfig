@@ -25,14 +25,14 @@ import tempfile
 import pytest
 
 
-# Split, flat entries: no mode/domain matrix like the Assistant pipeline.
-ENTRIES = {"plan-marketer", "build-marketer", "qa-marketer", "analyze-marketer"}
+# Split, flat advisory entries: no mode/domain matrix like the Assistant pipeline.
+ENTRIES = {"plan-marketer", "review-marketer", "analyze-marketer"}
 EXPECTED = ENTRIES | {"marketer-pipeline"}
 ALLOW = {"skills_list", "skill_view", "read_file"}
 CASES = ("discovery", "entry_reads", "contained_paths", "dedup_reset", "index_cache")
 TREE = Path("hermes/profiles/marketer/skills/marketer-pipeline")
-# Each entry is its mode procedure; only state and platforms stay shared.
-OWN_REF = {"build-marketer": "references/draft.md", "qa-marketer": "references/saved-draft.md"}
+# Each entry is its mode procedure; state, platforms, X ranking and browsing stay shared.
+OWN_REF = {"review-marketer": "references/content.md", "analyze-marketer": "references/measurement.md"}
 
 
 @pytest.mark.parametrize("case", CASES)
@@ -66,7 +66,7 @@ def test_marketer_entry_runtime(case):
         )
         assert result.returncode == 0, result.stdout + result.stderr
         report = json.loads(result.stdout)
-        assert report == {"case": case, "marketer_names": sorted(EXPECTED), "count": 5}
+        assert report == {"case": case, "marketer_names": sorted(EXPECTED), "count": 4}
 
 
 def _child(case, sandbox, candidate_tree, source):
@@ -185,13 +185,13 @@ def _child(case, sandbox, candidate_tree, source):
 
         def check_discovery():
             files = list(su.iter_skill_index_files(skills, "SKILL.md"))
-            assert len(files) == 5
+            assert len(files) == 4
             assert {su.parse_frontmatter(p.read_text(encoding="utf-8"))[0]["name"] for p in files} == EXPECTED
             found = st._find_all_skills()
-            assert len(found) == 5 and {s["name"] for s in found} == EXPECTED
+            assert len(found) == 4 and {s["name"] for s in found} == EXPECTED
             prompt = index()
             visible = rows(prompt)
-            assert len(visible) == 5 and set(visible) == EXPECTED and len(set(visible.values())) == 5
+            assert len(visible) == 4 and set(visible) == EXPECTED and len(set(visible.values())) == 4
             for name, desc in visible.items():
                 assert 0 < len(desc) <= 60
                 path = tree / ("SKILL.md" if name == "marketer-pipeline" else f"{name}/SKILL.md")
@@ -201,7 +201,7 @@ def _child(case, sandbox, candidate_tree, source):
                 if name != "marketer-pipeline":
                     assert name.split("-", 1)[0] in desc[:60].lower(), "Phase must be distinguishable up front"
             listing = json.loads(st.skills_list())
-            assert listing["count"] == 5 and {s["name"] for s in listing["skills"]} == EXPECTED
+            assert listing["count"] == 4 and {s["name"] for s in listing["skills"]} == EXPECTED
             return prompt
 
         def phase_turn(entry, task):
@@ -224,11 +224,10 @@ def _child(case, sandbox, candidate_tree, source):
                 kernel = view("marketer-pipeline", task=task)
                 body_matches(kernel, tree / "SKILL.md", rendered=True)
                 phase_turn("plan-marketer", task)
-                build_own = phase_turn("build-marketer", task)
-                assert "explicit approval" in build_own["content"].lower()
-                qa_own = phase_turn("qa-marketer", task)
-                assert "unpublished-state evidence" in qa_own["content"]
-                phase_turn("analyze-marketer", task)
+                review_own = phase_turn("review-marketer", task)
+                assert "which owns acceptance" in " ".join(review_own["content"].split())
+                analyze_own = phase_turn("analyze-marketer", task)
+                assert "measured zero" in analyze_own["content"]
                 # The harness retained the complete kernel, so later turns need
                 # no kernel read. This assertion tests tool behavior, not intent.
                 assert kernel["content"]
@@ -257,7 +256,7 @@ def _child(case, sandbox, candidate_tree, source):
                 for name, bad in (
                     ("marketer-pipeline", "../outside.md"), ("marketer-pipeline", str(outside)),
                     ("marketer-pipeline", "escape.md"), ("marketer-pipeline", "missing/deep/doc.md"),
-                    ("build-marketer", "references/missing-file.md"),
+                    ("review-marketer", "references/missing-file.md"),
                 ):
                     result = json.loads(st.skill_view(name, bad))
                     assert result.get("success") is False and "content" not in result
@@ -293,14 +292,14 @@ def _child(case, sandbox, candidate_tree, source):
 
                 task = "isolated-recovery"
                 root_path = tree / "SKILL.md"
-                child_ref = OWN_REF["build-marketer"]
-                child_path = tree / "build-marketer" / child_ref
+                child_ref = OWN_REF["review-marketer"]
+                child_path = tree / "review-marketer" / child_ref
 
                 body_matches(view("marketer-pipeline", task=task), root_path, rendered=True)
-                body_matches(view("build-marketer", child_ref, task), child_path)
+                body_matches(view("review-marketer", child_ref, task), child_path)
                 # Root and child dedup independently: both were just loaded, so
                 # both repeats are now unchanged with no content.
-                for name, ref in (("marketer-pipeline", None), ("build-marketer", child_ref)):
+                for name, ref in (("marketer-pipeline", None), ("review-marketer", child_ref)):
                     repeat = view(name, ref, task)
                     assert repeat["status"] == "unchanged" and repeat["content_returned"] is False
                     assert "content" not in repeat
@@ -315,7 +314,7 @@ def _child(case, sandbox, candidate_tree, source):
 
                 _reset_read_dedup_caches(task)
                 body_matches(view("marketer-pipeline", task=task), root_path, rendered=True)
-                body_matches(view("build-marketer", child_ref, task), child_path)
+                body_matches(view("review-marketer", child_ref, task), child_path)
                 assert read_full(root_path, task).rstrip("\n") == root_path.read_text(encoding="utf-8").rstrip("\n")
                 _reset_read_dedup_caches(task)
                 tracking._read_tracker.clear()
@@ -347,7 +346,7 @@ if __name__ == "__main__":
     try:
         assert len(sys.argv) == 6 and sys.argv[1] == "--child"
         _child(sys.argv[2], *(Path(p).resolve() for p in sys.argv[3:]))
-        print(json.dumps({"case": sys.argv[2], "marketer_names": sorted(EXPECTED), "count": 5}))
+        print(json.dumps({"case": sys.argv[2], "marketer_names": sorted(EXPECTED), "count": 4}))
     except BaseException as error:
         frames = [(frame.f_code.co_name, line) for frame, line in traceback.walk_tb(error.__traceback__)]
         print(json.dumps({"case": sys.argv[2], "error_type": type(error).__name__, "frames": frames}))

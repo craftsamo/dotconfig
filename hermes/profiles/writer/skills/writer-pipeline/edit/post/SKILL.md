@@ -104,7 +104,7 @@ or inherit Writer's role. Read only the detail references selected below.
 Name `edit-post`, original and revised paths, affected post IDs, a concise
 change summary and criterion evidence. Include sources and open gaps.
 Report the complete revised file's path and ID/media mapping for unchanged
-consumption by Marketer, not the full draft pasted into the reply. State that
+consumption by the requester, not the full draft pasted into the reply. State that
 publication needs approval of this version and that no live post was changed.
 
 </Report>

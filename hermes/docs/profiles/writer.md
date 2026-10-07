@@ -47,15 +47,16 @@ together (see [topology](../topology.md) "Candidate rollout and cutover").
 
 ## Writer post family
 
-Post text is a Writer artifact, not a Marketer-side paraphrase of a brief.
+Post text is a Writer artifact, not a requester-side paraphrase of a brief.
 The post leaves (`write-post`, `edit-post`, `analyze-post`) serve X/Instagram,
 each with its own platform references. Source text and style examples are
 distinct from claim evidence. X Articles are not posts; Instagram captions are
 not image text. Metadata and unresolved insertion markers never enter published
 bodies.
 
-The requester accepts the actual draft; Marketer then checks platform fit,
-claims and legal conditions and requires exact remote-save consent. Text
+The requester (for marketing, the Assistant) accepts the actual draft, checks
+platform fit, claims and legal conditions and requires exact remote-save
+consent; Marketer may review it as advice. Text
 defects go back to Writer. A changed draft needs new approval. Service-draft
 support is verified separately; the user publishes. Analyze returns a report and
 never publishes or silently rewrites its target.
@@ -162,8 +163,8 @@ purpose calls for action. Edits compare the full revision with protected and
 untouched fields; analysis quotes observations without producing replacement
 copy or claiming conversion performance/legal clearance.
 
-The requester independently accepts the actual draft/report. Marketer consumes
-accepted copy fields unchanged, performs its existing inspection and requires
+The requester independently accepts the actual draft/report, consumes
+accepted copy fields unchanged, performs its inspection and requires
 exact-candidate remote-save consent; it saves drafts only and the user
 publishes. A direct Writer peer response is not independently accepted merely
 because it includes self-review. Text defects go back to Writer, not through
@@ -232,12 +233,11 @@ reliability or statistical score calibration.
 
 The canonical requester contract is public at
 `profiles/writer/skills/writer-pipeline/references/acceptance/{index,prose,script}.md`
-and is not copied elsewhere. Assistant's private QA files are thin adapters, and
-Marketer reads the same source; caller external skill roots must expose Writer's
-pipeline for name-based reads (default's filesystem fallback: see
+and is not copied elsewhere. Assistant's private QA files are thin adapters;
+caller external skill roots must expose Writer's pipeline for name-based reads (default's filesystem fallback: see
 [topology](../topology.md) "Default is the assistant's CLI counterpart"). No
 private task records or purchased source text moved. All 19 Writer non-kernel
-names stay disabled on Assistant and Marketer (18 production leaves plus
+names stay disabled on the Assistant (18 production leaves plus
 `consult-writer`) so reference access does not import an execution menu; the
 root remains readable and consultation stays delegated to Writer. Reading a form
 or acceptance contract as a Client does not execute Writer's procedure. An
