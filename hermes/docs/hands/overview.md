@@ -285,13 +285,12 @@ from the hands' own CLI with a pasted filled form, (3) both client-side
 references ([`broker.md`](../broker.md) "References each side owns"), (4) a soak
 through the Assistant, recording what the form got wrong.
 
-Creator's former `creator-*` technics end with the advisor cutover. Five become
-hands leaves first: the SVG diagram (now `create-diagram`), grid-exact pixel
-art (now `create-pixel-art`), text-free generated illustration (now
-`generate-illustration`) and pixel animation on video-creator (now
-`create-pixel-animation`); still to come is only official brand-asset sourcing
-(extending `source-icon`) on image-creator. The other
-fourteen are archived under `hermes/archive/creator-technic/`, which no profile
+Creator's former `creator-*` technics end with the advisor cutover. Five became
+hands leaves: on image-creator the SVG diagram (`create-diagram`), grid-exact
+pixel art (`create-pixel-art`), text-free generated illustration
+(`generate-illustration`) and official brand-asset sourcing (the official path
+of `source-icon`), and on video-creator pixel animation
+(`create-pixel-animation`). The other fourteen are archived under `hermes/archive/creator-technic/`, which no profile
 reads; `image_gen` / `video_gen` / `tts` / `unreal-engine` leave Creator's
 toolsets with them.
 

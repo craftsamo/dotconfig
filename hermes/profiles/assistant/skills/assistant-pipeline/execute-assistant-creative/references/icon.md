@@ -7,6 +7,7 @@ Read [commissioning](../SKILL.md) first.
 | Deliverable | Leaf | Notes |
 | --- | --- | --- |
 | a published library icon (Iconify) as SVG + PNG | `source-icon` | free; a word instead of an id comes back as candidates |
+| a vendor's own official logo file (a third-party mark), unmodified | `source-icon` with `official: yes` | free; delivered with source URL, hashes (`provenance.json`) and the usage terms |
 | favicon / Apple / PWA / maskable set from a first-party SVG | `create-icon` | free |
 | an icon drawn in a named style (flat-minimal, glass, pixel, line, clay, origami, isometric, neon, stained-glass, …) | `generate-icon` | metered |
 | recolour / background / cut-out / resize of an existing icon | `edit-icon` | free |
@@ -19,6 +20,17 @@ Read [commissioning](../SKILL.md) first.
 
 A metered leaf takes a `budget:` line; absent, the leaf's default applies —
 for icon: 4 variants + 1 corrective.
+
+### Official third-party marks
+
+Another company's logo is sourced, never drawn or generated: `source-icon`
+with `official: yes`. The user's OWN brand is not this path — their mark is
+their file, and a set from it is `create-icon` from their SVG. Settle the
+`vendor`, the `variant` (glyph, lockup or wordmark) and the destination
+background (`backdrop`: light or dark). When no official mark is distributed the
+hands report it with the evidence; a text wordmark instead is the user's call
+and a card / typography job, never a lookalike. The vendor's trademark and
+usage terms travel with the delivery to the user.
 
 ### An icon set is two forms
 

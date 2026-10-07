@@ -15,6 +15,7 @@ Read the [kernel](../../SKILL.md) first. The leaf's form is authoritative; this 
 - Always square; `generate-icon` defaults to 1024 px, several variants, one recommended.
 - Drawn looks: flat-minimal, glass, pixel, line, clay, origami, isometric, neon, stained-glass, or a described one. It suits a subject or look no library draws.
 - Library glyphs and brand marks come in the library's own look, recoloured and placed on a transparent, tile or flat background.
+- `source-icon` with `official: yes` delivers a vendor's own logo file unmodified (glyph, lockup or wordmark; the ink for a light or dark background) with its source, hashes and usage terms — or reports that none is distributed.
 - Platform sets (favicon sizes, apple-icon, maskable 512) only derive from an SVG that already exists; `generate-icon` does not produce SVG.
 
 ## Where directions go
@@ -27,6 +28,7 @@ Read the [kernel](../../SKILL.md) first. The leaf's form is authoritative; this 
 - A set for an app is two forms in order: the mark first, then `create-icon` from an SVG; say so instead of promising one step.
 - Emoji-sized text pictures: [emoji](emoji.md). A character: [mascot](mascot.md). Many game icons in one language: [kit](kit.md).
 - A wide image carrying words: [card](card.md).
+- Another company's mark is sourced through the official path, never redrawn, traced or generated; never propose a lookalike. Where none exists, a text wordmark is the user's call and a [card](card.md). The user's own mark is their SVG, taken to `create-icon`.
 
 ## Examples
 
