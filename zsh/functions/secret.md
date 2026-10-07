@@ -39,6 +39,27 @@ One keychain item per secret — fully visible and editable in Keychain Access:
 | label     | `NAME` / `<scope>/NAME` inside the project's own keychain, prefixed with `<project>/` elsewhere       |
 | kind      | short type label (`-D`), upper-cased on write; default `ENV` (`API KEY`, `TOKEN`, `SECRET`, ...)      |
 | comment   | free-form description (`-j`), shown by `show` / `ls --long` / the GUI                                 |
+| generic   | per-item flags as `;`-separated `key=value`; today only `env=no` (`--no-env`, see below)              |
+
+### Keeping an item out of every environment (`--no-env`)
+
+Every item is emitted by `secret env` — and so injected by the launcher
+shims below and by any helper built on `secret env` — unless it is stored
+with `--no-env`. Such an item is read only by `get` (and carried by
+export/import); use it for what no process environment may hold, such as a
+wallet's seed phrase. `ls --long` and `show` display the setting (`ENV`
+column, `Env:` line).
+
+```sh
+secret set HERMES_MAIN -p work -D mnemonic --no-env   # new item, never injected
+secret update OLD_SEED -p work --no-env               # an existing item
+secret update OLD_SEED -p work --env                  # injected again
+```
+
+Rewriting the value (`set` without `--env`/`--no-env`, `update --value`)
+keeps the setting, so a later write never re-enables injection by accident.
+In `secret env`, a `--no-env` item in the winning layer hides the name
+entirely: the shared value is not emitted in its place.
 
 ## Keychains
 
@@ -120,6 +141,9 @@ which injects Keychain secrets and execs the real binary (resolved from
 | tool    | `opencode`, `claude`, `codex`, `copilot`, `grok` — and any name not listed below                           | the shared layers of `global`, then `<command>` (tool wins); never a repository scope              |
 | project | `npm`, `pnpm`, `node`, `bun`, `bunx`, `yarn`, `npx`, `python`, `python3`, `uv`, `docker`, `docker-compose` | `secret env` — the ambient project + repository scope of the CWD; nothing outside a git repository |
 
+Both modes inject through `secret env`, so items stored `--no-env` never
+reach a wrapped command.
+
 Effective precedence in both modes:
 
 ```
@@ -179,11 +203,11 @@ function directly (a defined function outranks the `bin/secret` command on
 
 ## Import / export
 
-| Format          | Metadata | Protection                                 |
-| --------------- | -------- | ------------------------------------------ |
-| `age` (default) | kept     | age passphrase encryption (`.json.age`)    |
-| `json`          | kept     | plaintext JSON, `chmod 600`                |
-| `env`           | lost     | plaintext `export NAME='...'`, `chmod 600` |
+| Format          | Metadata                 | Protection                                                                                                                                                                 |
+| --------------- | ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `age` (default) | kept                     | age passphrase encryption (`.json.age`)                                                                                                                                    |
+| `json`          | kept                     | plaintext JSON, `chmod 600`                                                                                                                                                |
+| `env`           | lost (except `--no-env`) | plaintext `export NAME='...'`, `chmod 600`; a `--no-env` item is written as `#no-env# export ...`, so sourcing the file never exports it and `import` restores the setting |
 
 ```sh
 secret export -p global                  # -> secret-export-global-YYYYMMDD.json.age
@@ -193,8 +217,10 @@ secret import backup.json.age            # their own project/scope unless -p /
                                          # -S / --scope override them
 ```
 
-JSON exports record each item's scope, so layered setups restore exactly;
-the env format flattens everything (scope and metadata are lost).
+JSON exports record each item's scope and `env` setting, so layered setups
+restore exactly; the env format flattens everything (scope and metadata are
+lost) except the `--no-env` marker. Importing an older JSON export that has no
+`env` field leaves an existing item's setting as it is.
 
 Keychain unlock passwords are **never** part of an export. Encrypted exports
 are the recommended off-machine backup: they restore without the keychain
@@ -231,8 +257,9 @@ secret import secret-export-all-YYYYMMDD.json.age
 
 ## Tests
 
-[`zsh/tests/secret-selftest.zsh`](../tests/secret-selftest.zsh) — 142
+[`zsh/tests/secret-selftest.zsh`](../tests/secret-selftest.zsh) — 156
 assertions: round-trips (special characters, json/env/age), partial updates,
+`--no-env` (kept out of `env`, kept across rewrites and export/import),
 keychain auto-creation, `secret link` / the `git config secret.project`
 mapping, scope layering (DWIM reads, env overlay, isolation between repos),
 the unregistered-file write gate, master adoption/rotation, auto-unlock. It
