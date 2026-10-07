@@ -47,14 +47,14 @@
     "uv": { "disabled": true },
     "ruff": { "disabled": true },
   },
-  // Caps every tool result (read, shell, webfetch, skill, subagent reports,
-  // MCP) before it enters the conversation, so past turns never change and
-  // the prompt cache stays intact. Over the cap the model sees the head and
-  // tail plus a pointer to the full text in the data dir's tool-output/
-  // (kept 7 days). 36 KiB still fits every SKILL.md the 50 KiB default fit,
-  // and cut about 9% of tool-output bytes in a 30-day sample; bytes, not
-  // lines, decide. Lower it to 28 KiB (cuts the larger video skills) once a
-  // week of use shows few re-reads after a cut.
+  // Caps tool results before they enter the conversation, so past turns
+  // never change and the prompt cache stays intact. On 2.0.23 it reaches
+  // shell (keeps the tail) and webfetch/websearch (keep the head) only;
+  // read pages at its own fixed 50 KiB and grep/glob have their own result
+  // limits. The full text is saved and its path shown to the model. In the
+  // first two days it cut 0.8% of tool calls, the model re-read few of
+  // them, and it saved well under 1% of cache reads, so lowering it further
+  // is not worth it until read honors the cap too.
   "tool_output": {
     "max_lines": 1000,
     "max_bytes": 36864,
