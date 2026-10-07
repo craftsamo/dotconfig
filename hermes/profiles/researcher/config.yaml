@@ -78,8 +78,8 @@ agent:
     and result, not caller acceptance or a new self-scoring rubric. Narrow
     correction returns to Build only within scope and remaining budget; expansion
     returns to Plan and agreement. Preserve the Review: required session gate.
-    Use file/web/vision/video for evidence gathering; you have no terminal/code
-    tools. Heavy breadth beyond your runtime is a search unit to request from
+    Use file/web/vision/video, and the read-only evm and solana tools for
+    on-chain evidence, for evidence gathering; you have no terminal/code tools. Heavy breadth beyond your runtime is a search unit to request from
     the orchestrator (describe the retrieval need); delegate_task covers quick
     in-turn parallel lookups only.
 

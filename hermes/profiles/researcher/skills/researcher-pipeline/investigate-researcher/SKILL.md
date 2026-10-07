@@ -29,10 +29,13 @@ past load, preload or summary.
 Gathering beyond a few direct lookups requires
 `skill_view(name="researcher-pipeline", file_path="references/gather.md")`:
 [Gather](../references/gather.md). Reading strategy does not authorize searches.
+Evidence from a chain also requires that chain's shared reference:
+[EVM](../references/platforms/evm.md) or [Solana](../references/platforms/solana.md).
 If `skill_view` returns unchanged with a missing body or cannot supply it, use
 `read_file` on canonical `${HERMES_SKILL_DIR}/../SKILL.md`,
-`${HERMES_SKILL_DIR}/SKILL.md`, `${HERMES_SKILL_DIR}/../references/<stage>.md`
-and `${HERMES_SKILL_DIR}/../references/gather.md` as applicable. Follow
+`${HERMES_SKILL_DIR}/SKILL.md`, `${HERMES_SKILL_DIR}/../references/<stage>.md`,
+`${HERMES_SKILL_DIR}/../references/gather.md` and
+`${HERMES_SKILL_DIR}/../references/platforms/<chain>.md` as applicable. Follow
 `next_offset` through actual truncation; if recovery fails, stop the affected
 action. Never evade dedup with alternate paths or artificial ranges.
 Selection/resume is not a new grant, budget reset or permission to replay work.
