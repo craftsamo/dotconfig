@@ -92,8 +92,8 @@ capability.
   `inspection/media-inspect`, shared with the Assistant like the `social/` and
   `messaging/` access plugins, each profile offered its own action list)
   probes a media file and writes stills or a contact sheet at named times or
-  frames into the profile's scratch space. It never writes into a deliverable
-  or a `deliver:` directory.
+  frames into a scratch directory under the OS temporary directory. It never
+  writes into a deliverable or a `deliver:` directory.
 - **Outbound.** `specialist_call` reaches Researcher only, for evidence a
   direction depends on.
 - **Approval.** A chosen direction is the user's decision, relayed by the

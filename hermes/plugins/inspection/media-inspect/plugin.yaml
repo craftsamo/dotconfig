@@ -1,0 +1,7 @@
+name: media-inspect
+version: 1.0.0
+description: >-
+  The media_inspect tool for Creator and the Assistant: probe a local video,
+  image or audio file and pull stills or a contact sheet into scratch space,
+  never into a deliverable. Each profile is offered its own action list.
+kind: standalone
