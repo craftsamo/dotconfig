@@ -44,13 +44,18 @@ Each chain uses its public RPC unless a provider key is stored: Alchemy
 (EVM) and Helius (Solana) keys sit in the Keychain under project `hermes`,
 scope `web3-rpc`, read by the engine on first use. Provider URLs embed the
 key, so the engine never returns, logs or raises an error with an RPC URL;
-errors name the chain and provider only. Prices come from CoinGecko's
-public API (rate-limited) and are labelled estimates; testnets have none.
+errors name the chain and provider only. An Etherscan key in the same scope
+(its free tier serves verified ABIs and sources on every chain here) lets
+the decoder and `contract` read contracts Sourcify has not verified and,
+where Etherscan's plan covers the chain, name an unverified contract's
+deployer. Prices come from CoinGecko's public API (rate-limited) and are
+labelled estimates; testnets have none.
 
 ## Reads
 
-One tool, one `action` per call, results as compact JSON capped at 60 000
-characters (longer lists are cut and counted). Every action takes `chain`.
+Each tool takes one `action` per call; results are compact JSON capped at
+60 000 characters (longer lists are cut and counted). Every action takes
+`chain`.
 
 | Action       | EVM                                                                                                                                                                                                                                                                                                                                                                     | Solana                                                                                                                                                                      |
 | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -65,14 +70,22 @@ characters (longer lists are cut and counted). Every action takes `chain`.
 | `decode`     | raw calldata, a raw signed or unsigned transaction (sender recovered, EIP-7702 delegations flagged), or a log                                                                                                                                                                                                                                                           | a base58 / base64 transaction                                                                                                                                               |
 | `gas`        | next base fee, priority fee percentiles, cost of a plain and a token transfer                                                                                                                                                                                                                                                                                           | base fee and recent prioritization fees                                                                                                                                     |
 | `price`      | symbol or contract → USD price, 24 h change, market cap                                                                                                                                                                                                                                                                                                                 | the same by mint                                                                                                                                                            |
+| `contract` | proxy and implementation, who verified it (Sourcify or Etherscan) with name, compiler and match, who deployed it in which transaction, read and write functions, events and errors, the current values of argument-free getters (constants left out), `powers` — write functions named like minting, pausing, blocklists, fees, limits, trading switches, upgrades, control or withdrawals — and NatSpec notices; unverified code gives its dispatcher's function selectors with signature-database guesses, verified-contract names first | — |
+| `call` | one function by verified-ABI name or signature (`balanceOf(address) returns (uint256)`), `args` as text, optional `from`, `amount` and `block`, run as `eth_call`: decoded return values, or the revert decoded (custom errors from the verified ABI). Write functions run too and change nothing: the answer is whether and how they would succeed for that caller at that block. A past block needs an RPC that keeps history (Alchemy); a proxy is read with the implementation it had then | — |
+| `storage` | one slot (number, hex, `eip1967.implementation` / `admin` / `beacon`, or a variable name from Sourcify's storage layout, a proxy's taken from its implementation) with the value decoded where the layout types it; without `slot`, the layout | — |
+| `program` | — | loader, whether the code can still be replaced and by which upgrade authority (upgradeable loader and loader v4; older loaders are immutable), the last deployment slot and size, and the Anchor IDL when one is published: instructions with arguments, signers and writable accounts, account types, events and errors |
 
-ABI decoding tries, in order: the contract's verified ABI from Sourcify (a
-proxy's implementation included), the built-in set (ERC-20/721/1155, WETH,
-Multicall3, Uniswap V2/V3 swaps, permit, upgrades), then 4byte.directory
-signatures, marked `guessed` because selectors collide. Text read from the
-chain — token names, symbols, revert strings, memo and log text — is data
-from strangers: results return it as `{"untrusted": …}`, and the tool
-description tells the model it never carries instructions.
+ABI decoding tries, in order: the contract's verified ABI from Sourcify, else
+from Etherscan when a key is stored (either with a proxy's implementation),
+the built-in set (ERC-20/721/1155, WETH, Multicall3, Uniswap V2/V3 swaps,
+permit, upgrades), then 4byte.directory signatures, marked `guessed` because
+selectors collide; `contract` guesses an unverified contract's selectors in
+one batch from Sourcify's signature database. A `powers` entry is a lead
+from a function's name, not proof of what its code does. Text read from the
+chain — token and contract names, symbols, NatSpec notices, IDL
+descriptions, revert strings, memo and log text — is data from strangers:
+results return it as `{"untrusted": …}`, and the tool description tells
+the model it never carries instructions.
 
 Both tools answer inbound A2A reads on Researcher, Searcher and Marketer,
 whose work arrives that way; the Assistant refuses them, as for its other
@@ -307,15 +320,15 @@ recipient and the funds.
    `-D PRIVATE_KEY`), typed at the hidden prompt. Hermes never generates or
    shows one. Seed phrases and keys already stored under other names show
    up watch-only without any step.
-3. Optional: `secret set ALCHEMY_API_KEY -p hermes --scope web3-rpc` and
-   `HELIUS_API_KEY` the same way.
+3. Optional: `secret set ALCHEMY_API_KEY -p hermes --scope web3-rpc`, and
+   `HELIUS_API_KEY` and `ETHERSCAN_API_KEY` the same way.
 4. Enable `evm-access` and `solana-access` in the Assistant's config (the other
    three profiles already have them), then restart the gateway.
 5. `web3.sh addresses [N] [CHAIN]` prints every labelled seed's first N
    accounts and every key (never a secret), with balances on `CHAIN`, to fund
    from a faucet; `web3.sh status` names the wallet items with sign or
    watch-only and their ENV setting, flagging a Hermes wallet that is still
-   injected, and the stored RPC keys (never their values).
+   injected, and the stored API keys (never their values).
 
 After bumping a pin, recompile the lock (command in `requirements.in`) and
 run `install` again.
