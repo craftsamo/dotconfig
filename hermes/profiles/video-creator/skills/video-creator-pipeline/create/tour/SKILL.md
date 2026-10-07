@@ -56,7 +56,7 @@ Three runtime is the narrow exception to the external-runtime prohibition.
 skill_view(name="video-creator-pipeline", file_path="references/three-graphics.md")
 ```
 
-1. Work only in `specialist_call(kind="work")`. Creator owns the goal, audience,
+1. Work only in `specialist_call(kind="work")`. The Assistant owns the goal, audience,
    semantic flow, fidelity and choice approvals; you own task-local UI layout and
    motion implementation. Missing reference images are NOT a blocker when text
    specifies the UI. Never demand one screenshot per action or client-written
@@ -68,9 +68,9 @@ skill_view(name="video-creator-pipeline", file_path="references/three-graphics.m
    Native capture is unavailable.
    Before screen-mode proposal/authoring, if `audio_workflow: mix` and no
    `mix_bundle` exists, read [Mix receiving](../../references/mix.md).
-   Freeze a preliminary timing proposal from Creator's sources/direction
+   Freeze a preliminary timing proposal from the Assistant's sources/direction
    and STOP with its path/hash. No target access, capture, placeholder WAV
-   or formal video approval. Creator relays it to AudioCreator. Resume only
+   or formal video approval. The Assistant relays it to AudioCreator. Resume only
    with a finished Mix bundle, staged before the ordinary proposal so that
    form/asset hashes name the actual audio.
    Select one mode, never silently substitute another:
@@ -93,7 +93,7 @@ skill_view(name="video-creator-pipeline", file_path="references/three-graphics.m
    approval_sha256) and, for capture, `scope` as defined in the Web reference.
    No target access before scope consent; no stateful actions before action
    consent. After reconnaissance, revise the proposal if targets/actions changed.
-   Creator relays actual client approval in the same work conversation. Hashes
+   The Assistant relays actual user approval in the same work conversation. Hashes
    bind bytes, not identity. Final preview approval is a separate gate.
 2. Read [authoring](references/authoring.md) before writing source. Before
    fresh authoring, read the shared HyperFrames reference policy through the
@@ -117,7 +117,7 @@ skill_view(name="video-creator-pipeline", file_path="references/three-graphics.m
    These are NOT exhaustive presets. Keep free text verbatim, implement its
    concrete beat locally, and record the interpretation alongside it. Never
    map it to the nearest known option. If unresolved, return ONE clarification
-   or a concrete beat proposal to Creator before authoring. Only explicit
+   or a concrete beat proposal to the Assistant before authoring. Only explicit
    `none` omits a boundary; blank/null is invalid, absence defaults ON.
 3. Inventory surviving artifacts. For a persisted v1 project only, use the
    unchanged `scripts/tour.py snapshot|render` entry and
@@ -164,7 +164,7 @@ skill_view(name="video-creator-pipeline", file_path="references/three-graphics.m
    python3 ${HERMES_SKILL_DIR}/scripts/authored.py render --project <deliver>/tour-project --approved-preview <deliver>/tour-preview --out <deliver>/tour-final
    ```
 
-   Creator's unchanged `intent: revise <preview>` + `preview: no` grants the
+   the Assistant's unchanged `intent: revise <preview>` + `preview: no` grants the
    resume; do not alter the saved form (it still says yes). Changed direction,
    content or source requires a fresh version and approval. An initial
    `preview: no` authorizes rendering without `--approved-preview`, but not
@@ -227,7 +227,7 @@ skill_view(name="video-creator-pipeline", file_path="references/three-graphics.m
 and concrete beats, including custom or explicit none; fidelity/simplifications;
 RESULT JSON; QA evidence and unresolved checks; `spend: media generation 0`;
 approval/revision handoff. Label direct local fixture renders as such, never
-product-live or Creator-to-hands evidence. A preview is not an MP4 delivery.
+product-live or Assistant-to-hands evidence. A preview is not an MP4 delivery.
 Include screen_mode, raw duration versus final duration, capture scope/attempt
 tally, audio policy, source mapping, cleanup state and remaining platform
 gates. Include any HyperFrames references consulted or found unavailable,

@@ -19,8 +19,8 @@ For execution as video-creator, re-evaluate the named leaf and its selected
 references on every inbound turn or completion, and before an action changes
 operation, subject or form options. Use the current request and retained approved
 job together; a new selection is not permission to expand the released work.
-Return an unreleased change to Creator rather than substituting a leaf or grant.
-This execution contract does not turn Creator's inspection of a form into a
+Return an unreleased change to the Assistant rather than substituting a leaf or grant.
+This execution contract does not turn the Assistant's inspection of a form into a
 hands run. Clients read forms; only the owning hands executes the procedure.
 
 Require the full kernel, selected leaf and required reference bodies in current
@@ -64,7 +64,7 @@ historical constraints, never a request to repeat its generation or spend.
    it never produces a new ad. Use kind="work" for its bounded multi-pass review.
    A2A's loopback IP is normal transport metadata, not a missing form field;
    the transport does not authenticate a profile name. Never ask the caller
-   to prove its role by saying "I am Creator".
+   to prove its role by saying "I am the Assistant".
 2. Load only the leaf's selected references and previous delivery for
     `intent: revise`. Reuse surviving intermediates before any new spend.
    Before a creative decision or perceptual review, apply
@@ -86,7 +86,7 @@ historical constraints, never a request to repeat its generation or spend.
    proposal and approval. Neither engine gives automatic phoneme/viseme
    inference or native talking-model playback. A missing required
    performance asset (character art, script,
-   narration) is a dependency request back to Creator, reported as
+   narration) is a dependency request back to the Assistant, reported as
    pending-inputs — never invented and never a silent downgrade of
    framing/performance/lip_sync. generate-music-video authors a proposal within its form;
    no approved proposal/digest means no generation, even with a budget.
@@ -95,7 +95,7 @@ historical constraints, never a request to repeat its generation or spend.
    visuals in HTML/CSS/SVG/GSAP; a
    structure storyboard approval releases authoring, gap-driven drafts against
    the reference, and the checked final render. Rasters,
-   voice, music and SFX stay dependency requests back to Creator.
+   voice, music and SFX stay dependency requests back to the Assistant.
    create-story stages a character story (10..120s) from the approved cast
    art, an approved script and a finished soundtrack: storyboard and cast
    approval first; never redraw or generate a character, never claim lip
@@ -107,7 +107,7 @@ historical constraints, never a request to repeat its generation or spend.
    content-plan approval, frozen-source preview, then exact-preview approval
    before final rendering. No approval fields means proposal only, not render.
    For create-ad/create-tour, `audio_workflow: mix` with no `mix_bundle`
-   first returns a preliminary timing proposal through Creator, not a formal
+   first returns a preliminary timing proposal through the Assistant, not a formal
    video approval. AudioCreator owns Mix design/rendering. With the finished
    bundle, stage its verified master/receipt/captions/timing before normal
    video approval. No placeholders, source-stem double playback, direct hands

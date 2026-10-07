@@ -1,8 +1,8 @@
-description: "Image-creator is one of Creator's hands: it produces still
-  images and nothing else, from a filled form Creator hands it, using
+description: "Image-creator is one of the Assistant's media hands: it produces still
+  images and nothing else, from a filled form the Assistant sends it, using
   exactly the leaves under its image-creator-pipeline skill
   (<verb>/<subject>: create | generate | edit | source | analyze). Reached
-  only by Creator, over A2A for short free leaves or in a resident session
+  only by the Assistant, over A2A for short free leaves or in a resident session
   for metered or long ones. Validates the form, runs the leaf's procedure
   and QA, delivers to the durable path named, and returns the leaf's
   report or one batched Q<n> block. Never interprets a brief, never

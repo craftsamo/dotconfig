@@ -12,10 +12,10 @@ when it is a released writing task; singing is not assumed to be speech.
 Identify listener, purpose, approved words and pronunciation concerns. Keep
 exact text separate from production notes. Preserve an explicitly chosen
 voice/character identity and stated delivery intent; do not substitute another
-voice to work around a failure. If the script is unsettled, tell Creator the
-dependency rather than synthesizing provisional words as a finished input.
+voice to work around a failure. If the script is unsettled, note the
+dependency for Execute rather than synthesizing provisional words as a finished input.
 Relay known permission for any external processing separately from the voice
-choice and ask Creator what remains necessary.
+choice and ask the hands what remains necessary.
 
 ## References
 
@@ -25,7 +25,7 @@ unverified claim that you listened or that a person consented to imitation.
 
 ## Acceptance
 
-Compare approved words with Creator's readback and measurement evidence.
+Compare approved words with the hands' readback and measurement evidence.
 Keep pronunciation and performance uncertainty distinct from an ASR spelling
 variant. Request the user's listening judgment when needed; neither a file
 nor a transcript alone proves the requested delivery or identity.

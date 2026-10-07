@@ -19,8 +19,8 @@ For execution as image-creator, re-evaluate the named leaf and its selected
 references on every inbound turn or completion, and before an action changes
 operation, subject or form options. Use the current request and retained approved
 job together; a new selection is not permission to expand the released work.
-Return an unreleased change to Creator rather than substituting a leaf or grant.
-This execution contract does not turn Creator's inspection of a form into a
+Return an unreleased change to the Assistant rather than substituting a leaf or grant.
+This execution contract does not turn the Assistant's inspection of a form into a
 hands run. Clients read forms; only the owning hands executes the procedure.
 
 Require the full kernel, selected leaf and required reference bodies in current

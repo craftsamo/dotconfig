@@ -3,7 +3,7 @@ name: create-mix
 description: >-
   Combine already-finished speech, sfx and music sources into one placed,
   gain-automated master on a shared timeline. Returns a proposal first;
-  renders locally only after Creator relays its approval. AudioCreator
+  renders locally only after relayed approval. AudioCreator
   authors cue placement from intent when no exact arrangement is
   supplied; no user-written spec required. No new sound synthesis,
   generation, looping, EQ, reverb, source separation or video assembly.
@@ -122,7 +122,7 @@ metadata:
    filename does not matter). Report the returned proposal path and its
    SHA-256, and STOP.
 4. Round B requires both `approved_plan` and `approval_sha256` from
-   Creator and `intent: revise <previous delivery>`, in the same work
+   the Assistant and `intent: revise <previous delivery>`, in the same work
    conversation as the client's approval. A changed creative field (any
    source, cue placement, gain/fade/envelope, duration, target_lufs,
    true_peak_dbtp) needs a new proposal and approval, never a render

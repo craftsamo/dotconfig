@@ -369,7 +369,7 @@ keeps user keys.
   code, not a plugin.
 
 - **image_gen/image-fallback** (`backend`): `img-codex-xai`, `img-xai-codex-fal`,
-  `img-codex-xai-fal` (Creator's chain) — names spell the order. Capabilities:
+  `img-codex-xai-fal` — names spell the order. Capabilities:
   [docs/hands/image.md](docs/hands/image.md) "Image generation capabilities".
 - **video_gen/video-fallback** (`backend`): `vid-xai-fal` (Grok Imagine → FAL),
   `vid-fal-xai`.

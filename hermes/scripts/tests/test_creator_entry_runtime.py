@@ -22,12 +22,13 @@ import pytest
 
 
 HANDS = ("image-creator", "video-creator", "audio-creator")
-ENTRIES = {"plan-creator", "build-creator", "qa-creator"}
+ENTRIES = {"propose-creator", "revise-creator"}
+RETIRED = ("plan-creator", "build-creator", "qa-creator")
 CREATOR_NAMES = ENTRIES | {"creator-pipeline"}
 ALLOW = {"skills_list", "skill_view", "read_file"}
 CASES = (
-    "discovery", "direct_qa", "subject_change_music", "subject_change_clip",
-    "proposal_approval_phases", "hands_options", "hands_inline_format",
+    "discovery", "direct_revise", "subject_change_music", "subject_change_clip",
+    "entries_share_kernel", "hands_options", "hands_inline_format",
     "canonical_recovery", "migration_no_alias", "external_form",
 )
 
@@ -236,13 +237,13 @@ def _child(case, sandbox, candidate, source):
                 rows = re.findall(r"^    - ([^: \n]+): (.*)$", prompt, re.MULTILINE)
                 assert len(rows) == len(expected) and {n for n, _ in rows} == expected
                 visible = dict(rows)
-                assert "ONLY on explicit user request" in visible["qa-creator"]
-                assert len({visible[n] for n in CREATOR_NAMES}) == 4
-                relevant = {"creator-pipeline": "creator", "plan-creator": "plan",
-                            "build-creator": "dispatch", "qa-creator": "evidence"}
+                assert not set(RETIRED) & set(visible)
+                assert len({visible[n] for n in CREATOR_NAMES}) == 3
+                relevant = {"creator-pipeline": "advis", "propose-creator": "direction",
+                            "revise-creator": "feedback"}
                 for name, word in relevant.items():
                     desc = visible[name]
-                    assert 0 < len(desc) <= 60 and word in desc.lower()
+                    assert desc and word in desc.lower()
                     path = tree / ("SKILL.md" if name == "creator-pipeline" else f"{name}/SKILL.md")
                     fm, _ = su.parse_frontmatter(path.read_text(encoding="utf-8"))
                     assert desc == su.extract_skill_description(fm)
@@ -250,49 +251,44 @@ def _child(case, sandbox, candidate, source):
                 assert listing["count"] == len(expected)
                 assert {s["name"] for s in listing["skills"]} == expected
 
-            elif case == "direct_qa":
-                entry = body_matches(view("qa-creator"), tree / "qa-creator/SKILL.md")
+            elif case == "direct_revise":
+                entry = body_matches(view("revise-creator"), tree / "revise-creator/SKILL.md")
                 assert 'skill_view(name="creator-pipeline")' in entry
                 assert "<Goal>" not in entry
-                assert [args["name"] for _, args, _ in calls] == ["qa-creator"]
+                assert [args["name"] for _, args, _ in calls] == ["revise-creator"]
                 # A direct child read did not preload the kernel: its first read is full.
                 body_matches(view("creator-pipeline"), tree / "SKILL.md")
                 relative = "references/image-creator/card.md"
-                body_matches(view("qa-creator", relative), tree / "qa-creator" / relative)
+                body_matches(view("creator-pipeline", relative), tree / relative)
 
             elif case.startswith("subject_change_"):
-                task = "same-plan-task"
+                task = "same-propose-task"
                 for name, path in (("creator-pipeline", tree / "SKILL.md"),
-                                   ("plan-creator", tree / "plan-creator/SKILL.md")):
+                                   ("propose-creator", tree / "propose-creator/SKILL.md")):
                     body_matches(view(name, task=task), path)
                 card = "references/image-creator/card.md"
-                previous = body_matches(view("plan-creator", card, task), tree / "plan-creator" / card)
+                previous = body_matches(view("creator-pipeline", card, task), tree / card)
                 next_ref = ("references/audio-creator/music.md" if case.endswith("music")
                             else "references/video-creator/clip.md")
-                unchanged(view("creator-pipeline", task=task))
-                unchanged(view("plan-creator", task=task))
-                current = body_matches(view("plan-creator", next_ref, task), tree / "plan-creator" / next_ref)
+                unchanged(view("propose-creator", task=task))
+                current = body_matches(view("creator-pipeline", next_ref, task), tree / next_ref)
                 assert current != previous
-                unchanged(view("plan-creator", card, task))
 
-            elif case == "proposal_approval_phases":
-                # Scripted read sequence only; no approval, model or production is simulated.
+            elif case == "entries_share_kernel":
+                # Scripted read sequence only; no model, approval or production is simulated.
                 body_matches(view("creator-pipeline"), tree / "SKILL.md")
-                bodies, details = [], []
+                bodies = []
                 relative = "references/audio-creator/music.md"
-                for name in ("plan-creator", "build-creator", "qa-creator"):
+                for name in sorted(ENTRIES):
                     bodies.append(body_matches(view(name), tree / name / "SKILL.md"))
-                    details.append(body_matches(view(name, relative), tree / name / relative))
                     unchanged(view("creator-pipeline"))
-                assert len(set(bodies)) == len(set(details)) == 3
-                assert "approved_plan" in details[1] and "approval_sha256" in details[1]
-                assert "proposal round" in details[2] and "rendered take" in details[2]
+                body_matches(view("creator-pipeline", relative), tree / relative)
+                assert len(set(bodies)) == 2
                 for name in ENTRIES:
                     unchanged(view(name))
-                # Reads leave every original phase/reference byte intact in the sandbox.
-                for name in ENTRIES:
-                    for path in ("SKILL.md", relative):
-                        assert (tree / name / path).read_bytes() == (candidate_trees["creator"] / name / path).read_bytes()
+                # Reads leave every original entry and reference byte intact in the sandbox.
+                for path in ("SKILL.md", *(f"{n}/SKILL.md" for n in ENTRIES), relative):
+                    assert (tree / path).read_bytes() == (candidate_trees["creator"] / path).read_bytes()
 
             elif case == "hands_options":
                 root = trees[owner]
@@ -335,8 +331,8 @@ def _child(case, sandbox, candidate, source):
                 assert not any(args.get("file_path") for _, args, _ in calls)
 
             elif case == "canonical_recovery":
-                for name, relative in (("creator-pipeline", None), ("qa-creator", None),
-                                       ("qa-creator", "references/audio-creator/music.md")):
+                for name, relative in (("creator-pipeline", None), ("revise-creator", None),
+                                       ("creator-pipeline", "references/audio-creator/music.md")):
                     base = tree if name == "creator-pipeline" else tree / name
                     path = base / (relative or "SKILL.md")
                     body_matches(view(name, relative), path)
@@ -345,25 +341,29 @@ def _child(case, sandbox, candidate, source):
                     file_body_matches(read(path), path)
                     unchanged(view(name, relative))
                 # Canonical read_file also works without any preceding skill_view.
-                first_path = tree / "plan-creator/references/video-creator/clip.md"
+                first_path = tree / "references/video-creator/clip.md"
                 file_body_matches(read(first_path), first_path)
-                missing = read(tree / "qa-creator/references/audio-creator/missing.md")
+                missing = read(tree / "references/audio-creator/missing.md")
                 assert missing.get("error") and not missing.get("content")
                 assert missing.get("status") != "unchanged"
 
             elif case == "migration_no_alias":
-                for phase, entry in (("plan", "plan-creator"), ("build", "build-creator"),
-                                     ("quality-assurance", "qa-creator")):
-                    old = f"references/{phase}/index.md"
+                for old in ("references/capabilities.md", "references/craft.md",
+                            "references/legacy/index.md", "references/plan/index.md",
+                            "references/build/index.md", "references/quality-assurance/index.md"):
                     assert not (tree / old).exists()
                     result = view("creator-pipeline", old)
                     assert result.get("success") is False and "content" not in result
                     assert read(tree / old).get("error")
+                for retired in RETIRED:
+                    assert not (tree / retired).exists()
+                    assert view(retired).get("success") is False
+                for entry in sorted(ENTRIES):
                     body_matches(view(entry), tree / entry / "SKILL.md")
 
             elif case == "external_form":
                 assert trees["image-creator"] in external
-                body_matches(view("plan-creator"), tree / "plan-creator/SKILL.md")
+                body_matches(view("propose-creator"), tree / "propose-creator/SKILL.md")
                 path = trees["image-creator"] / "create/card/SKILL.md"
                 payload = view("create-card")
                 body_matches(payload, path)

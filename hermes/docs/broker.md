@@ -37,7 +37,7 @@ never as placeholder stubs:
 
 | Owner     | Path                                                         | Says                                                                                                                                                                                             |
 | --------- | ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Assistant | `execute-assistant-creative/references/<hands>/<subject>.md` | transport (`inquiry` or `work`), the subject's round-trip (for example storyboard, approval, render), how each approval is relayed, the units it depends on, subject-specific budget and consent |
+| Assistant | `execute-assistant-creative/references/<subject>.md` | transport (`inquiry` or `work`), the subject's round-trip (for example storyboard, approval, render), how each approval is relayed, the units it depends on, subject-specific budget and consent |
 | Creator   | `creator-pipeline/references/<hands>/<subject>.md`           | what the leaf can express: range, options, boundary with neighbouring leaves, where its examples live                                                                                            |
 
 The hands leaf's front matter remains the only form; neither side copies forms,
@@ -77,9 +77,8 @@ text-free generated illustration on image-creator, and pixel animation on
 video-creator. The other fourteen are archived under
 `hermes/archive/creator-technic/`, which no profile reads; a request only they
 covered returns `no leaf fits` until a leaf exists. The Assistant's legacy Plan
-and QA references and the two creative card units (`anchored-image-batch`,
-`deterministic-render`) retire with them. Existing frozen outputs, proposal
-hashes and approvals are never rewritten.
+and QA references retire with them. Existing frozen outputs, proposal hashes
+and approvals are never rewritten.
 
 ## Other producers
 

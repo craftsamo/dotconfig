@@ -6,9 +6,6 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from .assistant_entry_fixtures import build_assistant_tree, entry_text
-
-
 SCRIPT = Path(__file__).resolve().parents[1] / "validate-profile-skills.py"
 SPEC = importlib.util.spec_from_file_location("validate_profile_skills", SCRIPT)
 assert SPEC and SPEC.loader
@@ -25,15 +22,12 @@ GUIDE_BODY = (
 
 
 class CreativeClientReferencesTestCase(unittest.TestCase):
-    """Creative three-layer alignment after the plain-guide migration:
-    each creative entry's references/legacy/ keeps the
-    1:1 creator-technic parity; the new plain-language guides directly
-    under plan-assistant-creative/references/ carry no such parity but must carry the four
-    client-facing headings; local document references (Markdown links and
-    backtick paths) are checked, confined to the pipeline root, and never
-    point at a retired shelf. Every fixture here is synthetic, below a
-    patched ASSISTANT_PIPELINE / HERMES_ROOT, so nothing leaks from the
-    real (private-overlay-backed) repository tree."""
+    """Creative alignment: the plain-language guides directly under
+    plan-assistant-creative/references/ must carry the four client-facing
+    headings; local document references (Markdown links and backtick paths)
+    are checked, confined to the pipeline root, and never point at a retired
+    shelf (including the removed legacy shelf). Every fixture is synthetic,
+    below a patched ASSISTANT_PIPELINE / HERMES_ROOT."""
 
     def setUp(self) -> None:
         self._tmp = tempfile.TemporaryDirectory()
@@ -63,159 +57,50 @@ class CreativeClientReferencesTestCase(unittest.TestCase):
         path.write_text(text, encoding="utf-8")
         return path
 
-    def write_technic(self, name: str) -> Path:
-        path = (
-            self.hermes_root
-            / "profiles"
-            / "creator"
-            / "skills"
-            / "technic"
-            / name
-            / "SKILL.md"
-        )
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(f"---\nname: {name}\n---\n", encoding="utf-8")
-        return path
-
     def build_valid_tree(self) -> None:
-        self.write_technic("creator-raster-image")
-        self.write_technic("creator-comic")
-
         self.write(
             "plan-assistant-creative/SKILL.md",
-            "Routes [legacy](references/legacy/index.md) and "
-            "[reference-research](references/reference-research.md) and "
+            "Routes [reference-research](references/reference-research.md) and "
             "[raster-guide](references/raster-guide.md).\n",
         )
         self.write(
-            "plan-assistant-creative/references/reference-research.md", "# reference research\n"
+            "plan-assistant-creative/references/reference-research.md",
+            "# reference research\n",
         )
         self.write("plan-assistant-creative/references/raster-guide.md", GUIDE_BODY)
         self.write(
-            "plan-assistant-creative/references/legacy/index.md",
-            "asset-set.md composite-media.md raster-image.md comic.md",
+            "execute-assistant-creative/SKILL.md",
+            "See [media-ops](references/media-ops.md).\n",
         )
-        self.write("plan-assistant-creative/references/legacy/asset-set.md", "# asset set\n")
-        self.write(
-            "plan-assistant-creative/references/legacy/composite-media.md", "# composite\n"
-        )
-        self.write("plan-assistant-creative/references/legacy/raster-image.md", "# raster\n")
-        self.write("plan-assistant-creative/references/legacy/comic.md", "# comic\n")
-
-        self.write(
-            "qa-assistant-creative/SKILL.md",
-            "See [legacy](references/legacy/index.md).\n",
-        )
-        self.write(
-            "qa-assistant-creative/references/legacy/index.md",
-            "| # | Contract | Covers |\n"
-            "| --- | --- | --- |\n"
-            "| 1 | `raster-image.md` | `creator-raster-image` |\n"
-            "| 2 | `comic.md` | `creator-comic` |\n",
-        )
-        self.write(
-            "qa-assistant-creative/references/legacy/raster-image.md", "# c\n"
-        )
-        self.write("qa-assistant-creative/references/legacy/comic.md", "# c\n")
+        self.write("execute-assistant-creative/references/media-ops.md", "# media ops\n")
+        self.write("execute-assistant-creative/references/card.md", "# card\n")
 
     def validate(self) -> list[str]:
         errors: list[str] = []
         VALIDATOR.validate_creative_alignment(errors)
         return errors
 
-    def test_candidate_isolation_uses_only_patched_roots(self) -> None:
-        self.write_technic("creator-nonexistent-synthetic-family")
-        self.write(
-            "plan-assistant-creative/SKILL.md",
-            "Routes [legacy](references/legacy/index.md).\n",
-        )
-        self.write(
-            "plan-assistant-creative/references/legacy/index.md",
-            "nonexistent-synthetic-family.md",
-        )
-        self.write(
-            "plan-assistant-creative/references/legacy/nonexistent-synthetic-family.md", "# x\n"
-        )
-        self.write(
-            "qa-assistant-creative/SKILL.md",
-            "See [legacy](references/legacy/index.md).\n",
-        )
-        self.write(
-            "qa-assistant-creative/references/legacy/index.md",
-            "| # | Contract | Covers |\n"
-            "| --- | --- | --- |\n"
-            "| 1 | `nonexistent-synthetic-family.md` | "
-            "`creator-nonexistent-synthetic-family` |\n",
-        )
-        self.write(
-            "qa-assistant-creative/references/legacy/"
-            "nonexistent-synthetic-family.md",
-            "# c\n",
-        )
-        self.assertEqual([], self.validate())
-
     def test_valid_tree_passes(self) -> None:
         self.build_valid_tree()
         self.assertEqual([], self.validate())
 
-    def test_missing_entire_legacy_shelf_does_not_skip_guides(self) -> None:
-        self.write_technic("creator-comic")
+    def test_guide_name_need_not_equal_a_hands_subject(self) -> None:
+        self.build_valid_tree()
+        self.write("plan-assistant-creative/references/free-name.md", GUIDE_BODY)
+        self.assertEqual([], self.validate())
+
+    def test_reference_research_excluded_from_guide_heading_check(self) -> None:
+        self.build_valid_tree()
+        self.write(
+            "plan-assistant-creative/references/reference-research.md", "# no headings\n"
+        )
+        self.assertEqual([], self.validate())
+
+    def test_incomplete_guide_reported(self) -> None:
         self.write("plan-assistant-creative/SKILL.md", "bad.md")
         self.write("plan-assistant-creative/references/bad.md", "# incomplete guide")
         errors = self.validate()
-        self.assertTrue(any("missing creative plan legacy shelf" in e for e in errors))
         self.assertTrue(any("creative guide missing heading" in e for e in errors))
-
-    def test_template_paths_are_not_concrete_links(self) -> None:
-        self.build_valid_tree()
-        self.write("plan-assistant-creative/references/reference-research.md",
-                   "Template: `../<deliverable>.md`; actual: `legacy/index.md#units`.")
-        self.assertEqual([], self.validate())
-
-    def test_reference_names_can_contain_retired_words(self) -> None:
-        self.build_valid_tree()
-        self.write("plan-assistant-creative/references/legacy/facial-expressions.md", "# example")
-        self.write("plan-assistant-creative/references/reference-research.md",
-                   "See `legacy/facial-expressions.md`.")
-        errors: list[str] = []
-        VALIDATOR.validate_creative_references(self.pipeline_dir, errors)
-        self.assertEqual([], errors)
-
-    def test_missing_legacy_leaf_reported(self) -> None:
-        self.build_valid_tree()
-        (self.pipeline_dir / "plan-assistant-creative/references/legacy/comic.md").unlink()
-        self.write(
-            "plan-assistant-creative/references/legacy/index.md",
-            "asset-set.md composite-media.md raster-image.md",
-        )
-        errors = self.validate()
-        self.assertTrue(
-            any(
-                "creative legacy leaf missing for canonical family: comic.md" in e
-                for e in errors
-            ),
-            errors,
-        )
-
-    def test_orphan_legacy_leaf_reported(self) -> None:
-        self.build_valid_tree()
-        self.write("plan-assistant-creative/references/legacy/pixel-art.md", "# pixel\n")
-        self.write(
-            "plan-assistant-creative/references/legacy/index.md",
-            "asset-set.md composite-media.md raster-image.md comic.md pixel-art.md",
-        )
-        errors = self.validate()
-        self.assertTrue(
-            any(
-                "creative legacy leaf has no canonical family: pixel-art.md" in e
-                for e in errors
-            ),
-            errors,
-        )
-
-    def test_new_guide_name_need_not_equal_a_hands_family(self) -> None:
-        self.build_valid_tree()
-        self.assertEqual([], self.validate())
 
     def test_missing_client_sections_reported(self) -> None:
         self.build_valid_tree()
@@ -232,51 +117,30 @@ class CreativeClientReferencesTestCase(unittest.TestCase):
             errors,
         )
 
-    def test_common_roots_excluded_from_guide_heading_check(self) -> None:
+    def test_template_paths_are_not_concrete_links(self) -> None:
         self.build_valid_tree()
+        self.write(
+            "plan-assistant-creative/references/reference-research.md",
+            "Template: `../<deliverable>.md`; actual: `raster-guide.md#units`.",
+        )
         self.assertEqual([], self.validate())
 
-    def test_missing_covers_reported(self) -> None:
+    def test_reference_names_can_contain_retired_words(self) -> None:
         self.build_valid_tree()
+        self.write("plan-assistant-creative/references/facial-expressions.md", "# example")
         self.write(
-            "qa-assistant-creative/references/legacy/index.md",
-            "| # | Contract | Covers |\n"
-            "| --- | --- | --- |\n"
-            "| 1 | `raster-image.md` | `creator-raster-image` |\n",
+            "plan-assistant-creative/references/reference-research.md",
+            "See `facial-expressions.md`.",
         )
-        errors = self.validate()
-        self.assertTrue(
-            any(
-                "creative QA Covers misses canonical family: creator-comic" in e
-                for e in errors
-            ),
-            errors,
-        )
-
-    def test_duplicate_covers_reported(self) -> None:
-        self.build_valid_tree()
-        self.write(
-            "qa-assistant-creative/references/legacy/index.md",
-            "| # | Contract | Covers |\n"
-            "| --- | --- | --- |\n"
-            "| 1 | `raster-image.md` | `creator-raster-image` `creator-raster-image` |\n"
-            "| 2 | `comic.md` | `creator-comic` |\n",
-        )
-        errors = self.validate()
-        self.assertTrue(
-            any(
-                "creative QA Covers lists creator-raster-image 2 times "
-                "(must be once)" in e
-                for e in errors
-            ),
-            errors,
-        )
+        errors: list[str] = []
+        VALIDATOR.validate_creative_references(self.pipeline_dir, errors)
+        self.assertEqual([], errors)
 
     def test_stale_relative_backtick_path_fails(self) -> None:
         self.build_valid_tree()
         self.write(
-            "plan-assistant-creative/references/legacy/raster-image.md",
-            "# raster\n\nSee `../../execute/creative/index.md`.\n",
+            "plan-assistant-creative/references/reference-research.md",
+            "# r\n\nSee `../../execute/creative/index.md`.\n",
         )
         errors = self.validate()
         self.assertTrue(
@@ -286,8 +150,8 @@ class CreativeClientReferencesTestCase(unittest.TestCase):
     def test_escape_path_rejected(self) -> None:
         self.build_valid_tree()
         self.write(
-            "plan-assistant-creative/references/legacy/raster-image.md",
-            "# raster\n\nSee `../../../../../../outside/index.md`.\n",
+            "plan-assistant-creative/references/reference-research.md",
+            "# r\n\nSee `../../../../../../outside/index.md`.\n",
         )
         errors = self.validate()
         self.assertTrue(
@@ -300,6 +164,21 @@ class CreativeClientReferencesTestCase(unittest.TestCase):
         self.write(
             "plan-assistant-creative/references/raster-guide.md",
             GUIDE_BODY + "\nSee `../expressions/mood.md` for the old palette.\n",
+        )
+        errors = self.validate()
+        self.assertTrue(
+            any(
+                "creative reference points at a retired shelf" in e for e in errors
+            ),
+            errors,
+        )
+
+    def test_legacy_shelf_reference_rejected(self) -> None:
+        self.build_valid_tree()
+        self.write("plan-assistant-creative/references/legacy/raster-image.md", "# r\n")
+        self.write(
+            "plan-assistant-creative/references/raster-guide.md",
+            GUIDE_BODY + "\nSee `legacy/raster-image.md`.\n",
         )
         errors = self.validate()
         self.assertTrue(
@@ -345,93 +224,9 @@ class CreativeClientReferencesTestCase(unittest.TestCase):
         self.write(
             "plan-assistant-creative/references/raster-guide.md",
             GUIDE_BODY
-            + "\nSee [legacy](legacy/index.md) and `legacy/raster-image.md`.\n",
+            + "\nSee [research](reference-research.md) and `reference-research.md`.\n",
         )
         self.assertEqual([], self.validate())
-
-
-class CreativeLegacyShelfStructureTestCase(unittest.TestCase):
-    """Structural rules for the flat creative/legacy/ shelf,
-    verified via validate_assistant_pipeline
-    against a synthetic ASSISTANT_PIPELINE."""
-
-    def setUp(self) -> None:
-        self._tmp = tempfile.TemporaryDirectory()
-        self.addCleanup(self._tmp.cleanup)
-        self.root = Path(self._tmp.name)
-        patcher = mock.patch.object(VALIDATOR, "ASSISTANT_PIPELINE", self.root)
-        patcher.start()
-        self.addCleanup(patcher.stop)
-
-    def write(self, rel: str, text: str) -> Path:
-        path = self.root / rel
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(text, encoding="utf-8")
-        return path
-
-    def build_minimal_tree(self) -> None:
-        build_assistant_tree(self.write, VALIDATOR)
-
-    def build_execute_legacy_shelf(self) -> None:
-        self.write(
-            "execute-assistant-creative/SKILL.md",
-            entry_text("execute-assistant-creative", (
-                "references/media-ops.md", "references/legacy/index.md"
-            )),
-        )
-        self.write("execute-assistant-creative/references/media-ops.md", "# media ops\n")
-        self.write("execute-assistant-creative/references/legacy/index.md", "raster-image.md")
-        self.write("execute-assistant-creative/references/legacy/raster-image.md", "# raster\n")
-
-    def validate(self) -> list[str]:
-        errors: list[str] = []
-        VALIDATOR.validate_assistant_pipeline(errors)
-        return errors
-
-    def test_valid_execute_legacy_shelf_passes(self) -> None:
-        self.build_minimal_tree()
-        self.build_execute_legacy_shelf()
-        self.assertEqual([], self.validate())
-
-    def test_unrouted_legacy_directory_rejected(self) -> None:
-        self.build_minimal_tree()
-        self.build_execute_legacy_shelf()
-        self.write(
-            "execute-assistant-creative/SKILL.md",
-            entry_text("execute-assistant-creative", ("references/media-ops.md",)),
-        )
-        errors = self.validate()
-        self.assertTrue(
-            any(
-                "entry SKILL.md does not route references/legacy/index.md" in e
-                for e in errors
-            ),
-            errors,
-        )
-
-    def test_nested_deeper_dir_in_legacy_rejected(self) -> None:
-        self.build_minimal_tree()
-        self.build_execute_legacy_shelf()
-        self.write("execute-assistant-creative/references/legacy/group/inner.md", "# nested\n")
-        self.write(
-            "execute-assistant-creative/references/legacy/index.md", "raster-image.md group/"
-        )
-        errors = self.validate()
-        self.assertTrue(
-            any("no nesting below the creative legacy shelf" in e for e in errors),
-            errors,
-        )
-
-    def test_non_markdown_file_in_legacy_rejected(self) -> None:
-        self.build_minimal_tree()
-        self.build_execute_legacy_shelf()
-        self.write("execute-assistant-creative/references/legacy/notes.txt", "notes\n")
-        self.write(
-            "execute-assistant-creative/references/legacy/index.md",
-            "raster-image.md notes.txt",
-        )
-        errors = self.validate()
-        self.assertTrue(any("non-markdown reference" in e for e in errors), errors)
 
 
 if __name__ == "__main__":

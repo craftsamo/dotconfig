@@ -274,7 +274,7 @@ def _child(case, sandbox, candidate_tree, source):
             elif case == "contained_paths":
                 # Depth is not a lookup limit; the file must remain in the named skill.
                 deep = max(tree.rglob("*.md"), key=lambda p: len(p.relative_to(tree).parts))
-                assert len(deep.relative_to(tree).parts) >= 4
+                assert len(deep.relative_to(tree).parts) >= 3
                 relative = str(deep.relative_to(tree))
                 body_matches(json.loads(st.skill_view("assistant-pipeline", relative)), deep)
                 synthetic = tree / "references/depth/one/two/three/four/five/doc.md"

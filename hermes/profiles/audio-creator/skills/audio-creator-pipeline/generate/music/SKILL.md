@@ -3,7 +3,7 @@ name: generate-music
 description: >-
   Generate instrumental BGM or a short melodic cue with local Stable
   Audio 3 Medium, or explicitly approved paid fal. Return a proposal
-  first; generate only after Creator relays approval. Both engines take
+  first; generate only after relayed approval. Both engines take
   a seed; no fallback. Not songs, SFX, mixing, edit-music or create-music.
 version: 1.0.0
 metadata:
@@ -94,7 +94,7 @@ metadata:
 1. Confirm scope before anything else: this leaf generates **instrumental**
    BGM or a melodic opener/closer only. A request for a full song with
    lyrics/singing, standalone sound design/SFX, or audio mixing is `no
-   skill fits` - a finding for Creator, never an approximated substitute.
+   skill fits` - a finding for the Assistant, never an approximated substitute.
    An "instrumental" direction in the prompt is a requirement to ask for,
    not a guarantee the returned take actually omits vocals - QA the
    actual content, never assume it from the prompt alone.
@@ -148,10 +148,10 @@ metadata:
    previous proposal directory. Include the resolved `engine` (default
    local) and `seed` (default 0) in `form.json`. That `form.json` is
    AudioCreator's **internal** control file for `music_plan.py`, distinct
-   from the public leaf form above. Creator keeps `budget` outside its
+   from the public leaf form above. The Assistant keeps `budget` outside its
    handoff form; never add `variants`/`budget` fields to either form.
    AudioCreator serializes the outer approval grant it already received
-   from Creator into this
+   from the Assistant into this
    internal `form.json` as `max_calls` (and, for fal, `max_usd`)
    alongside the resolved creative fields. A smaller explicit cap,
    including `max_calls: 1`, overrides the local default of 3 and is
@@ -175,7 +175,7 @@ metadata:
    Report the returned proposal path and its SHA-256,
    and STOP - zero generation, zero spend in round A.
 6. Round B requires both `approved_plan` and `approval_sha256` from
-   Creator and `intent: revise <previous delivery>`, in the same work
+   the Assistant and `intent: revise <previous delivery>`, in the same work
    conversation as the client's approval. A changed creative field or a
    materially different engine/duration/seed/budget needs a new proposal,
    never a generation against stale approval text. Inventory any existing
@@ -229,7 +229,7 @@ metadata:
   language, not just the label; the compact prompt is 1-450 characters
   and matches its approved hash exactly. Approval matches the exact
   proposal text/settings before any spend.
-- Grant: the proposal's execution settings match Creator's outer cap,
+- Grant: the proposal's execution settings match the Assistant's outer cap,
   including a one-attempt limit; local has no dollar-cap input. A
   mismatch is corrected in a new proposal before asking for approval,
   never accepted as an automatic increase to the default allowance.

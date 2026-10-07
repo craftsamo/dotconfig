@@ -16,6 +16,10 @@ class MediaCraftClientTests(unittest.TestCase):
         names = {Path(path).name for path in config["skills"]["external_dirs"]
                  if Path(path).name.startswith("media-craft-")}
         self.assertEqual(names, {"media-craft-direction"})
+        pipelines = {Path(path).name for path in config["skills"]["external_dirs"]
+                     if Path(path).name.endswith("-creator-pipeline")}
+        self.assertEqual(pipelines, {"image-creator-pipeline", "video-creator-pipeline",
+                                     "audio-creator-pipeline"})
         self.assertNotIn("media-craft-direction", config["skills"].get("disabled", []))
 
     def test_plan_and_qa_read_specific_direction_knowledge(self):
@@ -29,7 +33,9 @@ class MediaCraftClientTests(unittest.TestCase):
             self.assertIn("read_file", text)
             self.assertIn("current", text)
         execute = (PIPELINE / "execute-assistant-creative/SKILL.md").read_text()
-        self.assertIn("cannot prospectively approve exact plan/preview bytes", " ".join(execute.split()))
+        execute = " ".join(execute.split())
+        self.assertIn("Never compute, refresh or invent a hash", execute)
+        self.assertIn("An approved study is not an approved final", execute)
 
     def test_paired_public_skill_is_present(self):
         root = PUBLIC_ROOT / "agents/curated/media-craft-direction"

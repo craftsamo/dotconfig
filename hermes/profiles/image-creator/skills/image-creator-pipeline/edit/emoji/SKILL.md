@@ -119,7 +119,7 @@ finding — never a silent delivery.
 
 `edit-emoji` + platform + the edits applied; every output path with its
 `RESULT:` numbers; the sheet / manifest / zip paths; each QA check with
-evidence; `spend: free (0 credits)`; anything Creator must decide (a crop
+evidence; `spend: free (0 credits)`; anything the Assistant must decide (a crop
 you chose, a photo that needs real background removal).
 
 </Report>

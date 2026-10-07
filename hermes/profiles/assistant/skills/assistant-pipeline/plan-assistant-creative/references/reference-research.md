@@ -1,7 +1,7 @@
 # Reference research - evidence for a direction
 
 Help the user and Creator choose a direction using real examples. You collect,
-inspect and translate observations into concrete visual intent; Creator turns
+inspect and translate observations into concrete visual intent; the hands turn
 that design into a feasible technical production proposal. A
 reference is evidence of an example, not proof that this production can match
 it and not a ready-made production specification.
@@ -63,7 +63,7 @@ unbounded gallery or a mandatory new search on every job:
   relevant relationship, not film-length pacing into an unrelated short tour.
 
 Use existing media-craft knowledge to read these examples, not instead of
-examining them. Creator separately uses technical demonstrations such as GSAP,
+examining them. The hands separately use technical demonstrations such as GSAP,
 Three.js, Codrops or Shadertoy to evaluate implementation. Neither a demo nor
 its documentation establishes support in the selected hands' actual runtime.
 Accounts, subscriptions, downloads and code/asset reuse need their own rights;
@@ -92,7 +92,7 @@ References:
 Direction:
   suggested: a synthesis to discuss, with its reference evidence
   user-decided: only choices the user actually settled
-  open: what the user or Creator should still decide
+  open: what the user or the hands should still decide
 ```
 
 An approved direction is not approval of every pixel, source asset or later
@@ -111,7 +111,7 @@ footage or exact text merely because it appears in the pack.
 
 If an example is separately authorized as an input, explicitly relay the
 asset's role and allowed operations; preserve all unknown or denied rights.
-Creator requests missing permission before the affected operation, not after
+The hands request missing permission before the affected operation, not after
 an upload. Neither Assistant's brief shape nor a capture path conveys consent.
 Keep private asset identities in working detail, never public deliverables.
 

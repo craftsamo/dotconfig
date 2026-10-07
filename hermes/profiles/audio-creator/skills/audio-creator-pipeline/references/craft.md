@@ -26,7 +26,7 @@ not guaranteed because a shared example discusses it.
 
 For a wrong effect rather than execution, read
 `skill_view(name="media-craft-direction")` with
-`file_path="references/critique-revision.md"` and return a proposal to Creator.
+`file_path="references/critique-revision.md"` and return a proposal to the Assistant.
 Human comparison listening owns sonic acceptance in this release. Do not add an
 audio-understanding call or describe perceived warmth, pronunciation or masking
 from meters/ASR alone. Record who heard what; unchanged technical evidence stays

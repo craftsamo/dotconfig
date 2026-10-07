@@ -12,5 +12,5 @@ treat this as directional language, not a guaranteed frame-accurate close.
 
 QA cue: after render, listen-free checks are limited to duration/level
 measurement; report the ending as requested-resolve, with actual
-resolution character left perceptually unverified unless Creator/the
+resolution character left perceptually unverified unless the Assistant/the
 client confirms it on playback.

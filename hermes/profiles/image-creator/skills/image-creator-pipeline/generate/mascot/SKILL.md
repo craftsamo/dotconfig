@@ -255,6 +255,6 @@ findings from `qa.md`, the proposed palette if the form had none, the
 recommended concept, and the exact `revise` line the client sends back;
 round B: the sheet path, the manifest path, each QA check with evidence,
 items marked failed and why; `spend: img <calls>/<budget>` (correctives
-included); anything Creator must decide.
+included); anything the Assistant must decide.
 
 </Report>

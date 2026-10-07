@@ -354,7 +354,7 @@ def propose(args):
         f"plan_sha256: {digest(out / 'plan.json')}\n\n"
         "This proposal binds the complete plan and staged assets below. Hashes bind bytes, not approver identity.\n\n"
         + "```json\n" + json.dumps(plan, ensure_ascii=False, indent=2) + "\n```\n\n"
-        + ("Missing: " + "; ".join(missing) if missing else "Ready for Creator-relayed client approval; no video rendered.") + "\n")
+        + ("Missing: " + "; ".join(missing) if missing else "Ready for Assistant-relayed user approval; no video rendered.") + "\n")
     (out / "proposal.md").write_text(description, encoding="utf-8")
     return {"status": status, "proposal": str(out / "proposal.md"), "approval_sha256": digest(out / "proposal.md"),
             "can_render": not missing, "missing": missing, "media_generation": 0}

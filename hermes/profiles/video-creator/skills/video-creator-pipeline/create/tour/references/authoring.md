@@ -2,7 +2,7 @@
 
 Author HTML/CSS/GSAP for this task, not a generic scene DSL. Screenshots and
 designs are evidence for UI facts; text alone can be sufficient. Choose layout
-for readable video. Creator settles missing semantics, not coordinates.
+for readable video. The Assistant settles missing semantics, not coordinates.
 
 ## Ownership and Style
 

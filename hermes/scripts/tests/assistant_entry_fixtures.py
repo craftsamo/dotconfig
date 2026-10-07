@@ -48,19 +48,11 @@ def build_assistant_tree(write, validator):
         for cap in CAPABILITIES:
             name = f"{prefix}-assistant-{cap}"
             routes = []
-            if cap == "creative" and prefix != "qa":
-                write(f"{name}/references/legacy/index.md", "# Retained references\n")
-                routes = ["references/legacy/index.md"]
             if prefix == "qa":
                 names = validator.REQUIRED_QA_CONTRACTS.get(cap, set())
-                shelf = "references/legacy" if cap == "creative" else "references"
                 for filename in names:
-                    write(f"{name}/{shelf}/{filename}", "# Contract\n")
-                if cap == "creative":
-                    write(f"{name}/{shelf}/index.md", " ".join(sorted(names)))
-                    routes = ["references/legacy/index.md"]
-                else:
-                    routes = [f"references/{filename}" for filename in sorted(names)]
+                    write(f"{name}/references/{filename}", "# Contract\n")
+                routes = [f"references/{filename}" for filename in sorted(names)]
             write(f"{name}/SKILL.md", entry_text(name, routes))
     chat_files = ("workspace-ops.md", "message-reply.md", "work-report.md", "cron.md", "lookups.md", "whatsapp.md",
                   "signal.md", "discord.md", "telegram.md", "x.md", "note.md", "substack.md",

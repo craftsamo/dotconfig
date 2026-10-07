@@ -4,7 +4,7 @@
 
 A walkthrough of a user task. A topic explanation without a visible task
 belongs to [explainer-video.md](explainer-video.md); an advertisement is not
-a tour merely because it shows a product. Creator determines the method.
+a tour merely because it shows a product. The hands determine the method.
 
 ## Client decisions
 
@@ -26,5 +26,5 @@ or private-region capture merely to find design inspiration.
 ## Acceptance
 
 Can the viewer follow the agreed task and identify its outcome? Are the
-required fidelity and scope preserved in Creator's evidence? A reconstructed
+required fidelity and scope preserved in the hands' evidence? A reconstructed
 preview must not be described as a real product recording or runtime test.

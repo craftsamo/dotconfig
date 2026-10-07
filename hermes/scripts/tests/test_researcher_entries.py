@@ -73,7 +73,7 @@ def test_candidate_topology_and_always_on_contract():
     assert "report it as unverified and stop" in qa
 
 
-@pytest.mark.parametrize("caller", ("engineer", "creator", "marketer"))
+@pytest.mark.parametrize("caller", ("engineer", "marketer"))
 def test_primary_relays_acceptance_baseline_without_transferring_handle(caller):
     root = HERMES / "profiles" / caller
     if caller == "marketer":
@@ -86,6 +86,19 @@ def test_primary_relays_acceptance_baseline_without_transferring_handle(caller):
         assert field in text
     assert "handle" in text
     assert "Assistant's handle" in text or "handle stays yours" in text
+
+
+def test_creator_advisor_reaches_only_researcher_for_evidence():
+    root = HERMES / "profiles/creator"
+    config = yaml.safe_load((root / "config.yaml").read_text())
+    assert config["specialist_call"]["resident_targets"] == ["researcher"]
+    assert set(config["a2a_agents"]) == {"researcher"}
+    text = " ".join(config["agent"]["system_prompt"].split())
+    for phrase in ("only for researcher", "purpose, consumer, constraints and budget",
+                   "evidence, not a decision", "never retry an unknown result"):
+        assert phrase in text
+    kernel = " ".join((root / "skills/creator-pipeline/SKILL.md").read_text().split())
+    assert "`specialist_call` reaches Researcher only" in kernel
 
 
 def test_worker_integration(tmp_path, monkeypatch):

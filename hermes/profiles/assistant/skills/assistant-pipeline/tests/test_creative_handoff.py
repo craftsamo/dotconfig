@@ -50,18 +50,20 @@ class CreativeHandoffTest(unittest.TestCase):
     def test_guides_are_not_a_capability_catalog(self):
         plan = text(PLAN_ENTRY)
         self.assertIn("A missing guide is NOT evidence", plan)
-        self.assertIn("Creator confirms the actual scope", plan)
+        self.assertIn("the installed hands leaves confirm the actual scope", plan)
         self.assertIn("not a live capability catalog", plan)
         self.assertFalse((PLAN / "character-music-video.md").exists())
-        for directory in (EXECUTE, QA):
-            self.assertFalse(any((directory / f"{name}.md").exists() for name in GUIDES))
+        self.assertFalse(QA.exists() and any((QA / f"{name}.md").exists() for name in GUIDES))
+        for subject in GUIDES - {"video-design"}:
+            self.assertTrue((EXECUTE / f"{subject}.md").is_file(), subject)
 
     def test_questions_are_not_a_mandatory_production_form(self):
         plan = text(PLAN_ENTRY)
         self.assertIn("Ask only unresolved questions", plan)
         self.assertIn("not forms to make the user complete", plan)
-        self.assertIn("valid consultation brief", plan)
-        self.assertIn("needs no mandatory prior inquiry", plan)
+        self.assertIn("An incomplete creative direction is a valid brief for Creator", plan)
+        self.assertIn("Commission directly when the user's own words settle every required field",
+                      text(EXECUTE_ENTRY))
 
     def test_reference_search_is_conditional_and_research_can_finish(self):
         research = text(PLAN / "reference-research.md")
@@ -79,27 +81,35 @@ class CreativeHandoffTest(unittest.TestCase):
         self.assertIn("inspiration only; production reuse/upload not authorized", research)
         self.assertIn("Neither Assistant's brief shape nor a capture path conveys consent", research)
         execute = text(EXECUTE_ENTRY)
-        self.assertIn("An omitted permission is unknown, not yes", execute)
+        self.assertIn("explicit consent for that asset and operation", execute)
+        self.assertIn('A path, a public URL, a direction choice or "use this" is not consent', execute)
+        self.assertIn("an omitted permission is unknown, not yes", execute)
         self.assertIn("Missing permission blocks the affected operation", execute)
+        self.assertIn("Research examples are inspiration, never production inputs", execute)
 
-    def test_brief_and_transport_keep_client_boundary(self):
+    def test_handoff_and_transport_keep_client_boundary(self):
         execute = text(EXECUTE_ENTRY)
-        for field in ("Goal:", "Context:", "Inputs:", "Deliverable:", "Constraints:", "Budget:"):
-            self.assertIn(field, execute)
-        self.assertIn('specialist_call(target="creator", ...)', execute)
-        self.assertIn("never fill in Creator's hands forms yourself", execute)
+        self.assertIn("You are the only client of the media hands", execute)
+        for line in ("skill: <verb>-<subject>", "intent: new | revise", "deliver: <absolute durable directory>",
+                     "budget: <grant>", "form:"):
+            self.assertIn(line, execute)
+        self.assertIn('specialist_call(target="creator", kind="inquiry")', execute)
+        self.assertIn("Never send a design of your own for it to fill in", execute)
         for hand in ("image-creator", "video-creator", "audio-creator"):
             self.assertIn(f"`{hand}`", execute)
-        self.assertIn("never upgrade the pinned route in place", execute)
-        self.assertIn("No repeating the first call", execute)
+        self.assertIn('specialist_call(target="<hands>", message=<the text>, kind="work")', execute)
+        self.assertIn("Transport grants nothing", execute)
+        self.assertIn("never retry an unknown result or switch backends", execute)
+        self.assertIn("never add form keys", execute)
 
     def test_approval_relay_preserves_authority_and_identity(self):
         execute = text(EXECUTE_ENTRY)
         for phrase in (
-            "SAME `target` and `conversation_id`", "Never self-compute",
-            "A Budget line is not proposal approval",
-            "new approval, not a silent continuation",
-            "do not add a mandatory taste vote",
+            "relay the user's decision in the same conversation",
+            "Never compute, refresh or invent a hash",
+            "A Budget line is not proposal approval, and proposal approval is not more spend",
+            "An approved study is not an approved final",
+            "Never invent an approval",
         ):
             self.assertIn(phrase, execute)
 
@@ -115,7 +125,7 @@ class CreativeHandoffTest(unittest.TestCase):
     def test_hands_reference_catalog_routes_to_engineering(self):
         plan = text(PLAN_ENTRY)
         self.assertIn("(../plan-assistant-engineering/references/existing-change.md)", plan)
-        self.assertIn("Producing media stays with Creator", plan)
+        self.assertIn("Producing media stays with the hands", plan)
         self.assertIn("Assessing, adding to, or improving managed hands reference catalogs", plan)
         self.assertIn("whether the user wants an asset or a managed reference change", plan)
         self.assertIn("not by words such as card, icon, style or reference alone", plan)
@@ -124,7 +134,7 @@ class CreativeHandoffTest(unittest.TestCase):
 
     def test_dependencies_and_publish_are_not_duplicated(self):
         plan = text(PLAN_ENTRY)
-        self.assertIn("do not open a duplicate Writer or hands job", plan)
+        self.assertIn("never opens a duplicate job for the same unit", plan)
         self.assertIn("passed unchanged", plan)
         self.assertIn("Keep service-side drafts with marketing Execute", plan)
         explainer = text(PLAN / "explainer-video.md")
@@ -132,18 +142,14 @@ class CreativeHandoffTest(unittest.TestCase):
         self.assertIn("do not duplicate their requests", explainer)
         self.assertIn("not a completed musical deliverable", text(PLAN / "music-video.md"))
 
-    def test_legacy_is_separate_and_never_a_failure_fallback(self):
+    def test_legacy_shelves_are_gone_and_never_a_fallback(self):
         for entry in (PLAN_ENTRY, EXECUTE_ENTRY, QA_ENTRY):
-            directory = entry.parent / "references"
-            self.assertIn("(references/legacy/index.md)", text(entry))
-            self.assertTrue((directory / "legacy/index.md").is_file())
-        self.assertIn("not a fallback after a served failure", text(PLAN_ENTRY))
+            self.assertFalse((entry.parent / "references/legacy").exists(), entry)
+            self.assertNotIn("references/legacy", text(entry))
+        self.assertIn("never a fallback after a failed current Card job", text(PLAN / "card.md"))
+        self.assertIn("fall back to an archived method", text(EXECUTE_ENTRY))
         for name in ("generated-video", "html-motion", "composite-media", "pixel-art", "pixel-video"):
             self.assertFalse((PLAN / f"{name}.md").exists())
-            self.assertIn("legacy", text(PLAN / f"legacy/{name}.md").lower())
-        qa = (QA / "legacy/index.md").read_text(encoding="utf-8")
-        for name in re.findall(r"^\| .*?\| `([^`]+\.md)` \|", qa, re.M):
-            self.assertTrue((QA / "legacy" / name).is_file(), name)
 
     def test_retired_house_rules_have_no_active_references(self):
         for entry in (PLAN_ENTRY, EXECUTE_ENTRY, QA_ENTRY):
@@ -153,11 +159,13 @@ class CreativeHandoffTest(unittest.TestCase):
                     r"house-formats/|expressions/|production-facts\.md",
                     path,
                 )
-        self.assertNotIn("voice-line sets", text(PLAN / "legacy/asset-set.md"))
 
-    def test_legacy_references_carry_no_frontmatter(self):
-        for path in (EXECUTE / "legacy").rglob("*.md"):
-            self.assertFalse(path.read_text(encoding="utf-8").startswith("---\n"))
+    def test_creative_has_no_card_units(self):
+        execute = EXECUTE_ENTRY.read_text(encoding="utf-8")
+        frontmatter = execute.split("---", 2)[1]
+        self.assertNotIn("card_units", frontmatter)
+        self.assertNotIn("assignee:", frontmatter)
+        self.assertNotIn("runtime_cap", frontmatter)
 
     def test_retention_does_not_delete_frozen_work(self):
         ops = text(EXECUTE / "media-ops.md")
@@ -180,19 +188,16 @@ class CreativeHandoffTest(unittest.TestCase):
         qa = text(QA_ENTRY)
         self.assertIn("Plan -> Execute -> Deliver", root)
         self.assertIn("Other domains' QA is unchanged", root)
-        self.assertIn("Stay in Execute on normal Creator completion", execute)
+        self.assertIn("Stay in Execute on normal completion", execute)
         self.assertIn("do not load `qa-assistant-creative`", execute)
-        self.assertIn("Required failures still block final readiness and dependent use", execute)
-        self.assertIn("attach the actual viewable file", execute)
-        self.assertIn("composition AND progression", execute)
+        self.assertIn("A required failure still blocks final readiness and dependent use", execute)
+        self.assertIn("attach the actual file when supported", execute)
+        self.assertIn("composition and progression", execute)
         ops = text(EXECUTE / "media-ops.md")
         self.assertIn("No separate QA acceptance is required before showing a candidate", ops)
         self.assertNotIn("qa-assistant-creative/SKILL.md", ops)
         self.assertIn("only for an explicit user inspection request", qa)
         self.assertIn("Do not dispatch repairs from this inspection", qa)
-        self.assertIn("Legacy is not an exception that restores routine Assistant QA",
-                      text(EXECUTE / "legacy/index.md"))
-        self.assertIn("ONLY for explicitly user-requested inspection", text(QA / "legacy/index.md"))
 
     def test_resident_handoff_distinguishes_outcome_from_authority_source(self):
         # Static contract check only, not live model behavior: the doc must
@@ -207,13 +212,14 @@ class CreativeHandoffTest(unittest.TestCase):
 
     def test_creative_continuation_preserves_human_authority(self):
         execute = text(EXECUTE_ENTRY)
-        self.assertIn("human decision with source and exact affected proposal/preview, "
-                      "your implementation choice within the grant, or an unapproved suggestion", execute)
-        self.assertIn("attributes messages to an agent; this helps inspection, not authorization", execute)
-        self.assertIn("An agent DECISION or a source label cannot turn a weakened requirement "
-                      "into human approval", execute)
-        self.assertIn("Compare any proposed compromise with the original purpose, audience "
-                      "and must-keep conditions before responding to Creator", execute)
+        self.assertIn("The user's pick is a human decision; record it separately from "
+                      "Creator's recommendation", execute)
+        self.assertIn("Creator's output is advice: it approves nothing, releases no spend", execute)
+        self.assertIn("Keep the original purpose, audience and must-keep conditions in every dependent form",
+                      execute)
+        resident = text(ROOT / "references/execute/resident-sessions.md")
+        self.assertIn("separate the user's actual decision (source, affected proposal and scope), "
+                      "your implementation choice and an unapproved suggestion", resident)
 
     def test_qa_version_binding_prevents_latest_saved_assumption(self):
         qa = text(ROOT / "references/quality-assurance/index.md")
@@ -267,7 +273,7 @@ class CreativeHandoffTest(unittest.TestCase):
             source.write_text(source.read_text().replace("Exact title", "Changed title"))
             with self.assertRaisesRegex(ValueError, "copy differs"):
                 card.validate(spec, "create")
-        build = text(root / "profiles/creator/skills/creator-pipeline/build-creator/references/image-creator/card.md")
+        build = text(EXECUTE / "card.md")
         self.assertIn('authored-layout/custom-style Card', build)
         self.assertIn('kind="work"', build)
 

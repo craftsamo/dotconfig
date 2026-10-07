@@ -8,7 +8,7 @@ hand. This reference has no per-option file glob; read it whole.
 ## Framing: how much of the character is visible
 
 - `none` — no character presence at all. This is a deliberate choice, not
-  the default for "unspecified": Creator clarifies none vs. an existing
+  the default for "unspecified": The Assistant clarifies none vs. an existing
   character vs. a new one before this field is ever filled with `none`.
   With `none`, every other character field is forced empty (`performance:
   still`, `lip_sync: off`, no body/video/mouths/cues/sync) — there is
@@ -58,7 +58,7 @@ hand. This reference has no per-option file glob; read it whole.
   framing is the natural home for this, but it is never proposed instead
   of an explicit `off`.
   No current hands leaf produces these reviewed cues automatically. If they
-  are absent, Creator reports a capability gap until a separately approved
+  are absent, the Assistant reports a capability gap until a separately approved
   cue-production method is available; neither the client nor AudioCreator
   is assumed to author cue JSON as part of an ordinary speech request.
 - `baked` — only valid with `performance: animated`. Requires a `sync`

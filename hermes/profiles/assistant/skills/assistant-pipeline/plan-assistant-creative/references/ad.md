@@ -5,7 +5,7 @@
 Persuasion toward an intended audience action, or analysis of that
 persuasion. A product/world introduction is not automatically an ad because
 it has a closing action; [tour.md](tour.md) instead follows a user task.
-Creator confirms whether the requested production or analysis is supported.
+The installed leaf confirms whether the requested production or analysis is supported.
 
 ## Client decisions
 

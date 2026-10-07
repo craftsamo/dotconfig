@@ -1,0 +1,144 @@
+# Commission — video-creator: music-video
+
+Read [commissioning](../SKILL.md) first.
+
+## Leaves
+
+| Deliverable | Leaf | Notes |
+| --- | --- | --- |
+| a short generated MV with subject performance, a coherent world and evolving shots/highlights | `generate-music-video` | metered, 5-15 seconds; unspent proposal then exact-plan approval; theme/style/direction are form values, default 2 variants + 1 corrective; native generated audio needs backend support, supplied music/exact lettering need separate finishing |
+
+## Choosing and filling
+
+### Budget
+
+A metered leaf takes a `budget:` line; absent, the leaf's default applies —
+for MV: the same 2 + 1 attempt ceiling as clip, but proposal approval is
+required before spending; failed attempts count against that ceiling too.
+
+### MV: a concrete world and performance, then approval
+
+Use generate-music-video for a short model-generated music-video-style piece ("MV"), not a
+single-shot hero, UI tour, full song or an edit of existing footage. Subject
+(character or otherwise) is a form value, never a new character-mv leaf.
+Fill subject/theme/style, direction (performance by default), music_mode and
+remote_analysis. Infer optional performance/theme_detail rather than asking
+the user to write a storyboard. Style is rendering, theme is space/materials/
+light, direction is staging emphasis. Read the selected leaf references; theme
+defaults are concrete starting points overridden by theme_detail/must_keep.
+New proposals default pace to steady and transition to cut only when shots
+change. For "sluggish" feedback, first identify what the reference actually
+does: body action, camera travel, lens occlusion, cut or hold. Do not replace
+a spatial wipe/zoom-through with snappy + cut merely because it sounds faster.
+Offer snappy + cut only when crisp edited boundaries are the intended change.
+Preserve separately described speeds (slow performer, fast cuts); do not
+equate pace with BPM or turn performance into mandatory rapid editing.
+Continuous forbids shot breaks regardless of pace. If that conflicts with an
+explicit cut-montage request, resolve the conflict before approval. Optional
+fields need not become extra interview questions when intent is already clear.
+Have the hands put tempo/boundary choices in the proposal AND actual prompt.
+For reference-led spatial motion, read the MV leaf's spatial-direction.md and
+retain camera/actor/object motion separately. Each critical action gets START /
+CROSS / AFTER in plain prose: position/shape/destination, visible passage, then
+what remains in view. A keyhole seen is not a keyhole entered. Confirm priority
+and evidence expectations, not just motifs or the word fast. Do not demand that
+the user write this breakdown; the hands propose it from permitted evidence.
+An isolated 5-second aperture trial showed passage-like evidence but wrong
+opening shape; its 15-second integrated counterpart did not preserve the
+passage. Treat this as risk evidence, not a guaranteed prompt recipe. If needed,
+offer a separately budgeted generate-clip isolation or a scoped production plan;
+never silently fan out one MV allowance into several shot generations.
+Keep the detailed proposal separate from a compact prompt-only file. Before
+approval require its measured 1..1800 UTF-8 byte count and SHA-256; a long
+storyboard/reference dump cannot become the tool argument. The shared-route
+budget accounts for the observed FAL 2048-byte rejection as well as xAI's
+reported 4096 limit. Compression preserves mandatory direction; it never
+silently drops the user's requirements or restores spent attempts.
+Keep the action relationships in that compact prompt; remove redundant visual
+adjectives first. If required relationships cannot fit, resolve scope before spend.
+Free text is first-class, not a nearest-preset lookup. Known recipes are not
+yet live-render guarantees. Theater can be red/black/white playing cards OR
+ice-blue/silver crystals: do not keep velvet/gold when the user replaces it.
+
+Explain sound modes before handoff: generated requires current native-audio
+support (the current xAI-first chain does not advertise it, so do not offer
+generated sound as working today); supplied takes music_file before generation
+but permits a music_plan description in the initial zero-spend proposal.
+That preliminary proposal is pending-inputs, can_generate: false; it records
+the intended producer/spec/duration and separate music/finishing order, never
+an invented audio file/hash. Obtain the music production release separately,
+then hand off the real file for a new numbered video proposal/hash and its
+approval. Pending image-upload consent likewise does not prevent zero-upload
+planning. Never turn preliminary approval into generation permission or
+ask the user to choose the accepted concept again. Supplied produces a silent visual master for a
+separately released finishing job ([create-master](master.md)); a generated
+master rarely lasts exactly as long as the music, so plan an audio-creator
+edit-music trim to the delivered video's length before it; silent is an explicitly silent MV-style
+piece. VideoCreator never uploads reference_video/music_file or generates a
+standalone song. An exact lyric/beat/lip-sync requirement is unsupported, not
+an optional note to ignore. Exact lettering needs a text-free generated base
+and a known, approved finishing route. Do not spend on a base whose required
+finish has no agreed route. Never interpret a MiniMax mention as permission
+to change the profile's xAI-first generation chain. With a character reference,
+default to 10s: xAI clamps that mode to 10 even though its general schema says
+15. An explicit longer request needs a decision before approval, not a paid
+attempt followed by a shorter delivery.
+
+Character-image upload consent and generated-video remote-analysis consent
+are distinct, as for clip. Reference videos are local samples or the user's
+description, not direct video_generate inputs. Local-only inspection must
+stay local; a file path is not consent to remote image/video analysis.
+
+The first handoff has NO approved_plan or approval_sha256. It returns a
+proposal, not a movie, and spends zero media-generation/remote-analysis calls.
+Show the user its expanded theme, short beat progression, actual generator
+freedom, must_keep/finishing split, sound mode, backend limits and allowance,
+with an approval question. Only the user's explicit approval authorizes the
+second round in "Round-trip and approvals" below. Prior approval to explore or
+a budget line alone does not release generation.
+Pace/transition changes require a new proposal and approval; the allowance
+already consumed remains consumed. Existing approved proposals without these
+fields keep their frozen timing/prompt, not the new defaults.
+
+## Transport
+
+`generate-music-video` is metered and multi-turn: both proposal and generation
+rounds use the generic `generate` row (`kind="work"`) in
+[commissioning](../SKILL.md)'s transport table, kept in ONE specialist work
+conversation — never separate conversations per round.
+
+## Round-trip and approvals
+
+For generate-music-video, a `pending-inputs` proposal is valid preliminary
+work with zero media calls, not a refusal to produce a plan. Keep its path/hash
+and the user's selected direction. Release missing music production only
+with separate approval, then return the real music_file and consent decisions
+to VideoCreator for a NEW proposal/hash. A preliminary hash never releases
+video_generate. Preserve spent attempts and the same work conversation; no
+dummy WAV, silent-mode substitution or bypass through another tool.
+
+For generate-music-video, use kind="work" for BOTH rounds in one conversation. First
+release proposal-only work without approval fields, preserving the user's
+form and budget ceiling. A proposal report's zero spend is expected. Do not
+ask it to produce video merely because the budget was supplied. After the
+user approves the proposal, continue with the same target/conversation_id,
+intent: revise, full unchanged form, approved_plan and approval_sha256 copied
+from that exact report. The hash binds the approved content, not the caller's
+identity. Do not compute a fresh digest to approve a silently changed file.
+Changed fields/inputs or a new creative revision return to proposal approval,
+remaining call allowance never resets. Changing pace/transition is a creative revision, not
+an automatic corrective or an authorized global playback-speed change. Old
+approved proposals lacking those fields retain their recorded prompt; do not
+inject defaults into the approval-bound form. A rejected proposal is sent with
+approval fields omitted, not sent for generation with a corrective budget.
+Check the proposed exact prompt-only file is 1..1800 UTF-8 bytes and bound to
+the approved proposal by its hash. Never send the full proposal or append
+reference text to that prompt. An oversized approved prompt must be shortened
+in a new proposal and approved before a newly granted attempt, not retried
+automatically after a provider rejects it.
+Native-audio availability is checked before spend, not guessed from a prompt.
+If the report says needs finishing, release only the agreed finishing unit
+with its own inputs/grant: supplied music under the visual master is
+[create-master](master.md); exact lettering is not served: `no skill fits`.
+Neither is handled by edit-clip; never invent an editing capability. Do not
+close a visual-master job as a complete musical MV while its finish is pending.

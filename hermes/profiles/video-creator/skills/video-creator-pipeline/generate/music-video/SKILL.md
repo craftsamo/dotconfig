@@ -104,7 +104,7 @@ metadata:
       approved_plan:
         required: false
         type: file
-        label: "Creator-approved proposal; absent: stop"
+        label: "Approved proposal; absent: stop"
       approval_sha256:
         required: false
         label: "proposal hash; required with plan"
@@ -208,7 +208,7 @@ discovery window; these details and the steps below remain part of the contract.
    observed evidence, the client's description and your proposed interpretation.
 3. Round A (no approved_plan): no video_generate, video_analyze, image
    generation, TTS, audio generation or remote uploads. Inspect existing local
-   inputs only. If local-only image inspection is unavailable, ask Creator for
+   inputs only. If local-only image inspection is unavailable, ask the Assistant for
    a description rather than calling remote vision without consent. For a
    reference_video, extract samples with the existing helper:
 
@@ -244,7 +244,7 @@ discovery window; these details and the steps below remain part of the contract.
     prompt retain START / CROSS / AFTER: camera position and opening/destination,
     the crossing's visible boundary, then what surrounds the camera after it.
     Name what must leave the screen and how subject scale changes. Choose the
-    critical actions with Creator; do not silently drop one to satisfy length.
+    critical actions with the Assistant; do not silently drop one to satisfy length.
     The plan must distinguish showing an object from performing its action and
     specify the evidence needed. Measure the file with `wc -c <generation-prompt-vN.txt>`:
     require 1..1800 UTF-8 bytes INCLUDING its final newline before approval.
@@ -279,9 +279,9 @@ discovery window; these details and the steps below remain part of the contract.
    Compute `shasum -a 256 <proposal-vN.md>`, report its digest, and STOP. The budget
     is a ceiling, not approval. No approval fields means this stop on every run.
     A pending-inputs proposal is returned for dependency planning, not offered
-    as a single approval that would start all production. Creator first obtains
+    as a single approval that would start all production. The Assistant first obtains
     the separate music production release; this leaf never synthesizes it.
-5. Round B requires BOTH approved_plan and approval_sha256 from Creator and
+5. Round B requires BOTH approved_plan and approval_sha256 from the Assistant and
     `intent: revise <previous delivery>`. A pending-inputs proposal cannot enter
     Round B even when its hash matches. Supplied mode now requires the real,
     readable music_file and its hash; a music_plan alone never releases
@@ -298,7 +298,7 @@ discovery window; these details and the steps below remain part of the contract.
     An old oversized approved prompt needs a new proposal/approval; do not
     silently shorten it, send it anyway, or regain a consumed attempt.
     Hash matching is
-   an integrity check, not authentication; never manufacture Creator's approval.
+   an integrity check, not authentication; never manufacture the Assistant's approval.
    Inventory raw results/prompt/qa and in-flight work first. Never retry an
    unknown result or reset the grant on resume. An explicit revised allowance
     needs a new approval record; surviving attempts still count. An existing
@@ -396,7 +396,7 @@ discovery window; these details and the steps below remain part of the contract.
     bounded QA, then stop regardless of outcome. Existing edit-clip may handle
     a separately released trim/format change; burned-in misspellings, broken
     faces or hands are not promised fixable in post. Never improvise a new
-    editing skill or run Creator's legacy workflow yourself. If a critical
+    editing skill or run a legacy workflow yourself. If a critical
     spatial action fails in the full MV, report the gap rather than appending
     more adjectives and spending again. A separately granted single-shot
     generate-clip test can isolate that action; its success does not certify the
@@ -471,8 +471,8 @@ technical facts and PASS/FAIL/UNVERIFIED findings; one recommendation if any;
 `spend: video_generate <attempts>/<grant>; video_analyze <calls>` with known
 provider/model and remaining grant. State `needs finishing` and its dependency
 for a visual master, or the explicit silent/generated sound mode. Return
-questions to Creator; never mark a failing/unverified candidate accepted.
-Creator may relay a client's explicit acceptance of disclosed residual QA
+questions to the Assistant; never mark a failing/unverified candidate accepted.
+The Assistant may relay a user's explicit acceptance of disclosed residual QA
 gaps and close the job, but the evidence remains UNVERIFIED, never upgraded
 to PASS. Pending mandatory finishing still prevents a completed-MV claim.
 

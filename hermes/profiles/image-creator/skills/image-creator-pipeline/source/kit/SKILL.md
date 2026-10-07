@@ -45,7 +45,7 @@ metadata:
 
    It prints `CANDIDATES:` (slug, title, page URL) from the first results
    page only — this never crawls the whole catalog. Return the candidates
-   as `Q1:` with your recommendation; the pack choice is Creator's, not
+   as `Q1:` with your recommendation; the pack choice is the Assistant's, not
    yours. Stop there.
 
 2. Otherwise run:
@@ -164,6 +164,6 @@ reported gap; it is never silently delivered.
 paths (or the output directory + count for a large selection); each QA
 check with its evidence (the `RESULT:` line, `provenance.json` path);
 the `LICENSE:` line verbatim; `spend: free`; any GAP (e.g. an SVG left
-unmeasured) and anything Creator must decide (a search's candidates).
+unmeasured) and anything the Assistant must decide (a search's candidates).
 
 </Report>

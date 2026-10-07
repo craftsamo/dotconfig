@@ -4,8 +4,7 @@
 
 An explanation of a topic for an audience with a learning goal. A visible
 software task is [tour.md](tour.md); a musical performance is
-[music-video.md](music-video.md). An explicitly requested legacy renderer
-needs Creator's confirmation, not an automatic substitution.
+[music-video.md](music-video.md).
 
 ## Client decisions
 
@@ -15,8 +14,8 @@ Keep simplifications and contested claims visible. Clarify whether a character
 is wanted, existing or new when that is open; absence of a character file
 does not mean "no character". Distinguish appearance from intended performance
 and speech, without filling a producer form or promising automatic animation.
-Tell Creator which script, identity, narration and facts already exist and
-which need work. Creator coordinates those dependencies; do not duplicate
+Note which script, identity, narration and facts already exist and
+which need work for Execute, which releases each dependency as its own unit; do not duplicate
 their requests or author a missing Writer script yourself.
 
 ## References

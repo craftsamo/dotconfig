@@ -1,6 +1,6 @@
 # SFX generation engines
 
-Read this before proposing anything to Creator. `sfx_engines` is free and
+Read this before proposing anything to the Assistant. `sfx_engines` is free and
 returns the live, authoritative list; this file is background, not a
 substitute for calling it.
 
@@ -26,7 +26,7 @@ by the personal-evaluation installation.
 - Inputs it refuses outright (never silently dropped): `loop` (any value
   other than absent/`false`), `prompt_influence`, `paid_approved`,
   `max_usd`. A request naming any of these for local is a `Q<n>` back to
-  Creator — offer the fal alternative instead if the client needs looping
+  the Assistant — offer the fal alternative instead if the user needs looping
   or a prompt-adherence dial.
 - Cost: $0 per call. Still bounded by the job's `max_calls` (default 4:
   3 variants + 1 corrective, hard cap 8) — every attempt counts, including

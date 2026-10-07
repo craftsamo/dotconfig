@@ -5,7 +5,7 @@ description: >-
   for a filled generate-speech, edit-speech, analyze-speech, create-sfx,
   generate-sfx, edit-sfx, analyze-sfx, create-music, generate-music,
   edit-music, analyze-music, create-mix, edit-mix or analyze-mix form from
-  Creator. Not song production, voice registration, script writing or
+  Assistant. Not song production, voice registration, script writing or
   video assembly.
 version: 1.0.0
 metadata:
@@ -20,8 +20,8 @@ For execution as audio-creator, re-evaluate the named leaf and its selected
 references on every inbound turn or completion, and before an action changes
 operation, subject or form options. Use the current request and retained approved
 job together; a new selection is not permission to expand the released work.
-Return an unreleased change to Creator rather than substituting a leaf or grant.
-This execution contract does not turn Creator's inspection of a form into a
+Return an unreleased change to the Assistant rather than substituting a leaf or grant.
+This execution contract does not turn the Assistant's inspection of a form into a
 hands run. Clients read forms; only the owning hands executes the procedure.
 
 Require the full kernel, selected leaf and required reference bodies in current
@@ -80,7 +80,7 @@ historical constraints, never a request to repeat its generation or spend.
    pure JSON authoring with zero audio work; create/edit-mix's proposal
    round fully decodes and validates every source (and any speech
    `.words.json` hash) but produces no mixed audio, ASR or network call
-   either. Only Creator-relayed approval of the exact proposal releases
+   either. Only Assistant-relayed approval of the exact proposal releases
    rendering. Users need not supply a score or a mix spec: author one
    within the filled form.
 4. Run the leaf's QA. Measurements, ASR and waveform stats are evidence, not

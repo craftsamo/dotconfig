@@ -37,7 +37,7 @@ class WriterPostHandoffTest(unittest.TestCase):
 
     def test_campaign_releases_writer_dependency_first(self):
         campaign = text("plan-assistant-marketing/references/campaign.md")
-        self.assertIn("You release those as Writer/Creator units, independently accept them", campaign)
+        self.assertIn("You release those as Writer/hands units, independently accept them", campaign)
         execute = text("execute-assistant-marketing/SKILL.md")
         self.assertIn("findings go back to the same Writer", execute)
         self.assertIn("independent writing QA", execute)
