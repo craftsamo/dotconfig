@@ -6,13 +6,13 @@ reports and everyday checks. Part of the Hermes design docs — index:
 
 ## Shape
 
-| Piece                                                                         | Home                                            | Reader              |
-| ----------------------------------------------------------------------------- | ----------------------------------------------- | ------------------- |
+| Piece                                                                         | Home                                                          | Reader              |
+| ----------------------------------------------------------------------------- | ------------------------------------------------------------- | ------------------- |
 | Shared contract: windows, opt-in fields, interval arithmetic, result envelope | `plugins/orchestration/session-history/common.py`             | both readers        |
-| OpenCode reader and `opencode_history`                                        | `plugins/orchestration/opencode/history.py`                   | Engineer, Assistant |
+| OpenCode reader and `opencode_history`                                        | `plugins/orchestration/opencode-v2/history.py`                | Engineer, Assistant |
 | Hermes reader and `hermes_history`                                            | `plugins/orchestration/session-history/hermes.py`             | Engineer, Assistant |
 | Cross-tool summary, text output, `/activity`                                  | `plugins/orchestration/session-history/cli.py`, `__init__.py` | people, cron        |
-| Launcher                                                                      | `../bin/ai-history`                             | people, cron        |
+| Launcher                                                                      | `../bin/ai-history`                                           | people, cron        |
 
 Each reader owns its sources and what a session is; the common module owns only
 what must mean the same in both. They are stdlib modules loaded by path, so the
@@ -41,7 +41,10 @@ session, it does not undo the work.
 ## OpenCode reader
 
 It reads OpenCode's own sessions across every project and never touches the
-execution side (`opencode-sessions/`, grants, `opencode_cli`).
+execution side (`opencode-sessions/`, grants, `opencode_cli`, `opencode_v2`).
+The `opencode` plugin keeps an identical copy of `history.py` for its own
+`opencode_history` until that plugin is retired; `ai-history` and `/activity`
+read the `opencode-v2` one.
 
 - **Official API first.** It asks the person's shared OpenCode 2 service
   through the documented `opencode api` command (which finds or starts the

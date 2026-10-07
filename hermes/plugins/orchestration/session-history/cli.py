@@ -36,7 +36,7 @@ def _load(name, path):
 
 common = _load("hermes_session_history_common", HERE / "common.py")
 hermes = _load("hermes_session_history_hermes", HERE / "hermes.py")
-opencode = _load("hermes_opencode_history", HERE.parent / "opencode" / "history.py")
+opencode = _load("hermes_opencode2_history", HERE.parent / "opencode-v2" / "history.py")
 READERS = {"opencode": opencode, "hermes": hermes}
 NOTE = "Activity = time the agents were running (model output and tool execution), minus waits for a " \
        "person's answer. It is not human working time."
