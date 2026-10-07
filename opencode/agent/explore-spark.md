@@ -2,7 +2,7 @@
 description: "Ultra-fast read-only needle lookups in a pre-identified narrow scope (specific files/dirs/symbols). Small context — not for open-ended exploration."
 mode: subagent
 model: anthropic/claude-haiku-4-5
-hidden: true
+hidden: false
 # No variant and no options: without a variant Haiku 4.5 does not think, so
 # thinking stays off. An options block would be ignored by OpenCode 2
 # (anomalyco/opencode#49550).

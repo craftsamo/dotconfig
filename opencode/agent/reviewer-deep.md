@@ -1,8 +1,8 @@
 ---
-description: "Deep read-only review subagent for high-risk hunks: system assumptions, responsibility ownership, runtime regressions, and subtle edge cases. Prefer invoking through the built-in task tool."
+description: "Deep read-only review subagent for high-risk hunks: system assumptions, responsibility ownership, runtime regressions, and subtle edge cases. Prefer invoking through the built-in subagent tool."
 mode: subagent
 model: openai/gpt-6.1-sol
-hidden: true
+hidden: false
 # variant, not options: OpenCode 2 keeps agent options but never sends them
 # (anomalyco/opencode#49550). This variant sets the same reasoningEffort.
 variant: high

@@ -3,7 +3,7 @@ description: "Read-only codebase exploration for hard or ambiguous questions whe
 mode: subagent
 model: anthropic/claude-sonnet-5-5
 variant: high
-hidden: true
+hidden: false
 permission:
   "*": deny
   glob: allow

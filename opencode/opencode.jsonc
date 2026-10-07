@@ -58,14 +58,29 @@
       "color": "#f5f5f5",
       "model": "anthropic/claude-opus-5-5",
       "variant": "high",
-      // OpenCode 1's built-in plan agent refused the general subagent, which
-      // can edit; OpenCode 2's does not, so the refusal is stated here.
-      "permission": { "task": { "general": "deny" } },
+      // Global edit: ask overrides the built-in deny. Restore Plan's boundary
+      // here, and allow only read-only specialists. Verifier can apply a
+      // formatter and worker/general can edit, so none belongs in Plan.
+      "permission": {
+        "edit": { "*": "deny", "~/.opencode/plan/*": "allow" },
+        "task": {
+          "*": "deny",
+          "explore*": "allow",
+          "searcher*": "allow",
+          "debugger": "allow",
+          "reviewer": "allow",
+          "reviewer-deep": "allow",
+        },
+      },
     },
     "build": {
       "color": "#ff6f00",
       "model": "anthropic/claude-opus-5-5",
       "variant": "medium",
+    },
+    "explore": {
+      // Global edit: ask must not turn read-only exploration into editing.
+      "permission": { "edit": "deny" },
     },
     "review": {
       "color": "#A855F7",
