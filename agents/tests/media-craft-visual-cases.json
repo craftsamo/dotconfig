@@ -164,23 +164,103 @@
     "review_evidence": [
       "place the updated badge next to the previously accepted version and the rest of the badge set at actual size to confirm only the color changed"
     ]
-  }
-  ,{
+  },
+  {
     "id": "visual-retain-state-weight",
     "request": "This approved icon set uses filled active states and outlined inactive states. They are identifiable at the target size. Should every state have identical ink coverage?",
     "operation": "retain",
-    "subjects": ["icon", "kit"],
-    "expected": ["Retain the intentional state distinction", "Judge consistency within each state role"],
-    "must_not": ["Erase functional contrast to equalize all ink coverage"],
-    "review_evidence": ["State pair at actual use size"]
+    "subjects": [
+      "icon",
+      "kit"
+    ],
+    "expected": [
+      "Retain the intentional state distinction",
+      "Judge consistency within each state role"
+    ],
+    "must_not": [
+      "Erase functional contrast to equalize all ink coverage"
+    ],
+    "review_evidence": [
+      "State pair at actual use size"
+    ]
   },
   {
     "id": "visual-unavailable-typesetting",
     "request": "The exact event date must be perfect, but this selected image route cannot typeset or composite after generation. Propose what to do without changing tools or spending.",
     "operation": "plan",
-    "subjects": ["card"],
-    "expected": ["Explain the exact-copy capability gap", "Propose an explicitly approved supported alternative"],
-    "must_not": ["Promise perfect generated lettering", "Silently switch the producer"],
-    "review_evidence": ["Capability evidence and proposal only"]
+    "subjects": [
+      "card"
+    ],
+    "expected": [
+      "Explain the exact-copy capability gap",
+      "Propose an explicitly approved supported alternative"
+    ],
+    "must_not": [
+      "Promise perfect generated lettering",
+      "Silently switch the producer"
+    ],
+    "review_evidence": [
+      "Capability evidence and proposal only"
+    ]
+  },
+  {
+    "id": "diagram-architecture-crowded",
+    "request": "Our architecture diagram has every service in one row and the arrows cross everywhere; new engineers can't follow a request through it.",
+    "operation": "revise",
+    "expected": [
+      "establishes the reading order a newcomer needs (entry point to data store) before moving boxes",
+      "groups services by boundary or tier so the request path reads in one direction",
+      "reroutes connectors to remove ambiguous crossings while keeping every label verbatim"
+    ],
+    "must_not": [
+      "must not drop, abbreviate or reword a service label to make room",
+      "must not add decorative icons or colour that do not encode a grouping"
+    ],
+    "subjects": [
+      "diagram"
+    ],
+    "review_evidence": [
+      "view the rendered PNG at its 1x size and trace one request path end to end"
+    ]
+  },
+  {
+    "id": "pixel-art-sprite-unreadable",
+    "request": "The 16x16 sprite of our mascot just looks like a blob; you can't tell it's a fox.",
+    "operation": "critique",
+    "expected": [
+      "identifies which identifying features (ears, tail, snout) are lost at the native grid",
+      "proposes silhouette and contrast changes on the native grid before adding colours",
+      "checks whether a larger grid is needed and names that as the user's decision"
+    ],
+    "must_not": [
+      "must not smooth or anti-alias edges to suggest detail",
+      "must not judge the sprite only from an upscaled preview"
+    ],
+    "subjects": [
+      "pixel-art"
+    ],
+    "review_evidence": [
+      "view the native PNG at 1x and the integer preview side by side"
+    ]
+  },
+  {
+    "id": "illustration-cover-generic",
+    "request": "The cover illustration for our essay looks like generic stock art, nothing about it says it's about slow mornings.",
+    "operation": "revise",
+    "expected": [
+      "names what in the subject or composition reads as generic",
+      "proposes a specific scene, viewpoint or medium tied to the essay's idea",
+      "keeps the picture text-free and leaves room where the title will be set"
+    ],
+    "must_not": [
+      "must not put the title or any words into the generated image",
+      "must not answer with more variants of the same prompt"
+    ],
+    "subjects": [
+      "illustration"
+    ],
+    "review_evidence": [
+      "view the chosen variant at cover size with the title placement in mind"
+    ]
   }
 ]
