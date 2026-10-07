@@ -40,7 +40,7 @@ reference research connects inspected examples to scene/event/component
 decisions. Exact edits, analysis, research-only and frozen render resumes keep
 their existing scope.
 
-The existing private Plan entry owns a plain `video-design.md` guide; no new
+The existing Plan entry owns a plain `video-design.md` guide; no new
 profile, skill root, toolset or card is added. Its public stdlib helper at
 `profiles/assistant/scripts/creative-timeline.py` renders validated data into
 an inert, self-contained HTML timeline, with retained JSON and an identity
@@ -110,8 +110,10 @@ real work after explicit rollout approval (see [topology](../topology.md)
 
 ## Assistant entry routing
 
-The deployed layout retains the `assistant-pipeline` root name and private directory
-overlay. The root owns invariant lifecycle, grants and delivery policy. Its
+The `assistant-pipeline` root is tracked in this repository like every other
+pipeline. Names of private accounts, businesses and people stay on the private
+technic shelf, which the entries reach by skill name only. The root owns
+invariant lifecycle, grants and delivery policy. Its
 19 independent child skills are `chat-assistant` plus
 `{plan,execute,qa}-assistant-<domain>` for engineering, creative, writing,
 research, search and marketing. Each child root `SKILL.md` owns its former
@@ -121,7 +123,7 @@ only `references/plan/index.md`, `references/execute/{index,resident-sessions,ka
 and `references/quality-assurance/index.md`; Chat's common procedure is its
 entry body. No aliases, generated index, new overlay/symlink install mapping or
 default `skills.external_dirs` expansion. Writer's acceptance rubric remains in
-its public pipeline, not copied into private QA entries.
+its own pipeline, not copied into the Assistant's QA entries.
 
 Loading follows the shared [entry loading contract](../topology.md#entry-loading-contract):
 each entry requires the invariant kernel and its mode-common procedure before
