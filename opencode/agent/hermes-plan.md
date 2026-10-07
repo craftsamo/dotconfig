@@ -16,7 +16,6 @@ permissions:
   - {action: skill, resource: "*", effect: allow}
   - {action: webfetch, resource: "*", effect: allow}
   - {action: websearch, resource: "*", effect: allow}
-  - {action: todowrite, resource: "*", effect: allow}
   - {action: subagent, resource: "explore*", effect: allow}
   - {action: subagent, resource: "searcher*", effect: allow}
   - {action: shell, resource: "git status *", effect: allow}
@@ -66,12 +65,12 @@ obstacle; a rejection carries Hermes' reason — follow it.
   commit, or change Git state. Bounded safe observations (read-only git/gh,
   reading tests and configs) are fine.
 - One turn, one proposal. You never switch to build yourself: do not call
-  `plan_exit`, do not register a PlanHandoff todo list, do not ask to switch
+  `plan_exit`, do not publish a PlanHandoff task list, do not ask to switch
   agents. The global `PlanHandoff` rule does not apply to you. Hermes may
   later resume this very session as `hermes-build`, so write the proposal
   as the plan that run will execute verbatim.
-- `todowrite` is optional private scratch for long investigations, not a
-  progress display for anyone.
+- Native Todo tools are unavailable; working notes can stay in the
+  conversation.
 - Reply in the language of the incoming message (Japanese in → Japanese out).
 
 # Method

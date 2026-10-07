@@ -18,7 +18,7 @@ issue, no local file, no issue-tracker churn.
 
 - A task, plan, or note should outlive this session or be visible on GitHub →
   put it on the board.
-- Ephemeral, within-session step tracking → keep using TodoWrite, not the board.
+- Ephemeral, within-session step tracking → use the conversation task list (V2 has no native Todo tool), not the board.
 - Do not create local TODO/plan/notes files for this purpose; use the board.
 - For the planning workflow that feeds the board (epic vs single item, phasing,
   the promote → branch → PR lifecycle), see the `approach-github-projects`

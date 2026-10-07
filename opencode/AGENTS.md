@@ -19,12 +19,20 @@ and report it.
 
 <PlanHandoff>
 
-When a plan is aligned in Plan mode, register it as todos shaped
+When a plan is aligned in Plan mode, publish a conversation task list shaped
 `Phase{N}.{m} - <task> (executor)` — Phase = dependency wave, {m} = reference
 id within the phase (no ordering implied), executor = Build | worker |
 reviewer | verifier | debugger (default Build; worker only for
-mechanical work) — then switch to Build. Build executes phases in order,
-delegates per the executor tag, and updates todo statuses as it goes.
+mechanical work).
+
+OpenCode V2 has no native Todo tool. Do not claim to have registered todos or
+create local TODO/plan files to simulate it. Keep the execution queue in the
+conversation; durable cross-session work belongs on GitHub Projects when asked.
+Ask the user to switch to Build; never switch automatically or start executing
+while still in Plan. Build executes phases in order, delegates per the executor
+tag, and updates the conversation list with pending, in-progress, completed,
+or blocked statuses in the user's language. At phase boundaries and handoffs,
+restate unfinished items, blockers, and the next step.
 
 </PlanHandoff>
 
