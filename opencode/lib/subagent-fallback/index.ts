@@ -1,0 +1,904 @@
+import { createHash } from "node:crypto"
+import { diagnoseQuota, type Diagnostic } from "./diagnostics"
+import {
+  QuotaReader,
+  subscription,
+  type AccountsContext,
+  type Dependencies,
+  type Subscription,
+} from "./accounts"
+import { inspectAnthropicUsage } from "./quota"
+import {
+  decideLaunch,
+  freshState,
+  modelsEqual,
+  routeForLaunch,
+  ROUTES,
+  type CatalogModel,
+  type ModelRef,
+} from "./policy"
+
+// V2.0.23 structural API, like plugins/custom-tools.ts: no SDK dependency.
+type Registration = { dispose(): Promise<void> }
+type Session = {
+  id: string
+  parentID?: string
+  agent?: string
+  model?: ModelRef
+  metadata?: Record<string, unknown>
+  location: { directory: string }
+}
+type Kind = "primary" | "title" | "compaction" | "generate"
+type Scope = { sessionID: string; model: ModelRef; kind: Kind }
+type ContextEvent = {
+  sessionID: string
+  model: ModelRef
+  system: unknown[]
+  messages: unknown[]
+  tools?: unknown
+  options: unknown
+}
+type Hooks = {
+  context: ContextEvent
+  compaction: ContextEvent
+  generate: ContextEvent
+  "http.request": Scope & { request: Request }
+  "experimental.ws.handshake": Scope & {
+    url: string
+    headers: Record<string, string>
+  }
+  "experimental.ws.send": Scope & { frame: string }
+  retry: {
+    sessionID: string
+    error: { type: string; status?: number; message: string }
+    decision: { retry: false } | { retry: true; delay: number }
+  }
+}
+type ToolContext = {
+  sessionID: string
+  id: string
+  signal: AbortSignal
+  progress(update: Record<string, unknown>): Promise<void>
+}
+type Result = {
+  output?: unknown
+  content?: string | readonly unknown[]
+  metadata?: Record<string, unknown>
+}
+type Executor = (
+  input: Record<string, unknown>,
+  context: ToolContext,
+) => Promise<Result>
+export type RuntimeContext = AccountsContext & {
+  rpc?: {
+    register(
+      definition: Record<string, unknown>,
+      handlers: {
+        inspectQuota(input: unknown): Promise<unknown>
+        inspectAnthropicQuota(input: unknown): Promise<unknown>
+        inspectParser(input: unknown): Promise<unknown>
+      },
+    ): Promise<Registration>
+  }
+  app: { version: string }
+  options: Record<string, unknown>
+  agent: {
+    get(input: {
+      agentID: string
+      location: { directory: string }
+    }): Promise<{ data: { model?: ModelRef } }>
+  }
+  model: {
+    list(input: {
+      location: { directory: string }
+    }): Promise<{ data: CatalogModel[] }>
+  }
+  session: {
+    get(input: { sessionID: string }): Promise<Session>
+    update(input: {
+      sessionID: string
+      metadata: Record<string, unknown>
+    }): Promise<unknown>
+    hook<N extends keyof Hooks>(
+      name: N,
+      callback: (event: Hooks[N]) => Promise<void>,
+    ): Promise<Registration>
+  }
+  tool: {
+    transform(
+      callback: (editor: {
+        get(id: string): unknown
+        update(
+          id: string,
+          callback: (tool: { execute: Executor }) => void,
+        ): void
+      }) => void,
+    ): Promise<Registration>
+  }
+}
+
+export const METADATA_KEY = "dotconfig.subagent-preflight"
+export const SUPPORTED_VERSION = "2.0.23"
+// Conservative text-only ceiling. This is not a cross-provider tokenizer.
+export const MAX_CONTEXT_BYTES = 160_000
+type Marker = {
+  version: 1
+  childID: string
+  parentID: string
+  agent: string
+  model: ModelRef
+  connectionID: string
+  fallback: boolean
+  funding?: "included" | "credits"
+  allowUnknownQuota?: boolean
+  launchChecked?: boolean
+  wireChecked?: boolean
+}
+const selector = (m: ModelRef) =>
+  `${m.providerID}/${m.id}${m.variant ? `#${m.variant}` : ""}`
+const fail = (reason: string): never => {
+  throw new Error(`Subagent preflight: ${reason}`)
+}
+const record = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value)
+const signature = (auth: Subscription) =>
+  createHash("sha256")
+    .update(
+      JSON.stringify([auth.proof.connectionID, auth.access, auth.accountID]),
+    )
+    .digest("hex")
+const exchangeKey = (e: Scope) =>
+  `${e.sessionID}/${e.kind}/${selector(e.model)}`
+
+function parseMarker(session: Session): Marker | undefined {
+  const raw = session.metadata?.[METADATA_KEY]
+  if (raw === undefined) return undefined
+  // Metadata is inherited by nested children; only this exact child is protected.
+  if (
+    record(raw) &&
+    typeof raw.childID === "string" &&
+    raw.childID.startsWith("ses_") &&
+    raw.childID !== session.id
+  )
+    return undefined
+  if (
+    !record(raw) ||
+    raw.version !== 1 ||
+    raw.parentID !== session.parentID ||
+    raw.agent !== session.agent ||
+    typeof raw.connectionID !== "string" ||
+    !raw.connectionID ||
+    typeof raw.fallback !== "boolean" ||
+    (raw.funding !== undefined &&
+      raw.funding !== "included" &&
+      raw.funding !== "credits") ||
+    (raw.allowUnknownQuota !== undefined &&
+      typeof raw.allowUnknownQuota !== "boolean") ||
+    (raw.fallback === true && raw.allowUnknownQuota === true) ||
+    (raw.launchChecked !== undefined &&
+      typeof raw.launchChecked !== "boolean") ||
+    (raw.wireChecked !== undefined && typeof raw.wireChecked !== "boolean") ||
+    !record(raw.model) ||
+    typeof raw.model.id !== "string" ||
+    typeof raw.model.providerID !== "string" ||
+    (raw.model.variant !== undefined && typeof raw.model.variant !== "string")
+  )
+    fail("invalid persisted child policy")
+  if (typeof raw.agent !== "string" || !Object.hasOwn(ROUTES, raw.agent))
+    fail("unapproved child role")
+  const marker = raw as unknown as Marker
+  const route = ROUTES[marker.agent]
+  if (
+    !modelsEqual(
+      marker.model,
+      marker.fallback ? route.alternate : route.primary,
+    )
+  )
+    fail("invalid persisted model selection")
+  return marker
+}
+
+function textOnly(messages: unknown[]): boolean {
+  return messages.every(
+    (message) =>
+      record(message) &&
+      Array.isArray(message.content) &&
+      message.content.every(
+        (part) =>
+          record(part) && part.type === "text" && typeof part.text === "string",
+      ),
+  )
+}
+
+function transportURL(
+  url: string,
+  providerID: string,
+  kind: Kind,
+  websocket: boolean,
+): void {
+  let target: URL
+  try {
+    target = new URL(url)
+  } catch {
+    return fail("invalid transport URL")
+  }
+  if (target.username || target.password || target.port || target.hash)
+    fail("unapproved transport URL")
+  if (providerID === "openai") {
+    const paths =
+      kind === "compaction"
+        ? [
+            "/backend-api/codex/responses",
+            "/backend-api/codex/responses/compact",
+          ]
+        : ["/backend-api/codex/responses"]
+    if (
+      target.hostname !== "chatgpt.com" ||
+      target.protocol !== (websocket ? "wss:" : "https:") ||
+      target.search ||
+      !paths.includes(target.pathname)
+    )
+      fail("not a ChatGPT subscription route")
+  } else {
+    if (
+      websocket ||
+      target.hostname !== "api.anthropic.com" ||
+      target.protocol !== "https:" ||
+      !["/v1/messages", "/v1/messages/count_tokens"].includes(
+        target.pathname,
+      ) ||
+      (target.search !== "" && target.search !== "?beta=true")
+    )
+      fail("not an approved Anthropic OAuth route")
+  }
+}
+
+export async function setupPreflight(
+  ctx: RuntimeContext,
+  deps: Dependencies = { fetch: globalThis.fetch, now: Date.now },
+): Promise<() => Promise<void>> {
+  const registrations: Registration[] = []
+  const quota = new QuotaReader(deps)
+  const handshakes = new Map<string, string>()
+  const enabled = ctx.options.enabled === true
+  const protectedChild = async (sessionID: string) => {
+    const session = await ctx.session.get({ sessionID })
+    const marker = parseMarker(session)
+    return marker ? { session, marker } : undefined
+  }
+  const authorize = async (event: Scope) => {
+    const child = await protectedChild(event.sessionID)
+    if (!child) return undefined
+    if (ctx.app.version !== SUPPORTED_VERSION)
+      fail("unsupported OpenCode version; protected child stopped")
+    const { session, marker } = child
+    if (!session.model || !modelsEqual(session.model, marker.model))
+      fail("child model changed after launch")
+    if (event.kind === "primary" && !modelsEqual(event.model, marker.model))
+      fail("unexpected primary model")
+    if (
+      event.kind === "primary" &&
+      marker.fallback &&
+      marker.launchChecked !== true
+    )
+      fail("alternate launch context was not checked")
+    const approvedModel = Object.values(ROUTES).some((r) =>
+      [r.primary, r.alternate].some(
+        (m) =>
+          m.id === event.model.id && m.providerID === event.model.providerID,
+      ),
+    )
+    if (!approvedModel) fail("unapproved auxiliary model")
+    let auth: Subscription | undefined
+    try {
+      auth = await subscription(ctx, event.model.providerID)
+    } catch {
+      return fail("subscription credentials unavailable")
+    }
+    if (
+      !auth ||
+      (event.model.providerID === marker.model.providerID &&
+        auth.proof.connectionID !== marker.connectionID)
+    )
+      fail("subscription account changed or unavailable")
+    const proof = await quota.inspect(
+      auth,
+      event.model,
+      new AbortController().signal,
+    )
+    const billingFresh =
+      Number.isFinite(proof.billing.observedAt) &&
+      deps.now() - proof.billing.observedAt >= 0 &&
+      deps.now() - proof.billing.observedAt <= 30_000
+    const includedState = freshState(proof.quota, deps.now())
+    if (
+      !billingFresh ||
+      !["subscription_only", "credits_available"].includes(proof.billing.state)
+    )
+      fail("usage-credit availability is unknown or invalid")
+    if (
+      marker.funding === "credits" &&
+      event.model.providerID === marker.model.providerID
+    ) {
+      if (ctx.options.creditsLastResort !== true)
+        fail("credit use was disabled by the operator")
+      if (
+        includedState !== "available" &&
+        proof.billing.state !== "credits_available"
+      )
+        fail("last-resort credits are no longer available")
+    } else if (includedState !== "available") {
+      if (
+        !(
+          marker.allowUnknownQuota === true &&
+          event.kind === "primary" &&
+          modelsEqual(event.model, marker.model) &&
+          proof.billing.state === "subscription_only" &&
+          includedState === undefined
+        )
+      )
+        fail(
+          "included quota unavailable or exhausted; no mid-task switch to credits",
+        )
+    }
+    return auth
+  }
+  const guardContext = async (event: ContextEvent) => {
+    const child = await protectedChild(event.sessionID)
+    if (!child?.marker.fallback || child.marker.launchChecked === true) return
+    // Check only the first request's full text context. Later native compaction
+    // is not a mechanism for making an oversized launch fit the alternate.
+    if (!textOnly(event.messages))
+      fail("alternate launch requires text-only context")
+    let bytes: number
+    try {
+      bytes = Buffer.byteLength(
+        JSON.stringify(
+          {
+            system: event.system,
+            messages: event.messages,
+            tools: event.tools,
+            options: event.options,
+          },
+          (_key, value) => {
+            if (["function", "symbol", "bigint"].includes(typeof value))
+              fail("alternate context contains unmeasurable values")
+            return value
+          },
+        ),
+      )
+    } catch {
+      return fail("alternate context cannot be measured")
+    }
+    if (bytes > MAX_CONTEXT_BYTES)
+      fail("alternate launch context exceeds the conservative text limit")
+    // Require catalog headroom as well as the byte ceiling. No history
+    // conversion or compaction is used to make this first request fit.
+    const catalog = (await ctx.model.list({ location: child.session.location }))
+      .data
+    const model = catalog.find(
+      (m) =>
+        m.id === child.marker.model.id &&
+        m.providerID === child.marker.model.providerID,
+    )
+    if (
+      !model ||
+      bytes + 32_768 >
+        Math.min(
+          model.limit.input ?? Infinity,
+          model.limit.context - model.limit.output,
+        )
+    )
+      fail("alternate catalog lacks conservative context headroom")
+    await ctx.session.update({
+      sessionID: child.session.id,
+      metadata: {
+        ...child.session.metadata,
+        [METADATA_KEY]: { ...child.marker, launchChecked: true },
+      },
+    })
+  }
+  const guardWireSize = async (event: Scope, read: () => Promise<string>) => {
+    const child = await protectedChild(event.sessionID)
+    if (
+      !child?.marker.fallback ||
+      child.marker.wireChecked === true ||
+      event.kind !== "primary"
+    )
+      return
+    let bytes: number
+    try {
+      bytes = Buffer.byteLength(await read())
+    } catch {
+      return fail("alternate wire context cannot be measured")
+    }
+    const catalog = (await ctx.model.list({ location: child.session.location }))
+      .data
+    const model = catalog.find(
+      (m) =>
+        m.id === child.marker.model.id &&
+        m.providerID === child.marker.model.providerID,
+    )
+    const capacity = model
+      ? Math.min(
+          model.limit.input ?? Infinity,
+          model.limit.context - model.limit.output,
+        )
+      : NaN
+    if (
+      !Number.isFinite(capacity) ||
+      bytes > MAX_CONTEXT_BYTES ||
+      bytes + 32_768 > capacity
+    )
+      fail("alternate wire context exceeds conservative headroom")
+    // Later trusted context hooks can add global instructions. Measure the
+    // actual serialized HTTP body / WS frame before its first transmission too.
+    await ctx.session.update({
+      sessionID: child.session.id,
+      metadata: {
+        ...child.session.metadata,
+        [METADATA_KEY]: { ...child.marker, wireChecked: true },
+      },
+    })
+  }
+  const cleanup = async () => {
+    for (const registration of registrations.reverse())
+      await registration.dispose()
+    handshakes.clear()
+  }
+  try {
+    if (ctx.rpc) {
+      const diagnosticSchema = {
+        type: "object",
+        additionalProperties: false,
+        required: ["outcome"],
+        properties: {
+          outcome: {
+            type: "string",
+            enum: [
+              "account_unavailable",
+              "http_error",
+              "timeout",
+              "transport_or_redirect_error",
+              "json_decode_error",
+              "parser_reject",
+              "proof_accepted",
+            ],
+          },
+          status: { type: "integer" },
+          reasons: { type: "array", items: { type: "string" } },
+          limitShapes: {
+            type: "array",
+            maxItems: 20,
+            items: {
+              type: "object",
+              additionalProperties: false,
+              required: ["kind", "fields"],
+              properties: {
+                kind: { type: "string" },
+                fields: {
+                  type: "object",
+                  additionalProperties: false,
+                  properties: Object.fromEntries(
+                    [
+                      "kind",
+                      "type",
+                      "name",
+                      "percent",
+                      "utilization",
+                      "resets_at",
+                      "scope",
+                      "is_active",
+                      "period",
+                      "limit",
+                      "usage",
+                    ].map((f) => [
+                      f,
+                      {
+                        type: "string",
+                        enum: [
+                          "null",
+                          "array",
+                          "object",
+                          "string",
+                          "number",
+                          "boolean",
+                          "undefined",
+                          "other",
+                        ],
+                      },
+                    ]),
+                  ),
+                },
+              },
+            },
+          },
+          state: { type: "string", enum: ["available", "exhausted"] },
+          billingState: {
+            type: "string",
+            enum: [
+              "subscription_only",
+              "credits_available",
+              "paid_risk",
+              "unknown",
+            ],
+          },
+        },
+      }
+      let anthropicInspection: Promise<Diagnostic> | undefined
+      let openaiInspection: Promise<Diagnostic> | undefined
+      const inspectAnthropic = () =>
+        (anthropicInspection ??= diagnoseQuota(ctx, "anthropic", deps))
+      const inspectOpenAI = () =>
+        (openaiInspection ??= diagnoseQuota(ctx, "openai", deps))
+      registrations.push(
+        await ctx.rpc.register(
+          {
+            id: "dotconfig.subagent-preflight",
+            events: {},
+            methods: {
+              inspectQuota: {
+                input: {
+                  type: "object",
+                  additionalProperties: false,
+                  properties: {},
+                },
+                output: {
+                  type: "object",
+                  additionalProperties: false,
+                  required: ["anthropic", "openai"],
+                  properties: {
+                    anthropic: diagnosticSchema,
+                    openai: diagnosticSchema,
+                  },
+                },
+              },
+              inspectAnthropicQuota: {
+                input: {
+                  type: "object",
+                  additionalProperties: false,
+                  properties: {},
+                },
+                output: diagnosticSchema,
+              },
+              inspectParser: {
+                input: {
+                  type: "object",
+                  additionalProperties: false,
+                  properties: {},
+                },
+                output: {
+                  type: "object",
+                  additionalProperties: false,
+                  required: ["revision", "belowLimit", "atLimit"],
+                  properties: {
+                    revision: {
+                      type: "string",
+                      enum: ["anthropic-opaque-window-v2"],
+                    },
+                    belowLimit: {
+                      type: "string",
+                      enum: ["available", "exhausted", "unknown"],
+                    },
+                    atLimit: {
+                      type: "string",
+                      enum: ["available", "exhausted", "unknown"],
+                    },
+                  },
+                },
+              },
+            },
+          },
+          {
+            inspectParser: async () => {
+              if (ctx.options.allowDiagnostics !== true)
+                fail("parser diagnostics are disabled")
+              const now = Date.parse("2026-01-01T00:00:00Z")
+              const state = (percent: number) =>
+                inspectAnthropicUsage(
+                  {
+                    five_hour: {
+                      utilization: 10,
+                      resets_at: "2026-01-01T01:00:00Z",
+                    },
+                    seven_day: {
+                      utilization: 20,
+                      resets_at: "2026-01-01T01:00:00Z",
+                    },
+                    extra_usage: { is_enabled: false },
+                    limits: [
+                      {
+                        kind: "weekly_scoped",
+                        percent,
+                        resets_at: "2026-01-01T01:00:00Z",
+                        scope: { model: { id: null, display_name: "Fable" } },
+                      },
+                    ],
+                  },
+                  now,
+                  "claude-sonnet-5-5",
+                ).quota.state
+              return {
+                revision: "anthropic-opaque-window-v2" as const,
+                belowLimit: state(50),
+                atLimit: state(100),
+              }
+            },
+            inspectQuota: async () => {
+              // Explicit operator opt-in only. One bounded GET per provider per
+              // registration, with only fixed codes/status leaving the plugin.
+              if (ctx.options.allowDiagnostics !== true)
+                fail("usage diagnostics are disabled")
+              return Promise.all([inspectAnthropic(), inspectOpenAI()]).then(
+                ([anthropic, openai]) => ({ anthropic, openai }),
+              )
+            },
+            inspectAnthropicQuota: async () => {
+              if (ctx.options.allowDiagnostics !== true)
+                fail("usage diagnostics are disabled")
+              return inspectAnthropic()
+            },
+          },
+        ),
+      )
+    }
+    registrations.push(await ctx.session.hook("context", guardContext))
+    registrations.push(
+      await ctx.session.hook("http.request", async (event) => {
+        const auth = await authorize(event)
+        if (!auth) return
+        transportURL(
+          event.request.url,
+          event.model.providerID,
+          event.kind,
+          false,
+        )
+        if (event.request.method !== "POST") fail("unapproved HTTP method")
+        // Native OpenAI Requests default to follow; prohibit redirecting a
+        // validated OAuth request to an unvalidated endpoint.
+        if (event.request.redirect !== "error")
+          event.request = new Request(event.request, { redirect: "error" })
+        const headers = event.request.headers
+        if (
+          headers.get("authorization") !== `Bearer ${auth.access}` ||
+          headers.has("x-api-key")
+        )
+          fail("wire authentication is not the approved OAuth credential")
+        if (
+          event.model.providerID === "openai" &&
+          headers.get("chatgpt-account-id") !== auth.accountID
+        )
+          fail("wire subscription account mismatch")
+        await guardWireSize(event, () => event.request.clone().text())
+      }),
+    )
+    registrations.push(
+      await ctx.session.hook("experimental.ws.handshake", async (event) => {
+        const auth = await authorize(event)
+        if (!auth) return
+        transportURL(event.url, event.model.providerID, event.kind, true)
+        const headers = new Headers(event.headers)
+        if (
+          headers.get("authorization") !== `Bearer ${auth.access}` ||
+          headers.has("x-api-key") ||
+          headers.get("chatgpt-account-id") !== auth.accountID
+        )
+          fail("WebSocket subscription identity mismatch")
+        handshakes.set(exchangeKey(event), signature(auth))
+      }),
+    )
+    registrations.push(
+      await ctx.session.hook("experimental.ws.send", async (event) => {
+        const auth = await authorize(event)
+        if (!auth) return
+        if (handshakes.get(exchangeKey(event)) !== signature(auth))
+          fail("WebSocket exchange lacks a current approved handshake")
+        await guardWireSize(event, async () => event.frame)
+      }),
+    )
+    // Do not switch a running child. Override quota's long reset wait only for
+    // children admitted by this plugin; root and ordinary sessions are untouched.
+    registrations.push(
+      await ctx.session.hook("retry", async (event) => {
+        if (!(await protectedChild(event.sessionID))) return
+        if (
+          event.error.type === "provider.quota" ||
+          event.error.message.startsWith("Subagent preflight:") ||
+          ((event.error.type === "provider.rate-limit" ||
+            event.error.status === 429) &&
+            event.decision.retry &&
+            event.decision.delay > 10_000)
+        )
+          event.decision = { retry: false }
+      }),
+    )
+    registrations.push(
+      await ctx.tool.transform((editor) => {
+        if (!editor.get("subagent"))
+          fail("builtin subagent executor unavailable")
+        editor.update("subagent", (tool) => {
+          const original = tool.execute
+          tool.execute = async (input, context) => {
+            // Outcome is historical, not a busy flag. There is no atomic
+            // idle-and-release API, so protection stays with this exact child.
+            if (typeof input.sessionID === "string") {
+              const existing = await ctx.session.get({
+                sessionID: input.sessionID,
+              })
+              const policy = parseMarker(existing)
+              if (
+                policy &&
+                existing.parentID === context.sessionID &&
+                (input.agent !== policy.agent ||
+                  (input.model !== undefined &&
+                    input.model !== selector(policy.model)))
+              )
+                fail(
+                  "protected continuations keep their role and model; use a new child for a different explicit selection",
+                )
+              return original(input, context)
+            }
+            if (
+              !enabled ||
+              input.model !== undefined ||
+              typeof input.agent !== "string" ||
+              !Object.hasOwn(ROUTES, input.agent)
+            )
+              return original(input, context)
+            if (ctx.app.version !== SUPPORTED_VERSION)
+              fail(
+                "unsupported OpenCode version; use an explicit model or disable new selection",
+              )
+            const parent = await ctx.session.get({
+              sessionID: context.sessionID,
+            })
+            const agent = (
+              await ctx.agent.get({
+                agentID: input.agent,
+                location: parent.location,
+              })
+            ).data
+            const route = routeForLaunch(input, agent.model)
+            if (!route) return original(input, context)
+            context.signal.throwIfAborted()
+            const probe = async (model: ModelRef) => {
+              let auth: Subscription | undefined
+              try {
+                auth = await subscription(ctx, model.providerID)
+              } catch {}
+              const usage = auth
+                ? await quota.inspect(auth, model, context.signal)
+                : {
+                    quota: {
+                      state: "unknown" as const,
+                      observedAt: deps.now(),
+                    },
+                    billing: {
+                      state: "unknown" as const,
+                      observedAt: deps.now(),
+                    },
+                  }
+              return { account: auth?.proof, ...usage }
+            }
+            const source = await probe(route.primary)
+            const target =
+              source.quota.state !== "available" ||
+              deps.now() - source.quota.observedAt > 30_000 ||
+              deps.now() - source.quota.observedAt < 0
+                ? await probe(route.alternate)
+                : undefined
+            const catalog = (
+              await ctx.model.list({ location: parent.location })
+            ).data
+            const decision = decideLaunch({
+              route,
+              source,
+              target,
+              catalog,
+              now: deps.now(),
+            })
+            if (decision.kind === "stop") fail(decision.reason)
+            if (
+              decision.kind === "credits" &&
+              ctx.options.creditsLastResort !== true
+            )
+              fail(
+                "both included quotas are exhausted; last-resort credits are disabled",
+              )
+            const alternate = !modelsEqual(decision.model, route.primary)
+            const account = alternate ? target!.account! : source.account!
+            const launch = alternate
+              ? { ...input, model: selector(decision.model) }
+              : input
+            context.signal.throwIfAborted()
+            let childID: string | undefined
+            const result = await original(launch, {
+              ...context,
+              progress: async (update) => {
+                if (
+                  !childID &&
+                  (typeof update.sessionID !== "string" ||
+                    !update.sessionID.startsWith("ses_"))
+                )
+                  fail("missing builtin pre-launch child identity")
+                if (
+                  childID &&
+                  update.sessionID !== undefined &&
+                  childID !== update.sessionID
+                )
+                  fail("builtin child identity changed")
+                if (!childID) {
+                  context.signal.throwIfAborted()
+                  const child = await ctx.session.get({
+                    sessionID: update.sessionID as string,
+                  })
+                  if (
+                    child.parentID !== context.sessionID ||
+                    child.agent !== input.agent ||
+                    !child.model ||
+                    !modelsEqual(child.model, decision.model)
+                  )
+                    fail("builtin child launch policy mismatch")
+                  const active = await subscription(
+                    ctx,
+                    decision.model.providerID,
+                  ).catch(() => undefined)
+                  if (
+                    !active ||
+                    active.proof.connectionID !== account.connectionID
+                  )
+                    fail("subscription account changed before launch")
+                  const marker: Marker = {
+                    version: 1,
+                    childID: child.id,
+                    parentID: context.sessionID,
+                    agent: input.agent as string,
+                    model: decision.model,
+                    connectionID: account.connectionID,
+                    fallback: alternate,
+                    funding:
+                      decision.kind === "credits" ? "credits" : "included",
+                    allowUnknownQuota: decision.kind === "default",
+                  }
+                  await ctx.session.update({
+                    sessionID: child.id,
+                    metadata: { ...child.metadata, [METADATA_KEY]: marker },
+                  })
+                  childID = child.id
+                }
+                await context.progress(update)
+              },
+            })
+            if (!childID) fail("builtin did not await pre-launch registration")
+            if (decision.kind === "default") return result
+            const notice =
+              decision.kind === "credits"
+                ? `[Subagent preflight: ${input.agent} ${selector(decision.model)}; both included quotas exhausted, existing credits authorized as last resort. No credit purchase or running-session switch.]`
+                : `[Subagent preflight: ${input.agent} ${selector(route.primary)} → ${selector(decision.model)}; prioritizing verified available included quota. No running-session switch.]`
+            return {
+              ...result,
+              metadata: {
+                ...result.metadata,
+                preflight: {
+                  funding: decision.kind === "credits" ? "credits" : "included",
+                  from: selector(route.primary),
+                  to: selector(decision.model),
+                },
+              },
+              content:
+                typeof result.content === "string"
+                  ? `${notice}\n${result.content}`
+                  : [{ type: "text", text: notice }, ...(result.content ?? [])],
+            }
+          }
+        })
+      }),
+    )
+    return cleanup
+  } catch (error) {
+    await cleanup()
+    throw error
+  }
+}
+
+export default { id: "dotconfig.subagent-preflight", setup: setupPreflight }
