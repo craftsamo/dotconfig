@@ -1,0 +1,4 @@
+name: opencode-v2
+version: 2.0.0
+description: Engineer- and Assistant-owned OpenCode 2 sessions over the service API, with role tools, scoped policy and no local run records.
+kind: standalone
