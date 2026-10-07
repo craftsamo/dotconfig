@@ -219,6 +219,15 @@ variant, after checking that it is available. Use `provider/model#variant` for a
 override; it takes precedence over the agent's configured model. Report any
 requested override that cannot be used instead of silently substituting one.
 
+An approved subscription preflight plugin may choose a model only before a new
+specialist launch, in this order: the configured primary when its included quota
+is available; the role's allowlisted alternate when its included quota is
+available; existing credits only as a last resort, when both included quotas
+are verified fresh and exhausted. It never buys credits or changes accounts.
+Never apply a manual LLM model override as a fallback, and preserve an
+explicitly requested model and sessionID continuations. No mid-task switch or
+restart, and no substituting the general role.
+
 </SubagentModels>
 
 <SecretsPolicy>
