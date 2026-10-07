@@ -41,8 +41,8 @@ per unit.
 ## The gate — every search unit
 
 Use the agreed proposal or explicitly released settled brief as the acceptance
-baseline, including approved changes, scope and budget; eligible cards retain
-their settled card-body contract. A Plan proposal is not retrieved findings.
+baseline, including approved changes, scope and budget. A Plan proposal is not
+retrieved findings.
 Searcher's specialist QA is a self-check, not an external pass: the requester
 performs independent acceptance. Do not copy the public specialist QA procedure
 here or relax any scoring, criteria or correction limit.
@@ -56,16 +56,13 @@ here or relax any scoring, criteria or correction limit.
    the quotes match, the dates/versions are right. A reconstructed
    or pattern-filled URL fails the unit regardless of the rest.
 3. **Coverage check** — measure against the brief's claim: floor
-   counts met, exclusions honored, freshness window respected; for
-   `survey-enumeration` / `exhaustive-hunt` cards, measure against
-   the coverage claim in the card body.
+   counts met, exclusions honored, freshness window respected.
 4. **Boundary check** — retrieval only: no verdicts, rankings, or
    recommendations slipped in; open judgments named under
    `Open for researcher`, not silently resolved.
 5. **Verdict** — pass → accept; the findings become a part
    (`../execute-assistant-search/SKILL.md`) or the delivery. Fail →
-   itemized, scope-anchored feedback to the same session — or, for
-   cards, a narrowed gap-fill card of the same unit.
+   itemized, scope-anchored feedback to the same session.
 
 ## Contract files
 

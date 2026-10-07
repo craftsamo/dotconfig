@@ -56,8 +56,8 @@ caller-side mapping.
 
 ### Searcher
 
-Searcher's v7.0.0 `searcher-pipeline` kernel (retrieval, release and card gate)
-routes `plan-searcher`, `build-searcher`, `qa-searcher`. Each independent entry
+Searcher's v8.0.0 `searcher-pipeline` kernel (retrieval, release and the
+resident runtime) routes `plan-searcher`, `build-searcher`, `qa-searcher`. Each independent entry
 owns three plain `references/<unit>.md` files for `lookup`, `sweep`, `hunt`.
 Retrieval and link integrity remain its limits: no trust verdicts, synthesis,
 rankings or production. Beyond web search and `x_search`, it reads public X
@@ -68,13 +68,15 @@ fallback for when `x_search` is unavailable, within a capped share of the
 shared X reads. It never gets the messaging tools, the user's own drafts,
 statistics or channels, or any write.
 
-Only two cards remain legal: `survey-enumeration` requires a settled question,
-coverage claim/floor count and per-item fields; `exhaustive-hunt` requires a
-settled question, done criteria and scope exclusions. The caller may author the
-complete spec. A valid card goes directly Build -> QA -> terminal without Plan
-negotiation or new approval; malformed/missing-input/non-catalog/composite cards
-block with `kanban_block(kind=capability)` before any phase, never Plan on the
-card. Existing dialogue, review, goal-mode and guarded-resume protocols remain.
+Searcher defines no card units, like Researcher, Marketer, Engineer and Writer:
+a kanban card is refused with `kanban_block(kind=capability)` before any phase.
+Its last cards were the `survey-enumeration` and `exhaustive-hunt` units, which
+ran a hunt through a `goal_mode` loop with a completion judge. Both are gone,
+and so is `goal_mode`: a long or multi-hop retrieval is one resident
+conversation the caller continues. A hunt keeps running hops until saturation,
+its done criteria or the agreed cap, and a turn that must end first hands back
+its ledger and gaps. The caller may author a complete brief, and an explicitly
+authorized settled one goes directly to Build.
 
 ### Entries and status
 

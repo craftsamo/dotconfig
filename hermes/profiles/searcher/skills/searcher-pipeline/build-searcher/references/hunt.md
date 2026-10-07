@@ -8,10 +8,11 @@ Deliverable = a structured **source map** built by following the trail from
 secondary mentions to primary documents. Depth of coverage — still retrieval,
 not analysis or conclusions.
 
-Dispatch shape: hunts are normally dispatched with `goal_mode: true` — treat
-**each turn as one hop**; the judge continues you until coverage saturates or
-the budget ends. Without `goal_mode` (single-shot card), run 2-3 hops inline
-in one turn, then hand off with the gaps stated.
+Dispatch shape: a hunt is one resident conversation. Keep running hops in the
+turn until coverage saturates, the done criteria are met or the agreed effort
+cap is spent. If the turn must end first, hand off with the ledger and the
+gaps stated; the caller continues in the same conversation, and consumed
+budget carries over.
 
 ## Hop loop
 
@@ -25,7 +26,7 @@ Each hop:
 3. **Extract leads** — every new hit yields citations, names, and documents;
    push them onto the frontier. Note claim-level agreements/conflicts between
    sources (flag only — don't adjudicate).
-4. **Ledger update** (in your running output, so it survives judge turns):
+4. **Ledger update** (in your running output, so it survives into the next turn):
    sources found this hop, leads opened, leads exhausted, coverage gaps.
 
 Stop when a hop yields mostly duplicates or dead ends (saturation), the

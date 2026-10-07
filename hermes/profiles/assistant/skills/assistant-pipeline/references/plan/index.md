@@ -15,9 +15,9 @@ answer). Plan conversationally, backward from the goal:
    plan session (`../../plan-assistant-engineering/SKILL.md`).
 3. **Decompose to tiers** — split the work into stages and assign each a
    tier. A stage may be planned as a kanban card **only by matching it to
-   a `card_units` entry** in `execute-assistant-creative` or
-   `execute-assistant-search` (name the unit type in the
-   plan); everything else is a resident session or inline. If a stage
+   a `card_units` entry** in `execute-assistant-creative` (name the unit
+   type in the plan); everything else, search included, is a resident
+   session or inline. If a stage
    doesn't map cleanly onto units, decompose further or keep it resident
    — never stretch a unit definition to fit.
 4. **Present one plan** — deliverable, capability route, stages with

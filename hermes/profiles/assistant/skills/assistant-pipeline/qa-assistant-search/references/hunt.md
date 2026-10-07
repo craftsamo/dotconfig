@@ -11,8 +11,8 @@ findings-only verification. Never take additional hops yourself.
 The agreed proposal or explicitly released settled brief (question, done criteria, scope exclusions,
 primary-source requirement, budget); the source map with every
 source marked primary/secondary and dated; trail notes; the named
-gaps. For a card, the `goal_max_turns` budget and the card body's
-done criteria.
+gaps. For a hunt continued over several turns, the consumed and remaining
+budget and the ledger each turn handed back.
 
 ## Checks
 1. Done criteria: the map establishes what the brief asked — the

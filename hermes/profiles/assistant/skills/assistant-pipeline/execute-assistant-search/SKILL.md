@@ -1,6 +1,6 @@
 ---
 name: execute-assistant-search
-description: "Execute search: release retrieval units and source handoffs. Supervise sessions or the two closed search card units; lookups never ride kanban and searchers never issue verdicts."
+description: "Execute search: release retrieval units and source handoffs. Supervise resident sessions, including a multi-hop hunt; search never rides kanban and searchers never issue verdicts."
 version: 1.0.0
 author: CraftSamo
 license: MIT
@@ -8,17 +8,6 @@ metadata:
   hermes:
     category: assistant-pipeline
     tags: ["execute", "search"]
-card_units:
-  - name: survey-enumeration
-    assignee: searcher
-    required_inputs: [settled-question, coverage-claim, per-item-fields]
-    unit_cap: "one enumeration/survey with an explicit floor count and per-item field list"
-    runtime_cap: 1800
-  - name: exhaustive-hunt
-    assignee: searcher
-    required_inputs: [settled-question, done-criteria, scope-exclusions]
-    unit_cap: "one goal-mode multi-hop source hunt; goal_mode: true + goal_max_turns"
-    runtime_cap: 3600
 ---
 
 <ReadBeforeWork>
@@ -44,10 +33,9 @@ Read only applicable detail references below.
 # Search — execute
 
 The specialist is the **searcher** — retrieval hands; it gathers,
-it never concludes. Sessions are the default; the card units above
-are the only search work that may ride kanban: a settled sweep unit
-as `survey-enumeration`, a settled hunt unit as `exhaustive-hunt`.
-You release the plan's units one at a time and gate between them.
+it never concludes. Search is resident-only: the searcher defines no card
+units and refuses every kanban card. You release the plan's units one at a
+time and gate between them.
 
 ## Resident session
 
@@ -86,27 +74,21 @@ orchestration and cross-role dependencies.
    unit type. Feedback turns are itemized and scope-anchored
    ("floor未達のセルはEU圏のみ再掃引", "この2件のリンクが死んでいる");
    everything unnamed is preserved.
-4. **Accept → hand off or release the next unit.** A settled sweep
-   or hunt whose spec survived a session turn may cycle to a card
-   next time.
+4. **Accept → hand off or release the next unit.**
 
-## Card units
+## No cards
 
-- `../references/execute/kanban-lite.md` remains specification authority for
-  card registration and existing needs_input / block / correction protocols.
-  Cards never host Plan: valid settled authorized cards run Build -> specialist
-  QA -> terminal, then requester independent acceptance. Invalid cards use
-  `kanban_block(kind=capability)`; do not repair their scope by planning on-card.
-- `survey-enumeration` / `exhaustive-hunt` — the spec is settled:
-  the question, the coverage claim ("≥15 candidates, each with
-  pricing URL and date") or done criteria, and exclusions are fixed
-  in the body; you would accept the result sight unseen. Hunts run
-  `goal_mode: true` + `goal_max_turns`.
-- Lookups never ride kanban — inline, `delegate_task`, or a session
-  turn.
-- Gap-filling after QA (thin coverage, dead links) may be a fresh
-  card with the same unit and a narrowed spec — evidence is
-  additive, so card-cycling a fix is normal here.
+Search never rides kanban, and a search card you register is refused by the
+searcher with `kanban_block(kind=capability)`.
+
+- A long or multi-hop retrieval is one conversation: keep the
+  `conversation_id` and send a continue message; the searcher restates its
+  ledger each turn and consumed budget carries over. A settled sweep or hunt
+  needs a full brief (question, coverage claim or done criteria, exclusions),
+  not a card.
+- Lookups run inline, through `delegate_task`, or as a session turn.
+- Gap-filling after QA (thin coverage, dead links) is a feedback turn in the
+  same conversation, with a narrowed, itemized scope.
 
 ## Part handoff
 
@@ -124,7 +106,8 @@ never reaches into the searcher's session:
 
 ## Pitfalls
 
-- Sending a 30-second lookup to a session or the board.
+- Sending a 30-second lookup to a session.
+- Registering a search card: there is no search unit on the board.
 - Deep multi-hop retrieval inline — it floods your own context.
 - Treating a purpose-first Plan request as malformed because it lacks detailed
   questions, or sending that unsettled purpose as a Build request or card.

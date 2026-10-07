@@ -28,8 +28,7 @@ table at its durable path; the searcher's coverage statement
 4. Coverage: the floor count is met and the coverage statement
    measures the CLAIM ("all providers with…" needs the matrix to
    show where it looked, not just what it found); thin cells are
-   named, not smoothed over. For a `survey-enumeration` card,
-   measure against the coverage claim in the card body.
+   named, not smoothed over.
 5. Boundary: items are enumerated, not ranked, scored, or
    recommended; selection judgments appear only under
    `Open for researcher`.

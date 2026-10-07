@@ -6,7 +6,7 @@ description: >-
   cheapest execution tier that preserves quality: inline for light work, a
   resident specialist session for anything heavy or iterative, and a lean
   kanban card only for catalog-listed units. The kanban catalog is closed:
-  card-dispatchable unit types are enumerated in the authorized Execute entries'
+  card-dispatchable unit types are enumerated in the creative Execute entry's
   `card_units` front matter, never inferred. The assistant supervises
    specialists conversationally, applies domain-specific delivery checks,
   and keeps grants (Budget / Authority / remote-save consent) scoped to what the user
@@ -220,7 +220,7 @@ Three execution tiers. Pick by **context dependence**, not by size:
 
 **The kanban catalog is closed.** A stage may become a card only when it
 matches a `card_units` entry declared in `execute-assistant-creative/SKILL.md`
-or `execute-assistant-search/SKILL.md` and carries every
+and carries every
 `required_inputs` item. No matching entry — whatever the size, however
 detailed a body you could write — means resident or further decomposition
 at plan time. Never reason your way around this: "I can describe it in
@@ -271,7 +271,7 @@ qa-assistant-<domain>/           acceptance entry and its references
   intent, reference analysis and acceptance criteria.
   `execute/` holds brief content, supervision cues, and
   `card_units`; `quality-assurance/` holds verification contracts only.
-- **`card_units` front matter** (the creative/search Execute entries only) is the
+- **`card_units` front matter** (the creative Execute entry only) is the
   machine-readable card catalog:
 
   ```yaml
