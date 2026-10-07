@@ -1,29 +1,35 @@
 # Web3
 
-Read access to EVM chains and Solana for the Assistant, Researcher, Searcher
-and Marketer — balances, blocks, transactions, addresses and prices — and a
-wallet for the Assistant alone that sends native coins and tokens from the
-Hermes-only seed phrases and private keys the user labels in the Keychain.
-Part of the Hermes design docs — index: [`PROFILES.md`](../PROFILES.md).
+EVM chains and Solana as two access plugins, one tool per chain family like
+the other access plugins' one tool per platform: reading — balances, blocks,
+transactions, addresses and prices — for the Assistant, Researcher, Searcher
+and Marketer, and for the Assistant alone the user's wallets, sending native
+coins and tokens from the Hermes-only seed phrases and private keys in the
+Keychain. Part of the Hermes design docs — index:
+[`PROFILES.md`](../PROFILES.md).
 
 ## Shape
 
-| Piece                                                                                                                                       | Home                                                                                       | Reader                                    |
-| ------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ | ----------------------------------------- |
-| Shared engine code: chain table, JSON-RPC client, ABI and Solana parsing, price lookup, bypass guard (code, not a plugin: no `plugin.yaml`) | `plugins/web3/_shared/`                                                                    | both plugins                              |
-| `chain` tool (toolset `web3_read`), read-only                                                                                               | `plugins/web3/chain-read/`                                                                 | Assistant, Researcher, Searcher, Marketer |
-| `wallet` tool (toolset `web3_wallet`), its `pre_tool_call` approval hook and bypass guard                                                   | `plugins/web3/wallet/`                                                                     | Assistant                                 |
-| Signer: finds the labelled secrets, derives accounts, builds, simulates, signs and sends transfers; the only reader of wallet secrets       | `plugins/web3/wallet/signer.py` with `keychain.py` and `ledger.py`, run by the engine venv | the wallet plugin                         |
-| Engine dependencies, hash-locked                                                                                                            | `engines/web3/requirements.{in,lock}` → `local/web3/venv`                                  | both plugins                              |
-| Setup and status launcher                                                                                                                   | `scripts/web3.sh install\|status\|addresses`                                               | people                                    |
-| When and how the Assistant reads chains and sends funds                                                                                     | the Assistant's `web3` technic                                                             | Assistant                                 |
+| Piece                                                                                                                               | Home                                                                                                                           | Reader                                    |
+| ----------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------- |
+| `evm` tool (toolset `evm_access`)                                                                                                   | `plugins/web3/evm-access/`                                                                                                     | Assistant, Researcher, Searcher, Marketer |
+| `solana` tool (toolset `solana_access`)                                                                                             | `plugins/web3/solana-access/`                                                                                                  | Assistant, Researcher, Searcher, Marketer |
+| Both tools' schemas, per-profile actions, the `pre_tool_call` approval hook and bypass guard (code, not a plugin: no `plugin.yaml`) | `plugins/web3/_shared/access.py`, `guard.py`                                                                                   | both plugins                              |
+| Read engine: chain table, JSON-RPC client, ABI and Solana parsing, price lookup                                                     | `plugins/web3/_shared/reader.py` with `chains.py`, `rpc.py`, `abi.py`, `evm.py`, `sol.py`, `prices.py`, run by the engine venv | both plugins                              |
+| Signer: finds the wallet secrets, derives accounts, builds, simulates, signs and sends transfers; the only reader of wallet secrets | `plugins/web3/_shared/signer.py` with `keychain.py` and `ledger.py`, run by the engine venv                                    | both plugins, for the Assistant           |
+| Engine dependencies, hash-locked                                                                                                    | `engines/web3/requirements.{in,lock}` → `local/web3/venv`                                                                      | both plugins                              |
+| Setup and status launcher                                                                                                           | `scripts/web3.sh install\|status\|addresses`                                                                                   | people                                    |
+| When and how the Assistant reads chains and sends funds                                                                             | the Assistant's Chat reference `web3.md`                                                                                       | Assistant                                 |
 
-Both tools run their engine as a child process with the venv's interpreter
-(the `x-access` arrangement), so the gateway's own Python never imports a
-chain library or holds a key. The upstream `blockchain/evm` and
-`blockchain/solana` skills are not wired: they run through the terminal,
-which Researcher and Searcher do not have, and they stop at a transaction's
-header where this tool decodes calls, events and balance changes.
+Every profile in the plugins' list gets the read actions; the Assistant's
+tools also carry the wallet actions (`accounts`, `quote`, `transfer`,
+`status`), as substack-access offers Searcher its reads only. Both tools run
+their engine as a child process with the venv's interpreter (the `x-access`
+arrangement), so the gateway's own Python never imports a chain library or
+holds a key. The upstream `blockchain/evm` and `blockchain/solana` skills are
+not wired: they run through the terminal, which Researcher and Searcher do
+not have, and they stop at a transaction's header where these tools decode
+calls, events and balance changes.
 
 ## Chains and RPC
 
@@ -41,7 +47,7 @@ key, so the engine never returns, logs or raises an error with an RPC URL;
 errors name the chain and provider only. Prices come from CoinGecko's
 public API (rate-limited) and are labelled estimates; testnets have none.
 
-## Reads (`chain`)
+## Reads
 
 One tool, one `action` per call, results as compact JSON capped at 60 000
 characters (longer lists are cut and counted). Every action takes `chain`.
@@ -68,11 +74,12 @@ chain — token names, symbols, revert strings, memo and log text — is data
 from strangers: results return it as `{"untrusted": …}`, and the tool
 description tells the model it never carries instructions.
 
-`chain` answers inbound A2A requests on Researcher, Searcher and Marketer,
+Both tools answer inbound A2A reads on Researcher, Searcher and Marketer,
 whose work arrives that way; the Assistant refuses them, as for its other
-accounts. A call names its chain from the table and its action from that
-chain's family; anything else is refused before the engine starts, and only
-the schema's fields reach the engine.
+accounts, and no inbound request ever reaches a wallet action. A call names a
+chain of its tool's family and an action its profile has; anything else is
+refused before the engine starts, and only the action's own fields reach the
+engine.
 
 ## Accounts
 
@@ -82,10 +89,18 @@ accounts are the seed phrases and private keys in the Keychain, in any
 the name, which the user chooses anyway, says whether Hermes may sign:
 
 ```sh
-secret set HERMES_MAIN -p <project> -D MNEMONIC        # a seed phrase Hermes may sign with
-secret set PROJECTX_HERMES -p <project> -D PRIVATE_KEY # a private key Hermes may sign with
-secret set PROD_MNEMONIC -p <project> -D MNEMONIC      # watch-only: addresses read, never signed
+secret set HERMES_MAIN -p <project> -D MNEMONIC --no-env         # a seed phrase Hermes may sign with
+secret set PROJECTX_HERMES -p <project> -D PRIVATE_KEY --no-env  # a private key Hermes may sign with
+secret set PROD_MNEMONIC -p <project> -D MNEMONIC                # watch-only: addresses read, never signed
 ```
+
+`--no-env` keeps an item out of `secret env`, which every injected
+environment is built from — the Hermes secret helper, the launcher shims,
+an agent's shell — so only `get` reads it ([secret.md](../../zsh/functions/secret.md)).
+A Hermes wallet stored without it sits in whatever environment injects its
+layer, readable by any process there; that is the known property of
+injected layers, not something the wallet can undo, so the wallet reports it
+(`warnings` in `accounts`, `web3.sh status`) and still signs.
 
 A name with `HERMES` as one of its `_` / `-` / `.` separated words, in any
 case, marks a Hermes wallet (`HERMES_MAIN`, `projectx-hermes`; not
@@ -128,11 +143,11 @@ model can write. Funds moved to a spare account, between Hermes seeds or to
 a Hermes key stay the user's. Watch-only wallets are not own, and an item
 renamed without `HERMES` becomes watch-only on the next call.
 
-## Transfers (`wallet`)
+## Transfers (the Assistant's wallet actions)
 
 | Action     | What it does                                                                                                                                                                                                                                                                                                    |
 | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `accounts` | every labelled seed's first accounts (5 by default, up to 101) and every key, Hermes and watch-only, with their metadata and EVM and Solana addresses; with `chain`, native balances there; skipped items with the reason. Never a key                                                                          |
+| `accounts` | every labelled seed's first accounts (5 by default, up to 101) and every key, Hermes and watch-only, with their metadata and their addresses on the tool's chain family; with `chain`, native balances there; skipped items with the reason. Never a key                                                        |
 | `quote`    | `account`, `chain`, `to`, `amount`, `token` (a contract or mint; omit for the native coin): validates, builds the exact transaction, simulates it (`eth_estimateGas` + `eth_call`; `simulateTransaction`), and stores it as a single-use quote that expires after 15 minutes (past the 10-minute approval wait) |
 | `transfer` | `quote`: sends exactly the stored transaction                                                                                                                                                                                                                                                                   |
 | `status`   | a sent transfer's confirmations or failure                                                                                                                                                                                                                                                                      |
@@ -156,19 +171,29 @@ transaction's `to` (the token contract). Addresses are checksummed (EVM) or
 base58-validated (Solana); an ENS name is resolved on Ethereum's registry at
 quote time and the card shows both.
 
+The stated maximum fee is gas times the maximum fee per gas, plus — on the
+OP Stack chains (Base, OP Mainnet and their testnets) — twice the L1 data fee
+the chain's `GasPriceOracle` quotes for the transaction's own bytes (signed
+to size it, never broadcast); Arbitrum's gas estimate already covers its L1
+cost.
+
 A quote carries an HMAC keyed from its sending secret over everything it
-says — the transaction, the recipient, the own/external verdict and the card
-— so an edited quote file is refused at send, as is a quote whose secret is
-no longer labelled. At `transfer` time the signer re-checks the MAC, the
-expiry and the hourly cap, re-derives whether the recipient is own, re-reads
-the nonce and fees (the transaction may change only within the quote's
-stated maximum fee, otherwise the call fails and asks for a new quote) and
-only then signs.
+says — its id, the transaction, the recipient, the own/external verdict and
+both cards — so an edited quote file, another quote's file under this id, or
+a quote whose secret is gone is refused. At `transfer` time the signer
+re-checks that, the expiry, that the quote was never sent before (its
+consumed mark and the ledger), that the MAC is the one the approval was
+given for, and the hourly cap; re-derives whether the recipient is own;
+re-reads the nonce and fees (the transaction may change only within the
+quote's stated maximum fee, otherwise the call fails and asks for a new
+quote); and only then signs.
 
 ## Approval
 
-The hook decides before `wallet transfer` runs, from the stored quote, not
-from the model's arguments beyond the quote id.
+The hook decides before a `transfer` runs, from the quote as the signer
+verifies it (`verify`: its MAC under its own id, unused, unexpired) — never
+from the quote file as read, nor from the model's arguments beyond the quote
+id — so a card is only ever the authentic one.
 
 - **Own recipient:** runs without asking, mainnets included (the funds stay
   the user's; only the fee is spent). The signer refuses a send approved
@@ -214,10 +239,10 @@ from the model's arguments beyond the quote id.
   suffixes.
 
 - **Session and always do nothing.** Hermes' card always offers them and a
-  plugin cannot hide them, so the rule key is the quote id and a quote is
-  consumed by its first send: a grant can never cover another transfer.
-  "Always" leaves a dead `plugin_rule:` entry in `command_allowlist`; the
-  technic tells the user to answer _once_.
+  plugin cannot hide them, so every card has a fresh rule key (the quote id
+  and a random suffix): a grant can never answer another card, the same
+  quote's included. "Always" leaves a dead `plugin_rule:` entry in
+  `command_allowlist`; the reference tells the user to answer _once_.
 - **Fail closed where no human answers.** External transfers are blocked,
   without asking, in cron, single-query runs, unattended platforms (webhook,
   Microsoft Graph webhook, API server), contexts without a human, under
@@ -226,9 +251,10 @@ from the model's arguments beyond the quote id.
   when it cannot read Hermes' approval context. Silence, denial, timeout and
   a gate error block as everywhere else.
 - **The hook's decision travels in memory.** The hook records `own` or `card`
-  per quote in the gateway process; the tool takes it once and passes it to
-  the signer, and a transfer without one (or with one older than 20
-  minutes) never reaches the signer.
+  and the verified quote's MAC in the gateway process; the tool takes them
+  once and passes them to the signer, which sends only the quote with that
+  MAC. A transfer without a decision (or with one older than 20 minutes)
+  never reaches the signer.
 - **At most 10 transfers an hour**, every account and recipient together, so
   a loop cannot drain an account into fees. There are no amount limits: an
   approved external transfer can move everything the account holds, so the
@@ -237,20 +263,22 @@ from the model's arguments beyond the quote id.
 
 Quotes and the send ledger live in `<profile home>/web3-wallet/`, written
 under a lock file held for the whole send, so two sends never race the cap.
-A quote is marked consumed and a ledger line (time, account, chain,
-recipient, asset, amount, maximum fee, own/external, approval) is written
-with outcome `unknown` before broadcast, so a crash mid-send never re-sends
-it; a second line records `sent` with the hash, or `rejected` when the node
-answered with an error or the signer stopped before broadcasting. The cap
-counts `sent` and `unknown` (no answer after broadcasting may still mean the
-transfer happened); `rejected` moved nothing and does not count.
+A quote is marked consumed and a ledger line (time, attempt id, quote,
+account, chain, recipient, asset, amount, maximum fee, own/external,
+approval) is written with outcome `unknown` before broadcast, so a crash
+mid-send never re-sends it; a second line for the same attempt records
+`sent` with the hash, or `rejected` when the node answered with an error or
+the signer stopped before broadcasting. A quote the ledger has seen is never
+sent again, even if its consumed mark is cleared. The cap counts every
+attempt that is `sent` or `unknown` (no answer after broadcasting may still
+mean the transfer happened); `rejected` moved nothing and does not count.
 
 ## Ways around the tools
 
 The wallet's secrets have any name in any project, so on the Assistant the
 hooks keep the Keychain itself out of the terminal: terminal, code-execution
-and file-tool calls are blocked when their text runs `secret get` / `set` /
-`update` / `rm` / `import` / `export` or `security …-generic-password` (a
+and file-tool calls are blocked when their text runs `secret get` / `env` /
+`set` / `update` / `rm` / `import` / `export` or `security …-generic-password` (a
 deleted or overwritten seed is lost funds), `dump-keychain`, names the
 signer, `web3.sh`, the engine venv, the wallet's state directory or the
 `web3-rpc` scope and its items, or runs a chain CLI that signs (`cast send`,
@@ -274,18 +302,20 @@ recipient and the funds.
 2. For each wallet Hermes may send from: create a new seed phrase (or key)
    for Hermes alone, never one that holds other funds, and keep a written
    copy — the Keychain is the only other place it exists. Store it under a
-   name with `HERMES` in it, `secret set HERMES_<NAME> -p <project> -D
-MNEMONIC` (or `-D PRIVATE_KEY`), typed at the hidden prompt. Hermes never
-   generates or shows one. Seed phrases and keys already stored under other
-   names show up watch-only without any step.
+   name with `HERMES` in it and out of every environment:
+   `secret set HERMES_<NAME> -p <project> -D MNEMONIC --no-env` (or
+   `-D PRIVATE_KEY`), typed at the hidden prompt. Hermes never generates or
+   shows one. Seed phrases and keys already stored under other names show
+   up watch-only without any step.
 3. Optional: `secret set ALCHEMY_API_KEY -p hermes --scope web3-rpc` and
    `HELIUS_API_KEY` the same way.
-4. Enable `chain-read` and `wallet` in the Assistant's config (the other
-   three profiles already have `chain-read`), then restart the gateway.
+4. Enable `evm-access` and `solana-access` in the Assistant's config (the other
+   three profiles already have them), then restart the gateway.
 5. `web3.sh addresses [N] [CHAIN]` prints every labelled seed's first N
    accounts and every key (never a secret), with balances on `CHAIN`, to fund
-   from a faucet; `web3.sh status` names the labelled items with sign or
-   watch-only, and the stored RPC keys (never their values).
+   from a faucet; `web3.sh status` names the wallet items with sign or
+   watch-only and their ENV setting, flagging a Hermes wallet that is still
+   injected, and the stored RPC keys (never their values).
 
 After bumping a pin, recompile the lock (command in `requirements.in`) and
 run `install` again.
