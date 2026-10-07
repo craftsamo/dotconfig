@@ -16,7 +16,6 @@ permissions:
   - {action: skill, resource: "*", effect: allow}
   - {action: webfetch, resource: "*", effect: allow}
   - {action: websearch, resource: "*", effect: allow}
-  - {action: todowrite, resource: "*", effect: allow}
   - {action: subagent, resource: "explore*", effect: allow}
   - {action: subagent, resource: "searcher*", effect: allow}
   - {action: subagent, resource: "debugger", effect: allow}
