@@ -82,7 +82,7 @@ Questions to the user must be answerable in ~30 seconds without opening code:
    measured so it is repeatable.
 3. Locate the bottleneck: profile to find where time/resources actually go, not
    where they feel like they go. Rank candidates by impact. This read-only
-   diagnosis can be delegated to the `debugger` subagent (via the task tool)
+   diagnosis can be delegated to the `debugger` subagent (via the subagent tool, agent: debugger)
    when the profiling is involved or the cause is disputed.
 4. Form one hypothesis and improve: pick the highest-impact bottleneck, make
    the smallest change aimed at it, and keep behavior correct. Prefer doing

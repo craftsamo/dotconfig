@@ -3,7 +3,7 @@ description: "Standard read-only codebase exploration: multi-file traces and how
 mode: subagent
 model: anthropic/claude-sonnet-5-5
 variant: medium
-hidden: true
+hidden: false
 permission:
   "*": deny
   glob: allow

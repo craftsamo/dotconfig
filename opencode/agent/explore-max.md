@@ -3,7 +3,7 @@ description: "Max-depth read-only codebase exploration for difficult, ambiguous,
 mode: subagent
 model: anthropic/claude-opus-5-5
 variant: xhigh
-hidden: true
+hidden: false
 permission:
   "*": deny
   glob: allow
