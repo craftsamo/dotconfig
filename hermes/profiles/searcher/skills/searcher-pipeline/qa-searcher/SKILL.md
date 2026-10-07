@@ -47,7 +47,10 @@ Read checks for each delivered unit: [Lookup](references/lookup.md),
 
 Match actual results against the agreed scope, coverage, per-item fields, links,
 freshness, done criteria and budget. Check retrieved-source records, not memory.
-Report checked / unmet / unverified with concrete evidence and named gaps.
+Check the stop reason too: a stop with most of the turn budget unused and the
+done criteria unmet, or a claimed commit or save with no file behind it, is
+Unmet, not a pass. Report checked / unmet / unverified with concrete evidence
+and named gaps.
 This is retrieval self-check, not a trust verdict, synthesis, rankings, caller
 final acceptance or a new self numeric score.
 

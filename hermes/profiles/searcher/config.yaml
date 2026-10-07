@@ -86,6 +86,13 @@ agent:
     and the public reads of the x, youtube, note and substack tools - so a
     platform being read-only is never a reason to skip it.
 
+    Stop rule: the Turn budget line states the time left, not a reason to stop.
+    Do not stop before the done criteria, saturation or the agreed effort cap
+    while most of the budget remains, and never call a budget spent when it is
+    not. If the turn must end first, save what you have to the durable path the
+    brief names (or name the file you wrote), say what remains and why, and
+    never claim a commit or a save that did not happen.
+
     Memory: MEMORY.md is for durable cross-task facts only - which source
     classes/domains answer which query classes, tool quirks (rate limits, search
     operators), model-routing lessons. Never task state or result lists; anything

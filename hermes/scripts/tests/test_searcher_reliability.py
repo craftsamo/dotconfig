@@ -1,8 +1,9 @@
 """Contracts for the Searcher reliability failures found in real transcripts.
 
-Each ``xfail(strict=True)`` marks a known gap that a later phase fixes: the case
-fails today, and the moment the fix lands it reports XPASS, which fails the suite
-until the marker is removed. Fixtures are neutral; no real brief is used.
+Each case pins an instruction a real run needed: the handoff asks only Engineer
+for a commit, reading social platforms is allowed, the turn budget is not a
+reason to stop, and a stop reason must be true. Fixtures are neutral; no real
+brief is used.
 
 Structural contracts only: they pin what the instructions and handoff say, not
 how a model behaves. Behavior is measured with ``audit-searcher-sessions.py``.
@@ -14,8 +15,6 @@ import importlib.util
 import re
 import time
 from pathlib import Path
-
-import pytest
 
 
 HERMES = Path(__file__).resolve().parents[2]
@@ -70,8 +69,25 @@ def test_kernel_and_prompt_say_reading_is_allowed_while_writing_is_not():
     assert "Social platforms are read-only" not in prompt
 
 
-@pytest.mark.xfail(strict=True, reason="Build has no stop-reason rule: a run stopped after about 30 seconds "
-                                       "against a 89 minute budget, with nothing saved")
-def test_build_distinguishes_budget_exhaustion_from_an_early_stop():
+def test_build_separates_the_turn_budget_from_a_reason_to_stop():
     text = flat(PIPELINE / "build-searcher/SKILL.md")
-    assert "Turn budget" in text and "durable path" in text
+    for phrase in ("`Turn budget:` line is the time left in the turn, not a reason to stop",
+                   "never call the budget spent when it is not",
+                   "durable path the brief names",
+                   "Never claim a commit or a save that did not happen",
+                   "a checkpoint here is a saved file, not a Git commit"):
+        assert phrase in text
+    assert "the stop reason is true" in text
+
+
+def test_qa_treats_an_untrue_stop_as_unmet():
+    text = flat(PIPELINE / "qa-searcher/SKILL.md")
+    assert "Check the stop reason too" in text and "is Unmet, not a pass" in text
+
+
+def test_prompt_carries_the_stop_rule():
+    prompt = searcher_prompt()
+    for phrase in ("Stop rule:", "states the time left, not a reason to stop",
+                   "never call a budget spent when it is not",
+                   "never claim a commit or a save that did not happen"):
+        assert phrase in prompt
