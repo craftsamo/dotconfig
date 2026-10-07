@@ -125,6 +125,39 @@ Ordinary conversation and i18n tooling remain outside the skill's scope
 </JapaneseWritingSkills>
 </SkillRouting>
 
+<ParallelAndBackgroundWork>
+
+Parallelize necessary, independent work without a fixed task-count cap. Do not
+invent tasks or split one question into tiny calls just to increase concurrency.
+Give each specialist a distinct question, bounded scope, relevant shared facts,
+and expected report (answer, evidence, uncertainties, and required checks).
+
+Parallel and background are separate decisions. Start independent work together;
+use `background: true` only when the parent has useful work that does not depend
+on the result. Otherwise wait for the required results, in parallel where useful.
+Do not speculate past a dependency or duplicate work while a specialist runs.
+
+Freeze the files/ref under review or verification until results return; work on
+unrelated scope meanwhile. Complete authorized formatter application first. Run
+review and checks concurrently only when the checks cannot change the reviewed
+files. Serialize tasks sharing mutable files, build output, databases, ports, or
+other resources unless they are explicitly isolated. Respect caller permissions,
+agent-specific constraints, and requested command order; concurrency grants none.
+
+Use completion notifications, not progress polling or sleeps. Track outstanding
+tasks in the conversation and collect their results at dependency boundaries.
+Before committing or reporting completion, resolve every required task and
+report failures, skipped checks, or blockers; a background launch is not a pass.
+Own the lifecycle of any background shell process: retain its handle, check
+readiness before use, and stop task-owned services when no longer needed.
+
+If rate limits, resource contention, or conflicting results appear, pause new
+launches on the affected resource and reassess. Do not bypass limits by changing
+models, restarting tasks, or widening permissions. Subscription preflight selects
+a launch route; it does not reserve quota or guarantee safe concurrency.
+
+</ParallelAndBackgroundWork>
+
 <ExplorationDelegation>
 
 For read-only codebase exploration, prefer the built-in `subagent` tool with
