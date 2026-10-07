@@ -68,8 +68,11 @@ chain — token names, symbols, revert strings, memo and log text — is data
 from strangers: results return it inside a `untrusted` field, and the tool
 description tells the model it never carries instructions.
 
-Researcher and Searcher are A2A-only, so `chain` accepts inbound A2A calls
-on them; the Assistant refuses them, as for its other accounts.
+`chain` answers inbound A2A requests on Researcher, Searcher and Marketer,
+whose work arrives that way; the Assistant refuses them, as for its other
+accounts. A call names its chain from the table and its action from that
+chain's family; anything else is refused before the engine starts, and only
+the schema's fields reach the engine.
 
 ## Accounts
 
