@@ -14,7 +14,7 @@ TERMINAL_TOOLS = {"terminal", "execute_code"}
 FILE_TOOLS = {"read_file", "write_file", "patch", "search_files"}
 
 _READ = re.compile(
-    r"(?<![\w-])web3-rpc(?![\w-])|ALCHEMY_API_KEY|HELIUS_API_KEY|local/web3(?![\w-])"
+    r"(?<![\w-])web3-rpc(?![\w-])|ALCHEMY_API_KEY|HELIUS_API_KEY|ETHERSCAN_API_KEY|local/web3(?![\w-])"
     r"|dump-keychain|secret\s+export|find-generic-password", re.IGNORECASE)
 # The wallet's secrets have any name in any project, so the Keychain itself is out of reach of the
 # terminal on a wallet profile: reading, writing or deleting an item (a deleted seed is lost funds).

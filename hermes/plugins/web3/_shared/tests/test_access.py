@@ -111,6 +111,27 @@ def test_only_the_assistant_gets_the_wallet_actions():
     assert "chains" not in access.schema_for("solana", "assistant")["parameters"]["properties"]
 
 
+def test_every_profile_analyses_contracts_and_programs():
+    for profile in ("assistant", "researcher", "searcher", "marketer"):
+        evm = access.schema_for("evm", profile)["parameters"]["properties"]
+        sol = access.schema_for("solana", profile)["parameters"]["properties"]
+        assert {"contract", "call", "storage"} <= set(evm["action"]["enum"])
+        assert "program" in sol["action"]["enum"] and "call" not in sol["action"]["enum"]
+        assert {"function", "args", "from", "slot", "amount"} <= set(evm)
+        assert not {"function", "args", "from", "slot"} & set(sol)
+        assert ("amount" in sol) == (profile == "assistant")  # a quote's amount, never a call's
+    assert "call" in access.schema_for("evm", "assistant")["parameters"]["properties"]["amount"]["description"]
+    assert "call" not in access.schema_for("solana", "assistant")["parameters"]["properties"]["amount"]["description"]
+
+
+def test_a_call_reaches_the_reader_with_its_fields(monkeypatch):
+    seen = fake_engine(monkeypatch)
+    args = {"action": "call", "chain": "base", "address": "0xabc", "function": "balanceOf", "args": ["0xdef"],
+            "from": "0x123", "amount": "0.1", "block": "latest", "slot": "1"}
+    tool("evm", "searcher")(args)
+    assert seen[0]["script"] == "reader.py" and seen[0]["payload"] == args
+
+
 def test_untrusted_text_is_named_in_every_description():
     for family in ("evm", "solana"):
         for profile in ("assistant", "searcher"):
@@ -326,6 +347,7 @@ def test_a_profile_that_sends_keeps_the_keychain_and_the_signer_out_of_reach(tmp
 
 def test_a_reading_profile_blocks_only_the_engine_and_the_rpc_keys():
     blocked = [("terminal", {"command": "secret get ALCHEMY_API_KEY -p hermes --scope web3-rpc"}),
+               ("terminal", {"command": "secret get ETHERSCAN_API_KEY -p hermes"}),
                ("terminal", {"command": "~/.config/hermes/local/web3/venv/bin/python reader.py"}),
                ("execute_code", {"code": "import os; os.system('secret show HELIUS_API_KEY')"}),
                ("read_file", {"path": "~/.config/hermes/local/web3/venv/pyvenv.cfg"})]

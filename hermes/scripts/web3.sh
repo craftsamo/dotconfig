@@ -12,9 +12,10 @@
 #    key is watch-only: its addresses are read, it never signs)
 #   secret set ALCHEMY_API_KEY -p hermes --scope web3-rpc
 #   secret set HELIUS_API_KEY -p hermes --scope web3-rpc
+#   secret set ETHERSCAN_API_KEY -p hermes --scope web3-rpc   verified ABIs Sourcify lacks
 #
 #   install                build or refresh the venv from the lock (Python 3.12.11, uv)
-#   status                 engine versions and which wallet items and RPC keys are stored, by name
+#   status                 engine versions and which wallet items and API keys are stored, by name
 #                          (values are never printed)
 #   addresses [N] [CHAIN]  every labelled seed's first N accounts (default 5) and every key, on EVM
 #                          and Solana, with native balances on CHAIN; addresses only, never a key
@@ -84,6 +85,7 @@ for item in keychain.parse_listing(sys.argv[2], sys.stdin.read()):
     [ "$found" = 1 ] || echo "  none (secret set HERMES_<NAME> -p <project> -D MNEMONIC --no-env)"
     echo "alchemy:  $(stored ALCHEMY_API_KEY web3-rpc "optional; public RPC is used")"
     echo "helius:   $(stored HELIUS_API_KEY web3-rpc "optional; public RPC is used")"
+    echo "etherscan: $(stored ETHERSCAN_API_KEY web3-rpc "optional; verified ABIs come from Sourcify only")"
     ;;
   addresses)
     [ -x "$VENV/bin/python" ] || die "engine not installed (run: $0 install)"
