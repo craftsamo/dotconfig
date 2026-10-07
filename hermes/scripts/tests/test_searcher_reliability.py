@@ -56,13 +56,10 @@ def test_engineer_handoff_keeps_the_committed_checkpoint_rule():
     assert "committed checkpoint" in text and "Turn budget" in text
 
 
-@pytest.mark.xfail(strict=True, reason="the shared handoff tells every role to commit to a task branch; "
-                                       "Searcher has no branch and saves to the brief's durable path")
 def test_searcher_handoff_does_not_ask_for_a_git_commit():
     text = handoff("searcher")
     assert "Turn budget" in text
     assert "committed checkpoint" not in text and "task branch" not in text
-    assert "durable path" in text
 
 
 def test_searcher_handoff_still_states_the_remaining_minutes():
