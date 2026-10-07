@@ -416,6 +416,17 @@ keeps user keys.
   [docs/profiles/engineer.md](docs/profiles/engineer.md) "OpenCode runtime".
   The same toolset carries the read-only `opencode_history`, which needs no
   `opencode_cli` setting ([docs/session-history.md](docs/session-history.md)).
+- **orchestration/opencode-v2** (`standalone`): the successor of `opencode`, for
+  engineer and assistant, over the same service and `opencode api`. Tools: one
+  `opencode_run_<role>` per entry of `opencode_v2.roles` (default plan, review,
+  debug read-only and build write), `opencode_session`, `opencode_request`,
+  `opencode_instructions`, `opencode_catalog` and `opencode_history`. Enable
+  `opencode-v2` in `plugins.enabled` instead of `opencode` (both register
+  `opencode_session` and `opencode_history`), keep the `opencode` toolset, and set
+  `opencode_v2.enabled: true`, `wait_timeout`, `allowed_providers` and optionally
+  `roles`. It keeps no run record and drives the person's own OpenCode modes.
+  Behavior: [docs/profiles/engineer.md](docs/profiles/engineer.md)
+  "OpenCode runtime (opencode-v2)".
 - **orchestration/session-history** (`standalone`): `hermes_history` (toolset
   `session_history`) and the `/activity` command for engineer and assistant;
   also the code behind `bin/ai-history`. Behavior:
