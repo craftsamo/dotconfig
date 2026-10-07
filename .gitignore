@@ -75,12 +75,10 @@ hermes/skills/*
 !hermes/skills/default-pipeline/
 hermes/skills/learned/
 
-# Workers track one *-pipeline/ plus technic/ leaves. The skill-topology
-# plugin routes runtime creates to learned/. The assistant's
-# assistant-pipeline/ lives in the private overlay as a SYMLINK at this path;
-# the *-pipeline/ re-include below has a trailing slash, so it matches only
-# real directories and never resurrects an overlay symlink — it stays
-# ignored via the wildcard above it.
+# Every profile tracks one *-pipeline/ plus technic/ leaves. The skill-topology
+# plugin routes runtime creates to learned/. The *-pipeline/ re-include below
+# has a trailing slash, so it matches only real directories: a stale symlink
+# left at that path stays ignored (and the validator reports it).
 hermes/profiles/*/skills/*
 !hermes/profiles/*/skills/*-pipeline/
 !hermes/profiles/*/skills/technic/

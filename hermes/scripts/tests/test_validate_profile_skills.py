@@ -481,19 +481,17 @@ class ContinuityCandidateEnvironmentTest(unittest.TestCase):
                     self.assertEqual(str(SCRIPT.parents[2]), stage["env"]["HERMES_PUBLIC_ROOT"])
 
 
-class GitBoundaryOverlayTest(unittest.TestCase):
-    """Managed dirs provided by the private overlay are sanctioned symlinks."""
+class GitBoundarySymlinkTest(unittest.TestCase):
+    """Managed skill dirs are real tracked directories; no link is sanctioned,
+    including a stale one into the private overlay left by an older install."""
 
     def setUp(self) -> None:
         self._tmp = tempfile.TemporaryDirectory()
         root = Path(self._tmp.name)
         self.overlay = root / "private"
         (self.overlay / "skills" / "assistant-pipeline").mkdir(parents=True)
-        (root / "elsewhere" / "assistant-pipeline").mkdir(parents=True)
         self.overlay_link = root / "overlay-link"
         self.overlay_link.symlink_to(self.overlay / "skills" / "assistant-pipeline")
-        self.foreign_link = root / "foreign-link"
-        self.foreign_link.symlink_to(root / "elsewhere" / "assistant-pipeline")
         self._original = VALIDATOR.PRIVATE_OVERLAY
         VALIDATOR.PRIVATE_OVERLAY = self.overlay
         # A real, gitignored path inside the repo keeps the learned probe green.
@@ -505,24 +503,25 @@ class GitBoundaryOverlayTest(unittest.TestCase):
         VALIDATOR.PRIVATE_OVERLAY = self._original
         self._tmp.cleanup()
 
-    def test_accepts_symlink_into_private_overlay(self) -> None:
+    def test_rejects_symlink_into_private_overlay(self) -> None:
         errors: list[str] = []
         VALIDATOR.validate_git_boundary([self.overlay_link], self.learned, errors)
-        self.assertEqual([], errors)
+        self.assertTrue(any("must be a real directory" in e for e in errors), errors)
 
-    def test_rejects_symlink_outside_private_overlay(self) -> None:
-        errors: list[str] = []
-        VALIDATOR.validate_git_boundary([self.foreign_link], self.learned, errors)
-        self.assertTrue(
-            any("symlink outside the private overlay" in e for e in errors), errors
-        )
-
-    def test_rejects_dangling_overlay_symlink(self) -> None:
+    def test_rejects_dangling_symlink(self) -> None:
         dangling = Path(self._tmp.name) / "dangling-link"
         dangling.symlink_to(self.overlay / "skills" / "missing")
         errors: list[str] = []
         VALIDATOR.validate_git_boundary([dangling], self.learned, errors)
-        self.assertTrue(errors, "dangling overlay symlink must be reported")
+        self.assertTrue(errors, "dangling symlink must be reported")
+
+    def test_skill_root_rejects_overlay_link(self) -> None:
+        skills = Path(self._tmp.name) / "skills"
+        skills.mkdir()
+        (skills / "assistant-pipeline").symlink_to(self.overlay / "skills" / "assistant-pipeline")
+        errors: list[str] = []
+        VALIDATOR.validate_allowed_skill_roots(skills, set(), errors)
+        self.assertTrue(any("must not contain symlinks" in e for e in errors), errors)
 
 
 class AssistantPrivateTechnicTest(unittest.TestCase):
