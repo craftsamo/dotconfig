@@ -50,9 +50,8 @@ support for every create/edit/analyze/source combination. Creator confirms
 the actual scope. A missing guide is NOT evidence a capability is unavailable:
 use the common questions here and consult Creator rather than guessing.
 
-Producing media stays with Creator; researching creative inspiration and
-authoring the planning-only timeline belong here. This narrow local planning
-artifact is not a media-production leaf or a new kanban unit.
+Producing media stays with Creator; researching creative inspiration belongs
+here.
 Assessing, adding to, or improving managed hands reference catalogs (such as
 style, theme or destination options in a production skill) is repository
 maintenance for [Engineer](../plan-assistant-engineering/references/existing-change.md), not production
@@ -72,7 +71,7 @@ change, not by words such as card, icon, style or reference alone.
 | Persuasion toward an audience action | [ad.md](references/ad.md) |
 | A visible task walkthrough | [tour.md](references/tour.md) |
 | Understanding a topic | [explainer-video.md](references/explainer-video.md) |
-| Concretizing a visual story and diagrammed timeline before production | [video-design.md](references/video-design.md) |
+| UI components appearing in a new image | [ui-design.md](references/ui-design.md) |
 | Spoken words as an asset | [speech.md](references/speech.md) |
 | A sound communicating an event or cue | [sfx.md](references/sfx.md) |
 | Instrumental music for an experience | [music.md](references/music.md) |
@@ -83,14 +82,13 @@ a music video, not a separate product. A requested pixel look is not by
 itself a request for an exact-grid legacy workflow. For composites, identify
 the wanted final outcome and supplied dependencies; Creator plans production.
 
-For newly authored video, do NOT author a visual design, timeline or
+For newly authored video, do NOT author a visual design or
 storyboard yourself. Settle and pass the intent: purpose, audience,
 destination, fixed words, brand rules, exclusions, supplied inputs,
 references with what each is for, and observable acceptance criteria.
 Creator's producer designs the storyboard; that storyboard, relayed to the
 user, is the design the user agrees to. Read
-[video-design.md](references/video-design.md) only when the user explicitly
-asks you for a designed timeline, or for UI appearing in a new image.
+[ui-design.md](references/ui-design.md) for UI appearing in a new image.
 Findings-only analysis, reference research alone, exact trims, frozen renders
 and settled small corrections do not trigger a new whole-film design.
 

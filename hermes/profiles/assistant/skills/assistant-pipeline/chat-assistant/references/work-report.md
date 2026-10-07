@@ -7,7 +7,7 @@ read yourself, each with its source; the prose answers the reader's questions
 in the report's format; nothing leaves the machine without approval.
 
 A report is your own work: it takes many turns, and you do it yourself in
-this session — never a resident session, a card or a specialist. Start only
+this session — never a resident session or a specialist. Start only
 on an explicit request, never at the end of ordinary tasks. For a quick "what
 did I do this week", use `/repos commits week`, `/activity week` and `/drafts`
 instead.

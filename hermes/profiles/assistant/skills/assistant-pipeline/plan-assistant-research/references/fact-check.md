@@ -9,9 +9,8 @@ agreement against your purpose and supplied material.
 
 Researcher unit `fact-check` · QA `fact-check` · units: one fixed
 claims list per unit, released inside the consuming primary's brief
-once every decision below is agreed for Build — never as a card (the
-`claim-verification` card is retired;
-`../../execute-assistant-research/SKILL.md`).
+once every decision below is agreed for Build
+(`../../execute-assistant-research/SKILL.md`).
 
 ## Agree before Build
 
@@ -53,7 +52,7 @@ Build gates; retain same-role unit boundaries.
 
 - The claims list moves during Build ("also check whatever else looks off"):
   return a spec-gap finding to Plan for agreement, never silently add verdicts.
-  A session may start Plan without a fixed list; every research card is invalid.
+  A session may start Plan without a fixed list.
 - The unit wants artifact-quality judgment ("is the video's claim
   section well made?") — artifact-vs-brief verdicts are your own
   QA's; the researcher only transcribes and verifies the claims.

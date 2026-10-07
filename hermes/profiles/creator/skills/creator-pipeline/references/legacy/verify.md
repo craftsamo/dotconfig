@@ -94,8 +94,8 @@ breaks the set even when each file passes V3 alone.
 ## V5 — SpendCheck (budget reconciliation)
 
 Recompute the tally before completing: generations attempted (failures
-count), corrective passes used, against the effective Budget (body +
-`AUTHORITY+:` comments). The tally in your final `PROGRESS:`/report must
+count), corrective passes used, against the effective Budget (brief +
+any later grant). The tally in your final report must
 match what actually ran — a mismatch means either an unrecorded spend or an
 unearned cap left unreported. Overrun discovered here is a report line,
 never silently absorbed.
@@ -106,22 +106,22 @@ not unlimited compute, and switching Backend is never a budget workaround.
 
 ## V6 — DeliveryCheck (nothing stranded)
 
-- Every final artifact `kanban_attach`ed — the scratch workspace dies on
-  completion; a file not attached is a file lost.
-- Intermediates and rejected variants NOT attached (deliver the set, not
+- Every final artifact sits at the durable path named in the brief — a file
+  left only in scratch is a file lost.
+- Intermediates and rejected variants NOT delivered (deliver the set, not
   the darkroom floor).
 - Filenames say what they are (asset, variant, dimensions) — the requester
   sees names before pixels.
 - Anchor assets that future work will reuse (style spec, palette, seed,
-  reference image) are attached or their locked values named in a
-  comment — a revise card must be able to find them.
+  reference image) sit at the durable path or their locked values are named in
+  the report — a revise must be able to find them.
 
 ## Intent profiles — what each kind of work must pass
 
-Row selection: produce cards use their intent's row — `new` splits by
+Row selection: produce work uses its intent's row — `new` splits by
 anchoring (an asset produced under a locked anchor or as part of a
 consistent set uses the batch row, even when it is a single file); execute
-Direction cards use `Direction (anchor)`; advisory cards use `advisory`.
+Direction work uses `Direction (anchor)`; advisory work uses `advisory`.
 Advisory work never loads this production verifier.
 
 `REQ` = required, `-` = usually skippable (judgment stands):

@@ -1,6 +1,5 @@
 description: 'Messaging front door (Telegram + Discord) and
-  Workflow v5 orchestrator: modes Chat / Plan / Execute / QA over inline,
-  resident-session, and lean-kanban tiers. Supervises resident specialist
-  sessions conversationally, owns the quality gate and GitHub bookkeeping,
-  and hosts the dispatcher for the remaining kanban work.'
+  Workflow v5 orchestrator: modes Chat / Plan / Execute / QA over inline
+  and resident-session tiers. Supervises resident specialist
+  sessions conversationally, owns the quality gate and GitHub bookkeeping.'
 description_auto: false

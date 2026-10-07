@@ -8,17 +8,6 @@ metadata:
   hermes:
     category: assistant-pipeline
     tags: ["execute", "creative"]
-card_units:
-  - name: anchored-image-batch
-    assignee: creator
-    required_inputs: [approved-style-anchor, approved-backend, per-item-spec-list, durable-output-path]
-    unit_cap: "one batch of independent images, all from the same approved anchor; per-item specs fixed in the body"
-    runtime_cap: 1800
-  - name: deterministic-render
-    assignee: creator
-    required_inputs: [final-data, template-or-format-spec, durable-output-path]
-    unit_cap: "one diagram/chart/render from fixed data — no creative interpretation"
-    runtime_cap: 900
 ---
 
 <ReadBeforeWork>
@@ -80,31 +69,6 @@ have its producer design the storyboard and to return it for the user's
 approval; relay that storyboard to the user in plain language and relay the
 user's decision back. Do not prescribe layouts, shapes, components or
 motion the user did not ask for.
-
-Only when the user explicitly asked for a designed timeline and agreed it,
-carry the complete versioned visual design from
-[visual-story planning](../plan-assistant-creative/references/video-design.md):
-JSON, HTML timeline and identity receipt, plus the actual user's agreement
-and unresolved items. Keep the owning Plan entry and kernel current before
-using that guide. With a compact review, include the exact review JSON and its
-receipt identity as well; the short viewing layer never replaces full design
-data or actual user agreement. A version-2 design also fixes the frame aspect,
-background, on-screen words, surface shapes and opacities that Creator must
-honor; its orange motion marks are derived reading aids, not part of the film.
-Append `Visual design:` as ordinary briefing text with exact
-paths and scope, not an invented hands form field. The receipt binds the
-document, never the user's authority. Do not reduce it to a mood label or
-request production while important intermediate states remain undesigned.
-For an uncertain method, use bounded Creator consultation with the design
-marked unapproved/discussion-only. Visual agreement is not approval of later
-producer plan/preview bytes, spending, upload or source reuse.
-
-Creator must preserve the designed visible result while selecting actual
-supported methods. A proposed loss of parallax, occlusion, material behavior,
-UI fidelity or intermediate motion is a visual-design change, not a harmless
-implementation choice. Return it for the affected decision; never silently
-accept a flat zoom, generic component or fade in its place. New design versions
-invalidate affected dependent work without rewriting old frozen artifacts.
 
 Use `kind="inquiry"` only for a short, bounded, non-generating consultation.
 Released production and multi-turn work use `kind="work"`, including any
@@ -171,7 +135,7 @@ new approval, not a silent continuation on an obsolete preview.
 
 Stay in Execute on normal Creator completion; do not load
 `qa-assistant-creative` or request another Creator inspection. This also applies
-to confirmed legacy units and creative cards. Read the returned report for its
+to confirmed legacy units. Read the returned report for its
 output kind, durable paths, producer check status, obvious conflicts with settled
 constraints and spend. Do not mandate visual looks, remeasurements, a new QA
 report or autonomous aesthetic corrections before showing the candidate.
@@ -206,5 +170,4 @@ not an automatic revision grant.
 ## Confirmed legacy work
 
 Only Creator-confirmed legacy unit work loads
-[legacy/index.md](references/legacy/index.md). The two `card_units` above remain the
-entire creative kanban catalog; a new Client guide creates no new card type.
+[legacy/index.md](references/legacy/index.md).

@@ -42,7 +42,6 @@ approved Backend is either `core:video_generate` or `external:comfyui`.
 - Video *understanding* (that's `video_analyze`).
 - HTML/canvas-composited motion graphics, title cards, captions, or shader
   transitions (`creator-html-motion`).
-- A full multi-agent production pipeline (bundled `kanban-video-orchestrator`).
 
 </DoNotUseWhen>
 </Scope>

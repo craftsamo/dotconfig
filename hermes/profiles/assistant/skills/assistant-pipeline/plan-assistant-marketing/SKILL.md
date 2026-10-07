@@ -72,6 +72,6 @@ competing plans: [positioning](references/positioning.md),
 Marketer writes its strategy record; relay user answers without turning
 hypotheses into decisions.
 
-Marketing remains resident-only and defines no card units. Follow
+Marketing remains resident-only. Follow
 [Execute](../execute-assistant-marketing/SKILL.md) and
 [marketing QA](../qa-assistant-marketing/SKILL.md).

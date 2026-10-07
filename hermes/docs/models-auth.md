@@ -316,7 +316,7 @@ profile gets `global` + `hermes`** — mechanics in
 [`README.md`](../README.md#secrets). What belongs in each layer:
 
 - **`hermes`** — keys only Hermes uses, needed by every profile and every
-  dispatcher-spawned worker: `OPENROUTER_API_KEY` (the OpenRouter tails),
+  worker session: `OPENROUTER_API_KEY` (the OpenRouter tails),
   `GITHUB_TOKEN` (Skills Hub), `FAL_KEY`, `GROQ_API_KEY` and the dashboard auth
   pair. The messaging keys (`TELEGRAM_*` / `DISCORD_*`) parked here are the
   **assistant's**: `profile-secrets.sh` passes them to assistant unfiltered,
@@ -357,7 +357,7 @@ exactly once — a duplicated fetch pushed the bot profiles past the timeout
 under boot load — and every config sets `helper_timeout_seconds: 60`. The
 maintainer rules for editing the helper live in `AGENTS.md`.
 
-Dispatcher-spawned workers need no unique secret (see
+Worker sessions need no unique secret (see
 [`topology.md`](./topology.md) "Topology"); the gateway launcher's own `PATH`
 and Keychain injection are in [`operations.md`](./operations.md) "Gateway as a
 persistent service".

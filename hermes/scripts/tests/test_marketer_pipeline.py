@@ -77,14 +77,6 @@ def edit_frontmatter(path: Path, **overrides: Any) -> None:
     path.write_text("---\n" + yaml.safe_dump(data, sort_keys=False) + "---\n" + body, encoding="utf-8")
 
 
-def add_card_units_field(path: Path) -> None:
-    raw = path.read_text(encoding="utf-8")
-    if raw.startswith("---\n"):
-        edit_frontmatter(path, card_units=["fake-unit"])
-    else:
-        path.write_text("---\ncard_units:\n  - fake-unit\n---\n" + raw, encoding="utf-8")
-
-
 def strip_read_before_work_token(path: Path, token: str) -> None:
     doc = path.read_text(encoding="utf-8")
     match = re.search(r"<ReadBeforeWork>(.*?)</ReadBeforeWork>", doc, re.S)
@@ -188,16 +180,6 @@ def test_non_markdown_reference_fails(candidate, relative):
     path = candidate / relative
     path.write_text("not markdown")
     assert any("non-markdown marketer reference" in e for e in errors(candidate))
-
-
-@pytest.mark.parametrize(
-    "relative",
-    ["SKILL.md", "plan-marketer/SKILL.md", "plan-marketer/references/discovery.md"],
-)
-def test_card_units_forbidden_everywhere(candidate, relative):
-    path = candidate / relative
-    add_card_units_field(path)
-    assert any(f"marketer defines no card units: {relative}" in e for e in errors(candidate))
 
 
 @pytest.mark.parametrize("entry", ENTRIES)

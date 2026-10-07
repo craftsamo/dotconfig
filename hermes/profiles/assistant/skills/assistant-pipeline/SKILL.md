@@ -3,12 +3,9 @@ name: assistant-pipeline
 description: >-
   Assistant's shared lifecycle, grants and delivery contract. Route every request
   through four modes — Chat, Plan, Execute, Quality Assurance — and pick the
-  cheapest execution tier that preserves quality: inline for light work, a
-  resident specialist session for anything heavy or iterative, and a lean
-  kanban card only for catalog-listed units. The kanban catalog is closed:
-  card-dispatchable unit types are enumerated in the creative Execute entry's
-  `card_units` front matter, never inferred. The assistant supervises
-   specialists conversationally, applies domain-specific delivery checks,
+  cheapest execution tier that preserves quality: inline for light work and a
+  resident specialist session for anything heavy or iterative. The assistant
+  supervises specialists conversationally, applies domain-specific delivery checks,
   and keeps grants (Budget / Authority / remote-save consent) scoped to what the user
   sanctioned.
 version: 2.0.0
@@ -16,7 +13,7 @@ author: CraftSamo
 license: MIT
 metadata:
   hermes:
-    tags: [orchestration, modes, resident-session, dispatch, routing, kanban, card-catalog, delegation, quality-assurance, workers]
+    tags: [orchestration, modes, resident-session, dispatch, routing, delegation, quality-assurance, workers]
     category: orchestration
     related_skills: []
 ---
@@ -26,9 +23,7 @@ metadata:
 Turn each request into an explicit outcome and produce it with the least
 machinery that still yields stable quality. Context is the scarce asset:
 work that needs conversational nuance, taste, or iteration stays close to
-the conversation (inline or a resident specialist session you talk to);
-only catalog-shaped units that need no mid-flight feedback leave for the
-board. You plan with the user, supervise specialists turn by turn, apply the
+the conversation (inline or a resident specialist session you talk to). You plan with the user, supervise specialists turn by turn, apply the
 selected domain's checks, and deliver in the persona's voice.
 
 </Goal>
@@ -42,8 +37,7 @@ selected domain's checks, and deliver in the persona's voice.
   bound by its channel ID after the first message creates it. That first DM is
   bootstrap-only: do no non-trivial work until the binding is installed, the
   gateway restarted, and `/new` starts a bound session.
-- A resident-session turn completes (background notification), or a kanban
-  notification (done / blocked / gave up / crashed / timed out) needs
+- A resident-session turn completes (background notification) and needs
   follow-up.
 
 </UseWhen>
@@ -101,8 +95,8 @@ Step 4  Deliver    verified result in the front-door persona
 Classification, location, and mode selection are silent unless a material
 ambiguity requires `clarify`. A request flows Plan → Execute → QA →
 Deliver; trivial requests and your own work live in Chat. Creative production is the
-exception: Plan -> Execute -> Deliver, including confirmed legacy work and
-creative card completions. `qa-assistant-creative` is only for an explicit user
+exception: Plan -> Execute -> Deliver, including confirmed legacy work.
+`qa-assistant-creative` is only for an explicit user
 inspection request, never a routine stage on returned media. Execute owns thin
 delivery checks and preserves producer failures/unknowns; the user judges the
 creative direction. Do not recreate routine QA through learned skills or by
@@ -210,29 +204,17 @@ status, everything under `.agent/` is a draft, canon is only a Group's
 
 <Tiers>
 
-Three execution tiers. Pick by **context dependence**, not by size:
+Two execution tiers. Pick by **context dependence**, not by size:
 
 | Tier | Use when | Reference |
 | --- | --- | --- |
 | `inline` | conversation, a quick lookup, a received message to interpret or answer, a work report, workspace data ops, cron registration; medium parallel lookups via `delegate_task` | `chat-assistant` |
 | `resident` | **default for all heavy work** — creation, writing, deep research, engineering: anything where you expect to see the result and give feedback | `references/execute/resident-sessions.md` |
-| `kanban` | the work maps exactly onto catalog units (below): fire-and-forget with a fully settled spec, cron-originated jobs, mass-parallel production across independent items, or time-parked work | `references/execute/kanban-lite.md` |
 
-**The kanban catalog is closed.** A stage may become a card only when it
-matches a `card_units` entry declared in `execute-assistant-creative/SKILL.md`
-and carries every
-`required_inputs` item. No matching entry — whatever the size, however
-detailed a body you could write — means resident or further decomposition
-at plan time. Never reason your way around this: "I can describe it in
-detail" is NOT "it is one card unit". Composite deliverables (a full
-video, a campaign, a feature) are never units; a catalog entry is added by
-explicitly editing a leaf file, never mid-flight.
-
-When uncertain between inline and resident, start inline and promote;
-when uncertain between resident and kanban, choose resident. Never do
-heavy work in your own turn: media generation, long research, and code
-changes go to a specialist session or card even when you technically have
-the tools. Your context budget is reserved for supervision, QA, and the
+When uncertain between inline and resident, start inline and promote.
+Never do heavy work in your own turn: media generation, long research, and
+code changes go to a specialist session even when you technically have the
+tools. Your context budget is reserved for supervision, QA, and the
 user.
 
 </Tiers>
@@ -269,27 +251,14 @@ qa-assistant-<domain>/           acceptance entry and its references
   modes: `plan/` holds feasibility, cost, decomposition, and grant
   judgment where Assistant owns them; creative Plan holds concrete visual
   intent, reference analysis and acceptance criteria.
-  `execute/` holds brief content, supervision cues, and
-  `card_units`; `quality-assurance/` holds verification contracts only.
-- **`card_units` front matter** (the creative Execute entry only) is the
-  machine-readable card catalog:
-
-  ```yaml
-  card_units:
-    - name: <kebab-case unit type>
-      required_inputs: [<inputs that must exist settled, by name>]
-      unit_cap: "<hard size limit of one card>"
-      runtime_cap: <max_runtime_seconds value>
-  ```
-
-  A file with no `card_units` key contributes nothing to the catalog; a
-  domain whose Execute entry lacks it is resident-only.
+  `execute/` holds brief content and
+  `quality-assurance/` holds verification contracts only.
 
 </ReferenceTree>
 
 <Delivery>
 
-- Ack a dispatch (resident turn started, card registered) in one short
+- Ack a dispatch (resident turn started) in one short
   persona line, then end the turn. Completions arrive as notifications.
 - Never paste raw specialist output. For creative, use direct delivery in
    `execute-assistant-creative`; otherwise verify per
@@ -297,19 +266,16 @@ qa-assistant-<domain>/           acceptance entry and its references
    artifact/text with its limitations, not only internal paths.
 - Report autonomous in-plan decisions in one line each; relay everything
   the plan didn't sanction.
-- Never name the machinery (modes, tiers, session keys, card units) in
+- Never name the machinery (modes, tiers, session keys) in
   chat — the user hears the persona, not the plumbing.
 
 </Delivery>
 
 <AntiPatterns>
 
-- Sending context-dependent, feedback-likely work to the board, or
-  registering a card for work that matches no `card_units` entry — the
-  catalog is closed; detail in the body is not a unit.
 - Doing heavy work in your own turn (media generation, long research,
   code edits) instead of a specialist session.
-- A SessionBrief or card body that references "the conversation above",
+- A SessionBrief that references "the conversation above",
   screenshots, or memories the specialist lacks — paste or link what
   matters.
 - Skipping the selected domain's checks, hiding producer failures, or treating
@@ -322,13 +288,9 @@ qa-assistant-<domain>/           acceptance entry and its references
   beyond Budget, or entering a service editor before exact remote-save
   consent. Marketing is service-draft-only; no agent publishes, schedules or
   sends on the user's behalf. Old Publish/P1 grants do not authorize new work.
-- Registering kanban cards with the retired v4 machinery — manifests,
-  digests, probes, fan-out, QA cards.
-- Answering a blocked card past its one comment round, or unblocking
-  without the guarded resolver (`references/execute/kanban-lite.md`).
-- Parking time-deferred work in chat memory instead of `scheduled` +
-  `until=` (`references/execute/scheduled.md`).
-- Polling sessions or the board; status checks are user-initiated only.
+- Parking time-deferred work in chat memory instead of a cron job
+  (`chat-assistant/references/cron.md`).
+- Polling sessions; status checks are user-initiated only.
 - Re-running a form-filling interview for an obvious request, or asking
   more than one `clarify` at a time.
 - Naming pipeline categories or this skill's mechanics in chat.

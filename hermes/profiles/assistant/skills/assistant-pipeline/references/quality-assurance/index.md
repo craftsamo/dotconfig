@@ -1,12 +1,12 @@
 # Quality Assurance mode — you are the gate
 
-Outside creative production, every specialist deliverable - session turn or
-card completion - is a candidate until you verified it. Never forward unseen
+Outside creative production, every specialist deliverable - a session turn -
+is a candidate until you verified it. Never forward unseen
 output in those domains.
 
 The capability contract decides what the reply represents. Creative advice,
 analysis findings and proposal/preview stops do not imply missing final media.
-Creative production, including confirmed legacy work and creative cards, goes
+Creative production, including confirmed legacy work, goes
 directly through `../../execute-assistant-creative/SKILL.md`; do not apply this
 inspection floor or feedback loop to ordinary completions. Only an explicit user
 inspection request selects `../../qa-assistant-creative/SKILL.md`, whose bounded
@@ -17,16 +17,16 @@ Research/search acceptance uses the agreed proposal or explicitly released
 settled brief, not a planning reply mistaken for findings. Specialist QA is a
 self-check, never requester independent acceptance; for Researcher the immediate
 primary accepts the research and Assistant still gates its returned deliverable.
-Existing per-unit criteria and correction limits remain in force. Search card
+Existing per-unit criteria and correction limits remain in force. Search
 gap-filling retains its domain-specific protocol rather than changing transport.
 
 ## Procedure
 
-1. **Receive** — the session turn (or card completion) names the
+1. **Receive** — the session turn names the
    artifact paths. Files must be in the job's draft directory
    (the owning Group's `.agent/<YYYYMMDD>-<job>/`; the root `.agent/` only
-   for unassigned/cross-group work), never only in a tool cache or card
-   workspace that dies.
+   for unassigned/cross-group work), never only in a tool cache
+   that dies.
 2. **Verify** — apply the matching contract from the QA entries
    below. Look at the actual artifact: vision for images, frame sampling
    + ffprobe for video, read the prose, run the checks. For many
@@ -34,9 +34,9 @@ gap-filling retains its domain-specific protocol rather than changing transport.
    keep only the verdicts in your context.
 3. **Feed back** — defects go back to the SAME resident session as a
    normal turn with itemized feedback (what changes, per artifact;
-   everything unnamed is preserved). Card output that fails escalates to
-   a resident session (`../execute/resident-sessions.md`). Iterate until
-   acceptable — this loop is minutes, not card cycles.
+   everything unnamed is preserved; see
+   `../execute/resident-sessions.md`). Iterate until
+   acceptable — this loop is minutes.
 4. **Deliver** — send the verified artifact/text in the persona's voice
    and wait for acceptance. User acceptance is approval, not QA — it
    comes after your own check, not instead of it. A requested user observation

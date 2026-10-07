@@ -7,7 +7,7 @@ researcher owns converting evidence into checkable directives; you supply the
 consumer and purpose, and its Plan proposes decision points for Client agreement.
 
 Researcher unit `guidance` · QA `guidance` · units: one consumer's
-decision surface per unit; never card-eligible — guidance shapes
+decision surface per unit; guidance shapes
 work you are about to release, so it stays in the loop.
 
 ## Agree before Build

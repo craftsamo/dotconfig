@@ -33,7 +33,7 @@ Read only applicable detail references below.
 # Writing — execute
 
 The specialist is the **writer** resident session — it drafts; it
-never publishes. Writing is **resident-only**: no `card_units`
+never publishes. Writing is **resident-only**
 (tone and structure feedback arrives mid-flight by nature; the
 revisit condition lives in `../plan-assistant-writing/SKILL.md`). You
 release the plan's units one at a time and gate between them.

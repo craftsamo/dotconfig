@@ -52,7 +52,7 @@ carry it.
 The canonical skill is this file. A compatible `pixel_art.py` may be used as an
 implementation backend when found under `~/.agents/skills/pixel-art` or the
 Hermes optional-skill checkout. Never `skill_view` or pin the ambiguous bare
-name `pixel-art`. Record the exact backend path in the first `STATE:` comment.
+name `pixel-art`. Record the exact backend path in your first progress note.
 
 `scripts/render-pixel-art.sh` performs that preflight, uses the shared opted-in
 backend before the official checkout fallback, verifies its required CLI, and

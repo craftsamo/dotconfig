@@ -136,7 +136,7 @@ approval. Plain narration does not require scene fields.
 
 ## Boundaries
 
-- Writing is **resident-only for now** — no `card_units`; tone and
+- Writing is **resident-only for now** — tone and
   structure feedback arrives mid-flight by nature. Revisit only if
   a truly templated text class (fixed format, fixed tone anchor,
   zero taste iteration) proves itself in resident use first.

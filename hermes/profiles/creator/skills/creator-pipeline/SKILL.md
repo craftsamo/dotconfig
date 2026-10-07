@@ -156,19 +156,6 @@ carries the spend line.
 
 </Budget>
 
-<Cards>
-
-Kanban is legacy-only. A card must be exactly ONE catalog unit —
-`anchored-image-batch`, `deterministic-render` — with every
-required input settled; a served family, a composite, an unsettled
-input, or `Review: required` → `kanban_block(kind=capability)`
-immediately, before any spend, with a one-line reason. An admitted card
-loads `references/legacy/card.md` first (comment grammar, checkpoint
-then block, completion), plus `legacy/resume.md` when prior runs exist.
-Cards move to the hands family by family as their leaves land.
-
-</Cards>
-
 <Pitfalls>
 
 - Running a hands leaf's procedure yourself because the tools are there

@@ -30,7 +30,7 @@ This file does not restate agent behavior. Contracts:
 | -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
 | Engineer modes, OpenCode runtime, resident turns, UI verification                | [docs/profiles/engineer.md](docs/profiles/engineer.md)                                                                   |
 | `specialist_call` / `specialist_session`, completion, deadlines, work continuity | [docs/profiles/specialist-calls.md](docs/profiles/specialist-calls.md)                                                   |
-| Assistant entry routing, creative early delivery, kanban catalog, pinned topics  | [docs/profiles/assistant.md](docs/profiles/assistant.md)                                                                 |
+| Assistant entry routing, creative early delivery, pinned topics  | [docs/profiles/assistant.md](docs/profiles/assistant.md)                                                                 |
 | Writer v8 leaves, Marketer v9 entries, Researcher/Searcher phases                | [writer.md](docs/profiles/writer.md), [marketer.md](docs/profiles/marketer.md), [research.md](docs/profiles/research.md) |
 | Entry loading contract, candidate rollout and cutover                            | [docs/topology.md](docs/topology.md)                                                                                     |
 | Creator v9 broker phases                                                         | [docs/broker.md](docs/broker.md)                                                                                         |
@@ -134,15 +134,14 @@ profiles/<name>/       # bots: assistant, engineer, creator, marketer; specialis
                        #   image-, video-, audio-creator
   config.yaml          # model/fallback + agent.system_prompt (operating contract);
                        #   assistant tracks config.example.yaml instead
-  profile.yaml         # routing description (kanban/delegation)
+  profile.yaml         # routing description (delegation)
   SOUL.example.md      # persona template; real SOUL.md (BASE + role posture) untracked
   .no-bundled-skills
   skills/              # <profile>-pipeline/ (the one root pipeline skill),
                        #   technic/ (flat leaf technics, where used),
                        #   learned/ (ignored)
-  scripts/             # assistant: resident-session.sh, kanban-resolve-block.sh,
-                       #   kanban-scheduled-sweeper.sh, x-snapshot.sh,
-                       #   creative-timeline.py, local-* cron wrappers (generated, ignored);
+  scripts/             # assistant: resident-session.sh, x-snapshot.sh,
+                       #   local-* cron wrappers (generated, ignored);
                        #   creator: hyperframes-env.sh
   external-skills/     # writer: curated japanese-writing symlink
 setup.sh README.md PROFILES.md AGENTS.md
@@ -155,8 +154,7 @@ live under `profiles/creator/skills`. Skill placement (validator-enforced):
   (lifecycle + capability router, auto-loaded by its operating contract); entry
   and leaf shapes per profile are in the per-profile docs.
 - Directly selectable leaf technics sit exactly one directory below
-  `skills/technic/` (flat canonical leaves) and are pinned per card via
-  `kanban_create skills:[...]`. A technic's references are modes only when
+  `skills/technic/` (flat canonical leaves) and are pinned by name. A technic's references are modes only when
   tools, spend class and QA stay the same; styles/presets/formats remain
   references. Creator's `creator-*` technics stay 1:1 with the assistant's
   legacy Plan leaves ([docs/broker.md](docs/broker.md)).
@@ -530,8 +528,6 @@ keeps user keys.
   terminal path around it. Engine: `scripts/youtube-access.sh` (`install` /
   `status`). Behavior: [docs/youtube-access.md](docs/youtube-access.md).
 - **inspection/writing-inspection** (`standalone`): Writer's bounded `writing_inspect`.
-- **guards/kanban-worker-mutation-guard** (`standalone`): stops dispatcher workers
-  from creating, linking or releasing Kanban cards outside the Assistant path.
 - **guards/skill-topology** (`standalone`): the topology guard's home — it blocks
   runtime writes into maintainer skill trees here and into the private
   overlay's `hermes/profiles/*/skills/` (both outside `learned/`) — plus a
@@ -1116,10 +1112,9 @@ Hermes' instance) lives in `~/Workspaces/AGENTS.md` (private overlay).
 
 ## Worker terminal approvals
 
-Dispatcher workers cannot answer an approval prompt — a flagged command just
-fails. The dispatcher runs workers with `stdin=DEVNULL` but still sets
-`HERMES_INTERACTIVE=1`, so `approvals.mode: manual` reaches EOF, denies, and the
-tool returns `status: "blocked"`.
+Worker sessions cannot answer an approval prompt — a flagged command just
+fails: `approvals.mode: manual` reaches EOF, denies, and the tool returns
+`status: "blocked"`.
 
 - **The guard reads only the outer command**, never inside a script. These pass:
   `./scripts/x.sh`, `bash x.sh`, `python3 script.py`, `opencode run`,
@@ -1209,7 +1204,7 @@ agent's pre-rename label and carry its old log over once.
   bot token = one live connection; four bots in this one process). The
   default-hosted process serves every profile directory: assistant Telegram +
   Discord, the engineer / creator / marketer bots, the A2A endpoints
-  (`127.0.0.1:9902-9909`) and the embedded dispatcher. The launcher execs the
+  (`127.0.0.1:9902-9909`). The launcher execs the
   checkout's
   `.hermes/bin/hermes gateway run --accept-hooks --external-supervisor` as a
   supervised child (`HERMES_SUPERVISED_CHILD=1`);

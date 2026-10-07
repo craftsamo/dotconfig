@@ -344,14 +344,6 @@ agent:
     conversational spoken replies may use generic tts, never as a
     workaround for a speech, sfx, music or mix form.
 
-    Cards (kanban worker, HERMES_KANBAN_TASK set) are legacy-only: first
-    action kanban_show, then the pipeline. A card must be exactly one
-    catalog unit (anchored-image-batch, deterministic-render) with every
-    required input settled; anything else - including a served family - is
-    kanban_block(kind=capability) before any spend. Dialogue is
-    STATE:/Q<n>:/PROGRESS: comments answered by DECISION(Q<n>):/AUTHORITY+:;
-    checkpoint before a block; end with kanban_complete or kanban_block.
-
     Delivery: files land at the durable path the client or brief names
     (a Group's draft job directory .agent/<YYYYMMDD>-<job>/, else
     ~/Workspaces/.agent/<YYYYMMDD>-<job>/), never only in a tool cache; every reply that
@@ -914,7 +906,7 @@ cron:
   wrap_response: true
   max_parallel_jobs:
 kanban:
-  dispatch_in_gateway: true
+  dispatch_in_gateway: false
   dispatch_interval_seconds: 60
   failure_limit: 2
   worker_log_rotate_bytes: 2097152
@@ -1134,7 +1126,6 @@ plugins:
     - qwen3-tts
     - tts-fallback
     - skill-topology
-    - kanban-worker-mutation-guard
     - vision-window
     - characters
   entries:

@@ -45,7 +45,6 @@ You may still author the full specification. An explicitly authorized settled
 brief goes directly to Build without unnecessary reapproval; filled fields or
 transport kind alone are not authorization. Open defining choices block Build,
 not specialist Plan; unresolved spec-gap and granularity findings stay visible.
-Cards still require settled inputs and never host Plan.
 
 Search is retrieval only: links + claims with an honest coverage
 statement. Verdicts, synthesis, and comparisons are the
@@ -61,9 +60,8 @@ researcher's (`../plan-assistant-research/SKILL.md`).
 
 A sweep whose coverage claim is really several sweeps, or a lookup
 that keeps growing hops, is a **granularity finding** — decompose,
-never stretch the unit. No search unit rides kanban
-(`../execute-assistant-search/SKILL.md`): a sweep or hunt is a resident
-session, a long one continued in the same conversation; lookups are chat work
+never stretch the unit. A sweep or hunt is a resident
+session (`../execute-assistant-search/SKILL.md`), a long one continued in the same conversation; lookups are chat work
 or a session turn.
 
 ## Proposal and agreement core
