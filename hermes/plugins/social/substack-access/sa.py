@@ -32,7 +32,9 @@ from urllib.parse import urlsplit
 READS = ("status", "archive", "post", "inbox", "published", "drafts", "draft", "prepublish", "stats")
 WRITES = ("create_draft", "update_draft", "publish", "schedule", "unschedule", "note")
 ACTIONS = READS + WRITES
-PROFILE_ACTIONS = {"assistant": ACTIONS, "marketer": READS}
+# Searcher reads publications and posts only: never the inbox, the user's own posts, drafts or statistics.
+PUBLIC_READS = ("status", "archive", "post")
+PROFILE_ACTIONS = {"assistant": ACTIONS, "marketer": READS, "searcher": PUBLIC_READS}
 
 HERE = Path(__file__).resolve().parent
 BRIDGE = HERE / "bridge.py"
