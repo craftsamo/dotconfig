@@ -484,7 +484,8 @@ keeps user keys.
   `launchd/telegram-access-launchctl.sh` (`login` / `install` / `status`).
   Behavior: [docs/telegram-access.md](docs/telegram-access.md).
 - **social/x-access** (`standalone`): `x` (toolset `x_access`) for the assistant and
-  marketer — read-only X as a separate sub-account through twscrape (`bridge.py` in the
+  marketer, and for searcher with `status` / `search` / `thread` / `verify` only —
+  read-only X as a separate sub-account through twscrape (`bridge.py` in the
   ignored `local/twscrape/venv`, pinned in `engines/twscrape/`): the main
   account's posts and mentions, search, threads, profiles, a post's media and
   a ledger of the main account's public counts (`snapshot` / `insights`);

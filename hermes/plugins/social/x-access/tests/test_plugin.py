@@ -117,6 +117,142 @@ def test_handler_returns_json():
 
 
 def test_oversized_results_are_refused(monkeypatch):
-    monkeypatch.setattr(plugin.xa, "execute", lambda args, home=None: {"x": "y" * plugin.LIMIT})
+    monkeypatch.setattr(plugin.xa, "execute", lambda args, home=None, profile=None: {"x": "y" * plugin.LIMIT})
     result = json.loads(x({"action": "status"}))
     assert result["ok"] is False and "narrow" in result["error"]
+
+
+PUBLIC_ACTIONS = ["status", "search", "thread", "verify"]
+MAIN_ACCOUNT_ACTIONS = ["posts", "mentions", "snapshot", "insights", "media", "user"]
+
+
+def test_searcher_gets_only_the_public_reads():
+    ctx = Ctx("searcher")
+    plugin.register(ctx)
+    assert set(ctx.tools) == {"x"} and [name for name, _ in ctx.hooks] == ["pre_tool_call"]
+    schema = ctx.tools["x"]["schema"]
+    assert schema["parameters"]["properties"]["action"]["enum"] == PUBLIC_ACTIONS
+    assert set(schema["parameters"]["properties"]) == {"action", "query", "top", "post", "limit", "posts"}
+    assert schema["parameters"]["additionalProperties"] is False
+    for action in MAIN_ACCOUNT_ACTIONS:
+        assert action not in schema["parameters"]["properties"]["action"]["enum"]
+    assert "main account" not in schema["description"] and "x_search" in schema["description"]
+    assert "only when x_search is not available" in schema["description"]
+
+
+def test_other_profiles_keep_every_action():
+    for profile in ("assistant", "marketer"):
+        assert plugin.xa.actions_for(profile) == plugin.xa.ACTIONS
+    assert plugin.xa.actions_for("creator") == () and plugin.xa.actions_for(None) == plugin.xa.ACTIONS
+
+
+@pytest.mark.parametrize("action", MAIN_ACCOUNT_ACTIONS)
+def test_searcher_is_refused_the_other_actions_at_every_layer(action):
+    searcher_x, searcher_gate = plugin.handler_for("searcher"), plugin.gate_for("searcher")
+    args = {"action": action, "handle": "@someone", "query": "a", "post": "https://x.com/a/status/1"}
+    directive = searcher_gate(tool_name="x", args=args)
+    assert directive["action"] == "block" and "not available to this profile" in directive["message"]
+    result = json.loads(searcher_x(args))
+    assert result["ok"] is False and "not available to this profile" in result["error"]
+    with pytest.raises(plugin.xa.XError, match="action must be one of status, search, thread, verify"):
+        plugin.xa.execute(args, profile="searcher")
+
+
+def count_search_calls(monkeypatch):
+    """Route every X read to a fake bridge that answers a search and counts it."""
+    seen = []
+
+    def bridge(op, **fields):
+        seen.append(op)
+        return fake_bridge("search" if op != "check" else op, **fields)
+    monkeypatch.setattr(plugin.xa, "bridge", bridge)
+    return seen
+
+
+def test_searcher_search_works_and_is_counted_apart(monkeypatch):
+    seen = count_search_calls(monkeypatch)
+    searcher_x = plugin.handler_for("searcher")
+    result = json.loads(searcher_x({"action": "search", "query": "from:a lang:ja", "top": True}))
+    assert result["ok"] is True and result["tab"] == "top" and seen == ["search"]
+    state = plugin.xa._read_state()
+    assert len(state["calls"]) == 1 and len(state["by_profile"]["searcher"]) == 1
+    status = json.loads(searcher_x({"action": "status"}))["usage"]
+    assert status["this_profile"] == {"last_hour": 1, "last_day": 1, "hourly_cap": 20, "daily_cap": 120}
+    assert "this_profile" not in json.loads(x({"action": "status"}))["usage"]
+
+
+def test_other_profiles_reads_are_not_counted_against_searcher(monkeypatch):
+    count_search_calls(monkeypatch)
+    for _ in range(3):
+        assert json.loads(x({"action": "search", "query": "a"}))["ok"] is True
+    state = plugin.xa._read_state()
+    assert len(state["calls"]) == 3 and "by_profile" not in state
+    searcher_status = json.loads(plugin.handler_for("searcher")({"action": "status"}))["usage"]
+    assert searcher_status["last_hour"] == 3 and searcher_status["this_profile"]["last_hour"] == 0
+
+
+def test_searcher_share_stops_it_while_the_others_can_still_read(monkeypatch):
+    count_search_calls(monkeypatch)
+    monkeypatch.setitem(plugin.xa.PROFILE_CAPS, "searcher", (2, 3))
+    searcher_x = plugin.handler_for("searcher")
+    for _ in range(2):
+        assert json.loads(searcher_x({"action": "search", "query": "a"}))["ok"] is True
+    blocked = json.loads(searcher_x({"action": "search", "query": "a"}))
+    assert blocked["ok"] is False and "this profile's share" in blocked["error"] and "in the last hour" in blocked["error"]
+    # the shared caps (30 an hour) are nowhere near used, so the Assistant still reads
+    assert json.loads(x({"action": "search", "query": "a"}))["ok"] is True
+    assert len(plugin.xa._read_state()["calls"]) == 3
+
+
+def test_searcher_daily_share(monkeypatch):
+    count_search_calls(monkeypatch)
+    monkeypatch.setitem(plugin.xa.PROFILE_CAPS, "searcher", (5, 2))
+    searcher_x = plugin.handler_for("searcher")
+    for _ in range(2):
+        assert json.loads(searcher_x({"action": "search", "query": "a"}))["ok"] is True
+    blocked = json.loads(searcher_x({"action": "search", "query": "a"}))
+    assert blocked["ok"] is False and "in the last 24 hours" in blocked["error"]
+
+
+def test_searcher_share_ages_out(monkeypatch):
+    count_search_calls(monkeypatch)
+    monkeypatch.setitem(plugin.xa.PROFILE_CAPS, "searcher", (1, 5))
+    searcher_x = plugin.handler_for("searcher")
+    assert json.loads(searcher_x({"action": "search", "query": "a"}))["ok"] is True
+    state = plugin.xa._read_state()
+    old = [t - 4000 for t in state["by_profile"]["searcher"]]   # more than an hour ago
+    state["by_profile"]["searcher"], state["calls"] = old, [t - 4000 for t in state["calls"]]
+    with plugin.xa._lock():
+        plugin.xa._write_state(state)
+    assert json.loads(searcher_x({"action": "search", "query": "a"}))["ok"] is True
+
+
+def test_searcher_verify_costs_no_share(monkeypatch):
+    count_search_calls(monkeypatch)
+    state_before = plugin.xa._read_state()
+    monkeypatch.setattr(plugin.xa, "verify", lambda args, home: {"ok": True, "action": "verify"})
+    assert json.loads(plugin.handler_for("searcher")({"action": "verify", "posts": ["1"]}))["ok"] is True
+    assert plugin.xa._read_state() == state_before
+
+
+def test_searcher_status_does_not_ask_for_a_main_handle():
+    searcher_x = plugin.handler_for("searcher")
+    result = json.loads(searcher_x({"action": "status"}))
+    assert result["ok"] is True and "problem" not in result
+    assistant_status = json.loads(x({"action": "status"}))
+    assert assistant_status["problem"] == plugin.xa.NO_MAIN
+
+
+def test_searcher_gate_allows_its_reads_and_keeps_the_bypass_guard():
+    searcher_gate = plugin.gate_for("searcher")
+    for action in PUBLIC_ACTIONS:
+        assert searcher_gate(tool_name="x", args={"action": action}) is None
+    assert searcher_gate(tool_name="terminal", args={"command": "twscrape search a"})["action"] == "block"
+
+
+def test_inbound_a2a_is_refused_on_searcher(monkeypatch, tmp_path):
+    monkeypatch.setattr(plugin, "_inbound_peer", lambda: True)
+    monkeypatch.setattr(plugin, "_home", lambda: tmp_path / "profiles" / "searcher")
+    directive = plugin.gate_for("searcher")(tool_name="x", args={"action": "verify"})
+    assert directive["action"] == "block" and "A2A" in directive["message"]
+    assert json.loads(plugin.handler_for("searcher")({"action": "verify"}))["ok"] is False

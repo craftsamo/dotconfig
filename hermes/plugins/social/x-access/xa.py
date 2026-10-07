@@ -14,6 +14,7 @@ Contract: docs/x-access.md.
 from __future__ import annotations
 
 from contextlib import contextmanager
+from contextvars import ContextVar
 from datetime import datetime, timezone
 import fcntl
 import http.client
@@ -31,6 +32,13 @@ import urllib.parse
 import urllib.request
 
 ACTIONS = ("status", "posts", "mentions", "search", "thread", "user", "media", "snapshot", "insights", "verify")
+# Searcher reads public posts only: nothing about the user's main account, nothing written to disk.
+# ``search`` is its fallback for when x_search is unavailable. ``search`` and ``thread`` draw on the
+# sub-account's caps, ``verify`` does not.
+PROFILE_ACTIONS = {"assistant": ACTIONS, "marketer": ACTIONS,
+                   "searcher": ("status", "search", "thread", "verify")}
+# Actions that read the user's main account and need ``x_access.main_handle``.
+MAIN_ACTIONS = ("posts", "mentions", "snapshot", "insights")
 NETWORK = {"posts", "mentions", "search", "thread", "user", "media", "snapshot"}
 
 HERE = Path(__file__).resolve().parent
@@ -46,6 +54,11 @@ LIMITS = {"posts": (20, 50), "mentions": (20, 50), "search": (20, 50), "thread":
 MIN_GAP = 5
 HOURLY = 30
 DAILY = 200
+# A profile named here may use only this share of the caps above (hourly, daily), counted apart from the
+# others, so a long sweep cannot leave the Assistant and Marketer without reads. Loose on purpose: it
+# keeps a third of the hour and 40% of the day for everyone else.
+PROFILE_CAPS = {"searcher": (20, 120)}
+_PROFILE: ContextVar[str | None] = ContextVar("x_access_profile", default=None)
 LOCK_WAIT = 90
 BRIDGE_DEADLINE = 60          # the bridge's own deadline; the process gets a margin on top
 BRIDGE_MARGIN = 30
@@ -131,10 +144,16 @@ class XError(Exception):
 
 # --- arguments ----------------------------------------------------------------------------------
 
-def action_of(args: dict) -> str:
+def actions_for(profile: str | None) -> tuple[str, ...]:
+    """The actions a profile may run; no profile (the CLI, the scheduled snapshot) means all of them."""
+    return ACTIONS if profile is None else PROFILE_ACTIONS.get(profile, ())
+
+
+def action_of(args: dict, profile: str | None = None) -> str:
     action = args.get("action")
-    if action not in ACTIONS:
-        raise XError("action must be one of " + ", ".join(ACTIONS))
+    allowed = actions_for(profile)
+    if action not in allowed:
+        raise XError("action must be one of " + ", ".join(allowed))
     return action
 
 
@@ -285,6 +304,12 @@ def _calls(state: dict, now: float) -> list[float]:
     return [t for t in state.get("calls") or [] if isinstance(t, (int, float)) and now - t < 86400]
 
 
+def _profile_calls(state: dict, profile: str | None, now: float) -> list[float]:
+    """The reads one capped profile made in the last 24 hours (a subset of ``calls``)."""
+    stamps = (state.get("by_profile") or {}).get(profile) if profile else None
+    return [t for t in stamps or [] if isinstance(t, (int, float)) and now - t < 86400]
+
+
 @contextmanager
 def _lock(name: str = "call.lock", busy: str = "another X read is still running; try again in a minute",
           wait: float | None = None):
@@ -356,6 +381,18 @@ def _pace(state: dict) -> None:
     now = time.time()
     calls = _calls(state, now)
     hour = [t for t in calls if now - t < 3600]
+    profile = _PROFILE.get()
+    if profile in PROFILE_CAPS:
+        hourly, daily = PROFILE_CAPS[profile]
+        mine = _profile_calls(state, profile, now)
+        mine_hour = [t for t in mine if now - t < 3600]
+        if len(mine_hour) >= hourly:
+            wait = int(3600 - (now - min(mine_hour))) // 60 + 1
+            raise XError(f"paused: this profile's share of X reads is used up ({hourly} in the last hour, kept "
+                         f"so the Assistant and Marketer can still read); try again in about {wait} min")
+        if len(mine) >= daily:
+            raise XError(f"paused: this profile's share of X reads is used up ({daily} in the last 24 hours); "
+                         "try again tomorrow")
     if len(hour) >= HOURLY:
         wait = int(3600 - (now - min(hour))) // 60 + 1
         raise XError(f"paused: {HOURLY} reads of X in the last hour (the cap that keeps the sub-account "
@@ -373,7 +410,13 @@ def _record(reply: dict | None) -> None:
     made of the session. A refusal is keyed to the cookies' fingerprint, so fresh cookies clear it."""
     state = _read_state()
     if reply is None or reply.get("contacted", True):
-        state["calls"] = _calls(state, time.time()) + [time.time()]
+        now = time.time()
+        state["calls"] = _calls(state, now) + [now]
+        profile = _PROFILE.get()
+        if profile in PROFILE_CAPS:
+            by_profile = state.get("by_profile") if isinstance(state.get("by_profile"), dict) else {}
+            by_profile[profile] = _profile_calls(state, profile, now) + [now]
+            state["by_profile"] = by_profile
     session = (reply or {}).get("session")
     if isinstance(session, dict):
         if session.get("active") is False:
@@ -389,11 +432,17 @@ def _record(reply: dict | None) -> None:
     _write_state(state)
 
 
-def usage() -> dict:
+def usage(profile: str | None = None) -> dict:
     now = time.time()
-    calls = _calls(_read_state(), now)
-    return {"last_hour": sum(1 for t in calls if now - t < 3600), "last_day": len(calls),
-            "hourly_cap": HOURLY, "daily_cap": DAILY}
+    state = _read_state()
+    calls = _calls(state, now)
+    result = {"last_hour": sum(1 for t in calls if now - t < 3600), "last_day": len(calls),
+              "hourly_cap": HOURLY, "daily_cap": DAILY}
+    if profile in PROFILE_CAPS:
+        mine = _profile_calls(state, profile, now)
+        result["this_profile"] = {"last_hour": sum(1 for t in mine if now - t < 3600), "last_day": len(mine),
+                                  "hourly_cap": PROFILE_CAPS[profile][0], "daily_cap": PROFILE_CAPS[profile][1]}
+    return result
 
 
 def _cached_user_id(handle: str) -> str | None:
@@ -587,11 +636,11 @@ def _not_found(post_id: str, warnings: list[str]) -> XError:
                   f"{hint}")
 
 
-def status(home: Path | None) -> dict:
+def status(home: Path | None, profile: str | None = None) -> dict:
     """Engine, cookies and what X last made of them; reads the Keychain but never X."""
     state = _read_state()
     result = {"ok": True, "action": "status", "engine": VENV_PYTHON.exists(), "main_handle": main_handle(home),
-              "download_dir": str(download_dir(home)), "usage": usage(), "verify_usage": verify_usage()}
+              "download_dir": str(download_dir(home)), "usage": usage(profile), "verify_usage": verify_usage()}
     if _future(state.get("rate_limited_until")):
         result["rate_limited_until"] = _local(state["rate_limited_until"])
     if not result["engine"]:
@@ -608,7 +657,7 @@ def status(home: Path | None) -> dict:
     refused = state.get("refused") or {}
     if refused and refused.get("fingerprint") == reply.get("fingerprint"):
         result["problem"] = _refused_message(refused.get("error"))
-    if not result["main_handle"]:
+    if not result["main_handle"] and set(MAIN_ACTIONS) & set(actions_for(profile)):
         result.setdefault("problem", NO_MAIN)
     return result
 
@@ -1370,11 +1419,19 @@ def verify(args: dict, home: Path | None) -> dict:
     return result
 
 
-def execute(args: dict, home: Path | None = None) -> dict:
+def execute(args: dict, home: Path | None = None, profile: str | None = None) -> dict:
     args = args if isinstance(args, dict) else {}
-    action = action_of(args)
+    action = action_of(args, profile)
+    token = _PROFILE.set(profile)
+    try:
+        return _run(action, args, home, profile)
+    finally:
+        _PROFILE.reset(token)
+
+
+def _run(action: str, args: dict, home: Path | None, profile: str | None) -> dict:
     if action == "status":
-        return status(home)
+        return status(home, profile)
     if action == "posts":
         return posts(args, home)
     if action == "mentions":

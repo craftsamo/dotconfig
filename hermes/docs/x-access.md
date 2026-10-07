@@ -3,7 +3,8 @@
 A read-only view of X (Twitter) for the Assistant and Marketer: the user's
 main account's posts and mentions, search, threads, profiles, a post's
 photos, videos and GIFs, a ledger of the main account's public counts, and
-bulk checks of public posts' authors and counts.
+bulk checks of public posts' authors and counts. Searcher gets only the
+public part: `status`, `search`, `thread` and `verify` ([Profiles](#profiles)).
 It reads as a separate **sub-account**; the main account is only a search
 subject and never signs in here. Nothing posts, replies, likes, follows or
 sends DMs. Part of the Hermes design docs — index:
@@ -54,7 +55,7 @@ are masked in every string the bridge returns.
 `state.json` (call timestamps for pacing, a handle → user id cache for seven
 days, and what X last made of the session), `call.lock`, the metrics
 ledger `metrics.jsonl` (see [Metrics](#metrics)) and `verify`'s own `fx.json`
-and `fx.lock` (see [Verify](#verify)). Both profiles share it, so the caps
+and `fx.lock` (see [Verify](#verify)). Every profile shares it, so the caps
 below count every read from either.
 
 Because the pool is rebuilt for every call, the engine remembers X's verdicts
@@ -212,6 +213,36 @@ read: the tool is in its `a2a` toolset, and the plugin allows an inbound
 request only when the turn's bound profile home is Marketer's, failing
 closed otherwise. The plugin registers per profile, so each profile's
 handler and hook carry their own profile name.
+
+## Profiles
+
+| Profile   | Actions                                | Inbound A2A   |
+| --------- | -------------------------------------- | ------------- |
+| Assistant | every action                           | refused       |
+| Marketer  | every action                           | reads allowed |
+| Searcher  | `status`, `search`, `thread`, `verify` | refused       |
+
+The action list a profile gets (`PROFILE_ACTIONS` in `xa.py`) fixes its schema
+and is checked again by the gate, the handler and the engine, so naming
+another action from Searcher is refused even though the tool is the same.
+Searcher reads public posts only: nothing about the user's main account
+(`posts`, `mentions`, `snapshot`, `insights`, `user`) and no `media`, which
+writes files. It finds posts with `x_search`; `search` is the fallback for
+when that tool is hidden (a lapsed xAI login) or failing, and its schema says
+so. `search` and `thread` draw on the sub-account's caps shared with the
+Assistant and Marketer; `verify` does not, so prefer it to confirm a post.
+Searcher's `status` omits the `x_access.main_handle` warning, which concerns
+actions it does not have.
+
+**A profile's share of the caps.** `PROFILE_CAPS` gives Searcher at most 20
+reads an hour and 120 a day, counted apart in `state.json` under `by_profile`
+(a subset of the shared `calls`), so a long sweep stops itself before the
+shared 30 and 200 do and the Assistant and Marketer keep at least 10 an hour
+and 80 a day. The numbers are loose on purpose: Searcher reads X rarely. It
+stops with "this profile's share of X reads is used up" and the wait; `status`
+shows the share as `usage.this_profile`. Profiles not named there are only
+bound by the shared caps, and the scheduled snapshot is not counted against
+any share.
 
 ## Setup
 
