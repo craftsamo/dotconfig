@@ -124,6 +124,7 @@ scripts/               # profile-secrets.sh (secrets.command helper),
                        #   check-local-patches.sh, x-access.sh, substack-access.sh,
                        #   youtube-access.sh,
                        #   verify-work-continuity.py, audit-hands-references.py,
+                       #   audit-searcher-sessions.py,
                        #   qwen3_tts_server.py, qwen3_tts_reading_check.py,
                        #   stable_audio3.py, tests/ (pytest suites + fixtures)
 local/                 # ignored machine-local installs: engine venvs/weights,
@@ -1154,6 +1155,12 @@ tool returns `status: "blocked"`.
   topology, metadata, routing registries, hands leaves, Creator's phase/subject
   references and Git ownership; add `--strict-git` in a staged/clean tree to
   fail on managed files that are still untracked.
+- `hermes-python hermes/scripts/audit-searcher-sessions.py --since 2026-09-13 [--db PATH] [--json] [--strict]`
+  — read-only scan of the Searcher's `state.db` for known failure signatures
+  (stopping early against the announced budget, claiming a commit or save that
+  never happened, skipping X search as "read-only", missing phase entries,
+  runtime refusals). It prints counts, never message text. Run it before and
+  after a Searcher change to compare.
 - Full suite:
   ```sh
   cd ~/.config/hermes &&
