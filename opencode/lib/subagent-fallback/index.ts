@@ -1,16 +1,18 @@
 import { createHash } from "node:crypto"
-import { diagnoseQuota, type Diagnostic } from "./diagnostics"
 import {
-  QuotaReader,
   subscription,
   type AccountsContext,
-  type Dependencies,
   type Subscription,
 } from "./accounts"
-import { inspectAnthropicUsage } from "./quota"
+import {
+  dependencies,
+  exportPath,
+  loadQuotaExport,
+  readQuota,
+  type Dependencies,
+} from "./quota"
 import {
   decideLaunch,
-  freshState,
   modelsEqual,
   routeForLaunch,
   ROUTES,
@@ -70,16 +72,6 @@ type Executor = (
   context: ToolContext,
 ) => Promise<Result>
 export type RuntimeContext = AccountsContext & {
-  rpc?: {
-    register(
-      definition: Record<string, unknown>,
-      handlers: {
-        inspectQuota(input: unknown): Promise<unknown>
-        inspectAnthropicQuota(input: unknown): Promise<unknown>
-        inspectParser(input: unknown): Promise<unknown>
-      },
-    ): Promise<Registration>
-  }
   app: { version: string }
   options: Record<string, unknown>
   agent: {
@@ -129,8 +121,6 @@ type Marker = {
   model: ModelRef
   connectionID: string
   fallback: boolean
-  funding?: "included" | "credits"
-  allowUnknownQuota?: boolean
   launchChecked?: boolean
   wireChecked?: boolean
 }
@@ -169,12 +159,6 @@ function parseMarker(session: Session): Marker | undefined {
     typeof raw.connectionID !== "string" ||
     !raw.connectionID ||
     typeof raw.fallback !== "boolean" ||
-    (raw.funding !== undefined &&
-      raw.funding !== "included" &&
-      raw.funding !== "credits") ||
-    (raw.allowUnknownQuota !== undefined &&
-      typeof raw.allowUnknownQuota !== "boolean") ||
-    (raw.fallback === true && raw.allowUnknownQuota === true) ||
     (raw.launchChecked !== undefined &&
       typeof raw.launchChecked !== "boolean") ||
     (raw.wireChecked !== undefined && typeof raw.wireChecked !== "boolean") ||
@@ -255,10 +239,13 @@ function transportURL(
 
 export async function setupPreflight(
   ctx: RuntimeContext,
-  deps: Dependencies = { fetch: globalThis.fetch, now: Date.now },
+  deps: Dependencies = dependencies,
 ): Promise<() => Promise<void>> {
   const registrations: Registration[] = []
-  const quota = new QuotaReader(deps)
+  const quotaPath =
+    typeof ctx.options.quotaExportPath === "string"
+      ? ctx.options.quotaExportPath
+      : exportPath()
   const handshakes = new Map<string, string>()
   const enabled = ctx.options.enabled === true
   const protectedChild = async (sessionID: string) => {
@@ -301,46 +288,8 @@ export async function setupPreflight(
         auth.proof.connectionID !== marker.connectionID)
     )
       fail("subscription account changed or unavailable")
-    const proof = await quota.inspect(
-      auth,
-      event.model,
-      new AbortController().signal,
-    )
-    const billingFresh =
-      Number.isFinite(proof.billing.observedAt) &&
-      deps.now() - proof.billing.observedAt >= 0 &&
-      deps.now() - proof.billing.observedAt <= 30_000
-    const includedState = freshState(proof.quota, deps.now())
-    if (
-      !billingFresh ||
-      !["subscription_only", "credits_available"].includes(proof.billing.state)
-    )
-      fail("usage-credit availability is unknown or invalid")
-    if (
-      marker.funding === "credits" &&
-      event.model.providerID === marker.model.providerID
-    ) {
-      if (ctx.options.creditsLastResort !== true)
-        fail("credit use was disabled by the operator")
-      if (
-        includedState !== "available" &&
-        proof.billing.state !== "credits_available"
-      )
-        fail("last-resort credits are no longer available")
-    } else if (includedState !== "available") {
-      if (
-        !(
-          marker.allowUnknownQuota === true &&
-          event.kind === "primary" &&
-          modelsEqual(event.model, marker.model) &&
-          proof.billing.state === "subscription_only" &&
-          includedState === undefined
-        )
-      )
-        fail(
-          "included quota unavailable or exhausted; no mid-task switch to credits",
-        )
-    }
+    // Launch preferences are not an in-flight billing gate. Keep identity and
+    // transport protection, without fetching/rechecking usage or credit balances.
     return auth
   }
   const guardContext = async (event: ContextEvent) => {
@@ -447,201 +396,6 @@ export async function setupPreflight(
     handshakes.clear()
   }
   try {
-    if (ctx.rpc) {
-      const diagnosticSchema = {
-        type: "object",
-        additionalProperties: false,
-        required: ["outcome"],
-        properties: {
-          outcome: {
-            type: "string",
-            enum: [
-              "account_unavailable",
-              "http_error",
-              "timeout",
-              "transport_or_redirect_error",
-              "json_decode_error",
-              "parser_reject",
-              "proof_accepted",
-            ],
-          },
-          status: { type: "integer" },
-          reasons: { type: "array", items: { type: "string" } },
-          limitShapes: {
-            type: "array",
-            maxItems: 20,
-            items: {
-              type: "object",
-              additionalProperties: false,
-              required: ["kind", "fields"],
-              properties: {
-                kind: { type: "string" },
-                fields: {
-                  type: "object",
-                  additionalProperties: false,
-                  properties: Object.fromEntries(
-                    [
-                      "kind",
-                      "type",
-                      "name",
-                      "percent",
-                      "utilization",
-                      "resets_at",
-                      "scope",
-                      "is_active",
-                      "period",
-                      "limit",
-                      "usage",
-                    ].map((f) => [
-                      f,
-                      {
-                        type: "string",
-                        enum: [
-                          "null",
-                          "array",
-                          "object",
-                          "string",
-                          "number",
-                          "boolean",
-                          "undefined",
-                          "other",
-                        ],
-                      },
-                    ]),
-                  ),
-                },
-              },
-            },
-          },
-          state: { type: "string", enum: ["available", "exhausted"] },
-          billingState: {
-            type: "string",
-            enum: [
-              "subscription_only",
-              "credits_available",
-              "paid_risk",
-              "unknown",
-            ],
-          },
-        },
-      }
-      let anthropicInspection: Promise<Diagnostic> | undefined
-      let openaiInspection: Promise<Diagnostic> | undefined
-      const inspectAnthropic = () =>
-        (anthropicInspection ??= diagnoseQuota(ctx, "anthropic", deps))
-      const inspectOpenAI = () =>
-        (openaiInspection ??= diagnoseQuota(ctx, "openai", deps))
-      registrations.push(
-        await ctx.rpc.register(
-          {
-            id: "dotconfig.subagent-preflight",
-            events: {},
-            methods: {
-              inspectQuota: {
-                input: {
-                  type: "object",
-                  additionalProperties: false,
-                  properties: {},
-                },
-                output: {
-                  type: "object",
-                  additionalProperties: false,
-                  required: ["anthropic", "openai"],
-                  properties: {
-                    anthropic: diagnosticSchema,
-                    openai: diagnosticSchema,
-                  },
-                },
-              },
-              inspectAnthropicQuota: {
-                input: {
-                  type: "object",
-                  additionalProperties: false,
-                  properties: {},
-                },
-                output: diagnosticSchema,
-              },
-              inspectParser: {
-                input: {
-                  type: "object",
-                  additionalProperties: false,
-                  properties: {},
-                },
-                output: {
-                  type: "object",
-                  additionalProperties: false,
-                  required: ["revision", "belowLimit", "atLimit"],
-                  properties: {
-                    revision: {
-                      type: "string",
-                      enum: ["anthropic-opaque-window-v2"],
-                    },
-                    belowLimit: {
-                      type: "string",
-                      enum: ["available", "exhausted", "unknown"],
-                    },
-                    atLimit: {
-                      type: "string",
-                      enum: ["available", "exhausted", "unknown"],
-                    },
-                  },
-                },
-              },
-            },
-          },
-          {
-            inspectParser: async () => {
-              if (ctx.options.allowDiagnostics !== true)
-                fail("parser diagnostics are disabled")
-              const now = Date.parse("2026-01-01T00:00:00Z")
-              const state = (percent: number) =>
-                inspectAnthropicUsage(
-                  {
-                    five_hour: {
-                      utilization: 10,
-                      resets_at: "2026-01-01T01:00:00Z",
-                    },
-                    seven_day: {
-                      utilization: 20,
-                      resets_at: "2026-01-01T01:00:00Z",
-                    },
-                    extra_usage: { is_enabled: false },
-                    limits: [
-                      {
-                        kind: "weekly_scoped",
-                        percent,
-                        resets_at: "2026-01-01T01:00:00Z",
-                        scope: { model: { id: null, display_name: "Fable" } },
-                      },
-                    ],
-                  },
-                  now,
-                  "claude-sonnet-5-5",
-                ).quota.state
-              return {
-                revision: "anthropic-opaque-window-v2" as const,
-                belowLimit: state(50),
-                atLimit: state(100),
-              }
-            },
-            inspectQuota: async () => {
-              // Explicit operator opt-in only. One bounded GET per provider per
-              // registration, with only fixed codes/status leaving the plugin.
-              if (ctx.options.allowDiagnostics !== true)
-                fail("usage diagnostics are disabled")
-              return Promise.all([inspectAnthropic(), inspectOpenAI()]).then(
-                ([anthropic, openai]) => ({ anthropic, openai }),
-              )
-            },
-            inspectAnthropicQuota: async () => {
-              if (ctx.options.allowDiagnostics !== true)
-                fail("usage diagnostics are disabled")
-              return inspectAnthropic()
-            },
-          },
-        ),
-      )
-    }
     registrations.push(await ctx.session.hook("context", guardContext))
     registrations.push(
       await ctx.session.hook("http.request", async (event) => {
@@ -761,30 +515,21 @@ export async function setupPreflight(
             const route = routeForLaunch(input, agent.model)
             if (!route) return original(input, context)
             context.signal.throwIfAborted()
+            const snapshot = await loadQuotaExport(deps, quotaPath)
+            context.signal.throwIfAborted()
             const probe = async (model: ModelRef) => {
               let auth: Subscription | undefined
               try {
                 auth = await subscription(ctx, model.providerID)
               } catch {}
-              const usage = auth
-                ? await quota.inspect(auth, model, context.signal)
-                : {
-                    quota: {
-                      state: "unknown" as const,
-                      observedAt: deps.now(),
-                    },
-                    billing: {
-                      state: "unknown" as const,
-                      observedAt: deps.now(),
-                    },
-                  }
-              return { account: auth?.proof, ...usage }
+              return {
+                account: auth?.proof,
+                quota: readQuota(snapshot, auth?.proof, deps.now()),
+              }
             }
             const source = await probe(route.primary)
             const target =
-              source.quota.state !== "available" ||
-              deps.now() - source.quota.observedAt > 30_000 ||
-              deps.now() - source.quota.observedAt < 0
+              source.quota.state === "exhausted"
                 ? await probe(route.alternate)
                 : undefined
             const catalog = (
@@ -856,9 +601,6 @@ export async function setupPreflight(
                     model: decision.model,
                     connectionID: account.connectionID,
                     fallback: alternate,
-                    funding:
-                      decision.kind === "credits" ? "credits" : "included",
-                    allowUnknownQuota: decision.kind === "default",
                   }
                   await ctx.session.update({
                     sessionID: child.id,
@@ -873,14 +615,15 @@ export async function setupPreflight(
             if (decision.kind === "default") return result
             const notice =
               decision.kind === "credits"
-                ? `[Subagent preflight: ${input.agent} ${selector(decision.model)}; both included quotas exhausted, existing credits authorized as last resort. No credit purchase or running-session switch.]`
-                : `[Subagent preflight: ${input.agent} ${selector(route.primary)} → ${selector(decision.model)}; prioritizing verified available included quota. No running-session switch.]`
+                ? `[Subagent preflight: ${input.agent} ${selector(decision.model)}; Quota reports both included quotas at 0%, trying the default with provider-managed credits as last resort. No credit purchase or running-session switch.]`
+                : `[Subagent preflight: ${input.agent} ${selector(route.primary)} → ${selector(decision.model)}; prioritizing remaining included quota reported by Quota. No running-session switch.]`
             return {
               ...result,
               metadata: {
                 ...result.metadata,
                 preflight: {
-                  funding: decision.kind === "credits" ? "credits" : "included",
+                  funding:
+                    decision.kind === "credits" ? "provider" : "included",
                   from: selector(route.primary),
                   to: selector(decision.model),
                 },
