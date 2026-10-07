@@ -441,32 +441,37 @@ def address(ctx, args) -> dict:
         result["kind"] = "EOA (no code)"
         return result
     result.update(kind="contract", code_size=len(raw))
-    m = re.match(rb"^\x36\x3d\x3d\x37\x3d\x3d\x3d\x36\x3d\x73(.{20})\x5a\xf4", raw, re.S)
-    if m:
-        result["proxy"] = {"type": "EIP-1167 minimal proxy", "implementation": checksum("0x" + m.group(1).hex())}
-    else:
-        impl, beacon, admin = ctx.rpc.batch([("eth_getStorageAt", [target, slot, "latest"])
-                                             for slot in (EIP1967_IMPL, EIP1967_BEACON, EIP1967_ADMIN)])
-        proxy = {}
-        if impl and int(impl, 16):
-            proxy = {"type": "EIP-1967", "implementation": checksum("0x" + impl[-40:])}
-        elif beacon and int(beacon, 16):
-            proxy = {"type": "EIP-1967 beacon", "beacon": checksum("0x" + beacon[-40:])}
-            got = ctx.rpc.try_call("eth_call", [{"to": proxy["beacon"], "data": "0x" + SEL["implementation"]},
-                                                "latest"])[0]
-            if got and len(_bytes(got)) >= 32:
-                proxy["implementation"] = checksum("0x" + got[-40:])
-        if proxy and admin and int(admin, 16):
-            proxy["admin"] = checksum("0x" + admin[-40:])
-        if proxy:
-            result["proxy"] = proxy
+    proxy = _proxy(ctx, target, raw)
+    if proxy:
+        result["proxy"] = proxy
     result["standards"] = _standards(ctx, target)
-    _, name = ctx.decoder.contract(target)
-    entries, _ = ctx.decoder.abis.get(target, ([], None))
+    entries, name = ctx.decoder.contract(target, (proxy or {}).get("implementation"))
     result["verified"] = bool(entries)
     if name:
         result["verified_name"] = abi.untrusted(name)
     return result
+
+
+def _proxy(ctx, target: str, raw: bytes, block: str = "latest") -> dict | None:
+    """A proxy read from the chain at a block: EIP-1167 code, or the EIP-1967 implementation /
+    beacon / admin slots."""
+    m = re.match(rb"^\x36\x3d\x3d\x37\x3d\x3d\x3d\x36\x3d\x73(.{20})\x5a\xf4", raw, re.S)
+    if m:
+        return {"type": "EIP-1167 minimal proxy", "implementation": checksum("0x" + m.group(1).hex())}
+    impl, beacon, admin = ctx.rpc.batch([("eth_getStorageAt", [target, slot, block])
+                                         for slot in (EIP1967_IMPL, EIP1967_BEACON, EIP1967_ADMIN)])
+    proxy = {}
+    if impl and int(impl, 16):
+        proxy = {"type": "EIP-1967", "implementation": checksum("0x" + impl[-40:])}
+    elif beacon and int(beacon, 16):
+        proxy = {"type": "EIP-1967 beacon", "beacon": checksum("0x" + beacon[-40:])}
+        got = ctx.rpc.try_call("eth_call", [{"to": proxy["beacon"], "data": "0x" + SEL["implementation"]},
+                                            block])[0]
+        if got and len(_bytes(got)) >= 32:
+            proxy["implementation"] = checksum("0x" + got[-40:])
+    if proxy and admin and int(admin, 16):
+        proxy["admin"] = checksum("0x" + admin[-40:])
+    return proxy or None
 
 
 def _standards(ctx, target: str) -> list[str]:

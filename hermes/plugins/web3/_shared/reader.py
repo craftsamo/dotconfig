@@ -5,8 +5,9 @@ The plugin writes one JSON request to stdin and reads one JSON reply from stdout
     {"action": "block" | "tx" | …, "chain": "<table key>", …the action's arguments}
     → {"ok": true, "data": {…}} or {"ok": false, "error": "…"}
 
-Nothing here signs, holds a key or writes a file. ``_rpc`` (an endpoint) and ``_offline`` (no
-Sourcify, 4byte or CoinGecko lookups) are honoured only when the engine's own tests set
+Nothing here signs, holds a key or writes a file. ``_rpc`` (an endpoint), ``_offline`` (no
+Sourcify, Etherscan, 4byte or CoinGecko lookups) and ``_http`` (one server standing in for
+Sourcify, Etherscan and the signature database) are honoured only when the engine's own tests set
 ``WEB3_ENGINE_TEST=1``; the plugin never passes them. Contract: docs/web3.md "Reads".
 """
 
@@ -17,10 +18,13 @@ import sys
 
 import abi
 import chains
+import contracts
 import evm
 import prices
 import rpc
 import sol
+
+EVM_ACTIONS = {**evm.ACTIONS, **contracts.ACTIONS}
 
 
 class Ctx:
@@ -33,7 +37,8 @@ class Ctx:
         self.rpc = rpc.Rpc(chain, self.override)
         self.prices = prices.Prices(self.online)
         info = chains.info(chain)
-        self.decoder = abi.Decoder(info["id"], self.online) if chain in chains.EVM else None
+        self.decoder = abi.Decoder(info["id"], self.online, payload.get("_http") if test else None) \
+            if chain in chains.EVM else None
 
     def child(self, chain: str) -> "Ctx":
         sub = Ctx(chain, self.payload)
@@ -49,7 +54,7 @@ def run(payload: dict) -> dict:
     kind = chains.family(chain) if isinstance(chain, str) else None
     if kind is None:
         raise rpc.ChainError(f"unknown chain {chain!r}; use one of: {', '.join(chains.CHAINS)}")
-    table = evm.ACTIONS if kind == "evm" else sol.ACTIONS
+    table = EVM_ACTIONS if kind == "evm" else sol.ACTIONS
     if action not in table:
         raise rpc.ChainError(f"{action!r} is not available on {chain}; use one of: {', '.join(table)}")
     return table[action](Ctx(chain, payload), payload)

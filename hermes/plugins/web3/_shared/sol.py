@@ -12,13 +12,23 @@ import base64
 from collections import Counter, defaultdict
 from datetime import datetime, timezone
 from decimal import Decimal
+import json
 import re
+import zlib
 
 import abi
 import chains
 from prices import usd
 from rpc import ChainError
 
+B58 = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
+UPGRADEABLE_LOADER = "BPFLoaderUpgradeab1e11111111111111111111111"
+LOADER_V4 = "LoaderV411111111111111111111111111111111111"
+OLD_LOADERS = {"BPFLoader2111111111111111111111111111111111", "BPFLoader1111111111111111111111111111111111"}
+NATIVE_LOADER = "NativeLoader1111111111111111111111111111111"
+MAX_IDL_BYTES = 2_000_000   # an Anchor IDL inflated past this is not read
+MAX_IDL_ITEMS = 80
+_IDENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]{0,63}$|^\d+\.\d+\.\d+[A-Za-z0-9.+-]{0,20}$")
 TOP = 5
 MAX_INSTRUCTIONS = 60
 MAX_LOG_LINES = 60
@@ -188,14 +198,21 @@ def _instruction(ix: dict) -> dict:
 
 
 def _b58decode(text: str) -> bytes:
-    alphabet = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
     number = 0
     for char in text:
-        if char not in alphabet:
+        if char not in B58:
             return b""
-        number = number * 58 + alphabet.index(char)
+        number = number * 58 + B58.index(char)
     raw = number.to_bytes((number.bit_length() + 7) // 8, "big") if number else b""
     return b"\x00" * (len(text) - len(text.lstrip("1"))) + raw
+
+
+def base58(raw: bytes) -> str:
+    number, out = int.from_bytes(raw, "big"), ""
+    while number:
+        number, rest = divmod(number, 58)
+        out = B58[rest] + out
+    return "1" * (len(raw) - len(raw.lstrip(b"\x00"))) + out
 
 
 def _balance_changes(meta: dict, keys: list[dict]) -> list[dict]:
@@ -277,6 +294,166 @@ def token(ctx, args) -> dict:
     if market:
         result["market"] = market
     return result
+
+
+def program(ctx, args) -> dict:
+    """Who can replace a program's code, when it was last deployed, and its Anchor IDL if published."""
+    target = require_address(args.get("address"))
+    info = ctx.rpc.call("getAccountInfo", [target, {"encoding": "jsonParsed"}])
+    value = (info or {}).get("value")
+    if not value:
+        raise ChainError(f"no account at {target} on {ctx.chain}")
+    if not value.get("executable"):
+        raise ChainError(f"{target} is not a program (owner {value.get('owner')}); address tells what it is")
+    loader = value.get("owner")
+    result = {"chain": ctx.chain, "program": target, "name": program_name(target), "loader": loader,
+              "explorer": chains.explorer(ctx.chain, "account", target)}
+    if loader == UPGRADEABLE_LOADER:
+        parsed = (value.get("data") or {}).get("parsed") if isinstance(value.get("data"), dict) else None
+        data_address = ((parsed or {}).get("info") or {}).get("programData")
+        result.update(_program_data(ctx, data_address) if data_address else {"upgradeable": None})
+    elif loader == LOADER_V4:
+        result.update(_loader_v4(ctx, target))
+    elif loader in OLD_LOADERS:
+        result["upgradeable"] = False
+    elif loader == NATIVE_LOADER:
+        result.update(upgradeable=None, builtin=True)
+    if result.get("name") is None:
+        result.pop("name")
+    idl = _idl(ctx, target)
+    if idl:
+        result["idl"] = idl
+    return result
+
+
+def _account_bytes(ctx, address: str, length: int | None = None) -> tuple[bytes, dict] | None:
+    config = {"encoding": "base64", **({"dataSlice": {"offset": 0, "length": length}} if length else {})}
+    value = ((ctx.rpc.call("getAccountInfo", [address, config]) or {}).get("value"))
+    if not value:
+        return None
+    data = value.get("data")
+    return (base64.b64decode(data[0]) if isinstance(data, list) and data else b""), value
+
+
+def _program_data(ctx, address: str) -> dict:
+    found = _account_bytes(ctx, address, 45)
+    if not found or len(found[0]) < 13 or int.from_bytes(found[0][:4], "little") != 3:
+        return {"program_data": address, "upgradeable": None}
+    raw, value = found
+    authority = base58(raw[13:45]) if raw[12] == 1 and len(raw) >= 45 else None
+    return {"program_data": address, "upgradeable": authority is not None, "upgrade_authority": authority,
+            "last_deployed_slot": int.from_bytes(raw[4:12], "little"), "size": value.get("space")}
+
+
+def _loader_v4(ctx, address: str) -> dict:
+    found = _account_bytes(ctx, address, 48)
+    if not found or len(found[0]) < 48:
+        return {"upgradeable": None}
+    raw, value = found
+    status = {0: "retracted", 1: "deployed", 2: "finalized"}.get(int.from_bytes(raw[40:48], "little"), "unknown")
+    return {"upgradeable": status != "finalized", "status": status,
+            **({"upgrade_authority": base58(raw[8:40])} if status != "finalized" else {}),
+            "last_deployed_slot": int.from_bytes(raw[:8], "little"), "size": value.get("space")}
+
+
+def _idl(ctx, target: str) -> dict | None:
+    """The Anchor IDL account's contents, summarised. Names come from the program's authors; its
+    descriptions and error messages are untrusted text."""
+    from solders.pubkey import Pubkey
+
+    program_id = Pubkey.from_string(target)
+    base, _ = Pubkey.find_program_address([], program_id)
+    address = str(Pubkey.create_with_seed(base, "anchor:idl", program_id))
+    found = _account_bytes(ctx, address)
+    if not found or len(found[0]) < 44:
+        return None
+    raw = found[0]
+    size = int.from_bytes(raw[40:44], "little")
+    try:
+        inflater = zlib.decompressobj()
+        text = inflater.decompress(raw[44:44 + size], MAX_IDL_BYTES)
+        if inflater.unconsumed_tail:
+            return {"address": address, "authority": base58(raw[8:40]), "readable": False, "size": size}
+        idl = json.loads(text)
+    except (zlib.error, ValueError):
+        return {"address": address, "authority": base58(raw[8:40]), "readable": False}
+    if not isinstance(idl, dict):
+        return {"address": address, "authority": base58(raw[8:40]), "readable": False}
+    meta = idl.get("metadata") if isinstance(idl.get("metadata"), dict) else {}
+    out = {"address": address, "authority": base58(raw[8:40]), "name": _ident(meta.get("name") or idl.get("name")),
+           "version": _ident(meta.get("version") or idl.get("version"))}
+    if meta.get("description"):
+        out["description"] = abi.untrusted(meta["description"])
+    instructions = []
+    for ix in _items(idl.get("instructions"))[:MAX_IDL_ITEMS]:
+        accounts = _flat_accounts(ix.get("accounts"))
+        instructions.append({
+            "name": _ident(ix.get("name")),
+            "args": [f"{_ident_text(a.get('name'))}: {_idl_type(a.get('type'))}"
+                     for a in _items(ix.get("args"))][:MAX_IDL_ITEMS],
+            "signers": [n for n, a in accounts if a.get("signer") or a.get("isSigner")][:MAX_IDL_ITEMS],
+            "writable": [n for n, a in accounts if a.get("writable") or a.get("isMut")][:MAX_IDL_ITEMS]})
+    out["instructions"] = instructions
+    if len(_items(idl.get("instructions"))) > MAX_IDL_ITEMS:
+        out["instructions_omitted"] = len(_items(idl["instructions"])) - MAX_IDL_ITEMS
+    for key in ("accounts", "events"):
+        names = [_ident(item.get("name")) for item in _items(idl.get(key))]
+        if names:
+            out[key] = names[:MAX_IDL_ITEMS]
+    errors = [{"code": e.get("code") if isinstance(e.get("code"), int) else None, "name": _ident(e.get("name")),
+               **({"msg": abi.untrusted(e["msg"])} if e.get("msg") else {})}
+              for e in _items(idl.get("errors"))[:MAX_IDL_ITEMS]]
+    if errors:
+        out["errors"] = errors
+    return out
+
+
+def _items(value) -> list[dict]:
+    return [item for item in value if isinstance(item, dict)] if isinstance(value, list) else []
+
+
+def _ident_text(value) -> str:
+    """An IDL name as plain text when it is a Rust-style identifier, else a placeholder."""
+    return value if isinstance(value, str) and _IDENT.match(value) else "?"
+
+
+def _ident(value):
+    """An IDL name: plain when it is an identifier (or a version), else untrusted text — the IDL is
+    written by the program's authors, not checked by any compiler."""
+    if value is None:
+        return None
+    return value if isinstance(value, str) and _IDENT.match(value) else abi.untrusted(value)
+
+
+def _flat_accounts(accounts, prefix: str = "", depth: int = 0) -> list[tuple[str, dict]]:
+    """(name, account) pairs, Anchor's nested account groups flattened as group.name."""
+    out = []
+    for account in _items(accounts):
+        name = prefix + _ident_text(account.get("name"))
+        if isinstance(account.get("accounts"), list) and depth < 4:
+            out += _flat_accounts(account["accounts"], name + ".", depth + 1)
+        else:
+            out.append((name, account))
+    return out
+
+
+def _idl_type(kind, depth: int = 0) -> str:
+    """An Anchor IDL type as short text: u64, Vec<Pubkey>, Option<RoutePlanStep>, [u8; 32]."""
+    if depth > 6:
+        return "?"
+    if isinstance(kind, str):
+        return _ident_text(kind)
+    if isinstance(kind, dict):
+        for wrap, label in (("vec", "Vec"), ("option", "Option"), ("coption", "COption")):
+            if wrap in kind:
+                return f"{label}<{_idl_type(kind[wrap], depth + 1)}>"
+        if "array" in kind and isinstance(kind["array"], list) and len(kind["array"]) == 2:
+            size = kind["array"][1]
+            return f"[{_idl_type(kind['array'][0], depth + 1)}; {size if isinstance(size, int) else '?'}]"
+        if "defined" in kind:
+            defined = kind["defined"]
+            return _ident_text(defined.get("name") if isinstance(defined, dict) else defined)
+    return "?"
 
 
 def _token_accounts(ctx, owner: str) -> list[dict]:
@@ -448,4 +625,5 @@ def price(ctx, args) -> dict:
 
 
 ACTIONS = {"block": block, "tx": tx, "address": address, "portfolio": portfolio, "activity": activity,
-           "token": token, "allowances": allowances, "decode": decode, "gas": gas, "price": price}
+           "token": token, "allowances": allowances, "decode": decode, "gas": gas, "price": price,
+           "program": program}
