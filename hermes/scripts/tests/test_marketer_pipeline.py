@@ -348,7 +348,7 @@ def test_actual_config_is_a_read_only_advisor():
 
 def test_direct_client_discovery_and_bounded_requests():
     kernel = text("SKILL.md")
-    assert "the Assistant, the other primaries (Creator, Engineer) and the human" in kernel
+    assert "the Assistant, Creator and the human" in kernel
     assert "A product need not exist at intake" in kernel
     assert "not mandatory consecutive stages" in kernel
     assert "A short question finishes in one reply" in kernel

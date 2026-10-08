@@ -415,7 +415,7 @@ def test_tool_is_registered_strict_and_gated(db, monkeypatch):
     tools = {}
 
     class Context:
-        profile_name = "engineer"
+        profile_name = "assistant"
 
         def register_hook(self, name, callback):
             pass

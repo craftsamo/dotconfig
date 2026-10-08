@@ -11,8 +11,8 @@
 #   1. `secret env -p global`               — shared web-search / tool keys
 #   2. `secret env -p hermes`               — shared model/provider keys.
 #      The messaging keys (TELEGRAM_*/DISCORD_*) parked there are the
-#      ASSISTANT's: assistant gets them unfiltered; the other bot profiles
-#      (engineer/marketer) keep only TELEGRAM_ALLOWED_USERS (the
+#      ASSISTANT's: assistant gets them unfiltered; the other bot profile
+#      (marketer) keeps only TELEGRAM_ALLOWED_USERS (the
 #      owner allowlist is shared) and drop the rest; non-bot profiles drop
 #      every messaging key
 #   3. `secret env -p hermes-<profile>`     — this bot's own TELEGRAM_BOT_TOKEN
@@ -56,14 +56,14 @@ emit_layer() { # $1 = project layer; missing layer is not an error
 # profile whose helper times out at startup has no bot token for the
 # whole process lifetime ("No bot token configured" is non-retryable).
 # Fetching the shared layer twice for the bot profiles is what pushed
-# creator/engineer/marketer past the budget on 2026-09-02.
+# the bot profiles past the budget.
 emit_layer global
 HERMES_LAYER="$(emit_layer hermes)"
 case "$PROFILE" in
   assistant)
     printf '%s\n' "$HERMES_LAYER"
     ;;
-  engineer|marketer)
+  marketer)
     printf '%s\n' "$HERMES_LAYER" | grep -v -E '^(TELEGRAM_|DISCORD_)' || true
     printf '%s\n' "$HERMES_LAYER" | grep -E '^TELEGRAM_ALLOWED_USERS=' || true
     ;;
@@ -82,7 +82,7 @@ fi
 # authenticates as the identity `ip:127.0.0.1`. Without this line every
 # inbound peer call is dropped as "Unauthorized user: ip:127.0.0.1 on a2a".
 case "$PROFILE" in
-  engineer|creator|marketer|writer|researcher|image-creator|video-creator|audio-creator)
+  creator|marketer|writer|researcher|image-creator|video-creator|audio-creator)
     echo "A2A_ALLOWED_USERS=ip:127.0.0.1"
     ;;
 esac

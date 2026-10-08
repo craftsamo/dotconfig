@@ -87,7 +87,7 @@ or inherit Writer's role. Read only the detail references selected below.
 6. Compare changes with the original and re-read the complete revised text in
    context. Check changed dependencies and format-specific meaning. Do not
    execute examples, test production behavior or render a deck to resolve a
-   textual gap; state what the requester/engineer still needs to verify.
+   textual gap; state what the requester's engineering work still needs to verify.
 7. Apply QA and save the complete revised document at the requested path.
    Never overwrite the source without authorization or edit a live/repository
    destination as a substitute for handing off the text. A previously approved
