@@ -2,7 +2,7 @@
 
 The Assistant's access to the user's own Discord account — reading their DMs,
 group DMs and servers, keeping a chosen set of servers synced, and acting from
-the account (sending, reacting, editing and deleting their own messages,
+the account (sending, reacting, pinning, editing and deleting their own messages,
 managing roles) only as the user approves each time. It is not the
 Assistant's Discord bot (the gateway's Discord platform, through which the
 user talks to Hermes); nothing here changes that bot. Part of the Hermes
@@ -437,7 +437,8 @@ sending reopens it.
 
 `react` / `unreact` (one Unicode emoji, or a custom emoji already on that
 message), `edit` and `delete` (the user's own messages only, already in the
-mirror) and the role writes below each go through the same approval gate.
+mirror), `pin` / `unpin` (any plain message or reply already in the mirror)
+and the role writes below each go through the same approval gate.
 
 - **Checked before the card.** A request that cannot or may not happen
   (unknown channel, message or role, someone else's message, the same text,
@@ -464,7 +465,22 @@ mirror) and the role writes below each go through the same approval gate.
   to be split.
 - **Cards:** `In:` the chat, `Message:` its sender and text with
   `React with:` / `Remove my reaction:`; `Edit my message` with `Before:`, `Pings:`
-  and the new text; `Delete my message:` with "This cannot be undone."
+  and the new text; `Delete my message:` with "This cannot be undone."; `Pin
+this message` / `Unpin this message`, a pin adding that everyone in the chat
+  sees "pinned a message to this channel" (Discord posts that notice) and that
+  a chat holds at most 250 pins.
+- **Pins.** The message is quoted and bound like an edit or delete: a change to
+  its text or attachments after the card voids it. System messages cannot be
+  pinned. The plugin does not guess the user's right to pin: a server needs
+  the Pin Messages permission (Manage Messages alone no longer does), but
+  channel overrides are not in the mirror, so Discord decides and its refusal
+  (no permission, 250 pins already) is `not done` with its reason. The engine
+  uses the route under `/messages/pins/{id}`; when this API version answers
+  404 with code 0 (route unknown) it tries the older `/pins/{id}` once. An
+  uncertain pin reads the message back (`pinned`) and becomes `done` when it
+  shows the requested state; `unpin` is satisfied by "not pinned". The mirror
+  stores no pin state: `pins` lists them live. A pin changes what everyone in
+  the chat sees, so the Assistant pins only when the user asked.
 - **One request, never retried.** Outcomes are `done`, `not done` (Discord
   refused, or it cannot have left the machine) and `UNCERTAIN` (a 5xx, or a
   failure after dispatch). An uncertain write reads back once — the message,

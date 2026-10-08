@@ -96,7 +96,9 @@ DESCRIPTION = (
     "and refused if it holds credentials, databases, programs, other archives, links or encrypted entries "
     "(scripts inside are fine)), react / unreact (channel + id + emoji: one Unicode emoji character, or a custom "
     "emoji already on the message), edit (channel + id + text: the user's own message), delete (channel + id: "
-    "the user's own message; cannot be undone), role_add / role_remove (guild + role + user), role_bulk_add "
+    "the user's own message; cannot be undone), pin / unpin (channel + id: a plain message already read; "
+    "pinning posts a \"pinned a message\" notice everyone in the chat sees; needs the Pin Messages permission in "
+    "a server, at most 250 pins), role_add / role_remove (guild + role + user), role_bulk_add "
     "(guild + role + users: up to 30), role_create (guild + name; permissions = names such as send_messages; "
     "color = #RRGGBB; hoist, mentionable), role_edit (guild + role; name, color, hoist, mentionable; grant / "
     "revoke = permission names), role_delete (guild + role; cannot be undone); reason = the audit-log reason "
@@ -141,7 +143,7 @@ PROPERTIES = {
     "tag": {"type": "string", "description": "threads: only forum posts with this tag (its name or id)"},
     "sort": {"type": "string", "enum": ["activity", "created"],
              "description": "threads: newest activity (default) or newest created first"},
-    "id": {"type": "string", "description": "context / media / react / unreact / edit / delete: the message id"},
+    "id": {"type": "string", "description": "context / media / react / unreact / edit / delete / pin / unpin: the message id"},
     "emoji": {"type": "string", "description": "react / unreact: one emoji, or name:id of a custom one on the message; "
                                                "search (mirror): messages carrying that reaction"},
     "author": {"type": "string", "description": "search: only messages by this user id, or \"me\""},
