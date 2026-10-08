@@ -71,12 +71,33 @@ def directories(tmp):
     return scratch, readable
 
 
-def rules(policy, issue_approval, protected, *, tmp=None, person_denies=()):
+def output_dir(value):
+    """The caller's output directory for a run's reports and screenshots: an existing
+    directory inside a Workspaces draft (`.agent/`), never the repository, and spelled
+    without wildcards so its rule cannot widen."""
+    if value is None:
+        return None
+    if not isinstance(value, str) or not Path(value).is_absolute() or any(c in value for c in "*?"):
+        raise ValueError("output_dir must be an absolute path without wildcards")
+    path = Path(value).resolve()
+    if not path.is_dir():
+        raise ValueError("output_dir must be an existing directory; create it first")
+    if ".agent" not in path.parts[:-1] and path.name != ".agent":
+        raise ValueError("output_dir must lie inside a draft directory (.agent/)")
+    if path.name == ".agent":
+        raise ValueError("output_dir must be a job directory below .agent/, not .agent/ itself")
+    return str(path)
+
+
+def rules(policy, issue_approval, protected, *, tmp=None, person_denies=(), output=None):
     """The session ruleset for one run, ordered broad to narrow under last-match
-    evaluation. It holds no caller-granted allow."""
+    evaluation. Its one caller-chosen allow is the output directory, which the
+    person's own outside-path denies still override."""
     person = [d for d in person_denies if d.get("effect") == "deny"]
     scratch, readable = directories(tmp)
     out = [rule("external_directory", "*", "ask")]
+    if output:
+        out += [rule("external_directory", output, "allow"), rule("external_directory", f"{output}/*", "allow")]
     # The person's own outside-path denies stay denies, not asks the caller could approve.
     out += [rule("external_directory", d["resource"], "deny") for d in person
             if d.get("action") == "external_directory"]
@@ -95,6 +116,11 @@ def rules(policy, issue_approval, protected, *, tmp=None, person_denies=()):
     out += [rule("edit", pattern, "allow") for pattern in SAMPLE_READS]
     if policy == "read-only":
         out.append(rule("edit", "*", "deny"))
+        if output:
+            # A read-only run may still write its report into the output directory,
+            # never a secret-looking file there.
+            out += [rule("edit", output, "allow"), rule("edit", f"{output}/*", "allow")]
+            out += [rule("edit", pattern, "deny") for pattern in SECRET_READS]
         out += [rule("shell", pattern, "deny") for pattern in READ_ONLY_DENY_SHELL + ISSUE_WRITES]
         out += [rule("subagent", name, "deny") for name in READ_ONLY_DENY_SUBAGENTS]
     else:

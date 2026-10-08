@@ -135,6 +135,44 @@ def test_plan_then_build_switches_agent_model_and_ruleset_on_one_session(fixture
     assert fake.prompts[0][1] == MESSAGE, "a read-only turn adds no scope text"
 
 
+def test_output_dir_opens_one_draft_directory_and_outlives_the_turn(fixture, tmp_path):
+    home, directory, _, fake = fixture
+    job = tmp_path / "Workspaces/Projects/Acme/.agent/20261008-ui/ui-check"
+    job.mkdir(parents=True)
+    first = run("plan", directory, output_dir=str(job))
+    sid = first["session_id"]
+    assert first["status"] == "completed", first
+    rules = fake.sessions[sid]["permissions"]
+    assert policy.decide(rules, "external_directory", str(job.resolve())) == "allow"
+    assert policy.decide(rules, "external_directory", f"{job.resolve()}/shots/a.png") == "allow"
+    assert policy.decide(rules, "external_directory", str(job.parent.resolve()) + "/other") == "ask"
+    assert fake.sessions[sid]["metadata"]["hermes"]["output_dir"] == str(job.resolve())
+    assert f"Output directory (outside the repository) for reports" in fake.prompts[-1][1]
+    configure(home, "  roles:\n    plan: {agent: plan, policy: read-only}\n    build: {agent: build, policy: write}\n")
+    built = run("build", session_id=sid, approval="Client: implement the plan")
+    assert built["status"] == "completed", built
+    assert policy.decide(fake.sessions[sid]["permissions"], "external_directory", f"{job.resolve()}/x") == "allow", \
+        "a continuation keeps the session's output directory"
+    for kind in ("read-only", "write"):
+        rules = policy.rules(kind, None, {"main"}, output="/w/.agent/job")
+        assert policy.decide(rules, "edit", "/w/.agent/job/report.md") == "allow", kind
+        assert policy.decide(rules, "edit", "/w/.agent/job/x.env") == "deny", kind
+        assert policy.decide(rules, "edit", "/w/.agent/other/report.md") == ("deny" if kind == "read-only"
+                                                                              else "allow"), kind
+    fake.sessions[sid]["metadata"]["hermes"]["output_dir"] = "/Users"
+    assert "no longer valid" in run("plan", session_id=sid)["error"], "stored metadata is checked again"
+    fake.sessions[sid]["metadata"]["hermes"]["output_dir"] = str(job.resolve())
+    rules = policy.rules("write", None, {"main"}, person_denies=PERSON_DENIES, output="/secret/job")
+    assert policy.decide(rules, "external_directory", "/secret/job/a") == "deny", "the person's denies still win"
+    for bad, message in ((str(tmp_path), "draft directory"), (str(job / "missing"), "existing directory"),
+                         ("relative/.agent/x", "absolute"), (str(job) + "/*", "wildcards"),
+                         (str(job.parent.parent), "below .agent")):
+        assert message in run("plan", directory, output_dir=bad)["error"], bad
+    inside = directory / ".agent/job"
+    inside.mkdir(parents=True)
+    assert "outside the worktree" in run("plan", directory, output_dir=str(inside))["error"]
+
+
 def test_write_run_needs_approval_and_a_task_branch(fixture):
     _, directory, _, fake = fixture
     assert "approval" in run("build", directory)["error"]
