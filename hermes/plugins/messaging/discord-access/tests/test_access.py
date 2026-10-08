@@ -43,6 +43,7 @@ def mirror(tmp_path, monkeypatch):
     monkeypatch.setenv(store.STATE_ENV, str(tmp_path / "state"))
     monkeypatch.setattr(access, "call_engine", lambda *a, **k: pytest.fail(f"engine called: {a}"))
     monkeypatch.setattr(access, "_agent_loaded", lambda: True)
+    monkeypatch.setattr(access.human_gate, "no_human", lambda: None)      # a person is there to answer cards
     conn = store.connect(write=True)
     store.set_meta(conn, "me", {"id": ME, "username": "me", "name": "Me"})
     store.upsert_guild(conn, G, "Guild", 0)
