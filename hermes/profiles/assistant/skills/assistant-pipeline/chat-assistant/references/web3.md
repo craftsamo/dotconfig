@@ -1,7 +1,9 @@
 # Web3
 
 Blockchains and the user's wallets through the `evm` tool (Ethereum, Base,
-Arbitrum, OP Mainnet, Polygon, BNB Chain, Avalanche and their testnets) and
+Arbitrum, OP Mainnet, Polygon, BNB Chain, Avalanche, Linea, Scroll, ZKsync
+Era, Unichain, Gnosis, Celo, Mantle, Sonic, World Chain, Ink, Zora and their
+testnets) and
 the `solana` tool (mainnet-beta and devnet) only. Load the chain's skill
 before any chain work: `skill_view(name="evm-access:evm")` or
 `skill_view(name="solana-access:solana")` own the mechanics of reading.

@@ -1,7 +1,8 @@
 # EVM chains
 
-Ethereum, Base, Arbitrum, OP Mainnet, Polygon, BNB Chain, Avalanche and their
-testnets, read through the `evm` tool. It reads only: nothing is signed or
+Ethereum, Base, Arbitrum, OP Mainnet, Polygon, BNB Chain, Avalanche, Linea,
+Scroll, ZKsync Era, Unichain, Gnosis, Celo, Mantle, Sonic, World Chain, Ink,
+Zora and their testnets, read through the `evm` tool. It reads only: nothing is signed or
 sent, and a write function run with `call` is an `eth_call` simulation. A
 block explorer page shows the same chain data plus the explorer's own labels;
 cite the chain read; the explorer link the tool returns is its locator. The

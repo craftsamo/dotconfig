@@ -74,8 +74,9 @@ ATA_PROGRAM = "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
 QUOTE_ID = re.compile(r"^q[0-9a-f]{8}$")
 SYMBOL = re.compile(r"^[A-Za-z0-9.$_-]{1,12}$")
 MEMO_CLIP = 40
-OP_STACK = {"base", "optimism", "base-sepolia", "optimism-sepolia"}  # an L1 data fee on top of gas
 GAS_PRICE_ORACLE = "0x420000000000000000000000000000000000000F"
+L1_ORACLES = {"op": GAS_PRICE_ORACLE, "op-token": GAS_PRICE_ORACLE,
+              "scroll": "0x5300000000000000000000000000000000000002"}  # chains.py "fee": an L1 fee on top of gas
 L1_MARGIN = 2              # the L1 base fee moves between quote and send
 CARD_BUDGET = 480          # Telegram cuts an approval card's reason at 500 escaped UTF-16 units
 SHORT_BUDGET = 290         # Discord cuts it at 300
@@ -446,9 +447,10 @@ def _evm_fees(r) -> tuple[int, int]:
     return base, evm.h2i(tip) if tip else 10 ** 9
 
 
-def _l1_fee(r, call: dict, gas: int, max_fee_per_gas: int, tip: int, chain_id: int, key: bytes) -> int:
-    """An OP Stack chain's L1 data fee for this transfer, from the chain's GasPriceOracle given the
-    signed transaction's bytes (signed only to size it; never broadcast)."""
+def _l1_fee(r, call: dict, gas: int, max_fee_per_gas: int, tip: int, chain_id: int, key: bytes, model: str) -> int:
+    """A rollup's L1 data fee for this transfer, in the native coin, from the chain's L1 fee oracle given
+    the signed transaction's bytes (signed only to size it; never broadcast). On Mantle ("op-token")
+    the oracle's ETH figure is converted by its tokenRatio into MNT."""
     from eth_account import Account
     from eth_abi import encode as abi_encode
     from eth_utils import keccak
@@ -458,10 +460,40 @@ def _l1_fee(r, call: dict, gas: int, max_fee_per_gas: int, tip: int, chain_id: i
                                     "maxFeePerGas": max_fee_per_gas,
                                     "maxPriorityFeePerGas": min(tip, max_fee_per_gas)}, key).raw_transaction
     data = "0x" + keccak(text="getL1Fee(bytes)")[:4].hex() + abi_encode(["bytes"], [bytes(raw)]).hex()
-    got = r.call("eth_call", [{"to": GAS_PRICE_ORACLE, "data": data}, "latest"])
+    got = r.call("eth_call", [{"to": L1_ORACLES[model], "data": data}, "latest"])
     if not got or len(got) < 66:
         raise ChainError("the chain's L1 data fee could not be read; try again")
-    return evm.h2i(got[:66])
+    fee = evm.h2i(got[:66])
+    if model == "op-token":
+        ratio = r.call("eth_call", [{"to": GAS_PRICE_ORACLE, "data": "0x" + keccak(text="tokenRatio()")[:4].hex()},
+                                    "latest"])
+        if not ratio or len(ratio) < 66 or not evm.h2i(ratio[:66]):
+            raise ChainError("the chain's L1 fee token ratio could not be read; try again")
+        fee *= evm.h2i(ratio[:66])
+    return fee
+
+
+def _operator_fee(r, gas: int, block: str = "latest", required: bool = False) -> int:
+    """An OP Stack chain's operator fee for this much gas (Isthmus and later). Only an oracle without
+    the function (a revert, or no answer data) means none, and only where it may be absent; a read
+    that fails any other way raises, so a stated maximum is never short of it."""
+    from eth_abi import encode as abi_encode
+    from eth_utils import keccak
+    data = "0x" + keccak(text="getOperatorFee(uint256)")[:4].hex() + abi_encode(["uint256"], [gas]).hex()
+    reply = r.request("eth_call", [{"to": GAS_PRICE_ORACLE, "data": data}, block])
+    error = reply.get("error")
+    if error:
+        text = str(error.get("message") if isinstance(error, dict) else error).lower()
+        code = error.get("code") if isinstance(error, dict) else None
+        if (code == 3 or "revert" in text) and not required:
+            return 0
+        raise ChainError("the chain's operator fee could not be read; try again")
+    got = reply.get("result")
+    if isinstance(got, str) and len(got) >= 66:
+        return evm.h2i(got[:66])
+    if required:
+        raise ChainError("the chain's operator fee could not be read; try again")
+    return 0
 
 
 def evm_quote(ctx: Ctx, sender: str, args: dict, asset: str, key: bytes | None = None) -> dict:
@@ -504,8 +536,13 @@ def evm_quote(ctx: Ctx, sender: str, args: dict, asset: str, key: bytes | None =
     fee_base, tip = _evm_fees(r)
     max_fee_per_gas = 2 * fee_base + tip
     max_fee = gas * max_fee_per_gas
-    if ctx.chain in OP_STACK and key is not None:
-        max_fee += L1_MARGIN * _l1_fee(r, call, gas, max_fee_per_gas, tip, info["id"], key)
+    model = info.get("fee")
+    if model in L1_ORACLES:
+        if key is None:
+            raise ChainError("this chain's L1 fee needs the signing key to size the transaction")
+        max_fee += L1_MARGIN * _l1_fee(r, call, gas, max_fee_per_gas, tip, info["id"], key, model)
+        if model != "scroll":
+            max_fee += _operator_fee(r, gas, required=model == "op-token")
     balance = evm.h2i(r.call("eth_getBalance", [sender, "latest"]))
     value = evm.h2i(call["value"])
     if balance < value + max_fee:
@@ -927,7 +964,13 @@ def _landed(ctx: Ctx, family: str, sent: str) -> dict | None:
                   "block": evm.h2i(receipt.get("blockNumber"))}
         if receipt.get("gasUsed") and receipt.get("effectiveGasPrice"):
             spent = evm.h2i(receipt["gasUsed"]) * evm.h2i(receipt["effectiveGasPrice"])
-            spent += evm.h2i(receipt.get("l1Fee") or "0x0")  # the OP Stack's L1 data fee
+            spent += evm.h2i(receipt.get("l1Fee") or "0x0")  # a rollup's L1 data fee, in the native coin
+            if evm.h2i(receipt.get("operatorFeeScalar") or "0x0") or evm.h2i(receipt.get("operatorFeeConstant") or "0x0"):
+                try:
+                    spent += _operator_fee(ctx.rpc, evm.h2i(receipt["gasUsed"]), receipt.get("blockNumber") or "latest",
+                                           required=True)
+                except ChainError:
+                    landed["fee_note"] = "the operator fee could not be read: the fee paid is at least this"
             landed["fee_paid"] = f"{plain(native_units(spent, info['decimals']))} {info['symbol']}"
         return landed
     got = ctx.rpc.call("getSignatureStatuses", [[sent], {"searchTransactionHistory": True}])

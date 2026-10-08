@@ -1,7 +1,8 @@
 # EVM chains
 
-Ethereum, Base, Arbitrum, OP Mainnet, Polygon, BNB Chain, Avalanche and their
-testnets, read through the `evm` tool. Reading is allowed and it never writes:
+Ethereum, Base, Arbitrum, OP Mainnet, Polygon, BNB Chain, Avalanche, Linea,
+Scroll, ZKsync Era, Unichain, Gnosis, Celo, Mantle, Sonic, World Chain, Ink,
+Zora and their testnets, read through the `evm` tool. Reading is allowed and it never writes:
 nothing is signed or sent, and a write function run with `call` is only an
 `eth_call` simulation. Retrieve on-chain facts; judging them stays under
 `Open for researcher`.
