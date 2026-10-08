@@ -53,6 +53,7 @@ async function fixture() {
     now: NOW,
     version: SUPPORTED_VERSION,
     reads: 0,
+    fetchedAt: undefined as number | undefined,
     path: "",
     unavailable: false,
     quota: { anthropic: 90, openai: 90 } as Record<string, number | undefined>,
@@ -212,7 +213,7 @@ async function fixture() {
               id,
               {
                 status: "ok",
-                fetchedAt: env.now / 1000,
+                fetchedAt: (env.fetchedAt ?? env.now) / 1000,
                 entries:
                   percent === undefined
                     ? []
@@ -332,19 +333,32 @@ describe("launch and persistence", () => {
     expect(marker(f.env).fallback).toBe(true)
     expect(f.env.reads).toBe(1)
   })
-  test("missing source or target information keeps the default rather than stopping", async () => {
-    for (const mode of ["missing-file", "source", "target"]) {
+  test("missing file or source information keeps the default rather than stopping", async () => {
+    for (const mode of ["missing-file", "source"]) {
       const { env, inst } = await fixture()
       if (mode === "missing-file") env.unavailable = true
-      else if (mode === "source") env.quota.anthropic = undefined
-      else {
-        env.quota.anthropic = 0
-        env.quota.openai = undefined
-      }
+      else env.quota.anthropic = undefined
       await inst.run()
       expect(env.originals[0].model).toBeUndefined()
       expect(marker(env).fallback).toBe(false)
     }
+  })
+  test("an empty default with unknown alternate data still prefers the alternate", async () => {
+    const { env, inst } = await fixture()
+    env.quota.anthropic = 0
+    env.quota.openai = undefined
+    await inst.run()
+    expect(env.originals[0].model).toBe(sel(SOL))
+    expect(marker(env).fallback).toBe(true)
+  })
+  test("a stale export keeps an empty window reliable until its reset", async () => {
+    const { env, inst } = await fixture()
+    env.quota.anthropic = 0
+    // Observed an hour ago; its reset is still in the future.
+    env.fetchedAt = env.now
+    env.now += 60 * 60_000
+    await inst.run()
+    expect(env.originals[0].model).toBe(sel(SOL))
   })
   test("both 0% tries the default provider without claiming a credit balance", async () => {
     const { env, inst } = await fixture()

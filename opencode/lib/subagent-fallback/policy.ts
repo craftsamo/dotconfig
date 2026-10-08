@@ -129,16 +129,17 @@ export function freshState(
   if (!Number.isFinite(quota.observedAt) || !Number.isFinite(now))
     return undefined
   const age = now - quota.observedAt
-  if (age < 0 || age > QUOTA_MAX_AGE_MS) return undefined
-  if (quota.state === "available") return "available"
+  if (age < 0) return undefined
   if (quota.state === "exhausted") {
-    if (
-      quota.resetAt !== undefined &&
-      (!Number.isFinite(quota.resetAt) || quota.resetAt <= now)
-    )
-      return undefined
-    return "exhausted"
+    // A window can't recover before its reset, however old the observation.
+    if (quota.resetAt !== undefined)
+      return Number.isFinite(quota.resetAt) && quota.resetAt > now
+        ? "exhausted"
+        : undefined
+    return age <= QUOTA_MAX_AGE_MS ? "exhausted" : undefined
   }
+  if (age > QUOTA_MAX_AGE_MS) return undefined
+  if (quota.state === "available") return "available"
   return undefined
 }
 
@@ -194,19 +195,20 @@ export function decideLaunch(input: {
   const targetAccountOk =
     !!target && approved(target.account, route.alternate.providerID)
   const targetState = target ? freshState(target.quota, now) : undefined
-  // Missing/stale data is not exhaustion; leave the usual model to the provider.
-  if (!targetState) {
+  if (targetState === "exhausted") {
+    // No independent credit balance check. Native OAuth/provider behavior
+    // decides whether the usual model can proceed; this is an attempt, not
+    // billing proof.
+    if (!catalogOk(catalog, route.primary)) return stop(REASON_CATALOG)
+    return { kind: "credits", model: route.primary }
+  }
+  // The source is known empty; an alternate that isn't known empty is the
+  // better bet, even when its own data is missing or stale.
+  if (!targetAccountOk) {
+    if (targetState) return stop(REASON_TARGET_ACCOUNT)
     if (!catalogOk(catalog, route.primary)) return stop(REASON_CATALOG)
     return { kind: "default", model: route.primary }
   }
-
-  if (!targetAccountOk) return stop(REASON_TARGET_ACCOUNT)
-  if (targetState === "available") {
-    if (!catalogOk(catalog, route.alternate)) return stop(REASON_CATALOG)
-    return { kind: "fallback", model: route.alternate }
-  }
-  // No independent credit balance check. Native OAuth/provider behavior decides
-  // whether the usual model can proceed; this is an attempt, not billing proof.
-  if (!catalogOk(catalog, route.primary)) return stop(REASON_CATALOG)
-  return { kind: "credits", model: route.primary }
+  if (!catalogOk(catalog, route.alternate)) return stop(REASON_CATALOG)
+  return { kind: "fallback", model: route.alternate }
 }
