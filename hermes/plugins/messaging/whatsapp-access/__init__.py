@@ -37,6 +37,7 @@ def _load(name, path):
 
 
 wa = _load("hermes_whatsapp_access_engine", Path(__file__).resolve().parent / "wa.py")
+human_gate = _load("hermes_human_gate", Path(__file__).resolve().parents[2] / "_shared" / "human_gate.py")
 
 DESCRIPTION = (
     "The user's own WhatsApp accounts (named wacli accounts, e.g. 'work'), read from a local "
@@ -119,10 +120,23 @@ def _home():
         return None
 
 
+def no_human_message(args) -> str | None:
+    """Why a send may not run here (nobody can answer its card), as the text it ends with; None for a
+    read or when a person can answer. The approval hook asks first; the handler asks again, so a send
+    never depends on the hook having been called."""
+    if (args.get("action") if isinstance(args, dict) else None) not in wa.WRITES:
+        return None
+    reason = human_gate.no_human()
+    return human_gate.refusal(TOOL, reason) if reason else None
+
+
 def whatsapp(args, **kwargs):
     try:
         if _inbound_peer():
             raise wa.WhatsAppError(f"{TOOL} is not available to inbound A2A requests")
+        refused = no_human_message(args)
+        if refused:
+            return json.dumps({"ok": False, "error": refused}, ensure_ascii=False)
         text = json.dumps(wa.execute(args if isinstance(args, dict) else {}, home=_home()), ensure_ascii=False)
         if len(text) > LIMIT:
             return json.dumps({"ok": False, "error": f"result is {len(text)} characters; narrow it with "
@@ -144,6 +158,9 @@ def gate(**kwargs):
     if tool == TOOL:
         if _inbound_peer():
             return {"action": "block", "message": f"{TOOL} is not available to inbound A2A requests"}
+        refused = no_human_message(args)
+        if refused:
+            return {"action": "block", "message": refused}
         try:
             request = wa.approval_request(args if isinstance(args, dict) else {}, ids=_ids(kwargs))
         except Exception as exc:
@@ -161,6 +178,8 @@ def gate(**kwargs):
 def bind(**kwargs):
     """pre_tool_call: point an approved send with files at the outbox its approval froze (a ``modify``)."""
     if kwargs.get("tool_name") != TOOL or _inbound_peer():
+        return None
+    if no_human_message(kwargs.get("args")):
         return None
     partial = wa.outbox_binding(kwargs.get("args"), ids=_ids(kwargs))
     return {"action": "modify", "args": partial} if partial else None

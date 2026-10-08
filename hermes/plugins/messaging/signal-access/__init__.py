@@ -37,6 +37,7 @@ def _load(name, path):
 
 
 sig = _load("hermes_signal_sig", Path(__file__).resolve().parent / "sig.py")
+human_gate = _load("hermes_human_gate", Path(__file__).resolve().parents[2] / "_shared" / "human_gate.py")
 
 DESCRIPTION = (
     "The user's own Signal account, read from a local mirror kept current by a sync service (history "
@@ -124,10 +125,23 @@ def _home():
         return None
 
 
+def no_human_message(action) -> str | None:
+    """Why a write may not run here (nobody can answer its card), as the text it ends with; None for a
+    read or when a person can answer. The approval hook asks first; the handler asks again, so a send
+    never depends on the hook having been called."""
+    if action not in sig.WRITES:
+        return None
+    reason = human_gate.no_human()
+    return human_gate.refusal(TOOL, reason) if reason else None
+
+
 def signal_tool(args, **kwargs):
     try:
         if _inbound_peer():
             raise sig.SignalError(f"{TOOL} is not available to inbound A2A requests")
+        refused = no_human_message(args.get("action") if isinstance(args, dict) else None)
+        if refused:
+            return json.dumps({"ok": False, "error": refused}, ensure_ascii=False)
         text = json.dumps(sig.execute(args if isinstance(args, dict) else {}, home=_home(), call_id=_call_id()),
                           ensure_ascii=False)
         if len(text) > LIMIT:
@@ -145,6 +159,11 @@ def gate(**kwargs):
     if tool == TOOL:
         if _inbound_peer():
             return {"action": "block", "message": f"{TOOL} is not available to inbound A2A requests"}
+        # No card can be answered in YOLO, cron, `hermes -z` and the like, and Hermes would approve a
+        # card there without asking anyone: refuse the send itself, before any card is built.
+        refused = no_human_message(args.get("action") if isinstance(args, dict) else None)
+        if refused:
+            return {"action": "block", "message": refused}
         try:
             request = sig.approval_request(args if isinstance(args, dict) else {},
                                            call_id=str(kwargs.get("tool_call_id") or ""))

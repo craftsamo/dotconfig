@@ -212,9 +212,13 @@ repository upkeep (the Assistant through OpenCode).
   settings under `plugins.entries` are keyed `group/name` too (only
   `plugins.enabled` takes the bare name), so a move renames those keys in every
   profile config; `test_plugin_config_keys.py` checks it.
+- **`plugins/_shared/` is code, not a plugin.** google-access, discord-,
+  telegram-, whatsapp- and signal-access and note-access load `human_gate.py`
+  from it by path, so moving or renaming it breaks them at import. Never give
+  it a `plugin.yaml`.
 - **`plugins/messaging/_shared/` is code, not a plugin.** The four chat
-  plugins load `archive_check.py` from it by path, and discord-access loads
-  `human_gate.py` too, so moving or renaming either breaks them at import.
+  plugins load `archive_check.py` from it by path, so moving or renaming it
+  breaks them at import.
   Never give it a
   `plugin.yaml` (Hermes would try to load it), and keep each sender's own
   file rules passed in rather than copied there
@@ -395,9 +399,11 @@ Full reference: [README "Commands"](README.md#commands).
   `approvals.mode: off` do the same. Use it to check reads. A write is tried
   only in a gateway chat, where a person answers its card. A plugin that
   escalates writes to a card must itself refuse where no person can answer
-  (`plugins/messaging/_shared/human_gate.py`, web3's `_no_human`): today
-  discord-access and web3 do; the other plugins that return an `approve`
-  directive still rely on the card alone.
+  (`plugins/_shared/human_gate.py`, web3's `_no_human`): discord-, telegram-,
+  whatsapp-, signal-, google- and note-access and web3 do. substack- and
+  youtube-access refuse through their own `_unattended()` and
+  `is_approval_bypass_active()` checks. A new plugin that returns an `approve`
+  directive needs one of these.
 
 ## Commits
 

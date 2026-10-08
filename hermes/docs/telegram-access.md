@@ -27,17 +27,17 @@ only.
 
 ## Shape
 
-| Piece                                                                            | Home                                                                                           | Reader               |
-| -------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- | -------------------- |
-| Mirror schema, sync list, retention (stdlib)                                     | `plugins/messaging/telegram-access/store.py`                                                   | agent and plugin     |
-| Sync agent: the only Telegram connection, mirror upkeep, the socket's requests   | `plugins/messaging/telegram-access/sync.py`                                                    | launchd, on its venv |
-| Socket client (stdlib)                                                           | `plugins/messaging/telegram-access/rpc.py`                                                     | plugin               |
-| Engine: reads, card, file checks, media, send, bypass guard                      | `plugins/messaging/telegram-access/tg.py`                                                      | Assistant            |
-| `telegram_account` tool and the `pre_tool_call` hook (toolset `telegram_access`) | `plugins/messaging/telegram-access/__init__.py`                                                | Assistant            |
-| Engine venv (Telethon, hash-locked)                                              | `engines/telegram-access/requirements.lock` → ignored `local/telegram-access/venv`             | people               |
-| Login and the agent                                                              | `launchd/telegram-access-launchctl.sh`, `launchd/local.hermes.telegram-access.sync.plist.tmpl` | people               |
-| How the Assistant works with it: reads, files, sync list, sends, outcomes        | the `telegram-access:telegram-account` plugin skill (`plugins/messaging/telegram-access/skills/telegram-account/`)         | Assistant            |
-| When the Assistant uses it in Chat                                               | the Assistant's private Chat reference `telegram.md`                                           | Assistant            |
+| Piece                                                                            | Home                                                                                                               | Reader               |
+| -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ | -------------------- |
+| Mirror schema, sync list, retention (stdlib)                                     | `plugins/messaging/telegram-access/store.py`                                                                       | agent and plugin     |
+| Sync agent: the only Telegram connection, mirror upkeep, the socket's requests   | `plugins/messaging/telegram-access/sync.py`                                                                        | launchd, on its venv |
+| Socket client (stdlib)                                                           | `plugins/messaging/telegram-access/rpc.py`                                                                         | plugin               |
+| Engine: reads, card, file checks, media, send, bypass guard                      | `plugins/messaging/telegram-access/tg.py`                                                                          | Assistant            |
+| `telegram_account` tool and the `pre_tool_call` hook (toolset `telegram_access`) | `plugins/messaging/telegram-access/__init__.py`                                                                    | Assistant            |
+| Engine venv (Telethon, hash-locked)                                              | `engines/telegram-access/requirements.lock` → ignored `local/telegram-access/venv`                                 | people               |
+| Login and the agent                                                              | `launchd/telegram-access-launchctl.sh`, `launchd/local.hermes.telegram-access.sync.plist.tmpl`                     | people               |
+| How the Assistant works with it: reads, files, sync list, sends, outcomes        | the `telegram-access:telegram-account` plugin skill (`plugins/messaging/telegram-access/skills/telegram-account/`) | Assistant            |
+| When the Assistant uses it in Chat                                               | the Assistant's private Chat reference `telegram.md`                                                               | Assistant            |
 
 [Telethon](https://codeberg.org/Lonami/Telethon) 1.x logs in as a new device
 of the account, listed on the phone under _Settings → Devices_ as "Hermes
@@ -278,6 +278,16 @@ the card.
   hint for the Assistant to check with the user, never a conclusion.
 - Inbound A2A requests never reach the account; the toolset is not in the
   Assistant's `a2a` platform toolset either.
+
+### Where a write may run
+
+A send runs only where a person can answer its card. Cron, unattended
+platforms and single-query runs are refused, and so are `--yolo` / `/yolo`,
+`approvals.mode: off` and a run with no interactive terminal or gateway
+(Hermes would otherwise approve the card unasked). The `pre_tool_call` hook
+and the handler both refuse, before any card is built or anything is sent,
+with the shared `plugins/_shared/human_gate.py` check (fail-closed). Reads are
+unaffected.
 
 ## Ways around the tool
 
