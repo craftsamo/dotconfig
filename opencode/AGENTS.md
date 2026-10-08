@@ -20,6 +20,17 @@ git, and stream transforms.
 
 </FileTools>
 
+<SessionLocation>
+
+When this session will keep working in a worktree or another directory
+outside its current Location, move it with `session_move` through `execute`.
+The move applies at a safe boundary, so do the destination work in a later
+call. Do not move the session to aim a subagent at a worktree; pass that
+path to the worker instead. Rename the current session once, when its title
+is still generic.
+
+</SessionLocation>
+
 <QuestionQuality>
 
 Questions to the user must be answerable in ~30 seconds without opening code.
