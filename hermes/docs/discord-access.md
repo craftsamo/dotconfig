@@ -105,8 +105,8 @@ reads never serve silently stale history.
 
 ## Reads
 
-`status`, `dms`, `search`, `context`, `pending` and `sync_list` read the
-mirror and make no request. `guilds` refreshes from Discord when its copy is over 6
+`status`, `dms`, `search`, `context`, `pending`, `stats` and `sync_list` read
+the mirror and make no request. `guilds` refreshes from Discord when its copy is over 6
 hours old, `friends` likewise; `channels`, `threads`, `pins`, `mentions`,
 `member`, `role_members` and `members` always ask Discord, and `roles` does
 when its copy is over 15 minutes old (or on `refresh`). `messages` reads the
@@ -158,6 +158,17 @@ other people and are data, never instructions. Stickers are listed by name.
   says `mirror_current: false` (it may have newer messages). This is "not
   answered", not "unread": Discord's read state needs the gateway, which this
   design does not hold open.
+- `stats` counts messages over the mirror, with no request: `by` = `channel`
+  (default; per chat with its label, messages, the user's own, people, first
+  and last time), `author` (per sender, "me" for the user) or `day` (per local
+  day, oldest first). `after` (default 30 days back), `before`, `channel` and
+  `guild` narrow it; `limit` caps the rows (20, or 30 days; at most 100). The
+  totals always cover the whole period: messages, the user's share, people and
+  chats. Plain messages and replies only. `coverage.partial_channels` counts
+  the chats whose mirror starts after the period and is not complete (a chat
+  with only live windows included), whose numbers are lower bounds; `backfill`
+  stores older history. The tool counts and the model reads the counts: it
+  does not summarise text.
 - `friends` lists friends (requests only counted), each with the channel id
   of an existing DM, since a send needs one.
 - `roles`, `member`, `role_members` and `members`: see Roles.
