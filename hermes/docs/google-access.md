@@ -6,13 +6,13 @@ approval. Part of the Hermes design docs — index: [`PROFILES.md`](../PROFILES.
 
 ## Shape
 
-| Piece                                                                                                                    | Home                                                                             | Reader    |
-| ------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------- | --------- |
-| Engine, approval rule, bypass guard, setup CLI                                                                           | `plugins/google-access/access.py`                                                | all       |
-| `google_sheets`, `google_gmail`, `google_drive`, `gcloud` tools and the `pre_tool_call` hook (toolset `google_access`)   | `plugins/google-access/__init__.py`                                              | Assistant |
-| Setup launcher                                                                                                           | `../bin/gaccess` (runs on `hermes-python`)                                       | people    |
+| Piece                                                                                                                    | Home                                                                                           | Reader    |
+| ------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------- | --------- |
+| Engine, approval rule, bypass guard, setup CLI                                                                           | `plugins/google-access/access.py`                                                              | all       |
+| `google_sheets`, `google_gmail`, `google_drive`, `gcloud` tools and the `pre_tool_call` hook (toolset `google_access`)   | `plugins/google-access/__init__.py`                                                            | Assistant |
+| Setup launcher                                                                                                           | `../bin/gaccess` (runs on `hermes-python`)                                                     | people    |
 | How the Assistant works a sheet: reads, guarded writes, approvals, formatting, checking the look, recovery, sheet design | the `google-access:google-sheets` plugin skill (`plugins/google-access/skills/google-sheets/`) | Assistant |
-| When the Assistant uses the tools in Chat, and Gmail, Drive and gcloud                                                   | the Assistant's private Chat reference `google.md`                               | Assistant |
+| When the Assistant uses the tools in Chat, and Gmail, Drive and gcloud                                                   | the Assistant's private Chat reference `google.md`                                             | Assistant |
 
 The engine uses the Google client libraries of Hermes' own runtime (the
 `google` extra `setup.sh` installs) and the `gcloud` binary on `PATH`. The
@@ -215,6 +215,23 @@ The hook decides before a tool runs; the rule is `approval_request` in
   `--flags-file`, `--impersonate-service-account`, `--log-http`; a Drive upload
   of a credential file.
 - Inbound A2A requests never reach the account.
+
+## Where a write may run
+
+Hermes approves an `approve` directive without asking under `--yolo`,
+`approvals.mode: off` and `hermes -z`, so a write that relied on the card alone
+would run unasked. Every call that would get a card is therefore refused first
+wherever no person can answer it: YOLO, approvals off, `hermes -z`, a cron job,
+a single-query run, an unattended platform, or no one present (the shared
+`plugins/_shared/human_gate.py`, which fails closed).
+
+- The `pre_tool_call` hook blocks the call and the handler refuses it again, so
+  a path that skips the hook still does nothing. The refusal names the reason
+  and says `Nothing was sent or changed`.
+- The check builds the card without any Google request, only to learn whether
+  the call changes something. Reads and read-only gcloud commands are
+  unaffected, and an invalid call is blocked as before.
+- A write is tried only through a chat, where its card reaches the user.
 
 ## Ways around the tools
 

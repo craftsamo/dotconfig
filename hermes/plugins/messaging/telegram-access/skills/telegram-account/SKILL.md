@@ -136,7 +136,10 @@ loses its mirrored messages (it can still be read live).
 ## Send
 
 `send` is the only write: text, files or both, to a chat already in the chat
-list. A new chat is the user's to start in the app.
+list. A new chat is the user's to start in the app. Where no one can answer a
+card (yolo mode, approvals off, a single-query or scheduled run) the tool
+refuses with `not sent`; ask the user to request the send in a chat, and do
+not look for another route.
 
 1. **Read first.** Resolve the chat id, and the message id for `reply_to`
    (a message of that chat), by reading.

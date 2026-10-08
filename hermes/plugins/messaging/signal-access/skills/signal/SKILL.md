@@ -130,6 +130,9 @@ Send only what the user asked to send, to the chat they meant.
    text). Denied or timed out → nothing was sent; say so and never retry the
    same send unchanged. A file or quoted message changed after the card →
    `not sent`; ask again.
+5. **Where no one can answer a card** (YOLO, `hermes -z`, cron, an unattended
+   run) the tool refuses with `not done` / `not sent`. Ask the user to request
+   the send in a chat; do not look for another route.
 
 ### Outcomes
 

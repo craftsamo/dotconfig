@@ -65,4 +65,5 @@ draft. This skill owns how it is saved. Reading the user's drafts is in
 
 A save in a run nobody can answer (a resident session, cron, a single query)
 is refused by the tool; such a run hands the exact save back to its caller
-instead.
+instead. Where no one can answer a card the tool refuses the save and says
+why: ask the user to request it in a chat, and do not look for another route.

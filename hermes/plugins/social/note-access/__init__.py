@@ -38,6 +38,7 @@ def _load(name, path):
 
 
 na = _load("hermes_note_access_engine", Path(__file__).resolve().parent / "na.py")
+human_gate = _load("hermes_human_gate", Path(__file__).resolve().parents[2] / "_shared" / "human_gate.py")
 
 # The actions each profile's schema offers (checked again by the gate, the handler and the engine),
 # and the ones an inbound A2A request may run there. The Assistant never serves a peer; Marketer
@@ -282,6 +283,10 @@ def make_handler(profile: str):
                 raise na.NoteError(refusal)
             if _is_write(args) and _unattended():
                 return json.dumps({"ok": False, "error": UNATTENDED})
+            if _is_write(args):
+                reason = human_gate.no_human()
+                if reason:
+                    return json.dumps({"ok": False, "error": human_gate.refusal(TOOL, reason)})
             text = json.dumps(na.execute(args, home=_home(), call_id=_call_id(), can_write=can_write,
                                          allowed=allowed), ensure_ascii=False)
             if len(text) > LIMIT:
@@ -307,6 +312,9 @@ def make_gate(profile: str):
                 return None
             if _unattended():
                 return {"action": "block", "message": f"{TOOL}: {UNATTENDED}"}
+            reason = human_gate.no_human()
+            if reason:
+                return {"action": "block", "message": human_gate.refusal(TOOL, reason)}
             try:
                 request = na.approval_request(args, home=_home(), call_id=str(kwargs.get("tool_call_id") or ""),
                                               can_write=True)
