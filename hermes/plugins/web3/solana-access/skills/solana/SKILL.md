@@ -1,7 +1,7 @@
 ---
 name: solana
-description: "Use for reading Solana (mainnet-beta and devnet): a transaction, account, program, token mint, delegation, fee or price. Reads only."
-version: 1.0.0
+description: "Use for reading Solana (mainnet-beta and devnet): a transaction, account, program, token mint and its risk, delegation, fee or price. Reads only."
+version: 1.1.0
 author: CraftSamo
 license: MIT
 metadata:
@@ -35,6 +35,7 @@ signed or sent.
 | What an account is | `address` |
 | A program: loader, upgrade authority, last deployment, Anchor IDL | `program` (`address` = the program id) |
 | A token mint's supply and authorities | `token` (`token` = the mint) |
+| Whether a token is safe to hold: what its authorities can do, who they are, how concentrated it is | `risk` (`token` = the mint) |
 | Holdings | `portfolio`; token delegations with `allowances` |
 | Recent signatures of an address | `activity` |
 | A slot | `block`; `detail=true` for fees and the most-invoked programs |
@@ -53,6 +54,14 @@ signed or sent.
   extensions (transfer fees, hooks, permanent delegate) change what holders
   can expect. Each is a fact to report with its holder; read the holder with
   `address` and say whether it is a wallet or a program-owned account.
+- `risk` reads all of that at once — mint and freeze authorities, each
+  Token-2022 extension, the Metaplex metadata's update authority and
+  mutability — says whether each holder is a wallet, an SPL multisig (m-of-n)
+  or a program-owned account, and how much the largest token accounts hold.
+  No score: report the findings by severity with their evidence. The largest
+  accounts are token accounts, not people (pools, exchanges and locks hold
+  for many), and public RPCs often refuse that list for big tokens: it is
+  then an `unknown`.
 - The deployed program's bytes are not readable as source. An Anchor IDL is
   the IDL authority's description of the interface and can lag or differ from
   the deployed code; it is optional, and its absence says nothing about the

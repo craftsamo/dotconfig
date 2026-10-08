@@ -99,6 +99,33 @@ Each tool takes one `action` per call; results are compact JSON capped at
 | `storage`    | one slot (number, hex, `eip1967.implementation` / `admin` / `beacon`, `zos.implementation` / `admin`, or a variable name from Sourcify's storage layout, a proxy's taken from its implementation) with the value decoded where the layout types it; without `slot`, the layout                                                                                                                                                                                                                                                                                                                    | —                                                                                                                                                                                                                                                                                                                        |
 | `program`    | —                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | loader, whether the code can still be replaced and by which upgrade authority (upgradeable loader and loader v4; older loaders are immutable), the last deployment slot and size, and the Anchor IDL when one is published: instructions with arguments, signers and writable accounts, account types, events and errors |
 
+### Token risk
+
+`risk` (both tools, every profile that reads; `token` = the contract or
+mint, in `_shared/risk.py`) answers "what can this token's controllers do to
+its holders". It never scores: each finding has a `severity` — `high` when
+someone can change the code, create more, stop, freeze or seize holders'
+tokens; `medium` for fees, limits, the funds the contract holds, a single
+key (or a 1-of-n multisig) on a role and holder concentration; `low` /
+`info` for metadata and facts — an `area`, the `evidence` read and a
+`confidence`. `controllers` names who holds each power and what that holder
+is, and `unknowns` what was not read: a holder the RPC would not describe,
+AccessControl roles (granted by `grantRole`, listed by logs, not getters), a
+beacon's controller. A read that fails there never fails the whole result.
+An EIP-1167 clone is reported as fixed code, not upgradeable. Role names
+stay in `evidence`, never in the finding's sentence.
+
+| Chain  | Read                                                                                                                                                                                                                                                                                                                                                      | Who a holder is                                                                                                                                                                                          |
+| ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| EVM    | `contract` at one block: verification (unverified code makes the code itself `high` and the named powers `low` confidence), the proxy and its admin, `powers` by name (`medium` confidence), the role getters in `state` (owner, admin, minter, pauser, blacklister…), whether it is paused now, renounced ownership                                      | nobody (zero), a single key (an EOA, or one delegating by EIP-7702), a Safe (`getThreshold` / `getOwners`: m-of-n), a timelock (`getMinDelay`), or another contract                                      |
+| Solana | the mint (mint and freeze authorities), each Token-2022 extension (transfer fee, permanent delegate, transfer hook, default-frozen accounts, non-transferable, pausable, close authority, scaled or interest-bearing amounts, confidential transfers, token metadata), the Metaplex metadata's update authority and mutability, `getTokenLargestAccounts` | a wallet (one key), an address only a program can sign for (a PDA, off the curve: a program or a multisig such as Squads decides), an SPL Token multisig (m-of-n), a program, or a program-owned account |
+
+Holder concentration is read only on Solana, from the largest token
+accounts, which are not owners (pools, exchanges and locks hold for many),
+so it is a lead and never above `medium`; public RPCs refuse that list for
+large tokens, and EVM has none without an indexer: both are `unknowns`. A name-based finding is a lead to confirm in
+the source or with `call`, as everywhere in these tools.
+
 ABI decoding tries, in order: the contract's verified ABI from Sourcify, else
 from Etherscan when a key is stored (either with a proxy's implementation),
 the built-in set (ERC-20/721/1155, WETH, Multicall3, Uniswap V2/V3 swaps,

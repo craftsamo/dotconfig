@@ -21,10 +21,12 @@ import chains
 import contracts
 import evm
 import prices
+import risk
 import rpc
 import sol
 
-EVM_ACTIONS = {**evm.ACTIONS, **contracts.ACTIONS}
+EVM_ACTIONS = {**evm.ACTIONS, **contracts.ACTIONS, **risk.EVM_ACTIONS}
+SOL_ACTIONS = {**sol.ACTIONS, **risk.SOL_ACTIONS}
 
 
 class Ctx:
@@ -54,7 +56,7 @@ def run(payload: dict) -> dict:
     kind = chains.family(chain) if isinstance(chain, str) else None
     if kind is None:
         raise rpc.ChainError(f"unknown chain {chain!r}; use one of: {', '.join(chains.CHAINS)}")
-    table = EVM_ACTIONS if kind == "evm" else sol.ACTIONS
+    table = EVM_ACTIONS if kind == "evm" else SOL_ACTIONS
     if action not in table:
         raise rpc.ChainError(f"{action!r} is not available on {chain}; use one of: {', '.join(table)}")
     return table[action](Ctx(chain, payload), payload)
