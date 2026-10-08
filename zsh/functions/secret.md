@@ -262,9 +262,9 @@ secret import secret-export-all-YYYYMMDD.json.age
 
 ## Tests
 
-[`zsh/tests/secret-selftest.zsh`](../tests/secret-selftest.zsh) — 166
+[`zsh/tests/secret-selftest.zsh`](../tests/secret-selftest.zsh) — 168
 assertions: round-trips (special characters, json/env/age), partial updates,
-`--no-env` (kept out of `env`, kept across rewrites and export/import), `set --new`,
+`--no-env` (kept out of `env`, kept across rewrites and export/import), `set --new`, non-ASCII metadata read back as text,
 keychain auto-creation, `secret link` / the `git config secret.project`
 mapping, scope layering (DWIM reads, env overlay, isolation between repos),
 the unregistered-file write gate, master adoption/rotation, auto-unlock. It
