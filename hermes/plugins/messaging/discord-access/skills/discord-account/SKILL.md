@@ -96,6 +96,13 @@ when `partial_channels` is above zero those chats' counts are lower bounds, so
 say "at least", or `backfill` the channel first. Counts are not content:
 read the messages before saying what people talked about.
 
+## Recipes
+
+For the jobs that come up often, `references/recipes.md` gives the order of
+calls that costs the least traffic: what is waiting for the user's answer,
+looking into a channel, reviewing the sync list, reading a forum, and
+diagnosing a sync that looks wrong.
+
 ## Files in a message
 
 `media` saves a message's attachments, link-preview images and videos and
@@ -163,11 +170,10 @@ job; schedule a reminder instead.
 2. **Only what was asked.** Send the user's text as given, with no signature
    or formatting they did not ask for, and never add `@everyone`, `@here` or
    a role mention (the card lists pings). React with the emoji the user named.
-   Pin only the message the user named: a pin posts a notice everyone in the
-   chat sees, a chat holds 250 at most, and a server needs the Pin Messages
-   permission (Discord's refusal is the answer, not a reason to try another
-   route).
-   Edit and delete only the user's own messages.
+   Edit and delete only the user's own messages. Pin only the message the user
+   named: a pin posts a notice everyone in the chat sees, a chat holds 250 at
+   most, and a server needs the Pin Messages permission (Discord's refusal is
+   the answer, not a reason to try another route).
 3. **Agree long text first.** The card shows about the first 350 characters
    of a send or an edit. For anything longer, show the full final text in
    chat, get the user's agreement, then send exactly that in one call.
