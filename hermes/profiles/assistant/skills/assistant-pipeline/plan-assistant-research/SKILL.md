@@ -33,8 +33,8 @@ Read only applicable detail references below.
 # Research — plan
 
 **The Client owns purpose and agreement; Researcher proposes the research.**
-Send purpose, consumer, constraints, budget and durable path through engineer,
-creator, or marketer. A purpose-first session/peer request starts specialist
+Send purpose, consumer, constraints, budget and durable path through creator
+or marketer. A purpose-first session/peer request starts specialist
 Plan without a prebuilt detailed spec. Researcher proposes questions, options,
 criteria, exact claims, source policy, exclusions, done conditions, output and
 ordered same-role units. The immediate primary Client agrees within already
@@ -66,7 +66,7 @@ A question that is really several questions, or a matrix whose option
 set keeps growing, is a **granularity finding** — decompose, never
 stretch the unit. No research unit is released to the
 researcher directly: the purpose or settled unit travels inside the brief of the
-consuming primary — engineer, creator, or marketer — whose peer the
+consuming primary — creator or marketer — whose peer the
 researcher is (`../execute-assistant-research/SKILL.md`).
 
 ## Proposal and agreement core
@@ -134,7 +134,7 @@ mapping.
   with Researcher and does not authorize a breadth survey or main investigation.
 - **Conclusions, not artifacts.** The researcher never drafts the
   台本, copy, media, or code its conclusion feeds — that is
-  writer/creator/engineer work consuming the unit.
+  writer/creator/OpenCode work consuming the unit.
 - **Evidence, not artifact QA.** Artifact-vs-brief verdicts belong
   to your own QA pass; the researcher supplies the claim ledger it
   reads (`../qa-assistant-research/SKILL.md`).

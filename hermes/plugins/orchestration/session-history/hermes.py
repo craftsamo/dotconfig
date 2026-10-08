@@ -59,7 +59,7 @@ WAIT_TOOLS = ("clarify",)
 # They stay in activity (the caller did wait) and are reported separately so a
 # cross-tool total can remove the overlap.
 # `opencode_call` is the retired plugin's run tool and past sessions still carry it; the
-# opencode-v2 run tools are one per configured role (`opencode_run_<role>`), and a reply to a
+# opencode run tools are one per configured role (`opencode_run_<role>`), and a reply to a
 # paused run blocks until its next hand-back.
 HANDOFF_TOOLS = {"opencode_call": "opencode_wait_ms", "opencode_request": "opencode_wait_ms",
                  "specialist_call": "specialist_wait_ms"}

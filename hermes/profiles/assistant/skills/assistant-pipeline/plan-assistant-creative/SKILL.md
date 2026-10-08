@@ -56,7 +56,7 @@ Producing media stays with the hands; researching creative inspiration belongs
 here.
 Assessing, adding to, or improving managed hands reference catalogs (such as
 style, theme or destination options in a production skill) is repository
-maintenance for [Engineer](../plan-assistant-engineering/references/existing-change.md), not production
+maintenance through [engineering](../plan-assistant-engineering/references/existing-change.md), not production
 by the hands. Route by whether the user wants an asset or a managed reference
 change, not by words such as card, icon, style or reference alone.
 

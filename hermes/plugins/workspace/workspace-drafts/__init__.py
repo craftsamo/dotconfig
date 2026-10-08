@@ -1,4 +1,4 @@
-"""Drafts and the inbox under ~/Workspaces for Engineer and Assistant: the workspace_drafts
+"""Drafts and the inbox under ~/Workspaces for the Assistant: the workspace_drafts
 tool and /drafts.
 
 The lister is the stdlib module ``drafts.py`` beside this file, so cron and the
@@ -25,7 +25,7 @@ def _load(name, path):
 
 
 drafts = _load("hermes_workspace_drafts", Path(__file__).resolve().parent / "drafts.py")
-PROFILES = {"engineer", "assistant"}
+PROFILES = {"assistant"}
 
 DESCRIPTION = (
     "List drafts under ~/Workspaces (read-only; names, sizes, file counts and modification times only). "

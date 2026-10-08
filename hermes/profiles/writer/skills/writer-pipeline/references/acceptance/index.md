@@ -336,7 +336,7 @@ consumer never edits the part.
 
 ## Who reads this
 
-Any requester that calls Writer directly — assistant, engineer or creator —
+Any requester that calls Writer directly — assistant or creator —
 owns its own acceptance of the returned candidate using this
 contract. It needs no other file from this or any other profile: the brief,
 fact ledger or evidence record and revision budget it applies above are the

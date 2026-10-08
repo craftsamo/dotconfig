@@ -33,13 +33,15 @@ navigation for a changed domain, not a loop that reloads that entry.
 | writer | text deliverables from released units: reader-facing prose and producer-facing scripts (台本, 絵コンテ); drafts only, never publishes | [execute-assistant-writing](../../execute-assistant-writing/SKILL.md) |
 | researcher | purpose-led depth proposal, agreed Build and self-check through the consuming primary; analysis, verification and guidance | [execute-assistant-research](../../execute-assistant-research/SKILL.md) |
 | searcher | purpose-led retrieval proposal, agreed Build and self-check; lookups, sweeps and hunts, all resident | [execute-assistant-search](../../execute-assistant-search/SKILL.md) |
-| engineer | developer using OpenCode: technical planning, implementation, independent QA and PR delivery | [execute-assistant-engineering](../../execute-assistant-engineering/SKILL.md); Client scope and explicit implementation approval; Issue management only on request |
 | marketer | strategy advisor: offer discovery, positioning, campaigns, review findings and outcome analysis; never commissions parts or saves drafts | [execute-assistant-marketing](../../execute-assistant-marketing/SKILL.md): you commission, accept and save the service draft after exact remote-save consent; no publishing |
 
 The profile is the execution contract (model, tools, standing prompt);
 its pipeline skill auto-loads in every session and routes
 internally by its own contract — describe WHAT you need, not which internal
-mode. Media never gets improvised by the assistant, whatever the tier;
+mode. Engineering is not a specialist: you drive OpenCode runs directly per
+[execute-assistant-engineering](../../execute-assistant-engineering/SKILL.md),
+and the code work runs in OpenCode, not in your turn.
+Media never gets improvised by the assistant, whatever the tier;
 text and analysis may stay inline only when genuinely light.
 
 Researcher/Searcher select their own Plan and Build stages (Build ends with

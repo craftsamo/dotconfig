@@ -1,7 +1,7 @@
 ---
 name: plan-assistant-engineering
-description: "Plan engineering: frame outcomes for Engineer proposals. Clarify Client constraints and implementation approval, not technical decomposition or automatic Issue management."
-version: 1.0.0
+description: "Plan engineering: agree outcomes with the user and ground the plan in the repository through OpenCode plan, debug and review runs. Implementation approval, not technical decomposition or automatic Issue management."
+version: 2.0.0
 author: CraftSamo
 license: MIT
 metadata:
@@ -30,33 +30,67 @@ Read only applicable detail references below.
 
 </ReadBeforeWork>
 
-# Engineering - Client planning
+# Engineering - planning with OpenCode
 
-You are Engineer's Client, not a second technical planner. Supply purpose,
-constraints, known decisions, target repository and observable success criteria.
-Engineer uses OpenCode to investigate and propose the technical plan. Do not
-start a separate OpenCode planning session or pre-decompose its implementation.
-An existing Issue or plan is useful context, not a required intake artifact.
+Before the first `opencode_*` call, load the tool mechanics with
+`skill_view(name="opencode:opencode")` unless its full body is already in the
+current context.
 
-1. Establish what the user wants changed or learned, and what must remain intact.
-   Locate an existing repository through the workspace registry when available;
-   do not demand paths or technical choices already known in the conversation.
-2. Read the relevant Client guide below. Ask only consequential unresolved
-   questions; Engineer can investigate technical feasibility and recommend
-   architecture, tools, sequencing and verification.
-3. Request planning through the Engineer resident conversation. Relay constraints
-   and prior decisions accurately, without labeling a suggestion as user approval.
-4. Present the proposed outcome, scope, important tradeoffs and risks. Obtain
-   explicit implementation approval for the agreed plan. Planning consent alone
-   does not authorize implementation. A small settled fix needs no large ceremony.
-5. Release the approved scope through PR delivery under
-   [Execute](../execute-assistant-engineering/SKILL.md). Do not gate every internal phase.
+OpenCode is the developer: it investigates the code and proposes the technical
+plan with its own agents and skills. You are the user's Client, not a second
+technical planner: you own the outcome, the constraints, the decisions only the
+user can make and the implementation approval. Do not pre-decompose the
+implementation or prescribe files; ask OpenCode for the proposal. An existing
+Issue or plan is useful context, not a required intake artifact.
 
-Issue management is explicit-only: ask Engineer to create/update Issues only
-when the user requested tracking this job that way. A supplied Issue URL is a
-specification, not permission to edit it. Duration, complexity or multiple PRs
-never create an automatic Issue/epic/Projects requirement. Existing session IDs
-can be handed over as context, but old grants need reconciliation, not adoption.
+1. **Outcome.** Establish what the user wants changed or learned, what must
+   stay intact and how success is observed. Locate the repository through the
+   workspace registry; do not demand paths or technical choices already known.
+   Ask only consequential unresolved questions; OpenCode can investigate
+   feasibility and recommend architecture, tools, sequencing and verification.
+2. **Checkout.** When implementation is the likely outcome, put the checkout on
+   a task branch BEFORE the first plan run (`git switch -c <branch>`; a separate
+   `git worktree add` only when another session uses this checkout or the main
+   checkout must stay untouched). A session is bound to its worktree and
+   branch, and the plan session is the one Build continues, so the branch
+   decides now whether the plan's context carries over. Plan-only work may stay
+   on the default branch. Branch and worktree setup is yours; no file in the
+   target repository is edited by you, ever — even a one-line change goes
+   through an OpenCode build.
+3. **Job directory.** Open or continue the job's draft directory
+   (`<Group>/.agent/<YYYYMMDD>-<job>/`, see the kernel's StateLifecycle). It is
+   the `output_dir` for runs that produce reports or screenshots.
+4. **Ground it.** Run `opencode_run_plan` on the worktree with the outcome,
+   constraints, known decisions and success criteria, and ask for a proposal:
+   the change, its boundaries, verification, risks, and the choices that need
+   the user. A diagnosis uses `opencode_run_debug`; a review of someone's change
+   uses `opencode_run_review`. Bugs need reproduction, performance a measured
+   baseline, refactors a behavior safety net, rebuilds data preservation and
+   recovery — OpenCode's own approach skills carry the method; name the kind of
+   work, not the method.
+5. **Challenge and settle.** Read the proposal for unsupported assumptions and
+   request the smallest useful further investigation on the same session.
+   Settle in-scope technical questions yourself through `opencode_request`;
+   bring choices about outcome, cost, risk, public behavior or scope to the
+   user, keeping what OpenCode suggested distinct from what the user decided.
+6. **Approval.** Present the proposed outcome, scope, verification, important
+   tradeoffs and risks as visible text, then obtain explicit implementation
+   approval for that plan (one `clarify`). Planning consent alone does not
+   authorize implementation. A small settled fix needs no large ceremony, but
+   still the user's go before a build. Record the user's approving words: Build
+   quotes them as `approval`.
+7. **Release** the approved scope through PR delivery under
+   [Execute](../execute-assistant-engineering/SKILL.md) on the same OpenCode
+   session. Do not gate every internal phase.
+
+Planning, diagnosis or review may finish with an answer and no code or PR.
+A confirmed bug is not implementation approval.
+
+Issue management is explicit-only: Issue writes happen only when the user
+requested tracking this job that way. A supplied Issue URL is a specification,
+not permission to edit it. Duration, complexity or multiple PRs never create an
+automatic Issue/epic/Projects requirement. Existing session ids can be handed
+over as context, but old grants need reconciliation, not adoption.
 
 ## Client guides
 
@@ -69,5 +103,4 @@ can be handed over as context, but old grants need reconciliation, not adoption.
 | Existing-repository change | [existing-change.md](references/existing-change.md) |
 
 These guides hold Client questions and acceptance expectations, not prescribed
-implementation units. Engineer owns technical planning and UI/UX verification.
-Planning, diagnosis or review may finish with an answer and no code or PR.
+implementation units. OpenCode owns technical planning and its own checks.

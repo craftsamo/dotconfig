@@ -18,7 +18,7 @@ the consuming primary. Follow the parent entry's agreement and preliminary
 Build gates; retain same-role unit boundaries.
 
 - **The consumer** — who acts on this (writer, creator, marketer,
-  engineer, the user) and what they will produce; an unnamed
+  OpenCode, the user) and what they will produce; an unnamed
   consumer changes what to research and is a spec-gap finding.
 - **The decision points** — which choices the guidance must close
   ("hook length, thumbnail composition, and posting cadence" — not

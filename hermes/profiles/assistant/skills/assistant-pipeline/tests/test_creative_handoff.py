@@ -236,11 +236,6 @@ class CreativeHandoffTest(unittest.TestCase):
         self.assertIn("records `interrupted`, keeps effects `unknown`", resident)
         self.assertIn("never permits continuation of WORK in that conversation", resident)
         self.assertIn("Closing it is bookkeeping, not acceptance", resident)
-        # The one continuation is a reconcile-only turn on the owning session.
-        self.assertIn('kind="reconcile"', resident)
-        self.assertIn("every `opencode_run_<role>` is refused", resident)
-        self.assertIn("nothing is edited or committed", resident)
-        self.assertIn("not with the interrupted transcript", resident)
         self.assertIn("A2A has no local liveness proof and remains blocked", resident)
         self.assertIn("Do not signal stored PIDs or steal locks", resident)
 

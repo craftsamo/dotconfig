@@ -89,7 +89,7 @@ another domain is needed; do not recursively reload the selected entry.
 | --- | --- |
 | creative (explicit user inspection only) | [qa-assistant-creative](../../qa-assistant-creative/SKILL.md) - bounded findings; ordinary delivery stays in Execute |
 | writing | [qa-assistant-writing](../../qa-assistant-writing/SKILL.md) — per-unit gate (outline / full) + prose / script contracts |
-| engineering | [qa-assistant-engineering](../../qa-assistant-engineering/SKILL.md) — per-unit gate + inspection / acceptance |
+| engineering | [qa-assistant-engineering](../../qa-assistant-engineering/SKILL.md) — scope, evidence, independent OpenCode review, rendered-UI baseline + inspection / acceptance |
 | research | [qa-assistant-research](../../qa-assistant-research/SKILL.md) — sources, verdicts, inference |
 | search | [qa-assistant-search](../../qa-assistant-search/SKILL.md) — per-unit gate + lookup / sweep / hunt contracts |
 | marketing | [qa-assistant-marketing](../../qa-assistant-marketing/SKILL.md) — Marketer advice checked, own acceptance, exact save consent, reopened unpublished draft |

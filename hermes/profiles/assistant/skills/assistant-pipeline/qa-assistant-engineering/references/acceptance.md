@@ -1,6 +1,6 @@
 # Engineering - delivery and optional close-out
 
-Engineer implementation normally completes with a real task-branch PR, accurate
+Implementation normally completes with a real task-branch PR, accurate
 description, verification evidence and remaining risks. Check current CI state;
 pending/unavailable checks are not green, and a required failed check prevents
 unqualified acceptance. PR creation never means it was merged or deployed.

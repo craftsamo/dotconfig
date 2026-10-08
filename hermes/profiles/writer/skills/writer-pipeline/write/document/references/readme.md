@@ -51,7 +51,7 @@ and supported result; do not require unrelated installation chapters.
 QA: a reader can locate the entry task, prerequisites and scope. Commands,
 versions and environment names match the supplied material. Unverified setup
 or destination rendering is named as a gap, not hidden behind a quick-start
-example. Repository integration remains the engineer's work.
+example. Repository integration remains engineering work.
 
 Source: reader-path distinctions adapted from [natural-japanese v1.5.0 guide](https://github.com/coji/natural-japanese/blob/v1.5.0/skills/natural-japanese/references/doctypes/guide.md).
 README sequencing and the fictional example are local applications, not upstream quotations.

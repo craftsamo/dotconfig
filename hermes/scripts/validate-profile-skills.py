@@ -34,7 +34,6 @@ ASSISTANT_PIPELINE = (
     HERMES_ROOT / "profiles" / "assistant" / "skills" / "assistant-pipeline"
 )
 WORKER_PROFILES = (
-    "engineer",
     "researcher",
     "searcher",
     "creator",
@@ -766,10 +765,6 @@ def validate_worker(
             errors.append(f"duplicate writer skill name: {name}")
         allowed.update(path.relative_to(skills).parts for path in entries.values())
     entries: dict[str, Path] = {}
-    if profile == "engineer":
-        entries = validate_engineer_references(pipeline_dir, errors)
-        for name in entries.keys() & (leaves.keys() | learned.keys()):
-            errors.append(f"duplicate engineer skill name: {name}")
     if profile == "marketer":
         entries = validate_marketer_references(pipeline_dir, errors)
         for name in entries.keys() & (leaves.keys() | learned.keys()):
@@ -1004,91 +999,6 @@ def validate_researcher_entries(pipeline_dir: Path, errors: list[str]) -> dict[s
         for link, target in markdown_links(doc):
             if not target.resolve().is_relative_to(pipeline_dir.resolve()) or not target.is_file():
                 errors.append(f"broken/escaping researcher link: {doc.name}: {link}")
-    return entries
-
-
-ENGINEER_ENTRIES = {
-    "plan-engineer": {"web-ui.md", "hands-references.md"},
-    "build-engineer": {"web-ui.md", "hands-references.md"},
-    "qa-engineer": {"web-ui.md", "hands-references.md"},
-    "assess-engineer": {"hands-references.md"},
-}
-ENGINEER_SHARED_REFERENCES = {"opencode.md", "shared/design-catalog.md"}
-
-
-def validate_engineer_references(pipeline_dir: Path, errors: list[str]) -> dict[str, Path]:
-    """Four discoverable mode entries depend on one kernel and shared transport."""
-    entries: dict[str, Path] = {}
-    links = [path for path in pipeline_dir.rglob("*") if path.is_symlink()]
-    if links:
-        for path in sorted(links):
-            errors.append(f"engineer pipeline must not contain symlinks: {path.relative_to(pipeline_dir)}")
-        return entries
-    expected = {f"references/{name}" for name in ENGINEER_SHARED_REFERENCES} | {
-        f"{entry}/references/{name}"
-        for entry, names in ENGINEER_ENTRIES.items() for name in names
-    }
-    found = {
-        path.relative_to(pipeline_dir).as_posix()
-        for path in pipeline_dir.rglob("*.md") if path.name != "SKILL.md"
-    }
-    for name in sorted(expected - found):
-        errors.append(f"missing engineer reference: {name}")
-    for name in sorted(found - expected):
-        errors.append(f"unexpected engineer reference: {name}")
-    allowed_skills = {"SKILL.md"} | {f"{name}/SKILL.md" for name in ENGINEER_ENTRIES}
-    for path in pipeline_dir.rglob("SKILL.md"):
-        if path.relative_to(pipeline_dir).as_posix() not in allowed_skills:
-            errors.append(f"unexpected engineer entry skill: {path.relative_to(pipeline_dir)}")
-    kernel = pipeline_dir / "SKILL.md"
-    kernel_text = kernel.read_text(encoding="utf-8") if kernel.is_file() else ""
-    for name, references in ENGINEER_ENTRIES.items():
-        skill = pipeline_dir / name / "SKILL.md"
-        if f"]({name}/SKILL.md)" not in kernel_text:
-            errors.append(f"engineer kernel does not route {name}")
-        if not skill.is_file():
-            errors.append(f"missing engineer entry skill: {name}/SKILL.md")
-            continue
-        entries[name] = skill
-        validate_skill(skill, name, errors, expected_category="engineer-pipeline")
-        data = frontmatter(skill)
-        if not isinstance(data.get("version"), str) or not data["version"].strip():
-            errors.append(f"engineer entry version must be a nonempty string: {name}")
-        description = data.get("description", "")
-        mode = name.split("-", 1)[0]
-        if not isinstance(description, str) or not re.match(rf"^{mode} engineering\b", description, re.I):
-            errors.append(f"engineer entry description must frontload {mode} engineering: {name}")
-        text = skill.read_text(encoding="utf-8").split("\n---\n", 1)[-1]
-        read_before = re.search(r"<ReadBeforeWork>(.*?)</ReadBeforeWork>", text, re.S)
-        block = " ".join(read_before.group(1).split()) if read_before else ""
-        for required in (
-            'skill_view(name="engineer-pipeline")',
-            'skill_view(name="engineer-pipeline", file_path="references/opencode.md")',
-            "${HERMES_SKILL_DIR}/../SKILL.md",
-            "${HERMES_SKILL_DIR}/../references/opencode.md",
-            "read_file", "next_offset", "unchanged",
-        ):
-            if required not in block:
-                errors.append(f"engineer entry ReadBeforeWork missing {required}: {name}")
-        for label, pattern in (
-            ("current full-body reuse", r"reuse full-body instructions.*current context"),
-            ("no summary reuse", r"not a past load or summary"),
-            ("stop on missing body", r"stop.*(?:unavailable|missing)"),
-            ("no implicit approval", r"not implementation approval"),
-            ("entry re-evaluation", r"re-evaluate.*within a turn"),
-        ):
-            if not re.search(pattern, block, re.I):
-                errors.append(f"engineer entry ReadBeforeWork missing {label}: {name}")
-        for leaf in sorted(references):
-            if f"](references/{leaf})" not in text:
-                errors.append(f"engineer {name} entry does not route {leaf}")
-    root = pipeline_dir.resolve()
-    for path in pipeline_dir.rglob("*.md"):
-        for link, target in markdown_links(path):
-            if not target.is_relative_to(root):
-                errors.append(f"engineer reference escapes pipeline: {path.name}: {link}")
-            elif not target.is_file():
-                errors.append(f"broken engineer reference link: {path.name}: {link}")
     return entries
 
 
@@ -1808,7 +1718,7 @@ def validate_creative_alignment(errors: list[str]) -> None:
 # ── Engineering plan-QA alignment ───────────────────────────────────────
 #
 # Every engineering Client guide has matching outcome acceptance expectations.
-# Technical decomposition and UI evaluation now belong to Engineer, not this
+# Technical decomposition belongs to OpenCode's plan runs, not this
 # Assistant-side correspondence check.
 
 def validate_engineering_alignment(errors: list[str]) -> None:

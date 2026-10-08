@@ -33,11 +33,6 @@ and the **image-creator** / **audio-creator** hands lead on
   on Sonnet 5.5 to spare the shared Claude weekly pool (T2 Opus 5.5, T3 Fable
   5.1) — revert it to Opus 5.5 if its output degrades; `marketer` still leads
   on Opus 5.5 — revert it to Fable 5.1 if its output degrades.
-- **`engineer` alone leads on Fable 5.1** (T2 Opus 5.5) so the OpenCode hidden
-  primaries that plan for and review it (Opus 5.5) remain a different model.
-  The `opencode` plugin refuses a caller's own model for any role (see
-  [`profiles/engineer.md`](./profiles/engineer.md) "OpenCode runtime"), so on
-  its Opus fallback Engineer must pick another reviewer model.
 - **`default` stays off Fable deliberately** — every `--clone` inherits its
   chain, and a neutral starting point should not lead with the model that has
   the tightest sub-cap.
@@ -70,16 +65,17 @@ and the **image-creator** / **audio-creator** hands lead on
   because `x_search` and Imagine video draw on it. Searcher is the only profile that leads on the
   shared ChatGPT allowance, so re-size OpenCode's usage if its retrieval volume
   grows ("Codex" below).
-- The coding model inside OpenCode is a separate layer: Engineer uses
-  OpenCode's configured per-agent defaults, optionally overridden by a maintainer
-  `model` on a role in `opencode_v2.roles`. No second fixed ladder or automatic replay of an
-  uncertain run lives in Engineer's Skill.
+- The coding model inside OpenCode is a separate layer: the Assistant's OpenCode
+  roles use OpenCode's configured per-agent defaults, optionally overridden by a
+  maintainer `model` on a role in `opencode.roles`; the plugin refuses the
+  caller's own model for every role (see [`opencode.md`](./opencode.md)). No
+  second fixed ladder or automatic replay of an uncertain run lives in the
+  Assistant's skills.
 
 | Profile                              | T1 (primary)                        | T2                                | T3                                | T4                                          | T5                                          | `reasoning_effort` |
 | ------------------------------------ | ----------------------------------- | --------------------------------- | --------------------------------- | ------------------------------------------- | ------------------------------------------- | ------------------ |
 | **default**                          | `anthropic` / claude-opus-5-5       | `anthropic` / claude-sonnet-5-5   | `openrouter` / `xiaomi/mimo-v2.5` | —                                           | —                                           | `medium`           |
 | **assistant**                        | `anthropic` / **claude-opus-5-5**   | `anthropic` / claude-fable-5-1    | `anthropic` / claude-sonnet-5-5   | `openai-codex` / gpt-6.1-sol                | `openrouter` / `xiaomi/mimo-v2.5`           | `medium`           |
-| **engineer**                         | `anthropic` / **claude-fable-5-1**  | `anthropic` / claude-opus-5-5     | `anthropic` / claude-sonnet-5-5   | `openrouter` / `deepseek/deepseek-v4-flash` | —                                           | `high`             |
 | **researcher**                       | `anthropic` / **claude-sonnet-5-5** | `anthropic` / claude-opus-5-5     | `openai-codex` / gpt-6.1-sol      | `openrouter` / `xiaomi/mimo-v2.5`           | —                                           | `medium`           |
 | **searcher**                         | `openai-codex` / **gpt-6.1-sol**    | `anthropic` / claude-sonnet-5-5   | `xai-oauth` / grok-4.7            | `openrouter` / `xiaomi/mimo-v2.5`           | —                                           | `low`              |
 | **creator**, **video-creator**       | `anthropic` / **claude-opus-5-5**   | `anthropic` / claude-fable-5-1    | `anthropic` / claude-sonnet-5-5   | `openrouter` / `minimax/minimax-m3`         | —                                           | `medium`           |
@@ -112,7 +108,7 @@ backed by the two blind A/Bs above (small n per arm). Provider facts:
   pinned to it, but searcher's stay `auto`, which resolves to its main model:
   compression and titles there now run on GPT-6.1 Sol. The ChatGPT subscription
   is sized for OpenCode (its searchers,
-  `debugger`, `reviewer-deep`, the build role (`opencode_v2.roles.build`),
+  `debugger`, `reviewer-deep`, the build role (`opencode.roles.build`),
   all on GPT-6.1 Sol, and cheap
   subagents) and shares one Plus allowance with Hermes, so keep the tier off
   profiles with heavy jobs: a single `video-creator` job reads tens of millions
@@ -172,7 +168,7 @@ backed by the two blind A/Bs above (small n per arm). Provider facts:
   (omnimodal, cheap; video analysis stays decoupled via the
   `video-analyze-mimo` plugin — see `README.md` "Plugins"), Creator's hands
   `minimax/minimax-m3`. Text-only work rides the cheaper
-  `deepseek/deepseek-v4-flash` (`engineer`, `writer`). Also valid:
+  `deepseek/deepseek-v4-flash` (`writer`). Also valid:
   `google/gemini-3.5-flash`.
 - **Copilot is in no chain** — the subscription became unusable and its
   catalog drift 404'd tiers silently. `GITHUB_TOKEN` stays in the `hermes`
@@ -211,7 +207,7 @@ These facts govern the paired Claude tiers (Fable 5 and 5.1 behave the same):
    cooldown applies (`credential_pool.py`), while the agent-level fallback
    cooldown is only **60 seconds** (`chat_completion_helpers.py`). At t+61s the
    primary is restored and retried: once a weekly cap is hit this costs **one
-   wasted request per turn until the week rolls over**. Engineer, writer and
+   wasted request per turn until the week rolls over**. Writer and
    marketer absorb that cheaply — they are low-turn profiles. The
    **assistant** is the exception: it is the latency-sensitive front door, so
    when its T1's weekly cap is reached, switch its live sessions to another
@@ -322,12 +318,12 @@ profile gets `global` + `hermes`** — mechanics in
   pair. The messaging keys (`TELEGRAM_*` / `DISCORD_*`) parked here are the
   **assistant's**: `profile-secrets.sh` passes them to assistant unfiltered,
   keeps only the shared owner allowlist `TELEGRAM_ALLOWED_USERS` for
-  engineer / creator / marketer, and drops every messaging key for the other
+  creator / marketer, and drops every messaging key for the other
   profiles. Do not delete them as dead weight.
 - **`global`** — keys the shim shares with other tools (editor, MCP servers,
   CLIs), including the web-search keys (`EXA_API_KEY`, `PARALLEL_API_KEY`,
   `FIRECRAWL_API_KEY`).
-- **`hermes-<profile>`** (assistant / engineer / creator / marketer) — that
+- **`hermes-<profile>`** (assistant / creator / marketer) — that
   bot's own `TELEGRAM_BOT_TOKEN` + `TELEGRAM_ALLOWED_USERS` (assistant also
   `TELEGRAM_HOME_CHANNEL` / `TELEGRAM_DM_CHAT_ID` / `DISCORD_*`). One bot, one
   layer; never share a bot token between layers (the owner allowlist in

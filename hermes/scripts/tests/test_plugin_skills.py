@@ -45,6 +45,7 @@ EXPECTED = {
     "messaging/signal-access": {"signal": {"assistant"}},
     "messaging/telegram-access": {"telegram-account": {"assistant"}},
     "messaging/whatsapp-access": {"whatsapp": {"assistant"}},
+    "orchestration/opencode": {"opencode": {"assistant"}},
 }
 
 

@@ -28,7 +28,7 @@ This file does not restate agent behavior. Contracts:
 
 | Topic                                                                            | Contract                                                                                                                 |
 | -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| Engineer modes, OpenCode runtime, resident turns, UI verification                | [docs/profiles/engineer.md](docs/profiles/engineer.md)                                                                   |
+| OpenCode runtime and Assistant-driven code work                                  | [docs/opencode.md](docs/opencode.md)                                                                                     |
 | `specialist_call` / `specialist_session`, completion, deadlines, work continuity | [docs/profiles/specialist-calls.md](docs/profiles/specialist-calls.md)                                                   |
 | Assistant entry routing, creative early delivery, pinned topics  | [docs/profiles/assistant.md](docs/profiles/assistant.md)                                                                 |
 | Writer v8 leaves, Marketer v9 entries, Researcher/Searcher phases                | [writer.md](docs/profiles/writer.md), [marketer.md](docs/profiles/marketer.md), [research.md](docs/profiles/research.md) |
@@ -129,7 +129,7 @@ scripts/               # profile-secrets.sh (secrets.command helper),
 local/                 # ignored machine-local installs: engine venvs/weights,
                        #   brave-agent clone bundle, …
 docs/                  # behavior/design contracts (index: PROFILES.md)
-profiles/<name>/       # bots: assistant, engineer, marketer; specialists:
+profiles/<name>/       # bots: assistant, marketer; specialists:
                        #   creator (advisor), writer, researcher, searcher;
                        #   media hands: image-, video-, audio-creator
   config.yaml          # model/fallback + agent.system_prompt (operating contract);
@@ -413,23 +413,23 @@ keeps user keys.
 **Transports and guards.**
 
 - **orchestration/specialist-call** (`standalone`): the `specialist` toolset for assistant,
-  creator, marketer and engineer. Enable `specialist-call` in `plugins.enabled`,
+  creator and marketer. Enable `specialist-call` in `plugins.enabled`,
   `specialist` in the relevant `platform_toolsets` lists, and configure the
   explicit `specialist_call.resident_targets` allowlist. Behavior:
   [docs/profiles/specialist-calls.md](docs/profiles/specialist-calls.md).
-- **orchestration/opencode-v2** (`standalone`): OpenCode for engineer and assistant,
+- **orchestration/opencode** (`standalone`): OpenCode for the assistant,
   over the shared OpenCode 2 service's HTTP API through `opencode api` (resolved
   through `PATH`, preserving the secret shim). Tools: one `opencode_run_<role>` per
-  entry of `opencode_v2.roles` (default plan, review and debug read-only and build
+  entry of `opencode.roles` (default plan, review and debug read-only and build
   write), `opencode_session`, `opencode_request`, `opencode_instructions`,
-  `opencode_catalog` and the read-only `opencode_history`. Enable `opencode-v2` in
-  `plugins.enabled` and the `opencode` toolset, and set `opencode_v2.enabled: true`,
+  `opencode_catalog` and the read-only `opencode_history`. Enable `opencode` in
+  `plugins.enabled` and the `opencode` toolset, and set `opencode.enabled: true`,
   `wait_timeout`, `allowed_providers` and optionally `roles`. It keeps no run record
   and drives the person's own OpenCode modes. Behavior:
-  [docs/profiles/engineer.md](docs/profiles/engineer.md) "OpenCode runtime";
+  [docs/opencode.md](docs/opencode.md);
   history: [docs/session-history.md](docs/session-history.md).
 - **orchestration/session-history** (`standalone`): `hermes_history` (toolset
-  `session_history`) and the `/activity` command for engineer and assistant;
+  `session_history`) and the `/activity` command for the assistant;
   also the code behind `bin/ai-history`. Behavior:
   [docs/session-history.md](docs/session-history.md).
 - **tts/characters** (private overlay): the character library — `characters`
@@ -438,12 +438,12 @@ keeps user keys.
   engines. Writer and Creator enable it by name; without the overlay the
   toolset is simply absent.
 - **workspace/workspace-drafts** (`standalone`): read-only `workspace_drafts` (toolset
-  `workspace_drafts`) and the `/drafts` command for engineer and assistant —
+  `workspace_drafts`) and the `/drafts` command for the assistant —
   drafts under `.agent/`, and the inbox apart (`/drafts inbox`); also the code
   behind `bin/ws-drafts`. Behavior:
   [docs/workspace-drafts.md](docs/workspace-drafts.md).
 - **workspace/workspace-repos** (`standalone`): read-only `workspace_repos` (toolset
-  `workspace_repos`) and the `/repos` command for engineer and assistant;
+  `workspace_repos`) and the `/repos` command for the assistant;
   also the code behind `bin/ws-repos`. Behavior:
   [docs/workspace-repos.md](docs/workspace-repos.md).
 - **google-access** (`standalone`): `google_sheets`, `google_gmail`,
@@ -586,7 +586,7 @@ then `secret env -p hermes`). The `hermes` layer holds keys only Hermes uses
 dashboard auth pair); it is injected for every `hermes` invocation, including
 every profile alias. The `global` layer is for keys shared with other shimmed
 tools (e.g. the web-search keys). Per-bot layers `hermes-assistant` /
-`hermes-engineer` / `hermes-marketer` hold each bot's
+`hermes-marketer` hold each bot's
 `TELEGRAM_BOT_TOKEN` (+ allowlists; assistant also carries the Discord keys).
 
 The shim does not isolate profiles: every alias gets the same `global` +
@@ -1006,7 +1006,6 @@ everyone else is on the free ring with distributed entry points:
 | assistant                                            | `exa`                         | paid (auto, key present)                                                                                 |
 | searcher                                             | `parallel`                    | paid (auto)                                                                                              |
 | researcher                                           | `firecrawl`                   | paid (auto)                                                                                              |
-| engineer                                             | `exa`                         | `provider_tier.exa: free`                                                                                |
 | creator, image-creator, video-creator, audio-creator | `parallel`                    | `provider_tier.parallel: free`                                                                           |
 | writer                                               | `firecrawl`                   | `provider_tier.firecrawl: free`                                                                          |
 | marketer                                             | `keenable`                    | `provider_tier.keenable: free`                                                                           |
@@ -1214,7 +1213,7 @@ fails: `approvals.mode: manual` reaches EOF, denies, and the tool returns
   or migrates jobs.
 - Entry-runtime suites in `scripts/tests/` (provisioned Hermes Python, explicit
   source `PYTHONPATH`, isolated HOME, no network; registered in
-  `verify-work-continuity.py`): `test_{engineer,creator,marketer,searcher,writer,assistant}_entry_runtime.py`,
+  `verify-work-continuity.py`): `test_{creator,marketer,searcher,writer,assistant}_entry_runtime.py`,
   `test_creator_entry_contract.py`, `test_hands_instruction_context.py`,
   `test_marketer_{pipeline,browser_lease}.py`, `test_researcher_entries.py`,
   `test_searcher_pipeline.py`; run `test_media_craft_routing.py` and
@@ -1243,8 +1242,8 @@ agent's pre-rename label and carry its old log over once.
   gateway LaunchAgent (`ai.hermes.multiplex`), **one host only** (one
   bot token = one live connection; three bots in this one process). The
   default-hosted process serves every profile directory: assistant Telegram +
-  Discord, the engineer / marketer bots, the A2A endpoints
-  (`127.0.0.1:9902-9909`). The launcher execs the
+  Discord, the marketer bot, the A2A endpoints
+  (`127.0.0.1:9903-9909`). The launcher execs the
   checkout's
   `.hermes/bin/hermes gateway run --accept-hooks --external-supervisor` as a
   supervised child (`HERMES_SUPERVISED_CHILD=1`);

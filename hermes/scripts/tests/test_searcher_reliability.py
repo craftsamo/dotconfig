@@ -1,7 +1,7 @@
 """Contracts for the Searcher reliability failures found in real transcripts.
 
-Each case pins an instruction a real run needed: the handoff asks only Engineer
-for a commit, reading social platforms is allowed, the turn budget is not a
+Each case pins an instruction a real run needed: the handoff asks for no Git
+commit, reading social platforms is allowed, the turn budget is not a
 reason to stop, and a stop reason must be true. Fixtures are neutral; no real
 brief is used.
 
@@ -36,11 +36,6 @@ def flat(path: Path) -> str:
 def handoff(target: str, minutes: int = 90) -> str:
     data = {**HANDOFF_BASE, "target": target, "deadline": time.time() + minutes * 60}
     return plugin._handoff(data, "survey")
-
-
-def test_engineer_handoff_keeps_the_committed_checkpoint_rule():
-    text = handoff("engineer")
-    assert "committed checkpoint" in text and "Turn budget" in text
 
 
 def test_searcher_handoff_does_not_ask_for_a_git_commit():

@@ -2,7 +2,7 @@
 # resident-session — conversational specialist sessions (Workflow v5).
 #
 # The primitive for the "resident session" execution tier: heavy
-# interactive work (creation, writing, research, engineering) runs in a
+# interactive work (creation, writing, research) runs in a
 # persistent `hermes -p <profile> chat` session that the CALLER supervises
 # conversationally. The caller is the
 # assistant by default; since the 2026-09 director rebuild other primaries such

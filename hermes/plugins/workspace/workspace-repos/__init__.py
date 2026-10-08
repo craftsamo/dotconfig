@@ -1,4 +1,4 @@
-"""Repositories under ~/Workspaces for Engineer and Assistant: the workspace_repos tool and /repos.
+"""Repositories under ~/Workspaces for the Assistant: the workspace_repos tool and /repos.
 
 The scanner is the stdlib module ``repos.py`` beside this file, so cron and the
 ``ws-repos`` launcher run the same code. This file only registers it; it
@@ -24,7 +24,7 @@ def _load(name, path):
 
 
 repos = _load("hermes_workspace_repos", Path(__file__).resolve().parent / "repos.py")
-PROFILES = {"engineer", "assistant"}
+PROFILES = {"assistant"}
 ALIASES = {"prs": "prs", "pr": "prs", "pulls": "prs", "pullrequests": "prs", "pull-requests": "prs",
            "issues": "issues", "issue": "issues", "commits": "commits", "commit": "commits", "log": "commits"}
 PERIOD_HINT = ["`/repos commits week`", "`/repos prs week`", "`/repos issues week`"]
