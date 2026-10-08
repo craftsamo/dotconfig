@@ -20,8 +20,8 @@ def _load(name, filename):
     return sys.modules[name]
 
 
-api = _load("hermes_opencode2_api", "api.py")
-config = _load("hermes_opencode2_config", "config.py")
+api = _load("hermes_opencode_api", "api.py")
+config = _load("hermes_opencode_config", "config.py")
 
 # Speed tiers and dated snapshots serve the same weights as the plain model.
 MODEL_ALIAS = re.compile(r"(?:-(?:fast|ultrafast)|-\d{8}|:free)+\Z")
@@ -72,7 +72,7 @@ def selection(args, settings, role):
         if not isinstance(value, str) or not pattern.fullmatch(value):
             raise ValueError(f"{key} must be a plain name" + (" in provider/model form" if key == "model" else ""))
         if key == "model" and value.split("/", 1)[0] not in settings["allowed_providers"]:
-            raise ValueError(f"model {value!r} is not from opencode_v2.allowed_providers "
+            raise ValueError(f"model {value!r} is not from opencode.allowed_providers "
                              f"{settings['allowed_providers']}; pick one from opencode_catalog models")
         chosen[key] = value
     if "variant" in chosen and "model" not in chosen and not role.get("model"):

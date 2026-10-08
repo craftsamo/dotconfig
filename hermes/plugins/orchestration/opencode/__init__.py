@@ -3,7 +3,7 @@
 The plugin keeps no run records. A run is an OpenCode session whose metadata binds
 it to the calling Hermes session; its state is read from the service each time
 (see turn.py). Roles are configuration: one `opencode_run_<role>` tool per
-`opencode_v2.roles` entry, each naming an installed OpenCode agent and a policy.
+`opencode.roles` entry, each naming an installed OpenCode agent and a policy.
 """
 
 from __future__ import annotations
@@ -34,13 +34,13 @@ def _load(name, path):
 
 # Reuse this repository's caller binding. Do not import Hermes' transient/private
 # delegate implementation or duplicate its API.
-dispatch = _load("hermes_engineer_specialist_transport", _HERE.parents[0] / "specialist-call/__init__.py")
-api = _load("hermes_opencode2_api", _HERE / "api.py")
-config = _load("hermes_opencode2_config", _HERE / "config.py")
-policy = _load("hermes_opencode2_policy", _HERE / "policy.py")
-models = _load("hermes_opencode2_models", _HERE / "models.py")
-turn = _load("hermes_opencode2_turn", _HERE / "turn.py")
-inventory = _load("hermes_opencode2_history", _HERE / "history.py")
+dispatch = _load("hermes_opencode_specialist_transport", _HERE.parents[0] / "specialist-call/__init__.py")
+api = _load("hermes_opencode_api", _HERE / "api.py")
+config = _load("hermes_opencode_config", _HERE / "config.py")
+policy = _load("hermes_opencode_policy", _HERE / "policy.py")
+models = _load("hermes_opencode_models", _HERE / "models.py")
+turn = _load("hermes_opencode_turn", _HERE / "turn.py")
+inventory = _load("hermes_opencode_history", _HERE / "history.py")
 
 PROFILES = {"engineer", "assistant"}
 SESSION_ID = re.compile(r"ses_[A-Za-z0-9_-]+\Z")
@@ -79,7 +79,7 @@ def _starting(home, directory):
     """Holds a per-worktree lock while a run is set up and its prompt admitted, so two
     concurrent tool calls cannot both start a write run in one worktree. It is a lock
     only: nothing is recorded in it."""
-    root = home / "opencode-v2-locks"
+    root = home / "opencode-locks"
     root.mkdir(mode=0o700, exist_ok=True)
     if root.is_symlink():
         raise ValueError("OpenCode lock directory must not be a symlink")

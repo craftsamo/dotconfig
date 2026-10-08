@@ -24,8 +24,8 @@ def _load(name, filename):
     return sys.modules[name]
 
 
-api = _load("hermes_opencode2_api", "api.py")
-config = _load("hermes_opencode2_config", "config.py")
+api = _load("hermes_opencode_api", "api.py")
+config = _load("hermes_opencode_config", "config.py")
 
 POLL = 2.0
 # A turn that is neither running nor closed by an idle marker for this long ended
