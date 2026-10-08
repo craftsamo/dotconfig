@@ -1047,9 +1047,9 @@ def _read_back(conn, client: Client, plan: dict, detail: str) -> dict:
 
 # --- threads, pins, mentions, friends, server-side search ----------------------------------------
 
-def forum_tags(client: Client, channel_id: str) -> dict:
-    """A forum or media channel's tags as {id: name}; {} for any other channel. A channel whose tags
-    were never stored is read once (the guild channel list may not carry them)."""
+def forum_tags(client: Client, channel_id: str) -> dict | None:
+    """A forum or media channel's tags as {id: name} ({} for a forum that defines none); None for any
+    other channel. A channel whose tags were never stored is read once."""
     conn = client.conn
 
     def stored():
@@ -1057,7 +1057,7 @@ def forum_tags(client: Client, channel_id: str) -> dict:
 
     row = stored()
     if row is None or row["type"] not in store.FORUM_TYPES:
-        return {}
+        return None
     if row["forum"] is None:
         channel(client, channel_id)
         row = stored()
@@ -1068,15 +1068,17 @@ def forum_tags(client: Client, channel_id: str) -> dict:
     return {t["id"]: t["name"] for t in tags}
 
 
-def _resolve_tag(tags: dict, wanted: str) -> str:
+def _resolve_tag(tags: dict | None, wanted: str) -> str:
     """A tag given by id or by name (exactly, ignoring case) to its id."""
+    if tags is None:
+        raise EngineError("usage", "this channel has no tags: only forum and media channels have them")
+    if not tags:
+        raise EngineError("usage", "this forum defines no tags, so there is nothing to filter by")
     if wanted in tags:
         return wanted
     named = [i for i, name in tags.items() if name.casefold() == wanted.casefold()]
     if len(named) == 1:
         return named[0]
-    if not tags:
-        raise EngineError("usage", "this channel has no tags (only forum and media channels do)")
     known = ", ".join(sorted(tags.values()))
     raise EngineError("usage", f"unknown tag {wanted!r}; this channel's tags: {known}" if not named else
                       f"more than one tag is called {wanted!r}: use its id")
@@ -1111,7 +1113,7 @@ def threads(client: Client, channel_id: str, *, archived=None, offset: int = 0, 
             if name:
                 authors[str(m["channel_id"])] = name
     conn.commit()
-    return {"threads": rows, "first": first, "first_author": authors, "tags": tags,
+    return {"threads": rows, "first": first, "first_author": authors, "tags": tags or {},
             "has_more": bool(found.get("has_more")), "total": found.get("total_results")}
 
 

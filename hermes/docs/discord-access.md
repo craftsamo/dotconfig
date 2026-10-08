@@ -565,6 +565,32 @@ name or the engine venv; the plugin's source stays readable. It is a pattern
 match on the call's text, not a sandbox: the approval gate is a guarantee for
 the tool and a policy for everything else.
 
+## Where a write may run
+
+A card is only a gate while a person can answer it. Hermes approves a plugin's
+card without asking anyone under `--yolo`, under `approvals.mode: off` and under
+`hermes -z`, which switches YOLO on by itself ("an approval prompt would hang
+forever"); cron, single-query (`-q`) and unattended-platform runs decide from
+the `approvals.*_mode` settings or fail closed. A write that depends on the
+card would run unasked there.
+
+So a write (`send`, `react`, `unreact`, `pin`, `unpin`, `edit`, `delete` and
+the role actions) is refused outright wherever no person can answer, with
+`not done` and the reason, and nothing is sent or changed:
+
+- **The approval hook** refuses it before any card or file snapshot is built.
+- **The handler** refuses it again, so a write never depends on the hook having
+  run, and a forged `_approved` or `_outbox` does not help.
+- **The check** is `plugins/messaging/_shared/human_gate.py` (`no_human`): YOLO,
+  `approvals.mode: off`, cron, single-query, an unattended platform
+  (`webhook`, `msgraph_webhook`, `api_server`), or no interactive terminal,
+  gateway or ask bridge. It is the web3 tools' check, and it fails closed:
+  when Hermes' approval context cannot be read, nobody is assumed present.
+
+Reads, `media`, `export` and the sync list need no card and run everywhere. To
+try a write, ask the Assistant in a chat where its card reaches the user; a
+`hermes -z` run can check reads and can never check a write.
+
 ## Setup
 
 Once, in a terminal:

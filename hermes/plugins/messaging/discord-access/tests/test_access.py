@@ -43,6 +43,7 @@ def mirror(tmp_path, monkeypatch):
     monkeypatch.setenv(store.STATE_ENV, str(tmp_path / "state"))
     monkeypatch.setattr(access, "call_engine", lambda *a, **k: pytest.fail(f"engine called: {a}"))
     monkeypatch.setattr(access, "_agent_loaded", lambda: True)
+    monkeypatch.setattr(access.human_gate, "no_human", lambda: None)      # a person is there to answer cards
     conn = store.connect(write=True)
     store.set_meta(conn, "me", {"id": ME, "username": "me", "name": "Me"})
     store.upsert_guild(conn, G, "Guild", 0)
@@ -1508,8 +1509,10 @@ def test_live_search_passes_author_and_has_and_refuses_mirror_only_filters(monke
     access.execute({"action": "search", "live": True, "query": "x", "author": "me"})
     assert calls[1]["author"] == ME and "has" not in calls[1]
     for bad in ({"reacted": True}, {"emoji": "👍"}, {"parent": GENERAL}):
-        with pytest.raises(access.DiscordError, match="mirror only"):
+        with pytest.raises(access.DiscordError, match="only the mirror can be filtered this way"):
             access.execute({"action": "search", "live": True, "query": "x", **bad})
+    with pytest.raises(access.DiscordError, match=r"^reacted, emoji: only the mirror can be filtered this way"):
+        access.execute({"action": "search", "live": True, "query": "x", "reacted": True, "emoji": "👍"})
     with pytest.raises(access.DiscordError, match="query is required"):
         access.execute({"action": "search", "live": True})
     assert len(calls) == 2
