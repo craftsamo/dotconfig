@@ -807,8 +807,23 @@ def test_unknown_tags_are_refused_with_the_forums_tag_names():
     assert http.api_calls() == []                                                        # refused before any search
     store.upsert_channel(conn, store.channel_row({"id": TEXT, "type": 0, "guild_id": G, "name": "general"}), 0)
     conn.commit()
-    with pytest.raises(engine.EngineError, match="no tags"):
+    with pytest.raises(engine.EngineError, match="this channel has no tags: only forum and media channels have them"):
         engine.threads(client(http, conn), TEXT, tag="Bug")
+
+
+def test_a_forum_that_defines_no_tags_is_not_called_a_channel_without_tags():
+    conn = store.connect(write=True)
+    store.upsert_channel(conn, store.channel_row({"id": FORUM, "type": 15, "name": "ideas", "guild_id": G,
+                                                  "available_tags": []}), 0)
+    conn.commit()
+    assert engine.forum_tags(client(FakeHttp(), conn), FORUM) == {}                 # a forum, with no tags
+    assert engine.forum_tags(client(FakeHttp(), conn), TEXT) is None                # not a forum at all
+    http = FakeHttp()
+    with pytest.raises(engine.EngineError, match="this forum defines no tags, so there is nothing to filter by"):
+        engine.threads(client(http, conn), FORUM, tag="Bug")
+    assert http.api_calls() == []                                                   # refused before any search
+    listing = FakeHttp({("GET", f"/channels/{FORUM}/threads/search"): (200, {}, {"threads": [], "has_more": False})})
+    assert engine.threads(client(listing, conn), FORUM)["tags"] == {}               # an untagged listing still works
 
 
 def test_forum_tags_never_stored_are_read_once():
