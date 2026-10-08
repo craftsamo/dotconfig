@@ -1,6 +1,6 @@
 ---
 name: discord-account
-description: "Use for any work in the user's own Discord account through discord_account: reading DMs, servers, threads, pins or mentions, searching, saving a message's files, collecting a channel's history as evidence, the sync list, sending, reacting, editing or deleting their messages, or managing a server's roles."
+description: "Use for any work in the user's own Discord account through discord_account: reading DMs, servers, threads, pins or mentions, searching, saving a message's files, collecting a channel's history as evidence, the sync list, sending, reacting, pinning, editing or deleting their messages, or managing a server's roles."
 version: 1.0.0
 author: CraftSamo
 license: MIT
@@ -149,7 +149,7 @@ card: it is local and reversible.
 
 ## Write
 
-Every write (`send`, `react`, `unreact`, `edit`, `delete`, role changes)
+Every write (`send`, `react`, `unreact`, `pin`, `unpin`, `edit`, `delete`, role changes)
 waits on an approval card the user answers. The card is the confirmation:
 call the tool directly, without asking first in chat or with `clarify`,
 unless it is unclear which target or what change the user means. A write
@@ -163,6 +163,10 @@ job; schedule a reminder instead.
 2. **Only what was asked.** Send the user's text as given, with no signature
    or formatting they did not ask for, and never add `@everyone`, `@here` or
    a role mention (the card lists pings). React with the emoji the user named.
+   Pin only the message the user named: a pin posts a notice everyone in the
+   chat sees, a chat holds 250 at most, and a server needs the Pin Messages
+   permission (Discord's refusal is the answer, not a reason to try another
+   route).
    Edit and delete only the user's own messages.
 3. **Agree long text first.** The card shows about the first 350 characters
    of a send or an edit. For anything longer, show the full final text in

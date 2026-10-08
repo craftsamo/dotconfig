@@ -934,6 +934,51 @@ def test_write_outcomes(monkeypatch, engine_result, phrase):
         assert result == {"ok": True, "action": "delete", "note": "deleted (it already was)"}
 
 
+def test_pin_card_warns_that_everyone_sees_it_and_runs_as_approved(monkeypatch):
+    card, key, call = approve({"action": "pin", "channel": DM1, "id": str(M1)})
+    assert card == (f"Discord: Me (@me)\nIn: DM with Taro (@taro)\nChannel id: {DM1}\n"
+                    "Message: Taro: 明日の打ち合わせは10時で\nPin this message\n"
+                    "Everyone in the chat sees \"pinned a message to this channel\". A chat holds at most 250 pins.")
+    assert key.startswith("discord-access:pin:") and call["_approved"] == key
+    calls = _engine_says(monkeypatch, {"outcome": "done"})
+    assert access.execute(call) == {"ok": True, "action": "pin", "note": "pinned"}
+    assert calls == [("pin", {"channel": DM1, "id": str(M1)})]
+
+
+def test_unpin_card_has_no_notice_and_a_key_of_its_own(monkeypatch):
+    card, key, call = approve({"action": "unpin", "channel": DM1, "id": str(M1)})
+    assert card.endswith("Message: Taro: 明日の打ち合わせは10時で\nUnpin this message")
+    assert key.startswith("discord-access:unpin:")
+    assert key != access.approval_request({"action": "pin", "channel": DM1, "id": str(M1)})[1]
+    calls = _engine_says(monkeypatch, {"outcome": "done"})
+    assert access.execute(call)["note"] == "unpinned" and calls[0][0] == "unpin"
+
+
+def test_pin_is_for_read_plain_messages_only():
+    _set("UPDATE messages SET type = 6 WHERE id = ?", M1)
+    with pytest.raises(access.DiscordError, match="plain message or a reply"):
+        access.approval_request({"action": "pin", "channel": DM1, "id": str(M1)})
+    with pytest.raises(access.DiscordError, match="read before"):
+        access.approval_request({"action": "pin", "channel": DM1, "id": "500000000000000001"})
+    with pytest.raises(access.DiscordError, match="unknown channel"):
+        access.approval_request({"action": "pin", "channel": "400000000000000077", "id": str(M1)})
+
+
+def test_an_edited_message_voids_a_pin_card(monkeypatch):
+    calls = _engine_says(monkeypatch, {"outcome": "done"})
+    _, _, call = approve({"action": "pin", "channel": DM1, "id": str(M1)})
+    _set("UPDATE messages SET content = ? WHERE id = ?", "changed after the card", M1)
+    assert "not the one approved" in access.execute(call)["error"]
+    assert calls == []
+
+
+def test_an_uncertain_pin_says_how_to_check(monkeypatch):
+    _, _, call = approve({"action": "pin", "channel": DM1, "id": str(M1)})
+    _engine_says(monkeypatch, {"outcome": "uncertain", "detail": "timeout"})
+    error = access.execute(call)["error"]
+    assert error.startswith("UNCERTAIN: timeout") and "action=pins" in error and "harmless" in error
+
+
 def test_a_dead_engine_makes_a_write_uncertain(monkeypatch):
     _, _, call = approve({"action": "react", "channel": DM1, "id": str(M1), "emoji": THUMB})
 

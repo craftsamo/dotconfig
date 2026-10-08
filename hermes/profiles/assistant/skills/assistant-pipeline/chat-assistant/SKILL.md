@@ -66,8 +66,8 @@ registry or ledger upkeep, Admin maintenance) stays here across turns.
   approval on its card. Any Signal work loads `skill_view(name="signal-access:signal")`
   first — `references/signal.md`.
 - **The user's own Discord account** (their DMs and servers, threads, pins,
-  mentions, friends, syncing a server, sending, reacting, editing or deleting
-  their own message, managing a server's roles) — only through the
+  mentions, friends, syncing a server, sending, reacting, pinning, editing or
+  deleting their own message, managing a server's roles) — only through the
   `discord_account` tool, never the terminal or Discord in the browser. Any
   Discord account work loads `skill_view(name="discord-access:discord-account")` first —
   `references/discord.md`.

@@ -164,7 +164,24 @@ def test_other_writes_are_approved_and_bound_to_their_key():
     assert plugin.gate(tool_name="discord_account", args=forged)["action"] == "block"
 
 
+def test_pin_waits_for_approval_like_any_other_write():
+    conn = store.connect(write=True)
+    store.upsert_messages(conn, [store.message_row({"id": "500000000000000002", "channel_id": DM, "type": 0,
+                                                    "content": "keep this", "author": {"id": "100000000000000002"}},
+                                                   "100000000000000001")])
+    conn.commit()
+    conn.close()
+    args = {"action": "pin", "channel": DM, "id": "500000000000000002"}
+    call = {"tool_name": "discord_account", "args": args, "tool_call_id": "call-pin", "session_id": "s"}
+    directive = plugin.gate(**call)
+    assert directive["action"] == "approve" and directive["rule_key"].startswith("discord-access:pin:")
+    assert "Pin this message" in directive["message"] and "Everyone in the chat sees" in directive["message"]
+    assert plugin.bind(**call) == {"action": "modify", "args": {"_approved": directive["rule_key"]}}
+    assert plugin.gate(tool_name="discord_account", args={**args, "_approved": "x"})["action"] == "block"
+
+
 @pytest.mark.parametrize("args", [
+    {"action": "pin", "channel": DM, "id": "500000000000000099"},
     {"action": "react", "channel": DM, "id": "500000000000000099", "emoji": "x"},
     {"action": "role_add", "guild": "300000000000000001", "role": "600000000000000001", "user": "100000000000000002"},
 ])

@@ -48,10 +48,12 @@ perms = _load("hermes_discord_access_perms", HERE / "perms.py")
 archives = _load("hermes_archive_check", HERE.parent / "_shared" / "archive_check.py")
 
 ACTIONS = ("status", "guilds", "channels", "dms", "messages", "search", "context", "backfill", "media",
-           "threads", "pins", "mentions", "pending", "stats", "export", "friends", "roles", "member", "role_members", "members",
-           "guild_info", "emojis", "events", "invites", "sync_list", "sync_suggest", "sync_add", "sync_remove", "send", "react", "unreact", "edit", "delete",
+           "threads", "pins", "mentions", "pending", "stats", "export", "friends", "roles", "member",
+           "role_members", "members", "guild_info", "emojis", "events", "invites",
+           "sync_list", "sync_suggest", "sync_add", "sync_remove", "send", "react", "unreact", "edit", "delete",
+           "pin", "unpin",
            "role_add", "role_remove", "role_bulk_add", "role_create", "role_edit", "role_delete")
-MESSAGE_WRITES = {"react", "unreact", "edit", "delete"}
+MESSAGE_WRITES = {"react", "unreact", "edit", "delete", "pin", "unpin"}
 ROLE_WRITES = {"role_add", "role_remove", "role_bulk_add", "role_create", "role_edit", "role_delete"}
 WRITES = {"send"} | MESSAGE_WRITES | ROLE_WRITES
 
@@ -2415,6 +2417,7 @@ def rule_key(plan: dict, staged: list[dict] | None = None) -> str:
 # once; bind hands the handler its key (``_approved``), and the handler, after approval, computes
 # the plan again and runs it only when the key still matches: exactly what the card showed.
 
+PIN_NOTICE = "pinned a message to this channel"    # the system message a pin posts for everyone
 CUSTOM_EMOJI = re.compile(r"^(?:<a?:)?([A-Za-z0-9_~]{1,32}):(\d{15,21})>?$")
 KEYCAP = re.compile("^[0-9#*]\ufe0f?\u20e3$")
 COLOR = re.compile(r"^#?([0-9a-fA-F]{6})$")
@@ -2493,6 +2496,15 @@ def _message_card(conn, args: dict, action: str, cid: str, mid: str, m: dict, la
         head += [f"Message: {_one_line(sender, NAME_CLIP)}: {quoted}" if sender else f"Message: {quoted}",
                  f"React with: {visible(emoji)}" if action == "react" else f"Remove my reaction: {visible(emoji)}"]
         card, done = "\n".join(head), "reaction added" if action == "react" else "reaction removed"
+    elif action in ("pin", "unpin"):
+        if m["type"] not in (None, 0, 19):
+            raise DiscordError("only a plain message or a reply can be pinned")
+        head += [f"Message: {_one_line(sender, NAME_CLIP)}: {quoted}" if sender else f"Message: {quoted}",
+                 "Pin this message" if action == "pin" else "Unpin this message"]
+        if action == "pin":
+            head.append(f"Everyone in the chat sees \"{PIN_NOTICE}\". A chat holds at most 250 pins.")
+        card, done = "\n".join(head), "pinned" if action == "pin" else "unpinned"
+        check = "read the message with messages live=true, or list the pins with action=pins"
     elif action == "edit":
         text = _str(args, "text", required=True)
         if len(text) > TEXT_LIMIT:
@@ -2511,8 +2523,8 @@ def _message_card(conn, args: dict, action: str, cid: str, mid: str, m: dict, la
     else:
         head += [f"Delete my message: {quoted}", "This cannot be undone."]
         card, done = "\n".join(head), "deleted"
-    # An edit or deletion acts on the message as the card quoted it: a change meanwhile voids the card.
-    bound = [m["content"], m["edited"], _attachment_identity(m)] if own else None
+    # An edit, deletion or pin acts on the message as the card quoted it: a change meanwhile voids the card.
+    bound = [m["content"], m["edited"], _attachment_identity(m)] if own or action in ("pin", "unpin") else None
     return {"action": action, "command": action, "engine": engine, "card": card, "done": done, "check": check,
             "bound": bound}
 
