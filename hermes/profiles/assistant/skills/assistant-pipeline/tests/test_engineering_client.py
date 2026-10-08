@@ -58,5 +58,16 @@ class EngineeringClientTests(unittest.TestCase):
         self.assertIn("does not authorize merge or deployment", text)
 
 
+    def test_rendered_ui_escalates_only_unexplained_changes(self):
+        text = read("qa-assistant-engineering/references/web-ui.md")
+        self.assertIn("web_ui_check", text)
+        self.assertIn("assets/ui-baseline/<repo>/", text)
+        self.assertIn("Otherwise do not ask", text)
+        self.assertIn("Never promote screenshots the user has not seen", text)
+        self.assertIn("Never open a development target in your own logged-in browser", text)
+        plan = read("plan-assistant-engineering/references/web-ui.md")
+        self.assertIn("first build's screenshots will be shown for approval", plan)
+
+
 if __name__ == "__main__":
     unittest.main()
