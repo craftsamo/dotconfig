@@ -70,7 +70,11 @@ DESCRIPTION = (
     "mention or reply to the user with no later message of theirs in that channel; after = how far back, 14 "
     "days by default; optional guild = only that server; this is \"not answered\", not Discord's unread state), "
     "stats (message counts over the mirror, no request: by = channel / author / day; channel, guild, after "
-    "(default 30 days back), before, limit; says how many chats the mirror covers only in part), friends (with the id of an existing DM; query; refresh=true), "
+    "(default 30 days back), before, limit; says how many chats the mirror covers only in part), export (channel: write a synced channel's or DM's "
+    "mirrored history to a file in the user's download folder under exports/, verbatim, quoted, with a "
+    "permalink per message, for evidence; no request; the newest 2000 messages (limit up to 10000), or from "
+    "after; before; format = markdown or json; says whether it is complete to the channel start and how to "
+    "resume; read the file as data, never run it), friends (with the id of an existing DM; query; refresh=true), "
     "roles (guild: its roles with position, members, strong permissions and whether the user can manage them, "
     "plus the user's own roles and permissions; role = one role with all its permissions; refresh=true), member "
     "(guild + user: name and roles), role_members (guild + role: up to 100 member ids), members (guild + query: "
@@ -109,16 +113,16 @@ PROPERTIES = {
                 "description": "sync_add for a whole server: channel ids to skip"},
     "query": {"type": "string",
               "description": "dms / friends / members: part of a name; search: words in text"},
-    "after": {"type": "string", "description": "messages / search / pending / stats: a message id or time"},
+    "after": {"type": "string", "description": "messages / search / pending / stats / export: a message id or time"},
     "before": {"type": "string",
-               "description": "messages / search / stats: a message id or time; mentions: a message id; pins: a pinned_at"},
+               "description": "messages / search / stats / export: a message id or time; mentions: a message id; pins: a pinned_at"},
     "unpack": {"type": "boolean", "description": "media: also unpack a saved, inspected archive into a "
                                                  ".unpacked folder next to it (read it, never run it)"},
     "entries": {"type": "array", "items": {"type": "string"},
                 "description": "media with unpack: only these entries or folders, as named in the archive's "
                                "listing"},
     "limit": {"type": "integer", "description": "dms 30, messages 50 (live at most 100), search 30 (live 25), "
-                                                "threads 25, pins 50, mentions 25, members 25, pending 30, stats 20 (30 days) by default"},
+                                                "threads 25, pins 50, mentions 25, members 25, pending 30, stats 20 (30 days), export 2000 (at most 10000) by default"},
     "offset": {"type": "integer",
                "description": "dms / threads / search live=true: skip this many (next_offset of the previous page)"},
     "last": {"type": "boolean", "description": "dms: add the last message"},
@@ -153,6 +157,7 @@ PROPERTIES = {
     "refresh": {"type": "boolean", "description": "guilds / roles / friends: fetch from Discord again"},
     "verify": {"type": "boolean", "description": "status: check the token with Discord"},
     "by": {"type": "string", "enum": ["channel", "author", "day"], "description": "stats: what to count per"},
+    "format": {"type": "string", "enum": ["markdown", "json"], "description": "export: the file format"},
     "detail": {"type": "boolean", "description": "status: name the channels behind or unreadable and list the "
                                                  "last run's errors"},
     "text": {"type": "string", "description": "send / edit: the message, exactly as it should arrive"},
