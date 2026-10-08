@@ -43,7 +43,7 @@ class NoteRouting(unittest.TestCase):
         execute = " ".join((ROOT / "execute-assistant-marketing/SKILL.md").read_text().split())
         for route in ('skill_view(name="x-access:x-twitter-drafts", file_path="references/post-draft.md")',
                       'skill_view(name="x-access:x-twitter-drafts", file_path="references/article-draft.md")',
-                      'skill_view(name="chat-assistant", file_path="references/substack.md")',
+                      'skill_view(name="substack-access:substack-drafts")',
                       'skill_view(name="note-access:note-com-drafts")', 'skill_view(name="zenn-dev")'):
             self.assertIn(route, execute)
         self.assertNotIn("save-package", execute)
