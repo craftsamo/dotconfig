@@ -156,6 +156,11 @@ notification; never poll. When a call returns `running` with `timed_out`, or a
 tool times out, issue ONE `opencode_session wait` or wait for the
 notification.
 
+A notification for a state you already read (from a run call or a `wait`, and
+for a turn you have already reported) carries nothing new: answer it with
+`[SILENT]`. Reply only when it brings a new state: another finish, a pause on a
+request or question, or an unknown outcome.
+
 - `completed`: OpenCode reported the turn succeeded — not that the task
   passed. Read `result` for open questions, assumptions and unverified claims
   and `changes` for what it touched. A question can arrive in a completed run.
