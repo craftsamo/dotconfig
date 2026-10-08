@@ -183,17 +183,18 @@ renamed without `HERMES` becomes watch-only on the next call.
 
 ## Transfers (the Assistant's wallet actions)
 
-| Action     | What it does                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `accounts` | every labelled seed's first accounts (5 by default, up to 101) and every key, Hermes and watch-only, with their metadata and their addresses on the tool's chain family; with `chain`, native balances there; skipped items with the reason. Never a key                                                                                                                                                                      |
-| `quote`    | `account`, `chain`, `to`, `amount`, `token` (a contract or mint; omit for the native coin): validates, builds the exact transaction, simulates it (`eth_estimateGas` + `eth_call`; `simulateTransaction`), and stores it as a single-use quote that expires after 15 minutes (past the 10-minute approval wait). With `kind: revoke`, `token` and (EVM) `spender`: the same for taking back an approval ([Revokes](#revokes)) |
-| `transfer` | `quote`: sends exactly the stored transaction, then waits up to 20 seconds for it to land and reports `confirmed`, `failed` (landed but reverted: only the fee was spent) or `pending`                                                                                                                                                                                                                                        |
-| `status`   | a sent transfer's confirmations or failure                                                                                                                                                                                                                                                                                                                                                                                    |
+| Action     | What it does                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `accounts` | every labelled seed's first accounts (5 by default, up to 101) and every key, Hermes and watch-only, with their metadata and their addresses on the tool's chain family; with `chain`, native balances there; skipped items with the reason. Never a key                                                                                                                                                                                                                                                        |
+| `quote`    | `account`, `chain`, `to`, `amount`, `token` (a contract or mint; omit for the native coin): validates, builds the exact transaction, simulates it (`eth_estimateGas` + `eth_call`; `simulateTransaction`), and stores it as a single-use quote that expires after 15 minutes (past the 10-minute approval wait). With `kind: revoke`, `token` and (EVM) `spender`: the same for taking back an approval ([Revokes](#revokes)); with `kind: nft`, `to`, `token` and (EVM) `token_id`: for an NFT ([NFTs](#nfts)) |
+| `transfer` | `quote`: sends exactly the stored transaction, then waits up to 20 seconds for it to land and reports `confirmed`, `failed` (landed but reverted: only the fee was spent) or `pending`                                                                                                                                                                                                                                                                                                                          |
+| `status`   | a sent transfer's confirmations or failure                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 
 The scope of a transfer is fixed: an EIP-1559 native transfer, an ERC-20
 `transfer`, a SOL System Program transfer, or an SPL `transferChecked`
-(creating the recipient's associated token account when missing). No
-calldata, program or instruction from the caller is ever signed. Any token
+(creating the recipient's associated token account when missing), plus the
+fixed calls of [Revokes](#revokes) and [NFTs](#nfts). No calldata, program
+or instruction from the caller is ever signed. Any token
 may be sent; its contract decides what its own `transfer` does, so it must
 have code, answer `decimals`, and pass simulation, and the card names it by
 address with its self-declared symbol quoted (`"?"` when the symbol holds
@@ -232,8 +233,9 @@ quote); and only then signs.
 
 ### Revokes
 
-A quote's `kind` is `transfer` (the default) or `revoke`, which takes back an
-approval a Hermes wallet gave; its MAC covers the kind like everything else.
+A quote's `kind` is `transfer` (the default), `revoke`, which takes back an
+approval a Hermes wallet gave, or `nft` ([NFTs](#nfts)); its MAC covers the
+kind like everything else.
 The signer reads the approval as it is now and builds one fixed call, or
 refuses when there is nothing to revoke:
 
@@ -252,6 +254,26 @@ ledgered with its kind. Only Hermes wallets revoke; a watch-only wallet's
 approvals are listed by `allowances` for the user to revoke in their own
 wallet. ERC-721 single-token approvals are not covered (`allowances` does
 not list them).
+
+### NFTs
+
+`kind: nft` sends an NFT the Hermes wallet holds, with one fixed call per
+standard, after checking it is there to send:
+
+| NFT                                                                     | Checked first                           | Call signed                                                   |
+| ----------------------------------------------------------------------- | --------------------------------------- | ------------------------------------------------------------- |
+| ERC-721 (`supportsInterface(0x80ac58cd)`), `token_id`                   | `ownerOf(token_id)` is the account      | `safeTransferFrom(account, to, token_id)`                     |
+| ERC-1155 (`supportsInterface(0xd9b67a26)`), `token_id`, `amount` copies | `balanceOf(account, token_id)` ≥ copies | `safeTransferFrom(account, to, token_id, copies, "")`         |
+| Solana plain NFT: a mint of 0 decimals and supply 1                     | its token account is not frozen         | SPL `transferChecked` of 1 (creating the recipient's account) |
+
+Gas estimation runs the transfer, so a recipient contract that cannot take
+the NFT (no receiver hook) refuses it at quote time. A programmable NFT,
+whose token account stays frozen and moves only through Metaplex, and a
+compressed NFT, which has no mint account, are refused. An NFT is treated
+like a coin: to an own Hermes wallet it runs, to anyone else it asks; the
+card names the collection (or mint), the token id and the standard, with
+the collection's self-declared symbol quoted. It has no price, counts
+against the hourly cap and is ledgered with its standard and token id.
 
 ## Approval
 

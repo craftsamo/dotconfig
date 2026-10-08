@@ -55,13 +55,17 @@ USDC = "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238"
 SOL_OPS = "oeYf6KAJkLYhBuR8CiGc6L4D4Xtfepr85fuDgA9kq96"     # MAIN #0
 SOL_SPARE = "AqynRZwvVqUPRwRJXvm6odUb3t93fDjnWe3p6BeuUFxD"  # MAIN #1
 SOL_STRANGER = "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM"
+SOL_FRIEND = "J1toso1uCk3RLmjorhTtrVwY9HJ7X8V9yYac6Y7kGCPn"  # someone else's wallet, always a system account here
 DEV_USDC = "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU"
 TOKEN = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
 
 NFT = "0x7777777777777777777777777777777777777777"  # an NFT collection
+SOL_NFT = "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB"  # stands in for a plain Solana NFT's mint on devnet
 
 FAKE = {"broadcast": "ok", "sent": [], "token_ata_exists": False, "symbol": "USDC", "landed": "success",
-        "operator_fee": None, "receipt": {}, "allowance": 0, "operator": False, "delegate": False, "decimals": 6}
+        "operator_fee": None, "receipt": {}, "allowance": 0, "operator": False, "delegate": False, "decimals": 6,
+        "nft": None, "nft_owner": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266", "nft_held": 3, "nft_refused": False,
+        "nft_supply": "1", "frozen": False}
 
 
 def word(value: int) -> str:
@@ -89,6 +93,15 @@ def handle(method: str, params: list):
         if data.startswith("0xe985e9c5"):  # isApprovedForAll(owner, operator): a collection only
             return ("0x" + word(1 if FAKE["operator"] else 0), None) if to == NFT else \
                 (None, {"code": 3, "message": "execution reverted"})
+        if data.startswith("0x01ffc9a7"):  # supportsInterface: ERC-721 80ac58cd, ERC-1155 d9b67a26
+            wanted = {"721": "80ac58cd", "1155": "d9b67a26"}.get(FAKE["nft"])
+            return "0x" + word(1 if to == NFT and wanted and data[10:18] == wanted else 0), None
+        if data.startswith("0x6352211e"):  # ownerOf(id)
+            return "0x" + FAKE["nft_owner"][2:].lower().rjust(64, "0"), None
+        if data.startswith("0x00fdd58e"):  # balanceOf(owner, id)
+            return "0x" + word(FAKE["nft_held"]), None
+        if data.startswith(("0x42842e0e", "0xf242432a")):  # safeTransferFrom
+            return "0x", None
         if data.startswith("0x095ea7b3"):  # approve
             return "0x" + word(1), None
         if data.startswith("0xa22cb465"):  # setApprovalForAll
@@ -116,6 +129,8 @@ def handle(method: str, params: list):
             return "0x" + word(1), None
         return "0x", None
     if method == "eth_estimateGas":
+        if FAKE["nft_refused"] and params[0].get("data", "").startswith(("0x42842e0e", "0xf242432a")):
+            return None, {"code": 3, "message": "execution reverted: ERC721: transfer to non ERC721Receiver implementer"}
         return ("0x5208" if params[0].get("data") in (None, "0x") else hex(50_000)), None
     if method == "eth_getBlockByNumber":
         return {"number": "0x10", "baseFeePerGas": hex(10 ** 9)}, None
@@ -148,11 +163,16 @@ def handle(method: str, params: list):
         if address == DEV_USDC:
             return {"value": {"owner": TOKEN, "executable": False, "lamports": 10 ** 7,
                               "data": {"parsed": {"type": "mint", "info": {"decimals": 6}}}}}, None
-        if address in (SOL_OPS, SOL_SPARE):
+        if address == SOL_NFT:
+            return {"value": {"owner": TOKEN, "executable": False, "lamports": 10 ** 7, "data": {"parsed": {
+                "type": "mint", "info": {"decimals": 0, "supply": FAKE["nft_supply"]}}}}}, None
+        if address in (SOL_OPS, SOL_SPARE, SOL_FRIEND):
             return {"value": {"owner": "11111111111111111111111111111111", "executable": False,
                               "lamports": 5 * 10 ** 9, "data": ["", "base64"]}}, None
         if FAKE["token_ata_exists"]:
             info = {"delegate": SOL_STRANGER, "delegatedAmount": {"uiAmountString": "5"}} if FAKE["delegate"] else {}
+            if FAKE["frozen"]:
+                info["state"] = "frozen"
             return {"value": {"owner": TOKEN, "executable": False, "lamports": 2039280,
                               "data": {"parsed": {"type": "account", "info": info}}}}, None
         return {"value": None}, None
@@ -205,7 +225,9 @@ def endpoint():
 @pytest.fixture(autouse=True)
 def fresh():
     FAKE.update(broadcast="ok", sent=[], token_ata_exists=False, symbol="USDC", landed="success", operator_fee=None,
-                receipt={}, allowance=0, operator=False, delegate=False, decimals=6)
+                receipt={}, allowance=0, operator=False, delegate=False, decimals=6, nft=None,
+                nft_owner="0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266", nft_held=3, nft_refused=False,
+                nft_supply="1", frozen=False)
 
 
 def _env(tmp_path: Path) -> dict:
@@ -815,6 +837,112 @@ def test_a_solana_delegate_is_revoked_on_a_card(tmp_path, endpoint):
     FAKE["delegate"] = False
     reply = revoke(tmp_path, endpoint, chain="solana-devnet", token=DEV_USDC)
     assert reply["ok"] is False and "no delegate to revoke" in reply["error"]
+
+
+# --- sending an NFT ------------------------------------------------------------------------------
+
+def nft(tmp_path, endpoint, **fields) -> dict:
+    return signer(tmp_path, endpoint, "quote", **{"account": f"{MAIN}#0", "chain": "sepolia", "kind": "nft",
+                                                   "token": NFT, "to": STRANGER, **fields})
+
+
+def test_an_erc721_nft_is_sent_with_safe_transfer_from_on_a_card(tmp_path, endpoint):
+    FAKE.update(nft="721", symbol="PUNK")
+    reply = nft(tmp_path, endpoint, token_id="1234")
+    assert reply["ok"], reply
+    data = reply["data"]
+    assert data["own"] is False and data["summary"]["nft"] == {"standard": "erc721", "token_id": "1234"}
+    assert 'Send: NFT of "PUNK" (ERC-721)\nToken ID: 1234' in data["card"]
+    assert f"Collection: {NFT}".lower() in data["card"].lower()
+    assert "Type: External" in data["card"] and data["summary"]["usd"] is None
+    assert send(tmp_path, endpoint, data["quote"], "card")["ok"]
+    tx = decode(tmp_path, "sepolia", FAKE["sent"][0])
+    assert tx["from"] == OPS and tx["to"].lower() == NFT
+    assert tx["call"]["function"] == "safeTransferFrom" and list(tx["call"]["args"].values()) == [OPS, STRANGER, 1234]
+    row = ledger(tmp_path)[-1]
+    assert row["kind"] == "nft" and row["nft"] == {"standard": "erc721", "token_id": "1234"}
+
+
+def test_an_erc1155_nft_sends_the_copies_asked_for(tmp_path, endpoint):
+    FAKE.update(nft="1155", symbol="ITEM")
+    data = nft(tmp_path, endpoint, token_id="0x07", amount="2")["data"]
+    assert 'Send: 2 × NFT of "ITEM" (ERC-1155)\nToken ID: 7' in data["card"]
+    assert send(tmp_path, endpoint, data["quote"], "card")["ok"]
+    tx = decode(tmp_path, "sepolia", FAKE["sent"][0])
+    assert tx["call"]["function"] == "safeTransferFrom"
+    assert list(tx["call"]["args"].values())[:4] == [OPS, STRANGER, 7, 2]
+    reply = nft(tmp_path, endpoint, token_id="7", amount="4")
+    assert reply["ok"] is False and "holds 3 of NFT #7" in reply["error"]
+
+
+@pytest.mark.parametrize("standard, amount", [("721", None), ("1155", "12")])
+def test_a_long_token_id_stays_whole_on_the_card_and_its_ends_on_discord(tmp_path, endpoint, standard, amount):
+    work0 = "0x9858EfFD232B4033E47d90003D41EC34EcaEda94"
+    FAKE.update(nft=standard, symbol="STOREFRONT12", nft_owner=work0, nft_held=20)
+    token_id = str(2 ** 256 - 1)  # 78 digits, like a storefront or ENS id
+    fields = {"token_id": token_id, **({"amount": amount} if amount else {})}
+    data = nft(tmp_path, endpoint, chain="ethereum", account=f"{WORK}#0", **fields)["data"]
+    stored = json.loads(quote_file(tmp_path, data["quote"]).read_text())
+    short = stored["card_short"]
+    assert compact_units(short) <= 290 and compact_units(data["card"]) <= 480
+    assert f": {work0}" in short and f": {STRANGER}" in short and token_id[-18:] in short and token_id[:6] in short
+    assert f"Token ID: {token_id}" in data["card"]  # the detailed card keeps the whole id
+
+
+def test_an_nft_to_an_own_wallet_runs_without_a_card(tmp_path, endpoint):
+    FAKE["nft"] = "721"
+    data = nft(tmp_path, endpoint, token_id="1", to=SPARE)["data"]
+    assert data["own"] is True and "Type: Your own" in data["card"]
+    assert send(tmp_path, endpoint, data["quote"], "own")["ok"]
+
+
+@pytest.mark.parametrize("fake, fields, message", [
+    ({"nft": "721", "nft_owner": STRANGER}, {"token_id": "1"}, "does not own NFT #1"),
+    ({"nft": "721"}, {"token_id": "1", "amount": "2"}, "an ERC-721 NFT is one token"),
+    ({"nft": "721"}, {"token_id": "one"}, "token_id must be"),
+    ({"nft": "721"}, {}, "token_id must be"),
+    ({"nft": None}, {"token_id": "1"}, "neither an ERC-721 nor an ERC-1155"),
+    ({"nft": "721", "nft_refused": True}, {"token_id": "1"}, "non ERC721Receiver"),
+    ({"nft": "721"}, {"token_id": "1", "to": NFT}, "collection's contract itself"),
+])
+def test_what_is_refused_before_an_nft_card(tmp_path, endpoint, fake, fields, message):
+    FAKE.update(fake)
+    reply = nft(tmp_path, endpoint, **fields)
+    assert reply["ok"] is False and message in reply["error"], reply
+    assert FAKE["sent"] == []
+
+
+def test_an_nft_needs_its_collection_and_a_hermes_wallet(tmp_path, endpoint):
+    FAKE["nft"] = "721"
+    reply = nft(tmp_path, endpoint, token=None, token_id="1")
+    assert reply["ok"] is False and "an NFT needs token" in reply["error"]
+    reply = nft(tmp_path, endpoint, account=f"{TEAM}#0", token_id="1")
+    assert reply["ok"] is False and "watch-only" in reply["error"]
+
+
+def test_a_plain_solana_nft_is_sent_as_its_one_token(tmp_path, endpoint):
+    FAKE["token_ata_exists"] = True
+    reply = nft(tmp_path, endpoint, chain="solana-devnet", token=SOL_NFT, to=SOL_FRIEND)
+    assert reply["ok"], reply
+    data = reply["data"]
+    assert data["summary"]["nft"] == {"standard": "spl", "token_id": SOL_NFT} and data["summary"]["amount"] == "1"
+    assert 'Send: NFT of "?" (SPL)' in data["card"] and f"Mint: {SOL_NFT}" in data["card"]
+    assert send(tmp_path, endpoint, data["quote"], "card")["ok"]
+    ix = raw_sol_instruction(FAKE["sent"][0])
+    # SPL transferChecked (12) of 1 base unit with 0 decimals
+    assert ix["program"] == TOKEN and ix["data"] == "0c" + (1).to_bytes(8, "little").hex() + "00"
+
+
+@pytest.mark.parametrize("fake, fields, message", [
+    ({"frozen": True}, {}, "programmable NFT"),
+    ({"nft_supply": "1000"}, {}, "not a single NFT"),
+    ({}, {"token": DEV_USDC}, "not a single NFT"),
+    ({}, {"token_id": "1"}, "a Solana NFT is its mint"),
+])
+def test_what_is_refused_before_a_solana_nft_card(tmp_path, endpoint, fake, fields, message):
+    FAKE.update(token_ata_exists=True, **fake)
+    reply = nft(tmp_path, endpoint, **{"chain": "solana-devnet", "token": SOL_NFT, "to": SOL_FRIEND, **fields})
+    assert reply["ok"] is False and message in reply["error"], reply
 
 
 def test_a_solana_keypair_signs_as_its_own_account(tmp_path, endpoint):

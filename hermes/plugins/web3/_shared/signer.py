@@ -72,7 +72,7 @@ ATA_SPACE = {"TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA": 165, "TokenzQdBNbLqP
 SYSTEM = "11111111111111111111111111111111"
 ATA_PROGRAM = "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
 QUOTE_ID = re.compile(r"^q[0-9a-f]{8}$")
-KINDS = ("transfer", "revoke")  # what a quote does; a revoke always asks on its card
+KINDS = ("transfer", "revoke", "nft")  # what a quote does; a revoke always asks on its card
 SYMBOL = re.compile(r"^[A-Za-z0-9.$_-]{1,12}$")
 MEMO_CLIP = 40
 GAS_PRICE_ORACLE = "0x420000000000000000000000000000000000000F"
@@ -362,7 +362,23 @@ def card_units(text: str) -> int:
     return len(html.escape(text).encode("utf-16-le")) // 2
 
 
-def _what(quote: dict) -> str:
+NFT_STANDARDS = {"erc721": "ERC-721", "erc1155": "ERC-1155", "spl": "SPL"}
+
+
+def _ends(text: str, head: int = 10, tail: int = 24) -> str:
+    """A long id with both ends kept: sibling NFTs (one creator's storefront tokens, ENS names) share
+    their first digits and differ in the last ones."""
+    return text if len(text) <= head + tail + 1 else f"{text[:head]}…{text[-tail:]}"
+
+
+def _what(quote: dict, compact: bool = False) -> str:
+    """What is sent. An NFT's full token id goes on a line of its own on the detailed card; the compact
+    one shows both ends of it."""
+    if quote.get("kind") == "nft":
+        nft = quote["nft"]
+        count = "" if quote["amount"] == "1" else f"{quote['amount']} × "
+        token = f" #{_ends(nft['token_id'])}" if compact and nft["standard"] != "spl" else ""
+        return f"{count}NFT{token} of \"{quote['symbol']}\" ({NFT_STANDARDS[nft['standard']]})"
     if quote["asset"] == "native":
         what = f"{quote['amount']} {quote['symbol']}"
     else:
@@ -370,6 +386,12 @@ def _what(quote: dict) -> str:
     if quote.get("usd") is not None:
         what += f" (≈ ${quote['usd']:,.2f})"
     return what
+
+
+def _asset_label(quote: dict) -> str:
+    if quote.get("kind") == "nft":
+        return "Mint" if quote["nft"]["standard"] == "spl" else "Collection"
+    return "Token"
 
 
 def _to_type(quote: dict) -> str:
@@ -399,9 +421,11 @@ def card(quote: dict, drop: tuple = ()) -> str:
     expires = datetime.fromtimestamp(quote["expires"]).astimezone().strftime("%H:%M UTC%z")
     lines = [f"Chain: {info['name']}({'testnet' if info['testnet'] else 'MAINNET'})"]
     if quote["asset"] != "native":
-        lines.append(f"Token: {quote['asset_address']}")
-    lines += [f"Send: {_what(quote)}", f"Fee: up to {quote['max_fee']} {info['symbol']}",
-              f"Quote: {quote['id']} · expires {expires}",
+        lines.append(f"{_asset_label(quote)}: {quote['asset_address']}")
+    lines.append(f"Send: {_what(quote)}")
+    if quote.get("kind") == "nft" and quote["nft"]["standard"] != "spl":
+        lines.append(f"Token ID: {quote['nft']['token_id']}")
+    lines += [f"Fee: up to {quote['max_fee']} {info['symbol']}", f"Quote: {quote['id']} · expires {expires}",
               "", "--- From ---", *_party_lines(quote["from_party"], quote["from"], drop),
               "", "--- To ---", _to_type(quote)]
     if quote.get("ens"):
@@ -414,14 +438,22 @@ def card_short(quote: dict) -> str:
     """The compact approval card for surfaces with a small reason budget (Discord): the facts that
     decide, addresses still in full."""
     info = chains.info(quote["chain"])
-    lines = [("" if info["testnet"] else "MAINNET ") + f"Send {_what(quote)} on {info['name']}"]
+    net = "" if info["testnet"] else "MAINNET "
+    lines = [f"{net}Send {_what(quote, compact=True)} on {info['name']}"]
     if quote["asset"] != "native":
-        lines.append(f"Token: {quote['asset_address']}")
+        lines.append(f"{_asset_label(quote)}: {quote['asset_address']}")
     lines.append(f"From {one_line(quote['account'], 40)}: {quote['from']}")
     whose = "own" if quote["own"] else ("watch-only" if quote.get("to_party") else "external")
     lines.append(f"To ({whose}): {quote['to']}")
     lines.append(f"Fee ≤ {quote['max_fee']} {info['symbol']} · {quote['id']}")
-    return "\n".join(lines)
+    text = "\n".join(lines)
+    if card_units(text) > SHORT_BUDGET and quote.get("kind") == "nft":
+        # the self-declared name and the standard go before any address, the id keeps both ends
+        nft = quote["nft"]
+        count = "" if quote["amount"] == "1" else f"{quote['amount']} × "
+        token = "" if nft["standard"] == "spl" else f" #{_ends(nft['token_id'], 6, 18)}"
+        text = "\n".join([f"{net}Send {count}NFT{token} on {info['name']}", *lines[1:]])
+    return text
 
 
 REVOKE_WHAT = {"erc20": ("Revoke: the approval to spend \"{symbol}\" token ({current})", "Token", "Spender"),
@@ -602,16 +634,17 @@ def _evm_cost(ctx: Ctx, sender: str, call: dict, key: bytes | None) -> tuple[int
                      "max_fee_per_gas": max_fee_per_gas, "chain_id": info["id"]}
 
 
-def _approval_read(r, token: str, data: str) -> int:
-    """A token's answer to an approval getter; 0 only when the contract has no such function (a revert,
-    or no answer data). Any other failure raises: "nothing to revoke" must never stand for "unread"."""
-    reply = r.request("eth_call", [{"to": token, "data": "0x" + data}, "latest"])
+def _view_word(r, contract: str, data: str, what: str = "the approval") -> int:
+    """A contract's one-word answer to a view call; 0 only when the contract has no such function or
+    refuses the input (a revert, or no answer data). Any other failure raises: "nothing to revoke" or
+    "not yours" must never stand for "unread"."""
+    reply = r.request("eth_call", [{"to": contract, "data": "0x" + data}, "latest"])
     error = reply.get("error")
     if error:
         text = str(error.get("message") if isinstance(error, dict) else error).lower()
         if (isinstance(error, dict) and error.get("code") == 3) or "revert" in text:
             return 0
-        raise ChainError("the approval could not be read; try again")
+        raise ChainError(f"{what} could not be read; try again")
     got = reply.get("result")
     return evm.h2i(got[:66]) if isinstance(got, str) and len(got) >= 66 else 0
 
@@ -632,7 +665,7 @@ def evm_revoke(ctx: Ctx, sender: str, args: dict, asset: str, key: bytes) -> dic
     if r.call("eth_getCode", [token, "latest"]) in (None, "0x", ""):
         raise ChainError("there is no contract at that token address on this chain")
     pair = abi_encode(["address", "address"], [sender, spender]).hex()
-    allowance = _approval_read(r, token, evm.SEL["allowance"] + pair)
+    allowance = _view_word(r, token, evm.SEL["allowance"] + pair)
     symbol, decimals = "?", None
     if allowance:
         meta = evm.token_meta(ctx, [token]).get(asset, {})
@@ -643,7 +676,7 @@ def evm_revoke(ctx: Ctx, sender: str, args: dict, asset: str, key: bytes) -> dic
         standard = "erc20"
         current = "unlimited" if allowance >= evm.UNLIMITED else plain(native_units(allowance, decimals))
         data = "0x" + APPROVE + abi_encode(["address", "uint256"], [spender, 0]).hex()
-    elif _approval_read(r, token, evm.SEL["isApprovedForAll"] + pair) == 1:
+    elif _view_word(r, token, evm.SEL["isApprovedForAll"] + pair) == 1:
         standard, current, symbol = "operator", "every NFT of the collection", "?"
         data = "0x" + SET_APPROVAL_FOR_ALL + abi_encode(["address", "bool"], [spender, False]).hex()
     else:
@@ -656,6 +689,81 @@ def evm_revoke(ctx: Ctx, sender: str, args: dict, asset: str, key: bytes) -> dic
     return {"to": spender, "ens": ens, "symbol": symbol, "decimals": decimals, "amount": "0",
             "asset_address": token, "max_fee": plain(native_units(max_fee, info["decimals"])), "build": build,
             "revoke": {"standard": standard, "current": current}}
+
+
+SUPPORTS_INTERFACE = "01ffc9a7"
+ERC721_ID, ERC1155_ID = "80ac58cd", "d9b67a26"
+OWNER_OF, BALANCE_OF_ID = "6352211e", "00fdd58e"
+SAFE_TRANSFER_721 = "42842e0e"    # safeTransferFrom(address,address,uint256)
+SAFE_TRANSFER_1155 = "f242432a"   # safeTransferFrom(address,address,uint256,uint256,bytes)
+
+
+def _token_id(value) -> int:
+    text = str(value).strip() if isinstance(value, (str, int)) and not isinstance(value, bool) else ""
+    try:
+        number = int(text, 16) if text.lower().startswith("0x") else int(text)
+    except ValueError:
+        raise ChainError("token_id must be the NFT's id, a whole number like 1234") from None
+    if not 0 <= number < 2 ** 256:
+        raise ChainError("token_id is out of range")
+    return number
+
+
+def _nft_count(value) -> int:
+    if value in (None, ""):
+        return 1
+    text = str(value).strip()
+    if not re.fullmatch(r"[0-9]{1,30}", text) or int(text) < 1:
+        raise ChainError("amount for an NFT is a whole number of copies, at least 1")
+    return int(text)
+
+
+def evm_nft(ctx: Ctx, sender: str, args: dict, asset: str, key: bytes) -> dict:
+    """An NFT this account owns, sent with the collection's safeTransferFrom: ERC-721 (one token, owned
+    by the account) or ERC-1155 (as many copies as it holds), told apart by supportsInterface. The
+    send is simulated, so a recipient contract that cannot take NFTs refuses it here."""
+    from eth_abi import encode as abi_encode
+    from eth_utils import to_checksum_address
+    info = chains.EVM[ctx.chain]
+    r = ctx.rpc
+    to, ens = evm.resolve_address(ctx, args.get("to"))
+    if int(to, 16) == 0:
+        raise ChainError("the zero address burns the NFT; refused")
+    if to.lower() == sender.lower():
+        raise ChainError("the recipient is the sending account itself")
+    collection = to_checksum_address(asset)
+    if to.lower() == asset:
+        raise ChainError("the recipient is the collection's contract itself; an NFT sent there is lost")
+    if r.call("eth_getCode", [collection, "latest"]) in (None, "0x", ""):
+        raise ChainError("there is no contract at that collection address on this chain")
+    token_id = _token_id(args.get("token_id"))
+    count = _nft_count(args.get("amount"))
+    what = "the collection's NFT standard"
+    if _view_word(r, collection, SUPPORTS_INTERFACE + ERC721_ID.ljust(64, "0"), what) == 1:
+        if count != 1:
+            raise ChainError("an ERC-721 NFT is one token: leave amount out")
+        owner = _view_word(r, collection, OWNER_OF + abi_encode(["uint256"], [token_id]).hex(), "the NFT's owner")
+        if owner != int(sender, 16):
+            raise ChainError(f"this account does not own NFT #{token_id} of that collection")
+        standard = "erc721"
+        data = "0x" + SAFE_TRANSFER_721 + abi_encode(["address", "address", "uint256"],
+                                                     [sender, to, token_id]).hex()
+    elif _view_word(r, collection, SUPPORTS_INTERFACE + ERC1155_ID.ljust(64, "0"), what) == 1:
+        held = _view_word(r, collection, BALANCE_OF_ID + abi_encode(["address", "uint256"], [sender, token_id]).hex(),
+                          "the NFT balance")
+        if held < count:
+            raise ChainError(f"this account holds {held} of NFT #{token_id} of that collection, less than {count}")
+        standard = "erc1155"
+        data = "0x" + SAFE_TRANSFER_1155 + abi_encode(["address", "address", "uint256", "uint256", "bytes"],
+                                                      [sender, to, token_id, count, b""]).hex()
+    else:
+        raise ChainError("that contract is neither an ERC-721 nor an ERC-1155 NFT collection")
+    call = {"from": sender, "to": collection, "value": "0x0", "data": data}
+    max_fee, build = _evm_cost(ctx, sender, call, key)  # estimating gas runs the transfer: a refusal stops here
+    symbol = safe_symbol(((evm.token_meta(ctx, [collection]).get(asset) or {}).get("symbol") or {}).get("untrusted"))
+    return {"to": to, "ens": ens, "symbol": symbol, "decimals": 0, "amount": str(count),
+            "asset_address": collection, "max_fee": plain(native_units(max_fee, info["decimals"])), "build": build,
+            "nft": {"standard": standard, "token_id": str(token_id)}}
 
 
 def evm_send(ctx: Ctx, quote: dict, key: bytes) -> str:
@@ -813,6 +921,34 @@ def sol_revoke(ctx: Ctx, sender: str, asset: str) -> dict:
             "build": build, "revoke": {"standard": "spl-delegate", "current": f"{left} left to move"}}
 
 
+def sol_nft(ctx: Ctx, sender: str, args: dict, asset: str) -> dict:
+    """A plain Solana NFT (a mint with 0 decimals and a supply of 1) sent as the one token it is. A
+    frozen token account (a programmable NFT, whose transfers go through Metaplex) and anything that is
+    not such a mint (a compressed NFT has none) are refused."""
+    from solders.pubkey import Pubkey
+    from solders.token.associated import get_associated_token_address
+    if args.get("token_id") not in (None, "") or args.get("amount") not in (None, "", "1", 1):
+        raise ChainError("a Solana NFT is its mint: give token = the mint, without token_id or amount")
+    r = ctx.rpc
+    mint_info = _sol_account(r, asset)
+    program = (mint_info or {}).get("owner")
+    data = (mint_info or {}).get("data")
+    parsed = (data.get("parsed") or {}) if isinstance(data, dict) else {}
+    details = parsed.get("info") or {}
+    if program not in ATA_SPACE or parsed.get("type") != "mint":
+        raise ChainError("that is not a token mint (a compressed NFT has none and is not supported)")
+    if details.get("decimals") != 0 or str(details.get("supply")) != "1":
+        raise ChainError("that mint is not a single NFT (it has decimals or a supply above 1); send it as a token")
+    source = str(get_associated_token_address(Pubkey.from_string(sender), Pubkey.from_string(asset),
+                                              Pubkey.from_string(program)))
+    held = (_sol_account(r, source) or {}).get("data")
+    state = (((held.get("parsed") or {}).get("info") or {}).get("state")) if isinstance(held, dict) else None
+    if state == "frozen":
+        raise ChainError("this NFT's token account is frozen: a programmable NFT, which these tools do not send")
+    built = sol_quote(ctx, sender, {**args, "amount": "1"}, asset)
+    return {**built, "nft": {"standard": "spl", "token_id": asset}}
+
+
 def sol_send(ctx: Ctx, quote: dict, pair) -> str:
     from solders.hash import Hash
     from solders.message import Message
@@ -953,6 +1089,8 @@ def op_quote(payload: dict) -> dict:
     token = payload.get("token")
     if kind == "revoke" and token in (None, "", "native"):
         raise ChainError("a revoke needs token: the token contract or collection (EVM) or the mint (Solana)")
+    if kind == "nft" and token in (None, "", "native"):
+        raise ChainError("an NFT needs token: the collection (EVM, with token_id) or the NFT's mint (Solana)")
     if token in (None, "", "native"):
         asset = "native"
     elif family == "evm" and isinstance(token, str) and re.match(r"^0x[0-9a-fA-F]{40}$", token):
@@ -969,6 +1107,9 @@ def op_quote(payload: dict) -> dict:
     ctx = Ctx(chain, _override(payload))
     if kind == "revoke":
         built = evm_revoke(ctx, sender, payload, asset, secret) if family == "evm" else sol_revoke(ctx, sender, asset)
+    elif kind == "nft":
+        built = evm_nft(ctx, sender, payload, asset, secret) if family == "evm" \
+            else sol_nft(ctx, sender, payload, asset)
     else:
         built = evm_quote(ctx, sender, payload, asset, secret) if family == "evm" \
             else sol_quote(ctx, sender, payload, asset)
@@ -980,7 +1121,7 @@ def op_quote(payload: dict) -> dict:
     own_account = secrets_.addresses(family, "sign").get(recipient)
     watched = None if own_account else secrets_.addresses(family, "watch").get(recipient)
     # a revoke moves nothing to anyone, but it stops whatever used the approval: it always asks
-    own = own_account is not None and kind == "transfer"
+    own = own_account is not None and kind in ("transfer", "nft")
     now = time.time()
     quote = {"id": "q" + random.token_hex(4), "created": now, "expires": now + QUOTE_TTL, "account": account,
              "source": source, "index": index, "chain": chain, "family": family, "kind": kind, "from": sender,
@@ -1000,8 +1141,8 @@ def op_quote(payload: dict) -> dict:
             json.dump(quote, handle, ensure_ascii=False)
     summary = {k: quote[k] for k in ("account", "chain", "kind", "from", "to", "ens", "amount", "symbol",
                                      "asset_address", "max_fee", "usd")}
-    if kind == "revoke":
-        summary["revoke"] = quote["revoke"]
+    if kind in ("revoke", "nft"):
+        summary[kind] = quote[kind]
     return {"quote": quote["id"], "own": own, "card": quote["card"], "expires_in_seconds": QUOTE_TTL,
             "summary": summary}
 
@@ -1073,7 +1214,7 @@ def op_send(payload: dict) -> dict:
                "chain": quote["chain"],
                "from": quote["from"], "to": quote["to"], "asset": quote["asset"], "symbol": quote["symbol"],
                "amount": quote["amount"], "max_fee": quote["max_fee"], "kind": quote.get("kind", "transfer"),
-               "own": own, "approval": approval,
+               **({"nft": quote["nft"]} if quote.get("nft") else {}), "own": own, "approval": approval,
                "outcome": "unknown"}
         ledger.append(state, row)
         ctx = Ctx(quote["chain"], _override(payload))
@@ -1103,7 +1244,7 @@ def op_send(payload: dict) -> dict:
     except Exception:
         pass
     return {"sent": True, "kind": quote.get("kind", "transfer"), "hash": sent, "chain": quote["chain"],
-            "amount": quote["amount"], "symbol": quote["symbol"],
+            **({"nft": quote["nft"]} if quote.get("nft") else {}), "amount": quote["amount"], "symbol": quote["symbol"],
             "to": quote["to"], **landed, "explorer": chains.explorer(quote["chain"], "tx", sent),
             "note": CONFIRM_NOTES[landed["confirmation"]]}
 
