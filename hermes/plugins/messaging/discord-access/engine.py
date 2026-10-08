@@ -1271,6 +1271,70 @@ def members(client: Client, guild_id: str, query: str, limit: int = 25) -> dict:
     return {"members": rows, "total": found.get("total_result_count")}
 
 
+# --- server information --------------------------------------------------------------------------
+#
+# Live reads of what a member sees of a server, one or two requests each, written nowhere. Text is
+# written by other people, so it is clipped.
+
+def _text(value, limit: int) -> str | None:
+    return value[:limit] if isinstance(value, str) and value else None
+
+
+def guild_info(client: Client, guild_id: str) -> dict:
+    g = client.get(f"/guilds/{guild_id}", params={"with_counts": "true"}, referer=f"/channels/{guild_id}")
+    if not isinstance(g, dict):
+        raise EngineError("internal", "Discord answered with something other than a server")
+    return {"name": _text(g.get("name"), 100), "description": _text(g.get("description"), 500),
+            "owner_id": str(g["owner_id"]) if g.get("owner_id") else None,
+            "members": g.get("approximate_member_count"), "online": g.get("approximate_presence_count"),
+            "verification": g.get("verification_level"), "content_filter": g.get("explicit_content_filter"),
+            "nsfw_level": g.get("nsfw_level"), "boost_tier": g.get("premium_tier"),
+            "boosts": g.get("premium_subscription_count"),
+            "features": [f for f in (g.get("features") or []) if isinstance(f, str)][:60],
+            "locale": g.get("preferred_locale"), "vanity": _text(g.get("vanity_url_code"), 50),
+            "rules_channel": str(g["rules_channel_id"]) if g.get("rules_channel_id") else None}
+
+
+def emojis(client: Client, guild_id: str) -> dict:
+    """The server's custom emoji and stickers (two requests; stickers are optional)."""
+    referer = f"/channels/{guild_id}"
+    found = client.get(f"/guilds/{guild_id}/emojis", referer=referer)
+    out = {"emojis": [{"id": str(e["id"]), "name": _text(e.get("name"), 64), "animated": bool(e.get("animated")),
+                       "available": e.get("available") is not False, "managed": bool(e.get("managed")),
+                       "restricted": bool(e.get("roles"))}
+                      for e in found if isinstance(e, dict) and e.get("id")] if isinstance(found, list) else []}
+    try:
+        stickers = client.get(f"/guilds/{guild_id}/stickers", referer=referer)
+    except EngineError as exc:
+        if exc.kind in ("auth", "captcha"):
+            raise
+        out["stickers"], out["stickers_error"] = [], str(exc)
+        return out
+    out["stickers"] = [{"id": str(s["id"]), "name": _text(s.get("name"), 64),
+                        "description": _text(s.get("description"), 200), "tags": _text(s.get("tags"), 100),
+                        "format": s.get("format_type"), "available": s.get("available") is not False}
+                       for s in stickers if isinstance(s, dict) and s.get("id")] if isinstance(stickers, list) else []
+    return out
+
+
+def events(client: Client, guild_id: str) -> dict:
+    """The server's scheduled events (scheduled and active ones; Discord lists no more than that)."""
+    found = client.get(f"/guilds/{guild_id}/scheduled-events", params={"with_user_count": "true"},
+                       referer=f"/channels/{guild_id}")
+    out = []
+    for e in found if isinstance(found, list) else []:
+        if not isinstance(e, dict) or not e.get("id"):
+            continue
+        meta = e.get("entity_metadata") if isinstance(e.get("entity_metadata"), dict) else {}
+        out.append({"id": str(e["id"]), "name": _text(e.get("name"), 100), "description": _text(e.get("description"), 300),
+                    "start": e.get("scheduled_start_time"), "end": e.get("scheduled_end_time"),
+                    "status": e.get("status"), "kind": e.get("entity_type"),
+                    "channel": str(e["channel_id"]) if e.get("channel_id") else None,
+                    "location": _text(meta.get("location"), 200), "interested": e.get("user_count"),
+                    "creator_id": str(e["creator_id"]) if e.get("creator_id") else None})
+    return {"events": out}
+
+
 # --- writes other than send ---------------------------------------------------------------------
 #
 # One request each, never retried. done: Discord accepted it (or the read-back shows the requested
@@ -1658,6 +1722,12 @@ def run(command: str, args: dict, *, http=None, token=None) -> dict:
                           channel=_arg(args, "channel", required=False), offset=_int(args, "offset", 0, 9975),
                           limit=_int(args, "limit", 25, 25) or 25, min_id=_arg(args, "min_id", required=False),
                           max_id=_arg(args, "max_id", required=False), author=author, has=has)
+        if command == "guild_info":
+            return guild_info(client, _arg(args, "guild"))
+        if command == "emojis":
+            return emojis(client, _arg(args, "guild"))
+        if command == "events":
+            return events(client, _arg(args, "guild"))
         if command == "roles":
             return roles(client, _arg(args, "guild"))
         if command == "member":

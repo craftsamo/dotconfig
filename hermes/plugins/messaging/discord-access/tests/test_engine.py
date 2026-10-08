@@ -834,6 +834,58 @@ def test_threads_command_checks_its_arguments():
             engine.run("threads", {"channel": FORUM, **bad}, http=FakeHttp(), token="t")
 
 
+def test_guild_info_asks_for_counts_and_trims_the_server():
+    server = {"id": G, "name": "Guild", "description": "d" * 900, "owner_id": ME, "approximate_member_count": 120,
+              "approximate_presence_count": 30, "verification_level": 2, "explicit_content_filter": 1,
+              "nsfw_level": 0, "premium_tier": 1, "premium_subscription_count": 3, "features": ["COMMUNITY", 7],
+              "preferred_locale": "ja", "vanity_url_code": None, "rules_channel_id": TEXT, "icon": "secret-hash",
+              "roles": [{"id": "1"}]}
+    http = FakeHttp({("GET", f"/guilds/{G}"): (200, {}, server)})
+    result = engine.guild_info(client(http), G)
+    assert http.api_calls()[0]["params"] == {"with_counts": "true"}
+    assert result["members"] == 120 and result["online"] == 30 and result["features"] == ["COMMUNITY"]
+    assert len(result["description"]) == 500 and result["rules_channel"] == TEXT and result["vanity"] is None
+    assert "icon" not in result and "roles" not in result
+
+
+def test_emojis_read_both_lists_and_keep_going_without_stickers():
+    emoji = {"id": "800000000000000001", "name": "party", "animated": True, "roles": ["600000000000000001"],
+             "user": {"id": FRIEND}}
+    sticker = {"id": "810000000000000001", "name": "wave", "tags": "hi", "format_type": 4, "description": None}
+    http = FakeHttp({("GET", f"/guilds/{G}/emojis"): (200, {}, [emoji, {"name": "no id"}]),
+                     ("GET", f"/guilds/{G}/stickers"): (200, {}, [sticker])})
+    result = engine.emojis(client(http), G)
+    assert result["emojis"] == [{"id": emoji["id"], "name": "party", "animated": True, "available": True,
+                                 "managed": False, "restricted": True}]
+    assert result["stickers"][0]["format"] == 4 and result["stickers"][0]["description"] is None
+    http = FakeHttp({("GET", f"/guilds/{G}/emojis"): (200, {}, [emoji]),
+                     ("GET", f"/guilds/{G}/stickers"): (403, {}, {"message": "Missing Access", "code": 50001})})
+    result = engine.emojis(client(http), G)
+    assert len(result["emojis"]) == 1 and result["stickers"] == [] and "403" in result["stickers_error"]
+    http = FakeHttp({("GET", f"/guilds/{G}/emojis"): (401, {}, {"message": "401: Unauthorized"})})
+    with pytest.raises(engine.EngineError) as exc:
+        engine.emojis(client(http), G)
+    assert exc.value.kind == "auth"
+
+
+def test_events_ask_for_interest_counts_and_keep_the_readable_part():
+    event = {"id": "820000000000000001", "name": "Meetup", "description": "x" * 400, "scheduled_start_time": "t0",
+             "scheduled_end_time": None, "status": 1, "entity_type": 3, "channel_id": None, "user_count": 5,
+             "creator_id": FRIEND, "entity_metadata": {"location": "Cafe"}, "image": "hash"}
+    http = FakeHttp({("GET", f"/guilds/{G}/scheduled-events"): (200, {}, [event, "junk"])})
+    result = engine.events(client(http), G)
+    assert http.api_calls()[0]["params"] == {"with_user_count": "true"}
+    assert result["events"] == [{"id": event["id"], "name": "Meetup", "description": "x" * 300, "start": "t0",
+                                 "end": None, "status": 1, "kind": 3, "channel": None, "location": "Cafe",
+                                 "interested": 5, "creator_id": FRIEND}]
+
+
+def test_server_information_commands_need_a_server():
+    for command in ("guild_info", "emojis", "events"):
+        with pytest.raises(engine.EngineError, match="guild is required"):
+            engine.run(command, {}, http=FakeHttp(), token="t")
+
+
 def test_pins_mentions_and_friends():
     conn = store.connect(write=True)
     mirrored(conn)

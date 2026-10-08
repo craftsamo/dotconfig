@@ -80,7 +80,10 @@ DESCRIPTION = (
     "roles (guild: its roles with position, members, strong permissions and whether the user can manage them, "
     "plus the user's own roles and permissions; role = one role with all its permissions; refresh=true), member "
     "(guild + user: name and roles), role_members (guild + role: up to 100 member ids), members (guild + query: "
-    "members by name; needs Manage Server). SYNC LIST: sync_list, sync_suggest (what the sync list could gain or drop, from the mirror alone: channels the user writes in or "
+    "members by name; needs Manage Server), guild_info (guild: a server's description, owner, approximate "
+    "member and online counts, verification level, boosts, features), emojis (guild: its custom emoji as "
+    "name:id and its stickers; query = part of a name; limit), events (guild: scheduled and active events "
+    "with start, place and interest). SYNC LIST: sync_list, sync_suggest (what the sync list could gain or drop, from the mirror alone: channels the user writes in or "
     "that are busy in the mirror but not synced, and followed channels that went quiet, each with the exact "
     "sync_add / sync_remove arguments and whether it fits the limits; proposals only, nothing changes; after = "
     "how far back, 30 days by default), sync_add (guild alone = the whole server, its "
@@ -109,7 +112,7 @@ DESCRIPTION = (
 
 PROPERTIES = {
     "action": {"type": "string", "enum": list(access.ACTIONS)},
-    "guild": {"type": "string", "description": "server id (guilds); pending / stats: only that server"},
+    "guild": {"type": "string", "description": "server id (guilds); pending / stats: only that server; guild_info / emojis / events: the server"},
     "channel": {"type": "string",
                 "description": "channel id: a DM / group DM (dms), a server channel (channels) or a thread (threads); stats: only that chat"},
     "channels": {"type": "array", "items": {"type": "string"},
@@ -117,7 +120,7 @@ PROPERTIES = {
     "exclude": {"type": "array", "items": {"type": "string"},
                 "description": "sync_add for a whole server: channel ids to skip"},
     "query": {"type": "string",
-              "description": "dms / friends / members: part of a name; search: words in text"},
+              "description": "dms / friends / members / emojis: part of a name; search: words in text"},
     "after": {"type": "string", "description": "messages / search / pending / stats / export / sync_suggest: a message id or time"},
     "before": {"type": "string",
                "description": "messages / search / stats / export: a message id or time; mentions: a message id; pins: a pinned_at"},
@@ -127,7 +130,7 @@ PROPERTIES = {
                 "description": "media with unpack: only these entries or folders, as named in the archive's "
                                "listing"},
     "limit": {"type": "integer", "description": "dms 30, messages 50 (live at most 100), search 30 (live 25), "
-                                                "threads 25, pins 50, mentions 25, members 25, pending 30, stats 20 (30 days), export 2000 (at most 10000), sync_suggest 10 by default"},
+                                                "threads 25, pins 50, mentions 25, members 25, pending 30, stats 20 (30 days), export 2000 (at most 10000), sync_suggest 10, emojis 100 (of each, at most 300), events 25 by default"},
     "offset": {"type": "integer",
                "description": "dms / threads / search live=true: skip this many (next_offset of the previous page)"},
     "last": {"type": "boolean", "description": "dms: add the last message"},
