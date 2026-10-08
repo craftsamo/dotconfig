@@ -7,6 +7,17 @@ communication; code and identifiers stay as-is.
 
 </LanguagePolicy>
 
+<FileTools>
+
+View, search, and change files with the built-in tools, not the shell. Use
+`read` with `offset` and `limit` instead of `sed -n`, `head`, `tail`, `cat`,
+or `nl`. Use `grep` to search and `glob` to find paths; use `ls` or `rg` only
+when you need metadata, context lines, or flags those tools lack. Change files
+with `edit` or `write`, not `sed -i`, a heredoc, `tee`, or a Python rewrite.
+Use the shell for command output, tests, git, and stream transforms.
+
+</FileTools>
+
 <QuestionQuality>
 
 Questions to the user must be answerable in ~30 seconds without opening code.
