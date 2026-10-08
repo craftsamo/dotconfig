@@ -51,6 +51,7 @@ sys.path.insert(0, str(HERE))
 
 import chains  # noqa: E402
 import evm  # noqa: E402
+import fees  # noqa: E402
 import keychain  # noqa: E402
 import ledger  # noqa: E402
 import prices  # noqa: E402
@@ -75,9 +76,7 @@ QUOTE_ID = re.compile(r"^q[0-9a-f]{8}$")
 KINDS = ("transfer", "revoke", "nft")  # what a quote does; a revoke always asks on its card
 SYMBOL = re.compile(r"^[A-Za-z0-9.$_-]{1,12}$")
 MEMO_CLIP = 40
-GAS_PRICE_ORACLE = "0x420000000000000000000000000000000000000F"
-L1_ORACLES = {"op": GAS_PRICE_ORACLE, "op-token": GAS_PRICE_ORACLE,
-              "scroll": "0x5300000000000000000000000000000000000002"}  # chains.py "fee": an L1 fee on top of gas
+L1_ORACLES = fees.L1_ORACLES  # chains.py "fee": an L1 fee on top of gas
 L1_MARGIN = 2              # the L1 base fee moves between quote and send
 CARD_BUDGET = 480          # Telegram cuts an approval card's reason at 500 escaped UTF-16 units
 SHORT_BUDGET = 290         # Discord cuts it at 300
@@ -522,49 +521,14 @@ def _l1_fee(r, call: dict, gas: int, max_fee_per_gas: int, tip: int, chain_id: i
     """A rollup's L1 data fee for this transfer, in the native coin, from the chain's L1 fee oracle given
     the signed transaction's bytes (signed only to size it; never broadcast). On Mantle ("op-token")
     the oracle's ETH figure is converted by its tokenRatio into MNT."""
-    from eth_account import Account
-    from eth_abi import encode as abi_encode
-    from eth_utils import keccak
     nonce = evm.h2i(r.call("eth_getTransactionCount", [call["from"], "pending"]))
-    raw = Account.sign_transaction({"type": 2, "chainId": chain_id, "nonce": nonce, "to": call["to"],
-                                    "value": evm.h2i(call["value"]), "data": call["data"], "gas": gas,
-                                    "maxFeePerGas": max_fee_per_gas,
-                                    "maxPriorityFeePerGas": min(tip, max_fee_per_gas)}, key).raw_transaction
-    data = "0x" + keccak(text="getL1Fee(bytes)")[:4].hex() + abi_encode(["bytes"], [bytes(raw)]).hex()
-    got = r.call("eth_call", [{"to": L1_ORACLES[model], "data": data}, "latest"])
-    if not got or len(got) < 66:
-        raise ChainError("the chain's L1 data fee could not be read; try again")
-    fee = evm.h2i(got[:66])
-    if model == "op-token":
-        ratio = r.call("eth_call", [{"to": GAS_PRICE_ORACLE, "data": "0x" + keccak(text="tokenRatio()")[:4].hex()},
-                                    "latest"])
-        if not ratio or len(ratio) < 66 or not evm.h2i(ratio[:66]):
-            raise ChainError("the chain's L1 fee token ratio could not be read; try again")
-        fee *= evm.h2i(ratio[:66])
-    return fee
+    raw = fees.signed({"chainId": chain_id, "nonce": nonce, "to": call["to"], "value": evm.h2i(call["value"]),
+                       "data": call["data"], "gas": gas, "maxFeePerGas": max_fee_per_gas,
+                       "maxPriorityFeePerGas": min(tip, max_fee_per_gas)}, key)
+    return fees.l1_fee(r, raw, model)
 
 
-def _operator_fee(r, gas: int, block: str = "latest", required: bool = False) -> int:
-    """An OP Stack chain's operator fee for this much gas (Isthmus and later). Only an oracle without
-    the function (a revert, or no answer data) means none, and only where it may be absent; a read
-    that fails any other way raises, so a stated maximum is never short of it."""
-    from eth_abi import encode as abi_encode
-    from eth_utils import keccak
-    data = "0x" + keccak(text="getOperatorFee(uint256)")[:4].hex() + abi_encode(["uint256"], [gas]).hex()
-    reply = r.request("eth_call", [{"to": GAS_PRICE_ORACLE, "data": data}, block])
-    error = reply.get("error")
-    if error:
-        text = str(error.get("message") if isinstance(error, dict) else error).lower()
-        code = error.get("code") if isinstance(error, dict) else None
-        if (code == 3 or "revert" in text) and not required:
-            return 0
-        raise ChainError("the chain's operator fee could not be read; try again")
-    got = reply.get("result")
-    if isinstance(got, str) and len(got) >= 66:
-        return evm.h2i(got[:66])
-    if required:
-        raise ChainError("the chain's operator fee could not be read; try again")
-    return 0
+_operator_fee = fees.operator_fee
 
 
 def evm_quote(ctx: Ctx, sender: str, args: dict, asset: str, key: bytes | None = None) -> dict:
