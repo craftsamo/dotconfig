@@ -176,7 +176,7 @@ renamed without `HERMES` becomes watch-only on the next call.
 | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `accounts` | every labelled seed's first accounts (5 by default, up to 101) and every key, Hermes and watch-only, with their metadata and their addresses on the tool's chain family; with `chain`, native balances there; skipped items with the reason. Never a key                                                        |
 | `quote`    | `account`, `chain`, `to`, `amount`, `token` (a contract or mint; omit for the native coin): validates, builds the exact transaction, simulates it (`eth_estimateGas` + `eth_call`; `simulateTransaction`), and stores it as a single-use quote that expires after 15 minutes (past the 10-minute approval wait) |
-| `transfer` | `quote`: sends exactly the stored transaction                                                                                                                                                                                                                                                                   |
+| `transfer` | `quote`: sends exactly the stored transaction, then waits up to 20 seconds for it to land and reports `confirmed`, `failed` (landed but reverted: only the fee was spent) or `pending`                                                                                                                       |
 | `status`   | a sent transfer's confirmations or failure                                                                                                                                                                                                                                                                      |
 
 The scope of a transfer is fixed: an EIP-1559 native transfer, an ERC-20
@@ -289,14 +289,23 @@ id — so a card is only ever the authentic one.
 - Inbound A2A requests never reach the wallet.
 
 Quotes and the send ledger live in `<profile home>/web3-wallet/`, written
-under a lock file held for the whole send, so two sends never race the cap.
+under a lock file held from the checks through the broadcast, so two sends
+never race the cap.
 A quote is marked consumed and a ledger line (time, attempt id, quote,
 account, chain, recipient, asset, amount, maximum fee, own/external,
 approval) is written with outcome `unknown` before broadcast, so a crash
 mid-send never re-sends it; a second line for the same attempt records
 `sent` with the hash, or `rejected` when the node answered with an error or
 the signer stopped before broadcasting. A quote the ledger has seen is never
-sent again, even if its consumed mark is cleared. Making a quote first
+sent again, even if its consumed mark is cleared. After the broadcast the
+lock is released and the send waits up to 20 seconds (less when the checks
+were slow, so the run stays inside the plugin's deadline) for the transaction
+to land; a third line for the attempt, appended without the lock, adds its
+`confirmation` (`confirmed`, `failed`, `pending`) with the block or slot,
+and on EVM the fee paid (with the OP Stack's L1 data fee). Its outcome stays
+`sent`, so a transaction that landed and reverted still counts against the
+cap, as its fee was spent. Nothing after the broadcast turns the reply into
+an error: a read that fails while waiting reports `pending`. Making a quote first
 deletes, under the same lock, every quote file that expired more than an
 hour ago — sent, denied or unused alike (an edited file counts as expired
 15 minutes after it was last written) — so the folder holds only recent
