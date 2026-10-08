@@ -45,7 +45,7 @@ still apply.
 
 | Need | Action | Source |
 |---|---|---|
-| Something looks wrong or stale | `status` (`verify=true` checks the token) | mirror |
+| Something looks wrong or stale | `status`: read `health` (`ok` / `degraded` / `stale` / `down`, with reasons); `detail=true` names the channels behind or unreadable; `verify=true` checks the token | mirror |
 | A DM or group DM | `dms` (`query` = part of a name, `last=true`) | mirror (always synced) |
 | A server, then its channels | `guilds`, then `channels` with `guild` | refreshed every 6 h / live |
 | A channel's threads or forum posts | `threads` with the parent channel (25 a page, `offset`, `archived`) | live |
@@ -198,7 +198,9 @@ are the riskiest thing this tool does. Procedure and rules:
 
 - `status` first. A rejected token, a stopped sync agent or a missing engine
   is the user's to fix in a terminal: relay the `action_needed` line, never
-  route around it.
+  route around it. `health` `stale` means synced chats are read live until
+  the next run; `degraded` lists what was skipped (use `detail=true` before
+  telling the user which channels).
 - A channel marked `readable: false` answered 403/404; it is skipped until a
   live read succeeds again. Do not retry it in a loop.
 - New DMs, marking messages as read, starting threads or forum posts, and

@@ -43,7 +43,9 @@ access = _load("hermes_discord_access", Path(__file__).resolve().parent / "acces
 DESCRIPTION = (
     "The user's own Discord account (their DMs, group DMs and the servers they are in — not the "
     "Assistant's bot). DMs and the servers in the sync list are mirrored locally every 5 minutes; "
-    "other channels are read live. READS: status (account, token state, last sync; verify=true checks the "
+    "other channels are read live. READS: status (account, token state, last sync and a `health` verdict: ok / "
+    "degraded / stale / down with its reasons; detail=true names the channels that are behind or unreadable and the "
+    "last run's errors; verify=true checks the "
     "token with Discord), guilds (servers with id; refresh=true), channels (guild = server id: its "
     "channels with id, category, last activity, synced), dms (DMs and group DMs newest first with "
     "channel id and name; query = part of a name; last=true adds the last message; page with offset = "
@@ -136,6 +138,8 @@ PROPERTIES = {
     "pages": {"type": "integer", "description": "backfill: pages of 100 older messages (default 2, at most 5)"},
     "refresh": {"type": "boolean", "description": "guilds / roles / friends: fetch from Discord again"},
     "verify": {"type": "boolean", "description": "status: check the token with Discord"},
+    "detail": {"type": "boolean", "description": "status: name the channels behind or unreadable and list the "
+                                                 "last run's errors"},
     "text": {"type": "string", "description": "send / edit: the message, exactly as it should arrive"},
     "reply_to": {"type": "string", "description": "send: id of a message in that channel to reply to"},
     "files": {"type": "array", "items": {"type": "string"},
