@@ -63,7 +63,7 @@ def create(*, sid, info, meta, args, settings, policy, turn):
     if meta.get("repo") and meta["repo"] != repo:
         raise ValueError("The session is no longer in the repository it was bound to; start a new session")
     branch = branch_name(args.get("branch"), source, policy)
-    target = target_path(settings["worktree_root"], repo, branch)
+    target = target_path(Path(settings["worktree_root"]).resolve(), repo, branch)
     if target.exists():
         raise ValueError(f"{target} already exists")
     start = "HEAD"
@@ -74,6 +74,10 @@ def create(*, sid, info, meta, args, settings, policy, turn):
         start = policy.default_ref(source) or "HEAD"
     target.parent.mkdir(parents=True, exist_ok=True)
     _run(source, "worktree", "add", "--no-track", "-b", branch, str(target), start)
+    # The service must be given the real path: moved to a symlinked spelling
+    # (/var for /private/var) it files the worktree outside its project, and
+    # snapshots and diffs stop working (measured on 2.0.23).
+    target = target.resolve(strict=True)
     try:
         policy.worktree(str(target))
         turn.call("post", "/api/session/{sid}/move", {"directory": str(target)}, sid=sid)

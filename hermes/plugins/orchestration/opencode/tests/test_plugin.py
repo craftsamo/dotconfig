@@ -562,6 +562,18 @@ def test_workspace_moves_an_idle_plan_into_a_new_task_branch_worktree(fixture, t
     assert built["status"] == "completed" and built["branch"] == "task/login" and built["session_id"] == sid
 
 
+def test_workspace_hands_the_service_the_real_path_of_a_symlinked_root(fixture, tmp_path):
+    home, directory, _, fake = fixture
+    real = tmp_path / "real"
+    real.mkdir()
+    (tmp_path / "link").symlink_to(real)
+    with_root(home, tmp_path / "link")
+    sid = run("plan", directory)["session_id"]
+    out = session("workspace", sid, branch="task/a")
+    assert out["directory"] == str(real / "work tree" / "task-a")
+    assert fake.moves == [(sid, str(real / "work tree" / "task-a"))], "never the symlinked spelling"
+
+
 def test_workspace_refuses_unsafe_branches_a_busy_session_and_a_foreign_session(fixture, tmp_path):
     home, directory, _, fake = fixture
     with_root(home, tmp_path / "wt")
