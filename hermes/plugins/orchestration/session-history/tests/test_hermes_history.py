@@ -246,7 +246,7 @@ def test_usage_closes_gaps_open_at_the_window_end(root):
 
 @pytest.mark.parametrize("tool, counted", [
     ("opencode_call", True),            # the retired plugin: past sessions still carry it
-    ("opencode_run_plan", True),        # opencode-v2: one run tool per configured role
+    ("opencode_run_plan", True),        # opencode: one run tool per configured role
     ("opencode_run_any_role", True),
     ("opencode_request", True),         # a reply blocks until the run's next hand-back
     ("opencode_session", False),        # status/diff/steer: ordinary work, not a wait on a run

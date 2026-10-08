@@ -783,13 +783,13 @@ plugins:
   enabled:
     - skill-topology
     - specialist-call
-    - opencode-v2
+    - opencode
     - session-history
     - workspace-drafts
     - workspace-repos
 specialist_call:
   resident_targets: [marketer, researcher, writer]
-opencode_v2:
+opencode:
   enabled: true
   wait_timeout: 3300
   allowed_providers:

@@ -18,13 +18,13 @@ def _module(name, path):
     return module
 
 
-plugin = _module("opencode_v2_test", ROOT / "__init__.py")
-fakes = _module("opencode_v2_fake_service", ROOT / "tests/fake_service.py")
+plugin = _module("opencode_test", ROOT / "__init__.py")
+fakes = _module("opencode_fake_service", ROOT / "tests/fake_service.py")
 api, config, policy, models, turn = plugin.api, plugin.config, plugin.policy, plugin.models, plugin.turn
 PERSON_DENIES = fakes.PERSON_DENIES
 REAL_WAIT_LIMIT = turn.wait_limit
 MESSAGE = "Inspect only. ' ; $(not a shell)\nsecond line"
-CONFIG = "opencode_v2:\n  enabled: true\n  wait_timeout: 8\n  allowed_providers: [anthropic, openai]\n"
+CONFIG = "opencode:\n  enabled: true\n  wait_timeout: 8\n  allowed_providers: [anthropic, openai]\n"
 
 
 @pytest.fixture
@@ -543,7 +543,7 @@ def test_reconcile_only_turns_refuse_execution_but_not_inspection(fixture, monke
 def test_disabling_the_integration_blocks_runs_but_keeps_inspection(fixture):
     home, directory, _, _ = fixture
     sid = run("plan", directory)["session_id"]
-    (home / "config.yaml").write_text("opencode_v2:\n  enabled: false\n")
+    (home / "config.yaml").write_text("opencode:\n  enabled: false\n")
     assert "not enabled" in run("plan", session_id=sid)["error"]
     assert session("status", sid)["status"] == "completed"
     assert session("wait", sid)["status"] == "completed"
@@ -770,7 +770,7 @@ def test_a_role_note_is_part_of_the_session_instruction(fixture):
 ])
 def test_configuration_is_validated(fixture, text, message):
     home, _, _, _ = fixture
-    (home / "config.yaml").write_text("opencode_v2:\n  enabled: true\n" + text)
+    (home / "config.yaml").write_text("opencode:\n  enabled: true\n" + text)
     with pytest.raises(ValueError, match=message):
         config.load(home)
 
@@ -789,7 +789,7 @@ def test_scope_refuses_inbound_and_foreign_profiles(monkeypatch, tmp_path):
         real = plugin.dispatch
         monkeypatch.setattr(real, "_scope", lambda h=home, i=inbound: (h, {}, False, i))
         with pytest.raises(ValueError, match="requires an Engineer/Assistant"):
-            _module("opencode_v2_scope_probe", ROOT / "__init__.py")._scope()
+            _module("opencode_scope_probe", ROOT / "__init__.py")._scope()
 
 
 # ---------------------------------------------------------------- api client
@@ -805,7 +805,7 @@ def test_api_client_reads_files_not_pipes_and_maps_errors(tmp_path):
                     "  /empty) exit 0 ;;\n"
                     "esac\n")
     fake.chmod(0o700)
-    real = _module("opencode_v2_api_probe", ROOT / "api.py")
+    real = _module("opencode_api_probe", ROOT / "api.py")
     assert len(real.call("get", "/ok", executable=str(fake))["data"]) == 300000
     with pytest.raises(real.ApiError) as error:
         real.call("get", "/missing", executable=str(fake))

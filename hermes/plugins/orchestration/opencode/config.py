@@ -1,4 +1,4 @@
-"""Profile configuration for the OpenCode 2 plugin: `opencode_v2` in config.yaml.
+"""Profile configuration for the OpenCode 2 plugin: `opencode` in config.yaml.
 
 Nothing here is secret or per-run. Roles are data: a role names an installed
 OpenCode agent, one of two policies, and optionally a model and a short note.
@@ -10,7 +10,7 @@ import re
 
 import hermes_yaml as yaml
 
-KEY = "opencode_v2"
+KEY = "opencode"
 POLICIES = ("read-only", "write")
 DEFAULT_ROLES = {
     "plan": {"agent": "plan", "policy": "read-only"},
