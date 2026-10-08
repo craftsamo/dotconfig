@@ -19,7 +19,7 @@ _READ = re.compile(
 # The wallet's secrets have any name in any project, so the Keychain itself is out of reach of the
 # terminal on a wallet profile: reading, writing or deleting an item (a deleted seed is lost funds).
 _WALLET = re.compile(
-    r"(?<![\w-])web3-wallet(?![\w-])|signer\.py|keychain\.py|ledger\.py|web3\.sh"
+    r"(?<![\w-])web3-wallet(?![\w-])|signer\.py|keychain\.py|ledger\.py|seeds\.py|web3\.sh"
     r"|\bsecret\s+(get|set|update|rm|import|export|env)\b|\bsecurity\s+\S*-generic-password\b"
     r"|\bcast\s+(send|wallet|mktx|publish)\b|\bsolana\s+(transfer|keygen)\b|\bspl-token\s+transfer\b"
     r"|eth_sendRawTransaction|sendTransaction", re.IGNORECASE)

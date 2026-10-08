@@ -216,7 +216,9 @@ decoded, with on-chain text marked untrusted. The Assistant's tools alone
 carry the wallet actions (never on A2A): the seed phrases and private keys in
 the user's Keychain, sending only from those named with `HERMES`; a transfer
 to one of them runs, any other waits for approval on a card naming both
-sides, and none goes out where nobody can approve. Contract:
+sides, and none goes out where nobody can approve. A new Hermes wallet is
+made the same way: its seed phrase generated and stored, never shown, after
+a card of all its Keychain metadata. Contract:
 [web3.md](../web3.md).
 
 Marketing work is the Assistant's to execute, with Marketer as its strategy
