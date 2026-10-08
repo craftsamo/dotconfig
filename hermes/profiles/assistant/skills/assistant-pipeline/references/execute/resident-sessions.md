@@ -68,18 +68,13 @@ resident-session.sh prune [--older-than <days>] [--yes]
   them in later turns; the session log is the record:
   - `Budget:` (hands) — generation-spend caps; omitted = the leaf's
     documented default.
-  - Engineer: explicit implementation approval releases the agreed scope through
-    task-branch PR delivery; Issue management requires a separate explicit request.
-    Planning consent or an Issue URL is not a write grant. No merge/deploy/default
-    push; no per-phase release loop after the user approves implementation.
   - Marketing remote-save consent names the exact content/assets, service/account
     and create/update target before typing (autosave is an upload); you save,
     Marketer only advises. No Publish/P1
     grant enables publication, scheduling or sending; the user publishes.
 - **Deliverables are files at durable paths + a reply that names them.**
-  Engineering normally delivers a PR and evidence; plan/assessment replies need
-  no invented file or Issue merely to fit the production-artifact convention.
-  Sessions must never leave results only in scratch dirs or tool caches.
+  Plan/assessment replies need no invented file merely to fit the
+  production-artifact convention. Sessions must never leave results only in scratch dirs or tool caches.
 - **Lifecycle: close on acceptance.** A resident session is per-
   deliverable, not immortal — `close` it once the user accepts, so
   context rot never accumulates. A follow-up request after close starts a
@@ -112,25 +107,11 @@ resident-session.sh prune [--older-than <days>] [--yes]
   CLI's own status. A plugin conversation you cancelled is different: its
   `cancelled` status already carries the runner's confirmation and may be
   continued as described in "Parallel conversations, waiting and cancelling".
-- **Reconcile turn after an interruption (Engineer).** An interrupted Engineer
-  conversation can still have OpenCode runs going that only THAT resident
-  session may interrupt (they are bound to it); left alone they keep running
-  and hold the worktree, and no other route (a fresh conversation, the
-  terminal, a `--resume`) is accepted as owner. After `specialist_session
-  reconcile`, send exactly one `specialist_call(conversation_id=<same>,
-  kind="reconcile", message=<which child sessions to inspect>)`. The plugin
-  marks the turn RECONCILE-ONLY: Engineer inspects and interrupts, every
-  `opencode_run_<role>` is refused,
-  nothing is edited or committed, and the conversation ends `reconciled`. Then
-  release the remaining work as a fresh conversation seeded with the committed
-  checkpoint and the evidence paths — not with the interrupted transcript.
 - **Turn budget is 90 minutes and the handoff says so.** Every resident turn
   carries a "Turn budget" line; the specialist is expected to checkpoint
   before it. Your side of that contract is turn sizing: release one
   verifiable increment per turn and continue in the same conversation, rather
-  than one turn that must reach the finish line. Engineer's OpenCode calls
-  block until they finish (no polling), so a turn's wall clock is roughly the
-  sum of its runs plus verification — plan for that.
+  than one turn that must reach the finish line.
 - **A key whose first turn died never established a conversation.** Its
   following wrapper restart procedure is for explicit maintenance after effects
   are reconciled, not a bypass for an unknown specialist conversation. Its
@@ -172,7 +153,7 @@ resident-session.sh prune [--older-than <days>] [--yes]
   not resend; check `status` before acting. A `completed` reply with
   `cancel_too_late` means the turn had already finished: show that result and
   ask whether the change still applies. `cancelled` confirms only the
-  specialist's own process. Engineer's OpenCode runs and the hands'
+  specialist's own process. The hands'
   conversations are stopped by their own runners when it exits, possibly a few
   seconds later, and end as `unknown` on their side, so the resumed turn first
   inspects and reconciles them. Spend already incurred is not refunded.
