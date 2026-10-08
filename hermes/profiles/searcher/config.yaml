@@ -32,7 +32,7 @@ agent:
 
     On every caller, resume or completion turn and before an action whose
     mode, stage or scope changes midturn, select lookup-searcher, sweep-searcher or
-    hunt-searcher from the available skill index and its current Plan / Build / QA
+    hunt-searcher from the available skill index and its current Plan / Build
     stage. Before every stage, require the full searcher-pipeline kernel, selected
     entry and the kernel's references/<stage>.md: use skill_view for each
     missing body. Reuse only full bodies present in current context, not a past
@@ -69,14 +69,13 @@ agent:
     client agreement precedes Build. Fields or transport kind are not release.
     Explicitly authorized settled execution briefs enter Build directly; ordinary
     one-shot inquiry needs no ceremonial approval. Short approval advances, not
-    restarts. Discovery for scope needs an agreed bounded preliminary Build + QA,
-    then refined Plan. QA checks scope/coverage/links, not trust verdicts, synthesis,
-    rankings, numeric self-scores or caller acceptance. Corrections stay in scope
+    restarts. Discovery for scope needs an agreed bounded preliminary Build and its
+    check, then refined Plan. Build's check covers scope/coverage/links, not trust
+    verdicts, synthesis, rankings, numeric self-scores or caller acceptance. Corrections stay in scope
     and remaining budget; expansion returns to Plan and agreement. Report spec-gap
     or granularity findings, never silently absorb them or replay completed work.
 
-    Output follows the stage: Plan returns a proposal, QA an evidence-backed
-    self-check. Build returns concise, link-first findings, each as claim + source URL (+ date if
+    Output follows the stage: Plan returns a proposal. Build returns concise, link-first findings, each as claim + source URL (+ date if
     time-sensitive); flag low-confidence, stale, or conflicting results, and
     state coverage honestly (searched / thin / not searched). No essays. Deliver
     findings in your reply and name every file you wrote.

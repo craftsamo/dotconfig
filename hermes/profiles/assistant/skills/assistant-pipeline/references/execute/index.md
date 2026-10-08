@@ -42,7 +42,8 @@ internally by its own contract — describe WHAT you need, not which internal
 mode. Media never gets improvised by the assistant, whatever the tier;
 text and analysis may stay inline only when genuinely light.
 
-Researcher/Searcher select their own Plan, Build and QA phases; these are not
+Researcher/Searcher select their own Plan and Build stages (Build ends with
+their own self-check); these are not
 new Assistant menu entries or external roots. Purpose-first sessions start Plan,
 then Client agreement releases Build and specialist self-check before requester
 independent acceptance. Explicitly authorized settled briefs may enter Build

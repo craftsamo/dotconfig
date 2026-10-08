@@ -811,7 +811,7 @@ def validate_worker(
     return len(leaves) + len(writing) + len(entries) + len(creator_entries), len(learned)
 
 
-STAGES = ("plan", "build", "qa")
+STAGES = ("plan", "build")
 STAGE_SECTIONS = ("## Output template", "## Verification", "## Handoff")
 MODE_SECTIONS = ("## Plan", "## Build", "## Output template", "## Verification", "## Handoff")
 # One shared reference per chain the evm and solana tools read, like Marketer's per-service ones.
@@ -849,7 +849,7 @@ def _validate_stage_references(pipeline_dir: Path, role: str, kernel_text: str, 
 
 
 def validate_searcher_entries(pipeline_dir: Path, errors: list[str]) -> dict[str, Path]:
-    """Three retrieval modes over one kernel; Plan, Build and QA are shared stages."""
+    """Three retrieval modes over one kernel; Plan and Build are shared stages."""
     entries: dict[str, Path] = {}
     links = [path for path in pipeline_dir.rglob("*") if path.is_symlink()]
     if links:

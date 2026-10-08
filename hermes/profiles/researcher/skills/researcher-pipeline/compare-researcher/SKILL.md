@@ -21,8 +21,7 @@ before any stage. On every inbound turn/completion and before a midturn mode,
 stage or scope change, reselect the mode and load this entry with
 `skill_view(name="compare-researcher")` and the current stage's shared reference with
 `skill_view(name="researcher-pipeline", file_path="references/<stage>.md")`:
-[Plan](../references/plan.md), [Build](../references/build.md) or
-[QA](../references/qa.md). Reuse only full bodies in current context, never a
+[Plan](../references/plan.md) or [Build](../references/build.md). Reuse only full bodies in current context, never a
 past load, preload or summary.
 
 Gathering beyond a few direct lookups requires
@@ -110,7 +109,7 @@ agreement, not a more flattering axis for one option.
 Do not return only a matrix with no recommendation: the caller asked for
 decision support. If evidence cannot distinguish options, explain that as the
 conditional recommendation rather than invent a winner. Write requested
-artifacts to the durable path, name them and pass the full matrix to QA.
+artifacts to the durable path, name them and check the full matrix against Verification below.
 
 ## Verification
 
@@ -134,15 +133,15 @@ caller or grading the downstream artifact.
 - No option/criterion was silently added, dropped or changed; requested durable
   outputs are named and retain the complete matrix.
 
-Use QA's checked/unmet/unknown report, not a new numeric quality rubric. Correct
+Put unmet or unknown conditions in Assumptions & unknowns; no new numeric quality rubric. Correct
 an in-scope cell or missing explanation in Build only within remaining budget.
 A growing roster, new criteria or extra investigation beyond budget returns to
 Plan for agreement, preserving the original result and consumed budget.
 
 ## Handoff
 
-Plan ends at the client's agreement. Build hands straight to QA in the same
-turn, and only QA's self-checked delivery reaches the caller: a findings reply
-without its Research Self-Check is not finished. Each stage's own Handoff in
-its shared reference says what follows. Keep this mode for the unit; another kind of question is another
+Plan ends at the client's agreement. Build ends, in the same turn, with the
+self-check against this entry's Verification, and the reply carries what it
+found unmet or unknown. Each stage's own Handoff in its shared reference says
+what follows. Keep this mode for the unit; another kind of question is another
 agreed unit with its own mode entry, never a silent switch.

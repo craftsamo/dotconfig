@@ -52,7 +52,7 @@ Use `specialist_call(target="searcher", kind="work", message=...)` and retain
 `specialist_session` retains its existing lifecycle role, with no new state tool.
 Plan allows no unapproved external search. Agree any bounded preliminary Build
 (scope, output, budget, stop condition) first; inspect its result after Build
-and specialist QA self-check, then separately agree the refined main proposal.
+and its specialist self-check, then separately agree the refined main proposal.
 Preliminary agreement never releases main work. Assistant retains overall
 orchestration and cross-role dependencies.
 
@@ -64,7 +64,7 @@ orchestration and cross-role dependencies.
    work bigger than its unit (a sweep spanning populations, a
    lookup growing hops) as **granularity findings** — both go back
    to Plan, not into a bigger crawl.
-2. **Receive the report after specialist QA self-check** — findings with per-claim sources and
+2. **Receive the report with its specialist self-check** — findings with per-claim sources and
    dates, the coverage statement (sweep: matrix + floor met; hunt:
    source map + trail notes + gaps), `Open for researcher` items
    named, interpretation labeled when the brief was assumed-on.

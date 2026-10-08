@@ -21,8 +21,7 @@ before any stage. On every inbound turn/completion and before a midturn mode,
 stage or scope change, reselect the mode and load this entry with
 `skill_view(name="verify-researcher")` and the current stage's shared reference with
 `skill_view(name="researcher-pipeline", file_path="references/<stage>.md")`:
-[Plan](../references/plan.md), [Build](../references/build.md) or
-[QA](../references/qa.md). Reuse only full bodies in current context, never a
+[Plan](../references/plan.md) or [Build](../references/build.md). Reuse only full bodies in current context, never a
 past load, preload or summary.
 
 Gathering beyond a few direct lookups requires
@@ -132,7 +131,7 @@ If the destination is missing, request it rather than invent a durable path.
 
 "Unverifiable" must state what was searched and where evidence might live.
 Report any need for a follow-up investigate unit to caller instead of expanding
-into a survey. Pass the ledger and report to QA for self-check.
+into a survey. Check the ledger and report against Verification below.
 
 ## Verification
 
@@ -170,8 +169,8 @@ source hunt needs Plan and agreement; preserve originals and prior budget.
 
 ## Handoff
 
-Plan ends at the client's agreement. Build hands straight to QA in the same
-turn, and only QA's self-checked delivery reaches the caller: a findings reply
-without its Research Self-Check is not finished. Each stage's own Handoff in
-its shared reference says what follows. Keep this mode for the unit; another kind of question is another
+Plan ends at the client's agreement. Build ends, in the same turn, with the
+self-check against this entry's Verification, and the reply carries what it
+found unmet or unknown. Each stage's own Handoff in its shared reference says
+what follows. Keep this mode for the unit; another kind of question is another
 agreed unit with its own mode entry, never a silent switch.
