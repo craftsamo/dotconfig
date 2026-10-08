@@ -987,6 +987,66 @@ def test_unreact_falls_back_to_the_legacy_route_only_when_the_route_is_unknown()
     assert len(http.api_calls()) == 1
 
 
+def test_pin_and_unpin_use_the_current_route():
+    conn = store.connect(write=True)
+    mid = flake(5)
+    mirrored(conn, mid)
+    path = f"/channels/{DM1}/messages/pins/{mid}"
+    http = FakeHttp({("PUT", path): (204, {}, ""), ("DELETE", path): (204, {}, "")})
+    assert engine.pin(client(http, conn), DM1, mid, True)["outcome"] == "done"
+    assert engine.pin(client(http, conn), DM1, mid, False)["outcome"] == "done"
+    assert [c["method"] for c in http.api_calls()] == ["PUT", "DELETE"]
+
+
+def test_pin_falls_back_to_the_older_route_only_when_the_route_is_unknown():
+    conn = store.connect(write=True)
+    mid = flake(5)
+    mirrored(conn, mid)
+    new, old = f"/channels/{DM1}/messages/pins/{mid}", f"/channels/{DM1}/pins/{mid}"
+    http = FakeHttp({("PUT", new): (404, {}, {"message": "404: Not Found", "code": 0}), ("PUT", old): (204, {}, "")})
+    assert engine.pin(client(http, conn), DM1, mid, True)["outcome"] == "done"
+    assert [c["url"].rsplit("/api/v9", 1)[1] for c in http.api_calls()] == [new, old]
+    http = FakeHttp({("PUT", new): (404, {}, {"message": "Unknown Message", "code": 10008})})
+    assert engine.pin(client(http, conn), DM1, mid, True)["outcome"] == "not_done"
+    assert len(http.api_calls()) == 1
+
+
+def test_a_refused_pin_reports_discords_reason():
+    conn = store.connect(write=True)
+    mid = flake(5)
+    mirrored(conn, mid)
+    http = FakeHttp({("PUT", f"/channels/{DM1}/messages/pins/{mid}"): (
+        400, {}, {"message": "Maximum number of pins reached for the channel (250)", "code": 30003})})
+    result = engine.pin(client(http, conn), DM1, mid, True)
+    assert result["outcome"] == "not_done" and "Maximum number of pins reached" in result["detail"]
+    http = FakeHttp({("PUT", f"/channels/{DM1}/messages/pins/{mid}"): (403, {}, {"message": "Missing Permissions",
+                                                                                  "code": 50013})})
+    assert engine.pin(client(http, conn), DM1, mid, True)["outcome"] == "not_done"
+    assert len(http.api_calls()) == 1                                                   # never retried
+
+
+def test_an_ambiguous_pin_is_confirmed_by_reading_the_message_back():
+    conn = store.connect(write=True)
+    mid = flake(5)
+    mirrored(conn, mid)
+    routes = {("PUT", f"/channels/{DM1}/messages/pins/{mid}"): (502, {}, "bad gateway"),
+              ("GET", f"/channels/{DM1}/messages"): (200, {}, [msg(mid, DM1, pinned=True)])}
+    result = engine.pin(client(FakeHttp(routes), conn), DM1, mid, True)
+    assert result["outcome"] == "done" and result["confirmed"]
+    routes[("GET", f"/channels/{DM1}/messages")] = (200, {}, [msg(mid, DM1, pinned=False)])
+    http = FakeHttp(routes)
+    assert engine.pin(client(http, conn), DM1, mid, True)["outcome"] == "uncertain"
+    assert len(http.api_calls("PUT")) == 1
+    routes[("DELETE", f"/channels/{DM1}/messages/pins/{mid}")] = (502, {}, "bad gateway")
+    assert engine.pin(client(FakeHttp(routes), conn), DM1, mid, False)["outcome"] == "done"   # not pinned = unpinned
+
+
+def test_pin_commands_need_a_message():
+    for command in ("pin", "unpin"):
+        result = engine.run(command, {"channel": DM1}, http=FakeHttp(), token="t")
+        assert result["outcome"] == "not_done" and "id is required" in result["detail"]
+
+
 def test_edit_patches_once_and_stores_the_new_text():
     conn = store.connect(write=True)
     mid = flake(5)

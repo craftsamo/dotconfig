@@ -1425,6 +1425,27 @@ def react(client: Client, channel_id: str, message_id: str, emoji: str, add: boo
     return result
 
 
+def pin(client: Client, channel_id: str, message_id: str, add: bool) -> dict:
+    """Pin or unpin one message. The route under /messages/pins is current; the older /pins one
+    is tried once when this API version does not know it. Both set the same state."""
+    referer = _referer(client.conn, channel_id)
+    method = "PUT" if add else "DELETE"
+
+    def confirm():
+        m = fetch_message(client, channel_id, message_id)
+        if m is None:
+            return False, "the message is gone"
+        pinned = bool(m.get("pinned"))
+        return pinned == add, "the message is pinned" if pinned else "the message is not pinned"
+
+    result = _outcome(client, lambda: client.write(method, f"/channels/{channel_id}/messages/pins/{message_id}",
+                                                   referer=referer), confirm=confirm)
+    if result["outcome"] == "not_done" and result.get("status") == 404 and result.get("code") == NO_ROUTE:
+        result = _outcome(client, lambda: client.write(method, f"/channels/{channel_id}/pins/{message_id}",
+                                                       referer=referer), confirm=confirm)
+    return result
+
+
 def edit(client: Client, channel_id: str, message_id: str, text: str) -> dict:
     body = {"content": text, "allowed_mentions": {"parse": ["users", "roles", "everyone"], "replied_user": False}}
 
@@ -1577,8 +1598,8 @@ def role_delete(client: Client, guild_id: str, role_id: str, reason=None) -> dic
     return result
 
 
-WRITE_COMMANDS = {"react", "unreact", "edit", "delete", "role_add", "role_remove", "role_bulk_add", "role_create",
-                  "role_edit", "role_delete"}
+WRITE_COMMANDS = {"react", "unreact", "edit", "delete", "pin", "unpin", "role_add", "role_remove", "role_bulk_add",
+                  "role_create", "role_edit", "role_delete"}
 
 
 def _write(command: str, args: dict, client: Client) -> dict:
@@ -1596,6 +1617,8 @@ def _write(command: str, args: dict, client: Client) -> dict:
         return edit(client, channel(), _arg(args, "id"), text)
     if command == "delete":
         return delete(client, channel(), _arg(args, "id"))
+    if command in ("pin", "unpin"):
+        return pin(client, channel(), _arg(args, "id"), command == "pin")
     guild = _arg(args, "guild")
     if command in ("role_add", "role_remove"):
         return role_member(client, guild, _arg(args, "user"), _arg(args, "role"), command == "role_add", reason)
