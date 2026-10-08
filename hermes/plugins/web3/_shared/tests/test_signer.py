@@ -58,8 +58,10 @@ SOL_STRANGER = "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM"
 DEV_USDC = "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU"
 TOKEN = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
 
+NFT = "0x7777777777777777777777777777777777777777"  # an NFT collection
+
 FAKE = {"broadcast": "ok", "sent": [], "token_ata_exists": False, "symbol": "USDC", "landed": "success",
-        "operator_fee": None, "receipt": {}}
+        "operator_fee": None, "receipt": {}, "allowance": 0, "operator": False, "delegate": False, "decimals": 6}
 
 
 def word(value: int) -> str:
@@ -75,9 +77,22 @@ def handle(method: str, params: list):
     if method == "eth_getBalance":
         return hex(10 ** 18), None
     if method == "eth_getCode":
-        return ("0x6080604052" if params[0].lower() == USDC.lower() else "0x"), None
+        return ("0x6080604052" if params[0].lower() in (USDC.lower(), NFT) else "0x"), None
     if method == "eth_call":
         data = params[0].get("data", "")
+        to = params[0].get("to", "").lower()
+        if data.startswith("0xdd62ed3e"):  # allowance(owner, spender): an ERC-20 only
+            if FAKE["allowance"] == "busy":
+                return None, {"code": -32005, "message": "rate limit exceeded"}
+            return ("0x" + word(FAKE["allowance"]), None) if to == USDC.lower() else \
+                (None, {"code": 3, "message": "execution reverted"})
+        if data.startswith("0xe985e9c5"):  # isApprovedForAll(owner, operator): a collection only
+            return ("0x" + word(1 if FAKE["operator"] else 0), None) if to == NFT else \
+                (None, {"code": 3, "message": "execution reverted"})
+        if data.startswith("0x095ea7b3"):  # approve
+            return "0x" + word(1), None
+        if data.startswith("0xa22cb465"):  # setApprovalForAll
+            return "0x", None
         if params[0].get("to", "").lower() == "0x420000000000000000000000000000000000000f":
             if data.startswith("0x275aedd2"):  # getOperatorFee(gas): absent before Isthmus
                 if FAKE["operator_fee"] is None:
@@ -95,7 +110,8 @@ def handle(method: str, params: list):
         if data == "0x95d89b41":
             return abi_string(FAKE["symbol"]), None
         if data == "0x313ce567":
-            return "0x" + word(6), None
+            return ("0x" + word(FAKE["decimals"]), None) if FAKE["decimals"] is not None else \
+                (None, {"code": 3, "message": "execution reverted"})
         if data.startswith("0xa9059cbb"):
             return "0x" + word(1), None
         return "0x", None
@@ -136,8 +152,9 @@ def handle(method: str, params: list):
             return {"value": {"owner": "11111111111111111111111111111111", "executable": False,
                               "lamports": 5 * 10 ** 9, "data": ["", "base64"]}}, None
         if FAKE["token_ata_exists"]:
+            info = {"delegate": SOL_STRANGER, "delegatedAmount": {"uiAmountString": "5"}} if FAKE["delegate"] else {}
             return {"value": {"owner": TOKEN, "executable": False, "lamports": 2039280,
-                              "data": {"parsed": {"type": "account", "info": {}}}}}, None
+                              "data": {"parsed": {"type": "account", "info": info}}}}, None
         return {"value": None}, None
     if method == "getMultipleAccounts":
         return {"value": [{"lamports": 5 * 10 ** 9} if a == SOL_OPS else None for a in params[0]]}, None
@@ -188,7 +205,7 @@ def endpoint():
 @pytest.fixture(autouse=True)
 def fresh():
     FAKE.update(broadcast="ok", sent=[], token_ata_exists=False, symbol="USDC", landed="success", operator_fee=None,
-                receipt={})
+                receipt={}, allowance=0, operator=False, delegate=False, decimals=6)
 
 
 def _env(tmp_path: Path) -> dict:
@@ -525,8 +542,8 @@ def test_verify_returns_the_authentic_cards_and_mac(tmp_path, endpoint):
     data = quote(tmp_path, endpoint, to=STRANGER, amount="0.01")
     verified = signer(tmp_path, endpoint, "verify", quote=data["quote"])["data"]
     stored = json.loads(quote_file(tmp_path, data["quote"]).read_text())
-    assert verified == {"quote": data["quote"], "chain": "sepolia", "own": False, "card": stored["card"],
-                        "card_short": stored["card_short"], "mac": stored["mac"]}
+    assert verified == {"quote": data["quote"], "chain": "sepolia", "kind": "transfer", "own": False,
+                        "card": stored["card"], "card_short": stored["card_short"], "mac": stored["mac"]}
 
 
 def test_another_quotes_file_under_this_id_is_refused(tmp_path, endpoint):
@@ -669,6 +686,135 @@ def test_a_sol_transfer_signs_the_quoted_lamports(tmp_path, endpoint):
     assert tx["signers"] == [SOL_OPS] and tx["signatures_present"] == 1
     ix = tx["instructions"][0]
     assert ix["type"] == "transfer" and ix["from"] == SOL_OPS and ix["to"] == SOL_SPARE and ix["sol"] == "0.25"
+
+
+# --- revoking an approval -------------------------------------------------------------------------
+
+def raw_sol_instruction(raw: str) -> dict:
+    """The one instruction of a sent Solana transaction: program, data hex, accounts as [key, signer, writable]."""
+    script = ("import base64, json, sys; from solders.transaction import Transaction\n"
+              "t = Transaction.from_bytes(base64.b64decode(sys.argv[1])); m = t.message; ix = m.instructions[0]\n"
+              "keys = [str(k) for k in m.account_keys]; h = m.header; n = h.num_required_signatures\n"
+              "w = lambda i: i < n - h.num_readonly_signed_accounts if i < n else "
+              "i < len(keys) - h.num_readonly_unsigned_accounts\n"
+              "print(json.dumps({'program': keys[ix.program_id_index], 'data': bytes(ix.data).hex(),\n"
+              "  'accounts': [[keys[i], i < n, w(i)] for i in ix.accounts]}))")
+    out = subprocess.run([str(PYTHON), "-c", script, raw], capture_output=True, text=True, timeout=30)
+    return json.loads(out.stdout)
+
+
+def compact_units(text: str) -> int:
+    import html
+    return len(html.escape(text).encode("utf-16-le")) // 2
+
+
+def revoke(tmp_path, endpoint, **fields) -> dict:
+    return signer(tmp_path, endpoint, "quote", **{"account": f"{MAIN}#0", "chain": "sepolia", "kind": "revoke",
+                                                   **fields})
+
+
+def test_an_unlimited_erc20_approval_is_set_to_zero_on_a_card(tmp_path, endpoint):
+    FAKE["allowance"] = 2 ** 256 - 1
+    reply = revoke(tmp_path, endpoint, token=USDC, spender=STRANGER)
+    assert reply["ok"], reply
+    data = reply["data"]
+    assert data["own"] is False and data["summary"]["kind"] == "revoke"
+    assert data["summary"]["revoke"] == {"standard": "erc20", "current": "unlimited"}
+    card = data["card"]
+    assert 'Revoke: the approval to spend "USDC" token (unlimited)' in card and f"Token: {USDC}" in card
+    assert "--- Owner ---" in card and f"--- Spender ---\nAddress: {STRANGER}" in card and "Send:" not in card
+    refused = send(tmp_path, endpoint, data["quote"], "own")
+    assert refused["ok"] is False and "needs the approval card" in refused["error"] and FAKE["sent"] == []
+    assert send(tmp_path, endpoint, data["quote"], "card")["ok"]
+    tx = decode(tmp_path, "sepolia", FAKE["sent"][0])
+    assert tx["from"] == OPS and tx["to"] == USDC and tx["value"] in (0, "0", "0 ETH")
+    raw = tx.get("data") or tx.get("input") or ""
+    assert tx["call"]["function"] == "approve" or raw.startswith("0x095ea7b3")
+    assert list(tx["call"]["args"].values()) == [STRANGER, 0]
+    assert ledger(tmp_path)[-1]["kind"] == "revoke"
+
+
+def test_a_limited_allowance_shows_what_is_left(tmp_path, endpoint):
+    FAKE["allowance"] = 25 * 10 ** 6
+    data = revoke(tmp_path, endpoint, token=USDC, spender=STRANGER)["data"]
+    assert data["summary"]["revoke"]["current"] == "25"
+
+
+def test_an_nft_operator_approval_is_turned_off(tmp_path, endpoint):
+    FAKE["operator"] = True
+    data = revoke(tmp_path, endpoint, token=NFT, spender=STRANGER)["data"]
+    assert data["summary"]["revoke"]["standard"] == "operator"
+    assert "Revoke: the operator approval for every NFT of the collection" in data["card"]
+    assert f"collection: {NFT}" in data["card"].lower() and "--- Operator ---" in data["card"]
+    assert send(tmp_path, endpoint, data["quote"], "card")["ok"]
+    tx = decode(tmp_path, "sepolia", FAKE["sent"][0])
+    assert tx["to"].lower() == NFT
+    assert tx["call"]["function"] == "setApprovalForAll" and list(tx["call"]["args"].values()) == [STRANGER, False]
+
+
+def test_an_approval_that_cannot_be_read_is_never_called_absent(tmp_path, endpoint):
+    FAKE["allowance"] = "busy"
+    reply = revoke(tmp_path, endpoint, token=USDC, spender=STRANGER)
+    assert reply["ok"] is False and "could not be read" in reply["error"] and "no approval" not in reply["error"]
+
+
+def test_a_token_without_decimals_is_never_revoked_as_an_erc20(tmp_path, endpoint):
+    FAKE.update(allowance=10 ** 6, decimals=None)
+    reply = revoke(tmp_path, endpoint, token=USDC, spender=STRANGER)
+    assert reply["ok"] is False and "no approval for that spender" in reply["error"]
+
+
+@pytest.mark.parametrize("allowance, token", [(79228162514264337593543950335, USDC), (None, NFT)])
+def test_a_mainnet_revoke_card_fits_discord_and_keeps_the_addresses(tmp_path, endpoint, allowance, token):
+    FAKE.update(allowance=allowance or 0, operator=allowance is None, symbol="UNI")
+    data = revoke(tmp_path, endpoint, chain="ethereum", token=token, spender=STRANGER)["data"]
+    stored = json.loads(quote_file(tmp_path, data["quote"]).read_text())
+    assert compact_units(stored["card_short"]) <= 290 and compact_units(data["card"]) <= 480
+    assert f": {STRANGER}" in stored["card_short"] and f": {OPS}" in stored["card_short"]
+    assert stored["card_short"].startswith("MAINNET Revoke an approval on Ethereum")
+
+
+@pytest.mark.parametrize("token", [USDC, NFT])
+def test_there_is_nothing_to_revoke_without_a_current_approval(tmp_path, endpoint, token):
+    reply = revoke(tmp_path, endpoint, token=token, spender=STRANGER)
+    assert reply["ok"] is False and "no approval for that spender" in reply["error"]
+
+
+def test_a_revoke_needs_a_token_and_a_hermes_wallet(tmp_path, endpoint):
+    reply = revoke(tmp_path, endpoint, spender=STRANGER)
+    assert reply["ok"] is False and "a revoke needs token" in reply["error"]
+    FAKE["allowance"] = 10 ** 6
+    reply = revoke(tmp_path, endpoint, account=f"{TEAM}#0", token=USDC, spender=STRANGER)
+    assert reply["ok"] is False and "watch-only" in reply["error"]
+    reply = revoke(tmp_path, endpoint, kind="swap", token=USDC, spender=STRANGER)
+    assert reply["ok"] is False and "kind must be" in reply["error"]
+
+
+def test_a_revoke_to_an_own_spender_still_asks(tmp_path, endpoint):
+    FAKE["allowance"] = 10 ** 6
+    data = revoke(tmp_path, endpoint, token=USDC, spender=SPARE)["data"]
+    assert data["own"] is False and "Type: Your own" in data["card"]
+
+
+def test_a_solana_delegate_is_revoked_on_a_card(tmp_path, endpoint):
+    FAKE.update(token_ata_exists=True, delegate=True)
+    reply = revoke(tmp_path, endpoint, chain="solana-devnet", token=DEV_USDC)
+    assert reply["ok"], reply
+    data = reply["data"]
+    assert data["own"] is False and data["summary"]["to"] == SOL_STRANGER
+    assert 'Revoke: the delegate of the "USDC" token account (5 left to move)' in data["card"]
+    assert f"--- Delegate ---\nAddress: {SOL_STRANGER}" in data["card"]
+    assert send(tmp_path, endpoint, data["quote"], "card")["ok"]
+    tx = decode(tmp_path, "solana-devnet", FAKE["sent"][0])
+    assert tx["signers"] == [SOL_OPS] and len(tx["instructions"]) == 1
+    ix = raw_sol_instruction(FAKE["sent"][0])
+    source = json.loads(quote_file(tmp_path, data["quote"]).read_text())["build"]["source_ata"]
+    # SPL Token Revoke: instruction 5, [the token account (writable), the owner (signer; writable in the
+    # message only because it also pays the fee)]
+    assert ix == {"program": TOKEN, "data": "05", "accounts": [[source, False, True], [SOL_OPS, True, True]]}
+    FAKE["delegate"] = False
+    reply = revoke(tmp_path, endpoint, chain="solana-devnet", token=DEV_USDC)
+    assert reply["ok"] is False and "no delegate to revoke" in reply["error"]
 
 
 def test_a_solana_keypair_signs_as_its_own_account(tmp_path, endpoint):
