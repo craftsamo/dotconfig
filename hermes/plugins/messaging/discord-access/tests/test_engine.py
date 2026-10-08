@@ -764,6 +764,76 @@ def test_threads_are_stored_as_channels():
     assert row["parent_id"] == int(TEXT) and json.loads(row["thread"])["locked"] is True
 
 
+FORUM, POST = "400000000000000015", "450000000000000011"
+BUG, IDEA = "800000000000000001", "800000000000000002"
+
+
+def _forum(conn, tags=True):
+    channel = {"id": FORUM, "type": 15, "name": "ideas", "guild_id": G}
+    if tags:
+        channel["available_tags"] = [{"id": BUG, "name": "Bug"}, {"id": IDEA, "name": "Idea"}]
+    store.upsert_channel(conn, store.channel_row(channel), 0)
+    conn.commit()
+
+
+def _post():
+    return {"id": POST, "type": 11, "name": "crash", "parent_id": FORUM, "guild_id": G, "owner_id": FRIEND,
+            "applied_tags": [BUG], "flags": 2, "thread_metadata": {"archived": False, "locked": False}}
+
+
+def test_forum_posts_filter_by_tag_name_or_id_and_sort_by_creation():
+    conn = store.connect(write=True)
+    _forum(conn)
+    http = FakeHttp({("GET", f"/channels/{FORUM}/threads/search"): (200, {}, {
+        "threads": [_post()], "first_messages": [msg(POST, POST, content="it crashes")], "has_more": False})})
+    result = engine.threads(client(http, conn), FORUM, tag="bug", sort="created")
+    params = http.api_calls()[0]["params"]
+    assert params["tag"] == BUG and params["sort_by"] == "creation_time" and params["sort_order"] == "desc"
+    assert result["tags"] == {BUG: "Bug", IDEA: "Idea"} and result["first_author"] == {POST: "u2"}
+    stored = json.loads(conn.execute("SELECT thread FROM channels WHERE id = ?", (int(POST),)).fetchone()[0])
+    assert stored["tags"] == [BUG] and stored["pinned"] is True and stored["owner"] == FRIEND
+    engine.threads(client(http, conn), FORUM, tag=IDEA)
+    assert http.api_calls()[1]["params"]["tag"] == IDEA and http.api_calls()[1]["params"]["sort_by"] == "last_message_time"
+    engine.threads(client(http, conn), FORUM)
+    assert "tag" not in http.api_calls()[2]["params"] and len(http.api_calls()) == 3      # no extra request
+
+
+def test_unknown_tags_are_refused_with_the_forums_tag_names():
+    conn = store.connect(write=True)
+    _forum(conn)
+    http = FakeHttp()
+    with pytest.raises(engine.EngineError, match="Bug, Idea"):
+        engine.threads(client(http, conn), FORUM, tag="Question")
+    assert http.api_calls() == []                                                        # refused before any search
+    store.upsert_channel(conn, store.channel_row({"id": TEXT, "type": 0, "guild_id": G, "name": "general"}), 0)
+    conn.commit()
+    with pytest.raises(engine.EngineError, match="no tags"):
+        engine.threads(client(http, conn), TEXT, tag="Bug")
+
+
+def test_forum_tags_never_stored_are_read_once():
+    conn = store.connect(write=True)
+    _forum(conn, tags=False)
+    forum = {"id": FORUM, "type": 15, "name": "ideas", "guild_id": G,
+             "available_tags": [{"id": BUG, "name": "Bug"}]}
+    http = FakeHttp({("GET", f"/channels/{FORUM}"): (200, {}, forum),
+                     ("GET", f"/channels/{FORUM}/threads/search"): (200, {}, {"threads": [], "has_more": False})})
+    result = engine.threads(client(http, conn), FORUM, tag="Bug")
+    assert [c["url"].rsplit("/api/v9", 1)[1] for c in http.api_calls()] == [
+        f"/channels/{FORUM}", f"/channels/{FORUM}/threads/search"]
+    assert result["tags"] == {BUG: "Bug"}
+    engine.threads(client(http, conn), FORUM)
+    assert len(http.api_calls()) == 3                                                    # now stored: no second read
+
+
+def test_threads_command_checks_its_arguments():
+    conn = store.connect(write=True)
+    _forum(conn)
+    for bad in ({"tag": ""}, {"tag": 5}, {"tag": "x" * 101}, {"sort": "random"}):
+        with pytest.raises(engine.EngineError):
+            engine.run("threads", {"channel": FORUM, **bad}, http=FakeHttp(), token="t")
+
+
 def test_pins_mentions_and_friends():
     conn = store.connect(write=True)
     mirrored(conn)

@@ -63,7 +63,9 @@ DESCRIPTION = (
     "refused, and a .zip / .tar / .tar.gz / .tar.bz2 / .tar.xz archive is inspected first and saved only if it "
     "holds no programs, other archives, links or encrypted entries (its `archive` field lists what is inside; unpack=true also unpacks it, safely, into a .unpacked folder next to it (entries = only some of the names in its listing): read what is inside as data and analyse it with your own scripts, never run or open anything inside; never unpack with a terminal tool); "
     "look at what was saved, never open or run it), threads (channel = a text or forum "
-    "channel: its threads / forum posts with id; archived = true / false; offset), pins (channel: pinned "
+    "channel: its threads / forum posts with id, creation time, poster and, in a forum, tags and whether "
+    "pinned; the forum's tag list comes with the result; tag = a tag name or id, only posts with it; sort = "
+    "activity (default) or created; archived = true / false; offset), pins (channel: pinned "
     "messages; before = pinned_at of the last one), mentions (messages that mention the user, newest first; "
     "optional guild, before = a message id), pending (chats waiting for the user's answer, from the mirror "
     "alone: DMs and group DMs where others wrote after the user's last message, and server messages that "
@@ -132,6 +134,9 @@ PROPERTIES = {
     "live": {"type": "boolean", "description": "messages: read Discord live even for a synced channel; "
                                                "search: use Discord's own search instead of the mirror"},
     "archived": {"type": "boolean", "description": "threads: only archived (true) or only active (false)"},
+    "tag": {"type": "string", "description": "threads: only forum posts with this tag (its name or id)"},
+    "sort": {"type": "string", "enum": ["activity", "created"],
+             "description": "threads: newest activity (default) or newest created first"},
     "id": {"type": "string", "description": "context / media / react / unreact / edit / delete: the message id"},
     "emoji": {"type": "string", "description": "react / unreact: one emoji, or name:id of a custom one on the message; "
                                                "search (mirror): messages carrying that reaction"},
