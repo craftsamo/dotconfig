@@ -72,6 +72,7 @@ ATA_SPACE = {"TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA": 165, "TokenzQdBNbLqP
 SYSTEM = "11111111111111111111111111111111"
 ATA_PROGRAM = "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
 QUOTE_ID = re.compile(r"^q[0-9a-f]{8}$")
+KINDS = ("transfer", "revoke")  # what a quote does; a revoke always asks on its card
 SYMBOL = re.compile(r"^[A-Za-z0-9.$_-]{1,12}$")
 MEMO_CLIP = 40
 GAS_PRICE_ORACLE = "0x420000000000000000000000000000000000000F"
@@ -423,12 +424,50 @@ def card_short(quote: dict) -> str:
     return "\n".join(lines)
 
 
+REVOKE_WHAT = {"erc20": ("Revoke: the approval to spend \"{symbol}\" token ({current})", "Token", "Spender"),
+               "operator": ("Revoke: the operator approval for {current}", "Collection", "Operator"),
+               "spl-delegate": ("Revoke: the delegate of the \"{symbol}\" token account ({current})", "Mint", "Delegate")}
+
+
+def revoke_card(quote: dict, drop: tuple = ()) -> str:
+    """The detailed card of a revoke: what is taken back and from whom, the owner's Keychain block and
+    the spender's full address; nothing is sent to anyone."""
+    info = chains.info(quote["chain"])
+    expires = datetime.fromtimestamp(quote["expires"]).astimezone().strftime("%H:%M UTC%z")
+    what, asset_label, side = REVOKE_WHAT[quote["revoke"]["standard"]]
+    lines = [f"Chain: {info['name']}({'testnet' if info['testnet'] else 'MAINNET'})",
+             what.format(symbol=quote["symbol"], current=quote["revoke"]["current"]),
+             f"{asset_label}: {quote['asset_address']}", f"Fee: up to {quote['max_fee']} {info['symbol']}",
+             f"Quote: {quote['id']} · expires {expires}",
+             "", "--- Owner ---", *_party_lines(quote["from_party"], quote["from"], drop),
+             "", f"--- {side} ---"]
+    if quote.get("to_party"):
+        lines.append("Type: " + ("Your own" if quote["to_party"]["use"] == "sign" else "Watch-only"))
+    if quote.get("ens"):
+        lines.append(f"ENS: {quote['ens']}")
+    lines += _party_lines(quote.get("to_party"), quote["to"], drop)
+    return "\n".join(lines)
+
+
+def revoke_card_short(quote: dict) -> str:
+    """The compact card of a revoke, inside Discord's budget: the amount goes before any address does."""
+    info = chains.info(quote["chain"])
+    _, asset_label, side = REVOKE_WHAT[quote["revoke"]["standard"]]
+    head = ("" if info["testnet"] else "MAINNET ") + f"Revoke an approval on {info['name']}"
+    rest = [f"{asset_label}: {quote['asset_address']}", f"Owner {one_line(quote['account'], 40)}: {quote['from']}",
+            f"{side}: {quote['to']}", f"Fee ≤ {quote['max_fee']} {info['symbol']} · {quote['id']}"]
+    detail = f" (\"{quote['symbol']}\", {one_line(quote['revoke']['current'], 24)})"
+    text = "\n".join([head + detail, *rest])
+    return text if card_units(text) <= SHORT_BUDGET else "\n".join([head, *rest])
+
+
 def cards(quote: dict) -> tuple[str, str]:
     """(detailed, compact): the detailed card sheds the memos to fit Telegram's budget, and falls back to
     the compact one."""
-    short = card_short(quote)
+    revoke = quote.get("kind") == "revoke"
+    short = revoke_card_short(quote) if revoke else card_short(quote)
     for drop in ((), ("memo",)):
-        text = card(quote, drop)
+        text = revoke_card(quote, drop) if revoke else card(quote, drop)
         if card_units(text) <= CARD_BUDGET:
             return text, short
     return short, short
@@ -531,6 +570,17 @@ def evm_quote(ctx: Ctx, sender: str, args: dict, asset: str, key: bytes | None =
         raw = bytes.fromhex((r.call("eth_call", [call, "latest"]) or "0x")[2:])
         if len(raw) >= 32 and int.from_bytes(raw[:32], "big") == 0:
             raise ChainError("the token's transfer returned false in simulation")
+    max_fee, build = _evm_cost(ctx, sender, call, key)
+    return {"to": to, "ens": ens, "symbol": symbol, "decimals": decimals, "amount": plain(amount),
+            "asset_address": None if asset == "native" else to_checksum_address(asset),
+            "max_fee": plain(native_units(max_fee, info["decimals"])), "build": build}
+
+
+def _evm_cost(ctx: Ctx, sender: str, call: dict, key: bytes | None) -> tuple[int, dict]:
+    """The stated maximum fee of a call and the transaction to sign, refused when the account cannot
+    pay the call's value and that fee."""
+    info = chains.EVM[ctx.chain]
+    r = ctx.rpc
     estimate = evm.h2i(r.call("eth_estimateGas", [call]))
     gas = estimate if estimate == 21000 else int(Decimal(estimate) * GAS_MARGIN)
     fee_base, tip = _evm_fees(r)
@@ -548,11 +598,64 @@ def evm_quote(ctx: Ctx, sender: str, args: dict, asset: str, key: bytes | None =
     if balance < value + max_fee:
         raise ChainError(f"the account holds {evm.units(balance, info['decimals'])} {info['symbol']}, less than "
                          f"the amount plus the maximum fee ({evm.units(value + max_fee, info['decimals'])})")
-    return {"to": to, "ens": ens, "symbol": symbol, "decimals": decimals, "amount": plain(amount),
-            "asset_address": None if asset == "native" else to_checksum_address(asset),
-            "max_fee": plain(native_units(max_fee, info["decimals"])),
-            "build": {"to": call["to"], "value": call["value"], "data": call["data"], "gas": gas,
-                      "max_fee_per_gas": max_fee_per_gas, "chain_id": info["id"]}}
+    return max_fee, {"to": call["to"], "value": call["value"], "data": call["data"], "gas": gas,
+                     "max_fee_per_gas": max_fee_per_gas, "chain_id": info["id"]}
+
+
+def _approval_read(r, token: str, data: str) -> int:
+    """A token's answer to an approval getter; 0 only when the contract has no such function (a revert,
+    or no answer data). Any other failure raises: "nothing to revoke" must never stand for "unread"."""
+    reply = r.request("eth_call", [{"to": token, "data": "0x" + data}, "latest"])
+    error = reply.get("error")
+    if error:
+        text = str(error.get("message") if isinstance(error, dict) else error).lower()
+        if (isinstance(error, dict) and error.get("code") == 3) or "revert" in text:
+            return 0
+        raise ChainError("the approval could not be read; try again")
+    got = reply.get("result")
+    return evm.h2i(got[:66]) if isinstance(got, str) and len(got) >= 66 else 0
+
+
+APPROVE = "095ea7b3"             # approve(address,uint256)
+SET_APPROVAL_FOR_ALL = "a22cb465"  # setApprovalForAll(address,bool)
+
+
+def evm_revoke(ctx: Ctx, sender: str, args: dict, asset: str, key: bytes) -> dict:
+    """An approval this account gave, taken back: an ERC-20 allowance set to 0, or an NFT operator
+    approval for a whole collection turned off. Only an approval that exists now is revoked."""
+    from eth_abi import encode as abi_encode
+    from eth_utils import to_checksum_address
+    info = chains.EVM[ctx.chain]
+    r = ctx.rpc
+    spender, ens = evm.resolve_address(ctx, args.get("spender"))
+    token = to_checksum_address(asset)
+    if r.call("eth_getCode", [token, "latest"]) in (None, "0x", ""):
+        raise ChainError("there is no contract at that token address on this chain")
+    pair = abi_encode(["address", "address"], [sender, spender]).hex()
+    allowance = _approval_read(r, token, evm.SEL["allowance"] + pair)
+    symbol, decimals = "?", None
+    if allowance:
+        meta = evm.token_meta(ctx, [token]).get(asset, {})
+        decimals = meta.get("decimals")
+        symbol = safe_symbol((meta.get("symbol") or {}).get("untrusted"))
+    # an ERC-20 answers decimals; without them approve(x, 0) might be ERC-721 approve(x, tokenId 0)
+    if allowance and decimals is not None:
+        standard = "erc20"
+        current = "unlimited" if allowance >= evm.UNLIMITED else plain(native_units(allowance, decimals))
+        data = "0x" + APPROVE + abi_encode(["address", "uint256"], [spender, 0]).hex()
+    elif _approval_read(r, token, evm.SEL["isApprovedForAll"] + pair) == 1:
+        standard, current, symbol = "operator", "every NFT of the collection", "?"
+        data = "0x" + SET_APPROVAL_FOR_ALL + abi_encode(["address", "bool"], [spender, False]).hex()
+    else:
+        raise ChainError("this account has no approval for that spender on this token to revoke")
+    call = {"from": sender, "to": token, "value": "0x0", "data": data}
+    raw = bytes.fromhex((r.call("eth_call", [call, "latest"]) or "0x")[2:])
+    if standard == "erc20" and len(raw) >= 32 and int.from_bytes(raw[:32], "big") == 0:
+        raise ChainError("the token's approve returned false in simulation")
+    max_fee, build = _evm_cost(ctx, sender, call, key)
+    return {"to": spender, "ens": ens, "symbol": symbol, "decimals": decimals, "amount": "0",
+            "asset_address": token, "max_fee": plain(native_units(max_fee, info["decimals"])), "build": build,
+            "revoke": {"standard": standard, "current": current}}
 
 
 def evm_send(ctx: Ctx, quote: dict, key: bytes) -> str:
@@ -583,6 +686,10 @@ def _sol_instructions(build: dict, sender: str):
     from solders.pubkey import Pubkey
     from solders.system_program import TransferParams, transfer
     payer = Pubkey.from_string(sender)
+    if build["kind"] == "revoke":  # SPL Token Revoke (instruction 5): clears the account's delegate
+        return [Instruction(Pubkey.from_string(build["program"]), bytes([5]),
+                            [AccountMeta(Pubkey.from_string(build["source_ata"]), False, True),
+                             AccountMeta(payer, True, False)])]
     if build["kind"] == "native":
         return [transfer(TransferParams(from_pubkey=payer, to_pubkey=Pubkey.from_string(build["to"]),
                                         lamports=build["lamports"]))]
@@ -612,7 +719,7 @@ def _sol_simulate(r, build: dict, sender: str) -> None:
     value = (got or {}).get("value") or {}
     if value.get("err") is not None:
         logs = "\n".join((value.get("logs") or [])[-6:])
-        raise ChainError(f"the transfer fails in simulation: {json.dumps(value['err'])[:200]}; logs: "
+        raise ChainError(f"the transaction fails in simulation: {json.dumps(value['err'])[:200]}; logs: "
                          f"{json.dumps({'untrusted': logs[:600]})}")
 
 
@@ -671,6 +778,39 @@ def sol_quote(ctx: Ctx, sender: str, args: dict, asset: str) -> dict:
     _sol_simulate(r, build, sender)
     return {"to": to, "ens": None, "symbol": symbol, "decimals": decimals, "amount": plain(amount),
             "asset_address": address, "max_fee": sol.sol(fee), "build": build}
+
+
+def sol_revoke(ctx: Ctx, sender: str, asset: str) -> dict:
+    """The delegate this account set on its token account for a mint, cleared with SPL Revoke. Only a
+    delegate that exists now is revoked."""
+    from solders.pubkey import Pubkey
+    from solders.token.associated import get_associated_token_address
+    import sol
+    r = ctx.rpc
+    mint_info = _sol_account(r, asset)
+    program = (mint_info or {}).get("owner")
+    data = (mint_info or {}).get("data")
+    parsed = (data.get("parsed") or {}) if isinstance(data, dict) else {}
+    if program not in ATA_SPACE or parsed.get("type") != "mint":
+        raise ChainError("that asset is not a token mint")
+    decimals = parsed["info"]["decimals"]
+    source = str(get_associated_token_address(Pubkey.from_string(sender), Pubkey.from_string(asset),
+                                              Pubkey.from_string(program)))
+    account = _sol_account(r, source)
+    held = (account or {}).get("data")
+    info = ((held.get("parsed") or {}).get("info") or {}) if isinstance(held, dict) else {}
+    delegate = info.get("delegate")
+    if not delegate:
+        raise ChainError("this account's token account for that mint has no delegate to revoke")
+    balance = (r.call("getBalance", [sender, {"commitment": "confirmed"}]) or {}).get("value", 0)
+    if balance < SOL_SIG_FEE:
+        raise ChainError(f"the account holds {sol.sol(balance)} SOL, less than the fee of {sol.sol(SOL_SIG_FEE)}")
+    build = {"kind": "revoke", "to": delegate, "mint": asset, "program": program, "source_ata": source}
+    _sol_simulate(r, build, sender)
+    left = (info.get("delegatedAmount") or {}).get("uiAmountString") or "0"
+    return {"to": delegate, "ens": None, "symbol": chains.KNOWN_MINTS.get(ctx.chain, {}).get(asset) or "?",
+            "decimals": decimals, "amount": "0", "asset_address": asset, "max_fee": sol.sol(SOL_SIG_FEE),
+            "build": build, "revoke": {"standard": "spl-delegate", "current": f"{left} left to move"}}
 
 
 def sol_send(ctx: Ctx, quote: dict, pair) -> str:
@@ -807,7 +947,12 @@ def op_quote(payload: dict) -> dict:
     state = _state(payload)
     chain = payload.get("chain")
     family = _family(chain)
+    kind = payload.get("kind") or "transfer"
+    if kind not in KINDS:
+        raise ChainError("kind must be " + " or ".join(KINDS))
     token = payload.get("token")
+    if kind == "revoke" and token in (None, "", "native"):
+        raise ChainError("a revoke needs token: the token contract or collection (EVM) or the mint (Solana)")
     if token in (None, "", "native"):
         asset = "native"
     elif family == "evm" and isinstance(token, str) and re.match(r"^0x[0-9a-fA-F]{40}$", token):
@@ -822,7 +967,11 @@ def op_quote(payload: dict) -> dict:
     source, index = secrets_.account(account)
     sender, secret = secrets_.signer(account, family)
     ctx = Ctx(chain, _override(payload))
-    built = evm_quote(ctx, sender, payload, asset, secret) if family == "evm" else sol_quote(ctx, sender, payload, asset)
+    if kind == "revoke":
+        built = evm_revoke(ctx, sender, payload, asset, secret) if family == "evm" else sol_revoke(ctx, sender, asset)
+    else:
+        built = evm_quote(ctx, sender, payload, asset, secret) if family == "evm" \
+            else sol_quote(ctx, sender, payload, asset)
     try:
         ledger.check_rate(state)
     except ledger.CapReached as exc:
@@ -830,14 +979,15 @@ def op_quote(payload: dict) -> dict:
     recipient = built["to"].lower() if family == "evm" else built["to"]
     own_account = secrets_.addresses(family, "sign").get(recipient)
     watched = None if own_account else secrets_.addresses(family, "watch").get(recipient)
-    own = own_account is not None
+    # a revoke moves nothing to anyone, but it stops whatever used the approval: it always asks
+    own = own_account is not None and kind == "transfer"
     now = time.time()
     quote = {"id": "q" + random.token_hex(4), "created": now, "expires": now + QUOTE_TTL, "account": account,
-             "source": source, "index": index, "chain": chain, "family": family, "from": sender, "asset": asset,
-             "own": own, "watched": watched, "from_party": secrets_.party(account),
+             "source": source, "index": index, "chain": chain, "family": family, "kind": kind, "from": sender,
+             "asset": asset, "own": own, "watched": watched, "from_party": secrets_.party(account),
              "to_party": secrets_.party(own_account or watched) if (own_account or watched) else None, **built}
     price = None
-    if not chains.info(chain)["testnet"]:
+    if kind == "transfer" and not chains.info(chain)["testnet"]:
         book = prices.Prices(online=not (rpc.testing() and payload.get("_offline")))
         price = book.native(chain) if asset == "native" else book.tokens_usd(chain, [built["asset_address"]]).get(asset)
     quote["usd"] = round(float(Decimal(built["amount"]) * Decimal(str(price))), 2) if price else None
@@ -848,9 +998,12 @@ def op_quote(payload: dict) -> dict:
         fd = os.open(state / "quotes" / f"{quote['id']}.json", os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
         with os.fdopen(fd, "w", encoding="utf-8") as handle:
             json.dump(quote, handle, ensure_ascii=False)
+    summary = {k: quote[k] for k in ("account", "chain", "kind", "from", "to", "ens", "amount", "symbol",
+                                     "asset_address", "max_fee", "usd")}
+    if kind == "revoke":
+        summary["revoke"] = quote["revoke"]
     return {"quote": quote["id"], "own": own, "card": quote["card"], "expires_in_seconds": QUOTE_TTL,
-            "summary": {k: quote[k] for k in ("account", "chain", "from", "to", "ens", "amount", "symbol",
-                                              "asset_address", "max_fee", "usd")}}
+            "summary": summary}
 
 
 def load_quote(state: Path, quote_id) -> dict:
@@ -883,8 +1036,8 @@ def op_verify(payload: dict) -> dict:
     its MAC, which the send must present again."""
     state = _state(payload)
     quote = _verified(state, payload.get("quote"), Secrets(payload), time.time())
-    return {"quote": quote["id"], "chain": quote["chain"], "own": quote["own"], "card": quote["card"],
-            "card_short": quote["card_short"], "mac": quote["mac"]}
+    return {"quote": quote["id"], "chain": quote["chain"], "kind": quote.get("kind", "transfer"),
+            "own": quote["own"], "card": quote["card"], "card_short": quote["card_short"], "mac": quote["mac"]}
 
 
 def op_send(payload: dict) -> dict:
@@ -919,7 +1072,8 @@ def op_send(payload: dict) -> dict:
         row = {"time": now, "attempt": random.token_hex(8), "quote": quote["id"], "account": quote["account"],
                "chain": quote["chain"],
                "from": quote["from"], "to": quote["to"], "asset": quote["asset"], "symbol": quote["symbol"],
-               "amount": quote["amount"], "max_fee": quote["max_fee"], "own": own, "approval": approval,
+               "amount": quote["amount"], "max_fee": quote["max_fee"], "kind": quote.get("kind", "transfer"),
+               "own": own, "approval": approval,
                "outcome": "unknown"}
         ledger.append(state, row)
         ctx = Ctx(quote["chain"], _override(payload))
@@ -948,7 +1102,8 @@ def op_send(payload: dict) -> dict:
         ledger.append(state, {**row, "outcome": "sent", "hash": sent, **landed})
     except Exception:
         pass
-    return {"sent": True, "hash": sent, "chain": quote["chain"], "amount": quote["amount"], "symbol": quote["symbol"],
+    return {"sent": True, "kind": quote.get("kind", "transfer"), "hash": sent, "chain": quote["chain"],
+            "amount": quote["amount"], "symbol": quote["symbol"],
             "to": quote["to"], **landed, "explorer": chains.explorer(quote["chain"], "tx", sent),
             "note": CONFIRM_NOTES[landed["confirmation"]]}
 
@@ -1006,8 +1161,8 @@ def confirmation(ctx: Ctx, family: str, sent: str, wait: float) -> dict:
 
 CONFIRM_NOTES = {
     "confirmed": "in a block; the status action reports later confirmations",
-    "failed": "the transaction landed but failed: the amount did not move and the fee was spent; never send it "
-              "again on your own, tell the user",
+    "failed": "the transaction landed but failed: it changed nothing (no amount moved, no approval was revoked) "
+              "and the fee was spent; never send it again on your own, tell the user",
     "pending": "broadcast but not in a block yet; check with the status action and never send again meanwhile",
 }
 
