@@ -1,7 +1,7 @@
 # hermes/ — maintainer rules
 
 Rules for whoever edits this subtree: OpenCode, or a Hermes profile doing
-repository upkeep (Engineer through OpenCode, the Assistant's Admin topic).
+repository upkeep (the Assistant through OpenCode).
 `../install.sh` symlinks these files into `~/.hermes/`; Hermes reads
 `~/.hermes/`, never `~/.config`, and never loads this file, `README.md` or
 `docs/` at runtime. What a profile actually sees at runtime is its
@@ -294,8 +294,8 @@ Contract: [docs/hands/overview.md](docs/hands/overview.md),
 
 ## OpenCode integration
 
-Contract: [docs/profiles/engineer.md "OpenCode runtime"](docs/profiles/engineer.md).
-When editing `plugins/orchestration/opencode-v2`:
+Contract: [docs/opencode.md](docs/opencode.md).
+When editing `plugins/orchestration/opencode`:
 
 - **The plugin keeps no run record.** The owner binding lives in the session's
   `metadata.hermes`; a run's state is read from the service (the `idle` message
@@ -304,7 +304,7 @@ When editing `plugins/orchestration/opencode-v2`:
   per-worktree lock file only serializes starts. Nothing enforces a deadline on
   purpose (a run outlives Hermes); do not reintroduce one without deciding that.
 - **Roles are configuration, not code.** Role names, agents, policies and models
-  come from `opencode_v2.roles`; `DEFAULT_ROLES` is only the fallback. Code keys
+  come from `opencode.roles`; `DEFAULT_ROLES` is only the fallback. Code keys
   on the policy (`read-only` / `write`), never on a role or agent name.
 - **The session ruleset owns each run's constraints.** Subagent sessions copy it
   and OpenCode applies it after their own posture, so it holds denies, asks and
@@ -325,16 +325,14 @@ When editing `plugins/orchestration/opencode-v2`:
   marker (not a session-level outcome or an exit code), and no automatic replay
   after `unknown`.
 - Keep `TURN_TIMEOUT` identical in `profiles/assistant/scripts/resident-session.sh`
-  and `plugins/orchestration/specialist-call`. Engineer's tool deadline
-  (`timeouts.tools.sequential_call` / `concurrent_batch`) stays above
-  `opencode_v2.wait_timeout`, so one blocking run call hands back before its tool
-  times out (a call hands back at `opencode_v2.wait_timeout` or 30 s before the
-  tool deadline, whichever is first, and the model continues with `wait`); verify
-  with `HERMES_HOME=~/.hermes/profiles/engineer` +
-  `agent.tool_executor._resolve_sequential_tool_timeout()`. Likewise `creator`
-  and `marketer` keep theirs (5460) above `TURN_TIMEOUT` + cleanup, or a
+  and `plugins/orchestration/specialist-call`. `creator`
+  and `marketer` keep their tool deadline (5460) above `TURN_TIMEOUT` + cleanup, or a
   blocking CLI `specialist_call` times out at 420 s and polls; the Assistant
   keeps its (960) above `specialist_call.wait_timeout` (900) + 30.
+- **Live callers bind to their conversation route, not the session id.**
+  `_topic_owner` hashes profile home, platform, chat, thread, sender and session
+  key; dropping a field merges topics or senders, adding the session id loses
+  runs on `/new`.
 - **`cancelled` is the only early stop a specialist conversation resumes
   from**, and only because the owning runner confirmed its group gone; never
   make `unknown`/`interrupted` resumable or let anything but that runner signal
@@ -344,7 +342,7 @@ When editing `plugins/orchestration/opencode-v2`:
   `post_api_request` hook) for every role. Keep that hook registered and keep
   `models.model_key` folding speed tiers and snapshots, or a fallback or `-fast`
   alias slips through. When a profile's main model equals a role's default
-  model, give that role its own `model` in `opencode_v2.roles`.
+  model, give that role its own `model` in `opencode.roles`.
 
 ## Candidates and cutover
 

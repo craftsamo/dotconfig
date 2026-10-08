@@ -8,16 +8,15 @@ live in [`README.md`](../../README.md).
 ## Specialist calls
 
 The shared `plugins/orchestration/specialist-call` plugin exposes the `specialist` toolset to
-assistant, creator, marketer and engineer; it is their only outbound path (the
+assistant, creator and marketer; it is their only outbound path (the
 raw `a2a_*` tools stay off, see [topology](../topology.md) "Toolsets"). Each
 caller has an explicit `specialist_call.resident_targets` allowlist:
 
-| Caller    | Targets                                                                                                         |
-| --------- | --------------------------------------------------------------------------------------------------------------- |
-| assistant | engineer, creator, marketer, writer, image-creator, video-creator, audio-creator; searcher resident-only. Never researcher directly |
-| creator   | researcher only                                                                                                 |
-| marketer  | researcher only (keeps inbound A2A for its clients)                                                             |
-| engineer  | marketer, researcher, writer                                                                                    |
+| Caller    | Targets                                                                                                                   |
+| --------- | ------------------------------------------------------------------------------------------------------------------------- |
+| assistant | creator, marketer, writer, image-creator, video-creator, audio-creator; searcher resident-only. Never researcher directly |
+| creator   | researcher only                                                                                                           |
+| marketer  | researcher only (keeps inbound A2A for its clients)                                                                       |
 
 The default CLI flow is unchanged. Short inquiries use an allowed target's
 existing `a2a_agents` RPC endpoint when one exists; no endpoint is ever
@@ -32,8 +31,7 @@ Pass purpose/consumer/constraints/budget for Researcher/Searcher framing, or the
 explicitly authorized settled brief for execution, and preserve any released
 unit, inputs, permissions and grant unchanged. Transport selection grants no
 authority or budget. `kind="reconcile"` is the only call an interrupted
-conversation accepts — see [engineer.md](./engineer.md) "Resident turns and
-reconcile".
+conversation accepts (see "Failure and reconciliation").
 
 `specialist_session` supports `status`, `list`, `wait`, `cancel`, `close` and
 `reconcile`, only in the same originating session and profile. The registry and restrictive request
@@ -83,10 +81,8 @@ completion.
   was recorded restarts fresh and is told so). A turn that finished before the
   stop reached it stays `completed`. A2A inquiries cannot be cancelled, and A2A
   inbound callers cannot detach. Nested children (a Creator's Researcher
-  call, an Engineer's OpenCode runs) are not part of the confirmed group: their
-  own runners stop them on parent death, a little later — a nested specialist
-  as `unknown` on the nested side, an OpenCode run as `interrupted` once
-  OpenCode confirms it stopped. A cancelled reconcile turn returns to `interrupted`, so cancelling never
+  call) are not part of the confirmed group: their own runners stop them on
+  parent death, a little later, as `unknown` on the nested side. A cancelled reconcile turn returns to `interrupted`, so cancelling never
   reopens work.
 
 ### Completion and deadlines
@@ -169,3 +165,29 @@ Runtime attribution and request hashes are not human-approval authentication.
   bookkeeping closes.
 - Rollout never migrates or rewrites task artifacts, grants or approvals (see
   [topology](../topology.md) "Candidate rollout and cutover").
+
+## Specialist dialogue discipline
+
+The dialogue discipline is specialist-generic:
+**creator** and **writer** also honor the `Review: required` gate; creator
+speaks the same protocol with a **Budget** grant as its Authority analog
+(generation-spend caps; defaults 4 image variants / 2 video renders per
+asset + 1 corrective pass, expanded only via `AUTHORITY+:`), leaves
+`PROGRESS:` per finished asset, and — since a task's scratch workspace
+survives block/crash respawns (deleted only on completion) — resumes by
+inventorying surviving intermediates instead of re-spending credits.
+The **hands** consume filled forms the assistant commissions directly; a
+missing required field returns as a `Q<n>:` block, input parts are consumed
+verbatim, and every content-altering transform stays with the hands (the
+assistant handles bytes, never re-encodes). Details:
+[`broker.md`](../broker.md).
+**writer** consumes released units the same way — an outline unit
+(structure + tone samples, gated before drafting), piece units against
+the approved outline, or a whole small job — under the selected leaf's
+QA contract, returning
+undecided deliverable-defining choices as spec-gap or granularity findings. Details: writer's
+`writer-pipeline` skill. **marketer** is the strategy advisor for human
+and Assistant clients: strategy, offer discovery, review
+findings and outcome analysis, read-only toward every service; clients
+execute. Contract: [`marketer.md`](./marketer.md) "Marketer as strategy
+advisor".

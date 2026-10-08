@@ -56,7 +56,7 @@ Admiralty/SIFT source scoring, verbatim exact claims, durable claim ledgers,
 evidence gaps and Review gates remain; research self-check is neither caller
 acceptance, artifact-vs-brief craft QA nor the caller's final decision.
 
-Assistant reaches Researcher only through Engineer, Creator or Marketer, its
+Assistant reaches Researcher only through Creator or Marketer, its
 existing peers/session owners; no new direct peer. The consuming primary owns
 the Researcher conversation and must relay the agreed baseline (questions, done
 criteria, source policy, budget and approved changes) with conclusions. A
