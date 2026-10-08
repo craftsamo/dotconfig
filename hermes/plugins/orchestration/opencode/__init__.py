@@ -43,6 +43,7 @@ policy = _load("hermes_opencode_policy", _HERE / "policy.py")
 models = _load("hermes_opencode_models", _HERE / "models.py")
 turn = _load("hermes_opencode_turn", _HERE / "turn.py")
 inventory = _load("hermes_opencode_history", _HERE / "history.py")
+preflight = _load("hermes_opencode_preflight", _HERE / "preflight.py")
 
 PROFILES = {"assistant"}
 # The tool mechanics skill reaches only the profiles that will drive OpenCode.
@@ -628,6 +629,16 @@ def opencode_catalog(args, **kwargs):
         return json.dumps({"error": str(exc)})
 
 
+def opencode_preflight(args, **kwargs):
+    try:
+        home, owner, live = _scope()
+        return json.dumps(preflight.check(
+            settings=config.load(home), caller=models.caller_models(home, kwargs.get("session_id")), args=args,
+            lookup_agent=_agent, api=api, config=config, models=models, policy=policy, turn=turn))
+    except Exception as exc:
+        return json.dumps({"error": str(exc)})
+
+
 def opencode_history(args, **kwargs):
     try:
         # Same caller gate as execution (no inbound A2A), but no enabled flag: reading
@@ -764,6 +775,14 @@ def register(ctx):
     }, ["what"],
         "Read what OpenCode offers (read-only). models lists what an opencode_run_<role> tool accepts as model= "
         "with variants, context, cost, each role's default and your own models (refused).")
+    add("opencode_preflight", opencode_preflight, {
+        "directory": {"type": "string", "description": "Absolute Git worktree root"},
+        "phase": {"type": "string", "enum": list(preflight.PHASES), "description": "plan (default) or build"},
+        "output_dir": {"type": "string", "description": "Job directory to validate, if you will pass one"},
+    }, ["directory"],
+        "Read-only readiness check before a run: service, each role's agent and model, the worktree and branch. "
+        "Answers one line when healthy, otherwise only the findings. phase=build also checks the branch is a "
+        "task branch and that no session runs in the worktree.")
     add("opencode_history", opencode_history, {
         "action": {"type": "string", "enum": list(inventory.ACTIONS)},
         "session_id": {"type": "string", "description": "get / children only"},
