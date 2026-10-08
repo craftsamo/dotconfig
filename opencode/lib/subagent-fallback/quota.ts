@@ -63,16 +63,12 @@ export function readQuota(
       row.authority === "provider_reported" &&
       row.acquisitionMethod === "remote_api" &&
       row.renderType === "percent" &&
-      // Monthly usage credits and code-review-only limits aren't included chat quota.
-      row.window !== "Monthly" &&
-      row.window !== "Code Review",
+      // Only the 5h and weekly windows decide launch preference. Plans differ
+      // (ChatGPT may lack 5h), and model-specific, monthly credit and
+      // code-review rows aren't shared chat quota.
+      (row.window === "5h" || row.window === "Weekly"),
   ) as Record<string, unknown>[]
-  if (
-    !["5h", "Weekly"].every((window) =>
-      rows.some((row) => row.window === window),
-    )
-  )
-    return unknown()
+  if (!rows.length) return unknown()
   if (
     rows.some(
       (row) =>
@@ -83,8 +79,8 @@ export function readQuota(
     )
   )
     return unknown()
-  // Quota's published (possibly rounded) 0% is sufficient for launch preference.
-  // Additional named quota rows apply conservatively to the provider, not a guessed model.
+  // Either window at (rounded) 0% means the provider is exhausted; credits
+  // may already be spent behind the scenes, so prefer the other provider.
   const empty = rows.filter((row) => (row.percentRemaining as number) <= 0)
   return {
     state: empty.length ? "exhausted" : "available",

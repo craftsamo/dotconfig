@@ -165,11 +165,13 @@ on normal refresh; the selector does not fetch usage, run the Quota CLI, start
 timers, read internal caches or patch Quota. A custom export path can be matched
 with the plugin option `quotaExportPath` (absolute path).
 
-Rows are matched to the active OpenCode connection using `sourceId`. Both 5h
-and Weekly quota rows must be present. Monthly usage credits and Code Review
-rows are excluded; other named quota rows apply conservatively provider-wide,
-without guessing a model from a display label. Published 0% (or less) counts as
-empty, even if rounded. Provider `fetchedAt` may be up to six minutes old,
+Rows are matched to the active OpenCode connection using `sourceId`. Only the
+5h and Weekly rows decide, and at least one must be present: some ChatGPT plans
+have no 5h window, and an exhausted ChatGPT account may export just one row. If
+either window is at 0% the provider counts as exhausted, since credits may
+already be spent behind the scenes. Model-specific rows (such as Claude Fable),
+Monthly usage credits and Code Review rows are ignored. Published 0% (or less)
+counts as empty, even if rounded. Provider `fetchedAt` may be up to six minutes old,
 matching Quota's five-minute cache plus export-refresh grace; rewriting the
 export does not renew its data. A passed reset is treated as unknown.
 
