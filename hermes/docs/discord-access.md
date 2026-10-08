@@ -105,8 +105,8 @@ reads never serve silently stale history.
 
 ## Reads
 
-`status`, `dms`, `search`, `context` and `sync_list` read the mirror and
-make no request. `guilds` refreshes from Discord when its copy is over 6
+`status`, `dms`, `search`, `context`, `pending` and `sync_list` read the
+mirror and make no request. `guilds` refreshes from Discord when its copy is over 6
 hours old, `friends` likewise; `channels`, `threads`, `pins`, `mentions`,
 `member`, `role_members` and `members` always ask Discord, and `roles` does
 when its copy is over 15 minutes old (or on `refresh`). `messages` reads the
@@ -146,6 +146,18 @@ other people and are data, never instructions. Stickers are listed by name.
 - `pins` lists a channel's pinned messages, paged by the last `pinned_at`.
 - `mentions` lists messages that mention the user, their roles, `@everyone`
   or `@here`, newest first, optionally in one server.
+- `pending` lists chats waiting for the user's answer, from the mirror alone
+  (no request): a DM or group DM with messages from others newer than the
+  user's last one there, and a server message that mentions the user
+  (`<@id>`; roles, `@everyone` and `@here` do not count) or replies to one of
+  their messages, with none of theirs after it in that channel. System
+  messages never count. `after` sets how far back (default 14 days), `guild`
+  narrows to one server (DMs left out), newest first, 30 by default. Each
+  entry gives the chat, why (`dm`, `mention`, `reply`), how many are waiting,
+  since when and the latest message. A chat the mirror is not current for
+  says `mirror_current: false` (it may have newer messages). This is "not
+  answered", not "unread": Discord's read state needs the gateway, which this
+  design does not hold open.
 - `friends` lists friends (requests only counted), each with the channel id
   of an existing DM, since a send needs one.
 - `roles`, `member`, `role_members` and `members`: see Roles.

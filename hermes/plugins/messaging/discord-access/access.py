@@ -12,7 +12,7 @@ first. Contract: docs/discord-access.md.
 from __future__ import annotations
 
 from contextlib import closing
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import hashlib
 import html
 import importlib.util
@@ -48,7 +48,7 @@ perms = _load("hermes_discord_access_perms", HERE / "perms.py")
 archives = _load("hermes_archive_check", HERE.parent / "_shared" / "archive_check.py")
 
 ACTIONS = ("status", "guilds", "channels", "dms", "messages", "search", "context", "backfill", "media",
-           "threads", "pins", "mentions", "friends", "roles", "member", "role_members", "members",
+           "threads", "pins", "mentions", "pending", "friends", "roles", "member", "role_members", "members",
            "sync_list", "sync_add", "sync_remove", "send", "react", "unreact", "edit", "delete",
            "role_add", "role_remove", "role_bulk_add", "role_create", "role_edit", "role_delete")
 MESSAGE_WRITES = {"react", "unreact", "edit", "delete"}
@@ -68,7 +68,10 @@ TOKEN_SET = "secret set DISCORD_USER_TOKEN -p hermes --scope discord-user"
 AGENT_LABEL = "local.hermes.discord-access.sync"
 
 LIMITS = {"dms": (30, 200), "messages": (50, 200), "search": (30, 200), "live_search": (25, 25),
-          "threads": (25, 25), "pins": (50, 50), "mentions": (25, 25), "members": (25, 100)}
+          "threads": (25, 25), "pins": (50, 50), "mentions": (25, 25), "members": (25, 100),
+          "pending": (30, 100)}
+PENDING_DAYS = 14           # pending looks back this far unless after says otherwise
+PENDING_TYPES = "(m.type IS NULL OR m.type IN (0, 19))"   # a plain message or a reply
 ROLES_FRESH = 900           # a role write needs the server's role list read within this
 FRIENDS_TTL = 6 * 3600
 BULK_MAX = 30
@@ -797,6 +800,71 @@ def mentions(args: dict) -> dict:
     if len(entries) == _limit(args, "mentions"):
         result["more"] = f"older mentions exist: pass before = {entries[-1]['id']}"
     result["note"] = "Mentions of you, your roles, @everyone and @here, newest first. " + UNTRUSTED
+    return result
+
+
+def pending(args: dict) -> dict:
+    """Chats waiting for the user's answer, from the mirror alone: a DM or group DM whose newest
+    messages come from others since the user's last one, and a server message that mentions the
+    user or replies to them with no message of theirs after it in that channel. Discord's own read
+    state is not available to a REST client, so "waiting" means "not answered", not "unread"."""
+    limit = _limit(args, "pending")
+    gid = _id(args, "guild", required=False, what="a server id")
+    since = _bound(args, "after") or store.snowflake_at(datetime.now(timezone.utc) - timedelta(days=PENDING_DAYS))
+    with _mirror() as conn:
+        me = (store.get_meta(conn, "me") or {}).get("id")
+        if not me:
+            raise DiscordError("the account is not known yet: check status (the sync has not run)")
+        where = [f"m.from_me = 0 AND {PENDING_TYPES} AND m.id > ?",
+                 "m.id > COALESCE((SELECT MAX(x.id) FROM messages x WHERE x.channel_id = m.channel_id "
+                 "AND x.from_me = 1), 0)"]
+        params: list = [since]
+        mine = "m.reply_to IN (SELECT id FROM messages WHERE from_me = 1)"
+        if gid:
+            where.append("m.guild_id = ?")
+            params.append(int(gid))
+            where.append(f"({mine} OR m.content LIKE ? OR m.content LIKE ?)")
+            params += [f"%<@{int(me)}>%", f"%<@!{int(me)}>%"]
+        else:
+            where.append(f"(m.channel_id IN (SELECT id FROM channels WHERE type IN (1, 3)) OR "
+                         f"(m.guild_id IS NOT NULL AND ({mine} OR m.content LIKE ? OR m.content LIKE ?)))")
+            params += [f"%<@{int(me)}>%", f"%<@!{int(me)}>%"]
+        rows = list(conn.execute(f"SELECT m.* FROM messages m WHERE {' AND '.join(where)} ORDER BY m.id", params))
+        my_ids = {r[0] for r in conn.execute("SELECT id FROM messages WHERE from_me = 1")}
+        current_where, current_since = _current_sql()
+        current = {r[0] for r in conn.execute(f"SELECT channel_id FROM cursors WHERE {current_where}",
+                                               (current_since,))}
+        labels, guilds = _labels(conn)
+        last = store.get_meta(conn, "last_sync")
+    groups: dict = {}
+    for r in rows:
+        groups.setdefault(r["channel_id"], []).append(r)
+    items = []
+    for cid, group in groups.items():
+        row = labels.get(cid)
+        private = bool(row and row["type"] in store.PRIVATE_TYPES)
+        why = sorted({("reply" if r["reply_to"] in my_ids else "mention") for r in group}) if not private else ["dm"]
+        newest = group[-1]
+        item = {"channel": str(cid), "where": _label_of(cid, labels, guilds) or str(cid), "why": why,
+                "waiting": len(group), "since": _local(group[0]["id"]),
+                "latest": {"id": str(newest["id"]), "time": _local(newest["id"]),
+                           "from": newest["author_name"] or str(newest["author_id"]),
+                           "text": _clip(newest["content"] or "(attachment)", 160)}}
+        if cid not in current:
+            item["mirror_current"] = False
+        items.append((newest["id"], item))
+    items.sort(key=lambda pair: pair[0], reverse=True)
+    out = [item for _, item in items[:limit]]
+    result = {"ok": True, "pending": out, "total": len(items), "since": _local(since)}
+    age = _run_age(last)
+    if age is not None:
+        result["last_run_minutes_ago"] = int(age // 60)
+    if len(items) > limit:
+        result["more"] = (f"{len(items) - limit} more waiting; raise limit (up to {LIMITS['pending'][1]}) "
+                          "or narrow with guild / after")
+    result["note"] = ("Waiting = newer than the user's last message in that chat; read from the mirror, so a chat marked "
+                      "mirror_current false may have newer messages (read it with messages). Discord's unread state is "
+                      "not available. Read a chat with messages (channel = its id). " + UNTRUSTED)
     return result
 
 
@@ -2143,7 +2211,7 @@ def outbox_binding(args: dict, home: Path | None = None, ids: dict | None = None
 
 READS = {"status": status, "guilds": guilds, "channels": channels, "dms": dms, "messages": messages,
          "search": search, "context": context, "backfill": backfill, "threads": threads, "pins": pins,
-         "mentions": mentions, "friends": friends, "roles": roles, "member": member, "role_members": role_members,
+         "mentions": mentions, "pending": pending, "friends": friends, "roles": roles, "member": member, "role_members": role_members,
          "members": members, "sync_list": sync_list, "sync_add": sync_add, "sync_remove": sync_remove}
 
 
