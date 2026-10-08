@@ -709,8 +709,8 @@ def search(args: dict) -> dict:
     if args.get("live") is True:
         used = [k for k in MIRROR_ONLY if args.get(k) not in (None, "", False)]
         if used:
-            raise DiscordError(f"{', '.join(used)} filter the mirror only (Discord's own search has no such filter): "
-                               "search without live=true")
+            raise DiscordError(f"{', '.join(used)}: only the mirror can be filtered this way (Discord's own search "
+                               "has no such filter): search without live=true")
         return live_search(args)
     query = _str(args, "query")
     if not (query or author or has or reacted or emoji or parent):
