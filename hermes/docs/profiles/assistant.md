@@ -131,7 +131,7 @@ the user's `/approve`, and the terminal path around them is blocked. Contract:
 The user's own WhatsApp accounts are likewise the assistant's alone
 (`whatsapp_access` toolset, never on A2A): reads come from a local mirror,
 and every send waits for approval on a card naming the account, the chat and
-the text. The public technic `whatsapp` holds the mechanics. Contract:
+the text. The plugin skill `whatsapp-access:whatsapp` holds the mechanics. Contract:
 [whatsapp-access.md](../whatsapp-access.md).
 
 The user's own Signal account is the assistant's alone in the same way
@@ -139,7 +139,7 @@ The user's own Signal account is the assistant's alone in the same way
 that keeps disappearing messages (marked expired) and drops messages
 deleted for everyone, and every send — text and `~/Workspaces` files —
 waits for approval on a card naming the chat, every file and the text. The
-public technic `signal` holds the mechanics. Contract:
+plugin skill `signal-access:signal` holds the mechanics. Contract:
 [signal-access.md](../signal-access.md).
 
 The user's own Discord account (not the Assistant's Discord bot) is the
@@ -160,7 +160,7 @@ disappearing messages (marked expired, files included) and drops messages
 deleted for everyone, other chats are read live through a sync agent that
 alone holds the session, and every send — text and `~/Workspaces` files —
 waits for approval on a card naming the chat, every file and the text. The
-public technic `telegram-account` holds the mechanics. Contract:
+plugin skill `telegram-access:telegram-account` holds the mechanics. Contract:
 [telegram-access.md](../telegram-access.md).
 
 X is read-only (`x_access` toolset, never on the assistant's A2A): it reads
@@ -171,8 +171,9 @@ or sends. Marketer shares the tool and its caps for analysis. The browser
 stays off x.com, which carries the user's main login, with two exceptions,
 both at the user's request and both stopping at a saved draft, never
 publishing or scheduling: the Assistant saves an approved ordinary post
-draft, and completes an X Article draft in the editor. The public technic
-`x-twitter` holds the mechanics for all three. Contract:
+draft, and completes an X Article draft in the editor. The plugin skills
+`x-access:x-twitter` (reading) and `x-access:x-twitter-drafts` (the two browser
+tasks) hold the mechanics. Contract:
 [x-access.md](../x-access.md).
 
 note.com is the assistant's to write too (`note_access` toolset, never on
@@ -182,7 +183,8 @@ hashtags plus the user's own drafts and stats are read as the user's main
 account, and unpublished drafts are created or wholly replaced from Markdown
 with local images, each save waiting for approval on a card naming the
 draft, the title, every new image and the start of the text; nothing
-publishes. The public technic `note-com` holds the mechanics; the browser
+publishes. The plugin skills `note-access:note-com`, `note-com-format` and
+`note-com-drafts` hold the mechanics; the browser
 stays off note.
 Contract: [note-access.md](../note-access.md).
 
@@ -222,7 +224,7 @@ advisor ([marketer.md](./marketer.md)): the marketing entries consult Marketer
 on direction, reviews and results, release Writer and hands units, accept
 them with the shared writing contract and save the approved service-side
 draft themselves after exact remote-save consent — X posts and Articles in
-the Assistant's browser (`x-twitter`), Substack and note through their tools
+the Assistant's browser (`x-access:x-twitter-drafts`), Substack and note through their tools
 and cards, Zenn personal Articles in the browser (public technic `zenn-dev`).
 Nothing publishes, schedules or sends; the user publishes. Marketer's browser
 is never a fallback.
