@@ -4,6 +4,7 @@ import { z } from "zod"
 import { isToolSpec, type OAuthAccess, type ToolContext, type ToolSpec } from "../lib/custom-tools/define"
 import * as git from "../lib/custom-tools/git"
 import * as githubProject from "../lib/custom-tools/github_project"
+import * as webUi from "../lib/custom-tools/web_ui"
 import * as x from "../lib/custom-tools/x"
 
 /**
@@ -24,6 +25,7 @@ import * as x from "../lib/custom-tools/x"
 const modules: Record<string, Record<string, unknown>> = {
   git,
   github_project: githubProject,
+  web_ui: webUi,
   x,
 }
 
@@ -54,8 +56,8 @@ async function server() {
     tool[id] = {
       description: spec.description,
       args: spec.args,
-      execute: (args: any, context: { worktree: string }) =>
-        spec.execute(args, { worktree: context.worktree, oauthAccess: v1OAuthAccess }),
+      execute: (args: any, context: { worktree: string; sessionID?: string }) =>
+        spec.execute(args, { worktree: context.worktree, oauthAccess: v1OAuthAccess, sessionID: context.sessionID }),
     }
   }
   return { tool }
@@ -67,7 +69,9 @@ async function server() {
 // here; kept local so this file has no dependency on the V2 package.
 type V2Context = {
   location: { directory: string }
-  session: { get(input: { sessionID: string }): Promise<{ location?: { directory?: string } }> }
+  session: {
+    get(input: { sessionID: string }): Promise<{ location?: { directory?: string }; metadata?: Record<string, unknown> }>
+  }
   integration: {
     connection: {
       active(integrationID: string): Promise<unknown | undefined>
@@ -114,7 +118,18 @@ async function setup(ctx: V2Context) {
         description: spec.description,
         input: z.object(spec.args),
         async execute(input: any, context: { sessionID: string }) {
-          const toolContext: ToolContext = { worktree: await worktreeFor(context.sessionID), oauthAccess }
+          const toolContext: ToolContext = {
+            worktree: await worktreeFor(context.sessionID),
+            oauthAccess,
+            sessionID: context.sessionID,
+            sessionMetadata: async () => {
+              try {
+                return (await ctx.session.get({ sessionID: context.sessionID })).metadata
+              } catch {
+                return undefined
+              }
+            },
+          }
           return { content: await spec.execute(input, toolContext) }
         },
       })

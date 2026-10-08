@@ -102,6 +102,10 @@ install_deps() {
     # custom-tools plugin imports zod from opencode/node_modules.
     echo "[deps] npm install (opencode/package.json)"
     "$mise_bin" exec -- npm install --prefix "$DOTFILES/opencode" --no-audit --no-fund || rc=1
+    # The web_ui_check tool drives Playwright's headless shell; npm does not
+    # download browsers.
+    echo "[deps] playwright install chromium-headless-shell (web_ui_check)"
+    "$mise_bin" exec -- "$DOTFILES/opencode/node_modules/.bin/playwright" install chromium-headless-shell || rc=1
   else
     echo "[deps] mise not found next to brew — skipping runtime install"
     rc=1
