@@ -380,6 +380,36 @@ def test_a_quote_sends_once_exactly_as_quoted(tmp_path, endpoint):
     assert len(FAKE["sent"]) == 1
 
 
+def test_old_quote_files_are_deleted_when_a_new_quote_is_made(tmp_path, endpoint):
+    import os
+    import time
+    sent = quote(tmp_path, endpoint, to=SPARE, amount="0.01")
+    assert send(tmp_path, endpoint, sent["quote"], "own")["ok"]
+    unused = quote(tmp_path, endpoint, to=STRANGER, amount="0.01")
+    recent = quote(tmp_path, endpoint, to=STRANGER, amount="0.02")
+    folder = tmp_path / "state" / "quotes"
+    long_ago = time.time() - 900 - 3600 - 60
+    for quote_id in (sent["quote"], unused["quote"]):  # expired over an hour ago
+        stored = json.loads(quote_file(tmp_path, quote_id).read_text())
+        quote_file(tmp_path, quote_id).write_text(json.dumps({**stored, "expires": long_ago + 900}))
+    forged = folder / "q0000000f.json"  # claims a far expiry, but is old
+    forged.write_text(json.dumps({"id": "q0000000f", "expires": 9e12}))
+    stray = folder / "q0000000e.tmp"
+    stray.write_text("{}")
+    broken = folder / "q0000000d.json"
+    broken.write_text("not json")
+    for path in (forged, stray, broken):
+        os.utime(path, (long_ago, long_ago))
+    other = folder / "notes.txt"
+    other.write_text("kept")
+    fresh = quote(tmp_path, endpoint, to=STRANGER, amount="0.03")
+    left = sorted(path.name for path in folder.iterdir())
+    assert left == sorted([f"{recent['quote']}.json", f"{fresh['quote']}.json", "notes.txt"])
+    again = send(tmp_path, endpoint, sent["quote"], "own")
+    assert again["ok"] is False and "no quote" in again["error"]
+    assert len(FAKE["sent"]) == 1
+
+
 def test_seed_accounts_and_keys_sign_with_their_own_secret(tmp_path, endpoint):
     data = quote(tmp_path, endpoint, account=f"{WORK}#0", to=OPS, amount="0.01")
     assert data["own"] is True and data["summary"]["from"] == WORK0

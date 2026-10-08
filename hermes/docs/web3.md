@@ -296,7 +296,11 @@ approval) is written with outcome `unknown` before broadcast, so a crash
 mid-send never re-sends it; a second line for the same attempt records
 `sent` with the hash, or `rejected` when the node answered with an error or
 the signer stopped before broadcasting. A quote the ledger has seen is never
-sent again, even if its consumed mark is cleared. The cap counts every
+sent again, even if its consumed mark is cleared. Making a quote first
+deletes, under the same lock, every quote file that expired more than an
+hour ago — sent, denied or unused alike (an edited file counts as expired
+15 minutes after it was last written) — so the folder holds only recent
+quotes; the ledger keeps the sends. The cap counts every
 attempt that is `sent` or `unknown` (no answer after broadcasting may still
 mean the transfer happened); `rejected` moved nothing and does not count.
 
