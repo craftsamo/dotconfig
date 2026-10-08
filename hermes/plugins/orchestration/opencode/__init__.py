@@ -49,7 +49,7 @@ PERMISSION_ID = re.compile(r"per_[A-Za-z0-9_-]{1,64}\Z")
 FORM_ID = re.compile(r"frm_[A-Za-z0-9_-]{1,64}\Z")
 ENTRY_KEY = re.compile(r"hermes\.[a-z0-9._-]{1,48}\Z")
 DECISIONS = ("once", "reject")
-RUN_ARGS = {"directory", "session_id", "message", "model", "variant", "fork", "timeout"}
+RUN_ARGS = {"directory", "session_id", "message", "model", "variant", "fork", "timeout", "output_dir"}
 WRITE_ARGS = {"approval", "issue_approval"}
 NOTE_KEY = "hermes.note"
 DEFAULT_NOTE = (
@@ -156,8 +156,11 @@ def _agent(name, where):
 # Starting a turn
 
 
-def _prompt(role, message, approval, issue_approval):
+def _prompt(role, message, approval, issue_approval, output=None):
     text = message
+    if output:
+        text += ("\n\nOutput directory (outside the repository) for reports, screenshots and other "
+                 "results this run produces: " + output)
     if role["policy"] == "write":
         text += "\n\nClient implementation scope: " + approval
         text += "\nIssue management: " + (issue_approval or "not granted")
@@ -197,7 +200,17 @@ def _prepare(home, owner, role_name, role, settings, args, kwargs):
     branch, protected = policy.branch(directory, writing)
     if meta and meta.get("branch") != branch:
         raise ValueError("Worktree branch changed; start a new session after inspection")
-    return {"writing": writing, "fork": fork, "chosen": chosen or meta.get("selection") or {},
+    stored = meta.get("output_dir")
+    try:
+        # A stored value is service metadata, not trusted input: it is checked again.
+        output = policy.output_dir(args["output_dir"] if "output_dir" in args else stored)
+    except ValueError as exc:
+        if "output_dir" in args:
+            raise
+        raise ValueError(f"The session's stored output_dir is no longer valid ({exc}); pass output_dir") from None
+    if output and (output == directory or output.startswith(directory + os.sep)):
+        raise ValueError("output_dir must lie outside the worktree")
+    return {"output": output, "writing": writing, "fork": fork, "chosen": chosen or meta.get("selection") or {},
             "explicit": bool(chosen), "sid": sid, "directory": directory, "branch": branch,
             "protected": protected, "approval": approval, "issue_approval": issue_approval}
 
@@ -219,11 +232,13 @@ def _setup(home, owner, role_name, role, plan, kwargs):
     person = _agent("build", where).get("permissions") or []
     server = turn.call("get", "/api/info") or {}
     tmp = (server.get("paths") or {}).get("tmp") if isinstance(server, dict) else None
-    ruleset = policy.rules(role["policy"], plan["issue_approval"], plan["protected"], tmp=tmp, person_denies=person)
+    ruleset = policy.rules(role["policy"], plan["issue_approval"], plan["protected"], tmp=tmp, person_denies=person,
+                           output=plan["output"])
     model = models.engine(role, plan["chosen"], info, directory,
                           models.caller_models(home, kwargs.get("session_id")))
     hermes = {"v": 2, "profile": home.name, "owner": owner, "role": role_name, "branch": plan["branch"],
-              **({"selection": plan["chosen"]} if plan["chosen"] else {})}
+              **({"selection": plan["chosen"]} if plan["chosen"] else {}),
+              **({"output_dir": plan["output"]} if plan["output"] else {})}
     metadata = {"hermes": hermes}
     if sid and plan["fork"]:
         sid = api.data(turn.call("post", "/api/session/{sid}/fork", {}, sid=sid))["id"]
@@ -262,7 +277,7 @@ def _put_note(sid, role):
 
 
 def _admit(sid, role, message, plan):
-    text = _prompt(role, message, plan["approval"], plan["issue_approval"])
+    text = _prompt(role, message, plan["approval"], plan["issue_approval"], plan["output"])
     if not _put_note(sid, role):
         text = _instructions(role) + "\n\n" + text
     try:
@@ -638,6 +653,9 @@ def _run_properties(role):
         "variant": {"type": "string", "description": "Optional reasoning effort from that model's variants"},
         "fork": {"type": "boolean", "description": "Fork session_id first and run on the copy"},
         "timeout": {"type": "integer", "description": "Seconds to block (bounded by config and your tool deadline)"},
+        "output_dir": {"type": "string", "description": "Existing job directory under a Workspaces .agent/ draft, "
+                                                       "outside the worktree, that the run may write results to "
+                                                       "(reports, screenshots); kept for later turns of the session"},
     }
     if role["policy"] == "write":
         properties["approval"] = {"type": "string", "description": "The Client's explicit scoped implementation "
