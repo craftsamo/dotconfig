@@ -1,11 +1,13 @@
 # note (note.com)
 
-Load `skill_view(name="note-com")` before any note work: it owns the
+Load `skill_view(name="note-access:note-com")` before any note work: it owns the
 mechanics — the `note` tool only (never the terminal, the session cookie or
 editor.note.com in the browser), the shared request budget, which action
-reads what, preparing a body with `check`, saving with `preview` and the
-card, results and recovery. This file holds only what is particular to
-Chat.
+reads what and recovery. Preparing a body with `check` is
+`skill_view(name="note-access:note-com-format")`; saving with `preview` and
+the card, and reading the results, is
+`skill_view(name="note-access:note-com-drafts")`. This file holds only what
+is particular to Chat.
 
 ## What stays in Chat
 

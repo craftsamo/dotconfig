@@ -9,6 +9,9 @@ the ``bind`` hook pins it to the channel and file that card was made from;
 writes are refused where no person can approve (cron, single queries, approvals switched off).
 Inbound A2A never reaches the Assistant's channels; Marketer may answer a peer's question with a
 read. The gate also blocks terminal and file calls that would go around the tool.
+The plugin also ships read-only skills (``skills/``), registered as ``youtube-access:<skill>``:
+the read mechanics for every profile that has the tool, and the write procedures only for the
+profile that can write.
 Contract: docs/youtube-access.md.
 """
 
@@ -16,6 +19,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import logging
 from pathlib import Path
 import sys
 
@@ -23,6 +27,7 @@ TOOLSET = "youtube_access"
 TOOL = "youtube"
 LIMIT = 60000
 A2A_READERS = {"marketer"}
+logger = logging.getLogger(__name__)
 
 
 def _load(name, path):
@@ -37,6 +42,10 @@ def _load(name, path):
 ya = _load("hermes_youtube_access_engine", Path(__file__).resolve().parent / "ya.py")
 
 PROFILES = set(ya.PROFILE_ACTIONS)
+# Skill -> the profiles it is registered for. A skill is read-only to Hermes (not editable through
+# skill_manage); a profile that cannot do what a skill describes is not given it.
+SKILLS = {"youtube": set(PROFILES), "youtube-manage": {p for p in PROFILES if set(ya.WRITES) & set(ya.actions_for(p))}}
+SKILL_HINT = ' For anything past a single lookup, first load skill_view(name="youtube-access:youtube").'
 
 READ_DESCRIPTION = (
     "status (the authorized channels, today's API quota and transcript/download use; no request), search (query "
@@ -220,7 +229,7 @@ def schema_for(profile: str) -> dict:
                               "description": "search: video | channel | playlist"}
     if writes_for(profile):
         properties.update(WRITE_PROPERTIES)
-    return {"name": TOOL, "description": description_for(profile), "parameters": {
+    return {"name": TOOL, "description": description_for(profile) + SKILL_HINT, "parameters": {
         "type": "object", "properties": properties, "required": ["action"], "additionalProperties": False}}
 
 
@@ -356,6 +365,21 @@ def bind(profile: str, **kwargs):
     return {"action": "modify", "args": partial} if partial else None
 
 
+def register_skills(ctx, profile):
+    """Register this profile's skills; a skill that cannot be read is logged and never costs the tool."""
+    for name, profiles in SKILLS.items():
+        if profile not in profiles:
+            continue
+        try:
+            from agent.skill_utils import parse_frontmatter
+
+            path = Path(__file__).resolve().parent / "skills" / name / "SKILL.md"
+            meta, _ = parse_frontmatter(path.read_text(encoding="utf-8"))
+            ctx.register_skill(name, path, description=meta["description"], frontmatter=meta)
+        except Exception as exc:
+            logger.warning("youtube-access skill %s not registered: %s", name, exc)
+
+
 def register(ctx):
     profile = ctx.profile_name
     if profile not in PROFILES:
@@ -366,3 +390,4 @@ def register(ctx):
     ctx.register_hook("pre_tool_call", lambda **kwargs: gate(profile, **kwargs))
     if writes_for(profile):
         ctx.register_hook("pre_tool_call", lambda **kwargs: bind(profile, **kwargs))
+    register_skills(ctx, profile)

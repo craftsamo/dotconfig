@@ -43,6 +43,11 @@ class Ctx:
         self.profile_name = profile
         self.tools = {}
         self.hooks = []
+        self.skills = {}
+
+    def register_skill(self, name, path, description="", frontmatter=None):
+        assert path.is_file() and frontmatter["name"] == name and description
+        self.skills[name] = path
 
     def register_tool(self, **kwargs):
         self.tools[kwargs["name"]] = kwargs
@@ -350,3 +355,23 @@ def test_writer_inbound_a2a_fails_closed_unless_bound_and_names_only_check(monke
     for args in ({"action": "like"}, "not a dict", {"action": ["check"]}):
         assert gate(tool_name="note", args=args)["action"] == "block"
         assert "only check" in json.loads(handler(args))["error"]
+
+
+def test_each_skill_reaches_only_the_profiles_whose_actions_it_describes():
+    expected = {"assistant": {"note-com", "note-com-format", "note-com-drafts"},
+                "marketer": {"note-com", "note-com-format"}, "writer": {"note-com-format"},
+                "searcher": {"note-com"}}
+    for profile, names in expected.items():
+        ctx = Ctx(profile)
+        plugin.register(ctx)
+        assert set(ctx.skills) == names
+        first = sorted(names, key=list(plugin.SKILLS).index)[0]
+        assert f'note-access:{first}"' in ctx.tools["note"]["description"]
+    ctx = Ctx("creator")
+    plugin.register(ctx)
+    assert ctx.skills == {}
+    for profile in ("marketer", "searcher", "writer"):
+        ctx = Ctx(profile)
+        plugin.register(ctx)
+        for path in ctx.skills.values():
+            assert "note-com-drafts" not in path.read_text() and "create_draft" not in path.read_text()

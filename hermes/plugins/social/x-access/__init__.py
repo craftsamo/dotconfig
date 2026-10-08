@@ -9,6 +9,9 @@ Assistant and Marketer get every action; Searcher only ``status``, ``search``, `
 ``verify`` (public posts, nothing about the user's main account), with its own capped share of the
 sub-account's reads. Inbound A2A requests may read only on Marketer (an
 inquiry-only endpoint); the Assistant and Searcher refuse them.
+The plugin also ships read-only skills (``skills/``), registered as ``x-access:<skill>`` for the
+profiles listed in ``SKILLS``: the read mechanics for every profile that has the tool, and the
+browser draft procedures only for the profile that may save drafts.
 Contract: docs/x-access.md.
 """
 
@@ -16,6 +19,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import logging
 from pathlib import Path
 import sys
 
@@ -23,6 +27,7 @@ A2A_PROFILES = {"marketer"}
 TOOLSET = "x_access"
 TOOL = "x"
 LIMIT = 60000
+logger = logging.getLogger(__name__)
 
 
 def _load(name, path):
@@ -37,6 +42,10 @@ def _load(name, path):
 xa = _load("hermes_x_access_engine", Path(__file__).resolve().parent / "xa.py")
 
 PROFILES = set(xa.PROFILE_ACTIONS)
+# Skill -> the profiles it is registered for. A skill is read-only to Hermes (not editable through
+# skill_manage); a profile that cannot do what a skill describes is not given it.
+SKILLS = {"x-twitter": set(PROFILES), "x-twitter-drafts": {"assistant"}}
+SKILL_HINT = ' For anything past a single lookup, first load skill_view(name="x-access:x-twitter").'
 
 DESCRIPTION = (
     "Read-only X (Twitter), signed in as the user's separate sub-account (never the main one). "
@@ -110,7 +119,7 @@ def schema_for(profile):
         description = PUBLIC_DESCRIPTION
         properties = {"action": PROPERTIES["action"], **{k: PROPERTIES[k] for k in PUBLIC_PROPERTIES}}
     properties = {**properties, "action": {"type": "string", "enum": list(actions)}}
-    return {"name": TOOL, "description": description, "parameters": {
+    return {"name": TOOL, "description": description + SKILL_HINT, "parameters": {
         "type": "object", "properties": properties, "required": ["action"], "additionalProperties": False}}
 
 
@@ -185,6 +194,21 @@ def gate_for(profile):
     return gate
 
 
+def register_skills(ctx, profile):
+    """Register this profile's skills; a skill that cannot be read is logged and never costs the tool."""
+    for name, profiles in SKILLS.items():
+        if profile not in profiles:
+            continue
+        try:
+            from agent.skill_utils import parse_frontmatter
+
+            path = Path(__file__).resolve().parent / "skills" / name / "SKILL.md"
+            meta, _ = parse_frontmatter(path.read_text(encoding="utf-8"))
+            ctx.register_skill(name, path, description=meta["description"], frontmatter=meta)
+        except Exception as exc:
+            logger.warning("x-access skill %s not registered: %s", name, exc)
+
+
 def register(ctx):
     profile = ctx.profile_name
     if profile not in PROFILES:
@@ -193,3 +217,4 @@ def register(ctx):
     ctx.register_tool(name=TOOL, toolset=TOOLSET, handler=handler_for(profile),
                       description=schema["description"], schema=schema)
     ctx.register_hook("pre_tool_call", gate_for(profile))
+    register_skills(ctx, profile)

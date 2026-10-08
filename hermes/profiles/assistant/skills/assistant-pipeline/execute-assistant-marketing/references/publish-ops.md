@@ -1,7 +1,7 @@
 # Service drafts
 
 Every marketing save ends at an unpublished draft on the service, saved by
-you and reopened. The route-specific mechanics live in each technic or tool
+you and reopened. The route-specific mechanics live in each skill or tool
 reference; these rules hold across them.
 
 ## Consent and record

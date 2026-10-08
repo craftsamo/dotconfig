@@ -12,13 +12,19 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import logging
 from pathlib import Path
 import sys
 
 PROFILES = {"assistant"}
+# Skill -> the profiles it is registered for. A skill is read-only to Hermes (not editable through
+# skill_manage); a profile that cannot do what a skill describes is not given it.
+SKILLS = {"whatsapp": set(PROFILES)}
 TOOLSET = "whatsapp_access"
 TOOL = "whatsapp"
 LIMIT = 60000
+PLUGIN = "whatsapp-access"
+logger = logging.getLogger(__name__)
 
 
 def _load(name, path):
@@ -160,6 +166,21 @@ def bind(**kwargs):
     return {"action": "modify", "args": partial} if partial else None
 
 
+def register_skills(ctx, profile):
+    """Register this profile's skills; a skill that cannot be read is logged and never costs the tool."""
+    for name, profiles in SKILLS.items():
+        if profile not in profiles:
+            continue
+        try:
+            from agent.skill_utils import parse_frontmatter
+
+            path = Path(__file__).resolve().parent / "skills" / name / "SKILL.md"
+            meta, _ = parse_frontmatter(path.read_text(encoding="utf-8"))
+            ctx.register_skill(name, path, description=meta["description"], frontmatter=meta)
+        except Exception as exc:
+            logger.warning("%s skill %s not registered: %s", PLUGIN, name, exc)
+
+
 def register(ctx):
     if ctx.profile_name not in PROFILES:
         return
@@ -177,3 +198,4 @@ def register(ctx):
                           "additionalProperties": False}})
     ctx.register_hook("pre_tool_call", gate)
     ctx.register_hook("pre_tool_call", bind)
+    register_skills(ctx, ctx.profile_name)

@@ -45,6 +45,11 @@ class Ctx:
         self.profile_name = profile
         self.tools = {}
         self.hooks = []
+        self.skills = {}
+
+    def register_skill(self, name, path, description="", frontmatter=None):
+        assert path.is_file() and frontmatter["name"] == name and description
+        self.skills[name] = path
 
     def register_tool(self, **kwargs):
         self.tools[kwargs["name"]] = kwargs
@@ -138,6 +143,29 @@ def test_searcher_gets_only_the_public_reads():
         assert action not in schema["parameters"]["properties"]["action"]["enum"]
     assert "main account" not in schema["description"] and "x_search" in schema["description"]
     assert "only when x_search is not available" in schema["description"]
+
+
+def test_the_draft_skill_reaches_only_the_profile_that_saves_drafts():
+    expected = {"assistant": {"x-twitter", "x-twitter-drafts"}, "marketer": {"x-twitter"},
+                "searcher": {"x-twitter"}, "creator": set()}
+    for profile, names in expected.items():
+        ctx = Ctx(profile)
+        plugin.register(ctx)
+        assert set(ctx.skills) == names
+    for profile in ("marketer", "searcher"):
+        ctx = Ctx(profile)
+        plugin.register(ctx)
+        for path in ctx.skills.values():
+            body = path.read_text().lower()
+            assert not any(word in body for word in ("post-draft", "article-draft", "composer", "editor"))
+        assert 'x-access:x-twitter"' in ctx.tools["x"]["description"]
+
+
+def test_a_broken_skill_never_costs_the_tool(monkeypatch):
+    monkeypatch.setitem(plugin.SKILLS, "missing", {"assistant"})
+    ctx = Ctx("assistant")
+    plugin.register(ctx)
+    assert set(ctx.tools) == {"x"} and "missing" not in ctx.skills
 
 
 def test_other_profiles_keep_every_action():

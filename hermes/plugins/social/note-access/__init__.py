@@ -8,19 +8,24 @@ every draft write for Hermes' human approval gate (the card names the draft, the
 image and the start of the Markdown); a run with no person to answer it (cron, a resident or other
 single-query session, a webhook) cannot save and hands the exact save back to its caller. Inbound
 A2A gets only what ``A2A`` lists for the profile, and never a save. The hook also blocks terminal
-and file calls that would go around the tool. Nothing publishes. Contract: docs/note-access.md.
+and file calls that would go around the tool. Nothing publishes.
+The plugin also ships read-only skills (``skills/``), registered as ``note-access:<skill>`` for the
+profiles whose actions need them: reading, the offline format check, and saving drafts.
+Contract: docs/note-access.md.
 """
 
 from __future__ import annotations
 
 import importlib.util
 import json
+import logging
 from pathlib import Path
 import sys
 
 TOOLSET = "note_access"
 TOOL = "note"
 LIMIT = 60000
+logger = logging.getLogger(__name__)
 
 
 def _load(name, path):
@@ -43,6 +48,13 @@ PUBLIC_READS = ("status", "search", "articles", "article", "creator", "comments"
 PROFILES = {"assistant": na.ACTIONS, "marketer": na.READS + na.OFFLINE, "writer": na.OFFLINE,
             "searcher": PUBLIC_READS}
 A2A = {"marketer": na.READS + na.OFFLINE, "writer": na.OFFLINE}
+# Skill -> the profiles it is registered for, by the actions they hold. A skill is read-only to Hermes
+# (not editable through skill_manage); a profile that cannot do what a skill describes is not given it.
+SKILLS = {
+    "note-com": {p for p, actions in PROFILES.items() if set(actions) & set(na.READS)},
+    "note-com-format": {p for p, actions in PROFILES.items() if "check" in actions},
+    "note-com-drafts": {p for p, actions in PROFILES.items() if set(actions) & set(na.WRITES)},
+}
 
 PUBLIC_READ_DESCRIPTION = (
     "note.com, the Japanese publishing platform, read as a visitor would. status (whether the user's note "
@@ -311,13 +323,33 @@ def make_gate(profile: str):
     return gate
 
 
+def skills_for(profile):
+    """The profile's skill names, the reading skill first."""
+    return [name for name, profiles in SKILLS.items() if profile in profiles]
+
+
+def register_skills(ctx, profile):
+    """Register this profile's skills; a skill that cannot be read is logged and never costs the tool."""
+    for name in skills_for(profile):
+        try:
+            from agent.skill_utils import parse_frontmatter
+
+            path = Path(__file__).resolve().parent / "skills" / name / "SKILL.md"
+            meta, _ = parse_frontmatter(path.read_text(encoding="utf-8"))
+            ctx.register_skill(name, path, description=meta["description"], frontmatter=meta)
+        except Exception as exc:
+            logger.warning("note-access skill %s not registered: %s", name, exc)
+
+
 def register(ctx):
     profile = ctx.profile_name
     if not PROFILES.get(profile):
         return
     description, properties = schema_parts(PROFILES[profile])
+    description += f' For anything past a single lookup, first load skill_view(name="note-access:{skills_for(profile)[0]}").'
     ctx.register_tool(name=TOOL, toolset=TOOLSET, handler=make_handler(profile), description=description,
                       schema={"name": TOOL, "description": description, "parameters": {
                           "type": "object", "properties": properties, "required": ["action"],
                           "additionalProperties": False}})
     ctx.register_hook("pre_tool_call", make_gate(profile))
+    register_skills(ctx, profile)

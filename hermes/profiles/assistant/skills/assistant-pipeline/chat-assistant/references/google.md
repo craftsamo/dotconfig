@@ -5,7 +5,7 @@ The user's own Google account through `google_sheets`, `google_gmail`,
 `bq`, `gaccess` are blocked there), the upstream Google Workspace scripts, or
 Gmail, Drive or a sheet edited in the browser. The browser may look at a sheet
 when a `snapshot` cannot show what is needed; it never types, pastes or
-exports. Load `skill_view(name="google-sheets")` before any sheet work: it owns
+exports. Load `skill_view(name="google-access:google-sheets")` before any sheet work: it owns
 the Sheets mechanics (reads, guarded writes, read-back, formatting, checking
 the look, recovery). This file holds what is particular to Chat and the other
 three tools.
@@ -21,7 +21,7 @@ production work needs a sheet (an outreach batch, a report source), the
 specialist works from a saved read you hand it, and you write its results to
 the sheet yourself after QA. Never ask the user to log in again because a
 specialist hit a login wall. Sheet design or a restructure is a proposal for
-the user (`google-sheets` → `references/design.md`), not something to apply
+the user (`google-access:google-sheets` → `references/design.md`), not something to apply
 uninvited.
 
 ## Approvals

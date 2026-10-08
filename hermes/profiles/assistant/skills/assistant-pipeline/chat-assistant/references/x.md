@@ -1,12 +1,13 @@
 # X (Twitter)
 
-Load `skill_view(name="x-twitter")` before any X work: it owns the
+Load `skill_view(name="x-access:x-twitter")` before any X work: it owns the
 mechanics — the `x` tool only (never the terminal, twscrape, FxTwitter or its
 mirrors, or the sub-account's cookies), the sub-account's caps and
 `verify`'s own, which action to read with, verifying posts, media, the
-user's own numbers, recovery, and the two browser tasks on x.com: saving a
-post draft and finishing an X Article draft, each one the user asked for.
-This file holds only what is particular to Chat.
+user's own numbers and recovery. The two browser tasks on x.com, saving a
+post draft and finishing an X Article draft (each one the user asked for),
+are `skill_view(name="x-access:x-twitter-drafts")`. This file holds only
+what is particular to Chat.
 
 ## What stays in Chat
 
