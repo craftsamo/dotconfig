@@ -1,11 +1,13 @@
 ---
 description: "Ultra-fast read-only needle lookups in a pre-identified narrow scope (specific files/dirs/symbols). Small context — not for open-ended exploration."
 mode: subagent
-model: anthropic/claude-haiku-4-5
+model: anthropic/claude-haiku-5-5
+variant: low
 hidden: false
-# No variant and no options: without a variant Haiku 4.5 does not think, so
-# thinking stays off. An options block would be ignored by OpenCode 2
-# (anomalyco/opencode#49550).
+# Haiku 5.5 has adaptive thinking on by default (effort medium); the low
+# variant keeps lookups fast. Keep in sync with ROUTES in
+# lib/subagent-fallback/policy.ts. An options block would be ignored by
+# OpenCode 2 (anomalyco/opencode#49550).
 permission:
   "*": deny
   glob: allow
