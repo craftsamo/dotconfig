@@ -250,8 +250,19 @@ def test_a_revoke_quote_carries_its_kind_and_spender(monkeypatch, tmp_path):
                                   "state": str(tmp_path / "assistant" / "web3-wallet")}
     for family in ("evm", "solana"):
         props = access.schema_for(family, "assistant")["parameters"]["properties"]
-        assert props["kind"]["enum"] == ["transfer", "revoke"] and "spender" in props
+        assert props["kind"]["enum"] == ["transfer", "revoke", "nft"] and {"spender", "token_id"} <= set(props)
         assert "kind" not in access.schema_for(family, "researcher")["parameters"]["properties"]
+
+
+def test_an_nft_to_an_own_wallet_runs_and_to_anyone_else_asks(monkeypatch, tmp_path):
+    seen = fake_engine(monkeypatch, verify={**VERIFIED, "kind": "nft", "own": True})
+    assert gate(tool_name="evm", args=transfer()) is None and access._DECISIONS["q0000000a"][0] == "own"
+    fake_engine(monkeypatch, verify={**VERIFIED, "kind": "nft"})
+    assert gate(tool_name="evm", args=transfer())["action"] == "approve"
+    seen = fake_engine(monkeypatch)
+    tool("evm")({"action": "quote", "kind": "nft", "account": "hermes/HERMES_MAIN#0", "chain": "sepolia",
+                 "token": "0xabc", "token_id": "7", "to": "0xdef"})
+    assert seen[0]["payload"]["token_id"] == "7" and seen[0]["payload"]["kind"] == "nft"
 
 
 def test_discord_gets_the_compact_card(monkeypatch):

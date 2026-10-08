@@ -59,7 +59,7 @@ READS = {
 }
 WALLET = ("accounts", "quote", "transfer", "status", "create_wallet")
 WALLET_FIELDS = {"accounts": ("count", "chain"),
-                 "quote": ("account", "chain", "kind", "to", "amount", "token", "spender"),
+                 "quote": ("account", "chain", "kind", "to", "amount", "token", "token_id", "spender"),
                  "status": ("chain", "hash"), "create_wallet": ("name", "project", "scope", "words", "purpose")}
 
 
@@ -144,6 +144,11 @@ WALLET_HELP = (
     "ERC-20 allowance to 0, turns an NFT operator approval off, or clears an SPL delegate, only one that "
     "exists now; then transfer (quote) sends it, always on an approval card, never without the user, counted "
     "in the same hourly cap. Watch-only wallets cannot revoke: the user does it in their own wallet. "
+    "Sending an NFT is a quote with kind = nft, account, chain, to, token = the collection with token_id "
+    "(EVM: ERC-721, or ERC-1155 with amount = copies, default 1) or the NFT's mint (Solana, plain NFTs only; "
+    "programmable and compressed NFTs are refused); it checks the account owns it, simulates "
+    "safeTransferFrom or the SPL transfer, and transfer (quote) sends it like a coin: at once to the user's own "
+    "Hermes wallet, on an approval card to anyone else. "
     "create_wallet (name with HERMES as a word, like "
     "HERMES_TESTNET; purpose = one line on what it is for, the Keychain comment; project, default the one "
     "holding the Hermes wallets; scope, default Shared; words 12 or 24, default 24): a new seed phrase stored "
@@ -178,16 +183,17 @@ READ_PROPERTIES = {
              "description": "call: one value per parameter, as text: integers in base units (no decimals), addresses or ENS names, true / false, 0x hex bytes, arrays and tuples as JSON like [\"0x…\",\"0x…\"]"},
     "from": {"type": "string", "description": "call: the caller to run it as, default none (the zero address)"},
     "slot": {"type": "string", "description": "storage: a slot number, 0x hex, eip1967.implementation / eip1967.admin / eip1967.beacon / zos.implementation / zos.admin, or a variable name"},
-    "amount": {"type": "string", "description": "call: native coin sent with the call, in whole units like 0.05; quote: the amount to send, in whole units"},
+    "amount": {"type": "string", "description": "call: native coin sent with the call, in whole units like 0.05; quote: the amount to send, in whole units (kind nft: ERC-1155 copies, default 1)"},
 }
 EVM_ONLY = {"chains", "from_block", "to_block", "event", "topics", "trace", "blocks", "function", "args",
             "from", "slot", "amount"}
 WALLET_PROPERTIES = {
     "account": {"type": "string", "description": "quote: the sending account id from accounts, like hermes/HERMES_MAIN#0"},
-    "kind": {"type": "string", "enum": ["transfer", "revoke"],
-             "description": "quote: transfer (default) or revoke, which takes back an approval this account gave"},
+    "kind": {"type": "string", "enum": ["transfer", "revoke", "nft"],
+             "description": "quote: transfer (default), revoke (take back an approval this account gave) or nft (send an NFT)"},
     "spender": {"type": "string", "description": "quote with kind revoke on EVM: the approved spender or operator to revoke"},
-    "amount": {"type": "string", "description": "quote: the amount to send, in whole units like 0.05"},
+    "token_id": {"type": "string", "description": "quote with kind nft on EVM: the NFT's token id in its collection"},
+    "amount": {"type": "string", "description": "quote: the amount to send, in whole units like 0.05; left out for an NFT"},
     "quote": {"type": "string", "description": "transfer: the quote id from quote, like q1a2b3c4d"},
     "count": {"type": "integer", "description": "accounts: seed accounts per seed, default 5, at most 101"},
     "name": {"type": "string", "description": "create_wallet: the Keychain name, with HERMES as one of its words, like HERMES_TESTNET"},
@@ -365,7 +371,7 @@ def approval(family: str, args: dict) -> dict | None:
         return {"action": "block", "message": f"{tool}: that quote is for {quote.get('chain')}; send it with "
                                               f"the tool of its chain"}
     kind = quote.get("kind", "transfer")
-    if quote.get("own") is True and kind == "transfer":  # a revoke always asks, whoever the spender is
+    if quote.get("own") is True and kind in ("transfer", "nft"):  # a revoke always asks, whoever the spender is
         _decide(quote_id, "own", mac)
         return None
     reason = _no_human()

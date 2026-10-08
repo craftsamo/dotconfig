@@ -102,8 +102,8 @@ registry or ledger upkeep, Admin maintenance) stays here across turns.
   — `references/youtube.md`.
 - **Blockchains and the user's web3 wallets** (a transaction, block,
   address, token, approval, balance, price, contract or program on an EVM
-  chain or Solana; the user's accounts, a new Hermes wallet, sending a coin
-  or token, revoking an approval) — only through the `evm` and `solana`
+  chain or Solana; the user's accounts, a new Hermes wallet, sending a coin,
+  token or NFT, revoking an approval) — only through the `evm` and `solana`
   tools, never the terminal, the Keychain, a block explorer or a browser
   wallet; a new wallet, a revoke, and a transfer to anyone but the user's own
   Hermes wallets, wait for approval on its card — `references/web3.md`.
