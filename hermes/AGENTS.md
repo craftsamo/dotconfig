@@ -281,40 +281,42 @@ Contract: [docs/hands/overview.md](docs/hands/overview.md),
 ## OpenCode integration
 
 Contract: [docs/profiles/engineer.md "OpenCode runtime"](docs/profiles/engineer.md).
-Two plugins exist while Engineer moves over: `opencode` (the Assistant) and
-`opencode-v2` (Engineer; rules at the end of this section). A profile enables one,
-since both register `opencode_session` and `opencode_history`.
-When editing `plugins/orchestration/opencode` or `~/.config/opencode/agent/hermes-*.md`:
+When editing `plugins/orchestration/opencode-v2`:
 
-- **Two policy owners with a fixed boundary.** Each `hermes-*.md` owns its
-  role posture in a V2 `permissions:` array (a V1 `permission:` map fails a
-  test: its `**/.env` patterns miss root files on V2); the plugin's session
-  ruleset owns each run's constraints. Subagent sessions copy that ruleset and
-  OpenCode applies it after their own posture, so it never carries a broad
-  allow and the caller can approve a request only `once` — a session-wide
-  allow would reopen what an explore or reviewer subagent denies itself (a
-  test enforces). An `ask` reaches the caller as a decision; anything
-  the caller must never approve is a `deny`.
+- **The plugin keeps no run record.** The owner binding lives in the session's
+  `metadata.hermes`; a run's state is read from the service (the `idle` message
+  carries a turn's outcome). Do not add a state file, a watcher or a stored PID:
+  they would become a second source of truth that disagrees with the service. The
+  per-worktree lock file only serializes starts. Nothing enforces a deadline on
+  purpose (a run outlives Hermes); do not reintroduce one without deciding that.
+- **Roles are configuration, not code.** Role names, agents, policies and models
+  come from `opencode_v2.roles`; `DEFAULT_ROLES` is only the fallback. Code keys
+  on the policy (`read-only` / `write`), never on a role or agent name.
+- **The session ruleset owns each run's constraints.** Subagent sessions copy it
+  and OpenCode applies it after their own posture, so it holds denies, asks and
+  narrow allows, and the caller can approve a request only `once` — a
+  session-wide allow would reopen what an explore or reviewer subagent denies
+  itself. The one deliberate exception is a `write` run's `edit *` in its
+  worktree, ordered before every edit deny so the config, skill and secret denies
+  still win (a test enforces both). An `ask` reaches the caller as a decision;
+  anything the caller must never approve is a `deny`.
 - **Reach OpenCode only through `api.py`** (`opencode api`, output to files,
   minimal environment). A piped reply is cut off at a buffer boundary with exit
   status zero, `--param` silently drops query parameters (queries go in the
   path), and a service the command starts keeps its environment for every
-  session — never widen `ENV_NAMES` to a secret.
-- **The turn's watcher is the only writer of a running record**, and its held
-  conversation lock is its liveness. Recovery is starting a watcher, never
-  writing the record from elsewhere or signalling a stored PID.
-- Role → agent mapping lives only in `OPENCODE_AGENTS`; renaming an installed
-  agent touches that map and nothing else.
+  session — never widen `ENV_NAMES` to a secret. Prefer stable routes over
+  `/api/experimental/*`: instructions entries are the one experimental route
+  used, with a prompt fallback when the service refuses it.
 - Keep caller/worktree/branch binding, completion from the turn's own idle
-  outcome (not a session-level outcome or an exit code), finite deadlines and
-  no automatic replay after `unknown`.
+  marker (not a session-level outcome or an exit code), and no automatic replay
+  after `unknown`.
 - Keep `TURN_TIMEOUT` identical in `profiles/assistant/scripts/resident-session.sh`
   and `plugins/orchestration/specialist-call`. Engineer's tool deadline
   (`timeouts.tools.sequential_call` / `concurrent_batch`) stays above
-  `opencode_cli.timeout`, so one blocking call covers a whole run (a call hands
-  back at `opencode_cli.wait_timeout` or 30 s before the tool deadline,
-  whichever is first, and the model continues with `wait`); verify with
-  `HERMES_HOME=~/.hermes/profiles/engineer` +
+  `opencode_v2.wait_timeout`, so one blocking run call hands back before its tool
+  times out (a call hands back at `opencode_v2.wait_timeout` or 30 s before the
+  tool deadline, whichever is first, and the model continues with `wait`); verify
+  with `HERMES_HOME=~/.hermes/profiles/engineer` +
   `agent.tool_executor._resolve_sequential_tool_timeout()`. Likewise `creator`
   and `marketer` keep theirs (5460) above `TURN_TIMEOUT` + cleanup, or a
   blocking CLI `specialist_call` times out at 420 s and polls; the Assistant
@@ -326,37 +328,9 @@ When editing `plugins/orchestration/opencode` or `~/.config/opencode/agent/herme
 - **A caller never gets its own model.** The plugin refuses the caller's
   configured `model.default` and the model it last answered with (the
   `post_api_request` hook) for every role. Keep that hook registered and keep
-  `_model_key` folding speed tiers and snapshots, or a fallback or `-fast`
-  alias slips through. When a profile's main model equals a hidden primary's
-  pin, give it its own `opencode_cli.models` for that role.
-
-When editing `plugins/orchestration/opencode-v2` (contract:
-[docs/profiles/engineer.md "OpenCode runtime (opencode-v2)"](docs/profiles/engineer.md)):
-
-- **The plugin keeps no run record.** The owner binding lives in the session's
-  `metadata.hermes`; a run's state is read from the service (the `idle` message
-  carries a turn's outcome). Do not add a state file, a watcher or a stored PID:
-  they would become a second source of truth that disagrees with the service. The
-  per-worktree lock file only serializes starts. Nothing enforces a deadline on
-  purpose (a run outlives Hermes); do not reintroduce one without deciding that.
-- **Roles are configuration, not code.** Role names, agents, policies and models
-  come from `opencode_v2.roles`; `DEFAULT_ROLES` is only the fallback. Code keys
-  on the policy (`read-only` / `write`), never on a role or agent name.
-- **The ruleset still carries no broad allow, with one exception:** a `write`
-  run's `edit *` in its worktree, ordered before every edit deny so the config,
-  skill and secret denies still win (a test enforces both). Anything else the
-  caller must never approve is a `deny`; an `ask` reaches the caller.
-- **Reach OpenCode only through `api.py`**, as above. Prefer stable routes over
-  `/api/experimental/*`: instructions entries are the one experimental route
-  used, with a prompt fallback when the service refuses it.
-- **Keep the `hermes_opencode2_*` module names** (api, config, policy, models,
-  turn, history) distinct from the `opencode` plugin's `hermes_opencode_*`: the
-  multiplex gateway shares one `sys.modules`, and a shared name would load
-  whichever plugin came first for both.
-- **A caller never gets its own model**, as above: keep the `post_api_request`
-  hook registered and `models.model_key` folding speed tiers and snapshots.
-- Engineer's tool deadline stays above `opencode_v2.wait_timeout`, so one
-  blocking run call hands back before its tool times out.
+  `models.model_key` folding speed tiers and snapshots, or a fallback or `-fast`
+  alias slips through. When a profile's main model equals a role's default
+  model, give that role its own `model` in `opencode_v2.roles`.
 
 ## Candidates and cutover
 

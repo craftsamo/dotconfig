@@ -71,8 +71,8 @@ and the **image-creator** / **audio-creator** hands lead on
   shared ChatGPT allowance, so re-size OpenCode's usage if its retrieval volume
   grows ("Codex" below).
 - The coding model inside OpenCode is a separate layer: Engineer uses
-  OpenCode's configured per-agent defaults, optionally overridden by maintainer
-  `opencode_cli.models`. No second fixed ladder or automatic replay of an
+  OpenCode's configured per-agent defaults, optionally overridden by a maintainer
+  `model` on a role in `opencode_v2.roles`. No second fixed ladder or automatic replay of an
   uncertain run lives in Engineer's Skill.
 
 | Profile                              | T1 (primary)                        | T2                                | T3                                | T4                                          | T5                                          | `reasoning_effort` |
@@ -112,8 +112,8 @@ backed by the two blind A/Bs above (small n per arm). Provider facts:
   pinned to it, but searcher's stay `auto`, which resolves to its main model:
   compression and titles there now run on GPT-6.1 Sol. The ChatGPT subscription
   is sized for OpenCode (its searchers,
-  `debugger`, `reviewer-deep`, the build role (`hermes-build`, or
-  `opencode_v2.roles.build`), all on GPT-6.1 Sol, and cheap
+  `debugger`, `reviewer-deep`, the build role (`opencode_v2.roles.build`),
+  all on GPT-6.1 Sol, and cheap
   subagents) and shares one Plus allowance with Hermes, so keep the tier off
   profiles with heavy jobs: a single `video-creator` job reads tens of millions
   of tokens and would exhaust it for OpenCode too. GPT-6.1 Sol rejects
