@@ -788,8 +788,45 @@ def test_scope_refuses_inbound_and_foreign_profiles(monkeypatch, tmp_path):
         home.mkdir(parents=True, exist_ok=True)
         real = plugin.dispatch
         monkeypatch.setattr(real, "_scope", lambda h=home, i=inbound: (h, {}, False, i))
-        with pytest.raises(ValueError, match="requires an Engineer/Assistant"):
+        with pytest.raises(ValueError, match="requires an Assistant"):
             _module("opencode_scope_probe", ROOT / "__init__.py")._scope()
+
+
+def test_live_callers_bind_to_their_topic_not_the_session_id(monkeypatch, tmp_path):
+    home = tmp_path / "profiles" / "assistant"
+    home.mkdir(parents=True)
+    route = {"PLATFORM": "telegram", "SOURCE": "telegram", "PROFILE": "assistant", "KEY": "k:topic-1",
+             "CHAT_ID": "chat", "THREAD_ID": "topic-1", "USER_ID": "person", "ID": "session-1"}
+    monkeypatch.setattr("gateway.session_context.get_session_env",
+                        lambda name, default="": route.get(name.removeprefix("HERMES_SESSION_"), default))
+    probe = _module("opencode_topic_probe", ROOT / "__init__.py")
+
+    def owner(live=True):
+        legacy = {"profile": "assistant", "session_id": route["ID"], "turn_session_id": route["ID"]}
+        monkeypatch.setattr(probe.dispatch, "_scope", lambda: (home, legacy, live, False))
+        return probe._scope()[1]
+
+    first = owner()
+    assert set(first) == {"profile", "topic_digest"}
+    route["ID"] = "session-2"  # /new, a compression continuation or a restart
+    assert owner() == first
+    for field, value in (("THREAD_ID", "topic-2"), ("USER_ID", "someone-else"), ("KEY", "k:topic-2")):
+        changed = dict(route)
+        route[field] = value
+        assert owner() != first, field
+        route.clear()
+        route.update(changed)
+    assert owner() == first
+    # A CLI or resident caller keeps the session-id binding specialist-call derives.
+    assert owner(live=False)["session_id"] == "session-2"
+    route["KEY"] = ""
+    with pytest.raises(ValueError, match="conversation route"):
+        owner()
+    route["KEY"] = "k:topic-1"
+    # A delegate_task child inherits the route, so it must not act as the parent.
+    monkeypatch.setattr("agent.delegation_context.is_delegated_child_context", lambda: True)
+    with pytest.raises(ValueError, match="delegated subagents"):
+        owner()
 
 
 # ---------------------------------------------------------------- api client

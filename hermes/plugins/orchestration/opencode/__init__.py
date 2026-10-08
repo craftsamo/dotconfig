@@ -43,6 +43,7 @@ turn = _load("hermes_opencode_turn", _HERE / "turn.py")
 inventory = _load("hermes_opencode_history", _HERE / "history.py")
 
 PROFILES = {"engineer", "assistant"}
+TOPIC_FIELDS = ("PLATFORM", "SOURCE", "PROFILE", "KEY", "CHAT_ID", "THREAD_ID", "USER_ID")
 SESSION_ID = re.compile(r"ses_[A-Za-z0-9_-]+\Z")
 PERMISSION_ID = re.compile(r"per_[A-Za-z0-9_-]{1,64}\Z")
 FORM_ID = re.compile(r"frm_[A-Za-z0-9_-]{1,64}\Z")
@@ -67,11 +68,31 @@ LIST_PAGES = 5
 # Caller scope and per-worktree start lock
 
 
+def _topic_owner(home):
+    """A live caller's binding: its profile home and conversation route (platform,
+    chat, topic/thread, sender, session key) without the Hermes session id. A run
+    therefore stays answerable after `/new`, a compression continuation or a restart
+    in the same topic, and stays foreign to other topics, senders and profiles."""
+    from gateway.session_context import get_session_env
+    route = {n: get_session_env("HERMES_SESSION_" + n, "") for n in TOPIC_FIELDS}
+    if not route["KEY"] or not route["CHAT_ID"]:
+        raise ValueError("A live caller needs its conversation route")
+    digest = hashlib.sha256(json.dumps([str(home.resolve()), route], sort_keys=True).encode()).hexdigest()
+    return {"profile": home.name, "topic_digest": digest}
+
+
 def _scope():
+    from agent.delegation_context import is_delegated_child_context
+    if is_delegated_child_context():
+        # A delegate_task child inherits its parent's conversation route, so it would
+        # bind as the parent and could answer the parent's permission requests.
+        raise ValueError("OpenCode tools are not available to delegated subagents")
     home, owner, live, inbound = dispatch._scope()
     if home.name not in PROFILES or inbound:
-        raise ValueError("OpenCode execution requires an Engineer/Assistant CLI/resident or live conversation")
-    return home, owner, live
+        raise ValueError("OpenCode execution requires an Assistant CLI/resident or live conversation")
+    # A CLI/resident caller has no route that outlives its session, so it stays
+    # bound to the session id that specialist-call derives.
+    return home, (_topic_owner(home) if live else owner), live
 
 
 @contextlib.contextmanager
@@ -667,8 +688,8 @@ def register(ctx):
         "patch": {"type": "boolean", "description": "diff only: include patches (truncated)"},
         "limit": {"type": "integer", "description": "list (1..100) or messages (1..50): how many"},
     }, ["action"],
-        "Inspect and steer your OpenCode sessions (those bound to this originating session). status reads a run "
-        "without waiting; wait blocks until it hands back, spending no turns; steer adds an instruction to a "
+        "Inspect and steer your OpenCode sessions (those bound to this conversation: the same topic and sender, "
+        "or this CLI session). status reads a run without waiting; wait blocks until it hands back, spending no turns; steer adds an instruction to a "
         "running turn; interrupt stops it (never a rollback); diff lists the newest turn's changed files "
         "(patch=true adds patches); messages reads recent messages; fork copies an idle session.")
     add("opencode_request", opencode_request, {
