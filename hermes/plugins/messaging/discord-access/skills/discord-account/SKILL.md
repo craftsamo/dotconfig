@@ -53,6 +53,7 @@ still apply.
 | Around one message | `context` with `channel` + `id` | mirror, else live |
 | Find words | `search` with `query` (substring over the mirror) | mirror |
 | Find older or unsynced history | `search` with `live=true`: `guild` (+ `channel`), a DM `channel`, or neither for every DM; 25 a page | live |
+| What is waiting for the user's answer | `pending` (DMs where others wrote last, server mentions and replies not yet answered; `after`, `guild`) | mirror |
 | Pinned messages / who mentioned the user | `pins` with `channel` / `mentions` (optional `guild`) | live |
 | People | `friends` (with the id of an existing DM), user ids from messages, `members` with `guild` + `query` (needs Manage Server) | refreshed / live |
 | A message's files | `media` with `channel` + `id` | live |
@@ -78,6 +79,12 @@ narrows by `after` / `before` and `limit`.
   channels with long posts) and page.
 - Keep long histories out of your context: read a bounded window and
   summarise, or collect to files (below).
+
+`pending` means "not answered", not "unread" (Discord's read state is not
+available): say so when reporting. An entry with `mirror_current: false` may
+have newer messages; read that chat before telling the user what it says. Do
+not answer for the user because something is pending: a reply is a write the
+user asks for.
 
 ## Files in a message
 
