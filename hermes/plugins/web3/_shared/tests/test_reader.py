@@ -557,6 +557,15 @@ def test_a_refused_log_range_is_split_and_what_was_not_read_is_named(endpoint, t
     assert wide["found"] == 30 and "unread_ranges" not in wide
 
 
+def test_a_range_past_the_call_limit_reads_the_newest_window_and_names_the_rest(endpoint, tmp_path):
+    data = engine({"action": "logs", "chain": "sepolia", "_rpc": endpoint, "address": LOGGY,
+                   "from_block": 1, "to_block": 6000, "limit": 3}, tmp_path)["data"]
+    assert data["from_block"] == 1001 and data["to_block"] == 6000
+    assert [event["block"] for event in data["events"]] == [6000, 5990, 5980]
+    beyond = data["unread_ranges"][0]
+    assert (beyond["from_block"], beyond["to_block"]) == (1, 1000) and "5000-block limit" in beyond["reason"]
+
+
 def test_logs_fail_only_when_no_range_could_be_read(endpoint, tmp_path):
     down = engine({"action": "logs", "chain": "sepolia", "_rpc": endpoint, "address": DOWN}, tmp_path)
     assert down["ok"] is False and "backend unavailable" in down["error"]

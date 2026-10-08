@@ -671,14 +671,18 @@ def logs(ctx, args) -> dict:
     start = h2i(args["from_block"]) if args.get("from_block") not in (None, "") else end - 999
     if end < start:
         raise ChainError("to_block is before from_block")
-    if end - start + 1 > LOG_RANGE:
-        raise ChainError(f"at most {LOG_RANGE} blocks per call; narrow from_block / to_block")
+    beyond = []
+    if end - start + 1 > LOG_RANGE:  # read the newest window; name the older blocks instead of failing
+        beyond = [{"from_block": start, "to_block": end - LOG_RANGE,
+                   "reason": f"beyond the {LOG_RANGE}-block limit of one call; ask again with these blocks"}]
+        start = end - LOG_RANGE + 1
     topics = []
     if args.get("event"):
         event = str(args["event"])
         topics = [event if _HASH.match(event) else abi.known_event_topic(event)]
     limit = _limit(args, MAX_LOGS, MAX_LOGS)
     found, unread = _get_logs(ctx, contract, start, end, topics, limit)
+    unread = beyond + unread
     events = []
     for log in found[:limit]:
         decoded = ctx.decoder.event(log)

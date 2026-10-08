@@ -41,7 +41,7 @@ simulation.
 | Holdings | `portfolio` (`chains=[…]`, up to six) |
 | Recent transfers of an address | `activity` |
 | A block | `block`; `detail=true` for fees and the top transactions |
-| One contract's events over a block range | `logs` (`address` = the contract, `event`, `from_block` / `to_block`: at most 5000 blocks and 100 events a call) |
+| One contract's events over a block range | `logs` (`address` = the contract, `event`, `from_block` / `to_block`: a call reads the newest 5000 blocks of the range and returns 100 events; `unread_ranges` names the rest) |
 | A token, its supply and price | `token`; a price alone with `price` |
 | What an address has approved | `allowances` |
 | Raw calldata, a pasted transaction or a log | `decode` |
