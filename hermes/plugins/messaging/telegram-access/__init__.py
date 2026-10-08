@@ -39,6 +39,7 @@ def _load(name, path):
 
 
 tg = _load("hermes_telegram_tg", Path(__file__).resolve().parent / "tg.py")
+human_gate = _load("hermes_human_gate", Path(__file__).resolve().parents[2] / "_shared" / "human_gate.py")
 
 DESCRIPTION = (
     "The user's own Telegram account (their chats, groups and channels — not the Assistant's bot). "
@@ -177,6 +178,10 @@ def telegram_account(args, **kwargs):
             raise tg.TelegramError(f"{TOOL} is not available to inbound A2A requests")
         if _is_send(args) and _unattended():
             return json.dumps({"ok": False, "error": UNATTENDED})
+        if _is_send(args):
+            reason = human_gate.no_human()
+            if reason:
+                return json.dumps({"ok": False, "error": human_gate.refusal(TOOL, reason)})
         text = json.dumps(tg.execute(args if isinstance(args, dict) else {}, home=_home(), call_id=_call_id()),
                           ensure_ascii=False)
         if len(text) > LIMIT:
@@ -196,6 +201,10 @@ def gate(**kwargs):
             return {"action": "block", "message": f"{TOOL} is not available to inbound A2A requests"}
         if _is_send(args) and _unattended():
             return {"action": "block", "message": f"{TOOL}: {UNATTENDED}"}
+        if _is_send(args):
+            reason = human_gate.no_human()
+            if reason:
+                return {"action": "block", "message": human_gate.refusal(TOOL, reason)}
         try:
             request = tg.approval_request(args if isinstance(args, dict) else {}, home=_home(),
                                           call_id=str(kwargs.get("tool_call_id") or ""))

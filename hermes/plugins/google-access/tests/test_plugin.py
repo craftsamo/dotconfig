@@ -35,6 +35,11 @@ def empty_keychain(tmp_path_factory, monkeypatch):
     plugin.access._CREDS.clear()
 
 
+@pytest.fixture(autouse=True)
+def person_present(monkeypatch):
+    monkeypatch.setattr(plugin.human_gate, "no_human", lambda: None)  # a person is there to answer cards
+
+
 class Ctx:
     def __init__(self, profile):
         self.profile_name = profile
@@ -149,6 +154,75 @@ def test_oversized_results_are_refused(tmp_path, monkeypatch):
     monkeypatch.setitem(plugin.ENGINES, "google_drive", lambda home, args: {"x": "y" * plugin.LIMIT})
     result = json.loads(plugin.google_drive({"action": "search"}))
     assert result["ok"] is False and "narrow" in result["error"]
+
+
+SID = "1AbCdEfGhIjKlMnOpQrStUvWxYz0123456789_-abcd"
+SHEET_WRITES = {
+    "update": {"range": "A1", "values": [["x"]]},
+    "batch_update": {"data": [{"range": "B2", "values": [["w"]]}]},
+    "append": {"range": "Log!A:C", "values": [["z"]]},
+    "add_sheet": {"title": "New"},
+    "clear": {"range": "A1:B9"},
+    "layout": {"ops": [{"op": "format", "range": "A1:C1", "bold": True}]},
+}
+REASONS = ["yolo mode is on", "this is a cron job", "nobody is present to answer"]
+
+
+def _write_calls(tmp_path):
+    report = tmp_path / "report.pdf"
+    report.write_bytes(b"%PDF")
+    calls = [("google_sheets", {"action": action, "spreadsheet_id": SID, **extra})
+             for action, extra in SHEET_WRITES.items()]
+    calls.append(("google_sheets", {"action": "create", "title": "Budget"}))
+    calls.append(("google_gmail", {"action": "send", "to": "a@example.com", "subject": "s", "body": "b"}))
+    calls.append(("google_drive", {"action": "upload", "path": str(report)}))
+    calls.append(("gcloud", {"command": ["run", "deploy"]}))
+    return calls
+
+
+@pytest.mark.parametrize("reason", REASONS)
+def test_a_write_is_refused_where_nobody_can_answer_its_card(tmp_path, monkeypatch, reason):
+    monkeypatch.setattr(plugin.human_gate, "no_human", lambda: reason)
+    monkeypatch.setattr(plugin, "_inbound_peer", lambda: False)
+    monkeypatch.setattr(plugin, "_home", lambda: tmp_path)
+    calls = _write_calls(tmp_path)
+    assert len(calls) == len(SHEET_WRITES) + 4
+    for tool, args in calls:
+        directive = plugin.gate(tool_name=tool, args=args)
+        assert directive["action"] == "block" and reason in directive["message"], (tool, args)
+        assert "Nothing was sent or changed" in directive["message"]
+        result = json.loads(getattr(plugin, tool)(args))
+        assert result["ok"] is False and reason in result["error"], (tool, args)
+        assert "Nothing was sent or changed" in result["error"]
+
+
+def test_reads_are_not_affected_by_the_missing_person(monkeypatch):
+    monkeypatch.setattr(plugin.human_gate, "no_human", lambda: "yolo mode is on")
+    for tool, args in (("google_sheets", {"action": "get", "spreadsheet_id": SID}),
+                       ("google_gmail", {"action": "search"}),
+                       ("google_drive", {"action": "search"}),
+                       ("gcloud", {"command": ["projects", "list"]})):
+        assert plugin.gate(tool_name=tool, args=args) is None
+    monkeypatch.setattr(plugin, "_inbound_peer", lambda: False)
+    monkeypatch.setitem(plugin.ENGINES, "gcloud", lambda home, args: {"ok": True})
+    monkeypatch.setattr(plugin, "_home", lambda: Path("."))
+    assert json.loads(plugin.gcloud({"command": ["projects", "list"]})) == {"ok": True}
+
+
+def test_with_a_person_present_a_write_still_gets_its_card(tmp_path):
+    for tool, args in _write_calls(tmp_path):
+        assert plugin.gate(tool_name=tool, args=args)["action"] == "approve", (tool, args)
+
+
+def test_the_genuine_check_refuses_a_write_in_this_headless_test_run(tmp_path, monkeypatch):
+    genuine = _load("google_access_human_gate_genuine", ROOT.parent / "_shared" / "human_gate.py")
+    monkeypatch.setattr(plugin.human_gate, "no_human", genuine.no_human)
+    monkeypatch.setattr(plugin, "_inbound_peer", lambda: False)
+    assert genuine.no_human() is not None
+    args = {"action": "update", "spreadsheet_id": SID, "range": "A1", "values": [["x"]]}
+    assert plugin.gate(tool_name="google_sheets", args=args)["action"] == "block"
+    result = json.loads(plugin.google_sheets(args))
+    assert result["ok"] is False and "not done" in result["error"]
 
 
 def test_the_skill_reaches_only_the_assistant():

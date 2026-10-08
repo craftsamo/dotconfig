@@ -128,7 +128,10 @@ be sent again afterwards.
 
 ## Send
 
-Send only what the user asked to send, to the chat they meant.
+Send only what the user asked to send, to the chat they meant. Where no one
+can answer a card (cron, a single-query run, YOLO or approvals off), the tool
+refuses with `not done` / `not sent`: ask the user to request the send in a
+chat, and do not look for another route.
 
 1. **Resolve account and jid by reading first** (above), never from a name
    or a number. `reply_to=<message id>` quotes the message being answered.

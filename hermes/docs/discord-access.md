@@ -581,7 +581,7 @@ the role actions) is refused outright wherever no person can answer, with
 - **The approval hook** refuses it before any card or file snapshot is built.
 - **The handler** refuses it again, so a write never depends on the hook having
   run, and a forged `_approved` or `_outbox` does not help.
-- **The check** is `plugins/messaging/_shared/human_gate.py` (`no_human`): YOLO,
+- **The check** is `plugins/_shared/human_gate.py` (`no_human`): YOLO,
   `approvals.mode: off`, cron, single-query, an unattended platform
   (`webhook`, `msgraph_webhook`, `api_server`), or no interactive terminal,
   gateway or ask bridge. It is the web3 tools' check, and it fails closed:

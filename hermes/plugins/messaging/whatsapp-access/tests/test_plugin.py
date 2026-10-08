@@ -33,6 +33,7 @@ def fake_run(args, *, account=None, write=False, timeout=None):
 def isolated(monkeypatch):
     monkeypatch.setattr(plugin.wa, "run", fake_run)  # never the real wacli or ~/.wacli
     monkeypatch.setattr(plugin, "_inbound_peer", lambda: False)
+    monkeypatch.setattr(plugin.human_gate, "no_human", lambda: None)   # a person is there to answer cards
 
 
 class Ctx:
@@ -135,6 +136,63 @@ def test_oversized_results_are_refused(monkeypatch):
     monkeypatch.setattr(plugin.wa, "execute", lambda args, home=None: {"x": "y" * plugin.LIMIT})
     result = json.loads(plugin.whatsapp({"action": "chats"}))
     assert result["ok"] is False and "narrow" in result["error"]
+
+
+SEND = {"action": "send", "account": "work", "chat": DM, "text": "hi"}
+READS = ({"action": "chats"}, {"action": "status"}, {"action": "messages", "chat": DM},
+         {"action": "search", "query": "hi"})
+
+
+@pytest.fixture
+def staging(tmp_path, monkeypatch):
+    workspace = tmp_path / "Workspaces"
+    workspace.mkdir()
+    (workspace / "a.txt").write_text("notes")
+    monkeypatch.setattr(plugin.wa, "SEND_ROOT", workspace)
+    monkeypatch.setenv(plugin.wa.STATE_ENV, str(tmp_path / "state"))
+    plugin.wa._PENDING.clear()
+
+
+@pytest.mark.parametrize("reason", ["yolo mode is on", "this is a cron job", "nobody is present to answer"])
+@pytest.mark.parametrize("extra", [{}, {"files": ["a.txt"]}, {"reply_to": "3EB0ABCDEF"},
+                                   {"files": ["a.txt"], "reply_to": "3EB0ABCDEF"}])
+def test_a_send_never_runs_where_no_person_can_answer_its_card(monkeypatch, staging, reason, extra):
+    monkeypatch.setattr(plugin.human_gate, "no_human", lambda: reason)
+    args = {**SEND, **extra}
+    ids = {"tool_call_id": "call-1", "session_id": "s"}
+    directive = plugin.gate(tool_name="whatsapp", args=args, **ids)
+    assert directive["action"] == "block" and reason in directive["message"]
+    assert "Nothing was sent or changed" in directive["message"]
+    for forged in ({}, {"_outbox": "0" * 32}):
+        result = json.loads(plugin.whatsapp({**args, **forged}))
+        assert result["ok"] is False and reason in result["error"]
+        assert "Nothing was sent or changed" in result["error"]
+    assert plugin.bind(tool_name="whatsapp", args=args, **ids) is None
+    assert plugin.wa._PENDING == {}                                        # no snapshot was staged
+    assert not plugin.wa.outbox().exists() or list(plugin.wa.outbox().iterdir()) == []
+
+
+def test_reads_are_not_affected_by_the_missing_person(monkeypatch):
+    monkeypatch.setattr(plugin.human_gate, "no_human", lambda: "yolo mode is on")
+    for args in READS:
+        assert plugin.gate(tool_name="whatsapp", args=args) is None
+        assert "Nothing was sent" not in plugin.whatsapp(args)
+
+
+def test_with_a_person_present_a_send_still_asks_for_its_card(staging):
+    directive = plugin.gate(tool_name="whatsapp", args={**SEND, "files": ["a.txt"]}, tool_call_id="c", session_id="s")
+    assert directive["action"] == "approve" and directive["rule_key"].startswith("whatsapp-access:send:")
+
+
+def test_the_genuine_check_refuses_a_send_in_this_headless_test_run(monkeypatch):
+    """Without the stub, the real check runs against Hermes' own approval code. A test run is
+    headless (nobody present, not a gateway), so the send is refused: the situation of `hermes -z`."""
+    genuine = _load("whatsapp_access_human_gate_genuine", ROOT.parents[1] / "_shared" / "human_gate.py")
+    monkeypatch.setattr(plugin.human_gate, "no_human", genuine.no_human)
+    assert genuine.no_human() is not None
+    result = json.loads(plugin.whatsapp(SEND))
+    assert result["ok"] is False and "not done" in result["error"]
+    assert plugin.gate(tool_name="whatsapp", args=SEND)["action"] == "block"
 
 
 def test_the_skill_reaches_only_the_assistant():

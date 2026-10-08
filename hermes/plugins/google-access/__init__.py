@@ -35,6 +35,7 @@ def _load(name, path):
 
 
 access = _load("hermes_google_access_engine", Path(__file__).resolve().parent / "access.py")
+human_gate = _load("hermes_human_gate", Path(__file__).resolve().parent.parent / "_shared" / "human_gate.py")
 
 APPROVAL = ("Calls that change something ({}) wait for the user's approval in chat before they run; "
             "a denial or timeout means it did not happen. Ask in plain words first when the request "
@@ -450,10 +451,24 @@ def _card_home():
         return None
 
 
+def _no_human_message(tool, args):
+    """The refusal text when this call changes something and no person can answer its card, else None.
+
+    The probe builds the card without home, so it makes no Google request; a call the tool would
+    reject raises AccessError here, as it does at the card."""
+    if not access.approval_request(tool, args if isinstance(args, dict) else {}, home=None):
+        return None
+    reason = human_gate.no_human()
+    return human_gate.refusal(tool, reason) if reason else None
+
+
 def _run(tool, args):
     try:
         if _inbound_peer():
             raise access.AccessError(f"{tool} is not available to inbound A2A requests")
+        refused = _no_human_message(tool, args)
+        if refused:
+            return json.dumps({"ok": False, "error": refused}, ensure_ascii=False)
         text = json.dumps(ENGINES[tool](_home(), args if isinstance(args, dict) else {}),
                           ensure_ascii=False)
         if len(text) > LIMIT:
@@ -492,6 +507,9 @@ def gate(**kwargs):
         if _inbound_peer():
             return {"action": "block", "message": f"{tool} is not available to inbound A2A requests"}
         try:
+            refused = _no_human_message(tool, args)
+            if refused:
+                return {"action": "block", "message": refused}
             request = access.approval_request(tool, args if isinstance(args, dict) else {}, home=_card_home())
         except Exception as exc:
             return {"action": "block", "message": f"{tool}: {exc}"}
