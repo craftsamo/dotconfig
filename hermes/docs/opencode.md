@@ -141,7 +141,10 @@ role its own `model`.
 
 **Hand-back.** A live caller gets the current state at once and a notifier
 process, launched through the terminal tool with completion notification, for
-the next hand-back. A blocking (CLI/resident) caller's run tool returns when the
+the next hand-back (it waits through provider retries, which the run call's
+state already carried). The notifier cannot know whether the caller already
+read that hand-back through `opencode_session wait`, so the skill has the caller
+answer such a notification with `[SILENT]`. A blocking (CLI/resident) caller's run tool returns when the
 turn finished (`completed`, `failed`, `interrupted`), paused (`waiting`), is
 stuck in a provider retry worth a decision (`running` with `retrying`; a limit
 at once, anything else from the third attempt), or cannot be confirmed
