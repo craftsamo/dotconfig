@@ -11,10 +11,12 @@ communication; code and identifiers stay as-is.
 
 View, search, and change files with the built-in tools, not the shell. Use
 `read` with `offset` and `limit` instead of `sed -n`, `head`, `tail`, `cat`,
-or `nl`. Use `grep` to search and `glob` to find paths; use `ls` or `rg` only
-when you need metadata, context lines, or flags those tools lack. Change files
-with `edit` or `write`, not `sed -i`, a heredoc, `tee`, or a Python rewrite.
-Use the shell for command output, tests, git, and stream transforms.
+or `nl`. Use `grep` to search and `glob` to find paths. Use `ls` only when
+you need metadata. For context around a hit in a file, `grep` to locate the
+line, then `read` with `offset` and `limit`. Use shell `rg -A` on command
+output, not on a file. Change files with `edit` or `write`, not `sed -i`, a
+heredoc, `tee`, or a Python rewrite. Use the shell for command output, tests,
+git, and stream transforms.
 
 </FileTools>
 
