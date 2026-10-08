@@ -72,7 +72,7 @@ def owned(info, owner):
     """The session's Hermes binding; raises unless it was bound by this caller."""
     meta = hermes_meta(info)
     if not meta or meta.get("owner") != owner:
-        raise ValueError("Session is not bound to this originating session")
+        raise ValueError("Session is not bound to this conversation (topic, sender and profile) or CLI session")
     return meta
 
 
