@@ -47,6 +47,11 @@ class Ctx:
         self.profile_name = profile
         self.tools = {}
         self.hooks = []
+        self.skills = {}
+
+    def register_skill(self, name, path, description="", frontmatter=None):
+        assert path.is_file() and frontmatter["name"] == name and description
+        self.skills[name] = path
 
     def register_tool(self, **kwargs):
         self.tools[kwargs["name"]] = kwargs
@@ -313,3 +318,18 @@ def test_oversized_results_are_refused(monkeypatch):
     monkeypatch.setattr(plugin.sa, "execute", lambda args, home=None, profile=None: {"x": "y" * plugin.LIMIT})
     result = json.loads(registered("assistant").tools["substack"]["handler"]({"action": "status"}))
     assert result["ok"] is False and "narrow" in result["error"]
+
+
+def test_the_write_skill_reaches_only_the_profile_that_can_write():
+    expected = {"assistant": {"substack", "substack-drafts"}, "marketer": {"substack"},
+                "searcher": {"substack"}, "creator": set()}
+    for profile, names in expected.items():
+        ctx = Ctx(profile)
+        plugin.register(ctx)
+        assert set(ctx.skills) == names
+    for profile in ("marketer", "searcher"):
+        ctx = Ctx(profile)
+        plugin.register(ctx)
+        body = ctx.skills["substack"].read_text()
+        assert not any(word in body for word in ("create_draft", "update_draft", "schedule", "approval card"))
+        assert 'substack-access:substack"' in ctx.tools["substack"]["description"]

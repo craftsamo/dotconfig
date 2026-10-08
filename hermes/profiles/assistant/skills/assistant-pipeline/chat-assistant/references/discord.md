@@ -1,6 +1,6 @@
 # Discord
 
-Load `skill_view(name="discord-account")` before any work in the user's own
+Load `skill_view(name="discord-access:discord-account")` before any work in the user's own
 Discord account: it owns the mechanics — the `discord_account` tool only
 (never the terminal, the token, the mirror files or Discord in the browser),
 low traffic, which action to read with, the sync list, files, collecting
@@ -20,7 +20,7 @@ The user's own direct requests: "〇〇さんとの DM 最近どうなってる�
   meaning and drafting; it is sent only when the user says to send it.
 - Collecting many channels or a long history for a document, an inventory or
   a summary is specialist work: promote it through Plan → Execute; the
-  technic's collection procedure applies there.
+  skill's collection procedure applies there.
 - Write tests ("できるか試して") go to the user's own test server
   「開発テスト」 and its test channels, never to a community server. If a
   channel name matches in more than one server or category, say which one you

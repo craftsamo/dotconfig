@@ -4,7 +4,9 @@ Ethereum, Base, Arbitrum, OP Mainnet, Polygon, BNB Chain, Avalanche and their
 testnets, read through the `evm` tool. It reads only: nothing is signed or
 sent, and a write function run with `call` is an `eth_call` simulation. A
 block explorer page shows the same chain data plus the explorer's own labels;
-cite the chain read; the explorer link the tool returns is its locator.
+cite the chain read; the explorer link the tool returns is its locator. The
+tool's actions and mechanics are `skill_view(name="evm-access:evm")`; this
+file holds how the evidence is weighed.
 
 ## What the chain proves
 

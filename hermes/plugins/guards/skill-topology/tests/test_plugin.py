@@ -116,6 +116,14 @@ class ManagedSkillWriteGuardTest(unittest.TestCase):
         result = self.guard("patch", mode="v4a", patch=f"*** Begin Patch\n*** Update File: {self.managed}\n")
         self.assertEqual(result["action"], "block")
 
+    def test_skills_shipped_inside_a_plugin_are_read_only(self) -> None:
+        shipped = self.plugin.MANAGED_ROOT / "plugins/social/x-access/skills/x-twitter"
+        for path in (shipped / "SKILL.md", shipped / "references/new.md", shipped.parent / "fresh/SKILL.md"):
+            self.assertEqual(self.guard("write_file", path=str(path), content="x")["action"], "block")
+            self.assertEqual(self.guard("terminal", command=f"echo x > {path}")["action"], "block")
+        self.assertEqual(self.guard("patch", path=str(shipped / "SKILL.md"), old_string="a", new_string="b")["action"], "block")
+        self.assertIsNone(self.guard("terminal", command=f"cat {shipped}/SKILL.md"))
+
     def test_learned_stays_writable(self) -> None:
         self.assertIsNone(self.guard("write_file", path=self.learned, content="x"))
 

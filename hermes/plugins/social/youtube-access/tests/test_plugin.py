@@ -42,6 +42,11 @@ class Ctx:
         self.profile_name = profile
         self.tools = {}
         self.hooks = []
+        self.skills = {}
+
+    def register_skill(self, name, path, description="", frontmatter=None):
+        assert path.is_file() and frontmatter["name"] == name and description
+        self.skills[name] = path
 
     def register_tool(self, **kwargs):
         self.tools[kwargs["name"]] = kwargs
@@ -199,3 +204,18 @@ def test_bind_hook_pins_writes_only():
     assert pinned == {"action": "modify", "args": {"_bound": {"channel": CID}}}
     out = json.loads(plugin.handle("assistant", {"action": "reply", "comment": "Ugx" + "c" * 20, "text": "hi"}))
     assert out["ok"] is False and "not bound" in out["error"]
+
+
+def test_the_write_skill_reaches_only_the_profile_that_can_write():
+    expected = {"assistant": {"youtube", "youtube-manage"}, "marketer": {"youtube"},
+                "searcher": {"youtube"}, "creator": set()}
+    for profile, names in expected.items():
+        ctx = Ctx(profile)
+        plugin.register(ctx)
+        assert set(ctx.skills) == names
+    for profile in ("marketer", "searcher"):
+        ctx = Ctx(profile)
+        plugin.register(ctx)
+        body = ctx.skills["youtube"].read_text().lower()
+        assert not any(word in body for word in ("youtube-manage", "approval", "studio", "channel_update"))
+        assert 'youtube-access:youtube"' in ctx.tools["youtube"]["description"]

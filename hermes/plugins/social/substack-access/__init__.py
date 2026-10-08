@@ -8,6 +8,9 @@ Every write of the Assistant waits for the user on an approval card (the ``gate`
 what was approved; writes are refused where no person can approve (cron, single queries).
 Inbound A2A never reaches the Assistant's account access; Marketer may answer a peer's question
 with a read. The gate also blocks terminal and file calls that would go around the tool.
+The plugin also ships read-only skills (``skills/``), registered as ``substack-access:<skill>``:
+the read mechanics for every profile that has the tool, and the write procedure only for the
+profile that can write.
 Contract: docs/substack-access.md.
 """
 
@@ -15,6 +18,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import logging
 from pathlib import Path
 import sys
 
@@ -22,6 +26,7 @@ TOOLSET = "substack_access"
 TOOL = "substack"
 LIMIT = 60000
 A2A_READERS = {"marketer"}
+logger = logging.getLogger(__name__)
 
 
 def _load(name, path):
@@ -36,6 +41,10 @@ def _load(name, path):
 sa = _load("hermes_substack_access_engine", Path(__file__).resolve().parent / "sa.py")
 
 PROFILES = set(sa.PROFILE_ACTIONS)
+# Skill -> the profiles it is registered for. A skill is read-only to Hermes (not editable through
+# skill_manage); a profile that cannot do what a skill describes is not given it.
+SKILLS = {"substack": set(PROFILES), "substack-drafts": {p for p in PROFILES if set(sa.WRITES) & set(sa.actions_for(p))}}
+SKILL_HINT = ' For anything past a single lookup, first load skill_view(name="substack-access:substack").'
 
 READ_DESCRIPTION = (
     "status (engine, whether the account's cookies are stored or were refused, a running rate limit, calls "
@@ -126,7 +135,7 @@ def schema_for(profile: str) -> dict:
         properties = {key: value for key, value in properties.items() if key == "action" or key in PUBLIC_PROPERTIES}
     if writes_for(profile):
         properties.update(WRITE_PROPERTIES)
-    return {"name": TOOL, "description": description_for(profile), "parameters": {
+    return {"name": TOOL, "description": description_for(profile) + SKILL_HINT, "parameters": {
         "type": "object", "properties": properties, "required": ["action"], "additionalProperties": False}}
 
 
@@ -265,6 +274,21 @@ def bind(profile: str, **kwargs):
     return {"action": "modify", "args": partial} if partial else None
 
 
+def register_skills(ctx, profile):
+    """Register this profile's skills; a skill that cannot be read is logged and never costs the tool."""
+    for name, profiles in SKILLS.items():
+        if profile not in profiles:
+            continue
+        try:
+            from agent.skill_utils import parse_frontmatter
+
+            path = Path(__file__).resolve().parent / "skills" / name / "SKILL.md"
+            meta, _ = parse_frontmatter(path.read_text(encoding="utf-8"))
+            ctx.register_skill(name, path, description=meta["description"], frontmatter=meta)
+        except Exception as exc:
+            logger.warning("substack-access skill %s not registered: %s", name, exc)
+
+
 def register(ctx):
     profile = ctx.profile_name
     if profile not in PROFILES:
@@ -275,3 +299,4 @@ def register(ctx):
     ctx.register_hook("pre_tool_call", lambda **kwargs: gate(profile, **kwargs))
     if writes_for(profile):
         ctx.register_hook("pre_tool_call", lambda **kwargs: bind(profile, **kwargs))
+    register_skills(ctx, profile)
