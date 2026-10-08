@@ -49,7 +49,7 @@ archives = _load("hermes_archive_check", HERE.parent / "_shared" / "archive_chec
 
 ACTIONS = ("status", "guilds", "channels", "dms", "messages", "search", "context", "backfill", "media",
            "threads", "pins", "mentions", "pending", "stats", "export", "friends", "roles", "member", "role_members", "members",
-           "guild_info", "emojis", "events", "sync_list", "sync_suggest", "sync_add", "sync_remove", "send", "react", "unreact", "edit", "delete",
+           "guild_info", "emojis", "events", "invites", "sync_list", "sync_suggest", "sync_add", "sync_remove", "send", "react", "unreact", "edit", "delete",
            "role_add", "role_remove", "role_bulk_add", "role_create", "role_edit", "role_delete")
 MESSAGE_WRITES = {"react", "unreact", "edit", "delete"}
 ROLE_WRITES = {"role_add", "role_remove", "role_bulk_add", "role_create", "role_edit", "role_delete"}
@@ -69,7 +69,8 @@ AGENT_LABEL = "local.hermes.discord-access.sync"
 
 LIMITS = {"dms": (30, 200), "messages": (50, 200), "search": (30, 200), "live_search": (25, 25),
           "threads": (25, 25), "pins": (50, 50), "mentions": (25, 25), "members": (25, 100),
-          "pending": (30, 100), "sync_suggest": (10, 30), "emojis": (100, 300), "events": (25, 100)}
+          "pending": (30, 100), "sync_suggest": (10, 30), "emojis": (100, 300), "events": (25, 100),
+          "invites": (25, 100)}
 PENDING_DAYS = 14           # pending looks back this far unless after says otherwise
 PENDING_TYPES = "(m.type IS NULL OR m.type IN (0, 19))"   # a plain message or a reply
 ROLES_FRESH = 900           # a role write needs the server's role list read within this
@@ -1347,6 +1348,55 @@ def events(args: dict) -> dict:
         result["more"] = f"showing {limit} of {len(rows)}; raise limit (up to {LIMITS['events'][1]})"
     result["note"] = ("Discord lists scheduled and active events (finished ones may be missing). interested = "
                       "members who marked interest. " + UNTRUSTED)
+    return result
+
+
+INVITES_NOTE = ("An invite code lets anyone join the server: show it to the user only, and never put it in a "
+                "message, a file or another tool unless they ask. ")
+
+
+def invites(args: dict) -> dict:
+    """The server's invite links. Needs Manage Server: refused without a request when the role list
+    read within the last 15 minutes shows the user lacks it."""
+    gid, name, _ = _known_guild(args)
+    limit = _limit(args, "invites")
+    with _mirror() as conn:
+        try:
+            ctx = role_context(conn, gid)
+        except DiscordError:
+            ctx = None                      # roles not read lately: Discord decides
+    if ctx and not ctx["perms"] & (perms.MANAGE_GUILD | perms.ADMINISTRATOR):
+        raise DiscordError("listing a server's invites needs the Manage Server permission, which you do not hold "
+                           "there (as of the role list last read)")
+    try:
+        data = call_engine("invites", {"guild": gid})
+    except DiscordError as exc:
+        if "403" in str(exc):
+            raise DiscordError("listing a server's invites needs the Manage Server permission in that server") from exc
+        raise
+    rows = sorted(data.get("invites") or [], key=lambda i: i.get("created") or "", reverse=True)
+    out = []
+    for i in rows[:limit]:
+        item = {"code": i["code"], "url": f"https://discord.gg/{i['code']}"}
+        uses, cap = i.get("uses"), i.get("max_uses")
+        if isinstance(uses, int):
+            item["uses"] = f"{uses} of {cap}" if isinstance(cap, int) and cap > 0 else uses
+        item["expires"] = _when(i["expires"]) if i.get("expires") else "never"
+        if i.get("created"):
+            item["created"] = _when(i["created"])
+        if i.get("temporary"):
+            item["temporary"] = True
+        if i.get("inviter") or i.get("inviter_id"):
+            item["inviter"] = i.get("inviter") or i["inviter_id"]
+        if i.get("channel"):
+            item["channel"] = i["channel"]
+            if i.get("channel_name"):
+                item["channel_name"] = i["channel_name"]
+        out.append(item)
+    result = {"ok": True, "guild": gid, "server": name, "invites": out, "total": len(rows)}
+    if len(rows) > limit:
+        result["more"] = f"showing {limit} of {len(rows)}; raise limit (up to {LIMITS['invites'][1]})"
+    result["note"] = INVITES_NOTE + "temporary = members who join through it are removed when they go offline. " + UNTRUSTED
     return result
 
 
@@ -2816,7 +2866,7 @@ def outbox_binding(args: dict, home: Path | None = None, ids: dict | None = None
 READS = {"status": status, "guilds": guilds, "channels": channels, "dms": dms, "messages": messages,
          "search": search, "context": context, "backfill": backfill, "threads": threads, "pins": pins,
          "mentions": mentions, "pending": pending, "stats": stats, "friends": friends, "roles": roles, "member": member, "role_members": role_members,
-         "members": members, "guild_info": guild_info, "emojis": emojis, "events": events,
+         "members": members, "guild_info": guild_info, "emojis": emojis, "events": events, "invites": invites,
          "sync_list": sync_list, "sync_suggest": sync_suggest, "sync_add": sync_add, "sync_remove": sync_remove}
 
 
