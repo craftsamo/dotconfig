@@ -51,10 +51,10 @@ Alternatively use the explicitly authorized original settled brief only while
 unchanged. Missing relayed baseline or authorized original settled brief means
 unverified: request the missing baseline as a spec-gap through the primary.
 No acceptance from purpose alone, conclusions alone or specialist self-QA.
-Researcher's specialist QA is a self-check, not an
+Researcher's specialist self-check, Build's last step, is a self-check, not an
 external pass: the immediate primary Client independently accepts its evidence,
 and Assistant still gates the returned deliverable. Do not copy the public
-specialist QA procedure here or relax any scoring, criteria or correction limit.
+specialist self-check procedure here or relax any scoring, criteria or correction limit.
 
 1. **Evidence check** — every nontrivial claim traces to a scored
    source, a direct observation, or a stated uncertainty; per-claim

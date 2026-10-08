@@ -86,6 +86,10 @@ simulation.
   the implementation it had then.
 - `allowances` scans a recent window (50000 blocks by default, `blocks` up to
   200000) and misses older approvals; carry its `coverage` along.
+- `logs` returns the newest events first. A busy contract's range is split
+  when the endpoint refuses it as too large, and once the event limit is in
+  hand the older blocks are not fetched: `unread_ranges` names each range left
+  unread and why. `found` counts only what was read.
 - Without an `ETHERSCAN_API_KEY`, contracts verified only on Etherscan read as
   unverified.
 - An empty result over a window is not "none ever". Record what was not

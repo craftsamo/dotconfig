@@ -13,7 +13,7 @@ each unit's mode entry in a sequence.
    and stop points, not whole project decomposition or cross-role assignment.
 3. Use supplied materials only, no unapproved external search. If scope needs
    discovery, propose a bounded preliminary Build with scope, output, finite cap
-   and stop condition. Obtain agreement, run Build + QA, then refine Plan and
+   and stop condition. Obtain agreement, run that Build with its check, then refine Plan and
    agree the main work; preliminary approval never releases the main search.
 4. Obtain client agreement before Build. Fields or transport kind are not release.
    An explicitly authorized settled execution brief can enter Build directly;

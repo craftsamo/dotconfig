@@ -28,25 +28,52 @@ entry when switching units.
    remains and why as the stop reason, and hand back. Never claim a commit or a
    save that did not happen; a checkpoint here is a saved file, not a Git commit.
 
+## Check
+
+Before delivering, check the actual results against the agreed scope,
+coverage, per-item fields, links, freshness, done criteria and budget with the
+mode entry's Verification, from the retrieved-source records, not memory: in
+the same turn, as Build's last step. Check the stop reason too: a stop with
+most of the turn budget unused and the done criteria unmet, or a claimed
+commit or save with no file behind it, is Unmet, not a pass. This is retrieval
+self-check, not a trust verdict, synthesis, rankings, caller final acceptance
+or a new self numeric score, and it runs no new search of its own. On a
+resumed or compacted turn, check from the named files or retained records,
+never a remembered summary; what cannot be recovered is reported as
+unverified and requested, never rebuilt by searching again.
+
 ## Output template
 
 Use the mode's full output template, adding purpose/scope, consumed and
 remaining budget, retained coverage/frontier and a stop reason. Findings remain
 link-first claims + URLs + dates/flags, with `Open for researcher`, not essays.
 Put the interpretation line first whenever a harmless assumption was needed.
+Close with the check:
+
+```text
+Checked: <scope/coverage/links/dates/fields and supporting records>
+Unmet: <missing agreed requirement and evidence>
+Unverified: <inaccessible evidence or open judgment>
+Budget / continuity: <consumed, remaining, retained coverage/frontier>
+```
 
 ## Verification
 
 The mode's method was followed, its ledger retained, and the cap not expanded.
 No guessed URL, silent gap, new grant or synthesis entered the result, and the
 stop reason is true: no budget called spent while most of it remained, no
-commit or save claimed that did not happen. Continue with QA before declaring
-delivery checked; Build is not independent acceptance.
+commit or save claimed that did not happen. The check above ran and its
+unmet items are in the reply; Build is not independent acceptance.
 
 ## Handoff
 
-Continue with [QA](qa.md) and the mode entry's Verification, with the agreed
-brief, full findings and ledger. A hunt that ends a turn before saturation
-hands back its ledger and the gaps so the caller can continue the same
-conversation; delivery follows QA. A preliminary result goes through QA to
-refined Plan, never directly into an unapproved main search.
+Deliver the complete unit report with its check in the final reply, durable
+paths named in resident work; scratch files are not delivery. Corrections stay
+in Build within the same scope and remaining budget; expansion goes to
+[Plan](plan.md) and client agreement. A hunt that ends a turn before
+saturation hands back its ledger and the gaps so the caller can continue the
+same conversation. A preliminary result goes to refined Plan, never directly
+into an unapproved main search. Caller acceptance remains open. Advance
+another unit only if already agreed and released for execution, retaining
+results and consumed budget; an explicit caller review gate must be satisfied
+first.

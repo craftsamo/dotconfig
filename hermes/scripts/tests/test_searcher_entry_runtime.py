@@ -1,5 +1,5 @@
 """Opt-in, offline integration with the real Hermes source and the public
-Searcher candidate docs (kernel + 3 modes + 3 stage and 2 chain references), no private checkout.
+Searcher candidate docs (kernel + 3 modes + 2 stage and 2 chain references), no private checkout.
 
 Empty PYTHONPATH skips (offline default); an explicit PYTHONPATH lacking a
 real Hermes source checkout fails. The candidate tree resolves relative to
@@ -31,7 +31,7 @@ import pytest
 
 
 CHILDREN = ("lookup-searcher", "sweep-searcher", "hunt-searcher")
-STAGES = ("plan", "build", "qa")
+STAGES = ("plan", "build")
 EXPECTED = {"searcher-pipeline"} | set(CHILDREN)
 ALLOW = {"skills_list", "skill_view", "read_file"}
 CASES = ("discovery", "reads_and_reuse", "recovery", "relocation")
@@ -58,7 +58,7 @@ def test_searcher_entry_runtime(case):
         "SKILL.md", *(f"{name}/SKILL.md" for name in CHILDREN),
         *(f"references/{stage}.md" for stage in STAGES),
         "references/platforms/evm.md", "references/platforms/solana.md",
-    }, "Searcher must have exactly nine instruction documents: kernel, modes, stages and chains"
+    }, "Searcher must have exactly eight instruction documents: kernel, modes, stages and chains"
 
     with tempfile.TemporaryDirectory(prefix="searcher-entry-runtime-") as directory:
         sandbox = Path(directory).resolve()
@@ -147,7 +147,7 @@ def _child(case, sandbox, candidate_tree, source):
         skills = home / ".hermes/skills"
         tree = skills / "searcher-pipeline"
         docs = sorted(candidate_tree.rglob("*.md"))
-        assert len(docs) == 9, "Candidate tree must hold kernel + modes + stage and chain references"
+        assert len(docs) == 8, "Candidate tree must hold kernel + modes + stage and chain references"
         for path in docs:
             assert not path.is_symlink() and path.resolve().is_relative_to(candidate_tree)
             target = tree / path.relative_to(candidate_tree)
@@ -260,7 +260,7 @@ def _child(case, sandbox, candidate_tree, source):
                     contents.append(result["content"])
                     repeat = view("searcher-pipeline", relative, task=task)
                     assert repeat["status"] == "unchanged" and repeat["content_returned"] is False
-                assert len(set(contents)) == 3
+                assert len(set(contents)) == 2
 
                 root_again = view("searcher-pipeline", task=task)
                 assert root_again["status"] == "unchanged" and root_again["content_returned"] is False

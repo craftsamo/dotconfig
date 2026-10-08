@@ -21,8 +21,7 @@ reference in current context, not a past load or summary. Direct entry requires
 `skill_view(name="searcher-pipeline")` before any stage. Load
 `skill_view(name="lookup-searcher")` and the current stage with
 `skill_view(name="searcher-pipeline", file_path="references/<stage>.md")`:
-[Plan](../references/plan.md), [Build](../references/build.md) or
-[QA](../references/qa.md). On-chain retrieval also requires the chain's
+[Plan](../references/plan.md) or [Build](../references/build.md). On-chain retrieval also requires the chain's
 shared reference: [EVM](../references/platforms/evm.md) or
 [Solana](../references/platforms/solana.md).
 If unchanged is returned while the earlier body is unavailable, or a body is
@@ -113,7 +112,7 @@ Keep it link-first. No essays.
 
 ## Handoff
 
-Plan ends at the client's agreement. Build hands straight to QA in the same
-turn, and only QA's checked delivery reaches the caller. Each stage's own
-Handoff in its shared reference says what follows. Keep this mode for the unit; another kind of retrieval is another
+Plan ends at the client's agreement. Build ends, in the same turn, with the
+check against this entry's Verification, and the reply carries it. Each
+stage's own Handoff in its shared reference says what follows. Keep this mode for the unit; another kind of retrieval is another
 agreed unit with its own mode entry, never a silent switch.
