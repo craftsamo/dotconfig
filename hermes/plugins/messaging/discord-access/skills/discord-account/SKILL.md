@@ -161,7 +161,11 @@ waits on an approval card the user answers. The card is the confirmation:
 call the tool directly, without asking first in chat or with `clarify`,
 unless it is unclear which target or what change the user means. A write
 needs the user there to answer its card, so never schedule one in a cron
-job; schedule a reminder instead.
+job; schedule a reminder instead. Where no one can answer a card (cron, a
+one-shot `hermes -z` run, an unattended platform) the tool refuses every
+write with `not done` and the reason: nothing was sent or changed, so tell
+the user to make the request in a chat with you, and never look for another
+route to the same write.
 
 1. **Read first.** Resolve the chat, the message or the role by reading, and
    keep its ids. `send` goes only to an existing DM or a channel or thread

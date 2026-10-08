@@ -26,6 +26,7 @@ def isolated(tmp_path, monkeypatch):
     monkeypatch.setenv(store.STATE_ENV, str(tmp_path / "state"))
     monkeypatch.setattr(plugin.access, "call_engine", lambda *a, **k: pytest.fail("engine called"))
     monkeypatch.setattr(plugin, "_inbound_peer", lambda: False)
+    monkeypatch.setattr(plugin.access.human_gate, "no_human", lambda: None)   # a person is there to answer cards
     conn = store.connect(write=True)
     store.set_meta(conn, "me", {"id": "100000000000000001", "username": "me", "name": "Me"})
     store.upsert_channel(conn, store.channel_row({"id": DM, "type": 1, "recipients": [
@@ -241,3 +242,68 @@ def test_the_description_has_no_action_that_does_not_exist():
                    r"pending|stats|export|friends|roles|member|members|events|emojis|invites|send|react|unreact|"
                    r"edit|delete|pin|unpin) \(", plugin.DESCRIPTION))
     assert claimed <= set(plugin.access.ACTIONS), sorted(claimed - set(plugin.access.ACTIONS))
+
+
+# --- a write never runs where no person can answer its card ------------------------------------------------
+
+WRITE_CALLS = {
+    "send": {"action": "send", "channel": DM, "text": "hi"},
+    "react": {"action": "react", "channel": DM, "id": "500000000000000001", "emoji": "x"},
+    "unreact": {"action": "unreact", "channel": DM, "id": "500000000000000001", "emoji": "x"},
+    "edit": {"action": "edit", "channel": DM, "id": "500000000000000001", "text": "new"},
+    "delete": {"action": "delete", "channel": DM, "id": "500000000000000001"},
+    "pin": {"action": "pin", "channel": DM, "id": "500000000000000001"},
+    "unpin": {"action": "unpin", "channel": DM, "id": "500000000000000001"},
+    "role_add": {"action": "role_add", "guild": "300000000000000001", "role": "600000000000000001",
+                 "user": "100000000000000002"},
+    "role_bulk_add": {"action": "role_bulk_add", "guild": "300000000000000001", "role": "600000000000000001",
+                      "users": ["100000000000000002"]},
+    "role_create": {"action": "role_create", "guild": "300000000000000001", "name": "Test"},
+    "role_edit": {"action": "role_edit", "guild": "300000000000000001", "role": "600000000000000001", "name": "T"},
+    "role_delete": {"action": "role_delete", "guild": "300000000000000001", "role": "600000000000000001"},
+    "role_remove": {"action": "role_remove", "guild": "300000000000000001", "role": "600000000000000001",
+                    "user": "100000000000000002"},
+}
+
+
+def test_the_table_of_write_calls_covers_every_write():
+    assert set(WRITE_CALLS) == set(plugin.access.WRITES)
+
+
+@pytest.mark.parametrize("reason", ["yolo mode is on", "approvals are off (approvals.mode: off)",
+                                    "this is a cron job", "this is a single-query run",
+                                    "this platform is unattended", "nobody is present to answer"])
+@pytest.mark.parametrize("action", sorted(WRITE_CALLS))
+def test_a_write_is_refused_before_any_card_where_nobody_can_answer(monkeypatch, action, reason):
+    monkeypatch.setattr(plugin.access.human_gate, "no_human", lambda: reason)
+    args = WRITE_CALLS[action]
+    directive = plugin.gate(tool_name="discord_account", args=args, tool_call_id="call-1", session_id="s")
+    assert directive["action"] == "block" and reason in directive["message"]
+    assert "Nothing was sent or changed" in directive["message"] and "approve" not in directive.values()
+    # the handler refuses on its own, whatever the hooks did: a forged key does not help
+    for forged in ({}, {"_approved": "discord-access:" + action + ":forged"}, {"_outbox": "0" * 32}):
+        result = json.loads(plugin.discord_account({**args, **forged}))
+        assert result["ok"] is False and reason in result["error"]
+
+
+def test_reads_and_the_sync_list_are_not_affected_by_the_missing_person(monkeypatch):
+    monkeypatch.setattr(plugin.access.human_gate, "no_human", lambda: "yolo mode is on")
+    for args in ({"action": "dms"}, {"action": "status"}, {"action": "sync_list"}, {"action": "pending"}):
+        assert plugin.gate(tool_name="discord_account", args=args) is None
+        assert json.loads(plugin.discord_account(args))["ok"] is True
+
+
+def test_with_a_person_present_a_write_still_asks_for_its_card():
+    directive = plugin.gate(tool_name="discord_account", args=WRITE_CALLS["send"], tool_call_id="c", session_id="s")
+    assert directive["action"] == "approve" and directive["rule_key"].startswith("discord-access:send:")
+
+
+def test_the_genuine_check_refuses_a_write_in_this_headless_test_run(monkeypatch):
+    """Without the stub, the real check runs against Hermes' own approval code. A test run is
+    headless (nobody present, not a gateway), so the write is refused: the situation of `hermes -z`."""
+    genuine = _load("discord_access_human_gate_genuine", ROOT.parent / "_shared" / "human_gate.py")
+    monkeypatch.setattr(plugin.access.human_gate, "no_human", genuine.no_human)
+    assert genuine.no_human() is not None
+    result = json.loads(plugin.discord_account(WRITE_CALLS["send"]))
+    assert result["ok"] is False and "not done" in result["error"]
+    assert plugin.gate(tool_name="discord_account", args=WRITE_CALLS["send"])["action"] == "block"

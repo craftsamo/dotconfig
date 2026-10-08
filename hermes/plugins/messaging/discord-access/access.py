@@ -46,6 +46,7 @@ def _load(name, path):
 store = _load("hermes_discord_access_store", HERE / "store.py")
 perms = _load("hermes_discord_access_perms", HERE / "perms.py")
 archives = _load("hermes_archive_check", HERE.parent / "_shared" / "archive_check.py")
+human_gate = _load("hermes_human_gate", HERE.parent / "_shared" / "human_gate.py")
 
 ACTIONS = ("status", "guilds", "channels", "dms", "messages", "search", "context", "backfill", "media",
            "threads", "pins", "mentions", "pending", "stats", "export", "friends", "roles", "member",
@@ -708,8 +709,8 @@ def search(args: dict) -> dict:
     if args.get("live") is True:
         used = [k for k in MIRROR_ONLY if args.get(k) not in (None, "", False)]
         if used:
-            raise DiscordError(f"{', '.join(used)} filter the mirror only (Discord's own search has no such filter): "
-                               "search without live=true")
+            raise DiscordError(f"{', '.join(used)}: only the mirror can be filtered this way (Discord's own search "
+                               "has no such filter): search without live=true")
         return live_search(args)
     query = _str(args, "query")
     if not (query or author or has or reacted or emoji or parent):
@@ -2887,9 +2888,22 @@ def binding(args: dict, home: Path | None = None, ids: dict | None = None) -> di
     return outbox_binding(args, home=home, ids=ids) or write_binding(args, ids)
 
 
+def no_human_message(action) -> str | None:
+    """Why a write may not run here (nobody can answer its card), as the text it ends with; None for a
+    read or when a person can answer. The approval hook asks first; the handler asks again, so a write
+    never depends on the hook having been called."""
+    if action not in WRITES:
+        return None
+    reason = human_gate.no_human()
+    return human_gate.refusal("discord_account", reason) if reason else None
+
+
 def execute(args: dict, home: Path | None = None) -> dict:
     args = args if isinstance(args, dict) else {}
     action = action_of(args)
+    refused = no_human_message(action)
+    if refused:
+        return {"ok": False, "error": refused}
     if action == "send":
         return send(args, home=home)
     if action in WRITES:
