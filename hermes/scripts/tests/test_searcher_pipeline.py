@@ -338,6 +338,10 @@ def test_chain_reads_are_retrieval_without_verdicts():
             assert phrase in text, phrase
     assert "`powers`" in evm and "`guessed`" in evm and "block ranges actually read" in evm
     assert "`address` = the contract" in evm and "`omitted`" in evm and "`coverage`" in evm
+    assert "`state_unread`" in evm and "zero address is unset" in evm and "`block`" in evm
+    assert "`slot`" in solana
+    for name in ENTRIES:
+        assert "only QA's checked delivery reaches the caller" in flat(PIPELINE / name / "SKILL.md")
     assert "latest 50 signatures" in solana and "no paging" in solana
     assert "`program`" in solana and "slot" in solana
     root = flat(PIPELINE / "SKILL.md")

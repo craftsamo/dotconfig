@@ -19,7 +19,7 @@ from eth_abi import decode as abi_decode, encode as abi_encode
 
 import abi
 import chains
-from evm import (EIP1967_ADMIN, EIP1967_BEACON, EIP1967_IMPL, _bytes, _proxy, block_param, checksum,
+from evm import (EIP1967_ADMIN, EIP1967_BEACON, EIP1967_IMPL, ZOS_ADMIN, ZOS_IMPL, _bytes, _proxy, checksum, pin,
                  resolve_address)
 from rpc import ChainError
 
@@ -50,7 +50,7 @@ KNOWN_GETTERS = {"8da5cb5b": ("owner", "address"), "893d20e8": ("getOwner", "add
                  "5c975abb": ("paused", "bool"), "06fdde03": ("name", "string"), "95d89b41": ("symbol", "string"),
                  "313ce567": ("decimals", "uint8"), "18160ddd": ("totalSupply", "uint256")}
 NAMED_SLOTS = {"eip1967.implementation": EIP1967_IMPL, "eip1967.admin": EIP1967_ADMIN,
-               "eip1967.beacon": EIP1967_BEACON}
+               "eip1967.beacon": EIP1967_BEACON, "zos.implementation": ZOS_IMPL, "zos.admin": ZOS_ADMIN}
 _SIMPLE = re.compile(r"^(address|bool|string|bytes\d*|u?int\d*)$")
 _CONSTANT = re.compile(r"^[A-Z0-9_]+$")  # PERMIT_TYPEHASH and the like never change
 
@@ -59,18 +59,19 @@ _CONSTANT = re.compile(r"^[A-Z0-9_]+$")  # PERMIT_TYPEHASH and the like never ch
 
 def contract(ctx, args) -> dict:
     target, ens = resolve_address(ctx, args.get("address"))
-    raw = _bytes(ctx.rpc.call("eth_getCode", [target, "latest"]))
+    block, number = pin(ctx, None)
+    raw = _bytes(ctx.rpc.call("eth_getCode", [target, block]))
     if raw.startswith(b"\xef\x01\x00") and len(raw) == 23:
         raise ChainError(f"{target} is an account delegating to {checksum('0x' + raw[3:].hex())} (EIP-7702); "
                          "analyse that contract")
     if not raw:
         raise ChainError(f"{target} has no contract code (an account, or a contract not deployed on {ctx.chain})")
-    proxy = _proxy(ctx, target, raw) or {}
+    proxy = _proxy(ctx, target, raw, block) or {}
     own = ctx.decoder.record(target, rich=True)
-    logic = own["implementation"] or proxy.get("implementation")
+    logic = proxy.get("implementation") or own["implementation"]  # the chain at this block first
     logic = checksum(logic) if logic and checksum(logic) != target else None
     impl = ctx.decoder.record(logic, rich=True) if logic else None
-    result = {"chain": ctx.chain, "address": target, "ens": ens, "code_size": len(raw),
+    result = {"chain": ctx.chain, "address": target, "ens": ens, "block": number, "code_size": len(raw),
               "explorer": chains.explorer(ctx.chain, "address", target)}
     if proxy or logic:
         result["proxy"] = {**proxy, **({"implementation": logic} if logic else {})}
@@ -82,10 +83,10 @@ def contract(ctx, args) -> dict:
     unread = impl is not None and not impl["entries"]  # what the proxy runs is unverified
     if entries:
         docs = {**(own.get("userdoc") or {}), **((impl or {}).get("userdoc") or {})}
-        result.update(_interface(ctx, target, entries, docs))
+        result.update(_interface(ctx, target, entries, docs, block))
     if not entries or unread:
-        code = _bytes(ctx.rpc.call("eth_getCode", [logic, "latest"])) if logic else raw
-        guessed = _guessed_interface(ctx, target, code or raw)
+        code = _bytes(ctx.rpc.call("eth_getCode", [logic, block])) if logic else raw
+        guessed = _guessed_interface(ctx, target, code or raw, block)
         if not entries:
             result.update(guessed)
         else:
@@ -93,6 +94,9 @@ def contract(ctx, args) -> dict:
             for power, names in guessed["powers"].items():
                 result["powers"][power] = list(dict.fromkeys(result["powers"].get(power, []) + names))
             result["state"] = {**guessed["state"], **result["state"]}
+            unread = result.pop("state_unread", []) + guessed.get("state_unread", [])
+            if unread:
+                result["state_unread"] = sorted(set(unread))
     return result
 
 
@@ -111,7 +115,7 @@ def _capped(items: list, key: str) -> dict:
     return out
 
 
-def _interface(ctx, target: str, entries: list, docs: dict) -> dict:
+def _interface(ctx, target: str, entries: list, docs: dict, block: str) -> dict:
     seen, reads, writes = set(), [], []
     for entry in entries:
         if entry.get("type") != "function" or not entry.get("name"):
@@ -129,7 +133,7 @@ def _interface(ctx, target: str, entries: list, docs: dict) -> dict:
     out = {"functions": {**_capped([abi.describe(e) for e in reads], "read"), **_capped(write_text, "write")},
            **_capped(unique("event"), "events"), **_capped(unique("error"), "errors"),
            "powers": _powers([e["name"] for e in writes]),
-           "state": _state(ctx, target, [e for e in reads if not e.get("inputs") and e.get("outputs")])}
+           **_state(ctx, target, [e for e in reads if not e.get("inputs") and e.get("outputs")], block)}
     notes = {}
     for sig, doc in docs.items():
         if isinstance(doc, dict) and isinstance(doc.get("notice"), str) and len(notes) < MAX_DOCS:
@@ -152,19 +156,27 @@ def _powers(names: list[str]) -> dict:
     return found
 
 
-def _state(ctx, target: str, getters: list[dict]) -> dict:
+def _state(ctx, target: str, getters: list[dict], block: str) -> dict:
+    """``state``: the getters' values; ``state_unread``: getters the RPC would not answer (a revert
+    is an answer: such a getter is simply left out)."""
     order = {name: i for i, name in enumerate(STATE_FIRST)}
     getters = sorted(getters, key=lambda e: (order.get(e["name"], len(order)), e["name"]))
     getters = [e for e in getters if all(_SIMPLE.match(o["type"]) for o in abi.outputs(e))
                and not _CONSTANT.match(e["name"])][:MAX_STATE]
-    results = ctx.rpc.batch([("eth_call", [{"to": target, "data": "0x" + abi.selector(abi.from_json(e))}, "latest"])
-                             for e in getters])
-    state = {}
-    for entry, got in zip(getters, results):
-        value = _returns(abi.outputs(entry), got)
+    results = ctx.rpc.batch_detailed([
+        ("eth_call", [{"to": target, "data": "0x" + abi.selector(abi.from_json(e))}, block]) for e in getters])
+    return _collect([(e["name"], abi.outputs(e)) for e in getters], results)
+
+
+def _collect(getters: list[tuple[str, list]], results: list[tuple]) -> dict:
+    state, unread = {}, []
+    for (name, outs), (got, error) in zip(getters, results):
+        value = _returns(outs, got)
         if value is not None:
-            state[entry["name"]] = value
-    return state
+            state[name] = value
+        elif error and "revert" not in error.lower():
+            unread.append(name)
+    return {"state": state, **({"state_unread": unread} if unread else {})}
 
 
 def _returns(outs: list[dict], data) -> object | None:
@@ -200,7 +212,7 @@ def selectors_in(code: bytes) -> list[str]:
     return list(dict.fromkeys(found))
 
 
-def _guessed_interface(ctx, target: str, code: bytes) -> dict:
+def _guessed_interface(ctx, target: str, code: bytes, block: str) -> dict:
     sigs = selectors_in(code)
     guesses = ctx.decoder.selectors(sigs)
     rows, names = [], []
@@ -213,13 +225,10 @@ def _guessed_interface(ctx, target: str, code: bytes) -> dict:
         if named:
             names.append(named[0].split("(")[0])
     getters = [(sig, *KNOWN_GETTERS[sig]) for sig in sigs if sig in KNOWN_GETTERS]
-    results = ctx.rpc.batch([("eth_call", [{"to": target, "data": "0x" + sig}, "latest"]) for sig, _, _ in getters])
-    state = {}
-    for (sig, name, kind), got in zip(getters, results):
-        value = _returns([{"type": kind, "name": ""}], got)
-        if value is not None:
-            state[name] = value
-    return {"functions": _capped(rows, "guessed"), "powers": _powers(names), "state": state}
+    results = ctx.rpc.batch_detailed([("eth_call", [{"to": target, "data": "0x" + sig}, block])
+                                      for sig, _, _ in getters])
+    collected = _collect([(name, [{"type": kind, "name": ""}]) for _, name, kind in getters], results)
+    return {"functions": _capped(rows, "guessed"), "powers": _powers(names), **collected}
 
 
 # --- call ---------------------------------------------------------------------------------------
@@ -229,7 +238,7 @@ def call(ctx, args) -> dict:
     values = args.get("args") if args.get("args") is not None else []
     if not isinstance(values, list):
         raise ChainError("args must be a list, one value per parameter")
-    block = block_param(args.get("block"))
+    block, number = pin(ctx, args.get("block"))
     entry, source = _function(ctx, target, args.get("function"), len(values), block)
     types = [i["type"] for i in entry["inputs"]]
     if len(values) != len(types):
@@ -250,7 +259,7 @@ def call(ctx, args) -> dict:
         wei = _wei(ctx, args["amount"])
         if wei:
             request["value"], result["amount"] = hex(wei), str(args["amount"])
-    result["block"] = args.get("block") or "latest"
+    result["block"] = number if number is not None else block
     reply = ctx.rpc.request("eth_call", [request, block])
     error = reply.get("error")
     if error:
@@ -271,18 +280,16 @@ def call(ctx, args) -> dict:
 
 
 def _logic(ctx, target: str, block: str) -> str | None:
-    """The implementation a proxy ran at ``block``: its verifier's resolution for the latest block,
-    else read from the chain at that block (EIP-1167 / EIP-1967), the verifier's as a last resort."""
+    """The implementation a proxy ran at ``block``, read from the chain at that block (EIP-1167 /
+    EIP-1967 / OpenZeppelin's legacy slots); the verifier's resolution only as a last resort."""
     own = ctx.decoder.record(target)
-    if block == "latest" and own["implementation"]:
-        return own["implementation"]
     code = _bytes(ctx.rpc.call("eth_getCode", [target, block]))
     found = (_proxy(ctx, target, code, block) or {}).get("implementation") if code else None
     logic = found or own["implementation"]
     return logic if logic and checksum(logic) != target else None
 
 
-def _function(ctx, target: str, text, count: int, block: str = "latest") -> tuple[dict, str]:
+def _function(ctx, target: str, text, count: int, block: str) -> tuple[dict, str]:
     """(entry with inputs / outputs / mutability, ``verified`` or ``given``) for a name in the
     verified ABI or a signature like 'balanceOf(address)' or 'balanceOf(address)(uint256)'."""
     if not isinstance(text, str) or not text.strip():
@@ -400,13 +407,14 @@ def _wei(ctx, amount) -> int:
 def storage(ctx, args) -> dict:
     target, _ = resolve_address(ctx, args.get("address"))
     wanted = args.get("slot")
-    block = block_param(args.get("block"))
+    block, number = pin(ctx, args.get("block"))
     result = {"chain": ctx.chain, "address": target}
     if wanted in (None, ""):
         layout = _layout(ctx, target, block)
         if not layout:
-            raise ChainError("slot is required: a number, 0x hex, eip1967.implementation / eip1967.admin / "
-                             "eip1967.beacon, or a variable name where Sourcify publishes the storage layout")
+            raise ChainError("slot is required: a number, 0x hex, eip1967.implementation / .admin / .beacon, "
+                             "zos.implementation / .admin, or a variable name where Sourcify publishes the storage "
+                             "layout")
         types = layout.get("types") or {}
         rows = [{"variable": v.get("label"), "slot": v.get("slot"), "offset": v.get("offset"),
                  "type": (types.get(v.get("type")) or {}).get("label", v.get("type"))}
@@ -435,7 +443,7 @@ def storage(ctx, args) -> dict:
         raise ChainError("slot is out of range")
     word = _bytes(ctx.rpc.call("eth_getStorageAt", [target, hex(slot), block]))
     word = word.rjust(32, b"\x00")[-32:]
-    result.update(slot=hex(slot), block=args.get("block") or "latest", raw="0x" + word.hex())
+    result.update(slot=hex(slot), block=number if number is not None else block, raw="0x" + word.hex())
     if variable:
         result.update(variable=variable["label"], type=kind.get("label"),
                       **_slot_value(word, int(variable.get("offset") or 0), kind))

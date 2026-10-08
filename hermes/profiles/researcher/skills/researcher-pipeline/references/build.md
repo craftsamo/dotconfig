@@ -60,8 +60,9 @@ path. For QA-consuming verification, write the complete claim ledger, default
 
 ## Handoff
 
-Continue with [QA](qa.md) and the mode entry's Verification before reporting
-the research as self-checked. Preserve exact claims, sources, output paths and
+Continue with [QA](qa.md) and the mode entry's Verification in the same turn,
+before any findings reply: Build never delivers on its own, and the reply
+carries QA's Research Self-Check. Preserve exact claims, sources, output paths and
 budget across that transition. QA may return a narrow correction within this
 scope and remaining budget; expansion needs Plan and agreement. Neither Build
 completion nor QA waives `Review: required` or supplies caller final acceptance.
