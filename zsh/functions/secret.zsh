@@ -388,10 +388,24 @@ _secret_find_layer() {
 _secret_dump_items() {
   local kc=${1:-$_kc}
   _secret_kc_ensure "$kc"
-  security dump-keychain "$kc" 2>/dev/null | awk '
-    function val(s) {
+  # an attribute holding anything but printable ASCII (a "·", Japanese text) is dumped as
+  # 0x<hex>  "<octal escapes>": the hex is decoded to its bytes, so ls/show print the text itself
+  # (awk runs in the C locale, so each %c is one byte and the UTF-8 survives)
+  security dump-keychain "$kc" 2>/dev/null | LC_ALL=C awk '
+    function hexval(c) { return index("0123456789abcdef", tolower(c)) - 1 }
+    function unhex(h,   out, i, b) {
+      out = ""
+      for (i = 3; i < length(h); i += 2) {
+        b = hexval(substr(h, i, 1)) * 16 + hexval(substr(h, i + 1, 1))
+        if (b == 0) continue
+        out = out ((b == 9 || b == 10 || b == 13) ? " " : sprintf("%c", b))
+      }
+      return out
+    }
+    function val(s,   hex) {
       sub(/^[^=]*=/, "", s)
       if (s == "<NULL>") return ""
+      if (match(s, /^0x[0-9A-Fa-f]+/)) return unhex(substr(s, 1, RLENGTH))
       gsub(/^"|"$/, "", s)
       return s
     }
