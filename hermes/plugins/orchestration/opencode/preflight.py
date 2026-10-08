@@ -50,13 +50,16 @@ def _worktree(directory, phase, policy, turn):
     except ValueError as exc:
         return [_issue("error", str(exc))], None
     if writing:
-        with contextlib.suppress(Exception):
+        try:
             running = turn.running_in(directory, policy.same_dir)
             if running:
                 issues.append(_issue("error", f"a session is already running in this worktree: {', '.join(running)}"))
+        except Exception as exc:
+            issues.append(_issue("warn", f"could not check for running sessions: {exc}"))
         with contextlib.suppress(Exception):
-            status = subprocess.run(["git", "-C", directory, "status", "--porcelain"], capture_output=True,
-                                    text=True, timeout=15)
+            # No fsmonitor hook: a status read must not run repository-configured code.
+            status = subprocess.run(["git", "-c", "core.fsmonitor=false", "-C", directory, "status", "--porcelain"],
+                                    capture_output=True, text=True, timeout=15)
             changed = len([line for line in status.stdout.splitlines() if line.strip()])
             if changed:
                 issues.append(_issue("warn", f"{changed} uncommitted path(s) already in the worktree"))

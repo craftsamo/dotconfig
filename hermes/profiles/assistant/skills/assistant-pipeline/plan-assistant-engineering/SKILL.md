@@ -54,7 +54,7 @@ question; you never read or edit target code yourself.
 | Bug, failing test, incident | `debug`; a fix is a separate approval |
 | Review of someone's change | `review` on a fresh session |
 | Feature, change, refactor, migration, performance | `plan`, then `build` on the same session |
-| Typo, one config value | `build` directly; the user's one-line go is the approval |
+| Typo, one config value | a short `plan` turn, `workspace`, then `build`; the user's one-line go is the approval |
 | New repository | [bootstrap.md](references/bootstrap.md), then plan on the clone |
 | Script or small automation | a repository job like any other; you register the cron job or other Hermes-side wiring afterwards |
 
@@ -70,8 +70,8 @@ Hermes configuration repo (`~/.config`): the person runs OpenCode on it directly
    Ask only consequential unresolved questions; OpenCode can investigate
    feasibility and recommend architecture, tools, sequencing and verification.
 2. **Ready check.** `opencode_preflight(directory, phase="plan")`: an `error`
-   stops the run, a `warn` is worth one line to the user. It also tells you
-   which role defaults are your own model. Then open or continue the job's
+   stops the run, a `warn` is worth one line to the user (for example a role that
+   refuses your own model but would default to it). Then open or continue the job's
    draft directory (`<Group>/.agent/<YYYYMMDD>-<job>/`, see the kernel's
    StateLifecycle): it is the `output_dir` for runs that produce reports or
    screenshots.
@@ -110,11 +110,11 @@ approves and when you accept the work. Ask OpenCode for these elements; the
 words, headings and layout are yours (voice and format come from the persona).
 
 - **Decisions and assumptions**, each with its source: the user's decision,
-  OpenCode's proposal, verified in the repository, or assumed. A table is the
-  readable form; five rows is plenty.
-- **Scope** in and out, and how many PRs (an ordered list when several).
-- **Verification** as a checklist of runnable checks with the expected result;
-  at most seven. It is also the progress record and the acceptance list.
+  OpenCode's proposal, verified in the repository, or assumed. Five rows is
+  plenty; a table tends to read well.
+- **Scope** in and out, and how many PRs (in order when several).
+- **Verification**: runnable checks with the expected result, at most seven (a
+  checklist reads well). It is also the progress record and the acceptance list.
 - For a migration, rebuild or public-API change, the way back.
 - Risks and alternatives stay in the OpenCode session. Do not copy them out;
   fetch them with `opencode_session messages` when the user asks.
@@ -127,7 +127,7 @@ you show is the scope Build is held to. Models are OpenCode's own defaults; name
 one in the plan only when you depart from it (an alternate after a limit error).
 
 During the build, report only at four points, one line each: the build starts,
-a PR is done (`2/3 checks`), it pauses for the user, QA is done. A deviation
+a PR is done (say how many checks hold), it pauses for the user, QA is done. A deviation
 inside the approved scope is continued and mentioned afterwards; one that
 exceeds the scope stops the build and comes back to the user.
 

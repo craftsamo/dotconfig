@@ -205,11 +205,14 @@ def _prepare(home, owner, role_name, role, settings, args, kwargs):
     directory = policy.worktree(directory)
     branch, protected = policy.branch(directory, writing)
     repo = policy.common_dir(directory)
-    if meta.get("repo") and meta["repo"] != repo:
+    if meta and meta.get("repo") != repo:
         # A session can move itself (`session_move` asks no permission); it may only
-        # work in the repository it was bound to.
-        raise ValueError("The session is no longer in the repository it was bound to; start a new session "
-                         "after inspection")
+        # work in the repository it was bound to. One bound before the repository was
+        # recorded cannot prove where it started, so it is not adopted where it stands.
+        raise ValueError(
+            "The session is no longer in the repository it was bound to; start a new session after inspection"
+            if meta.get("repo") else
+            "The session was bound before its repository was recorded; start a new session after inspection")
     if meta and meta.get("branch") != branch:
         raise ValueError("Worktree branch changed; start a new session after inspection")
     stored = meta.get("output_dir")
@@ -517,8 +520,11 @@ def opencode_session(args, **kwargs):
                       sid=new)
             return json.dumps({"session_id": new, "forked_from": sid, "role": meta.get("role")})
         if action == "workspace":
-            return json.dumps(workspace.create(sid=sid, info=info, meta=meta, args=args, settings=config.load(home),
-                                               policy=policy, turn=turn))
+            if os.environ.get("RESIDENT_TURN_KIND") == "reconcile":
+                raise ValueError("This resident turn is reconcile-only; inspect and stop, never change a session")
+            with _starting(home, policy.worktree(turn.directory_of(info))):
+                return json.dumps(workspace.create(sid=sid, info=info, meta=meta, args=args,
+                                                   settings=config.load(home), policy=policy, turn=turn))
         raise ValueError("Use status/list/wait/steer/interrupt/messages/diff/fork/workspace")
     except Exception as exc:
         return json.dumps({"error": str(exc)})

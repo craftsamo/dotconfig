@@ -349,15 +349,17 @@ When editing `plugins/orchestration/opencode`:
   `caller_model: allow`. Keep that hook registered and keep `models.model_key`
   folding speed tiers and snapshots, or a fallback or `-fast` alias slips past a
   role that refuses. Allowing is a maintainer's choice per role in `opencode.roles`
-  (the Assistant's roles allow it, acceptance being a separate step); an
-  `alternate` only names the model to rerun on after a limit error, nothing
-  switches by itself.
+  ([docs/opencode.md "Models"](docs/opencode.md)); an `alternate` only names the
+  model to rerun on after a limit error, nothing switches by itself.
 - **A session may only work in the repository it was bound to.** An agent can move
   any session with `session_move` (no permission asked), so `metadata.hermes.repo`
-  and the per-turn check in `_prepare` are what keep a run in its own repository;
+  and the per-turn check in `_prepare` detect a stray session at its next turn;
   the only sanctioned move is `opencode_session workspace`, which creates the
-  task-branch worktree itself. Never ask an OpenCode run to move itself, and keep
-  the service's own worktree route unused (it can only make a detached HEAD).
+  task-branch worktree itself. Never ask an OpenCode run to move itself, keep the
+  service's own worktree route unused (it can only make a detached HEAD), and keep
+  `workspace.py`'s git calls hook-free with the minimal environment: a tracked
+  `core.hooksPath` is repository-controlled code and this process holds the
+  gateway's secrets.
 
 ## Candidates and cutover
 

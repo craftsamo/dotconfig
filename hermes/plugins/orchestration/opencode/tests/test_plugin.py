@@ -547,7 +547,7 @@ def test_workspace_moves_an_idle_plan_into_a_new_task_branch_worktree(fixture, t
     home, directory, owner, fake = fixture
     with_root(home, tmp_path / "wt")
     sid = run("plan", directory)["session_id"]
-    out = session("workspace", sid, branch="task/login")
+    out = session("workspace", sid, branch="task/login", base="head")
     target = tmp_path / "wt" / "work tree" / "task-login"
     assert out["directory"] == str(target) and out["branch"] == "task/login" and out["base"] == "HEAD"
     assert fake.moves == [(sid, str(target))]
@@ -569,7 +569,7 @@ def test_workspace_hands_the_service_the_real_path_of_a_symlinked_root(fixture, 
     (tmp_path / "link").symlink_to(real)
     with_root(home, tmp_path / "link")
     sid = run("plan", directory)["session_id"]
-    out = session("workspace", sid, branch="task/a")
+    out = session("workspace", sid, branch="task/a", base="head")
     assert out["directory"] == str(real / "work tree" / "task-a")
     assert fake.moves == [(sid, str(real / "work tree" / "task-a"))], "never the symlinked spelling"
 
@@ -597,11 +597,96 @@ def test_workspace_rolls_back_when_the_service_refuses_the_move(fixture, tmp_pat
     with_root(home, tmp_path / "wt")
     sid = run("plan", directory)["session_id"]
     fake.move_refused = True
-    assert "error" in session("workspace", sid, branch="task/a")
+    assert "error" in session("workspace", sid, branch="task/a", base="head")
     assert not (tmp_path / "wt" / "work tree" / "task-a").exists()
     assert subprocess.run(["git", "-C", str(directory), "branch", "--list", "task/a"], capture_output=True,
                           text=True).stdout.strip() == "", "the branch is removed with the worktree"
     assert fake.sessions[sid]["location"]["directory"] == str(directory)
+
+
+def test_workspace_undoes_a_move_that_landed_when_rebinding_fails(fixture, tmp_path):
+    home, directory, _, fake = fixture
+    with_root(home, tmp_path / "wt")
+    sid = run("plan", directory)["session_id"]
+    fake.patch_error = fake.api.Unavailable("service dropped the update")
+    assert "error" in session("workspace", sid, branch="task/a", base="head")
+    assert len(fake.moves) == 2 and fake.moves[-1] == (sid, str(directory)), "the session is moved back"
+    assert fake.sessions[sid]["location"]["directory"] == str(directory)
+    assert not (tmp_path / "wt" / "work tree" / "task-a").exists()
+    assert subprocess.run(["git", "-C", str(directory), "branch", "--list", "task/a"], capture_output=True,
+                          text=True).stdout.strip() == ""
+
+
+def add_origin(directory, tmp_path):
+    remote = tmp_path / "remote.git"
+    subprocess.run(["git", "init", "--bare", "-b", "main", str(remote)], check=True, capture_output=True)
+    subprocess.run(["git", "-C", str(directory), "remote", "add", "origin", str(remote)], check=True,
+                   capture_output=True)
+    subprocess.run(["git", "-C", str(directory), "push", "-q", "origin", "topic:main"], check=True,
+                   capture_output=True)
+    subprocess.run(["git", "-C", str(directory), "fetch", "-q", "origin"], check=True, capture_output=True)
+
+
+def test_workspace_starts_from_the_remote_default_branch_and_refuses_when_it_cannot(fixture, tmp_path):
+    home, directory, _, fake = fixture
+    with_root(home, tmp_path / "wt")
+    sid = run("plan", directory)["session_id"]
+    assert "no remote to start from" in session("workspace", sid, branch="task/a")["error"]
+    assert fake.moves == [] and not (tmp_path / "wt").exists(), "a refused base creates nothing"
+    add_origin(directory, tmp_path)
+    out = session("workspace", sid, branch="task/a")
+    assert out["base"] == "origin/main" and "warning" not in out
+    # Unreachable remote: the branch still starts from the last fetched default and says so.
+    sid2 = run("plan", directory)["session_id"]
+    subprocess.run(["git", "-C", str(directory), "remote", "set-url", "origin", str(tmp_path / "gone.git")],
+                   check=True, capture_output=True)
+    out = session("workspace", sid2, branch="task/b")
+    assert out["base"] == "origin/main" and "last fetch" in out["warning"]
+
+
+def test_workspace_runs_no_repository_hook_and_leaks_no_secret(fixture, tmp_path, monkeypatch):
+    home, directory, _, fake = fixture
+    with_root(home, tmp_path / "wt")
+    leak = tmp_path / "leak.txt"
+    hooks = directory / ".git" / "hooks"
+    (hooks / "post-checkout").write_text(f"#!/bin/sh\nenv > '{leak}'\n")
+    (hooks / "post-checkout").chmod(0o755)
+    monkeypatch.setenv("GATEWAY_BOT_TOKEN", "do-not-leak")
+    sid = run("plan", directory)["session_id"]
+    assert session("workspace", sid, branch="task/a", base="head")["branch"] == "task/a"
+    assert not leak.exists(), "the post-checkout hook must not run"
+    assert "GATEWAY_BOT_TOKEN" not in workspace_env()
+
+
+def workspace_env():
+    return plugin.workspace.git_env()
+
+
+def test_workspace_refuses_a_session_that_moved_or_was_bound_before_repositories_were_recorded(fixture, tmp_path):
+    home, directory, _, fake = fixture
+    with_root(home, tmp_path / "wt")
+    sid = run("plan", directory)["session_id"]
+    sibling = tmp_path / "sibling"
+    subprocess.run(["git", "-C", str(directory), "worktree", "add", "-b", "elsewhere", str(sibling)], check=True,
+                   capture_output=True)
+    fake.sessions[sid]["location"] = {"directory": str(sibling.resolve())}
+    assert "branch changed" in session("workspace", sid, branch="task/a", base="head")["error"]
+    fake.sessions[sid]["location"] = {"directory": str(directory)}
+    legacy = fake.sessions[sid]["metadata"]["hermes"]
+    legacy.pop("repo")
+    assert "before repository binding" in session("workspace", sid, branch="task/a", base="head")["error"]
+    assert "before its repository was recorded" in run("plan", session_id=sid)["error"]
+
+
+def test_workspace_is_refused_in_a_reconcile_turn_and_a_concurrent_start(fixture, tmp_path, monkeypatch):
+    home, directory, _, fake = fixture
+    with_root(home, tmp_path / "wt")
+    sid = run("plan", directory)["session_id"]
+    with plugin._starting(home, str(directory)):
+        assert "Another call is starting" in session("workspace", sid, branch="task/a", base="head")["error"]
+    monkeypatch.setenv("RESIDENT_TURN_KIND", "reconcile")
+    assert "reconcile-only" in session("workspace", sid, branch="task/a", base="head")["error"]
+    assert fake.moves == []
 
 
 def test_workspace_refuses_an_existing_branch_and_an_existing_path(fixture, tmp_path):
@@ -1007,6 +1092,7 @@ def test_a_role_note_is_part_of_the_session_instruction(fixture):
     ("  roles:\n    a: {agent: plan, policy: write, model: 'a/b#bad variant'}\n", "provider/model"),
     ("  roles:\n    a: {agent: plan, policy: write, alternate: nope}\n", "alternate"),
     ("  roles:\n    a: {agent: plan, policy: write, caller_model: maybe}\n", "caller_model"),
+    ("  roles:\n    a: {agent: plan, policy: write, alternate: 'xai/grok-4.7'}\n", "allowed_providers"),
     ("  worktree_root: relative/dir\n", "worktree_root"),
     ("  worktree_root: '/tmp/*'\n", "worktree_root"),
 ])

@@ -113,6 +113,10 @@ def load(home):
                   else {name: _role(name, value) for name, value in raw.items()})
     if not configured:
         raise ValueError(f"{KEY}.roles must name at least one role")
+    for name, role in configured.items():
+        # A rerun on the alternate goes through the same provider allowlist as any model=.
+        if role.get("alternate") and role["alternate"].split("/", 1)[0] not in providers:
+            raise ValueError(f"{KEY}.roles.{name}.alternate is not from {KEY}.allowed_providers")
     root = config.get("worktree_root", DEFAULT_WORKTREE_ROOT)
     if not isinstance(root, str) or not root.startswith(("/", "~/")) or any(c in root for c in "*?"):
         raise ValueError(f"{KEY}.worktree_root must be an absolute path (or start with ~/) without wildcards")
