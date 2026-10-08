@@ -596,13 +596,26 @@ def test_live_callers_get_the_state_and_a_notifier(fixture, monkeypatch):
     started = run("plan", directory)
     assert started["status"] == "running" and started["process_session_id"] == "proc_1"
     assert launched == [started["session_id"]]
-    monkeypatch.setattr(plugin, "_launch_notifier", lambda *a: None)
+    assert "[SILENT]" in started["note"]
     again = json.loads(plugin.opencode_session({"action": "status", "session_id": started["session_id"]}))
     assert again["status"] == "running"
+    monkeypatch.setattr(plugin, "_launch_notifier", lambda *a: None)
+    unarranged = run("plan", directory)
+    assert unarranged["status"] == "running" and "No completion notification" in unarranged["note"]
+
+
+def test_live_callers_get_no_notifier_for_a_state_they_already_hold(fixture, monkeypatch):
+    home, directory, owner, fake = fixture
+    monkeypatch.setattr(plugin, "_scope", lambda: (home, owner, True))
+    launched = []
+    monkeypatch.setattr(plugin, "_launch_notifier", lambda h, sid, task: launched.append(sid) or "proc_1")
     scripted(fake, "ask-permission", "finish")
     paused = run("plan", directory)
     assert paused["status"] == "waiting" and paused["pending"], "a live caller sees a pause in the first state"
-    assert "No completion notification" in paused["note"]
+    scripted(fake, "finish")
+    finished = run("plan", directory)
+    assert finished["status"] == "completed"
+    assert launched == [] and "process_session_id" not in paused and "process_session_id" not in finished
 
 
 def test_notifier_returns_at_the_next_handback(fixture):
