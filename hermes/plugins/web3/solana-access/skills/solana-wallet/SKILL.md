@@ -1,7 +1,7 @@
 ---
 name: solana-wallet
-description: "Use with evm-access:evm-wallet when the user's wallet action is on Solana: what is particular to quoting and sending SOL and SPL tokens, and to revoking an SPL delegate."
-version: 1.1.0
+description: "Use with evm-access:evm-wallet when the user's wallet action is on Solana: what is particular to quoting and sending SOL, SPL tokens and NFTs, and to revoking an SPL delegate."
+version: 1.2.0
 author: CraftSamo
 license: MIT
 metadata:
@@ -18,12 +18,17 @@ particular to Solana:
 
 - A transfer is a SOL System Program transfer or an SPL `transferChecked`;
   the tool creates the recipient's associated token account when it is
-  missing. Besides that, only a revoke (below) is ever signed.
+  missing (an NFT is sent the same way, as one token). Besides that, only a
+  revoke (below) is ever signed.
 - `to` is the recipient's wallet address. A program or a token account as
   recipient is refused, and so is a new account that would hold less than the
   rent-exempt minimum.
 - `token` is the mint; omit it for SOL. `amount` takes at most the asset's
   decimals.
+- An NFT is its mint: `kind: nft`, `token` = the mint, no `token_id` or
+  `amount`. Only a plain NFT (0 decimals, a supply of 1) is sent, as one
+  token with `transferChecked`; a programmable NFT (its token account is
+  frozen) and a compressed NFT (it has no mint account) are refused.
 - A revoke clears the delegate of the wallet's own (associated) token account
   for the mint with SPL `Revoke`: give `token` (the mint), no `spender`. A
   delegate on any other token account of the wallet is not covered.

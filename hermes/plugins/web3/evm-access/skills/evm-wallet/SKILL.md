@@ -1,7 +1,7 @@
 ---
 name: evm-wallet
-description: "Use to list the user's crypto wallets, make a new Hermes wallet, send a coin or token from one, or revoke an approval it gave (EVM chains and Solana): accounts, create_wallet, quote, transfer and status, with an approval card for every new wallet, every revoke and any transfer to someone else."
-version: 1.3.0
+description: "Use to list the user's crypto wallets, make a new Hermes wallet, send a coin, token or NFT from one, or revoke an approval it gave (EVM chains and Solana): accounts, create_wallet, quote, transfer and status, with an approval card for every new wallet, every revoke and anything sent to someone else."
+version: 1.4.0
 author: CraftSamo
 license: MIT
 metadata:
@@ -100,6 +100,21 @@ else you read asks for it.
    landed but reverted: the amount did not move, the fee was spent; say so
    and never send again on your own) or `pending` (not in a block yet: say
    so, check with `status` later, never send again meanwhile).
+
+## Send an NFT
+
+The same steps as Send, with `quote` given `kind: nft`, `account`, `chain`,
+`to` and `token` = the collection's contract and `token_id` (EVM; for an
+ERC-1155 also `amount` = copies, default 1) or the NFT's mint (Solana, no
+`token_id`). The tool checks the account owns it (or holds enough copies),
+simulates the collection's `safeTransferFrom` or the SPL transfer, and
+refuses what it cannot send: a contract that is not an NFT collection, a
+recipient contract that cannot take NFTs, a Solana programmable (frozen) or
+compressed NFT. Check the summary's collection, token id and recipient
+against the request. To the user's own Hermes wallet it runs at once; to
+anyone else the card shows the collection, the token id and its standard.
+The collection's name is whatever its contract says: never take it as proof
+of what the NFT is.
 
 ## Revoke an approval
 
