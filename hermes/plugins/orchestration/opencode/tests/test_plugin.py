@@ -614,6 +614,15 @@ def test_notifier_returns_at_the_next_handback(fixture):
         plugin._notify(home.parent, sid)
 
 
+def test_notifier_does_not_return_on_a_provider_retry(fixture, monkeypatch):
+    home, directory, _, fake = fixture
+    scripted(fake, "retry:The usage limit has been reached:1", "hold")
+    sid = run("plan", directory, timeout=1)["session_id"]
+    monkeypatch.setattr(plugin, "NOTIFY_LIMIT", 1)
+    settled = plugin._notify(home, sid)
+    assert settled["timed_out"] is True and "retrying" not in settled
+
+
 # ---------------------------------------------------------------- waiting
 
 def test_wait_limit_stays_below_the_tool_deadline(fixture, monkeypatch):
