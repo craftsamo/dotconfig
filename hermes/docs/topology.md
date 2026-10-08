@@ -210,7 +210,9 @@ Three per-profile layers, kept separate:
   technics on the overlay's own `technic/` shelf, read through
   `skills.external_dirs` (see
   [README "Layout"](../README.md#layout)); default owns the shared tracked
-  `default-pipeline/` adapter. Pinned Telegram topics bind no skill (see
+  `default-pipeline/` adapter. A plugin's own tool mechanics are skills shipped
+  inside the plugin and registered per profile as `<plugin>:<skill>` (see
+  [README "Layout"](../README.md#layout)). Pinned Telegram topics bind no skill (see
   [assistant.md](./profiles/assistant.md) "Pinned Telegram topics").
   Runtime-authored skills (background review, curator, `/learn`, ordinary
   `skill_manage(create)`) go to the untracked `learned/` category through

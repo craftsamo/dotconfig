@@ -187,6 +187,20 @@ repository upkeep (Engineer through OpenCode, the Assistant's Admin topic).
 - **Tool handlers take the model's JSON as one positional dict**
   (`handler(args, **kwargs)`); declaring schema fields as parameters registers
   a tool that fails on every call.
+- **A plugin's mechanics skill ships inside the plugin, in a directory named
+  `skills/`.** `plugins/<group>/<name>/skills/<skill>/SKILL.md` is registered
+  by the plugin's `register_skills` from its `SKILLS` table (skill → profiles)
+  as `<plugin>:<skill>`; a bare name does not resolve. It is read-only to
+  Hermes (`skill_manage` cannot find it) and the `skill-topology` guard
+  protects the path only because a path element is literally `skills` — never
+  rename the directory. A profile gets a skill only if its tool can do what the
+  skill describes, so a read-only profile never sees write procedures: split a
+  skill by capability (`x-twitter` / `x-twitter-drafts`), never by
+  `references/` (a loaded skill's references are readable by anyone who loads
+  it). Plugin skills are absent from the available-skills index, so the tool
+  description or the pipeline must name `skill_view(name="<plugin>:<skill>")`.
+  `test_plugin_skills.py` is the audience table; a new skill or a wider
+  audience is added there on purpose.
 - **Moving a plugin between groups changes its depth, and the code that counts
   it fails silently.** Engines and tests locate `hermes/` (the `local/` venvs,
   `profiles/`, `scripts/`) with `parents[N]`, and tests mock the calls that would
@@ -205,8 +219,8 @@ repository upkeep (Engineer through OpenCode, the Assistant's Admin topic).
   file rules passed in rather than copied there
   ([docs/signal-access.md](docs/signal-access.md)). Its terminal guard
   (`unpacked_guard`) keys on the `.unpacked` folder name that `extract` gives
-  an unpacked archive, and the Assistant's technics name it too: rename it
-  everywhere or the guard stops matching without a failure.
+  an unpacked archive, and the skills the messaging plugins ship name it too:
+  rename it everywhere or the guard stops matching without a failure.
 - **`plugins/web3/_shared/` is code, not a plugin, and holds the web3 tools'
   logic.** evm-access and solana-access are thin entry points that load
   `access.py` from it by path and share its one in-memory record of approval

@@ -20,7 +20,8 @@ design docs — index: [`PROFILES.md`](../PROFILES.md).
 | `youtube` tool and its `pre_tool_call` hook (toolset `youtube_access`)                                                    | `plugins/social/youtube-access/__init__.py`                                 | Assistant, Marketer |
 | Channel authorization                                                                                                     | `bin/yaccess` (runs `ya.py` on `hermes-python`)                      | people              |
 | Engine venv                                                                                                               | `scripts/youtube-access.sh`, `engines/yt-dlp/`                       | people              |
-| How the Assistant works with it: budget, actions, approvals, recovery, Studio settings, starting a channel                | the `youtube` technic (`profiles/assistant/skills/technic/youtube/`) | Assistant           |
+| How a profile reads YouTube: budget, read actions, recovery | the `youtube-access:youtube` plugin skill (`plugins/social/youtube-access/skills/youtube/`) | Assistant, Marketer, Searcher |
+| How the Assistant changes it: write actions, approvals, recovery, Studio settings, starting a channel | the `youtube-access:youtube-manage` plugin skill (`plugins/social/youtube-access/skills/youtube-manage/`); registered for the Assistant only | Assistant |
 | When the Assistant uses it in Chat                                                                                        | the Assistant's private Chat reference `youtube.md`                  | Assistant           |
 | When Marketer reads with it                                                                                               | Marketer's prompt and `analyze-marketer/references/measurement.md`   | Marketer            |
 
@@ -245,7 +246,7 @@ approval card on this path — `clarify` is the confirmation — so it runs only
 in a conversation with the user, never in cron, a single query or an A2A
 request. Account-level and destructive Studio settings (permissions,
 monetization, channel deletion or transfer) stay with the user. The
-procedure lives in the `youtube` technic's `references/studio.md`. Studio pages
+procedure lives in the `youtube-access:youtube-manage` skill's `references/studio.md`. Studio pages
 change without notice; when one does not match, the Assistant stops and
 hands the change to the user.
 
