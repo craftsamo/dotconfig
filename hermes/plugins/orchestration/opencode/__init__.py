@@ -307,15 +307,22 @@ def _launch_notifier(home, sid, task_id):
     return launch.get("session_id")
 
 
+NOTIFIER_NOTE = ("A completion notification follows at the next hand-back. If you have already read and "
+                 "reported that state by then (for example through opencode_session wait), answer it [SILENT].")
+
+
 def _handoff(home, live, sid, kwargs, limit=None):
     """A blocking caller (CLI/resident) waits for the hand-back; a live caller gets the
-    current state at once and a notifier process for the next hand-back."""
+    current state at once and, only while the run is still going, a notifier process for
+    the next hand-back. Any other state is already in this result: a notifier would
+    return it again at once and wake the caller with nothing new."""
     if live:
+        out = turn.snapshot(sid)
+        if out.get("status") != "running":
+            return out
         process = _launch_notifier(home, sid, kwargs.get("task_id"))
-        out = {**turn.snapshot(sid), "process_session_id": process}
-        if not process:
-            out["note"] = "No completion notification could be arranged; use opencode_session wait"
-        return out
+        message = NOTIFIER_NOTE if process else "No completion notification could be arranged; use opencode_session wait"
+        return {**out, "process_session_id": process, "note": " ".join(filter(None, [out.get("note"), message]))}
     return turn.await_turn(sid, turn.wait_limit(home, _lenient(home), limit))
 
 
