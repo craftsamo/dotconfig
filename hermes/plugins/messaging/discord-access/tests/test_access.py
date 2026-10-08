@@ -1393,3 +1393,93 @@ def test_stats_limits_rows_and_checks_arguments():
     for bad in ({"by": "month"}, {"limit": 0}, {"limit": "x"}, {"channel": "general"}):
         with pytest.raises(access.DiscordError):
             access.execute({"action": "stats", **bad})
+
+
+# --- search filters --------------------------------------------------------------------------------
+
+def _found(**args):
+    return [m["id"] for m in access.execute({"action": "search", **args})["messages"]]
+
+
+def test_search_filters_by_author_and_what_a_message_carries():
+    a, b, c, d = flake(9), flake(8), flake(7), flake(6)
+    _post(DM1, a, TARO, "with file", attachments=[{"filename": "a.txt", "content_type": "text/plain", "size": 1,
+                                                    "url": "https://cdn.discordapp.com/a"}])
+    _post(DM1, b, TARO, "see https://example.com/x")
+    _post(DM1, c, ME, "card", embeds=[{"title": "T"}])
+    _post(DM1, d, TARO, "", sticker_items=[{"id": "1", "name": "wave"}])
+    assert _found(author="me") == [str(c), str(M2)]
+    assert _found(author=TARO, has="attachment") == [str(a)]
+    assert _found(has="link") == [str(b)]
+    assert _found(has="embed") == [str(c)]
+    assert _found(has="sticker") == [str(d)]
+    assert _found(query="file", author=TARO) == [str(a)]
+    assert _found(query="file", author="me") == []
+    for bad in ({"author": "Taro"}, {"has": "video"}, {"reacted": "yes"}):
+        with pytest.raises(access.DiscordError):
+            access.execute({"action": "search", "query": "x", **bad})
+    with pytest.raises(access.DiscordError, match="query is required"):
+        access.execute({"action": "search"})
+
+
+def test_search_filters_by_reaction_and_thread_parent():
+    thumbs = [{"emoji": {"name": "👍"}, "count": 2, "me": True}]
+    heart = [{"emoji": {"name": "❤"}, "count": 1, "me": False}]
+    custom = [{"emoji": {"name": "party", "id": "800000000000000001"}, "count": 1, "me": True}]
+    a, b, c = flake(9), flake(8), flake(7)
+    _post(DM1, a, TARO, "t", reactions=thumbs)
+    _post(DM1, b, TARO, "h", reactions=heart)
+    _post(DM1, c, TARO, "c", reactions=custom)
+    assert _found(reacted=True) == [str(c), str(a)]
+    assert _found(emoji="👍") == [str(a)]
+    assert _found(emoji="❤") == [str(b)]
+    assert _found(emoji="❤", reacted=True) == []
+    assert _found(emoji="party:800000000000000001") == [str(c)]
+    thread = "450000000000000001"
+    conn = store.connect(write=True)
+    store.upsert_channel(conn, store.channel_row({"id": thread, "type": 11, "name": "help", "parent_id": GENERAL,
+                                                  "guild_id": G}), 0)
+    conn.commit()
+    conn.close()
+    _post(thread, flake(5), TARO, "inside", G)
+    _post(GENERAL, flake(4), TARO, "outside", G)
+    assert [m["text"] for m in access.execute({"action": "search", "parent": GENERAL})["messages"]] == ["inside"]
+    result = access.execute({"action": "search", "parent": GENERAL})
+    assert "threads only appear once" in result["scope"]
+
+
+def test_live_search_passes_author_and_has_and_refuses_mirror_only_filters(monkeypatch):
+    calls = []
+
+    def engine(command, args, timeout=None):
+        calls.append(args)
+        return {"messages": [], "total": 0}
+    monkeypatch.setattr(access, "call_engine", engine)
+    access.execute({"action": "search", "live": True, "author": TARO, "has": "attachment", "channel": GENERAL})
+    assert calls[0]["author"] == TARO and calls[0]["has"] == "file" and calls[0]["query"] == ""
+    access.execute({"action": "search", "live": True, "query": "x", "author": "me"})
+    assert calls[1]["author"] == ME and "has" not in calls[1]
+    for bad in ({"reacted": True}, {"emoji": "👍"}, {"parent": GENERAL}):
+        with pytest.raises(access.DiscordError, match="mirror only"):
+            access.execute({"action": "search", "live": True, "query": "x", **bad})
+    with pytest.raises(access.DiscordError, match="query is required"):
+        access.execute({"action": "search", "live": True})
+    assert len(calls) == 2
+
+
+def test_filters_that_need_newer_columns_say_so_on_an_older_mirror(tmp_path, monkeypatch):
+    import sqlite3
+    monkeypatch.setenv(store.STATE_ENV, str(tmp_path / "old"))
+    (tmp_path / "old").mkdir()
+    old = sqlite3.connect(tmp_path / "old" / "mirror.db")
+    old.execute("CREATE TABLE messages (id INTEGER PRIMARY KEY, channel_id INTEGER NOT NULL, guild_id INTEGER, "
+                "author_id INTEGER, author_name TEXT, from_me INTEGER NOT NULL DEFAULT 0, content TEXT, "
+                "reply_to INTEGER, attachments TEXT, embeds INTEGER NOT NULL DEFAULT 0, type INTEGER, edited TEXT)")
+    old.execute("INSERT INTO messages (id, channel_id, content) VALUES (1, 2, 'hello')")
+    old.commit()
+    old.close()
+    assert [m["text"] for m in access.execute({"action": "search", "query": "hello"})["messages"]] == ["hello"]
+    for args in ({"has": "sticker"}, {"reacted": True}, {"emoji": "👍"}):
+        with pytest.raises(access.DiscordError, match="next sync run"):
+            access.execute({"action": "search", "query": "hello", **args})
+    assert access.execute({"action": "search", "query": "hello", "has": "attachment"})["messages"] == []
