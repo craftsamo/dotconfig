@@ -146,13 +146,13 @@ check is performed. Current model pins, variants and permissions are unchanged.
 | explore-medium, reviewer | gpt-6.1-sol       | medium  |
 | worker                   | gpt-6.1-sol       | low     |
 | explore-spark            | gpt-6-luna        | low     |
-| explore-small, verifier  | claude-sonnet-5-5 | low     |
+| explore-small, verifier  | claude-haiku-5-5  | low     |
 | debugger, reviewer-deep  | claude-opus-5-5   | high    |
 | searcher-deep            | claude-sonnet-5-5 | medium  |
 | searcher                 | claude-sonnet-5-5 | low     |
 
 Native model IDs are explicit: `gpt-6.1-sol`, `gpt-6-luna`, `claude-opus-5-5`,
-`claude-sonnet-5-5` and `claude-haiku-4-5`. There is no Grok, free-tier, API-key
+`claude-sonnet-5-5` and `claude-haiku-5-5`. There is no Grok, free-tier, API-key
 or environment-variable escalation; both ends must be approved native OAuth
 accounts. The plugin never buys credits, enables auto-purchase, or changes
 account settings or logins.

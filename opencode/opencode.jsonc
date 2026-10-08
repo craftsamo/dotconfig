@@ -95,7 +95,8 @@
       "color": "#06B6D4",
     },
     "compaction": {
-      "model": "anthropic/claude-sonnet-5-5",
+      // Trial: revert to claude-sonnet-5-5 (medium) if summaries drop key facts.
+      "model": "anthropic/claude-haiku-5-5",
       "variant": "medium",
     },
   },
