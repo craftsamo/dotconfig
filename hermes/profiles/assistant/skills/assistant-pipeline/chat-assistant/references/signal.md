@@ -1,6 +1,6 @@
 # Signal
 
-Load `skill_view(name="signal")` before any Signal work: it owns the
+Load `skill_view(name="signal-access:signal")` before any Signal work: it owns the
 mechanics — the `signal` tool only (never `signal-cli` in the terminal, the
 `~/.local/state/hermes-signal` state or Signal Desktop's data), finding and
 reading a chat, mentions, disappearing and deleted messages, files someone

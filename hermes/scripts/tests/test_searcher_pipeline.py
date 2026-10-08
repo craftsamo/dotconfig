@@ -337,7 +337,10 @@ def test_chain_reads_are_retrieval_without_verdicts():
                        "unsearched ground"):
             assert phrase in text, phrase
     assert "`powers`" in evm and "`guessed`" in evm and "block ranges actually read" in evm
-    assert "`address` = the contract" in evm and "`omitted`" in evm and "`coverage`" in evm
+    assert "`omitted`" in evm and "`coverage`" in evm
+    skill = flat(HERMES / "plugins/web3/evm-access/skills/evm/SKILL.md")
+    assert "`address` = the contract" in skill and "`state_unread`" in skill and "zero address" in skill
+    assert 'skill_view(name="evm-access:evm")' in evm and 'skill_view(name="solana-access:solana")' in solana
     assert "`state_unread`" in evm and "zero address is unset" in evm and "`block`" in evm
     assert "`slot`" in solana
     for name in ENTRIES:

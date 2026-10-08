@@ -6,15 +6,9 @@ facts; judging them stays under `Open for researcher`.
 
 ## Which action
 
-| Need | Action |
-| --- | --- |
-| One transaction: status, instructions, balance changes, logs | `tx` (`hash` = the signature) |
-| What an account is | `address` |
-| A program's upgrade authority, last deployment and Anchor IDL | `program` |
-| A token mint's supply and authorities | `token` |
-| Holdings | `portfolio`; token delegations with `allowances` |
-| Recent signatures of an address | `activity` |
-| A pasted transaction | `decode` |
+The actions and what each returns are `skill_view(name="solana-access:solana")`
+(`tx`, `address`, `program`, `token`, `portfolio`, `activity`, `decode`).
+Retrieve with them; the rules below are what Searcher adds.
 
 ## What to record per item
 

@@ -159,6 +159,17 @@ live under `profiles/creator/skills`. Skill placement (validator-enforced):
   references. Creator has no technics; its former `creator-*` leaves are
   folded into the hands or archived ([docs/broker.md](docs/broker.md) "Legacy
   routes").
+- A plugin ships the skill for its own tool under
+  `plugins/<group>/<name>/skills/<skill>/` (`SKILL.md` and `references/`),
+  registered as `<plugin>:<skill>` for the profiles in its `SKILLS` table
+  (for example `x-access:x-twitter` for every profile with the `x` tool and
+  `x-access:x-twitter-drafts` for the Assistant alone). These are read-only to
+  Hermes and not part of any profile's `skills/`, so the validator checks them
+  separately (`plugin skills=` in its summary) and `skills list` does not show
+  them; `skill_view(name="<plugin>:<skill>")` does. The Assistant's tool
+  mechanics for X, YouTube, note, Substack, Google Sheets, the four chat
+  accounts and the web3 wallets
+  live there; `technic/` keeps what has no plugin.
 - Researcher/Searcher route one entry per mode (investigate / compare / verify /
   advise; lookup / sweep / hunt) over shared `references/{plan,build,qa}.md`
   stages; Researcher also shares `references/gather.md`. Neither has technics.

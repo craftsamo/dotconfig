@@ -17,7 +17,7 @@ over Signal. Part of the Hermes design docs — index: [`PROFILES.md`](../PROFIL
 | Engine: reads, check, media, send, approval card, file checks, bypass guard  | `plugins/messaging/signal-access/sig.py`                                                   | Assistant          |
 | `signal` tool and the `pre_tool_call` hook (toolset `signal_access`)         | `plugins/messaging/signal-access/__init__.py`                                              | Assistant          |
 | Linking and the sync agent                                                   | `launchd/signal-access-launchctl.sh`, `launchd/local.hermes.signal-access.sync.plist.tmpl` | people             |
-| How the tool is used: reads, files, sends, outcomes                          | the Assistant's `signal` technic (`profiles/assistant/skills/technic/signal/`)             | Assistant          |
+| How the tool is used: reads, files, sends, outcomes                          | the `signal-access:signal` plugin skill (`plugins/messaging/signal-access/skills/signal/`)             | Assistant          |
 | When the Assistant uses it in Chat                                           | the Assistant's private Chat reference `signal.md`                                         | Assistant          |
 
 [signal-cli](https://github.com/AsamK/signal-cli) (Homebrew `signal-cli`, a

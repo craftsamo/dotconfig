@@ -1,6 +1,6 @@
 # Telegram
 
-Load `skill_view(name="telegram-account")` before any work in the user's own
+Load `skill_view(name="telegram-access:telegram-account")` before any work in the user's own
 Telegram account: it owns the mechanics — the `telegram_account` tool only
 (never the terminal, a Telegram client library, the state directory, the
 Keychain or the Telegram apps' data), behaving like a quiet client, which

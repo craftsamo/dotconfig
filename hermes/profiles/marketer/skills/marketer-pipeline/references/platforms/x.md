@@ -20,6 +20,8 @@ changes rather than promising compliance.
 Use the `x` tool for X: `posts`, `thread`, `search` and `user` through the
 sub-account (paced and capped, shared with the Assistant), `verify` for public
 counts of up to 50 posts, `snapshot` / `insights` for the client's own posts.
+The mechanics (budgets, verifying posts, media, failures) are
+`skill_view(name="x-access:x-twitter")`.
 The browser on x.com is logged in to the user's account, and scripted
 activity there risks it under the rules above. Open it only for what the tool
 cannot show (the account's own analytics), when the user has decided to

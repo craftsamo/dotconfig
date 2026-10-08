@@ -38,6 +38,11 @@ class Ctx:
         self.profile_name = profile
         self.tools = {}
         self.hooks = []
+        self.skills = {}
+
+    def register_skill(self, name, path, description="", frontmatter=None):
+        assert path.is_file() and frontmatter["name"] == name and description
+        self.skills[name] = path
 
     def register_tool(self, **kwargs):
         self.tools[kwargs["name"]] = kwargs
@@ -166,3 +171,10 @@ def test_other_writes_are_approved_and_bound_to_their_key():
 def test_writes_on_unknown_targets_are_blocked(args):
     assert plugin.gate(tool_name="discord_account", args=args)["action"] == "block"
     assert plugin.bind(tool_name="discord_account", args=args) is None
+
+
+def test_the_skill_reaches_only_the_assistant():
+    for profile, names in (("assistant", {"discord-account"}), ("marketer", set()), ("creator", set())):
+        ctx = Ctx(profile)
+        plugin.register(ctx)
+        assert set(ctx.skills) == names
