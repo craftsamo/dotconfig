@@ -16,7 +16,8 @@ as a single-use file that expires after ``QUOTE_TTL`` and carries an HMAC keyed 
 secret, so neither its transaction nor its card can be edited between approval and send. ``send``
 re-checks the MAC, the expiry, the hourly cap and — for a send approved as own — that the recipient
 really is one of the secrets' addresses; the quote is consumed and written to the ledger before it is
-broadcast.
+broadcast. Quote files are deleted an hour after they expire, whenever a new quote is made: an
+expired quote can never be sent, and the ledger, not the file, keeps a sent one from going again.
 
 ``wallet_check`` normalizes a new Hermes wallet's spec and returns its approval cards and digest;
 ``wallet_create`` re-checks the spec against that approved digest and the hourly cap, makes the seed
@@ -56,6 +57,7 @@ import seeds  # noqa: E402
 from rpc import ChainError  # noqa: E402
 
 QUOTE_TTL = 900            # outlives the 600 s approval wait
+PRUNE_AFTER = 3600         # a quote's file is deleted this long after it expired
 OWN_INDEXES = 101          # each seed's accounts 0..100 count as own
 LIST_DEFAULT = 5           # accounts lists this many per seed unless asked for more
 GAS_MARGIN = Decimal("1.2")
@@ -730,6 +732,34 @@ def op_accounts(payload: dict) -> dict:
     return result
 
 
+def prune_quotes(state: Path, now: float) -> int:
+    """Delete quote files (and stray ``.tmp`` files from a send) that expired more than PRUNE_AFTER
+    ago. A file's expiry is the earlier of the one it states and its own age past QUOTE_TTL, so an
+    edited or unreadable file goes too. Run under the wallet lock, never during a send."""
+    removed = 0
+    for path in (state / "quotes").iterdir():
+        if path.suffix not in (".json", ".tmp"):
+            continue
+        try:
+            expired = path.stat().st_mtime + QUOTE_TTL
+        except OSError:
+            continue
+        if path.suffix == ".json":
+            try:
+                stated = json.loads(path.read_text(encoding="utf-8")).get("expires")
+                if isinstance(stated, (int, float)) and not isinstance(stated, bool):
+                    expired = min(expired, float(stated))
+            except (OSError, ValueError, AttributeError):
+                pass
+        if now - expired > PRUNE_AFTER:
+            try:
+                path.unlink()
+                removed += 1
+            except OSError:
+                pass
+    return removed
+
+
 def op_quote(payload: dict) -> dict:
     state = _state(payload)
     chain = payload.get("chain")
@@ -770,9 +800,11 @@ def op_quote(payload: dict) -> dict:
     quote["usd"] = round(float(Decimal(built["amount"]) * Decimal(str(price))), 2) if price else None
     quote["card"], quote["card_short"] = cards(quote)
     quote["mac"] = secrets_.mac(quote)
-    fd = os.open(state / "quotes" / f"{quote['id']}.json", os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-    with os.fdopen(fd, "w", encoding="utf-8") as handle:
-        json.dump(quote, handle, ensure_ascii=False)
+    with ledger.locked(state):
+        prune_quotes(state, now)
+        fd = os.open(state / "quotes" / f"{quote['id']}.json", os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            json.dump(quote, handle, ensure_ascii=False)
     return {"quote": quote["id"], "own": own, "card": quote["card"], "expires_in_seconds": QUOTE_TTL,
             "summary": {k: quote[k] for k in ("account", "chain", "from", "to", "ens", "amount", "symbol",
                                               "asset_address", "max_fee", "usd")}}
