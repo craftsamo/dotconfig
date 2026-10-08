@@ -68,7 +68,7 @@ no Writer, Creator or service work; its briefs are inputs you release.
    - X Article: `skill_view(name="x-access:x-twitter-drafts", file_path="references/article-draft.md")`,
      into an Article draft the user created and named by its edit URL;
    - Substack: the `substack` tool's `create_draft` / `update_draft`, per
-     `skill_view(name="chat-assistant", file_path="references/substack.md")` (Write);
+     `skill_view(name="substack-access:substack-drafts")` (Write);
    - note: the `note` tool, per `skill_view(name="note-access:note-com-drafts")` (Save);
    - Zenn: `skill_view(name="zenn-dev")`.
    Reopen the same object and verify content and unpublished status. Never

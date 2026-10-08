@@ -28,6 +28,10 @@ EXPECTED = {
         "note-com-format": {"assistant", "marketer", "writer"},
         "note-com-drafts": {"assistant"},
     },
+    "social/substack-access": {
+        "substack": ALL_READERS,
+        "substack-drafts": {"assistant"},
+    },
     "google-access": {"google-sheets": {"assistant"}},
     "messaging/discord-access": {"discord-account": {"assistant"}},
     "messaging/signal-access": {"signal": {"assistant"}},
