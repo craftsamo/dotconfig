@@ -460,6 +460,20 @@ grep -q '^#no-env# export TEST_SEED=' "$TD/noenv.env" 2>/dev/null \
   && ok "env export comments out a --no-env item" || bad "env export comments out a --no-env item"
 ( source "$TD/noenv.env"; [[ -z ${TEST_SEED-} ]] ) \
   && ok "sourcing an env export never exports it" || bad "sourcing an env export never exports it"
+
+# --- set --new: create-only ---
+print -r -- 'other value' | secret set TEST_SEED -p $P -D mnemonic --new --stdin >/dev/null 2>&1 \
+  && bad "--new refuses an existing item" || ok "--new refuses an existing item"
+[[ "$(secret get TEST_SEED -p $P)" == "$SEED" ]] && ok "--new leaves the existing value" || bad "--new leaves the existing value"
+# past the pre-check (an item that appeared after it): security itself refuses without -U
+print -r -- 'other value' | _secret_store TEST_SEED $P '' mnemonic '' keep new >/dev/null 2>&1 \
+  && bad "a create-only write refuses an existing item" || ok "a create-only write refuses an existing item"
+[[ "$(secret get TEST_SEED -p $P)" == "$SEED" ]] \
+  && ok "a create-only write leaves the existing value" || bad "a create-only write leaves the existing value"
+print -r -- 'fresh value' | secret set TEST_FRESH -p $P --scope newscope --new --no-env --stdin >/dev/null 2>&1 \
+  && ok "--new stores a new item" || bad "--new stores a new item"
+[[ "$(secret get TEST_FRESH -p $P --scope newscope)" == 'fresh value' ]] \
+  && ok "--new item reads back" || bad "--new item reads back"
 secret rm TEST_SEED -p $P -f >/dev/null 2>&1
 secret import "$TD/noenv.json" -y >/dev/null 2>&1
 [[ "$(secret env -p $P)" != *TEST_SEED* && "$(secret get TEST_SEED -p $P)" == "$SEED" ]] \
