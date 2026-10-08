@@ -1,14 +1,15 @@
-"""human_gate: keep a messaging write off the approval card's bypass paths.
+"""human_gate: keep a write off the approval card's bypass paths.
 
-A chat-account plugin escalates every write to Hermes' human-approval gate with a ``pre_tool_call``
+An account plugin escalates every write to Hermes' human-approval gate with a ``pre_tool_call``
 ``approve`` directive. That gate auto-approves, without asking anyone, whenever Hermes runs in a mode
 where nobody can answer: ``--yolo``, ``approvals.mode: off``, and ``hermes -z`` (which switches YOLO
 on by itself because "an approval prompt would hang forever"). A write the card was meant to guard
 would then run unasked. ``no_human`` names that situation so the plugin can refuse the write itself,
 before any card is built: the same checks as the web3 tools' ``_no_human``.
 
-Shared by the messaging plugins (each loads this file by path; it is not a plugin and has no
-manifest). It fails closed: if Hermes' approval context cannot be read, nobody is assumed present.
+Shared by the plugins that return an ``approve`` directive (each loads this file by path; it is not a
+plugin and has no manifest). It fails closed: if Hermes' approval context cannot be read, nobody is
+assumed present.
 """
 
 from __future__ import annotations

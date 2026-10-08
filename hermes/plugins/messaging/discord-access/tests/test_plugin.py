@@ -301,7 +301,7 @@ def test_with_a_person_present_a_write_still_asks_for_its_card():
 def test_the_genuine_check_refuses_a_write_in_this_headless_test_run(monkeypatch):
     """Without the stub, the real check runs against Hermes' own approval code. A test run is
     headless (nobody present, not a gateway), so the write is refused: the situation of `hermes -z`."""
-    genuine = _load("discord_access_human_gate_genuine", ROOT.parent / "_shared" / "human_gate.py")
+    genuine = _load("discord_access_human_gate_genuine", ROOT.parents[1] / "_shared" / "human_gate.py")
     monkeypatch.setattr(plugin.access.human_gate, "no_human", genuine.no_human)
     assert genuine.no_human() is not None
     result = json.loads(plugin.discord_account(WRITE_CALLS["send"]))
