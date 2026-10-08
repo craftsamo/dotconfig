@@ -295,8 +295,41 @@ def handle_get(path: str):
     return None
 
 
+ORACLE = {"down": False, "sized": []}  # the L1 fee oracles: down, or "long" (only big samples fail)
+
+
+def oracle_call(call: dict):
+    """(result, error) for the rollups' L1 fee oracles, or None for any other call. getL1Fee's bytes
+    argument is kept in ``sized``, to check what was sized."""
+    to, data = (call.get("to") or "").lower(), (call.get("data") or "")[2:]
+    if to == "0x420000000000000000000000000000000000000f":  # the OP Stack's GasPriceOracle
+        if data.startswith("49948e0e"):
+            raw = bytes.fromhex(data[8 + 128:8 + 128 + 2 * int(data[8 + 64:8 + 128], 16)])
+            ORACLE["sized"].append(raw)
+            if ORACLE["down"] is True or (ORACLE["down"] == "long" and len(raw) > 150):
+                return None, {"code": -32603, "message": "backend unavailable"}
+        if ORACLE["down"] is True:
+            return None, {"code": -32603, "message": "backend unavailable"}
+        if data.startswith("49948e0e"):  # getL1Fee(bytes)
+            return "0x" + word(2 * 10 ** 12), None
+        if data.startswith("06f837d3"):  # tokenRatio()
+            return "0x" + word(1000), None
+        if data.startswith("275aedd2"):  # getOperatorFee(gas): a million wei per unit
+            return "0x" + word(int(data[8:], 16) * 10 ** 6), None
+    if to == "0x5300000000000000000000000000000000000002" and data.startswith("49948e0e"):  # Scroll
+        return "0x" + word(3 * 10 ** 12), None
+    return None
+
+
 def handle(method: str, params: list):
     """(result, error) for one fake JSON-RPC call."""
+    answer = oracle_call(params[0]) if method == "eth_call" else None
+    if answer is not None:
+        return answer
+    if method == "eth_feeHistory":
+        return {"baseFeePerGas": [hex(10 ** 9)] * 21, "reward": [[hex(10 ** 8), hex(2 * 10 ** 8), hex(3 * 10 ** 8)]] * 20}, None
+    if method == "eth_gasPrice":
+        return hex(12 * 10 ** 8), None
     if method == "eth_call" and contract_call(params[0]) is not None:
         return contract_call(params[0])
     if method == "eth_blockNumber":
@@ -794,3 +827,50 @@ def test_risk_never_calls_a_program_derived_authority_a_key(endpoint, tmp_path):
     assert "an address only a program can sign for" in found["mint"][0]["finding"]
     assert "single key" not in found["mint"][0]["finding"]
     assert "a fee of 0%" in found["fees"][0]["finding"]  # the newer fee wins, even when it is zero
+
+
+# --- gas ------------------------------------------------------------------------------------------
+
+def gas_of(chain: str, endpoint: str, tmp_path: Path) -> dict:
+    reply = engine({"action": "gas", "chain": chain, "_rpc": endpoint}, tmp_path)
+    assert reply["ok"], reply
+    return reply["data"]
+
+
+# 21000 gas at a 1 gwei base fee and a 0.2 gwei tip: 0.0000252 of the native coin
+@pytest.mark.parametrize("chain, native, breakdown", [
+    ("sepolia", "0.0000252", None),
+    ("base-sepolia", "0.000027221", {"execution": "0.0000252", "l1_data": "0.000002", "operator": "0.000000021"}),
+    ("mantle-sepolia", "0.002025221", {"execution": "0.0000252", "l1_data": "0.002", "operator": "0.000000021"}),
+    ("scroll", "0.0000282", {"execution": "0.0000252", "l1_data": "0.000003"}),
+])
+def test_gas_counts_a_rollups_l1_and_operator_fees(endpoint, tmp_path, chain, native, breakdown):
+    data = gas_of(chain, endpoint, tmp_path)
+    assert data["native_transfer"]["native"] == native
+    assert data["native_transfer"].get("breakdown") == breakdown
+    assert ("l1_fee_note" in data) == (breakdown is not None) and "l1_fee_unread" not in data
+    assert data["next_base_fee_gwei"] == 1 and data["priority_fee_gwei"]["medium"] == 0.2
+    # 65000 gas: 0.000078; the token sample carries the same L1 fee here (the fake ignores the bytes)
+    token = data["token_transfer"]
+    assert token["breakdown"]["execution"] == "0.000078" if breakdown else token["native"] == "0.000078"
+
+
+def test_gas_sizes_signed_samples_like_the_transfers(endpoint, tmp_path):
+    ORACLE["sized"].clear()
+    gas_of("base-sepolia", endpoint, tmp_path)
+    native, token = ORACLE["sized"][-2:]
+    assert native[0] == token[0] == 0x02  # EIP-1559 transactions
+    assert bytes.fromhex("a9059cbb") in token and len(token) > len(native) + 60  # a transfer's calldata
+
+
+@pytest.mark.parametrize("down", [True, "long"])
+def test_gas_without_its_l1_oracle_says_so_and_still_answers(endpoint, tmp_path, down):
+    ORACLE["down"] = down
+    try:
+        data = gas_of("base-sepolia", endpoint, tmp_path)
+    finally:
+        ORACLE["down"] = False
+    for name, gas_alone in (("native_transfer", "0.0000252"), ("token_transfer", "0.000078")):
+        assert data[name]["native"] == gas_alone and "breakdown" not in data[name]  # both or neither
+    assert "backend unavailable" in data["l1_fee_unread"] and "gas alone" in data["l1_fee_unread"]
+    assert "l1_fee_note" not in data
