@@ -789,7 +789,9 @@ def _notify(home_arg, sid):
     home = Path(home_arg)
     if home.name not in PROFILES or home.parent.name != "profiles":
         raise ValueError("Invalid captured OpenCode caller home")
-    return turn.await_turn(_session_id(sid), NOTIFY_LIMIT)
+    # A provider retry already reached the caller in the run call's own state; returning on it
+    # again would only wake the caller with what it has just read.
+    return turn.await_turn(_session_id(sid), NOTIFY_LIMIT, through_retry=True)
 
 
 if __name__ == "__main__":
