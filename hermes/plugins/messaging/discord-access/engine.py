@@ -1047,13 +1047,54 @@ def _read_back(conn, client: Client, plan: dict, detail: str) -> dict:
 
 # --- threads, pins, mentions, friends, server-side search ----------------------------------------
 
-def threads(client: Client, channel_id: str, *, archived=None, offset: int = 0, limit: int = 25) -> dict:
-    """Threads (or forum posts) under one parent channel, newest activity first. Each thread is
-    stored as a channel, so it can be read and sent to afterwards."""
+def forum_tags(client: Client, channel_id: str) -> dict:
+    """A forum or media channel's tags as {id: name}; {} for any other channel. A channel whose tags
+    were never stored is read once (the guild channel list may not carry them)."""
     conn = client.conn
-    params = {"sort_by": "last_message_time", "sort_order": "desc", "limit": str(limit), "offset": str(offset)}
+
+    def stored():
+        return conn.execute("SELECT type, forum FROM channels WHERE id = ?", (int(channel_id),)).fetchone()
+
+    row = stored()
+    if row is None or row["type"] not in store.FORUM_TYPES:
+        return {}
+    if row["forum"] is None:
+        channel(client, channel_id)
+        row = stored()
+    try:
+        tags = json.loads(row["forum"] or "{}").get("tags") or []
+    except ValueError:
+        tags = []
+    return {t["id"]: t["name"] for t in tags}
+
+
+def _resolve_tag(tags: dict, wanted: str) -> str:
+    """A tag given by id or by name (exactly, ignoring case) to its id."""
+    if wanted in tags:
+        return wanted
+    named = [i for i, name in tags.items() if name.casefold() == wanted.casefold()]
+    if len(named) == 1:
+        return named[0]
+    if not tags:
+        raise EngineError("usage", "this channel has no tags (only forum and media channels do)")
+    known = ", ".join(sorted(tags.values()))
+    raise EngineError("usage", f"unknown tag {wanted!r}; this channel's tags: {known}" if not named else
+                      f"more than one tag is called {wanted!r}: use its id")
+
+
+def threads(client: Client, channel_id: str, *, archived=None, offset: int = 0, limit: int = 25,
+            tag=None, sort: str = "activity") -> dict:
+    """Threads (or forum posts) under one parent channel, newest activity first (or newest created
+    first), optionally those carrying a forum tag (an id or a name). Each thread is stored as a
+    channel, so it can be read and sent to afterwards."""
+    conn = client.conn
+    tags = forum_tags(client, channel_id)
+    params = {"sort_by": "creation_time" if sort == "created" else "last_message_time", "sort_order": "desc",
+              "limit": str(limit), "offset": str(offset)}
     if archived is not None:
         params["archived"] = "true" if archived else "false"
+    if tag:
+        params["tag"] = _resolve_tag(tags, tag)
     found = client.get(f"/channels/{channel_id}/threads/search", params=params, referer=_referer(conn, channel_id))
     now, rows = _now(), []
     for t in found.get("threads") or []:
@@ -1061,14 +1102,17 @@ def threads(client: Client, channel_id: str, *, archived=None, offset: int = 0, 
             row = store.channel_row(t)
             store.upsert_channel(conn, row, now)
             rows.append(row)
-    first = {}
+    first, authors = {}, {}
     for m in found.get("first_messages") or []:
         if isinstance(m, dict) and m.get("id") and m.get("channel_id"):
             _store_batch(client, m["channel_id"], [m], reactions=False)
             first[str(m["channel_id"])] = (m.get("content") or "")[:300]
+            name = store.display_name(m.get("author"), m.get("member"))
+            if name:
+                authors[str(m["channel_id"])] = name
     conn.commit()
-    return {"threads": rows, "first": first, "has_more": bool(found.get("has_more")),
-            "total": found.get("total_results")}
+    return {"threads": rows, "first": first, "first_author": authors, "tags": tags,
+            "has_more": bool(found.get("has_more")), "total": found.get("total_results")}
 
 
 def pins(client: Client, channel_id: str, *, before=None, limit: int = 50) -> dict:
@@ -1585,8 +1629,14 @@ def run(command: str, args: dict, *, http=None, token=None) -> dict:
             whoami(client)  # from_me needs the account id
         if command == "threads":
             archived = args.get("archived")
+            tag, sort = args.get("tag"), args.get("sort") or "activity"
+            if tag is not None and (not isinstance(tag, str) or not tag.strip() or len(tag) > 100):
+                raise EngineError("usage", "tag must be a tag id or name")
+            if sort not in ("activity", "created"):
+                raise EngineError("usage", "sort must be activity or created")
             return threads(client, _arg(args, "channel"), archived=archived if isinstance(archived, bool) else None,
-                           offset=_int(args, "offset", 0, 9975), limit=_int(args, "limit", 25, 25) or 25)
+                           offset=_int(args, "offset", 0, 9975), limit=_int(args, "limit", 25, 25) or 25,
+                           tag=tag.strip() if tag else None, sort=sort)
         if command == "pins":
             before = args.get("before")
             return pins(client, _arg(args, "channel"), before=before if isinstance(before, str) and before else None,

@@ -198,6 +198,48 @@ def test_threads_keep_their_metadata():
     assert meta["archived"] is True and meta["messages"] == 4
 
 
+def test_thread_metadata_carries_owner_pin_time_and_tags():
+    conn = store.connect(write=True)
+    store.upsert_channel(conn, store.channel_row({
+        "id": C[5], "type": 11, "name": "help", "parent_id": C[0], "guild_id": G1, "owner_id": C[1], "flags": 2,
+        "applied_tags": [C[2], C[3]],
+        "thread_metadata": {"archived": False, "locked": False, "create_timestamp": "2026-01-02T03:04:05+00:00"}}), 0)
+    meta = json.loads(conn.execute("SELECT thread FROM channels").fetchone()[0])
+    assert meta["owner"] == C[1] and meta["pinned"] is True and meta["tags"] == [C[2], C[3]]
+    assert meta["created"] == "2026-01-02T03:04:05+00:00"
+    store.upsert_channel(conn, store.channel_row({"id": C[6], "type": 11, "thread_metadata": {}}), 0)
+    plain = json.loads(conn.execute("SELECT thread FROM channels WHERE id = ?", (int(C[6]),)).fetchone()[0])
+    assert plain["owner"] is None and plain["pinned"] is False and plain["tags"] == []
+
+
+def test_forum_tags_are_stored_and_survive_a_listing_without_them():
+    conn = store.connect(write=True)
+    tags = [{"id": C[2], "name": "Bug", "emoji_name": "🐛"}, {"id": C[3], "name": "Idea"}, {"name": "no id"}]
+    store.upsert_channel(conn, store.channel_row({"id": C[4], "type": 15, "name": "ideas", "guild_id": G1,
+                                                  "available_tags": tags, "default_sort_order": 1}), 0)
+    stored = json.loads(conn.execute("SELECT forum FROM channels").fetchone()[0])
+    assert stored == {"tags": [{"id": C[2], "name": "Bug", "emoji": "🐛"},
+                               {"id": C[3], "name": "Idea", "emoji": None}], "sort": 1}
+    store.upsert_channel(conn, store.channel_row({"id": C[4], "type": 15, "name": "ideas", "guild_id": G1}), 1)
+    assert json.loads(conn.execute("SELECT forum FROM channels").fetchone()[0]) == stored
+    assert store.channel_row({"id": C[5], "type": 0, "available_tags": tags})["forum"] is None   # only forums have tags
+    store.upsert_channel(conn, store.channel_row({"id": C[6], "type": 16, "guild_id": G1, "available_tags": []}), 0)
+    assert json.loads(conn.execute("SELECT forum FROM channels WHERE id = ?", (int(C[6]),)).fetchone()[0])["tags"] == []
+
+
+def test_an_older_mirror_gains_the_forum_column(tmp_path, monkeypatch):
+    import sqlite3
+    monkeypatch.setenv(store.STATE_ENV, str(tmp_path / "old"))
+    (tmp_path / "old").mkdir()
+    old = sqlite3.connect(tmp_path / "old" / "mirror.db")
+    old.execute("CREATE TABLE channels (id INTEGER PRIMARY KEY, guild_id INTEGER, type INTEGER, name TEXT, "
+                "parent_id INTEGER, recipients TEXT, last_message_id INTEGER, state TEXT, updated INTEGER)")
+    old.commit()
+    old.close()
+    conn = store.connect(write=True)
+    assert {"thread", "forum"} <= {r[1] for r in conn.execute("PRAGMA table_info(channels)")}
+
+
 def test_roles_and_members():
     conn = store.connect(write=True)
     store.upsert_guild(conn, G1, "One", 0, owner=False)

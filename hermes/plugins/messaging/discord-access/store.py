@@ -29,6 +29,8 @@ SNOWFLAKE = re.compile(r"^[0-9]{15,21}$")
 DM, GROUP_DM = 1, 3
 GUILD_TEXT, GUILD_ANNOUNCEMENT = 0, 5
 THREADS = {10, 11, 12}
+FORUM_TYPES = {15, 16}       # forum and media channels: their posts are threads
+THREAD_PINNED = 1 << 1       # channel flag: a post pinned to the top of its forum
 TEXT_TYPES = {GUILD_TEXT, GUILD_ANNOUNCEMENT}
 PRIVATE_TYPES = {DM, GROUP_DM}
 READABLE_TYPES = TEXT_TYPES | PRIVATE_TYPES | THREADS
@@ -64,7 +66,7 @@ CREATE TABLE IF NOT EXISTS guilds (
     id INTEGER PRIMARY KEY, name TEXT, updated INTEGER, owner INTEGER, roles_at INTEGER);
 CREATE TABLE IF NOT EXISTS channels (
     id INTEGER PRIMARY KEY, guild_id INTEGER, type INTEGER, name TEXT, parent_id INTEGER,
-    recipients TEXT, last_message_id INTEGER, state TEXT, updated INTEGER, thread TEXT);
+    recipients TEXT, last_message_id INTEGER, state TEXT, updated INTEGER, thread TEXT, forum TEXT);
 CREATE TABLE IF NOT EXISTS messages (
     id INTEGER PRIMARY KEY, channel_id INTEGER NOT NULL, guild_id INTEGER, author_id INTEGER,
     author_name TEXT, from_me INTEGER NOT NULL DEFAULT 0, content TEXT, reply_to INTEGER,
@@ -89,7 +91,7 @@ CREATE TABLE IF NOT EXISTS members (
 
 # Columns added after a mirror was first made; connect(write=True) adds whatever is missing.
 MIGRATIONS = {"messages": {"stickers": "TEXT", "reactions": "TEXT", "embed_data": "TEXT"},
-              "channels": {"thread": "TEXT"},
+              "channels": {"thread": "TEXT", "forum": "TEXT"},
               "cursors": {"rechecked_at": "INTEGER"},
               "guilds": {"owner": "INTEGER", "roles_at": "INTEGER"}}
 
@@ -212,8 +214,22 @@ def _thread(c: dict) -> str | None:
     meta = c.get("thread_metadata")
     if c.get("type") not in THREADS or not isinstance(meta, dict):
         return None
+    flags = c.get("flags") if isinstance(c.get("flags"), int) else 0
     return json.dumps({"archived": bool(meta.get("archived")), "locked": bool(meta.get("locked")),
-                       "messages": c.get("message_count"), "archived_at": meta.get("archive_timestamp")})
+                       "messages": c.get("message_count"), "archived_at": meta.get("archive_timestamp"),
+                       "owner": str(c["owner_id"]) if c.get("owner_id") else None,
+                       "created": meta.get("create_timestamp"), "pinned": bool(flags & THREAD_PINNED),
+                       "tags": [str(t) for t in c.get("applied_tags") or []]})
+
+
+def _forum(c: dict) -> str | None:
+    """A forum or media channel's tags (id, name, emoji) and default sort; None when the payload has none."""
+    tags = c.get("available_tags")
+    if c.get("type") not in FORUM_TYPES or not isinstance(tags, list):
+        return None
+    out = [{"id": str(t["id"]), "name": str(t["name"]), "emoji": t.get("emoji_name")}
+           for t in tags if isinstance(t, dict) and t.get("id") and t.get("name")]
+    return json.dumps({"tags": out, "sort": c.get("default_sort_order")}, ensure_ascii=False)
 
 
 def channel_row(c: dict, guild_id=None) -> dict:
@@ -224,19 +240,21 @@ def channel_row(c: dict, guild_id=None) -> dict:
             "name": c.get("name") or None, "parent_id": int(c["parent_id"]) if c.get("parent_id") else None,
             "recipients": json.dumps(recipients, ensure_ascii=False) if recipients else None,
             "last_message_id": int(c["last_message_id"]) if c.get("last_message_id") else None,
-            "thread": _thread(c)}
+            "thread": _thread(c), "forum": _forum(c)}
 
 
 def upsert_channel(conn: sqlite3.Connection, row: dict, now: int) -> None:
     conn.execute(
-        "INSERT INTO channels (id, guild_id, type, name, parent_id, recipients, last_message_id, updated, thread) "
-        "VALUES (:id, :guild_id, :type, :name, :parent_id, :recipients, :last_message_id, :updated, :thread) "
+        "INSERT INTO channels (id, guild_id, type, name, parent_id, recipients, last_message_id, updated, thread, "
+        "forum) VALUES (:id, :guild_id, :type, :name, :parent_id, :recipients, :last_message_id, :updated, :thread, "
+        ":forum) "
         "ON CONFLICT(id) DO UPDATE SET guild_id = excluded.guild_id, type = excluded.type, "
         "name = excluded.name, parent_id = excluded.parent_id, "
         "recipients = COALESCE(excluded.recipients, channels.recipients), "
         "last_message_id = COALESCE(excluded.last_message_id, channels.last_message_id), "
         "thread = COALESCE(excluded.thread, channels.thread), "
-        "updated = excluded.updated", {"thread": None, **row, "updated": now})
+        "forum = COALESCE(excluded.forum, channels.forum), "
+        "updated = excluded.updated", {"thread": None, "forum": None, **row, "updated": now})
 
 
 def upsert_guild(conn: sqlite3.Connection, gid, name, now: int, owner=None) -> None:

@@ -48,7 +48,7 @@ still apply.
 | Something looks wrong or stale | `status`: read `health` (`ok` / `degraded` / `stale` / `down`, with reasons); `detail=true` names the channels behind or unreadable; `verify=true` checks the token | mirror |
 | A DM or group DM | `dms` (`query` = part of a name, `last=true`) | mirror (always synced) |
 | A server, then its channels | `guilds`, then `channels` with `guild` | refreshed every 6 h / live |
-| A channel's threads or forum posts | `threads` with the parent channel (25 a page, `offset`, `archived`) | live |
+| A channel's threads or forum posts | `threads` with the parent channel (25 a page, `offset`, `archived`; in a forum `tag` = a tag name from the result's `tags`, `sort=created`; each post shows its tags, poster and `pinned`) | live |
 | Read a chat | `messages` with `channel`, `after` / `before` (an id, a date or a time) | mirror while current, else live (at most 100) |
 | Around one message | `context` with `channel` + `id` | mirror, else live |
 | Find words | `search` with `query` (substring over the mirror); narrow with `author` (id or `me`), `has` (`attachment` / `embed` / `link` / `sticker`), and mirror-only `reacted`, `emoji`, `parent` | mirror |
