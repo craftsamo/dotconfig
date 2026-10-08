@@ -23,6 +23,7 @@ def isolated(monkeypatch):
     monkeypatch.setattr(plugin, "_inbound_peer", lambda: False)
     monkeypatch.setattr(plugin, "_home", lambda: base)
     monkeypatch.setattr(plugin.tg, "_agent_running", lambda: True)
+    monkeypatch.setattr(plugin.human_gate, "no_human", lambda: None)  # a person is present
     fakes.seed(base)
     plugin.tg._approved.clear()
     yield base
@@ -112,6 +113,47 @@ def test_sends_are_refused_without_a_person(monkeypatch):
     assert "nothing was sent" in json.loads(plugin.telegram_account(dict(args)))["error"]
     assert plugin.gate(tool_name="telegram_account", args={"action": "chats"}) is None
     assert json.loads(plugin.telegram_account({"action": "chats"}))["ok"] is True
+
+
+NO_HUMAN = ["yolo mode is on", "approvals are off (approvals.mode: off)", "nobody is present to answer"]
+SENDS = [{"action": "send", "chat": str(fakes.ALICE), "text": "hi"},
+         {"action": "send", "chat": str(fakes.ALICE), "text": "hi", "files": ["~/Workspaces/a.txt"]}]
+
+
+@pytest.mark.parametrize("reason", NO_HUMAN)
+@pytest.mark.parametrize("args", SENDS)
+def test_a_send_never_runs_where_no_person_can_answer_its_card(monkeypatch, isolated, reason, args):
+    monkeypatch.setattr(plugin.human_gate, "no_human", lambda: reason)
+    before = sorted(str(p) for p in isolated.rglob("*"))
+    directive = plugin.gate(tool_name="telegram_account", args=dict(args), tool_call_id="call-1")
+    assert directive["action"] == "block"
+    assert reason in directive["message"] and "Nothing was sent or changed" in directive["message"]
+    error = json.loads(plugin.telegram_account(dict(args)))
+    assert error["ok"] is False and reason in error["error"] and "Nothing was sent or changed" in error["error"]
+    assert not plugin.tg._approved
+    assert sorted(str(p) for p in isolated.rglob("*")) == before
+
+
+def test_reads_are_unaffected_where_no_person_is_present(monkeypatch):
+    monkeypatch.setattr(plugin.human_gate, "no_human", lambda: "yolo mode is on")
+    assert plugin.gate(tool_name="telegram_account", args={"action": "chats"}) is None
+    assert json.loads(plugin.telegram_account({"action": "chats"}))["ok"] is True
+
+
+def test_with_a_person_present_a_send_still_gets_a_card():
+    directive = plugin.gate(tool_name="telegram_account", args=dict(SENDS[0]))
+    assert directive["action"] == "approve"
+
+
+def test_the_genuine_check_refuses_in_this_headless_run(monkeypatch):
+    path = ROOT.parents[1] / "_shared" / "human_gate.py"
+    gate_spec = importlib.util.spec_from_file_location("human_gate_genuine_test", path)
+    genuine = importlib.util.module_from_spec(gate_spec)
+    gate_spec.loader.exec_module(genuine)
+    monkeypatch.setattr(plugin.human_gate, "no_human", genuine.no_human)
+    assert genuine.no_human()
+    assert plugin.gate(tool_name="telegram_account", args=dict(SENDS[0]))["action"] == "block"
+    assert json.loads(plugin.telegram_account(dict(SENDS[0])))["ok"] is False
 
 
 def test_cron_is_unattended():

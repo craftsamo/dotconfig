@@ -46,7 +46,7 @@ def _load(name, path):
 store = _load("hermes_discord_access_store", HERE / "store.py")
 perms = _load("hermes_discord_access_perms", HERE / "perms.py")
 archives = _load("hermes_archive_check", HERE.parent / "_shared" / "archive_check.py")
-human_gate = _load("hermes_human_gate", HERE.parent / "_shared" / "human_gate.py")
+human_gate = _load("hermes_human_gate", HERE.parents[1] / "_shared" / "human_gate.py")
 
 ACTIONS = ("status", "guilds", "channels", "dms", "messages", "search", "context", "backfill", "media",
            "threads", "pins", "mentions", "pending", "stats", "export", "friends", "roles", "member",

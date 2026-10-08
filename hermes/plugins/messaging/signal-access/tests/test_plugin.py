@@ -22,6 +22,7 @@ def isolated(monkeypatch):
     monkeypatch.setenv(store.STATE_ENV, str(base))  # never the real state directory
     monkeypatch.setattr(plugin, "_inbound_peer", lambda: False)
     monkeypatch.setattr(plugin.sig, "_agent_running", lambda: True)
+    monkeypatch.setattr(plugin.human_gate, "no_human", lambda: None)   # a person is there to answer cards
     fakes.link_account(base)
     conn = store.connect(store.db_path(base), write=True)
     store.set_meta(conn, uuid=fakes.ME)
@@ -152,3 +153,68 @@ def test_the_skill_reaches_only_the_assistant():
         ctx = Ctx(profile)
         plugin.register(ctx)
         assert set(ctx.skills) == names
+
+
+# --- a send never runs where no person can answer its card -------------------------------------
+
+REASONS = ["yolo mode is on", "approvals are off (approvals.mode: off)", "this is a cron job",
+           "this is a single-query run", "this platform is unattended", "nobody is present to answer"]
+
+
+@pytest.fixture
+def photo(isolated, monkeypatch):
+    workspace = isolated / "Workspaces"
+    workspace.mkdir()
+    monkeypatch.setattr(plugin.sig, "SEND_ROOT", workspace)
+    path = workspace / "a.png"
+    path.write_bytes(b"\x89PNG\r\n\x1a\n" + b"\x00" * 16)
+    return path
+
+
+def _send_calls(photo):
+    return [{"action": "send", "chat": fakes.ALICE, "text": "hi"},
+            {"action": "send", "chat": fakes.ALICE, "text": "hi", "files": [str(photo)]},
+            {"action": "send", "chat": fakes.ALICE, "text": "hi", "reply_to": "1790000000000"}]
+
+
+@pytest.mark.parametrize("reason", REASONS)
+def test_a_send_is_refused_before_any_card_where_nobody_can_answer(monkeypatch, isolated, photo, reason):
+    monkeypatch.setattr(plugin.human_gate, "no_human", lambda: reason)
+    for args in _send_calls(photo):
+        directive = plugin.gate(tool_name="signal", args=args, tool_call_id="call-1")
+        assert directive["action"] == "block" and reason in directive["message"]
+        assert "Nothing was sent or changed" in directive["message"]
+        # the handler refuses on its own, whatever the hook did
+        result = json.loads(plugin.signal_tool(dict(args)))
+        assert result["ok"] is False and reason in result["error"]
+        assert "Nothing was sent or changed" in result["error"]
+    assert plugin.sig._approved == {}
+    assert not (isolated / "outbox").exists()
+
+
+def test_reads_are_not_affected_by_the_missing_person(monkeypatch):
+    monkeypatch.setattr(plugin.human_gate, "no_human", lambda: "yolo mode is on")
+    for args in ({"action": "chats"}, {"action": "status"}):
+        assert plugin.gate(tool_name="signal", args=args) is None
+        assert json.loads(plugin.signal_tool(args))["ok"] is True
+
+
+def test_with_a_person_present_a_send_still_asks_for_its_card(photo):
+    for args in _send_calls(photo)[:2]:
+        directive = plugin.gate(tool_name="signal", args=args, tool_call_id="c")
+        assert directive["action"] == "approve" and directive["rule_key"].startswith("signal-access:send:")
+
+
+def test_the_genuine_check_refuses_a_send_in_this_headless_test_run(monkeypatch):
+    """Without the stub, the real check runs against Hermes' own approval code. A test run is
+    headless (nobody present, not a gateway), so the send is refused: the situation of `hermes -z`."""
+    spec = importlib.util.spec_from_file_location("signal_access_human_gate_genuine",
+                                                  ROOT.parents[1] / "_shared" / "human_gate.py")
+    genuine = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(genuine)
+    monkeypatch.setattr(plugin.human_gate, "no_human", genuine.no_human)
+    assert genuine.no_human() is not None
+    args = {"action": "send", "chat": fakes.ALICE, "text": "hi"}
+    result = json.loads(plugin.signal_tool(args))
+    assert result["ok"] is False and "not done" in result["error"]
+    assert plugin.gate(tool_name="signal", args=args)["action"] == "block"

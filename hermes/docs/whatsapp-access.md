@@ -9,13 +9,13 @@ WhatsApp. Part of the Hermes design docs — index: [`PROFILES.md`](../PROFILES.
 
 ## Shape
 
-| Piece                                                                                      | Home                                                                                           | Reader    |
-| ------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------- | --------- |
-| Engine: wacli calls, result shapes, file checks and snapshots, approval card, bypass guard | `plugins/messaging/whatsapp-access/wa.py`                                                      | all       |
-| `whatsapp` tool and the `pre_tool_call` hooks (toolset `whatsapp_access`)                  | `plugins/messaging/whatsapp-access/__init__.py`                                                | Assistant |
-| Pairing and the per-account sync agent                                                     | `launchd/whatsapp-access-launchctl.sh`, `launchd/local.hermes.whatsapp-access.sync.plist.tmpl` | people    |
-| How the Assistant works with it: reads, history, files, checks, sends, outcomes, counts    | the `whatsapp-access:whatsapp` plugin skill (`plugins/messaging/whatsapp-access/skills/whatsapp/`)                         | Assistant |
-| When the Assistant uses it in Chat                                                         | the Assistant's private Chat reference `whatsapp.md`                                           | Assistant |
+| Piece                                                                                      | Home                                                                                               | Reader    |
+| ------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------- | --------- |
+| Engine: wacli calls, result shapes, file checks and snapshots, approval card, bypass guard | `plugins/messaging/whatsapp-access/wa.py`                                                          | all       |
+| `whatsapp` tool and the `pre_tool_call` hooks (toolset `whatsapp_access`)                  | `plugins/messaging/whatsapp-access/__init__.py`                                                    | Assistant |
+| Pairing and the per-account sync agent                                                     | `launchd/whatsapp-access-launchctl.sh`, `launchd/local.hermes.whatsapp-access.sync.plist.tmpl`     | people    |
+| How the Assistant works with it: reads, history, files, checks, sends, outcomes, counts    | the `whatsapp-access:whatsapp` plugin skill (`plugins/messaging/whatsapp-access/skills/whatsapp/`) | Assistant |
+| When the Assistant uses it in Chat                                                         | the Assistant's private Chat reference `whatsapp.md`                                               | Assistant |
 
 The engine shells out to [`wacli`](https://github.com/openclaw/wacli)
 (Homebrew `openclaw/tap/wacli`, built on whatsmeow), which joins each account
@@ -211,6 +211,21 @@ so the quote resolves.
   it may carry a file's name or a success envelope.
 - Inbound A2A requests never reach WhatsApp; the toolset is not in the
   Assistant's `a2a` platform toolset either.
+
+## Where a write may run
+
+A send runs only where a person can answer its card. Hermes approves an
+`approve` directive without asking under `--yolo`, `approvals.mode: off` and
+`hermes -z`, so the plugin refuses itself (the shared check in
+`plugins/_shared/human_gate.py`) in those modes, in cron, in a single-query
+run, on an unattended platform, and wherever nobody is present to answer.
+
+- Both the `pre_tool_call` hook and the handler refuse, so a send never
+  depends on the hook having been called; the hook refuses before any file
+  is copied, and no outbox is handed out. The refusal reads `not done` and
+  says nothing was sent or changed.
+- Reads are unaffected.
+- A send is tried only through a chat where a card reaches the user.
 
 ## Ways around the tool
 

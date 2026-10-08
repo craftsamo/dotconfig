@@ -82,6 +82,10 @@ editor can still change a cell in between. So each column has one owner, you
 never revert cells another editor changed (report them), and the read-back
 always runs.
 
+Where no one can answer an approval card (a cron job, a single-query run, an
+unattended platform), the tool refuses the write with `not done`. Ask the user
+to request it in a chat; do not look for another route.
+
 ### When a write goes wrong
 
 - An error or timeout leaves the cells unknown: read them before anything

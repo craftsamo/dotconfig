@@ -33,6 +33,7 @@ def isolated(monkeypatch, tmp_path):
     monkeypatch.setattr(na, "bridge", fake_bridge)
     monkeypatch.setattr(plugin, "_inbound_peer", lambda: False)
     monkeypatch.setattr(plugin, "_unattended", lambda: False)
+    monkeypatch.setattr(plugin.human_gate, "no_human", lambda: None)   # a person is there to answer cards
     monkeypatch.setattr(plugin, "_home", lambda: None)
     na._approved.clear()
     return calls
@@ -209,6 +210,63 @@ def test_unattended_runs_cannot_write_and_hand_the_save_back(isolated, monkeypat
     assert "nothing was saved" in error and "to the caller" in error and "resident session" in error
     assert "save" not in isolated
     assert gate(tool_name="note", args={"action": "drafts"}) is None   # reads still work unattended
+
+
+WRITE_CALLS = {
+    "create_draft": {"action": "create_draft", "title": "T", "body": "## a\n\nb"},
+    "update_draft": {"action": "update_draft", "draft": "n0000000000a1", "base": "t1", "body": "new"},
+}
+
+
+def test_the_table_of_write_calls_covers_every_write():
+    assert set(WRITE_CALLS) == set(na.WRITES)
+
+
+@pytest.mark.parametrize("reason", ["yolo mode is on", "approvals are off (approvals.mode: off)",
+                                    "nobody is present to answer"])
+@pytest.mark.parametrize("action", sorted(WRITE_CALLS))
+def test_a_write_is_refused_before_any_card_where_nobody_can_answer(isolated, monkeypatch, action, reason):
+    monkeypatch.setattr(plugin.human_gate, "no_human", lambda: reason)
+    handler, gate = handler_and_gate("assistant")
+    args = WRITE_CALLS[action]
+    directive = gate(tool_name="note", args=args, tool_call_id="c1")
+    assert directive["action"] == "block" and reason in directive["message"]
+    assert "Nothing was sent or changed" in directive["message"]
+    monkeypatch.setattr(plugin, "_call_id", lambda: "c1")
+    result = json.loads(handler(dict(args)))
+    assert result["ok"] is False and reason in result["error"] and "Nothing was sent or changed" in result["error"]
+    assert "save" not in isolated
+
+
+def test_reads_and_previews_are_not_affected_by_the_missing_person(isolated, monkeypatch):
+    monkeypatch.setattr(plugin.human_gate, "no_human", lambda: "yolo mode is on")
+    handler, gate = handler_and_gate("assistant")
+    for args in ({"action": "drafts"}, {"action": "check", "body": "## a\n\nb"},
+                 {**WRITE_CALLS["create_draft"], "preview": True},
+                 {**WRITE_CALLS["update_draft"], "preview": True}):
+        assert gate(tool_name="note", args=args) is None
+    assert json.loads(handler({"action": "check", "body": "## a\n\nb"}))["ready"] is True
+    assert json.loads(handler({**WRITE_CALLS["update_draft"], "preview": True}))["ok"] is True
+
+
+def test_with_a_person_present_a_write_still_asks_for_its_card():
+    _, gate = handler_and_gate("assistant")
+    directive = gate(tool_name="note", args=WRITE_CALLS["update_draft"], tool_call_id="c1")
+    assert directive["action"] == "approve" and directive["rule_key"].startswith("note-access:update_draft:")
+
+
+def test_the_genuine_check_refuses_a_write_in_this_headless_test_run(isolated, monkeypatch):
+    spec = importlib.util.spec_from_file_location("note_access_human_gate_genuine",
+                                                  ROOT.parents[1] / "_shared" / "human_gate.py")
+    genuine = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(genuine)
+    monkeypatch.setattr(plugin.human_gate, "no_human", genuine.no_human)
+    assert genuine.no_human() is not None
+    handler, gate = handler_and_gate("assistant")
+    args = WRITE_CALLS["update_draft"]
+    assert gate(tool_name="note", args=args, tool_call_id="c1")["action"] == "block"
+    assert json.loads(handler(dict(args)))["ok"] is False
+    assert "save" not in isolated
 
 
 def test_marketer_can_neither_save_nor_preview_even_with_a_person(isolated, monkeypatch):

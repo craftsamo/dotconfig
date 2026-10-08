@@ -17,7 +17,7 @@ over Signal. Part of the Hermes design docs — index: [`PROFILES.md`](../PROFIL
 | Engine: reads, check, media, send, approval card, file checks, bypass guard  | `plugins/messaging/signal-access/sig.py`                                                   | Assistant          |
 | `signal` tool and the `pre_tool_call` hook (toolset `signal_access`)         | `plugins/messaging/signal-access/__init__.py`                                              | Assistant          |
 | Linking and the sync agent                                                   | `launchd/signal-access-launchctl.sh`, `launchd/local.hermes.signal-access.sync.plist.tmpl` | people             |
-| How the tool is used: reads, files, sends, outcomes                          | the `signal-access:signal` plugin skill (`plugins/messaging/signal-access/skills/signal/`)             | Assistant          |
+| How the tool is used: reads, files, sends, outcomes                          | the `signal-access:signal` plugin skill (`plugins/messaging/signal-access/skills/signal/`) | Assistant          |
 | When the Assistant uses it in Chat                                           | the Assistant's private Chat reference `signal.md`                                         | Assistant          |
 
 [signal-cli](https://github.com/AsamK/signal-cli) (Homebrew `signal-cli`, a
@@ -259,6 +259,22 @@ text.
   before any resend. The plugin never retries a send.
 - Inbound A2A requests never reach Signal; the toolset is not in the
   Assistant's `a2a` platform toolset either.
+
+## Where a write may run
+
+A send runs only where a person can answer its card. Hermes approves an
+`approve` directive without asking under `--yolo`, `approvals.mode: off` and
+`hermes -z`, so the plugin refuses itself (the shared check in
+`plugins/_shared/human_gate.py`) in those modes, in cron, in a single-query
+run, on an unattended platform, and wherever nobody is present to answer.
+
+- Both the `pre_tool_call` hook and the handler refuse, so a send never
+  depends on the hook having been called; the hook refuses before the card is
+  built. The refusal reads `not done` and says nothing was sent or changed.
+- The send record is made when the card is built, before anyone answers, so it
+  is no proof of approval; only this check keeps a card-less run from sending.
+- Reads are unaffected.
+- A send is tried only through a chat where a card reaches the user.
 
 ## Ways around the tool
 

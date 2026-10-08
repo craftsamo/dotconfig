@@ -12,18 +12,18 @@ browser. Part of the Hermes design docs — index:
 
 ## Shape
 
-| Piece                                                                                                                                       | Home                                                                   | Reader                      |
-| ------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- | --------------------------- |
-| Engine: validation, pacing, session state, public reads, result shapes, image checks, write plan, approval card, image upload, bypass guard | `plugins/social/note-access/na.py`                                     | all                         |
-| Markdown ⇄ note editor HTML                                                                                                                 | `plugins/social/note-access/notefmt.py`                                | all                         |
-| The only process holding the session; a fixed set of signed-in operations                                                                   | `plugins/social/note-access/bridge.py`                                 | all                         |
-| `note` tool and the `pre_tool_call` hook (toolset `note_access`), the actions each profile gets                                             | `plugins/social/note-access/__init__.py`                               | Assistant, Marketer, Writer |
-| How a profile reads note: actions, budget, results, recovery | the `note-access:note-com` plugin skill (`plugins/social/note-access/skills/note-com/`) | Assistant, Marketer, Searcher |
-| Preparing a body with the offline `check` | the `note-access:note-com-format` plugin skill (`.../skills/note-com-format/`) | Assistant, Marketer, Writer |
-| Saving a draft: the card, the whole-body update, results | the `note-access:note-com-drafts` plugin skill (`.../skills/note-com-drafts/`); registered for the Assistant only | Assistant |
-| When Chat uses it                                                                                                                           | the Assistant's private Chat reference `note.md`                       | Assistant                   |
-| How Marketer reads and measures on note                                                                                                     | `marketer-pipeline/references/platforms/note.md`                       | Marketer                    |
-| How Writer writes and checks a note source draft                                                                                            | `writer-pipeline/<write\|edit\|analyze>/article/references/note.md`    | Writer                      |
+| Piece                                                                                                                                       | Home                                                                                                              | Reader                        |
+| ------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- | ----------------------------- |
+| Engine: validation, pacing, session state, public reads, result shapes, image checks, write plan, approval card, image upload, bypass guard | `plugins/social/note-access/na.py`                                                                                | all                           |
+| Markdown ⇄ note editor HTML                                                                                                                 | `plugins/social/note-access/notefmt.py`                                                                           | all                           |
+| The only process holding the session; a fixed set of signed-in operations                                                                   | `plugins/social/note-access/bridge.py`                                                                            | all                           |
+| `note` tool and the `pre_tool_call` hook (toolset `note_access`), the actions each profile gets                                             | `plugins/social/note-access/__init__.py`                                                                          | Assistant, Marketer, Writer   |
+| How a profile reads note: actions, budget, results, recovery                                                                                | the `note-access:note-com` plugin skill (`plugins/social/note-access/skills/note-com/`)                           | Assistant, Marketer, Searcher |
+| Preparing a body with the offline `check`                                                                                                   | the `note-access:note-com-format` plugin skill (`.../skills/note-com-format/`)                                    | Assistant, Marketer, Writer   |
+| Saving a draft: the card, the whole-body update, results                                                                                    | the `note-access:note-com-drafts` plugin skill (`.../skills/note-com-drafts/`); registered for the Assistant only | Assistant                     |
+| When Chat uses it                                                                                                                           | the Assistant's private Chat reference `note.md`                                                                  | Assistant                     |
+| How Marketer reads and measures on note                                                                                                     | `marketer-pipeline/references/platforms/note.md`                                                                  | Marketer                      |
+| How Writer writes and checks a note source draft                                                                                            | `writer-pipeline/<write\|edit\|analyze>/article/references/note.md`                                               | Writer                        |
 
 note has no public API. The tool calls the internal endpoints that note's own
 web app and editor use, the same way the editor does. They can change without
@@ -277,6 +277,16 @@ empty draft behind. Each outcome is reported this way:
   an unreadable 2xx and an unexpected error. Read the draft first.
 
 Nothing is retried automatically.
+
+## Where a write may run
+
+A save needs a person who can answer its card. Cron, webhook, API,
+single-query and other unattended runs are refused by the plugin, and so are
+runs where Hermes would approve the card unasked: `--yolo` or `/yolo`,
+`approvals.mode: off`, and any run with no one present to answer
+(`plugins/_shared/human_gate.py`). The hook and the handler each refuse, before
+a card or a save is built, and the answer names the reason. Reads, `check` and
+`preview=true` are unaffected.
 
 ## Ways around the tool
 
