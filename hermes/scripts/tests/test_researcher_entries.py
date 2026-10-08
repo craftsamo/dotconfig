@@ -236,7 +236,8 @@ def test_declared_agreement_and_continuity_contract():
                    "do not demand human approval for every lookup", "Human-only permissions remain separate",
                    "Multiple own-role units are allowed", "never decompose the whole production",
                    "no outbound peers", "reset budget", "replay completed work",
-                   "stages of one unit, not separate entries"):
+                   "stages of one unit, not separate entries",
+                   "QA runs before every findings reply and its self-check goes with it"):
         assert phrase in kernel
     for gone in ("card gate", "register cards", "Cards are refused"):
         assert gone not in kernel
@@ -261,6 +262,7 @@ def test_declared_agreement_and_continuity_contract():
         assert "next_offset" in text and "stop the affected action" in text
         assert "Never evade dedup with alternate paths or artificial ranges" in text
         assert "never a silent switch" in text
+        assert "only QA's self-checked delivery reaches the caller" in text
 
 
 @pytest.mark.parametrize("name,fields", [
@@ -311,11 +313,12 @@ def test_onchain_evidence_rules_and_platform_references():
     for phrase in ("`eth_call` simulation", "Sourcify", "`guessed`", "`powers`", "Inference",
                    "getThreshold()", "getMinDelay()", "not that it will always hold", "hop cap",
                    "keeps history", "ETHERSCAN_API_KEY", "100 events", "`omitted`", "`coverage`",
+                   "`state_unread`", "zero address is unset", "return its number as `block`", "(zos)",
                    "is not \"none ever\""):
         assert phrase in evm, phrase
     for phrase in ("upgrade authority", "IDL authority", "can lag or differ from the deployed code",
                    "mint authority", "freeze authority", "Token-2022", "hop cap",
-                   "latest 50 signatures", "no paging"):
+                   "latest 50 signatures", "no paging", "as `slot`"):
         assert phrase in solana, phrase
     for text in (evm, solana):
         assert "nothing is signed or sent" in text

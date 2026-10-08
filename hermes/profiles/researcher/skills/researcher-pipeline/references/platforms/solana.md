@@ -34,6 +34,9 @@ The kernel's source evaluation and on-chain rules apply. In addition:
 
 ## Limits
 
+- `program`, `address` and `token` return the slot they read as `slot`; `program`
+  also gives `program_data_slot` and the IDL's `slot`, read separately: cite
+  the slot of the read that shows the fact.
 - `activity` returns at most the latest 50 signatures of an address, with no
   paging: anything older is uncovered ground unless a signature already in
   hand leads there through `tx`. Record what was not read.

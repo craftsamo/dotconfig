@@ -96,7 +96,9 @@ Every mode runs the same stages, each owned by one shared reference:
 [Build](references/build.md) gathers and synthesizes within it, and
 [QA](references/qa.md) self-checks the result. The mode entry says what each
 stage means for its kind of question. These are stages of one unit, not
-separate entries; a stage change is not a new grant.
+separate entries; a stage change is not a new grant. Findings never go out
+from Build alone: QA runs before every findings reply and its self-check goes
+with it.
 
 Require the full kernel, mode entry and current stage reference bodies in
 current context, not a past load/preload record or summary. Load shared
