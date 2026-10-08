@@ -815,8 +815,10 @@ def test_threads_list_needs_a_parent_channel(monkeypatch):
     monkeypatch.setattr(access, "call_engine", lambda c, a, timeout=None: {
         "threads": [row], "first": {THREAD: "最初の投稿"}, "has_more": True})
     result = access.execute({"action": "threads", "channel": GENERAL})
-    assert result["threads"][0] == {"id": THREAD, "name": "help", "last_message": None, "archived": True,
-                                    "locked": False, "messages": 2, "first_post": "最初の投稿"}
+    assert result["threads"][0] == {"id": THREAD, "name": "help", "created": access._local(THREAD),
+                                    "last_message": None, "archived": True, "locked": False, "messages": 2,
+                                    "first_post": "最初の投稿"}
+    assert "tags" not in result and "tag" not in result
     assert result["next_offset"] == 25
 
 
@@ -1734,3 +1736,34 @@ def test_suggest_explains_a_channel_a_whole_server_does_not_follow_and_honours_e
     add = _suggest()["add"]
     assert [a["channel"] for a in add] == [C[11]] and add[0]["fits"] is False
     assert "whole server is followed" in add[0]["why_not"] and "sync_remove" in add[0]["why_not"]
+
+
+def test_forum_posts_show_tags_poster_and_pin_and_pass_the_filters(monkeypatch):
+    forum, tag_id = "450000000000000009", "800000000000000001"
+    row = store.channel_row({"id": THREAD, "type": 11, "name": "bug: crash", "parent_id": forum, "guild_id": G,
+                             "owner_id": TARO, "flags": 2, "applied_tags": [tag_id, "800000000000000099"],
+                             "thread_metadata": {"archived": False, "locked": False}, "message_count": 7})
+    plain = store.channel_row({"id": "450000000000000002", "type": 11, "name": "idea", "parent_id": forum,
+                               "guild_id": G, "thread_metadata": {"archived": False, "locked": False}})
+    calls = []
+
+    def engine(command, args, timeout=None):
+        calls.append(args)
+        return {"threads": [row, plain], "first": {THREAD: "it crashes"}, "first_author": {THREAD: "Taro"},
+                "tags": {tag_id: "Bug"}, "has_more": False}
+    monkeypatch.setattr(access, "call_engine", engine)
+    conn = store.connect(write=True)
+    store.upsert_channel(conn, store.channel_row({"id": forum, "type": 15, "name": "ideas", "guild_id": G}), 0)
+    conn.commit()
+    conn.close()
+    result = access.execute({"action": "threads", "channel": forum, "tag": "Bug", "sort": "created"})
+    assert calls[0]["tag"] == "Bug" and calls[0]["sort"] == "created"
+    first, second = result["threads"]
+    assert first["pinned"] is True and first["author"] == "Taro" and first["tags"] == ["Bug", "800000000000000099"]
+    assert "pinned" not in second and "tags" not in second and "author" not in second
+    assert result["tags"] == [{"id": tag_id, "name": "Bug"}] and result["tag"] == "Bug"
+    access.execute({"action": "threads", "channel": forum})
+    assert calls[1]["tag"] is None and calls[1]["sort"] == "activity"
+    for bad in ({"sort": "random"}, {"tag": "x" * 101}):
+        with pytest.raises(access.DiscordError):
+            access.execute({"action": "threads", "channel": forum, **bad})

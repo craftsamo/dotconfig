@@ -826,22 +826,44 @@ def threads(args: dict) -> dict:
     if archived is not None and not isinstance(archived, bool):
         raise DiscordError("archived must be true or false")
     limit, offset = _limit(args, "threads"), _offset(args)
-    data = call_engine("threads", {"channel": cid, "archived": archived, "offset": offset, "limit": limit})
+    tag = _str(args, "tag")
+    if len(tag) > 100:
+        raise DiscordError("tag is a tag name or id (at most 100 characters)")
+    sort = _str(args, "sort") or "activity"
+    if sort not in ("activity", "created"):
+        raise DiscordError("sort must be activity or created")
+    data = call_engine("threads", {"channel": cid, "archived": archived, "offset": offset, "limit": limit,
+                                   "tag": tag or None, "sort": sort})
+    tags = data.get("tags") or {}
     out = []
     for t in data["threads"]:
         meta = _json(t, "thread") or {}
-        item = {"id": str(t["id"]), "name": t["name"], "last_message": _local(t["last_message_id"]),
+        item = {"id": str(t["id"]), "name": t["name"], "created": _local(t["id"]),
+                "last_message": _local(t["last_message_id"]),
                 "archived": meta.get("archived", False), "locked": meta.get("locked", False)}
+        if meta.get("pinned"):
+            item["pinned"] = True
         if isinstance(meta.get("messages"), int):
             item["messages"] = meta["messages"]
+        applied = [tags.get(i) or i for i in meta.get("tags") or []]
+        if applied:
+            item["tags"] = applied
+        author = data.get("first_author", {}).get(str(t["id"])) or meta.get("owner")
+        if author:
+            item["author"] = author
         first = data.get("first", {}).get(str(t["id"]))
         if first:
             item["first_post"] = _clip(first, 200)
         out.append(item)
     result = {"ok": True, "channel": cid, "threads": out, "offset": offset}
+    if tags:
+        result["tags"] = [{"id": i, "name": n} for i, n in tags.items()]
+    if tag:
+        result["tag"] = tags.get(tag) or tag
     if data.get("has_more"):
         result["next_offset"] = offset + limit
-    result["note"] = "Read a thread with messages (channel = its id); send can post into it. " + UNTRUSTED
+    result["note"] = ("Read a thread with messages (channel = its id); send can post into it. "
+                      "author is the poster's name, or their user id when the post was not read. " + UNTRUSTED)
     return result
 
 
