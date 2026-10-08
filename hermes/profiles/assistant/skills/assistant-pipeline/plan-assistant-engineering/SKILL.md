@@ -59,8 +59,8 @@ question; you never read or edit target code yourself.
 | Script or small automation | a repository job like any other; you register the cron job or other Hermes-side wiring afterwards |
 
 Not OpenCode's: writing, creative work, research and Hermes operations (cron,
-messaging, secrets) go to their own entries. The Hermes configuration repo
-(`~/.config`) is not driven through you: the person runs OpenCode on it directly.
+messaging, secrets) go to their own entries. You do not run OpenCode on the
+Hermes configuration repo (`~/.config`): the person runs OpenCode on it directly.
 
 ## Steps
 

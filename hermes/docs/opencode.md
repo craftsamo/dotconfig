@@ -11,11 +11,16 @@ and commits with its own agents and skills (`opencode/AGENTS.md`). The
 Assistant is the user's Client and supervisor: it frames the outcome, grounds
 the plan through OpenCode plan/debug/review runs, obtains the user's explicit
 implementation approval, drives the build to a task-branch PR, answers what the
-runs pause on and accepts the result. It never edits target code itself. The
-Assistant's engineering entries (`{plan,execute,qa}-assistant-engineering`)
-carry those decisions; the plugin's own skill (`opencode:opencode`) carries the
-tool mechanics. Code work happens in any Telegram/Discord topic. The CLI
-`default` profile has no OpenCode tools: there the person runs OpenCode directly.
+runs pause on and accepts the result. It never edits target code itself, and it
+sends every code question or change to OpenCode, however small. The Assistant's
+engineering entries (`{plan,execute,qa}-assistant-engineering`) carry those
+decisions, including which work goes to OpenCode and what plan and Build share;
+the plugin's own skill (`opencode:opencode`) carries the tool mechanics. Code
+work happens in any Telegram/Discord topic. The CLI `default` profile has no
+OpenCode tools: there the person runs OpenCode directly, as they do on this
+configuration repo (`~/.config`). The Assistant does not run OpenCode on it,
+because its live links make every change immediately effective; its Admin topic
+makes only small inline edits there.
 
 | Relationship                 | Owner of decisions                                                  |
 | ---------------------------- | ------------------------------------------------------------------- |
@@ -76,12 +81,35 @@ needs arrive as `waiting` and are answered with `opencode_request`.
 `opencode_run_build` plus `approval`: OpenCode records the switch of agent and
 injects its own mode-change reminder, so the session keeps its whole history in
 context, and each turn re-sends agent, model, permissions and metadata and
-verifies the service applied them before the prompt. The plugin requires the
-same worktree and branch and refuses a default-branch build, so the Assistant
-moves the checkout onto a task branch BEFORE the first plan call when
-implementation is likely. A plan made on the default branch starts a new session
-whose message carries the proposal verbatim; a fork is a full-history copy and
-prunes nothing.
+verifies the service applied them before the prompt. A plan is read-only and
+runs on the default checkout. A build refuses a default-branch worktree, so
+after the Client's approval `opencode_session workspace` gives the idle plan
+session a worktree of its own: the plugin fetches, runs
+`git worktree add --no-track -b <branch>` from the remote default branch (or
+`head`) under `opencode.worktree_root` (default `~/Worktrees/<repo>/<branch>`),
+moves the session there with the service's `move` route, rebinds
+`metadata.hermes.branch` and renames the session; if the service refuses the
+move it removes the worktree and branch again. The service's own worktree
+route is not used: it can only create a detached HEAD. A fork is a full-history
+copy in the parent's worktree and prunes nothing; give it its own with
+`workspace` as well, which is how a clean plan is kept to build two ways.
+
+**One repository per session.** `session_move` is a tool the agent reaches
+through `execute`; it asks no permission and takes any session id, so an agent
+can move itself (or another session) anywhere (measured on 2.0.23). The binding therefore records the
+repository (`metadata.hermes.repo`, the real git common directory), and every
+turn refuses a session whose directory no longer belongs to it; a move to another
+branch of the same repository is caught by the branch binding. The plugin cannot
+stop an agent from moving a session it does not own.
+
+**Readiness.** `opencode_preflight(directory, phase)` is the one read-only
+check before a run: the service and the version the plugin was measured on, each
+role's agent, effective model and alternate against the catalog, the worktree
+and branch, and (for `phase=build`) a task branch, no session already running in
+the worktree and any uncommitted paths. Healthy is one line; otherwise only the
+findings, `error` blocking and `warn` informing. It reads no quota: the data
+OpenCode's quota plugin exports is only as fresh as an open TUI, so a limit is
+met as a failed turn and answered with the role's `alternate` (see Models).
 
 **Output directory.** A run may take `output_dir`: an existing job directory
 inside a Workspaces draft (`.agent/`), outside the worktree and spelled without
@@ -130,14 +158,26 @@ OpenCode agent's own pin. The plugin passes the model explicitly with every turn
 (it must use tools; a variant must be one the model offers), and reports it as
 `engine`. A caller may choose any catalog model of `opencode.allowed_providers`
 with `model` / `variant`; `opencode_catalog` `models` lists them with each
-role's default. A name outside the providers or the catalog is refused, never
-substituted, and an explicit selection binds the rest of that session. The
-caller's own model is refused for every role, so the Assistant never reviews or
-accepts output from the model it runs on: the configured `model.default` and the
-model it last answered with in this Hermes session (a `post_api_request` hook
-records it, so a fallback counts too). Speed tiers and dated snapshots count as
-the same model. When a profile's main model equals a role's default, give that
-role its own `model`.
+role's default and alternate. A name outside the providers or the catalog is
+refused, never substituted, and an explicit selection binds the rest of that
+session.
+
+The defaults are OpenCode's own: a role pins no `model` unless a maintainer has a
+reason, so the OpenCode agent's configured model runs (OpenCode uses its own
+subscription account, not the Hermes weekly pool). The caller's own model
+(the configured `model.default` and the model it last answered with in this
+Hermes session; a `post_api_request` hook records it, so a fallback counts too)
+is refused by default, so the Assistant does not review or accept output from the
+model it runs on. A role may set `caller_model: allow` to run on it anyway; the
+Assistant's roles do, because acceptance is a separate, independent step (a
+fresh `review` session and its own QA), and a refusal would otherwise force every
+role off the OpenCode defaults and break whenever a fallback changes the
+Assistant's model. Speed tiers and dated snapshots count as the same model.
+
+A role may name an `alternate` (`provider/model[#variant]`). Nothing switches by
+itself: it is listed in the catalog and named in the limit hint, and after a
+turn fails with a `limit` provider error the Assistant reruns on it. A read-only
+role simply reruns; for a write role the diff is read first.
 
 **Hand-back.** A live caller gets the current state at once. Only while that
 state is `running` it also gets a notifier process, launched through the terminal

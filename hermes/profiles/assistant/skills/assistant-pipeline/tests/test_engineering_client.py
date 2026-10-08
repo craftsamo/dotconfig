@@ -33,7 +33,7 @@ class EngineeringClientTests(unittest.TestCase):
         self.assertIn("keep **what the user decided** apart from **what you assume**", text)
         self.assertIn("at most seven", text)
         self.assertIn("## What goes to OpenCode", text)
-        self.assertIn("the person runs OpenCode on it directly", text)
+        self.assertIn("You do not run OpenCode on the Hermes configuration repo", text)
 
     def test_the_worktree_comes_after_approval_through_the_plugin(self):
         text = read("execute-assistant-engineering/SKILL.md")
