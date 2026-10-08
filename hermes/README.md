@@ -167,7 +167,8 @@ live under `profiles/creator/skills`. Skill placement (validator-enforced):
   Hermes and not part of any profile's `skills/`, so the validator checks them
   separately (`plugin skills=` in its summary) and `skills list` does not show
   them; `skill_view(name="<plugin>:<skill>")` does. The Assistant's tool
-  mechanics for X, YouTube, note, Google Sheets and the four chat accounts
+  mechanics for X, YouTube, note, Substack, Google Sheets, the four chat
+  accounts and the web3 wallets
   live there; `technic/` keeps what has no plugin.
 - Researcher/Searcher route one entry per mode (investigate / compare / verify /
   advise; lookup / sweep / hunt) over shared `references/{plan,build,qa}.md`
