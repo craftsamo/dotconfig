@@ -105,8 +105,8 @@ reads never serve silently stale history.
 
 ## Reads
 
-`status`, `dms`, `search`, `context`, `pending`, `stats` and `sync_list` read
-the mirror and make no request. `guilds` refreshes from Discord when its copy is over 6
+`status`, `dms`, `search`, `context`, `pending`, `stats`, `export` and
+`sync_list` read the mirror and make no request. `guilds` refreshes from Discord when its copy is over 6
 hours old, `friends` likewise; `channels`, `threads`, `pins`, `mentions`,
 `member`, `role_members` and `members` always ask Discord, and `roles` does
 when its copy is over 15 minutes old (or on `refresh`). `messages` reads the
@@ -218,6 +218,50 @@ under `discord_access.download_dir` from the profile's `config.yaml`, else
 - A message that is gone, or an item Discord no longer serves, is reported as
   missing. The note says a saved file is to be looked at, never opened or
   run (an archive is unpacked only by `unpack`).
+
+## Export
+
+`export` (channel) writes a synced channel's or DM's mirrored history to one
+file under `<download_dir>/exports/` (`discord_access.download_dir`, else
+`<HERMES_HOME>/discord-downloads/`; the Assistant uses
+`~/Workspaces/.inbox/discord`, so the file lands in `.inbox/discord/exports/`).
+It is for evidence a task can cite, and it makes no request.
+
+- **Only what the mirror holds in one piece.** The range runs from the
+  cursor's `oldest` edge to its `newest` one, never over stray live windows,
+  and the channel must have a cursor (a DM, or a channel on the sync list).
+  Messages stored past `newest` (a send, a live read) are not in one piece
+  with the history: they are left out and counted (`left_out` in the result,
+  `Left out` in the header), so a file never claims completeness over a gap.
+  The newest 2000 messages by default (`limit` up to 10000), or the first
+  `limit` after `after`; `before` bounds the other end. The result and the file
+  header say whether the file is complete to the channel start, whether the cap
+  cut it, whether the mirror was current, and how to continue (`before` /
+  `after`, or `backfill` first).
+- **Formats.** `markdown` (default): a header (server, channel, channel id,
+  time of export, count, range, cap, completeness, known gaps), then per
+  message `### <time with offset> | <author id> | <name> | id <message id>`
+  (the author id is the user's own account for `(me)`; a name is whatever its
+  owner set, so only the id attributes a message, and `|` in a name shows as
+  `¦`), its permalink
+  (`https://discord.com/channels/<server or @me>/<channel>/<message>`), reply,
+  event and edit marks, the full text, and the names of attachments, embeds,
+  stickers and reactions. `json`: the same as data, with `permalink` and
+  `author_id` per message. Text is never clipped.
+- **Text is quoted** (`> ` on every line, a line being whatever a viewer may
+  break at: `\n`, `\r`, `\v`, `\f`, U+0085, U+2028, U+2029 and the file
+  separators), so a message that contains a line like `### …` cannot pass for
+  a message heading of the file. The header says the text was written by
+  other people.
+- **Files are only created, and private.** A name is
+  `<channel>-<first day>[-<last day>]`; a repeat takes `-2`, `-3`, and an
+  existing file is never opened for writing. The folder is opened without
+  following links and a link or file at `exports/` is refused. Files are
+  mode 0600 and the `exports/` folder 0700 (they can hold private DMs). There
+  is no approval card: nothing leaves the machine. The file holds other
+  people's words and sits under the attach root, so a `send` of it is the
+  user's decision.
+- Older exports are not rewritten: a continuation is a new file.
 
 ## Sync list
 

@@ -40,6 +40,16 @@ changes the sync list.
 
 ## Raw files
 
+For a DM or a synced channel `export` writes this file for you (a header, the
+heading and permalink per message, the text quoted with `> `, a statement of
+completeness); the rules below still hold, and unsynced channels are read and
+written as described here. Its headings carry the author's id
+(`### <time> | <author id> | <name> | id <message id>`): attribute a message by
+that id, never by the name. It leaves out messages stored past the history's
+newest edge (a send, a live read) and says how many, so read those with
+`messages` when they matter. Move a keeper from `.inbox/discord/exports/` into
+the job's `raw/` folder.
+
 One file per channel in the job's draft directory, e.g.
 `<Group>/.agent/<YYYYMMDD>-<job>/raw/<channel_id>.md`:
 
