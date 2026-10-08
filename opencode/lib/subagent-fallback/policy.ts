@@ -52,6 +52,7 @@ const m = (providerID: string, id: string, variant?: string): ModelRef =>
 
 const opus = (variant: string) => m("anthropic", "claude-opus-5-5", variant)
 const sonnet = (variant: string) => m("anthropic", "claude-sonnet-5-5", variant)
+const haiku = (variant: string) => m("anthropic", "claude-haiku-5-5", variant)
 const sol = (variant: string) => m("openai", "gpt-6.1-sol", variant)
 const luna = (variant: string) => m("openai", "gpt-6-luna", variant)
 
@@ -63,12 +64,9 @@ export const ROUTES: Readonly<Record<string, Route>> = Object.freeze(
       "explore-medium": { primary: sonnet("medium"), alternate: sol("medium") },
       reviewer: { primary: sonnet("medium"), alternate: sol("medium") },
       worker: { primary: sonnet("low"), alternate: sol("low") },
-      "explore-spark": {
-        primary: m("anthropic", "claude-haiku-4-5"),
-        alternate: luna("low"),
-      },
-      "explore-small": { primary: luna("low"), alternate: sonnet("low") },
-      verifier: { primary: luna("low"), alternate: sonnet("low") },
+      "explore-spark": { primary: haiku("low"), alternate: luna("low") },
+      "explore-small": { primary: luna("low"), alternate: haiku("low") },
+      verifier: { primary: luna("low"), alternate: haiku("low") },
       debugger: { primary: sol("high"), alternate: opus("high") },
       "reviewer-deep": { primary: sol("high"), alternate: opus("high") },
       "searcher-deep": { primary: sol("medium"), alternate: sonnet("medium") },
