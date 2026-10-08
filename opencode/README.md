@@ -262,7 +262,9 @@ they do not probe providers or establish real billing/entitlement behavior.
 - **OpenAI**: built-in ChatGPT login,
   `opencode auth login openai --method chatgpt-browser`.
 - **xAI** (`x_search`): built-in SuperGrok login,
-  `opencode auth login xai --method device`; `XAI_API_KEY` wins when set.
+  `opencode auth login xai --method device`; `XAI_API_KEY` wins when set. Quota
+  shows its usage in the footer and `/quota` (`enabledProviders` includes
+  `xai`); the launch selector ignores it, as no specialist role uses Grok.
 
 `opencode auth list` shows the stored logins; `opencode auth switch` picks
 another one. Credentials live in OpenCode's database, not in `auth.json`.
