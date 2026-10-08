@@ -133,10 +133,60 @@ IDL = {"address": PROGRAM, "metadata": {"name": "demo", "version": "0.1.0", "des
        "accounts": [{"name": "Vault"}], "errors": [{"code": 6000, "name": "Slippage", "msg": "slippage exceeded"}]}
 
 
+# Token risk: a contract governed by a 2-of-3 Safe (owner) and a two-day timelock (admin).
+GOVERNED = "0x" + "e1" * 20
+SAFE = "0x" + "e2" * 20
+TIMELOCK = "0x" + "e3" * 20
+SOURCIFY[GOVERNED] = {"abi": [fn("owner", outputs=["address"]), fn("admin", outputs=["address"]),
+                              fn("mint", [("to", "address"), ("amount", "uint256")], mutability="nonpayable"),
+                              fn("setFee", [("fee", "uint256")], mutability="nonpayable")],
+                      "match": "exact_match", "compilation": {"name": "Governed"}}
+# Solana: a Token-2022 mint with a fee and a permanent delegate, and a classic mint with Metaplex metadata.
+RISKY_MINT = "So11111111111111111111111111111111111111112"
+CLASSIC_MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+SOL_KEY = "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM"
+SOL_MULTISIG = "BJE5MMbqXjVwjAF7oxwPYXnTXDyspzZyt4vwenNw5ruG"
+PDA_MINT = "mSoLzYCxHdYgdzU16g5QSh3i5K3z3KZK7ytfqcJm7So"  # its mint authority is an address only a program signs for
+METAPLEX = json.loads(subprocess.run(
+    [str(PYTHON), "-c", "import base64, json, sys; from solders.pubkey import Pubkey as P\n"
+     "prog = P.from_string('metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s'); mint = P.from_string(sys.argv[1])\n"
+     "pda = P.find_program_address([b'metadata', bytes(prog), bytes(mint)], prog)[0]\n"
+     "s = lambda t: len(t).to_bytes(4, 'little') + t\n"
+     "creators = b'\\x01' + (2).to_bytes(4, 'little') + (bytes(32) + b'\\x01\\x32') * 2\n"
+     "raw = b'\\x04' + bytes(P.from_string(sys.argv[2])) + bytes(mint) + s(b'USD Coin') + s(b'USDC') + s(b'')"
+     " + (0).to_bytes(2, 'little') + creators + b'\\x01' + b'\\x01'\n"
+     "authority = P.find_program_address([b'mint_authority'], prog)[0]\n"
+     "print(json.dumps({'pda': str(pda), 'data': base64.b64encode(raw).decode(), 'authority': str(authority)}))",
+     CLASSIC_MINT, SOL_MULTISIG],
+    capture_output=True, text=True).stdout or "{}") if PYTHON.exists() else {}
+# EVM: a clone of VERIFIED (EIP-1167), and a contract whose owner the RPC will not describe.
+CLONE = "0x" + "f1" * 20
+FLAKY = "0x" + "f2" * 20
+WOBBLY = "0x" + "f3" * 20
+SOURCIFY[FLAKY] = {"abi": [fn("owner", outputs=["address"]), fn("totalSupply", outputs=["uint256"])],
+                   "match": "exact_match", "compilation": {"name": "Flaky"}}
+
+
 def contract_call(call: dict):
     """(result, error) for an eth_call to one of the fake contracts, or None for any other."""
     to, data = (call.get("to") or "").lower(), (call.get("data") or "")[2:]
     sel = data[:8]
+    if to == GOVERNED and sel == SEL["owner"]:
+        return padded(SAFE), None
+    if to == FLAKY and sel == SEL["owner"]:
+        return padded(WOBBLY), None
+    if to == FLAKY and sel == "18160ddd":  # totalSupply()
+        return "0x" + word(10 ** 6), None
+    if to == GOVERNED and sel == "f851a440":  # admin()
+        return padded(TIMELOCK), None
+    if to == SAFE and sel == "e75235b8":  # getThreshold()
+        return "0x" + word(2), None
+    if to == SAFE and sel == "a0e67e2b":  # getOwners()
+        return "0x" + word(32) + word(3) + "".join(padded(a)[2:] for a in (ALICE, BOB, DEPLOYER)), None
+    if to == TIMELOCK and sel == "f27a0c92":  # getMinDelay()
+        return "0x" + word(172800), None
+    if to in (SAFE, TIMELOCK):
+        return None, {"code": 3, "message": "execution reverted"}
     if to == VERIFIED:
         if sel == SEL["owner"]:
             return padded(ALICE), None
@@ -180,6 +230,36 @@ SELECTORS = json.loads(subprocess.run(
 
 def solana_account(address: str, config: dict):
     import base64, zlib  # noqa: E401
+    token22, token = "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb", "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+
+    def parsed(owner, kind, info):
+        return {"context": {"slot": 900}, "value": {"owner": owner, "executable": False, "lamports": 1,
+                                                    "data": {"parsed": {"type": kind, "info": info}}}}
+
+    if address == RISKY_MINT:
+        return parsed(token22, "mint", {"decimals": 6, "supply": "1000000", "mintAuthority": SOL_KEY,
+                                        "freezeAuthority": None, "extensions": [
+            {"extension": "transferFeeConfig", "state": {"newerTransferFee": {"transferFeeBasisPoints": 250},
+                                                         "transferFeeConfigAuthority": SOL_MULTISIG}},
+            {"extension": "permanentDelegate", "state": {"delegate": SOL_KEY}}]})
+    if address == PDA_MINT:
+        return parsed(token22, "mint", {"decimals": 9, "supply": "5", "mintAuthority": METAPLEX["authority"],
+                                        "freezeAuthority": None, "extensions": [
+            {"extension": "transferFeeConfig", "state": {"newerTransferFee": {"transferFeeBasisPoints": 0},
+                                                         "olderTransferFee": {"transferFeeBasisPoints": 300}}}]})
+    if address == METAPLEX.get("authority"):
+        return {"value": None}
+    if address == CLASSIC_MINT:
+        return parsed(token, "mint", {"decimals": 6, "supply": "1000", "mintAuthority": None,
+                                      "freezeAuthority": SOL_MULTISIG})
+    if address == SOL_KEY:
+        return {"value": {"owner": "11111111111111111111111111111111", "executable": False, "lamports": 1,
+                          "data": ["", "base64"]}}
+    if address == SOL_MULTISIG:
+        return parsed(token, "multisig", {"numRequiredSigners": 2, "numValidSigners": 3})
+    if address == METAPLEX.get("pda"):
+        return {"value": {"owner": "metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s",
+                          "data": [METAPLEX["data"], "base64"]}}
     if address == PROGRAM and config.get("encoding") == "jsonParsed":
         return {"context": {"slot": 777}, "value": {"executable": True, "owner": "BPFLoaderUpgradeab1e11111111111111111111111", "lamports": 1,
                           "data": {"parsed": {"type": "program", "info": {"programData": PROGRAM_DATA}}}}}
@@ -235,7 +315,12 @@ def handle(method: str, params: list):
         return [{"address": LOGGY, "topics": [TRANSFER_TOPIC, padded(ALICE), padded(BOB)], "data": "0x" + word(n),
                  "blockNumber": hex(n), "transactionHash": "0x" + format(n, "064x"), "logIndex": "0x0"}
                 for n in range(low, high + 1) if n % 10 == 0], None
-    if method == "eth_getCode" and params[0].lower() in (VERIFIED, PROXY, LOGIC, SHELL, MANY, ZOS):
+    if method == "eth_getCode" and params[0].lower() == CLONE:
+        return "0x363d3d373d3d3d363d73" + VERIFIED[2:] + "5af43d82803e903d91602b57fd5bf3", None
+    if method == "eth_getCode" and params[0].lower() == WOBBLY:
+        return None, {"code": -32603, "message": "backend unavailable"}
+    if method == "eth_getCode" and params[0].lower() in (VERIFIED, PROXY, LOGIC, SHELL, MANY, ZOS, GOVERNED, SAFE,
+                                                         TIMELOCK, FLAKY):
         return "0x6080604052", None
     if method == "eth_getCode" and params[0].lower() == UNVERIFIED:
         return DISPATCHER, None
@@ -253,6 +338,10 @@ def handle(method: str, params: list):
         return "0x" + word(0), None
     if method == "getAccountInfo":
         return solana_account(params[0], params[1] if len(params) > 1 else {}), None
+    if method == "getTokenLargestAccounts":
+        if params[0] == CLASSIC_MINT:
+            return {"value": [{"amount": str(a)} for a in (600, 100, 50, 50)]}, None
+        return None, {"code": -32600, "message": "Too many accounts requested"}
     if method == "eth_getTransactionByHash":
         return ({**TX_BASE, "hash": params[0]} if params[0] in (HASH_OK, HASH_FAILED) else None), None
     if method == "eth_getTransactionReceipt":
@@ -605,3 +694,103 @@ def test_errors_never_carry_a_provider_key(tmp_path):
     out = subprocess.run([str(PYTHON), "-c", code, str(READER.parent)], capture_output=True, text=True,
                          env={"HOME": str(tmp_path), "PATH": "/usr/bin:/bin"}, timeout=30).stdout
     assert "k3y-SECRET" not in out and "…" in out
+
+
+# --- token risk -----------------------------------------------------------------------------------
+
+def by_area(data: dict) -> dict:
+    found: dict = {}
+    for f in data["findings"]:
+        found.setdefault(f["area"], []).append(f)
+    return found
+
+
+def test_risk_names_what_a_verified_tokens_owner_can_do(endpoint, tmp_path):
+    data = online({"action": "risk", "token": VERIFIED}, endpoint, tmp_path)
+    found = by_area(data)
+    assert [f["severity"] for f in data["findings"]] == sorted(
+        (f["severity"] for f in data["findings"]), key=("high", "medium", "low", "info").index)
+    paused = [f for f in found["pause"] if f["finding"].startswith("the token reads as paused now")]
+    assert paused and paused[0]["confidence"] == "medium"
+    mint = found["mint"][0]
+    assert mint["severity"] == "high" and mint["confidence"] == "medium" and mint["evidence"] == {"functions": ["mint"]}
+    control = found["control"][0]
+    assert "a role is held by a single key with delegated code (EIP-7702)" in control["finding"]
+    assert control["evidence"]["roles"] == ["owner"] and "owner" not in control["finding"]  # names stay in evidence
+    assert data["controllers"]["owner"]["address"].lower() == ALICE
+    assert any("holders" in u for u in data["unknowns"]) and "No score" in data["note"]
+    assert any("may not be a token" in f["finding"] for f in found["code"])  # no supply getter was read
+
+
+def test_risk_on_unverified_code_says_so_and_trusts_names_less(endpoint, tmp_path):
+    found = by_area(online({"action": "risk", "token": UNVERIFIED}, endpoint, tmp_path))
+    assert found["code"][0]["severity"] == "high" and "not verified" in found["code"][0]["finding"]
+    assert found["mint"][0]["confidence"] == "low"
+    assert "a role is held by a single key (an EOA)" in found["control"][0]["finding"]
+
+
+def test_risk_names_who_can_upgrade_a_proxy(endpoint, tmp_path):
+    data = online({"action": "risk", "token": ZOS}, endpoint, tmp_path)
+    upgrade = by_area(data)["upgrade"][0]
+    assert upgrade["severity"] == "high" and "the proxy admin, a single key (an EOA)" in upgrade["finding"]
+    assert data["controllers"]["proxy admin"]["address"].lower() == DEPLOYER
+
+
+def test_risk_tells_a_multisig_and_a_timelock_from_a_key(endpoint, tmp_path):
+    data = online({"action": "risk", "token": GOVERNED}, endpoint, tmp_path)
+    assert data["controllers"]["owner"]["is"] == "a 2-of-3 Safe multisig"
+    assert data["controllers"]["admin"]["is"] == "a timelock: a change waits 2 days before it can run"
+    found = by_area(data)
+    assert not any("single key" in f["finding"] for f in found.get("control", []))
+    assert found["fees"][0]["severity"] == "medium" and found["mint"][0]["severity"] == "high"
+
+
+def test_risk_reads_a_token2022_mints_extensions(endpoint, tmp_path):
+    reply = engine({"action": "risk", "chain": "solana-devnet", "_rpc": endpoint, "token": RISKY_MINT}, tmp_path)
+    assert reply["ok"], reply
+    data = reply["data"]
+    found = by_area(data)
+    assert found["mint"][0]["finding"].startswith("the mint authority, a single key (a wallet), can create more")
+    assert "a fee of 2.5%" in found["fees"][0]["finding"] and "an SPL Token 2-of-3 multisig can change it" in \
+        found["fees"][0]["finding"] and found["fees"][0]["severity"] == "high"
+    assert any("permanent delegate" in f["finding"] and f["severity"] == "high" for f in found["control"])
+    assert "blocklist" not in found and any("largest token accounts" in u for u in data["unknowns"])
+    assert data["controllers"]["permanent delegate"] == {"address": SOL_KEY, "is": "a single key (a wallet)"}
+    assert data["controllers"]["transfer fee authority"]["is"] == "an SPL Token 2-of-3 multisig"
+
+
+def test_risk_reads_a_classic_mints_metadata_and_holders(endpoint, tmp_path):
+    reply = engine({"action": "risk", "chain": "solana-devnet", "_rpc": endpoint, "token": CLASSIC_MINT}, tmp_path)
+    assert reply["ok"], reply
+    found = by_area(reply["data"])
+    assert found["mint"][0] == {"severity": "info", "area": "mint", "confidence": "high",
+                                "finding": "the supply is fixed: there is no mint authority",
+                                "evidence": {"mint_authority": None}}
+    assert "the freeze authority, an SPL Token 2-of-3 multisig" in found["blocklist"][0]["finding"]
+    assert found["metadata"][0]["severity"] == "low" and "an SPL Token 2-of-3 multisig" in found["metadata"][0]["finding"]
+    holders = found["holders"][0]  # a lead, never above medium: the top account is often a pool
+    assert holders["severity"] == "medium" and holders["evidence"] == {"top1_share": 0.6, "top10_share": 0.8}
+
+
+def test_risk_calls_a_clone_fixed_not_upgradeable(endpoint, tmp_path):
+    found = by_area(online({"action": "risk", "token": CLONE}, endpoint, tmp_path))
+    upgrade = found["upgrade"][0]
+    assert upgrade["severity"] == "info" and "cannot be upgraded" in upgrade["finding"]
+
+
+def test_risk_survives_a_role_holder_the_rpc_will_not_describe(endpoint, tmp_path):
+    data = online({"action": "risk", "token": FLAKY}, endpoint, tmp_path)
+    owner = data["controllers"]["owner"]
+    assert owner["address"].lower() == WOBBLY and owner["is"] == "not read (the RPC did not answer)"
+    assert any("what these role holders are" in u for u in data["unknowns"])
+    assert not any("single key" in f["finding"] for f in data["findings"])
+
+
+def test_risk_never_calls_a_program_derived_authority_a_key(endpoint, tmp_path):
+    reply = engine({"action": "risk", "chain": "solana-devnet", "_rpc": endpoint, "token": PDA_MINT}, tmp_path)
+    assert reply["ok"], reply
+    data = reply["data"]
+    found = by_area(data)
+    assert "an address only a program can sign for" in found["mint"][0]["finding"]
+    assert "single key" not in found["mint"][0]["finding"]
+    assert "a fee of 0%" in found["fees"][0]["finding"]  # the newer fee wins, even when it is zero

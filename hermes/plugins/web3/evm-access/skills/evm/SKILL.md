@@ -1,7 +1,7 @@
 ---
 name: evm
-description: "Use for reading EVM chains (Ethereum, Base, Arbitrum, OP Mainnet, Polygon, BNB Chain, Avalanche, Linea, Scroll, ZKsync Era, Unichain, Gnosis, Celo, Mantle, Sonic, World Chain, Ink, Zora and their testnets): a transaction, address, contract, token, approval, log, gas or price. Reads only."
-version: 1.0.0
+description: "Use for reading EVM chains (Ethereum, Base, Arbitrum, OP Mainnet, Polygon, BNB Chain, Avalanche, Linea, Scroll, ZKsync Era, Unichain, Gnosis, Celo, Mantle, Sonic, World Chain, Ink, Zora and their testnets): a transaction, address, contract, token and its risk, approval, log, gas or price. Reads only."
+version: 1.1.0
 author: CraftSamo
 license: MIT
 metadata:
@@ -35,6 +35,7 @@ simulation.
 | --- | --- |
 | One transaction: status, call, events, balance changes | `tx` (`hash`); `trace=true` only when internal calls matter — public RPCs often refuse |
 | What an address or contract is | `address` |
+| Whether a token is safe to hold: what its controllers can do and who they are | `risk` (`token`): findings by severity, `controllers`, `unknowns` |
 | What a contract does, who controls it | `contract` (proxy, verifier, deployer, functions, `state`, `powers`) |
 | A value a contract holds | `call` with a getter; a raw slot (`zos.implementation` / `.admin` among the named ones) or a variable without a getter with `storage` |
 | Whether something would go through | `call` with the write function, `from` the sender, `amount` when it pays — `eth_call` only, nothing is sent |
@@ -67,6 +68,14 @@ simulation.
 - `powers` come from function names: a lead, not a finding. Say who holds
   them (`state`: owner, pauser, admin…) and check a claim with `call` or the
   verified source before stating it as fact.
+- `risk` builds on `contract` at one block and adds who each role holder is
+  (nobody, a single key, a Safe m-of-n, a timelock and its delay, another
+  contract). It gives no score: report its findings by severity with their
+  evidence and confidence (`low` when the code is unverified and the powers
+  are guessed), name who holds each power, and carry its `unknowns` (holder
+  concentration is never read on EVM). A single key behind an upgrade or a
+  mint is the finding that matters most; a multisig or timelock narrows it,
+  it does not remove it.
 - Proxies are found through EIP-1167, EIP-1967 and OpenZeppelin's older (zos)
   slots; another pattern shows no `proxy`, so a contract whose behaviour
   suggests one stays an open question.

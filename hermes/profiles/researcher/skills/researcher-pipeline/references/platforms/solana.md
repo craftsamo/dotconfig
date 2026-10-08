@@ -24,10 +24,16 @@ The kernel's source evaluation and on-chain rules apply. In addition:
    replace the code; none (or a finalized loader-v4 program) means immutable.
    Read the authority with `address` — a wallet, or a program-owned account
    such as a multisig — and say which.
-2. **Who controls a token.** `token`: a mint authority still set can create
-   more; a freeze authority can freeze holders' accounts; Token-2022
-   extensions (transfer fees, hooks, permanent delegate) change what holders
-   can expect. Each is a fact to report with its holder.
+2. **Who controls a token, and is it safe to hold.** `risk` reads it at once:
+   a mint authority still set can create more; a freeze authority can freeze
+   holders' accounts; Token-2022 extensions (a transfer fee, a permanent
+   delegate that can move anyone's tokens, a transfer hook that can refuse
+   transfers, accounts frozen by default) change what holders can expect; a
+   mutable Metaplex metadata lets its update authority rename the token. Each
+   holder is a wallet (one key), an SPL multisig (m-of-n) or a program-owned
+   account: say which, as Observation at the cited slot. The largest token
+   accounts' share is a lead, not ownership — pools, exchanges and locks hold
+   for many. Give the findings by severity, not a score or a verdict.
 3. **Following funds.** Start from `tx` balance changes, then the
    counterparts' `activity`, one hop at a time, within the hop cap and call
    budget agreed in Plan.

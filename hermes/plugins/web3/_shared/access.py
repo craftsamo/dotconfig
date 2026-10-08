@@ -53,9 +53,9 @@ SIGNING = {"assistant"}
 A2A_PROFILES = {"researcher", "searcher", "marketer"}  # inbound A2A may read there, never send
 READS = {
     "evm": ("block", "tx", "address", "portfolio", "activity", "logs", "token", "allowances", "decode", "gas",
-            "price", "contract", "call", "storage"),
+            "price", "contract", "call", "storage", "risk"),
     "solana": ("block", "tx", "address", "portfolio", "activity", "token", "allowances", "decode", "gas", "price",
-               "program"),
+               "program", "risk"),
 }
 WALLET = ("accounts", "quote", "transfer", "status", "create_wallet")
 WALLET_FIELDS = {"accounts": ("count", "chain"),
@@ -108,7 +108,10 @@ READ_HELP = {
         "or a variable name, block; without slot, the published storage layout). contract, call, storage and "
         "address name the block they read; state_unread lists getters the RPC would not answer. Decoded items "
         "say where their ABI came from: verified (Sourcify, or Etherscan where a key is stored), known (built "
-        "in) or guessed (signature databases, which collide)."),
+        "in) or guessed (signature databases, which collide). risk (token = contract): what the token's "
+        "controllers can do to holders — upgrades, minting, pausing, blocklists, fees, limits — each finding "
+        "with a severity, its evidence and a confidence, who holds each power (nobody, a single key, a Safe "
+        "multisig, a timelock or a contract) and what was not read; no score, and a name is only a lead."),
     "solana": (
         "block (block = slot or latest: time, leader, parent, transaction count; detail=true adds vote / "
         "non-vote counts, failures, fees and the most-invoked programs), tx (hash = signature: status and "
@@ -119,7 +122,11 @@ READ_HELP = {
         "decode (data = a base64 or base58 transaction), gas (base and recent priority fees), price (symbol "
         "like SOL, or token = mint), program (address = a program id: its loader, whether it can still be "
         "upgraded and by which authority, the last deployment slot, and its Anchor IDL if one is published — "
-        "instructions with their arguments, signers and writable accounts, account types, events, errors)."),
+        "instructions with their arguments, signers and writable accounts, account types, events, errors), "
+        "risk (token = mint: what its authorities can do to holders — minting, freezing, Token-2022 fees, "
+        "permanent delegates, transfer hooks, default-frozen accounts, metadata changes — each with a severity, "
+        "its evidence and who holds it, a single key or a multisig, plus how much the largest accounts hold; no "
+        "score)."),
 }
 WALLET_HELP = (
     " The user's wallets: accounts (count = seed accounts listed per seed, default 5; chain = also native "
@@ -164,7 +171,7 @@ READ_PROPERTIES = {
     "block": {"type": "string", "description": "block: number, 0x hash or latest / safe / finalized; Solana: slot or latest; call / storage: the block to read at, default latest (a past block needs an RPC that keeps history, like Alchemy; public ones often refuse)"},
     "hash": {"type": "string", "description": "tx / status: the transaction hash (EVM) or signature (Solana)"},
     "address": {"type": "string", "description": "address / portfolio / activity / allowances: the address (EVM: or an ENS name); logs / contract / call / storage: the contract; program: the program id"},
-    "token": {"type": "string", "description": "token / price: a token contract or mint; quote: the token to send, omitted for the native coin"},
+    "token": {"type": "string", "description": "token / price / risk: a token contract or mint; quote: the token to send, omitted for the native coin"},
     "symbol": {"type": "string", "description": "price: a coin symbol or name such as ETH or SOL"},
     "chains": {"type": "array", "items": {"type": "string", "enum": list(chains.EVM)}, "maxItems": 6,
                "description": "portfolio: EVM chains to scan together; default the chain"},
