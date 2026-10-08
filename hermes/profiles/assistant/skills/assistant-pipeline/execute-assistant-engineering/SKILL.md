@@ -52,8 +52,9 @@ user's chosen control.
    your own paraphrase), and `output_dir` set to the job directory when the
    run produces reports or screenshots. The message carries the increment to
    do now, any change since the proposal, and what to report: actual check
-   results, a checkpoint commit of each verified increment, and rendered
-   evidence (screenshots tied to the changed build) for any change to a page. Write "run a review pass" or "deep review
+   results, a checkpoint commit of each verified increment, and for a change
+   to a page its `web_ui_check` result, with the baseline directory when one
+   exists. Write "run a review pass" or "deep review
    <area>" into the message for a risky increment (auth, data shape,
    concurrency, public API). A new session (plan made on the default branch or
    elsewhere) starts with no memory: paste the proposal and every settled

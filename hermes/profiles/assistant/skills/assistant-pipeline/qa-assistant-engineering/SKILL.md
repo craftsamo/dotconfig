@@ -1,6 +1,6 @@
 ---
 name: qa-assistant-engineering
-description: "QA engineering: accept outcomes against PR and worktree evidence, with an independent OpenCode review for risky changes and rendered evidence for UI. Acceptance grants no merge, deployment or automatic Issue updates."
+description: "QA engineering: accept outcomes against PR and worktree evidence, with an independent OpenCode review for risky changes and baseline comparison for rendered UI. Acceptance grants no merge, deployment or automatic Issue updates."
 version: 2.0.0
 author: CraftSamo
 license: MIT
@@ -57,11 +57,10 @@ in ../index.md still applies.
    implementation conversation's claims ("deep review <area>" for the risky
    part). It runs on a model other than yours. A small mechanical change needs
    only your diff read.
-4. **Rendered UI.** For a change to what a page looks like, read the build's
-   rendered evidence (screenshots tied to the changed build, the target
-   viewports and states) and show the user the screenshots when the look itself
-   is the decision. Never open a development target in your own logged-in
-   browser profile.
+4. **Rendered UI.** For a change to what a page looks like, follow
+   [web-ui.md](references/web-ui.md): mechanical failures, baseline
+   comparison, and the user's look approval only where the approved scope does
+   not explain a change.
 5. **PR.** Confirm the PR exists with the intended repository, base, head,
    commits and description, and read its CI state: pending or unavailable is
    not green, a failed required check prevents unqualified acceptance. A

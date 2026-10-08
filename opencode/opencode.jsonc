@@ -459,6 +459,8 @@
     "git_commit_lint": "allow",
     // Custom X search tool (lib/custom-tools/x.ts) — xAI server-side x_search, read-only external query
     "x_search": "allow",
+    // Rendered web UI checks (lib/custom-tools/web_ui.ts) — writes only to a .agent/ draft or scratch
+    "web_ui_check": "allow",
   },
   "mcp": {
     "blender-mcp": {

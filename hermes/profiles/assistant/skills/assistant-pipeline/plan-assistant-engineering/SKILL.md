@@ -101,6 +101,7 @@ over as context, but old grants need reconciliation, not adoption.
 | Stateful Web application | [webapp.md](references/webapp.md) |
 | Script, CLI or automation | [tool.md](references/tool.md) |
 | Existing-repository change | [existing-change.md](references/existing-change.md) |
+| A change that alters what a web page looks like | [web-ui.md](references/web-ui.md) |
 
 These guides hold Client questions and acceptance expectations, not prescribed
 implementation units. OpenCode owns technical planning and its own checks.

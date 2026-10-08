@@ -28,7 +28,7 @@ This file does not restate agent behavior. Contracts:
 
 | Topic                                                                            | Contract                                                                                                                 |
 | -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| OpenCode runtime and Assistant-driven code work                                  | [docs/opencode.md](docs/opencode.md)                                                                                     |
+| OpenCode runtime, Assistant-driven code work, UI verification                    | [docs/opencode.md](docs/opencode.md)                                                                                     |
 | `specialist_call` / `specialist_session`, completion, deadlines, work continuity | [docs/profiles/specialist-calls.md](docs/profiles/specialist-calls.md)                                                   |
 | Assistant entry routing, creative early delivery, pinned topics  | [docs/profiles/assistant.md](docs/profiles/assistant.md)                                                                 |
 | Writer v8 leaves, Marketer v9 entries, Researcher/Searcher phases                | [writer.md](docs/profiles/writer.md), [marketer.md](docs/profiles/marketer.md), [research.md](docs/profiles/research.md) |

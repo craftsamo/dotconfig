@@ -11,6 +11,7 @@ build/commit, not an earlier screenshot or a different worktree's server.
 | tool | Representative permitted input/output and failure exit behavior were observed; scheduling claims separately proven |
 | bootstrap | Approved owner/visibility, clone/remotes, workspace link and registry match; skeleton evidence is separate |
 | existing-change | Requested outcome, regression/performance evidence and unchanged scope are demonstrated |
+| web-ui | `web_ui_check` ran on the changed build and its remaining failures are named; baseline changes are explained by the scope or approved by the user ([web-ui.md](web-ui.md)) |
 
 Read the run's screenshots and findings when needed to understand an outcome;
 do not invent an aesthetic score. Unclear observations go back to the build

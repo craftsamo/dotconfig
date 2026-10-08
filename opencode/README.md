@@ -16,7 +16,7 @@ needed. Installed from the `anomalyco/tap/opencode-v2` formula (see the
 | `plugins/`        | local plugins (`*.ts`), auto-discovered                     |
 | `lib/`            | code imported by plugins (not scanned by OpenCode)          |
 | `skills/`         | opencode-only skills (`<name>/SKILL.md`)                    |
-| `package.json`    | plugin dependencies (zod), installed by `install.sh --deps` |
+| `package.json`    | plugin dependencies, installed by `install.sh --deps`       |
 | `opencode-quota/` | quota plugin settings (`quota-toast.jsonc`)                 |
 
 A fresh clone needs `./install.sh --deps` once: OpenCode 2 does not install
@@ -31,6 +31,13 @@ Custom tools live in `lib/custom-tools/<file>.ts` and are registered by
 add a `tools/` directory: V1 would register the same IDs twice and V2 does
 not load it. Keep subdirectories out of `plugins/`; V2 loads each one as a
 plugin package.
+
+Custom tools run without OpenCode's permission rules, so each enforces its own
+limits. `web_ui_check` (`lib/custom-tools/web_ui.ts`) runs
+`lib/web-ui-check/web-ui-check.mjs` in a Node child process, because Playwright
+is not reliable inside the Bun plugin host; `install.sh --deps` also installs
+Playwright's headless shell for it. Tests: `bun test lib/custom-tools` and
+`node --test lib/web-ui-check/web-ui-check.test.mjs`.
 
 All global instructions live in `AGENTS.md`. Do not reintroduce an
 `instructions` array: OpenCode V2 accepts the key but does not load its files

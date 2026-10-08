@@ -105,6 +105,13 @@ broker references and Assistant guides. Assessment alone never authorizes edits.
 
 </HermesHandsReferencesSkill>
 
+<WebUiCheckTool>
+
+After a change that alters what a web page renders, run `web_ui_check` against
+the running build of the worktree and report its summary.
+
+</WebUiCheckTool>
+
 <JapaneseWritingSkills>
 
 Load `japanese-writing` to write, rewrite, proofread or diagnose Japanese
