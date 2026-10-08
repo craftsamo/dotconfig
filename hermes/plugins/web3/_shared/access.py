@@ -96,9 +96,11 @@ READ_HELP = {
         "'balanceOf(address)' or 'balanceOf(address) returns (uint256)', args, from, amount, block: runs one "
         "function, read or write, as eth_call — nothing is signed or sent, so a write shows only whether and "
         "how it would succeed for that caller at that block), storage (address, slot = a number, 0x hex, "
-        "eip1967.implementation / eip1967.admin / eip1967.beacon or a variable name, block; without slot, the "
-        "published storage layout). Decoded items say where their ABI came from: verified (Sourcify, or "
-        "Etherscan where a key is stored), known (built in) or guessed (signature databases, which collide)."),
+        "eip1967.implementation / .admin / .beacon, zos.implementation / .admin (older OpenZeppelin proxies) "
+        "or a variable name, block; without slot, the published storage layout). contract, call, storage and "
+        "address name the block they read; state_unread lists getters the RPC would not answer. Decoded items "
+        "say where their ABI came from: verified (Sourcify, or Etherscan where a key is stored), known (built "
+        "in) or guessed (signature databases, which collide)."),
     "solana": (
         "block (block = slot or latest: time, leader, parent, transaction count; detail=true adds vote / "
         "non-vote counts, failures, fees and the most-invoked programs), tx (hash = signature: status and "
@@ -154,7 +156,7 @@ READ_PROPERTIES = {
     "args": {"type": "array", "items": {"type": "string"}, "maxItems": 32,
              "description": "call: one value per parameter, as text: integers in base units (no decimals), addresses or ENS names, true / false, 0x hex bytes, arrays and tuples as JSON like [\"0x…\",\"0x…\"]"},
     "from": {"type": "string", "description": "call: the caller to run it as, default none (the zero address)"},
-    "slot": {"type": "string", "description": "storage: a slot number, 0x hex, eip1967.implementation / eip1967.admin / eip1967.beacon, or a variable name"},
+    "slot": {"type": "string", "description": "storage: a slot number, 0x hex, eip1967.implementation / eip1967.admin / eip1967.beacon / zos.implementation / zos.admin, or a variable name"},
     "amount": {"type": "string", "description": "call: native coin sent with the call, in whole units like 0.05; quote: the amount to send, in whole units"},
 }
 EVM_ONLY = {"chains", "from_block", "to_block", "event", "topics", "trace", "blocks", "function", "args",
