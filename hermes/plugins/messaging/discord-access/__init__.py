@@ -53,7 +53,10 @@ DESCRIPTION = (
     "message id, YYYY-MM-DD or RFC 3339; limit; synced channels read the mirror, others are read "
     "live, at most 100; live=true forces a live read; shows reactions and embeds), search (query = words in "
     "message text over the mirror; optional channel, guild, after, before; live=true asks Discord's own search "
-    "instead: guild = a server, channel = one of its channels or a DM, neither = every DM; 25 a page, offset), "
+    "instead: guild = a server, channel = one of its channels or a DM, neither = every DM; 25 a page, offset; "
+    "filters: author = a user id or \"me\", has = attachment / embed / link / sticker, both also in live mode, "
+    "where query may then be left out; mirror only: reacted = true for messages the user reacted to, emoji = "
+    "messages carrying that reaction, parent = threads of that channel), "
     "context (channel + id: messages around one message), backfill (channel: older history of a synced channel "
     "into the mirror; pages = 1-5 of 100), media (channel + id: save that message's attachments, link-preview "
     "images and videos and stickers into the user's download folder and get their paths; programs are "
@@ -123,7 +126,13 @@ PROPERTIES = {
                                                "search: use Discord's own search instead of the mirror"},
     "archived": {"type": "boolean", "description": "threads: only archived (true) or only active (false)"},
     "id": {"type": "string", "description": "context / media / react / unreact / edit / delete: the message id"},
-    "emoji": {"type": "string", "description": "react / unreact: one emoji, or name:id of a custom one on the message"},
+    "emoji": {"type": "string", "description": "react / unreact: one emoji, or name:id of a custom one on the message; "
+                                               "search (mirror): messages carrying that reaction"},
+    "author": {"type": "string", "description": "search: only messages by this user id, or \"me\""},
+    "has": {"type": "string", "enum": ["attachment", "embed", "link", "sticker"],
+            "description": "search: only messages with that"},
+    "reacted": {"type": "boolean", "description": "search (mirror only): only messages the user reacted to"},
+    "parent": {"type": "string", "description": "search (mirror only): a channel id; only messages in its threads"},
     "user": {"type": "string", "description": "member / role_add / role_remove: a user id"},
     "users": {"type": "array", "items": {"type": "string"}, "description": "role_bulk_add: up to 30 user ids"},
     "role": {"type": "string",

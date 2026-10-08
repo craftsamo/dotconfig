@@ -728,6 +728,27 @@ def test_guild_search_filters_a_channel_and_takes_hits_only():
     assert [r["id"] for r in result["messages"]] == [int(hit["id"])]
 
 
+def test_search_filters_by_author_and_has_without_a_query():
+    conn = store.connect(write=True)
+    hit = {**msg(flake(5), TEXT), "hit": True}
+    http = FakeHttp({("GET", f"/guilds/{G}/messages/search"): (200, {}, {"total_results": 1, "messages": [[hit]]}),
+                     ("POST", "/users/@me/messages/search/tabs"): (200, {}, {"tabs": {"messages": {
+                         "total_results": 1, "messages": [[hit]]}}})})
+    engine.search(client(http, conn), guild=G, author=ME, has="file")
+    params = http.api_calls("GET")[0]["params"]
+    assert params["author_id"] == ME and params["has"] == "file" and "content" not in params
+    engine.search(client(http, conn), query="q", author=ME, has="link")
+    terms = http.api_calls("POST")[0]["body"]["tabs"]["messages"]
+    assert terms["author_id"] == [ME] and terms["has"] == ["link"] and terms["content"] == "q"
+
+
+def test_search_command_checks_its_filters():
+    with pytest.raises(engine.EngineError, match="query is required"):
+        engine.run("search", {}, http=FakeHttp({**me_route()}), token="t")
+    with pytest.raises(engine.EngineError, match="has must be one of"):
+        engine.run("search", {"query": "x", "has": "video"}, http=FakeHttp({**me_route()}), token="t")
+
+
 def test_threads_are_stored_as_channels():
     conn = store.connect(write=True)
     thread = {"id": "450000000000000001", "type": 11, "name": "help", "parent_id": TEXT, "guild_id": G,

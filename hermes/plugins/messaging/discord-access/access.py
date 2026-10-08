@@ -622,7 +622,15 @@ def _offset(args: dict, top: int = 9975) -> int:
 def live_search(args: dict) -> dict:
     """Discord's own search, beyond the mirror: guild = one server (channel = one of its channels),
     channel = a DM or group DM, neither = every DM at once."""
-    query = _str(args, "query", required=True)
+    query = _str(args, "query")
+    author, has = _author(args), _has(args)
+    if author == "me":
+        with _mirror() as conn:
+            author = str((store.get_meta(conn, "me") or {}).get("id") or "")
+        if not author:
+            raise DiscordError("the account is not known yet: check status (the sync has not run)")
+    if not (query or author or has):
+        raise DiscordError("query is required (or filter with author or has)")
     if len(query) > 1024:
         raise DiscordError("query is at most 1024 characters")
     limit, offset = _limit(args, "live_search"), _offset(args)
@@ -640,6 +648,10 @@ def live_search(args: dict) -> dict:
         elif gid:
             raise DiscordError("a DM is searched without guild")
     engine_args = {"query": query, "guild": gid or None, "channel": cid or None, "offset": offset, "limit": limit}
+    if author:
+        engine_args["author"] = author
+    if has:
+        engine_args["has"] = HAS[has][1]
     for key, field in (("after", "min_id"), ("before", "max_id")):
         bound = _bound(args, key)
         if bound:
@@ -658,29 +670,99 @@ def live_search(args: dict) -> dict:
     return result
 
 
+# has -> (the mirror's test, Discord's own search value)
+HAS = {"attachment": ("m.attachments IS NOT NULL", "file"), "embed": ("m.embeds > 0", "embed"),
+       "link": ("(m.content LIKE '%http://%' OR m.content LIKE '%https://%')", "link"),
+       "sticker": ("m.stickers IS NOT NULL", "sticker")}
+MIRROR_ONLY = ("reacted", "emoji", "parent")
+
+
+def _author(args: dict) -> str:
+    """search: an author id, or "me" for the user's own messages."""
+    value = _str(args, "author")
+    if value and value != "me" and not store.is_snowflake(value):
+        raise DiscordError('author must be a user id (digits) from a previous result, or "me"')
+    return value
+
+
+def _has(args: dict) -> str:
+    value = _str(args, "has")
+    if value and value not in HAS:
+        raise DiscordError("has must be one of " + ", ".join(HAS))
+    return value
+
+
+def _reacted(args: dict) -> bool:
+    value = args.get("reacted")
+    if value is not None and not isinstance(value, bool):
+        raise DiscordError("reacted must be true or false")
+    return value is True
+
+
 def search(args: dict) -> dict:
+    author, has, reacted, emoji = _author(args), _has(args), _reacted(args), _str(args, "emoji")
+    parent = _id(args, "parent", required=False, what="a channel id")
     if args.get("live") is True:
+        used = [k for k in MIRROR_ONLY if args.get(k) not in (None, "", False)]
+        if used:
+            raise DiscordError(f"{', '.join(used)} filter the mirror only (Discord's own search has no such filter): "
+                               "search without live=true")
         return live_search(args)
-    query = _str(args, "query", required=True)
+    query = _str(args, "query")
+    if not (query or author or has or reacted or emoji or parent):
+        raise DiscordError("query is required (or filter with author, has, reacted, emoji or parent)")
     limit = _limit(args, "search")
     escaped = query.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-    sql, params = "SELECT * FROM messages WHERE content LIKE ? ESCAPE '\\'", [f"%{escaped}%"]
+    where, params = [], []
+    if query:
+        where.append("m.content LIKE ? ESCAPE '\\'")
+        params.append(f"%{escaped}%")
     cid = _id(args, "channel", required=False, what="a channel id")
     gid = _id(args, "guild", required=False, what="a server id")
     if cid:
-        sql, params = sql + " AND channel_id = ?", params + [int(cid)]
+        where.append("m.channel_id = ?")
+        params.append(int(cid))
     if gid:
-        sql, params = sql + " AND guild_id = ?", params + [int(gid)]
+        where.append("m.guild_id = ?")
+        params.append(int(gid))
+    if parent:
+        where.append("m.channel_id IN (SELECT id FROM channels WHERE parent_id = ?)")
+        params.append(int(parent))
+    if author == "me":
+        where.append("m.from_me = 1")
+    elif author:
+        where.append("m.author_id = ?")
+        params.append(int(author))
+    if has:
+        where.append(HAS[has][0])
+    if reacted or emoji:
+        where.append("EXISTS (SELECT 1 FROM json_each(m.reactions) j WHERE (? = '' OR json_extract(j.value, '$.emoji') = ?) "
+                     "AND (? = 0 OR json_extract(j.value, '$.me') = 1))")
+        params += [emoji, emoji, int(reacted)]
     for key, op in (("after", ">"), ("before", "<")):
         bound = _bound(args, key)
         if bound:
-            sql, params = sql + f" AND id {op} ?", params + [bound]
+            where.append(f"m.id {op} ?")
+            params.append(bound)
+    needs = (["stickers"] if has == "sticker" else []) + (["reactions"] if reacted or emoji else [])
     with _mirror() as conn:
-        rows = list(conn.execute(f"{sql} ORDER BY id DESC LIMIT ?", params + [limit]))
-    return {"ok": True, "messages": [message_entry(r, with_channel=True) for r in rows],
-            "scope": "the local mirror: DMs, synced channels and windows read before; not live Discord "
-                     "(live=true asks Discord's own search)",
-            "note": UNTRUSTED}
+        if needs:
+            have = {r[1] for r in conn.execute("PRAGMA table_info(messages)")}
+            if set(needs) - have:
+                raise DiscordError("this filter needs columns the mirror does not have yet (the sync engine adds "
+                                   "them on its next run): try again after the next sync run")
+        rows = list(conn.execute(f"SELECT m.* FROM messages m WHERE {' AND '.join(where)} ORDER BY m.id DESC LIMIT ?",
+                                 params + [limit]))
+    result = {"ok": True, "messages": [message_entry(r, with_channel=True) for r in rows],
+              "scope": "the local mirror: DMs, synced channels and windows read before; not live Discord "
+                       "(live=true asks Discord's own search)"}
+    if reacted or emoji:
+        result["scope"] += ("; reactions are as of each message's last read, and a message never read has none "
+                            "recorded")
+    if parent:
+        result["scope"] += "; threads only appear once they were read live (threads, messages)"
+    result["note"] = UNTRUSTED
+    return result
 
 
 def context(args: dict) -> dict:

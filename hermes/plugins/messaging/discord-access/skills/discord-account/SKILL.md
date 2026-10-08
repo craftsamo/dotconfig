@@ -51,8 +51,8 @@ still apply.
 | A channel's threads or forum posts | `threads` with the parent channel (25 a page, `offset`, `archived`) | live |
 | Read a chat | `messages` with `channel`, `after` / `before` (an id, a date or a time) | mirror while current, else live (at most 100) |
 | Around one message | `context` with `channel` + `id` | mirror, else live |
-| Find words | `search` with `query` (substring over the mirror) | mirror |
-| Find older or unsynced history | `search` with `live=true`: `guild` (+ `channel`), a DM `channel`, or neither for every DM; 25 a page | live |
+| Find words | `search` with `query` (substring over the mirror); narrow with `author` (id or `me`), `has` (`attachment` / `embed` / `link` / `sticker`), and mirror-only `reacted`, `emoji`, `parent` | mirror |
+| Find older or unsynced history | `search` with `live=true`: `guild` (+ `channel`), a DM `channel`, or neither for every DM; 25 a page; `author` and `has` work here too, `reacted` / `emoji` / `parent` do not | live |
 | What is waiting for the user's answer | `pending` (DMs where others wrote last, server mentions and replies not yet answered; `after`, `guild`) | mirror |
 | How much was said, by whom, when | `stats` with `by` = `channel` / `author` / `day` (`channel`, `guild`, `after` (30 days by default), `before`) | mirror |
 | Pinned messages / who mentioned the user | `pins` with `channel` / `mentions` (optional `guild`) | live |
