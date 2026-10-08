@@ -43,9 +43,10 @@ The files remain under `agent/` and retain supported legacy frontmatter;
 V2 normalizes those settings without rewriting them.
 
 `hidden: true` hides an agent from both interactive discovery and the model's
-subagent catalog. The twelve specialist subagents are therefore visible;
-the four API-only `hermes-*` primary agents remain hidden. Visibility is not
-authorization: caller-specific permissions decide which specialists may run.
+subagent catalog; no agent here uses it, so the twelve specialist subagents
+are visible. Hermes drives the plan, build, review and debug primaries through
+the API like a person does. Visibility is not authorization: caller-specific
+permissions decide which specialists may run.
 
 - Plan allows read-only exploration, research, diagnosis, and review, but not
   `general`, `worker`, or `verifier` (which can apply formatters).

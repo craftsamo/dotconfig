@@ -238,7 +238,7 @@ class CreativeHandoffTest(unittest.TestCase):
         self.assertIn("Closing it is bookkeeping, not acceptance", resident)
         # The one continuation is a reconcile-only turn on the owning session.
         self.assertIn('kind="reconcile"', resident)
-        self.assertIn("`opencode_call` is refused", resident)
+        self.assertIn("every `opencode_run_<role>` is refused", resident)
         self.assertIn("nothing is edited or committed", resident)
         self.assertIn("not with the interrupted transcript", resident)
         self.assertIn("A2A has no local liveness proof and remains blocked", resident)

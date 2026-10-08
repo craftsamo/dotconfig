@@ -58,7 +58,22 @@ WAIT_TOOLS = ("clarify",)
 # Tool results whose wait is another agent's session, already counted there.
 # They stay in activity (the caller did wait) and are reported separately so a
 # cross-tool total can remove the overlap.
-HANDOFF_TOOLS = {"opencode_call": "opencode_wait_ms", "specialist_call": "specialist_wait_ms"}
+# `opencode_call` is the retired plugin's run tool and past sessions still carry it; the
+# opencode-v2 run tools are one per configured role (`opencode_run_<role>`), and a reply to a
+# paused run blocks until its next hand-back.
+HANDOFF_TOOLS = {"opencode_call": "opencode_wait_ms", "opencode_request": "opencode_wait_ms",
+                 "specialist_call": "specialist_wait_ms"}
+HANDOFF_PREFIXES = {"opencode_run_": "opencode_wait_ms"}
+
+
+def handoff_bucket(tool):
+    """The wait bucket of a tool result that blocked on another agent's session, or None."""
+    if tool in HANDOFF_TOOLS:
+        return HANDOFF_TOOLS[tool]
+    return next((bucket for prefix, bucket in HANDOFF_PREFIXES.items()
+                 if isinstance(tool, str) and tool.startswith(prefix)), None)
+
+
 # How far before the window to look for the event that opens a gap.
 LOOKBACK_MS = 24 * 3600 * 1000
 SESSION_COLUMNS = {"id", "source", "parent_session_id", "started_at", "ended_at", "end_reason", "model",
@@ -581,8 +596,9 @@ def _usage(paths, q):
                 add(key, sid, wait_ms=length)
                 continue
             values = {"active_ms": length, "intervals": [span]}
-            if tool in HANDOFF_TOOLS:
-                values[HANDOFF_TOOLS[tool]] = length
+            wait_field = handoff_bucket(tool)
+            if wait_field:
+                values[wait_field] = length
             add(key, sid, **values)
 
         # Tokens: model-usage rows that lie wholly inside the window.

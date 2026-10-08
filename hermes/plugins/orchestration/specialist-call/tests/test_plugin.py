@@ -1549,7 +1549,7 @@ def test_handoff_states_the_turn_budget():
     assert "(~1 min from now)" in p._handoff({**base, "deadline": time.time() + 65}, "hello")
     assert "RECONCILE-ONLY" not in timed
     limited = p._handoff({**base, "deadline": time.time() + 65, "turn_kind": "reconcile"}, "hello")
-    assert "Turn kind: RECONCILE-ONLY" in limited and "No opencode_call" in limited
+    assert "Turn kind: RECONCILE-ONLY" in limited and "No opencode_run_<role> tool" in limited
 
 
 @pytest.mark.parametrize("target", sorted(set().union(*p.TARGETS.values()) - p.COMMIT_TARGETS))
