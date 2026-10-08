@@ -19,6 +19,11 @@
 #                          (values are never printed)
 #   addresses [N] [CHAIN]  every labelled seed's first N accounts (default 5) and every key, on EVM
 #                          and Solana, with native balances on CHAIN; addresses only, never a key
+#   new-wallet NAME -j PURPOSE [-p PROJECT] [--scope SCOPE] [--words 12|24] [--yes]
+#                          a new Hermes seed phrase (NAME with HERMES as a word), made and stored in
+#                          the Keychain (--no-env) after the same card the Assistant shows; the phrase
+#                          is never printed. PROJECT defaults to the one holding the Hermes wallets;
+#                          the comment is PURPOSE plus word count, date and account #0's addresses
 set -euo pipefail
 
 HERMES_DIR="$(cd "$(dirname "$0")/.." && pwd)"
@@ -82,7 +87,7 @@ for item in keychain.parse_listing(sys.argv[2], sys.stdin.read()):
                                          "sign" if item["use"] == "sign" else "watch-only", item["env"], note))
 ' "$HERMES_DIR/plugins/web3/_shared/keychain.py" "$project")
     done
-    [ "$found" = 1 ] || echo "  none (secret set HERMES_<NAME> -p <project> -D MNEMONIC --no-env)"
+    [ "$found" = 1 ] || echo "  none ($0 new-wallet HERMES_<NAME> -j <purpose> -p <project>)"
     echo "alchemy:  $(stored ALCHEMY_API_KEY web3-rpc "optional; public RPC is used")"
     echo "helius:   $(stored HELIUS_API_KEY web3-rpc "optional; public RPC is used")"
     echo "etherscan: $(stored ETHERSCAN_API_KEY web3-rpc "optional; verified ABIs come from Sourcify only")"
@@ -111,8 +116,70 @@ if data.get("setup"):
     print(data["setup"])
 '
     ;;
+  new-wallet)
+    [ -x "$VENV/bin/python" ] || die "engine not installed (run: $0 install)"
+    shift
+    USAGE="usage: $0 new-wallet NAME -j PURPOSE [-p PROJECT] [--scope SCOPE] [--words 12|24] [--yes]"
+    NAME="${1:-}"
+    case "$NAME" in ''|-*) die "$USAGE" ;; esac
+    shift
+    PURPOSE="" PROJECT="" SCOPE="" WORDS="" YES=0
+    while [ $# -gt 0 ]; do
+      case "$1" in
+        -j) [ $# -ge 2 ] || die "$USAGE"; PURPOSE="$2"; shift 2 ;;
+        -p) [ $# -ge 2 ] || die "$USAGE"; PROJECT="$2"; shift 2 ;;
+        --scope) [ $# -ge 2 ] || die "$USAGE"; SCOPE="$2"; shift 2 ;;
+        --words) [ $# -ge 2 ] || die "$USAGE"; WORDS="$2"; shift 2 ;;
+        --yes) YES=1; shift ;;
+        *) die "$USAGE" ;;
+      esac
+    done
+    # the signer runs with a minimal environment, as from the plugins; this script's own state
+    # directory keeps the new-wallet cap apart from the Assistant's
+    "$VENV/bin/python" - "$HERMES_DIR/plugins/web3/_shared/signer.py" "$HERMES_DIR/local/web3/state" "$YES" \
+        "$NAME" "$PURPOSE" "$PROJECT" "$SCOPE" "$WORDS" <<'PY'
+import json, os, subprocess, sys
+signer, state, yes, name, purpose, project, scope, words = sys.argv[1:]
+spec = {"name": name, "purpose": purpose}
+spec.update({k: v for k, v in (("project", project), ("scope", scope)) if v})
+if words:
+    if not words.isdigit():
+        sys.exit("error: --words is 12 or 24")
+    spec["words"] = int(words)
+env = {"HOME": os.environ["HOME"], "PATH": "/usr/bin:/bin", "LANG": "en_US.UTF-8"}
+
+def run(op, **extra):
+    proc = subprocess.run([sys.executable, signer], input=json.dumps({"op": op, "state": state, **spec, **extra}),
+                          capture_output=True, text=True, env=env, timeout=180)
+    reply = json.loads(proc.stdout or '{"ok": false, "error": "the signer failed without a result"}')
+    if not reply.get("ok"):
+        sys.exit("error: " + reply.get("error", "unknown"))
+    return reply["data"]
+
+checked = run("wallet_check")
+print(checked["card"])
+if yes != "1":
+    try:
+        with open("/dev/tty") as tty:
+            sys.stdout.write("Create this wallet? [y/N] ")
+            sys.stdout.flush()
+            answer = tty.readline().strip().lower()
+    except OSError:
+        sys.exit("error: no terminal to confirm on; pass --yes to confirm the card above")
+    if answer not in ("y", "yes"):
+        sys.exit("not created")
+made = run("wallet_create", digest=checked["digest"])
+print()
+print("created %s (%s, ENV no)" % (made["account"], made["kind"]))
+print("EVM     %s" % made["addresses"]["evm"])
+print("Solana  %s" % made["addresses"]["solana"])
+print("comment %s" % made["comment"])
+print()
+print(made["note"])
+PY
+    ;;
   *)
-    sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'
+    sed -n '2,26p' "$0" | sed 's/^# \{0,1\}//'
     exit 2
     ;;
 esac

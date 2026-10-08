@@ -6,8 +6,8 @@ HERMES in their name sign; the rest are watch-only. Seeds, keys and raw signed t
 this process: replies carry addresses, quotes, approval card text and transaction hashes, and every
 string leaving is scrubbed of the values it read.
 
-    {"op": "accounts" | "quote" | "send" | "status", "state": "<the wallet's state directory>",
-     …the op's arguments}
+    {"op": "accounts" | "quote" | "verify" | "send" | "status" | "wallet_check" | "wallet_create",
+     "state": "<the wallet's state directory>", …the op's arguments}
     → {"ok": true, "data": {…}} or {"ok": false, "error": "…"}
 
 Accounts are ``<source>#<index>`` for a seed (``hermes/HERMES_MAIN#0``) and ``<source>`` for a key, where a
@@ -16,8 +16,15 @@ as a single-use file that expires after ``QUOTE_TTL`` and carries an HMAC keyed 
 secret, so neither its transaction nor its card can be edited between approval and send. ``send``
 re-checks the MAC, the expiry, the hourly cap and — for a send approved as own — that the recipient
 really is one of the secrets' addresses; the quote is consumed and written to the ledger before it is
-broadcast. ``_sources`` (a list of items with values) and ``_rpc`` are honoured only under the
-engine's tests (``WEB3_ENGINE_TEST=1``). Contract: docs/web3.md "Transfers" and "Approval".
+broadcast.
+
+``wallet_check`` normalizes a new Hermes wallet's spec and returns its approval cards and digest;
+``wallet_create`` re-checks the spec against that approved digest and the hourly cap, makes the seed
+phrase here, stores it with ``secret set --new --stdin --no-env`` (create-only) and reads the Keychain back to confirm the
+item is found as a Hermes wallet, kept out of ``secret env``, with the same account #0. The phrase
+never leaves this process. ``_sources`` (a list of items with values), ``_rpc`` and ``_secret`` (a
+stand-in ``secret`` CLI) are honoured only under the engine's tests (``WEB3_ENGINE_TEST=1``).
+Contract: docs/web3.md "Transfers", "Approval" and "New wallets".
 """
 
 from __future__ import annotations
@@ -45,6 +52,7 @@ import keychain  # noqa: E402
 import ledger  # noqa: E402
 import prices  # noqa: E402
 import rpc  # noqa: E402
+import seeds  # noqa: E402
 from rpc import ChainError  # noqa: E402
 
 QUOTE_TTL = 900            # outlives the 600 s approval wait
@@ -63,9 +71,10 @@ GAS_PRICE_ORACLE = "0x420000000000000000000000000000000000000F"
 L1_MARGIN = 2              # the L1 base fee moves between quote and send
 CARD_BUDGET = 480          # Telegram cuts an approval card's reason at 500 escaped UTF-16 units
 SHORT_BUDGET = 290         # Discord cuts it at 300
-SETUP = ("store a Hermes-only seed phrase under a name with HERMES in it, like `secret set HERMES_MAIN -p <project> "
-         "-D MNEMONIC --no-env` (a private key: -D PRIVATE_KEY); seed phrases and keys under other names are "
-         "watch-only")
+SETUP = ("make a Hermes-only wallet with the create_wallet action (or `hermes/scripts/web3.sh new-wallet HERMES_MAIN -j "
+         "<purpose> -p <project>`), or store one under a name with HERMES in it, like `secret set HERMES_MAIN -p "
+         "<project> -D MNEMONIC --no-env` (a private key: -D PRIVATE_KEY); seed phrases and keys under other names "
+         "are watch-only")
 INJECTED = ("stored without --no-env: secret env, and so the environment of every shell, tool and Hermes process "
             "that injects this layer, carries it; the user runs `secret update {name} -p {project}{scope} --no-env`")
 
@@ -77,10 +86,11 @@ class Secrets:
     id as (family, secret), each with its Keychain metadata. Only sources with HERMES in their name
     (``use`` "sign") sign or count as own; the others are watch-only."""
 
-    def __init__(self, payload: dict):
+    def __init__(self, payload: dict, items: list[dict] | None = None):
         from eth_account.hdaccount import seed_from_mnemonic
         from mnemonic import Mnemonic
-        items = payload.get("_sources") if rpc.testing() and payload.get("_sources") is not None else None
+        if items is None and rpc.testing() and payload.get("_sources") is not None:
+            items = payload.get("_sources")
         if items is None:
             try:
                 items = keychain.discover()
@@ -878,13 +888,140 @@ def op_status(payload: dict) -> dict:
             "slot": value.get("slot")}
 
 
-OPS = {"accounts": op_accounts, "quote": op_quote, "verify": op_verify, "send": op_send, "status": op_status}
+# --- new wallets --------------------------------------------------------------------------------
+
+def _keychain(payload: dict) -> None:
+    if rpc.testing() and payload.get("_secret"):
+        keychain.SECRET = Path(payload["_secret"])
+        keychain.TIMEOUT = payload.get("_secret_timeout") or keychain.TIMEOUT
+
+
+def _inventory() -> dict[str, list[dict] | None]:
+    """Every project's listing, names and metadata only; None for a project that could not be listed."""
+    try:
+        names = keychain.projects()
+    except keychain.KeychainError as exc:
+        raise ChainError(str(exc)) from None
+    found: dict[str, list[dict] | None] = {}
+    for project in names:
+        try:
+            found[project] = keychain.rows(project)
+        except keychain.KeychainError:
+            found[project] = None
+    return found
+
+
+def _wallet_rate(state: Path, now: float | None = None) -> None:
+    try:
+        ledger.check_wallet_rate(state, now)
+    except ledger.CapReached as exc:
+        raise ChainError(str(exc)) from None
+
+
+def _today() -> str:
+    return datetime.now().astimezone().strftime("%Y-%m-%d")
+
+
+def op_wallet_check(payload: dict) -> dict:
+    """What the approval hook shows for a new Hermes wallet: the spec, its cards and its digest."""
+    state = _state(payload)
+    _wallet_rate(state)
+    spec = seeds.normalize(payload, _inventory())
+    detailed, short = seeds.cards(spec, _today())
+    return {"wallet": spec, "digest": seeds.digest(spec), "card": detailed, "card_short": short}
+
+
+def _stored(payload: dict, spec: dict, source: str, evm_address: str) -> str:
+    """'ok', 'absent', or what is wrong with the stored item, read back as the wallet reads it. Only a
+    successful listing of the project without the item is 'absent'; one that cannot be read is a
+    problem, never an absence."""
+    try:
+        listed = keychain.rows(spec["project"])
+    except keychain.KeychainError as exc:
+        return f"the project could not be listed back ({exc})"
+    if not any(row["name"] == spec["name"] and row["scope"] == spec["scope"] for row in listed):
+        return "absent"
+    try:
+        found = Secrets({k: v for k, v in payload.items() if k != "_sources"}, items=keychain.discover())
+    except (keychain.KeychainError, ChainError) as exc:
+        return f"the Keychain could not be read back ({exc})"
+    meta = found.meta.get(source)
+    if meta is None:
+        return "it is listed but cannot be read as a seed phrase"
+    if meta["use"] != "sign" or meta["kind"] != "seed":
+        return "it is not found as a Hermes seed phrase"
+    if meta["env"] != "no":
+        return "it is listed as injected into environments (ENV yes)"
+    if found.address_of(f"{source}#0", "evm") != evm_address:
+        return "its account #0 is not the one made here"
+    return "ok"
+
+
+def op_wallet_create(payload: dict) -> dict:
+    """A new Hermes wallet exactly as approved: the seed phrase made here and stored, never returned."""
+    state = _state(payload)
+    with ledger.locked(state):
+        now = time.time()
+        _wallet_rate(state, now)
+        spec = seeds.normalize(payload, _inventory())
+        if not hmac.compare_digest(str(payload.get("digest") or ""), seeds.digest(spec)):
+            raise ChainError("this is not the wallet that was approved; nothing was created")
+        words = seeds.generate(spec["words"])
+        rpc.SECRETS.append(words)
+        source = seeds.source(spec)
+        fresh = Secrets(payload, items=[{**spec, "id": source, "label": seeds.KIND, "role": "seed",
+                                         "value": words, "env": "no"}])
+        evm_address = fresh.address_of(f"{source}#0", "evm")
+        sol_address = fresh.address_of(f"{source}#0", "solana")
+        note = seeds.comment(spec, _today(), evm_address, sol_address)
+        row = {"time": now, "attempt": random.token_hex(8), "op": "create_wallet", "source": source,
+               "evm": evm_address, "solana": sol_address, "outcome": "unknown"}
+        ledger.append(state, row, ledger.WALLETS)
+        refused = cut_off = None
+        try:
+            keychain.store(spec["name"], spec["project"], spec["scope"], seeds.KIND, note, words)
+        except keychain.KeychainTimeout as exc:
+            cut_off = str(exc)  # secret may still finish the write
+        except keychain.KeychainError as exc:
+            refused = str(exc)  # secret said the item is not there
+        stored = _stored(payload, spec, source, evm_address)
+        layer = f" --scope {spec['scope']}" if spec["scope"] else " --shared"
+        if refused and stored != "ok":
+            # secret refused the write: whatever is under that name now (if anything) is not this wallet
+            there = "" if stored == "absent" else f"; an item named {spec['name']} is there now, but it is not " \
+                                                  "this wallet, and it was left untouched"
+            ledger.append(state, {**row, "outcome": "failed", "error": refused[:300]}, ledger.WALLETS)
+            raise ChainError(f"the Keychain did not store the wallet ({refused}){there}; nothing was created")
+        if stored != "ok":
+            why = stored if stored != "absent" else (
+                f"{cut_off}, and it is not listed yet" if cut_off else "secret reported it stored, but it is not listed")
+            ledger.append(state, {**row, "outcome": "unverified", "error": why[:300]}, ledger.WALLETS)
+            raise ChainError(f"{source} may have been written but could not be confirmed: {why}. Do not fund it, "
+                             f"and do not make another until the user checks with `secret show {spec['name']} -p "
+                             f"{spec['project']}{layer}`. It is this wallet only if its comment ends in EVM#0 "
+                             f"{evm_address} · SOL#0 {sol_address}; then the user removes it with `secret rm "
+                             f"{spec['name']} -p {spec['project']}{layer}` or keeps it after checking accounts. "
+                             "Any other item under that name is not this wallet: leave it alone")
+        ledger.append(state, {**row, "outcome": "created"}, ledger.WALLETS)
+    return {"created": True, "account": f"{source}#0", "name": spec["name"], "project": spec["project"],
+            "scope": spec["scope"] or "Shared", "kind": seeds.KIND, "env": "no", "words": spec["words"],
+            "comment": note, "addresses": {"evm": evm_address, "solana": sol_address},
+            "note": "the seed phrase is only in the Keychain and was never shown, so the Keychain holds its only "
+                    "copy: before it holds anything the user would mind losing, the user keeps a written copy, read "
+                    "with `secret get " + spec["name"] + " -p " + spec["project"]
+                    + (f" --scope {spec['scope']}" if spec["scope"] else " --shared") + "` in their own terminal. "
+                    "The accounts action lists it as use sign; its addresses receive funds at once"}
+
+
+OPS = {"accounts": op_accounts, "quote": op_quote, "verify": op_verify, "send": op_send, "status": op_status,
+       "wallet_check": op_wallet_check, "wallet_create": op_wallet_create}
 
 
 def run(payload: dict) -> dict:
     op = payload.get("op")
     if op not in OPS:
         raise ChainError(f"unknown op {op!r}")
+    _keychain(payload)
     return OPS[op](payload)
 
 

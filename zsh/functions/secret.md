@@ -58,6 +58,11 @@ secret update OLD_SEED -p work --env                  # injected again
 
 Rewriting the value (`set` without `--env`/`--no-env`, `update --value`)
 keeps the setting, so a later write never re-enables injection by accident.
+
+`set --new` is create-only: an item of that name already in the layer is
+refused rather than overwritten, by a check first and by `security` itself
+(the write leaves out `-U`), so a program that makes a secret — Hermes'
+new wallets — can never replace one that holds something.
 In `secret env`, a `--no-env` item in the winning layer hides the name
 entirely: the shared value is not emitted in its place.
 
@@ -257,9 +262,9 @@ secret import secret-export-all-YYYYMMDD.json.age
 
 ## Tests
 
-[`zsh/tests/secret-selftest.zsh`](../tests/secret-selftest.zsh) — 156
+[`zsh/tests/secret-selftest.zsh`](../tests/secret-selftest.zsh) — 166
 assertions: round-trips (special characters, json/env/age), partial updates,
-`--no-env` (kept out of `env`, kept across rewrites and export/import),
+`--no-env` (kept out of `env`, kept across rewrites and export/import), `set --new`,
 keychain auto-creation, `secret link` / the `git config secret.project`
 mapping, scope layering (DWIM reads, env overlay, isolation between repos),
 the unregistered-file write gate, master adoption/rotation, auto-unlock. It

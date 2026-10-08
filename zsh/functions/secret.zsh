@@ -1,7 +1,7 @@
 # secret.zsh — manage secrets in the macOS Keychain (CLI + fzf wizard)
 #
 #   secret                       interactive wizard (fzf)
-#   secret set NAME [-p proj] [-S|--scope X] [-j comment] [-D kind] [--stdin]
+#   secret set NAME [-p proj] [-S|--scope X] [-j comment] [-D kind] [--new] [--stdin]
 #   secret update NAME [-p proj] [LAYER] [-j comment] [-D kind] [--value|--stdin]
 #   secret get NAME [-p proj] [LAYER] [-c|--copy]
 #   secret show NAME [-p proj] [LAYER]
@@ -297,8 +297,8 @@ _secret_flags_of() {           # $1 name  $2 project  $3 scope -> current flags 
 # $6 flags: the item's whole flag string to write ("" clears every flag), or
 # "keep" / absent to leave an existing item's flags as they are — a value
 # rewrite never re-enables what --no-env turned off.
-_secret_store() {              # $1 name $2 project $3 comment $4 kind $5 scope [$6 flags] ; value on stdin
-  local name=$1 proj=$2 comment=$3 kind=$4 scope=$5 flags=${6-keep} value extra err
+_secret_store() {              # $1 name $2 project $3 comment $4 kind $5 scope [$6 flags [$7 new]] ; value on stdin
+  local name=$1 proj=$2 comment=$3 kind=$4 scope=$5 flags=${6-keep} create=${7-} value extra err
   IFS= read -r value
   if IFS= read -r extra; then
     _secret_err "$proj/$name: multi-line values are not supported"; return 1
@@ -319,7 +319,10 @@ _secret_store() {              # $1 name $2 project $3 comment $4 kind $5 scope 
   local label=$name
   [[ -n $scope ]] && label="$scope/$name"
   [[ ${${kc:t}%.keychain-db} == "$proj" ]] || label="$proj/$label"
-  local cmd="add-generic-password -U"
+  # -U updates an existing item in place; a create-only write (--new) leaves it out, so security
+  # itself refuses an item that already exists
+  local cmd="add-generic-password"
+  [[ $create == new ]] || cmd+=" -U"
   cmd+=" -a $(_secret_quote_si "$name")"
   cmd+=" -s $(_secret_quote_si "$svc")"
   cmd+=" -l $(_secret_quote_si "$label")"
@@ -330,6 +333,12 @@ _secret_store() {              # $1 name $2 project $3 comment $4 kind $5 scope 
   cmd+=" -w $(_secret_quote_si "$value")"
   cmd+=" $(_secret_quote_si "$kc")"
   err=$(print -r -- "$cmd" | security -i 2>&1 >/dev/null)
+  # create-only: any complaint from security (an existing item, in whatever language) is a refusal,
+  # even if an item of that name is there now: it may not be this one
+  if [[ $create == new && -n $err ]]; then
+    _secret_err "$proj/${scope:+$scope/}$name was not stored as new — ${err//$'\n'/ }"
+    return 1
+  fi
   if ! security find-generic-password -s "$svc" -a "$name" "$kc" >/dev/null 2>&1; then
     _secret_err "failed to store $proj/${scope:+$scope/}$name${err:+ — ${err//$'\n'/ }}"
     return 1
@@ -445,7 +454,7 @@ _secret_tsv_unescape() {       # undo jq @tsv escaping
 # ------------------------------------------------------------ subcommands --
 
 _secret_cmd_set() {
-  local name="" proj="" comment="" kind="" from_stdin=0 scoped=0 scope_opt="" env_opt=""
+  local name="" proj="" comment="" kind="" from_stdin=0 scoped=0 scope_opt="" env_opt="" create=""
   while (( $# )); do
     case $1 in
       -p) proj=$2; shift 2 ;;
@@ -453,6 +462,7 @@ _secret_cmd_set() {
       -D) kind=$2; shift 2 ;;
       -S|--scoped) scoped=1; shift ;;
       --scope) scope_opt=$2; shift 2 ;;
+      --new) create=new; shift ;;
       --stdin) from_stdin=1; shift ;;
       --env) env_opt=yes; shift ;;
       --no-env) env_opt=no; shift ;;
@@ -466,16 +476,20 @@ _secret_cmd_set() {
   _secret_check_project "$proj" || return 2
   local scope
   scope=$(_secret_resolve_scope "$scope_opt" $scoped "$proj") || return 2
+  if [[ $create == new ]] && _secret_exists "$name" "$proj" "$scope"; then
+    _secret_err "set: $proj/${scope:+$scope/}$name already exists; --new never overwrites"
+    return 1
+  fi
   # no --env/--no-env: an existing item keeps its flags, a new one has none
   local flags=keep
   [[ -n $env_opt ]] && flags=$(_secret_flags_with_env "$(_secret_flags_of "$name" "$proj" "$scope")" "$env_opt")
 
   if (( from_stdin )) || [[ ! -t 0 ]]; then
-    _secret_store "$name" "$proj" "$comment" "$kind" "$scope" "$flags" || return 1
+    _secret_store "$name" "$proj" "$comment" "$kind" "$scope" "$flags" "$create" || return 1
   else
     local value
     value=$(_secret_prompt_value "$proj/${scope:+$scope/}$name") || return 1
-    print -r -- "$value" | _secret_store "$name" "$proj" "$comment" "$kind" "$scope" "$flags" || return 1
+    print -r -- "$value" | _secret_store "$name" "$proj" "$comment" "$kind" "$scope" "$flags" "$create" || return 1
   fi
   local lbl note=""
   lbl=$(_secret_kc_label "$proj")
@@ -1548,12 +1562,13 @@ USAGE
   secret [-k KEYCHAIN] <command> [args]
 
 COMMANDS
-  set NAME [-p proj] [-S|--scope X] [-j comment] [-D kind] [--no-env|--env] [--stdin]
+  set NAME [-p proj] [-S|--scope X] [-j comment] [-D kind] [--no-env|--env] [--new] [--stdin]
         store a secret; prompts for the value (no echo), or reads one
         line from stdin with --stdin / when piped. Default layer: shared;
         -S stores into this repository's scope. --no-env keeps it out of
         `secret env` (see ENV); without --env/--no-env an existing item
-        keeps its setting
+        keeps its setting. --new stores only a new item: an existing one
+        in that layer is refused, never overwritten
   update NAME [-p proj] [LAYER] [-j comment] [-D kind] [--no-env|--env] [--value|--stdin]
         partially update an existing secret: --value prompts for a new
         value (--stdin reads it from stdin), -j/-D replace comment/kind

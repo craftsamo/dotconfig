@@ -21,6 +21,9 @@ access = _load("web3_access_test", ROOT / "access.py")
 
 VERIFIED = {"quote": "q0000000a", "chain": "sepolia", "own": False, "card": "DETAILED CARD",
             "card_short": "SHORT CARD", "mac": "m" * 64}
+CHECKED = {"wallet": {"name": "HERMES_TESTNET"}, "digest": "d" * 64, "card": "WALLET CARD",
+           "card_short": "SHORT WALLET CARD"}
+NEW = {"action": "create_wallet", "name": "HERMES_TESTNET", "purpose": "Testnet checks"}
 
 
 class Ctx:
@@ -48,16 +51,17 @@ def isolated(monkeypatch, tmp_path):
     access._DECISIONS.clear()
 
 
-def fake_engine(monkeypatch, verify=None, reply=None):
-    """reader.py answers ``reply``; signer.py answers verify with ``verify`` (a dict, or an error string)
-    and anything else with ``reply``."""
+def fake_engine(monkeypatch, verify=None, reply=None, check=None):
+    """reader.py answers ``reply``; signer.py answers verify with ``verify`` and wallet_check with ``check``
+    (a dict, or an error string) and anything else with ``reply``."""
     seen = []
 
     def run(cmd, **kwargs):
         payload = json.loads(kwargs["input"])
         seen.append({"script": Path(cmd[1]).name, "payload": payload, "env": kwargs["env"]})
-        if payload.get("op") == "verify":
-            answer = verify if verify is not None else VERIFIED
+        if payload.get("op") in ("verify", "wallet_check"):
+            answer = (verify if verify is not None else VERIFIED) if payload["op"] == "verify" else \
+                (check if check is not None else CHECKED)
             out = {"ok": False, "error": answer} if isinstance(answer, str) else {"ok": True, "data": answer}
         else:
             out = reply or {"ok": True, "data": {}}
@@ -316,6 +320,66 @@ def test_other_actions_need_no_approval(monkeypatch):
     assert seen == []
 
 
+# --- new wallets --------------------------------------------------------------------------------
+
+def test_a_new_wallet_is_always_asked_on_the_card_of_its_checked_metadata(monkeypatch, tmp_path):
+    seen = fake_engine(monkeypatch)
+    first = gate(tool_name="evm", args={**NEW, "words": 12, "scope": "testnet", "mac": "x"})
+    second = gate("solana", tool_name="solana", args=NEW)
+    assert first["action"] == "approve" and first["message"] == "WALLET CARD"
+    assert first["rule_key"].startswith("web3-wallet:create:dddddddddddd:") and first["rule_key"] != second["rule_key"]
+    assert seen[0]["payload"] == {"op": "wallet_check", "name": "HERMES_TESTNET", "purpose": "Testnet checks",
+                                  "words": 12, "scope": "testnet", "state": str(tmp_path / "assistant" / "web3-wallet")}
+    monkeypatch.setattr(access, "_platform", lambda: "discord")
+    assert gate(tool_name="evm", args=NEW)["message"] == "SHORT WALLET CARD"
+
+
+def test_the_approved_digest_travels_to_the_creation_once(monkeypatch, tmp_path):
+    seen = fake_engine(monkeypatch, reply={"ok": True, "data": {"created": True}})
+    gate(tool_name="evm", args=NEW)
+    assert json.loads(tool("evm")(NEW))["ok"] is True
+    assert seen[1]["payload"] == {"op": "wallet_create", "name": "HERMES_TESTNET", "purpose": "Testnet checks",
+                                  "digest": "d" * 64, "state": str(tmp_path / "assistant" / "web3-wallet")}
+    again = json.loads(tool("evm")(NEW))
+    assert again["ok"] is False and "nothing was created" in again["error"] and len(seen) == 2
+
+
+def test_a_wallet_the_hook_did_not_approve_is_never_made(monkeypatch):
+    seen = fake_engine(monkeypatch)
+    gate(tool_name="evm", args=NEW)
+    reply = json.loads(tool("evm")({**NEW, "name": "HERMES_OTHER"}))
+    assert reply["ok"] is False and "not approved" in reply["error"]
+    assert [s["payload"]["op"] for s in seen] == ["wallet_check"]
+
+
+@pytest.mark.parametrize("reason", ["yolo mode is on", "this is a cron job", "this is a single-query run",
+                                    "approvals are off (approvals.mode: off)"])
+def test_without_a_human_no_wallet_is_made(monkeypatch, reason):
+    monkeypatch.setattr(access, "_no_human", lambda: reason)
+    seen = fake_engine(monkeypatch)
+    directive = gate(tool_name="evm", args=NEW)
+    assert directive["action"] == "block" and reason in directive["message"] and seen == []
+    assert access._DECISIONS == {}
+
+
+def test_a_wallet_the_signer_refuses_is_blocked_before_any_card(monkeypatch):
+    fake_engine(monkeypatch, check="a Hermes wallet's name has HERMES as one of its words")
+    directive = gate(tool_name="evm", args={**NEW, "name": "TESTNET"})
+    assert directive["action"] == "block" and "HERMES as one of its words" in directive["message"]
+    assert access._DECISIONS == {}
+
+
+def test_only_the_assistant_and_never_an_inbound_peer_creates_wallets(monkeypatch):
+    seen = fake_engine(monkeypatch)
+    for profile in ("researcher", "searcher", "marketer"):
+        assert "name" not in access.schema_for("evm", profile)["parameters"]["properties"]
+        assert json.loads(tool("evm", profile)(NEW))["ok"] is False
+    props = access.schema_for("solana", "assistant")["parameters"]["properties"]
+    assert {"name", "purpose", "project", "scope", "words"} <= set(props)
+    monkeypatch.setattr(access, "_inbound_peer", lambda: True)
+    assert gate(tool_name="evm", args=NEW)["action"] == "block" and seen == []
+
+
 # --- ways around --------------------------------------------------------------------------------
 
 def test_a_profile_that_sends_keeps_the_keychain_and_the_signer_out_of_reach(tmp_path):
@@ -333,6 +397,7 @@ def test_a_profile_that_sends_keeps_the_keychain_and_the_signer_out_of_reach(tmp
         ("execute_code", {"code": "open('" + state + "/quotes/q1.json').read()"}),
         ("write_file", {"path": state + "/quotes/q1.json", "content": "{}"}),
         ("terminal", {"command": "python signer.py"}),
+        ("terminal", {"command": "python seeds.py"}),
         ("terminal", {"command": "secret get ALCHEMY_API_KEY -p hermes --scope web3-rpc"}),
     ]
     for family in ("evm", "solana"):
