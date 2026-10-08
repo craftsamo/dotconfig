@@ -379,6 +379,7 @@ def untracked_managed_files() -> list[str]:
             "hermes/skills/default-pipeline/**",
             "hermes/profiles/*/skills/*-pipeline/**",
             "hermes/profiles/*/skills/technic/**",
+            "hermes/plugins/**/skills/**",
             "hermes/plugins/guards/skill-topology/**",
         ],
         cwd=REPO_ROOT,
@@ -482,6 +483,74 @@ def validate_plugin_source(errors: list[str]) -> None:
             errors.append(f"{name} manifest has the wrong name: {manifest}")
         if not implementation.is_file():
             errors.append(f"{name} implementation not found: {implementation}")
+
+
+_QUALIFIED_SKILL_CALL = re.compile(r'skill_view\(name="([A-Za-z0-9_-]+):([A-Za-z0-9_-]+)"')
+
+
+def plugin_skill_files() -> dict[str, dict[str, Path]]:
+    """``{plugin dir name: {skill: SKILL.md}}`` for skills shipped under ``plugins/**/skills``.
+
+    A plugin sits at ``plugins/<name>`` or ``plugins/<group>/<name>``; its skills are read
+    only at runtime and registered as ``<plugin name>:<skill>``.
+    """
+    found: dict[str, dict[str, Path]] = {}
+    for path in sorted((HERMES_ROOT / "plugins").rglob("skills/*/SKILL.md")):
+        rel = path.relative_to(HERMES_ROOT / "plugins").parts
+        if len(rel) not in (4, 5) or "tests" in rel:
+            continue
+        found.setdefault(path.parents[2].name, {})[path.parent.name] = path
+    return found
+
+
+def validate_plugin_skills(errors: list[str]) -> int:
+    """Skills a plugin ships must be registered by it, and every qualified
+    ``skill_view`` call in a profile must name one that exists."""
+    import ast
+
+    existing: set[str] = set()
+    count = 0
+    for plugin, skills in plugin_skill_files().items():
+        plugin_dir = next(skills.values().__iter__()).parents[2]
+        manifest = plugin_dir / "plugin.yaml"
+        if not manifest.is_file():
+            errors.append(f"plugin skills without a plugin.yaml: {plugin_dir}")
+        elif load_yaml(manifest).get("name") != plugin:
+            errors.append(f"plugin.yaml name must be {plugin}: {manifest}")
+        registered: set[str] = set()
+        init = plugin_dir / "__init__.py"
+        if init.is_file():
+            for node in ast.walk(ast.parse(init.read_text(encoding="utf-8"))):
+                if (
+                    isinstance(node, ast.Assign)
+                    and any(isinstance(t, ast.Name) and t.id == "SKILLS" for t in node.targets)
+                    and isinstance(node.value, ast.Dict)
+                ):
+                    registered = {
+                        key.value for key in node.value.keys
+                        if isinstance(key, ast.Constant) and isinstance(key.value, str)
+                    }
+        else:
+            errors.append(f"plugin has no __init__.py: {plugin_dir}")
+        for name, path in skills.items():
+            count += 1
+            existing.add(f"{plugin}:{name}")
+            validate_skill(path, name, errors)
+            if name not in registered:
+                errors.append(f"plugin skill is not in the plugin's SKILLS table: {path}")
+            for entry in path.parent.rglob("*"):
+                if entry.is_symlink():
+                    errors.append(f"plugin skill must not contain symlinks: {entry}")
+        for name in sorted(registered - skills.keys()):
+            errors.append(f"SKILLS names {name} but {plugin_dir}/skills/{name}/SKILL.md is missing")
+    for path in sorted((HERMES_ROOT / "profiles").rglob("*.md")):
+        rel = path.relative_to(HERMES_ROOT / "profiles").parts
+        if len(rel) < 3 or rel[1] != "skills" or rel[2] == "learned" or ".archive" in rel:
+            continue
+        for plugin, name in _QUALIFIED_SKILL_CALL.findall(path.read_text(encoding="utf-8")):
+            if f"{plugin}:{name}" not in existing:
+                errors.append(f"skill_view names a plugin skill that does not exist ({plugin}:{name}): {path}")
+    return count
 
 
 LEARNED_CREATE_DIR = "skills/learned"
@@ -2119,6 +2188,7 @@ def main() -> int:
 
     if args.all:
         validate_plugin_source(errors)
+        summaries.append(f"plugin skills={validate_plugin_skills(errors)}")
         managed, learned = validate_shared(errors)
         summaries.append(f"shared={managed} managed/{learned} learned")
         refs, technics, learned = validate_assistant(errors)
