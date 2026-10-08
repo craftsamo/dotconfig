@@ -52,7 +52,7 @@ The kernel's source evaluation and on-chain rules apply. In addition:
 
 - Without a provider key, `activity` scans recent blocks for token transfers
   only and misses native transfers; `trace` is usually refused. `logs` reads
-  one contract over at most 5000 blocks a call and returns at most 100 events,
+  one contract over its newest 5000 blocks a call and returns at most 100 events,
   counting the rest as `omitted`. `allowances` scans a recent window (50000
   blocks by default, `blocks` up to 200000) and misses older approvals; carry
   its `coverage` into the evidence. Record what was not readable as uncovered
