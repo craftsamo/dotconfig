@@ -83,15 +83,43 @@ describe("Quota public JSON", () => {
       ),
     ).toBe("available")
   })
-  test("additional unnamed-window quota rows conservatively apply to the provider", () => {
-    const named = {
-      ...row("Weekly", 0),
-      window: undefined,
-      name: "[Claude] Fable Weekly",
-    }
+  test("model-specific rows without a 5h/Weekly window are ignored", () => {
+    const fable = (percentRemaining: number) =>
+      ({
+        ...row("Weekly", percentRemaining),
+        window: null,
+        name: "[Claude] Fable Weekly",
+      }) as any
     expect(
-      state(snapshot(provider([row("5h"), row("Weekly"), named as any]))),
-    ).toBe("exhausted")
+      state(snapshot(provider([row("5h"), row("Weekly"), fable(0)]))),
+    ).toBe("available")
+    expect(state(snapshot(provider([fable(0)])))).toBe("unknown")
+  })
+  test("plans may report a single window: either one alone decides", () => {
+    for (const window of ["5h", "Weekly"]) {
+      expect(state(snapshot(provider([row(window)])))).toBe("available")
+      expect(state(snapshot(provider([row(window, 0)])))).toBe("exhausted")
+    }
+  })
+  test("real ChatGPT shape: Weekly 0% with no 5h row is exhausted", () => {
+    const a = {
+      ...account,
+      providerID: "openai",
+      connectionID: "fixture-chatgpt",
+      methodID: "chatgpt-browser",
+    }
+    const s = {
+      version: 2,
+      providers: {
+        openai: {
+          ...provider([
+            { ...row("Weekly", 0, a.connectionID), resultType: "rate_limit" },
+          ]),
+          status: "partial",
+        },
+      },
+    }
+    expect(readQuota(s, a, NOW).state).toBe("exhausted")
   })
   test("never pools another login or accepts unbound rows", () => {
     expect(
@@ -102,8 +130,8 @@ describe("Quota public JSON", () => {
       ),
     ).toBe("unknown")
     expect(
-      state(snapshot(provider([row("5h"), row("Weekly", 90, "other")]))),
-    ).toBe("unknown")
+      state(snapshot(provider([row("5h"), row("Weekly", 0, "other")]))),
+    ).toBe("available")
     const entries = [row("5h"), row("Weekly"), row("5h", 0, "other")]
     expect(state(snapshot(provider(entries)))).toBe("available")
     expect(
@@ -145,6 +173,42 @@ describe("Quota public JSON", () => {
       }),
     ).toBe("unknown")
   })
+  test("an empty window with a future reset is exhausted however old the export", () => {
+    const stale = (percent: number, resetMs: number) =>
+      snapshot({
+        ...provider([
+          { ...row("Weekly", percent), resetAt: (NOW + resetMs) / 1000 },
+        ]),
+        fetchedAt: (NOW - 10 * QUOTA_MAX_AGE_MS) / 1000,
+      })
+    const proof = readQuota(stale(0, 3_600_000), account, NOW)
+    expect(proof.state).toBe("exhausted")
+    expect(proof.resetAt).toBe(NOW + 3_600_000)
+    // The window may have reset since, and "available" always needs fresh data.
+    expect(state(stale(0, -1))).toBe("unknown")
+    expect(state(stale(50, 3_600_000))).toBe("unknown")
+    // A window that has reset since is dropped; a still-empty one still counts.
+    const mixed = snapshot({
+      ...provider([
+        { ...row("5h", 0), resetAt: (NOW - 1000) / 1000 },
+        { ...row("Weekly", 0), resetAt: (NOW + 1000) / 1000 },
+      ]),
+      fetchedAt: (NOW - 10 * QUOTA_MAX_AGE_MS) / 1000,
+    })
+    expect(state(mixed)).toBe("exhausted")
+  })
+  test("fresh data whose window already reset is unknown", () => {
+    expect(
+      state(
+        snapshot(
+          provider([
+            { ...row("5h", 0), resetAt: (NOW - 1000) / 1000 },
+            row("Weekly"),
+          ]),
+        ),
+      ),
+    ).toBe("unknown")
+  })
   test("malformed, missing, wrong version and unavailable data are unknown", () => {
     for (const s of [
       undefined,
@@ -155,22 +219,18 @@ describe("Quota public JSON", () => {
       snapshot(null),
       snapshot({ status: "error" }),
       snapshot(provider([])),
-      snapshot(provider([row("5h")])),
+      snapshot(provider([row("Monthly"), row("Code Review")])),
     ])
       expect(state(s)).toBe("unknown")
     expect(readQuota(snapshot(), undefined, NOW).state).toBe("unknown")
   })
-  test("invalid percentage/reset/type does not prove exhaustion", () => {
+  test("invalid percentage/reset values do not prove exhaustion", () => {
     for (const change of [
       { percentRemaining: "0" },
       { percentRemaining: NaN },
       { percentRemaining: 101 },
       { resetAt: NOW / 1000 },
       { resetAt: "later" },
-      { resultType: "balance" },
-      { authority: "locally_derived" },
-      { acquisitionMethod: "local_cli" },
-      { renderType: "value" },
     ])
       expect(
         state(
@@ -179,6 +239,26 @@ describe("Quota public JSON", () => {
           ),
         ),
       ).toBe("unknown")
+  })
+  test("rows that are not provider-reported percentage quota are never trusted", () => {
+    for (const change of [
+      { resultType: "balance" },
+      { authority: "locally_derived" },
+      { acquisitionMethod: "local_cli" },
+      { renderType: "value" },
+    ]) {
+      expect(
+        state(snapshot(provider([{ ...row("5h", 0), ...change } as any]))),
+      ).toBe("unknown")
+      // An untrusted row neither exhausts nor vouches for the provider.
+      expect(
+        state(
+          snapshot(
+            provider([{ ...row("5h", 0), ...change } as any, row("Weekly")]),
+          ),
+        ),
+      ).toBe("available")
+    }
   })
   test("fresh 0% works even when Quota supplies no reset", () => {
     expect(
