@@ -173,6 +173,42 @@ describe("Quota public JSON", () => {
       }),
     ).toBe("unknown")
   })
+  test("an empty window with a future reset is exhausted however old the export", () => {
+    const stale = (percent: number, resetMs: number) =>
+      snapshot({
+        ...provider([
+          { ...row("Weekly", percent), resetAt: (NOW + resetMs) / 1000 },
+        ]),
+        fetchedAt: (NOW - 10 * QUOTA_MAX_AGE_MS) / 1000,
+      })
+    const proof = readQuota(stale(0, 3_600_000), account, NOW)
+    expect(proof.state).toBe("exhausted")
+    expect(proof.resetAt).toBe(NOW + 3_600_000)
+    // The window may have reset since, and "available" always needs fresh data.
+    expect(state(stale(0, -1))).toBe("unknown")
+    expect(state(stale(50, 3_600_000))).toBe("unknown")
+    // A window that has reset since is dropped; a still-empty one still counts.
+    const mixed = snapshot({
+      ...provider([
+        { ...row("5h", 0), resetAt: (NOW - 1000) / 1000 },
+        { ...row("Weekly", 0), resetAt: (NOW + 1000) / 1000 },
+      ]),
+      fetchedAt: (NOW - 10 * QUOTA_MAX_AGE_MS) / 1000,
+    })
+    expect(state(mixed)).toBe("exhausted")
+  })
+  test("fresh data whose window already reset is unknown", () => {
+    expect(
+      state(
+        snapshot(
+          provider([
+            { ...row("5h", 0), resetAt: (NOW - 1000) / 1000 },
+            row("Weekly"),
+          ]),
+        ),
+      ),
+    ).toBe("unknown")
+  })
   test("malformed, missing, wrong version and unavailable data are unknown", () => {
     for (const s of [
       undefined,
