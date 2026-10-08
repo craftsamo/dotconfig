@@ -31,9 +31,12 @@ agents/skills/
 # (codex/copilot skill dirs are machine-local real dirs, nothing to ignore.)
 opencode/skills/*
 !opencode/skills/approach/
+!opencode/skills/debug/
 !opencode/skills/git/
 !opencode/skills/hermes/
 !opencode/skills/manage-github-projects/
+!opencode/skills/verify/
+!opencode/skills/web/
 
 # machine-specific state rewritten by the Codex app (absolute home paths)
 codex/config.toml

@@ -15,9 +15,9 @@ compatibility: OpenCode maintaining this dotconfig repository; Python with PyYAM
 
 Maintain the selected hands leaf's reference knowledge and its actual consumers,
 not a second catalog of all profiles. Assess without edits; add or improve only
-the released scope. Engineer's mode guides own Client dialogue and independent
-acceptance; this Skill owns the maintenance procedure, including direct OpenCode
-requests. This repository uses grouped Skill paths, like git/commit: the logical
+the released scope. The caller (the Hermes Assistant or a person) owns scope,
+approval and independent acceptance; this Skill owns the maintenance procedure,
+including direct OpenCode requests. This repository uses grouped Skill paths, like git/commit: the logical
 name here is hermes-hands-references at hermes/hands-references.
 
 </Goal>
@@ -58,7 +58,8 @@ name here is hermes-hands-references at hermes/hands-references.
    Establish the intended change, evidence and checks before editing. Shared
    vocabulary is a dependency to inspect, not a rule that all verbs must have
    identical catalogs. Do not create a registry, generated menu or shared Styles
-   layer. Read machine-env when platform ownership or live configuration matters.
+   layer. Read the root and hermes/ AGENTS.md when platform ownership or live
+   configuration matters.
 
 </Locate>
 
@@ -172,7 +173,10 @@ repair runtime behavior. Retirement and renaming are outside this workflow.
    discovery window, with margin. Use actual discovery to check leaf names if
    metadata changed. Plain reference files do not appear as separate skills:
    verify their routes and fresh-session loading, not skills-list entries.
-5. Inspect diff and Git ownership in the actual candidate. Do not run install.sh,
+5. Confirm the diff stays inside the agreed scope and its required consumers: no
+   drive-by rewrite of sibling catalogs, no new registry/menu/preset layer, no
+   docs/ or AGENTS.md edit beyond an actually changed contract.
+6. Inspect diff and Git ownership in the actual candidate. Do not run install.sh,
    restart a gateway, merge or redirect live symlinks as validation. A branch in
    the live symlink-backed checkout is NOT runtime isolation: edits can already
    be visible to new reads. Use a task worktree for isolation; live cutover needs
@@ -186,7 +190,7 @@ Return the selected leaf/field, added or changed options, consumers updated,
 factual sources, checks with results/skips, remaining warnings and next decision.
 Assessment ends with findings, not changes. Implementation reports what was
 actually verified, never cosmetic confidence scores. Commit or PR only when the
-current caller authorized it, using git-commit / git-pullrequest; Engineer's
-approved task-branch delivery contract does not grant merge or live cutover.
+current caller authorized it, using git-commit / git-pullrequest; an approved
+task-branch delivery does not grant merge or live cutover.
 
 </Report>
