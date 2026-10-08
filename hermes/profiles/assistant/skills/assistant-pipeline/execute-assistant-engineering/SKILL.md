@@ -66,8 +66,9 @@ user's chosen control.
    Respect an explicit narrower grant (local commit only, no push, one file):
    carry it in the message, still through the ordinary build tool, and verify
    it afterwards in Git.
-4. **Hand-backs.** Act on each completion notification. Answer pending
-   requests through `opencode_request`: a permission inside the user's approved
+4. **Hand-backs.** Act on each completion notification that brings a new
+   state; one for a state you already read or reported is `[SILENT]`. Answer
+   pending requests through `opencode_request`: a permission inside the user's approved
    scope `once` (the task-branch push included), anything else `reject` with a
    reason and a question to the user. Settle in-scope technical questions; take
    material changes of scope, cost or public behavior to the user. A model or
