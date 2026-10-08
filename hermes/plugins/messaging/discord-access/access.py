@@ -360,11 +360,98 @@ def _agent_loaded() -> bool | None:
         return None
 
 
+# A sync run starts every 5 minutes: a last run older than CURRENT_WINDOW (three runs) makes the
+# mirror stale, older than SYNC_DOWN means the agent is not producing runs at all.
+SYNC_DOWN = 3600
+HEALTH_ERRORS = 10
+
+
+def _run_age(last) -> float | None:
+    """Seconds since the last sync run started; None when there is no readable record."""
+    try:
+        started = datetime.fromisoformat(str((last or {}).get("started")))
+    except ValueError:
+        return None
+    if started.tzinfo is None:
+        started = started.replace(tzinfo=timezone.utc)
+    return max((datetime.now(timezone.utc) - started).total_seconds(), 0.0)
+
+
+def _watched(sync: dict) -> str:
+    """SQL condition for the channels the sync follows: every DM, and the sync list's servers."""
+    guilds = ",".join(str(int(g)) for g in sync) or "NULL"
+    return f"(ch.type IN (1, 3) OR ch.guild_id IN ({guilds}))"
+
+
+def _channel_labels(conn, ids: list[int]) -> list[str]:
+    rows, guilds = _labels(conn)
+    return [_label_of(i, rows, guilds) or str(i) for i in ids]
+
+
+def health(conn, out: dict, auth: dict, last, sync: dict, detail: bool) -> dict:
+    """How far the mirror can be trusted right now, in one verdict with its reasons: ``ok``,
+    ``degraded`` (it works, but something was skipped or failed), ``stale`` (reads of synced
+    chats go live) or ``down`` (no sync is running or the token is dead). Mirror only."""
+    reasons, state = [], "ok"
+
+    def worse(level: str, reason: str) -> None:
+        nonlocal state
+        if ("ok", "degraded", "stale", "down").index(level) > ("ok", "degraded", "stale", "down").index(state):
+            state = level
+        reasons.append(reason)
+
+    age = _run_age(last)
+    if auth.get("state") == "rejected":
+        worse("down", "Discord rejected the token")
+    if out.get("sync_agent_loaded") is False:
+        worse("down", "the sync agent is not loaded")
+    if not last:
+        worse("down", "no sync run is recorded")
+    elif age is None:
+        worse("down", "the last sync record has no readable time")
+    elif age > SYNC_DOWN:
+        worse("down", f"the last sync run started {int(age // 60)} minutes ago")
+    elif age > CURRENT_WINDOW:
+        worse("stale", f"the last sync run started {int(age // 60)} minutes ago: synced chats are read live")
+    if last and last.get("ok") is False:
+        worse("degraded", f"the last run failed ({last.get('kind') or 'error'}): {_clip(last.get('error'), 200)}")
+    errors = [str(e) for e in (last or {}).get("errors") or []]
+    if errors:
+        worse("degraded", f"the last run reported {len(errors)} error(s)")
+    deferred = (last or {}).get("deferred") or 0
+    if isinstance(deferred, int) and deferred > 0:
+        worse("degraded", f"{deferred} channel(s) were left for a later run (the request budget ran out)")
+    watched = _watched(sync)
+    lagging = [r[0] for r in conn.execute(
+        f"SELECT c.channel_id FROM cursors c JOIN channels ch ON ch.id = c.channel_id "
+        f"WHERE c.newest IS NOT NULL AND c.synced_at IS NULL AND {watched} ORDER BY c.channel_id")]
+    if lagging:
+        worse("degraded", f"{len(lagging)} followed channel(s) are behind and are read live")
+    unreadable = [r[0] for r in conn.execute(
+        f"SELECT ch.id FROM channels ch WHERE ch.state IN ('forbidden', 'gone') AND {watched} ORDER BY ch.id")]
+    if unreadable:
+        worse("degraded", f"{len(unreadable)} channel(s) answered 403/404 and are skipped")
+    result = {"state": state, "reasons": reasons}
+    if age is not None:
+        result["last_run_minutes_ago"] = int(age // 60)
+    if (last or {}).get("error"):
+        result["note"] = UNTRUSTED            # a failed run's reason can carry text Discord or others wrote
+    if detail:
+        result["behind"] = _channel_labels(conn, lagging)
+        result["unreadable"] = _channel_labels(conn, unreadable)
+        result["errors"] = [_clip(e, 200) for e in errors[:HEALTH_ERRORS]]
+        if len(errors) > HEALTH_ERRORS:
+            result["errors_more"] = len(errors) - HEALTH_ERRORS
+        result["note"] = UNTRUSTED
+    return result
+
+
 def status(args: dict) -> dict:
     out = {"ok": True, "engine_installed": os.access(ENGINE_PYTHON, os.X_OK), "sync_agent_loaded": _agent_loaded()}
     try:
         conn = store.connect(write=False)
     except store.StoreError:
+        out["health"] = {"state": "down", "reasons": ["the mirror does not exist: the sync has never run"]}
         out["action_needed"] = ("the sync has never run: the user runs discord-access-launchctl.sh setup, stores the "
                                 "token and runs install (docs/discord-access.md)")
         return out
@@ -380,7 +467,8 @@ def status(args: dict) -> dict:
         where, since = _current_sql()
         out["synced_channels"] = conn.execute(f"SELECT COUNT(*) FROM cursors WHERE {where}", (since,)).fetchone()[0]
         out["messages"] = conn.execute("SELECT COUNT(*) FROM messages").fetchone()[0]
-    sync = store.load_sync()["guilds"]
+        sync = store.load_sync()["guilds"]
+        out["health"] = health(conn, out, auth, last, sync, args.get("detail") is True)
     out["synced_servers"] = len(sync)
     if auth.get("state") == "rejected":
         out["action_needed"] = ("Discord rejected the token: the user stores a fresh one with "
