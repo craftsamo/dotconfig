@@ -48,7 +48,7 @@ perms = _load("hermes_discord_access_perms", HERE / "perms.py")
 archives = _load("hermes_archive_check", HERE.parent / "_shared" / "archive_check.py")
 
 ACTIONS = ("status", "guilds", "channels", "dms", "messages", "search", "context", "backfill", "media",
-           "threads", "pins", "mentions", "pending", "friends", "roles", "member", "role_members", "members",
+           "threads", "pins", "mentions", "pending", "stats", "friends", "roles", "member", "role_members", "members",
            "sync_list", "sync_add", "sync_remove", "send", "react", "unreact", "edit", "delete",
            "role_add", "role_remove", "role_bulk_add", "role_create", "role_edit", "role_delete")
 MESSAGE_WRITES = {"react", "unreact", "edit", "delete"}
@@ -865,6 +865,90 @@ def pending(args: dict) -> dict:
     result["note"] = ("Waiting = newer than the user's last message in that chat; read from the mirror, so a chat marked "
                       "mirror_current false may have newer messages (read it with messages). Discord's unread state is "
                       "not available. Read a chat with messages (channel = its id). " + UNTRUSTED)
+    return result
+
+
+STATS_DAYS = 30             # stats looks back this far unless after says otherwise
+STATS_BY = ("channel", "author", "day")
+STATS_LIMITS = {"channel": (20, 100), "author": (20, 100), "day": (30, 100)}
+# Discord's snowflake carries its time: milliseconds since 2015-01-01 above bit 22.
+_DAY_SQL = f"date((m.id >> 22) / 1000 + {store.DISCORD_EPOCH_MS // 1000}, 'unixepoch', 'localtime')"
+
+
+def stats(args: dict) -> dict:
+    """Message counts over the mirror: per channel, per author or per day, with how much of the
+    period the mirror actually covers. Mirror only; the model summarises, this only counts."""
+    by = _str(args, "by") or "channel"
+    if by not in STATS_BY:
+        raise DiscordError("by must be one of " + ", ".join(STATS_BY))
+    default, top = STATS_LIMITS[by]
+    limit = args.get("limit")
+    if limit in (None, ""):
+        limit = default
+    elif isinstance(limit, bool) or not isinstance(limit, int) or limit < 1:
+        raise DiscordError("limit must be a positive integer")
+    limit = min(limit, top)
+    cid = _id(args, "channel", required=False, what="a channel id")
+    gid = _id(args, "guild", required=False, what="a server id")
+    since = _bound(args, "after") or store.snowflake_at(datetime.now(timezone.utc) - timedelta(days=STATS_DAYS))
+    until = _bound(args, "before")
+    where, params = [f"{PENDING_TYPES} AND m.id > ?"], [since]
+    if until:
+        where.append("m.id < ?")
+        params.append(until)
+    if cid:
+        where.append("m.channel_id = ?")
+        params.append(int(cid))
+    if gid:
+        where.append("m.guild_id = ?")
+        params.append(int(gid))
+    scope = " AND ".join(where)
+    with _mirror() as conn:
+        total, mine, authors, channels_n = conn.execute(
+            f"SELECT COUNT(*), COALESCE(SUM(m.from_me), 0), COUNT(DISTINCT m.author_id), "
+            f"COUNT(DISTINCT m.channel_id) FROM messages m WHERE {scope}", params).fetchone()
+        labels, guilds = _labels(conn)
+        rows: list = []
+        if by == "channel":
+            for r in conn.execute(
+                    f"SELECT m.channel_id, COUNT(*) n, SUM(m.from_me) mine, COUNT(DISTINCT m.author_id) people, "
+                    f"MIN(m.id) first, MAX(m.id) last FROM messages m WHERE {scope} GROUP BY m.channel_id "
+                    f"ORDER BY n DESC, last DESC LIMIT ?", params + [limit]):
+                rows.append({"channel": str(r["channel_id"]),
+                             "where": _label_of(r["channel_id"], labels, guilds) or str(r["channel_id"]),
+                             "messages": r["n"], "from_me": r["mine"], "people": r["people"],
+                             "first": _local(r["first"]), "last": _local(r["last"])})
+        elif by == "author":
+            for r in conn.execute(
+                    f"SELECT m.author_id, MAX(m.author_name) name, MAX(m.from_me) me, COUNT(*) n, "
+                    f"COUNT(DISTINCT m.channel_id) chats, MAX(m.id) last FROM messages m WHERE {scope} "
+                    f"GROUP BY m.author_id ORDER BY n DESC, last DESC LIMIT ?", params + [limit]):
+                rows.append({"author": "me" if r["me"] else (r["name"] or str(r["author_id"])),
+                             "author_id": str(r["author_id"]) if r["author_id"] else None,
+                             "messages": r["n"], "channels": r["chats"], "last": _local(r["last"])})
+        else:
+            found = list(conn.execute(
+                f"SELECT {_DAY_SQL} day, COUNT(*) n, SUM(m.from_me) mine FROM messages m WHERE {scope} "
+                f"GROUP BY day ORDER BY day DESC LIMIT ?", params + [limit]))
+            rows = [{"day": r["day"], "messages": r["n"], "from_me": r["mine"]} for r in reversed(found)]
+        partial = 0
+        for r in conn.execute(
+                f"SELECT m.channel_id, COALESCE(c.oldest, MIN(m.id)) start, COALESCE(c.complete, 0) done "
+                f"FROM messages m LEFT JOIN cursors c ON c.channel_id = m.channel_id WHERE {scope} "
+                f"GROUP BY m.channel_id", params):
+            if not r["done"] and r["start"] > since:
+                partial += 1
+    result = {"ok": True, "by": by, "since": _local(since), "total": total, "from_me": mine,
+              "from_others": total - mine, "my_share": round(mine / total, 3) if total else None,
+              "people": authors, "channels": channels_n, "rows": rows}
+    if until:
+        result["until"] = _local(until)
+    result["coverage"] = {"partial_channels": partial,
+                          "note": ("Counts what the mirror holds (DMs, synced channels and windows read live). "
+                                   + (f"In {partial} of {channels_n} chat(s) the mirror starts after the period, "
+                                      "so their counts are lower bounds (backfill stores older history). "
+                                      if partial else "") + "Plain messages and replies only.")}
+    result["note"] = UNTRUSTED
     return result
 
 
@@ -2211,7 +2295,7 @@ def outbox_binding(args: dict, home: Path | None = None, ids: dict | None = None
 
 READS = {"status": status, "guilds": guilds, "channels": channels, "dms": dms, "messages": messages,
          "search": search, "context": context, "backfill": backfill, "threads": threads, "pins": pins,
-         "mentions": mentions, "pending": pending, "friends": friends, "roles": roles, "member": member, "role_members": role_members,
+         "mentions": mentions, "pending": pending, "stats": stats, "friends": friends, "roles": roles, "member": member, "role_members": role_members,
          "members": members, "sync_list": sync_list, "sync_add": sync_add, "sync_remove": sync_remove}
 
 

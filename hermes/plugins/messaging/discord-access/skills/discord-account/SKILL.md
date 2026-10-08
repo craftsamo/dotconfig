@@ -54,6 +54,7 @@ still apply.
 | Find words | `search` with `query` (substring over the mirror) | mirror |
 | Find older or unsynced history | `search` with `live=true`: `guild` (+ `channel`), a DM `channel`, or neither for every DM; 25 a page | live |
 | What is waiting for the user's answer | `pending` (DMs where others wrote last, server mentions and replies not yet answered; `after`, `guild`) | mirror |
+| How much was said, by whom, when | `stats` with `by` = `channel` / `author` / `day` (`channel`, `guild`, `after` (30 days by default), `before`) | mirror |
 | Pinned messages / who mentioned the user | `pins` with `channel` / `mentions` (optional `guild`) | live |
 | People | `friends` (with the id of an existing DM), user ids from messages, `members` with `guild` + `query` (needs Manage Server) | refreshed / live |
 | A message's files | `media` with `channel` + `id` | live |
@@ -85,6 +86,11 @@ available): say so when reporting. An entry with `mirror_current: false` may
 have newer messages; read that chat before telling the user what it says. Do
 not answer for the user because something is pending: a reply is a write the
 user asks for.
+
+`stats` counts what the mirror holds. Read `coverage` before quoting a number:
+when `partial_channels` is above zero those chats' counts are lower bounds, so
+say "at least", or `backfill` the channel first. Counts are not content:
+read the messages before saying what people talked about.
 
 ## Files in a message
 

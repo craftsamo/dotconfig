@@ -1332,3 +1332,64 @@ def test_pending_needs_the_account_known():
     conn.close()
     with pytest.raises(access.DiscordError, match="not known"):
         access.execute({"action": "pending"})
+
+
+# --- stats -----------------------------------------------------------------------------------------
+
+def test_stats_counts_per_channel_and_says_what_the_mirror_covers():
+    _post(DM1, flake(1), TARO, "", type=6)                                   # a system message is not counted
+    _post(GENERAL, flake(5), TARO, "hi", G)
+    result = access.execute({"action": "stats"})
+    assert result["total"] == 4 and result["from_me"] == 1 and result["from_others"] == 3
+    assert result["my_share"] == 0.25 and result["people"] == 2 and result["channels"] == 2
+    first = result["rows"][0]
+    assert first["channel"] == DM1 and first["messages"] == 3 and first["from_me"] == 1 and first["people"] == 2
+    assert first["where"] == "DM with Taro (@taro)"
+    assert result["rows"][1]["where"] == "#general in Guild"
+    # DM1's mirror starts after the 30-day window and is not complete; #general has only a live window.
+    assert result["coverage"]["partial_channels"] == 2 and "lower bounds" in result["coverage"]["note"]
+    conn = store.connect(write=True)
+    conn.execute("UPDATE cursors SET complete = 1 WHERE channel_id = ?", (int(DM1),))
+    conn.commit()
+    conn.close()
+    assert access.execute({"action": "stats", "channel": DM1})["coverage"]["partial_channels"] == 0
+
+
+def test_stats_counts_per_author_and_day():
+    people = access.execute({"action": "stats", "by": "author"})["rows"]
+    assert [(p["author"], p["messages"]) for p in people] == [("Taro", 2), ("me", 1)]
+    assert people[0]["author_id"] == TARO and people[0]["channels"] == 1
+    old = store.snowflake_at(datetime.now(timezone.utc) - timedelta(days=3))
+    _post(DM1, old, TARO, "earlier")
+    days = access.execute({"action": "stats", "by": "day"})["rows"]
+    expected: dict = {}
+    for mid in (M1, M2, M3, old):
+        day = store.snowflake_time(mid).astimezone().date().isoformat()
+        expected[day] = expected.get(day, 0) + 1
+    assert {d["day"]: d["messages"] for d in days} == expected
+    assert [d["day"] for d in days] == sorted(expected)                       # oldest first
+    assert sum(d["from_me"] for d in days) == 1
+
+
+def test_stats_filters_by_period_chat_and_server():
+    _post(GENERAL, flake(5), TARO, "hi", G)
+    assert access.execute({"action": "stats", "guild": G})["total"] == 1
+    assert access.execute({"action": "stats", "channel": DM1})["total"] == 3
+    assert access.execute({"action": "stats", "after": str(M2)})["total"] == 2     # M3 and the server post
+    result = access.execute({"action": "stats", "before": str(M2)})
+    assert result["total"] == 1 and "until" in result
+    old = store.snowflake_at(datetime.now(timezone.utc) - timedelta(days=45))
+    _post(DM1, old, TARO, "ancient")
+    assert access.execute({"action": "stats", "channel": DM1})["total"] == 3
+    wide = (datetime.now() - timedelta(days=60)).strftime("%Y-%m-%d")
+    assert access.execute({"action": "stats", "channel": DM1, "after": wide})["total"] == 4
+
+
+def test_stats_limits_rows_and_checks_arguments():
+    _post(GENERAL, flake(5), TARO, "hi", G)
+    assert len(access.execute({"action": "stats", "limit": 1})["rows"]) == 1
+    assert access.execute({"action": "stats", "channel": GROUP})["total"] == 0
+    assert access.execute({"action": "stats", "channel": GROUP})["my_share"] is None
+    for bad in ({"by": "month"}, {"limit": 0}, {"limit": "x"}, {"channel": "general"}):
+        with pytest.raises(access.DiscordError):
+            access.execute({"action": "stats", **bad})
