@@ -150,9 +150,10 @@ and the run waits meanwhile.
 
 ## Results
 
-A run call returns at once with the current state, and a completion
-notification arrives at the next hand-back (finished or waiting). Act on the
-notification; never poll. When a call returns `running` with `timed_out`, or a
+A run call returns at once with the current state. While that state is
+`running`, a completion notification arrives at the next hand-back (finished or
+waiting); a state that is already final or paused comes with no notification.
+Act on the notification; never poll. When a call returns `running` with `timed_out`, or a
 tool times out, issue ONE `opencode_session wait` or wait for the
 notification.
 
