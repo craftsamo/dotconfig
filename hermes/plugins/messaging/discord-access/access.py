@@ -49,7 +49,7 @@ archives = _load("hermes_archive_check", HERE.parent / "_shared" / "archive_chec
 
 ACTIONS = ("status", "guilds", "channels", "dms", "messages", "search", "context", "backfill", "media",
            "threads", "pins", "mentions", "pending", "stats", "export", "friends", "roles", "member", "role_members", "members",
-           "sync_list", "sync_add", "sync_remove", "send", "react", "unreact", "edit", "delete",
+           "sync_list", "sync_suggest", "sync_add", "sync_remove", "send", "react", "unreact", "edit", "delete",
            "role_add", "role_remove", "role_bulk_add", "role_create", "role_edit", "role_delete")
 MESSAGE_WRITES = {"react", "unreact", "edit", "delete"}
 ROLE_WRITES = {"role_add", "role_remove", "role_bulk_add", "role_create", "role_edit", "role_delete"}
@@ -69,7 +69,7 @@ AGENT_LABEL = "local.hermes.discord-access.sync"
 
 LIMITS = {"dms": (30, 200), "messages": (50, 200), "search": (30, 200), "live_search": (25, 25),
           "threads": (25, 25), "pins": (50, 50), "mentions": (25, 25), "members": (25, 100),
-          "pending": (30, 100)}
+          "pending": (30, 100), "sync_suggest": (10, 30)}
 PENDING_DAYS = 14           # pending looks back this far unless after says otherwise
 PENDING_TYPES = "(m.type IS NULL OR m.type IN (0, 19))"   # a plain message or a reply
 ROLES_FRESH = 900           # a role write needs the server's role list read within this
@@ -1691,6 +1691,119 @@ def sync_remove(args: dict) -> dict:
     return result
 
 
+SUGGEST_DAYS = 30
+SUGGEST_MIN_MESSAGES = 5    # a channel the user never wrote in needs this many mirrored messages to be proposed
+
+
+def _followed(conn, sync: dict) -> set[int]:
+    """The channel ids the sync follows in servers, as the engine picks them."""
+    out: set[int] = set()
+    for gid, entry in sync.items():
+        rows = list(conn.execute("SELECT * FROM channels WHERE guild_id = ?", (int(gid),)))
+        if entry["channels"]:
+            out |= {int(c) for c in entry["channels"]}
+            continue
+        excluded = {int(c) for c in entry["exclude"]}
+        text = [r for r in rows if r["type"] in store.TEXT_TYPES and r["id"] not in excluded
+                and r["state"] not in ("forbidden", "gone") and r["last_message_id"]]
+        text.sort(key=lambda r: r["last_message_id"], reverse=True)
+        out |= {r["id"] for r in text[:store.WHOLE_GUILD_CHANNELS]}
+    return out
+
+
+def _room(sync: dict) -> dict:
+    return {"servers": f"{len(sync)}/{store.MAX_GUILDS}",
+            "channels": f"{sum(store.planned_channels(e) for e in sync.values())}/{store.MAX_CHANNELS}"}
+
+
+def sync_suggest(args: dict) -> dict:
+    """What the sync list could gain or drop, from the mirror alone. Proposals only: nothing is
+    changed (sync_add / sync_remove do that, with the arguments given). Evidence is what the
+    mirror holds, so a channel the user only ever read live shows up once those reads were stored."""
+    limit = _limit(args, "sync_suggest")
+    since = _bound(args, "after") or store.snowflake_at(datetime.now(timezone.utc) - timedelta(days=SUGGEST_DAYS))
+    sync = store.load_sync()["guilds"]
+    with _mirror() as conn:
+        guilds = _guild_names(conn)
+        followed = _followed(conn, sync)
+        stats_rows = list(conn.execute(
+            f"SELECT m.channel_id, COUNT(*) n, SUM(m.from_me) mine, MAX(m.id) last FROM messages m "
+            f"JOIN channels c ON c.id = m.channel_id WHERE c.guild_id IS NOT NULL AND c.type IN (0, 5) "
+            f"AND c.state IS NOT 'forbidden' AND c.state IS NOT 'gone' AND {PENDING_TYPES} AND m.id > ? "
+            f"GROUP BY m.channel_id HAVING mine >= 1 OR n >= ?", (since, SUGGEST_MIN_MESSAGES)))
+        rows = {r["id"]: r for r in conn.execute("SELECT * FROM channels WHERE guild_id IS NOT NULL")}
+        mine = {r[0] for r in conn.execute(f"SELECT DISTINCT m.channel_id FROM messages m WHERE m.from_me = 1 "
+                                           f"AND {PENDING_TYPES} AND m.id > ?", (since,))}
+        # Drop candidates: followed channels with no activity in the period and none by the user.
+        remove = []
+        for gid, entry in sync.items():
+            name = entry["name"] or guilds.get(int(gid)) or gid
+            active = lambda cid: bool(rows.get(cid) and (rows[cid]["last_message_id"] or 0) > since) or cid in mine  # noqa: E731
+            if entry["channels"]:
+                quiet = [c for c in entry["channels"] if not active(int(c))]
+                if quiet:
+                    labels = [rows[int(c)]["name"] if int(c) in rows else c for c in quiet]
+                    remove.append({"guild": gid, "server": name, "channels": quiet,
+                                   "reason": f"no message in the period, none from you: #{', #'.join(map(str, labels))}",
+                                   "frees": len(quiet),
+                                   "args": {"action": "sync_remove", "guild": gid, "channels": quiet}})
+            else:
+                picked = [c for c in followed if rows.get(c) and rows[c]["guild_id"] == int(gid)]
+                if picked and not any(active(c) for c in picked):
+                    remove.append({"guild": gid, "server": name, "channels": "whole server",
+                                   "reason": f"none of its {len(picked)} followed channels had a message in the "
+                                             "period, and none is from you",
+                                   "frees": store.planned_channels(entry),
+                                   "args": {"action": "sync_remove", "guild": gid}})
+    candidates = []
+    for r in stats_rows:
+        cid = r["channel_id"]
+        row = rows.get(cid)
+        if cid in followed or row is None:
+            continue
+        gid = str(row["guild_id"])
+        entry = sync.get(gid)
+        if entry and not entry["channels"] and str(cid) in entry["exclude"]:
+            continue                                        # excluded on purpose
+        candidates.append((3 * (r["mine"] or 0) + r["n"], r, row, gid, entry))
+    candidates.sort(key=lambda c: (c[0], c[1]["last"]), reverse=True)
+    sim = {"guilds": {g: {**e, "channels": list(e["channels"]), "exclude": list(e["exclude"])} for g, e in sync.items()}}
+    add = []
+    for score, r, row, gid, entry in candidates:
+        item = {"channel": str(row["id"]), "where": _label_of(row["id"], rows, guilds) or str(row["id"]),
+                "guild": gid, "messages": r["n"], "from_me": r["mine"] or 0, "last": _local(r["last"]),
+                "reason": (f"you wrote {r['mine']} message(s) there" if r["mine"] else
+                           f"{r['n']} messages in the mirror") + " in the period, and it is not synced",
+                "args": {"action": "sync_add", "guild": gid, "channels": [str(row["id"])]}}
+        if entry is not None and not entry["channels"]:
+            item["fits"] = False
+            item["why_not"] = ("the whole server is followed (its most active channels) and this one is not among "
+                               "them: switching to named channels needs sync_remove for the server first")
+        else:
+            trial = {"guilds": {g: {**e, "channels": list(e["channels"])} for g, e in sim["guilds"].items()}}
+            target = trial["guilds"].setdefault(gid, {"name": guilds.get(int(gid)), "channels": [], "exclude": []})
+            target["channels"].append(str(row["id"]))
+            try:
+                store.check_limits(trial)
+            except store.LimitError as exc:
+                item["fits"] = False
+                item["why_not"] = str(exc)
+            else:
+                item["fits"] = True
+                sim = trial
+        add.append(item)
+        if len(add) >= limit:
+            break
+    result = {"ok": True, "since": _local(since), "add": add, "remove": remove[:limit],
+              "room_now": _room(sync), "limits": {"servers": store.MAX_GUILDS, "channels": store.MAX_CHANNELS}}
+    if any(not a["fits"] for a in add) and remove:
+        result["hint"] = "some additions do not fit: dropping the quiet entries under remove would make room"
+    result["note"] = ("Proposals only; nothing was changed. Run sync_add / sync_remove with the given args once the "
+                      "user agrees. Based on the mirror, so a channel the user never opened live is invisible here. "
+                      + UNTRUSTED)
+    return result
+
+
 # --- attachments --------------------------------------------------------------------------------
 #
 # Files are attached from the attach roots only (``discord_access.attach_roots`` in the profile's
@@ -2576,7 +2689,7 @@ def outbox_binding(args: dict, home: Path | None = None, ids: dict | None = None
 READS = {"status": status, "guilds": guilds, "channels": channels, "dms": dms, "messages": messages,
          "search": search, "context": context, "backfill": backfill, "threads": threads, "pins": pins,
          "mentions": mentions, "pending": pending, "stats": stats, "friends": friends, "roles": roles, "member": member, "role_members": role_members,
-         "members": members, "sync_list": sync_list, "sync_add": sync_add, "sync_remove": sync_remove}
+         "members": members, "sync_list": sync_list, "sync_suggest": sync_suggest, "sync_add": sync_add, "sync_remove": sync_remove}
 
 
 def binding(args: dict, home: Path | None = None, ids: dict | None = None) -> dict | None:

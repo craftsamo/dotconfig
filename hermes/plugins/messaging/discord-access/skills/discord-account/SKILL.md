@@ -58,6 +58,7 @@ still apply.
 | Pinned messages / who mentioned the user | `pins` with `channel` / `mentions` (optional `guild`) | live |
 | People | `friends` (with the id of an existing DM), user ids from messages, `members` with `guild` + `query` (needs Manage Server) | refreshed / live |
 | A message's files | `media` with `channel` + `id` | live |
+| Which servers and channels to follow or stop following | `sync_suggest` (proposals only; `after` = how far back) | mirror |
 | A synced chat's history on disk, as evidence | `export` with `channel` (`limit`, `after`, `before`, `format`) | mirror |
 | Older history of a synced channel into the mirror | `backfill` with `channel`, `pages` 1-5 of 100 | live |
 
@@ -133,7 +134,12 @@ DMs and group DMs are always synced. Servers are synced only when the user
 asks: `sync_add` with `guild` alone follows the whole server (its 10 most
 active text channels; `exclude` skips some), with `channels` only those;
 `sync_remove` with `guild` stops it, with `channels` drops or excludes
-channels. Switching between whole and named needs a remove first. The limit
+channels. Switching between whole and named needs a remove first. To review
+the list, `sync_suggest` reads the mirror and proposes what to add (channels
+the user writes in or that are busy but not synced) and what to drop (quiet
+ones), each with the exact `sync_add` / `sync_remove` arguments and whether it
+fits. It changes nothing: put the proposals to the user and apply only the
+ones they agree to; a server the user did not mention stays untouched. The limit
 (10 servers, 30 channels, a whole server counting as 10) is the tool's:
 relay its message and let the user choose what to drop. Changes apply on the
 next run, within 5 minutes; `sync_list` shows the list and the last run. No

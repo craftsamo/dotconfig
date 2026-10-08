@@ -1629,3 +1629,108 @@ def test_export_is_for_synced_chats_and_checks_its_arguments(exports):
         with pytest.raises(access.DiscordError, match=match):
             _export(home, **bad)
     assert not folder.exists()
+
+
+# --- sync_suggest ----------------------------------------------------------------------------------
+
+C = {n: f"4000000000000001{n:02d}" for n in range(1, 13)}
+OLD = store.snowflake_at(datetime.now(timezone.utc) - timedelta(days=60))
+
+
+def _channel(cid, name, last=None, type=0, state=None):
+    conn = store.connect(write=True)
+    store.upsert_channel(conn, store.channel_row({"id": cid, "type": type, "name": name, "guild_id": G,
+                                                  "last_message_id": str(last or flake(60))}), 0)
+    if state:
+        conn.execute("UPDATE channels SET state = ? WHERE id = ?", (state, int(cid)))
+    conn.commit()
+    conn.close()
+
+
+def _busy(cid, count, mine=0):
+    for i in range(count):
+        _post(cid, flake(100 - i), ME if i < mine else TARO, f"m{i}", G)
+
+
+def _suggest(**args):
+    return access.execute({"action": "sync_suggest", **args})
+
+
+def test_suggest_proposes_busy_or_written_in_unsynced_channels_with_ready_args():
+    _channel(C[1], "chat")
+    _channel(C[2], "quiet")
+    _channel(C[3], "mine")
+    _channel(C[4], "voice", type=2)
+    _channel(C[5], "hidden", state="forbidden")
+    _busy(C[1], 6)
+    _busy(C[2], 4)                    # below the threshold, none from the user
+    _busy(C[3], 1, mine=1)
+    _busy(C[4], 9)
+    _busy(C[5], 9)
+    result = _suggest()
+    assert [a["channel"] for a in result["add"]] == [C[1], C[3]]              # 6 > 3*1 + 1
+    first = result["add"][0]
+    assert first["args"] == {"action": "sync_add", "guild": G, "channels": [C[1]]} and first["fits"] is True
+    assert first["where"] == "#chat in Guild" and "6 messages" in first["reason"]
+    assert "you wrote 1" in result["add"][1]["reason"] and "nothing was changed" in result["note"]
+    assert result["room_now"] == {"servers": "0/10", "channels": "0/30"} and result["remove"] == []
+    assert store.load_sync()["guilds"] == {}
+
+
+def test_suggest_skips_channels_that_are_already_followed():
+    for n in (1, 2, 3):
+        _channel(C[n], f"c{n}", last=flake(n))
+        _busy(C[n], 6)
+    store.sync_add(G, "Guild", [C[1]])
+    add = _suggest()["add"]
+    assert {a["channel"] for a in add} == {C[2], C[3]} and all(a["fits"] for a in add)
+    assert _suggest()["room_now"]["channels"] == "1/30"
+
+
+def test_suggest_marks_additions_that_do_not_fit_and_offers_the_quiet_entries(monkeypatch):
+    _channel(C[1], "old", last=OLD)
+    _channel(C[2], "new", last=flake(5))
+    _busy(C[2], 6)
+    store.sync_add(G, "Guild", [C[1]])
+    monkeypatch.setattr(store, "MAX_CHANNELS", 1)
+    result = _suggest()
+    add = result["add"][0]
+    assert add["channel"] == C[2] and add["fits"] is False and "limit" in add["why_not"]
+    assert result["remove"] == [{"guild": G, "server": "Guild", "channels": [C[1]], "frees": 1,
+                                 "reason": "no message in the period, none from you: #old",
+                                 "args": {"action": "sync_remove", "guild": G, "channels": [C[1]]}}]
+    assert "make room" in result["hint"] and result["room_now"]["channels"] == "1/1"
+
+
+def test_suggest_keeps_channels_that_are_active_or_that_the_user_wrote_in():
+    _channel(C[1], "recent", last=flake(30))
+    _channel(C[2], "mine", last=OLD)
+    _channel(C[3], "dead", last=OLD)
+    _post(C[2], flake(20), ME, "still here", G)
+    store.sync_add(G, "Guild", [C[1], C[2], C[3]])
+    assert [r["channels"] for r in _suggest()["remove"]] == [[C[3]]]
+
+
+def test_suggest_proposes_dropping_a_quiet_whole_server():
+    for n in (1, 2):
+        _channel(C[n], f"c{n}", last=OLD)
+    store.sync_add(G, "Guild")
+    remove = _suggest()["remove"]
+    assert remove == [{"guild": G, "server": "Guild", "channels": "whole server", "frees": store.WHOLE_GUILD_CHANNELS,
+                       "reason": "none of its 2 followed channels had a message in the period, and none is from you",
+                       "args": {"action": "sync_remove", "guild": G}}]
+    _channel(C[2], "c2", last=flake(5))
+    assert _suggest()["remove"] == []
+
+
+def test_suggest_explains_a_channel_a_whole_server_does_not_follow_and_honours_exclusions():
+    for n in range(1, 11):
+        _channel(C[n], f"c{n}", last=flake(n))
+    _channel(C[11], "late", last=flake(500))
+    _channel(C[12], "muted", last=flake(501))
+    _busy(C[11], 6)
+    _busy(C[12], 6)
+    store.sync_add(G, "Guild", None, [C[12]])
+    add = _suggest()["add"]
+    assert [a["channel"] for a in add] == [C[11]] and add[0]["fits"] is False
+    assert "whole server is followed" in add[0]["why_not"] and "sync_remove" in add[0]["why_not"]
