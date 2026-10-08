@@ -113,7 +113,7 @@ Keep it link-first. No essays.
 
 ## Handoff
 
-Plan ends at the client's agreement, Build at the output template and QA at the
-checked delivery; each stage's own Handoff in its shared reference says what
-follows. Keep this mode for the unit; another kind of retrieval is another
+Plan ends at the client's agreement. Build hands straight to QA in the same
+turn, and only QA's checked delivery reaches the caller. Each stage's own
+Handoff in its shared reference says what follows. Keep this mode for the unit; another kind of retrieval is another
 agreed unit with its own mode entry, never a silent switch.

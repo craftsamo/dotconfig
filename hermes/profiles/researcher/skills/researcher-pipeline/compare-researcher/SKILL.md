@@ -141,7 +141,8 @@ Plan for agreement, preserving the original result and consumed budget.
 
 ## Handoff
 
-Plan ends at the client's agreement, Build at the Output template and QA at the
-self-checked delivery; each stage's own Handoff in its shared reference says
-what follows. Keep this mode for the unit; another kind of question is another
+Plan ends at the client's agreement. Build hands straight to QA in the same
+turn, and only QA's self-checked delivery reaches the caller: a findings reply
+without its Research Self-Check is not finished. Each stage's own Handoff in
+its shared reference says what follows. Keep this mode for the unit; another kind of question is another
 agreed unit with its own mode entry, never a silent switch.

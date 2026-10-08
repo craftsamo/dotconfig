@@ -23,11 +23,15 @@ The kernel's source evaluation and on-chain rules apply. In addition:
 ## Patterns
 
 1. **Who controls a contract.** `contract` gives the proxy and its admin, the
-   deployer and the current values of getters such as `owner`, `pauser` or
-   `admin`. Read each holder with `address`: an EOA is one key; a contract may
-   be a multisig (for a Safe, `call` `getThreshold()` and `getOwners()`) or a
-   timelock (`call` `getMinDelay()`). `logs` for `OwnershipTransferred`,
-   `RoleGranted` or `Upgraded` shows when control changed.
+   deployer and, in `state`, the current values of getters such as `owner`,
+   `pauser` or `admin`: use those values rather than calling the same getters
+   again; `call` what `state` lacks (those in `state_unread`, getters with
+   arguments or list results, anything past its first 25). A role set to the zero address
+   is unset. Read each other holder with `address`: an EOA is one key; a
+   contract may be a multisig (for a Safe, `call` `getThreshold()` and
+   `getOwners()`) or a timelock (`call` `getMinDelay()`). `logs` for
+   `OwnershipTransferred`, `RoleGranted` or `Upgraded` shows when control
+   changed.
 2. **Whether something can happen.** Run the function with `call` from the
    address that would do it, with `amount` when it pays: a revert and its
    decoded reason, or success. A simulation shows the outcome for that caller
@@ -55,3 +59,7 @@ The kernel's source evaluation and on-chain rules apply. In addition:
   unverified.
 - A decoded call or event says where its ABI came from (`verified`, `known`,
   `guessed`); carry that label into the evidence.
+- `contract`, `call`, `storage` and `address` read one block and return its
+  number as `block`; cite that number. Proxies are found through EIP-1167,
+  EIP-1967 and OpenZeppelin's older (zos) slots; another pattern shows no
+  `proxy`, so a contract whose behaviour suggests one stays an open question.

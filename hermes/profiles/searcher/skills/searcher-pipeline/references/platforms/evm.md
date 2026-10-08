@@ -11,7 +11,7 @@ nothing is signed or sent, and a write function run with `call` is only an
 | Need | Action |
 | --- | --- |
 | One transaction: status, call, events, balance changes | `tx` (`hash`) |
-| What an address or contract is | `address`; for a contract's proxy, verifier, deployer, functions and getter values, `contract` |
+| What an address or contract is | `address`; for a contract's proxy, verifier, deployer, functions and getter values, `contract` (its `state` holds argument-free getters' values: don't `call` those again; `call` what it lacks, such as `state_unread`) |
 | A value a contract holds | `call` with a getter; a raw slot with `storage` |
 | Holdings across chains | `portfolio` (`chains=[…]`, up to six) |
 | Recent transfers of an address | `activity` |
@@ -21,8 +21,10 @@ nothing is signed or sent, and a write function run with `call` is only an
 
 ## What to record per item
 
-The chain, the transaction hash or address, the block number (and time when it
-matters), the values as returned and the explorer link. Keep the tool's labels:
+The chain, the transaction hash or address, the block number (each result's
+`block`; time when it matters), the values as returned and the explorer link.
+A role or field set to the zero address is unset: record it as such, without
+reading the zero address itself. Keep the tool's labels:
 `verified` / `known` / `guessed` on decoded items, and the verifier of a
 contract. A value without its block is not reproducible.
 
