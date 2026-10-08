@@ -20,7 +20,7 @@ MODES = {
                  "fact-check": "verify", "guidance": "advise"},
     "search": {"lookup": "lookup", "sweep": "sweep", "hunt": "hunt"},
 }
-STAGES = ("plan", "build", "qa")
+STAGES = ("plan", "build")
 RETIRED_SEARCH_CARDS = ("survey-enumeration", "exhaustive-hunt")
 
 
@@ -149,7 +149,7 @@ class ResearchSearchHandoffTest(unittest.TestCase):
     def test_self_check_never_replaces_requester_acceptance(self):
         for domain in UNITS:
             caller = text(ROOT / f"qa-assistant-{domain}/SKILL.md")
-            public = text(public_pipeline(domain) / "references/qa.md")
+            public = text(public_pipeline(domain) / "references/build.md")
             self.assertIn("agreed proposal or explicitly released settled brief", caller)
             self.assertIn("self-check, not an external pass", caller)
             self.assertIn("scoring, criteria or correction limit", caller)

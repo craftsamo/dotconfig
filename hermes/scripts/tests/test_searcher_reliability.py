@@ -81,7 +81,7 @@ def test_build_separates_the_turn_budget_from_a_reason_to_stop():
 
 
 def test_qa_treats_an_untrue_stop_as_unmet():
-    text = flat(PIPELINE / "references/qa.md")
+    text = flat(PIPELINE / "references/build.md")
     assert "Check the stop reason too" in text and "is Unmet, not a pass" in text
 
 

@@ -10,7 +10,7 @@ exact claims and evidence requirements; Searcher proposes retrieval questions,
 coverage/floor, per-item fields, done conditions and exclusions. Each may propose
 an ordered sequence of its own units with dependencies and stop points, never
 decompose the cross-role project or assign other specialists. The Client agrees
-within existing authority, then Build executes and QA self-checks. Caller
+within existing authority, then Build executes and ends by self-checking its result. Caller
 acceptance remains separate; Assistant's Client guides and acceptance contracts
 are not a duplicate specialist planning or self-QA procedure.
 
@@ -20,7 +20,7 @@ authorized inquiry may complete in one shot without ceremonial approval; complex
 framing, feedback and work use a resident conversation. Agent Clients may
 authorize ordinary inquiry within their grant, never substitute for human-only
 permissions. Plan uses supplied material only: needed discovery is a separately
-agreed bounded preliminary Build, then QA, then revised Plan and agreement for
+agreed bounded preliminary Build and its self-check, then revised Plan and agreement for
 the main scope — not release of the main work. A short approval advances the
 retained proposal rather than restarting Plan. Bounded corrections return to
 Build within scope/budget; expansion returns to Plan and agreement. Spec gaps and
@@ -29,15 +29,16 @@ success.
 
 ### Researcher
 
-Researcher's v10.0.0 `researcher-pipeline` kernel routes four mode entries, one
+Researcher's v11.0.0 `researcher-pipeline` kernel routes four mode entries, one
 per kind of question: `investigate-researcher` (an open question, answered as an
 evidence pack), `compare-researcher` (named options on fixed criteria, a
 tradeoff matrix), `verify-researcher` (exact claims, verdicts and a durable
 claim ledger) and `advise-researcher` (directives for a named consumer). Each
-entry owns what Plan, Build and QA mean for its question — framing, synthesis,
-output template and verification — while the stages themselves are shared
-`references/plan.md`, `build.md` (with the evidence Method) and `qa.md` beside
-`references/gather.md`, which is required beyond a few direct lookups.
+entry owns what Plan and Build mean for its question — framing, synthesis,
+output template and the Verification its Build ends by self-checking against —
+while the stages themselves are shared `references/plan.md` and `build.md`
+(the evidence Method and the self-check) beside `references/gather.md`, which is
+required beyond a few direct lookups.
 On-chain evidence comes from the read-only `evm` and `solana` tools: the
 kernel's source evaluation says how chain state, text in the chain and
 name-based leads score, and `references/platforms/evm.md` and `solana.md`
@@ -47,7 +48,9 @@ limits. This is
 the shape of Marketer's and Creator's advisory entries: modes named for the
 work, one kernel, shared references. `validate_researcher_entries` enforces the
 closed tree, kernel routing and links, canonical recovery paths and each
-entry's stage sections.
+entry's stage sections. There is no separate QA stage: as in those advisory
+entries, Build ends by checking its own result against the mode's
+Verification, and acceptance stays with the caller.
 
 Admiralty/SIFT source scoring, verbatim exact claims, durable claim ledgers,
 evidence gaps and Review gates remain; research self-check is neither caller
@@ -67,9 +70,9 @@ modes of the same name; the validator enforces that caller-side mapping.
 
 ### Searcher
 
-Searcher's v9.0.0 `searcher-pipeline` kernel (retrieval, release and the
+Searcher's v10.0.0 `searcher-pipeline` kernel (retrieval, release and the
 resident runtime) routes three mode entries, `lookup-searcher`,
-`sweep-searcher` and `hunt-searcher`, over the same shared Plan, Build and QA
+`sweep-searcher` and `hunt-searcher`, over the same shared Plan and Build
 stage references. Retrieval and link integrity remain its limits: no trust
 verdicts, synthesis, rankings or production. Beyond web search and `x_search`,
 it reads public X posts, YouTube, note and Substack through the `x`, `youtube`,

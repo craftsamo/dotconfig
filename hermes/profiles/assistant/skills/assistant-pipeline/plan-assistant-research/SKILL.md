@@ -103,7 +103,7 @@ against purpose and grants; answer within discretion and use the existing
 Plan uses supplied material only, with no unapproved external search. If
 discovery is needed, Researcher may propose a bounded preliminary Build with
 scope, output, budget and stop condition. The primary Client must agree first;
-after Build and specialist QA self-check, the primary inspects the result and
+after Build and its specialist self-check, the primary inspects the result and
 gives separate agreement on the refined main proposal within its grant.
 Preliminary agreement never releases main work. The primary owns and continues
 the Researcher work handle and `conversation_id`. Assistant uses only its own

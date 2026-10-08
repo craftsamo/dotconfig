@@ -15,7 +15,7 @@ spec.loader.exec_module(validator)
 
 MODES = ("lookup", "sweep", "hunt")
 ENTRIES = tuple(f"{mode}-searcher" for mode in MODES)
-STAGES = ("plan", "build", "qa")
+STAGES = ("plan", "build")
 SHARED = {f"references/{stage}.md" for stage in STAGES}
 PLATFORMS = {"references/platforms/evm.md", "references/platforms/solana.md"}
 
@@ -49,7 +49,7 @@ def test_exact_entries_and_owned_procedures():
         for section in ("## Output template", "## Verification", "## Handoff"):
             assert section in body
     root = (PIPELINE / "SKILL.md").read_text()
-    assert "version: 9.0.0" in root and root.index("\n---\n", 4) < 4000
+    assert "version: 10.0.0" in root and root.index("\n---\n", 4) < 4000
     assert "<Procedure>" not in root
     for name in ENTRIES:
         assert f"({name}/SKILL.md)" in root
@@ -264,7 +264,7 @@ def test_stage_reference_owns_its_sections(candidate, stage, section):
 
 def test_declared_policy_not_model_routing_compliance():
     root = flat(PIPELINE / "SKILL.md")
-    plan, build, qa = (flat(PIPELINE / f"references/{stage}.md") for stage in STAGES)
+    plan, build = (flat(PIPELINE / f"references/{stage}.md") for stage in STAGES)
     for phrase in (
         "no reset, new grant or replay", "Fields or transport",
     ):
@@ -280,12 +280,11 @@ def test_declared_policy_not_model_routing_compliance():
         "short approval advances",
     ):
         assert phrase.lower() in plan.lower()
-    assert "same scope and remaining budget" in qa
-    assert "expansion goes to [Plan](plan.md) and client agreement" in qa
-    assert "caller final acceptance or a new self numeric score" in qa
-    assert "actual Build findings/ledger in current context" in qa
-    assert "report it as unverified and stop" in qa
-    assert "never invent a Checked result" in qa
+    assert "same scope and remaining budget" in build
+    assert "expansion goes to [Plan](plan.md) and client agreement" in build
+    assert "caller final acceptance or a new self numeric score" in build
+    assert "## Check" in build and "as Build's last step" in build and "is Unmet, not a pass" in build
+    assert not (PIPELINE / "references/qa.md").exists()
     assert "Interpreted as:" in build and "direct settled briefs" in build
     assert "valid cards" not in build
     assert "A stop needs a true reason" in build
@@ -344,7 +343,7 @@ def test_chain_reads_are_retrieval_without_verdicts():
     assert "`state_unread`" in evm and "zero address is unset" in evm and "`block`" in evm
     assert "`slot`" in solana
     for name in ENTRIES:
-        assert "only QA's checked delivery reaches the caller" in flat(PIPELINE / name / "SKILL.md")
+        assert "with the check against this entry's Verification" in flat(PIPELINE / name / "SKILL.md")
     assert "latest 50 signatures" in solana and "no paging" in solana
     assert "`program`" in solana and "slot" in solana
     root = flat(PIPELINE / "SKILL.md")

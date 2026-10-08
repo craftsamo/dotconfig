@@ -22,8 +22,7 @@ before any stage. On every inbound turn/completion and before a midturn mode,
 stage or scope change, reselect the mode and load this entry with
 `skill_view(name="investigate-researcher")` and the current stage's shared reference with
 `skill_view(name="researcher-pipeline", file_path="references/<stage>.md")`:
-[Plan](../references/plan.md), [Build](../references/build.md) or
-[QA](../references/qa.md). Reuse only full bodies in current context, never a
+[Plan](../references/plan.md) or [Build](../references/build.md). Reuse only full bodies in current context, never a
 past load, preload or summary.
 
 Gathering beyond a few direct lookups requires
@@ -104,8 +103,8 @@ Missing framing returns to Plan, not a guessed question or broader survey.
 
 Shorten sections for compact output, but retain all categories and distinguish
 inference from observation. Write requested artifacts to the durable path and
-name them in the reply. Pass the actual report and evidence to QA; a polished
-summary alone is not evidence that the question's done criteria were met.
+name them in the reply. Check the actual report and evidence against Verification
+below; a polished summary alone is not evidence that the question's done criteria were met.
 
 ## Verification
 
@@ -127,15 +126,15 @@ criteria. This checks Researcher's result, not caller final acceptance.
 - Implications inform the caller's decision without taking it over unless
   explicitly requested. Requested artifacts are at named durable paths.
 
-Report checked, unmet and unknown conditions in QA's output. Missing evidence
+Report unmet and unknown conditions in the reply's Uncertainty. Missing evidence
 is unknown, never a new self-score. A narrow omitted-category or evidence
 correction goes to Build only within agreed scope and remaining budget; a new
 question/depth expansion needs Plan and client agreement.
 
 ## Handoff
 
-Plan ends at the client's agreement. Build hands straight to QA in the same
-turn, and only QA's self-checked delivery reaches the caller: a findings reply
-without its Research Self-Check is not finished. Each stage's own Handoff in
-its shared reference says what follows. Keep this mode for the unit; another kind of question is another
+Plan ends at the client's agreement. Build ends, in the same turn, with the
+self-check against this entry's Verification, and the reply carries what it
+found unmet or unknown. Each stage's own Handoff in its shared reference says
+what follows. Keep this mode for the unit; another kind of question is another
 agreed unit with its own mode entry, never a silent switch.

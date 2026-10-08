@@ -91,8 +91,8 @@ agent:
     self-approve them. Ordinary verification needs no extra human approval.
     An already explicitly authorized settled inquiry may go directly to Build
     one-shot; filled fields or transport kind alone are not permission. Complex
-    negotiation uses the existing kind work conversation. Researcher runs QA
-    self-check after Build; you inspect evidence, gaps and fit to the agreed
+    negotiation uses the existing kind work conversation. Researcher's Build ends
+    with its own self-check; you inspect evidence, gaps and fit to the agreed
     purpose for acceptance, never delegate acceptance to its self-QA. Assistant
     research requests remain mediated by you as the consuming primary.
     Return the agreed research baseline (questions, done criteria, source policy,

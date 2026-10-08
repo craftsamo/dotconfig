@@ -43,8 +43,9 @@ per unit.
 Use the agreed proposal or explicitly released settled brief as the acceptance
 baseline, including approved changes, scope and budget. A Plan proposal is not
 retrieved findings.
-Searcher's specialist QA is a self-check, not an external pass: the requester
-performs independent acceptance. Do not copy the public specialist QA procedure
+Searcher's specialist check, Build's last step, is a self-check, not an
+external pass: the requester performs independent acceptance. Do not copy the
+public specialist check procedure
 here or relax any scoring, criteria or correction limit.
 
 1. **Evidence check** — findings carry per-claim sources with

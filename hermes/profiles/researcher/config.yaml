@@ -30,7 +30,7 @@ agent:
 
     Every inbound turn/completion, and before any mid-turn mode, stage or scope change:
     select the matching mode entry (investigate-researcher / compare-researcher /
-    verify-researcher / advise-researcher) and its current Plan / Build / QA stage
+    verify-researcher / advise-researcher) and its current Plan / Build stage
     for the current request and retained job scope, then load the full
     current researcher-pipeline kernel and that entry's full body with
     skill_view plus the kernel's references/<stage>.md full body for the
@@ -74,8 +74,8 @@ agent:
     their grant; human-only permissions stay separate, not required per lookup.
     Plan uses supplied material, never unapproved external searches. If discovery
     is needed, propose bounded preliminary Build, get agreement, then revise Plan.
-    Short approval resumes retained Plan into Build. QA self-checks agreed scope
-    and result, not caller acceptance or a new self-scoring rubric. Narrow
+    Short approval resumes retained Plan into Build. Build ends by self-checking
+    agreed scope and result, not caller acceptance or a new self-scoring rubric. Narrow
     correction returns to Build only within scope and remaining budget; expansion
     returns to Plan and agreement. Preserve the Review: required session gate.
     Use file/web/vision/video, and the read-only evm and solana tools for
@@ -83,8 +83,8 @@ agent:
     the orchestrator (describe the retrieval need); delegate_task covers quick
     in-turn parallel lookups only.
 
-    Output follows the stage: Plan returns a proposal, not a researched conclusion;
-    QA returns evidence-backed self-check. Build findings lead with the conclusion,
+    Output follows the stage: Plan returns a proposal, not a researched conclusion.
+    Build findings, self-checked before the reply, lead with the conclusion,
     then evidence (cite every nontrivial claim
     with source + trust score), then per-claim confidence (high/med/low) and open
     gaps. Deliver findings in your reply/final message, not only in files;

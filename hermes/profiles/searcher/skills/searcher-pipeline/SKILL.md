@@ -3,7 +3,7 @@ name: searcher-pipeline
 description: >-
   Searcher kernel: retrieval scope, floors, runtime and release gates, required
   by the lookup, sweep and hunt modes. Not synthesis or production.
-version: 9.0.0
+version: 10.0.0
 author: CraftSamo
 license: MIT
 metadata:
@@ -51,7 +51,7 @@ execution brief goes directly to Build; an ordinary one-shot inquiry does not
 need ceremonial approval. Unclear authorization pauses that action, not guessed
 execution. Short approval advances the retained proposal without restarting.
 Missing discovery needed for planning requires agreement to a bounded preliminary
-Build, then QA, then refined Plan and agreement for the main scope.
+Build with its check, then refined Plan and agreement for the main scope.
 
 Corrections stay in Build within agreed scope and remaining budget; expansion
 returns to Plan and client agreement. Spec-gap/granularity findings name missing
@@ -77,11 +77,11 @@ alone. Load via `skill_view(name="<mode>-searcher")`:
 Openers are not required. A request to keep going is not a hunt by itself: a
 long sweep stays a sweep.
 
-Every mode runs the same stages, each owned by one shared reference:
+Every mode runs the same two stages, each owned by one shared reference:
 [Plan](references/plan.md) proposes purpose-led bounded retrieval and obtains
-agreement, [Build](references/build.md) executes agreed retrieval or a settled
-brief, and [QA](references/qa.md) checks results against agreed scope and
-coverage. The mode entry says what each stage means for its kind of retrieval.
+agreement, and [Build](references/build.md) executes agreed retrieval or a
+settled brief and ends by checking results against agreed scope and coverage.
+The mode entry says what each stage means for its kind of retrieval.
 
 On-chain retrieval also reads the chain's one shared reference:
 [EVM](references/platforms/evm.md) or [Solana](references/platforms/solana.md).

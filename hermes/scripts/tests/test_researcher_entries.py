@@ -30,7 +30,7 @@ def _skip_learned(directory, names):
 
 
 MODES = ("investigate", "compare", "verify", "advise")
-STAGES = ("plan", "build", "qa")
+STAGES = ("plan", "build")
 ENTRIES = {f"{mode}-researcher" for mode in MODES}
 PLATFORMS = {"references/platforms/evm.md", "references/platforms/solana.md"}
 SHARED = {"references/gather.md"} | {f"references/{stage}.md" for stage in STAGES} | PLATFORMS
@@ -46,8 +46,8 @@ def test_candidate_topology_and_always_on_contract():
     assert set(VALIDATOR.validate_researcher_entries(TREE, errors)) == ENTRIES
     assert errors == []
     assert {p.relative_to(TREE).as_posix() for p in TREE.rglob("*.md")} == DOCUMENTS
-    assert len(DOCUMENTS) == 11
-    assert VALIDATOR.frontmatter(TREE / "SKILL.md")["version"] == "10.0.0"
+    assert len(DOCUMENTS) == 10
+    assert VALIDATOR.frontmatter(TREE / "SKILL.md")["version"] == "11.0.0"
     for name in ENTRIES:
         path = TREE / name / "SKILL.md"
         data = VALIDATOR.frontmatter(path)
@@ -76,9 +76,9 @@ def test_candidate_topology_and_always_on_contract():
     assert config["platform_toolsets"]["telegram"] == []
     assert config["platform_toolsets"]["discord"] == []
     assert not config.get("a2a_agents")
-    qa = flat(TREE / "references/qa.md")
-    assert "actual Build findings/ledger in current context" in qa
-    assert "report it as unverified and stop" in qa
+    build = flat(TREE / "references/build.md")
+    assert "## Self-check" in build and "as Build's last step" in build
+    assert not (TREE / "references/qa.md").exists()
 
 
 @pytest.mark.parametrize("caller", ("engineer", "marketer"))
@@ -132,7 +132,7 @@ def test_worker_integration(tmp_path, monkeypatch):
     ("wrong_description", "description must frontload verify"),
     ("root_link", "kernel does not route"),
     ("root_stage_link", "kernel does not link reference: build.md"),
-    ("stage_link", "does not link stage reference qa"),
+    ("stage_link", "does not link stage reference build"),
     ("missing_dependency", "missing dependency/recovery"),
     ("missing_recovery", "missing dependency/recovery"),
     ("missing_canonical", "missing dependency/recovery"),
@@ -140,7 +140,7 @@ def test_worker_integration(tmp_path, monkeypatch):
     ("missing_output", "missing ## Output template"),
     ("missing_plan", "missing ## Plan"),
     ("missing_verification", "missing ## Verification"),
-    ("stage_section", "stage reference missing ## Handoff: qa.md"),
+    ("stage_section", "stage reference missing ## Handoff: build.md"),
     ("missing_method", "build stage must own the <Method>"),
     ("reference_name", "reference must not declare a skill name"),
     ("escaping_link", "broken/escaping researcher link"),
@@ -158,7 +158,7 @@ def test_invalid_entries(tmp_path, mutation, expected):
     if mutation == "missing_entry":
         path.unlink()
     elif mutation == "missing_stage":
-        (tree / "references/qa.md").unlink()
+        (tree / "references/build.md").unlink()
     elif mutation in {"old_phase", "old_unit_reference", "hidden_skill"}:
         target = tree / {
             "old_phase": "build-researcher/SKILL.md",
@@ -182,11 +182,11 @@ def test_invalid_entries(tmp_path, mutation, expected):
     elif mutation == "escaping_symlink":
         outside = tmp_path / "outside.md"
         outside.write_text("# Outside fixture\n")
-        reference = tree / "references/qa.md"
+        reference = tree / "references/plan.md"
         reference.unlink()
         reference.symlink_to(outside)
     elif mutation == "stage_section":
-        reference = tree / "references/qa.md"
+        reference = tree / "references/build.md"
         reference.write_text(reference.read_text().replace("## Handoff", "## Removed"))
     elif mutation == "missing_method":
         reference = tree / "references/build.md"
@@ -200,7 +200,7 @@ def test_invalid_entries(tmp_path, mutation, expected):
         elif mutation == "wrong_description":
             text = text.replace("  Verify exact claims", "  Check exact claims")
         elif mutation == "stage_link":
-            text = text.replace("(../references/qa.md)", "(../references/plan.md)")
+            text = text.replace("(../references/build.md)", "(../references/plan.md)")
         elif mutation == "missing_dependency":
             text = text.replace('skill_view(name="researcher-pipeline")', "skip kernel")
         elif mutation == "missing_recovery":
@@ -229,7 +229,7 @@ def test_invalid_entries(tmp_path, mutation, expected):
 def test_declared_agreement_and_continuity_contract():
     """Instruction assertions, not evidence of actual model routing or approval behavior."""
     kernel = flat(TREE / "SKILL.md")
-    plan, build, qa = (flat(TREE / f"references/{stage}.md") for stage in STAGES)
+    plan, build = (flat(TREE / f"references/{stage}.md") for stage in STAGES)
     for phrase in ("purpose, consumer, constraints and budget", "Plan needs client agreement before Build",
                    "never self-release", "already explicitly authorized for execution may go straight to Build",
                    "transport kind or entry selection alone are not authorization",
@@ -237,7 +237,7 @@ def test_declared_agreement_and_continuity_contract():
                    "Multiple own-role units are allowed", "never decompose the whole production",
                    "no outbound peers", "reset budget", "replay completed work",
                    "stages of one unit, not separate entries",
-                   "QA runs before every findings reply and its self-check goes with it"):
+                   "ends by self-checking the result against the mode's Verification before the reply"):
         assert phrase in kernel
     for gone in ("card gate", "register cards", "Cards are refused"):
         assert gone not in kernel
@@ -245,12 +245,12 @@ def test_declared_agreement_and_continuity_contract():
                    "return to revise", "short approval advances this retained Plan", "(build.md)"):
         assert phrase in plan
     for phrase in ("explicitly authorized settled brief", "Fields and transport kind alone are not authorization",
-                   "consumed/remaining budget", "(qa.md)", "scope and remaining budget"):
+                   "consumed/remaining budget", "scope and remaining budget"):
         assert phrase in build
     for phrase in ("newly invented rubric or numeric self-score", "final domain decision or acceptance",
                    "narrow correction", "agreed scope and remaining budget", "Plan for agreement",
-                   "Do not silently repair during QA", "Review: required", "wait", "preliminary Build QA"):
-        assert phrase in qa
+                   "Review: required", "wait", "After a preliminary Build"):
+        assert phrase in build
     for name in ENTRIES:
         text = flat(TREE / name / "SKILL.md")
         assert "not a new grant" in text
@@ -262,7 +262,8 @@ def test_declared_agreement_and_continuity_contract():
         assert "next_offset" in text and "stop the affected action" in text
         assert "Never evade dedup with alternate paths or artificial ranges" in text
         assert "never a silent switch" in text
-        assert "only QA's self-checked delivery reaches the caller" in text
+        assert "with the self-check against this entry's Verification" in text
+        assert "references/qa.md" not in text
 
 
 @pytest.mark.parametrize("name,fields", [
@@ -493,7 +494,7 @@ def runtime_child(sandbox, source, configured_external):
         owner = tree / "investigate-researcher"
         canonical = [owner / "../SKILL.md", *(owner / ".." / relative for relative in sorted(SHARED))]
         canonical.extend(tree / name / "SKILL.md" for name in sorted(ENTRIES))
-        assert len(canonical) == 11
+        assert len(canonical) == 10
         continued = 0
         with patch.object(ft, "_get_max_read_chars", return_value=1000):
             for path in canonical:
@@ -516,7 +517,7 @@ def runtime_child(sandbox, source, configured_external):
         assert continued > 0
         # An unavailable canonical file yields an error, not a usable body. The
         # instruction-only stop requirement is checked separately above.
-        missing = tree / "references/qa.md"
+        missing = tree / "references/build.md"
         original = missing.read_text()
         missing.unlink()
         assert read(missing).get("error")
