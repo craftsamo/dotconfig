@@ -1,7 +1,8 @@
 """Profile configuration for the OpenCode 2 plugin: `opencode` in config.yaml.
 
 Nothing here is secret or per-run. Roles are data: a role names an installed
-OpenCode agent, one of two policies, and optionally a model and a short note.
+OpenCode agent, one of two policies, and optionally a model, an alternate model,
+whether the caller's own model is allowed, and a short note.
 """
 
 from __future__ import annotations
@@ -12,6 +13,9 @@ import hermes_yaml as yaml
 
 KEY = "opencode"
 POLICIES = ("read-only", "write")
+# Whether a role may run on the caller's own model. `refuse` keeps the caller from
+# judging or building what it then accepts itself; `allow` is a maintainer's choice.
+CALLER_MODEL_MODES = ("refuse", "allow")
 DEFAULT_ROLES = {
     "plan": {"agent": "plan", "policy": "read-only"},
     "review": {"agent": "review", "policy": "read-only"},
@@ -46,8 +50,8 @@ def pinned(value):
 def _role(name, raw):
     if not ROLE_NAME.fullmatch(name):
         raise ValueError(f"{KEY}.roles: {name!r} is not a role name (lowercase letters, digits, _)")
-    if not isinstance(raw, dict) or set(raw) - {"agent", "policy", "model", "note"}:
-        raise ValueError(f"{KEY}.roles.{name} takes agent, policy, model and note only")
+    if not isinstance(raw, dict) or set(raw) - {"agent", "policy", "model", "alternate", "caller_model", "note"}:
+        raise ValueError(f"{KEY}.roles.{name} takes agent, policy, model, alternate, caller_model and note only")
     agent, policy = raw.get("agent"), raw.get("policy")
     if not isinstance(agent, str) or not AGENT_NAME.fullmatch(agent):
         raise ValueError(f"{KEY}.roles.{name}.agent must be an OpenCode agent name")
@@ -58,6 +62,14 @@ def _role(name, raw):
         if not pinned(raw["model"]):
             raise ValueError(f"{KEY}.roles.{name}.model must be provider/model or provider/model#variant")
         role["model"] = raw["model"]
+    if raw.get("alternate") is not None:
+        if not pinned(raw["alternate"]):
+            raise ValueError(f"{KEY}.roles.{name}.alternate must be provider/model or provider/model#variant")
+        role["alternate"] = raw["alternate"]
+    if raw.get("caller_model") is not None:
+        if raw["caller_model"] not in CALLER_MODEL_MODES:
+            raise ValueError(f"{KEY}.roles.{name}.caller_model must be one of {', '.join(CALLER_MODEL_MODES)}")
+        role["caller_model"] = raw["caller_model"]
     note = raw.get("note")
     if note is not None:
         if not isinstance(note, str) or len(note) > NOTE_LIMIT:

@@ -108,7 +108,7 @@ def engine(role, chosen, info, directory, caller=frozenset()):
             raise ValueError(f"OpenCode agent {info.get('id')} pins no model and none is configured")
     if variant is not None and not config.VARIANT_NAME.fullmatch(variant):
         raise ValueError("Invalid OpenCode variant")
-    if model_key(model) in caller:
+    if model_key(model) in caller and role.get("caller_model") != "allow":
         raise ValueError(f"{provider}/{model} is your own model, so it would judge or build what you then "
                          "check yourself; pass model= another one from opencode_catalog models (no run launched)")
     entry = None
@@ -132,7 +132,8 @@ def engine(role, chosen, info, directory, caller=frozenset()):
 
 def listing(settings, roles, caller):
     """What a caller may pass as model=: tool-capable models of the allowed providers,
-    each role's default, and the caller's own models (refused)."""
+    each role's default and alternate, and the caller's own models (refused unless the
+    role allows them)."""
     allowed = settings["allowed_providers"]
     models = api.data(api.call("get", "/api/model"), list)
     if not models:
@@ -157,6 +158,10 @@ def listing(settings, roles, caller):
             "context": (entry.get("limit") or {}).get("context"),
             "cost_per_mtok": {k: cost.get(k) for k in ("input", "output")} if cost else None,
             **({"yours": True} if model_key(entry["id"]) in caller else {})})
-    return {"allowed_providers": allowed, "defaults": defaults, "models": sorted(out, key=lambda m: m["model"]),
+    alternates = {name: role["alternate"] for name, role in sorted(roles.items()) if role.get("alternate")}
+    allowing = sorted(name for name, role in roles.items() if role.get("caller_model") == "allow")
+    return {"allowed_providers": allowed, "defaults": defaults, "alternates": alternates,
+            "allow_yours": allowing, "models": sorted(out, key=lambda m: m["model"]),
             "note": "Pass model= (and optionally variant= from its variants) to an opencode_run_<role> tool. "
-                    "Models marked yours are your own and are refused; a default that is yours needs another model."}
+                    "Models marked yours are your own and are refused, except for the roles in allow_yours. "
+                    "After a limit error, rerun on that role's alternate (pass it as model= and variant=)."}
