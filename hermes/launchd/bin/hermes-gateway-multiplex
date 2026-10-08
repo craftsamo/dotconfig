@@ -4,8 +4,8 @@
 # Runs `hermes gateway run` as the DEFAULT profile with
 # `gateway.multiplex_profiles: true` (root config.yaml): the single process
 # hosts every served profile's adapters — assistant (Telegram + Discord),
-# engineer / creator / marketer (their own Telegram bots), and the A2A
-# peer endpoints (engineer/creator/marketer/writer/researcher) — plus each
+# marketer (its own Telegram bot), and the A2A peer endpoints
+# (creator/marketer/writer/researcher and the media hands) — plus each
 # served profile's cron ticker.
 #
 # Self-contained and machine-agnostic: every path is derived from $HOME, so the

@@ -118,7 +118,7 @@ owners, deadlines, release status or runtime success. Editing checks the
 original and named scope; analysis returns a report, not a replacement document
 or a new document's template. No source-only result claims executed commands,
 reproduced research, rendered slides or repository changes. The requester
-accepts actual evidence under the document gate; the engineer still owns
+accepts actual evidence under the document gate; OpenCode (driven by the Assistant) still owns
 repository integration. Business-format guidance re-expresses ideas from the
 earlier natural-japanese adaptation without its constitution or fixed-count
 rules; provenance is in `agents/README.md`.

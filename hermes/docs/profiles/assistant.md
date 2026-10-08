@@ -253,9 +253,9 @@ overlay link) cannot creep back.
   bookkeeping (`workspace_registry` records and new Groups, `hb` records,
   docs/data touch-ups), edits to the `~/.config` dotconfig repo and its Hermes profiles,
   and Hermes upkeep (browser relaunch, cron / validator checks, skill
-  housekeeping). No resident session or delegation. Its OpenCode
-  grant is limited to this scope (see [engineer.md](./engineer.md) "OpenCode
-  runtime").
+  housekeeping). No resident session or delegation. It is not the only
+  OpenCode topic: code work happens in any topic per the engineering entries
+  (see [opencode.md](../opencode.md)).
 
 Both fix the tier to `inline`; work that needs a specialist hands off to a new
 ad-hoc topic, which inherits chat-wide `assistant-pipeline` and owns the

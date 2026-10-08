@@ -2,19 +2,19 @@
 
 Clarify purpose, audience, intended visitor action, pages/content already known,
 brand constraints, references and target devices. A missing sitemap or visual
-direction is something Engineer may help propose, not a reason to demand a
+direction is something an OpenCode plan run may help propose, not a reason to demand a
 complete design before the session. Stateful data/auth needs also use webapp.md.
 
 Identify supplied copy/assets and missing production dependencies. Writer owns
 substantial prose and Creator owns media; do not let missing approved content
-become fabricated claims or placeholder images presented as final. Engineer
-owns UI design consultation and the implementation plan, not Creator's media.
+become fabricated claims or placeholder images presented as final. The look
+is agreed with the user from an OpenCode plan run's concrete proposal; OpenCode implements it, not Creator's media.
 
 Name SEO/metadata, multilingual, analytics or contact-form requirements when
 relevant. Do not silently include a CMS, backend, hosting purchase or deployment.
 LP/site/blog/portfolio are outcomes, not fixed numbers or sequences of PRs.
 
 Acceptance: the agreed pages, copy, links and interactions work at the named
-screen sizes; Engineer supplies actual rendered evidence tied to the changed
+screen sizes; the build supplies actual rendered evidence tied to the changed
 build and records any pending content. Normal repository delivery is a PR,
 not a public deployment. Issue management is only explicitly requested.

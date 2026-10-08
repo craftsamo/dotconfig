@@ -9,8 +9,7 @@ The **default** profile hosts ONE multiplex gateway keychain-pure via a
 makes that single process serve every profile directory under `profiles/`
 (there is no allowlist; only `hermes -p <name> gateway stop` parks one, so never
 use it on a role that must stay reachable) and connect each one's enabled
-platforms — assistant Telegram (+ topics) and Discord, the engineer / creator /
-marketer Telegram bots, and the A2A endpoints on 127.0.0.1:9902-9909. Profiles
+platforms — assistant Telegram (+ topics) and Discord, the marketer Telegram bot, and the A2A endpoints on 127.0.0.1:9903-9909. Profiles
 without platforms (searcher) are served as well and carry `secrets.command` →
 `profile-secrets.sh`. Secondary profiles never run
 their own gateway. Three tracked, machine-agnostic files in `hermes/launchd/`:
@@ -103,4 +102,4 @@ Routing quality depends on `profile.yaml` descriptions — create workers with
 | Model chains                                                                                 | deployed; probed per provider/model, per-profile behavior unevaluated                                                                                   | [`models-auth.md`](./models-auth.md) "Models and fallback chains"                  |
 | Hands commissioning and Creator advisor                                                      | candidate: Assistant commissions the hands, Creator advises; not deployed                                                                               | [`broker.md`](./broker.md), [`profiles/creator.md`](./profiles/creator.md)         |
 | Writer v8                                                                                    | deployed; resident `work` from the Assistant exercised through CLI and Telegram                                                                         | [`profiles/writer.md`](./profiles/writer.md)                                       |
-| Role-entry candidates (Engineer v9, Researcher/Searcher entries, Creative early delivery)    | candidates, not deployed; cutover needs explicit approval, a controlled gateway restart and fresh sessions                                              | [`profiles/`](./profiles/) per role                                                |
+| Role-entry candidates (Researcher/Searcher entries, Creative early delivery)    | candidates, not deployed; cutover needs explicit approval, a controlled gateway restart and fresh sessions                                              | [`profiles/`](./profiles/) per role                                                |

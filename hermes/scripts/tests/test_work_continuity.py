@@ -182,7 +182,7 @@ class PerProfileHandoffContractTest(unittest.TestCase):
     pipeline's own tests (not duplicated here)."""
 
     PUBLIC_ROOTS = (
-        "creator", "engineer", "marketer", "writer", "researcher", "searcher",
+        "creator", "marketer", "writer", "researcher", "searcher",
         "image-creator", "video-creator", "audio-creator",
     )
 

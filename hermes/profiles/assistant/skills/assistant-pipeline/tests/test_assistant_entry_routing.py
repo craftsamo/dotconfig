@@ -34,7 +34,8 @@ class AssistantEntryRoutingTest(unittest.TestCase):
                 metadata, _, _ = self.document(name)
                 self.assertEqual(metadata["name"], name)
                 self.assertEqual(metadata["version"],
-                                 "2.0.0" if name == "execute-assistant-creative" else "1.0.0")
+                                 "2.0.0" if name == "execute-assistant-creative"
+                                 or name.endswith("-assistant-engineering") else "1.0.0")
                 self.assertEqual(metadata["author"], "CraftSamo")
                 self.assertEqual(metadata["license"], "MIT")
                 self.assertEqual(metadata["metadata"]["hermes"]["category"], "assistant-pipeline")

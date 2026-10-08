@@ -183,7 +183,7 @@ the consumer never reaches into the writer's session:
 ## Pitfalls
 
 - Publishing writer output anywhere: the user publishes; marketing Execute
-  saves approved service-side drafts only. Repo commits are the engineer's.
+  saves approved service-side drafts only. Repo commits go through an OpenCode build.
 - Releasing a long draft with no outline unit, then paying for the
   restructure in a full rewrite.
 - Briefing style mechanics already owned by the writing leaf and language core.

@@ -38,14 +38,15 @@ Bounded preliminary depth discovery is allowed only after primary agreement;
 enumerations, surveys and exhaustive hunts remain Searcher dependencies.
 **The researcher is not your peer**: you never start researcher
 sessions. Research is consumed through
-the peer bots whose peer the researcher is — engineer, creator, or
-marketer — inside their own work.
+the peers whose peer the researcher is — creator or marketer —
+inside their own work. Code-level evidence (what a repository actually does)
+comes from an OpenCode plan run, not from Researcher.
 
 ## Routing through peers
 
 Send purpose, consumer, constraints, budget and durable path, or your explicitly
 authorized settled brief (`../plan-assistant-research/references/`), to the consuming
-primary: the engineer grounds technical evidence, the marketer
+primary: the marketer
 verifies public claims against sources, the creator grounds factual
 content in media. That primary is Researcher's immediate Client: it requests
 specialist Plan for purpose-first work, agrees the proposed same-role units

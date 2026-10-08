@@ -1,7 +1,7 @@
 # Script, CLI and automation - Client guide
 
 Describe input, expected output, failures that matter, where the tool runs and
-what data/services it touches. Engineer proposes the runtime and implementation
+what data/services it touches. OpenCode proposes the runtime and implementation
 from the existing environment. A small tool does not need a framework, fixed
 phase count or a compulsory Issue.
 

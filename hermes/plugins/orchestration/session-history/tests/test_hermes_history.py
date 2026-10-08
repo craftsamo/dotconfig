@@ -246,7 +246,7 @@ def test_usage_closes_gaps_open_at_the_window_end(root):
 
 @pytest.mark.parametrize("tool, counted", [
     ("opencode_call", True),            # the retired plugin: past sessions still carry it
-    ("opencode_run_plan", True),        # opencode-v2: one run tool per configured role
+    ("opencode_run_plan", True),        # opencode: one run tool per configured role
     ("opencode_run_any_role", True),
     ("opencode_request", True),         # a reply blocks until the run's next hand-back
     ("opencode_session", False),        # status/diff/steer: ordinary work, not a wait on a run
@@ -314,8 +314,8 @@ def _plugin():
     return _load("session_history_plugin_test", ROOT / "__init__.py")
 
 
-@pytest.mark.parametrize("profile", ["writer", "creator", "marketer", "default"])
-def test_registration_is_engineer_and_assistant_only(profile):
+@pytest.mark.parametrize("profile", ["writer", "creator", "marketer", "default", "engineer"])
+def test_registration_is_assistant_only(profile):
     plugin = _plugin()
 
     class Context:
@@ -335,7 +335,7 @@ def test_tool_and_command(root, monkeypatch):
     tools, commands = {}, {}
 
     class Context:
-        profile_name = "engineer"
+        profile_name = "assistant"
 
         def register_tool(self, **kwargs):
             tools[kwargs["name"]] = kwargs

@@ -31,7 +31,7 @@ before working, then only references relevant to the question.
 
 <Client>
 
-Answer the Assistant, the other primaries (Creator, Engineer) and the human
+Answer the Assistant, Creator and the human
 directly through Marketer's own bot. Conversational input uses `clarify` when
 a material decision is needed; structured briefs use reply lines `Q1:`, `Q2:`.
 Message shape guides presentation, not authentication. A client supplies

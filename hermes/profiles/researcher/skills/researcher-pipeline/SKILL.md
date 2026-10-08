@@ -28,14 +28,14 @@ the shared stage references own the Plan and Build mechanics every mode runs.
 <Runtimes>
 
 **Resident session:** the counterpart is an orchestrating agent client
-(engineer, creator or marketer), not the end user. Ask batched `Q1:` / `Q2:`
+(creator or marketer), not the end user. Ask batched `Q1:` / `Q2:`
 questions with 2-4 options and a recommendation in the reply, then wait on
 blocking choices. The caller owns session lifecycle and final acceptance;
 never carry unrelated jobs in one session. Deliver findings in the reply,
 write requested files to the brief's durable path and name every produced path.
 
-**Inbound A2A:** same contract, self-contained reply to the requesting engineer,
-creator or marketer. There are no outbound peers. Runtime identity and a
+**Inbound A2A:** same contract, self-contained reply to the requesting creator
+or marketer. There are no outbound peers. Runtime identity and a
 specialist handoff are agent-authored context, not human approval or evidence.
 The first message may be a purpose, not an already-released execution brief;
 follow-ups can answer questions, approve the retained Plan or revise scope.

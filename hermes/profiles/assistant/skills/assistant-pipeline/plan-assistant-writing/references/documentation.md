@@ -56,4 +56,4 @@ Use the served document gate, with checked / unmet / unverified criterion
 evidence rather than four legacy passes or lint output. Humanizer is
 explicit-request only. A text-only acceptance does not certify runtime
 behavior, rendering, missing assets or public availability. Repository
-integration and commits remain the engineer's work, consuming accepted text.
+integration and commits remain engineering work (an OpenCode build), consuming accepted text.

@@ -1,7 +1,7 @@
 # Workspace repos
 
 Read-only view of the repositories under `~/Workspaces` — their local Git state
-and their open GitHub work — for the Assistant, Engineer and people. Part of
+and their open GitHub work — for the Assistant and people. Part of
 the Hermes design docs — index: [`PROFILES.md`](../PROFILES.md).
 
 ## What counts as a repository
@@ -15,7 +15,7 @@ above `github/`; the GitHub repository is the one `origin` points at.
 | Piece                                   | Home                                  | Reader              |
 | --------------------------------------- | ------------------------------------- | ------------------- |
 | Scanner, GitHub query, text output, CLI | `plugins/workspace/workspace-repos/repos.py`    | all                 |
-| `workspace_repos` tool and `/repos`     | `plugins/workspace/workspace-repos/__init__.py` | Engineer, Assistant |
+| `workspace_repos` tool and `/repos`     | `plugins/workspace/workspace-repos/__init__.py` | Assistant           |
 | Launcher                                | `../bin/ws-repos`                     | people, cron        |
 
 Stdlib plus the `git` and `gh` binaries, loaded by path, so the tool, the
@@ -64,14 +64,14 @@ read here; the board has its own tools (`github_project_*`).
 - `/repos [prs|issues|commits] [today|week|month|N] [<group>]`, words in any
   order (`/repos commits week tech`); `commits` alone means today, and a
   period without `commits`, `prs` or `issues` answers with those three. In
-  Engineer and Assistant sessions (Telegram included) answers without a model
+  Assistant sessions (Telegram included) answers without a model
   turn as plain Markdown, like `/drafts`: a per-Group table (one Group: per
   repo), the repos needing attention folded, and for `prs` / `issues` /
   `commits` one folded section per repository with linked items. A Group name
   matches case-insensitively by name, then prefix, then substring
   (`/repos prs tech`); an unknown name answers with the choices, and every answer folds
   tap-to-copy next commands. `pr`, `pulls` and `pullrequests` are accepted for
-  `prs`, `commit` and `log` for `commits`. `/repos` is in the Engineer and
-  Assistant command menus.
+  `prs`, `commit` and `log` for `commits`. `/repos` is in the
+  Assistant command menu.
 - Enabled per profile: plugin `workspace-repos`, toolset `workspace_repos`
-  (never on `a2a`); registration is limited to Engineer and Assistant in code.
+  (never on `a2a`); registration is limited to the Assistant in code.
