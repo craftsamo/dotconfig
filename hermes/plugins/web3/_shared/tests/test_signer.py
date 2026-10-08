@@ -58,7 +58,8 @@ SOL_STRANGER = "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM"
 DEV_USDC = "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU"
 TOKEN = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
 
-FAKE = {"broadcast": "ok", "sent": [], "token_ata_exists": False, "symbol": "USDC", "landed": "success"}
+FAKE = {"broadcast": "ok", "sent": [], "token_ata_exists": False, "symbol": "USDC", "landed": "success",
+        "operator_fee": None, "receipt": {}}
 
 
 def word(value: int) -> str:
@@ -78,7 +79,17 @@ def handle(method: str, params: list):
     if method == "eth_call":
         data = params[0].get("data", "")
         if params[0].get("to", "").lower() == "0x420000000000000000000000000000000000000f":
+            if data.startswith("0x275aedd2"):  # getOperatorFee(gas): absent before Isthmus
+                if FAKE["operator_fee"] is None:
+                    return None, {"code": 3, "message": "execution reverted"}
+                if FAKE["operator_fee"] == "busy":
+                    return None, {"code": -32005, "message": "rate limit exceeded"}
+                return "0x" + word(int(data[10:], 16) * FAKE["operator_fee"]), None  # per unit of gas
+            if data == "0x06f837d3":  # tokenRatio (Mantle)
+                return "0x" + word(4000), None
             return "0x" + word(10 ** 12), None  # GasPriceOracle.getL1Fee
+        if params[0].get("to", "").lower() == "0x5300000000000000000000000000000000000002":
+            return "0x" + word(2 * 10 ** 12), None  # Scroll's L1GasPriceOracle.getL1Fee
         if data.startswith("0x70a08231"):
             return "0x" + word(500 * 10 ** 6), None
         if data == "0x95d89b41":
@@ -109,7 +120,7 @@ def handle(method: str, params: list):
         if FAKE["landed"] == "error":
             return None, {"code": -32603, "message": "internal error"}
         return {"status": "0x1" if FAKE["landed"] == "success" else "0x0", "blockNumber": "0x11",
-                "gasUsed": hex(21000), "effectiveGasPrice": hex(10 ** 9)}, None
+                "gasUsed": hex(21000), "effectiveGasPrice": hex(10 ** 9), **FAKE["receipt"]}, None
     if method == "getSignatureStatuses":
         if FAKE["landed"] == "pending":
             return {"value": [{"slot": 7, "confirmationStatus": "processed", "err": None}]}, None
@@ -176,7 +187,8 @@ def endpoint():
 
 @pytest.fixture(autouse=True)
 def fresh():
-    FAKE.update(broadcast="ok", sent=[], token_ata_exists=False, symbol="USDC", landed="success")
+    FAKE.update(broadcast="ok", sent=[], token_ata_exists=False, symbol="USDC", landed="success", operator_fee=None,
+                receipt={})
 
 
 def _env(tmp_path: Path) -> dict:
@@ -559,6 +571,44 @@ def test_an_op_stack_fee_includes_the_l1_data_fee(tmp_path, endpoint):
     # 21000 gas at 3 gwei, plus twice the oracle's 1e12 wei L1 fee
     assert data["summary"]["max_fee"] == "0.000065"
     assert quote(tmp_path, endpoint, to=STRANGER, amount="0.01")["summary"]["max_fee"] == "0.000063"
+
+
+def test_each_rollups_extra_fees_are_in_the_stated_maximum(tmp_path, endpoint):
+    # 21000 gas at 3 gwei is 0.000063 of the native coin everywhere; the rest is each chain's own
+    assert quote(tmp_path, endpoint, chain="scroll", to=STRANGER, amount="0.01")["summary"]["max_fee"] == "0.000067"
+    FAKE["operator_fee"] = 10 ** 7  # per gas: 21000 gas → 2.1e11
+    assert quote(tmp_path, endpoint, chain="unichain-sepolia", to=STRANGER,
+                 amount="0.01")["summary"]["max_fee"] == "0.00006521"
+    # Mantle: the L1 fee times the oracle's token ratio (4000), in MNT, plus the operator fee
+    mantle = quote(tmp_path, endpoint, chain="mantle-sepolia", to=STRANGER, amount="0.01")["summary"]
+    assert mantle["max_fee"] == "0.00806321" and mantle["symbol"] == "MNT"
+
+
+def test_an_operator_fee_that_cannot_be_read_never_shrinks_the_maximum(tmp_path, endpoint):
+    FAKE["operator_fee"] = "busy"
+    for chain in ("unichain-sepolia", "mantle-sepolia"):
+        reply = signer(tmp_path, endpoint, "quote", account=f"{MAIN}#0", chain=chain, to=STRANGER, amount="0.01")
+        assert reply["ok"] is False and "operator fee could not be read" in reply["error"], chain
+    FAKE["operator_fee"] = None  # an oracle without the function: none on the OP Stack, an error on Mantle
+    assert quote(tmp_path, endpoint, chain="unichain-sepolia", to=STRANGER, amount="0.01")["summary"]["max_fee"] \
+        == "0.000065"
+    reply = signer(tmp_path, endpoint, "quote", account=f"{MAIN}#0", chain="mantle-sepolia", to=STRANGER, amount="0.01")
+    assert reply["ok"] is False and "operator fee could not be read" in reply["error"]
+
+
+def test_the_fee_paid_counts_a_rollups_l1_and_operator_fees(tmp_path, endpoint):
+    FAKE["operator_fee"] = 10 ** 7
+    FAKE["receipt"] = {"l1Fee": hex(3 * 10 ** 12), "operatorFeeScalar": hex(10 ** 8)}
+    data = quote(tmp_path, endpoint, chain="mantle-sepolia", to=SPARE, amount="0.01")
+    sent = send(tmp_path, endpoint, data["quote"], "own")["data"]
+    # 21000 gas at 1 gwei + the receipt's L1 fee + the oracle's operator fee for 21000 gas
+    assert sent["fee_paid"] == "0.00002421 MNT" and "fee_note" not in sent
+    data = quote(tmp_path, endpoint, chain="mantle-sepolia", to=SPARE, amount="0.02")
+    FAKE["operator_fee"] = "busy"
+    sent = send(tmp_path, endpoint, data["quote"], "own")["data"]
+    assert sent["fee_paid"] == "0.000024 MNT" and "at least" in sent["fee_note"]
+    for chain in ("linea", "zksync-sepolia", "gnosis-chiado", "sonic-testnet"):
+        assert quote(tmp_path, endpoint, chain=chain, to=STRANGER, amount="0.01")["summary"]["max_fee"] == "0.000063"
 
 
 def test_a_hermes_wallet_in_the_environment_gets_a_warning(tmp_path, endpoint):

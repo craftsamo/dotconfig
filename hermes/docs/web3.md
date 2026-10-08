@@ -37,11 +37,22 @@ calls, events and balance changes.
 ## Chains and RPC
 
 Chains come from a fixed table in `_shared/chains.py` (id, native symbol and
-decimals, explorer, public RPC). EVM: Ethereum, Base, Arbitrum One, Optimism,
-Polygon PoS, BNB Chain, Avalanche C-Chain, and their testnets (Sepolia, Base
-Sepolia, Arbitrum Sepolia, Optimism Sepolia, Polygon Amoy). Solana:
-mainnet-beta and devnet. A chain is named by its table key (`base`,
-`sepolia`, `solana-devnet`), never by a free-form URL.
+decimals, explorer, public RPC, fee model). Solana: mainnet-beta and devnet. A
+chain is named by its table key (`base`, `sepolia`, `solana-devnet`), never by
+a free-form URL. EVM:
+
+| Fee beyond gas | Mainnets | Testnets |
+| -------------- | -------- | -------- |
+| none (gas covers it, L1 cost included where there is one) | Ethereum, Arbitrum One, Polygon PoS, BNB Chain, Avalanche C-Chain, Linea, ZKsync Era, Gnosis (xDAI), Sonic (S) | Sepolia, Arbitrum Sepolia, Polygon Amoy, Linea Sepolia, ZKsync Sepolia, Gnosis Chiado, Sonic Testnet |
+| `op`: the OP Stack L1 data fee and operator fee | Base, OP Mainnet, Unichain, Celo (CELO; both fees are zero there today), World Chain, Ink, Zora | Base Sepolia, Optimism Sepolia, Unichain Sepolia, Celo Sepolia, World Chain Sepolia, Ink Sepolia, Zora Sepolia |
+| `op-token`: as `op`, the L1 fee converted into MNT by the oracle's `tokenRatio` | Mantle (MNT) | Mantle Sepolia |
+| `scroll`: Scroll's own L1 fee oracle | Scroll | — (no keyless public RPC) |
+
+Left out: Blast (its shutdown was announced), Celo Alfajores and Sonic Blaze
+(retired; their successors are in). Without a provider key a chain is only as
+reachable as its public RPC, and several of these limit their rate. Celo's
+native coin also answers as an ERC-20 at `0x471E…a438`; it is the native
+balance, so that address is kept out of the token lists to never count twice.
 
 `address`, `contract`, `call` and `storage` resolve their block once (the
 current one unless `block` names another) and read everything at it, so one
@@ -198,10 +209,14 @@ transaction's `to` (the token contract). Addresses are checksummed (EVM) or
 base58-validated (Solana); an ENS name is resolved on Ethereum's registry at
 quote time and the card shows both.
 
-The stated maximum fee is gas times the maximum fee per gas, plus — on the
-OP Stack chains (Base, OP Mainnet and their testnets) — twice the L1 data fee
-the chain's `GasPriceOracle` quotes for the transaction's own bytes (signed
-to size it, never broadcast); Arbitrum's gas estimate already covers its L1
+The stated maximum fee is gas times the maximum fee per gas, plus what the
+chain's fee model adds (the table in [Chains and RPC](#chains-and-rpc)):
+twice the L1 data fee its oracle quotes for the transaction's own bytes
+(signed to size it, never broadcast) — `GasPriceOracle` on the OP Stack
+chains, converted by `tokenRatio` into MNT on Mantle, Scroll's
+`L1GasPriceOracle` there — and on the OP Stack chains the operator fee
+`getOperatorFee` gives for the transfer's gas (zero where the oracle has
+none). Arbitrum's, Linea's and ZKsync's gas estimates already cover their L1
 cost.
 
 A quote carries an HMAC keyed from its sending secret over everything it
@@ -302,7 +317,7 @@ lock is released and the send waits up to 20 seconds (less when the checks
 were slow, so the run stays inside the plugin's deadline) for the transaction
 to land; a third line for the attempt, appended without the lock, adds its
 `confirmation` (`confirmed`, `failed`, `pending`) with the block or slot,
-and on EVM the fee paid (with the OP Stack's L1 data fee). Its outcome stays
+and on EVM the fee paid (with a rollup's L1 data fee and operator fee). Its outcome stays
 `sent`, so a transaction that landed and reverted still counts against the
 cap, as its fee was spent. Nothing after the broadcast turns the reply into
 an error: a read that fails while waiting reports `pending`. Making a quote first
