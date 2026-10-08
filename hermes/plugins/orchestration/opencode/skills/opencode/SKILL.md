@@ -44,19 +44,26 @@ fork?, timeout?, output_dir?)`; build also takes `approval` and
   session). It survives `/new`, a context compression and a gateway restart in
   that topic. From another topic it is foreign: you can find it in
   `opencode_history` but not drive it.
-- **Same worktree and branch for the life of a session.** To work in another
-  worktree, start a new session and paste what it needs.
-- **Plan → Build on one session.** The next run on the same `session_id` may
-  use another role: `opencode_run_build` with the plan run's `session_id` and
-  `approval` switches agent, model and policy while OpenCode keeps the whole
-  investigation and proposal in context. It needs the same worktree, the same
-  branch and, for build, a non-default task branch, so put the checkout on a
-  task branch BEFORE the first plan call when implementation is likely.
-  A new session knows nothing: paste the proposal's sections and every settled
-  decision verbatim.
+- **One repository for the life of a session.** A session keeps its worktree
+  and branch between turns, and it may only ever work in the repository it
+  started in: a session that moved elsewhere (it can move itself) is refused.
+  To work in another repository, start a new session and paste what it needs.
+- **Plan → Build on one session.** Plan on the default checkout; nothing needs
+  a task branch yet. Once the user approves, put the idle session into a
+  worktree of its own with `opencode_session workspace` (`session_id`, `branch`
+  such as `task/short-name`, optional `base`): the plugin fetches, creates the
+  worktree and branch from the remote default branch (`base=head` starts from
+  the current commit), moves the session there and renames it. Then
+  `opencode_run_build` with the same `session_id` and `approval` switches
+  agent, model and policy while OpenCode keeps the whole investigation and
+  proposal in context. Do not create the worktree or branch yourself, and
+  never ask OpenCode to move itself. A new session knows nothing: paste the
+  proposal's sections and every settled decision verbatim.
 - **`fork=true`** copies the entire history of `session_id` and runs on the
   copy: for parallel variants or an independent diagnosis, not to drop stale
-  context (a lighter context is a new session).
+  context (a lighter context is a new session). A fork starts in the parent's
+  worktree; give it its own with `workspace`. Fork an approved plan before its
+  build to keep the clean plan to return to or to try a second approach.
 - **`approval`** quotes the user's explicit, scoped implementation decision as
   text — never a boolean, never your own words. Quote it on every build turn.
   `issue_approval` separately quotes an explicit request to manage this job in
@@ -107,7 +114,10 @@ binds the rest of that session.
   `messages` reads recent messages (truncated).
 - `interrupt` stops the run and its subagents. It never rolls back Git,
   pushes, PRs or data already changed.
-- `fork` copies an idle session.
+- `fork` copies an idle session. `workspace` (`branch`, optional `base`) moves
+  an idle session into a new worktree on a new task branch of its own
+  repository; it refuses a running session, a protected or existing branch and
+  an existing path, and undoes itself if the service refuses the move.
 
 `opencode_instructions(action, session_id, key?, value?)` lists, sets or
 removes durable instructions (`hermes.<name>`) announced to the agent at its

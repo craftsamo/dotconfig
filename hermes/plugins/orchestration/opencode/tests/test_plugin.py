@@ -99,7 +99,8 @@ def test_plan_run_creates_a_bound_session_and_completes(fixture):
     created = fake.sessions[sid]
     assert created["agent"] == "plan"
     assert created["metadata"]["hermes"] == {"v": 2, "profile": "assistant", "owner": owner, "role": "plan",
-                                             "branch": "topic"}
+                                             "branch": "topic", "repo": str(directory / ".git")}
+    assert created["title"] == "work tree · plan", "the plugin titles the session, no model is asked to"
     assert {"action": "edit", "resource": "*", "effect": "deny"} in created["permissions"]
     assert fake.entries[sid]["hermes.note"].startswith("A Hermes agent drives this session")
     assert fake.prompts == [(sid, MESSAGE)], "the message reaches OpenCode literally"
@@ -538,6 +539,91 @@ def test_preflight_rejects_bad_arguments(fixture):
     assert "absolute" in json.loads(plugin.opencode_preflight({"directory": "relative"}))["error"]
 
 
+def with_root(home, root):
+    configure(home, f"  worktree_root: {root}\n")
+
+
+def test_workspace_moves_an_idle_plan_into_a_new_task_branch_worktree(fixture, tmp_path):
+    home, directory, owner, fake = fixture
+    with_root(home, tmp_path / "wt")
+    sid = run("plan", directory)["session_id"]
+    out = session("workspace", sid, branch="task/login")
+    target = tmp_path / "wt" / "work tree" / "task-login"
+    assert out["directory"] == str(target) and out["branch"] == "task/login" and out["base"] == "HEAD"
+    assert fake.moves == [(sid, str(target))]
+    assert subprocess.run(["git", "-C", str(target), "branch", "--show-current"], capture_output=True,
+                          text=True).stdout.strip() == "task/login"
+    stored = fake.sessions[sid]
+    assert stored["metadata"]["hermes"]["branch"] == "task/login" and stored["title"].endswith("· task/login")
+    assert stored["metadata"]["hermes"]["owner"] == owner and stored["metadata"]["hermes"]["repo"]
+    # The same session now builds on the new branch, in its own worktree (the fake serves one place).
+    fake.directory = str(target.resolve())
+    built = json.loads(plugin.opencode_run("build", dict(message="go", session_id=sid, approval="ok, build it")))
+    assert built["status"] == "completed" and built["branch"] == "task/login" and built["session_id"] == sid
+
+
+def test_workspace_refuses_unsafe_branches_a_busy_session_and_a_foreign_session(fixture, tmp_path):
+    home, directory, _, fake = fixture
+    with_root(home, tmp_path / "wt")
+    sid = run("plan", directory)["session_id"]
+    for bad in ("main", "master", "../x", "-x", "a b", "topic", "x.lock", ""):
+        assert "error" in session("workspace", sid, branch=bad), bad
+    assert "base must be" in session("workspace", sid, branch="task/a", base="tag")["error"]
+    assert "plain git branch" in session("workspace", sid)["error"]
+    assert "only accepted for workspace" in session("status", sid, branch="task/a")["error"]
+    fake.active.add(sid)
+    assert "idle" in session("workspace", sid, branch="task/a")["error"]
+    fake.active.discard(sid)
+    assert fake.moves == [] and not (tmp_path / "wt").exists(), "nothing was created by the refusals"
+    fake.sessions["ses_foreign"] = {**fake.sessions[sid], "id": "ses_foreign",
+                                    "metadata": {"hermes": {"owner": {"profile": "x"}}}}
+    assert "not bound" in session("workspace", "ses_foreign", branch="task/a")["error"]
+
+
+def test_workspace_rolls_back_when_the_service_refuses_the_move(fixture, tmp_path):
+    home, directory, _, fake = fixture
+    with_root(home, tmp_path / "wt")
+    sid = run("plan", directory)["session_id"]
+    fake.move_refused = True
+    assert "error" in session("workspace", sid, branch="task/a")
+    assert not (tmp_path / "wt" / "work tree" / "task-a").exists()
+    assert subprocess.run(["git", "-C", str(directory), "branch", "--list", "task/a"], capture_output=True,
+                          text=True).stdout.strip() == "", "the branch is removed with the worktree"
+    assert fake.sessions[sid]["location"]["directory"] == str(directory)
+
+
+def test_workspace_refuses_an_existing_branch_and_an_existing_path(fixture, tmp_path):
+    home, directory, _, fake = fixture
+    with_root(home, tmp_path / "wt")
+    sid = run("plan", directory)["session_id"]
+    subprocess.run(["git", "-C", str(directory), "branch", "task/taken"], check=True, capture_output=True)
+    assert "already exists" in session("workspace", sid, branch="task/taken")["error"]
+    (tmp_path / "wt" / "work tree" / "task-b").mkdir(parents=True)
+    assert "already exists" in session("workspace", sid, branch="task/b")["error"]
+
+
+def test_a_session_that_moved_itself_into_another_repository_is_refused(fixture, tmp_path):
+    home, directory, _, fake = fixture
+    sid = run("plan", directory)["session_id"]
+    other = tmp_path / "other"
+    other.mkdir()
+    subprocess.run(["git", "init", "-b", "topic", str(other)], check=True, capture_output=True)
+    subprocess.run(["git", "-C", str(other), "-c", "user.name=t", "-c", "user.email=t@t", "commit",
+                    "--allow-empty", "-m", "init"], check=True, capture_output=True)
+    fake.sessions[sid]["location"] = {"directory": str(other.resolve())}
+    assert "no longer in the repository" in run("plan", session_id=sid)["error"]
+
+
+def test_a_session_moved_by_itself_within_its_repository_keeps_working_only_on_the_same_branch(fixture, tmp_path):
+    home, directory, _, fake = fixture
+    sid = run("plan", directory)["session_id"]
+    sibling = tmp_path / "sibling"
+    subprocess.run(["git", "-C", str(directory), "worktree", "add", "-b", "elsewhere", str(sibling)], check=True,
+                   capture_output=True)
+    fake.sessions[sid]["location"] = {"directory": str(sibling.resolve())}
+    assert "branch changed" in run("plan", session_id=sid)["error"]
+
+
 def test_model_key_folds_speed_tiers_and_snapshots():
     key = models.model_key
     assert key("anthropic/claude-opus-5-5-fast") == key("claude-opus-5-5-20251001") == "claude-opus-5-5"
@@ -909,6 +995,8 @@ def test_a_role_note_is_part_of_the_session_instruction(fixture):
     ("  roles:\n    a: {agent: plan, policy: write, model: 'a/b#bad variant'}\n", "provider/model"),
     ("  roles:\n    a: {agent: plan, policy: write, alternate: nope}\n", "alternate"),
     ("  roles:\n    a: {agent: plan, policy: write, caller_model: maybe}\n", "caller_model"),
+    ("  worktree_root: relative/dir\n", "worktree_root"),
+    ("  worktree_root: '/tmp/*'\n", "worktree_root"),
 ])
 def test_configuration_is_validated(fixture, text, message):
     home, _, _, _ = fixture
