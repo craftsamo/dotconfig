@@ -35,8 +35,12 @@ def test_engineer_scope_and_tools():
     assert not {"terminal", "browser", "specialist", "opencode", "delegation"} & set(config["platform_toolsets"]["a2a"])
     assert config["browser"]["use_real_profile"] is False
     assert set(config["specialist_call"]["resident_targets"]) == {"marketer", "researcher", "writer"}
-    assert {"opencode", "specialist-call"} <= set(config["plugins"]["enabled"])
-    assert config["opencode_cli"]["enabled"] is True
+    enabled = set(config["plugins"]["enabled"])
+    assert {"opencode-v2", "specialist-call"} <= enabled
+    assert "opencode" not in enabled, "both plugins register opencode_session; a profile enables one"
+    assert config["opencode_v2"]["enabled"] is True
+    assert "opencode_cli" not in config
+    assert {"plan", "review", "debug", "build"} <= set(config["opencode_v2"]["roles"])
 
 
 def test_no_retired_approval_or_cli_driving_contract():

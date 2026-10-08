@@ -1,4 +1,0 @@
-name: opencode
-version: 1.0.0
-description: Engineer- and Assistant-owned OpenCode CLI conversations, with scoped execution and explicit recovery.
-kind: standalone

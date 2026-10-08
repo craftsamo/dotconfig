@@ -13,7 +13,7 @@ Engineer owns the Client agreement, not a duplicate authoring procedure.
    If unresolved, ask what capability should improve or offer a bounded
    [Assess](../../assess-engineer/references/hands-references.md) inventory. Do not ask the Client to
    design a file tree or authorize a speculative rewrite of every profile.
-2. Use opencode_call with agent="plan" under the common transport contract.
+2. Use opencode_run_plan under the common transport contract.
    Include the candidate Skill path to read and the actual request/evidence;
    do not paste its body or rely on a new tool parameter or global install.
    Ask for affected consumers and acceptance checks, not edits. Unsupported

@@ -406,16 +406,17 @@ keeps user keys.
   `specialist` in the relevant `platform_toolsets` lists, and configure the
   explicit `specialist_call.resident_targets` allowlist. Behavior:
   [docs/profiles/specialist-calls.md](docs/profiles/specialist-calls.md).
-- **orchestration/opencode** (`standalone`): `opencode_call` / `opencode_session` for engineer
-  and assistant, over the shared OpenCode 2 service's HTTP API through
-  `opencode api` (resolved through `PATH`, preserving the secret shim). Enable
-  the plugin and `opencode` toolset plus `opencode_cli.enabled: true`; optional
-  `opencode_cli.models` sets per-role overrides, otherwise each hidden primary's
-  pinned model applies; `opencode_cli.permission_timeout` bounds how long a
-  permission request waits for the caller. Behavior:
-  [docs/profiles/engineer.md](docs/profiles/engineer.md) "OpenCode runtime".
-  The same toolset carries the read-only `opencode_history`, which needs no
-  `opencode_cli` setting ([docs/session-history.md](docs/session-history.md)).
+- **orchestration/opencode-v2** (`standalone`): OpenCode for engineer and assistant,
+  over the shared OpenCode 2 service's HTTP API through `opencode api` (resolved
+  through `PATH`, preserving the secret shim). Tools: one `opencode_run_<role>` per
+  entry of `opencode_v2.roles` (default plan, review and debug read-only and build
+  write), `opencode_session`, `opencode_request`, `opencode_instructions`,
+  `opencode_catalog` and the read-only `opencode_history`. Enable `opencode-v2` in
+  `plugins.enabled` and the `opencode` toolset, and set `opencode_v2.enabled: true`,
+  `wait_timeout`, `allowed_providers` and optionally `roles`. It keeps no run record
+  and drives the person's own OpenCode modes. Behavior:
+  [docs/profiles/engineer.md](docs/profiles/engineer.md) "OpenCode runtime";
+  history: [docs/session-history.md](docs/session-history.md).
 - **orchestration/session-history** (`standalone`): `hermes_history` (toolset
   `session_history`) and the `/activity` command for engineer and assistant;
   also the code behind `bin/ai-history`. Behavior:

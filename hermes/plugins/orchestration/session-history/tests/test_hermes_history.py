@@ -244,6 +244,27 @@ def test_usage_closes_gaps_open_at_the_window_end(root):
     assert result["totals"]["opencode_wait_seconds"] == 300
 
 
+@pytest.mark.parametrize("tool, counted", [
+    ("opencode_call", True),            # the retired plugin: past sessions still carry it
+    ("opencode_run_plan", True),        # opencode-v2: one run tool per configured role
+    ("opencode_run_any_role", True),
+    ("opencode_request", True),         # a reply blocks until the run's next hand-back
+    ("opencode_session", False),        # status/diff/steer: ordinary work, not a wait on a run
+    ("opencode_catalog", False),
+])
+def test_waits_on_opencode_runs_are_reported_separately(root, tool, counted):
+    eng = sqlite3.connect(root / "profiles" / "engineer" / "state.db")
+    _session(eng, "waiting", S + 86000)
+    for t, role, name in ((86000, "user", None), (86100, "assistant", None), (87000, "tool", tool)):
+        _msg(eng, "waiting", S + t, role, name)
+    eng.commit()
+    eng.close()
+    result = run(root, action="usage", platform="cli", kind="root", profile="engineer",
+                 **{"from": iso(S + 80000), "to": iso(S + 86400)})
+    assert result["totals"]["active_seconds"] == 100 + 300
+    assert result["totals"]["opencode_wait_seconds"] == (300 if counted else 0)
+
+
 def test_one_unreadable_profile_is_disclosed_not_fatal(root):
     (root / "profiles" / "broken").mkdir()
     conn = sqlite3.connect(root / "profiles" / "broken" / "state.db")

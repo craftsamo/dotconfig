@@ -40,7 +40,7 @@ def _load(name, path):
 
 HERE = Path(__file__).resolve().parent
 common = _load("hermes_session_history_common", HERE.parent / "session-history" / "common.py")
-api = _load("hermes_opencode_api", HERE / "api.py")
+api = _load("hermes_opencode2_api", HERE / "api.py")
 Unavailable = common.Unavailable
 
 
