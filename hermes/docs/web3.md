@@ -183,12 +183,12 @@ renamed without `HERMES` becomes watch-only on the next call.
 
 ## Transfers (the Assistant's wallet actions)
 
-| Action     | What it does                                                                                                                                                                                                                                                                                                    |
-| ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `accounts` | every labelled seed's first accounts (5 by default, up to 101) and every key, Hermes and watch-only, with their metadata and their addresses on the tool's chain family; with `chain`, native balances there; skipped items with the reason. Never a key                                                        |
-| `quote`    | `account`, `chain`, `to`, `amount`, `token` (a contract or mint; omit for the native coin): validates, builds the exact transaction, simulates it (`eth_estimateGas` + `eth_call`; `simulateTransaction`), and stores it as a single-use quote that expires after 15 minutes (past the 10-minute approval wait) |
-| `transfer` | `quote`: sends exactly the stored transaction, then waits up to 20 seconds for it to land and reports `confirmed`, `failed` (landed but reverted: only the fee was spent) or `pending`                                                                                                                          |
-| `status`   | a sent transfer's confirmations or failure                                                                                                                                                                                                                                                                      |
+| Action     | What it does                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `accounts` | every labelled seed's first accounts (5 by default, up to 101) and every key, Hermes and watch-only, with their metadata and their addresses on the tool's chain family; with `chain`, native balances there; skipped items with the reason. Never a key                                                                                                                                                                      |
+| `quote`    | `account`, `chain`, `to`, `amount`, `token` (a contract or mint; omit for the native coin): validates, builds the exact transaction, simulates it (`eth_estimateGas` + `eth_call`; `simulateTransaction`), and stores it as a single-use quote that expires after 15 minutes (past the 10-minute approval wait). With `kind: revoke`, `token` and (EVM) `spender`: the same for taking back an approval ([Revokes](#revokes)) |
+| `transfer` | `quote`: sends exactly the stored transaction, then waits up to 20 seconds for it to land and reports `confirmed`, `failed` (landed but reverted: only the fee was spent) or `pending`                                                                                                                                                                                                                                        |
+| `status`   | a sent transfer's confirmations or failure                                                                                                                                                                                                                                                                                                                                                                                    |
 
 The scope of a transfer is fixed: an EIP-1559 native transfer, an ERC-20
 `transfer`, a SOL System Program transfer, or an SPL `transferChecked`
@@ -229,6 +229,29 @@ given for, and the hourly cap; re-derives whether the recipient is own;
 re-reads the nonce and fees (the transaction may change only within the
 quote's stated maximum fee, otherwise the call fails and asks for a new
 quote); and only then signs.
+
+### Revokes
+
+A quote's `kind` is `transfer` (the default) or `revoke`, which takes back an
+approval a Hermes wallet gave; its MAC covers the kind like everything else.
+The signer reads the approval as it is now and builds one fixed call, or
+refuses when there is nothing to revoke:
+
+| Approval found                                                    | Call signed                                            |
+| ----------------------------------------------------------------- | ------------------------------------------------------ |
+| ERC-20 `allowance(owner, spender)` above 0                        | `approve(spender, 0)` on the token                     |
+| NFT `isApprovedForAll(owner, operator)` true                      | `setApprovalForAll(operator, false)` on the collection |
+| SPL delegate on the owner's associated token account for the mint | SPL Token `Revoke` (instruction 5)                     |
+
+A revoke is simulated and its fee bounded like a transfer, sends nothing to
+anyone, and is never own: whoever the spender is, the hook shows its card
+(what is taken back and its current amount, the token or collection, the
+owner's Keychain block, the spender's full address and the fee), and blocks
+it where no human can answer. It counts against the hourly cap and is
+ledgered with its kind. Only Hermes wallets revoke; a watch-only wallet's
+approvals are listed by `allowances` for the user to revoke in their own
+wallet. ERC-721 single-token approvals are not covered (`allowances` does
+not list them).
 
 ## Approval
 

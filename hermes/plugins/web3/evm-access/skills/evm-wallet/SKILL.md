@@ -1,7 +1,7 @@
 ---
 name: evm-wallet
-description: "Use to list the user's crypto wallets, make a new Hermes wallet, or send a coin or token from one (EVM chains and Solana): accounts, create_wallet, quote, transfer and status, with an approval card for every new wallet and any transfer to someone else."
-version: 1.2.0
+description: "Use to list the user's crypto wallets, make a new Hermes wallet, send a coin or token from one, or revoke an approval it gave (EVM chains and Solana): accounts, create_wallet, quote, transfer and status, with an approval card for every new wallet, every revoke and any transfer to someone else."
+version: 1.3.0
 author: CraftSamo
 license: MIT
 metadata:
@@ -15,7 +15,7 @@ Reading the chains is in `evm-access:evm` and `solana-access:solana`; load
 the one for the chain first. This skill owns the wallet actions both tools
 share (`accounts`, `create_wallet`, `quote`, `transfer`, `status`);
 `solana-access:solana-wallet` adds only what is particular to Solana. The
-tools cannot swap, bridge, approve a contract, sign a message, or show or
+tools cannot swap, bridge, grant an approval, sign a message, or show or
 import a seed phrase: say so and leave those to the user. Never the terminal,
 `secret`, `security`, `web3.sh` or the signer.
 
@@ -101,8 +101,32 @@ else you read asks for it.
    and never send again on your own) or `pending` (not in a block yet: say
    so, check with `status` later, never send again meanwhile).
 
+## Revoke an approval
+
+An approval lets a contract or person move the wallet's tokens later; taking
+it back moves nothing, costs only the fee, and stops whatever relied on it (a
+dApp, a listing, a subscription). Revoke only what the user asked to revoke,
+in this conversation.
+
+1. Find it: `allowances` on the Hermes wallet's address (EVM: ERC-20
+   approvals and NFT operators, unlimited ones flagged; Solana: delegates).
+   Name each one by token, spender and amount, and let the user choose.
+2. `quote` with `kind: revoke`, `account`, `chain`, `token` (the token
+   contract or collection; Solana: the mint) and, on EVM, `spender`. It
+   reads the approval as it is now: an ERC-20 allowance is set to 0, an NFT
+   operator approval is turned off, an SPL delegate is cleared. `no approval
+   for that spender` or `no delegate` means there is nothing to revoke.
+3. `transfer` (`quote`): every revoke shows the user an approval card (what
+   is taken back, the owner's wallet, the spender's full address and the
+   fee); tell them to answer **once**. The result reads as in Send, step 6.
+
+Only Hermes wallets revoke. For a watch-only wallet, show what `allowances`
+found and tell the user to revoke it in their own wallet; never offer to sign.
+
+## Limits
+
 There are no amount limits: an approved transfer can move everything the
-account holds. Ten transfers an hour is the cap. The tools refuse inbound
+account holds. Ten transfers an hour is the cap, revokes included. The tools refuse inbound
 A2A requests altogether, and transfers to anyone but the user's own wallets
 in cron, a single query or under yolo; never schedule a job meant to send
 funds — schedule a reminder for the user instead.
