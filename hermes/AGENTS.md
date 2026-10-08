@@ -213,8 +213,9 @@ repository upkeep (the Assistant through OpenCode).
   `plugins.enabled` takes the bare name), so a move renames those keys in every
   profile config; `test_plugin_config_keys.py` checks it.
 - **`plugins/messaging/_shared/` is code, not a plugin.** The four chat
-  plugins load `archive_check.py` from it by path, so moving or renaming it
-  breaks all four at import. Never give it a
+  plugins load `archive_check.py` from it by path, and discord-access loads
+  `human_gate.py` too, so moving or renaming either breaks them at import.
+  Never give it a
   `plugin.yaml` (Hermes would try to load it), and keep each sender's own
   file rules passed in rather than copied there
   ([docs/signal-access.md](docs/signal-access.md)). Its terminal guard
@@ -389,6 +390,14 @@ Full reference: [README "Commands"](README.md#commands).
   `hermes-python --test -m unittest …`.
 - `../install.sh` after adding files; `hermes update` to update (not
   `setup.sh`); `hermes doctor` for providers and model tiers.
+- **`hermes -z` is YOLO.** It sets `HERMES_YOLO_MODE=1` before the agent
+  runs, so Hermes approves every plugin approval card unasked; `--yolo` and
+  `approvals.mode: off` do the same. Use it to check reads. A write is tried
+  only in a gateway chat, where a person answers its card. A plugin that
+  escalates writes to a card must itself refuse where no person can answer
+  (`plugins/messaging/_shared/human_gate.py`, web3's `_no_human`): today
+  discord-access and web3 do; the other plugins that return an `approve`
+  directive still rely on the card alone.
 
 ## Commits
 

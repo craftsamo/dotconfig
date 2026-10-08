@@ -224,6 +224,11 @@ def gate(**kwargs):
     if tool == TOOL:
         if _inbound_peer():
             return {"action": "block", "message": f"{TOOL} is not available to inbound A2A requests"}
+        # No card can be answered in YOLO, cron, `hermes -z` and the like, and Hermes would approve a
+        # card there without asking anyone: refuse the write itself, before any card is built.
+        refused = access.no_human_message(args.get("action") if isinstance(args, dict) else None)
+        if refused:
+            return {"action": "block", "message": refused}
         try:
             request = access.approval_request(args if isinstance(args, dict) else {}, home=_home(),
                                               ids=_ids(kwargs))
