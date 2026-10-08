@@ -1,9 +1,9 @@
 ---
 name: searcher-pipeline
 description: >-
-  Searcher kernel: retrieval scope, floors, runtime and release gates; route
-  purpose-led search through Plan, Build and QA. Not synthesis or production.
-version: 8.0.0
+  Searcher kernel: retrieval scope, floors, runtime and release gates, required
+  by the lookup, sweep and hunt modes. Not synthesis or production.
+version: 9.0.0
 author: CraftSamo
 license: MIT
 metadata:
@@ -15,7 +15,8 @@ metadata:
 <Goal>
 
 Return sourced links, claims, dates and honest coverage. This kernel owns only
-scope, floors, the runtime, release gates and routing; phases own procedures.
+scope, floors, the runtime, release gates and routing; modes and their shared
+stages own procedures.
 Clients supply purpose, consumer, constraints and budget. Searcher proposes
 retrieval questions and, when useful, ordered same-role lookup/sweep/hunt units.
 Never decompose the whole project, assign other roles, synthesize
@@ -56,45 +57,54 @@ Corrections stay in Build within agreed scope and remaining budget; expansion
 returns to Plan and client agreement. Spec-gap/granularity findings name missing
 decisions or oversized work, never silently absorb them. Resume preserves
 coverage, frontier, outputs, consumed and remaining budget: no reset, new grant
-or replay. Selecting a phase/unit is not the caller's release.
+or replay. Selecting a mode or stage is not the caller's release.
 
 </Release>
 
+<Modes>
+
+Select the mode by deliverable on every caller, resume or completion turn and
+before a midturn mode, stage or scope change. Never search from the kernel
+alone. Load via `skill_view(name="<mode>-searcher")`:
+
+- [Lookup](lookup-searcher/SKILL.md): specific facts/docs/links/latest/who-said-what,
+  including itemized batches.
+- [Sweep](sweep-searcher/SKILL.md): enumeration or quantified public-web
+  observations against coverage/floor and per-item fields.
+- [Hunt](hunt-searcher/SKILL.md): primary-source trails against done criteria
+  and exclusions.
+
+Openers are not required. A request to keep going is not a hunt by itself: a
+long sweep stays a sweep.
+
+Every mode runs the same stages, each owned by one shared reference:
+[Plan](references/plan.md) proposes purpose-led bounded retrieval and obtains
+agreement, [Build](references/build.md) executes agreed retrieval or a settled
+brief, and [QA](references/qa.md) checks results against agreed scope and
+coverage. The mode entry says what each stage means for its kind of retrieval.
+
+On-chain retrieval also reads the chain's one shared reference:
+[EVM](references/platforms/evm.md) or [Solana](references/platforms/solana.md).
+
+</Modes>
+
 <ReadBeforeWork>
 
-On every caller, resume or completion turn and before a midturn phase,
-unit or scope change, require full-body kernel, selected phase entry and selected
-unit references in current context, not a past load or summary. Direct entry
-requires this kernel before every phase. Use `skill_view` for the
-selected entry and `file_path="references/<unit>.md"` for each relevant unit.
-If unchanged is returned while the earlier body is unavailable, or a body is
-missing, use read_file on canonical `${HERMES_SKILL_DIR}/SKILL.md`,
-`${HERMES_SKILL_DIR}/<phase>-searcher/SKILL.md` and
-`${HERMES_SKILL_DIR}/<phase>-searcher/references/<unit>.md` from this kernel.
-Follow next_offset through actual truncation; stop the affected action if still
+Require full-body kernel, selected mode entry and current stage reference in
+current context, not a past load or summary. Direct entry requires this kernel
+before every stage. Use `skill_view` for the selected entry and
+`skill_view(name="searcher-pipeline", file_path="references/<stage>.md")` for
+the current stage. If unchanged is returned while the earlier body is
+unavailable, or a body is missing, use read_file on canonical
+`${HERMES_SKILL_DIR}/SKILL.md`, `${HERMES_SKILL_DIR}/<mode>-searcher/SKILL.md`
+and `${HERMES_SKILL_DIR}/references/<stage>.md` from this kernel. Follow
+next_offset through actual truncation; stop the affected action if still
 unavailable, reporting the missing instructions through the runtime protocol.
 No alternate paths or artificial ranges to evade dedup. In raw text the skill
 directory belongs to the owning SKILL, not its reference directory. Loading
 never supplies the caller's release or resets coverage/frontier/budget.
 
 </ReadBeforeWork>
-
-<RouteSelection>
-
-Select phase by current action, then unit by deliverable. Never search from the
-kernel alone. Load via `skill_view(name="<phase>-searcher")`:
-
-- [Plan](plan-searcher/SKILL.md): propose or revise purpose-led bounded retrieval.
-- [Build](build-searcher/SKILL.md): execute agreed retrieval or a settled brief.
-- [QA](qa-searcher/SKILL.md): check results against agreed scope and coverage.
-
-Lookup is specific facts/docs/links/latest/who-said-what, including itemized
-batches; sweep is enumeration or quantified public-web observations against
-coverage/floor and per-item fields; hunt follows primary-source trails against
-done criteria and exclusions. Openers are not required. A request to keep
-going is not a hunt by itself: a long sweep stays a sweep.
-
-</RouteSelection>
 
 <Floors>
 
@@ -105,7 +115,8 @@ going is not a hunt by itself: a long sweep stays a sweep.
   `Open for researcher`. This does not prohibit Plan's retrieval-method proposal.
 - **No write-actions on social platforms**: no post/reply/like/follow/DM.
   Reading is not a write-action: x_search is allowed, and so are the public
-  reads of the x, youtube, note and substack tools. "Read-only" is why those
+  reads of the x, youtube, note and substack tools and the chain reads of the
+  evm and solana tools, which never sign or send. "Read-only" is why those
   reads are safe, never a reason to skip a platform the question touches.
 - **Dates matter.** Time-sensitive claims carry source dates; flag stale hits.
 - Name searched, thin and unsearched ground. No padding or treating silence as

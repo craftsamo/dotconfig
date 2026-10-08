@@ -1,6 +1,6 @@
 # Researcher and Searcher
 
-Research and search dialogue, phase entries and card gates. Part of the Hermes design docs — index: [`PROFILES.md`](../../PROFILES.md).
+Research and search dialogue, mode entries and shared stages. Part of the Hermes design docs — index: [`PROFILES.md`](../../PROFILES.md).
 
 ## Research and search dialogue
 
@@ -29,20 +29,29 @@ success.
 
 ### Researcher
 
-Researcher's v9.0.0 `researcher-pipeline` kernel routes three independent entries
-outside `references/`: `plan-researcher`, `build-researcher`, `qa-researcher`.
-Each owns four plain `references/<unit>.md` files for `evidence-pack` (question
-and done conditions), `tradeoff-matrix` (options and equal criteria), `fact-check`
-(exact claims and source requirements) and `guidance` (consumer decisions and
-evidence base). Shared `references/gather.md` stays at the parent and is required
-beyond a few direct lookups. `validate_researcher_entries` enforces the closed
-tree, kernel dependencies, canonical recovery paths, output/verification
-sections and the absence of card declarations.
+Researcher's v10.0.0 `researcher-pipeline` kernel routes four mode entries, one
+per kind of question: `investigate-researcher` (an open question, answered as an
+evidence pack), `compare-researcher` (named options on fixed criteria, a
+tradeoff matrix), `verify-researcher` (exact claims, verdicts and a durable
+claim ledger) and `advise-researcher` (directives for a named consumer). Each
+entry owns what Plan, Build and QA mean for its question — framing, synthesis,
+output template and verification — while the stages themselves are shared
+`references/plan.md`, `build.md` (with the evidence Method) and `qa.md` beside
+`references/gather.md`, which is required beyond a few direct lookups.
+On-chain evidence comes from the read-only `evm` and `solana` tools: the
+kernel's source evaluation says how chain state, text in the chain and
+name-based leads score, and `references/platforms/evm.md` and `solana.md`
+(one per chain, like Marketer's per-service references) hold each chain's
+patterns — who controls a contract or program, test calls, fund trails — and
+limits. This is
+the shape of Marketer's and Creator's advisory entries: modes named for the
+work, one kernel, shared references. `validate_researcher_entries` enforces the
+closed tree, kernel routing and links, canonical recovery paths and each
+entry's stage sections.
 
 Admiralty/SIFT source scoring, verbatim exact claims, durable claim ledgers,
 evidence gaps and Review gates remain; research self-check is neither caller
 acceptance, artifact-vs-brief craft QA nor the caller's final decision.
-Researcher refuses every card, including the retired `claim-verification`.
 
 Assistant reaches Researcher only through Engineer, Creator or Marketer, its
 existing peers/session owners; no new direct peer. The consuming primary owns
@@ -51,20 +60,24 @@ criteria, source policy, budget and approved changes) with conclusions. A
 missing baseline stays unverified: Assistant requests it through that primary,
 never reconstructs acceptance from purpose alone and never continues the
 Researcher handle itself. Assistant's separate research/search Plan and QA
-references retain the seven unit contract names; the validator enforces that
-caller-side mapping.
+references keep their seven deliverable names (`evidence-pack`,
+`tradeoff-matrix`, `fact-check`, `guidance`; `lookup`, `sweep`, `hunt`), which
+map to the investigate, compare, verify and advise modes and to Searcher's
+modes of the same name; the validator enforces that caller-side mapping.
 
 ### Searcher
 
-Searcher's v8.0.0 `searcher-pipeline` kernel (retrieval, release and the
-resident runtime) routes `plan-searcher`, `build-searcher`, `qa-searcher`. Each independent entry
-owns three plain `references/<unit>.md` files for `lookup`, `sweep`, `hunt`.
-Retrieval and link integrity remain its limits: no trust verdicts, synthesis,
-rankings or production. Beyond web search and `x_search`, it reads public X
-posts, YouTube, note and Substack through the `x`, `youtube`, `note` and
-`substack` tools, each limited to a public-only action list (see
-[x-access.md](../x-access.md) "Profiles"); the `x` tool's `search` is only the
-fallback for when `x_search` is unavailable, within a capped share of the
+Searcher's v9.0.0 `searcher-pipeline` kernel (retrieval, release and the
+resident runtime) routes three mode entries, `lookup-searcher`,
+`sweep-searcher` and `hunt-searcher`, over the same shared Plan, Build and QA
+stage references. Retrieval and link integrity remain its limits: no trust
+verdicts, synthesis, rankings or production. Beyond web search and `x_search`,
+it reads public X posts, YouTube, note and Substack through the `x`, `youtube`,
+`note` and `substack` tools, each limited to a public-only action list (see
+[x-access.md](../x-access.md) "Profiles"), and reads chains through `evm` and
+`solana` (what to record, kept to facts, in its own
+`references/platforms/evm.md` and `solana.md`); the `x` tool's `search` is only
+the fallback for when `x_search` is unavailable, within a capped share of the
 shared X reads. It never gets the messaging tools, the user's own drafts,
 statistics or channels, or any write.
 
@@ -78,21 +91,22 @@ authorized settled one goes directly to Build.
 
 ### Entries and status
 
-Both trees keep the exact old unit names as references, remove the old
-unit-named skills without aliases and add no second common-mode index. All six
-phase entries follow the shared [entry loading contract](../topology.md#entry-loading-contract):
-full kernel, selected entry and selected unit-reference bodies on every
-caller/judge/resume/completion turn and before phase/unit/scope changes,
+Neither tree keeps an alias for its former `plan-`, `build-` and `qa-` entries
+or their per-stage unit references, and neither adds a second common-mode
+index. All seven mode entries follow the shared
+[entry loading contract](../topology.md#entry-loading-contract): full kernel,
+selected mode entry and current stage reference bodies on every
+caller/judge/resume/completion turn and before mode/stage/scope changes,
 including direct entry. Selection/resume never resets coverage/frontier or
 consumed/remaining budget. Parent references are Hermes-specific dependencies:
-never duplicate Gather, evidence floors or the kernel to satisfy the generic
-portability check.
+never duplicate Gather, the stages, evidence floors or the kernel to satisfy
+the generic portability check.
 
 Status: implemented candidate, awaiting explicit live cutover and real-model
 verification (see [topology](../topology.md) "Candidate rollout and cutover").
 `test_researcher_entries.py`, `test_searcher_pipeline.py` and
 `test_searcher_entry_runtime.py` stay registered in `verify-work-continuity.py`;
-they check phase/unit contracts, card gates and real
-discovery/read/dedup/recovery mechanics, not model routing or actual research.
-No new profile, peer, tool grant, external root, card type or install mapping is
-introduced, and no other profile gains these entries.
+they check mode/stage contracts and real discovery/read/dedup/recovery
+mechanics, not model routing or actual research. No new profile, peer, tool
+grant, external root or install mapping is introduced, and no other profile
+gains these entries.

@@ -1,0 +1,41 @@
+# Solana
+
+Solana mainnet-beta and devnet, read through the `solana` tool. It reads
+only: nothing is signed or sent. An explorer page shows the same chain data
+plus the explorer's own labels; cite the chain read; the explorer link the tool returns is its locator.
+
+## What the chain proves
+
+The kernel's source evaluation and on-chain rules apply. In addition:
+
+- **Programs** — the deployed program's bytes are not readable as source.
+  `program` gives its loader, whether it can still be upgraded and by which
+  authority, and its last deployment slot. An Anchor IDL is the IDL
+  authority's description of the interface, kept in its own account: useful,
+  but it can lag or differ from the deployed code. A verified build (matching
+  the deployed program to public source) comes from outside the chain; score
+  it as that source.
+
+## Patterns
+
+1. **Who controls a program.** `program`: an upgrade authority that is set can
+   replace the code; none (or a finalized loader-v4 program) means immutable.
+   Read the authority with `address` — a wallet, or a program-owned account
+   such as a multisig — and say which.
+2. **Who controls a token.** `token`: a mint authority still set can create
+   more; a freeze authority can freeze holders' accounts; Token-2022
+   extensions (transfer fees, hooks, permanent delegate) change what holders
+   can expect. Each is a fact to report with its holder.
+3. **Following funds.** Start from `tx` balance changes, then the
+   counterparts' `activity`, one hop at a time, within the hop cap and call
+   budget agreed in Plan.
+4. **Exposure.** `allowances` lists token delegations an owner granted;
+   `portfolio` its holdings.
+
+## Limits
+
+- `activity` returns at most the latest 50 signatures of an address, with no
+  paging: anything older is uncovered ground unless a signature already in
+  hand leads there through `tx`. Record what was not read.
+- The IDL is optional and may be missing; its absence says nothing about the
+  program's safety.

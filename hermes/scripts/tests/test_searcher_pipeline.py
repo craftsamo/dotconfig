@@ -13,8 +13,15 @@ spec = importlib.util.spec_from_file_location("searcher_topology", HERMES / "scr
 validator = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(validator)
 
-ENTRIES = ("plan-searcher", "build-searcher", "qa-searcher")
-UNITS = ("lookup", "sweep", "hunt")
+MODES = ("lookup", "sweep", "hunt")
+ENTRIES = tuple(f"{mode}-searcher" for mode in MODES)
+STAGES = ("plan", "build", "qa")
+SHARED = {f"references/{stage}.md" for stage in STAGES}
+PLATFORMS = {"references/platforms/evm.md", "references/platforms/solana.md"}
+
+
+def flat(path):
+    return " ".join(Path(path).read_text().split())
 
 
 def test_exact_entries_and_owned_procedures():
@@ -23,30 +30,31 @@ def test_exact_entries_and_owned_procedures():
     assert not errors
     assert set(found) == set(ENTRIES)
     assert {p.relative_to(PIPELINE).as_posix() for p in PIPELINE.rglob("*.md")} == {
-        "SKILL.md", *(f"{name}/SKILL.md" for name in ENTRIES),
-        *(f"{name}/references/{unit}.md" for name in ENTRIES for unit in UNITS),
+        "SKILL.md", *(f"{name}/SKILL.md" for name in ENTRIES), *SHARED, *PLATFORMS,
     }
-    assert not list((PIPELINE / "references").rglob("*.md"))
     for name in ENTRIES:
         text = found[name].read_text()
-        assert "## Output template" in text
-        assert "## Verification" in text and "## Handoff" in text
-        heading = "QA" if name.startswith("qa-") else name.split("-")[0].title()
-        assert text.index("<ReadBeforeWork>") < text.index("# " + heading)
+        for section in ("## Plan", "## Build", "## Output template", "## Verification", "## Handoff"):
+            assert section in text, (name, section)
+        assert text.index("<ReadBeforeWork>") < text.index("# " + name.split("-")[0].title())
         assert text.index("\n---\n", 4) < 4000
-        marker = {"plan-searcher": "## Plan", "build-searcher": "## Output template", "qa-searcher": "## Verification"}[name]
-        for unit in UNITS:
-            ref = PIPELINE / name / f"references/{unit}.md"
-            assert marker in ref.read_text()
-            assert not ref.read_text().startswith("---")
-            assert f"(references/{unit}.md)" in text
-    for unit, marker in (("lookup", "## Steps"), ("sweep", "## Measurement variant"), ("hunt", "## Hop loop")):
-        assert marker in (PIPELINE / "build-searcher/references" / f"{unit}.md").read_text()
+        for stage in STAGES:
+            assert f"(../references/{stage}.md)" in text
+    for name, marker in (("lookup-searcher", "### Steps"), ("sweep-searcher", "### Measurement variant"),
+                         ("hunt-searcher", "### Hop loop")):
+        assert marker in found[name].read_text()
+    for relative in SHARED:
+        body = (PIPELINE / relative).read_text()
+        assert not body.startswith("---")
+        for section in ("## Output template", "## Verification", "## Handoff"):
+            assert section in body
     root = (PIPELINE / "SKILL.md").read_text()
-    assert "version: 8.0.0" in root and root.index("\n---\n", 4) < 4000
+    assert "version: 9.0.0" in root and root.index("\n---\n", 4) < 4000
     assert "<Procedure>" not in root
     for name in ENTRIES:
         assert f"({name}/SKILL.md)" in root
+    for relative in SHARED | PLATFORMS:
+        assert f"({relative})" in root
 
 
 def test_profile_selection_contract_and_unchanged_tool_surface():
@@ -56,11 +64,13 @@ def test_profile_selection_contract_and_unchanged_tool_surface():
     assert "Purpose alone is not execution authority" in prompt
     for name in ENTRIES:
         assert name in prompt
+    for gone in ("plan-searcher", "build-searcher", "qa-searcher"):
+        assert gone not in prompt
     for phrase in (
         "every caller, resume or completion turn", "midturn",
         "full searcher-pipeline kernel", "not a past load, summary or root preload",
         "unchanged", "earlier body is unavailable", "read_file", "next_offset",
-        "stop the affected search", "caller's release", "selected unit references",
+        "stop the affected search", "caller's release", "references/<stage>.md",
     ):
         assert phrase in prompt
     assert "Workflow v5" not in prompt
@@ -83,7 +93,7 @@ def test_profile_selection_contract_and_unchanged_tool_surface():
 
 
 def test_kernel_keeps_release_boundaries():
-    text = " ".join((PIPELINE / "SKILL.md").read_text().split())
+    text = flat(PIPELINE / "SKILL.md")
     for unit in ("survey-enumeration", "exhaustive-hunt"):
         assert unit not in text
     for phrase in (
@@ -100,7 +110,7 @@ def test_kernel_keeps_release_boundaries():
         block = " ".join(block.split())
         assert "does not restart coverage or the frontier, reset a budget" in block
         assert "caller's release" in block
-        assert "${HERMES_SKILL_DIR}/references/<unit>.md" in block
+        assert "${HERMES_SKILL_DIR}/../references/<stage>.md" in block
 
 
 @pytest.fixture
@@ -108,19 +118,19 @@ def candidate(tmp_path):
     return Path(shutil.copytree(PIPELINE, tmp_path / "searcher-pipeline"))
 
 
-@pytest.mark.parametrize("name", ENTRIES)
-def test_missing_entry_fails(candidate, name):
-    (candidate / name / "SKILL.md").unlink()
+@pytest.mark.parametrize("relative", (*(f"{name}/SKILL.md" for name in ENTRIES), *sorted(SHARED | PLATFORMS)))
+def test_missing_instruction_fails(candidate, relative):
+    (candidate / relative).unlink()
     errors = []
     validator.validate_searcher_entries(candidate, errors)
-    assert f"missing searcher instruction: {name}/SKILL.md" in errors
+    assert f"missing searcher instruction: {relative}" in errors
 
 
 @pytest.mark.parametrize("token", (
-    'skill_view(name="searcher-pipeline")', "${HERMES_SKILL_DIR}/../SKILL.md",
-    "not a past load or summary", "read_file", "next_offset", "stop",
+    'skill_view(name="searcher-pipeline")', 'file_path="references/<stage>.md"',
+    "${HERMES_SKILL_DIR}/../SKILL.md", "not a past load or summary", "read_file", "next_offset", "stop",
     "full-body", "current context", "unchanged", "earlier body is unavailable",
-    "${HERMES_SKILL_DIR}/SKILL.md", "${HERMES_SKILL_DIR}/references/<unit>.md",
+    "${HERMES_SKILL_DIR}/SKILL.md", "${HERMES_SKILL_DIR}/../references/<stage>.md",
     "caller's release",
 ))
 @pytest.mark.parametrize("name", ENTRIES)
@@ -133,13 +143,13 @@ def test_direct_entry_cannot_drop_dependency_or_recovery(candidate, token, name)
 
 
 @pytest.mark.parametrize("replacement, expected", (
-    (("name: plan-searcher", "name: alternate-plan"), "frontmatter name must be plan-searcher"),
+    (("name: lookup-searcher", "name: alternate-lookup"), "frontmatter name must be lookup-searcher"),
     (("category: searcher-pipeline", "category: technic"), "metadata.hermes.category must be searcher-pipeline"),
-    (("Plan: propose", "Generic: propose"), "searcher description must frontload plan"),
-    (("version: 2.0.0", "version: ''"), "searcher entry version must be a nonempty string"),
+    (("Lookup specific facts", "Generic specific facts"), "searcher description must frontload lookup"),
+    (("version: 1.0.0", "version: ''"), "searcher entry version must be a nonempty string"),
 ))
 def test_entry_metadata_is_validated(candidate, replacement, expected):
-    entry = candidate / "plan-searcher/SKILL.md"
+    entry = candidate / "lookup-searcher/SKILL.md"
     entry.write_text(entry.read_text().replace(*replacement))
     errors = []
     validator.validate_searcher_entries(candidate, errors)
@@ -148,9 +158,9 @@ def test_entry_metadata_is_validated(candidate, replacement, expected):
 
 @pytest.mark.parametrize("relative", (
     "references/lookup.md", "tests/fixture/SKILL.md", "fourth-searcher/SKILL.md",
-    "plan-searcher/references/notes.txt", "build-searcher/scripts/probe.sh",
-    "lookup-searcher/SKILL.md", "sweep-searcher/SKILL.md", "hunt-searcher/SKILL.md",
-    ".editor/SKILL.md",
+    "lookup-searcher/references/notes.txt", "sweep-searcher/scripts/probe.sh",
+    "plan-searcher/SKILL.md", "build-searcher/SKILL.md", "qa-searcher/SKILL.md",
+    "lookup-searcher/references/lookup.md", ".editor/SKILL.md",
 ))
 def test_old_alias_or_unexpected_instruction_fails(candidate, relative):
     path = candidate / relative
@@ -162,7 +172,7 @@ def test_old_alias_or_unexpected_instruction_fails(candidate, relative):
 
 
 def test_incidental_dotfiles_do_not_change_topology(candidate):
-    for relative in (".DS_Store", "plan-searcher/.SKILL.md.swp", ".editor/state"):
+    for relative in (".DS_Store", "lookup-searcher/.SKILL.md.swp", ".editor/state"):
         path = candidate / relative
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text("Editor metadata\n")
@@ -171,10 +181,7 @@ def test_incidental_dotfiles_do_not_change_topology(candidate):
     assert not errors
 
 
-@pytest.mark.parametrize("relative", (
-    "SKILL.md", "build-searcher/SKILL.md", "build-searcher/references/hunt.md",
-    "plan-searcher/references/hunt.md", "qa-searcher/references/hunt.md",
-))
+@pytest.mark.parametrize("relative", ("SKILL.md", "hunt-searcher/SKILL.md", "references/build.md"))
 def test_goal_mode_cannot_return_without_cards(candidate, relative):
     path = candidate / relative
     path.write_text(path.read_text() + "\nEach judge turn is one hop under goal_mode.\n")
@@ -188,7 +195,7 @@ def test_goal_mode_cannot_return_without_cards(candidate, relative):
     ("../../outside.md", "searcher link escapes pipeline"),
 ))
 def test_links_are_contained_and_real(candidate, link, expected):
-    entry = candidate / "plan-searcher/SKILL.md"
+    entry = candidate / "lookup-searcher/SKILL.md"
     entry.write_text(entry.read_text() + f"\n[bad]({link})\n")
     errors = []
     validator.validate_searcher_entries(candidate, errors)
@@ -196,7 +203,7 @@ def test_links_are_contained_and_real(candidate, link, expected):
 
 
 def test_nested_symlink_cannot_hide_instructions(candidate):
-    (candidate / "hidden").symlink_to(candidate / "plan-searcher", target_is_directory=True)
+    (candidate / "hidden").symlink_to(candidate / "lookup-searcher", target_is_directory=True)
     errors = []
     assert validator.validate_searcher_entries(candidate, errors) == {}
     assert any("searcher pipeline must not contain symlinks" in error for error in errors)
@@ -227,16 +234,6 @@ def test_worker_wires_entries_and_detects_learned_collision(tmp_path, monkeypatc
 
 
 @pytest.mark.parametrize("name", ENTRIES)
-@pytest.mark.parametrize("unit", UNITS)
-def test_missing_owned_reference_fails(candidate, name, unit):
-    relative = f"{name}/references/{unit}.md"
-    (candidate / relative).unlink()
-    errors = []
-    validator.validate_searcher_entries(candidate, errors)
-    assert f"missing searcher instruction: {relative}" in errors
-
-
-@pytest.mark.parametrize("name", ENTRIES)
 def test_frontmatter_must_fit_runtime_prefix(candidate, name):
     entry = candidate / name / "SKILL.md"
     entry.write_text(entry.read_text().replace("author: CraftSamo", "padding: " + "x" * 4000 + "\nauthor: CraftSamo"))
@@ -245,20 +242,29 @@ def test_frontmatter_must_fit_runtime_prefix(candidate, name):
     assert any("4000" in error or "4,000" in error for error in errors)
 
 
-@pytest.mark.parametrize("phase,marker", (("plan", "## Plan"), ("build", "## Output template"), ("qa", "## Verification")))
-@pytest.mark.parametrize("unit", UNITS)
-def test_reference_phase_ownership_is_required(candidate, phase, marker, unit):
-    ref = candidate / f"{phase}-searcher/references/{unit}.md"
-    ref.write_text(ref.read_text().replace(marker, "## Removed"))
+@pytest.mark.parametrize("name", ENTRIES)
+@pytest.mark.parametrize("section", ("## Plan", "## Build", "## Output template", "## Verification", "## Handoff"))
+def test_mode_must_own_every_stage_section(candidate, name, section):
+    entry = candidate / name / "SKILL.md"
+    entry.write_text(entry.read_text().replace(f"\n{section}\n", "\n## Removed\n"))
     errors = []
     validator.validate_searcher_entries(candidate, errors)
-    assert errors
+    assert f"searcher entry missing {section}: {name}" in errors
+
+
+@pytest.mark.parametrize("stage", STAGES)
+@pytest.mark.parametrize("section", ("## Output template", "## Verification", "## Handoff"))
+def test_stage_reference_owns_its_sections(candidate, stage, section):
+    ref = candidate / f"references/{stage}.md"
+    ref.write_text(ref.read_text().replace(section, "## Removed"))
+    errors = []
+    validator.validate_searcher_entries(candidate, errors)
+    assert f"searcher stage reference missing {section}: {stage}.md" in errors
 
 
 def test_declared_policy_not_model_routing_compliance():
-    root = " ".join((PIPELINE / "SKILL.md").read_text().split())
-    plan = " ".join((PIPELINE / "plan-searcher/SKILL.md").read_text().split())
-    qa = " ".join((PIPELINE / "qa-searcher/SKILL.md").read_text().split())
+    root = flat(PIPELINE / "SKILL.md")
+    plan, build, qa = (flat(PIPELINE / f"references/{stage}.md") for stage in STAGES)
     for phrase in (
         "no reset, new grant or replay", "Fields or transport",
     ):
@@ -275,30 +281,67 @@ def test_declared_policy_not_model_routing_compliance():
     ):
         assert phrase.lower() in plan.lower()
     assert "same scope and remaining budget" in qa
-    assert "expansion goes to Plan and client agreement" in qa
+    assert "expansion goes to [Plan](plan.md) and client agreement" in qa
     assert "caller final acceptance or a new self numeric score" in qa
     assert "actual Build findings/ledger in current context" in qa
     assert "report it as unverified and stop" in qa
     assert "never invent a Checked result" in qa
-    build = " ".join((PIPELINE / "build-searcher/SKILL.md").read_text().split())
     assert "Interpreted as:" in build and "direct settled briefs" in build
     assert "valid cards" not in build
+    assert "A stop needs a true reason" in build
 
 
 @pytest.mark.parametrize("name", ENTRIES)
-def test_kernel_must_link_every_phase(candidate, name):
+def test_kernel_must_route_every_mode(candidate, name):
     root = candidate / "SKILL.md"
     root.write_text(root.read_text().replace(f"({name}/SKILL.md)", ""))
     errors = []
     validator.validate_searcher_entries(candidate, errors)
-    assert errors
+    assert f"searcher kernel does not route {name}" in errors
+
+
+@pytest.mark.parametrize("relative", sorted(SHARED | PLATFORMS))
+def test_kernel_must_link_every_shared_reference(candidate, relative):
+    root = candidate / "SKILL.md"
+    root.write_text(root.read_text().replace(f"({relative})", ""))
+    errors = []
+    validator.validate_searcher_entries(candidate, errors)
+    assert f"searcher kernel does not link reference: {relative.removeprefix('references/')}" in errors
 
 
 @pytest.mark.parametrize("name", ENTRIES)
-@pytest.mark.parametrize("unit", UNITS)
-def test_phase_must_link_owned_reference(candidate, name, unit):
+@pytest.mark.parametrize("stage", STAGES)
+def test_mode_must_link_every_stage(candidate, name, stage):
     entry = candidate / name / "SKILL.md"
-    entry.write_text(entry.read_text().replace(f"(references/{unit}.md)", ""))
+    entry.write_text(entry.read_text().replace(f"(../references/{stage}.md)", ""))
     errors = []
     validator.validate_searcher_entries(candidate, errors)
-    assert errors
+    assert f"searcher entry does not link stage reference {stage}: {name}" in errors
+
+
+@pytest.mark.parametrize("name", ENTRIES)
+@pytest.mark.parametrize("platform", ("evm", "solana"))
+def test_mode_must_link_every_chain(candidate, name, platform):
+    entry = candidate / name / "SKILL.md"
+    entry.write_text(entry.read_text().replace(f"(../references/platforms/{platform}.md)", ""))
+    errors = []
+    validator.validate_searcher_entries(candidate, errors)
+    assert f"searcher entry does not link platform reference {platform}: {name}" in errors
+
+
+def test_chain_reads_are_retrieval_without_verdicts():
+    evm, solana = (flat(PIPELINE / f"references/platforms/{p}.md") for p in ("evm", "solana"))
+    for text in (evm, solana):
+        for phrase in ("Reading is allowed and it never writes", "nothing is signed or sent",
+                       "`Open for researcher`", '`{"untrusted": …}`', "explorer link",
+                       "unsearched ground"):
+            assert phrase in text, phrase
+    assert "`powers`" in evm and "`guessed`" in evm and "block ranges actually read" in evm
+    assert "`address` = the contract" in evm and "`omitted`" in evm and "`coverage`" in evm
+    assert "latest 50 signatures" in solana and "no paging" in solana
+    assert "`program`" in solana and "slot" in solana
+    root = flat(PIPELINE / "SKILL.md")
+    assert "chain reads of the evm and solana tools, which never sign or send" in root
+    prompt = " ".join(yaml.safe_load((HERMES / "profiles/searcher/config.yaml").read_text())
+                      ["agent"]["system_prompt"].split())
+    assert "the read-only evm and solana tools for on-chain facts" in prompt

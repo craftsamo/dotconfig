@@ -1,5 +1,5 @@
 """Opt-in, offline integration with the real Hermes source and the public
-Searcher candidate docs (kernel + 3 phases + 9 unit references), no private checkout.
+Searcher candidate docs (kernel + 3 modes + 3 stage and 2 chain references), no private checkout.
 
 Empty PYTHONPATH skips (offline default); an explicit PYTHONPATH lacking a
 real Hermes source checkout fails. The candidate tree resolves relative to
@@ -30,8 +30,8 @@ import tempfile
 import pytest
 
 
-CHILDREN = ("plan-searcher", "build-searcher", "qa-searcher")
-UNITS = ("lookup", "sweep", "hunt")
+CHILDREN = ("lookup-searcher", "sweep-searcher", "hunt-searcher")
+STAGES = ("plan", "build", "qa")
 EXPECTED = {"searcher-pipeline"} | set(CHILDREN)
 ALLOW = {"skills_list", "skill_view", "read_file"}
 CASES = ("discovery", "reads_and_reuse", "recovery", "relocation")
@@ -56,8 +56,9 @@ def test_searcher_entry_runtime(case):
     docs = sorted(candidate_tree.rglob("*.md"))
     assert {p.relative_to(candidate_tree).as_posix() for p in docs} == {
         "SKILL.md", *(f"{name}/SKILL.md" for name in CHILDREN),
-        *(f"{name}/references/{unit}.md" for name in CHILDREN for unit in UNITS),
-    }, "Searcher must have exactly thirteen phase-owned instruction documents"
+        *(f"references/{stage}.md" for stage in STAGES),
+        "references/platforms/evm.md", "references/platforms/solana.md",
+    }, "Searcher must have exactly nine instruction documents: kernel, modes, stages and chains"
 
     with tempfile.TemporaryDirectory(prefix="searcher-entry-runtime-") as directory:
         sandbox = Path(directory).resolve()
@@ -146,7 +147,7 @@ def _child(case, sandbox, candidate_tree, source):
         skills = home / ".hermes/skills"
         tree = skills / "searcher-pipeline"
         docs = sorted(candidate_tree.rglob("*.md"))
-        assert len(docs) == 13, "Candidate tree must hold kernel + phases + unit references"
+        assert len(docs) == 9, "Candidate tree must hold kernel + modes + stage and chain references"
         for path in docs:
             assert not path.is_symlink() and path.resolve().is_relative_to(candidate_tree)
             target = tree / path.relative_to(candidate_tree)
@@ -241,31 +242,31 @@ def _child(case, sandbox, candidate_tree, source):
                     assert payload["skill_dir"] == str(path.parent)
                     assert "${HERMES_SKILL_DIR}" not in payload["content"]
 
-                task = "unit-switch"
+                task = "mode-switch"
                 root_path = tree / "SKILL.md"
                 body_matches(view("searcher-pipeline", task=task), root_path, rendered=True)
                 repeat_root = view("searcher-pipeline", task=task)
                 assert repeat_root["status"] == "unchanged" and repeat_root["content_returned"] is False
 
-                # Scripted phase and unit switching proves read mechanics, not
+                # Scripted mode and stage switching proves read mechanics, not
                 # model routing or agreement compliance.
                 for name in CHILDREN:
                     body_matches(view(name, task=task), tree / name / "SKILL.md", rendered=True)
-                    contents = []
-                    for unit in UNITS:
-                        relative = f"references/{unit}.md"
-                        result = view(name, relative, task=task)
-                        body_matches(result, tree / name / relative)
-                        contents.append(result["content"])
-                        repeat = view(name, relative, task=task)
-                        assert repeat["status"] == "unchanged" and repeat["content_returned"] is False
-                    assert len(set(contents)) == 3
+                contents = []
+                for stage in STAGES:
+                    relative = f"references/{stage}.md"
+                    result = view("searcher-pipeline", relative, task=task)
+                    body_matches(result, tree / relative)
+                    contents.append(result["content"])
+                    repeat = view("searcher-pipeline", relative, task=task)
+                    assert repeat["status"] == "unchanged" and repeat["content_returned"] is False
+                assert len(set(contents)) == 3
 
                 root_again = view("searcher-pipeline", task=task)
                 assert root_again["status"] == "unchanged" and root_again["content_returned"] is False
 
-                phase_again = view("build-searcher", task=task)
-                assert phase_again["status"] == "unchanged" and phase_again["content_returned"] is False
+                mode_again = view("hunt-searcher", task=task)
+                assert mode_again["status"] == "unchanged" and mode_again["content_returned"] is False
 
             elif case == "recovery":
                 from agent.conversation_compression import _reset_read_dedup_caches
@@ -302,7 +303,8 @@ def _child(case, sandbox, candidate_tree, source):
                 documents = [("searcher-pipeline", None, tree / "SKILL.md")]
                 for name in CHILDREN:
                     documents.append((name, None, tree / name / "SKILL.md"))
-                    documents.extend((name, f"references/{unit}.md", tree / name / f"references/{unit}.md") for unit in UNITS)
+                documents.extend(("searcher-pipeline", f"references/{stage}.md", tree / f"references/{stage}.md")
+                                 for stage in STAGES)
                 for name, relative, path in documents:
                     task = f"recovery-{name}-{relative}"
                     body_matches(view(name, relative, task=task), path, rendered=relative is None)
@@ -327,8 +329,8 @@ def _child(case, sandbox, candidate_tree, source):
                 config = home / ".hermes/config.yaml"
                 config.write_text(config.read_text() + "file_read_max_chars: 1200\n", encoding="utf-8")
                 assert ft._get_max_read_chars() == 1200
-                for path in (root_path, tree / "build-searcher/SKILL.md",
-                             tree / "build-searcher/references/hunt.md"):
+                for path in (root_path, tree / "hunt-searcher/SKILL.md",
+                             tree / "references/build.md"):
                     page_task = f"recovery-pagination-{path}"
                     lines, offset, pages = [], 1, 0
                     while True:
@@ -364,9 +366,10 @@ def _child(case, sandbox, candidate_tree, source):
                         body_matches(result, target, rendered=True)
                         assert result["skill_dir"] == str(target.parent)
                         assert str(tree) not in result["content"]
-                        for unit in UNITS:
-                            relative = f"references/{unit}.md"
-                            body_matches(view(name, relative, task="moved-namespace-only"), target.parent / relative)
+                    for stage in STAGES:
+                        relative = f"references/{stage}.md"
+                        body_matches(view("searcher-pipeline", relative, task="moved-namespace-only"),
+                                     moved_home / "skills/searcher-pipeline" / relative)
                 finally:
                     pb.clear_skills_system_prompt_cache(clear_snapshot=True)
                     reset_hermes_home_override(token)
