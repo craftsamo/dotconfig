@@ -20,6 +20,10 @@ export type ToolContext = {
    * (V1: auth.json, V2: the integration credential store). Never log the value.
    */
   oauthAccess(integrationID: string): Promise<OAuthAccess | undefined>
+  /** The calling session's id, when the runtime provides one. */
+  sessionID?: string
+  /** The calling session's metadata (V2 only; Hermes keeps its binding under `hermes`). */
+  sessionMetadata?(): Promise<Record<string, unknown> | undefined>
 }
 
 export type ToolSpec<Args extends z.ZodRawShape = z.ZodRawShape> = {
