@@ -13,6 +13,7 @@ import fcntl
 import hashlib
 import importlib.util
 import json
+import logging
 import os
 from pathlib import Path
 import re
@@ -21,6 +22,7 @@ import sys
 import time
 
 _HERE = Path(__file__).resolve().parent
+logger = logging.getLogger(__name__)
 
 
 def _load(name, path):
@@ -43,6 +45,8 @@ turn = _load("hermes_opencode_turn", _HERE / "turn.py")
 inventory = _load("hermes_opencode_history", _HERE / "history.py")
 
 PROFILES = {"engineer", "assistant"}
+# The tool mechanics skill reaches only the profiles that will drive OpenCode.
+SKILLS = {"opencode": {"assistant"}}
 TOPIC_FIELDS = ("PLATFORM", "SOURCE", "PROFILE", "KEY", "CHAT_ID", "THREAD_ID", "USER_ID")
 SESSION_ID = re.compile(r"ses_[A-Za-z0-9_-]+\Z")
 PERMISSION_ID = re.compile(r"per_[A-Za-z0-9_-]{1,64}\Z")
@@ -664,9 +668,25 @@ def _run_properties(role):
     return properties
 
 
+def register_skills(ctx, profile):
+    """Register this profile's skills; a skill that cannot be read is logged and never costs the tools."""
+    for name, profiles in SKILLS.items():
+        if profile not in profiles:
+            continue
+        try:
+            from agent.skill_utils import parse_frontmatter
+
+            path = _HERE / "skills" / name / "SKILL.md"
+            meta, _ = parse_frontmatter(path.read_text(encoding="utf-8"))
+            ctx.register_skill(name, path, description=meta["description"], frontmatter=meta)
+        except Exception as exc:
+            logger.warning("opencode skill %s not registered: %s", name, exc)
+
+
 def register(ctx):
     if ctx.profile_name not in PROFILES:
         return
+    register_skills(ctx, ctx.profile_name)
     from hermes_constants import get_hermes_home
     home = get_hermes_home()
     identity = (ctx.profile_name, str(home.resolve()))
