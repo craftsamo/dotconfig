@@ -232,6 +232,28 @@ def test_an_external_transfer_asks_with_the_verified_card_under_a_fresh_key(monk
     assert access._DECISIONS["q0000000a"][:2] == ("card", "m" * 64)
 
 
+def test_a_revoke_always_asks_even_if_marked_own(monkeypatch):
+    fake_engine(monkeypatch, verify={**VERIFIED, "kind": "revoke", "own": True})
+    directive = gate(tool_name="evm", args=transfer())
+    assert directive["action"] == "approve" and access._DECISIONS["q0000000a"][0] == "card"
+    monkeypatch.setattr(access, "_no_human", lambda: "this is a cron job")
+    directive = gate(tool_name="evm", args=transfer())
+    assert directive["action"] == "block" and "revoking an approval needs the user's approval" in directive["message"]
+
+
+def test_a_revoke_quote_carries_its_kind_and_spender(monkeypatch, tmp_path):
+    seen = fake_engine(monkeypatch)
+    tool("evm")({"action": "quote", "kind": "revoke", "account": "hermes/HERMES_MAIN#0", "chain": "sepolia",
+                 "token": "0xabc", "spender": "0xdef"})
+    assert seen[0]["payload"] == {"op": "quote", "kind": "revoke", "account": "hermes/HERMES_MAIN#0",
+                                  "chain": "sepolia", "token": "0xabc", "spender": "0xdef",
+                                  "state": str(tmp_path / "assistant" / "web3-wallet")}
+    for family in ("evm", "solana"):
+        props = access.schema_for(family, "assistant")["parameters"]["properties"]
+        assert props["kind"]["enum"] == ["transfer", "revoke"] and "spender" in props
+        assert "kind" not in access.schema_for(family, "researcher")["parameters"]["properties"]
+
+
 def test_discord_gets_the_compact_card(monkeypatch):
     fake_engine(monkeypatch)
     monkeypatch.setattr(access, "_platform", lambda: "discord")

@@ -19,6 +19,7 @@ block or a token stays inline. A survey across many wallets, protocols or
 weeks of history is research: hand it to Plan and Execute research, or to
 `delegate_task` for a waiting user, and keep only the summary.
 
-Sending, and making a new wallet, is only ever the user's own request in
-this conversation. Never schedule a job meant to send funds or make a wallet
-— schedule a reminder for the user instead.
+Sending, revoking and making a new wallet are only ever the user's own
+request in this conversation. Never schedule a job meant to send funds,
+revoke an approval or make a wallet — schedule a reminder for the user
+instead.
