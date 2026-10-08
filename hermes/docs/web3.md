@@ -16,17 +16,17 @@ Keychain. Part of the Hermes design docs — index:
 | `solana` tool (toolset `solana_access`)                                                                                             | `plugins/web3/solana-access/`                                                                                                  | Assistant, Researcher, Searcher, Marketer |
 | Both tools' schemas, per-profile actions, the `pre_tool_call` approval hook and bypass guard (code, not a plugin: no `plugin.yaml`) | `plugins/web3/_shared/access.py`, `guard.py`                                                                                   | both plugins                              |
 | Read engine: chain table, JSON-RPC client, ABI and Solana parsing, price lookup                                                     | `plugins/web3/_shared/reader.py` with `chains.py`, `rpc.py`, `abi.py`, `evm.py`, `sol.py`, `prices.py`, run by the engine venv | both plugins                              |
-| Signer: finds the wallet secrets, derives accounts, builds, simulates, signs and sends transfers; the only reader of wallet secrets | `plugins/web3/_shared/signer.py` with `keychain.py` and `ledger.py`, run by the engine venv                                    | both plugins, for the Assistant           |
+| Signer: finds the wallet secrets, derives accounts, builds, simulates, signs and sends transfers; the only reader of wallet secrets | `plugins/web3/_shared/signer.py` with `keychain.py`, `ledger.py` and `seeds.py` (new wallets), run by the engine venv          | both plugins, for the Assistant           |
 | Engine dependencies, hash-locked                                                                                                    | `engines/web3/requirements.{in,lock}` → `local/web3/venv`                                                                      | both plugins                              |
-| Setup and status launcher                                                                                                           | `scripts/web3.sh install\|status\|addresses`                                                                                   | people                                    |
+| Setup and status launcher                                                                                                           | `scripts/web3.sh install\|status\|addresses\|new-wallet`                                                                        | people                                    |
 | How a profile reads a chain (actions, one-block reads, limits)                                                                      | the `evm-access:evm` and `solana-access:solana` plugin skills (`plugins/web3/<plugin>/skills/`), for every profile with the tool | Assistant, Researcher, Searcher, Marketer |
-| How the Assistant lists wallets and sends funds                                                                                     | the `evm-access:evm-wallet` and `solana-access:solana-wallet` plugin skills; registered for the Assistant only | Assistant |
+| How the Assistant lists wallets, makes new ones and sends funds                                                                    | the `evm-access:evm-wallet` and `solana-access:solana-wallet` plugin skills; registered for the Assistant only | Assistant |
 | What the Assistant does inline in Chat                                                                                              | the Assistant's Chat reference `web3.md`                                                                                       | Assistant                                 |
 | How Researcher weighs and gathers chain evidence, and what Searcher records from chains | each pipeline's `references/platforms/evm.md` and `solana.md` | Researcher, Searcher |
 
 Every profile in the plugins' list gets the read actions; the Assistant's
-tools also carry the wallet actions (`accounts`, `quote`, `transfer`,
-`status`), as substack-access offers Searcher its reads only. Both tools run
+tools also carry the wallet actions (`accounts`, `create_wallet`, `quote`,
+`transfer`, `status`), as substack-access offers Searcher its reads only. Both tools run
 their engine as a child process with the venv's interpreter (the `x-access`
 arrangement), so the gateway's own Python never imports a chain library or
 holds a key. The upstream `blockchain/evm` and `blockchain/solana` skills are
@@ -300,6 +300,62 @@ sent again, even if its consumed mark is cleared. The cap counts every
 attempt that is `sent` or `unknown` (no answer after broadcasting may still
 mean the transfer happened); `rejected` moved nothing and does not count.
 
+## New wallets
+
+`create_wallet` (either tool; the Assistant only) and `web3.sh new-wallet`
+make a Hermes seed phrase in the signer and store it in the Keychain, so a
+wallet can exist without anyone typing or seeing its words.
+
+| Field     | Filled by                                    | Stored as                                                                |
+| --------- | -------------------------------------------- | ------------------------------------------------------------------------ |
+| `name`    | the Assistant (`HERMES` as one of its words; letters, digits, `_`) | the item's name; refused when the project has any item of that name |
+| `project` | the Assistant, default the project holding the Hermes wallets (asked when none or several) | an existing `secret` project |
+| `scope`   | the Assistant, default Shared (a scope named like the project is Shared) | `--scope`, or the shared layer             |
+| kind      | fixed                                        | `-D "MNEMONIC PHRASE"`                                                   |
+| ENV       | fixed                                        | `--no-env`                                                               |
+| `words`   | the Assistant, default 24 (or 12)            | the phrase's length                                                      |
+| `purpose` | the Assistant, one line up to 120 characters | the comment: `<purpose> · 24 words · created <date> by Hermes · EVM#0 <address> · SOL#0 <address>` |
+
+The hook asks the signer to normalize the spec against the Keychain listing
+(`wallet_check`: names and metadata only, no value read) and always shows its
+card, under the transfers' presence rule — blocked in cron, single-query
+runs, unattended platforms, under yolo and with approvals off — and a fresh
+rule key per card:
+
+```
+Create: a new Hermes wallet (seed phrase)
+Name: HERMES_TESTNET
+Project: hermes(Shared)
+Kind: MNEMONIC PHRASE · ENV: no (never injected)
+Seed: 24 words, made after approval; kept only in the Keychain, never shown
+Comment: Testnet checks for the web3 wallet (Sepolia, Solana devnet)
+  + 24 words · created 2026-10-08 by Hermes · EVM#0 and SOL#0 addresses
+```
+
+Discord gets three lines (name and project, kind and words, the purpose cut
+at 80 characters). The decision carries the spec's digest in memory; at
+`wallet_create` the signer normalizes the spec again under the wallet lock,
+refuses one whose digest differs (nothing is made), makes the phrase with
+`mnemonic` from the OS's randomness, derives account #0 on both families,
+and stores it with `secret set --new --stdin` — create-only, so `secret`
+and `security` refuse an existing item instead of overwriting it, and the
+phrase on stdin, never in argv, a file, a result or a log. It then lists the
+project and reads the Keychain back as the wallet does: the item must list as
+a Hermes seed phrase, `ENV no`, with the same account #0. A write `secret`
+refused made nothing, and an item that has meanwhile taken the name is
+someone else's and is left untouched (`--new` makes any complaint from
+`security`, in any language, a refusal). A cut-off write, a listing that
+cannot be read, or an item that reads back differently is reported as
+possibly made, not to be funded, with the `secret show` and `secret rm`
+commands and the #0 addresses its comment must end in to be this wallet,
+and counts against the cap. The phrase is
+never shown, so the Keychain holds its only copy until the user reads it with
+`secret get` for a written one; the result says so. Three new wallets an hour
+(counting any that may exist), in `<state>/wallets.jsonl` — names and
+addresses only — apart from the transfer ledger; `web3.sh new-wallet` shows
+the same card, asks on the terminal (or takes `--yes`), and keeps its own
+count under `local/web3/state`.
+
 ## Ways around the tools
 
 The wallet's secrets have any name in any project, so on the Assistant the
@@ -307,7 +363,7 @@ hooks keep the Keychain itself out of the terminal: terminal, code-execution
 and file-tool calls are blocked when their text runs `secret get` / `env` /
 `set` / `update` / `rm` / `import` / `export` or `security …-generic-password` (a
 deleted or overwritten seed is lost funds), `dump-keychain`, names the
-signer, `web3.sh`, the engine venv, the wallet's state directory or the
+signer or its modules, `web3.sh`, the engine venv, the wallet's state directory or the
 `web3-rpc` scope and its items, or runs a chain CLI that signs (`cast send`,
 `cast wallet`, `solana transfer`, `spl-token transfer`). Researcher, Searcher
 and Marketer, which have no wallet, block only the read engine's paths and
@@ -326,14 +382,16 @@ recipient and the funds.
 
 1. `~/.config/hermes/scripts/web3.sh install` — builds `local/web3/venv`
    from the lock.
-2. For each wallet Hermes may send from: create a new seed phrase (or key)
-   for Hermes alone, never one that holds other funds, and keep a written
-   copy — the Keychain is the only other place it exists. Store it under a
+2. For each wallet Hermes may send from, a seed phrase (or key) for Hermes
+   alone, never one that holds other funds. Either ask the Assistant for a
+   new wallet, or run `web3.sh new-wallet HERMES_<NAME> -j <purpose> -p
+   <project>` ([New wallets](#new-wallets)): the phrase is made and stored
+   without being shown, so read it once with `secret get` for a written copy
+   before it holds anything you would mind losing. Or store your own under a
    name with `HERMES` in it and out of every environment:
    `secret set HERMES_<NAME> -p <project> -D MNEMONIC --no-env` (or
-   `-D PRIVATE_KEY`), typed at the hidden prompt. Hermes never generates or
-   shows one. Seed phrases and keys already stored under other names show
-   up watch-only without any step.
+   `-D PRIVATE_KEY`), typed at the hidden prompt. Seed phrases and keys
+   already stored under other names show up watch-only without any step.
 3. Optional: `secret set ALCHEMY_API_KEY -p hermes --scope web3-rpc`, and
    `HELIUS_API_KEY` and `ETHERSCAN_API_KEY` the same way.
 4. Enable `evm-access` and `solana-access` in the Assistant's config (the other
