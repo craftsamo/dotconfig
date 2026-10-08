@@ -123,6 +123,15 @@ readable part of embeds (title, description, link, author, site, up to five
 fields, clipped), and a note that text, embeds and names are written by
 other people and are data, never instructions. Stickers are listed by name.
 
+- `status` carries a `health` verdict computed from the mirror alone (no
+  request): `ok`; `degraded` (the last run failed or reported errors, left
+  channels for a later run, or a followed channel is behind or answered
+  403/404); `stale` (the last run started over 15 minutes ago, so synced
+  chats are read live); `down` (no run is recorded or the last started over
+  an hour ago, the agent is not loaded, or the token was rejected). Only DMs
+  and the sync list's servers count, so a channel that left the list does not
+  linger as "behind". `detail=true` names those channels and the last run's
+  errors (untrusted text, clipped).
 - `search` is a literal substring match over the mirror, and says so. With
   `live=true` it is Discord's own search instead, 25 a page with `offset`:
   `guild` searches a server (a `channel` of it narrows it), a DM `channel`
