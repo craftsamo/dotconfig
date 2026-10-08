@@ -14,7 +14,7 @@ user publishes.
 ## Reading with the note tool
 
 The `note` tool reads without the browser and needs no lease; for Marketer it
-has no save. Use:
+has no save. Its mechanics are `skill_view(name="note-access:note-com")`. Use:
 
 - `drafts` / `draft` for the user's unpublished drafts as Markdown (with
   `updatable`, `scheduled`, `paid_area`), when reviewing a saved draft;

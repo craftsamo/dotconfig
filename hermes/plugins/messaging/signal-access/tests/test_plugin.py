@@ -37,6 +37,11 @@ class Ctx:
         self.profile_name = profile
         self.tools = {}
         self.hooks = []
+        self.skills = {}
+
+    def register_skill(self, name, path, description="", frontmatter=None):
+        assert path.is_file() and frontmatter["name"] == name and description
+        self.skills[name] = path
 
     def register_tool(self, **kwargs):
         self.tools[kwargs["name"]] = kwargs
@@ -140,3 +145,10 @@ def test_oversized_results_are_refused(monkeypatch):
     monkeypatch.setattr(plugin.sig, "execute", lambda args, home=None, call_id="": {"x": "y" * plugin.LIMIT})
     result = json.loads(plugin.signal_tool({"action": "chats"}))
     assert result["ok"] is False and "narrow" in result["error"]
+
+
+def test_the_skill_reaches_only_the_assistant():
+    for profile, names in (("assistant", {"signal"}), ("marketer", set()), ("creator", set())):
+        ctx = Ctx(profile)
+        plugin.register(ctx)
+        assert set(ctx.skills) == names

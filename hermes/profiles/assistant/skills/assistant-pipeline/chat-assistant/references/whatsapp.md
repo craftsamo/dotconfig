@@ -1,6 +1,6 @@
 # WhatsApp
 
-Load `skill_view(name="whatsapp")` before any WhatsApp work: it owns the
+Load `skill_view(name="whatsapp-access:whatsapp")` before any WhatsApp work: it owns the
 mechanics — the `whatsapp` tool only (never `wacli` in the terminal, the
 `~/.wacli` store or WhatsApp Web), choosing the account, finding and reading
 a chat, older history, files someone sent, checking a number, counting, sends
