@@ -36,6 +36,7 @@ class Fake:
         self.agents = {}
         self.down = False
         self.note_refused = False
+        self.move_refused, self.moves = False, []
         self.prompt_error = None
         self.drop_permissions = False
         self.clock = 1_000_000
@@ -197,7 +198,7 @@ class Fake:
             sid = f"ses_{len(self.sessions) + 1}abc"
             self.sessions[sid] = {"id": sid, "agent": data["agent"], "model": data["model"],
                                   "permissions": [] if self.drop_permissions else data["permissions"],
-                                  "metadata": data.get("metadata"),
+                                  "metadata": data.get("metadata"), "title": data.get("title"),
                                   "location": {"directory": data["location"]["directory"]},
                                   "tokens": {"input": 1, "output": 2},
                                   "time": {"created": self.tick(), "updated": self.clock}}
@@ -231,6 +232,12 @@ class Fake:
             self.sessions[new] = {**json.loads(json.dumps(session)), "id": new, "time": {"created": self.tick()}}
             self.messages[new] = list(self.messages[sid])
             return {"data": self.sessions[new]}
+        if rest == ["move"]:
+            if self.move_refused:
+                raise self.api.ApiError(400, "DestinationUnavailableError", "no such directory")
+            self.moves.append((sid, data["directory"]))
+            session["location"] = {"directory": data["directory"]}
+            return None
         if rest == ["agent"]:
             session["agent"] = data["agent"]
             return None

@@ -213,6 +213,29 @@ def branch(directory, writing):
     return name, protected
 
 
+def common_dir(directory):
+    """The repository a worktree belongs to: its real git common directory, shared by
+    the main checkout and every linked worktree."""
+    raw = git(directory, "rev-parse", "--path-format=absolute", "--git-common-dir")
+    return str(Path(raw).resolve())
+
+
+def default_ref(directory):
+    """`origin/<default branch>` as far as the last fetch knows, else None."""
+    candidates = []
+    symbolic = subprocess.run(["git", "-C", directory, "symbolic-ref", "--quiet", "--short",
+                               "refs/remotes/origin/HEAD"], capture_output=True, text=True, timeout=15)
+    if not symbolic.returncode:
+        candidates.append(symbolic.stdout.strip())
+    candidates += ["origin/main", "origin/master"]
+    for ref in candidates:
+        found = subprocess.run(["git", "-C", directory, "rev-parse", "--verify", "--quiet", ref + "^{commit}"],
+                               capture_output=True, text=True, timeout=15)
+        if not found.returncode:
+            return ref
+    return None
+
+
 def same_dir(a, b):
     with contextlib.suppress(OSError, TypeError):
         return os.path.realpath(a) == os.path.realpath(b)

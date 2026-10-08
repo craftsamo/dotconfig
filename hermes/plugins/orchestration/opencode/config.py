@@ -7,11 +7,14 @@ whether the caller's own model is allowed, and a short note.
 
 from __future__ import annotations
 
+from pathlib import Path
 import re
 
 import hermes_yaml as yaml
 
 KEY = "opencode"
+# Where `opencode_session workspace` puts a task branch's worktree: <root>/<repo>/<branch>.
+DEFAULT_WORKTREE_ROOT = "~/Worktrees"
 POLICIES = ("read-only", "write")
 # Whether a role may run on the caller's own model. `refuse` keeps the caller from
 # judging or building what it then accepts itself; `allow` is a maintainer's choice.
@@ -95,7 +98,7 @@ def load(home):
     config = read(home).get(KEY) or {}
     if not isinstance(config, dict) or config.get("enabled") is not True:
         raise ValueError(f"OpenCode integration is not enabled ({KEY}.enabled)")
-    unknown = set(config) - {"enabled", "wait_timeout", "allowed_providers", "roles"}
+    unknown = set(config) - {"enabled", "wait_timeout", "allowed_providers", "roles", "worktree_root"}
     if unknown:
         raise ValueError(f"{KEY}: unknown keys {', '.join(sorted(unknown))}")
     wait = config.get("wait_timeout", DEFAULT_WAIT_TIMEOUT)
@@ -110,4 +113,8 @@ def load(home):
                   else {name: _role(name, value) for name, value in raw.items()})
     if not configured:
         raise ValueError(f"{KEY}.roles must name at least one role")
-    return {"wait_timeout": wait, "allowed_providers": providers, "roles": configured}
+    root = config.get("worktree_root", DEFAULT_WORKTREE_ROOT)
+    if not isinstance(root, str) or not root.startswith(("/", "~/")) or any(c in root for c in "*?"):
+        raise ValueError(f"{KEY}.worktree_root must be an absolute path (or start with ~/) without wildcards")
+    return {"wait_timeout": wait, "allowed_providers": providers, "roles": configured,
+            "worktree_root": str(Path(root).expanduser())}
