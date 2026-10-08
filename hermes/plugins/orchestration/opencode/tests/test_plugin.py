@@ -260,7 +260,7 @@ def test_failed_turn_says_why_and_what_to_do(fixture):
     assert failed["status"] == "failed", failed
     assert failed["provider_error"] == {"kind": "limit", "message": "The usage limit has been reached",
                                         "model": "anthropic/claude-opus-5-5"}
-    assert "usage limit has been reached" in failed["error"] and "another model" in failed["error"]
+    assert "usage limit has been reached" in failed["error"] and "alternate" in failed["error"]
     scripted(fake, "finish:failed:")
     plain = run("plan", directory)
     assert plain["status"] == "failed" and "provider_error" not in plain
@@ -457,6 +457,28 @@ def test_callers_own_models_are_refused_for_every_role(fixture):
     assert "your own model" in json.loads(plugin.opencode_run("plan", args, session_id="hermes-1"))["error"]
     assert json.loads(plugin.opencode_run("plan", {**args, "model": "openai/gpt-6-sol", "variant": "high"},
                                           session_id="hermes-1"))["status"] == "completed"
+
+
+def test_a_role_may_allow_the_callers_own_model_and_the_others_stay_refused(fixture):
+    home, directory, _, fake = fixture
+    configure(home, "  roles:\n    plan: {agent: plan, policy: read-only, caller_model: allow}\n"
+                    "    review: {agent: review, policy: read-only}\nmodel:\n  default: claude-opus-5-5\n")
+    allowed = run("plan", directory, model="anthropic/claude-opus-5-5", variant="high")
+    assert allowed["status"] == "completed" and allowed["engine"] == "anthropic/claude-opus-5-5#high"
+    assert "your own model" in run("review", directory, model="anthropic/claude-opus-5-5-fast")["error"]
+    models.observe(session_id="hermes-2", model="claude-fable-5-1", provider="anthropic")
+    args = dict(message="x", directory=str(directory), model="anthropic/claude-fable-5-1")
+    assert json.loads(plugin.opencode_run("plan", args, session_id="hermes-2"))["status"] == "completed"
+    assert "your own model" in json.loads(plugin.opencode_run("review", args, session_id="hermes-2"))["error"]
+
+
+def test_catalog_shows_each_roles_alternate_and_which_roles_allow_the_callers_model(fixture):
+    home, _, _, _ = fixture
+    configure(home, "  roles:\n    plan: {agent: plan, policy: read-only, caller_model: allow, "
+                    "alternate: 'openai/gpt-6.1-sol#high'}\n    build: {agent: build, policy: write}\n")
+    listed = json.loads(plugin.opencode_catalog({"what": "models"}))
+    assert listed["alternates"] == {"plan": "openai/gpt-6.1-sol#high"}
+    assert listed["allow_yours"] == ["plan"]
 
 
 def test_model_key_folds_speed_tiers_and_snapshots():
@@ -827,6 +849,8 @@ def test_a_role_note_is_part_of_the_session_instruction(fixture):
     ("  roles:\n    a: {agent: 'x y', policy: write}\n", "agent"),
     ("  roles:\n    a: {agent: plan, policy: write, model: nope}\n", "provider/model"),
     ("  roles:\n    a: {agent: plan, policy: write, model: 'a/b#bad variant'}\n", "provider/model"),
+    ("  roles:\n    a: {agent: plan, policy: write, alternate: nope}\n", "alternate"),
+    ("  roles:\n    a: {agent: plan, policy: write, caller_model: maybe}\n", "caller_model"),
 ])
 def test_configuration_is_validated(fixture, text, message):
     home, _, _, _ = fixture
