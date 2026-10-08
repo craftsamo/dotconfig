@@ -85,12 +85,18 @@ verifies the service applied them before the prompt. A plan is read-only and
 runs on the default checkout. A build refuses a default-branch worktree, so
 after the Client's approval `opencode_session workspace` gives the idle plan
 session a worktree of its own: the plugin fetches, runs
-`git worktree add --no-track -b <branch>` from the remote default branch (or
-`head`) under `opencode.worktree_root` (default `~/Worktrees/<repo>/<branch>`),
-moves the session there with the service's `move` route, rebinds
-`metadata.hermes.branch` and renames the session; if the service refuses the
-move it removes the worktree and branch again. The service's own worktree
-route is not used: it can only create a detached HEAD. A fork is a full-history
+`git worktree add --no-track -b <branch>` from the fetched remote default branch
+(`base=head` starts from the current commit; with no remote or default branch it
+refuses) under `opencode.worktree_root` (default `~/Worktrees`, as
+`<root>/<main checkout's directory name>/<branch with / as ->`), moves the
+session there with the service's `move` route at the real path (a symlinked
+spelling makes the service file it outside its project and diffs go empty),
+rebinds `metadata.hermes.branch` and renames the session. If the move or the
+rebinding fails it moves the session back and removes the worktree and branch.
+Git runs without hooks and with a minimal environment, since a tracked
+`core.hooksPath` is code a write run can change and this process holds the
+gateway's secrets. The service's own worktree route is not used: it can only
+create a detached HEAD. A fork is a full-history
 copy in the parent's worktree and prunes nothing; give it its own with
 `workspace` as well, which is how a clean plan is kept to build two ways.
 
@@ -98,9 +104,12 @@ copy in the parent's worktree and prunes nothing; give it its own with
 through `execute`; it asks no permission and takes any session id, so an agent
 can move itself (or another session) anywhere (measured on 2.0.23). The binding therefore records the
 repository (`metadata.hermes.repo`, the real git common directory), and every
-turn refuses a session whose directory no longer belongs to it; a move to another
-branch of the same repository is caught by the branch binding. The plugin cannot
-stop an agent from moving a session it does not own.
+turn refuses a session whose directory no longer belongs to it, or that was bound
+before the repository was recorded; a move to another branch of the same
+repository is caught by the branch binding. This detects a move at the next turn,
+not within the turn: a write run's `edit *` allow follows the session's location,
+so a run that moves itself mid-turn can edit there until it hands back. The
+plugin cannot stop an agent from moving a session it does not own.
 
 **Readiness.** `opencode_preflight(directory, phase)` is the one read-only
 check before a run: the service and the version the plugin was measured on, each
@@ -167,12 +176,15 @@ reason, so the OpenCode agent's configured model runs (OpenCode uses its own
 subscription account, not the Hermes weekly pool). The caller's own model
 (the configured `model.default` and the model it last answered with in this
 Hermes session; a `post_api_request` hook records it, so a fallback counts too)
-is refused by default, so the Assistant does not review or accept output from the
-model it runs on. A role may set `caller_model: allow` to run on it anyway; the
-Assistant's roles do, because acceptance is a separate, independent step (a
-fresh `review` session and its own QA), and a refusal would otherwise force every
-role off the OpenCode defaults and break whenever a fallback changes the
-Assistant's model. Speed tiers and dated snapshots count as the same model.
+is refused by default, so a role does not review or build for the model it
+answers to without anyone having chosen that. A role may set `caller_model: allow`
+to run on it anyway, and the Assistant's roles do (the owner's decision): the
+OpenCode agents' own defaults are the point, a refusal would force every role off
+them and break whenever a fallback changes the Assistant's model, and independence
+is kept where it matters (a build starts its own reviewer inside its session, a
+standalone `review` looks at someone else's work or starts fresh, and the
+Assistant accepts through its own QA). Speed tiers and dated snapshots count as
+the same model.
 
 A role may name an `alternate` (`provider/model[#variant]`). Nothing switches by
 itself: it is listed in the catalog and named in the limit hint, and after a

@@ -66,14 +66,13 @@ and the **image-creator** / **audio-creator** hands lead on
   shared ChatGPT allowance, so re-size OpenCode's usage if its retrieval volume
   grows ("Codex" below).
 - The coding model inside OpenCode is a separate layer: the Assistant's OpenCode
-  roles use OpenCode's configured per-agent defaults (Opus 5.5 for all four on
-  OpenCode's own Anthropic account, so they draw nothing from the Hermes weekly
-  pool), optionally overridden by a maintainer `model` on a role in
-  `opencode.roles`. A role may allow the caller's own model (`caller_model`) and
-  names an `alternate` for a usage limit; the Assistant's roles allow it
-  (see [`opencode.md`](./opencode.md) "Models"). The alternate is a GPT-family
-  model, which draws on the ChatGPT allowance below. No automatic replay of an
-  uncertain run lives in the Assistant's skills.
+  roles use OpenCode's configured per-agent defaults (OpenCode's own Anthropic
+  account, so they draw nothing from the Hermes weekly pool), optionally
+  overridden by a maintainer `model` on a role in `opencode.roles`. Whether a role
+  may run on the caller's own model and what its `alternate` is are in
+  [`opencode.md`](./opencode.md) "Models". A GPT-family alternate draws on the
+  ChatGPT allowance below. No automatic replay of an uncertain run lives in the
+  Assistant's skills.
 
 | Profile                              | T1 (primary)                        | T2                              | T3                                | T4                                  | T5                                          | `reasoning_effort` |
 | ------------------------------------ | ----------------------------------- | ------------------------------- | --------------------------------- | ----------------------------------- | ------------------------------------------- | ------------------ |

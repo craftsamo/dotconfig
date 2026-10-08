@@ -167,6 +167,9 @@ def decide(ruleset, action, resource):
 # Repository guards
 
 
+PROTECTED_BRANCHES = ("main", "master")
+
+
 def git(directory, *args):
     proc = subprocess.run(["git", "-C", str(directory), *args], capture_output=True, text=True, timeout=15)
     if proc.returncode:
@@ -186,7 +189,7 @@ def worktree(value):
 def branch(directory, writing):
     """(branch name, protected branch names) of the worktree. A write run needs a named
     task branch that is not the default branch, local or remote."""
-    protected = {"main", "master"}
+    protected = set(PROTECTED_BRANCHES)
     symbolic = subprocess.run(["git", "-C", directory, "symbolic-ref", "--quiet", "--short", "HEAD"],
                               capture_output=True, text=True, timeout=15)
     if symbolic.returncode:

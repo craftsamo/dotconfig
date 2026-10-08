@@ -36,7 +36,7 @@ class Fake:
         self.agents = {}
         self.down = False
         self.note_refused = False
-        self.move_refused, self.moves = False, []
+        self.move_refused, self.moves, self.patch_error = False, [], None
         self.prompt_error = None
         self.drop_permissions = False
         self.clock = 1_000_000
@@ -225,6 +225,8 @@ class Fake:
         if not rest and method == "get":
             return {"data": json.loads(json.dumps(session))}
         if not rest and method == "patch":
+            if self.patch_error:
+                raise self.patch_error
             session.update(data)
             return {"data": session}
         if rest == ["fork"]:

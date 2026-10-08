@@ -46,14 +46,17 @@ fork?, timeout?, output_dir?)`; build also takes `approval` and
   `opencode_history` but not drive it.
 - **One repository for the life of a session.** A session keeps its worktree
   and branch between turns, and it may only ever work in the repository it
-  started in: a session that moved elsewhere (it can move itself) is refused.
+  started in: a session that moved elsewhere (it can move itself) is refused at
+  its next turn, as is one bound before repositories were recorded.
   To work in another repository, start a new session and paste what it needs.
 - **Plan → Build on one session.** Plan on the default checkout; nothing needs
   a task branch yet. Once the user approves, put the idle session into a
   worktree of its own with `opencode_session workspace` (`session_id`, `branch`
   such as `task/short-name`, optional `base`): the plugin fetches, creates the
   worktree and branch from the remote default branch (`base=head` starts from
-  the current commit), moves the session there and renames it. Then
+  the current commit; without a remote or a known default branch it refuses and
+  you pass `head`), moves the session there and renames it. A `warning` in the
+  result means the fetch failed and the base is as of the last fetch. Then
   `opencode_run_build` with the same `session_id` and `approval` switches
   agent, model and policy while OpenCode keeps the whole investigation and
   proposal in context. Do not create the worktree or branch yourself, and
