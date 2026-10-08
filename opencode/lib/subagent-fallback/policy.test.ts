@@ -73,17 +73,27 @@ describe("launch preference", () => {
       model: input.route.primary,
     })
   })
-  test("exhausted source with unknown/missing/stale target also leaves the default", () => {
+  test("exhausted source prefers an alternate whose data is unknown or stale", () => {
+    for (const quotaProof of [
+      quota("unknown"),
+      {
+        ...quota("available"),
+        observedAt: NOW - QUOTA_MAX_AGE_MS - 1,
+      },
+    ]) {
+      const input = base()
+      input.source.quota = quota("exhausted")
+      input.target = { account: account("openai"), quota: quotaProof }
+      expect(decideLaunch(input)).toEqual({
+        kind: "fallback",
+        model: input.route.alternate,
+      })
+    }
+  })
+  test("exhausted source without a usable alternate account keeps the default", () => {
     for (const target of [
       undefined,
-      { account: account("openai"), quota: quota("unknown") },
-      {
-        account: account("openai"),
-        quota: {
-          ...quota("available"),
-          observedAt: NOW - QUOTA_MAX_AGE_MS - 1,
-        },
-      },
+      { account: undefined, quota: quota("unknown") },
     ]) {
       const input = base()
       input.source.quota = quota("exhausted")
@@ -92,6 +102,27 @@ describe("launch preference", () => {
         kind: "default",
         model: input.route.primary,
       })
+    }
+  })
+  test("an exhausted window stays reliable until its reset, however old", () => {
+    const old = NOW - 10 * QUOTA_MAX_AGE_MS
+    const input = base()
+    input.source.quota = {
+      state: "exhausted",
+      observedAt: old,
+      resetAt: NOW + 1000,
+    }
+    expect(decideLaunch(input).kind).toBe("fallback")
+    input.target!.quota = {
+      state: "exhausted",
+      observedAt: old,
+      resetAt: NOW + 1000,
+    }
+    expect(decideLaunch(input).kind).toBe("credits")
+    // Past its reset, or without a reset time, old data proves nothing.
+    for (const resetAt of [NOW, undefined]) {
+      input.source.quota = { state: "exhausted", observedAt: old, resetAt }
+      expect(decideLaunch(input).kind).toBe("default")
     }
   })
   test("both exhausted tries the usual provider, without any balance inference", () => {

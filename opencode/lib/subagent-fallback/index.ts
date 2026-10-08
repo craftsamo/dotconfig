@@ -616,7 +616,7 @@ export async function setupPreflight(
             const notice =
               decision.kind === "credits"
                 ? `[Subagent preflight: ${input.agent} ${selector(decision.model)}; Quota reports both included quotas at 0%, trying the default with provider-managed credits as last resort. No credit purchase or running-session switch.]`
-                : `[Subagent preflight: ${input.agent} ${selector(route.primary)} → ${selector(decision.model)}; prioritizing remaining included quota reported by Quota. No running-session switch.]`
+                : `[Subagent preflight: ${input.agent} ${selector(route.primary)} → ${selector(decision.model)}; Quota reports the default's included quota empty and the alternate not empty. No running-session switch.]`
             return {
               ...result,
               metadata: {

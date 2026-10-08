@@ -128,16 +128,19 @@ The local plugin `lib/subagent-fallback` (listed last under `plugins` in
 `opencode.jsonc`) checks quota before a new specialist launch and chooses in
 this order:
 
-1. The configured primary model, when Quota reports included quota remaining.
-2. The role's alternate, only when the primary is at 0% and the alternate has
-   included quota remaining.
+1. The configured primary model, unless Quota reports it exhausted.
+2. The role's alternate, when the primary is known exhausted and the alternate
+   is not known exhausted. Missing or stale alternate data does not block
+   this, since an exhausted primary is the worse bet.
 3. The usual primary with provider-managed credits as a last resort, when both
-   are at 0% and `creditsLastResort` is `true`. This attempts a normal provider
-   request; it does not prove a positive credit balance or guarantee success.
+   are known exhausted and `creditsLastResort` is `true`. This attempts a
+   normal provider request; it does not prove a positive credit balance or
+   guarantee success.
 
-Missing, stale or unreadable Quota data keeps the configured default, not a
-quota error or an automatic model switch. No independent balance/entitlement
-check is performed. Current model pins, variants and permissions are unchanged.
+Missing, stale or unreadable data about the primary keeps the configured
+default, not a quota error or an automatic model switch. No independent
+balance/entitlement check is performed. Current model pins, variants and
+permissions are unchanged.
 
 | Role                     | Alternate model   | Variant |
 | ------------------------ | ----------------- | ------- |
@@ -165,16 +168,24 @@ on normal refresh; the selector does not fetch usage, run the Quota CLI, start
 timers, read internal caches or patch Quota. A custom export path can be matched
 with the plugin option `quotaExportPath` (absolute path).
 
-Rows are matched to the active OpenCode connection using `sourceId`. Both 5h
-and Weekly quota rows must be present. Monthly usage credits and Code Review
-rows are excluded; other named quota rows apply conservatively provider-wide,
-without guessing a model from a display label. Published 0% (or less) counts as
-empty, even if rounded. Provider `fetchedAt` may be up to six minutes old,
-matching Quota's five-minute cache plus export-refresh grace; rewriting the
-export does not renew its data. A passed reset is treated as unknown.
+Rows are matched to the active OpenCode connection using `sourceId`. Only the
+5h and Weekly rows decide, and at least one must be present: some ChatGPT plans
+have no 5h window, and an exhausted ChatGPT account may export just one row. If
+either window is at 0% the provider counts as exhausted, since credits may
+already be spent behind the scenes. Model-specific rows (such as Claude Fable),
+Monthly usage credits and Code Review rows are ignored. Published 0% (or less)
+counts as empty, even if rounded.
+
+**Freshness.** The export is rewritten only while the Quota footer refreshes in
+the TUI, so it can be old. An empty window with a reset time still in the
+future is trusted at any age, because a window cannot recover before its reset
+(the reset time is the expiry). Anything else, including "quota remaining",
+needs the provider's `fetchedAt` to be at most six minutes old (Quota's
+five-minute cache plus export-refresh grace) with no window past its reset;
+rewriting the export does not renew its data.
 
 Before the first export, without the home footer (including headless use), or
-after its data expires, launches use the configured default. A different
+after its data expires, an unknown primary keeps the configured default. A different
 account's rows cannot authorize a fallback. A partial multi-login export can
 still use complete matching-account rows. This is a best-effort launch
 preference, not an exact prediction of whether a task fits its remaining quota.
