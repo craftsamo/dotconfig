@@ -19,6 +19,11 @@ class Ctx:
         self.profile_name = profile
         self.tools = {}
         self.hooks = []
+        self.skills = {}
+
+    def register_skill(self, name, path, description="", frontmatter=None):
+        assert path.is_file() and frontmatter["name"] == name and description
+        self.skills[name] = path
 
     def register_tool(self, **kwargs):
         self.tools[kwargs["name"]] = kwargs
@@ -39,3 +44,20 @@ def test_the_plugin_registers_the_evm_tool_from_the_shared_logic():
     ctx = Ctx("creator")
     plugin.register(ctx)
     assert ctx.tools == {}
+
+
+def test_the_wallet_skill_reaches_only_the_profile_that_signs():
+    expected = {"assistant": {"evm", "evm-wallet"}, "researcher": {"evm"}, "searcher": {"evm"},
+                "marketer": {"evm"}, "creator": set()}
+    for profile, names in expected.items():
+        ctx = Ctx(profile)
+        plugin.register(ctx)
+        assert set(ctx.skills) == names
+        if ctx.tools:
+            assert 'evm-access:evm"' in ctx.tools["evm"]["description"]
+    for profile in ("researcher", "searcher", "marketer"):
+        ctx = Ctx(profile)
+        plugin.register(ctx)
+        body = ctx.skills["evm"].read_text().lower()
+        assert not any(word in body for word in ("`quote`", "`transfer`", "`accounts`", "approval card", "use: sign"))
+        assert "wallet" not in ctx.tools["evm"]["description"].lower()
