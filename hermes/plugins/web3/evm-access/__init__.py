@@ -1,8 +1,8 @@
 """evm-access: EVM chains for the Assistant, Researcher, Searcher and Marketer.
 
 One tool, ``evm`` (toolset ``evm_access``): blocks, transactions, addresses, portfolios, logs,
-tokens, allowances, decoding, gas and prices on Ethereum, Base, Arbitrum, OP Mainnet, Polygon, BNB
-Chain, Avalanche and their testnets; the Assistant also lists the user's wallets and sends coins and
+tokens, allowances, decoding, gas and prices on the EVM chains of ``_shared/chains.py`` (Ethereum,
+the major L2s and sidechains, and their testnets); the Assistant also lists the user's wallets and sends coins and
 ERC-20 tokens, each external transfer on an approval card. The logic is shared with solana-access
 in ``../_shared/access.py``. The plugin ships read-only skills (``skills/``), registered as
 ``evm-access:<skill>``: reading for every profile with the tool, the wallet procedure for the

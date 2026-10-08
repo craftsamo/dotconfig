@@ -1,6 +1,6 @@
 ---
 name: evm
-description: "Use for reading EVM chains (Ethereum, Base, Arbitrum, OP Mainnet, Polygon, BNB Chain, Avalanche and their testnets): a transaction, address, contract, token, approval, log, gas or price. Reads only."
+description: "Use for reading EVM chains (Ethereum, Base, Arbitrum, OP Mainnet, Polygon, BNB Chain, Avalanche, Linea, Scroll, ZKsync Era, Unichain, Gnosis, Celo, Mantle, Sonic, World Chain, Ink, Zora and their testnets): a transaction, address, contract, token, approval, log, gas or price. Reads only."
 version: 1.0.0
 author: CraftSamo
 license: MIT
