@@ -74,7 +74,8 @@ fork?, timeout?, output_dir?)`; build also takes `approval` and
   the worktree opens.
 - Ask in the message for what you need: actual check results, a review pass
   ("run a review pass", "deep review <area>") when an increment is risky, a
-  checkpoint commit of verified work, rendered evidence for a page change.
+  checkpoint commit of verified work, `web_ui_check` for a page change
+  (OpenCode's tool; it writes into `output_dir`).
 - Never start a second turn on a session that is still running: wait, steer or
   interrupt it.
 
