@@ -62,7 +62,11 @@ DESCRIPTION = (
     "look at what was saved, never open or run it), threads (channel = a text or forum "
     "channel: its threads / forum posts with id; archived = true / false; offset), pins (channel: pinned "
     "messages; before = pinned_at of the last one), mentions (messages that mention the user, newest first; "
-    "optional guild, before = a message id), friends (with the id of an existing DM; query; refresh=true), "
+    "optional guild, before = a message id), pending (chats waiting for the user's answer, from the mirror "
+    "alone: DMs and group DMs where others wrote after the user's last message, and server messages that "
+    "mention or reply to the user with no later message of theirs in that channel; after = how far back, 14 "
+    "days by default; optional guild = only that server; this is \"not answered\", not Discord's unread state), "
+    "friends (with the id of an existing DM; query; refresh=true), "
     "roles (guild: its roles with position, members, strong permissions and whether the user can manage them, "
     "plus the user's own roles and permissions; role = one role with all its permissions; refresh=true), member "
     "(guild + user: name and roles), role_members (guild + role: up to 100 member ids), members (guild + query: "
@@ -92,7 +96,7 @@ DESCRIPTION = (
 
 PROPERTIES = {
     "action": {"type": "string", "enum": list(access.ACTIONS)},
-    "guild": {"type": "string", "description": "server id (guilds)"},
+    "guild": {"type": "string", "description": "server id (guilds); pending: only that server"},
     "channel": {"type": "string",
                 "description": "channel id: a DM / group DM (dms), a server channel (channels) or a thread (threads)"},
     "channels": {"type": "array", "items": {"type": "string"},
@@ -101,7 +105,7 @@ PROPERTIES = {
                 "description": "sync_add for a whole server: channel ids to skip"},
     "query": {"type": "string",
               "description": "dms / friends / members: part of a name; search: words in text"},
-    "after": {"type": "string", "description": "messages / search: a message id or time"},
+    "after": {"type": "string", "description": "messages / search / pending: a message id or time"},
     "before": {"type": "string",
                "description": "messages / search: a message id or time; mentions: a message id; pins: a pinned_at"},
     "unpack": {"type": "boolean", "description": "media: also unpack a saved, inspected archive into a "
@@ -110,7 +114,7 @@ PROPERTIES = {
                 "description": "media with unpack: only these entries or folders, as named in the archive's "
                                "listing"},
     "limit": {"type": "integer", "description": "dms 30, messages 50 (live at most 100), search 30 (live 25), "
-                                                "threads 25, pins 50, mentions 25, members 25 by default"},
+                                                "threads 25, pins 50, mentions 25, members 25, pending 30 by default"},
     "offset": {"type": "integer",
                "description": "dms / threads / search live=true: skip this many (next_offset of the previous page)"},
     "last": {"type": "boolean", "description": "dms: add the last message"},
