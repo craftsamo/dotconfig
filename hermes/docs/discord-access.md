@@ -105,8 +105,8 @@ reads never serve silently stale history.
 
 ## Reads
 
-`status`, `dms`, `search`, `context`, `pending`, `stats`, `export` and
-`sync_list` read the mirror and make no request. `guilds` refreshes from Discord when its copy is over 6
+`status`, `dms`, `search`, `context`, `pending`, `stats`, `export`,
+`sync_list` and `sync_suggest` read the mirror and make no request. `guilds` refreshes from Discord when its copy is over 6
 hours old, `friends` likewise; `channels`, `threads`, `pins`, `mentions`,
 `member`, `role_members` and `members` always ask Discord, and `roles` does
 when its copy is over 15 minutes old (or on `refresh`). `messages` reads the
@@ -274,6 +274,27 @@ shrinks silently. Ids are checked against the mirror (the server and channel
 must have been listed; only text and announcement channels). The limits are
 code, not judgement: at most 10 servers and 30 channels, a whole server
 counting as 10. A change applies on the next run, with no restart.
+
+`sync_suggest` proposes changes and makes none. It reads the mirror alone (no
+request) over a period (`after`, default 30 days):
+
+- **`add`**: server text and announcement channels that are not followed (a
+  thread, voice channel or one answering 403/404 never is) and where the user
+  wrote, or where the mirror holds at least 5 messages. The evidence is only
+  what the mirror has stored: a live read is stored, so a channel the user
+  only ever read live shows up, and one never opened is invisible.
+  Ranked by 3 per message of the user's plus 1 per message. Each carries the
+  exact `sync_add` arguments and whether it fits: the proposals are tried one
+  after another against the same limits `sync_add` enforces, so `fits` counts
+  the ones above it. A channel the user excluded from a whole server is never
+  proposed; one a whole server does not follow is listed with `fits: false`
+  and the reason (switching needs `sync_remove` first).
+- **`remove`**: followed channels whose last message is older than the period
+  and where the user wrote nothing in it, and a whole server none of whose
+  followed channels qualifies, each with the `sync_remove` arguments and the
+  slots it frees. A hint says when dropping them would make room for additions
+  that do not fit.
+- `room_now` shows servers and channels used of the limits.
 
 ## Send
 
