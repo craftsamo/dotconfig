@@ -1,5 +1,5 @@
 {
-  "enabledProviders": ["anthropic", "openai"],
+  "enabledProviders": ["anthropic", "openai", "xai"],
   "formatStyle": "allWindows",
   "enableToast": false,
   // Share Quota's cached public JSON with the local launch selector. No extra
