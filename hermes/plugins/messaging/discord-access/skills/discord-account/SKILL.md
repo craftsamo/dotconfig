@@ -55,6 +55,7 @@ still apply.
 | Find older or unsynced history | `search` with `live=true`: `guild` (+ `channel`), a DM `channel`, or neither for every DM; 25 a page; `author` and `has` work here too, `reacted` / `emoji` / `parent` do not | live |
 | What is waiting for the user's answer | `pending` (DMs where others wrote last, server mentions and replies not yet answered; `after`, `guild`) | mirror |
 | About a server: description, size, boosts; its emoji and stickers; its events | `guild_info` / `emojis` (`query`) / `events`, each with `guild` (a server from `guilds`) | live |
+| A server's invite links (needs Manage Server) | `invites` with `guild`; the codes are credentials: tell them to the user only, never into a message, file or another tool | live |
 | How much was said, by whom, when | `stats` with `by` = `channel` / `author` / `day` (`channel`, `guild`, `after` (30 days by default), `before`) | mirror |
 | Pinned messages / who mentioned the user | `pins` with `channel` / `mentions` (optional `guild`) | live |
 | People | `friends` (with the id of an existing DM), user ids from messages, `members` with `guild` + `query` (needs Manage Server) | refreshed / live |
