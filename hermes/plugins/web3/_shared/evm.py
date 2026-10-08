@@ -17,6 +17,7 @@ from eth_utils import keccak, to_checksum_address
 
 import abi
 import chains
+import fees
 from prices import usd
 from rpc import ChainError
 
@@ -886,16 +887,43 @@ def gas(ctx, args) -> dict:
         pct[label] = column[len(column) // 2] if column else 0
     next_base = bases[-1] if bases else h2i(ctx.rpc.call("eth_gasPrice"))
     price = ctx.prices.native(ctx.chain)
+    model = chains.EVM[ctx.chain].get("fee")
+    result = {"chain": ctx.chain, "next_base_fee_gwei": gwei(next_base),
+              "priority_fee_gwei": {k: gwei(v) for k, v in pct.items()},
+              "gas_price_gwei": gwei(h2i(ctx.rpc.call("eth_gasPrice"))), "symbol": native["symbol"]}
 
-    def cost(units_of_gas, tip):
-        wei = units_of_gas * (next_base + tip)
-        return {"native": units(wei, native["decimals"]), "usd": usd(as_float(wei, native["decimals"]), price)}
-
-    return {"chain": ctx.chain, "next_base_fee_gwei": gwei(next_base),
-            "priority_fee_gwei": {k: gwei(v) for k, v in pct.items()},
-            "gas_price_gwei": gwei(h2i(ctx.rpc.call("eth_gasPrice"))),
-            "native_transfer": cost(21_000, pct["medium"]), "token_transfer": cost(65_000, pct["medium"]),
-            "symbol": native["symbol"]}
+    tip = pct["medium"]
+    # samples like the transfers they stand for, so the L1 fee is sized by realistic bytes
+    samples = {
+        "native_transfer": (21_000, {"to": to_checksum_address("0x" + "5e" * 20), "value": 10 ** 16, "data": b""}),
+        "token_transfer": (65_000, {"to": to_checksum_address("0x" + "a0" * 20), "value": 0, "data": bytes.fromhex(
+            "a9059cbb" + ("5e" * 20).rjust(64, "0") + format(123_456_789, "064x"))}),
+    }
+    extras: dict[str, dict] = {name: {} for name in samples}
+    if model in fees.L1_ORACLES:
+        try:  # both or neither: one estimate with the L1 fee and one without would not compare
+            for name, (units_of_gas, sample) in samples.items():
+                tx = {"chainId": chains.EVM[ctx.chain]["id"], "nonce": 1, "gas": units_of_gas,
+                      "maxFeePerGas": 2 * next_base + tip, "maxPriorityFeePerGas": tip, **sample}
+                extras[name]["l1_data"] = fees.l1_fee(ctx.rpc, fees.signed(tx, fees.SAMPLE_KEY), model)
+                if model != "scroll":
+                    extras[name]["operator"] = fees.operator_fee(ctx.rpc, units_of_gas, required=model == "op-token")
+            result["l1_fee_note"] = ("each cost includes the L1 data fee (and on the OP Stack the operator fee) for a "
+                                     "typical transfer; a quote states its own maximum, with twice the L1 fee")
+        except (ChainError, ValueError, TypeError) as exc:  # an estimate never fails the read: it says so
+            extras = {name: {} for name in samples}
+            result["l1_fee_unread"] = (str(exc) if isinstance(exc, ChainError) else
+                                       f"the L1 fee could not be estimated ({type(exc).__name__})") \
+                + "; the costs below are gas alone"
+    for name, (units_of_gas, _) in samples.items():
+        execution = units_of_gas * (next_base + tip)
+        wei = execution + sum(extras[name].values())
+        out = {"native": units(wei, native["decimals"]), "usd": usd(as_float(wei, native["decimals"]), price)}
+        if extras[name]:
+            out["breakdown"] = {"execution": units(execution, native["decimals"]),
+                                **{k: units(v, native["decimals"]) for k, v in extras[name].items()}}
+        result[name] = out
+    return result
 
 
 def price(ctx, args) -> dict:
