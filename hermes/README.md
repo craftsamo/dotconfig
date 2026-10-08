@@ -171,7 +171,7 @@ live under `profiles/creator/skills`. Skill placement (validator-enforced):
   accounts and the web3 wallets
   live there; `technic/` keeps what has no plugin.
 - Researcher/Searcher route one entry per mode (investigate / compare / verify /
-  advise; lookup / sweep / hunt) over shared `references/{plan,build,qa}.md`
+  advise; lookup / sweep / hunt) over shared `references/{plan,build}.md`
   stages; Researcher also shares `references/gather.md`. Neither has technics.
 - Writer reads the `japanese-writing` core through its curated
   `external-skills/` symlink.

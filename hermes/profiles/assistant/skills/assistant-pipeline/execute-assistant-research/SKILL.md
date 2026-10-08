@@ -50,7 +50,7 @@ verifies public claims against sources, the creator grounds factual
 content in media. That primary is Researcher's immediate Client: it requests
 specialist Plan for purpose-first work, agrees the proposed same-role units
 within its granted scope, then releases Build. It escalates material human-only
-or out-of-scope decisions through you. Researcher performs specialist QA
+or out-of-scope decisions through you. Researcher's Build ends with a specialist
 self-check; the primary independently accepts conclusions and returns its own
 deliverable for your acceptance. Self-QA is not an external pass.
 

@@ -18,7 +18,7 @@ unit's mode entry before proposing that unit.
 3. Use supplied materials only. If missing options need external discovery,
    propose a bounded preliminary Build with explicit output, scope, budget and
    stop condition; wait for agreement before gathering, then return to revise
-   this Plan using its self-checked result. Do not silently release the main work.
+   this Plan using its result. Do not silently release the main work.
 4. Present the proposed research and request agreement. Filled fields or a
    transport `kind` do not authorize execution; no self-release. Agent clients
    may agree within their existing grant without a fresh human approval for each

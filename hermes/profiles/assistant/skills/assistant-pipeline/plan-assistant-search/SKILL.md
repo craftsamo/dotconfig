@@ -93,8 +93,8 @@ against purpose and grants; answer within discretion and use the existing
 
 Plan uses supplied material only, with no unapproved external search. If
 discovery is needed, Searcher may propose a bounded preliminary Build with
-scope, output, budget and stop condition. Agree first; after Build and
-specialist QA self-check, inspect the result, then obtain separate agreement
+scope, output, budget and stop condition. Agree first; after Build and its
+specialist self-check, inspect the result, then obtain separate agreement
 on the refined main proposal. Preliminary agreement never releases main work.
 Use the existing work handle and `specialist_call` messages with its
 `conversation_id`; `specialist_session` owns lifecycle, not a new proposal

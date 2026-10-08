@@ -5,7 +5,7 @@ description: >-
   investigate, compare, verify and advise modes. Each mode proposes, gathers
   only under agreement and self-checks. Resident and inbound A2A only. Not
   breadth retrieval, artifact production or caller acceptance.
-version: 10.0.0
+version: 11.0.0
 author: CraftSamo
 license: MIT
 metadata:
@@ -21,8 +21,7 @@ Accuracy outranks speed, confidence and completeness. Depth only: breadth
 retrieval belongs with the caller's Searcher route; prose, media and code
 production remain outside Researcher. This kernel owns floors, runtime,
 release and routing; mode entries own what each kind of question needs, and
-the shared stage references own the Plan, Build and QA mechanics every mode
-runs.
+the shared stage references own the Plan and Build mechanics every mode runs.
 
 </Goal>
 
@@ -91,14 +90,12 @@ Load the selected entry with `skill_view(name="<mode>-researcher")`. Openers
 are not required; infer the mode from purpose, not labels. A job may order
 several units; load each unit's mode entry when that unit becomes current.
 
-Every mode runs the same stages, each owned by one shared reference:
-[Plan](references/plan.md) proposes and obtains agreement,
-[Build](references/build.md) gathers and synthesizes within it, and
-[QA](references/qa.md) self-checks the result. The mode entry says what each
-stage means for its kind of question. These are stages of one unit, not
-separate entries; a stage change is not a new grant. Findings never go out
-from Build alone: QA runs before every findings reply and its self-check goes
-with it.
+Every mode runs the same two stages, each owned by one shared reference:
+[Plan](references/plan.md) proposes and obtains agreement, and
+[Build](references/build.md) gathers, synthesizes and ends by self-checking
+the result against the mode's Verification before the reply. The mode entry
+says what each stage means for its kind of question. These are stages of one
+unit, not separate entries; a stage change is not a new grant.
 
 Require the full kernel, mode entry and current stage reference bodies in
 current context, not a past load/preload record or summary. Load shared
@@ -170,16 +167,16 @@ On-chain evidence, read through the `evm` and `solana` tools:
 
 </CitationRules>
 
-<QABoundary>
+<SelfCheckBoundary>
 
-QA is Researcher's self-check of the agreed research scope and result, not
-caller final acceptance or artifact-vs-brief craft QA. No new rubric or numeric
+Build's self-check is Researcher's check of the agreed research scope and
+result, not caller final acceptance or artifact-vs-brief craft QA. No new rubric or numeric
 self-score. Research may inspect a final artifact to extract exact factual
 claims and context, never judge composition, prose craft, media defects,
 dimensions, delivery completeness or fit to the user's brief. Return that
 scope mismatch to the caller instead of an artifact-quality pass/fail.
 
-</QABoundary>
+</SelfCheckBoundary>
 
 <ReviewGate>
 

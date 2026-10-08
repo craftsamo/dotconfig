@@ -66,6 +66,9 @@ ZOS = "0x" + "b8" * 20    # an OpenZeppelin legacy (zos) proxy to VERIFIED
 ZOS_IMPL = "0x7050c9e0f4ca769c69bd3a8ef740bc37934f8e2c036e5a723fd8ee048ed3f8c3"
 ZOS_ADMIN = "0x10d6a54a4754c8869d6886b5f5d7fbfa5b4522237ea5c60d11bc4e7a1ff9390b"
 HEAD_BLOCK = 1000
+LOGGY = "0x" + "c9" * 20  # a busy contract: one Transfer every 10 blocks; ranges over 250 blocks are refused
+DOWN = "0x" + "d1" * 20   # refuses large ranges, and every smaller one fails outright
+PATCHY = "0x" + "d2" * 20  # refuses large ranges; small ones near the head fail, older ones are empty
 DEPLOYER = "0x" + "9a" * 20
 EIP1967_IMPL = "0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc"
 SEL = {"owner": "8da5cb5b", "paused": "5c975abb", "mint": "40c10f19", "balanceOf": "70a08231",
@@ -218,6 +221,20 @@ def handle(method: str, params: list):
         return contract_call(params[0])
     if method == "eth_blockNumber":
         return hex(HEAD_BLOCK), None
+    if method == "eth_getLogs" and params[0]["address"].lower() in (DOWN, PATCHY):
+        low, high = int(params[0]["fromBlock"], 16), int(params[0]["toBlock"], 16)
+        if high - low + 1 > 250:
+            return None, {"code": -32005, "message": "query returned more than 10000 results"}
+        if params[0]["address"].lower() == DOWN or high >= 900:
+            return None, {"code": -32603, "message": "backend unavailable"}
+        return [], None
+    if method == "eth_getLogs" and params[0]["address"].lower() == LOGGY:
+        low, high = int(params[0]["fromBlock"], 16), int(params[0]["toBlock"], 16)
+        if high - low + 1 > 250:
+            return None, {"code": -32005, "message": "Log response size exceeded; query a smaller block range"}
+        return [{"address": LOGGY, "topics": [TRANSFER_TOPIC, padded(ALICE), padded(BOB)], "data": "0x" + word(n),
+                 "blockNumber": hex(n), "transactionHash": "0x" + format(n, "064x"), "logIndex": "0x0"}
+                for n in range(low, high + 1) if n % 10 == 0], None
     if method == "eth_getCode" and params[0].lower() in (VERIFIED, PROXY, LOGIC, SHELL, MANY, ZOS):
         return "0x6080604052", None
     if method == "eth_getCode" and params[0].lower() == UNVERIFIED:
@@ -525,6 +542,31 @@ def test_an_openzeppelin_legacy_proxy_is_found(endpoint, tmp_path):
     assert found["implementation"].lower() == VERIFIED and found["admin"].lower() == DEPLOYER
     admin = online({"action": "storage", "address": ZOS, "slot": "zos.admin"}, endpoint, tmp_path)
     assert admin["value"].lower() == DEPLOYER
+
+
+def test_a_refused_log_range_is_split_and_what_was_not_read_is_named(endpoint, tmp_path):
+    data = engine({"action": "logs", "chain": "sepolia", "_rpc": endpoint, "address": LOGGY,
+                   "event": "Transfer(address,address,uint256)", "limit": 30}, tmp_path)["data"]
+    blocks = [event["block"] for event in data["events"]]
+    assert blocks == sorted(blocks, reverse=True) and blocks[0] == 1000 and len(blocks) == 30
+    assert all(event["event"] == "Transfer" for event in data["events"])
+    assert data["unread_ranges"] and all(r["reason"] == "event limit reached" for r in data["unread_ranges"])
+    assert max(r["to_block"] for r in data["unread_ranges"]) < min(blocks)
+    wide = engine({"action": "logs", "chain": "sepolia", "_rpc": endpoint, "address": LOGGY,
+                   "from_block": 1, "to_block": 300}, tmp_path)["data"]
+    assert wide["found"] == 30 and "unread_ranges" not in wide
+
+
+def test_logs_fail_only_when_no_range_could_be_read(endpoint, tmp_path):
+    down = engine({"action": "logs", "chain": "sepolia", "_rpc": endpoint, "address": DOWN}, tmp_path)
+    assert down["ok"] is False and "backend unavailable" in down["error"]
+    patchy = engine({"action": "logs", "chain": "sepolia", "_rpc": endpoint, "address": PATCHY}, tmp_path)
+    assert patchy["ok"] is True, patchy
+    data = patchy["data"]
+    assert data["found"] == 0 and data["events"] == []
+    unread = data["unread_ranges"]
+    assert unread and all("backend unavailable" in r["reason"] for r in unread)
+    assert all(r["to_block"] >= 900 for r in unread) and min(r["from_block"] for r in unread) <= 900
 
 
 def test_bad_requests_are_errors_not_crashes(endpoint, tmp_path):

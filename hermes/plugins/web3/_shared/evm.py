@@ -25,6 +25,7 @@ SCAN_BLOCKS = 10_000        # activity without a provider key: recent blocks sca
 ALLOWANCE_BLOCKS = 50_000   # allowances: recent blocks scanned by default
 MAX_SCAN_BLOCKS = 200_000
 MAX_LOGS = 100
+MAX_LOG_REQUESTS = 24      # eth_getLogs calls one logs action may spend splitting a refused range
 MAX_TOKENS = 40
 MAX_PORTFOLIO_CHAINS = 6
 MAX_TRACE_CALLS = 150
@@ -676,16 +677,58 @@ def logs(ctx, args) -> dict:
     if args.get("event"):
         event = str(args["event"])
         topics = [event if _HASH.match(event) else abi.known_event_topic(event)]
-    found = ctx.rpc.call("eth_getLogs", [{"address": contract, "fromBlock": hex(start), "toBlock": hex(end),
-                                           **({"topics": topics} if topics else {})}]) or []
     limit = _limit(args, MAX_LOGS, MAX_LOGS)
+    found, unread = _get_logs(ctx, contract, start, end, topics, limit)
     events = []
-    for log in found[-limit:][::-1]:
+    for log in found[:limit]:
         decoded = ctx.decoder.event(log)
         decoded.update(block=h2i(log.get("blockNumber")), tx=log.get("transactionHash"))
         events.append(decoded)
     return {"chain": ctx.chain, "contract": contract, "from_block": start, "to_block": end,
-            "found": len(found), "events": events, "omitted": max(len(found) - limit, 0)}
+            "found": len(found), "events": events, "omitted": max(len(found) - limit, 0),
+            **({"unread_ranges": unread} if unread else {})}
+
+
+def _too_large(error: ChainError) -> bool:
+    """An endpoint's way of saying "fewer blocks, please": HTTP 413, a result-size limit, or the
+    HTTP 500 a public endpoint gives a query too heavy to answer (splitting is bounded anyway)."""
+    text = str(error).lower()
+    return "http 413" in text or "http 500" in text or any(word in text for word in (
+        "too large", "exceed", "more than", "response size", "block range", "query timeout"))
+
+
+def _get_logs(ctx, contract: str, start: int, end: int, topics: list, want: int) -> tuple[list, list]:
+    """Logs newest first, and the ranges left unread. A range an endpoint refuses as too large is
+    split in halves (newest half first), within MAX_LOG_REQUESTS; once ``want`` events are in hand
+    the older ranges are left unread rather than fetched."""
+    found, unread, requests, reads, first_error = [], [], 0, 0, None
+    stack = [(start, end)]
+    while stack:
+        low, high = stack.pop()
+        if len(found) >= want:
+            unread.append({"from_block": low, "to_block": high, "reason": "event limit reached"})
+            continue
+        if requests >= MAX_LOG_REQUESTS:
+            unread.append({"from_block": low, "to_block": high, "reason": "request cap reached"})
+            continue
+        requests += 1
+        try:
+            got = ctx.rpc.call("eth_getLogs", [{"address": contract, "fromBlock": hex(low), "toBlock": hex(high),
+                                                **({"topics": topics} if topics else {})}]) or []
+        except ChainError as exc:
+            if _too_large(exc) and high > low:
+                middle = (low + high) // 2
+                stack += [(low, middle), (middle + 1, high)]  # the newer half is read first
+                continue
+            first_error = first_error or exc
+            unread.append({"from_block": low, "to_block": high, "reason": str(exc)[:200]})
+            continue
+        reads += 1
+        found += got[::-1]
+    if not reads and first_error:
+        raise first_error  # no range could be read at all: the plain error, as before
+    unread.sort(key=lambda r: r["from_block"])
+    return found, unread
 
 
 def token(ctx, args) -> dict:
