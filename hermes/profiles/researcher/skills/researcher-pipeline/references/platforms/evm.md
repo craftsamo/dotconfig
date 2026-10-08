@@ -22,6 +22,12 @@ The kernel's source evaluation and on-chain rules apply. In addition:
   pause, blocklist, fees, limits, trading, upgrade, control, funds) are
   Inference, a lead to check in the verified source or with `call`, never a
   finding by themselves.
+- **`risk`** — the tool's token-risk read. Who holds a role (its
+  `controllers`: a key, a Safe m-of-n, a timelock and its delay) is
+  Observation at the cited block; a finding that rests on a function's name
+  carries the tool's `confidence` (`medium` with verified source, `low` when
+  the code is unverified) and stays Inference until the source or a `call`
+  confirms it; `unknowns` are uncovered ground.
 
 ## Patterns
 
@@ -45,7 +51,18 @@ The kernel's source evaluation and on-chain rules apply. In addition:
    trail past the cap is a stated gap, not a guess.
 4. **Exposure.** `allowances` lists current ERC-20 approvals and NFT operators
    an address granted, flagging unlimited ones; `portfolio` its holdings.
-5. **History.** `call` and `storage` take a past `block` only on an RPC that
+5. **Is a token safe to hold.** Start with `risk`: it reads `contract` at one
+   block and names who holds each power. Weigh, in order: who can change the
+   code (an upgradeable proxy and its admin), who can create more (mint), who
+   can stop or seize holders (pause, blocklist, a single key on either), then
+   fees, limits and the funds the contract holds. A single key on a high
+   finding is the headline; a multisig or a timelock narrows it (say how many
+   signers, how long the delay), it does not clear it; renounced ownership
+   clears only owner-only functions, not a proxy admin. Confirm each high
+   finding in the verified source or with a `call` before stating it as fact,
+   and report holder concentration as unread on EVM unless another source
+   gives it. Give the findings, not a score or a verdict.
+6. **History.** `call` and `storage` take a past `block` only on an RPC that
    keeps history (an Alchemy key); a refusal leaves that point unknown. A proxy
    is read with the implementation it had then.
 

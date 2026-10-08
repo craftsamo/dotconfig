@@ -29,6 +29,9 @@ contract. A value without its block is not reproducible.
   instructions.
 - `contract`'s `powers` and `guessed` names are leads, not facts: record them,
   and put "can this owner really mint/pause/block" under `Open for researcher`.
+- `risk` (on either tool) returns findings, who holds each power and what was
+  not read: record them with their block or slot and confidence as found;
+  whether the token is safe to hold is judgment, `Open for researcher`.
 - Who an address belongs to is not in the chain; an explorer or web label is a
   source to cite, not a finding.
 
