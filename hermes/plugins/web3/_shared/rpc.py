@@ -99,6 +99,7 @@ class Rpc:
                 self.url = f"https://{entry['helius']}.helius-rpc.com/?api-key={urllib.parse.quote(key)}"
                 self.provider = "Helius"
         self.ids = 0
+        self.timeout = TIMEOUT
 
     @property
     def label(self) -> str:
@@ -108,7 +109,7 @@ class Rpc:
         request = urllib.request.Request(self.url, data=json.dumps(body).encode(), method="POST",
                                          headers={"Content-Type": "application/json", "User-Agent": USER_AGENT})
         try:
-            with urllib.request.urlopen(request, timeout=TIMEOUT) as response:
+            with urllib.request.urlopen(request, timeout=self.timeout) as response:
                 return json.loads(response.read())
         except urllib.error.HTTPError as exc:
             hint = " (rate-limited; a provider key in the Keychain lifts this)" if exc.code == 429 else ""

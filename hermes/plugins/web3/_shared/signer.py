@@ -16,7 +16,9 @@ as a single-use file that expires after ``QUOTE_TTL`` and carries an HMAC keyed 
 secret, so neither its transaction nor its card can be edited between approval and send. ``send``
 re-checks the MAC, the expiry, the hourly cap and — for a send approved as own — that the recipient
 really is one of the secrets' addresses; the quote is consumed and written to the ledger before it is
-broadcast. Quote files are deleted an hour after they expire, whenever a new quote is made: an
+broadcast. After the broadcast, with the lock released, the send waits up to ``CONFIRM_WAIT`` seconds
+for the transaction to land and reports ``confirmed``, ``failed`` (landed but reverted: only the fee
+was spent) or ``pending``, which the ledger records beside the outcome. Quote files are deleted an hour after they expire, whenever a new quote is made: an
 expired quote can never be sent, and the ledger, not the file, keeps a sent one from going again.
 
 ``wallet_check`` normalizes a new Hermes wallet's spec and returns its approval cards and digest;
@@ -58,6 +60,10 @@ from rpc import ChainError  # noqa: E402
 
 QUOTE_TTL = 900            # outlives the 600 s approval wait
 PRUNE_AFTER = 3600         # a quote's file is deleted this long after it expired
+CONFIRM_WAIT = 20          # seconds a send waits for its transaction to land, after the lock is released
+CONFIRM_POLL = 2
+POLL_TIMEOUT = 5           # per read while waiting
+SEND_BUDGET = 140          # a send's whole run stays this far inside the plugin's 180 s deadline
 OWN_INDEXES = 101          # each seed's accounts 0..100 count as own
 LIST_DEFAULT = 5           # accounts lists this many per seed unless asked for more
 GAS_MARGIN = Decimal("1.2")
@@ -845,6 +851,7 @@ def op_verify(payload: dict) -> dict:
 
 
 def op_send(payload: dict) -> dict:
+    started = time.time()
     state = _state(payload)
     approval = payload.get("approval")
     if approval not in ("own", "card"):
@@ -893,9 +900,73 @@ def op_send(payload: dict) -> dict:
             ledger.append(state, {**row, "outcome": "rejected", "error": type(exc).__name__})
             raise ChainError(f"not sent: the signer failed before broadcasting ({type(exc).__name__})") from None
         ledger.append(state, {**row, "outcome": "sent", "hash": sent})
+    # from here the transfer is sent: nothing may turn the reply into an error
+    try:
+        wait = payload.get("_confirm_wait", CONFIRM_WAIT) if rpc.testing() else CONFIRM_WAIT
+        landed = confirmation(ctx, family, sent, max(0.0, min(wait, SEND_BUDGET - (time.time() - started))))
+    except Exception:
+        landed = {"confirmation": "pending"}
+    try:
+        # appended without the lock: one short O_APPEND write, and a reader skips a line it cannot parse
+        ledger.append(state, {**row, "outcome": "sent", "hash": sent, **landed})
+    except Exception:
+        pass
     return {"sent": True, "hash": sent, "chain": quote["chain"], "amount": quote["amount"], "symbol": quote["symbol"],
-            "to": quote["to"], "explorer": chains.explorer(quote["chain"], "tx", sent),
-            "note": "use the status action with this hash for confirmation"}
+            "to": quote["to"], **landed, "explorer": chains.explorer(quote["chain"], "tx", sent),
+            "note": CONFIRM_NOTES[landed["confirmation"]]}
+
+
+def _landed(ctx: Ctx, family: str, sent: str) -> dict | None:
+    """Where a broadcast transaction stands, or None while it is not in a block (or not confirmed)."""
+    if family == "evm":
+        receipt = ctx.rpc.call("eth_getTransactionReceipt", [sent])
+        if not isinstance(receipt, dict) or receipt.get("status") not in ("0x0", "0x1"):
+            return None  # not in a block yet, or a receipt that says nothing
+        info = chains.EVM[ctx.chain]
+        landed = {"confirmation": "confirmed" if receipt["status"] == "0x1" else "failed",
+                  "block": evm.h2i(receipt.get("blockNumber"))}
+        if receipt.get("gasUsed") and receipt.get("effectiveGasPrice"):
+            spent = evm.h2i(receipt["gasUsed"]) * evm.h2i(receipt["effectiveGasPrice"])
+            spent += evm.h2i(receipt.get("l1Fee") or "0x0")  # the OP Stack's L1 data fee
+            landed["fee_paid"] = f"{plain(native_units(spent, info['decimals']))} {info['symbol']}"
+        return landed
+    got = ctx.rpc.call("getSignatureStatuses", [[sent], {"searchTransactionHistory": True}])
+    value = ((got or {}).get("value") or [None])[0] if isinstance(got, dict) else None
+    if not isinstance(value, dict):
+        return None
+    if value.get("err") is not None:
+        return {"confirmation": "failed", "slot": value.get("slot"), "error": json.dumps(value["err"])[:200]}
+    if value.get("confirmationStatus") in ("confirmed", "finalized"):
+        return {"confirmation": "confirmed", "slot": value.get("slot")}
+    return None
+
+
+def confirmation(ctx: Ctx, family: str, sent: str, wait: float) -> dict:
+    """Wait up to ``wait`` seconds for a sent transaction to land. A read that fails, however it fails,
+    counts as not yet: the transaction was sent either way."""
+    deadline = time.time() + wait
+    ctx.rpc.timeout = POLL_TIMEOUT
+    while True:
+        try:
+            found = _landed(ctx, family, sent)
+        except Exception:
+            found = None
+        if found:
+            return found
+        left = deadline - time.time()
+        if left <= 0:
+            return {"confirmation": "pending"}
+        time.sleep(min(CONFIRM_POLL, left))
+        if deadline - time.time() < POLL_TIMEOUT / 2:
+            return {"confirmation": "pending"}  # no room for another read
+
+
+CONFIRM_NOTES = {
+    "confirmed": "in a block; the status action reports later confirmations",
+    "failed": "the transaction landed but failed: the amount did not move and the fee was spent; never send it "
+              "again on your own, tell the user",
+    "pending": "broadcast but not in a block yet; check with the status action and never send again meanwhile",
+}
 
 
 def op_status(payload: dict) -> dict:

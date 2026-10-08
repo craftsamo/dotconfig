@@ -128,7 +128,9 @@ WALLET_HELP = (
     "the user to fix. quote (account = an id from accounts like hermes/HERMES_MAIN#0, chain, to = the "
     "recipient, amount in whole units like 0.05, token = contract or mint, omitted for the native coin): "
     "checks, builds and simulates the exact transfer and returns a quote id, whether the recipient is the "
-    "user's own Hermes wallet, and the approval card text. transfer (quote): sends exactly that quote, once. "
+    "user's own Hermes wallet, and the approval card text. transfer (quote): sends exactly that quote, once, "
+    "then waits up to 20 s and says whether it landed: confirmed, failed (reverted: only the fee was spent) or "
+    "pending. "
     "To one of the user's own Hermes wallets it runs at once; to anyone else, watch-only wallets included, "
     "Hermes shows the user an approval card with the quote's details and sends only if the user approves; "
     "tell the user to answer 'once'. A denied, expired or failed transfer is never retried on your own: "
@@ -302,8 +304,9 @@ def engine(script: Path, payload: dict, deadline: int) -> dict:
         proc = subprocess.run([str(VENV_PYTHON), str(script)], input=json.dumps(payload), capture_output=True,
                               text=True, timeout=deadline, env=_env(), cwd=tempfile.gettempdir())
     except subprocess.TimeoutExpired:
-        return {"ok": False, "error": f"the web3 engine did not finish within {deadline}s; narrow a read, or for "
-                                      "a transfer or a new wallet check the accounts before trying again"}
+        return {"ok": False, "error": f"the web3 engine did not finish within {deadline}s; narrow a read. A "
+                                      "transfer may already have been sent and a new wallet may exist: check with "
+                                      "status, the balance or accounts before anything else, never retry blindly"}
     try:
         reply = json.loads(proc.stdout)
     except ValueError:

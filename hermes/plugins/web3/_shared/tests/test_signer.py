@@ -58,7 +58,7 @@ SOL_STRANGER = "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM"
 DEV_USDC = "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU"
 TOKEN = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
 
-FAKE = {"broadcast": "ok", "sent": [], "token_ata_exists": False, "symbol": "USDC"}
+FAKE = {"broadcast": "ok", "sent": [], "token_ata_exists": False, "symbol": "USDC", "landed": "success"}
 
 
 def word(value: int) -> str:
@@ -101,6 +101,20 @@ def handle(method: str, params: list):
             return None, {"code": -32000, "message": "nonce too low"}
         FAKE["sent"].append(params[0])
         return ("0x" + "ab" * 32 if method == "eth_sendRawTransaction" else "5" * 88), None
+    if method == "eth_getTransactionReceipt":
+        if FAKE["landed"] == "pending":
+            return None, None
+        if FAKE["landed"] == "garbage":
+            return "not a receipt", None
+        if FAKE["landed"] == "error":
+            return None, {"code": -32603, "message": "internal error"}
+        return {"status": "0x1" if FAKE["landed"] == "success" else "0x0", "blockNumber": "0x11",
+                "gasUsed": hex(21000), "effectiveGasPrice": hex(10 ** 9)}, None
+    if method == "getSignatureStatuses":
+        if FAKE["landed"] == "pending":
+            return {"value": [{"slot": 7, "confirmationStatus": "processed", "err": None}]}, None
+        err = None if FAKE["landed"] == "success" else {"InstructionError": [0, "Custom"]}
+        return {"value": [{"slot": 7, "confirmationStatus": "confirmed", "err": err}]}, None
     # Solana
     if method == "getAccountInfo":
         address = params[0]
@@ -162,7 +176,7 @@ def endpoint():
 
 @pytest.fixture(autouse=True)
 def fresh():
-    FAKE.update(broadcast="ok", sent=[], token_ata_exists=False, symbol="USDC")
+    FAKE.update(broadcast="ok", sent=[], token_ata_exists=False, symbol="USDC", landed="success")
 
 
 def _env(tmp_path: Path) -> dict:
@@ -171,7 +185,7 @@ def _env(tmp_path: Path) -> dict:
 
 def signer(tmp_path: Path, endpoint: str, op: str, **fields) -> dict:
     payload = {"op": op, "state": str(tmp_path / "state"), "_sources": fields.pop("_sources", SOURCES),
-               "_rpc": endpoint, "_offline": True, **fields}
+               "_rpc": endpoint, "_offline": True, "_confirm_wait": fields.pop("_confirm_wait", 0), **fields}
     proc = subprocess.run([str(PYTHON), str(SIGNER)], input=json.dumps(payload), capture_output=True, text=True,
                           timeout=120, env=_env(tmp_path))
     for leaked in ("test test test", "abandon abandon", "legal winner", "4c4c4c4c", "real phrase"):
@@ -374,7 +388,8 @@ def test_a_quote_sends_once_exactly_as_quoted(tmp_path, endpoint):
     tx = decode(tmp_path, "sepolia", FAKE["sent"][0])
     assert tx["from"] == OPS and tx["chain"] == "sepolia" and tx["to"] == USDC and tx["nonce"] == 4
     assert tx["call"]["function"] == "transfer" and tx["call"]["args"] == {"to": STRANGER, "amount": 10_000_000}
-    assert [row["outcome"] for row in ledger(tmp_path)] == ["unknown", "sent"]
+    assert [row["outcome"] for row in ledger(tmp_path)] == ["unknown", "sent", "sent"]
+    assert ledger(tmp_path)[-1]["confirmation"] == "confirmed"
     again = send(tmp_path, endpoint, data["quote"], "card")
     assert again["ok"] is False and "already used" in again["error"]
     assert len(FAKE["sent"]) == 1
@@ -408,6 +423,55 @@ def test_old_quote_files_are_deleted_when_a_new_quote_is_made(tmp_path, endpoint
     again = send(tmp_path, endpoint, sent["quote"], "own")
     assert again["ok"] is False and "no quote" in again["error"]
     assert len(FAKE["sent"]) == 1
+
+
+@pytest.mark.parametrize("landed, confirmation", [("success", "confirmed"), ("reverted", "failed"),
+                                                   ("pending", "pending")])
+def test_a_send_reports_whether_its_transaction_landed(tmp_path, endpoint, landed, confirmation):
+    FAKE["landed"] = landed
+    data = quote(tmp_path, endpoint, to=SPARE, amount="0.01")
+    sent = send(tmp_path, endpoint, data["quote"], "own")
+    assert sent["ok"] and sent["data"]["confirmation"] == confirmation, sent
+    if confirmation == "pending":
+        assert "status action" in sent["data"]["note"] and "block" not in sent["data"]
+    else:
+        assert sent["data"]["block"] == 17
+    if confirmation == "failed":
+        assert "fee was spent" in sent["data"]["note"] and sent["data"]["fee_paid"] == "0.000021 ETH"
+    rows = ledger(tmp_path)
+    assert [r["outcome"] for r in rows] == ["unknown", "sent", "sent"]
+    assert rows[-1]["confirmation"] == confirmation and rows[-1]["hash"] == "0x" + "ab" * 32
+
+
+@pytest.mark.parametrize("landed", ["garbage", "error"])
+def test_nothing_after_the_broadcast_turns_a_send_into_an_error(tmp_path, endpoint, landed):
+    FAKE["landed"] = landed
+    data = quote(tmp_path, endpoint, to=SPARE, amount="0.01")
+    sent = send(tmp_path, endpoint, data["quote"], "own")
+    assert sent["ok"] and sent["data"]["sent"] is True and sent["data"]["confirmation"] == "pending", sent
+    assert sent["data"]["hash"] == "0x" + "ab" * 32 and len(FAKE["sent"]) == 1
+
+
+def test_a_send_waits_for_its_transaction_until_the_deadline(tmp_path, endpoint):
+    import time
+    FAKE["landed"] = "pending"
+    data = quote(tmp_path, endpoint, to=SPARE, amount="0.01")
+    started = time.time()
+    sent = send(tmp_path, endpoint, data["quote"], "own", _confirm_wait=7)
+    assert sent["data"]["confirmation"] == "pending" and 4 <= time.time() - started < 20
+
+
+@pytest.mark.parametrize("landed, confirmation", [("success", "confirmed"), ("reverted", "failed"),
+                                                   ("pending", "pending")])
+def test_a_solana_send_reports_whether_it_landed(tmp_path, endpoint, landed, confirmation):
+    FAKE["landed"] = landed
+    data = quote(tmp_path, endpoint, chain="solana-devnet", account=f"{MAIN}#0", to=SOL_SPARE, amount="0.01")
+    sent = send(tmp_path, endpoint, data["quote"], "own")
+    assert sent["ok"] and sent["data"]["confirmation"] == confirmation, sent
+    if confirmation != "pending":
+        assert sent["data"]["slot"] == 7
+    if confirmation == "failed":
+        assert "InstructionError" in sent["data"]["error"]
 
 
 def test_seed_accounts_and_keys_sign_with_their_own_secret(tmp_path, endpoint):

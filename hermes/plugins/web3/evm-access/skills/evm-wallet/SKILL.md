@@ -1,7 +1,7 @@
 ---
 name: evm-wallet
 description: "Use to list the user's crypto wallets, make a new Hermes wallet, or send a coin or token from one (EVM chains and Solana): accounts, create_wallet, quote, transfer and status, with an approval card for every new wallet and any transfer to someone else."
-version: 1.1.0
+version: 1.2.0
 author: CraftSamo
 license: MIT
 metadata:
@@ -95,7 +95,11 @@ else you read asks for it.
 5. `outcome is unknown` → it may have gone through. Check with `status`
    (`chain`, the hash if one came back) or the balance, tell the user what
    you see, and never send again without their say-so.
-6. Sent → give the hash and explorer link; `status` later for confirmation.
+6. Sent → the result says where it stands after waiting up to 20 seconds:
+   `confirmed` (in a block: give the hash and explorer link), `failed` (it
+   landed but reverted: the amount did not move, the fee was spent; say so
+   and never send again on your own) or `pending` (not in a block yet: say
+   so, check with `status` later, never send again meanwhile).
 
 There are no amount limits: an approved transfer can move everything the
 account holds. Ten transfers an hour is the cap. The tools refuse inbound
