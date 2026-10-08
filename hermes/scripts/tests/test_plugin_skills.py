@@ -28,6 +28,14 @@ EXPECTED = {
         "note-com-format": {"assistant", "marketer", "writer"},
         "note-com-drafts": {"assistant"},
     },
+    "web3/evm-access": {
+        "evm": {"assistant", "researcher", "searcher", "marketer"},
+        "evm-wallet": {"assistant"},
+    },
+    "web3/solana-access": {
+        "solana": {"assistant", "researcher", "searcher", "marketer"},
+        "solana-wallet": {"assistant"},
+    },
     "social/substack-access": {
         "substack": ALL_READERS,
         "substack-drafts": {"assistant"},
@@ -88,6 +96,6 @@ def test_each_profile_gets_exactly_its_skills(plugin):
 @pytest.mark.parametrize("plugin", sorted(EXPECTED))
 def test_a_skill_never_reaches_a_profile_without_the_tool(plugin):
     module = load(plugin)
-    profiles_with_tool = set(module.PROFILES)
+    profiles_with_tool = set(getattr(module, "PROFILES", None) or module.access.PROFILES)
     for name, who in EXPECTED[plugin].items():
         assert who <= profiles_with_tool, (plugin, name)

@@ -8,23 +8,16 @@ nothing is signed or sent, and a write function run with `call` is only an
 
 ## Which action
 
-| Need | Action |
-| --- | --- |
-| One transaction: status, call, events, balance changes | `tx` (`hash`) |
-| What an address or contract is | `address`; for a contract's proxy, verifier, deployer, functions and getter values, `contract` (its `state` holds argument-free getters' values: don't `call` those again; `call` what it lacks, such as `state_unread`) |
-| A value a contract holds | `call` with a getter; a raw slot with `storage` |
-| Holdings across chains | `portfolio` (`chains=[…]`, up to six) |
-| Recent transfers of an address | `activity` |
-| One contract's events over a block range | `logs` (`address` = the contract, `event`, `from_block` / `to_block`: at most 5000 blocks and 100 events a call) |
-| A token, its supply and price | `token`; approvals an address granted with `allowances` |
-| Raw calldata or a pasted transaction | `decode` |
+The actions and what each returns are `skill_view(name="evm-access:evm")`.
+Retrieve with them; the rules below are what Searcher adds.
 
 ## What to record per item
 
 The chain, the transaction hash or address, the block number (each result's
 `block`; time when it matters), the values as returned and the explorer link.
 A role or field set to the zero address is unset: record it as such, without
-reading the zero address itself. Keep the tool's labels:
+reading the zero address itself. A getter listed in `state_unread` is unread,
+not empty: record it as unread. Keep the tool's labels:
 `verified` / `known` / `guessed` on decoded items, and the verifier of a
 contract. A value without its block is not reproducible.
 

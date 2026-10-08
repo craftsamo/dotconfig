@@ -70,8 +70,10 @@ def _load(name, path):
 chains = _load("hermes_web3_chains", HERE / "chains.py")
 guard = _load("hermes_web3_guard", HERE / "guard.py")
 
-FAMILY = {"evm": {"tool": "evm", "toolset": "evm_access", "chains": list(chains.EVM)},
-          "solana": {"tool": "solana", "toolset": "solana_access", "chains": list(chains.SOLANA)}}
+FAMILY = {"evm": {"tool": "evm", "toolset": "evm_access", "chains": list(chains.EVM),
+                  "skill": "evm-access:evm", "wallet_skill": "evm-access:evm-wallet"},
+          "solana": {"tool": "solana", "toolset": "solana_access", "chains": list(chains.SOLANA),
+                     "skill": "solana-access:solana", "wallet_skill": "solana-access:solana-wallet"}}
 
 READ_HELP = {
     "evm": (
@@ -191,7 +193,9 @@ def schema_for(family: str, profile: str) -> dict:
     description = (
         f"{'EVM chains' if family == 'evm' else 'Solana'} — {scope}. Every call names an action and a chain "
         f"(mainnets: {', '.join(mainnets)}; testnets: {', '.join(testnets)}). "
-        + READ_HELP[family] + UNTRUSTED + (WALLET_HELP if signing else ""))
+        + READ_HELP[family] + UNTRUSTED + (WALLET_HELP if signing else "")
+        + f' Before sustained reading, load skill_view(name="{spec["skill"]}")'
+        + (f' and, for the wallet actions, skill_view(name="{spec["wallet_skill"]}").' if signing else "."))
     return {"name": spec["tool"], "description": description, "parameters": {
         "type": "object", "properties": properties, "required": ["action"], "additionalProperties": False}}
 
