@@ -481,6 +481,63 @@ def test_catalog_shows_each_roles_alternate_and_which_roles_allow_the_callers_mo
     assert listed["allow_yours"] == ["plan"]
 
 
+def preflight(directory, **kwargs):
+    return json.loads(plugin.opencode_preflight(dict(directory=str(directory), **kwargs)))
+
+
+def test_preflight_answers_one_line_when_healthy(fixture):
+    _, directory, _, _ = fixture
+    out = preflight(directory)
+    assert out["ok"] is True and "issues" not in out
+    assert out["summary"] == "ready: OpenCode 2.0.23, roles build, debug, plan, review, branch topic, plan"
+
+
+def test_preflight_reports_only_the_findings_when_a_role_cannot_run(fixture):
+    home, directory, _, _ = fixture
+    configure(home, "  roles:\n    plan: {agent: plan, policy: read-only, model: 'openai/gpt-9'}\n"
+                    "    review: {agent: review, policy: read-only}\n")
+    out = preflight(directory)
+    assert out["ok"] is False and "summary" not in out
+    assert [i["what"] for i in out["issues"]] == ["role plan: OpenCode does not offer openai/gpt-9; no run launched"]
+
+
+def test_preflight_warns_when_a_role_default_is_the_callers_own_model(fixture):
+    home, directory, _, _ = fixture
+    configure(home, "  roles:\n    plan: {agent: plan, policy: read-only, alternate: 'openai/gpt-6.1-sol#high'}\n"
+                    "model:\n  default: claude-opus-5-5\n")
+    out = preflight(directory)
+    assert out["ok"] is True
+    [issue] = out["issues"]
+    assert issue["level"] == "warn" and "your own model" in issue["what"] and "openai/gpt-6.1-sol#high" in issue["what"]
+    configure(home, "  roles:\n    plan: {agent: plan, policy: read-only, caller_model: allow}\n"
+                    "model:\n  default: claude-opus-5-5\n")
+    assert preflight(directory)["ok"] is True and "issues" not in preflight(directory)
+
+
+def test_preflight_for_a_build_needs_a_task_branch_and_a_free_worktree(fixture):
+    home, directory, _, fake = fixture
+    subprocess.run(["git", "-C", str(directory), "branch", "-m", "main"], check=True, capture_output=True)
+    out = preflight(directory, phase="build")
+    assert out["ok"] is False and "never the default branch" in out["issues"][0]["what"]
+    subprocess.run(["git", "-C", str(directory), "switch", "-c", "task/x"], check=True, capture_output=True)
+    assert preflight(directory, phase="build")["ok"] is True
+    (directory / "scratch.txt").write_text("x")
+    [issue] = preflight(directory, phase="build")["issues"]
+    assert issue["level"] == "warn" and "1 uncommitted" in issue["what"]
+    fake.active.add("ses_busy")
+    fake.sessions["ses_busy"] = {"id": "ses_busy", "location": {"directory": str(directory)}}
+    busy = preflight(directory, phase="build")
+    assert busy["ok"] is False and "ses_busy" in " ".join(i["what"] for i in busy["issues"])
+
+
+def test_preflight_rejects_bad_arguments(fixture):
+    _, directory, _, _ = fixture
+    assert "phase must be" in preflight(directory, phase="ship")["error"]
+    assert "Unexpected" in preflight(directory, extra=1)["error"]
+    assert "output_dir" in preflight(directory, output_dir="/not/a/draft")["issues"][0]["what"]
+    assert "absolute" in json.loads(plugin.opencode_preflight({"directory": "relative"}))["error"]
+
+
 def test_model_key_folds_speed_tiers_and_snapshots():
     key = models.model_key
     assert key("anthropic/claude-opus-5-5-fast") == key("claude-opus-5-5-20251001") == "claude-opus-5-5"
@@ -804,7 +861,8 @@ def test_roles_become_tools(fixture, monkeypatch):
     assert context.hooks == [("post_api_request", models.observe)]
     assert set(context.tools) == {"opencode_run_plan", "opencode_run_review", "opencode_run_debug",
                                   "opencode_run_build", "opencode_session", "opencode_request",
-                                  "opencode_instructions", "opencode_catalog", "opencode_history"}
+                                  "opencode_instructions", "opencode_catalog", "opencode_history",
+                                  "opencode_preflight"}
     build = context.tools["opencode_run_build"]["schema"]["parameters"]
     plan = context.tools["opencode_run_plan"]["schema"]["parameters"]
     assert {"approval", "issue_approval"} <= set(build["properties"]) and "approval" not in plan["properties"]
