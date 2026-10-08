@@ -35,6 +35,9 @@ TX_TYPES = {0: "legacy", 1: "access-list", 2: "eip-1559", 3: "blob", 4: "set-cod
 EIP1967_IMPL = "0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc"
 EIP1967_BEACON = "0xa3f0ad74e5423aebfd80d3ef4346578335a9a72aeaee59ff6cb3582b35133d50"
 EIP1967_ADMIN = "0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103"
+# OpenZeppelin's pre-EIP-1967 (zos) proxies, still behind long-lived tokens such as USDC.
+ZOS_IMPL = "0x7050c9e0f4ca769c69bd3a8ef740bc37934f8e2c036e5a723fd8ee048ed3f8c3"
+ZOS_ADMIN = "0x10d6a54a4754c8869d6886b5f5d7fbfa5b4522237ea5c60d11bc4e7a1ff9390b"
 ENS_REGISTRY = "0x00000000000C2E074eC69A0dFb2997BA6C7d2e1e"
 SEL = {"name": "06fdde03", "symbol": "95d89b41", "decimals": "313ce567", "totalSupply": "18160ddd",
        "balanceOf": "70a08231", "allowance": "dd62ed3e", "isApprovedForAll": "e985e9c5",
@@ -182,6 +185,23 @@ def block_param(value) -> str:
     if isinstance(value, str) and re.match(r"^0x[0-9a-fA-F]{1,16}$", value):
         return value.lower()
     raise ChainError("block must be a number, a block hash, or latest / safe / finalized")
+
+
+def pin(ctx, value) -> tuple[str, int | None]:
+    """(block parameter, block number) for a read: a tag is resolved to the block it means now,
+    so every read of one action sees the same block and the result can name it."""
+    tag = block_param(value)
+    if tag == "latest":
+        number = h2i(ctx.rpc.call("eth_blockNumber"))
+        return hex(number), number
+    if tag in ("safe", "finalized", "earliest"):
+        found = ctx.rpc.call("eth_getBlockByNumber", [tag, False]) or {}
+        if found.get("number"):
+            return found["number"], h2i(found["number"])
+        return tag, None
+    if tag == "pending":
+        return tag, None
+    return tag, h2i(tag)
 
 
 def _native(ctx) -> dict:
@@ -423,9 +443,10 @@ def _balance_changes(ctx, found: dict, logs: list[dict], fee: int, success: bool
 
 def address(ctx, args) -> dict:
     target, ens = resolve_address(ctx, args.get("address"))
-    balance, nonce, code = ctx.rpc.batch([("eth_getBalance", [target, "latest"]),
-                                          ("eth_getTransactionCount", [target, "latest"]),
-                                          ("eth_getCode", [target, "latest"])])
+    block, number = pin(ctx, None)
+    balance, nonce, code = ctx.rpc.batch([("eth_getBalance", [target, block]),
+                                          ("eth_getTransactionCount", [target, block]),
+                                          ("eth_getCode", [target, block])])
     native = _native(ctx)
     price = ctx.prices.native(ctx.chain)
     code = code or "0x"
@@ -433,7 +454,7 @@ def address(ctx, args) -> dict:
     result = {"chain": ctx.chain, "address": target, "ens": ens or reverse_ens(ctx, target),
               "balance": units(h2i(balance), native["decimals"]), "symbol": native["symbol"],
               "balance_usd": usd(as_float(h2i(balance), native["decimals"]), price), "nonce": h2i(nonce),
-              "explorer": chains.explorer(ctx.chain, "address", target)}
+              "block": number, "explorer": chains.explorer(ctx.chain, "address", target)}
     if raw.startswith(b"\xef\x01\x00") and len(raw) == 23:
         result.update(kind="EOA with delegated code (EIP-7702)", delegate_to=checksum("0x" + raw[3:].hex()))
         return result
@@ -441,10 +462,10 @@ def address(ctx, args) -> dict:
         result["kind"] = "EOA (no code)"
         return result
     result.update(kind="contract", code_size=len(raw))
-    proxy = _proxy(ctx, target, raw)
+    proxy = _proxy(ctx, target, raw, block)
     if proxy:
         result["proxy"] = proxy
-    result["standards"] = _standards(ctx, target)
+    result["standards"] = _standards(ctx, target, block)
     entries, name = ctx.decoder.contract(target, (proxy or {}).get("implementation"))
     result["verified"] = bool(entries)
     if name:
@@ -453,16 +474,20 @@ def address(ctx, args) -> dict:
 
 
 def _proxy(ctx, target: str, raw: bytes, block: str = "latest") -> dict | None:
-    """A proxy read from the chain at a block: EIP-1167 code, or the EIP-1967 implementation /
-    beacon / admin slots."""
+    """A proxy read from the chain at a block: EIP-1167 code, the EIP-1967 implementation /
+    beacon / admin slots, or OpenZeppelin's legacy (zos) implementation / admin slots."""
     m = re.match(rb"^\x36\x3d\x3d\x37\x3d\x3d\x3d\x36\x3d\x73(.{20})\x5a\xf4", raw, re.S)
     if m:
         return {"type": "EIP-1167 minimal proxy", "implementation": checksum("0x" + m.group(1).hex())}
-    impl, beacon, admin = ctx.rpc.batch([("eth_getStorageAt", [target, slot, block])
-                                         for slot in (EIP1967_IMPL, EIP1967_BEACON, EIP1967_ADMIN)])
+    impl, beacon, admin, zos_impl, zos_admin = ctx.rpc.batch([
+        ("eth_getStorageAt", [target, slot, block])
+        for slot in (EIP1967_IMPL, EIP1967_BEACON, EIP1967_ADMIN, ZOS_IMPL, ZOS_ADMIN)])
     proxy = {}
     if impl and int(impl, 16):
         proxy = {"type": "EIP-1967", "implementation": checksum("0x" + impl[-40:])}
+    elif zos_impl and int(zos_impl, 16):
+        proxy = {"type": "OpenZeppelin legacy (zos)", "implementation": checksum("0x" + zos_impl[-40:])}
+        admin = zos_admin
     elif beacon and int(beacon, 16):
         proxy = {"type": "EIP-1967 beacon", "beacon": checksum("0x" + beacon[-40:])}
         got = ctx.rpc.try_call("eth_call", [{"to": proxy["beacon"], "data": "0x" + SEL["implementation"]},
@@ -474,10 +499,10 @@ def _proxy(ctx, target: str, raw: bytes, block: str = "latest") -> dict | None:
     return proxy or None
 
 
-def _standards(ctx, target: str) -> list[str]:
+def _standards(ctx, target: str, block: str = "latest") -> list[str]:
     calls = [("eth_call", [{"to": target, "data": "0x" + SEL["supportsInterface"] + iface.ljust(64, "0")},
-                           "latest"]) for iface in INTERFACES.values()]
-    calls += [("eth_call", [{"to": target, "data": "0x" + SEL[f]}, "latest"]) for f in ("decimals", "totalSupply")]
+                           block]) for iface in INTERFACES.values()]
+    calls += [("eth_call", [{"to": target, "data": "0x" + SEL[f]}, block]) for f in ("decimals", "totalSupply")]
     results = ctx.rpc.batch(calls)
     found = [name for name, got in zip(INTERFACES, results) if got and len(_bytes(got)) >= 32 and _bytes(got)[31] == 1]
     if not found and all(r and len(_bytes(r)) >= 32 for r in results[len(INTERFACES):]):

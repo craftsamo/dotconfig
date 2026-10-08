@@ -247,7 +247,8 @@ def address(ctx, args) -> dict:
     info = ctx.rpc.call("getAccountInfo", [target, {"encoding": "jsonParsed", "commitment": "confirmed"}])
     value = (info or {}).get("value")
     price = ctx.prices.native(ctx.chain)
-    result = {"chain": ctx.chain, "address": target, "explorer": chains.explorer(ctx.chain, "account", target)}
+    result = {"chain": ctx.chain, "address": target, "slot": ((info or {}).get("context") or {}).get("slot"),
+              "explorer": chains.explorer(ctx.chain, "account", target)}
     if not value:
         result.update(exists=False, balance="0", note="no account at this address (never funded or closed)")
         return result
@@ -281,7 +282,8 @@ def token(ctx, args) -> dict:
     decimals = details.get("decimals") or 0
     supply = int(details.get("supply") or 0)
     text = format(Decimal(supply) / (Decimal(10) ** decimals), "f")
-    result = {"chain": ctx.chain, "mint": mint, "program": program_name(value.get("owner")),
+    result = {"chain": ctx.chain, "mint": mint, "slot": ((info or {}).get("context") or {}).get("slot"),
+              "program": program_name(value.get("owner")),
               "known_symbol": chains.KNOWN_MINTS.get(ctx.chain, {}).get(mint),
               "decimals": decimals, "supply": text.rstrip("0").rstrip(".") if "." in text else text,
               "mint_authority": details.get("mintAuthority"), "freeze_authority": details.get("freezeAuthority"),
@@ -306,7 +308,8 @@ def program(ctx, args) -> dict:
     if not value.get("executable"):
         raise ChainError(f"{target} is not a program (owner {value.get('owner')}); address tells what it is")
     loader = value.get("owner")
-    result = {"chain": ctx.chain, "program": target, "name": program_name(target), "loader": loader,
+    result = {"chain": ctx.chain, "program": target, "slot": ((info or {}).get("context") or {}).get("slot"),
+              "name": program_name(target), "loader": loader,
               "explorer": chains.explorer(ctx.chain, "account", target)}
     if loader == UPGRADEABLE_LOADER:
         parsed = (value.get("data") or {}).get("parsed") if isinstance(value.get("data"), dict) else None
@@ -328,10 +331,12 @@ def program(ctx, args) -> dict:
 
 def _account_bytes(ctx, address: str, length: int | None = None) -> tuple[bytes, dict] | None:
     config = {"encoding": "base64", **({"dataSlice": {"offset": 0, "length": length}} if length else {})}
-    value = ((ctx.rpc.call("getAccountInfo", [address, config]) or {}).get("value"))
+    reply = ctx.rpc.call("getAccountInfo", [address, config]) or {}
+    value = reply.get("value")
     if not value:
         return None
     data = value.get("data")
+    value = {**value, "_slot": (reply.get("context") or {}).get("slot")}
     return (base64.b64decode(data[0]) if isinstance(data, list) and data else b""), value
 
 
@@ -341,8 +346,9 @@ def _program_data(ctx, address: str) -> dict:
         return {"program_data": address, "upgradeable": None}
     raw, value = found
     authority = base58(raw[13:45]) if raw[12] == 1 and len(raw) >= 45 else None
-    return {"program_data": address, "upgradeable": authority is not None, "upgrade_authority": authority,
-            "last_deployed_slot": int.from_bytes(raw[4:12], "little"), "size": value.get("space")}
+    return {"program_data": address, "program_data_slot": value.get("_slot"), "upgradeable": authority is not None,
+            "upgrade_authority": authority, "last_deployed_slot": int.from_bytes(raw[4:12], "little"),
+            "size": value.get("space")}
 
 
 def _loader_v4(ctx, address: str) -> dict:
@@ -351,7 +357,7 @@ def _loader_v4(ctx, address: str) -> dict:
         return {"upgradeable": None}
     raw, value = found
     status = {0: "retracted", 1: "deployed", 2: "finalized"}.get(int.from_bytes(raw[40:48], "little"), "unknown")
-    return {"upgradeable": status != "finalized", "status": status,
+    return {"upgradeable": status != "finalized", "status": status, "program_data_slot": value.get("_slot"),
             **({"upgrade_authority": base58(raw[8:40])} if status != "finalized" else {}),
             "last_deployed_slot": int.from_bytes(raw[:8], "little"), "size": value.get("space")}
 
@@ -367,7 +373,7 @@ def _idl(ctx, target: str) -> dict | None:
     found = _account_bytes(ctx, address)
     if not found or len(found[0]) < 44:
         return None
-    raw = found[0]
+    raw, idl_slot = found[0], found[1].get("_slot")
     size = int.from_bytes(raw[40:44], "little")
     try:
         inflater = zlib.decompressobj()
@@ -380,7 +386,8 @@ def _idl(ctx, target: str) -> dict | None:
     if not isinstance(idl, dict):
         return {"address": address, "authority": base58(raw[8:40]), "readable": False}
     meta = idl.get("metadata") if isinstance(idl.get("metadata"), dict) else {}
-    out = {"address": address, "authority": base58(raw[8:40]), "name": _ident(meta.get("name") or idl.get("name")),
+    out = {"address": address, "slot": idl_slot, "authority": base58(raw[8:40]),
+           "name": _ident(meta.get("name") or idl.get("name")),
            "version": _ident(meta.get("version") or idl.get("version"))}
     if meta.get("description"):
         out["description"] = abi.untrusted(meta["description"])
