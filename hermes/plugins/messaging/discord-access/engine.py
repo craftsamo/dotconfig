@@ -1128,16 +1128,28 @@ def _hits(groups) -> list[dict]:
     return out
 
 
-def search(client: Client, *, query: str, guild=None, channel=None, offset: int = 0, limit: int = 25,
-           min_id=None, max_id=None) -> dict:
+HAS_VALUES = {"file", "embed", "link", "sticker"}
+
+
+def search(client: Client, *, query: str = "", guild=None, channel=None, offset: int = 0, limit: int = 25,
+           min_id=None, max_id=None, author=None, has=None) -> dict:
     """Discord's own search: one server (optionally one of its channels), one DM or group DM, or
-    every DM at once (no guild or channel)."""
-    terms = {"content": query, "offset": offset, "limit": limit, "sort_by": "timestamp", "sort_order": "desc"}
+    every DM at once (no guild or channel). ``author`` (a user id) and ``has`` filter like the web
+    client's; the query may be empty when one of them is given."""
+    terms = {"offset": offset, "limit": limit, "sort_by": "timestamp", "sort_order": "desc"}
+    if query:
+        terms["content"] = query
     if min_id:
         terms["min_id"] = str(min_id)
     if max_id:
         terms["max_id"] = str(max_id)
     params = {k: str(v) for k, v in terms.items()}
+    if author:
+        params["author_id"] = str(author)
+        terms["author_id"] = [str(author)]    # the tabbed search takes arrays
+    if has:
+        params["has"] = has
+        terms["has"] = [has]
     if guild:
         if channel:
             params["channel_id"] = str(channel)
@@ -1586,12 +1598,16 @@ def run(command: str, args: dict, *, http=None, token=None) -> dict:
             return friends(client)
         if command == "search":
             query = args.get("query")
-            if not isinstance(query, str) or not query.strip():
+            query = query.strip()[:1024] if isinstance(query, str) else ""
+            author, has = _arg(args, "author", required=False), args.get("has")
+            if has is not None and has not in HAS_VALUES:
+                raise EngineError("usage", "has must be one of " + ", ".join(sorted(HAS_VALUES)))
+            if not (query or author or has):
                 raise EngineError("usage", "query is required")
-            return search(client, query=query.strip()[:1024], guild=_arg(args, "guild", required=False),
+            return search(client, query=query, guild=_arg(args, "guild", required=False),
                           channel=_arg(args, "channel", required=False), offset=_int(args, "offset", 0, 9975),
                           limit=_int(args, "limit", 25, 25) or 25, min_id=_arg(args, "min_id", required=False),
-                          max_id=_arg(args, "max_id", required=False))
+                          max_id=_arg(args, "max_id", required=False), author=author, has=has)
         if command == "roles":
             return roles(client, _arg(args, "guild"))
         if command == "member":
