@@ -461,6 +461,14 @@ grep -q '^#no-env# export TEST_SEED=' "$TD/noenv.env" 2>/dev/null \
 ( source "$TD/noenv.env"; [[ -z ${TEST_SEED-} ]] ) \
   && ok "sourcing an env export never exports it" || bad "sourcing an env export never exports it"
 
+# --- non-ASCII attributes (security dumps them as hex) read back as text ---
+print -r -- 'v' | secret set TEST_UTF8 -p $P -j 'テスト用 · memo' --stdin >/dev/null 2>&1
+[[ "$(secret ls -p $P --long)" == *'テスト用 · memo'* ]] \
+  && ok "ls --long shows a non-ASCII comment as text" || bad "ls --long shows a non-ASCII comment as text"
+[[ "$(secret show TEST_UTF8 -p $P)" == *'テスト用 · memo'* ]] \
+  && ok "show shows a non-ASCII comment as text" || bad "show shows a non-ASCII comment as text"
+secret rm TEST_UTF8 -p $P -f >/dev/null 2>&1
+
 # --- set --new: create-only ---
 print -r -- 'other value' | secret set TEST_SEED -p $P -D mnemonic --new --stdin >/dev/null 2>&1 \
   && bad "--new refuses an existing item" || ok "--new refuses an existing item"
