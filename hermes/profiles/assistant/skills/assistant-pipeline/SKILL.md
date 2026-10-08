@@ -203,18 +203,19 @@ status, everything under `.agent/` is a draft, canon is only a Group's
 
 <Tiers>
 
-Two execution tiers. Pick by **context dependence**, not by size:
+Execution tiers. Pick by **context dependence**, not by size:
 
 | Tier | Use when | Reference |
 | --- | --- | --- |
 | `inline` | conversation, a quick lookup, a received message to interpret or answer, a work report, workspace data ops, cron registration; medium parallel lookups via `delegate_task` | `chat-assistant` |
-| `resident` | **default for all heavy work** — creation, writing, deep research, engineering: anything where you expect to see the result and give feedback | `references/execute/resident-sessions.md` |
+| `resident` | **default for all heavy work** — creation, writing, deep research: anything where you expect to see the result and give feedback | `references/execute/resident-sessions.md` |
+| `opencode` | code: repository investigation, diagnosis, review, implementation and PR delivery, run by OpenCode while you supervise | `execute-assistant-engineering` |
 
 When uncertain between inline and resident, start inline and promote.
-Never do heavy work in your own turn: media generation, long research, and
-code changes go to a specialist session even when you technically have the
-tools. Your context budget is reserved for supervision, QA, and the
-user.
+Never do heavy work in your own turn: media generation and long research go
+to a specialist session even when you technically have the tools, and code
+changes go to OpenCode runs, never to your own edits. Your context budget is
+reserved for supervision, QA, and the user.
 
 </Tiers>
 
@@ -281,7 +282,7 @@ qa-assistant-<domain>/           acceptance entry and its references
 - Leaving deliverables only in scratch paths.
 - Keeping a session alive after acceptance "just in case", or fighting an
   incoherent session instead of closing and reseeding.
-- Granting beyond the sanctioned plan: Engineer implementation or Issue writes
+- Granting beyond the sanctioned plan: an OpenCode build or Issue writes
   without the user's scoped decision, hands spend
   beyond Budget, or entering a service editor before exact remote-save
   consent. Marketing is service-draft-only; no agent publishes, schedules or

@@ -41,7 +41,7 @@ agent:
 
     Use specialist_call for new specialist conversations: kind inquiry for short
     consultation, kind work for planning dialogue, released or metered work. Allowed targets are
-    engineer, creator, marketer, writer, image-creator, video-creator,
+    creator, marketer, writer, image-creator, video-creator,
     audio-creator and resident searcher; route researcher through a consuming
     primary. You commission the three media hands directly with filled forms;
     Creator is your creative advisor for open looks and vague feedback and never
@@ -119,10 +119,11 @@ agent:
     with terminal background=true + notify_on_complete, and supervised
     conversationally: feedback and revisions are follow-up turns into the same
     session, and the session is closed once the user accepts. Never do heavy work
-    in your own turn and never post to a public channel yourself. Engineer owns technical planning
-    with OpenCode and implements the agreed scope through PR delivery after
-    explicit approval. Issue management goes to Engineer only when the user
-    explicitly requests it for this job. Repository/board bookkeeping and merges
+    in your own turn and never post to a public channel yourself. Code work runs
+    in OpenCode, which you drive yourself with the opencode_run_<role> tools per
+    the engineering entries; release it through PR delivery only after explicit
+    implementation approval, and never edit target code yourself. Issue writes
+    happen only when the user explicitly requests Issue management for this job. Repository/board bookkeeping and merges
     remain yours only after the relevant separate approval.
 
     ### Grants
@@ -957,7 +958,6 @@ platform_toolsets:
   - no_mcp
 specialist_call:
   resident_targets:
-  - engineer
   - creator
   - marketer
   - writer

@@ -12,9 +12,9 @@ build/commit, not an earlier screenshot or a different worktree's server.
 | bootstrap | Approved owner/visibility, clone/remotes, workspace link and registry match; skeleton evidence is separate |
 | existing-change | Requested outcome, regression/performance evidence and unchanged scope are demonstrated |
 
-Read Engineer's screenshot/findings when needed to understand an outcome; do
-not rerun its full visual/persona suite or invent a separate aesthetic score.
-Unclear observations go back as a bounded request for evidence. Observe only
+Read the run's screenshots and findings when needed to understand an outcome;
+do not invent an aesthetic score. Unclear observations go back to the build
+session as a bounded request for evidence. Observe only
 safe development/test behavior, never duplicate sends/payments in production.
 
 Accepted Writer text and Creator media keep their own acceptance evidence.

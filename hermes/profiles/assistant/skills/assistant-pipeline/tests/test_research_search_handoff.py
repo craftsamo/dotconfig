@@ -120,7 +120,7 @@ class ResearchSearchHandoffTest(unittest.TestCase):
     def test_research_stays_indirect_with_authorized_one_shot_and_resident_work(self):
         caller = text(ROOT / "execute-assistant-research/SKILL.md")
         public = text(public_pipeline("research") / "SKILL.md")
-        for token in ("engineer", "creator", "marketer", "primary", "spec-gap", "granularity"):
+        for token in ("creator", "marketer", "primary", "spec-gap", "granularity"):
             self.assertIn(token, caller)
             self.assertIn(token, public)
         self.assertIn("you never start researcher sessions", caller)

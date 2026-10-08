@@ -93,6 +93,10 @@ fallback.
   no wake — don't start long background work you cannot hand back;
   either wait foreground within the timeout or tell the user to continue
   from the messaging assistant.
+- **No engineering here.** This profile has no OpenCode tools. For code work
+  — investigation, diagnosis, review, implementation — tell the user to run
+  OpenCode directly in the repository; do not apply the engineering entries,
+  edit the code yourself or start a resident session for it.
 
 </CliDeltas>
 

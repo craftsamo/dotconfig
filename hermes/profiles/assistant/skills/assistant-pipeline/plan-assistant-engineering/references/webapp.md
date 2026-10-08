@@ -2,7 +2,7 @@
 
 Describe the user journeys, who may access which information, existing data,
 external integrations and operational constraints. Ask about real user needs,
-not database schemas the user would have to inspect code to answer. Engineer
+not database schemas the user would have to inspect code to answer. An OpenCode plan run
 investigates and proposes the technical design, dependencies and sequence.
 
 Preserve known hosting/account/budget decisions. Paid services, destructive

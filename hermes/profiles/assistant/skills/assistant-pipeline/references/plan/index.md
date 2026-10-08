@@ -12,7 +12,7 @@ answer). Plan conversationally, backward from the goal:
    genuinely uncertain, open the relevant resident session early and ask
    for a feasibility read or a cheap sample (see the capability plan
    file). For engineering, ground the plan in the repo with an OpenCode
-   plan session (`../../plan-assistant-engineering/SKILL.md`).
+   plan run (`../../plan-assistant-engineering/SKILL.md`).
 3. **Decompose to tiers** — split the work into stages and assign each a
    tier. Everything that is not light is a resident
    session; the rest stays inline. If a stage mixes concerns, decompose
@@ -48,7 +48,7 @@ stay with the Client. Consultation authorizes no external search: a preliminary
 Build needs bounded agreement, then its result and separate main-proposal
 agreement. An explicitly authorized settled brief can enter Build directly;
 filled fields or transport kind are not authorization. The domain entries own
-these gates; research still travels through engineer, creator or marketer.
+these gates; research still travels through creator or marketer.
 
 This is the common procedure for the selected entry, not another dispatch
 step. The table is navigation when the domain changes; do not reload an
@@ -56,7 +56,7 @@ entry whose full instructions are already available.
 
 | Capability | File | Owns |
 | --- | --- | --- |
-| engineering | [plan-assistant-engineering](../../plan-assistant-engineering/SKILL.md) | Client outcome/constraints, Engineer proposal, implementation approval |
+| engineering | [plan-assistant-engineering](../../plan-assistant-engineering/SKILL.md) | Client outcome/constraints, OpenCode plan-run proposal, implementation approval |
 | creative | [plan-assistant-creative](../../plan-assistant-creative/SKILL.md) | Client outcome, optional reference research, grants and acceptance criteria; Creator proposes directions and the hands produce |
 | writing | [plan-assistant-writing](../../plan-assistant-writing/SKILL.md) | type decisions, unit decomposition (outline / piece), sources |
 | research | [plan-assistant-research](../../plan-assistant-research/SKILL.md) | purpose and constraints through the primary Client; Researcher proposal and agreement |

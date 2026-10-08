@@ -29,7 +29,7 @@ import hermes_yaml as yaml
 
 # Role policy is deliberately NOT inferred from the A2A endpoint inventory.
 TARGETS = {
-    "assistant": {"engineer", "creator", "marketer", "writer", "searcher", "image-creator", "video-creator", "audio-creator"},
+    "assistant": {"creator", "marketer", "writer", "searcher", "image-creator", "video-creator", "audio-creator"},
     "creator": {"researcher"},
     "marketer": {"researcher"},
     "engineer": {"marketer", "researcher", "writer"},
