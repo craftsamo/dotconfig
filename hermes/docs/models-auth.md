@@ -66,22 +66,25 @@ and the **image-creator** / **audio-creator** hands lead on
   shared ChatGPT allowance, so re-size OpenCode's usage if its retrieval volume
   grows ("Codex" below).
 - The coding model inside OpenCode is a separate layer: the Assistant's OpenCode
-  roles use OpenCode's configured per-agent defaults, optionally overridden by a
-  maintainer `model` on a role in `opencode.roles`; the plugin refuses the
-  caller's own model for every role (see [`opencode.md`](./opencode.md)). No
-  second fixed ladder or automatic replay of an uncertain run lives in the
-  Assistant's skills.
+  roles use OpenCode's configured per-agent defaults (Opus 5.5 for all four on
+  OpenCode's own Anthropic account, so they draw nothing from the Hermes weekly
+  pool), optionally overridden by a maintainer `model` on a role in
+  `opencode.roles`. A role may allow the caller's own model (`caller_model`) and
+  names an `alternate` for a usage limit; the Assistant's roles allow it
+  (see [`opencode.md`](./opencode.md) "Models"). The alternate is a GPT-family
+  model, which draws on the ChatGPT allowance below. No automatic replay of an
+  uncertain run lives in the Assistant's skills.
 
-| Profile                              | T1 (primary)                        | T2                                | T3                                | T4                                          | T5                                          | `reasoning_effort` |
-| ------------------------------------ | ----------------------------------- | --------------------------------- | --------------------------------- | ------------------------------------------- | ------------------------------------------- | ------------------ |
-| **default**                          | `anthropic` / claude-opus-5-5       | `anthropic` / claude-sonnet-5-5   | `openrouter` / `xiaomi/mimo-v2.5` | —                                           | —                                           | `medium`           |
-| **assistant**                        | `anthropic` / **claude-opus-5-5**   | `anthropic` / claude-fable-5-1    | `anthropic` / claude-sonnet-5-5   | `openai-codex` / gpt-6.1-sol                | `openrouter` / `xiaomi/mimo-v2.5`           | `medium`           |
-| **researcher**                       | `anthropic` / **claude-sonnet-5-5** | `anthropic` / claude-opus-5-5     | `openai-codex` / gpt-6.1-sol      | `openrouter` / `xiaomi/mimo-v2.5`           | —                                           | `medium`           |
-| **searcher**                         | `openai-codex` / **gpt-6.1-sol**    | `anthropic` / claude-sonnet-5-5   | `xai-oauth` / grok-4.7            | `openrouter` / `xiaomi/mimo-v2.5`           | —                                           | `low`              |
-| **creator**, **video-creator**       | `anthropic` / **claude-opus-5-5**   | `anthropic` / claude-fable-5-1    | `anthropic` / claude-sonnet-5-5   | `openrouter` / `minimax/minimax-m3`         | —                                           | `medium`           |
-| **image-creator**, **audio-creator** | `anthropic` / **claude-sonnet-5-5** | `anthropic` / claude-opus-5-5     | `anthropic` / claude-fable-5-1    | `openrouter` / `minimax/minimax-m3`         | —                                           | `medium`           |
-| **writer**                           | `anthropic` / **claude-sonnet-5-5** | `anthropic` / claude-opus-5-5     | `anthropic` / claude-fable-5-1    | `openai-codex` / gpt-6.1-sol                | `openrouter` / `deepseek/deepseek-v4-flash` | `medium`           |
-| **marketer**                         | `anthropic` / **claude-opus-5-5**   | `anthropic` / claude-fable-5-1    | `anthropic` / claude-sonnet-5-5   | `openrouter` / `xiaomi/mimo-v2.5`           | —                                           | `medium`           |
+| Profile                              | T1 (primary)                        | T2                              | T3                                | T4                                  | T5                                          | `reasoning_effort` |
+| ------------------------------------ | ----------------------------------- | ------------------------------- | --------------------------------- | ----------------------------------- | ------------------------------------------- | ------------------ |
+| **default**                          | `anthropic` / claude-opus-5-5       | `anthropic` / claude-sonnet-5-5 | `openrouter` / `xiaomi/mimo-v2.5` | —                                   | —                                           | `medium`           |
+| **assistant**                        | `anthropic` / **claude-opus-5-5**   | `anthropic` / claude-fable-5-1  | `anthropic` / claude-sonnet-5-5   | `openai-codex` / gpt-6.1-sol        | `openrouter` / `xiaomi/mimo-v2.5`           | `medium`           |
+| **researcher**                       | `anthropic` / **claude-sonnet-5-5** | `anthropic` / claude-opus-5-5   | `openai-codex` / gpt-6.1-sol      | `openrouter` / `xiaomi/mimo-v2.5`   | —                                           | `medium`           |
+| **searcher**                         | `openai-codex` / **gpt-6.1-sol**    | `anthropic` / claude-sonnet-5-5 | `xai-oauth` / grok-4.7            | `openrouter` / `xiaomi/mimo-v2.5`   | —                                           | `low`              |
+| **creator**, **video-creator**       | `anthropic` / **claude-opus-5-5**   | `anthropic` / claude-fable-5-1  | `anthropic` / claude-sonnet-5-5   | `openrouter` / `minimax/minimax-m3` | —                                           | `medium`           |
+| **image-creator**, **audio-creator** | `anthropic` / **claude-sonnet-5-5** | `anthropic` / claude-opus-5-5   | `anthropic` / claude-fable-5-1    | `openrouter` / `minimax/minimax-m3` | —                                           | `medium`           |
+| **writer**                           | `anthropic` / **claude-sonnet-5-5** | `anthropic` / claude-opus-5-5   | `anthropic` / claude-fable-5-1    | `openai-codex` / gpt-6.1-sol        | `openrouter` / `deepseek/deepseek-v4-flash` | `medium`           |
+| **marketer**                         | `anthropic` / **claude-opus-5-5**   | `anthropic` / claude-fable-5-1  | `anthropic` / claude-sonnet-5-5   | `openrouter` / `xiaomi/mimo-v2.5`   | —                                           | `medium`           |
 
 A `fallback_providers` entry carries no per-entry `reasoning_effort` or
 `api_mode` for the main agent: on each fallback activation Hermes re-reads the
@@ -108,9 +111,9 @@ backed by the two blind A/Bs above (small n per arm). Provider facts:
   pinned to it, but searcher's stay `auto`, which resolves to its main model:
   compression and titles there now run on GPT-6.1 Sol. The ChatGPT subscription
   is sized for OpenCode (its searchers,
-  `debugger`, `reviewer-deep`, the build role (`opencode.roles.build`),
-  all on GPT-6.1 Sol, and cheap
-  subagents) and shares one Plus allowance with Hermes, so keep the tier off
+  `debugger`, `reviewer-deep` and cheap subagents on GPT-6.1 Sol, plus the
+  `alternate` of the Assistant's OpenCode roles when the Claude pool is spent)
+  and shares one Plus allowance with Hermes, so keep the tier off
   profiles with heavy jobs: a single `video-creator` job reads tens of millions
   of tokens and would exhaust it for OpenCode too. GPT-6.1 Sol rejects
   `reasoning.effort` `none` / `minimal` and its context length is not in
