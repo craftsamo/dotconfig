@@ -9,8 +9,8 @@ reports and everyday checks. Part of the Hermes design docs — index:
 | Piece                                                                         | Home                                                          | Reader              |
 | ----------------------------------------------------------------------------- | ------------------------------------------------------------- | ------------------- |
 | Shared contract: windows, opt-in fields, interval arithmetic, result envelope | `plugins/orchestration/session-history/common.py`             | both readers        |
-| OpenCode reader and `opencode_history`                                        | `plugins/orchestration/opencode-v2/history.py`                | Engineer, Assistant |
-| Hermes reader and `hermes_history`                                            | `plugins/orchestration/session-history/hermes.py`             | Engineer, Assistant |
+| OpenCode reader and `opencode_history`                                        | `plugins/orchestration/opencode/history.py`                | Assistant           |
+| Hermes reader and `hermes_history`                                            | `plugins/orchestration/session-history/hermes.py`             | Assistant           |
 | Cross-tool summary, text output, `/activity`                                  | `plugins/orchestration/session-history/cli.py`, `__init__.py` | people, cron        |
 | Launcher                                                                      | `../bin/ai-history`                                           | people, cron        |
 
@@ -41,7 +41,7 @@ session, it does not undo the work.
 ## OpenCode reader
 
 It reads OpenCode's own sessions across every project and never touches the
-execution side (session bindings, `opencode_v2`).
+execution side (session bindings, `opencode`).
 
 - **Official API first.** It asks the person's shared OpenCode 2 service
   through the documented `opencode api` command (which finds or starts the
@@ -104,11 +104,11 @@ derived from `HERMES_HOME`, else `~/.hermes`), including `default`.
   `ai-history hermes|opencode list|get|children|usage` reach each reader with a short table. The launcher
   runs on Hermes' interpreter (read from the real `hermes` launcher's shebang)
   so the Hermes reader can use `SessionDB`.
-- `/activity [today|week|month|N]` in Engineer and Assistant sessions (Telegram
+- `/activity [today|week|month|N]` in Assistant sessions (Telegram
   included) returns the same summary without a model turn, as plain Markdown:
   a per-tool table, then each tool's breakdown and the notes folded in
   `<details>`. Chats with Telegram rich messages render the tables and folds.
   `/history` is a Hermes built-in, hence the name.
 - The tools are enabled per profile: plugin `session-history`, toolset
-  `session_history` (never on `a2a`). Registration is limited to Engineer and
+  `session_history` (never on `a2a`). Registration is limited to the
   Assistant in code as well.

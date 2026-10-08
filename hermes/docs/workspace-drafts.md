@@ -1,7 +1,7 @@
 # Workspace drafts
 
 Read-only view of the drafts under `~/Workspaces`, and of what waits in its
-inbox, for the Assistant, Engineer and people. Part of the Hermes design docs — index: [`PROFILES.md`](../PROFILES.md).
+inbox, for the Assistant and people. Part of the Hermes design docs — index: [`PROFILES.md`](../PROFILES.md).
 
 ## The rule it reads
 
@@ -24,7 +24,7 @@ without anyone deciding to.
 | Piece                                 | Home                                   | Reader              |
 | ------------------------------------- | -------------------------------------- | ------------------- |
 | Lister, text output, CLI              | `plugins/workspace/workspace-drafts/drafts.py`   | all                 |
-| `workspace_drafts` tool and `/drafts` | `plugins/workspace/workspace-drafts/__init__.py` | Engineer, Assistant |
+| `workspace_drafts` tool and `/drafts` | `plugins/workspace/workspace-drafts/__init__.py` | Assistant           |
 | Launcher                              | `../bin/ws-drafts`                     | people, cron        |
 
 Stdlib only, loaded by path, so the tool, the launcher and cron run the same code.
@@ -66,7 +66,7 @@ Stdlib only, loaded by path, so the tool, the launcher and cron run the same cod
   `ws-drafts list [--group G] [--stale] [--misnamed] [--legacy] [--sort idle|size|name|started] [--json]`;
   `ws-drafts inbox [--stale] [--inbox-stale-days N] [--sort idle|size|name] [--json]`,
   oldest first.
-- `/drafts [inbox|stale|misnamed|legacy|<group>]` in Engineer and Assistant sessions
+- `/drafts [inbox|stale|misnamed|legacy|<group>]` in Assistant sessions
   (Telegram included) answers without a model turn as plain Markdown: an
   overview table, then one folded `<details>` section per place (current or
   an earlier-layout area) with a Draft / Idle / Size table. `/drafts inbox`
@@ -78,6 +78,6 @@ Stdlib only, loaded by path, so the tool, the launcher and cron run the same cod
   completion, so a Group name matches case-insensitively by name, then prefix,
   then substring (`/drafts tech`), an unknown name answers with the choices,
   and the summary folds a tap-to-copy `/drafts <Group>` list. `/drafts`,
-  `/repos` and `/activity` are in the Engineer and Assistant command menus.
+  `/repos` and `/activity` are in the Assistant command menu.
 - Enabled per profile: plugin `workspace-drafts`, toolset `workspace_drafts`
-  (never on `a2a`); registration is limited to Engineer and Assistant in code.
+  (never on `a2a`); registration is limited to the Assistant in code.

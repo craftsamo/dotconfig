@@ -5,24 +5,24 @@ Process topology, the multiplex gateway and A2A peer graph, delegation layers, t
 ## Topology
 
 ```
-   human (terminal)     human (Telegram × 3 bots + Discord)
-          │                │        │        │
-        default        assistant engineer marketer   ← three PRIMARY bots
+   human (terminal)     human (Telegram × 2 bots + Discord)
+          │                │        │
+        default        assistant  marketer   ← two PRIMARY bots
          (CLI)              │      (all adapters live in ONE multiplex gateway
           │                │       process, hosted by default)
           └──────┬─────────┘
                  │                        peer graph (specialist_call; A2A = localhost HTTP):
-        ┌────────┼──────────────────┐       assistant → engineer creator marketer writer (+ resident searcher)
+        ┌────────┼──────────────────┐       assistant → creator marketer writer (+ resident searcher)
         │ resident sessions         │                   + image-creator video-creator audio-creator
-        │ delegate_task             │       engineer  → marketer researcher writer
-        │                           │       creator   → researcher
-        ▼                           ▼       marketer  → researcher
+        │ delegate_task             │       creator   → researcher
+        │                           │       marketer  → researcher
+        ▼                           ▼
   hermes -p <specialist>   anonymous subagents      (writer / researcher / hands: receive-only;
   chat --resume <id>                       searcher: no endpoint — resident only)
 ```
 
-Three profiles are **primaries** — assistant (the original front door),
-engineer and marketer — each with its own Telegram bot. Primaries and Creator
+Two profiles are **primaries** — assistant (the original front door) and
+marketer — each with its own Telegram bot. Primaries and Creator
 reach the specialists only through `specialist_call` against configured
 targets, never a direct URL; Telegram cannot carry bot-to-bot traffic. Creator
 is the Assistant's creative advisor with no bot; it calls only Researcher.
@@ -46,9 +46,8 @@ nothing runs as a cron job.
   a persistent service"). Profiles without platforms (searcher) are served
   too, so each carries `secrets.command` like the rest.
 - **A2A ports** are per-profile config in `platforms.a2a.extra.port`, not an env
-  var (the process env is shared by every multiplexed profile): engineer `:9902`
-  (inquiry-only), creator `:9903`, marketer `:9904`, writer `:9905`, researcher
-  `:9906`, image-creator `:9907`, video-creator `:9908`, audio-creator `:9909`.
+  var (the process env is shared by every multiplexed profile): creator `:9903`,
+  marketer `:9904`, writer `:9905`, researcher `:9906`, image-creator `:9907`, video-creator `:9908`, audio-creator `:9909`.
 - **Peer lists** live per profile in `a2a_agents` (the graph above) with
   `timeout: 310` — the 120 s caller default undercuts the 300 s server reply
   window. Enforcement is config plus operating contract, not a plugin hook.
@@ -75,19 +74,18 @@ needed. Gateway up adds cron for fire-and-forget work; gateway down,
 
 ## Profile roster
 
-| Profile           | Role                                                                                                                                                                                                                                                                                         | Front door           | `terminal.cwd`         | Toolsets                                                                                                                                                           | Gateway                      | Tracked               |
-| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------- | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------- | --------------------- |
-| **default**       | CLI front door — assistant's CLI counterpart (neutral persona); hosts the multiplex gateway                                                                                                                                                                                                  | CLI                  | `.` (launch dir)       | `web,browser,terminal,file,code_execution,vision,x_search,skills,todo,memory,clarify,delegation,cronjob`                                                    | host                         | yes                   |
-| **assistant**     | primary: messaging front door, non-creative quality gate, GitHub bookkeeping                                                                                                                                                                                          | Telegram + Discord   | `~/Workspaces`         | `web,browser,terminal,file,vision,x_search,skills,todo,memory,clarify,delegation,cronjob,computer_use,specialist,opencode,characters` + `unreal-engine` MCP | served                       | yes (private overlay) |
-| **engineer**      | developer using OpenCode; human/Assistant Clients; technical planning, approved implementation through PR and UI QA; Issue writes only on explicit request                                                                                                                                   | Telegram (own bot)   | explicit task worktree | `terminal,file,web,browser,vision,skills,todo,memory,clarify,delegation,specialist,opencode`                                                                       | bot + inquiry-only a2a :9902 | yes                   |
-| **researcher**    | purpose-first depth modes investigate / compare / verify / advise over shared Plan / Build stages (Build ends with a self-check); proposes own-role scope, requests heavy breadth from the caller; serves engineer/creator/marketer only (not Assistant directly), cards refused                                               | — (A2A receive-only) | `.` (launch / task ws) | `file,web,vision,video,skills,memory,delegation`                                                                                                                   | served (a2a :9906)           | yes                   |
-| **searcher**      | purpose-first retrieval modes lookup / sweep / hunt over shared Plan / Build stages (Build ends with a check); resident sessions only, cards refused; a multi-hop hunt is one conversation the caller continues                                                                                                                           | — (specialist)       | `.` (launch / task ws) | `file,web,x_search,x_access,youtube_access,note_access,substack_access,skills,memory`                                                                              | served (no platforms)        | yes                   |
-| **creator**       | the Assistant's creative advisor: turns intent into 2-3 named directions with draft hands handoffs, and feedback into located, named revisions; never produces or commissions (see [creator.md](./profiles/creator.md))                                               | — (Assistant only)   | `.` (launch / task ws) | `file,vision,web,skills,memory,specialist,media_inspect`                                                                                                           | served (a2a :9903)           | yes                   |
-| **image-creator** | still-image hands: runs one `<verb>/<subject>` leaf from a filled form, QA with evidence, report; answers only the Assistant                                                                                                                                          | — (A2A receive-only) | `.` (launch / task ws) | `terminal,file,vision,image_gen,skills,memory`                                                                                                                     | served (a2a :9907)           | yes                   |
-| **video-creator** | video hands: clip, tour, ad, explainer-video, promotion, story, master, pixel-animation and music-video leaves from approved forms; answers only the Assistant                                                                                                        | — (A2A receive-only) | `.` (launch / task ws) | `terminal,file,vision,video_gen,video,skills,memory`                                                                                                               | served (a2a :9908)           | yes                   |
-| **audio-creator** | audio hands: speech, sfx, music (instrumental BGM/melodic pieces only) and mix (placing already-finished sources, never synthesis) from approved forms; measured/readback QA, no claims of listening; no full songs or voice registration; answers only the Assistant | — (A2A receive-only) | `.` (launch / task ws) | `terminal,file,tts,sfx_gen,music_gen,skills,memory`                                                                                                                | served (a2a :9909)           | yes                   |
-| **writer**        | reader-facing prose and producer-facing scripts from released units (outline / piece / whole job); draft-only, never publishes; serves assistant and engineer                                                                                                             | — (A2A receive-only) | `.` (launch / task ws) | `writing-inspection,characters,file,web,skills,memory,delegation`                                                                                                  | served (a2a :9905)           | yes                   |
-| **marketer**      | primary: strategy advisor — discovery, positioning, campaigns, review findings and outcome analysis for assistant/engineer and the human;         read-only toward every service; clients execute                                                                     | Telegram (own bot)   | `.` (launch / task ws) | `terminal,file,web,browser,x_search,x_access,substack_access,youtube_access,note_access,vision,skills,memory,delegation,specialist,clarify`                        | served (bot + a2a :9904)     | yes                   |
+| Profile           | Role                                                                                                                                                                                                                                                                             | Front door           | `terminal.cwd`         | Toolsets                                                                                                                                                    | Gateway                      | Tracked               |
+| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------- | ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------- | --------------------- |
+| **default**       | CLI front door — assistant's CLI counterpart (neutral persona); hosts the multiplex gateway                                                                                                                                                                                      | CLI                  | `.` (launch dir)       | `web,browser,terminal,file,code_execution,vision,x_search,skills,todo,memory,clarify,delegation,cronjob`                                                    | host                         | yes                   |
+| **assistant**     | primary: messaging front door, non-creative quality gate, GitHub bookkeeping; drives OpenCode (see [opencode.md](./opencode.md))                                                                                                                                                 | Telegram + Discord   | `~/Workspaces`         | `web,browser,terminal,file,vision,x_search,skills,todo,memory,clarify,delegation,cronjob,computer_use,specialist,opencode,characters` + `unreal-engine` MCP | served                       | yes (private overlay) |
+| **researcher**    | purpose-first depth modes investigate / compare / verify / advise over shared Plan / Build stages (Build ends with a self-check); proposes own-role scope, requests heavy breadth from the caller; serves creator/marketer only (not Assistant directly), cards refused | — (A2A receive-only) | `.` (launch / task ws) | `file,web,vision,video,skills,memory,delegation`                                                                                                            | served (a2a :9906)           | yes                   |
+| **searcher**      | purpose-first retrieval modes lookup / sweep / hunt over shared Plan / Build stages (Build ends with a check); resident sessions only, cards refused; a multi-hop hunt is one conversation the caller continues                                                                  | — (specialist)       | `.` (launch / task ws) | `file,web,x_search,x_access,youtube_access,note_access,substack_access,skills,memory`                                                                       | served (no platforms)        | yes                   |
+| **creator**       | the Assistant's creative advisor: turns intent into 2-3 named directions with draft hands handoffs, and feedback into located, named revisions; never produces or commissions (see [creator.md](./profiles/creator.md))                                                          | — (Assistant only)   | `.` (launch / task ws) | `file,vision,web,skills,memory,specialist,media_inspect`                                                                                                    | served (a2a :9903)           | yes                   |
+| **image-creator** | still-image hands: runs one `<verb>/<subject>` leaf from a filled form, QA with evidence, report; answers only the Assistant                                                                                                                                                     | — (A2A receive-only) | `.` (launch / task ws) | `terminal,file,vision,image_gen,skills,memory`                                                                                                              | served (a2a :9907)           | yes                   |
+| **video-creator** | video hands: clip, tour, ad, explainer-video, promotion, story, master, pixel-animation and music-video leaves from approved forms; answers only the Assistant                                                                                                                   | — (A2A receive-only) | `.` (launch / task ws) | `terminal,file,vision,video_gen,video,skills,memory`                                                                                                        | served (a2a :9908)           | yes                   |
+| **audio-creator** | audio hands: speech, sfx, music (instrumental BGM/melodic pieces only) and mix (placing already-finished sources, never synthesis) from approved forms; measured/readback QA, no claims of listening; no full songs or voice registration; answers only the Assistant            | — (A2A receive-only) | `.` (launch / task ws) | `terminal,file,tts,sfx_gen,music_gen,skills,memory`                                                                                                         | served (a2a :9909)           | yes                   |
+| **writer**        | reader-facing prose and producer-facing scripts from released units (outline / piece / whole job); draft-only, never publishes; serves the assistant                                                                                                                    | — (A2A receive-only) | `.` (launch / task ws) | `writing-inspection,characters,file,web,skills,memory,delegation`                                                                                           | served (a2a :9905)           | yes                   |
+| **marketer**      | primary: strategy advisor — discovery, positioning, campaigns, review findings and outcome analysis for the assistant and the human; read-only toward every service; clients execute                                                                                        | Telegram (own bot)   | `.` (launch / task ws) | `terminal,file,web,browser,x_search,x_access,substack_access,youtube_access,note_access,vision,skills,memory,delegation,specialist,clarify`                 | served (bot + a2a :9904)     | yes                   |
 
 ### Toolsets
 
@@ -97,7 +95,7 @@ granular: the composite `hermes-cli` / `hermes-telegram` toolsets expand to a
 broad surface and strip default-off tools such as `video` / `video_gen`.
 Top-level `toolsets` mirrors the role.
 
-- **Messaging lists.** The three bots (assistant, engineer, marketer) carry
+- **Messaging lists.** The two bots (assistant, marketer) carry
   real `telegram` lists; assistant alone adds `discord`. creator, writer,
   researcher, searcher, the hands and default keep their Telegram / Discord lists
   empty.
@@ -105,7 +103,7 @@ Top-level `toolsets` mirrors the role.
   sessions, usually narrower than CLI (Marketer's inbound A2A has no browser,
   terminal or delegation, so its browsing needs a resident session).
   `a2a` is also the name of the OUTBOUND toolset (the five default-off `a2a_*`
-  tools); assistant, creator, marketer and engineer expose only `specialist` for
+  tools); assistant, creator and marketer expose only `specialist` for
   outbound requests.
 - **MCP.** Platforms without MCP access carry the `no_mcp` denial sentinel;
   otherwise each allowed server is listed explicitly (assistant names only
@@ -115,8 +113,8 @@ Role split: **the assistant** plans with the user, supervises specialists,
 performs the non-creative quality gate itself (see
 [assistant.md](./profiles/assistant.md) "Assistant quality gate"), owns GitHub
 bookkeeping and delivers; the **producer** self-verifies before reporting. The
-normal flow stays **searcher (retrieve) → researcher (synthesize) → engineer
-(implement)**, with the **hands** (media) and **writer** (prose/scripts) as
+normal flow stays **searcher (retrieve) → researcher (synthesize) → OpenCode
+(implement, driven by the assistant)**, with the **hands** (media) and **writer** (prose/scripts) as
 production stages, and **creator** (creative direction) and **marketer**
 (strategy) as advisors beside them; the assistant commissions the hands itself,
 saves the resulting service drafts and the user publishes. User approval follows
@@ -125,9 +123,10 @@ another broker inspection.
 
 ### Planning ownership
 
-Assistant coordinates cross-specialist outcomes as a Client. Engineer owns
-code-grounded technical proposals and sequencing with OpenCode; Client approval
-chooses scope and important tradeoffs. The technical plan lives in the agreed
+Assistant coordinates cross-specialist outcomes as a Client. OpenCode plan runs
+own code-grounded technical proposals and sequencing, which the Assistant agrees
+with the user ([opencode.md](./opencode.md)); Client approval chooses scope and
+important tradeoffs. The technical plan lives in the agreed
 private job record unless the Client explicitly requests Issue registration.
 Do not infer tracking permission from complexity, project type or duration.
 OpenCode session IDs are resume handles, not the only durable copy of decisions.
@@ -180,9 +179,7 @@ Three per-profile layers, kept separate:
   use it on these profiles.
 
   Every contract also carries an always-on **safety floor** — the rules that must
-  hold even when the profile's skill never loads: engineer = explicit implementation
-  approval through PR, separate explicit-only Issue management, no merge/deploy/
-  default-branch push, preserve changes and uncertain effects; creator = the
+  hold even when the profile's skill never loads: creator = the
   advisory floor (no production, no commissioning, no design that binds the
   producer, no verdicts; a recommendation is never approval); researcher = evidence integrity (no
   fabricated citations); searcher = link integrity (only URLs actually
@@ -197,7 +194,8 @@ Three per-profile layers, kept separate:
   reopened unpublished draft verification; uncertain effects never blindly
   retried) and its creative entries carry the hands floor (Budget/spend caps,
   exact approval relay, explicit upload consent); front doors = heavy work never
-  runs in their own turn, deliverables are verified before delivery.
+  runs in their own turn, deliverables are verified before delivery, and code
+  changes only through an approved OpenCode build.
   Each profile also states its **MEMORY.md policy**: durable cross-task facts
   only (task state lives in git and the session; playbook-sized
   knowledge becomes a skill), and `user_profile_enabled` is off for workers —
@@ -234,14 +232,8 @@ Three per-profile layers, kept separate:
     [`broker.md`](./broker.md)); heavy tool-bound creative entries (`comfyui`,
     `touchdesigner-mcp`, `manim-video`, `ascii-video`) sit in `skills.disabled` —
     media production is the hands'.
-  - engineer → `engineer-pipeline` (cards refused; see
-    [engineer.md](./profiles/engineer.md)) + official `autonomous-ai-agents` /
-    `software-development` / `github` plus optional `code-wiki`,
-    `rest-graphql-debug`, `subagent-driven-development`, `docker-management`,
-    `pinggy-tunnel`, `fastmcp`, `mcporter` and `cloudflare-temporary-deploy`
-    (all key-free, script/CLI-based via uv / npx / docker).
   - researcher → `researcher-pipeline` (resident sessions + inbound A2A from
-    engineer/creator/marketer; investigate / compare / verify / advise modes;
+    creator/marketer; investigate / compare / verify / advise modes;
     returns spec-gap and granularity findings; see [research.md](./profiles/research.md)) + optional
     `domain-intel` and `osint-investigation` (stdlib-only recon /
     public-records) plus keyless `duckduckgo-search` (run through `uvx ddgs`).
@@ -298,7 +290,7 @@ Three per-profile layers, kept separate:
 
 ## Entry loading contract
 
-Assistant, Engineer, Creator, Researcher, Searcher, Writer and Marketer expose
+Assistant, Creator, Researcher, Searcher, Writer and Marketer expose
 their modes/phases as independent child skills below an invariant root kernel.
 Profile docs list only their deltas to this shared contract:
 
