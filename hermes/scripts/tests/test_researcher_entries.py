@@ -29,12 +29,16 @@ def _skip_learned(directory, names):
     return ["learned"] if Path(directory).name == "skills" and "learned" in names else []
 
 
-PHASES = ("plan", "build", "qa")
-UNITS = ("evidence-pack", "tradeoff-matrix", "fact-check", "guidance")
-ENTRIES = {f"{phase}-researcher" for phase in PHASES}
-DOCUMENTS = {"SKILL.md", "references/gather.md"} | {
-    f"{name}/SKILL.md" for name in ENTRIES
-} | {f"{name}/references/{unit}.md" for name in ENTRIES for unit in UNITS}
+MODES = ("investigate", "compare", "verify", "advise")
+STAGES = ("plan", "build", "qa")
+ENTRIES = {f"{mode}-researcher" for mode in MODES}
+PLATFORMS = {"references/platforms/evm.md", "references/platforms/solana.md"}
+SHARED = {"references/gather.md"} | {f"references/{stage}.md" for stage in STAGES} | PLATFORMS
+DOCUMENTS = {"SKILL.md"} | SHARED | {f"{name}/SKILL.md" for name in ENTRIES}
+
+
+def flat(path):
+    return " ".join(Path(path).read_text().split())
 
 
 def test_candidate_topology_and_always_on_contract():
@@ -42,8 +46,8 @@ def test_candidate_topology_and_always_on_contract():
     assert set(VALIDATOR.validate_researcher_entries(TREE, errors)) == ENTRIES
     assert errors == []
     assert {p.relative_to(TREE).as_posix() for p in TREE.rglob("*.md")} == DOCUMENTS
-    assert len(DOCUMENTS) == 17
-    assert VALIDATOR.frontmatter(TREE / "SKILL.md")["version"] == "9.0.0"
+    assert len(DOCUMENTS) == 11
+    assert VALIDATOR.frontmatter(TREE / "SKILL.md")["version"] == "10.0.0"
     for name in ENTRIES:
         path = TREE / name / "SKILL.md"
         data = VALIDATOR.frontmatter(path)
@@ -57,8 +61,10 @@ def test_candidate_topology_and_always_on_contract():
     assert "Purpose alone is not execution authority" in prompt
     for name in ENTRIES:
         assert name in prompt
-    for token in ("every", "turn", "completion", "mid", "phase", "unit", "read_file",
-                  "next_offset", "stop", "scope", "budget", "references/<unit>.md"):
+    for gone in ("plan-researcher", "build-researcher", "qa-researcher", "card gate", "Workflow v5"):
+        assert gone not in prompt
+    for token in ("every", "turn", "completion", "mid", "mode", "stage", "read_file",
+                  "next_offset", "stop", "scope", "budget", "references/<stage>.md"):
         assert token in prompt.lower()
     assert "artifact-vs-brief quality verdicts" in prompt
     assert "terminal" not in config["toolsets"]
@@ -70,7 +76,7 @@ def test_candidate_topology_and_always_on_contract():
     assert config["platform_toolsets"]["telegram"] == []
     assert config["platform_toolsets"]["discord"] == []
     assert not config.get("a2a_agents")
-    qa = " ".join((TREE / "qa-researcher/SKILL.md").read_text().split())
+    qa = flat(TREE / "references/qa.md")
     assert "actual Build findings/ledger in current context" in qa
     assert "report it as unverified and stop" in qa
 
@@ -112,84 +118,103 @@ def test_worker_integration(tmp_path, monkeypatch):
     monkeypatch.setattr(VALIDATOR, "validate_git_boundary", lambda *args: None)
     errors = []
     count, learned = VALIDATOR.validate_worker("researcher", errors)
-    assert count == 3 and learned == 0
+    assert count == 4 and learned == 0
     assert errors == []
 
 
 @pytest.mark.parametrize("mutation,expected", [
     ("missing_entry", "missing researcher document"),
-    ("missing_unit", "missing researcher document"),
-    ("old_reference", "unexpected researcher document"),
+    ("missing_stage", "missing researcher document"),
+    ("old_phase", "unexpected researcher document"),
+    ("old_unit_reference", "unexpected researcher document"),
     ("hidden_skill", "unexpected researcher document"),
-    ("old_skill", "unexpected researcher document"),
     ("wrong_name", "frontmatter name must be"),
+    ("wrong_description", "description must frontload verify"),
     ("root_link", "kernel does not route"),
-    ("owner_link", "does not link owned reference"),
+    ("root_stage_link", "kernel does not link reference: build.md"),
+    ("stage_link", "does not link stage reference qa"),
     ("missing_dependency", "missing dependency/recovery"),
     ("missing_recovery", "missing dependency/recovery"),
     ("missing_canonical", "missing dependency/recovery"),
     ("missing_reuse", "missing full-body reuse contract"),
     ("missing_output", "missing ## Output template"),
-    ("missing_plan", "reference missing ## Plan"),
-    ("missing_build", "reference missing ## Output template"),
-    ("missing_qa", "reference missing ## Verification"),
+    ("missing_plan", "missing ## Plan"),
+    ("missing_verification", "missing ## Verification"),
+    ("stage_section", "stage reference missing ## Handoff: qa.md"),
+    ("missing_method", "build stage must own the <Method>"),
     ("reference_name", "reference must not declare a skill name"),
     ("escaping_link", "broken/escaping researcher link"),
     ("escaping_symlink", "must not contain symlinks"),
     ("frontmatter_prefix", "frontmatter exceeds discovery prefix"),
     ("missing_gather", "missing researcher document"),
+    ("missing_platform", "missing researcher document: references/platforms/solana.md"),
+    ("platform_link", "does not link platform reference evm"),
 ])
 def test_invalid_entries(tmp_path, mutation, expected):
     tree = tmp_path / "researcher-pipeline"
     shutil.copytree(TREE, tree)
-    path = tree / "build-researcher/SKILL.md"
+    path = tree / "verify-researcher/SKILL.md"
     text = path.read_text()
     if mutation == "missing_entry":
         path.unlink()
-    elif mutation == "missing_unit":
-        (tree / "qa-researcher/references/fact-check.md").unlink()
-    elif mutation in {"old_reference", "hidden_skill", "old_skill"}:
+    elif mutation == "missing_stage":
+        (tree / "references/qa.md").unlink()
+    elif mutation in {"old_phase", "old_unit_reference", "hidden_skill"}:
         target = tree / {
-            "old_reference": "references/fact-check.md",
+            "old_phase": "build-researcher/SKILL.md",
+            "old_unit_reference": "verify-researcher/references/fact-check.md",
             "hidden_skill": ".hidden/SKILL.md",
-            "old_skill": "fact-check-researcher/SKILL.md",
         }[mutation]
         target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(text.replace("name: build-researcher", "name: fact-check-researcher"))
+        target.write_text(text.replace("name: verify-researcher", "name: build-researcher"))
     elif mutation == "missing_gather":
         (tree / "references/gather.md").unlink()
+    elif mutation == "missing_platform":
+        (tree / "references/platforms/solana.md").unlink()
+    elif mutation == "platform_link":
+        path.write_text(text.replace("(../references/platforms/evm.md)", "(../references/gather.md)"))
     elif mutation == "root_link":
         kernel = tree / "SKILL.md"
-        kernel.write_text(kernel.read_text().replace("(build-researcher/SKILL.md)", "(SKILL.md)"))
+        kernel.write_text(kernel.read_text().replace("(verify-researcher/SKILL.md)", "(SKILL.md)"))
+    elif mutation == "root_stage_link":
+        kernel = tree / "SKILL.md"
+        kernel.write_text(kernel.read_text().replace("(references/build.md)", "(SKILL.md)"))
     elif mutation == "escaping_symlink":
         outside = tmp_path / "outside.md"
         outside.write_text("# Outside fixture\n")
-        reference = tree / "qa-researcher/references/fact-check.md"
+        reference = tree / "references/qa.md"
         reference.unlink()
         reference.symlink_to(outside)
-    elif mutation in {"missing_plan", "missing_build", "missing_qa"}:
-        phase = mutation.removeprefix("missing_")
-        reference = tree / f"{phase}-researcher/references/fact-check.md"
-        heading = {"plan": "## Plan", "build": "## Output template", "qa": "## Verification"}[phase]
-        reference.write_text(reference.read_text().replace(heading, "## Removed"))
+    elif mutation == "stage_section":
+        reference = tree / "references/qa.md"
+        reference.write_text(reference.read_text().replace("## Handoff", "## Removed"))
+    elif mutation == "missing_method":
+        reference = tree / "references/build.md"
+        reference.write_text(reference.read_text().replace("<Method>", "<Steps>"))
     elif mutation == "reference_name":
-        reference = tree / "build-researcher/references/fact-check.md"
-        reference.write_text("---\nname: hidden-fact-check\n---\n" + reference.read_text())
+        reference = tree / "references/build.md"
+        reference.write_text("---\nname: hidden-build\n---\n" + reference.read_text())
     else:
         if mutation == "wrong_name":
-            text = text.replace("name: build-researcher", "name: different")
-        elif mutation == "owner_link":
-            text = text.replace("(references/fact-check.md)", "(references/guidance.md)")
+            text = text.replace("name: verify-researcher", "name: different")
+        elif mutation == "wrong_description":
+            text = text.replace("  Verify exact claims", "  Check exact claims")
+        elif mutation == "stage_link":
+            text = text.replace("(../references/qa.md)", "(../references/plan.md)")
         elif mutation == "missing_dependency":
             text = text.replace('skill_view(name="researcher-pipeline")', "skip kernel")
         elif mutation == "missing_recovery":
             text = text.replace("read_file", "remember")
         elif mutation == "missing_canonical":
-            text = text.replace("${HERMES_SKILL_DIR}/references/<unit>.md", "remember unit")
+            text = text.replace("${HERMES_SKILL_DIR}/../references/<stage>.md", "remember stage")
         elif mutation == "missing_reuse":
             text = text.replace("Reuse only full bodies in current context", "Use remembered summaries")
         elif mutation == "missing_output":
             text = text.replace("## Output template", "## Unspecified output")
+        elif mutation == "missing_plan":
+            text = text.replace("\n## Plan\n", "\n## Framing\n")
+        elif mutation == "missing_verification":
+            text = text.replace("\n## Verification\n", "\n## Checks\n")
         elif mutation == "escaping_link":
             (tmp_path / "outside.md").write_text("# Outside fixture\n")
             text += "\n[Outside](../../outside.md)\n"
@@ -201,71 +226,110 @@ def test_invalid_entries(tmp_path, mutation, expected):
     assert any(expected in error for error in errors), errors
 
 
-def test_declared_phase_agreement_and_continuity_contract():
+def test_declared_agreement_and_continuity_contract():
     """Instruction assertions, not evidence of actual model routing or approval behavior."""
-    kernel = " ".join((TREE / "SKILL.md").read_text().split())
-    plan, build, qa = [" ".join((TREE / f"{phase}-researcher/SKILL.md").read_text().split()) for phase in PHASES]
+    kernel = flat(TREE / "SKILL.md")
+    plan, build, qa = (flat(TREE / f"references/{stage}.md") for stage in STAGES)
     for phrase in ("purpose, consumer, constraints and budget", "Plan needs client agreement before Build",
                    "never self-release", "already explicitly authorized for execution may go straight to Build",
                    "transport kind or entry selection alone are not authorization",
                    "do not demand human approval for every lookup", "Human-only permissions remain separate",
                    "Multiple own-role units are allowed", "never decompose the whole production",
-                   "no outbound peers", "reset budget", "replay completed work"):
+                   "no outbound peers", "reset budget", "replay completed work",
+                   "stages of one unit, not separate entries"):
         assert phrase in kernel
+    for gone in ("card gate", "register cards", "Cards are refused"):
+        assert gone not in kernel
     for phrase in ("supplied materials only", "bounded preliminary Build", "wait for agreement before gathering",
-                   "return to revise", "short approval advances this retained Plan", "build-researcher"):
+                   "return to revise", "short approval advances this retained Plan", "(build.md)"):
         assert phrase in plan
     for phrase in ("explicitly authorized settled brief", "Fields and transport kind alone are not authorization",
-                   "consumed/remaining budget", "qa-researcher", "scope and remaining budget"):
+                   "consumed/remaining budget", "(qa.md)", "scope and remaining budget"):
         assert phrase in build
     for phrase in ("newly invented rubric or numeric self-score", "final domain decision or acceptance",
                    "narrow correction", "agreed scope and remaining budget", "Plan for agreement",
                    "Do not silently repair during QA", "Review: required", "wait", "preliminary Build QA"):
         assert phrase in qa
     for name in ENTRIES:
-        text = " ".join((TREE / name / "SKILL.md").read_text().split())
+        text = flat(TREE / name / "SKILL.md")
         assert "not a new grant" in text
         assert "budget reset or permission to replay work" in text
         assert "direct entry" in text
-        assert "every inbound turn/completion" in text and "midturn phase, unit or scope change" in text
+        assert "every inbound turn/completion" in text and "midturn mode, stage or scope change" in text
         assert "Reuse only full bodies in current context" in text
-        assert "unchanged with a missing body" in text or "unchanged with a missing" in text
+        assert "unchanged with a missing body" in text
         assert "next_offset" in text and "stop the affected action" in text
         assert "Never evade dedup with alternate paths or artificial ranges" in text
+        assert "never a silent switch" in text
 
 
-@pytest.mark.parametrize("unit,fields", [
-    ("evidence-pack", ("Summary", "Sources", "Key Observations", "Corroboration", "Uncertainty", "Implications for Caller")),
-    ("tradeoff-matrix", ("Decision", "Matrix", "Deal-breakers", "Recommendation", "Sources", "Assumptions & unknowns")),
-    ("fact-check", ("Verdicts", "Original", "Restatement", "Verdict", "Evidence", "Counterevidence", "Context", "Sources", "Notes")),
-    ("guidance", ("For", "Constraints (MUST)", "Recommendations (SHOULD)", "Open choices", "Evidence base", "Uncertainty")),
+@pytest.mark.parametrize("name,fields", [
+    ("investigate-researcher", ("Summary", "Sources", "Key Observations", "Corroboration", "Uncertainty", "Implications for Caller")),
+    ("compare-researcher", ("Decision", "Matrix", "Deal-breakers", "Recommendation", "Sources", "Assumptions & unknowns")),
+    ("verify-researcher", ("Verdicts", "Original", "Restatement", "Verdict", "Evidence", "Counterevidence", "Context", "Sources", "Notes")),
+    ("advise-researcher", ("For", "Constraints (MUST)", "Recommendations (SHOULD)", "Open choices", "Evidence base", "Uncertainty")),
 ])
-def test_declared_unit_output_and_qa_coverage(unit, fields):
-    build = (TREE / f"build-researcher/references/{unit}.md").read_text()
-    qa = " ".join((TREE / f"qa-researcher/references/{unit}.md").read_text().split())
+def test_declared_mode_output_and_verification(name, fields):
+    text = (TREE / name / "SKILL.md").read_text()
+    template = text.split("## Output template", 1)[1].split("\n## Verification", 1)[0]
+    checks = " ".join(text.split("\n## Verification", 1)[1].split("\n## Handoff", 1)[0].split())
     for field in fields:
-        assert field in build
-    assert "## Verification" in qa
+        assert field in template
     for token in ("confidence", "evidence", "budget", "Plan", "Build"):
-        assert token in qa
-    if unit == "fact-check":
-        for text in (build, qa):
+        assert token in checks
+    plan_part = text.split("\n## Plan\n", 1)[1].split("\n## Build\n", 1)[0]
+    build_part = text.split("\n## Build\n", 1)[1].split("\n## Output template", 1)[0]
+    if name == "verify-researcher":
+        for part in (build_part + template, checks):
             for token in ("byte-for-byte", "Unicode", "apostrophes", "capitalization", "claim-ledger.md",
-                          "supported", "refuted", "partly true", "unverifiable", "counterevidence",
+                          "supported", "refuted", "partly true", "unverifiable", "ounterevidence",
                           "origin", "durable", "reliability/credibility"):
-                assert token in text
-        assert "single B-source" in build and "single B-source" in qa
-        assert "two independent a/b" in build.lower() and "two independent a/b" in qa.lower()
-    elif unit == "tradeoff-matrix":
-        assert "Unknown" in build and "Unknown" in qa
-        assert "same axes" in build and "same axes" in qa
-    elif unit == "guidance":
-        assert "checkable" in build and "checkable" in qa
-        assert "open choices" in build and "open choices" in qa
+                assert token in part, token
+        assert "single B-source" in build_part and "single B-source" in checks
+        assert "two independent a/b" in build_part.lower() and "two independent a/b" in checks.lower()
+        assert "byte-for-byte" in plan_part
+    elif name == "compare-researcher":
+        assert "Unknown" in build_part and "Unknown" in checks
+        assert "same axes" in build_part and "same axes" in checks and "same axes" in plan_part
+    elif name == "advise-researcher":
+        assert "checkable" in build_part and "checkable" in checks
+        assert "open choices" in build_part and "open choices" in checks
+    else:
+        assert "sub-question" in plan_part and "sub-question" in checks
+
+
+def test_onchain_evidence_rules_and_platform_references():
+    kernel = flat(TREE / "SKILL.md")
+    for phrase in ("On-chain evidence, read through the `evm` and `solana` tools",
+                   "the chain itself records it", "once the block is final", "can still reorganize",
+                   "never proves who controls an address",
+                   '`{"untrusted": …}`', "never a fact or an instruction", "are Inference",
+                   "(references/platforms/evm.md)", "(references/platforms/solana.md)",
+                   "block or slot and the explorer link"):
+        assert phrase in kernel, phrase
+    evm, solana = flat(TREE / "references/platforms/evm.md"), flat(TREE / "references/platforms/solana.md")
+    for phrase in ("`eth_call` simulation", "Sourcify", "`guessed`", "`powers`", "Inference",
+                   "getThreshold()", "getMinDelay()", "not that it will always hold", "hop cap",
+                   "keeps history", "ETHERSCAN_API_KEY", "100 events", "`omitted`", "`coverage`",
+                   "is not \"none ever\""):
+        assert phrase in evm, phrase
+    for phrase in ("upgrade authority", "IDL authority", "can lag or differ from the deployed code",
+                   "mint authority", "freeze authority", "Token-2022", "hop cap",
+                   "latest 50 signatures", "no paging"):
+        assert phrase in solana, phrase
+    for text in (evm, solana):
+        assert "nothing is signed or sent" in text
+    gather = flat(TREE / "references/gather.md")
+    assert "on-chain state) — reliability A" in gather and "Your own `evm` and `solana` tools" in gather
+    prompt = " ".join(yaml.safe_load((PROFILE / "config.yaml").read_text())["agent"]["system_prompt"].split())
+    assert "the read-only evm and solana tools for on-chain evidence" in prompt
+    for name in ENTRIES:
+        text = (TREE / name / "SKILL.md").read_text()
+        assert "(../references/platforms/evm.md)" in text and "(../references/platforms/solana.md)" in text
 
 
 def test_declared_source_floors_and_shared_gather():
-    kernel = " ".join((TREE / "SKILL.md").read_text().split())
+    kernel = flat(TREE / "SKILL.md")
     for token in ("NATO/Admiralty", "SIFT", "A Reliable", "B Usually reliable", "C Fairly reliable",
                   "D Not usually reliable", "E Unreliable", "F Cannot judge", ">=2 independent reliable",
                   "2 Probably true", "3 Possibly true", "4 Doubtful", "5 Improbable", "6 Cannot judge",
@@ -273,8 +337,8 @@ def test_declared_source_floors_and_shared_gather():
                   "Never quote snippets", "Review: required", "explicit go"):
         assert token in kernel
     assert "<Method>" not in kernel
-    assert "<Method>" in (TREE / "build-researcher/SKILL.md").read_text()
-    gather = " ".join((TREE / "references/gather.md").read_text().split())
+    assert "<Method>" in (TREE / "references/build.md").read_text()
+    gather = flat(TREE / "references/gather.md")
     for token in ("delegate_task", "Heavy breadth", "orchestrator", "trust scoring", "Open for researcher"):
         assert token in gather
 
@@ -379,36 +443,31 @@ def runtime_child(sandbox, source, configured_external):
             available_tools={"skill_view", "skills_list", "read_file"}, available_toolsets={"skills", "file"}
         )
         rows = dict(re.findall(r"^    - ([^: \n]+): (.*)$", prompt, re.M))
-        assert set(rows) == names and len(set(rows.values())) == 4
+        assert set(rows) == names and len(set(rows.values())) == 5
         assert all(0 < len(desc) <= 60 for desc in rows.values())
-        assert all(rows[f"{phase}-researcher"].lower().startswith(phase + " ") for phase in PHASES)
+        assert all(rows[f"{mode}-researcher"].lower().startswith(mode + " ") for mode in MODES)
 
         def view(name, file_path=None):
             return json.loads(registry.dispatch("skill_view", {"name": name, "file_path": file_path}, task_id="research-test"))
 
         kernel = view("researcher-pipeline")
         assert kernel["content"] == (tree / "SKILL.md").read_text()
-        # Real read mechanics only: this loop selects phases, not a model.
-        for phase in PHASES:
-            name = f"{phase}-researcher"
+        # Real read mechanics only: this loop selects modes and stages, not a model.
+        for mode in MODES:
+            name = f"{mode}-researcher"
             path = tree / name / "SKILL.md"
             payload = view(name)
             assert payload["content"] == path.read_text().replace("${HERMES_SKILL_DIR}", str(path.parent))
             assert view(name)["status"] == "unchanged"
-            for unit in UNITS:
-                reference = f"references/{unit}.md"
-                payload = view(name, reference)
-                assert payload["content"] == (path.parent / reference).read_text()
-                assert view(name, reference)["status"] == "unchanged"
-        gather = view("researcher-pipeline", "references/gather.md")
-        assert gather["content"] == (tree / "references/gather.md").read_text()
+        for relative in sorted(SHARED):
+            payload = view("researcher-pipeline", relative)
+            assert payload["content"] == (tree / relative).read_text()
+            assert view("researcher-pipeline", relative)["status"] == "unchanged"
         assert view("researcher-pipeline")["content_returned"] is False
         assert view("researcher-pipeline", "references/fact-check.md")["success"] is False
-        assert view("plan-researcher")["content_returned"] is False
-        assert view("plan-researcher", "references/evidence-pack.md")["content_returned"] is False
-        for unit in UNITS:
-            assert view(f"{unit}-researcher")["success"] is False
-            assert view(unit)["success"] is False
+        assert view("investigate-researcher")["content_returned"] is False
+        for gone in ("plan-researcher", "build-researcher", "qa-researcher", "fact-check-researcher"):
+            assert view(gone)["success"] is False
 
         from tools import file_tools as ft, file_tools_paths as fp, skill_manager_guards
         from tools.environments.local import LocalEnvironment
@@ -428,11 +487,10 @@ def runtime_child(sandbox, source, configured_external):
 
         # Recover missing bodies via the documented canonical owner paths. Simulate
         # a real output budget, not arbitrary ranges chosen to evade read dedup.
-        owner = tree / "plan-researcher"
-        canonical = [owner / "../SKILL.md", owner / "../references/gather.md"]
-        canonical.extend(tree / name / relative for name in sorted(ENTRIES)
-                         for relative in ("SKILL.md", *(f"references/{u}.md" for u in UNITS)))
-        assert len(canonical) == 17
+        owner = tree / "investigate-researcher"
+        canonical = [owner / "../SKILL.md", *(owner / ".." / relative for relative in sorted(SHARED))]
+        canonical.extend(tree / name / "SKILL.md" for name in sorted(ENTRIES))
+        assert len(canonical) == 11
         continued = 0
         with patch.object(ft, "_get_max_read_chars", return_value=1000):
             for path in canonical:
@@ -455,15 +513,15 @@ def runtime_child(sandbox, source, configured_external):
         assert continued > 0
         # An unavailable canonical file yields an error, not a usable body. The
         # instruction-only stop requirement is checked separately above.
-        missing = tree / "qa-researcher/references/fact-check.md"
+        missing = tree / "references/qa.md"
         original = missing.read_text()
         missing.unlink()
         assert read(missing).get("error")
         missing.write_text(original)
         _reset_read_dedup_caches("research-test")
-        assert "content" in view("build-researcher")
-        assert "content" in view("build-researcher", "references/fact-check.md")
-        assert "content" in read(tree / "build-researcher/SKILL.md")
+        assert "content" in view("verify-researcher")
+        assert "content" in view("researcher-pipeline", "references/build.md")
+        assert "content" in read(tree / "verify-researcher/SKILL.md")
         # Scan the profile's configured upstream roots as metadata only, never execute them.
         external.extend(Path(p) for p in configured_external)
         assert all(p.is_dir() and p.resolve().is_relative_to(source) for p in external)

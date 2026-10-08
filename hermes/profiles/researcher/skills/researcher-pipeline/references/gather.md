@@ -11,7 +11,7 @@ Source tiers, in order; trace every claim to its original context. Gather only
 within the agreed Build scope and remaining budget; this reference does not
 authorize external searches during Plan:
 
-1. Primary / official (docs, specs, papers, filings, source code) — reliability A
+1. Primary / official (docs, specs, papers, filings, source code, on-chain state) — reliability A
 2. Reputable secondary (established docs/news, recognized experts) — B
 3. General web — C/D; investigate the source (lateral read) before trusting
 4. X / social — real-time / primary-witness value, but C–F; corroborate, never sole support
@@ -25,6 +25,11 @@ Virality != truth. A high search rank is not reliability.
   inspection. Media tools may extract a final artifact's exact factual claim
   and context; artifact-quality inspection belongs to the orchestrator's QA.
   Extract directly, never from memory of a snippet.
+- **Your own `evm` and `solana` tools** — read-only chain evidence:
+  transactions, addresses, tokens, contracts and programs, test calls and
+  storage. Read the chain's shared reference ([EVM](platforms/evm.md),
+  [Solana](platforms/solana.md)) before relying on them; a fund trail or a
+  sweep over many addresses is bounded like any other gathering.
 - **`delegate_task`** — quick parallel lookups you can wait out inside one
   run (a handful of URL fetches, a definition check).
 - **Heavy breadth beyond your runtime** (link harvesting, enumerations,
