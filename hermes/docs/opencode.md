@@ -1,7 +1,7 @@
 # OpenCode runtime
 
-How the Assistant drives OpenCode: the plugin, bindings, permissions, models
-and hand-backs. Part of the Hermes design docs — index:
+How the Assistant drives OpenCode: the plugin, bindings, permissions, models,
+hand-backs and rendered-UI checks. Part of the Hermes design docs — index:
 [`PROFILES.md`](../PROFILES.md).
 
 ## Who does what
@@ -169,3 +169,31 @@ models the messages, idle markers, requests and forms the real service returns.
 They cannot show what the real service does; the shape of those replies was
 measured on OpenCode 2.0.23 and a real-service smoke run is a manual step before
 a cutover.
+
+## Rendered UI
+
+Three questions, three owners:
+
+- **Mechanical defects** — OpenCode's build runs its `web_ui_check` tool
+  (`opencode/lib/custom-tools/web_ui.ts`) on every change that alters what a
+  page renders: horizontal overflow, axe WCAG violations, focus visibility,
+  console and page errors, broken images, plus full-page screenshots per
+  viewport and color scheme. It measures; it never grades taste. The tool is
+  part of OpenCode's own plugin, so it needs no command permission; because it
+  also bypasses OpenCode's rules, it enforces its own: it writes only into the
+  run's output directory (`<job>/ui-check/<timestamp>/`) or OpenCode's scratch
+  directory, never the worktree, loads only local or private-network pages,
+  reads a baseline only from under `~/Workspaces`, and runs its Node child with
+  a minimal environment.
+- **Agreement with the approved look** — given `baseline`
+  (`~/Workspaces/Projects/<Group>/assets/ui-baseline/<repo>/`, outside the
+  repository), the same tool writes one baseline | current | diff image per
+  page; the Assistant reads them and decides whether the approved scope explains
+  each change.
+- **The look itself** — the user. The Assistant asks only when no baseline exists
+  yet, when a change is not explained by the approved scope, or when the approved
+  change is a new look. An approved look becomes the baseline.
+
+Screenshots come from the headless check, never from the Assistant's logged-in
+browser profile. There are usually no mockups: the first approved screenshots
+are the baseline.
