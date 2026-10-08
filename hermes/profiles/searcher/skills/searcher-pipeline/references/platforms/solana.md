@@ -18,7 +18,8 @@ facts; judging them stays under `Open for researcher`.
 
 ## What to record per item
 
-The cluster, the signature or address, the slot (and time when it matters),
+The cluster, the signature or address, the slot (each result's `slot`; time
+when it matters),
 the values as returned and the explorer link. A value without its slot is not
 reproducible.
 
