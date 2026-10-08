@@ -49,7 +49,7 @@ archives = _load("hermes_archive_check", HERE.parent / "_shared" / "archive_chec
 
 ACTIONS = ("status", "guilds", "channels", "dms", "messages", "search", "context", "backfill", "media",
            "threads", "pins", "mentions", "pending", "stats", "export", "friends", "roles", "member", "role_members", "members",
-           "sync_list", "sync_suggest", "sync_add", "sync_remove", "send", "react", "unreact", "edit", "delete",
+           "guild_info", "emojis", "events", "sync_list", "sync_suggest", "sync_add", "sync_remove", "send", "react", "unreact", "edit", "delete",
            "role_add", "role_remove", "role_bulk_add", "role_create", "role_edit", "role_delete")
 MESSAGE_WRITES = {"react", "unreact", "edit", "delete"}
 ROLE_WRITES = {"role_add", "role_remove", "role_bulk_add", "role_create", "role_edit", "role_delete"}
@@ -69,7 +69,7 @@ AGENT_LABEL = "local.hermes.discord-access.sync"
 
 LIMITS = {"dms": (30, 200), "messages": (50, 200), "search": (30, 200), "live_search": (25, 25),
           "threads": (25, 25), "pins": (50, 50), "mentions": (25, 25), "members": (25, 100),
-          "pending": (30, 100), "sync_suggest": (10, 30)}
+          "pending": (30, 100), "sync_suggest": (10, 30), "emojis": (100, 300), "events": (25, 100)}
 PENDING_DAYS = 14           # pending looks back this far unless after says otherwise
 PENDING_TYPES = "(m.type IS NULL OR m.type IN (0, 19))"   # a plain message or a reply
 ROLES_FRESH = 900           # a role write needs the server's role list read within this
@@ -1251,6 +1251,111 @@ def _user_name(conn, gid: str, uid: str) -> str | None:
         if f.get("id") == uid:
             return f.get("name") or f.get("username")
     return None
+
+
+# --- server information -------------------------------------------------------------------------
+
+VERIFICATION = {0: "none", 1: "low (verified email)", 2: "medium (registered 5 minutes)",
+                3: "high (member for 10 minutes)", 4: "highest (verified phone)"}
+CONTENT_FILTER = {0: "off", 1: "members without roles", 2: "all members"}
+NSFW_LEVEL = {0: "default", 1: "explicit", 2: "safe", 3: "age restricted"}
+STICKER_FORMAT = {1: "png", 2: "apng", 3: "lottie", 4: "gif"}
+EVENT_STATUS = {1: "scheduled", 2: "active", 3: "completed", 4: "canceled"}
+EVENT_KIND = {1: "stage", 2: "voice", 3: "external"}
+
+
+def _known_guild(args: dict) -> tuple[str, str | None, bool | None]:
+    """(server id, its name, whether the user owns it) of a server the user listed before: an
+    id never seen in guilds is not asked about."""
+    gid = _id(args, "guild", required=True, what="a server id")
+    with _mirror() as conn:
+        row = _guild_row(conn, gid)
+    owner = row["owner"] if store.has_column(row, "owner") else None
+    return gid, row["name"], None if owner is None else bool(owner)
+
+
+def guild_info(args: dict) -> dict:
+    gid, name, owner = _known_guild(args)
+    g = call_engine("guild_info", {"guild": gid})
+    out = {"id": gid, "name": g.get("name") or name, "created": _local(gid)}
+    if g.get("description"):
+        out["description"] = g["description"]
+    if g.get("owner_id"):
+        out["owner_id"] = g["owner_id"]
+    if owner is not None:
+        out["you_own_it"] = owner
+    for key in ("members", "online", "boosts", "locale", "vanity"):
+        if g.get(key) not in (None, ""):
+            out[key] = g[key]
+    for key, labels, field in (("verification", VERIFICATION, "verification"),
+                               ("content_filter", CONTENT_FILTER, "content_filter"),
+                               ("nsfw_level", NSFW_LEVEL, "nsfw_level")):
+        if isinstance(g.get(field), int):
+            out[key] = labels.get(g[field], g[field])
+    if isinstance(g.get("boost_tier"), int):
+        out["boost_tier"] = g["boost_tier"]
+    if g.get("features"):
+        out["features"] = g["features"]
+    if g.get("rules_channel"):
+        out["rules_channel"] = g["rules_channel"]
+    return {"ok": True, "guild": out,
+            "note": "members and online are Discord's approximate counts. " + UNTRUSTED}
+
+
+def emojis(args: dict) -> dict:
+    gid, name, _ = _known_guild(args)
+    query = _str(args, "query").lower()
+    limit = _limit(args, "emojis")
+    data = call_engine("emojis", {"guild": gid})
+    shown = [e for e in data.get("emojis") or [] if not query or query in (e.get("name") or "").lower()]
+    sticks = [s for s in data.get("stickers") or [] if not query or query in (s.get("name") or "").lower()]
+    items = [{"id": e["id"], "name": e["name"], "use": f"{e['name']}:{e['id']}",
+              **{k: True for k in ("animated", "managed", "restricted") if e.get(k)},
+              **({} if e.get("available") else {"available": False})} for e in shown[:limit]]
+    stickers = [{"id": s["id"], "name": s["name"], "format": STICKER_FORMAT.get(s.get("format"), s.get("format")),
+                 **({"description": s["description"]} if s.get("description") else {}),
+                 **({"tags": s["tags"]} if s.get("tags") else {}),
+                 **({} if s.get("available") else {"available": False})} for s in sticks[:limit]]
+    result = {"ok": True, "guild": gid, "server": name, "emojis": items, "emoji_total": len(shown),
+              "stickers": stickers, "sticker_total": len(sticks)}
+    if len(shown) > limit or len(sticks) > limit:
+        result["more"] = f"showing {limit} of each; narrow with query or raise limit (up to {LIMITS['emojis'][1]})"
+    if data.get("stickers_error"):
+        result["stickers_error"] = data["stickers_error"]
+    result["note"] = ("restricted = limited to some roles; managed = by an integration. An emoji can be used "
+                      "in react only when it is already on that message. " + UNTRUSTED)
+    return result
+
+
+def events(args: dict) -> dict:
+    gid, name, _ = _known_guild(args)
+    limit = _limit(args, "events")
+    data = call_engine("events", {"guild": gid})
+    rows = sorted(data.get("events") or [], key=lambda e: e.get("start") or "")
+    out = []
+    for e in rows[:limit]:
+        item = {"id": e["id"], "name": e["name"], "status": EVENT_STATUS.get(e.get("status"), e.get("status")),
+                "kind": EVENT_KIND.get(e.get("kind"), e.get("kind")), "start": _when(e.get("start"))}
+        for key in ("description", "location", "channel", "interested", "creator_id"):
+            if e.get(key) not in (None, ""):
+                item[key] = e[key]
+        if e.get("end"):
+            item["end"] = _when(e["end"])
+        out.append(item)
+    result = {"ok": True, "guild": gid, "server": name, "events": out, "total": len(rows)}
+    if len(rows) > limit:
+        result["more"] = f"showing {limit} of {len(rows)}; raise limit (up to {LIMITS['events'][1]})"
+    result["note"] = ("Discord lists scheduled and active events (finished ones may be missing). interested = "
+                      "members who marked interest. " + UNTRUSTED)
+    return result
+
+
+def _when(value) -> str | None:
+    """An RFC 3339 time from Discord in the user's local time."""
+    try:
+        return datetime.fromisoformat(str(value).replace("Z", "+00:00")).astimezone().isoformat(timespec="minutes")
+    except ValueError:
+        return None if value is None else str(value)
 
 
 # --- media --------------------------------------------------------------------------------------
@@ -2711,7 +2816,8 @@ def outbox_binding(args: dict, home: Path | None = None, ids: dict | None = None
 READS = {"status": status, "guilds": guilds, "channels": channels, "dms": dms, "messages": messages,
          "search": search, "context": context, "backfill": backfill, "threads": threads, "pins": pins,
          "mentions": mentions, "pending": pending, "stats": stats, "friends": friends, "roles": roles, "member": member, "role_members": role_members,
-         "members": members, "sync_list": sync_list, "sync_suggest": sync_suggest, "sync_add": sync_add, "sync_remove": sync_remove}
+         "members": members, "guild_info": guild_info, "emojis": emojis, "events": events,
+         "sync_list": sync_list, "sync_suggest": sync_suggest, "sync_add": sync_add, "sync_remove": sync_remove}
 
 
 def binding(args: dict, home: Path | None = None, ids: dict | None = None) -> dict | None:
