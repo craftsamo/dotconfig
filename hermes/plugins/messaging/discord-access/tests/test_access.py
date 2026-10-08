@@ -1767,3 +1767,87 @@ def test_forum_posts_show_tags_poster_and_pin_and_pass_the_filters(monkeypatch):
     for bad in ({"sort": "random"}, {"tag": "x" * 101}):
         with pytest.raises(access.DiscordError):
             access.execute({"action": "threads", "channel": forum, **bad})
+
+
+# --- server information ----------------------------------------------------------------------------
+
+def _server_engine(monkeypatch, replies):
+    calls = []
+
+    def engine(command, args, timeout=None):
+        calls.append((command, args))
+        return replies[command]
+    monkeypatch.setattr(access, "call_engine", engine)
+    return calls
+
+
+def test_guild_info_labels_the_levels_and_marks_ownership(monkeypatch):
+    conn = store.connect(write=True)
+    store.upsert_guild(conn, G, "Guild", 0, owner=True)
+    conn.commit()
+    conn.close()
+    calls = _server_engine(monkeypatch, {"guild_info": {
+        "name": "Guild", "description": "a place", "owner_id": ME, "members": 120, "online": 30, "verification": 2,
+        "content_filter": 1, "nsfw_level": 0, "boost_tier": 1, "boosts": 3, "features": ["COMMUNITY"],
+        "locale": "ja", "vanity": None, "rules_channel": "400000000000000009"}})
+    result = access.execute({"action": "guild_info", "guild": G})
+    assert calls == [("guild_info", {"guild": G})]
+    info = result["guild"]
+    assert info["id"] == G and info["created"] == access._local(G) and info["you_own_it"] is True
+    assert info["verification"].startswith("medium") and info["content_filter"] == "members without roles"
+    assert info["nsfw_level"] == "default" and info["members"] == 120 and info["features"] == ["COMMUNITY"]
+    assert "vanity" not in info and "approximate" in result["note"]
+
+
+def test_server_information_is_only_asked_for_servers_the_user_listed(monkeypatch):
+    calls = _server_engine(monkeypatch, {})
+    for action in ("guild_info", "emojis", "events"):
+        with pytest.raises(access.DiscordError, match="unknown server"):
+            access.execute({"action": action, "guild": "300000000000000099"})
+        with pytest.raises(access.DiscordError, match="server id"):
+            access.execute({"action": action, "guild": "Guild"})
+        with pytest.raises(access.DiscordError, match="guild is required"):
+            access.execute({"action": action})
+    assert calls == []
+
+
+def test_emojis_list_how_to_name_them_and_filter_by_name(monkeypatch):
+    emojis = [{"id": f"80000000000000{n:04d}", "name": name, "animated": n == 1, "available": n != 3,
+               "managed": False, "restricted": n == 2} for n, name in ((1, "party"), (2, "vip"), (3, "old"))]
+    stickers = [{"id": "810000000000000001", "name": "wave", "description": "hi", "tags": "hello", "format": 4,
+                 "available": True}]
+    _server_engine(monkeypatch, {"emojis": {"emojis": emojis, "stickers": stickers}})
+    result = access.execute({"action": "emojis", "guild": G})
+    by = {e["name"]: e for e in result["emojis"]}
+    assert by["party"]["use"] == "party:800000000000000001" and by["party"]["animated"] is True
+    assert by["vip"]["restricted"] is True and by["old"]["available"] is False and "available" not in by["party"]
+    assert result["stickers"] == [{"id": "810000000000000001", "name": "wave", "format": "gif",
+                                   "description": "hi", "tags": "hello"}]
+    assert "already on that message" in result["note"] and "more" not in result
+    narrowed = access.execute({"action": "emojis", "guild": G, "query": "VIP"})
+    assert [e["name"] for e in narrowed["emojis"]] == ["vip"] and narrowed["emoji_total"] == 1
+    assert narrowed["stickers"] == [] and narrowed["sticker_total"] == 0
+    paged = access.execute({"action": "emojis", "guild": G, "limit": 1})
+    assert len(paged["emojis"]) == 1 and paged["emoji_total"] == 3 and "narrow with query" in paged["more"]
+
+
+def test_emojis_report_a_sticker_list_that_could_not_be_read(monkeypatch):
+    _server_engine(monkeypatch, {"emojis": {"emojis": [], "stickers": [], "stickers_error": "no access (403)"}})
+    assert access.execute({"action": "emojis", "guild": G})["stickers_error"] == "no access (403)"
+
+
+def test_events_come_in_start_order_with_labels_and_local_times(monkeypatch):
+    later = {"id": "820000000000000002", "name": "AMA", "status": 1, "kind": 1, "start": "2026-11-02T10:00:00+00:00",
+             "end": None, "channel": "400000000000000003", "interested": 12}
+    sooner = {"id": "820000000000000001", "name": "Meetup", "status": 2, "kind": 3, "start": "2026-10-20T09:30:00Z",
+              "end": "2026-10-20T11:00:00Z", "location": "Cafe", "description": "come along", "creator_id": TARO}
+    _server_engine(monkeypatch, {"events": {"events": [later, sooner]}})
+    result = access.execute({"action": "events", "guild": G})
+    assert [e["name"] for e in result["events"]] == ["Meetup", "AMA"] and result["total"] == 2
+    first, second = result["events"]
+    assert first["status"] == "active" and first["kind"] == "external" and first["location"] == "Cafe"
+    assert first["start"] == datetime(2026, 10, 20, 9, 30, tzinfo=timezone.utc).astimezone().isoformat(timespec="minutes")
+    assert "end" in first and "end" not in second and second["interested"] == 12 and second["kind"] == "stage"
+    assert "finished ones may be missing" in result["note"]
+    paged = access.execute({"action": "events", "guild": G, "limit": 1})
+    assert len(paged["events"]) == 1 and "showing 1 of 2" in paged["more"]
