@@ -41,10 +41,7 @@ session, it does not undo the work.
 ## OpenCode reader
 
 It reads OpenCode's own sessions across every project and never touches the
-execution side (`opencode-sessions/`, grants, `opencode_cli`, `opencode_v2`).
-The `opencode` plugin keeps an identical copy of `history.py` for its own
-`opencode_history` until that plugin is retired; `ai-history` and `/activity`
-read the `opencode-v2` one.
+execution side (session bindings, `opencode_v2`).
 
 - **Official API first.** It asks the person's shared OpenCode 2 service
   through the documented `opencode api` command (which finds or starts the
@@ -90,7 +87,8 @@ derived from `HERMES_HOME`, else `~/.hermes`), including `default`.
   kept tail into the continuation with its original timestamps; duplicates and
   synthetic compression-summary rows count once. A day either side of the window
   is read so gaps crossing its edges are clipped, not lost. `clarify` results are waits.
-  `opencode_call` and `specialist_call` waits stay in activity (the caller did
+  `opencode_run_<role>`, `opencode_request` (and `opencode_call`, which past sessions
+  still carry) and `specialist_call` waits stay in activity (the caller did
   wait) and are also reported as `opencode_wait_seconds` /
   `specialist_wait_seconds`, because the callee's own session counts the same
   time; the cross-tool summary's union removes that overlap.
