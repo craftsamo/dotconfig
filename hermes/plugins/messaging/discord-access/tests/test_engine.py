@@ -880,8 +880,26 @@ def test_events_ask_for_interest_counts_and_keep_the_readable_part():
                                  "interested": 5, "creator_id": FRIEND}]
 
 
+def test_invites_keep_the_code_and_drop_malformed_ones():
+    good = {"code": "AbC-123", "uses": 4, "max_uses": 10, "max_age": 86400, "temporary": True,
+            "created_at": "2026-01-01T00:00:00+00:00", "expires_at": "2026-01-02T00:00:00+00:00",
+            "inviter": {"id": FRIEND, "username": "friend", "global_name": "Friend"},
+            "channel": {"id": TEXT, "name": "general", "type": 0}, "guild": {"id": G}}
+    http = FakeHttp({("GET", f"/guilds/{G}/invites"): (200, {}, [
+        good, {"code": "bad code!"}, {"code": 5}, {"uses": 1}, "junk", {"code": "x"}])})
+    result = engine.invites(client(http), G)
+    assert result["invites"] == [{"code": "AbC-123", "uses": 4, "max_uses": 10, "max_age": 86400, "temporary": True,
+                                  "created": "2026-01-01T00:00:00+00:00", "expires": "2026-01-02T00:00:00+00:00",
+                                  "inviter": "Friend", "inviter_id": FRIEND, "channel": TEXT,
+                                  "channel_name": "general"}]
+    http = FakeHttp({("GET", f"/guilds/{G}/invites"): (403, {}, {"message": "Missing Permissions", "code": 50013})})
+    with pytest.raises(engine.EngineError) as exc:
+        engine.invites(client(http), G)
+    assert exc.value.kind == "forbidden"
+
+
 def test_server_information_commands_need_a_server():
-    for command in ("guild_info", "emojis", "events"):
+    for command in ("guild_info", "emojis", "events", "invites"):
         with pytest.raises(engine.EngineError, match="guild is required"):
             engine.run(command, {}, http=FakeHttp(), token="t")
 

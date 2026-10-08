@@ -1335,6 +1335,29 @@ def events(client: Client, guild_id: str) -> dict:
     return {"events": out}
 
 
+INVITE_CODE = re.compile(r"^[A-Za-z0-9-]{2,64}$")
+
+
+def invites(client: Client, guild_id: str) -> dict:
+    """The server's invite links (needs Manage Server). A code lets anyone join: it is returned as
+    Discord gave it, to the user only."""
+    found = client.get(f"/guilds/{guild_id}/invites", referer=f"/channels/{guild_id}")
+    out = []
+    for i in found if isinstance(found, list) else []:
+        code = i.get("code") if isinstance(i, dict) else None
+        if not isinstance(code, str) or not INVITE_CODE.match(code):
+            continue
+        inviter = i.get("inviter") if isinstance(i.get("inviter"), dict) else {}
+        channel_ = i.get("channel") if isinstance(i.get("channel"), dict) else {}
+        out.append({"code": code, "uses": i.get("uses"), "max_uses": i.get("max_uses"), "max_age": i.get("max_age"),
+                    "temporary": bool(i.get("temporary")), "created": i.get("created_at"),
+                    "expires": i.get("expires_at"), "inviter": store.display_name(inviter),
+                    "inviter_id": str(inviter["id"]) if inviter.get("id") else None,
+                    "channel": str(channel_["id"]) if channel_.get("id") else None,
+                    "channel_name": _text(channel_.get("name"), 100)})
+    return {"invites": out}
+
+
 # --- writes other than send ---------------------------------------------------------------------
 #
 # One request each, never retried. done: Discord accepted it (or the read-back shows the requested
@@ -1728,6 +1751,8 @@ def run(command: str, args: dict, *, http=None, token=None) -> dict:
             return emojis(client, _arg(args, "guild"))
         if command == "events":
             return events(client, _arg(args, "guild"))
+        if command == "invites":
+            return invites(client, _arg(args, "guild"))
         if command == "roles":
             return roles(client, _arg(args, "guild"))
         if command == "member":

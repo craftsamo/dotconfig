@@ -1801,7 +1801,7 @@ def test_guild_info_labels_the_levels_and_marks_ownership(monkeypatch):
 
 def test_server_information_is_only_asked_for_servers_the_user_listed(monkeypatch):
     calls = _server_engine(monkeypatch, {})
-    for action in ("guild_info", "emojis", "events"):
+    for action in ("guild_info", "emojis", "events", "invites"):
         with pytest.raises(access.DiscordError, match="unknown server"):
             access.execute({"action": action, "guild": "300000000000000099"})
         with pytest.raises(access.DiscordError, match="server id"):
@@ -1851,3 +1851,58 @@ def test_events_come_in_start_order_with_labels_and_local_times(monkeypatch):
     assert "finished ones may be missing" in result["note"]
     paged = access.execute({"action": "events", "guild": G, "limit": 1})
     assert len(paged["events"]) == 1 and "showing 1 of 2" in paged["more"]
+
+
+def _invite(code, created, **extra):
+    return {"code": code, "uses": 0, "max_uses": 0, "max_age": 0, "temporary": False, "created": created,
+            "expires": None, "inviter": None, "inviter_id": None, "channel": None, "channel_name": None, **extra}
+
+
+def test_invites_list_codes_newest_first_with_a_warning(monkeypatch):
+    calls = _server_engine(monkeypatch, {"invites": {"invites": [
+        _invite("old1", "2026-01-01T00:00:00+00:00", uses=9),
+        _invite("new2", "2026-09-01T00:00:00+00:00", uses=3, max_uses=10, expires="2026-12-01T00:00:00+00:00",
+                inviter="Taro", channel="400000000000000001", channel_name="general", temporary=True),
+        _invite("mid3", "2026-05-01T00:00:00+00:00", inviter_id=TARO)]}})
+    result = access.execute({"action": "invites", "guild": G})
+    assert calls == [("invites", {"guild": G})]
+    assert [i["code"] for i in result["invites"]] == ["new2", "mid3", "old1"] and result["total"] == 3
+    new, mid, old = result["invites"]
+    assert new["url"] == "https://discord.gg/new2" and new["uses"] == "3 of 10" and new["temporary"] is True
+    assert new["inviter"] == "Taro" and new["channel_name"] == "general"
+    assert new["expires"] == access._when("2026-12-01T00:00:00+00:00")
+    assert mid["inviter"] == TARO and mid["expires"] == "never" and "temporary" not in mid
+    assert old["uses"] == 9                                           # no cap: just the count
+    assert "lets anyone join" in result["note"] and "never put it in a message" in result["note"]
+    assert len(access.execute({"action": "invites", "guild": G, "limit": 1})["invites"]) == 1
+
+
+@pytest.mark.parametrize("seed, asked", [
+    ({"my_roles": (MOD,)}, False),                                     # roles and messages only: no Manage Server
+    ({"my_roles": ()}, False),
+    ({"my_roles": (ADMIN,)}, True),                                    # Administrator holds everything
+    ({"my_roles": (), "owner": True}, True),
+    ({"my_roles": (MOD,), "mod_bits": (1 << 5)}, True),                # Manage Server itself
+    ({"my_roles": (MOD,), "age": 3600}, True),                         # a role list this old decides nothing
+])
+def test_invites_are_refused_without_a_request_when_the_roles_show_no_manage_server(monkeypatch, seed, asked):
+    seed_roles(**seed)
+    calls = _server_engine(monkeypatch, {"invites": {"invites": []}})
+    if asked:
+        assert access.execute({"action": "invites", "guild": G})["invites"] == []
+        assert len(calls) == 1
+    else:
+        with pytest.raises(access.DiscordError, match="Manage Server"):
+            access.execute({"action": "invites", "guild": G})
+        assert calls == []
+
+
+def test_invites_explain_a_refusal_from_discord(monkeypatch):
+    def refuse(command, args, timeout=None):
+        raise access.DiscordError("Discord refused it (403): Missing Permissions")
+    monkeypatch.setattr(access, "call_engine", refuse)
+    with pytest.raises(access.DiscordError, match="needs the Manage Server permission"):
+        access.execute({"action": "invites", "guild": G})
+    monkeypatch.setattr(access, "call_engine", lambda *a, **k: (_ for _ in ()).throw(access.DiscordError("busy")))
+    with pytest.raises(access.DiscordError, match="^busy$"):
+        access.execute({"action": "invites", "guild": G})
