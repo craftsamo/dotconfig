@@ -1539,21 +1539,21 @@ def test_reconcile_turn_marks_child_environment(tmp_path):
 
 def test_handoff_states_the_turn_budget():
     base = {"conversation_id": "a" * 32, "job_id": "b" * 32, "initial_job_id": "b" * 32,
-            "initial_request": "hello", "requester_profile": "assistant", "target": "engineer"}
+            "initial_request": "hello", "requester_profile": "assistant", "target": "searcher"}
     plain = p._handoff(dict(base), "hello")
     assert "Turn budget" not in plain
     timed = p._handoff({**base, "deadline": time.time() + 90 * 60}, "hello")
     assert "Turn budget: this turn is killed at" in timed
     assert "(~89 min from now)" in timed or "(~90 min from now)" in timed
-    assert "committed checkpoint on the task branch" in timed and "uncommitted work" in timed
+    assert "unsaved work is lost" in timed
     assert "(~1 min from now)" in p._handoff({**base, "deadline": time.time() + 65}, "hello")
     assert "RECONCILE-ONLY" not in timed
     limited = p._handoff({**base, "deadline": time.time() + 65, "turn_kind": "reconcile"}, "hello")
     assert "Turn kind: RECONCILE-ONLY" in limited and "No opencode_run_<role> tool" in limited
 
 
-@pytest.mark.parametrize("target", sorted(set().union(*p.TARGETS.values()) - p.COMMIT_TARGETS))
-def test_only_the_engineer_handoff_asks_for_a_committed_checkpoint(target):
+@pytest.mark.parametrize("target", sorted(set().union(*p.TARGETS.values())))
+def test_no_handoff_asks_for_a_committed_checkpoint(target):
     base = {"conversation_id": "a" * 32, "job_id": "b" * 32, "initial_job_id": "b" * 32,
             "initial_request": "hello", "requester_profile": "assistant", "deadline": time.time() + 90 * 60}
     text = p._handoff({**base, "target": target}, "hello")

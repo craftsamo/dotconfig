@@ -314,8 +314,8 @@ def _plugin():
     return _load("session_history_plugin_test", ROOT / "__init__.py")
 
 
-@pytest.mark.parametrize("profile", ["writer", "creator", "marketer", "default"])
-def test_registration_is_engineer_and_assistant_only(profile):
+@pytest.mark.parametrize("profile", ["writer", "creator", "marketer", "default", "engineer"])
+def test_registration_is_assistant_only(profile):
     plugin = _plugin()
 
     class Context:
@@ -335,7 +335,7 @@ def test_tool_and_command(root, monkeypatch):
     tools, commands = {}, {}
 
     class Context:
-        profile_name = "engineer"
+        profile_name = "assistant"
 
         def register_tool(self, **kwargs):
             tools[kwargs["name"]] = kwargs

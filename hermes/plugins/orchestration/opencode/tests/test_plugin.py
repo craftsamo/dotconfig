@@ -29,7 +29,7 @@ CONFIG = "opencode:\n  enabled: true\n  wait_timeout: 8\n  allowed_providers: [a
 
 @pytest.fixture
 def fixture(tmp_path, monkeypatch):
-    home = tmp_path / "profiles/engineer"
+    home = tmp_path / "profiles/assistant"
     home.mkdir(parents=True)
     (home / "config.yaml").write_text(CONFIG)
     directory = tmp_path / "work tree"
@@ -39,7 +39,7 @@ def fixture(tmp_path, monkeypatch):
                     "--allow-empty", "-m", "init"], check=True, capture_output=True)
     fake = fakes.Fake(directory.resolve(), api)
     monkeypatch.setattr(api, "call", fake)
-    owner = {"profile": "engineer", "session_id": "client-a", "routing_digest": "a"}
+    owner = {"profile": "assistant", "session_id": "client-a", "routing_digest": "a"}
     monkeypatch.setattr(plugin, "_scope", lambda: (home, owner, False))
     monkeypatch.setattr(turn, "POLL", 0.01)
     monkeypatch.setattr(turn, "NO_OUTCOME_GRACE", 0.2)
@@ -98,7 +98,7 @@ def test_plan_run_creates_a_bound_session_and_completes(fixture):
     sid = out["session_id"]
     created = fake.sessions[sid]
     assert created["agent"] == "plan"
-    assert created["metadata"]["hermes"] == {"v": 2, "profile": "engineer", "owner": owner, "role": "plan",
+    assert created["metadata"]["hermes"] == {"v": 2, "profile": "assistant", "owner": owner, "role": "plan",
                                              "branch": "topic"}
     assert {"action": "edit", "resource": "*", "effect": "deny"} in created["permissions"]
     assert fake.entries[sid]["hermes.note"].startswith("A Hermes agent drives this session")
@@ -735,7 +735,7 @@ def test_detached_checkout_allows_reading_not_writing(monkeypatch):
 # ---------------------------------------------------------------- configuration and registration
 
 class Context:
-    def __init__(self, profile="engineer"):
+    def __init__(self, profile="assistant"):
         self.profile_name = profile
         self.hooks, self.tools = [], {}
 
@@ -746,7 +746,7 @@ class Context:
         self.tools[kwargs["name"]] = kwargs
 
 
-def register(monkeypatch, home, profile="engineer"):
+def register(monkeypatch, home, profile="assistant"):
     pytest.importorskip("hermes_constants")
     monkeypatch.setenv("HERMES_HOME", str(home))
     context = Context(profile)
@@ -813,15 +813,15 @@ def test_configuration_is_validated(fixture, text, message):
         config.load(home)
 
 
-def test_only_engineer_and_assistant_get_the_tools(fixture, monkeypatch, tmp_path):
+def test_only_the_assistant_gets_the_tools(fixture, monkeypatch, tmp_path):
     home, _, _, _ = fixture
-    for profile in ("creator", "writer", "default"):
+    for profile in ("creator", "writer", "default", "engineer"):
         assert register(monkeypatch, home, profile).tools == {}
     assert register(monkeypatch, home, "assistant").tools
 
 
 def test_scope_refuses_inbound_and_foreign_profiles(monkeypatch, tmp_path):
-    for name, inbound in (("creator", False), ("engineer", True)):
+    for name, inbound in (("creator", False), ("assistant", True)):
         home = tmp_path / "profiles" / name
         home.mkdir(parents=True, exist_ok=True)
         real = plugin.dispatch

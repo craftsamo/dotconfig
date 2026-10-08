@@ -81,7 +81,7 @@ def test_candidate_topology_and_always_on_contract():
     assert not (TREE / "references/qa.md").exists()
 
 
-@pytest.mark.parametrize("caller", ("engineer", "marketer"))
+@pytest.mark.parametrize("caller", ("marketer",))
 def test_primary_relays_acceptance_baseline_without_transferring_handle(caller):
     root = HERMES / "profiles" / caller
     if caller == "marketer":

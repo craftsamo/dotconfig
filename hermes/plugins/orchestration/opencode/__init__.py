@@ -44,7 +44,7 @@ models = _load("hermes_opencode_models", _HERE / "models.py")
 turn = _load("hermes_opencode_turn", _HERE / "turn.py")
 inventory = _load("hermes_opencode_history", _HERE / "history.py")
 
-PROFILES = {"engineer", "assistant"}
+PROFILES = {"assistant"}
 # The tool mechanics skill reaches only the profiles that will drive OpenCode.
 SKILLS = {"opencode": {"assistant"}}
 TOPIC_FIELDS = ("PLATFORM", "SOURCE", "PROFILE", "KEY", "CHAT_ID", "THREAD_ID", "USER_ID")

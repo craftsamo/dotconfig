@@ -1,4 +1,4 @@
-"""Session history for Engineer and Assistant: the hermes_history tool and /activity.
+"""Session history for the Assistant: the hermes_history tool and /activity.
 
 The readers are stdlib modules beside this file (``hermes.py``, ``common.py``,
 ``cli.py``) so cron and the ``ai-history`` launcher run the same code. This
@@ -26,7 +26,7 @@ def _load(name, path):
 HERE = Path(__file__).resolve().parent
 cli = _load("hermes_session_history_cli", HERE / "cli.py")
 reader = cli.hermes
-PROFILES = {"engineer", "assistant"}
+PROFILES = {"assistant"}
 PERIODS = {"": 1, "today": 1, "week": 7, "month": 30}
 
 DESCRIPTION = (

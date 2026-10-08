@@ -313,11 +313,11 @@ class Ctx:
         self.commands.append(name)
 
 
-def test_registers_only_for_engineer_and_assistant():
-    for profile, expected in (("engineer", 1), ("assistant", 1), ("creator", 0)):
+def test_registers_only_for_the_assistant():
+    for profile, expected in (("engineer", 0), ("assistant", 1), ("creator", 0)):
         ctx = Ctx(profile)
         plugin.register(ctx)
         assert len(ctx.tools) == expected and ctx.commands == ["repos"] * expected
-    schema = Ctx("engineer")
+    schema = Ctx("assistant")
     plugin.register(schema)
     assert schema.tools[0]["schema"]["parameters"]["properties"]["action"]["enum"] == ["summary", "prs", "issues", "commits"]

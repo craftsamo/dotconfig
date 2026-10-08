@@ -89,7 +89,7 @@ or inherit Writer's role. Read only the detail references selected below.
    you ran it. Missing evidence for an essential step is a gap, not a guessed
    success path. Protect sensitive details rather than reproducing raw logs.
 7. Apply QA and save the complete released text at the requested durable path.
-   The requester/engineer owns repository integration and runtime checks; a
+   The requester's engineering work owns repository integration and runtime checks; a
    slide outline is not a rendered deck. Any required assets, rendering or
    unavailable evidence remain explicit dependencies, not completed work.
 

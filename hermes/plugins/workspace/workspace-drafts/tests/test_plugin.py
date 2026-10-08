@@ -414,8 +414,8 @@ class Ctx:
         self.commands.append(name)
 
 
-@pytest.mark.parametrize("profile,expected", [("assistant", True), ("engineer", True), ("creator", False)])
-def test_registration_is_limited_to_engineer_and_assistant(profile, expected):
+@pytest.mark.parametrize("profile,expected", [("assistant", True), ("engineer", False), ("creator", False)])
+def test_registration_is_limited_to_the_assistant(profile, expected):
     ctx = Ctx(profile)
     plugin.register(ctx)
     assert bool(ctx.tools) is expected and bool(ctx.commands) is expected
