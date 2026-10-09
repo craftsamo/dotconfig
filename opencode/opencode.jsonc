@@ -15,7 +15,14 @@
     // quota. enabled: false stops new selection but retains in-flight guards.
     {
       "package": "./lib/subagent-fallback",
-      "options": { "enabled": true, "creditsLastResort": true }
+      "options": {
+        "enabled": true,
+        "creditsLastResort": true,
+        // Console credit lanes, in spending order (see the providers below).
+        // Specialists try them before the subscription; the primary moves to
+        // them when the subscription hits a window limit. [] turns it off.
+        "creditLanes": ["anthropic-credit-main", "anthropic-credit-sub"]
+      }
     }
   ],
   // No "instructions" array: OpenCode V2 accepts it but never loads the files
@@ -174,6 +181,7 @@
       "package": "@opencode/ai/providers/anthropic",
       "env": ["ANTHROPIC_CREDIT_MAIN_ACCOUNT_KEY"],
       "models": {
+        "claude-fable-5-1": {},
         "claude-opus-5-5": {},
         "claude-sonnet-5-5": {},
         "claude-haiku-5-5": {},
@@ -185,6 +193,7 @@
       "package": "@opencode/ai/providers/anthropic",
       "env": ["ANTHROPIC_CREDIT_SUB_ACCOUNT_KEY"],
       "models": {
+        "claude-fable-5-1": {},
         "claude-opus-5-5": {},
         "claude-sonnet-5-5": {},
         "claude-haiku-5-5": {},

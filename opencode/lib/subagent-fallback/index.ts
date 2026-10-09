@@ -12,6 +12,18 @@ import {
   type Dependencies,
 } from "./quota"
 import {
+  classify,
+  DEFAULT_COOLDOWN_MS,
+  Episodes,
+  EPISODE_TTL_MS,
+  Lanes,
+  launchLane,
+  nextModel,
+  OAUTH_PROVIDER,
+  SIDE_AGENTS,
+  type Role,
+} from "./lanes"
+import {
   decideLaunch,
   modelsEqual,
   routeForLaunch,
@@ -52,7 +64,15 @@ type Hooks = {
   "experimental.ws.send": Scope & { frame: string }
   retry: {
     sessionID: string
-    error: { type: string; status?: number; message: string }
+    agent?: string
+    model: ModelRef
+    attempt?: number
+    error: {
+      type: string
+      status?: number
+      message: string
+      response?: { body?: string }
+    }
     decision: { retry: false } | { retry: true; delay: number }
   }
 }
@@ -91,6 +111,7 @@ export type RuntimeContext = AccountsContext & {
       sessionID: string
       metadata: Record<string, unknown>
     }): Promise<unknown>
+    switchModel(input: { sessionID: string; model: ModelRef }): Promise<void>
     hook<N extends keyof Hooks>(
       name: N,
       callback: (event: Hooks[N]) => Promise<void>,
@@ -248,6 +269,23 @@ export async function setupPreflight(
       : exportPath()
   const handshakes = new Map<string, string>()
   const enabled = ctx.options.enabled === true
+  // Console credit lanes (see lanes.ts). An empty list turns the whole
+  // feature off, in-flight moves included.
+  const lanes = new Lanes(
+    Array.isArray(ctx.options.creditLanes)
+      ? ctx.options.creditLanes.filter(
+          (id): id is string =>
+            typeof id === "string" && id !== "" && id !== OAUTH_PROVIDER,
+        )
+      : [],
+    typeof ctx.options.creditCooldownMs === "number" &&
+    ctx.options.creditCooldownMs > 0
+      ? ctx.options.creditCooldownMs
+      : DEFAULT_COOLDOWN_MS,
+    deps.now,
+  )
+  const episodes = new Episodes(EPISODE_TTL_MS, deps.now)
+  const primaryFallback = ctx.options.primaryFallback !== false
   const protectedChild = async (sessionID: string) => {
     const session = await ctx.session.get({ sessionID })
     const marker = parseMarker(session)
@@ -466,6 +504,79 @@ export async function setupPreflight(
           event.decision = { retry: false }
       }),
     )
+    // Console credit lanes. An empty balance fails before anything is
+    // generated, and so does a bad key or a window limit, so moving the session
+    // to the next provider and repeating the same step has no side effects.
+    // Protected children keep their own guards above.
+    registrations.push(
+      await ctx.session.hook("retry", async (event) => {
+        if (lanes.ids.length === 0 || !event.model) return
+        const provider = event.model.providerID
+        const onLane = lanes.has(provider)
+        if (!onLane && provider !== OAUTH_PROVIDER) return
+        const failure = classify(event.error, event.decision)
+        if (!failure) return
+        // A subscription failure matters only as a window limit; a lane
+        // failure is any of the three.
+        if (!onLane && failure !== "quota") return
+        try {
+          if (await protectedChild(event.sessionID)) return
+          const session = await ctx.session.get({ sessionID: event.sessionID })
+          const role: Role = session.parentID ? "subagent" : "primary"
+          const agent = event.agent ?? session.agent
+          // Side requests (compaction, titles) run on a model of their own;
+          // moving the session for one would swap the model it works on.
+          if (typeof agent === "string" && SIDE_AGENTS.has(agent)) return
+          if (
+            session.model &&
+            (session.model.providerID !== provider ||
+              session.model.id !== event.model.id)
+          )
+            return
+          const eligible =
+            typeof agent === "string" &&
+            Object.hasOwn(ROUTES, agent) &&
+            ROUTES[agent].primary.providerID === OAUTH_PROVIDER
+          // A window limit lasts as long as its wait; an empty balance or a
+          // bad key lasts until someone fixes it, so those take the cooldown.
+          if (onLane)
+            lanes.mark(
+              provider,
+              failure === "quota" && event.decision.retry
+                ? event.decision.delay
+                : undefined,
+            )
+          // The subscription's limit is moved off only for the roles that opt
+          // in: Claude specialists, and the primary when primaryFallback is on.
+          if (!onLane && (role === "primary" ? !primaryFallback : !eligible))
+            return
+          const tried = episodes.record(event.sessionID, provider)
+          const catalog = (await ctx.model.list({ location: session.location }))
+            .data
+          const target = nextModel({
+            current: event.model,
+            role,
+            lanes,
+            tried,
+            catalog,
+          })
+          if (target) {
+            await ctx.session.switchModel({
+              sessionID: event.sessionID,
+              model: target,
+            })
+            event.decision = { retry: true, delay: 0 }
+            return
+          }
+          // Nothing left to move to. A specialist must not sit out a long
+          // reset: stop so the parent relaunches it and the usual preflight
+          // can pick the other vendor.
+          if (!onLane && role === "subagent") event.decision = { retry: false }
+        } catch {
+          // Leave the native decision untouched.
+        }
+      }),
+    )
     registrations.push(
       await ctx.tool.transform((editor) => {
         if (!editor.get("subagent"))
@@ -514,6 +625,42 @@ export async function setupPreflight(
             ).data
             const route = routeForLaunch(input, agent.model)
             if (!route) return original(input, context)
+            // Credits first: a lane not known empty takes the launch, with no
+            // subscription marker (its guards are for OAuth requests). When
+            // every lane is empty, the usual preflight below decides.
+            if (lanes.ids.length > 0) {
+              const lane = launchLane(
+                route,
+                lanes,
+                (await ctx.model.list({ location: parent.location })).data,
+              )
+              if (lane) {
+                context.signal.throwIfAborted()
+                const result = await original(
+                  { ...input, model: selector(lane) },
+                  context,
+                )
+                const notice = `[Subagent preflight: ${input.agent} ${selector(route.primary)} → ${selector(lane)}; a Console credit lane is tried before the subscription.]`
+                return {
+                  ...result,
+                  metadata: {
+                    ...result.metadata,
+                    preflight: {
+                      funding: "console-credit",
+                      from: selector(route.primary),
+                      to: selector(lane),
+                    },
+                  },
+                  content:
+                    typeof result.content === "string"
+                      ? `${notice}\n${result.content}`
+                      : [
+                          { type: "text", text: notice },
+                          ...(result.content ?? []),
+                        ],
+                }
+              }
+            }
             context.signal.throwIfAborted()
             const snapshot = await loadQuotaExport(deps, quotaPath)
             context.signal.throwIfAborted()

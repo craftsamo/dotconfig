@@ -291,7 +291,10 @@ OpenCode Quota reports both included quotas at 0%. Missing or stale Quota data
 keeps the configured default. It never buys credits or changes accounts.
 Never apply a manual LLM model override as a fallback, and preserve an
 explicitly requested model and sessionID continuations. No mid-task switch or
-restart, and no substituting the general role.
+restart, and no substituting the general role. The one exception is Console
+credit lanes: on an empty balance, a bad key or a window limit the plugin moves
+a session to the next lane or the subscription and repeats the failed step, so
+a failed specialist launch is not a reason to stop delegating.
 
 </SubagentModels>
 
