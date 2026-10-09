@@ -7,6 +7,9 @@ export type Lane = {
   amount: number
   grantedOn: string
   expiresOn: string
+  // Env var holding the lane's API key. OpenCode Quota sends it as the bearer
+  // token to the local endpoint, which only answers a request carrying it.
+  keyEnv?: string
 }
 export type StatsModel = {
   model: { providerID: string; id: string; variant?: string }
