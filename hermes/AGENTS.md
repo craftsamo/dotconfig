@@ -134,6 +134,13 @@ the live checkout `~/.config`.
   Hermes' account — afterwards verify with
   `security find-generic-password -s "Claude Code-credentials"` plus the OAuth
   profile endpoint. Details: [docs/models-auth.md](docs/models-auth.md).
+- **`provider: anthropic` is the Console API key lane, not the subscription.**
+  The subscription is `anthropic-oauth`; a profile that names `anthropic` for a
+  Claude tier bills the monthly credits (or, with no key, is skipped), and a
+  tier on the wrong lane is silent. The credit keys' env names
+  (`ANTHROPIC_CREDIT_*`) are what the `anthropic` pool reads: renaming one
+  empties that entry, in the root `auth.json` and in any per-profile copy. Details: [docs/models-auth.md "Console credit
+  lanes"](docs/models-auth.md).
 - **A new Claude model is not covered until checked.** Before adopting one,
   read its breaking changes against the mandatory-thinking and
   no-forced-`tool_choice` substring lists (unknown ids default to "disable
