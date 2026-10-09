@@ -45,7 +45,9 @@ fork?, timeout?, output_dir?)`; build also takes `approval` and
   that topic. From another topic it is foreign: you can find it in
   `opencode_history` but not drive it.
 - **One repository for the life of a session.** A session keeps its worktree
-  and branch between turns, and it may only ever work in the repository it
+  and branch between turns (a write run is refused in the live Hermes
+  configuration checkout `~/.config`: give the session a worktree first), and it
+  may only ever work in the repository it
   started in: a session that moved elsewhere (it can move itself) is refused at
   its next turn, as is one bound before repositories were recorded.
   To work in another repository, start a new session and paste what it needs.

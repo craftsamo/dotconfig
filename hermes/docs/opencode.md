@@ -17,10 +17,13 @@ engineering entries (`{plan,execute,qa}-assistant-engineering`) carry those
 decisions, including which work goes to OpenCode and what plan and Build share;
 the plugin's own skill (`opencode:opencode`) carries the tool mechanics. Code
 work happens in any Telegram/Discord topic. The CLI `default` profile has no
-OpenCode tools: there the person runs OpenCode directly, as they do on this
-configuration repo (`~/.config`). The Assistant does not run OpenCode on it,
-because its live links make every change immediately effective; its Admin topic
-makes only small inline edits there.
+OpenCode tools: there the person runs OpenCode directly, as they usually do on
+this configuration repo (`~/.config`). The Assistant may run OpenCode on it too
+(hands-reference upkeep does), but its links make every change in the live
+checkout effective at once, so it plans there read-only and builds only in the
+task worktree `opencode_session workspace` creates; the plugin refuses a write
+run in the live checkout. Cutover stays the person's decision. Its Admin topic
+also makes small inline edits there.
 
 | Relationship                 | Owner of decisions                                                  |
 | ---------------------------- | ------------------------------------------------------------------- |

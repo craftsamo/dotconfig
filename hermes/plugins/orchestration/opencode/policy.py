@@ -170,6 +170,11 @@ def decide(ruleset, action, resource):
 PROTECTED_BRANCHES = ("main", "master")
 
 
+def live_checkout():
+    """The checkout `~/.hermes` links into: a branch there is live for anything Hermes reads."""
+    return str(Path.home() / ".config")
+
+
 def git(directory, *args):
     proc = subprocess.run(["git", "-C", str(directory), *args], capture_output=True, text=True, timeout=15)
     if proc.returncode:
@@ -189,6 +194,10 @@ def worktree(value):
 def branch(directory, writing):
     """(branch name, protected branch names) of the worktree. A write run needs a named
     task branch that is not the default branch, local or remote."""
+    if writing and same_dir(directory, live_checkout()):
+        raise ValueError("A write run never edits the live Hermes configuration checkout (~/.config): its links "
+                         "make every change effective at once; give the session a task worktree with "
+                         "opencode_session workspace first")
     protected = set(PROTECTED_BRANCHES)
     symbolic = subprocess.run(["git", "-C", directory, "symbolic-ref", "--quiet", "--short", "HEAD"],
                               capture_output=True, text=True, timeout=15)

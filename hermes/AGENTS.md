@@ -1,8 +1,9 @@
 # hermes/ — maintainer rules
 
-Rules for whoever edits this subtree: OpenCode, started by the person (the
-Assistant does not drive OpenCode on this configuration repo; its Admin topic
-makes only small inline edits).
+Rules for whoever edits this subtree: OpenCode, usually started by the person.
+The Assistant may drive it here too (hands-reference upkeep does), but only in a
+task worktree (`opencode_session workspace`): the plugin refuses a write run in
+the live checkout `~/.config`.
 `../install.sh` symlinks these files into `~/.hermes/`; Hermes reads
 `~/.hermes/`, never `~/.config`, and never loads this file, `README.md` or
 `docs/` at runtime. What a profile actually sees at runtime is its
@@ -351,6 +352,11 @@ When editing `plugins/orchestration/opencode`:
   role that refuses. Allowing is a maintainer's choice per role in `opencode.roles`
   ([docs/opencode.md "Models"](docs/opencode.md)); an `alternate` only names the
   model to rerun on after a limit error, nothing switches by itself.
+- **A write run never edits the live checkout.** `policy.branch` refuses a write
+  run in `~/.config` (`policy.live_checkout`), because `~/.hermes` links into it and
+  any branch there is live; the Assistant plans there read-only and builds in the
+  worktree `workspace` creates. Cutover (install, gateway restart, the private
+  pairing) stays a person's decision under "Candidates and cutover".
 - **A session may only work in the repository it was bound to.** An agent can move
   any session with `session_move` (no permission asked), so `metadata.hermes.repo`
   and the per-turn check in `_prepare` detect a stray session at its next turn;
