@@ -266,6 +266,20 @@ they do not probe providers or establish real billing/entitlement behavior.
   `Claude Code-credentials` entry) and Claude Code stay untouched. Log in from
   a browser signed into the sub account:
   `opencode auth login anthropic --method claude-max`.
+- **Anthropic Console credit lanes**: the monthly API credits that Max plans
+  grant (Max 5x and 20x, one Console org per plan, spent before any purchased
+  balance and lost at the end of the billing cycle). They work only through an
+  API key, never in Claude Code or as extra usage. Two providers,
+  `anthropic-credit-main` (the 20x plan's org) and `anthropic-credit-sub` (the
+  5x plan's), read `ANTHROPIC_CREDIT_MAIN_ACCOUNT_KEY` and
+  `ANTHROPIC_CREDIT_SUB_ACCOUNT_KEY` from the Keychain project `opencode`.
+  Never name a key `ANTHROPIC_API_KEY`: it would take precedence over the OAuth
+  login. A lane stays inactive while its variable is unset, and its models list
+  Opus, Sonnet and Haiku 5.5 explicitly (`canonical` inherits prices, not the
+  model list). Neither org has a payment method or auto-reload, so an empty
+  balance fails the request instead of billing. The service reads the
+  environment at start: a new or rotated key needs `opencode service restart`,
+  and `opencode reload` is enough for config only.
 - **OpenAI**: built-in ChatGPT login,
   `opencode auth login openai --method chatgpt-browser`.
 - **xAI** (`x_search`): built-in SuperGrok login,
