@@ -296,6 +296,29 @@ stops only new lane launches.
   loop. Children launched under the subscription preflight keep their own
   guards and are never moved.
 
+## Prompt cache
+
+Anthropic's cache lives five minutes from its last use, per workspace, and a
+miss rewrites the whole prefix at 1.25 times the input price (about $1 per
+rewrite at 380k tokens on Sonnet 5.5; a read costs a tenth). In one long
+session 81% of the written tokens were rewrites, on the subscription and on the
+credit lanes alike, from two causes:
+
+- **A pause over five minutes.** `warming` (top level of `opencode.jsonc`,
+  `interval` four minutes, `duration` twenty) sends a keep-alive request while a
+  session sits idle, and stops twenty minutes after the last real request. It
+  covers every recently active session and every provider, the subscription
+  included: the documentation has no per-provider switch. The longest pause
+  measured was sixteen minutes. Each keep-alive is a real request, a cache read
+  at most four times per idle window, and it is not in the session history or
+  in `opencode stats`; the service log shows `warming session` lines.
+- **A change to the prefix.** Switching between Plan and Build changes the
+  system prompt and the tools, and moving to another provider or model starts a
+  new cache; warming cannot prevent either. Long conversations are cheaper kept
+  in one agent, on one provider.
+
+A move to a credit lane (see above) therefore pays one full write.
+
 ## Accounts
 
 - **Anthropic** (Claude Pro/Max, the sub account): OpenCode's own OAuth login

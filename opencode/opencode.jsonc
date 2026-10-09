@@ -29,6 +29,13 @@
   // (anomalyco/opencode#51341). All global rules live in AGENTS.md, which both
   // V1 and V2 read.
   "small_model": "openai/gpt-6-luna",
+  // Anthropic's prompt cache lives five minutes, and a miss rewrites the whole
+  // conversation (about $1 per rewrite at 380k tokens on Sonnet 5.5). A
+  // keep-alive every four minutes holds it through pauses of up to twenty
+  // minutes; the longest pause measured in one long session was sixteen. It is
+  // a real request on every provider, the subscription included: each one costs
+  // a cache read (a tenth of the input price), at most four per idle window.
+  "warming": { "interval": "4 minutes", "duration": "20 minutes" },
   // OpenCode 2 formats nothing unless a config sets "formatter"; the object
   // form also enables the built-ins whose tools are installed.
   "formatter": {
