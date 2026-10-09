@@ -24,6 +24,11 @@
     },
   ],
   "formatStyle": "allWindows",
+  // How long Quota reuses a provider's result: the sidebar refreshes every 60 s
+  // but shows a cached result for this long. The default is 5 minutes, which
+  // made the credit lanes look frozen. It applies to every provider, so it is
+  // not set lower than 2 minutes.
+  "minIntervalMs": 120000,
   "enableToast": false,
   // Share Quota's cached public JSON with the local launch selector. No extra
   // provider fetch: Quota's home footer writes this on its normal refresh.
