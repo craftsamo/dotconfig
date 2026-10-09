@@ -678,6 +678,24 @@ def test_workspace_refuses_a_session_that_moved_or_was_bound_before_repositories
     assert "before its repository was recorded" in run("plan", session_id=sid)["error"]
 
 
+def test_the_live_configuration_checkout_is_planned_in_but_only_built_in_a_worktree(fixture, tmp_path, monkeypatch):
+    home, directory, _, fake = fixture
+    with_root(home, tmp_path / "wt")
+    live = tmp_path / "live-link"
+    live.symlink_to(directory)
+    monkeypatch.setattr(policy, "live_checkout", lambda: str(live))
+    sid = run("plan", directory)["session_id"]
+    subprocess.run(["git", "-C", str(directory), "switch", "-q", "-c", "feature"], check=True, capture_output=True)
+    fake.sessions[sid]["metadata"]["hermes"]["branch"] = "feature"
+    refused = json.loads(plugin.opencode_run("build", dict(message="go", session_id=sid, approval="ok")))
+    assert "live Hermes configuration checkout" in refused["error"]
+    assert "live Hermes configuration checkout" in preflight(directory, phase="build")["issues"][0]["what"]
+    out = session("workspace", sid, branch="task/cfg", base="head")
+    fake.directory = out["directory"]
+    built = json.loads(plugin.opencode_run("build", dict(message="go", session_id=sid, approval="ok")))
+    assert built["status"] == "completed" and built["branch"] == "task/cfg"
+
+
 def test_workspace_is_refused_in_a_reconcile_turn_and_a_concurrent_start(fixture, tmp_path, monkeypatch):
     home, directory, _, fake = fixture
     with_root(home, tmp_path / "wt")
