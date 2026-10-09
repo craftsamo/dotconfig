@@ -1,8 +1,11 @@
 import { describe, expect, test } from "bun:test"
 import {
+  cycleOf,
   format,
   statsDays,
   summarize,
+  trackedFrom,
+  ymd,
   type Lane,
   type StatsModel,
 } from "./core"
@@ -11,24 +14,60 @@ const MAIN: Lane = {
   provider: "anthropic-credit-main",
   label: "Main",
   amount: 200,
-  grantedOn: "2026-10-09",
-  expiresOn: "2026-10-13",
+  renewalDay: 13,
+  since: "2026-10-09",
 }
 const model = (providerID: string, id: string, cost: number): StatsModel => ({
   model: { providerID, id },
   cost,
 })
-// Noon on the second day of a four-day grant.
+// Noon on the second day of a four-day first cycle.
 const NOW = new Date(2026, 9, 10, 12, 0, 0)
+const span = (day: number, now: Date) => {
+  const { start, end } = cycleOf(day, now)
+  return `${ymd(start)} ${ymd(end)}`
+}
 
-describe("statsDays", () => {
-  test("starts from the grant day's midnight", () => {
-    expect(statsDays("2026-10-09", new Date(2026, 9, 9, 15))).toBe(1)
-    expect(statsDays("2026-10-09", new Date(2026, 9, 10, 1))).toBe(2)
-    expect(statsDays("2026-10-09", new Date(2026, 9, 13, 23))).toBe(5)
+describe("cycleOf", () => {
+  test("runs from the latest renewal day to the next", () => {
+    expect(span(13, new Date(2026, 9, 10))).toBe("2026-09-13 2026-10-13")
+    expect(span(13, new Date(2026, 9, 20))).toBe("2026-10-13 2026-11-13")
+  })
+  test("a renewal day starts the new cycle at its local midnight", () => {
+    expect(span(13, new Date(2026, 9, 13, 0, 0, 0))).toBe(
+      "2026-10-13 2026-11-13",
+    )
+    expect(span(13, new Date(2026, 9, 12, 23, 59, 59))).toBe(
+      "2026-09-13 2026-10-13",
+    )
+  })
+  test("crosses year boundaries both ways", () => {
+    expect(span(20, new Date(2026, 11, 25))).toBe("2026-12-20 2027-01-20")
+    expect(span(20, new Date(2027, 0, 5))).toBe("2026-12-20 2027-01-20")
+  })
+  test("a day a short month lacks falls on its last day", () => {
+    expect(span(31, new Date(2026, 1, 10))).toBe("2026-01-31 2026-02-28")
+    expect(span(31, new Date(2026, 2, 5))).toBe("2026-02-28 2026-03-31")
+    expect(span(30, new Date(2028, 1, 29, 12))).toBe("2028-02-29 2028-03-30")
+  })
+})
+
+describe("trackedFrom and statsDays", () => {
+  test("a later `since` starts a first cycle part way, an older one is ignored", () => {
+    expect(ymd(trackedFrom(MAIN, NOW))).toBe("2026-10-09")
+    expect(ymd(trackedFrom(MAIN, new Date(2026, 10, 1)))).toBe("2026-10-13")
+    expect(ymd(trackedFrom({ ...MAIN, since: undefined }, NOW))).toBe(
+      "2026-09-13",
+    )
+  })
+  test("counts days from local midnight, today included", () => {
+    const from = new Date(2026, 9, 9)
+    expect(statsDays(from, new Date(2026, 9, 9, 15))).toBe(1)
+    expect(statsDays(from, new Date(2026, 9, 10, 1))).toBe(2)
+    expect(statsDays(from, new Date(2026, 9, 13, 23))).toBe(5)
   })
   test("never goes below one day", () => {
-    expect(statsDays("2026-10-20", new Date(2026, 9, 9))).toBe(1)
+    expect(statsDays(new Date(2026, 9, 20), new Date(2026, 9, 9))).toBe(1)
   })
 })
 
@@ -51,6 +90,7 @@ describe("summarize", () => {
   })
   test("derives the pace and what would expire unused", () => {
     const s = summarize(MAIN, models, NOW)
+    expect(ymd(s.cycleEnd)).toBe("2026-10-13")
     expect(s.elapsedDays).toBeCloseTo(1.5, 5)
     expect(s.daysLeft).toBeCloseTo(2.5, 5)
     expect(s.pacePerDay).toBeCloseTo(50 / 1.5, 5)
@@ -66,10 +106,13 @@ describe("summarize", () => {
     expect(s.remaining).toBe(-50)
     expect(s.neededPerDay).toBe(0)
   })
-  test("a lane past its expiry is reported as expired", () => {
-    const s = summarize(MAIN, models, new Date(2026, 9, 14))
-    expect(s.expired).toBe(true)
-    expect(s.neededPerDay).toBe(0)
+  test("after the renewal day the next cycle starts on its own", () => {
+    const s = summarize(MAIN, [], new Date(2026, 9, 14))
+    expect(`${ymd(s.cycleStart)} ${ymd(s.cycleEnd)}`).toBe(
+      "2026-10-13 2026-11-13",
+    )
+    expect(ymd(s.trackedFrom)).toBe("2026-10-13")
+    expect(s.daysLeft).toBeGreaterThan(29)
   })
   test("a very young grant does not blow up the pace", () => {
     const s = summarize(
@@ -91,16 +134,11 @@ describe("format", () => {
       ),
     ])
     expect(text).toContain(
-      "Main (anthropic-credit-main): 2026-10-09 -> 2026-10-13",
+      "Main (anthropic-credit-main): 2026-09-13 -> 2026-10-13, renews on day 13",
     )
     expect(text).toContain("$50.00 of $200.00")
     expect(text).toContain("$150.00 left (75%)")
     expect(text).toContain("claude-sonnet-5-5 $50.00")
     expect(text).toContain("about 3%")
-  })
-  test("an expired lane asks for the new grant instead of a pace", () => {
-    const text = format([summarize(MAIN, [], new Date(2026, 9, 14))])
-    expect(text).toContain("expired")
-    expect(text).not.toContain("per day")
   })
 })

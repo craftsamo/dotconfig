@@ -7,8 +7,8 @@ const LANE: Lane = {
   provider: "anthropic-credit-main",
   label: "Main",
   amount: 200,
-  grantedOn: "2026-10-09",
-  expiresOn: "2026-10-13",
+  renewalDay: 13,
+  since: "2026-10-09",
 }
 const NOW = new Date(2026, 9, 10, 12)
 const summary = (cost: number, now = NOW): Summary =>
@@ -49,14 +49,15 @@ describe("toQuotaV1", () => {
     expect(value.value.length).toBeLessThanOrEqual(160)
     expect(value.percentRemaining).toBeUndefined()
   })
-  test("never exceeds 100% and drops the reset once expired", () => {
+  test("never exceeds 100%, and the reset follows the cycle after a renewal", () => {
     expect(
       (toQuotaV1(summary(-5), NOW).entries[0] as any).percentRemaining,
     ).toBe(100)
-    const late = new Date(2026, 9, 14)
-    const expired = toQuotaV1(summary(50, late), late)
-    expect((expired.entries[0] as any).resetTimeIso).toBeUndefined()
-    expect((expired.entries[1] as any).value).toContain("expired")
+    const later = new Date(2026, 9, 14)
+    const next = toQuotaV1(summary(50, later), later)
+    expect((next.entries[0] as any).resetTimeIso).toBe(
+      new Date(2026, 10, 13).toISOString(),
+    )
   })
 })
 

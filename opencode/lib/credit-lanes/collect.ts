@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs"
 import {
   statsDays,
   summarize,
+  trackedFrom,
   type Lane,
   type StatsModel,
   type Summary,
@@ -44,7 +45,7 @@ export async function collect(
   const cache = new Map<number, StatsModel[]>()
   const summaries: Summary[] = []
   for (const lane of lanes) {
-    const days = statsDays(lane.grantedOn, now)
+    const days = statsDays(trackedFrom(lane, now), now)
     if (!cache.has(days)) cache.set(days, await run(days))
     summaries.push(summarize(lane, cache.get(days)!, now))
   }

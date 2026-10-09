@@ -1,4 +1,4 @@
-import { localDate, type Summary } from "./core"
+import type { Summary } from "./core"
 
 // OpenCode Quota's `quota-v1` envelope, for a custom remote provider.
 export type QuotaEntry =
@@ -34,9 +34,7 @@ export function toQuotaV1(s: Summary, now: Date) {
       percentRemaining: Math.min(100, s.percentLeft),
       label: "Left:",
       right: `${usd(s.remaining)}/${usd(s.lane.amount)}`,
-      ...(s.expired
-        ? {}
-        : { resetTimeIso: localDate(s.lane.expiresOn).toISOString() }),
+      resetTimeIso: s.cycleEnd.toISOString(),
       observedAtIso,
     },
     {
@@ -44,9 +42,8 @@ export function toQuotaV1(s: Summary, now: Date) {
       name: "Pace",
       resultType: "usage",
       label: "Pace:",
-      value: s.expired
-        ? "expired, update lanes.json"
-        : s.unusedAtPace > 0
+      value:
+        s.unusedAtPace > 0
           ? `${usd(s.pacePerDay)}/day, needs ${usd(s.neededPerDay)} (~${usd(s.unusedAtPace)} unused)`
           : `${usd(s.pacePerDay)}/day, needs ${usd(s.neededPerDay)}`,
       observedAtIso,
