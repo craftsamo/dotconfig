@@ -22,9 +22,24 @@ class EngineeringClientTests(unittest.TestCase):
         text = read("plan-assistant-engineering/SKILL.md")
         self.assertIn("Client, not a second technical planner", text)
         self.assertIn("opencode_run_plan", text)
-        self.assertIn("task branch BEFORE the first plan run", text)
+        self.assertIn("a plan is read-only, so it needs no task branch or worktree", text)
+        self.assertIn("opencode_preflight", text)
         self.assertIn("explicit implementation approval", text)
         self.assertIn("Issue management is explicit-only", text)
+
+    def test_plan_card_and_use_cases_leave_layout_to_the_persona(self):
+        text = read("plan-assistant-engineering/SKILL.md")
+        self.assertIn("the words, headings and layout are yours", text)
+        self.assertIn("keep **what the user decided** apart from **what you assume**", text)
+        self.assertIn("at most seven", text)
+        self.assertIn("## What goes to OpenCode", text)
+        self.assertIn("a write run in the live checkout is refused", text)
+
+    def test_the_worktree_comes_after_approval_through_the_plugin(self):
+        text = read("execute-assistant-engineering/SKILL.md")
+        self.assertIn("opencode_session workspace", text)
+        self.assertIn("never ask OpenCode to move itself", text)
+        self.assertIn("alternate", text)
 
     def test_one_release_to_pr_and_no_edits_of_your_own(self):
         text = read("execute-assistant-engineering/SKILL.md")

@@ -1,7 +1,9 @@
 # hermes/ — maintainer rules
 
-Rules for whoever edits this subtree: OpenCode, or a Hermes profile doing
-repository upkeep (the Assistant through OpenCode).
+Rules for whoever edits this subtree: OpenCode, usually started by the person.
+The Assistant may drive it here too (hands-reference upkeep does), but only in a
+task worktree (`opencode_session workspace`): the plugin refuses a write run in
+the live checkout `~/.config`.
 `../install.sh` symlinks these files into `~/.hermes/`; Hermes reads
 `~/.hermes/`, never `~/.config`, and never loads this file, `README.md` or
 `docs/` at runtime. What a profile actually sees at runtime is its
@@ -342,12 +344,28 @@ When editing `plugins/orchestration/opencode`:
   from**, and only because the owning runner confirmed its group gone; never
   make `unknown`/`interrupted` resumable or let anything but that runner signal
   the group ([docs/profiles/specialist-calls.md](docs/profiles/specialist-calls.md)).
-- **A caller never gets its own model.** The plugin refuses the caller's
-  configured `model.default` and the model it last answered with (the
-  `post_api_request` hook) for every role. Keep that hook registered and keep
-  `models.model_key` folding speed tiers and snapshots, or a fallback or `-fast`
-  alias slips through. When a profile's main model equals a role's default
-  model, give that role its own `model` in `opencode.roles`.
+- **The caller's own model is refused unless the role allows it.** The plugin
+  refuses the caller's configured `model.default` and the model it last answered
+  with (the `post_api_request` hook) for every role without
+  `caller_model: allow`. Keep that hook registered and keep `models.model_key`
+  folding speed tiers and snapshots, or a fallback or `-fast` alias slips past a
+  role that refuses. Allowing is a maintainer's choice per role in `opencode.roles`
+  ([docs/opencode.md "Models"](docs/opencode.md)); an `alternate` only names the
+  model to rerun on after a limit error, nothing switches by itself.
+- **A write run never edits the live checkout.** `policy.branch` refuses a write
+  run in `~/.config` (`policy.live_checkout`), because `~/.hermes` links into it and
+  any branch there is live; the Assistant plans there read-only and builds in the
+  worktree `workspace` creates. Cutover (install, gateway restart, the private
+  pairing) stays a person's decision under "Candidates and cutover".
+- **A session may only work in the repository it was bound to.** An agent can move
+  any session with `session_move` (no permission asked), so `metadata.hermes.repo`
+  and the per-turn check in `_prepare` detect a stray session at its next turn;
+  the only sanctioned move is `opencode_session workspace`, which creates the
+  task-branch worktree itself. Never ask an OpenCode run to move itself, keep the
+  service's own worktree route unused (it can only make a detached HEAD), and keep
+  `workspace.py`'s git calls hook-free with the minimal environment: a tracked
+  `core.hooksPath` is repository-controlled code and this process holds the
+  gateway's secrets.
 
 ## Candidates and cutover
 

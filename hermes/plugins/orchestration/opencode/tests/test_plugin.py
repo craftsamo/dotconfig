@@ -99,7 +99,8 @@ def test_plan_run_creates_a_bound_session_and_completes(fixture):
     created = fake.sessions[sid]
     assert created["agent"] == "plan"
     assert created["metadata"]["hermes"] == {"v": 2, "profile": "assistant", "owner": owner, "role": "plan",
-                                             "branch": "topic"}
+                                             "branch": "topic", "repo": str(directory / ".git")}
+    assert created["title"] == "work tree · plan", "the plugin titles the session, no model is asked to"
     assert {"action": "edit", "resource": "*", "effect": "deny"} in created["permissions"]
     assert fake.entries[sid]["hermes.note"].startswith("A Hermes agent drives this session")
     assert fake.prompts == [(sid, MESSAGE)], "the message reaches OpenCode literally"
@@ -260,7 +261,7 @@ def test_failed_turn_says_why_and_what_to_do(fixture):
     assert failed["status"] == "failed", failed
     assert failed["provider_error"] == {"kind": "limit", "message": "The usage limit has been reached",
                                         "model": "anthropic/claude-opus-5-5"}
-    assert "usage limit has been reached" in failed["error"] and "another model" in failed["error"]
+    assert "usage limit has been reached" in failed["error"] and "alternate" in failed["error"]
     scripted(fake, "finish:failed:")
     plain = run("plan", directory)
     assert plain["status"] == "failed" and "provider_error" not in plain
@@ -457,6 +458,285 @@ def test_callers_own_models_are_refused_for_every_role(fixture):
     assert "your own model" in json.loads(plugin.opencode_run("plan", args, session_id="hermes-1"))["error"]
     assert json.loads(plugin.opencode_run("plan", {**args, "model": "openai/gpt-6-sol", "variant": "high"},
                                           session_id="hermes-1"))["status"] == "completed"
+
+
+def test_a_role_may_allow_the_callers_own_model_and_the_others_stay_refused(fixture):
+    home, directory, _, fake = fixture
+    configure(home, "  roles:\n    plan: {agent: plan, policy: read-only, caller_model: allow}\n"
+                    "    review: {agent: review, policy: read-only}\nmodel:\n  default: claude-opus-5-5\n")
+    allowed = run("plan", directory, model="anthropic/claude-opus-5-5", variant="high")
+    assert allowed["status"] == "completed" and allowed["engine"] == "anthropic/claude-opus-5-5#high"
+    assert "your own model" in run("review", directory, model="anthropic/claude-opus-5-5-fast")["error"]
+    models.observe(session_id="hermes-2", model="claude-fable-5-1", provider="anthropic")
+    args = dict(message="x", directory=str(directory), model="anthropic/claude-fable-5-1")
+    assert json.loads(plugin.opencode_run("plan", args, session_id="hermes-2"))["status"] == "completed"
+    assert "your own model" in json.loads(plugin.opencode_run("review", args, session_id="hermes-2"))["error"]
+
+
+def test_catalog_shows_each_roles_alternate_and_which_roles_allow_the_callers_model(fixture):
+    home, _, _, _ = fixture
+    configure(home, "  roles:\n    plan: {agent: plan, policy: read-only, caller_model: allow, "
+                    "alternate: 'openai/gpt-6.1-sol#high'}\n    build: {agent: build, policy: write}\n")
+    listed = json.loads(plugin.opencode_catalog({"what": "models"}))
+    assert listed["alternates"] == {"plan": "openai/gpt-6.1-sol#high"}
+    assert listed["allow_yours"] == ["plan"]
+
+
+def preflight(directory, **kwargs):
+    return json.loads(plugin.opencode_preflight(dict(directory=str(directory), **kwargs)))
+
+
+def test_preflight_answers_one_line_when_healthy(fixture):
+    _, directory, _, _ = fixture
+    out = preflight(directory)
+    assert out["ok"] is True and "issues" not in out
+    assert out["summary"] == "ready: OpenCode 2.0.23, roles build, debug, plan, review, branch topic, plan"
+
+
+def test_preflight_reports_only_the_findings_when_a_role_cannot_run(fixture):
+    home, directory, _, _ = fixture
+    configure(home, "  roles:\n    plan: {agent: plan, policy: read-only, model: 'openai/gpt-9'}\n"
+                    "    review: {agent: review, policy: read-only}\n")
+    out = preflight(directory)
+    assert out["ok"] is False and "summary" not in out
+    assert [i["what"] for i in out["issues"]] == ["role plan: OpenCode does not offer openai/gpt-9; no run launched"]
+
+
+def test_preflight_warns_when_a_role_default_is_the_callers_own_model(fixture):
+    home, directory, _, _ = fixture
+    configure(home, "  roles:\n    plan: {agent: plan, policy: read-only, alternate: 'openai/gpt-6.1-sol#high'}\n"
+                    "model:\n  default: claude-opus-5-5\n")
+    out = preflight(directory)
+    assert out["ok"] is True
+    [issue] = out["issues"]
+    assert issue["level"] == "warn" and "your own model" in issue["what"] and "openai/gpt-6.1-sol#high" in issue["what"]
+    configure(home, "  roles:\n    plan: {agent: plan, policy: read-only, caller_model: allow}\n"
+                    "model:\n  default: claude-opus-5-5\n")
+    assert preflight(directory)["ok"] is True and "issues" not in preflight(directory)
+
+
+def test_preflight_for_a_build_needs_a_task_branch_and_a_free_worktree(fixture):
+    home, directory, _, fake = fixture
+    subprocess.run(["git", "-C", str(directory), "branch", "-m", "main"], check=True, capture_output=True)
+    out = preflight(directory, phase="build")
+    assert out["ok"] is False and "never the default branch" in out["issues"][0]["what"]
+    subprocess.run(["git", "-C", str(directory), "switch", "-c", "task/x"], check=True, capture_output=True)
+    assert preflight(directory, phase="build")["ok"] is True
+    (directory / "scratch.txt").write_text("x")
+    [issue] = preflight(directory, phase="build")["issues"]
+    assert issue["level"] == "warn" and "1 uncommitted" in issue["what"]
+    fake.active.add("ses_busy")
+    fake.sessions["ses_busy"] = {"id": "ses_busy", "location": {"directory": str(directory)}}
+    busy = preflight(directory, phase="build")
+    assert busy["ok"] is False and "ses_busy" in " ".join(i["what"] for i in busy["issues"])
+
+
+def test_preflight_rejects_bad_arguments(fixture):
+    _, directory, _, _ = fixture
+    assert "phase must be" in preflight(directory, phase="ship")["error"]
+    assert "Unexpected" in preflight(directory, extra=1)["error"]
+    assert "output_dir" in preflight(directory, output_dir="/not/a/draft")["issues"][0]["what"]
+    assert "absolute" in json.loads(plugin.opencode_preflight({"directory": "relative"}))["error"]
+
+
+def with_root(home, root):
+    configure(home, f"  worktree_root: {root}\n")
+
+
+def test_workspace_moves_an_idle_plan_into_a_new_task_branch_worktree(fixture, tmp_path):
+    home, directory, owner, fake = fixture
+    with_root(home, tmp_path / "wt")
+    sid = run("plan", directory)["session_id"]
+    out = session("workspace", sid, branch="task/login", base="head")
+    target = tmp_path / "wt" / "work tree" / "task-login"
+    assert out["directory"] == str(target) and out["branch"] == "task/login" and out["base"] == "HEAD"
+    assert fake.moves == [(sid, str(target))]
+    assert subprocess.run(["git", "-C", str(target), "branch", "--show-current"], capture_output=True,
+                          text=True).stdout.strip() == "task/login"
+    stored = fake.sessions[sid]
+    assert stored["metadata"]["hermes"]["branch"] == "task/login" and stored["title"].endswith("· task/login")
+    assert stored["metadata"]["hermes"]["owner"] == owner and stored["metadata"]["hermes"]["repo"]
+    # The same session now builds on the new branch, in its own worktree (the fake serves one place).
+    fake.directory = str(target.resolve())
+    built = json.loads(plugin.opencode_run("build", dict(message="go", session_id=sid, approval="ok, build it")))
+    assert built["status"] == "completed" and built["branch"] == "task/login" and built["session_id"] == sid
+
+
+def test_workspace_hands_the_service_the_real_path_of_a_symlinked_root(fixture, tmp_path):
+    home, directory, _, fake = fixture
+    real = tmp_path / "real"
+    real.mkdir()
+    (tmp_path / "link").symlink_to(real)
+    with_root(home, tmp_path / "link")
+    sid = run("plan", directory)["session_id"]
+    out = session("workspace", sid, branch="task/a", base="head")
+    assert out["directory"] == str(real / "work tree" / "task-a")
+    assert fake.moves == [(sid, str(real / "work tree" / "task-a"))], "never the symlinked spelling"
+
+
+def test_workspace_refuses_unsafe_branches_a_busy_session_and_a_foreign_session(fixture, tmp_path):
+    home, directory, _, fake = fixture
+    with_root(home, tmp_path / "wt")
+    sid = run("plan", directory)["session_id"]
+    for bad in ("main", "master", "../x", "-x", "a b", "topic", "x.lock", ""):
+        assert "error" in session("workspace", sid, branch=bad), bad
+    assert "base must be" in session("workspace", sid, branch="task/a", base="tag")["error"]
+    assert "plain git branch" in session("workspace", sid)["error"]
+    assert "only accepted for workspace" in session("status", sid, branch="task/a")["error"]
+    fake.active.add(sid)
+    assert "idle" in session("workspace", sid, branch="task/a")["error"]
+    fake.active.discard(sid)
+    assert fake.moves == [] and not (tmp_path / "wt").exists(), "nothing was created by the refusals"
+    fake.sessions["ses_foreign"] = {**fake.sessions[sid], "id": "ses_foreign",
+                                    "metadata": {"hermes": {"owner": {"profile": "x"}}}}
+    assert "not bound" in session("workspace", "ses_foreign", branch="task/a")["error"]
+
+
+def test_workspace_rolls_back_when_the_service_refuses_the_move(fixture, tmp_path):
+    home, directory, _, fake = fixture
+    with_root(home, tmp_path / "wt")
+    sid = run("plan", directory)["session_id"]
+    fake.move_refused = True
+    assert "error" in session("workspace", sid, branch="task/a", base="head")
+    assert not (tmp_path / "wt" / "work tree" / "task-a").exists()
+    assert subprocess.run(["git", "-C", str(directory), "branch", "--list", "task/a"], capture_output=True,
+                          text=True).stdout.strip() == "", "the branch is removed with the worktree"
+    assert fake.sessions[sid]["location"]["directory"] == str(directory)
+
+
+def test_workspace_undoes_a_move_that_landed_when_rebinding_fails(fixture, tmp_path):
+    home, directory, _, fake = fixture
+    with_root(home, tmp_path / "wt")
+    sid = run("plan", directory)["session_id"]
+    fake.patch_error = fake.api.Unavailable("service dropped the update")
+    assert "error" in session("workspace", sid, branch="task/a", base="head")
+    assert len(fake.moves) == 2 and fake.moves[-1] == (sid, str(directory)), "the session is moved back"
+    assert fake.sessions[sid]["location"]["directory"] == str(directory)
+    assert not (tmp_path / "wt" / "work tree" / "task-a").exists()
+    assert subprocess.run(["git", "-C", str(directory), "branch", "--list", "task/a"], capture_output=True,
+                          text=True).stdout.strip() == ""
+
+
+def add_origin(directory, tmp_path):
+    remote = tmp_path / "remote.git"
+    subprocess.run(["git", "init", "--bare", "-b", "main", str(remote)], check=True, capture_output=True)
+    subprocess.run(["git", "-C", str(directory), "remote", "add", "origin", str(remote)], check=True,
+                   capture_output=True)
+    subprocess.run(["git", "-C", str(directory), "push", "-q", "origin", "topic:main"], check=True,
+                   capture_output=True)
+    subprocess.run(["git", "-C", str(directory), "fetch", "-q", "origin"], check=True, capture_output=True)
+
+
+def test_workspace_starts_from_the_remote_default_branch_and_refuses_when_it_cannot(fixture, tmp_path):
+    home, directory, _, fake = fixture
+    with_root(home, tmp_path / "wt")
+    sid = run("plan", directory)["session_id"]
+    assert "no remote to start from" in session("workspace", sid, branch="task/a")["error"]
+    assert fake.moves == [] and not (tmp_path / "wt").exists(), "a refused base creates nothing"
+    add_origin(directory, tmp_path)
+    out = session("workspace", sid, branch="task/a")
+    assert out["base"] == "origin/main" and "warning" not in out
+    # Unreachable remote: the branch still starts from the last fetched default and says so.
+    sid2 = run("plan", directory)["session_id"]
+    subprocess.run(["git", "-C", str(directory), "remote", "set-url", "origin", str(tmp_path / "gone.git")],
+                   check=True, capture_output=True)
+    out = session("workspace", sid2, branch="task/b")
+    assert out["base"] == "origin/main" and "last fetch" in out["warning"]
+
+
+def test_workspace_runs_no_repository_hook_and_leaks_no_secret(fixture, tmp_path, monkeypatch):
+    home, directory, _, fake = fixture
+    with_root(home, tmp_path / "wt")
+    leak = tmp_path / "leak.txt"
+    hooks = directory / ".git" / "hooks"
+    (hooks / "post-checkout").write_text(f"#!/bin/sh\nenv > '{leak}'\n")
+    (hooks / "post-checkout").chmod(0o755)
+    monkeypatch.setenv("GATEWAY_BOT_TOKEN", "do-not-leak")
+    sid = run("plan", directory)["session_id"]
+    assert session("workspace", sid, branch="task/a", base="head")["branch"] == "task/a"
+    assert not leak.exists(), "the post-checkout hook must not run"
+    assert "GATEWAY_BOT_TOKEN" not in workspace_env()
+
+
+def workspace_env():
+    return plugin.workspace.git_env()
+
+
+def test_workspace_refuses_a_session_that_moved_or_was_bound_before_repositories_were_recorded(fixture, tmp_path):
+    home, directory, _, fake = fixture
+    with_root(home, tmp_path / "wt")
+    sid = run("plan", directory)["session_id"]
+    sibling = tmp_path / "sibling"
+    subprocess.run(["git", "-C", str(directory), "worktree", "add", "-b", "elsewhere", str(sibling)], check=True,
+                   capture_output=True)
+    fake.sessions[sid]["location"] = {"directory": str(sibling.resolve())}
+    assert "branch changed" in session("workspace", sid, branch="task/a", base="head")["error"]
+    fake.sessions[sid]["location"] = {"directory": str(directory)}
+    legacy = fake.sessions[sid]["metadata"]["hermes"]
+    legacy.pop("repo")
+    assert "before repository binding" in session("workspace", sid, branch="task/a", base="head")["error"]
+    assert "before its repository was recorded" in run("plan", session_id=sid)["error"]
+
+
+def test_the_live_configuration_checkout_is_planned_in_but_only_built_in_a_worktree(fixture, tmp_path, monkeypatch):
+    home, directory, _, fake = fixture
+    with_root(home, tmp_path / "wt")
+    live = tmp_path / "live-link"
+    live.symlink_to(directory)
+    monkeypatch.setattr(policy, "live_checkout", lambda: str(live))
+    sid = run("plan", directory)["session_id"]
+    subprocess.run(["git", "-C", str(directory), "switch", "-q", "-c", "feature"], check=True, capture_output=True)
+    fake.sessions[sid]["metadata"]["hermes"]["branch"] = "feature"
+    refused = json.loads(plugin.opencode_run("build", dict(message="go", session_id=sid, approval="ok")))
+    assert "live Hermes configuration checkout" in refused["error"]
+    assert "live Hermes configuration checkout" in preflight(directory, phase="build")["issues"][0]["what"]
+    out = session("workspace", sid, branch="task/cfg", base="head")
+    fake.directory = out["directory"]
+    built = json.loads(plugin.opencode_run("build", dict(message="go", session_id=sid, approval="ok")))
+    assert built["status"] == "completed" and built["branch"] == "task/cfg"
+
+
+def test_workspace_is_refused_in_a_reconcile_turn_and_a_concurrent_start(fixture, tmp_path, monkeypatch):
+    home, directory, _, fake = fixture
+    with_root(home, tmp_path / "wt")
+    sid = run("plan", directory)["session_id"]
+    with plugin._starting(home, str(directory)):
+        assert "Another call is starting" in session("workspace", sid, branch="task/a", base="head")["error"]
+    monkeypatch.setenv("RESIDENT_TURN_KIND", "reconcile")
+    assert "reconcile-only" in session("workspace", sid, branch="task/a", base="head")["error"]
+    assert fake.moves == []
+
+
+def test_workspace_refuses_an_existing_branch_and_an_existing_path(fixture, tmp_path):
+    home, directory, _, fake = fixture
+    with_root(home, tmp_path / "wt")
+    sid = run("plan", directory)["session_id"]
+    subprocess.run(["git", "-C", str(directory), "branch", "task/taken"], check=True, capture_output=True)
+    assert "already exists" in session("workspace", sid, branch="task/taken")["error"]
+    (tmp_path / "wt" / "work tree" / "task-b").mkdir(parents=True)
+    assert "already exists" in session("workspace", sid, branch="task/b")["error"]
+
+
+def test_a_session_that_moved_itself_into_another_repository_is_refused(fixture, tmp_path):
+    home, directory, _, fake = fixture
+    sid = run("plan", directory)["session_id"]
+    other = tmp_path / "other"
+    other.mkdir()
+    subprocess.run(["git", "init", "-b", "topic", str(other)], check=True, capture_output=True)
+    subprocess.run(["git", "-C", str(other), "-c", "user.name=t", "-c", "user.email=t@t", "commit",
+                    "--allow-empty", "-m", "init"], check=True, capture_output=True)
+    fake.sessions[sid]["location"] = {"directory": str(other.resolve())}
+    assert "no longer in the repository" in run("plan", session_id=sid)["error"]
+
+
+def test_a_session_moved_by_itself_within_its_repository_keeps_working_only_on_the_same_branch(fixture, tmp_path):
+    home, directory, _, fake = fixture
+    sid = run("plan", directory)["session_id"]
+    sibling = tmp_path / "sibling"
+    subprocess.run(["git", "-C", str(directory), "worktree", "add", "-b", "elsewhere", str(sibling)], check=True,
+                   capture_output=True)
+    fake.sessions[sid]["location"] = {"directory": str(sibling.resolve())}
+    assert "branch changed" in run("plan", session_id=sid)["error"]
 
 
 def test_model_key_folds_speed_tiers_and_snapshots():
@@ -782,7 +1062,8 @@ def test_roles_become_tools(fixture, monkeypatch):
     assert context.hooks == [("post_api_request", models.observe)]
     assert set(context.tools) == {"opencode_run_plan", "opencode_run_review", "opencode_run_debug",
                                   "opencode_run_build", "opencode_session", "opencode_request",
-                                  "opencode_instructions", "opencode_catalog", "opencode_history"}
+                                  "opencode_instructions", "opencode_catalog", "opencode_history",
+                                  "opencode_preflight"}
     build = context.tools["opencode_run_build"]["schema"]["parameters"]
     plan = context.tools["opencode_run_plan"]["schema"]["parameters"]
     assert {"approval", "issue_approval"} <= set(build["properties"]) and "approval" not in plan["properties"]
@@ -827,6 +1108,11 @@ def test_a_role_note_is_part_of_the_session_instruction(fixture):
     ("  roles:\n    a: {agent: 'x y', policy: write}\n", "agent"),
     ("  roles:\n    a: {agent: plan, policy: write, model: nope}\n", "provider/model"),
     ("  roles:\n    a: {agent: plan, policy: write, model: 'a/b#bad variant'}\n", "provider/model"),
+    ("  roles:\n    a: {agent: plan, policy: write, alternate: nope}\n", "alternate"),
+    ("  roles:\n    a: {agent: plan, policy: write, caller_model: maybe}\n", "caller_model"),
+    ("  roles:\n    a: {agent: plan, policy: write, alternate: 'xai/grok-4.7'}\n", "allowed_providers"),
+    ("  worktree_root: relative/dir\n", "worktree_root"),
+    ("  worktree_root: '/tmp/*'\n", "worktree_root"),
 ])
 def test_configuration_is_validated(fixture, text, message):
     home, _, _, _ = fixture

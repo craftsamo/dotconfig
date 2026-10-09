@@ -10,7 +10,7 @@ actually loads it.
 
 | Reader | Loads | How |
 |---|---|---|
-| Maintainer — OpenCode, or a Hermes profile doing repo upkeep (the Assistant through OpenCode) | this file, then the subtree's `AGENTS.md` | on demand, when a task touches the subtree |
+| Maintainer — OpenCode, usually started by the person; the Assistant may drive it here too, only in a task worktree | this file, then the subtree's `AGENTS.md` | on demand, when a task touches the subtree |
 | OpenCode, every session | `opencode/AGENTS.md` | global instructions (no `instructions` array: V2 does not load it) |
 | Hermes profiles at runtime | their `config.yaml` (`agent.system_prompt`), `SOUL.md`, skills | per `HERMES_HOME`; never this repo's docs |
 | Hermes Assistant at runtime | also `~/Workspaces/AGENTS.md` (private overlay) | its `terminal.cwd` is `~/Workspaces` |
