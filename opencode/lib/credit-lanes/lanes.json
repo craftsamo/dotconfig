@@ -1,0 +1,18 @@
+{
+  "lanes": [
+    {
+      "provider": "anthropic-credit-main",
+      "label": "Main",
+      "amount": 200,
+      "grantedOn": "2026-10-09",
+      "expiresOn": "2026-10-13"
+    },
+    {
+      "provider": "anthropic-credit-sub",
+      "label": "Sub",
+      "amount": 200,
+      "grantedOn": "2026-10-09",
+      "expiresOn": "2026-10-29"
+    }
+  ]
+}
