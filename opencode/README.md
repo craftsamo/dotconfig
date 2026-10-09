@@ -297,14 +297,25 @@ stops only new lane launches.
   guards and are never moved.
 
 **Balance.** Anthropic has no balance API, and an Admin API is not available to
-personal orgs, so `/credits` (or `bun opencode/lib/credit-lanes/status.ts`)
-estimates it from `opencode stats`: spend per lane since its grant, what is
-left, the pace and what would expire unused. `opencode stats` read within 3% of
-Console and answers in about a second. Edit `lib/credit-lanes/lanes.json`
-(amount, `grantedOn`, `expiresOn`) at each renewal; spend before `grantedOn`
-would otherwise be counted. Quota's own local estimate was tried and dropped:
-it re-reads the whole 25 GB history database on every refresh (about a minute),
-which stalled the service into a restart loop.
+personal orgs, so the balance is estimated from `opencode stats`: spend per lane
+since its grant, what is left, the pace and what would expire unused. It read
+within 3% of Console and answers in about a second. Edit
+`lib/credit-lanes/lanes.json` (amount, `grantedOn`, `expiresOn`, the lane's key
+variable) at each renewal; spend before `grantedOn` would otherwise be counted.
+Three ways to read it:
+
+- `/credits`, or `bun opencode/lib/credit-lanes/status.ts` in a terminal.
+- OpenCode Quota. `plugins/credit-lanes.ts` serves each lane as a `quota-v1`
+  envelope on `127.0.0.1:47631/<provider id>` (`CREDIT_LANES_PORT` changes the
+  port; a cached `opencode stats` run, 30 s), and `quotaProviders` in
+  `opencode-quota/quota-toast.jsonc` points a remote-api provider at each. Quota
+  sends the lane's own key as the bearer token and the endpoint answers only
+  that, so no new secret exists. The percentage, the expiry countdown and the
+  pace show in `/quota`.
+
+Quota's own `local-estimate` mode was tried and dropped: it re-reads the whole
+25 GB history database on every refresh (about a minute), which stalled the
+service into a restart loop.
 
 ## Prompt cache
 
