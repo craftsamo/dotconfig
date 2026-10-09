@@ -1,17 +1,24 @@
 """Profile configuration for the OpenCode 2 plugin: `opencode` in config.yaml.
 
 Nothing here is secret or per-run. Roles are data: a role names an installed
-OpenCode agent, one of two policies, and optionally a model and a short note.
+OpenCode agent, one of two policies, and optionally a model, an alternate model,
+whether the caller's own model is allowed, and a short note.
 """
 
 from __future__ import annotations
 
+from pathlib import Path
 import re
 
 import hermes_yaml as yaml
 
 KEY = "opencode"
+# Where `opencode_session workspace` puts a task branch's worktree: <root>/<repo>/<branch>.
+DEFAULT_WORKTREE_ROOT = "~/Worktrees"
 POLICIES = ("read-only", "write")
+# Whether a role may run on the caller's own model. `refuse` keeps the caller from
+# judging or building what it then accepts itself; `allow` is a maintainer's choice.
+CALLER_MODEL_MODES = ("refuse", "allow")
 DEFAULT_ROLES = {
     "plan": {"agent": "plan", "policy": "read-only"},
     "review": {"agent": "review", "policy": "read-only"},
@@ -46,8 +53,8 @@ def pinned(value):
 def _role(name, raw):
     if not ROLE_NAME.fullmatch(name):
         raise ValueError(f"{KEY}.roles: {name!r} is not a role name (lowercase letters, digits, _)")
-    if not isinstance(raw, dict) or set(raw) - {"agent", "policy", "model", "note"}:
-        raise ValueError(f"{KEY}.roles.{name} takes agent, policy, model and note only")
+    if not isinstance(raw, dict) or set(raw) - {"agent", "policy", "model", "alternate", "caller_model", "note"}:
+        raise ValueError(f"{KEY}.roles.{name} takes agent, policy, model, alternate, caller_model and note only")
     agent, policy = raw.get("agent"), raw.get("policy")
     if not isinstance(agent, str) or not AGENT_NAME.fullmatch(agent):
         raise ValueError(f"{KEY}.roles.{name}.agent must be an OpenCode agent name")
@@ -58,6 +65,14 @@ def _role(name, raw):
         if not pinned(raw["model"]):
             raise ValueError(f"{KEY}.roles.{name}.model must be provider/model or provider/model#variant")
         role["model"] = raw["model"]
+    if raw.get("alternate") is not None:
+        if not pinned(raw["alternate"]):
+            raise ValueError(f"{KEY}.roles.{name}.alternate must be provider/model or provider/model#variant")
+        role["alternate"] = raw["alternate"]
+    if raw.get("caller_model") is not None:
+        if raw["caller_model"] not in CALLER_MODEL_MODES:
+            raise ValueError(f"{KEY}.roles.{name}.caller_model must be one of {', '.join(CALLER_MODEL_MODES)}")
+        role["caller_model"] = raw["caller_model"]
     note = raw.get("note")
     if note is not None:
         if not isinstance(note, str) or len(note) > NOTE_LIMIT:
@@ -83,7 +98,7 @@ def load(home):
     config = read(home).get(KEY) or {}
     if not isinstance(config, dict) or config.get("enabled") is not True:
         raise ValueError(f"OpenCode integration is not enabled ({KEY}.enabled)")
-    unknown = set(config) - {"enabled", "wait_timeout", "allowed_providers", "roles"}
+    unknown = set(config) - {"enabled", "wait_timeout", "allowed_providers", "roles", "worktree_root"}
     if unknown:
         raise ValueError(f"{KEY}: unknown keys {', '.join(sorted(unknown))}")
     wait = config.get("wait_timeout", DEFAULT_WAIT_TIMEOUT)
@@ -98,4 +113,12 @@ def load(home):
                   else {name: _role(name, value) for name, value in raw.items()})
     if not configured:
         raise ValueError(f"{KEY}.roles must name at least one role")
-    return {"wait_timeout": wait, "allowed_providers": providers, "roles": configured}
+    for name, role in configured.items():
+        # A rerun on the alternate goes through the same provider allowlist as any model=.
+        if role.get("alternate") and role["alternate"].split("/", 1)[0] not in providers:
+            raise ValueError(f"{KEY}.roles.{name}.alternate is not from {KEY}.allowed_providers")
+    root = config.get("worktree_root", DEFAULT_WORKTREE_ROOT)
+    if not isinstance(root, str) or not root.startswith(("/", "~/")) or any(c in root for c in "*?"):
+        raise ValueError(f"{KEY}.worktree_root must be an absolute path (or start with ~/) without wildcards")
+    return {"wait_timeout": wait, "allowed_providers": providers, "roles": configured,
+            "worktree_root": str(Path(root).expanduser())}

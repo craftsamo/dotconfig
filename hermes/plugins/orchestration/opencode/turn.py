@@ -44,8 +44,9 @@ LIMIT_ERROR = re.compile(r"usage[-_\s]?limit|quota|insufficient[-_\s]?(?:quota|b
                          r"rate[-_\s]?limit|too[-_\s]?many[-_\s]?requests|overloaded|\b(?:429|529)\b", re.I)
 AUTH_ERROR = re.compile(r"credential|unauthori[sz]ed|\b401\b|expired|api[-_\s]?key|ProviderAuthError", re.I)
 PROBLEM_HINTS = {
-    "limit": "The provider refused for usage or rate limits: continue with another model from opencode_catalog "
-             "models (a read-only run can simply rerun; for a write run read the diff first).",
+    "limit": "The provider refused for usage or rate limits: continue with the role's alternate from "
+             "opencode_catalog models (else another listed model); a read-only run can simply rerun, for a "
+             "write run read the diff first.",
     "auth": "OpenCode's login for this provider is missing or expired: tell the Client, or continue with "
             "another provider's model.",
 }

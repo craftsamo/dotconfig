@@ -43,6 +43,8 @@ policy = _load("hermes_opencode_policy", _HERE / "policy.py")
 models = _load("hermes_opencode_models", _HERE / "models.py")
 turn = _load("hermes_opencode_turn", _HERE / "turn.py")
 inventory = _load("hermes_opencode_history", _HERE / "history.py")
+preflight = _load("hermes_opencode_preflight", _HERE / "preflight.py")
+workspace = _load("hermes_opencode_workspace", _HERE / "workspace.py")
 
 PROFILES = {"assistant"}
 # The tool mechanics skill reaches only the profiles that will drive OpenCode.
@@ -202,6 +204,15 @@ def _prepare(home, owner, role_name, role, settings, args, kwargs):
         directory = args.get("directory")
     directory = policy.worktree(directory)
     branch, protected = policy.branch(directory, writing)
+    repo = policy.common_dir(directory)
+    if meta and meta.get("repo") != repo:
+        # A session can move itself (`session_move` asks no permission); it may only
+        # work in the repository it was bound to. One bound before the repository was
+        # recorded cannot prove where it started, so it is not adopted where it stands.
+        raise ValueError(
+            "The session is no longer in the repository it was bound to; start a new session after inspection"
+            if meta.get("repo") else
+            "The session was bound before its repository was recorded; start a new session after inspection")
     if meta and meta.get("branch") != branch:
         raise ValueError("Worktree branch changed; start a new session after inspection")
     stored = meta.get("output_dir")
@@ -215,7 +226,7 @@ def _prepare(home, owner, role_name, role, settings, args, kwargs):
     if output and (output == directory or output.startswith(directory + os.sep)):
         raise ValueError("output_dir must lie outside the worktree")
     return {"output": output, "writing": writing, "fork": fork, "chosen": chosen or meta.get("selection") or {},
-            "explicit": bool(chosen), "sid": sid, "directory": directory, "branch": branch,
+            "explicit": bool(chosen), "sid": sid, "directory": directory, "branch": branch, "repo": repo,
             "protected": protected, "approval": approval, "issue_approval": issue_approval}
 
 
@@ -241,6 +252,7 @@ def _setup(home, owner, role_name, role, plan, kwargs):
     model = models.engine(role, plan["chosen"], info, directory,
                           models.caller_models(home, kwargs.get("session_id")))
     hermes = {"v": 2, "profile": home.name, "owner": owner, "role": role_name, "branch": plan["branch"],
+              "repo": plan["repo"],
               **({"selection": plan["chosen"]} if plan["chosen"] else {}),
               **({"output_dir": plan["output"]} if plan["output"] else {})}
     metadata = {"hermes": hermes}
@@ -255,7 +267,9 @@ def _setup(home, owner, role_name, role, plan, kwargs):
         turn.call("patch", "/api/session/{sid}", {"permissions": ruleset, "metadata": {
             **(current.get("metadata") or {}), **metadata}}, sid=sid)
     else:
+        label = Path(plan["output"]).name if plan["output"] else Path(plan["repo"]).parent.name
         sid = api.data(turn.call("post", "/api/session", {
+            "title": f"{label} · {role_name}",
             "agent": role["agent"], "model": model, "location": {"directory": directory},
             "permissions": ruleset, "metadata": metadata}))["id"]
     if not SESSION_ID.fullmatch(sid):
@@ -452,10 +466,13 @@ def _diff(sid, args):
 
 def opencode_session(args, **kwargs):
     try:
-        allowed = {"action", "session_id", "directory", "timeout", "through_retry", "message", "patch", "limit"}
+        allowed = {"action", "session_id", "directory", "timeout", "through_retry", "message", "patch", "limit",
+                   "branch", "base"}
         if set(args) - allowed:
             raise ValueError("Unexpected arguments")
         action = args.get("action")
+        if ({"branch", "base"} & set(args)) and action != "workspace":
+            raise ValueError("branch and base are only accepted for workspace")
         if "timeout" in args and action != "wait":
             raise ValueError("timeout is only accepted for wait")
         if "through_retry" in args and action != "wait":
@@ -502,7 +519,13 @@ def opencode_session(args, **kwargs):
             turn.call("patch", "/api/session/{sid}", {"metadata": {**(info.get("metadata") or {}), "hermes": meta}},
                       sid=new)
             return json.dumps({"session_id": new, "forked_from": sid, "role": meta.get("role")})
-        raise ValueError("Use status/list/wait/steer/interrupt/messages/diff/fork")
+        if action == "workspace":
+            if os.environ.get("RESIDENT_TURN_KIND") == "reconcile":
+                raise ValueError("This resident turn is reconcile-only; inspect and stop, never change a session")
+            with _starting(home, policy.worktree(turn.directory_of(info))):
+                return json.dumps(workspace.create(sid=sid, info=info, meta=meta, args=args,
+                                                   settings=config.load(home), policy=policy, turn=turn))
+        raise ValueError("Use status/list/wait/steer/interrupt/messages/diff/fork/workspace")
     except Exception as exc:
         return json.dumps({"error": str(exc)})
 
@@ -628,6 +651,16 @@ def opencode_catalog(args, **kwargs):
         return json.dumps({"error": str(exc)})
 
 
+def opencode_preflight(args, **kwargs):
+    try:
+        home, owner, live = _scope()
+        return json.dumps(preflight.check(
+            settings=config.load(home), caller=models.caller_models(home, kwargs.get("session_id")), args=args,
+            lookup_agent=_agent, api=api, config=config, models=models, policy=policy, turn=turn))
+    except Exception as exc:
+        return json.dumps({"error": str(exc)})
+
+
 def opencode_history(args, **kwargs):
     try:
         # Same caller gate as execution (no inbound A2A), but no enabled flag: reading
@@ -723,7 +756,10 @@ def register(ctx):
             _run_properties(role), ["message"], _run_description(name, role))
     add("opencode_session", opencode_session, {
         "action": {"type": "string", "enum": ["list", "status", "wait", "steer", "interrupt", "messages", "diff",
-                                              "fork"]},
+                                              "fork", "workspace"]},
+        "branch": {"type": "string", "description": "workspace only: the new task branch, e.g. task/short-name"},
+        "base": {"type": "string", "enum": list(workspace.BASES),
+                 "description": "workspace only: default (fetched remote default branch, the default) or head"},
         "session_id": {"type": "string"},
         "directory": {"type": "string", "description": "list only: limit to this worktree"},
         "timeout": {"type": "integer", "description": "wait only: seconds to block"},
@@ -736,7 +772,9 @@ def register(ctx):
         "Inspect and steer your OpenCode sessions (those bound to this conversation: the same topic and sender, "
         "or this CLI session). status reads a run without waiting; wait blocks until it hands back, spending no turns; steer adds an instruction to a "
         "running turn; interrupt stops it (never a rollback); diff lists the newest turn's changed files "
-        "(patch=true adds patches); messages reads recent messages; fork copies an idle session.")
+        "(patch=true adds patches); messages reads recent messages; fork copies an idle session; workspace moves "
+        "an idle session into a new worktree on a new task branch of its own repository, so an approved plan "
+        "continues as a build on the same session.")
     add("opencode_request", opencode_request, {
         "action": {"type": "string", "enum": ["list", "reply"]},
         "session_id": {"type": "string"},
@@ -764,6 +802,14 @@ def register(ctx):
     }, ["what"],
         "Read what OpenCode offers (read-only). models lists what an opencode_run_<role> tool accepts as model= "
         "with variants, context, cost, each role's default and your own models (refused).")
+    add("opencode_preflight", opencode_preflight, {
+        "directory": {"type": "string", "description": "Absolute Git worktree root"},
+        "phase": {"type": "string", "enum": list(preflight.PHASES), "description": "plan (default) or build"},
+        "output_dir": {"type": "string", "description": "Job directory to validate, if you will pass one"},
+    }, ["directory"],
+        "Read-only readiness check before a run: service, each role's agent and model, the worktree and branch. "
+        "Answers one line when healthy, otherwise only the findings. phase=build also checks the branch is a "
+        "task branch and that no session runs in the worktree.")
     add("opencode_history", opencode_history, {
         "action": {"type": "string", "enum": list(inventory.ACTIONS)},
         "session_id": {"type": "string", "description": "get / children only"},

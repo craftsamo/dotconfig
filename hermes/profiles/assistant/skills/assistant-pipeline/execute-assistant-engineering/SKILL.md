@@ -43,8 +43,13 @@ not even a one-line change — and never route around the OpenCode tools with
 the terminal or another coding agent: the run's permission rules are the
 user's chosen control.
 
-1. **Confirm the ground.** The worktree, its task branch (never the default
-   branch), pre-existing changes and the job directory. Independent jobs need
+1. **Give the plan session its ground.** The plan ran read-only on the default
+   checkout. Now `opencode_session workspace` (`session_id`, `branch` such as
+   `task/short-name`) moves that idle session into a worktree of its own on a
+   new task branch, from the fetched remote default branch. Never create the
+   branch or worktree by hand and never ask OpenCode to move itself. Then
+   `opencode_preflight(directory, phase="build")`: an `error` stops the build,
+   uncommitted paths are worth a line to the user. Independent jobs need
    separate worktrees and disjoint scope; concurrency is not a reason to split
    one job.
 2. **Build on the plan session.** Call `opencode_run_build` with the plan
@@ -56,9 +61,11 @@ user's chosen control.
    to a page its `web_ui_check` result, with the baseline directory when one
    exists. Write "run a review pass" or "deep review
    <area>" into the message for a risky increment (auth, data shape,
-   concurrency, public API). A new session (plan made on the default branch or
-   elsewhere) starts with no memory: paste the proposal and every settled
-   decision verbatim.
+   concurrency, public API). A session that was not the plan session (a new
+   one) starts with no memory: paste the proposal and every settled decision
+   verbatim. When a run stops on a usage limit, rerun on the role's
+   alternate from `opencode_catalog models` (read the diff first after a
+   write run); other model choices stay OpenCode's defaults.
 3. **That single approval releases the agreed plan through PR delivery**,
    including the task-branch push and PR creation: no per-unit release loop.
    Let OpenCode sequence its own increments; ask for a checkpoint commit after

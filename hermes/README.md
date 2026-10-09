@@ -30,7 +30,7 @@ This file does not restate agent behavior. Contracts:
 | -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
 | OpenCode runtime, Assistant-driven code work, UI verification                    | [docs/opencode.md](docs/opencode.md)                                                                                     |
 | `specialist_call` / `specialist_session`, completion, deadlines, work continuity | [docs/profiles/specialist-calls.md](docs/profiles/specialist-calls.md)                                                   |
-| Assistant entry routing, creative early delivery, pinned topics  | [docs/profiles/assistant.md](docs/profiles/assistant.md)                                                                 |
+| Assistant entry routing, creative early delivery, pinned topics                  | [docs/profiles/assistant.md](docs/profiles/assistant.md)                                                                 |
 | Writer v8 leaves, Marketer v9 entries, Researcher/Searcher phases                | [writer.md](docs/profiles/writer.md), [marketer.md](docs/profiles/marketer.md), [research.md](docs/profiles/research.md) |
 | Entry loading contract, candidate rollout and cutover                            | [docs/topology.md](docs/topology.md)                                                                                     |
 | Creator advisor entries; hands commissioning                                     | [creator.md](docs/profiles/creator.md), [docs/broker.md](docs/broker.md)                                                 |
@@ -422,7 +422,7 @@ keeps user keys.
   through `PATH`, preserving the secret shim). Tools: one `opencode_run_<role>` per
   entry of `opencode.roles` (default plan, review and debug read-only and build
   write), `opencode_session`, `opencode_request`, `opencode_instructions`,
-  `opencode_catalog` and the read-only `opencode_history`. Enable `opencode` in
+  `opencode_catalog` and the read-only `opencode_preflight` and `opencode_history`. Enable `opencode` in
   `plugins.enabled` and the `opencode` toolset, and set `opencode.enabled: true`,
   `wait_timeout`, `allowed_providers` and optionally `roles`. It keeps no run record
   and drives the person's own OpenCode modes. Behavior:

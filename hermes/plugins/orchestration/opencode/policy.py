@@ -167,6 +167,14 @@ def decide(ruleset, action, resource):
 # Repository guards
 
 
+PROTECTED_BRANCHES = ("main", "master")
+
+
+def live_checkout():
+    """The checkout `~/.hermes` links into: a branch there is live for anything Hermes reads."""
+    return str(Path.home() / ".config")
+
+
 def git(directory, *args):
     proc = subprocess.run(["git", "-C", str(directory), *args], capture_output=True, text=True, timeout=15)
     if proc.returncode:
@@ -186,7 +194,11 @@ def worktree(value):
 def branch(directory, writing):
     """(branch name, protected branch names) of the worktree. A write run needs a named
     task branch that is not the default branch, local or remote."""
-    protected = {"main", "master"}
+    if writing and same_dir(directory, live_checkout()):
+        raise ValueError("A write run never edits the live Hermes configuration checkout (~/.config): its links "
+                         "make every change effective at once; give the session a task worktree with "
+                         "opencode_session workspace first")
+    protected = set(PROTECTED_BRANCHES)
     symbolic = subprocess.run(["git", "-C", directory, "symbolic-ref", "--quiet", "--short", "HEAD"],
                               capture_output=True, text=True, timeout=15)
     if symbolic.returncode:
@@ -211,6 +223,29 @@ def branch(directory, writing):
     if writing and name in protected:
         raise ValueError("A write run requires a separate task branch/worktree, never the default branch")
     return name, protected
+
+
+def common_dir(directory):
+    """The repository a worktree belongs to: its real git common directory, shared by
+    the main checkout and every linked worktree."""
+    raw = git(directory, "rev-parse", "--path-format=absolute", "--git-common-dir")
+    return str(Path(raw).resolve())
+
+
+def default_ref(directory):
+    """`origin/<default branch>` as far as the last fetch knows, else None."""
+    candidates = []
+    symbolic = subprocess.run(["git", "-C", directory, "symbolic-ref", "--quiet", "--short",
+                               "refs/remotes/origin/HEAD"], capture_output=True, text=True, timeout=15)
+    if not symbolic.returncode:
+        candidates.append(symbolic.stdout.strip())
+    candidates += ["origin/main", "origin/master"]
+    for ref in candidates:
+        found = subprocess.run(["git", "-C", directory, "rev-parse", "--verify", "--quiet", ref + "^{commit}"],
+                               capture_output=True, text=True, timeout=15)
+        if not found.returncode:
+            return ref
+    return None
 
 
 def same_dir(a, b):
