@@ -6,10 +6,13 @@ import {
   setupPreflight,
   type RuntimeContext,
 } from "./index"
+import { OAUTH_PROVIDER } from "./lanes"
 import { ROUTES, type CatalogModel, type ModelRef } from "./policy"
 
 const NOW = 1_710_000_000_000
 const LOCATION = { directory: "/fixture" }
+const MAIN = "anthropic-credit-main"
+const SUB = "anthropic-credit-sub"
 const SONNET = ROUTES.worker.primary
 const SOL = ROUTES.worker.alternate
 const LUNA = ROUTES.verifier.primary
@@ -37,6 +40,15 @@ const catalog = (): CatalogModel[] => {
         item.variants.push({ id: m.variant })
       models.set(key, item)
     }
+  // Console credit lanes carry the same Anthropic catalog entries.
+  for (const item of [...models.values()])
+    if (item.providerID === "anthropic")
+      for (const providerID of [MAIN, SUB])
+        models.set(`${providerID}/${item.id}`, {
+          ...item,
+          providerID,
+          variants: [...item.variants],
+        })
   return [...models.values()]
 }
 type Session = {
@@ -73,6 +85,8 @@ async function fixture() {
     hasTool: true,
     catalog: catalog(),
     updates: 0,
+    switches: [] as { sessionID: string; model: ModelRef }[],
+    failSwitch: false,
     registered: 0,
     disposed: 0,
     prompted: false,
@@ -185,6 +199,10 @@ async function fixture() {
           env.updates++
           env.sessions.get(sessionID)!.metadata = metadata
         },
+        switchModel: async ({ sessionID, model }) => {
+          if (env.failSwitch) throw new Error("switch rejected")
+          env.switches.push({ sessionID, model })
+        },
         hook: async (name, cb) => {
           ;(hooks[name] ??= []).push(cb as any)
           return reg()
@@ -257,7 +275,11 @@ async function fixture() {
               input.model === undefined &&
               Object.hasOwn(ROUTES, input.agent) &&
               env.agents[input.agent] === ROUTES[input.agent]?.primary &&
-              options.enabled
+              options.enabled &&
+              // A launch that took a lane carries no marker by design.
+              ![MAIN, SUB].includes(
+                env.sessions.get(env.childID)?.model?.providerID ?? "",
+              )
             )
               expect(
                 env.sessions.get(env.childID)?.metadata?.[METADATA_KEY],
@@ -707,4 +729,277 @@ test("quota/long retry is denied for protected children without resubmit/model s
   }
   expect(env.originals).toHaveLength(1)
   expect(env.reads).toBe(1)
+})
+
+describe("Console credit lanes", () => {
+  const OPTIONS = {
+    enabled: true,
+    creditsLastResort: true,
+    quotaExportPath: "/fixture/quota-export.json",
+    creditLanes: [MAIN, SUB],
+  }
+  const laned = async (extra: Record<string, unknown> = {}) => {
+    const f = await fixture()
+    const inst = await f.install({ ...OPTIONS, ...extra })
+    return { env: f.env, inst }
+  }
+  type Env = Awaited<ReturnType<typeof fixture>>["env"]
+  const on = (providerID: string, m: ModelRef = SONNET): ModelRef => ({
+    ...m,
+    providerID,
+  })
+  const CREDIT = {
+    type: "provider.invalid-request",
+    status: 400,
+    message: "Your credit balance is too low to access the Anthropic API.",
+    response: { body: "{}" },
+  }
+  const AUTH = {
+    type: "provider.auth",
+    status: 401,
+    message: "invalid x-api-key",
+  }
+  const LIMIT = {
+    type: "provider.rate-limit",
+    status: 429,
+    message: "usage limit",
+  }
+  const LONG = { retry: true, delay: 900_000 } as const
+  const specialist = (env: Env, id = "ses_lane", agent = "worker") =>
+    env.sessions.set(id, {
+      id,
+      parentID: "ses_parent",
+      agent,
+      location: LOCATION,
+    })
+  const retry = (
+    inst: Inst,
+    sessionID: string,
+    model: ModelRef,
+    error: Record<string, unknown>,
+    decision: any = { retry: false },
+  ) => inst.fire("retry", { sessionID, model, attempt: 2, error, decision })
+
+  test("a Claude specialist launches on the first lane, unmarked and without a quota read", async () => {
+    const { env, inst } = await laned()
+    const result = await inst.run()
+    expect(env.originals[0]).toEqual({
+      agent: "worker",
+      prompt: "fixture",
+      background: true,
+      model: sel(on(MAIN)),
+    })
+    expect(env.reads).toBe(0)
+    expect(marker(env)).toBeUndefined()
+    expect(result.content).toBe(
+      `[Subagent preflight: worker ${sel(SONNET)} → ${sel(on(MAIN))}; a Console credit lane is tried before the subscription.]\ndone`,
+    )
+    expect(result.metadata.preflight).toEqual({
+      funding: "console-credit",
+      from: sel(SONNET),
+      to: sel(on(MAIN)),
+    })
+    expect(result.output).toEqual({ sessionID: "ses_child", status: "running" })
+  })
+  test("an empty lane is skipped, and with every lane empty the usual preflight decides", async () => {
+    const { env, inst } = await laned()
+    specialist(env)
+    await retry(inst, "ses_lane", on(MAIN), CREDIT)
+    await inst.run()
+    expect(env.originals[0].model).toBe(sel(on(SUB)))
+    await retry(inst, "ses_lane", on(SUB), AUTH)
+    const input = { agent: "worker", prompt: "fixture", background: true }
+    await inst.run(input)
+    expect(env.originals[1]).toBe(input)
+    expect(marker(env).model).toEqual(SONNET)
+    expect(marker(env).fallback).toBe(false)
+  })
+  test("a lane is tried again after its cooldown", async () => {
+    const { env, inst } = await laned()
+    specialist(env)
+    await retry(inst, "ses_lane", on(MAIN), CREDIT)
+    await retry(inst, "ses_lane", on(SUB), CREDIT)
+    await inst.run()
+    expect(env.originals[0].model).toBeUndefined()
+    env.now += 61 * 60_000
+    await inst.run()
+    expect(env.originals[1].model).toBe(sel(on(MAIN)))
+  })
+  test("roles that are not Claude specialists, explicit models and continuations are left alone", async () => {
+    const { env, inst } = await laned()
+    await inst.run({ agent: "verifier", prompt: "x", background: true })
+    await inst.run({
+      agent: "worker",
+      prompt: "x",
+      background: true,
+      model: "openai/gpt-6.1-sol#low",
+    })
+    expect(env.originals[0].model).toBeUndefined()
+    expect(env.originals[1].model).toBe("openai/gpt-6.1-sol#low")
+    // Only the verifier went through the usual preflight (one export read).
+    expect(env.reads).toBe(1)
+  })
+  test("a specialist walks main, sub, then the subscription, and stops when that is limited too", async () => {
+    const { env, inst } = await laned()
+    specialist(env)
+    let e = await retry(inst, "ses_lane", on(MAIN), CREDIT)
+    expect(e.decision).toEqual({ retry: true, delay: 0 })
+    e = await retry(inst, "ses_lane", on(SUB), AUTH)
+    expect(e.decision).toEqual({ retry: true, delay: 0 })
+    e = await retry(inst, "ses_lane", SONNET, LIMIT, LONG)
+    expect(e.decision).toEqual({ retry: false })
+    expect(env.switches).toEqual([
+      { sessionID: "ses_lane", model: on(SUB) },
+      { sessionID: "ses_lane", model: SONNET },
+    ])
+  })
+  test("the primary moves off a limited subscription to the lanes, never back, and stops at the end", async () => {
+    const { env, inst } = await laned()
+    let e = await retry(inst, "ses_parent", SONNET, LIMIT, LONG)
+    expect(e.decision).toEqual({ retry: true, delay: 0 })
+    e = await retry(inst, "ses_parent", on(MAIN), CREDIT)
+    expect(e.decision).toEqual({ retry: true, delay: 0 })
+    e = await retry(inst, "ses_parent", on(SUB), CREDIT)
+    expect(e.decision).toEqual({ retry: false })
+    expect(env.switches.map((s) => s.model.providerID)).toEqual([MAIN, SUB])
+  })
+  test("a variant the lane lacks is dropped rather than refusing the move", async () => {
+    const { env, inst } = await laned()
+    await retry(
+      inst,
+      "ses_parent",
+      { ...SONNET, variant: "default" },
+      LIMIT,
+      LONG,
+    )
+    expect(env.switches[0].model).toEqual({
+      id: SONNET.id,
+      providerID: MAIN,
+    })
+  })
+  test("short rate limits, other 400s and unrelated providers are not credit events", async () => {
+    const { env, inst } = await laned()
+    const other = { ...CREDIT, message: "max_tokens is too large" }
+    const cases: [ModelRef, Record<string, unknown>, any][] = [
+      [SONNET, LIMIT, { retry: true, delay: 5_000 }],
+      [on(MAIN), other, { retry: false }],
+      [{ providerID: "openai", id: "gpt-6.1-sol" }, CREDIT, { retry: false }],
+    ]
+    for (const [model, error, decision] of cases) {
+      const e = await retry(inst, "ses_parent", model, error, decision)
+      expect(e.decision).toEqual(decision)
+    }
+    expect(env.switches).toEqual([])
+  })
+  test("primaryFallback false keeps the primary on the subscription", async () => {
+    const { env, inst } = await laned({ primaryFallback: false })
+    const e = await retry(inst, "ses_parent", SONNET, LIMIT, LONG)
+    expect(e.decision).toEqual(LONG)
+    expect(env.switches).toEqual([])
+  })
+  test("a subscription limit is left to the native policy for roles outside the Claude set, but a lane failure still moves them", async () => {
+    const { env, inst } = await laned()
+    specialist(env, "ses_dbg", "debugger")
+    let e = await retry(inst, "ses_dbg", SONNET, LIMIT, LONG)
+    expect(e.decision).toEqual(LONG)
+    e = await retry(inst, "ses_dbg", on(MAIN), CREDIT)
+    expect(e.decision).toEqual({ retry: true, delay: 0 })
+    expect(env.switches).toEqual([{ sessionID: "ses_dbg", model: on(SUB) }])
+  })
+  test("protected children keep their own guards and are never moved", async () => {
+    const { env, inst } = await laned()
+    specialist(env)
+    await retry(inst, "ses_lane", on(MAIN), CREDIT)
+    await retry(inst, "ses_lane", on(SUB), CREDIT)
+    env.switches.length = 0
+    await inst.run()
+    expect(marker(env)).toBeDefined()
+    const e = await retry(inst, "ses_child", SONNET, LIMIT, {
+      retry: true,
+      delay: 18_000_000,
+    })
+    expect(e.decision).toEqual({ retry: false })
+    expect(env.switches).toEqual([])
+  })
+  test("a rejected switch leaves the native decision untouched", async () => {
+    const { env, inst } = await laned()
+    env.failSwitch = true
+    const e = await retry(inst, "ses_parent", SONNET, LIMIT, LONG)
+    expect(e.decision).toEqual(LONG)
+  })
+  test("side requests and requests on a model the session is not using never move it", async () => {
+    const { env, inst } = await laned()
+    const haiku = { providerID: OAUTH_PROVIDER, id: "claude-haiku-5-5" }
+    const e1 = await inst.fire("retry", {
+      sessionID: "ses_parent",
+      agent: "compaction",
+      model: haiku,
+      error: LIMIT,
+      decision: LONG,
+    })
+    expect(e1.decision).toEqual(LONG)
+    env.sessions.get("ses_parent")!.model = {
+      providerID: OAUTH_PROVIDER,
+      id: "claude-opus-5-5",
+    }
+    const e2 = await retry(inst, "ses_parent", haiku, LIMIT, LONG)
+    expect(e2.decision).toEqual(LONG)
+    expect(env.switches).toEqual([])
+    // The session's own model still moves.
+    const own = { providerID: OAUTH_PROVIDER, id: "claude-opus-5-5" }
+    await retry(inst, "ses_parent", own, LIMIT, LONG)
+    expect(env.switches).toHaveLength(1)
+  })
+  test("a lane's rate limit blocks it for the wait it asked for, not the full cooldown", async () => {
+    const { env, inst } = await laned()
+    specialist(env)
+    await retry(inst, "ses_lane", on(MAIN), LIMIT, {
+      retry: true,
+      delay: 30_000,
+    })
+    await inst.run()
+    expect(env.originals[0].model).toBe(sel(on(SUB)))
+    env.now += 31_000
+    await inst.run()
+    expect(env.originals[1].model).toBe(sel(on(MAIN)))
+  })
+  test("a primary already on a lane tries the other lane before the subscription", async () => {
+    const { env, inst } = await laned()
+    await retry(inst, "ses_parent", on(MAIN), CREDIT)
+    expect(env.switches[0].model.providerID).toBe(SUB)
+    // After the five-minute window the earlier hop is forgotten.
+    env.now += 6 * 60_000
+    await retry(inst, "ses_parent", on(SUB), CREDIT)
+    expect(env.switches[1].model.providerID).toBe(OAUTH_PROVIDER)
+  })
+  test("creditCooldownMs sets the block, and the subscription or junk entries never count as lanes", async () => {
+    const { env, inst } = await laned({
+      creditLanes: [OAUTH_PROVIDER, "", 7, MAIN],
+      creditCooldownMs: 1000,
+    })
+    specialist(env)
+    await retry(inst, "ses_lane", on(MAIN), CREDIT)
+    await inst.run()
+    expect(env.originals[0].model).toBeUndefined()
+    env.now += 1001
+    await inst.run()
+    expect(env.originals[1].model).toBe(sel(on(MAIN)))
+  })
+  test("with nowhere left to go a lane failure keeps whatever the native decision was", async () => {
+    const { env, inst } = await laned({ creditLanes: [MAIN] })
+    specialist(env)
+    await retry(inst, "ses_lane", on(MAIN), CREDIT)
+    const e = await retry(inst, "ses_lane", SONNET, LIMIT, LONG)
+    expect(e.decision).toEqual({ retry: false })
+    const lane = await retry(inst, "ses_lane", on(MAIN), LIMIT, LONG)
+    expect(lane.decision).toEqual(LONG)
+  })
+  test("without creditLanes the hooks and the launch path do nothing", async () => {
+    const { env, inst } = await fixture()
+    const e = await retry(inst, "ses_parent", SONNET, LIMIT, LONG)
+    expect(e.decision).toEqual(LONG)
+    await inst.run()
+    expect(env.switches).toEqual([])
+    expect(marker(env).model).toEqual(SONNET)
+  })
 })

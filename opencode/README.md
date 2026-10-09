@@ -216,10 +216,12 @@ roles whose configured models changed keep the normal selection. During a task,
 Quota errors or exhaustion do not stop a child. Native provider quota errors
 and long rate-limit reset waits still end the protected task; short native
 transient retries are allowed. There is no model switch, restart or automatic
-resubmit. Native providers may move to credits mid-request; launch preference
-is not a no-paid gate. Older markers retain identity/context protection without
-their obsolete funding gates. The root parent's model and retry policy are
-unchanged, so a parent on the same pool may still fail.
+resubmit for a protected child (Console credit lanes below are a separate path
+that never touches one). Native providers may move to credits mid-request;
+launch preference is not a no-paid gate. Older markers retain identity/context
+protection without their obsolete funding gates. The root parent's model and
+retry policy are unchanged unless `creditLanes` is set, so a parent on the same
+pool may still fail.
 Protection is sticky for marked children, including completed continuations:
 historical execution outcomes cannot prove current idleness. They retain their
 selected role and model; start a new child for a different explicit selection.
@@ -253,10 +255,46 @@ guards for already-marked children remain. To keep those guards, do not remove
 the plugin or config entries or change auth while it is active. Keep the entry
 last, after quota, and trust no other later request mutator.
 
-Current options remain `enabled: true` and `creditsLastResort: true`. The
-independent usage reader, billing parser and usage-diagnostic RPCs have been
+Options: `enabled: true`, `creditsLastResort: true`, and for the credit lanes
+below `creditLanes` (ordered provider IDs), `creditCooldownMs` (default one
+hour) and `primaryFallback` (default on). The independent usage reader, billing parser and usage-diagnostic RPCs have been
 removed. Tests use synthetic public exports and mocked OpenCode transports;
 they do not probe providers or establish real billing/entitlement behavior.
+
+## Console credit lanes
+
+The same plugin spends the Max plans' monthly API credits (see "Accounts")
+through `options.creditLanes`, an ordered list of provider IDs. A missing or
+empty list turns all of this off, in-flight moves included; `enabled: false`
+stops only new lane launches.
+
+- **Specialists** (the six roles with a Claude primary). A new launch takes the
+  first lane not known empty, with no subscription marker: the OAuth guards
+  above do not apply to API-key requests. With every lane empty, the preflight
+  above decides as before. The report carries `funding: console-credit` with
+  `from` / `to`. Agent files keep the subscription model; pinning a role to a
+  lane there skips the preflight and fails on an empty balance.
+- **In flight.** An empty balance (a plain 400 recognised by its "credit
+  balance is too low" text), a bad key (401/403) or a window limit marks the
+  lane out (for `creditCooldownMs`, one hour; a window limit only for the wait
+  it asked for) and moves the session to the next provider with the same model
+  and variant, repeating the same step. Only requests on the session's own
+  model count: compaction and title requests never move it. These
+  fail before anything is generated, so nothing is billed twice. A specialist
+  goes lane, next lane, subscription; after a long subscription limit it stops,
+  so the parent relaunches it and the preflight can pick the other vendor.
+- **Primary sessions** (no parent). On the subscription's window limit
+  (`provider.quota`, or a rate limit that asks for more than ten seconds) they
+  move to the first lane, and on to the next lane when one is empty; on a
+  lane, the subscription is the last stop. Nothing moves a primary back while
+  its lane works: return with `/models`. `primaryFallback: false` keeps the
+  primary on the subscription.
+- **Probing.** There is no balance API: a lane is probed by use. After its
+  cooldown the next request fails fast if it is still empty, which costs one
+  rejected request an hour.
+- A session never revisits a provider within five minutes, so the chain cannot
+  loop. Children launched under the subscription preflight keep their own
+  guards and are never moved.
 
 ## Accounts
 
