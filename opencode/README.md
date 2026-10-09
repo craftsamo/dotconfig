@@ -296,6 +296,16 @@ stops only new lane launches.
   loop. Children launched under the subscription preflight keep their own
   guards and are never moved.
 
+**Balance.** Anthropic has no balance API, and an Admin API is not available to
+personal orgs, so `/credits` (or `bun opencode/lib/credit-lanes/status.ts`)
+estimates it from `opencode stats`: spend per lane since its grant, what is
+left, the pace and what would expire unused. `opencode stats` read within 3% of
+Console and answers in about a second. Edit `lib/credit-lanes/lanes.json`
+(amount, `grantedOn`, `expiresOn`) at each renewal; spend before `grantedOn`
+would otherwise be counted. Quota's own local estimate was tried and dropped:
+it re-reads the whole 25 GB history database on every refresh (about a minute),
+which stalled the service into a restart loop.
+
 ## Prompt cache
 
 Anthropic's cache lives five minutes from its last use, per workspace, and a
