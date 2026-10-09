@@ -3,7 +3,7 @@ model:
   provider: openai-codex
   base_url: https://chatgpt.com/backend-api/codex
 fallback_providers:
-  - provider: anthropic
+  - provider: anthropic-oauth
     model: claude-sonnet-5-5
     base_url: https://api.anthropic.com
   - provider: xai-oauth
