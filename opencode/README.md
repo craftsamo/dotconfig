@@ -299,9 +299,13 @@ stops only new lane launches.
 **Balance.** Anthropic has no balance API, and an Admin API is not available to
 personal orgs, so the balance is estimated from `opencode stats`: spend per lane
 since its grant, what is left, the pace and what would expire unused. It read
-within 3% of Console and answers in about a second. Edit
-`lib/credit-lanes/lanes.json` (amount, `grantedOn`, `expiresOn`, the lane's key
-variable) at each renewal; spend before `grantedOn` would otherwise be counted.
+within 3% of Console and answers in about a second. `lib/credit-lanes/lanes.json`
+holds each lane's `amount`, its `renewalDay` (the day of the month the plan
+renews) and its key variable; the cycle and its expiry follow from the date, so
+nothing needs editing each month, only when a plan changes. `since` is the day a
+lane began receiving its grant, for a first cycle that started part way through
+(it is older than the cycle after the first renewal and then unused). The
+renewal's time of day is not known, so a cycle starts at local midnight.
 Three ways to read it:
 
 - `/credits`, or `bun opencode/lib/credit-lanes/status.ts` in a terminal.
