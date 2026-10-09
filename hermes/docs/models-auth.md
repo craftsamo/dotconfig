@@ -26,7 +26,9 @@ and the **image-creator** / **audio-creator** hands lead on
   coding at a lower token rate. The Opus-led judgment profiles take **Fable 5.1
   as T2**, never another Opus: every Opus model draws on the same Opus weekly
   sub-cap, so an Opus T2 fails exactly when that cap is why T1 failed, while
-  Fable draws on its own 50%-of-week ceiling. **Sonnet 5.5 is the last Claude
+  Fable draws on its own 50%-of-week ceiling. (The one Opus that may follow T1
+  is on the Console API lane: a different account, so no shared sub-cap — see
+  "Console credit lanes".) **Sonnet 5.5 is the last Claude
   tier** everywhere: Anthropic meters Opus separately from "all other models"
   per week, so Sonnet stays alive when the Opus cap is the reason T1 failed.
   Prose quality (`writer`, `marketer`) has no public benchmark. `writer` leads
@@ -74,16 +76,21 @@ and the **image-creator** / **audio-creator** hands lead on
   ChatGPT allowance below. No automatic replay of an uncertain run lives in the
   Assistant's skills.
 
-| Profile                              | T1 (primary)                        | T2                              | T3                                | T4                                  | T5                                          | `reasoning_effort` |
-| ------------------------------------ | ----------------------------------- | ------------------------------- | --------------------------------- | ----------------------------------- | ------------------------------------------- | ------------------ |
-| **default**                          | `anthropic` / claude-opus-5-5       | `anthropic` / claude-sonnet-5-5 | `openrouter` / `xiaomi/mimo-v2.5` | —                                   | —                                           | `medium`           |
-| **assistant**                        | `anthropic` / **claude-opus-5-5**   | `anthropic` / claude-fable-5-1  | `anthropic` / claude-sonnet-5-5   | `openai-codex` / gpt-6.1-sol        | `openrouter` / `xiaomi/mimo-v2.5`           | `medium`           |
-| **researcher**                       | `anthropic` / **claude-sonnet-5-5** | `anthropic` / claude-opus-5-5   | `openai-codex` / gpt-6.1-sol      | `openrouter` / `xiaomi/mimo-v2.5`   | —                                           | `medium`           |
-| **searcher**                         | `openai-codex` / **gpt-6.1-sol**    | `anthropic` / claude-sonnet-5-5 | `xai-oauth` / grok-4.7            | `openrouter` / `xiaomi/mimo-v2.5`   | —                                           | `low`              |
-| **creator**, **video-creator**       | `anthropic` / **claude-opus-5-5**   | `anthropic` / claude-fable-5-1  | `anthropic` / claude-sonnet-5-5   | `openrouter` / `minimax/minimax-m3` | —                                           | `medium`           |
-| **image-creator**, **audio-creator** | `anthropic` / **claude-sonnet-5-5** | `anthropic` / claude-opus-5-5   | `anthropic` / claude-fable-5-1    | `openrouter` / `minimax/minimax-m3` | —                                           | `medium`           |
-| **writer**                           | `anthropic` / **claude-sonnet-5-5** | `anthropic` / claude-opus-5-5   | `anthropic` / claude-fable-5-1    | `openai-codex` / gpt-6.1-sol        | `openrouter` / `deepseek/deepseek-v4-flash` | `medium`           |
-| **marketer**                         | `anthropic` / **claude-opus-5-5**   | `anthropic` / claude-fable-5-1  | `anthropic` / claude-sonnet-5-5   | `openrouter` / `xiaomi/mimo-v2.5`   | —                                           | `medium`           |
+| Profile                              | T1 (primary)                              | T2                                    | T3                                    | T4                                  | T5                                          | `reasoning_effort` |
+| ------------------------------------ | ----------------------------------------- | ------------------------------------- | ------------------------------------- | ----------------------------------- | ------------------------------------------- | ------------------ |
+| **default**                          | `anthropic-oauth` / claude-opus-5-5       | `anthropic-oauth` / claude-sonnet-5-5 | `openrouter` / `xiaomi/mimo-v2.5`     | —                                   | —                                           | `medium`           |
+| **assistant**                        | `anthropic-oauth` / **claude-opus-5-5**   | `anthropic-oauth` / claude-fable-5-1  | `anthropic-oauth` / claude-sonnet-5-5 | `openai-codex` / gpt-6.1-sol        | `openrouter` / `xiaomi/mimo-v2.5`           | `medium`           |
+| **researcher**                       | `anthropic-oauth` / **claude-sonnet-5-5** | `anthropic-oauth` / claude-opus-5-5   | `openai-codex` / gpt-6.1-sol          | `openrouter` / `xiaomi/mimo-v2.5`   | —                                           | `medium`           |
+| **searcher**                         | `openai-codex` / **gpt-6.1-sol**          | `anthropic-oauth` / claude-sonnet-5-5 | `xai-oauth` / grok-4.7                | `openrouter` / `xiaomi/mimo-v2.5`   | —                                           | `low`              |
+| **creator**, **video-creator**       | `anthropic-oauth` / **claude-opus-5-5**   | `anthropic-oauth` / claude-fable-5-1  | `anthropic-oauth` / claude-sonnet-5-5 | `openrouter` / `minimax/minimax-m3` | —                                           | `medium`           |
+| **image-creator**, **audio-creator** | `anthropic-oauth` / **claude-sonnet-5-5** | `anthropic-oauth` / claude-opus-5-5   | `anthropic-oauth` / claude-fable-5-1  | `openrouter` / `minimax/minimax-m3` | —                                           | `medium`           |
+| **writer**                           | `anthropic-oauth` / **claude-sonnet-5-5** | `anthropic-oauth` / claude-opus-5-5   | `anthropic-oauth` / claude-fable-5-1  | `openai-codex` / gpt-6.1-sol        | `openrouter` / `deepseek/deepseek-v4-flash` | `medium`           |
+| **marketer**                         | `anthropic-oauth` / **claude-opus-5-5**   | `anthropic-oauth` / claude-fable-5-1  | `anthropic-oauth` / claude-sonnet-5-5 | `openrouter` / `xiaomi/mimo-v2.5`   | —                                           | `medium`           |
+
+Every `anthropic-oauth` above is the subscription lane. **assistant** and
+**marketer** carry one more tier between T1 and the table's T2: `anthropic` /
+the same Opus 5.5 on the Console API lane (see "Console credit lanes"). The
+table shows the subscription chain.
 
 A `fallback_providers` entry carries no per-entry `reasoning_effort` or
 `api_mode` for the main agent: on each fallback activation Hermes re-reads the
@@ -149,7 +156,7 @@ backed by the two blind A/Bs above (small n per arm). Provider facts:
   profile's own main provider _and main model_ (`agent/auxiliary_client.py`),
   which would run compression, titles, triage and the rest on the most
   expensive model. Every task except `vision` and `web_extract` is pinned to a
-  cheap Claude sibling — `anthropic` / `claude-sonnet-5` on the judgment
+  cheap Claude sibling — `anthropic-oauth` / `claude-sonnet-5` on the judgment
   profiles, `claude-sonnet-5-5` on researcher and Creator's family (their
   thinking-off calls get `between_tools`, see below) — each with a
   `fallback_chain` to `openrouter` /
@@ -241,6 +248,70 @@ These facts govern the paired Claude tiers (Fable 5 and 5.1 behave the same):
    covered until its breaking changes are read against these lists (see
    `AGENTS.md`).
 
+### Console credit lanes
+
+Anthropic is two providers on one backend that bill different accounts:
+`anthropic-oauth` bills the Claude subscription, `anthropic` bills a Console API
+key. Each lane refuses the other's token shape (a Console key is `sk-ant-api…`
+or `sk-ant-usr…`), so one never bills the other. Max plans grant monthly API
+credits, one Console org per plan, spent before any purchased balance and lost
+at the end of the billing cycle; Claude Code and extra usage cannot spend them,
+only an API key can. OpenCode spends the same credits
+([`opencode/README.md`](../../opencode/README.md) "Console credit lanes").
+
+- **Tier.** assistant and marketer carry `anthropic` / Opus 5.5 right after T1,
+  then the table's T2 onward. A credit Opus draws on no subscription sub-cap,
+  which is why it may sit ahead of Fable. Creator's family stays off the lane:
+  one video job reads tens of millions of tokens and would empty it. The other
+  profiles are unchanged. While the subscription's reset is ahead, turns stay on
+  the lane: that drains the credits by design.
+- **Two orgs, one tier.** The `anthropic` credential pool holds both keys as
+  env-sourced entries: `ANTHROPIC_CREDIT_SUB_ACCOUNT_KEY` (priority 0), then
+  `ANTHROPIC_CREDIT_MAIN_ACCOUNT_KEY` (priority 1); `hermes auth list` shows
+  them. Sub (the OpenCode account's org) is first; OpenCode spends the other way
+  round, so the two start on different orgs and a Console org's rate limit,
+  which is per org, is not hit by both at once.
+- **Failure.** An empty balance is a plain 400 ("credit balance is too low");
+  the classifier treats it as billing, so the turn moves on at once. By the
+  code (read, not run), a billing 400 benches that key for an hour and rotates
+  to the next pool entry, a 429 is retried once on the same key and then
+  rotates, a 401 rotates, and with both keys spent the turn moves to the next
+  fallback entry (Fable). Benches are saved to disk, and while more than ten
+  minutes of one remain the walk skips the lane without a request, so an empty
+  lane costs at most one rejected request per key per hour. In the last ten
+  minutes of a bench the lane is no longer skipped but has nothing to select, so
+  it counts as unconfigured and is skipped for the rest of that cached session
+  (until the chain config changes or the gateway restarts): after the credits
+  refill, restart the gateway if a session stays off the lane. The primary's own
+  restore cooldown is 60 s, doubling on repeated rate-limit or billing failures
+  up to 4 h, or the provider's reset time when the 429 gives one.
+- **Auxiliary tasks follow the turn.** An `auto` auxiliary call (`vision`,
+  `web_extract`) uses the main runtime, so while turns stay on the lane through
+  the cooldown or a reset gate, those calls bill the credits too (Opus 5.5).
+  After a payment error from the main provider it tries the task's own
+  `fallback_chain`, then the main model, and does not walk `fallback_providers`.
+  An auxiliary call treats only 402/403/404/429 as a payment error, so a lane's
+  400 does not fall through; the pinned auxiliary chains stay on Sonnet and the
+  OpenRouter tail.
+- **Cost.** Both lanes are priced from Hermes' table, so a lane turn reports an
+  estimated cost; the real spend is the Console's. OpenCode's `/credits`
+  balance is an estimate from OpenCode's own cost accounting, so Hermes' spend
+  on the same orgs is not in it.
+- **Keys.** The two env names sit in the shared `hermes` layer and, as a second
+  copy of the same value, in OpenCode's `opencode` project. The pool entries
+  read the variable by name, so rotate both copies and restart the gateway. A
+  profile without its own `anthropic` rows reads the root `auth.json` read-only;
+  its first rotation or bench writes a copy of its own (video-creator already
+  has one), which then shadows the root: `hermes auth list` at the root does not
+  show or clear that profile's bench, and a rename at the root does not reach it.
+  Neither Console org has a payment method or auto-reload, so an empty balance
+  stops requests instead of billing.
+- **Exposure.** Terminal and code-execution children drop secrets by name, and
+  the list holds each registered provider's variables (`ANTHROPIC_API_KEY`,
+  `ANTHROPIC_TOKEN`, `OPENROUTER_API_KEY`), not these two names, so a child of
+  any profile that holds them can read both keys. In the shared layer that is
+  every profile. A leak costs at most the orgs' monthly credits.
+
 ### `agent.*` does not inherit from the root profile
 
 A named profile's config is `$HERMES_HOME/config.yaml` deep-merged with the
@@ -316,8 +387,9 @@ profile gets `global` + `hermes`** — mechanics in
 
 - **`hermes`** — keys only Hermes uses, needed by every profile and every
   worker session: `OPENROUTER_API_KEY` (the OpenRouter tails),
-  `GITHUB_TOKEN` (Skills Hub), `FAL_KEY`, `GROQ_API_KEY` and the dashboard auth
-  pair. The messaging keys (`TELEGRAM_*` / `DISCORD_*`) parked here are the
+  `GITHUB_TOKEN` (Skills Hub), `FAL_KEY`, `GROQ_API_KEY`, the dashboard auth
+  pair and the two Console credit-lane keys (`ANTHROPIC_CREDIT_*`, shared with
+  OpenCode). The messaging keys (`TELEGRAM_*` / `DISCORD_*`) parked here are the
   **assistant's**: `profile-secrets.sh` passes them to assistant unfiltered,
   keeps only the shared owner allowlist `TELEGRAM_ALLOWED_USERS` for
   creator / marketer, and drops every messaging key for the other
