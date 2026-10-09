@@ -315,7 +315,9 @@ Three ways to read it:
   `opencode-quota/quota-toast.jsonc` points a remote-api provider at each. Quota
   sends the lane's own key as the bearer token and the endpoint answers only
   that, so no new secret exists. The percentage, the expiry countdown and the
-  pace show in `/quota`.
+  pace show in `/quota`. Quota reuses a provider's result for `minIntervalMs`
+  (5 minutes by default, 2 here) even though the sidebar refreshes every minute,
+  so use shows up after that wait and the 30 s cache behind the endpoint.
 
 Quota's own `local-estimate` mode was tried and dropped: it re-reads the whole
 25 GB history database on every refresh (about a minute), which stalled the
