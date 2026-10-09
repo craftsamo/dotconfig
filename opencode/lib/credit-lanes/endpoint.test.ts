@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import { CACHE_MS, createHandler, listen, serve } from "./endpoint"
 import { summarize, type Lane, type Summary } from "./core"
-import { toQuotaV1 } from "./quota"
+import { SIDEBAR_ROOM, toQuotaV1, valueRoom } from "./quota"
 
 const LANE: Lane = {
   provider: "anthropic-credit-main",
@@ -48,6 +48,32 @@ describe("toQuotaV1", () => {
     expect(value.kind).toBe("value")
     expect(value.value.length).toBeLessThanOrEqual(160)
     expect(value.percentRemaining).toBeUndefined()
+  })
+  test("keeps every value row inside the sidebar's room, so no label is cut", () => {
+    for (const cost of [0, 7, 99, 100, 999, 9999]) {
+      const body = toQuotaV1(summary(cost), NOW)
+      for (const entry of body.entries)
+        if (entry.kind === "value")
+          expect(valueRoom(entry.label, entry.value)).toBeLessThanOrEqual(
+            SIDEBAR_ROOM,
+          )
+    }
+  })
+  test("reports pace and need in whole dollars, and what would be lost only when something would", () => {
+    const rows = (cost: number) =>
+      Object.fromEntries(
+        (toQuotaV1(summary(cost), NOW).entries as any[])
+          .filter((e) => e.kind === "value")
+          .map((e) => [e.label, e.value]),
+      )
+    expect(rows(50)).toEqual({
+      "Pace:": "$33/day",
+      "Need:": "$60/day",
+      // $150 left, minus $33.33/day for the 2.5 days left.
+      "Unused:": "~$67",
+    })
+    // At a pace that would use it all, there is nothing to lose to report.
+    expect(Object.keys(rows(190))).toEqual(["Pace:", "Need:"])
   })
   test("never exceeds 100%, and the reset follows the cycle after a renewal", () => {
     expect(
