@@ -291,7 +291,9 @@ verification only from `verifier`, never formatter application or source changes
 
 Choose the role first; a model override does not replace the agent's instructions
 or permissions. Normally omit the `subagent` tool's `model` argument: a new child
-uses its configured model, or inherits the parent's model when none is configured.
+uses its configured model, or inherits the parent's model when none is configured;
+the preflight plugin launches its routed specialists on their route's model, even
+where a project's own agent file names another.
 Only supply `model` when the user explicitly requests a particular model or
 variant, after checking that it is available. Use `provider/model#variant` for an
 override; it takes precedence over the agent's configured model. Report any
