@@ -375,14 +375,38 @@ describe("git_commit", () => {
     expect(f.git("rev-parse", "HEAD").trim()).toBe(head)
   })
 
-  test("reports files a hook rewrote into the commit or left modified", async () => {
+  test("reports files a hook rewrote into the commit or left modified, and scans what it staged", async () => {
     const f = repo()
     f.commit("init", { "a.txt": "a\n", "b.txt": "b\n" })
-    hook(f, "pre-commit", "echo formatted >> a.txt\ngit add a.txt\necho touched >> b.txt")
+    hook(f, "pre-commit", `echo formatted >> a.txt\necho "id ${AWS_KEY}" > c.txt\ngit add a.txt c.txt\necho touched >> b.txt`)
     f.write("a.txt", "a2\n")
     f.git("add", "a.txt")
     const out = await run(git.commit, f, { message: "feat: x" })
-    expect(out).toMatchObject({ committed: true, changedByHook: ["a.txt"], leftModified: ["b.txt"] })
+    expect(out).toMatchObject({ committed: true, changedByHook: ["a.txt", "c.txt"], leftModified: ["b.txt"] })
+    expect(out.hookFindings).toContainEqual(expect.objectContaining({ file: "c.txt", rule: "aws-access-key-id" }))
+  })
+
+  test("lands the normalized message verbatim, whatever commit.cleanup says", async () => {
+    const f = repo()
+    f.commit("init", { "a.txt": "a\n" })
+    f.git("config", "commit.cleanup", "strip")
+    f.write("a.txt", "b\n")
+    f.git("add", "a.txt")
+    const out = await run(git.commit, f, { message: "feat: x  \r\n\r\n\r\n#123 stays a line\n\n\n" })
+    expect(out).toMatchObject({ committed: true, messageMatches: true })
+    expect(f.git("log", "-1", "--format=%B")).toBe("feat: x\n\n#123 stays a line\n\n")
+  })
+
+  test("does not blame a hook when there is none", async () => {
+    const f = repo()
+    f.commit("init", { "a.txt": "a\n" })
+    f.write("a.txt", "b\n")
+    f.git("add", "a.txt")
+    f.git("config", "commit.gpgsign", "true")
+    f.git("config", "gpg.program", join(f.root, "no-such-gpg"))
+    const out = await run(git.commit, f, { message: "feat: x" })
+    expect(out).toMatchObject({ committed: false, stoppedAt: "commit", hooks: [] })
+    expect(out.output).toMatch(/gpg/i)
   })
 })
 
