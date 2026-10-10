@@ -12,7 +12,7 @@ Read the [kernel](../../SKILL.md) first. The leaf's form is authoritative; this 
 
 - Two rounds: three full-body concept candidates (with a silhouette sheet) first; then a pack on the chosen anchor. A client who only wants the character can stop after round one.
 - Pack kinds: turnaround, poses, custom (own item list). Framing: full-body, bust, head.
-- Drawn styles: game-2d, chibi, retro-cartoon, flat-vector, painterly, pixel, clay, low-poly, toon-3d, crayon, or a described one.
+- Drawn styles: game-2d, chibi, anime-2d, retro-cartoon, flat-vector, painterly, pixel, clay, low-poly, toon-3d, crayon, or a described one. `anime-2d` is the TV-anime cel look; its anchor and poses can serve as the cast of an `anime-2d` story.
 - The approved anchor is the reference for every later asset of the character (emoji pack, sticker, video). A shaded character cannot be recoloured deterministically.
 
 ## Where directions go

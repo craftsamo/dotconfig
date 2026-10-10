@@ -2,7 +2,7 @@
 name: generate-mascot
 description: >-
   A mascot character — a brand's, product's or team's — designed from a
-  concept by an image model in a named style (game-2d, chibi,
+  concept by an image model in a named style (game-2d, chibi, anime-2d,
   retro-cartoon, flat-vector, painterly, pixel, clay, low-poly, toon-3d,
   crayon, or a described one), in
   the client's palette, cut out on a transparent, chroma-key or flat
@@ -29,7 +29,7 @@ metadata:
         example: "開発ツール Forge のマスコット。小型の作業ロボット、好奇心旺盛で几帳面。頭にヘッドランプ、胸に六角ナットの紋章。README と Slack と動画に出る"
       style:
         required: true
-        options: [game-2d, chibi, retro-cartoon, flat-vector, painterly, pixel, clay, low-poly, toon-3d, crayon]
+        options: [game-2d, chibi, anime-2d, retro-cartoon, flat-vector, painterly, pixel, clay, low-poly, toon-3d, crayon]
         other: true
         label: "a listed style (references/styles/<style>.md), or a described look in a sentence"
       palette:
