@@ -487,6 +487,7 @@
     // Plan, Explore, Review and Debug deny git_commit themselves.
     { "action": "git_commit", "resource": "*", "effect": "allow" },
     { "action": "git_state", "resource": "*", "effect": "allow" },
+    { "action": "git_conflicts", "resource": "*", "effect": "allow" },
     { "action": "git_secret_scan", "resource": "*", "effect": "allow" },
     { "action": "git_stage_hunks", "resource": "*", "effect": "allow" },
     { "action": "git_provenance", "resource": "*", "effect": "allow" },

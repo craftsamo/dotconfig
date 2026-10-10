@@ -117,7 +117,9 @@ hand-managed base branches.
   which contradicts this skill's ready-by-default rule.
 - **Pushing.** Use `gh stack push`, not `git push`. Rewriting a lower layer
   requires `gh stack rebase` first; the stack cannot merge unless every layer
-  is a linear descendant of the one below.
+  is a linear descendant of the one below. When a rebase stops on conflicts,
+  read them with `git_conflicts` (in a rebase `ours` is the layer below,
+  `theirs` the commit being replayed; lockfiles are regenerated, not merged).
 - **Force-push is expected here.** `gh stack push` force-pushes rewritten
   layers with `--force-with-lease`. That is the mechanism, not a violation of
   the no-force-push rule — but it is not atomic across branches, so re-read the

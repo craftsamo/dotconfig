@@ -35,6 +35,7 @@ describe("registry", () => {
       "git_amend_check",
       "git_commit",
       "git_commit_lint",
+      "git_conflicts",
       "git_history_digest",
       "git_provenance",
       "git_related_scan",
@@ -450,6 +451,57 @@ describe("git_state", () => {
       { re: "^pr view --json number", out: '{"number":4,"title":"T","state":"OPEN","isDraft":false}' },
     ])
     expect(withPr.out.pr).toMatchObject({ number: 4, state: "OPEN" })
+  })
+})
+
+describe("git_conflicts", () => {
+  const diverge = (f: Fixture) => {
+    f.commit("init", { "a.txt": "one\nshared\nthree\n", "pnpm-lock.yaml": "lock: 1\n", "gone.txt": "g\n" })
+    f.git("switch", "-q", "-c", "topic")
+    f.commit("topic change", { "a.txt": "one\ntopic\nthree\n", "pnpm-lock.yaml": "lock: topic\n", "gone.txt": "g2\n" })
+    f.git("switch", "-q", "main")
+    f.git("rm", "-q", "gone.txt")
+    f.commit("main change", { "a.txt": "one\nmain\nthree\n", "pnpm-lock.yaml": "lock: main\n" })
+  }
+
+  test("maps a merge's conflicts, sides and regions, and flags the lockfile", async () => {
+    const f = repo()
+    f.git("config", "merge.conflictStyle", "diff3")
+    diverge(f)
+    Bun.spawnSync(["git", "merge", "-q", "topic"], { cwd: f.dir })
+    const out = await run(git.conflicts, f)
+    expect(out.operation).toBe("merge")
+    expect(out.sides.ours.subject).toBe("main change")
+    expect(out.sides.theirs).toMatchObject({ ref: "MERGE_HEAD", subject: "topic change" })
+    const byPath = Object.fromEntries(out.files.map((x: any) => [x.path, x]))
+    expect(byPath["a.txt"]).toMatchObject({
+      kind: "both modified",
+      regionCount: 1,
+      regions: [{ line: 2, ours: ["main"], base: ["shared"], theirs: ["topic"], truncated: false }],
+    })
+    expect(byPath["pnpm-lock.yaml"]).toMatchObject({ lockfile: true })
+    expect(byPath["pnpm-lock.yaml"].resolve).toContain("pnpm install --lockfile-only")
+    expect(byPath["gone.txt"]).toMatchObject({ kind: "deleted by us", regions: [] })
+    const only = await run(git.conflicts, f, { paths: ["a.txt"] })
+    expect(only.count).toBe(1)
+  })
+
+  test("explains ours and theirs in a rebase", async () => {
+    const f = repo()
+    diverge(f)
+    f.git("switch", "-q", "topic")
+    Bun.spawnSync(["git", "rebase", "-q", "main"], { cwd: f.dir, env: { ...process.env, GIT_EDITOR: ":" } })
+    const out = await run(git.conflicts, f)
+    expect(out.operation).toBe("rebase")
+    expect(out.sides.ours.subject).toBe("main change")
+    expect(out.sides.theirs).toMatchObject({ ref: "REBASE_HEAD", subject: "topic change" })
+    expect(out.sides.note).toMatch(/rebased onto/)
+  })
+
+  test("returns nothing outside a conflicted operation", async () => {
+    const f = repo()
+    f.commit("init")
+    expect(await run(git.conflicts, f)).toMatchObject({ operation: null, count: 0, files: [] })
   })
 })
 

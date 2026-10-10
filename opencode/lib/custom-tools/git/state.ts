@@ -41,11 +41,11 @@ function parseStatus(out: string) {
 
 const capped = <T>(list: T[]) => ({ count: list.length, items: list.slice(0, LIST_MAX), truncated: list.length > LIST_MAX })
 
-async function gitPath(cwd: string, name: string): Promise<string> {
+export async function gitPath(cwd: string, name: string): Promise<string> {
   return (await runGit(["rev-parse", "--path-format=absolute", "--git-path", name], cwd)).trim()
 }
 
-async function operation(cwd: string): Promise<string | null> {
+export async function operation(cwd: string): Promise<string | null> {
   const markers: [string, string][] = [
     ["rebase-merge", "rebase"],
     ["rebase-apply", "rebase"],

@@ -148,7 +148,8 @@ Mechanics:
   `sha`, default HEAD) to classify it.
   - `amend` / `fixup` (local, unpushed): fold it in with `git commit --amend`
     (for HEAD) or `git commit --fixup=<sha>` followed by
-    `git rebase -i --autosquash`.
+    `git rebase -i --autosquash`. If that rebase stops on conflicts, map them
+    with `git_conflicts` before editing.
   - `linked-fix` (already pushed or on another branch): do not rewrite it. Make
     a new commit that links the origin (see <Provenance>), e.g.
     `fix(scope): add missing num arg (follow-up to abc1234)`.
