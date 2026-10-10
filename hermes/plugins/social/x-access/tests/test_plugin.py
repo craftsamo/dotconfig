@@ -127,8 +127,8 @@ def test_oversized_results_are_refused(monkeypatch):
     assert result["ok"] is False and "narrow" in result["error"]
 
 
-PUBLIC_ACTIONS = ["status", "search", "thread", "verify"]
-MAIN_ACCOUNT_ACTIONS = ["posts", "mentions", "snapshot", "insights", "media", "user"]
+PUBLIC_ACTIONS = ["status", "search", "thread", "user", "verify"]
+MAIN_ACCOUNT_ACTIONS = ["posts", "mentions", "snapshot", "insights", "media"]
 
 
 def test_searcher_gets_only_the_public_reads():
@@ -137,7 +137,8 @@ def test_searcher_gets_only_the_public_reads():
     assert set(ctx.tools) == {"x"} and [name for name, _ in ctx.hooks] == ["pre_tool_call"]
     schema = ctx.tools["x"]["schema"]
     assert schema["parameters"]["properties"]["action"]["enum"] == PUBLIC_ACTIONS
-    assert set(schema["parameters"]["properties"]) == {"action", "query", "top", "post", "limit", "posts"}
+    assert set(schema["parameters"]["properties"]) == {"action", "handle", "query", "top", "post", "limit", "posts"}
+    assert "posts" not in schema["parameters"]["properties"]["handle"]["description"]
     assert schema["parameters"]["additionalProperties"] is False
     for action in MAIN_ACCOUNT_ACTIONS:
         assert action not in schema["parameters"]["properties"]["action"]["enum"]
@@ -182,8 +183,27 @@ def test_searcher_is_refused_the_other_actions_at_every_layer(action):
     assert directive["action"] == "block" and "not available to this profile" in directive["message"]
     result = json.loads(searcher_x(args))
     assert result["ok"] is False and "not available to this profile" in result["error"]
-    with pytest.raises(plugin.xa.XError, match="action must be one of status, search, thread, verify"):
+    with pytest.raises(plugin.xa.XError, match="action must be one of status, search, thread, user, verify"):
         plugin.xa.execute(args, profile="searcher")
+
+
+def test_searcher_user_reads_a_named_profile_on_its_share(monkeypatch):
+    seen = []
+
+    def bridge(op, **fields):
+        seen.append((op, fields.get("handle")))
+        return {"ok": True, "data": {"username": "someone", "id_str": "7", "rawDescription": "bio",
+                                     "descriptionLinks": [{"url": "https://example.com"}]},
+                "fingerprint": "fp", "contacted": True, "session": {"active": True, "locks": {}}}
+    monkeypatch.setattr(plugin.xa, "bridge", bridge)
+    searcher_x = plugin.handler_for("searcher")
+    result = json.loads(searcher_x({"action": "user", "handle": "@someone"}))
+    assert result["ok"] is True and result["user"]["handle"] == "@someone"
+    assert result["user"]["links"] == ["https://example.com"] and seen == [("user", "someone")]
+    assert len(plugin.xa._read_state()["by_profile"]["searcher"]) == 1
+    # there is no default account: without a handle nothing is read
+    missing = json.loads(searcher_x({"action": "user"}))
+    assert missing["ok"] is False and "handle" in missing["error"] and len(seen) == 1
 
 
 def count_search_calls(monkeypatch):

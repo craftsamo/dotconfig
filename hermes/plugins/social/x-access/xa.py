@@ -32,11 +32,12 @@ import urllib.parse
 import urllib.request
 
 ACTIONS = ("status", "posts", "mentions", "search", "thread", "user", "media", "snapshot", "insights", "verify")
-# Searcher reads public posts only: nothing about the user's main account, nothing written to disk.
-# ``search`` is its fallback for when x_search is unavailable. ``search`` and ``thread`` draw on the
-# sub-account's caps, ``verify`` does not.
+# Searcher reads public posts and profiles only: nothing about the user's main account, nothing
+# written to disk. ``search`` is its fallback for when x_search is unavailable. ``user`` (a named
+# account's public profile, never a default) serves account footprints. ``search``, ``thread`` and
+# ``user`` draw on the sub-account's caps, ``verify`` does not.
 PROFILE_ACTIONS = {"assistant": ACTIONS, "marketer": ACTIONS,
-                   "searcher": ("status", "search", "thread", "verify")}
+                   "searcher": ("status", "search", "thread", "user", "verify")}
 # Actions that read the user's main account and need ``x_access.main_handle``.
 MAIN_ACTIONS = ("posts", "mentions", "snapshot", "insights")
 NETWORK = {"posts", "mentions", "search", "thread", "user", "media", "snapshot"}

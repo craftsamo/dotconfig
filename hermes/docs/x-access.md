@@ -4,7 +4,8 @@ A read-only view of X (Twitter) for the Assistant and Marketer: the user's
 main account's posts and mentions, search, threads, profiles, a post's
 photos, videos and GIFs, a ledger of the main account's public counts, and
 bulk checks of public posts' authors and counts. Searcher gets only the
-public part: `status`, `search`, `thread` and `verify` ([Profiles](#profiles)).
+public part: `status`, `search`, `thread`, `user` and `verify`
+([Profiles](#profiles)).
 It reads as a separate **sub-account**; the main account is only a search
 subject and never signs in here. Nothing posts, replies, likes, follows or
 sends DMs. Read it when changing the plugin or its caps. Common rules:
@@ -151,20 +152,23 @@ otherwise.
 
 ## Profiles
 
-| Profile   | Actions                                | Inbound A2A   |
-| --------- | -------------------------------------- | ------------- |
-| Assistant | every action                           | refused       |
-| Marketer  | every action                           | reads allowed |
-| Searcher  | `status`, `search`, `thread`, `verify` | refused       |
+| Profile   | Actions                                        | Inbound A2A   |
+| --------- | ---------------------------------------------- | ------------- |
+| Assistant | every action                                   | refused       |
+| Marketer  | every action                                   | reads allowed |
+| Searcher  | `status`, `search`, `thread`, `user`, `verify` | refused       |
 
 The action list a profile gets (`PROFILE_ACTIONS` in `xa.py`) fixes its schema
 and is checked again by the gate, the handler and the engine
 ([profile gating](access-common.md#profile-gating)). Searcher reads public posts
-only: nothing about the user's main account and no `media`, which writes files.
-It finds posts with `x_search`; `search` is the fallback for when that tool is
-hidden (a lapsed xAI login) or failing. `search` and `thread` draw on the
-sub-account's caps shared with the Assistant and Marketer; `verify` does not, so
-prefer it to confirm a post.
+and the public profile of an account it names: nothing about the user's main
+account (`user` has no default handle) and no `media`, which writes files.
+`user` serves account-footprint retrieval: the bio and the links a profile lists
+are how accounts on other services are tied to it. It finds posts with
+`x_search`; `search` is the fallback for when that tool is hidden (a lapsed xAI
+login) or failing. `search`, `thread` and `user` draw on the sub-account's caps
+shared with the Assistant and Marketer; `verify` does not, so prefer it to
+confirm a post.
 
 **A profile's share of the caps.** `PROFILE_CAPS` gives Searcher a smaller
 hourly and daily share, counted apart in `state.json` under `by_profile` (a
