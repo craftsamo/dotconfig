@@ -4,7 +4,8 @@
 pie-cut or oval eyes, white gloves, noodle limbs with no elbows, big
 shoes, a limited slightly desaturated palette with an ink-black outline
 of even weight, flat colour with no shading, maybe a subtle halftone or
-paper grain. The Cuphead / Fleischer / Hanna-Barbera family.
+paper grain. The early theatrical-cartoon and mid-century TV-cartoon
+family.
 
 **Prompt block.**
 > retro vintage cartoon mascot character of <subject>, 1930s rubber-hose

@@ -40,8 +40,8 @@ Read only the reference(s) that match the task at hand; do not load all six
 for a narrow request.
 
 - [Timing and spacing](references/timing-spacing.md) — read when shaping how a single move
-  feels: ease, acceleration, anticipation, and where to place visual focus,
-  in any subject.
+  feels: ease, acceleration, anticipation, drawn timing (ones, twos, holds,
+  smears) and where to place visual focus, in any subject.
 - [Continuity](references/continuity.md) — read when a sequence has more than one
   shot or state and cut discipline (matched vs. deliberate) is in question.
 - [UI choreography](references/ui-choreography.md) — read for on-screen interface motion:

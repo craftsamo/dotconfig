@@ -5,7 +5,7 @@ soft edges where forms meet, rich lighting with a warm key and a cool
 fill, textured colour instead of flat fills, no hard outline — the shape
 is held by value contrast. Still a mascot: simplified appealing
 proportions, a clear expression, one strong silhouette. The concept-art /
-Ghibli-still / storybook family.
+hand-painted animation still / storybook family.
 
 **Prompt block.**
 > painterly character illustration of <subject>, a mascot design with

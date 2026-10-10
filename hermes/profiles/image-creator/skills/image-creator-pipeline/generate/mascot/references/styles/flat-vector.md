@@ -4,8 +4,8 @@
 NO outline, flat fills with at most one flat shade tone per colour, a
 restrained palette of three or four colours, minimal facial features (dot
 eyes, a simple mouth), corporate-illustration proportions. The tech
-brand mascot family — Mailchimp's Freddie, GitHub's Octocat as a flat
-mark, Slack-style illustrations.
+brand mascot family: a character that doubles as a flat logo mark and
+sits in product illustrations.
 
 **Prompt block.**
 > flat vector illustration mascot character of <subject>, geometric

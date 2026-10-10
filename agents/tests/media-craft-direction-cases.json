@@ -52,5 +52,14 @@
     "expected": ["Recognize that new creative direction is not needed"],
     "must_not": ["Add a concept review or new transition"],
     "review_evidence": ["Requested trim and no additional creative scope"]
+  },
+  {
+    "id": "named-anime-film",
+    "request": "Make our mascot's story look like that famous anime film, you know the one.",
+    "operation": "plan",
+    "subjects": ["story", "clip", "mascot"],
+    "expected": ["Restate the analogy as two or three observable trait sets for the client to choose", "Carry only the chosen traits into the producer brief", "Keep the mascot's approved design unchanged"],
+    "must_not": ["Put a film title, studio or person's name into the production prompt", "Borrow a character, logo or composition from the named work"],
+    "review_evidence": ["Client confirmation of the restated traits", "Producer brief text"]
   }
 ]
