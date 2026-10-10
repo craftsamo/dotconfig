@@ -27,17 +27,16 @@ Part of the Hermes design docs — index: [`PROFILES.md`](../PROFILES.md).
 | How Writer writes and checks a note source draft                                                                                            | `writer-pipeline/<write\|edit\|analyze>/article/references/note.md`                                               | Writer                        |
 
 note has no public API. The tool calls the internal endpoints that note's own
-web app and editor use, the same way the editor does. They can change without
-notice. note's terms let it suspend an account that puts excessive load on the
-service or posts spam, so every request is paced. The user accepted this risk
-for their own account ([risk acceptance](access-common.md#risk-acceptance)).
-Everything is standard library, so there is no venv and no install step; the
-bridge runs under Hermes' own interpreter in isolated mode
+web app and editor use. They can change without notice. note's terms let it
+suspend an account that puts excessive load on the service or posts spam, so
+every request is paced. The user accepted this risk for their own account
+([risk acceptance](access-common.md#risk-acceptance)). Everything is standard
+library, so there is no venv and no install step; the bridge runs under Hermes'
+own interpreter in isolated mode
 ([bridge process](access-common.md#state-directory-and-bridge-process)).
 
-Marketer, a read-only advisor, reads note through the tool, never note's
-editor; only a visual look the user asks for opens note in its browser, under
-its read-only browsing rules and lease ([marketer.md](profiles/marketer.md)).
+Marketer reads note through the tool, never note's editor; only a visual look
+the user asks for opens its browser ([marketer.md](profiles/marketer.md)).
 
 ## Profiles
 
@@ -53,17 +52,13 @@ and checked again by the gate, the handler and the engine
 ([profile gating](access-common.md#profile-gating)). An inbound request runs
 only what `A2A` lists for the profile, never a save or a `preview`, and only
 when the turn's bound profile home is that profile's, failing closed otherwise.
-The Assistant never serves a peer. Marketer answers a peer's question with a
-read, the user's drafts and stats included, on the shared request budget.
-Writer, which has no terminal, checks its own note drafts.
+Marketer answers a peer's question with a read, the user's drafts and stats
+included, on the shared request budget.
 
-Whether the Assistant's save can run depends on whether a person can answer the
-card. On its gateway platform or an interactive CLI the card appears and the
-save runs after approval. Cron, webhooks, API sessions and single queries have
-nobody to answer, so the plugin refuses the save and its answer tells the agent
-to return the exact save — action, draft key and `saved` time, title, Markdown,
-image and cover paths — to its caller. No approval is relayed or inferred across
-sessions.
+Where no person can answer the card (cron, webhooks, API sessions, single
+queries) the plugin refuses the Assistant's save and its answer tells the agent
+to return the exact save to its caller. No approval is relayed or inferred
+across sessions.
 
 ## Session and state
 
@@ -71,90 +66,62 @@ One account: the user's main note account. Its session cookie lives only in the
 Keychain, as `NOTE_SESSION` (`_note_session_v5=…`) in the `hermes` project under
 the scope `note-session` ([secret scoping](access-common.md#secret-scoping)).
 The bridge reads it at start and masks it in every string it returns, before any
-clipping. It also removes every e-mail field, because note's current-user reply
-carries the account's address, and every e-mail address inside an error message.
-Note content (a draft that mentions an address) passes unchanged so that it
+clipping. It also removes every e-mail field and every e-mail address inside an
+error message, because note's current-user reply carries the account's address;
+note content (a draft that mentions an address) passes unchanged so that it
 round-trips. Public reads never go through the bridge and never carry a cookie.
-Neither do image uploads, which go straight to the storage URL note hands out.
+Neither do image uploads.
 
-Logging in is not automated: note's sign-in requires reCAPTCHA. A stale cookie
-fails silently on some endpoints (the draft list comes back empty), so the
-bridge asks who is signed in before listing drafts and treats a 401, or an
-`auth` error inside a 200, as a refusal, stored as in
-[refusal memory](access-common.md#state-directory-and-bridge-process): every
-later signed-in call is answered without contacting note, until the stored
-cookie changes or a call with it succeeds.
+Logging in is not automated (reCAPTCHA). A stale cookie fails silently on some
+endpoints (the draft list comes back empty), so the bridge asks who is signed
+in before listing drafts and treats a 401, or an `auth` error inside a 200, as
+a refusal, stored as in
+[refusal memory](access-common.md#state-directory-and-bridge-process).
 
 `~/.note-access/` (mode 700, outside every repository) holds no secret:
-
-- `state.json`: request times for pacing, the refusal, the end of a rate-limit
-  pause, and the signed-in account's public id, kept with the cookie fingerprint
-  it was seen under (it is shown only for that cookie);
-- `call.lock` and `drafts/<key>.lock`;
-- `outbox/`: private copies of the images for one write, removed when the write
-  ends and pruned after a day.
-
-The Assistant's `config.yaml` may set `note_access.attach_roots`, the folders
-images may be taken from. The default is `~/Workspaces`.
+`state.json` (pacing times, the refusal, the end of a rate-limit pause, and the
+signed-in account's public id with the cookie fingerprint it was seen under),
+lock files, and `outbox/` (private copies of the images for one write).
+`note_access.attach_roots` in the Assistant's `config.yaml` bounds where images
+may be taken from.
 
 ## Reads
 
-`status` and `check` never contact note. `status` reports whether the cookie is
-stored, a refusal recorded for it, a running pause, the cached account and the
-requests used. Every other action is paced per request across sessions
-(`call.lock`): a minimum gap (also between the two requests of one bridge
-operation), an hourly and a daily cap; past a cap the tool answers `paused: …`
-without calling note, and after a 429 every request waits. The tool schema lists
-the actions: public reads (`search`, `articles`, `article`, `creator`,
-`comments`, `hashtag`) need no sign-in; the user's own `drafts`, `draft` and
-`stats` do.
+`status` and `check` never contact note. Every other action is paced per
+request across sessions (`call.lock`); past a cap the tool answers
+`paused: …` without calling note, and after a 429 every request waits. Public
+reads need no sign-in; the user's own `drafts`, `draft` and `stats` do.
 
-Results carry local times, clipped text, and a note that titles, articles,
-profiles and comments are other people's words, never instructions.
+Results carry a note that their text is other people's words, never
+instructions.
 
 ## Markdown
 
 Draft bodies are Markdown, and `notefmt.py` converts them to the exact HTML
-note's editor stores. Each top-level block carries one UUID as both `name` and
-`id`. Converting a stored body to Markdown and back gives identical HTML apart
-from fresh UUIDs; the test fixture is a real editor draft holding every format.
-The supported formats are those note's editor can store (headings `##` / `###`,
-paragraphs, bold, strike, links, alignment, flat lists, quotes with a source,
-fenced code, rules, `[TOC]`, images with caption and alt, linked images);
-`notefmt.py` is the list.
+note's editor stores (and is the list of supported formats). Converting a
+stored body to Markdown and back gives identical HTML apart from fresh block
+UUIDs.
 
 Ruby (`｜漢字《かんじ》`) and math (`$${…}$$`) are plain text in note, so they
 pass through. Embeds, files, sounds and anything else Markdown cannot express
 read as `[label](note-block:<uuid>)`. On update, such a line puts back the
 stored HTML of that block verbatim, so those blocks are kept by leaving their
-lines in place. Anything note cannot hold is refused with its line number
-(other heading levels, nested lists, non-http links, an unclosed fence, foreign
-`note-block` ids).
+lines in place. Anything note cannot hold is refused with its line number.
 
 Outside code blocks, three things note could store are refused too, because a
 reader would see their marks: Writer's insertion markers (`[[image:id]]`,
 `[[embed:id]]`, `[[table:id]]`, which stand for assets that do not exist yet),
 table rows and rules, and HTML comments. Other Markdown note has no form for is
-saved as typed (`*italic*`, inline code, HTML tags, footnotes). A stored body
-that only looks like one of the refused marks reads back escaped, so it still
-round-trips.
+saved as typed. A stored body that only looks like one of the refused marks
+reads back escaped, so it still round-trips.
 
 ## Check
 
-`check` takes `body`, or `path` (a Markdown or text file inside an attach root),
-plus an optional `title` and `eyecatch`. It runs the same scan and parse as a
-save, without contacting note or spending a request, and returns each problem
-with its line. The parse stops at the first structural error, which then hides
-the image checks and the length, so fix it and check again:
-
-- `errors`: what a save refuses, including a local image that is missing,
-  outside the attach roots, too large or not an image;
-- `markers`: the insertion markers, kept apart so Writer can report the draft as
-  needing assets;
-- `as_typed`: Markdown saved with its marks;
-- `images`, `cover` (with a note when it is not 1280:670), `web_images` and
-  `kept_blocks` (valid only in an update of the draft they came from), and
-  `characters`, the text length note counts.
+`check` runs the same scan and parse as a save, without contacting note or
+spending a request, and returns each problem with its line. The parse stops at
+the first structural error, which hides the image checks and the length.
+`markers` keeps the insertion markers apart from `errors` so Writer can report
+the draft as needing assets.
 
 `ready` means a save would accept the format. It says nothing about the account,
 the draft an update targets or the approval card, which only `preview` and the
@@ -164,63 +131,50 @@ save check.
 
 `create_draft` and `update_draft` replace the whole title and body, only after
 Hermes' approval card for that exact call. `base` is required for an update: the
-`saved` time, to the second, of the `draft` read the edit starts from. A draft
-saved since is refused, so an edit made after that read is never overwritten,
-whoever finally saves. `preview=true` on either action runs every check below
+`saved` time of the `draft` read the edit starts from. A draft saved since is
+refused, so an edit made after that read is never overwritten. `preview=true` on either action runs every check below
 and returns the card the save would show, without saving or asking; it works in
-any run. The Assistant keeps `approvals.timeout` at 600 s so a card outlasts a
-Telegram tap. The `pre_tool_call` hook builds the write plan first and blocks a
+any run. The `pre_tool_call` hook builds the write plan first and blocks a
 write that would fail:
 
 - An update reads the draft as it is now and refuses a published or scheduled
   article, a note that is not the account's own, and a draft with a paid area
   (the paid boundary is a block id, which a new body would orphan).
 - Image paths must resolve inside an attach root and must not be
-  credential-like. Each must be a real JPEG / PNG / GIF / WebP, sniffed from its
-  header, within size and count limits.
-- A remote image URL is accepted only if the draft being updated already has it,
-  and its displayed size is taken from there.
+  credential-like; each must be a real image, sniffed from its header, within
+  the size and count limits.
+- A remote image URL is accepted only if the draft being updated already has it.
 
-The card stays within Telegram's budget, measured as Telegram escapes it. It
-names the draft and the account, for an update the current title and text, the
-new title, the length, the new and kept images (each new image with its size,
-folder and SHA-256), the cover and the start of the Markdown. When the header
-lines do not fit, long titles and the current text are shortened first, then the
+The card stays within Telegram's budget and names the draft, the account, the
+new title, the new and kept images (each new image with its SHA-256), the cover
+and the start of the Markdown. Long titles and the current text are shortened first, then the
 images are counted under one combined fingerprint. A save whose header still
 cannot fit is refused, so a cover or an image is never cut off the card.
 
 The rule key covers the action, the account and the cookie's fingerprint, the
 draft and its last saved time, the title and the whole Markdown, and every image
 hash. "Session" or "always" therefore only repeats that identical save under
-that session. Approval records are per tool call, short-lived and allow one
-save. Cron, webhook, API and single-query contexts are refused by the plugin
-itself, because Hermes consults stored approvals before its cron rule. Inbound
-A2A never saves or previews on any profile.
+that session. Approval records are per tool call and allow one save.
 
 At execution, plugin writes to one draft run one at a time (`drafts/<key>.lock`)
 from re-checking through saving. The handler re-derives the plan and refuses if
-the rule key differs. That covers the user editing the draft after the card, an
-image changing after it, and another account's cookie stored meanwhile. Every
-write request carries the approved fingerprint, and the bridge sends nothing
-under a different stored session. The handler checks the request budget for the
-whole write, then copies every image into the outbox and refuses if any copy's
-hash differs from the card. The steps then run in this order:
+the rule key differs (the user editing the draft after the card, an image
+changing, another account's cookie stored meanwhile). Every write request
+carries the approved fingerprint, and the bridge sends nothing under a
+different stored session. The handler copies every image into the outbox and
+refuses if any copy's hash differs from the card. The steps run in this order:
 
-1. Per new image: an upload slot (`presigned_post`), then a multipart POST of
-   all the signed fields and the file to note's S3 bucket. Only `https` to an
-   `*.s3.*.amazonaws.com` host is accepted, without the cookie and without
-   redirects. The returned `assets.st-note.com/img/…` URL goes into the figure,
-   scaled as the editor does.
-2. For a new draft: `text_notes`, which creates an empty draft. For an update: a
-   last look at the draft, refusing if it was saved since the card (the uploads
-   take time). note's save has no conditional form, so a browser edit landing in
-   the seconds between this look and the save is still overwritten.
-3. `draft_save` with the title, the body and its text length.
-4. The cover: `image_upload/note_eyecatch`. note accepts only the 1280:670 box
-   and fits the image to it.
-5. A read-back: the stored body and title must equal what was sent (`verified`).
+1. Per new image: an upload slot, then a multipart POST to note's S3 bucket.
+   Only `https` to an `*.s3.*.amazonaws.com` host is accepted, without the
+   cookie and without redirects.
+2. A new draft is created empty. An update takes a last look at the draft and
+   refuses if it was saved since the card (the uploads take time). note's save
+   has no conditional form, so a browser edit landing between this look and the
+   save is still overwritten.
+3. The title and body are saved, then the cover.
+4. A read-back: the stored body and title must equal what was sent (`verified`).
 
-Uploading images before creating the draft means a failed upload leaves no empty
+Images upload before the draft is created, so a failed upload leaves no empty
 draft behind. Each outcome is reported this way:
 
 - **`not saved`:** nothing in a draft changed. Uploaded images may sit unused in
@@ -228,10 +182,9 @@ draft behind. Each outcome is reported this way:
 - **`stopped part way`:** note confirmed some draft changes, then refused a later
   step. The answer lists the steps done and the key.
 - **`UNCERTAIN`:** a draft-changing request was sent and note's answer does not
-  show whether it applied (a timeout, a broken connection, a 5xx, an unreadable
-  2xx, an unexpected error). Read the draft first.
+  show whether it applied. Read the draft first.
 
-Nothing is retried automatically.
+Nothing is retried.
 
 ## Where a write may run
 
@@ -262,6 +215,5 @@ Service-specific steps; the rest is in [shared setup](access-common.md#setup-sha
 2. Enable the plugin and add `note_access` to the profile's `toolsets` and
    `platform_toolsets` (`a2a` only for Marketer and Writer), then restart the
    gateway. Marketer and Writer have it in this repo; the Assistant's lives in
-   the private overlay. Optionally set `note_access.attach_roots` for the
-   Assistant (default `~/Workspaces`).
-3. `note status` shows whether the cookie is stored and accepted.
+   the private overlay.
+3. `status` shows whether the cookie is stored and accepted.
