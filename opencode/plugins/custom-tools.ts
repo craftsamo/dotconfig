@@ -56,8 +56,8 @@ async function server() {
     tool[id] = {
       description: spec.description,
       args: spec.args,
-      execute: (args: any, context: { worktree: string; sessionID?: string }) =>
-        spec.execute(args, { worktree: context.worktree, oauthAccess: v1OAuthAccess, sessionID: context.sessionID }),
+      execute: (args: any, context: { worktree: string; sessionID?: string; abort?: AbortSignal }) =>
+        spec.execute(args, { worktree: context.worktree, oauthAccess: v1OAuthAccess, sessionID: context.sessionID, signal: context.abort }),
     }
   }
   return { tool }
@@ -117,11 +117,12 @@ async function setup(ctx: V2Context) {
         name: id,
         description: spec.description,
         input: z.object(spec.args),
-        async execute(input: any, context: { sessionID: string }) {
+        async execute(input: any, context: { sessionID: string; signal?: AbortSignal }) {
           const toolContext: ToolContext = {
             worktree: await worktreeFor(context.sessionID),
             oauthAccess,
             sessionID: context.sessionID,
+            signal: context.signal,
             sessionMetadata: async () => {
               try {
                 return (await ctx.session.get({ sessionID: context.sessionID })).metadata
