@@ -128,12 +128,26 @@ every subagent session copies its parent's ruleset. So the
 session ruleset (`policy.rules`) owns each run's constraints for the whole
 session tree, and it is applied after a subagent's own posture. It holds
 denies, asks and narrow allows: the worktree boundary (`external_directory`
-asks), secrets unreadable, pushes, shell history rewrites, branch moves, package
-runners and ungranted Issue writes as asks, the hard denies (bare force and
-protected-branch pushes, merges, `gh api`, Project writes), and last the
-person's own denies read
-from the built-in `build` agent, so a broad allow never reopens `sudo` or
-`secret get`. One deliberate exception: a `write` run allows `edit` in its
+asks), secrets unreadable, pushes, shell history rewrites, branch moves
+(`gh pr checkout` and the person's `gh` aliases included), package runners and
+ungranted Issue writes as asks, the hard denies (force and protected-branch
+pushes, merges, `gh api`, Project writes, git config, remote rewrites, `gh`
+aliases and extensions, edits under `.git/`), and last the person's own denies
+read from the built-in `build` agent, so a broad allow never reopens `sudo` or
+`secret get`. OpenCode checks each command as written, environment prefixes,
+wrappers (`env`, `sh -c`, `xargs`), options before git's subcommand, tabs and
+quotes included. So the git rules are containment patterns (`policy.contains`,
+e.g. `*git* push* --force*`) that hold however a command is spelled, and catch
+a command that merely quotes those words too; the gh rules follow the
+subcommand position (`policy.command`), so a PR title saying "merge" passes,
+though an identifier spelled like one (`gh_api`) does not. They guard a
+cooperative agent's spellings, not a sandbox: several spaces between gh's
+words are not covered, and the ruleset (a couple of thousand rules, re-sent
+every turn) is capped by a test.
+The gated git writes, per-command configuration (`git -c`, `--config-env`)
+and branch moves ask in a write run and are denied in a read-only one, whose
+session rules hold denies only: a read-only agent may deny those itself, and
+an ask or allow there would reopen it. One deliberate exception: a `write` run allows `edit` in its
 worktree. Without it every edit is a round trip to the caller; the cost is that
 a subagent that denies itself edits (explore) loses that denial for the run. The
 allow is placed before the edit denies for OpenCode's config/skill directories
@@ -150,9 +164,9 @@ HEAD:refs/heads/<branch>`, optionally with `--force-if-includes`;
 `policy.lease_pushes`): a full destination, which push config cannot remap.
 In a write run every `gh stack` command but `view` asks, since it rebases and
 force-pushes layers and takes flags before its subcommand; a read-only run is
-denied `gh stack` entirely, and merging or unstacking a stack always. A write run needs the user's quoted `approval`, a
-named non-default task branch, and a worktree no other session is running in
-(a person's included). V2 wildcards match whole values and `*` crosses
+denied `gh stack` entirely, and merging or unstacking a stack always. A write
+run needs the user's quoted `approval`, a named non-default task branch, and a
+worktree no other session is running in (a person's included). V2 wildcards match whole values and `*` crosses
 `/`, so secrets are spelled `*.env`, `*.pem`, … (`**/.env` misses a root-level
 file).
 
