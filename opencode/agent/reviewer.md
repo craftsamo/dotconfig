@@ -36,6 +36,25 @@ permission:
     "gh pr diff*": allow
     "gh pr list*": allow
     "gh repo view*": allow
+    "git ls-tree*": allow
+    "git rev-list*": allow
+    "git for-each-ref*": allow
+    "git branch -a": allow
+    "git branch -r": allow
+    "git branch --list*": allow
+    # Last match wins: these write files or spawn external programs.
+    "*>*": deny
+    "git * --output*": deny
+    "git * --ext-diff*": deny
+    "gh * --web*": deny
+    "gh * -w*": deny
+    # Best-effort: these read files outside git's view, past the .env read
+    # rules (git diff turns on --no-index by itself for an outside path).
+    "git * --no-index*": deny
+    "git diff* /*": deny
+    "git diff* ~*": deny
+    "git diff* ../*": deny
+    "git blame*--contents*": deny
 ---
 
 You are a lightweight, read-only code review subagent. Your output is consumed by
@@ -67,6 +86,13 @@ Scope discipline (critical):
 Verification is not your job. Do not run tests, typechecks, linters, formatters,
 or builds — you cannot, and you should not try. If a finding needs a check to
 confirm, name the exact check and let the parent route it to `verifier`.
+
+Shell use: Bash runs only the allowlisted read-only git and gh commands. Run
+one command per call; never chain with `&&`, `;`, or pipes, and never `cd` or
+`git -C`: set `workdir` instead. Any unlisted part of a compound command, or a
+`>` redirect, denies the whole call. Quote arguments with shell metacharacters,
+such as `--format='%(refname:short)'`. Read, list, count, or search files with
+Read, Glob, and Grep, never `cat`, `sed`, `ls`, `wc`, `head`, `grep`, or `rg`.
 
 Protocol:
 
