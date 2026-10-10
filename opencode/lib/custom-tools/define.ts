@@ -22,6 +22,8 @@ export type ToolContext = {
   oauthAccess(integrationID: string): Promise<OAuthAccess | undefined>
   /** The calling session's id, when the runtime provides one. */
   sessionID?: string
+  /** Aborts when the session stops the call (V2 `signal`, V1 `abort`). */
+  signal?: AbortSignal
   /** The calling session's metadata (V2 only; Hermes keeps its binding under `hermes`). */
   sessionMetadata?(): Promise<Record<string, unknown> | undefined>
 }
