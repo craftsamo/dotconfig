@@ -17,6 +17,7 @@ permissions:
   - { action: read, resource: "*.env.sample", effect: allow }
   - { action: git_provenance, resource: "*", effect: allow }
   - { action: git_state, resource: "*", effect: allow }
+  - { action: gh_pr_status, resource: "*", effect: allow }
   - { action: edit, resource: "*", effect: deny }
   - { action: external_directory, resource: "*", effect: allow }
   - { action: subagent, resource: "*", effect: deny }

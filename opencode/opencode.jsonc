@@ -495,6 +495,8 @@
     { "action": "git_history_digest", "resource": "*", "effect": "allow" },
     { "action": "git_amend_check", "resource": "*", "effect": "allow" },
     { "action": "git_commit_lint", "resource": "*", "effect": "allow" },
+    // Pull-request status and CI wait (lib/custom-tools/gh.ts) — read-only
+    { "action": "gh_pr_status", "resource": "*", "effect": "allow" },
     // Custom X search tool (lib/custom-tools/x.ts) — xAI server-side x_search, read-only external query
     { "action": "x_search", "resource": "*", "effect": "allow" },
     // Rendered web UI checks (lib/custom-tools/web_ui.ts) — writes only to a .agent/ draft or scratch

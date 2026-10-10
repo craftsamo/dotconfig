@@ -211,6 +211,12 @@ and [squash-message settings](https://docs.github.com/en/repositories/configurin
    do not assume submission or base retargeting preserved that match.
 8. Report the PR URL and its ready/draft state, including the immediate base
    for a stack. Keep any later merge-message handoff separate. Do not merge.
+9. When CI or review feedback should be followed, read it with
+   `gh_pr_status` (`wait: true` to wait for the checks) instead of `sleep` +
+   `gh pr checks` loops or `--watch`. It returns the checks' verdict, the
+   failed jobs' errors, mergeability and unresolved threads; `endedBy:
+   no_checks` with a hint means CI will not start (a conflict, no workflow),
+   not that it passed.
 
 </Steps>
 

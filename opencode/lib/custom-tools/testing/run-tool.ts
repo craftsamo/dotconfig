@@ -5,9 +5,10 @@
  *
  * Input (env TOOL_INPUT): { module, name, args, cwd }.
  */
+import * as gh from "../gh"
 import * as git from "../git"
 
-const modules: Record<string, Record<string, any>> = { git }
+const modules: Record<string, Record<string, any>> = { gh, git }
 
 const input = JSON.parse(process.env.TOOL_INPUT ?? "{}")
 const spec = modules[input.module]?.[input.name]

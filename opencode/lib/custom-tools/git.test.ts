@@ -32,6 +32,7 @@ describe("registry", () => {
   test("registers the same tool ids", async () => {
     const ids = Object.keys((await plugin.server()).tool).sort()
     expect(ids).toEqual([
+      "gh_pr_status",
       "git_amend_check",
       "git_commit",
       "git_commit_lint",
