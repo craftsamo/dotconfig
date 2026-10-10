@@ -53,7 +53,8 @@ export function fixture(prefix = "custom-tools-git-"): Fixture {
   return { root, dir, git, write, commit, cleanup: () => rmSync(root, { recursive: true, force: true }) }
 }
 
-export type GhRule = { re: string; out?: string; code?: number }
+/** `times` limits how many calls a rule answers, so a later rule can answer the next ones. */
+export type GhRule = { re: string; out?: string; code?: number; times?: number }
 
 const RUN_TOOL = join(import.meta.dir, "run-tool.ts")
 
@@ -71,16 +72,27 @@ export function runWithFakeGh(
   mkdirSync(bin, { recursive: true })
   const log = join(f.root, "gh-calls.log")
   writeFileSync(log, "")
+  rmSync(`${log}.used`, { force: true })
   const gh = join(bin, "gh")
   writeFileSync(
     gh,
     [
       "#!/usr/bin/env bun",
-      'import { appendFileSync } from "fs"',
+      'import { appendFileSync, existsSync, readFileSync, writeFileSync } from "fs"',
       'const args = process.argv.slice(2).join(" ")',
       'appendFileSync(process.env.FAKE_GH_LOG!, args + "\\n")',
-      'for (const r of JSON.parse(process.env.FAKE_GH_RULES ?? "[]")) {',
-      '  if (new RegExp(r.re).test(args)) { process.stdout.write(r.out ?? ""); process.exit(r.code ?? 0) }',
+      "const usedFile = process.env.FAKE_GH_LOG + \".used\"",
+      'const used: number[] = existsSync(usedFile) ? JSON.parse(readFileSync(usedFile, "utf8")) : []',
+      'const rules = JSON.parse(process.env.FAKE_GH_RULES ?? "[]")',
+      "for (let i = 0; i < rules.length; i++) {",
+      "  const r = rules[i]",
+      "  if (r.times !== undefined && (used[i] ?? 0) >= r.times) continue",
+      "  if (new RegExp(r.re).test(args)) {",
+      "    used[i] = (used[i] ?? 0) + 1",
+      "    writeFileSync(usedFile, JSON.stringify(used))",
+      '    process.stdout.write(r.out ?? "")',
+      "    process.exit(r.code ?? 0)",
+      "  }",
       "}",
       'process.stderr.write("fake gh: no rule for " + args)',
       "process.exit(1)",
