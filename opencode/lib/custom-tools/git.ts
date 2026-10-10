@@ -1,4 +1,5 @@
 import { tool } from "./define"
+import { exec, runGh, runGhJson, runGit, tryGit, which, withTempFile } from "./exec"
 
 /**
  * Git workflow toolset.
@@ -7,29 +8,11 @@ import { tool } from "./define"
  * git-pullrequest skills delegate to. The conventions (when/how to commit or
  * open a PR) live in those skills; the mechanics live here.
  *
- * Safety: these tools run git/gh internally via Bun.$, which does NOT pass
+ * Safety: these tools run git/gh as child processes, which do NOT pass
  * through the shell permission gates, so they are deliberately limited to read
  * and index operations. They never commit, push, or merge — those stay as
  * gated commands the agent issues directly.
  */
-
-async function runGit(argv: string[], cwd?: string): Promise<string> {
-  let p = Bun.$`git ${argv}`
-  if (cwd) p = p.cwd(cwd)
-  const res = await p.nothrow().quiet()
-  if (res.exitCode !== 0) {
-    const err = res.stderr.toString().trim() || res.stdout.toString().trim()
-    throw new Error(`git ${argv.join(" ")} failed (exit ${res.exitCode}):\n${err}`)
-  }
-  return res.stdout.toString()
-}
-
-async function tryGit(argv: string[], cwd?: string): Promise<{ ok: boolean; stdout: string; code: number }> {
-  let p = Bun.$`git ${argv}`
-  if (cwd) p = p.cwd(cwd)
-  const res = await p.nothrow().quiet()
-  return { ok: res.exitCode === 0, stdout: res.stdout.toString(), code: res.exitCode ?? -1 }
-}
 
 // ---- secret scanning ------------------------------------------------------
 
@@ -134,21 +117,13 @@ function dedupe(list: Finding[]): Finding[] {
   return out
 }
 
-async function hasGitleaks(): Promise<boolean> {
-  const res = await Bun.$`which gitleaks`.nothrow().quiet()
-  return res.exitCode === 0
-}
-
 async function runGitleaks(target: string, range: string | undefined, cwd?: string): Promise<Finding[]> {
   const common = ["--redact", "--report-format", "json", "--report-path", "/dev/stdout", "--no-banner"]
   const argv =
     target === "range"
       ? ["detect", ...common, ...(range ? ["--log-opts", range] : [])]
       : ["protect", ...common, ...(target === "staged" ? ["--staged"] : [])]
-  let p = Bun.$`gitleaks ${argv}`
-  if (cwd) p = p.cwd(cwd)
-  const res = await p.nothrow().quiet()
-  const out = res.stdout.toString().trim()
+  const out = (await exec(["gitleaks", ...argv], { cwd })).stdout.trim()
   if (!out) return []
   try {
     const parsed = JSON.parse(out)
@@ -189,7 +164,7 @@ export const secret_scan = tool({
     const builtin = scanDiff(diff)
     let gitleaksRan = false
     let gitleaks: Finding[] = []
-    if (await hasGitleaks()) {
+    if (which("gitleaks")) {
       gitleaksRan = true
       gitleaks = await runGitleaks(target, args.range, cwd)
     }
@@ -331,35 +306,15 @@ export const stage_hunks = tool({
       }
     }
 
-    const tmp = `${Bun.env.TMPDIR ?? "/tmp"}/opencode-stage-${Date.now()}-${Math.random().toString(36).slice(2)}.patch`
-    await Bun.write(tmp, buildPatch(selected))
-    try {
-      await runGit(["apply", "--cached", "--recount", "--whitespace=nowarn", tmp], cwd)
-    } finally {
-      await Bun.$`rm -f ${tmp}`.nothrow().quiet()
-    }
+    await withTempFile("opencode-stage", ".patch", buildPatch(selected), (patch) =>
+      runGit(["apply", "--cached", "--recount", "--whitespace=nowarn", patch], cwd),
+    )
     const staged = await runGit(["diff", "--cached", "--stat"], cwd)
     return JSON.stringify({ mode: "staged", stagedHunkIds: selected.map((h) => h.id), staged: staged.trim() }, null, 2)
   },
 })
 
-// ---- gh helpers + provenance ----------------------------------------------
-
-async function runGh(argv: string[], cwd?: string): Promise<string> {
-  let p = Bun.$`gh ${argv}`
-  if (cwd) p = p.cwd(cwd)
-  const res = await p.nothrow().quiet()
-  if (res.exitCode !== 0) {
-    const err = res.stderr.toString().trim() || res.stdout.toString().trim()
-    throw new Error(`gh ${argv.join(" ")} failed (exit ${res.exitCode}):\n${err}`)
-  }
-  return res.stdout.toString()
-}
-
-async function runGhJson(argv: string[], cwd?: string): Promise<any> {
-  const out = (await runGh(argv, cwd)).trim()
-  return out ? JSON.parse(out) : null
-}
+// ---- provenance -----------------------------------------------------------
 
 async function resolveRepo(repo: string | undefined, cwd?: string): Promise<{ full: string }> {
   const r = (repo ?? "").trim()
@@ -839,16 +794,12 @@ export const commit_lint = tool({
     let commitlintRan = false
     if (await fileExists(cwd, "node_modules/.bin/commitlint")) {
       commitlintRan = true
-      const tmp = `${Bun.env.TMPDIR ?? "/tmp"}/opencode-commitmsg-${Date.now()}-${Math.random().toString(36).slice(2)}.txt`
-      await Bun.write(tmp, args.message)
-      try {
-        const res = await Bun.$`${cwd}/node_modules/.bin/commitlint --edit ${tmp} --no-color`.cwd(cwd).nothrow().quiet()
-        if (res.exitCode !== 0) {
-          const out = `${res.stdout.toString()}\n${res.stderr.toString()}`.trim()
-          violations.push({ rule: "commitlint", severity: "error", message: out || "commitlint reported problems." })
-        }
-      } finally {
-        await Bun.$`rm -f ${tmp}`.nothrow().quiet()
+      const res = await withTempFile("opencode-commitmsg", ".txt", args.message, (file) =>
+        exec([`${cwd}/node_modules/.bin/commitlint`, "--edit", file, "--no-color"], { cwd }),
+      )
+      if (!res.ok) {
+        const out = `${res.stdout}\n${res.stderr}`.trim()
+        violations.push({ rule: "commitlint", severity: "error", message: out || "commitlint reported problems." })
       }
     }
     const errors = violations.filter((x) => x.severity === "error")
