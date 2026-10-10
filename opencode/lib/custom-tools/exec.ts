@@ -17,9 +17,13 @@ export type ExecOptions = {
   env?: Record<string, string | undefined>
   /** Text written to the child's stdin; otherwise stdin is closed. */
   stdin?: string
+  /** Kill the child (SIGTERM) after this many milliseconds. */
+  timeoutMs?: number
+  /** Kill the child when this aborts. */
+  signal?: AbortSignal
 }
 
-export type ExecResult = { ok: boolean; code: number; stdout: string; stderr: string }
+export type ExecResult = { ok: boolean; code: number; stdout: string; stderr: string; killed?: string }
 
 export async function exec(argv: string[], options: ExecOptions = {}): Promise<ExecResult> {
   const child = Bun.spawn(argv, {
@@ -28,13 +32,17 @@ export async function exec(argv: string[], options: ExecOptions = {}): Promise<E
     stdin: options.stdin === undefined ? "ignore" : new Blob([options.stdin]),
     stdout: "pipe",
     stderr: "pipe",
+    timeout: options.timeoutMs,
+    signal: options.signal,
   })
   const [stdout, stderr, code] = await Promise.all([
     new Response(child.stdout).text(),
     new Response(child.stderr).text(),
     child.exited,
   ])
-  return { ok: code === 0, code, stdout, stderr }
+  const res: ExecResult = { ok: code === 0, code, stdout, stderr }
+  if (child.signalCode) res.killed = child.signalCode
+  return res
 }
 
 /** Runs a program and returns its stdout; a non-zero exit throws with stderr (or stdout). */
