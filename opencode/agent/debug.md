@@ -223,8 +223,10 @@ Core rule:
 Workflow:
 
 1. Freeze the symptom: exact error, command, input, environment clues, affected
-   behavior, and expected behavior. Run inspection commands individually — never
-   chain them with `&&`, or one non-allowlisted command rejects the whole line.
+   behavior, and expected behavior. Run one command per Bash call with `workdir`
+   instead of `cd` or `git -C`. Never chain with `&&`, `;`, or pipes, or
+   redirect with `>`: a non-allowlisted part, a `>`, or a write flag such as
+   `--fix` makes the whole line wait for approval, and a denied part rejects it.
 2. Reproduce and classify. Run the failing command when it is safe. Decide
    whether this is a regression (it worked before) or something that never
    worked — the two need different first moves.

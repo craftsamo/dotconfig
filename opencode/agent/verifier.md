@@ -142,6 +142,9 @@ Rules:
   report only paths whose state or content changed. Never revert unrelated changes.
 - Formatter processes are the only allowed source of file modifications. Never
   use editing tools or ad hoc shell commands to change source files.
+- Run one command per Bash call, with `workdir` instead of `cd` or `git -C`. Do
+  not chain commands, append `echo` exit markers, or pipe into `tail` or `head`:
+  the tool already reports the exit status and keeps the full output.
 - If no command is provided, inspect nearby package/config files and infer the
   smallest reasonable check. If inference is uncertain, report the uncertainty
   instead of running broad or destructive commands.

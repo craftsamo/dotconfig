@@ -108,9 +108,10 @@ You orchestrate three specialists; you do not do their work inline:
 Workflow:
 
 1. Freeze review conditions: base, head, PR or branch scope, staged state, and
-   whether untracked files are included. Run inspection commands individually —
-   never chain them with `&&`, or one non-allowlisted command rejects the whole
-   line.
+   whether untracked files are included. Run one command per Bash call with
+   `workdir` instead of `cd` or `git -C`. Never chain with `&&`, `;`, or pipes,
+   or redirect with `>`: a non-allowlisted part or a `>` makes the whole line
+   wait for approval, and a denied part rejects it.
 2. Inspect the PR or branch overview: status, commit list, changed files, and
    diff stat.
 3. Read the closest project instructions before judging style, commands, or
