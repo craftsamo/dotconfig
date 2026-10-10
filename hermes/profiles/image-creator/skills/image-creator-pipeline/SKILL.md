@@ -128,7 +128,9 @@ historical constraints, never a request to repeat its generation or spend.
   canvas on alpha, on a flat chroma key (re-composited, never the
   model's own green) or a flat fill; prints a `RESULT:` line with
   `key_px` (opaque pixels still near the removed background — a pocket
-  the corner flood missed).
+  the corner flood missed, or a costume colour near it), `removed=`
+  (the sampled background colour) and, for a key, `key_loss` (the share
+  of the character the key also removed).
 - `python3 scripts/kit-images.py fit INPUT OUTPUT --canvas WxH [--cutout auto|yes|no|key] [--fuzz N] [--pad F] [--pixel] [--palette PATH]`
   - rectangular contain-fit and cutout; pixel means native-grid nearest
   resampling, not proof of pixel authorship. Fit trims, so it is not a

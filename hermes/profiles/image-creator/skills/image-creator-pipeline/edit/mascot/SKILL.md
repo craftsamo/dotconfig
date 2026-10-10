@@ -90,7 +90,11 @@ metadata:
    coverage, `corner_alpha`, `key_px`, the options used).
 3. Read every `RESULT:`. `key_px > 50` after a corner cut-out is
    background trapped in a pocket → re-run with `--cutout key --fuzz
-   30%`. A cut-out that ate part of the character (coverage dropped) →
+   30%`, and keep that only while its `key_loss` (the share of the
+   character the key also removed) is ≤ 0.03; above that the key is
+   punching holes in a costume colour near `removed=` — step down to
+   `18%`, then `12%`, else keep the corner cut and name the pocket in
+   the report (redrawing it is generate-mascot's corrective). A cut-out that ate part of the character (coverage dropped) →
    `--fuzz 5%`; a fringe → `16%`, then `30%`. All free. A `head` crop
    that cuts the chin (look at it) → `--crop-frac 0.55`; one that shows
    too much chest → `0.45`. Name the fraction you settled on in the
@@ -118,8 +122,10 @@ Every check with its evidence, per output:
 - **Background** — `transparent`: `corner_alpha=0`; `chromakey` /
   `#rrggbb`: `corner_alpha=1` and `channels` without alpha; the
   `background=` field names what was asked.
-- **Cut-out** — `key_px` ≤ 50; vision: no ghost rectangle, no holes, no
-  fringe of the old background on the edge.
+- **Cut-out** — `key_px` ≤ 50 (or costume near `removed=`: `key_loss`
+  ≈ 0 and no pocket visible — say which); a key only with `key_loss`
+  ≤ 0.03; vision: no ghost rectangle, no holes, no fringe of the old
+  background on the edge.
 - **Crop** — vision: `bust` / `head` hold the whole head with the chin
   inside the canvas; coverage 0.3-0.8.
 - **Stroke** — vision: continuous around the silhouette, the asked colour.
