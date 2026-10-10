@@ -20,41 +20,144 @@ import subprocess
 
 SECRET_READS = ("*.env", "*.env.*", "*.envrc", "*.pem", "*.key", "*.npmrc", "*.netrc", "*.ssh/*")
 SAMPLE_READS = ("*.env.example", "*.env.sample")
-# `git diff/log/show --output=<file>` writes a file.
-READ_ONLY_DENY_SHELL = ("git * --output*",)
+# A repository's own config and hooks: a remote, an alias or a hook written there
+# redirects pushes or runs code at the next git command (`git_home_edits` adds the
+# person's global ones).
+GIT_DIR_EDITS = (".git/*", "*/.git/*")
 # A read-only run never hands work to an agent that can edit.
 READ_ONLY_DENY_SUBAGENTS = ("worker", "general")
-# Writes that rewrite history, move branches or run packages come back to the
-# caller as permission requests. `git -C`/`-c` put options before the subcommand,
-# so no `git push *` pattern sees them.
+
+# OpenCode checks each simple command as written: an environment prefix, a
+# wrapper (`env`, `sh -c '…'`, `xargs`), options before the subcommand, tabs,
+# line continuations and quotes all stay in the text a rule matches. Rules that
+# must hold however a command is spelled are built here, with anything allowed
+# before the program:
+# - `contains` for git, whose options may sit anywhere: each word may follow any
+#   whitespace after any text, so a command merely quoting those words (a grep,
+#   a message) is caught too;
+# - `command` for gh, whose words must be adjacent (`-R`/`--repo` aside), so a
+#   PR title saying "merge" is not.
+_SEPARATORS = (" ", "\t", "\n")
+_QUOTES = ("'", '"')
+
+
+def _ends(patterns, open_end, separators):
+    if open_end:
+        return tuple(f"{p}*" for p in patterns)
+    # A shell pattern's trailing ` *` is optional, so it also covers the bare end;
+    # a quote ends the word inside a wrapper (`sh -c 'git push'`).
+    return tuple(f"{p}{sep}*" for p in patterns for sep in separators + _QUOTES)
+
+
+def contains(program, *words, open_end=False, quotes=False):
+    """`program` followed, in order and anywhere after it, by each of `words` as a
+    whole word (`open_end`: the last one as a prefix, `--force` in `--force-x`;
+    `quotes`: the last one also right after a quote, as in `'--force'`)."""
+    patterns = [f"*{program}"]
+    for index, word in enumerate(words):
+        last = index == len(words) - 1
+        leads = _SEPARATORS + (_QUOTES if quotes and last else ())
+        patterns = [f"{p}*{lead}{word}" for p in patterns for lead in leads]
+    return _ends(patterns, open_end, (" ", "\t"))
+
+
+# `program` as a whole word: the command's start, or after a space, a path or a
+# quote (`env X=1 gh`, `/opt/homebrew/bin/gh`, `sh -c 'gh …'`), so "through api"
+# is not `gh api`. Between its words any one character (`?`: a space, a tab or a
+# quote); its subcommands are fixed words, so a letter there makes no real command.
+_COMMAND_LEADS = ("", "* ", "*/", "*'", '*"')
+
+
+def command(program, *words):
+    """`program` and its subcommand `words`, adjacent, or with a `-R`/`--repo`
+    flag between the first two (its value attached or not: `-Ro/r`)."""
+    gaps = ("?", " -R*?", " --repo*?")
+    patterns = [f"{lead}{program}?{words[0]}" for lead in _COMMAND_LEADS]
+    for index, word in enumerate(words[1:]):
+        patterns = [f"{p}{gap}{word}" for p in patterns for gap in (gaps if index == 0 else ("?",))]
+    return _ends(patterns, False, (" ", "\t"))
+
+
+def _all(*groups):
+    return tuple(pattern for group in groups for pattern in group)
+
+
+def git_home_edits():
+    """The person's global git and gh config: aliases, remotes' rewrites and
+    hooks written there reach every repository."""
+    home = Path.home()
+    config = Path(os.environ.get("XDG_CONFIG_HOME") or home / ".config")
+    return (f"{home}/.gitconfig", f"{config}/git/*", f"{config}/gh/*")
+
+
+# Writes that rewrite history, move branches or run packages come back to a
+# write run's caller as permission requests.
 WRITE_ASK_SHELL = (
     "git push *", "git rebase *", "git reset *", "git checkout *", "git switch *", "git restore *",
     "git clean *", "git merge *", "git revert *", "git cherry-pick *",
-    "git commit *--amend*", "git commit *--no-verify*", "git -C *", "git -c *",
+    "git commit *--amend*", "git commit *--no-verify*",
     "npm exec *", "npm create *", "pnpm dlx *", "pnpm exec *", "pnpm create *", "yarn dlx *",
     "yarn create *", "bun x *", "cargo install *", "go install *",
 )
+# The same writes however spelled (`git --no-pager push`, `FOO=1 git commit`):
+# options before the subcommand slip past the prefix asks into the person's
+# `git *` allow. A write run asks for them; a read-only run is denied them,
+# since a read-only agent may deny them itself and an ask would reopen that.
+GIT_WRITES = _all(*(contains("git", verb) for verb in (
+    "push", "rebase", "reset", "checkout", "switch", "restore", "clean", "merge", "revert", "cherry-pick",
+    "commit")))
+# Per-command configuration runs code or rewrites what a command does
+# (`git -c core.fsmonitor=<cmd> status`, `-c alias.p=push`), and so does an
+# exec path; a write run asks, a read-only run is denied.
+GIT_CONFIG_ON_THE_FLY = _all(contains("git", "-c"), contains("git", "--exec-path", open_end=True))
 # gh stack rebases, moves branches and force-pushes layers past the git rules,
 # and takes flags before its subcommand, so a write run asks for all of it but
 # viewing and a read-only run is denied it (an allow there would reopen what a
 # subagent denies itself); merging or unstacking on GitHub is never allowed.
 STACK_ALL = "gh stack *"
 STACK_READS = ("gh stack view *",)
-# Read-only git with `-C <dir>` would otherwise pause on the `git -C *` ask.
-WRITE_ALLOW_AFTER_ASK = tuple(f"git -C * {verb} *" for verb in (
-    "status", "diff", "log", "show", "rev-parse", "ls-files", "blame", "merge-base"))
-ISSUE_WRITES = tuple(f"gh issue {verb} *" for verb in ("create", "edit", "comment", "reopen"))
+ISSUE_WRITES = _all(*(command("gh", "issue", verb) for verb in ("create", "edit", "comment", "reopen")))
+# A branch switch like `git checkout`: `gh pr checkout`, and the person's own gh
+# aliases, which may expand to anything (`rules(gh_aliases=…)`).
+GH_BRANCH_MOVES = command("gh", "pr", "checkout")
+# `git diff/log/show --output=<file>` writes a file.
+READ_ONLY_DENY_SHELL = contains("git", "--output", open_end=True)
 # Never, for any policy or subagent: the caller cannot approve these either.
-HARD_DENY_SHELL = (
-    "gh pr merge *", "gh stack merge*", "gh stack * merge*", "gh stack unstack*", "gh stack * unstack*", "gh repo create *", "gh repo delete *", "gh repo edit *", "gh api *",
-    "gh project *", "gh issue delete *", "gh issue close *", "gh auth *", "gh secret *",
-    "npm publish *", "pnpm publish *", "git config *",
+HARD_DENY_SHELL = _all(
+    # GitHub writes no run makes.
+    command("gh", "pr", "merge"), command("gh", "stack", "merge"), command("gh", "stack", "unstack"),
+    *(command("gh", "repo", verb) for verb in ("create", "delete", "edit", "rename", "archive", "sync")),
+    command("gh", "api"), command("gh", "project"), command("gh", "auth"), command("gh", "secret"),
+    command("gh", "issue", "delete"), command("gh", "issue", "close"),
+    # An alias or an extension runs any command past these rules.
+    *(command("gh", "alias", verb) for verb in ("set", "import", "delete")),
+    command("gh", "extension"), command("gh", "extensions"), command("gh", "ext"),
+    # Workspace flags come before the verb (`pnpm -r publish`, `yarn npm publish`).
+    *(contains(tool, "publish") for tool in ("npm", "pnpm", "yarn", "bun")),
+    # Configuration and remotes redirect what an approved push does, so does
+    # configuring a push on the fly, and send-pack pushes without the word.
+    contains("git", "config"), contains("git", "send-pack"),
+    *(contains("git", "remote", verb) for verb in ("add", "set-url", "rename", "remove", "rm", "set-branches")),
+    contains("git", "-c", "push"), contains("git", "-c", "alias.", open_end=True),
+    contains("git", "--config-env", open_end=True), ("*GIT_CONFIG_*git*",),
     # Every force spelling, the lease included: a rebased task branch's own lease
     # push is re-opened as an ask by its exact text only (`lease_pushes`).
-    "git push *--force*", "git push -f*", "git push * -f*", "git push * +*", "git push *--mirror*",
-    "git push *--all*", "git push *--delete*", "git push * :*",
-    "git reset *--hard*", "git clean *-*f*",
+    *(contains("git", "push", flag, open_end=True, quotes=True)
+      for flag in ("--force", "--mirror", "--all", "--prune", "--delete", "-f", "-uf", "-vf", "-qf", "-nf", "-uvf",
+                   "-d", "-ud", "+", ":")),
+    contains("git", "reset", "--hard", open_end=True),
+    *(contains("git", "clean", flag, open_end=True)
+      for flag in ("-f", "-df", "-xf", "-Xf", "-qf", "-dxf", "-xdf", "-Xdf", "-qdf", "-dqf", "--force")),
 )
+
+
+def protected_pushes(name):
+    """A push naming a protected branch, as a ref or a refspec side, in any spelling."""
+    sides = tuple(f"*git*push*{lead}{name}{end}*" for lead in (":", "/", *_QUOTES)
+                  for end in (*_SEPARATORS, ":", *_QUOTES))
+    # Ending the command: a trailing ` *` would not apply after `:main`.
+    return _all(contains("git", "push", name, quotes=True), sides,
+                tuple(f"*git*push*{lead}{name}" for lead in (":", "/", *_QUOTES)))
 # Writes that OpenCode tools perform past the shell rules. A run never makes or
 # removes worktrees itself (`workspace` does), and a read-only run never commits,
 # stages, rebases or runs a command at each commit (git_verify_commits asks, and
@@ -116,11 +219,29 @@ def lease_pushes(branch):
             for flags in ("--force-with-lease", "--force-with-lease --force-if-includes")]
 
 
-def rules(policy, issue_approval, protected, *, tmp=None, person_denies=(), output=None, branch=None):
+def gh_aliases():
+    """The person's gh alias names (`gh alias list`), each of which a run's ruleset
+    asks for; none when gh is missing or has no aliases."""
+    # A minimal environment: this process holds the gateway's secrets.
+    env = {name: os.environ[name] for name in ("HOME", "PATH", "XDG_CONFIG_HOME", "GH_CONFIG_DIR")
+           if name in os.environ}
+    try:
+        res = subprocess.run(["gh", "alias", "list"], capture_output=True, text=True, timeout=15, env=env)
+    except (OSError, subprocess.SubprocessError):
+        return ()
+    if res.returncode:
+        return ()
+    names = (line.split(":", 1)[0].strip() for line in res.stdout.splitlines() if ":" in line)
+    return tuple(sorted({name for name in names if re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", name)}))
+
+
+def rules(policy, issue_approval, protected, *, tmp=None, person_denies=(), output=None, branch=None,
+          gh_aliases=()):
     """The session ruleset for one run, ordered broad to narrow under last-match
     evaluation. Its one caller-chosen allow is the output directory, which the
     person's own outside-path denies still override. `branch` is a write run's
-    task branch, whose own lease push asks rather than being denied."""
+    task branch, whose own lease push asks rather than being denied; each of
+    `gh_aliases` asks like a branch switch."""
     person = [d for d in person_denies if d.get("effect") == "deny"]
     scratch, readable = directories(tmp)
     out = [rule("external_directory", "*", "ask")]
@@ -142,6 +263,9 @@ def rules(policy, issue_approval, protected, *, tmp=None, person_denies=(), outp
     out += [rule("read", pattern, "allow") for pattern in SAMPLE_READS]
     out += [rule("edit", pattern, "deny") for pattern in SECRET_READS]
     out += [rule("edit", pattern, "allow") for pattern in SAMPLE_READS]
+    out += [rule("edit", pattern, "deny") for pattern in GIT_DIR_EDITS + git_home_edits()]
+    branch_moves = GH_BRANCH_MOVES + tuple(f"gh {name} *" for name in gh_aliases)
+    risky_git = GIT_WRITES + GIT_CONFIG_ON_THE_FLY + branch_moves
     if policy == "read-only":
         out.append(rule("edit", "*", "deny"))
         if output:
@@ -149,23 +273,17 @@ def rules(policy, issue_approval, protected, *, tmp=None, person_denies=(), outp
             # never a secret-looking file there.
             out += [rule("edit", output, "allow"), rule("edit", f"{output}/*", "allow")]
             out += [rule("edit", pattern, "deny") for pattern in SECRET_READS]
-        out += [rule("shell", pattern, "deny") for pattern in READ_ONLY_DENY_SHELL + ISSUE_WRITES + (STACK_ALL,)]
+        out += [rule("shell", pattern, "deny")
+                for pattern in READ_ONLY_DENY_SHELL + ISSUE_WRITES + (STACK_ALL,) + risky_git]
         out += [rule("subagent", name, "deny") for name in READ_ONLY_DENY_SUBAGENTS]
         out += [rule(name, "*", "deny") for name in READ_ONLY_DENY_TOOLS]
     else:
         out += [rule("shell", pattern, "ask") for pattern in WRITE_ASK_SHELL + (STACK_ALL,)]
-        out += [rule("shell", pattern, "allow") for pattern in WRITE_ALLOW_AFTER_ASK + STACK_READS]
+        out += [rule("shell", pattern, "allow") for pattern in STACK_READS]
+        out += [rule("shell", pattern, "ask") for pattern in risky_git]
         if not issue_approval:
             out += [rule("shell", pattern, "ask") for pattern in ISSUE_WRITES]
-    deny = list(HARD_DENY_SHELL)
-    for name in sorted(protected):
-        deny += [f"git push * {name}", f"git push * {name} *", f"git push *:{name}*",
-                 f"git push *:refs/heads/{name}*", f"git push * refs/heads/{name}",
-                 f"git push * refs/heads/{name} *"]
-    # The same denies when `-C <dir>` / `-c <k=v>` precede the subcommand. Not a
-    # bare `git * push`: that would also match a commit message saying "push".
-    deny += [f"git {option} * " + pattern[len("git "):] for option in ("-C", "-c") for pattern in deny
-             if pattern.startswith(("git push ", "git reset ", "git clean ", "git config "))]
+    deny = HARD_DENY_SHELL + _all(*(protected_pushes(name) for name in sorted(protected)))
     out += [rule("shell", pattern, "deny") for pattern in deny]
     if policy == "write" and branch and not branch.startswith("detached:") and branch not in protected:
         out += [rule("shell", command, "ask") for command in lease_pushes(branch)]
@@ -178,10 +296,12 @@ def rules(policy, issue_approval, protected, *, tmp=None, person_denies=(), outp
 
 
 def matches(pattern, value, shell=False):
-    regex = "".join(".*" if c == "*" else "." if c == "?" else re.escape(c) for c in pattern)
-    if re.fullmatch(regex, value, re.S):
-        return True
-    return shell and pattern.endswith(" *") and value == pattern[:-2]
+    """OpenCode's wildcard: `*` any run of characters, `?` one, and a shell
+    pattern's trailing ` *` optional (`git push *` also matches `git push`)."""
+    optional = shell and pattern.endswith(" *")
+    body = pattern[:-2] if optional else pattern
+    regex = "".join(".*" if c == "*" else "." if c == "?" else re.escape(c) for c in body)
+    return re.fullmatch(regex + ("( .*)?" if optional else ""), value, re.S) is not None
 
 
 def decide(ruleset, action, resource):

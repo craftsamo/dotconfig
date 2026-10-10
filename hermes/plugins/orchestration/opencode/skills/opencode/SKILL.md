@@ -78,12 +78,16 @@ fork?, timeout?, output_dir?)`; build also takes `approval` and
   amend or fix up its own commits; its tools refuse the default branch, shared
   commits and protected branches. Pushes (a rebased branch's
   `git push --force-with-lease origin HEAD:refs/heads/<task branch>` and
-  `gh stack push`
-  included), shell history rewrites, branch moves, package runners and Issue
-  writes without `issue_approval` come back to you as requests. Every other
-  force push, protected-branch pushes, merges, `gh api`, Project writes and
-  secret reads are denied outright. A build refuses a worktree another OpenCode session is
-  running in (a person's included); read-only runs may run alongside.
+  `gh stack push` included), shell history rewrites, branch moves, package
+  runners, per-command git configuration (`git -c`) and Issue writes without
+  `issue_approval` come back to you as requests, also behind a prefix or a
+  wrapper such as `env` or `sh -c`. Every other force push, protected-branch
+  pushes, merges, `gh api`, Project writes, git config and remote rewrites,
+  `gh` aliases and extensions, edits under `.git/` or the global git and gh
+  config, and secret reads are denied outright, however spelled; a read-only
+  run is denied the requests above as well. A build refuses a
+  worktree another OpenCode session is running in (a person's included);
+  read-only runs may run alongside.
 - **`output_dir`:** an existing job directory inside a Workspaces draft
   (`<Group>/.agent/<YYYYMMDD>-<job>/…`), outside the worktree. The run may write
   there without asking (reports, screenshots), and later
