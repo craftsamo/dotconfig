@@ -37,10 +37,9 @@ caller is answered with a pointer to the Assistant and nothing is produced.
 
 Creator reads the forms and option references to propose directions and
 revisions, but never sends a handoff and never receives a report. When to
-consult it, and how a `Q<n>:` is answered: [`broker.md`](../broker.md).
-
-A stuck resident transport is closed with `specialist_session(action="reconcile")`
-([`profiles/specialist-calls.md`](../profiles/specialist-calls.md) owns it); a
+consult it, and how a `Q<n>:` is answered: [`broker.md`](../broker.md). A stuck
+resident transport is closed with `specialist_session(action="reconcile")`
+([`profiles/specialist-calls.md`](../profiles/specialist-calls.md)); a
 bookkeeping close is neither acceptance nor evidence that a retry is safe.
 
 Acceptance follows the initial audience/outcome and the actual returned version,
@@ -65,41 +64,35 @@ profiles/<hands>/skills/
 - **Verbs** (closed set): `create` — drawn deterministically from inputs
   (script / SVG / grid; free); `generate` — a model draws the pixels or the
   waveform (free local synthesis or metered provider); `edit` — transform an
-  existing asset (free unless the edit itself generates); `source` — fetch a
-  published asset and record its license (free); `analyze` — inspect an
-  existing asset and return findings, not new/repaired media (free). Most
-  analyze leaves return reply findings; analyze-ad may retain its report and
-  evidence at an explicit deliver path, never a new ad. The `create`/`generate` boundary is whether a generation model is asked
-  to draw.
+  existing asset; `source` — fetch a published asset and record its license
+  (free); `analyze` — inspect an existing asset and return findings, never
+  new or repaired media (free). The `create`/`generate` boundary is whether a
+  generation model is asked to draw.
 - **Cost is independent of verb.** `free` means no metered media-provider fee,
-  not zero reasoning cost or unlimited compute. Local speech synthesis still
-  has a take allowance: one take plus one corrective per script by default.
-  Failed synthesis invocations count. Long free work still uses resident sessions.
+  not zero reasoning cost or unlimited compute: local speech synthesis still has
+  a take allowance and failed invocations count.
 - **Subjects** are concrete nouns (`icon`, `hero`, `clip`, `voice-line`),
   **unique across all hands** because the Assistant and Creator each read every
   hands' tree through one `skills.external_dirs` list; the validator
-  (`validate_hands`) enforces the shape and rejects a subject that appears under
-  two hands. `name` equals `<verb>-<subject>` and equals the path.
+  (`validate_hands`) enforces the shape. `name` equals `<verb>-<subject>` and
+  equals the path.
 - The pipeline root holds no router and no lifecycle beyond the five steps
-  above; discovery is the client reading the leaves' front matter directly. No
-  generated index, no shared Style system, no palette vocabulary above the leaf.
+  above; discovery is the client reading the leaves' front matter directly.
 - Hands report a defect in a leaf's own scripts or references to the
   maintainer; they never patch tracked skill roots (`skill-topology` blocks
   such writes at the tool layer).
-
-**Execution-environment traps** (terminal-guard limits, foreground timeouts,
-vision-window habits) go into the Procedure of the leaf that hits them, not
-into a shared note.
+- **Execution-environment traps** (terminal-guard limits, foreground timeouts,
+  vision-window habits) go into the Procedure of the leaf that hits them, not
+  into a shared note.
 
 **Instruction context.** The hands' always-on contracts re-evaluate the named
 leaf and selected references on inbound turns/completions and before a changed
 operation, subject or option. The executing profile's full kernel and required
-instructions must be in current context, not merely recorded as loaded.
-Canonical `read_file` recovery follows genuine truncation offsets; unrecoverable
-required instructions stop the action. Optional advisory references keep their
-fallback. Loading never grants a new operation, resets spend or reruns a
-completed render. The Assistant or Creator reading a hands form does not become
-that hands' executor.
+instructions must be in current context, not merely recorded as loaded;
+unrecoverable required instructions stop the action, optional advisory
+references keep their fallback. Loading never grants a new operation, resets
+spend or reruns a completed render. The Assistant or Creator reading a hands
+form does not become that hands' executor.
 
 ### The form (front matter is the only representation)
 
@@ -122,26 +115,16 @@ metadata:
 ---
 ```
 
-Field keys: `required` (bool), `label` / `example` (interview prompts),
-`options` + `other: true` (a controlled vocabulary that still accepts a
-free value — the leaf's `references/styles/<option>.md` backs each listed
-option), `type` (`text` default, `image`, `file`, `path`, `int`); the
-validator is the authority on the full set. `note` is the escape hatch every
-leaf carries. The SKILL.md body has exactly three
-sections — `<Procedure>`, `<QA>`, `<Report>` — no Goal / Inputs / Presets
-sections, because `description` and `form` already say that.
-
-If a field has options and its leaf has `references/<field>/`, every
-listed option must have a matching Markdown file. `style` keeps its
-mandatory `references/styles/` mapping. This lets kit content tables live
-under `references/contents/` without a generated registry. Theme uses
-`references/themes/`; an explicit `references` declaration makes option
-backing mandatory even when the directory is missing. MV keeps style
-(rendering), theme (world vocabulary) and direction (staging) within one leaf.
-Multi-value text fields describe their comma-list syntax in the label;
-`other: true` permits that string at intake, and the leaf validates each
-member. An option is not a requirement to generate every default item:
-The Assistant confirms the expanded item list and spend with the user before
+The validator is the authority on field keys. `options` + `other: true` is a
+controlled vocabulary that still accepts a free value; a leaf
+that has `references/<field>/` must back every listed option there (`style` maps
+to `references/styles/`, `theme` to `references/themes/`; an explicit
+`references` declaration makes the backing mandatory even when the directory is
+missing). `note` is the escape
+hatch every leaf carries. The SKILL.md body has exactly three sections —
+`<Procedure>`, `<QA>`, `<Report>` — because `description` and `form` already
+say the rest. An option is not a requirement to generate every default item:
+the Assistant confirms the expanded item list and spend with the user before
 batch production.
 
 Hermes discovery reads only the first 4,000 characters of a SKILL.md before
@@ -160,32 +143,28 @@ budget: 4 variants + 1 corrective          # media calls or local speech takes
 form:
   what_for: Slack 通知 bot のアプリアイコン
   style: glass
-  background: transparent
-  reference: /path/to/ref.png
   note: 青系、角丸は控えめ
 ```
 
 The selected Group must already exist. Its draft job directory
-`.agent/<YYYYMMDD>-<job>/` and job-owned descendants (such as `video-plan` or
-`music-plan`) are accepted by all three hands; so are the Group root itself
-and the unassigned `~/Workspaces/.agent/<YYYYMMDD>-<job>/`. Everything under `.agent/` is a draft;
-the Workspaces rules own promotion and cleanup.
-A job directory may be created beneath an existing parent, subject to the
-leaf's exclusive-output checks. Never create a new Group or relocate a
-valid Group-local job merely because it is below the Group root. This is
-an operating contract, not a filesystem sandbox or upload/overwrite consent.
+`.agent/<YYYYMMDD>-<job>/` and job-owned descendants are accepted by all three
+hands, as are the Group root itself and the unassigned
+`~/Workspaces/.agent/<YYYYMMDD>-<job>/`. Everything under `.agent/` is a draft;
+the Workspaces rules own promotion and cleanup. Never create a new Group or
+relocate a valid Group-local job merely because it is below the Group root.
+This is an operating contract, not a filesystem sandbox or upload/overwrite
+consent.
 
 The hands reply with the leaf's `<Report>` (paths, every QA check with its
 evidence, spend) or with one batched `Q<n>:` block naming the missing
 required fields — never with a substitute. A request no leaf fits is a
 finding back to the Assistant (`no skill fits: …`), which tells the user and
-records it for the maintainer; neither side improvises a leaf.
-Short free single-reply leaves use `specialist_call(kind="inquiry")`; anything
-metered, multi-turn or longer than one reply window uses `kind="work"` from
-the Assistant. Continue with the same target and returned conversation_id. Released
-inputs, permissions, budgets and the exact handoff text are unchanged. CLI
-calls wait within a finite deadline; A2A inbound cannot launch work and must
-ask its caller to reissue the unit through a work conversation.
+records it for the maintainer; neither side improvises a leaf. Short free
+single-reply leaves use `specialist_call(kind="inquiry")`; anything metered,
+multi-turn or longer than one reply window uses `kind="work"`, continued with
+the same target and returned conversation_id with inputs, permissions, budgets
+and handoff text unchanged. A2A inbound cannot launch work and must ask its
+caller to reissue the unit through a work conversation.
 
 Transport limits: A2A identifies loopback callers by IP, not by a
 cryptographically verified profile, so a verbal origin confirmation adds no
@@ -199,48 +178,41 @@ warning.
 
 The four tracked, portable `media-craft-direction`, `media-craft-visual`,
 `media-craft-motion` and `media-craft-audio` skills live in `agents/curated/`,
-not in hands' production trees or generated Styles catalogs, and use the
-standard shared-store install links. Creator's shared store already exposes
-them; image-creator pins direction/visual, video-creator direction/visual/motion,
-and audio-creator direction/audio individually, and the Assistant pins
-direction. No hands receives the whole store. Each hands kernel's
-`references/craft.md` owns conditional reading for all its current subjects and
-actual creative decisions; Creator's entries read the same knowledge to name
-directions and changes.
+not in hands' production trees or generated Styles catalogs. Creator's shared
+store exposes them; image-creator pins direction/visual, video-creator
+direction/visual/motion, audio-creator direction/audio individually, and the
+Assistant pins direction. No hands receives the whole store. Each hands kernel's
+`references/craft.md` owns conditional reading for its subjects; Creator reads
+the same knowledge to name directions and changes.
 
 These are technique and judgment resources, not new forms, producer roles,
 cross-media Styles, permissions, outside workflows or executable scripts. The
 optional HyperFrames technical pins keep their own leaf scope and fallback
 ([`video.md`](./video.md) "Video authoring references"); craft pins are a
 separate knowledge-only exception. Local procedures still own engines, source
-integrity, proposal/preview approvals, budgets and QA commands. Required craft
-bodies must be current before the affected creative decision; missing or
-ambiguous knowledge is a named stop for that decision, never an install or
-capability expansion. Mechanical work skips the craft reading. Audio perception
-stays human-reported: acceptance uses attributed human listening, meters and ASR
-never become a listening verdict, and the shared skill authorizes no new tool.
+integrity, approvals, budgets and QA commands. Required craft bodies must be
+current before the affected creative decision; missing or ambiguous knowledge is
+a named stop for that decision, never an install or capability expansion.
+Mechanical work skips the craft reading. Audio perception stays
+human-reported: meters and ASR never become a listening verdict, and the shared
+skill authorizes no new tool.
 
 ### Vision window
 
-Native `vision_analyze` puts the image itself into the tool result, and Hermes
-sends only the newest three image-bearing tool results with each request. The
-older results still read "Image loaded into your context", so the model sees no
-image, assumes the load failed and asks again, in a loop that replays a long
-history.
+Hermes sends only the newest three image-bearing tool results with each
+request; older native `vision_analyze` results read "Image loaded into your
+context", so the model sees no image, assumes the load failed and asks again, in
+a loop that replays a long history. The `vision-window` plugin (creator and the
+three hands) rewrites those results through the `transform_tool_result` hook —
+never fix this with a hermes-agent patch:
 
-The `vision-window` plugin (enabled on creator and the three hands) rewrites
-native `vision_analyze` results through the `transform_tool_result` hook, with
-no Hermes core change — never fix this with a hermes-agent patch:
-
-- The 4th and later image in one step returns "Image not shown: <path>. Only 3
-  images can be shown to you per step ...", so the model is told the truth
-  instead of a false "loaded".
+- The 4th and later image in one step returns "Image not shown: <path> ...", so
+  the model is told the truth instead of a false "loaded".
 - An image whose bytes were already shown 3 times in the turn is not shown
   again; a re-rendered file has new bytes and is shown.
 
 Which three of a parallel batch are shown follows completion order. Leaf
-procedures keep their rules: contact sheets, at most three looks per step, a
-finding in `qa.md` before the next look.
+procedures keep their own rules (contact sheets, at most three looks per step).
 
 ### Families and former technics
 
@@ -253,27 +225,13 @@ through the Assistant, recording what the form got wrong.
 Creator's former technics are not hands subjects: which became leaves and which
 are archived is owned by [`broker.md`](../broker.md) "Legacy routes".
 
-| Family          | Hands         | Leaves                                                                                                            |
-| --------------- | ------------- | ----------------------------------------------------------------------------------------------------------------- |
-| icon            | image-creator | source, create, generate, edit, analyze                                                                           |
-| emoji           | image-creator | create, generate, edit, analyze (published glyphs use `source-icon`)                                              |
-| mascot          | image-creator | generate, edit, analyze                                                                                           |
-| reimagine       | image-creator | generate                                                                                                          |
-| kit             | image-creator | source, create, generate, edit, analyze                                                                           |
-| card            | image-creator | create, generate, edit, analyze                                                                                   |
-| diagram         | image-creator | create                                                                                                            |
-| pixel-art       | image-creator | create                                                                                                            |
-| illustration    | image-creator | generate                                                                                                          |
-| clip            | video-creator | generate, edit, analyze                                                                                           |
-| music-video     | video-creator | generate                                                                                                          |
-| tour            | video-creator | create                                                                                                            |
-| ad              | video-creator | analyze, create (a generated ad is generate-clip shots composed by create-ad; an authored PV is create-promotion) |
-| explainer-video | video-creator | create                                                                                                            |
-| promotion       | video-creator | create                                                                                                            |
-| story           | video-creator | create                                                                                                            |
-| master          | video-creator | create                                                                                                            |
-| pixel-animation | video-creator | create                                                                                                            |
-| speech          | audio-creator | generate, edit, analyze                                                                                           |
-| sfx             | audio-creator | create, generate, edit, analyze                                                                                   |
-| music           | audio-creator | create, generate, edit, analyze                                                                                   |
-| mix             | audio-creator | create, edit, analyze                                                                                             |
+Families by hands (the leaves are the `<verb>/<subject>` directories; the
+validator is the inventory):
+
+- **image-creator:** icon, emoji, mascot, reimagine, kit, card, diagram,
+  pixel-art, illustration. Published emoji glyphs use `source-icon`; there is no
+  `source-emoji`.
+- **video-creator:** clip, music-video, tour, ad, explainer-video, promotion,
+  story, master, pixel-animation. A generated ad is `generate-clip` shots
+  composed by `create-ad`; an authored PV is `create-promotion`.
+- **audio-creator:** speech, sfx, music, mix.
