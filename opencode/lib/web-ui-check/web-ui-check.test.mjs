@@ -6,10 +6,26 @@ import fs from "node:fs/promises";
 import http from "node:http";
 import os from "node:os";
 import path from "node:path";
+import { createRequire } from "node:module";
 import { after, before, test } from "node:test";
 import { fileURLToPath } from "node:url";
 
 const CLI = path.join(path.dirname(fileURLToPath(import.meta.url)), "web-ui-check.mjs");
+// The CLI resolves these from opencode/node_modules, which a fresh task
+// worktree lacks until ./worktree-setup.sh links it.
+const require = createRequire(CLI);
+const missing = ["axe-core/axe.min.js", "playwright"].filter((name) => {
+  try {
+    require.resolve(name);
+    return false;
+  } catch {
+    return true;
+  }
+});
+const needsDeps = {
+  skip: missing.length > 0 &&
+    `opencode/node_modules lacks ${missing.join(", ")}; run ./worktree-setup.sh in a task worktree or ./install.sh --deps`,
+};
 const PAGES = {
   "/good.html": `<!doctype html><html lang="en"><head><meta name="viewport" content="width=device-width">
     <title>good</title></head><body><main><h1>Good</h1><a href="#x">link</a><button>go</button></main></body></html>`,
@@ -50,7 +66,7 @@ function cli(...args) {
   });
 }
 
-test("a clean page passes and is photographed per viewport", async () => {
+test("a clean page passes and is photographed per viewport", needsDeps, async () => {
   const out = path.join(tmp, "good");
   const run = await cli("capture", "--out", out, "--page", `home=${base}/good.html`, "--viewport", "800x600");
   assert.equal(run.code, 0, run.out);
@@ -59,7 +75,7 @@ test("a clean page passes and is photographed per viewport", async () => {
   await fs.access(path.join(out, "screens", "home--800x600--light.png"));
 });
 
-test("measurable defects fail with exit 1", async () => {
+test("measurable defects fail with exit 1", needsDeps, async () => {
   const out = path.join(tmp, "bad");
   const run = await cli("capture", "--out", out, "--page", `bad=${base}/bad.html`, "--viewport", "375x812");
   assert.equal(run.code, 1, run.out);
@@ -71,7 +87,7 @@ test("measurable defects fail with exit 1", async () => {
   assert.equal(entry.focus.missing.length, 2, "two links with the same path are two stops, not a wrap");
 });
 
-test("compare pairs by name and reports the unmatched", async () => {
+test("compare pairs by name and reports the unmatched", needsDeps, async () => {
   const baseline = path.join(tmp, "baseline");
   await fs.mkdir(baseline);
   await fs.copyFile(path.join(tmp, "good", "screens", "home--800x600--light.png"),
