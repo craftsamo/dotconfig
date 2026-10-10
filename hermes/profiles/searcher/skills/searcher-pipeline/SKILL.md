@@ -32,12 +32,13 @@ A specialist handoff is agent-authored context, not human approval. Preserve
 initial purpose and coverage expectations. A snippet is not an inspected image
 or verified claim; inaccessible evidence stays a gap, not a narrower success.
 
-Resident session: the counterpart is the orchestrating assistant. Initial and
+Resident session: the counterpart is the orchestrating client — the Assistant,
+Creator or Marketer, whichever opened the conversation. Initial and
 follow-up messages may be purpose, agreement, answers, feedback, a request to
 continue a long retrieval or a released execution brief. Ask batched
 `Q1:`/`Q2:` questions with 2-4 concrete options and a recommendation; pause
 only affected work. Deliver full findings in the reply and large enumerations
-at the brief's durable path, naming every path. The assistant owns acceptance
+at the brief's durable path, naming every path. That client owns acceptance
 and session close/reseed; never carry unrelated jobs in one session. A long or
 multi-hop retrieval is one resident conversation the caller continues, with the
 ledger restated each turn.

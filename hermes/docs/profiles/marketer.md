@@ -14,10 +14,10 @@ Writer and the media hands, accepts their work and saves service-side drafts
 The client is the Assistant through `specialist_call`,
 and the human directly through Marketer's own Telegram bot. A bounded question
 is an A2A inquiry answered in one reply; multi-turn strategy or anything that
-needs the browser is a resident `kind="work"` conversation. Marketer's only
-outbound peer is Researcher (`specialist_call.resident_targets: [researcher]`,
-enforced again by the plugin's role policy), for depth evidence and claim
-checks; it never calls Writer, Creator, or the hands.
+needs the browser is a resident `kind="work"` conversation. Marketer reaches
+Researcher, for depth evidence and claim checks, and Searcher, for breadth
+retrieval within its grant; it never calls Writer, Creator, or the hands. The
+allowlist is in [specialist-calls](./specialist-calls.md).
 
 Marketer keeps `marketer-pipeline` as its kernel and three independent
 entry skills beneath it, outside `references/`: `plan-marketer`,

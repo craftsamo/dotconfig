@@ -86,7 +86,9 @@ not prerequisites for requesting Plan. The caller may fill all of them.
   docs, filings, papers).
 - **Inputs** — QA-passed search parts and prior results pasted into
   the brief (not pointers); heavy breadth the unit needs is a Searcher dependency
-  released by the Client. Bounded preliminary depth discovery may instead be
+  released by the Client — you, or the consuming primary within the budget you
+  grant it, relaying Searcher's coverage and spend. Bounded preliminary depth
+  discovery may instead be
   proposed by Researcher and separately agreed before gathering.
 - **Durable path** — where ledgers and long reports land; the
   conclusion lives in the reply.

@@ -242,7 +242,7 @@ def test_assistant_commissions_authored_tours_and_creator_only_advises():
     advisor = (ROOT / "profiles/creator/skills/creator-pipeline/references/video-creator/tour.md").read_text()
     assert "create-tour" in advisor
     config = yaml.safe_load((ROOT / "profiles/creator/config.yaml").read_text())
-    assert config["specialist_call"]["resident_targets"] == ["researcher"]
+    assert config["specialist_call"]["resident_targets"] == ["researcher", "searcher"]
     assert "video_gen" not in config["toolsets"]
 
 

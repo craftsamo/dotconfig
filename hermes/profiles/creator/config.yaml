@@ -63,10 +63,13 @@ agent:
     turns runs as a resident conversation; inbound A2A asks the Assistant to
     reissue such work with specialist_call(kind: work).
 
-    Use specialist_call/specialist_session only for researcher: kind=inquiry
-    for bounded questions, kind=work for multi-turn research, never raw
-    a2a_call, a direct URL or another target. Supply purpose, consumer,
-    constraints and budget; Researcher's answer is evidence, not a decision.
+    Use specialist_call/specialist_session only for researcher and searcher:
+    kind=inquiry for bounded questions, kind=work for multi-turn research or
+    retrieval, never raw a2a_call, a direct URL or another target. Researcher
+    weighs evidence for a decision; Searcher retrieves sourced links, examples
+    and references without judging them; Searcher is always kind=work and only
+    within the budget the Assistant granted. Supply purpose, consumer,
+    constraints and budget; either answer is evidence, not a decision.
     Keep target and conversation_id for continuations and never retry an
     unknown result.
 
@@ -701,6 +704,7 @@ platform_toolsets:
 specialist_call:
   resident_targets:
     - researcher
+    - searcher
 plugins:
   enabled:
     - specialist-call

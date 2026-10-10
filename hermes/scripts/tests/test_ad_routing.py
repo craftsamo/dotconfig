@@ -130,7 +130,7 @@ class CommissioningAndVideoConfigTest(unittest.TestCase):
     def test_assistant_commissions_video_creator_and_creator_cannot(self) -> None:
         targets = self.assistant_config["specialist_call"]["resident_targets"]
         self.assertIn("video-creator", targets)
-        self.assertEqual(["researcher"], self.creator_config["specialist_call"]["resident_targets"])
+        self.assertEqual(["researcher", "searcher"], self.creator_config["specialist_call"]["resident_targets"])
         self.assertEqual(["researcher"], list(self.creator_config["a2a_agents"]))
         self.assertNotIn("video-creator", self.creator_config["a2a_agents"])
         self.assertNotIn("image_gen", self.creator_config["toolsets"])
