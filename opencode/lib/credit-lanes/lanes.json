@@ -1,0 +1,20 @@
+{
+  "lanes": [
+    {
+      "provider": "anthropic-credit-main",
+      "label": "Main",
+      "keyEnv": "ANTHROPIC_CREDIT_MAIN_ACCOUNT_KEY",
+      "amount": 200,
+      "renewalDay": 13,
+      "since": "2026-10-09"
+    },
+    {
+      "provider": "anthropic-credit-sub",
+      "label": "Sub",
+      "keyEnv": "ANTHROPIC_CREDIT_SUB_ACCOUNT_KEY",
+      "amount": 200,
+      "renewalDay": 29,
+      "since": "2026-10-09"
+    }
+  ]
+}

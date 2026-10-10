@@ -216,10 +216,12 @@ roles whose configured models changed keep the normal selection. During a task,
 Quota errors or exhaustion do not stop a child. Native provider quota errors
 and long rate-limit reset waits still end the protected task; short native
 transient retries are allowed. There is no model switch, restart or automatic
-resubmit. Native providers may move to credits mid-request; launch preference
-is not a no-paid gate. Older markers retain identity/context protection without
-their obsolete funding gates. The root parent's model and retry policy are
-unchanged, so a parent on the same pool may still fail.
+resubmit for a protected child (Console credit lanes below are a separate path
+that never touches one). Native providers may move to credits mid-request;
+launch preference is not a no-paid gate. Older markers retain identity/context
+protection without their obsolete funding gates. The root parent's model and
+retry policy are unchanged unless `creditLanes` is set, so a parent on the same
+pool may still fail.
 Protection is sticky for marked children, including completed continuations:
 historical execution outcomes cannot prove current idleness. They retain their
 selected role and model; start a new child for a different explicit selection.
@@ -253,10 +255,96 @@ guards for already-marked children remain. To keep those guards, do not remove
 the plugin or config entries or change auth while it is active. Keep the entry
 last, after quota, and trust no other later request mutator.
 
-Current options remain `enabled: true` and `creditsLastResort: true`. The
-independent usage reader, billing parser and usage-diagnostic RPCs have been
+Options: `enabled: true`, `creditsLastResort: true`, and for the credit lanes
+below `creditLanes` (ordered provider IDs), `creditCooldownMs` (default one
+hour) and `primaryFallback` (default on). The independent usage reader, billing parser and usage-diagnostic RPCs have been
 removed. Tests use synthetic public exports and mocked OpenCode transports;
 they do not probe providers or establish real billing/entitlement behavior.
+
+## Console credit lanes
+
+The same plugin spends the Max plans' monthly API credits (see "Accounts")
+through `options.creditLanes`, an ordered list of provider IDs. A missing or
+empty list turns all of this off, in-flight moves included; `enabled: false`
+stops only new lane launches.
+
+- **Specialists** (the six roles with a Claude primary). A new launch takes the
+  first lane not known empty, with no subscription marker: the OAuth guards
+  above do not apply to API-key requests. With every lane empty, the preflight
+  above decides as before. The report carries `funding: console-credit` with
+  `from` / `to`. Agent files keep the subscription model; pinning a role to a
+  lane there skips the preflight and fails on an empty balance.
+- **In flight.** An empty balance (a plain 400 recognised by its "credit
+  balance is too low" text), a bad key (401/403) or a window limit marks the
+  lane out (for `creditCooldownMs`, one hour; a window limit only for the wait
+  it asked for) and moves the session to the next provider with the same model
+  and variant, repeating the same step. Only requests on the session's own
+  model count: compaction and title requests never move it. These
+  fail before anything is generated, so nothing is billed twice. A specialist
+  goes lane, next lane, subscription; after a long subscription limit it stops,
+  so the parent relaunches it and the preflight can pick the other vendor.
+- **Primary sessions** (no parent). On the subscription's window limit
+  (`provider.quota`, or a rate limit that asks for more than ten seconds) they
+  move to the first lane, and on to the next lane when one is empty; on a
+  lane, the subscription is the last stop. Nothing moves a primary back while
+  its lane works: return with `/models`. `primaryFallback: false` keeps the
+  primary on the subscription.
+- **Probing.** There is no balance API: a lane is probed by use. After its
+  cooldown the next request fails fast if it is still empty, which costs one
+  rejected request an hour.
+- A session never revisits a provider within five minutes, so the chain cannot
+  loop. Children launched under the subscription preflight keep their own
+  guards and are never moved.
+
+**Balance.** Anthropic has no balance API, and an Admin API is not available to
+personal orgs, so the balance is estimated from `opencode stats`: spend per lane
+since its grant, what is left, the pace and what would expire unused. It read
+within 3% of Console and answers in about a second. `lib/credit-lanes/lanes.json`
+holds each lane's `amount`, its `renewalDay` (the day of the month the plan
+renews) and its key variable; the cycle and its expiry follow from the date, so
+nothing needs editing each month, only when a plan changes. `since` is the day a
+lane began receiving its grant, for a first cycle that started part way through
+(it is older than the cycle after the first renewal and then unused). The
+renewal's time of day is not known, so a cycle starts at local midnight.
+Three ways to read it:
+
+- `/credits`, or `bun opencode/lib/credit-lanes/status.ts` in a terminal.
+- OpenCode Quota. `plugins/credit-lanes.ts` serves each lane as a `quota-v1`
+  envelope on `127.0.0.1:47631/<provider id>` (`CREDIT_LANES_PORT` changes the
+  port; a cached `opencode stats` run, 30 s), and `quotaProviders` in
+  `opencode-quota/quota-toast.jsonc` points a remote-api provider at each. Quota
+  sends the lane's own key as the bearer token and the endpoint answers only
+  that, so no new secret exists. The percentage, the expiry countdown and the
+  pace show in `/quota`. Quota reuses a provider's result for `minIntervalMs`
+  (5 minutes by default, 2 here) even though the sidebar refreshes every minute,
+  so use shows up after that wait and the 30 s cache behind the endpoint.
+
+Quota's own `local-estimate` mode was tried and dropped: it re-reads the whole
+25 GB history database on every refresh (about a minute), which stalled the
+service into a restart loop.
+
+## Prompt cache
+
+Anthropic's cache lives five minutes from its last use, per workspace, and a
+miss rewrites the whole prefix at 1.25 times the input price (about $1 per
+rewrite at 380k tokens on Sonnet 5.5; a read costs a tenth). In one long
+session 81% of the written tokens were rewrites, on the subscription and on the
+credit lanes alike, from two causes:
+
+- **A pause over five minutes.** `warming` (top level of `opencode.jsonc`,
+  `interval` four minutes, `duration` twenty) sends a keep-alive request while a
+  session sits idle, and stops twenty minutes after the last real request. It
+  covers every recently active session and every provider, the subscription
+  included: the documentation has no per-provider switch. The longest pause
+  measured was sixteen minutes. Each keep-alive is a real request, a cache read
+  at most four times per idle window, and it is not in the session history or
+  in `opencode stats`; the service log shows `warming session` lines.
+- **A change to the prefix.** Switching between Plan and Build changes the
+  system prompt and the tools, and moving to another provider or model starts a
+  new cache; warming cannot prevent either. Long conversations are cheaper kept
+  in one agent, on one provider.
+
+A move to a credit lane (see above) therefore pays one full write.
 
 ## Accounts
 
@@ -266,6 +354,20 @@ they do not probe providers or establish real billing/entitlement behavior.
   `Claude Code-credentials` entry) and Claude Code stay untouched. Log in from
   a browser signed into the sub account:
   `opencode auth login anthropic --method claude-max`.
+- **Anthropic Console credit lanes**: the monthly API credits that Max plans
+  grant (Max 5x and 20x, one Console org per plan, spent before any purchased
+  balance and lost at the end of the billing cycle). They work only through an
+  API key, never in Claude Code or as extra usage. Two providers,
+  `anthropic-credit-main` (the 20x plan's org) and `anthropic-credit-sub` (the
+  5x plan's), read `ANTHROPIC_CREDIT_MAIN_ACCOUNT_KEY` and
+  `ANTHROPIC_CREDIT_SUB_ACCOUNT_KEY` from the Keychain project `opencode`.
+  Never name a key `ANTHROPIC_API_KEY`: it would take precedence over the OAuth
+  login. A lane stays inactive while its variable is unset, and its models list
+  Opus, Sonnet and Haiku 5.5 explicitly (`canonical` inherits prices, not the
+  model list). Neither org has a payment method or auto-reload, so an empty
+  balance fails the request instead of billing. The service reads the
+  environment at start: a new or rotated key needs `opencode service restart`,
+  and `opencode reload` is enough for config only.
 - **OpenAI**: built-in ChatGPT login,
   `opencode auth login openai --method chatgpt-browser`.
 - **xAI** (`x_search`): built-in SuperGrok login,

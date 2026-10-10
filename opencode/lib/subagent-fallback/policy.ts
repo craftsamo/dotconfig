@@ -146,7 +146,7 @@ export function freshState(
 const positive = (n: unknown): boolean =>
   typeof n === "number" && Number.isFinite(n) && n > 0
 
-function catalogOk(catalog: CatalogModel[], model: ModelRef): boolean {
+export function catalogOk(catalog: CatalogModel[], model: ModelRef): boolean {
   const found = catalog.find(
     (item) => item.id === model.id && item.providerID === model.providerID,
   )
