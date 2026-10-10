@@ -40,6 +40,7 @@ describe("registry", () => {
       "git_related_scan",
       "git_secret_scan",
       "git_stage_hunks",
+      "git_state",
       "github_project_create",
       "github_project_field_ensure",
       "github_project_issue_develop",
@@ -378,6 +379,77 @@ describe("git_commit", () => {
     f.git("add", "a.txt")
     const out = await run(git.commit, f, { message: "feat: x" })
     expect(out).toMatchObject({ committed: true, changedByHook: ["a.txt"], leftModified: ["b.txt"] })
+  })
+})
+
+describe("git_state", () => {
+  const withOrigin = (f: Fixture) => {
+    const remote = join(f.root, "remote.git")
+    Bun.spawnSync(["git", "init", "-q", "--bare", remote])
+    f.git("remote", "add", "origin", remote)
+    f.git("push", "-q", "-u", "origin", "main")
+    f.git("symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/main")
+  }
+
+  test("summarizes the branch, its base, changes, stashes and worktrees", async () => {
+    const f = repo()
+    f.commit("init", { "a.txt": "a\n", "b.txt": "b\n", "c d.txt": "c\n" })
+    withOrigin(f)
+    f.git("switch", "-q", "-c", "feat/x")
+    f.commit("feat: one")
+    f.commit("feat: two")
+    f.write("a.txt", "a2\n")
+    f.git("stash", "push", "-q")
+    f.write("a.txt", "a3\n")
+    f.git("add", "a.txt")
+    f.write("b.txt", "b2\n")
+    f.write("c d.txt", "c2\n")
+    f.git("mv", "c d.txt", "e f.txt")
+    f.write("new.txt", "n\n")
+    const out = await run(git.state, f, { pr: false })
+    expect(out).toMatchObject({
+      root: f.dir,
+      branch: "feat/x",
+      detached: false,
+      unborn: false,
+      upstream: null,
+      base: { ref: "origin/main", ahead: 2, behind: 0, commitsTruncated: false },
+      operation: null,
+      conflicted: [],
+      staged: { count: 2, items: [{ path: "a.txt", status: "M" }, { path: "c d.txt -> e f.txt", status: "R" }] },
+      unstaged: { count: 2, items: [{ path: "b.txt", status: "M" }, { path: "e f.txt", status: "M" }] },
+      untracked: { count: 1, items: ["new.txt"] },
+      clean: false,
+      worktrees: [{ path: f.dir, branch: "feat/x", current: true }],
+      pr: null,
+    })
+    expect(out.base.commits.map((c: string) => c.replace(/^\w+ /, ""))).toEqual(["feat: two", "feat: one"])
+    expect(out.stashes).toHaveLength(1)
+    expect(out.head).toBe(f.git("rev-parse", "HEAD").trim())
+  })
+
+  test("reports a merge in progress with its conflicts, and the upstream", async () => {
+    const f = repo()
+    f.commit("init", { "a.txt": "a\n" })
+    withOrigin(f)
+    f.git("switch", "-q", "-c", "other")
+    f.commit("other", { "a.txt": "other\n" })
+    f.git("switch", "-q", "main")
+    f.commit("main", { "a.txt": "main\n" })
+    Bun.spawnSync(["git", "merge", "-q", "other"], { cwd: f.dir })
+    const out = await run(git.state, f, { pr: false })
+    expect(out).toMatchObject({ branch: "main", operation: "merge", conflicted: ["a.txt"], upstream: { ref: "origin/main", ahead: 1, behind: 0 } })
+  })
+
+  test("handles an unborn branch, and finds the branch's PR", () => {
+    const f = repo()
+    const res = runWithFakeGh(f, { module: "git", name: "state" }, [])
+    expect(res.out).toMatchObject({ branch: "main", unborn: true, head: null, base: null, clean: true, pr: null })
+    f.commit("init")
+    const withPr = runWithFakeGh(f, { module: "git", name: "state" }, [
+      { re: "^pr view --json number", out: '{"number":4,"title":"T","state":"OPEN","isDraft":false}' },
+    ])
+    expect(withPr.out.pr).toMatchObject({ number: 4, state: "OPEN" })
   })
 })
 

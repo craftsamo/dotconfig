@@ -172,8 +172,9 @@ and [squash-message settings](https://docs.github.com/en/repositories/configurin
 
 <Steps>
 
-1. Confirm the user asked to open or update a PR. Inspect the current branch
-   and `git status`; do not open a PR from the default branch. Warn that
+1. Confirm the user asked to open or update a PR. Inspect the branch with
+   `git_state` (branch, upstream ahead/behind, base, uncommitted files, the
+   branch's PR); do not open a PR from the default branch. Warn that
    uncommitted changes will not be in the PR.
 2. Run <RelatedScan> before comparing changes, writing descriptions or pushing.
    Resolve the existing PR and stack membership, then determine the base: the
