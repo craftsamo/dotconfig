@@ -49,10 +49,12 @@ HARD_DENY_SHELL = (
 )
 # Writes that OpenCode tools perform past the shell rules. A run never makes or
 # removes worktrees itself (`workspace` does), and a read-only run never commits,
-# stages or runs a command at each commit (git_verify_commits asks, and the
-# caller must not approve that for a read-only run).
+# stages, rebases or runs a command at each commit (git_verify_commits asks, and
+# the caller must not approve that for a read-only run). A write run's rebase
+# comes back to the caller like a shell `git rebase`.
 TOOL_DENY = ("git_worktree",)
-READ_ONLY_DENY_TOOLS = ("git_commit", "git_stage_hunks", "git_verify_commits")
+READ_ONLY_DENY_TOOLS = ("git_commit", "git_stage_hunks", "git_verify_commits", "git_rebase")
+WRITE_ASK_TOOLS = ("git_rebase",)
 PROJECT_WRITES = (
     "github_project_create", "github_project_field_ensure", "github_project_item_add",
     "github_project_item_set", "github_project_item_note", "github_project_item_promote",
@@ -133,6 +135,7 @@ def rules(policy, issue_approval, protected, *, tmp=None, person_denies=(), outp
     else:
         out += [rule("shell", pattern, "ask") for pattern in WRITE_ASK_SHELL]
         out += [rule("shell", pattern, "allow") for pattern in WRITE_ALLOW_AFTER_ASK]
+        out += [rule(name, "*", "ask") for name in WRITE_ASK_TOOLS]
         if not issue_approval:
             out += [rule("shell", pattern, "ask") for pattern in ISSUE_WRITES]
     deny = list(HARD_DENY_SHELL)
