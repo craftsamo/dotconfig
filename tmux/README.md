@@ -73,7 +73,7 @@ come from the Keychain via the `hermes` secret layer
 (`HERMES_DASHBOARD_BASIC_AUTH_PASSWORD` / `_SECRET`); `dashboard.basic_auth.username`
 in `hermes/config.yaml` holds the non-secret username. Provision the two
 Keychain values once on a new machine using the commands in
-[`hermes/README.md`](../hermes/README.md#web-dashboard-tailnet); the browser then
+[`hermes/docs/ops/install.md`](../hermes/docs/ops/install.md#web-dashboard-tailnet); the browser then
 stays signed in across restarts.
 
 Open the dashboard from any tailnet device:
