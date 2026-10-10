@@ -776,6 +776,7 @@ def validate_worker(
             errors.append(f"duplicate searcher skill name: {name}")
     if profile == "researcher":
         entries = validate_researcher_entries(pipeline_dir, errors)
+        validate_researcher_technics(pipeline_dir, leaves, errors)
         for name in entries.keys() & (leaves.keys() | learned.keys()):
             errors.append(f"duplicate researcher skill name: {name}")
     allowed.update(path.relative_to(skills).parts for path in entries.values())
@@ -971,10 +972,15 @@ def validate_searcher_technics(pipeline_dir: Path, technics: dict[str, Path], er
     validate_mode_technics("searcher", SEARCHER_MODES, pipeline_dir, technics, errors)
 
 
+def validate_researcher_technics(pipeline_dir: Path, technics: dict[str, Path], errors: list[str]) -> None:
+    validate_mode_technics("researcher", RESEARCHER_MODES, pipeline_dir, technics, errors)
+
+
 RESEARCHER_MODES = ("investigate", "compare", "verify", "advise")
 RESEARCHER_ENTRIES = {f"{mode}-researcher" for mode in RESEARCHER_MODES}
 RESEARCHER_SHARED_REFERENCES = (
-    {"gather.md"} | {f"{stage}.md" for stage in STAGES} | {f"platforms/{p}.md" for p in PLATFORMS})
+    {"gather.md", "capabilities.md"} | {f"{stage}.md" for stage in STAGES}
+    | {f"platforms/{p}.md" for p in PLATFORMS})
 
 
 def validate_researcher_entries(pipeline_dir: Path, errors: list[str]) -> dict[str, Path]:
@@ -1042,6 +1048,8 @@ def validate_researcher_entries(pipeline_dir: Path, errors: list[str]) -> dict[s
         for platform in PLATFORMS:
             if f"(../references/platforms/{platform}.md)" not in text:
                 errors.append(f"researcher entry does not link platform reference {platform}: {name}")
+        if "(../references/capabilities.md)" not in text:
+            errors.append(f"researcher entry does not link the technic capabilities: {name}")
     for doc in sorted(pipeline_dir.rglob("*.md")):
         if doc.is_symlink() or not doc.resolve().is_relative_to(pipeline_dir.resolve()):
             errors.append(f"researcher document escapes pipeline: {doc}")
@@ -2160,7 +2168,7 @@ def main() -> int:
         )
         for profile in WORKER_PROFILES:
             technics, learned = validate_worker(profile, errors)
-            kind = "mode entries and technics" if profile == "searcher" else "technics"
+            kind = "mode entries and technics" if profile in {"searcher", "researcher"} else "technics"
             summaries.append(f"{profile}={technics} {kind}/{learned} learned")
         hands_leaves: dict[str, dict[str, Path]] = {}
         for profile in HANDS_PROFILES:
@@ -2194,7 +2202,7 @@ def main() -> int:
         technics, learned = validate_worker(
             args.profile, errors, args.dispatch
         )
-        kind = "mode entries and technics" if args.profile == "searcher" else "technics"
+        kind = "mode entries and technics" if args.profile in {"searcher", "researcher"} else "technics"
         summaries.append(f"{args.profile}={technics} {kind}/{learned} learned")
 
     for warning in warnings:

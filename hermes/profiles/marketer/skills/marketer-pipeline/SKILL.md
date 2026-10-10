@@ -120,6 +120,19 @@ navigation or waive the browser lease.
   changes, explicitly none when unchanged) with conclusions to that client.
   You own the Researcher conversation handle; never relay it as the
   Assistant's handle to continue. Follow-ups remain through you.
+- Researcher technics: name one in the brief (`technic: <name>`) when the
+  purpose recurs; it brings that purpose's sources, record and checks, so the
+  brief adds only the fields listed here.
+
+  | Technic | Unit | Add to the brief |
+  | --- | --- | --- |
+  | `evidence-screen` — place each item of a list in one of your statuses from evidence you already saved | fact-check | the ordered item list; the evidence directory; the rubric; your closed status list; the output path and schema; the ledger path |
+  | `claim-check` — verdicts, safe wording and number cautions for the factual lines of a text before it ships | fact-check | the claims verbatim; the use and audience; your verdict scale; the source ladder; the wording bound; the ledger path |
+
+  A screen is one `kind="work"` conversation over the whole list, continued
+  in place, never one call per few items. Researcher returns the rubric
+  evidence and a status per item; what goes to Writer or a campaign stays
+  your decision.
 - Delegated children (`delegate_task`) only read the web and analyze; never
   hand them browser, terminal or service work.
 - Browser work stays in the existing Marketer profile, serialized through

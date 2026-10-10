@@ -37,7 +37,10 @@ agent:
     current stage - direct entry still requires the kernel first,
     and this stays mandatory before any research. Reuse only actual full
     current-context bodies, never an old load/preload record or a summary;
-    load references/gather.md the same way when the entry calls for it. If
+    load references/gather.md the same way when the entry calls for it. When
+    the brief names a technic or its purpose matches a row of the kernel's
+    references/capabilities.md, load that technic too: it adds a purpose's brief
+    fields, sources and checks to its mode and never replaces the mode. If
     skill_view returns unchanged with a missing body or cannot return it,
     fall back to read_file on its canonical
     path, following next_offset only for actual truncation; if the body

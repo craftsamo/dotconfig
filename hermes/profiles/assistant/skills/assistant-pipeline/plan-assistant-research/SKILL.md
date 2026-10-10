@@ -126,6 +126,22 @@ authorization; a planning proposal is not a verified conclusion.
 Each leaf names its QA contract; the validator enforces the
 mapping.
 
+## Technics — recurring purposes
+
+Researcher keeps a recipe for some recurring purposes. Name it in the brief
+you send through creator or marketer (`technic: <name>`); Researcher loads it
+on top of the unit's mode, so the brief adds only the table's fields to the
+unit's core above. The unit, its QA contract and release stay those of the
+mode. A purpose no row fits is an ordinary unit.
+
+| Technic | Unit | Add to the unit's core |
+| --- | --- | --- |
+| `evidence-screen` — place each listed item in one of the client's statuses from evidence already saved, with per-criterion evidence | fact-check | the ordered item list; the evidence directory; the rubric; the closed status list; the output path and schema; the ledger path |
+| `claim-check` — verdicts, safe wording within a bound, what not to say and number cautions for the factual lines of a text before it ships | fact-check | the claims verbatim; the use and audience; the client's verdict scale; the source ladder; the wording bound |
+
+What a screened item is used for, and which line a writer finally keeps, stay
+decisions of the consuming primary and the user.
+
 ## Boundaries
 
 - **Depth, not heavy breadth.** Enumerations, surveys, and exhaustive source hunts

@@ -221,8 +221,8 @@ Three per-profile layers, kept separate:
   - creator has no technics. It reads the hands pipelines read-only for forms
     and option references, plus curated `media-craft-*` and HyperFrames
     knowledge skills for vocabulary; no production engines.
-  - searcher's technics only layer a recurring purpose on one of its modes
-    ([research.md](./profiles/research.md) "Searcher technics").
+  - researcher's and searcher's technics only layer a recurring purpose on one
+    of their modes ([research.md](./profiles/research.md) "Technics").
   - writer → external skills only through the curated
     `profiles/writer/external-skills/` symlink dir (`japanese-writing`,
     single-sourced with the shared `agents/curated/` store) and upstream
