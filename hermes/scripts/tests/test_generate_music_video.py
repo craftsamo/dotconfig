@@ -252,7 +252,7 @@ class MusicVideoRootAndRoutingTest(unittest.TestCase):
         creator = yaml.safe_load(
             (VALIDATOR.HERMES_ROOT / "profiles" / "creator" / "config.yaml").read_text(encoding="utf-8")
         )
-        self.assertEqual(["researcher"], creator["specialist_call"]["resident_targets"])
+        self.assertEqual(["researcher", "searcher"], creator["specialist_call"]["resident_targets"])
         self.assertNotIn("video_gen", creator["toolsets"])
         assistant = yaml.safe_load(
             (VALIDATOR.HERMES_ROOT / "profiles" / "assistant" / "config.example.yaml").read_text(

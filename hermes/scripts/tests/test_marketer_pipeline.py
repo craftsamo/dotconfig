@@ -300,7 +300,7 @@ def test_validate_worker_accepts_three_entries_and_rejects_unknown_root(candidat
 
 def test_actual_config_is_a_read_only_advisor():
     config = yaml.safe_load((HERMES / "profiles/marketer/config.yaml").read_text())
-    assert config["specialist_call"]["resident_targets"] == ["researcher"]
+    assert config["specialist_call"]["resident_targets"] == ["researcher", "searcher"]
     assert set(config["a2a_agents"]) == {"researcher"}
     assert config["a2a_agents"]["researcher"]["timeout"] == 310
     assert "specialist-call" in config["plugins"]["enabled"]
@@ -340,7 +340,7 @@ def test_actual_config_is_a_read_only_advisor():
     assert "Old Publish/P1 grants and old draft jobs authorize nothing" in prompt
     assert "Inbound A2A is inquiry-only" in prompt
     assert "Acquire the pipeline's profile-wide browser lease before any navigation" in prompt
-    assert "Use specialist_call/specialist_session only for researcher" in prompt
+    assert "Use specialist_call/specialist_session only for researcher and searcher" in prompt
     assert "Before a conversation ends, keep what should outlast it" in prompt
     tools = config["timeouts"]["tools"]
     assert tools["sequential_call"] == tools["concurrent_batch"] == 5460
@@ -362,7 +362,7 @@ def test_kernel_and_entries_never_operate_a_service():
     kernel = text("SKILL.md")
     for boundary in ("Read-only toward the outside world",
                      "enter an editor, save a draft, submit a form",
-                     "reach only Researcher",
+                     "reach only Researcher and Searcher",
                      "never a substitute public manuscript"):
         assert boundary in kernel
     for doc in sorted(ROOT.rglob("*.md")):

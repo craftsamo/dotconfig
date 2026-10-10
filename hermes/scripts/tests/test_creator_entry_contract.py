@@ -112,7 +112,7 @@ def test_creator_turn_selection_and_retired_paths():
         "if still missing, stop the affected action",
         "Never evade dedup with alternate paths or artificial ranges",
         "you produce nothing and commission nothing",
-        "Use specialist_call/specialist_session only for researcher",
+        "Use specialist_call/specialist_session only for researcher and searcher",
     ):
         assert required in prompt, required
     skills = ROOT / "profiles/creator/skills"
@@ -137,7 +137,8 @@ def test_creator_config_has_no_generation_or_hands_reach():
     for toolsets in config["platform_toolsets"].values():
         assert "image_gen" not in toolsets and "tts" not in toolsets
         assert "terminal" not in toolsets
-    assert config["specialist_call"]["resident_targets"] == ["researcher"]
+    # Researcher and Searcher only, never a hands target; Searcher has no A2A endpoint.
+    assert config["specialist_call"]["resident_targets"] == ["researcher", "searcher"]
     assert set(config["a2a_agents"]) == {"researcher"}
     assert not config.get("platforms", {}).get("telegram")
     external = [str(p) for p in config["skills"]["external_dirs"]]

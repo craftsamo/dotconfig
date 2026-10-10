@@ -33,13 +33,16 @@ Virality != truth. A high search rank is not reliability.
 - **`delegate_task`** — quick parallel lookups you can wait out inside one
   run (a handful of URL fetches, a definition check).
 - **Heavy breadth beyond your runtime** (link harvesting, enumerations,
-  exhaustive multi-hop hunts) is a search unit the orchestrator releases
-  to the searcher. Ask for it instead of grinding it yourself: describe
-   the retrieval need, floor counts, and per-item fields in your resident or
-   inbound peer reply, and analyze the
-  QA-passed findings when they come back — including adjudicating what
-  the searcher flagged `Open for researcher`. The trust scoring stays
-  yours.
+  exhaustive multi-hop hunts, reads of X, YouTube, note or Substack) is a
+  search unit your orchestrator — the creator or marketer client — releases
+  to Searcher directly. Ask for it instead of grinding it yourself: describe
+  the retrieval need, floor counts, per-item fields and, when one fits,
+  Searcher's technic (`public-footprint`, `primary-fact-pack`,
+  `release-digest`) in your resident or inbound peer reply, and analyze the
+  accepted findings when they come back — including adjudicating what
+  Searcher flagged `Open for researcher`. The trust scoring stays yours.
+- **Technics** routed by [Capabilities](capabilities.md) carry the sources
+  and their order for a recurring purpose; follow the selected one's route.
 - **Learned playbooks on this profile** may inform retrieval when
   available, but are never a substitute for the source-evaluation method.
   Load one internally only when its retrieval method fits.
