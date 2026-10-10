@@ -1,9 +1,9 @@
 model:
   default: claude-opus-5-5
-  provider: anthropic-oauth
+  provider: anthropic
   base_url: https://api.anthropic.com
 fallback_providers:
-  - provider: anthropic
+  - provider: anthropic-oauth
     model: claude-opus-5-5
     base_url: https://api.anthropic.com
   - provider: anthropic-oauth
