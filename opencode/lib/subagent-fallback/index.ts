@@ -160,6 +160,21 @@ const signature = (auth: Subscription) =>
     .digest("hex")
 const exchangeKey = (e: Scope) =>
   `${e.sessionID}/${e.kind}/${selector(e.model)}`
+const withNotices = (
+  result: Result,
+  notices: string[],
+  metadata: Record<string, unknown>,
+): Result => {
+  const text = notices.join("\n")
+  return {
+    ...result,
+    metadata: { ...result.metadata, ...metadata },
+    content:
+      typeof result.content === "string"
+        ? `${text}\n${result.content}`
+        : [{ type: "text", text }, ...(result.content ?? [])],
+  }
+}
 
 function parseMarker(session: Session): Marker | undefined {
   const raw = session.metadata?.[METADATA_KEY]
@@ -286,6 +301,7 @@ export async function setupPreflight(
   )
   const episodes = new Episodes(EPISODE_TTL_MS, deps.now)
   const primaryFallback = ctx.options.primaryFallback !== false
+  const pinModels = ctx.options.pinModels === true
   const protectedChild = async (sessionID: string) => {
     const session = await ctx.session.get({ sessionID })
     const marker = parseMarker(session)
@@ -623,8 +639,26 @@ export async function setupPreflight(
                 location: parent.location,
               })
             ).data
-            const route = routeForLaunch(input, agent.model)
+            const route = routeForLaunch(input, agent.model, pinModels)
             if (!route) return original(input, context)
+            // pinModels: a project's agent file can name another model for a
+            // role. Launch the role on its route anyway, the model made
+            // explicit, and say so; its prompt and permissions stay.
+            const pinned =
+              !agent.model || !modelsEqual(agent.model, route.primary)
+            const pin = pinned
+              ? {
+                  notices: [
+                    `[Model pin: ${input.agent} ${agent.model ? selector(agent.model) : "(no model)"} → ${selector(route.primary)}; the agent definition in effect is replaced by the dotconfig route.]`,
+                  ],
+                  metadata: {
+                    pin: {
+                      from: agent.model ? selector(agent.model) : null,
+                      to: selector(route.primary),
+                    },
+                  },
+                }
+              : { notices: [], metadata: {} }
             // Credits first: a lane not known empty takes the launch, with no
             // subscription marker (its guards are for OAuth requests). When
             // every lane is empty, the usual preflight below decides.
@@ -640,25 +674,21 @@ export async function setupPreflight(
                   { ...input, model: selector(lane) },
                   context,
                 )
-                const notice = `[Subagent preflight: ${input.agent} ${selector(route.primary)} → ${selector(lane)}; a Console credit lane is tried before the subscription.]`
-                return {
-                  ...result,
-                  metadata: {
-                    ...result.metadata,
+                return withNotices(
+                  result,
+                  [
+                    ...pin.notices,
+                    `[Subagent preflight: ${input.agent} ${selector(route.primary)} → ${selector(lane)}; a Console credit lane is tried before the subscription.]`,
+                  ],
+                  {
+                    ...pin.metadata,
                     preflight: {
                       funding: "console-credit",
                       from: selector(route.primary),
                       to: selector(lane),
                     },
                   },
-                  content:
-                    typeof result.content === "string"
-                      ? `${notice}\n${result.content}`
-                      : [
-                          { type: "text", text: notice },
-                          ...(result.content ?? []),
-                        ],
-                }
+                )
               }
             }
             context.signal.throwIfAborted()
@@ -699,9 +729,10 @@ export async function setupPreflight(
               )
             const alternate = !modelsEqual(decision.model, route.primary)
             const account = alternate ? target!.account! : source.account!
-            const launch = alternate
-              ? { ...input, model: selector(decision.model) }
-              : input
+            const launch =
+              alternate || pinned
+                ? { ...input, model: selector(decision.model) }
+                : input
             context.signal.throwIfAborted()
             let childID: string | undefined
             const result = await original(launch, {
@@ -759,27 +790,22 @@ export async function setupPreflight(
               },
             })
             if (!childID) fail("builtin did not await pre-launch registration")
-            if (decision.kind === "default") return result
+            if (decision.kind === "default")
+              return pinned
+                ? withNotices(result, pin.notices, pin.metadata)
+                : result
             const notice =
               decision.kind === "credits"
                 ? `[Subagent preflight: ${input.agent} ${selector(decision.model)}; Quota reports both included quotas at 0%, trying the default with provider-managed credits as last resort. No credit purchase or running-session switch.]`
                 : `[Subagent preflight: ${input.agent} ${selector(route.primary)} → ${selector(decision.model)}; Quota reports the default's included quota empty and the alternate not empty. No running-session switch.]`
-            return {
-              ...result,
-              metadata: {
-                ...result.metadata,
-                preflight: {
-                  funding:
-                    decision.kind === "credits" ? "provider" : "included",
-                  from: selector(route.primary),
-                  to: selector(decision.model),
-                },
+            return withNotices(result, [...pin.notices, notice], {
+              ...pin.metadata,
+              preflight: {
+                funding: decision.kind === "credits" ? "provider" : "included",
+                from: selector(route.primary),
+                to: selector(decision.model),
               },
-              content:
-                typeof result.content === "string"
-                  ? `${notice}\n${result.content}`
-                  : [{ type: "text", text: notice }, ...(result.content ?? [])],
-            }
+            })
           }
         })
       }),

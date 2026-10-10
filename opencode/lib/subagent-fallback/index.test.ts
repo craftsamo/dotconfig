@@ -274,7 +274,8 @@ async function fixture() {
               typeof input.sessionID !== "string" &&
               input.model === undefined &&
               Object.hasOwn(ROUTES, input.agent) &&
-              env.agents[input.agent] === ROUTES[input.agent]?.primary &&
+              (options.pinModels === true ||
+                env.agents[input.agent] === ROUTES[input.agent]?.primary) &&
               options.enabled &&
               // A launch that took a lane carries no marker by design.
               ![MAIN, SUB].includes(
@@ -486,6 +487,148 @@ describe("launch and persistence", () => {
     await expect(
       inst.run({ agent: "worker", sessionID: "ses_plain" }),
     ).rejects.toThrow(/native parent mismatch/)
+    expect(env.reads).toBe(0)
+  })
+})
+
+describe("pinModels", () => {
+  const PINNED = {
+    enabled: true,
+    creditsLastResort: true,
+    quotaExportPath: "/fixture/quota-export.json",
+    pinModels: true,
+  }
+  const REVIEWER = ROUTES.reviewer.primary
+  const TERRA = modelFrom("openai/gpt-5.6-terra")
+  const pinnedFixture = async (extra: Record<string, unknown> = {}) => {
+    const f = await fixture()
+    f.env.agents.reviewer = TERRA
+    return { env: f.env, inst: await f.install({ ...PINNED, ...extra }) }
+  }
+
+  test("a project's model for a role is replaced by the route's primary, with a notice", async () => {
+    const { env, inst } = await pinnedFixture()
+    const result = await inst.run({ agent: "reviewer", prompt: "x" })
+    expect(env.originals[0]).toEqual({
+      agent: "reviewer",
+      prompt: "x",
+      model: sel(REVIEWER),
+    })
+    expect(env.reads).toBe(1)
+    expect(marker(env).model).toEqual(REVIEWER)
+    expect(marker(env).fallback).toBe(false)
+    expect(result.content).toBe(
+      `[Model pin: reviewer ${sel(TERRA)} → ${sel(REVIEWER)}; the agent definition in effect is replaced by the dotconfig route.]\ndone`,
+    )
+    expect(result.metadata.pin).toEqual({
+      from: sel(TERRA),
+      to: sel(REVIEWER),
+    })
+    expect(result.metadata.preflight).toBeUndefined()
+  })
+  test("an agent without a model is pinned too", async () => {
+    const { env, inst } = await pinnedFixture()
+    delete env.agents.reviewer
+    const result = await inst.run({ agent: "reviewer" })
+    expect(env.originals[0].model).toBe(sel(REVIEWER))
+    expect(result.content).toContain("[Model pin: reviewer (no model) → ")
+    expect(result.metadata.pin.from).toBeNull()
+  })
+  test("a role already on its route launches unchanged and silently", async () => {
+    const { env, inst } = await pinnedFixture()
+    const input = { agent: "worker", prompt: "x" }
+    const result = await inst.run(input)
+    expect(env.originals[0]).toBe(input)
+    expect(result.content).toBe("done")
+    expect(result.metadata.pin).toBeUndefined()
+  })
+  test("a pinned role still falls back, and both notices are shown", async () => {
+    const { env, inst } = await pinnedFixture()
+    env.agents.worker = TERRA
+    env.quota.anthropic = 0
+    const result = await inst.run({ agent: "worker" })
+    expect(env.originals[0].model).toBe(sel(SOL))
+    expect(marker(env).fallback).toBe(true)
+    expect(result.content).toBe(
+      [
+        `[Model pin: worker ${sel(TERRA)} → ${sel(SONNET)}; the agent definition in effect is replaced by the dotconfig route.]`,
+        `[Subagent preflight: worker ${sel(SONNET)} → ${sel(SOL)}; Quota reports the default's included quota empty and the alternate not empty. No running-session switch.]`,
+        "done",
+      ].join("\n"),
+    )
+    expect(result.metadata.pin.to).toBe(sel(SONNET))
+    expect(result.metadata.preflight.to).toBe(sel(SOL))
+  })
+  test("a pinned role with both quotas empty tries the route's primary on credits", async () => {
+    const { env, inst } = await pinnedFixture()
+    env.quota.anthropic = env.quota.openai = 0
+    const result = await inst.run({ agent: "reviewer" })
+    expect(env.originals[0].model).toBe(sel(REVIEWER))
+    expect(marker(env).model).toEqual(REVIEWER)
+    expect(result.metadata.preflight.funding).toBe("provider")
+    expect(result.content).toStartWith("[Model pin: reviewer ")
+    expect(result.content).toContain("provider-managed credits")
+  })
+  test("a pinned role whose route account is missing stops instead of running on the project's model", async () => {
+    const { env, inst } = await pinnedFixture()
+    env.agents.verifier = TERRA
+    env.connection.openai = undefined
+    await expect(inst.run({ agent: "verifier" })).rejects.toThrow(
+      /source provider account is missing/,
+    )
+    expect(env.originals).toHaveLength(0)
+  })
+  test("a pinned child is guarded on its route model, not its definition's", async () => {
+    const { inst } = await pinnedFixture()
+    await inst.run({ agent: "reviewer" })
+    await send(inst, post(), REVIEWER)
+    await expect(send(inst, post(), TERRA)).rejects.toThrow(
+      /unexpected primary model/,
+    )
+  })
+  test("a pinned Claude role takes a credit lane", async () => {
+    const { env, inst } = await pinnedFixture({ creditLanes: [MAIN, SUB] })
+    const result = await inst.run({ agent: "reviewer" })
+    const lane = sel({ ...REVIEWER, providerID: MAIN })
+    expect(env.originals[0].model).toBe(lane)
+    expect(env.reads).toBe(0)
+    expect(result.content).toBe(
+      [
+        `[Model pin: reviewer ${sel(TERRA)} → ${sel(REVIEWER)}; the agent definition in effect is replaced by the dotconfig route.]`,
+        `[Subagent preflight: reviewer ${sel(REVIEWER)} → ${lane}; a Console credit lane is tried before the subscription.]`,
+        "done",
+      ].join("\n"),
+    )
+    expect(result.metadata.pin.from).toBe(sel(TERRA))
+    expect(result.metadata.preflight.funding).toBe("console-credit")
+  })
+  test("explicit models, unknown roles, continuations and disabled selection are left alone", async () => {
+    for (const mode of ["explicit", "unknown", "continuation", "disabled"]) {
+      const { env, inst } = await pinnedFixture(
+        mode === "disabled" ? { enabled: false } : {},
+      )
+      if (mode === "continuation")
+        env.sessions.set("ses_plain", {
+          id: "ses_plain",
+          parentID: "ses_parent",
+          location: LOCATION,
+        })
+      const input = {
+        agent: mode === "unknown" ? "not-a-role" : "reviewer",
+        ...(mode === "explicit" ? { model: sel(TERRA) } : {}),
+        ...(mode === "continuation" ? { sessionID: "ses_plain" } : {}),
+      }
+      const result = await inst.run(input)
+      expect(env.originals[0]).toBe(input)
+      expect(env.reads).toBe(0)
+      expect(result.metadata.pin).toBeUndefined()
+    }
+  })
+  test("without pinModels a project's model still bypasses the plugin", async () => {
+    const { env, inst } = await pinnedFixture({ pinModels: false })
+    const input = { agent: "reviewer" }
+    await inst.run(input)
+    expect(env.originals[0]).toBe(input)
     expect(env.reads).toBe(0)
   })
 })
