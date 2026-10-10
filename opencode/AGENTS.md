@@ -311,7 +311,9 @@ Secrets on this machine are injected from the macOS Keychain by PATH shims
 - Never reveal secret values. The OpenCode process environment may already hold
   global/tool secrets such as `*_API_KEY`, `MCP_*`, `TAVILY_*`, or
   `OPENCODE_SERVER_PASSWORD`. Do not run `env`, `printenv`, or `echo $SECRET`,
-  and never write a value into a file, log, or commit.
+  and never write a value into a file, log, or commit. A call that fails with
+  `Blocked by configuration policy` is a hard deny: do not retry it in another
+  form; report it or ask the user.
 - Secrets arrive as environment variables inside the launched program, not as
   values the parent shell can expand. Reference them by name at runtime:
   `process.env.X`, `os.environ["X"]`, or `$X` inside the program. Passing

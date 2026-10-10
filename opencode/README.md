@@ -43,6 +43,37 @@ All global instructions live in `AGENTS.md`. Do not reintroduce an
 `instructions` array: OpenCode V2 accepts the key but does not load its files
 (anomalyco/opencode#51341).
 
+## Permissions and policies
+
+Two layers decide what an agent may do:
+
+- **Permissions** (`permissions` in `opencode.jsonc` and in each agent file)
+  allow, ask or deny. Agent rules are appended after the global ones and the
+  last match wins, so an agent that starts its shell rules with `"*": ask`
+  turns every global shell deny back into a prompt unless it repeats it.
+- **Policies** (`experimental.policies`) are hard denies checked after
+  permissions and saved "Allow always" approvals. They never prompt, never
+  grant, and project configuration cannot lift the global ones. Keep only
+  never-allowed operations there: `sudo`, disk wiping, shutdown, environment
+  dumps (`env`, `printenv`), value-exposing or destructive `secret`
+  subcommands, `gh repo delete` and printing the GitHub token. A denied call
+  fails with `Blocked by configuration policy`. Invalid statements are
+  dropped with a warning in the server log, so check it after editing.
+  Command patterns are best effort, not a sandbox: the shell scanner emits
+  no resource for builtins such as `export -p`, so they run unchecked, and
+  an interpreter or a script can still reach the same data.
+
+Keep the matching permission denies as well: Hermes copies the build agent's
+resolved denies into its session rulesets. Custom plugin tools pass through
+neither layer and enforce their own limits.
+
+Patterns are whole-value wildcards where `*` also matches `/`. A file at the
+Location root has no directory part, so match secrets with `*.env`, `.env.*`
+and `*/.env.*`, never `**/.env`. To compare the resolved rules before and
+after an edit, read `/api/agent` from a private server whose
+`XDG_CONFIG_HOME` points at the candidate config (query it twice: the first
+request for a new Location returns an empty list).
+
 ## Delegation and progress in V2
 
 V2's `subagent` tool takes `agent`, not V1's `task` / `subagent_type`.

@@ -499,6 +499,45 @@
     // Rendered web UI checks (lib/custom-tools/web_ui.ts) — writes only to a .agent/ draft or scratch
     { "action": "web_ui_check", "resource": "*", "effect": "allow" },
   ],
+  // Hard denies that no agent rule, saved "Allow always" or project config can
+  // lift: an agent whose shell rules start with "*": ask would otherwise turn
+  // the global denies above back into prompts. Policies only tighten; keep
+  // the matching permission denies too, since Hermes copies build's denies
+  // into its session rulesets. Custom plugin tools bypass both layers.
+  // Invalid statements are dropped with a server-log warning.
+  "experimental": {
+    "policies": [
+      { "action": "permission", "resource": "shell:sudo *", "effect": "deny" },
+      { "action": "permission", "resource": "shell:dd *", "effect": "deny" },
+      { "action": "permission", "resource": "shell:mkfs*", "effect": "deny" },
+      { "action": "permission", "resource": "shell:diskutil erase*", "effect": "deny" },
+      { "action": "permission", "resource": "shell:shutdown*", "effect": "deny" },
+      { "action": "permission", "resource": "shell:reboot*", "effect": "deny" },
+      { "action": "permission", "resource": "shell:halt*", "effect": "deny" },
+      // Environment dumps: the service environment holds API keys.
+      { "action": "permission", "resource": "shell:printenv*", "effect": "deny" },
+      { "action": "permission", "resource": "shell:env", "effect": "deny" },
+      { "action": "permission", "resource": "shell:env -0*", "effect": "deny" },
+      // Keychain secrets: value-exposing and destructive subcommands.
+      { "action": "permission", "resource": "shell:secret get*", "effect": "deny" },
+      { "action": "permission", "resource": "shell:secret env*", "effect": "deny" },
+      { "action": "permission", "resource": "shell:secret export*", "effect": "deny" },
+      { "action": "permission", "resource": "shell:secret import*", "effect": "deny" },
+      { "action": "permission", "resource": "shell:secret rm*", "effect": "deny" },
+      { "action": "permission", "resource": "shell:secret del*", "effect": "deny" },
+      { "action": "permission", "resource": "shell:secret keychain rm*", "effect": "deny" },
+      { "action": "permission", "resource": "shell:secret keychain delete*", "effect": "deny" },
+      { "action": "permission", "resource": "shell:secret keychain master set*", "effect": "deny" },
+      { "action": "permission", "resource": "shell:secret keychain master rotate*", "effect": "deny" },
+      { "action": "permission", "resource": "shell:secret keychain master forget*", "effect": "deny" },
+      { "action": "permission", "resource": "shell:secret keychain master reveal*", "effect": "deny" },
+      // GitHub: irreversible deletion and token disclosure.
+      { "action": "permission", "resource": "shell:gh repo delete*", "effect": "deny" },
+      { "action": "permission", "resource": "shell:gh auth token*", "effect": "deny" },
+      { "action": "permission", "resource": "shell:gh auth status*--show-token*", "effect": "deny" },
+      { "action": "permission", "resource": "shell:gh auth status* -t*", "effect": "deny" },
+    ],
+  },
   "mcp": {
     "blender-mcp": {
       "type": "local",
