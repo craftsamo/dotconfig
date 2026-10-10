@@ -136,24 +136,33 @@ export const secret_scan = tool({
     paths: tool.schema.array(tool.schema.string()).optional().describe("Optional path filter."),
   },
   async execute(args, context) {
-    const cwd = context.worktree
     const target = args.target ?? "staged"
-    const diffArgs = ["diff", "--no-color", "--unified=0"]
-    if (target === "staged") diffArgs.push("--cached")
-    else if (target === "range") {
-      if (!args.range) throw new Error('target "range" requires `range`, e.g. "main..HEAD".')
-      diffArgs.push(args.range)
-    }
-    if (args.paths?.length) diffArgs.push("--", ...args.paths)
-    const diff = await runGit(diffArgs, cwd)
-    const builtin = scanDiff(diff)
-    let gitleaksRan = false
-    let gitleaks: Finding[] = []
-    if (which("gitleaks")) {
-      gitleaksRan = true
-      gitleaks = await runGitleaks(target, args.range, cwd)
-    }
-    const findings = dedupe([...builtin, ...gitleaks])
+    const { gitleaksRan, findings } = await scanSecrets({ target, range: args.range, paths: args.paths }, context.worktree)
     return JSON.stringify({ pass: findings.length === 0, target, gitleaksRan, count: findings.length, findings }, null, 2)
   },
 })
+
+export type ScanTarget = "staged" | "worktree" | "range"
+
+/** Built-in rules plus gitleaks when installed, over the staged diff, the worktree or a range. */
+export async function scanSecrets(
+  scope: { target: ScanTarget; range?: string; paths?: string[] },
+  cwd: string,
+): Promise<{ gitleaksRan: boolean; findings: Finding[] }> {
+  const diffArgs = ["diff", "--no-color", "--unified=0"]
+  if (scope.target === "staged") diffArgs.push("--cached")
+  else if (scope.target === "range") {
+    if (!scope.range) throw new Error('target "range" requires `range`, e.g. "main..HEAD".')
+    diffArgs.push(scope.range)
+  }
+  if (scope.paths?.length) diffArgs.push("--", ...scope.paths)
+  const diff = await runGit(diffArgs, cwd)
+  const builtin = scanDiff(diff)
+  let gitleaksRan = false
+  let gitleaks: Finding[] = []
+  if (which("gitleaks")) {
+    gitleaksRan = true
+    gitleaks = await runGitleaks(scope.target, scope.range, cwd)
+  }
+  return { gitleaksRan, findings: dedupe([...builtin, ...gitleaks]) }
+}
