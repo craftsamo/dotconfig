@@ -60,9 +60,20 @@ def branch_name(value, source, policy):
     return value
 
 
-def target_path(root, repo, branch):
-    """<root>/<main checkout's directory name>/<branch with / as ->."""
-    return Path(root) / Path(repo).parent.name / branch.replace("/", "-")
+def repository_name(source, repo):
+    """The repository's name on its origin remote (dotconfig for ~/.config), else its
+    main checkout's directory name. OpenCode's worktree strategy
+    (opencode/lib/worktrees/strategy.ts) names it the same way."""
+    proc = subprocess.run(["git", *SAFE_GIT, "-C", str(source), "remote", "get-url", "origin"], capture_output=True,
+                          text=True, timeout=30, env=git_env())
+    url = proc.stdout.strip().rstrip("/") if proc.returncode == 0 else ""
+    name = re.split(r"[/:]", url)[-1].removesuffix(".git") if url else ""
+    return name or Path(repo).parent.name
+
+
+def target_path(root, name, branch):
+    """<root>/<repository name>/<branch with / as ->."""
+    return Path(root) / name / branch.replace("/", "-")
 
 
 def _start(source, base, policy):
@@ -100,7 +111,7 @@ def create(*, sid, info, meta, args, settings, policy, turn):
         raise ValueError("Worktree branch changed; start a new session after inspection")
     branch = branch_name(args.get("branch"), source, policy)
     root = Path(settings["worktree_root"]).resolve()
-    target = target_path(root, repo, branch)
+    target = target_path(root, repository_name(source, repo), branch)
     if target.exists():
         raise ValueError(f"{target} already exists")
     start, fetched = _start(source, base, policy)

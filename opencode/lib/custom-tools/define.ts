@@ -22,8 +22,16 @@ export type ToolContext = {
   oauthAccess(integrationID: string): Promise<OAuthAccess | undefined>
   /** The calling session's id, when the runtime provides one. */
   sessionID?: string
+  /** Aborts when the session stops the call (V2 `signal`, V1 `abort`). */
+  signal?: AbortSignal
   /** The calling session's metadata (V2 only; Hermes keeps its binding under `hermes`). */
   sessionMetadata?(): Promise<Record<string, unknown> | undefined>
+  /** OpenCode's worktree inventory for the calling session's project (V2 only). */
+  worktrees?: {
+    /** Re-reads the worktrees on disk into the inventory, as the TUI's refresh does. */
+    refresh(): Promise<void>
+    list(): Promise<{ directory: string; strategy?: string }[]>
+  }
 }
 
 export type ToolSpec<Args extends z.ZodRawShape = z.ZodRawShape> = {

@@ -2,6 +2,7 @@ import { readFileSync } from "fs"
 import { homedir } from "os"
 import { z } from "zod"
 import { isToolSpec, type OAuthAccess, type ToolContext, type ToolSpec } from "../lib/custom-tools/define"
+import * as gh from "../lib/custom-tools/gh"
 import * as git from "../lib/custom-tools/git"
 import * as githubProject from "../lib/custom-tools/github_project"
 import * as webUi from "../lib/custom-tools/web_ui"
@@ -23,6 +24,7 @@ import * as x from "../lib/custom-tools/x"
  */
 
 const modules: Record<string, Record<string, unknown>> = {
+  gh,
   git,
   github_project: githubProject,
   web_ui: webUi,
@@ -56,8 +58,8 @@ async function server() {
     tool[id] = {
       description: spec.description,
       args: spec.args,
-      execute: (args: any, context: { worktree: string; sessionID?: string }) =>
-        spec.execute(args, { worktree: context.worktree, oauthAccess: v1OAuthAccess, sessionID: context.sessionID }),
+      execute: (args: any, context: { worktree: string; sessionID?: string; abort?: AbortSignal }) =>
+        spec.execute(args, { worktree: context.worktree, oauthAccess: v1OAuthAccess, sessionID: context.sessionID, signal: context.abort }),
     }
   }
   return { tool }
@@ -70,7 +72,11 @@ async function server() {
 type V2Context = {
   location: { directory: string }
   session: {
-    get(input: { sessionID: string }): Promise<{ location?: { directory?: string }; metadata?: Record<string, unknown> }>
+    get(input: { sessionID: string }): Promise<{ projectID?: string; location?: { directory?: string }; metadata?: Record<string, unknown> }>
+  }
+  worktree: {
+    refresh(input: { projectID: string }): Promise<unknown>
+    list(input: { projectID: string }): Promise<{ directory: string; strategy?: string }[]>
   }
   integration: {
     connection: {
@@ -102,6 +108,24 @@ async function setup(ctx: V2Context) {
     return gitToplevel(directory)
   }
 
+  // The worktree inventory of the calling session's project. git_worktree
+  // creates and removes through the strategy itself (V2's create takes a
+  // directory name, which cannot carry a branch with a slash), then refreshes
+  // this inventory so the TUI lists the result.
+  const worktreesFor = (sessionID: string): ToolContext["worktrees"] => {
+    const projectID = async () => {
+      const id = (await ctx.session.get({ sessionID })).projectID
+      if (!id) throw new Error(`Session ${sessionID} has no project.`)
+      return id
+    }
+    return {
+      refresh: async () => {
+        await ctx.worktree.refresh({ projectID: await projectID() })
+      },
+      list: async () => ctx.worktree.list({ projectID: await projectID() }),
+    }
+  }
+
   const oauthAccess = async (integrationID: string): Promise<OAuthAccess | undefined> => {
     const connection = await ctx.integration.connection.active(integrationID)
     if (!connection) return undefined
@@ -117,11 +141,13 @@ async function setup(ctx: V2Context) {
         name: id,
         description: spec.description,
         input: z.object(spec.args),
-        async execute(input: any, context: { sessionID: string }) {
+        async execute(input: any, context: { sessionID: string; signal?: AbortSignal }) {
           const toolContext: ToolContext = {
             worktree: await worktreeFor(context.sessionID),
             oauthAccess,
             sessionID: context.sessionID,
+            signal: context.signal,
+            worktrees: worktreesFor(context.sessionID),
             sessionMetadata: async () => {
               try {
                 return (await ctx.session.get({ sessionID: context.sessionID })).metadata

@@ -83,14 +83,20 @@ runs on the default checkout. A build refuses a default-branch worktree, so
 after the Client's approval `opencode_session workspace` gives the idle plan
 session a worktree of its own: the plugin fetches and runs
 `git worktree add --no-track -b <branch>` from the fetched remote default branch
-(`base=head` starts from the current commit) under `opencode.worktree_root`, moves the session there with the
-service's `move` route at the real path (a symlinked spelling makes the service
-file it outside its project and diffs go empty), rebinds
+(`base=head` starts from the current commit) under `opencode.worktree_root` as
+`<root>/<repository name on origin, else the main checkout's directory
+name>/<branch with / as ->`, moves the session there with the service's `move`
+route at the real path (a symlinked spelling makes the service file it outside
+its project and diffs go empty), rebinds
 `metadata.hermes.branch` and renames the session; if the move or the rebinding
 fails it moves the session back and removes the worktree and branch. Git runs
 without hooks and with a minimal environment, since a tracked `core.hooksPath` is
 code a write run can change and this process holds the gateway's secrets. The
-service's own worktree route is not used: it can only create a detached HEAD. A
+service's own worktree route is not used: `workspace` creates, binds and rolls
+back the worktree in one step it can verify. OpenCode's worktree strategy
+(`opencode/lib/worktrees/strategy.ts`, used by the TUI and `git_worktree`) keeps
+the same layout and base, so change the two together; a run's ruleset denies
+`git_worktree`, leaving `workspace` the only way a run gets a worktree. A
 fork prunes nothing and shares the parent's worktree; give it its own with
 `workspace` as well.
 
@@ -130,8 +136,9 @@ from the built-in `build` agent, so a broad allow never reopens `sudo` or
 worktree. Without it every edit is a round trip to the caller; the cost is that
 a subagent that denies itself edits (explore) loses that denial for the run. The
 allow is placed before the edit denies for OpenCode's config/skill directories
-and secret files, which therefore still win. `read-only` denies edits and the
-`worker` and `general` subagents. A write run needs the user's quoted
+and secret files, which therefore still win. `read-only` denies edits, the
+`worker` and `general` subagents, and the `git_commit` / `git_stage_hunks` /
+`git_verify_commits` tools, which write or run commands past the shell rules. A write run needs the user's quoted
 `approval`, a named non-default task branch, and a worktree no other session is
 running in (a person's included). V2 wildcards match whole values and `*` crosses
 `/`, so secrets are spelled `*.env`, `*.pem`, … (`**/.env` misses a root-level

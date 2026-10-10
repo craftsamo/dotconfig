@@ -1,4 +1,5 @@
 import { tool } from "./define"
+import { runGh, runGhJson } from "./exec"
 
 /**
  * Generic GitHub Projects (v2) toolset, plus the issue-lifecycle operations
@@ -29,22 +30,6 @@ const DEFAULT_TITLE = "Roadmap"
 const TEMPLATE_OWNER = "@me"
 const TEMPLATE_TITLE = "Roadmap Template"
 const REST_API_VERSION = "X-GitHub-Api-Version: 2026-03-10"
-
-async function runGh(argv: string[], cwd?: string): Promise<string> {
-  let p = Bun.$`gh ${argv}`
-  if (cwd) p = p.cwd(cwd)
-  const res = await p.nothrow().quiet()
-  if (res.exitCode !== 0) {
-    const err = res.stderr.toString().trim() || res.stdout.toString().trim()
-    throw new Error(`gh ${argv.join(" ")} failed (exit ${res.exitCode}):\n${err}`)
-  }
-  return res.stdout.toString()
-}
-
-async function runGhJson(argv: string[], cwd?: string): Promise<any> {
-  const out = (await runGh(argv, cwd)).trim()
-  return out ? JSON.parse(out) : null
-}
 
 async function resolveOwner(owner: string | undefined, cwd?: string): Promise<string> {
   if (owner && owner.trim()) return owner.trim()
