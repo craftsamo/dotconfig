@@ -311,7 +311,7 @@ describe("git_provenance", () => {
     const sha = f.commit("feat: add", { "a.txt": "a\n" })
     const res = runWithFakeGh(f, { module: "git", name: "provenance", args: { sha } }, github(sha))
     expect(res.out).toMatchObject({
-      commit: { sha, subject: "feat: add", author: "Test" },
+      commit: { sha, subject: "feat: add", author: "Test", source: "local" },
       repo: "o/r",
       pulls: [{ number: 5 }],
       issues: [{ number: 9, title: "Bug", viaPR: 5 }],
@@ -328,6 +328,34 @@ describe("git_provenance", () => {
     const pick = runWithFakeGh(f, { module: "git", name: "provenance", args: { token: "needle" } }, github(first))
     expect(pick.out.commit.sha).toBe(first)
     expect(pick.out.pickaxe).toEqual({ hits: 1, newest: first.slice(0, 8), oldest: first.slice(0, 8) })
+  })
+
+  test("reads a commit this clone lacks from GitHub, and says when neither has it", () => {
+    const f = repo()
+    f.commit("local")
+    const full = "abcdef1".padEnd(40, "0")
+    const res = runWithFakeGh(f, { module: "git", name: "provenance", args: { sha: "abcdef1", repo: "up/stream" } }, [
+      { re: "^api repos/up/stream/commits/abcdef1 --jq", out: JSON.stringify({ sha: full, subject: "feat: far", author: "U", date: "2026-01-01T00:00:00Z" }) },
+      { re: `^api repos/up/stream/commits/${full}/pulls`, out: '[{"number":3,"title":"Far","state":"MERGED"}]' },
+      { re: "^pr view 3 --json closingIssuesReferences .* --repo up/stream$", out: "[]" },
+    ])
+    expect(res.out).toMatchObject({ commit: { sha: full, subject: "feat: far", source: "github" }, repo: "up/stream", pulls: [{ number: 3 }] })
+    const missing = runWithFakeGh(f, { module: "git", name: "provenance", args: { sha: "abcdef1", repo: "up/stream" } }, [])
+    expect(missing.error).toMatch(/neither in this clone .* nor in up\/stream on GitHub/)
+  })
+
+  test("refuses blame against another repository and lines not committed yet", () => {
+    const f = repo()
+    f.commit("init", { "a.txt": "a\nb\n" })
+    const foreign = runWithFakeGh(f, { module: "git", name: "provenance", args: { file: "a.txt", lines: "1,1", repo: "up/stream" } }, [
+      { re: "^repo view --json nameWithOwner", out: "o/r\n" },
+    ])
+    expect(foreign.error).toMatch(/local clone, which is o\/r, not up\/stream/)
+    f.write("a.txt", "changed\nb\n")
+    const dirty = runWithFakeGh(f, { module: "git", name: "provenance", args: { file: "a.txt", lines: "1,1" } }, [])
+    expect(dirty.error).toMatch(/not committed yet/)
+    const zero = runWithFakeGh(f, { module: "git", name: "provenance", args: { sha: "0".repeat(40) } }, [])
+    expect(zero.error).toMatch(/uncommitted changes/)
   })
 
   test("returns no PRs when GitHub has none, and needs an anchor", () => {
