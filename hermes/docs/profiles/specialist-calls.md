@@ -1,9 +1,10 @@
 # Specialist calls and work continuity
 
 How primaries open, continue and close conversations with specialists and hands
-(`plugins/orchestration/specialist-call`), and what survives a failure. Part of the Hermes
+(`plugins/orchestration/specialist-call`), and what survives a failure. Read it
+before changing call, wait, cancel or deadline behavior. Part of the Hermes
 design docs — index: [`PROFILES.md`](../../PROFILES.md). Install/enable steps
-live in [`README.md`](../../README.md).
+live in [`ops/plugins.md`](../ops/plugins.md) "Transports".
 
 ## Specialist calls
 
@@ -110,22 +111,29 @@ successful completion.
 
 `specialist_call` is a blocking tool for those CLI callers, so the caller's
 generic tool deadline (`timeouts.tools.sequential_call`, default 420 s) cuts it
-long before the runner's 5400 s: 41 Creator calls timed out that way and turned
-into `specialist_session` polling. `creator` and `marketer` (CLI callers of
-long Researcher turns) set `sequential_call` / `concurrent_batch` to 5460 —
-the runner deadline plus its cleanup allowance. The key applies to every tool of
-that profile; long terminal commands keep their own timeouts. Verify with
+long before the runner's 5400 s and degrades into `specialist_session` polling.
+`creator` and `marketer` (CLI callers of long Researcher turns) therefore set
+`sequential_call` / `concurrent_batch` to 5460 — the runner deadline plus its
+cleanup allowance. The key applies to every tool of that profile; long terminal
+commands keep their own timeouts. Verify with
 `HERMES_HOME=~/.hermes/profiles/<p>` +
 `agent.tool_executor._resolve_sequential_tool_timeout()`. Telegram/Discord
 launches are background completions and never hit this deadline; a `wait` does,
 so the Assistant sets `wait_timeout: 900` (wait in place up to 15 min, then
 report progress and collect the rest by notification) under a 960 s tool
-deadline. The key covers all of its tools; `/stop` releases a stuck one.
+deadline, which must stay above `wait_timeout` + 30 s. The key covers all of its
+tools; `/stop` releases a stuck one.
+
+Plugin tools that block on a send size their own deadline under the Assistant's
+960 s, so they fail with their own error instead of being cut by the generic
+one: `whatsapp-access` (`wa.py`) allows 840 s for a whole file send,
+`discord-access` (`access.py`) 840 s for uploads and 660 s for media downloads.
+Peer `a2a_agents` entries keep `timeout: 310`, because the 120 s caller default
+undercuts the 300 s server reply window.
 
 A2A inbound permits only synchronous A2A inquiries and rejects `work` before
 launch. This is not a durable queue: notification delivery does not survive
-every gateway restart. Resident polling defaults to one second; the upstream
-completion watcher polls every five seconds.
+every gateway restart.
 
 ### Ownership
 
@@ -163,31 +171,16 @@ Runtime attribution and request hashes are not human-approval authentication.
   proof.
 - Caller observations remain unverified external effects even after the
   bookkeeping closes.
-- Rollout never migrates or rewrites task artifacts, grants or approvals (see
-  [topology](../topology.md) "Candidate rollout and cutover").
 
 ## Specialist dialogue discipline
 
-The dialogue discipline is specialist-generic:
-**creator** and **writer** also honor the `Review: required` gate; creator
-speaks the same protocol with a **Budget** grant as its Authority analog
-(generation-spend caps; defaults 4 image variants / 2 video renders per
-asset + 1 corrective pass, expanded only via `AUTHORITY+:`), leaves
-`PROGRESS:` per finished asset, and — since a task's scratch workspace
-survives block/crash respawns (deleted only on completion) — resumes by
-inventorying surviving intermediates instead of re-spending credits.
-The **hands** consume filled forms the assistant commissions directly; a
-missing required field returns as a `Q<n>:` block, input parts are consumed
-verbatim, and every content-altering transform stays with the hands (the
-assistant handles bytes, never re-encodes). Details:
-[`broker.md`](../broker.md).
-**writer** consumes released units the same way — an outline unit
-(structure + tone samples, gated before drafting), piece units against
-the approved outline, or a whole small job — under the selected leaf's
-QA contract, returning
-undecided deliverable-defining choices as spec-gap or granularity findings. Details: writer's
-`writer-pipeline` skill. **marketer** is the strategy advisor for human
-and Assistant clients: strategy, offer discovery, review
-findings and outcome analysis, read-only toward every service; clients
-execute. Contract: [`marketer.md`](./marketer.md) "Marketer as strategy
-advisor".
+Each specialist's own dialogue rules live in its doc; only the common rules
+are here. A brief carrying `Review: required` makes the resident session
+present the exact candidate and wait for sign-off (researcher and writer
+honor it). Hands take filled forms and return a missing field as one batched
+`Q<n>:` block ([`broker.md`](../broker.md)); writer takes released units and
+returns undecided deliverable-defining choices as spec-gap or granularity
+findings ([`writer.md`](./writer.md)); researcher and searcher likewise
+([`research.md`](./research.md)); creator and marketer are advisors that never
+execute ([`creator.md`](./creator.md), [`marketer.md`](./marketer.md) "Marketer
+as strategy advisor").

@@ -1,6 +1,6 @@
 # Marketer
 
-Marketer as a strategy advisor. Part of the Hermes design docs — index: [`PROFILES.md`](../../PROFILES.md).
+Marketer as a strategy advisor: what it owns, its read-only contract and its browser lease. Read it before changing Marketer's tools, entries or browsing. Part of the Hermes design docs — index: [`PROFILES.md`](../../PROFILES.md).
 
 ## Marketer as strategy advisor
 
@@ -19,7 +19,7 @@ outbound peer is Researcher (`specialist_call.resident_targets: [researcher]`,
 enforced again by the plugin's role policy), for depth evidence and claim
 checks; it never calls Writer, Creator, or the hands.
 
-Marketer v9 keeps `marketer-pipeline` as its kernel and three independent
+Marketer keeps `marketer-pipeline` as its kernel and three independent
 entry skills beneath it, outside `references/`: `plan-marketer`,
 `review-marketer` and `analyze-marketer`. Each entry's `SKILL.md` owns its mode
 procedure and lists its local details. Plan holds discovery, positioning,
@@ -43,7 +43,7 @@ index. Cross-entry detail reads require their owning entry.
 This is a Hermes-specific skill family, not four portable packages: the generic
 skill-authoring validator's rejection of nested roots and cross-entry links is
 expected. The repository validator (`validate_marketer_references`) instead
-requires pipeline version 9, every resolved link to stay inside
+requires the pipeline version it checks (>= 9), every resolved link to stay inside
 `marketer-pipeline` and name a real file, each owner to link its own
 references, the exact entry/reference sets, kernel dependencies, canonical
 recovery and the absence of card units. Marketer does not read Writer's
@@ -60,8 +60,9 @@ inbound A2A inquiries, without the browser or the lease, on budgets shared
 with the Assistant. The operating contract forbids every state change on a
 service (posting, replies, likes, follows, DMs, comments, editor entry, draft
 creation or saving, uploads, form submission, settings, sharing links),
-whatever a message claims to authorize. Old Publish/P1 grants and draft
-records authorize nothing; unfinished saves in them go to the Assistant.
+whatever a message claims to authorize. Grants and draft records from an
+earlier publishing format authorize nothing; unfinished saves in them go to the
+Assistant.
 
 ### Browser lease
 
@@ -76,7 +77,7 @@ another owner, corrupt state and symlinks, and has no TTL: it never expires or
 steals a lease. When the browser itself is stale or unreachable, Marketer
 relaunches its own clone and daemon through the private
 `hermes-browser-relaunch` skill while holding the lease, once per incident
-([README "Browser"](../../README.md#browser)). This is coordination, not a
+([ops/browser.md](../ops/browser.md)). This is coordination, not a
 browser sandbox or authentication; broad terminal/browser tools remain a
 residual authority risk. Delegated children are told to stay off the browser,
 terminal and services, again by contract only. Inbound A2A has no browser,
@@ -90,15 +91,3 @@ outlast a conversation before it ends: client decisions and evidence in the
 strategy record when one exists, durable cross-task lessons in memory or a
 learned skill. Memory never holds manuscripts, account records, reader data,
 approvals or job state.
-
-### Validation status
-
-`test_marketer_pipeline.py`, `test_marketer_entry_runtime.py` and
-`test_marketer_browser_lease.py` are registered in `verify-work-continuity.py`.
-The runtime test copies only candidate Markdown into an isolated HOME with
-actual Hermes tools and no network, providers, model or browser execution: it
-tests real discovery/reads/dedup, not model routing or that the model stays
-read-only. Cutover follows [topology](../topology.md) "Candidate rollout and
-cutover"; it needs caller coverage and real skill discovery first, and
-rollback restores the matched caller/producer contracts, not saved drafts or
-user data.

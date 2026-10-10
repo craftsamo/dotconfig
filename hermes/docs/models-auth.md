@@ -1,6 +1,6 @@
 # Models, authentication and secrets
 
-Model fallback chains, authentication inheritance and secrets layering. Part of the Hermes design docs — index: [`PROFILES.md`](../PROFILES.md).
+Model fallback chains, authentication inheritance and secrets layering. Read it before changing a profile's model chain, a credential or a secret layer. Part of the Hermes design docs — index: [`PROFILES.md`](../PROFILES.md).
 
 ## Models and fallback chains
 
@@ -33,35 +33,24 @@ and the **image-creator** / **audio-creator** hands lead on
   per week, so Sonnet stays alive when the Opus cap is the reason T1 failed.
   Prose quality (`writer`, `marketer`) has no public benchmark. `writer` leads
   on Sonnet 5.5 to spare the shared Claude weekly pool (T2 Opus 5.5, T3 Fable
-  5.1) — revert it to Opus 5.5 if its output degrades; `marketer` still leads
-  on Opus 5.5 — revert it to Fable 5.1 if its output degrades.
+  5.1); `marketer` leads on Opus 5.5.
 - **`default` stays off Fable deliberately** — every `--clone` inherits its
   chain, and a neutral starting point should not lead with the model that has
   the tightest sub-cap.
 - **The Creator family splits by hand.** `creator` and `video-creator` lead
-  on Opus 5.5; `image-creator` and `audio-creator` lead on Sonnet 5.5. A blind
-  A/B on one launch-video brief (isolated homes, model pinned, fallback off;
-  evidence in
-  `~/Workspaces/Projects/Acme/docs/hermes-studies/creator-ab-2026-09/VERDICT.md`)
-  scored every Sonnet 5 run fidelity 1/5 whether it ran the full pipeline or a
-  bare single agent, while Opus 5.5 reached 3-4/5 on both. A later blind
-  per-family A/B of Opus 5.5 against Sonnet 5.5 (same isolation; evidence in
-  `~/Workspaces/Projects/Acme/docs/hermes-studies/creator-quality-2026-09-29/VERDICT.md`)
-  found Sonnet 5.5 equal on image and audio leaves at about 0.6x the tokens,
-  but clearly behind on authored video (craft −0.8, lost 8 of 8 explainer
-  pairings) and inconclusive for Creator as broker. The Opus-led pair takes
-  Fable 5.1 as T2, then Sonnet 5.5; the Sonnet-led pair takes Opus 5.5 as T2,
-  then Fable 5.1. All four keep `openrouter` / `minimax/minimax-m3` as the
-  tail, so a hand still inherits `creator`'s vision fallback for eyeballing
-  generated assets. The launch-video study measured
-  500-970 `vision_analyze` calls and 20-39M input tokens per video job; three
-  concurrent Opus video jobs hit a 429 within ~20 min — a concurrency limit,
-  not the usage cap. Watch the Opus sub-cap: a silent drop to the Sonnet or
-  minimax tier degrades Creator and video output.
-  Grok is deliberately deferred as a possible insertion BEFORE the Sonnet
-  tier, pending runtime capability/entitlement validation (vision is
-  unverified for these profiles); it is not adopted silently, and the
-  OpenRouter tail is not removed to make room for it.
+  on Opus 5.5; `image-creator` and `audio-creator` lead on Sonnet 5.5. Sonnet
+  matches Opus on image and audio leaves at about 0.6x the tokens but is clearly
+  behind on authored video, where a Sonnet 5 lead scored fidelity 1/5 (rule and
+  reason: [decision](./decisions/creator-family-model-split.md)). The Opus-led
+  pair takes Fable 5.1 as T2, then Sonnet 5.5; the Sonnet-led pair takes Opus
+  5.5 as T2, then Fable 5.1. All four keep `openrouter` / `minimax/minimax-m3`
+  as the tail, so a hand still inherits `creator`'s vision fallback for
+  eyeballing generated assets. A video job makes hundreds of `vision_analyze`
+  calls and reads tens of millions of input tokens, so concurrent Opus video
+  jobs hit a 429 concurrency limit, not the usage cap. Watch the Opus sub-cap:
+  a silent drop to the Sonnet or minimax tier degrades Creator and video output.
+  Grok is not adopted before the Sonnet tier until its capability and vision
+  are validated at runtime; the OpenRouter tail is not removed to make room.
 - **Searcher leads on GPT-6.1 Sol** (`openai-codex`), then Sonnet 5.5, then
   `xai-oauth` / grok-4.7, then the OpenRouter tail. xAI stays in the chain
   because `x_search` and Imagine video draw on it. Searcher is the only profile that leads on the
@@ -96,27 +85,27 @@ so the table's T1 is their T2 (see "Console credit lanes").
 A `fallback_providers` entry carries no per-entry `reasoning_effort` or
 `api_mode` for the main agent: on each fallback activation Hermes re-reads the
 profile config and re-resolves both from provider / base URL / model
-(`chat_completion_helpers.py`). **There is no per-tier effort knob in
-0.21.0** — `agent.reasoning_overrides` is a _session_ concept
+(`chat_completion_helpers.py`). **There is no per-tier effort knob** —
+`agent.reasoning_overrides` is a _session_ concept
 (`gateway/session_state.py`, driven by `/model`), not a config key, so a
 profile's single `agent.reasoning_effort` applies to every tier in its chain.
 
 Routing is probed with one-token requests per provider/model, not evaluated
-for per-profile behavior or prose quality; the Creator-family split is
-backed by the two blind A/Bs above (small n per arm). Provider facts:
+for per-profile behavior or prose quality; only the Creator-family split rests
+on a comparison (small n per arm). Provider facts:
 
 - **Anthropic native** (`base_url: https://api.anthropic.com`) — OAuth resolves
   from the global Claude Code credential/token, not per-profile `auth.json`
   (see "Authentication inheritance"). **Fable 5.1 is not in the `hermes model`
-  picker** (`/v1/models` lags the alias; the curated list stops at
-  `claude-fable-5`), so it is written straight into `config.yaml`;
-  `get_model_context_length` reports 1M for it via the `claude-fable` prefix.
+  picker** (`/v1/models` lags the alias), so it is written straight into
+  `config.yaml`.
 - **Codex** (`base_url: https://chatgpt.com/backend-api/codex`) — **images,
   plus one last-resort chat tier.** GPT-6.1 Sol sits ahead of the OpenRouter
   tail on `writer`, `researcher` and `assistant`, and the lead tier on
-  `searcher`, so a spent Claude weekly pool degrades to a capable model instead of a cheap one. No auxiliary task is
-  pinned to it, but searcher's stay `auto`, which resolves to its main model:
-  compression and titles there now run on GPT-6.1 Sol. The ChatGPT subscription
+  `searcher`, so a spent Claude weekly pool degrades to a capable model instead
+  of a cheap one. No auxiliary task is pinned to it, but searcher's stay `auto`,
+  which resolves to its main model, so compression and titles there run on
+  GPT-6.1 Sol. The ChatGPT subscription
   is sized for OpenCode (its searchers,
   `debugger`, `reviewer-deep` and cheap subagents on GPT-6.1 Sol, plus the
   `alternate` of the Assistant's OpenCode roles when the Claude pool is spent)
@@ -141,14 +130,11 @@ backed by the two blind A/Bs above (small n per arm). Provider facts:
   reach it. Its context length is not in the static table either (the closest
   prefix, `grok-4`, is 256K against the catalog's 500K).
 
-  **A lapsed xAI OAuth is no longer a searcher outage, but it still hides
-  `x_search`.** While xAI led, credential resolution failed before the request
-  was built, so the agent aborted with `xAI OAuth state is missing access_token`
-  and `fallback_providers` never engaged. With Codex leading, chat no longer
-  depends on that login; the same gate still hides `x_search` from the
-  schema, which
-  `hermes doctor` misleadingly reports as `x_search (missing XAI_API_KEY)` — the tool
-  prefers the OAuth bearer and only falls back to the key (`tools/xai_http.py`).
+  **A lapsed xAI OAuth hides `x_search`.** Chat does not depend on that login
+  (Codex leads searcher), but the credential gate still removes `x_search` from
+  the schema, which `hermes doctor` misleadingly reports as
+  `x_search (missing XAI_API_KEY)` — the tool prefers the OAuth bearer and only
+  falls back to the key (`tools/xai_http.py`).
   Re-authenticate with `hermes model` from the **default** profile — never
   with `-p`, which would write the worker's own `auth.json` and shadow the
   inherited credential.
@@ -165,24 +151,23 @@ backed by the two blind A/Bs above (small n per arm). Provider facts:
   Below that sit the configured chain and a last-resort hop to the main agent
   model, so a pinned aux model never becomes a single point of failure.
   **`vision` deliberately stays `auto`** — pinning it disables the main
-  model's native image vision (see [`README.md`](../README.md#plugins)).
+  model's native image vision (see [`ops/plugins.md`](ops/plugins.md)).
   **`background_review`** (the post-turn memory / skill review fork) is pinned
   to `claude-sonnet-5-5` on `assistant`: left on `auto` it replays the whole
-  conversation on the main Opus model every few turns, which was most of the
-  Assistant's weekly cache reads. Auxiliary usage is read from the
-  `session_model_usage` table in each profile's `state.db` (`task <> ''`), not
-  from `sessions`.
+  conversation on the main Opus model every few turns. Auxiliary usage is read
+  from the `session_model_usage` table in each profile's `state.db`
+  (`task <> ''`), not from `sessions`.
 - **OpenRouter tails split vision vs text-only.** Profiles whose fallback turns
   may need to SEE something keep a vision-capable tail: `default` /
   `assistant` / `researcher` / `searcher` / `marketer` use `xiaomi/mimo-v2.5`
   (omnimodal, cheap; video analysis stays decoupled via the
-  `video-analyze-mimo` plugin — see `README.md` "Plugins"), Creator's hands
+  `video-analyze-mimo` plugin — see [`ops/plugins.md`](ops/plugins.md)), Creator's hands
   `minimax/minimax-m3`. Text-only work rides the cheaper
   `deepseek/deepseek-v4-flash` (`writer`). Also valid:
   `google/gemini-3.5-flash`.
-- **Copilot is in no chain** — the subscription became unusable and its
-  catalog drift 404'd tiers silently. `GITHUB_TOKEN` stays in the `hermes`
-  layer for the Skills Hub; it is not a model-provider credential.
+- **Copilot is in no chain** — catalog drift 404s a tier silently.
+  `GITHUB_TOKEN` stays in the `hermes` layer for the Skills Hub; it is not a
+  model-provider credential.
 
 Optional: set `delegation.model: google/gemini-3.5-flash` on default /
 assistant to route `delegate_task` subagents to a cheap model.
@@ -272,12 +257,10 @@ only an API key can. OpenCode spends the same credits
   tens of millions of tokens and would empty it. The other profiles are
   unchanged. While the subscription's reset is ahead, turns stay on the lane:
   that drains the credits by design.
-- **Rate limits.** A Console org linked for credits starts on the Start tier.
-  One org's Limits page showed Opus 5.5 and Sonnet 5.5 at 2M input tokens (cache
-  reads excluded), 400k output tokens and 1,000 requests per quota row, with a
-  24 h peak of 36% under OpenCode's parallel specialists; the other org was not
-  checked. A lane-first profile adds little to that. Raising a tier is a request
-  in the Console; its Edit button only lowers a workspace's share.
+- **Rate limits.** A Console org linked for credits starts on the Start tier,
+  and its limits are per org, shared with OpenCode's parallel specialists.
+  Raising a tier is a request in the Console; its Edit button only lowers a
+  workspace's share.
 - **Two orgs, one tier.** The `anthropic` credential pool holds both keys as
   env-sourced entries: `ANTHROPIC_CREDIT_SUB_ACCOUNT_KEY` (priority 0), then
   `ANTHROPIC_CREDIT_MAIN_ACCOUNT_KEY` (priority 1); `hermes auth list` shows
@@ -318,11 +301,9 @@ only an API key can. OpenCode spends the same credits
   copy of the same value, in OpenCode's `opencode` project. The pool entries
   read the variable by name, so rotate both copies and restart the gateway. A
   profile without its own `anthropic` rows reads the root `auth.json` read-only;
-  its first rotation or bench writes a copy of its own (video-creator already
-  has one), which then shadows the root: `hermes auth list` at the root does not
-  show or clear that profile's bench, and a rename at the root does not reach it.
-  Neither Console org has a payment method or auto-reload, so an empty balance
-  stops requests instead of billing.
+  its first rotation or bench writes a copy of its own, which then shadows the
+  root: `hermes auth list` at the root does not show or clear that profile's
+  bench, and a rename at the root does not reach it.
 - **Exposure.** Terminal and code-execution children drop secrets by name, and
   the list holds each registered provider's variables (`ANTHROPIC_API_KEY`,
   `ANTHROPIC_TOKEN`, `OPENROUTER_API_KEY`), not these two names, so a child of
@@ -378,17 +359,12 @@ default profile's `~/.hermes/auth.json`.
   into the **Hermes** account. OpenCode runs on the **sub account** (its own
   subscription) through its own OAuth login (the
   `@ex-machina/opencode-anthropic-auth` plugin, stored in OpenCode's database),
-  which never reads or writes the Keychain. Claude Code's suffixed entry for the
-  sub account (`CLAUDE_CONFIG_DIR=~/.claude-sub`, alias `claude-sub`) no longer
-  feeds OpenCode. A plain `claude /login` therefore changes **Hermes'** account,
+  which never reads or writes the Keychain. A plain `claude /login` therefore
+  changes **Hermes'** account,
   not OpenCode's; after one, verify with
   `security find-generic-password -s "Claude Code-credentials"` + the OAuth
   profile endpoint before assuming the split still holds.
-- **Env tokens** work everywhere via the shim: xAI accepts `XAI_API_KEY`;
-  Copilot reads `COPILOT_GITHUB_TOKEN` → `GH_TOKEN` → `GITHUB_TOKEN` →
-  `gh auth token` (`copilot_auth.py`) before stored OAuth creds. Should Copilot
-  return to a chain, a non-Copilot-capable `GITHUB_TOKEN` in the `hermes`
-  layer would 401 it; `COPILOT_GITHUB_TOKEN` (highest priority) overrides it.
+- **Env tokens** work everywhere via the shim: xAI accepts `XAI_API_KEY`.
 - **Parallel OAuth refresh.** Several workers refreshing the same rotating
   refresh token at once can race to `invalid_grant`. If it bites, move
   high-parallelism workers' T1 to an API-key provider (OpenRouter /
@@ -400,7 +376,7 @@ No `.env`. The `bin/hermes` shim injects the `global` then `hermes` Keychain
 layers at launch, and a profile alias runs bare `hermes -p <name>` through the
 same shim (`~/.config/bin` precedes `~/.local/bin` on `PATH`), so **every
 profile gets `global` + `hermes`** — mechanics in
-[`README.md`](../README.md#secrets). What belongs in each layer:
+[`ops/install.md`](ops/install.md) "Secrets mechanics". What belongs in each layer:
 
 - **`hermes`** — keys only Hermes uses, needed by every profile and every
   worker session: `OPENROUTER_API_KEY` (the OpenRouter tails),
@@ -433,17 +409,16 @@ topic for assistant). Raw-env readers (dashboard auth) still read the process
 env the gateway launcher injects — which is also why `BU_CDP_URL` must never be
 in those layers: `browser_exec` copies it raw from the process env and it would
 pre-empt real-profile browsing for every profile at once (see
-[`README.md`](../README.md#browser)).
+[`ops/browser.md`](ops/browser.md)).
 
 **The helper has one shot per profile per process.** Hermes runs
 `secrets.command` once per `HERMES_HOME` (no re-pull) and kills it at
 `helper_timeout_seconds`; a Telegram adapter that then finds no token fails
-NON-retryably, so that bot is dead until the next gateway restart
-(`✗ telegram failed to connect (profile: …)` right after `[secrets:command]
-helper timed out`). `profile-secrets.sh` therefore fetches each Keychain layer
-exactly once — a duplicated fetch pushed the bot profiles past the timeout
-under boot load — and every config sets `helper_timeout_seconds: 60`. The
-maintainer rules for editing the helper live in `AGENTS.md`.
+NON-retryably, so that bot is dead until the next gateway restart.
+`profile-secrets.sh` therefore fetches each Keychain layer exactly once (a
+second fetch can push the bot profiles past the timeout under boot load) and
+every config sets `helper_timeout_seconds: 60`. The maintainer rules for
+editing the helper live in `AGENTS.md`.
 
 Worker sessions need no unique secret (see
 [`topology.md`](./topology.md) "Topology"); the gateway launcher's own `PATH`

@@ -1,8 +1,9 @@
 # OpenCode runtime
 
 How the Assistant drives OpenCode: the plugin, bindings, permissions, models,
-hand-backs and rendered-UI checks. Part of the Hermes design docs — index:
-[`PROFILES.md`](../PROFILES.md).
+hand-backs and rendered-UI checks. Read it before changing
+`plugins/orchestration/opencode` or the Assistant's engineering entries. Part
+of the Hermes design docs — index: [`PROFILES.md`](../PROFILES.md).
 
 ## Who does what
 
@@ -105,7 +106,7 @@ copy in the parent's worktree and prunes nothing; give it its own with
 
 **One repository per session.** `session_move` is a tool the agent reaches
 through `execute`; it asks no permission and takes any session id, so an agent
-can move itself (or another session) anywhere (measured on 2.0.23). The binding therefore records the
+can move itself (or another session) anywhere. The binding therefore records the
 repository (`metadata.hermes.repo`, the real git common directory), and every
 turn refuses a session whose directory no longer belongs to it, or that was bound
 before the repository was recorded; a move to another branch of the same
@@ -134,7 +135,7 @@ round trip.
 
 **Permissions.** OpenCode 2 evaluates ordered rules, last match wins: global
 config, then the agent's own `permissions`, then the session's ruleset; and
-every subagent session copies its parent's ruleset (measured on 2.0.23). So the
+every subagent session copies its parent's ruleset. So the
 session ruleset (`policy.rules`) owns each run's constraints for the whole
 session tree, and it is applied after a subagent's own posture. It therefore
 holds denies, asks and narrow allows: the worktree boundary
@@ -227,9 +228,9 @@ settings. Contract, with the Hermes counterpart:
 
 **Tests.** `opencode/tests` run against a fake service (`fake_service.py`) that
 models the messages, idle markers, requests and forms the real service returns.
-They cannot show what the real service does; the shape of those replies was
-measured on OpenCode 2.0.23 and a real-service smoke run is a manual step before
-a cutover.
+They cannot prove real-service behavior: the shape of those replies, and the
+service behavior described above, were measured on OpenCode 2.0.23, and a
+real-service smoke run is a manual step before a cutover.
 
 ## Rendered UI
 
@@ -246,8 +247,8 @@ Three questions, three owners:
   directory, never the worktree, loads only local or private-network pages,
   reads a baseline only from under `~/Workspaces`, and runs its Node child with
   a minimal environment.
-- **Agreement with the approved look** — given `baseline`
-  (`~/Workspaces/Projects/<Group>/assets/ui-baseline/<repo>/`, outside the
+- **Agreement with the approved look** — given `baseline` (a
+  `ui-baseline/<repo>/` directory under `~/Workspaces`, outside the
   repository), the same tool writes one baseline | current | diff image per
   page; the Assistant reads them and decides whether the approved scope explains
   each change.

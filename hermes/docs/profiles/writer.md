@@ -1,6 +1,6 @@
 # Writer
 
-Writer leaves and v8 routing, the six families, craft and editorial QA, and the Japanese inspector. Part of the Hermes design docs — index: [`PROFILES.md`](../../PROFILES.md).
+Writer leaves and routing, the six families, craft and editorial QA, and the Japanese inspector. Read it before changing a Writer leaf, its QA contract or the inspector tool. Part of the Hermes design docs — index: [`PROFILES.md`](../../PROFILES.md).
 
 ## Writer leaves
 
@@ -35,15 +35,7 @@ measured evidence, nor execute a writing workflow. An explicit outline release
 still uses a write leaf.
 
 Every Writer execution entry, including consultation, follows the shared
-[entry loading contract](../topology.md#entry-loading-contract): full kernel,
-selected entry body and current required detail references on each inbound turn,
-completion notification and before a midturn operation/subject/scope change.
-Status (v8): deployed in the live checkout and exercised with real models
-through Assistant resident `work` calls from both CLI and Telegram. The
-root name `writer-pipeline`, all 18 production leaf names, paths and forms, and
-the canonical shared `references/acceptance/` stay unchanged; `consult-writer`
-is the one new entry. Rollback restores matched producer/caller contracts
-together (see [topology](../topology.md) "Candidate rollout and cutover").
+[entry loading contract](../topology.md#entry-loading-contract).
 
 ## Writer post family
 
@@ -106,7 +98,7 @@ Publication and unresolved asset/editor work retain their separate gates.
 ## Writer document family
 
 Document leaves live under `writer-pipeline/<write|edit|analyze>/document/`,
-including legacy briefs named documentation/business-document. Formats are local
+including briefs named documentation or business-document. Formats are local
 form options, not new profiles: readme, guide, reference, report, minutes,
 proposal, slides, release-notes and issue, with custom formats accepted as
 described constraints. Factual release notes are documents; promotional
@@ -119,9 +111,8 @@ original and named scope; analysis returns a report, not a replacement document
 or a new document's template. No source-only result claims executed commands,
 reproduced research, rendered slides or repository changes. The requester
 accepts actual evidence under the document gate; OpenCode (driven by the Assistant) still owns
-repository integration. Business-format guidance re-expresses ideas from the
-earlier natural-japanese adaptation without its constitution or fixed-count
-rules; provenance is in `agents/README.md`.
+repository integration. Business-format guidance sets no constitution or
+fixed-count rules; provenance is in `agents/README.md`.
 
 ## Writer message family
 
@@ -202,10 +193,9 @@ video backend accepts a storyboard.
 
 All existing leaf references across the six families carry conditional craft
 guidance, locally authored examples grounded in their stated material, and
-retain conditions, preserving operation-specific scope. `natural-japanese`
-v1.5.0 is the craft reference baseline, reconstructed rather than imported;
-source links, local adaptations and provenance are in `agents/README.md`. No
-adopted rule mandates a genre template, personal anecdote, fixed sentence count
+retain conditions, preserving operation-specific scope. The craft reference
+baseline, source links, local adaptations and provenance are in
+`agents/README.md`. No adopted rule mandates a genre template, personal anecdote, fixed sentence count
 or universal conclusion-first structure.
 
 The requester's shared Writing QA independently scores the actual released unit
@@ -235,8 +225,7 @@ The canonical requester contract is public at
 `profiles/writer/skills/writer-pipeline/references/acceptance/{index,prose,script}.md`
 and is not copied elsewhere. Assistant's private QA files are thin adapters;
 caller external skill roots must expose Writer's pipeline for name-based reads (default's filesystem fallback: see
-[topology](../topology.md) "Default is the assistant's CLI counterpart"). No
-private task records or purchased source text moved. All 19 Writer non-kernel
+[topology](../topology.md) "Default is the assistant's CLI counterpart"). All 19 Writer non-kernel
 names stay disabled on the Assistant (18 production leaves plus
 `consult-writer`) so reference access does not import an execution menu; the
 root remains readable and consultation stays delegated to Writer. Reading a form
@@ -255,21 +244,15 @@ mode's mechanical score measures reader cost, never authorship, and is evidence
 for a diagnosis or the requester's reading, not a pass.
 
 The `writing_inspect` tool (toolset `writing-inspection`) is transport, not
-inspection rules. It accepts `text` plus optional `modes` (`naturalness`,
-`expression`, `notation`, `reading-load`, `outline`, `terms`, `structure`,
-`revision`), `genre`, `experimental`, `stance` and `original`; `revision` and
-`original` require each other. Default modes are all but `revision`, plus
-`revision` when `original` is given. Each text is bounded to 131072 UTF-8 bytes,
-with a 20-second deadline, reachable only from a Writer session. A gateway (A2A)
+inspection rules; its arguments and limits are in the tool schema. Each call is
+bounded in size and time, and reachable only from a Writer session. A gateway (A2A)
 turn must be bound to the Writer profile; a resident CLI turn binds no session
 profile, so the Writer home identifies it and any profile it inherits must be
 Writer's. Without the dedicated Python from `agents/README.md` the tool returns
 `unavailable`. It runs the canonical inspector as a `subprocess` with no
 shell, no source writes and no network, and rejects a report whose schema or
-input hashes do not match. To fit the transport budget it trims revision detail
-lists first, then the longest of findings / outline / terms, counting every
-removal in the report's truncation metadata (status `partial`). Ordinary host
-conversation-history persistence still applies to whatever text is sent. The
-old Writer routing/review cluster and its legacy catalogs, scripts and pass
-receipts are retired; do not place an archive back under a discovered skill
-root. Attribution and provisioning live in `agents/README.md`.
+input hashes do not match. A report trimmed to fit the transport budget counts
+every removal in its truncation metadata (status `partial`). Ordinary host
+conversation-history persistence still applies to whatever text is sent. Do not
+place an archive back under a discovered skill root. Attribution and
+provisioning live in `agents/README.md`.
