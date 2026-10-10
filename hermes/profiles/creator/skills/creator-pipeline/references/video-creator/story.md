@@ -11,7 +11,7 @@ Read the [kernel](../../SKILL.md) first. The leaf's form is authoritative; this 
 - 10–120 s (default 60); aspects 9:16 (default), 16:9, 1:1, 4:5; 24–60 fps (default 30).
 - The cast is approved art that already exists (a mascot anchor and its poses, or supplied character images); characters are never generated per scene. Speaking is staged with poses, expressions and timing; no lip sync.
 - Dialogue comes from an approved script, sound from a finished WAV or Mix master; pending lines or inputs stay pending.
-- Rendering (`style`): picture-book, cartoon, anime-2d, paper-cut, sumi-ink, watercolor, crayon, silhouette, or a described one that suits the cast art. The style renders the world only; for an anime story the cast itself must already be anime-style art, such as a mascot `anime-2d` anchor and poses. `world` carries setting, era, places, mood; supplied backgrounds, props and footage inserts can be added.
+- Rendering (`style`): picture-book, cartoon, anime-2d, painted-anime (painted backdrops behind a cel cast; supplied painted plates give the richest result), stark-graphic (two or three flat colours, geometric planes, colour cards), paper-cut, sumi-ink, watercolor, crayon, silhouette, or a described one that suits the cast art. The style renders the world only; for an anime story the cast itself must already be anime-style art, such as a mascot `anime-2d` anchor and poses. `world` carries setting, era, places, mood; supplied backgrounds, props and footage inserts can be added.
 - Not expressible: learning explainers, product or place presentations, generated MVs or clips, new character design, speech or music synthesis.
 
 ## Where directions go

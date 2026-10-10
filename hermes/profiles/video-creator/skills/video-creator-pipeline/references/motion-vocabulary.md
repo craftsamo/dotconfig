@@ -221,6 +221,7 @@ imitation named in the same row.
 | stained glass | jewel-coloured panes between thick dark lead lines, light glowing through | SVG polygons with a thick dark stroke, an inner radial glow, a sheen / shimmer passing over |
 | tile mosaic | the image built from small square tiles with grout gaps and slightly uneven colours | a grid of small rects coloured from a source shape, fixed-seed jitter; reveal staggered from the centre |
 | silhouette | solid dark shapes against a warm gradient sky; smoke and steam as soft shapes | flat dark SVG shapes over a gradient, parallax layers |
+| stark graphic | two or three flat colours (black, white, one accent), places as bold geometric planes and repeated forms, extreme angles, wide empty fields, full-frame colour cards between scenes | flat SVG fills with no blur, gradient or texture; long holds broken by one snap move; hard cuts on the beat; cards as full-frame rects; never more than 3 flashes in any one second, and no saturated red full-frame flash |
 
 ### Screen and retro
 
