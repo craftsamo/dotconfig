@@ -111,8 +111,9 @@ permissions decide which specialists may run.
   `edit` ask rule. Plan retains its exception for `~/.opencode/plan/*`; writing a
   plan file still requires the user's explicit request.
 
-New subagents use their configured model, otherwise the parent's model. A
-user-requested per-call `model` override takes precedence. General and the
+New subagents use their configured model, otherwise the parent's model; the
+specialists in the preflight table below take their route's model instead (see
+"Model pin"). A user-requested per-call `model` override takes precedence. General and the
 built-in Explore have no model configured and inherit the parent; use the
 specialists for their role and cheaper default models. Primary sessions retain
 their selected model when switching agents; the agent configuration is not a
@@ -183,7 +184,7 @@ The local plugin `lib/subagent-fallback` (listed last under `plugins` in
 `opencode.jsonc`) checks quota before a new specialist launch and chooses in
 this order:
 
-1. The configured primary model, unless Quota reports it exhausted.
+1. The route's primary model, unless Quota reports it exhausted.
 2. The role's alternate, when the primary is known exhausted and the alternate
    is not known exhausted. Missing or stale alternate data does not block
    this, since an exhausted primary is the worse bet.
@@ -194,8 +195,8 @@ this order:
 
 Missing, stale or unreadable data about the primary keeps the configured
 default, not a quota error or an automatic model switch. No independent
-balance/entitlement check is performed. Current model pins, variants and
-permissions are unchanged.
+balance/entitlement check is performed. Variants and permissions are
+unchanged; with `pinModels` (below) a project's own model for a role is not.
 
 | Role                     | Alternate model   | Variant |
 | ------------------------ | ----------------- | ------- |
@@ -260,7 +261,8 @@ stays in the internal marker, never in its notices. Quota's own public export
 contains connection IDs and display labels, but no access tokens.
 
 **Passthrough.** An explicit model, an existing sessionID, unknown roles and
-roles whose configured models changed keep the normal selection. During a task,
+(without `pinModels`) roles whose configured models changed keep the normal
+selection. During a task,
 Quota errors or exhaustion do not stop a child. Native provider quota errors
 and long rate-limit reset waits still end the protected task; short native
 transient retries are allowed. There is no model switch, restart or automatic
@@ -273,6 +275,21 @@ pool may still fail.
 Protection is sticky for marked children, including completed continuations:
 historical execution outcomes cannot prove current idleness. They retain their
 selected role and model; start a new child for a different explicit selection.
+
+**Model pin.** A project can ship its own agent file for a routed role (say
+`.opencode/agents/reviewer.md` on another model), and project definitions
+outrank global ones. With `pinModels: true` a new launch of a role in the table
+above still takes its route, whatever definition is in effect, global or
+project: `ROUTES` in `policy.ts` owns these models, and a test keeps
+`agents/<role>.md` in step with it. The plugin passes the route's model
+explicitly, keeps the project's prompt and permissions, and prefixes `[Model pin: <role>
+<from> → <to>; …]` (metadata `pin: { from, to }`, `from` null when the
+definition has no model). Lanes and the preflight then apply as usual. An
+explicit model, a continuation or an unknown role is never pinned, and the
+agent list still shows the project's model. An agent transform cannot do this
+on 2.0.23: plugin transforms run before Markdown agents are loaded, so those
+overwrite any model a plugin sets. There is no per-project exclusion yet; turn
+the whole thing off with `pinModels: false`.
 
 **Context limit.** The first alternate's text context may be at most
 160000 UTF-8 bytes plus 32768 headroom, relative to the catalog input or
@@ -303,7 +320,8 @@ guards for already-marked children remain. To keep those guards, do not remove
 the plugin or config entries or change auth while it is active. Keep the entry
 last, after quota, and trust no other later request mutator.
 
-Options: `enabled: true`, `creditsLastResort: true`, and for the credit lanes
+Options: `enabled: true`, `creditsLastResort: true`, `pinModels: true` (default
+off), and for the credit lanes
 below `creditLanes` (ordered provider IDs), `creditCooldownMs` (default one
 hour) and `primaryFallback` (default on). The independent usage reader, billing parser and usage-diagnostic RPCs have been
 removed. Tests use synthetic public exports and mocked OpenCode transports;
@@ -320,8 +338,8 @@ stops only new lane launches.
   first lane not known empty, with no subscription marker: the OAuth guards
   above do not apply to API-key requests. With every lane empty, the preflight
   above decides as before. The report carries `funding: console-credit` with
-  `from` / `to`. Agent files keep the subscription model; pinning a role to a
-  lane there skips the preflight and fails on an empty balance.
+  `from` / `to`. Agent files keep the subscription model; with `pinModels` a
+  lane named there is replaced by the route like any other model.
 - **In flight.** An empty balance (a plain 400 recognised by its "credit
   balance is too low" text), a bad key (401/403) or a window limit marks the
   lane out (for `creditCooldownMs`, one hour; a window limit only for the wait

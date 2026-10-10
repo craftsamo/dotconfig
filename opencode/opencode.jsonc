@@ -18,6 +18,9 @@
       "options": {
         "enabled": true,
         "creditsLastResort": true,
+        // A project's own agent file for a routed role (reviewer, verifier,
+        // ...) loses its model to the route; its prompt and permissions stay.
+        "pinModels": true,
         // Console credit lanes, in spending order (see the providers below).
         // Specialists try them before the subscription; the primary moves to
         // them when the subscription hits a window limit. [] turns it off.
