@@ -12,5 +12,5 @@ gemini/GEMINI.md
 hermes/profiles/**/*.md
 hermes/scripts/tests/**/*.md
 hermes/skills/**/*.md
-opencode/agent/**/*.md
+opencode/agents/**/*.md
 opencode/skills/**/*.md
