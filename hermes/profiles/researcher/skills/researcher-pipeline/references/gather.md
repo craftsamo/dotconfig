@@ -40,6 +40,8 @@ Virality != truth. A high search rank is not reliability.
   QA-passed findings when they come back — including adjudicating what
   the searcher flagged `Open for researcher`. The trust scoring stays
   yours.
+- **Technics** routed by [Capabilities](capabilities.md) carry the sources
+  and their order for a recurring purpose; follow the selected one's route.
 - **Learned playbooks on this profile** may inform retrieval when
   available, but are never a substitute for the source-evaluation method.
   Load one internally only when its retrieval method fits.

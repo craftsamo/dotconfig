@@ -2,10 +2,11 @@
 name: researcher-pipeline
 description: >-
   Researcher's purpose-first depth research kernel, required by the
-  investigate, compare, verify and advise modes. Each mode proposes, gathers
+  investigate, compare, verify and advise modes and their technics. Each mode
+  proposes, gathers
   only under agreement and self-checks. Resident and inbound A2A only. Not
   breadth retrieval, artifact production or caller acceptance.
-version: 11.0.0
+version: 12.0.0
 author: CraftSamo
 license: MIT
 metadata:
@@ -97,17 +98,37 @@ the result against the mode's Verification before the reply. The mode entry
 says what each stage means for its kind of question. These are stages of one
 unit, not separate entries; a stage change is not a new grant.
 
-Require the full kernel, mode entry and current stage reference bodies in
-current context, not a past load/preload record or summary. Load shared
-[Gather](references/gather.md) when gathering exceeds a few direct lookups.
-If `skill_view` returns unchanged while a required body is missing, use
-canonical `read_file`, following `next_offset` through actual truncation;
-stop the affected action if recovery fails. Never use alternate paths or
-artificial ranges to evade dedup. Each entry specifies canonical paths.
+Require the full kernel, mode entry, any selected technic and current stage
+reference bodies in current context, not a past load/preload record or
+summary. Load shared [Gather](references/gather.md) when gathering exceeds a
+few direct lookups. If `skill_view` returns unchanged while a required body is
+missing, use canonical `read_file`, following `next_offset` through actual
+truncation; stop the affected action if recovery fails. Never use alternate
+paths or artificial ranges to evade dedup. Each entry specifies canonical
+paths; a selected technic's is `${HERMES_SKILL_DIR}/../technic/<technic>/SKILL.md`
+from this kernel.
 `HERMES_SKILL_DIR` belongs to that document's owning SKILL.md, not the last
 skill loaded. Never execute or deliver from the kernel alone.
 
 </Modes>
+
+<Technics>
+
+A technic is a recipe for one recurring research purpose (screening saved
+evidence against a client's rubric, checking a script's claims), layered on a
+mode: the mode says how the question is researched, the technic says what this
+purpose needs — the brief fields to settle, the sources and their order, the
+per-item record and the extra checks. [Capabilities](references/capabilities.md)
+lists them with their mode.
+
+When the brief names a technic, or its purpose matches a row there, load it
+with `skill_view(name="<technic>")` beside the mode entry. A technic never
+replaces the mode's procedure, the stages, these floors or release, and
+choosing one is not the caller's release: its brief fields are proposed in
+Plan like any other, and a settled brief that names it still needs the
+authorization Build requires. A purpose no technic fits runs on the mode alone.
+
+</Technics>
 
 <SourceEvaluation>
 
@@ -166,6 +187,17 @@ On-chain evidence, read through the `evm` and `solana` tools:
   reproducible.
 
 </CitationRules>
+
+<People>
+
+People are not unmasked. Whatever the purpose: never tie a pseudonymous
+account to a legal identity, face, address, family or private contact it has
+not published itself; no breach or leak data, people-search or data-broker
+sources, or pages behind a login; no collecting sensitive traits; no contact
+with anyone. Contact details found in supplied evidence stay out of findings
+and files unless the brief needs them and says so.
+
+</People>
 
 <SelfCheckBoundary>
 
