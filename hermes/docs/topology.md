@@ -14,8 +14,8 @@ Process topology, the multiplex gateway and A2A peer graph, delegation layers, t
                  │                        peer graph (specialist_call; A2A = localhost HTTP):
         ┌────────┼──────────────────┐       assistant → creator marketer writer (+ resident searcher)
         │ resident sessions         │                   + image-creator video-creator audio-creator
-        │ delegate_task             │       creator   → researcher
-        │                           │       marketer  → researcher
+        │ delegate_task             │       creator   → researcher (+ resident searcher)
+        │                           │       marketer  → researcher (+ resident searcher)
         ▼                           ▼
   hermes -p <specialist>   anonymous subagents      (writer / researcher / hands: receive-only;
   chat --resume <id>                       searcher: no endpoint — resident only)
@@ -25,7 +25,8 @@ Two profiles are **primaries** — assistant (the original front door) and
 marketer — each with its own Telegram bot. Primaries and Creator
 reach the specialists only through `specialist_call` against configured
 targets, never a direct URL; Telegram cannot carry bot-to-bot traffic. Creator
-is the Assistant's creative advisor with no bot; it calls only Researcher.
+is the Assistant's creative advisor with no bot; it calls only Researcher and
+Searcher, as Marketer does.
 writer, researcher and the three hands serve inbound A2A but initiate nothing;
 searcher has no A2A endpoint. Heavy interactive work runs in **resident sessions** (a
 persistent `hermes -p <specialist> chat` started by `specialist_call(kind="work")`

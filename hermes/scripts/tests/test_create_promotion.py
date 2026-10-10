@@ -124,7 +124,7 @@ def test_assistant_commissions_authored_motion_and_creator_only_advises():
     assert ADVISOR.is_file() and "`create-promotion`" in ADVISOR.read_text()
     assert "(references/video-creator/promotion.md)" in (CREATOR / "skills/creator-pipeline/SKILL.md").read_text()
     config = yaml.safe_load((CREATOR / "config.yaml").read_text())
-    assert config["specialist_call"]["resident_targets"] == ["researcher"]
+    assert config["specialist_call"]["resident_targets"] == ["researcher", "searcher"]
     assert "video_gen" not in config["toolsets"] and "image_gen" not in config["toolsets"]
     prompt = yaml.safe_load((HERMES_ROOT / "profiles/assistant/config.example.yaml").read_text())
     assert "video-creator" in prompt["specialist_call"]["resident_targets"]

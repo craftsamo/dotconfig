@@ -68,13 +68,20 @@ references keep their seven deliverable names (`evidence-pack`,
 map to the investigate, compare, verify and advise modes and to Searcher's
 modes of the same name; the validator enforces that caller-side mapping.
 
+Breadth is not Researcher's to grind. Creator and Marketer reach Searcher
+directly (resident only, as the Assistant does): when Researcher reports that a
+question needs retrieval, its client releases that unit to Searcher and pastes
+the accepted findings into the Researcher brief.
+
 ### Searcher
 
 Searcher's `searcher-pipeline` kernel (retrieval, release and the
 resident runtime) routes three mode entries, `lookup-searcher`,
 `sweep-searcher` and `hunt-searcher`, over the same shared Plan and Build
-stage references. Retrieval and link integrity remain its limits: no trust
-verdicts, synthesis, rankings or production. Beyond web search and `x_search`,
+stage references. Its clients are the Assistant, Creator and Marketer, each
+over a resident conversation it owns. Retrieval and link integrity remain its
+limits: no trust verdicts, synthesis, rankings or production. Beyond web
+search and `x_search`,
 it reads public X posts and named accounts' profiles, YouTube, note and
 Substack through the `x`, `youtube`, `note` and `substack` tools, each limited
 to a public-only action list (see [x-access.md](../x-access.md) "Profiles"),

@@ -93,8 +93,8 @@ capability.
   probes a media file and writes stills or a contact sheet at named times or
   frames into a scratch directory under the OS temporary directory. It never
   writes into a deliverable or a `deliver:` directory.
-- **Outbound.** `specialist_call` reaches Researcher only, for evidence a
-  direction depends on.
+- **Outbound.** `specialist_call` reaches Researcher, for evidence a
+  direction depends on, and Searcher, for references and examples to look at.
 - **Approval.** A chosen direction is the user's decision, relayed by the
   Assistant; Creator's recommendation never approves a proposal, preview or
   spend.

@@ -100,17 +100,47 @@ def test_primary_relays_acceptance_baseline_without_transferring_handle(caller):
     assert "Assistant's handle" in text or "handle stays yours" in text
 
 
-def test_creator_advisor_reaches_only_researcher_for_evidence():
+def test_creator_advisor_reaches_only_researcher_and_searcher_for_evidence():
     root = HERMES / "profiles/creator"
     config = yaml.safe_load((root / "config.yaml").read_text())
-    assert config["specialist_call"]["resident_targets"] == ["researcher"]
+    assert config["specialist_call"]["resident_targets"] == ["researcher", "searcher"]
     assert set(config["a2a_agents"]) == {"researcher"}
     text = " ".join(config["agent"]["system_prompt"].split())
-    for phrase in ("only for researcher", "purpose, consumer, constraints and budget",
-                   "evidence, not a decision", "never retry an unknown result"):
+    for phrase in ("only for researcher and searcher", "purpose, consumer, constraints and budget",
+                   "evidence, not a decision", "never retry an unknown result",
+                   "Searcher retrieves sourced links"):
         assert phrase in text
     kernel = " ".join((root / "skills/creator-pipeline/SKILL.md").read_text().split())
-    assert "`specialist_call` reaches Researcher only" in kernel
+    assert "`specialist_call` reaches Researcher" in kernel and "and Searcher, for references" in kernel
+
+
+@pytest.mark.parametrize("profile", ("creator", "marketer"))
+def test_breadth_goes_from_the_client_to_searcher(profile):
+    pipeline = flat(HERMES / "profiles" / profile / f"skills/{profile}-pipeline/SKILL.md")
+    assert "When Researcher reports that a question needs breadth, release that retrieval to Searcher" in pipeline
+    gather = flat(TREE / "references/gather.md")
+    assert "releases to Searcher directly" in gather and "the creator or marketer client" in gather
+    searcher = flat(HERMES / "profiles/searcher/skills/searcher-pipeline/SKILL.md")
+    assert "the Assistant, Creator or Marketer, whichever opened the conversation" in searcher
+    prompt = " ".join(yaml.safe_load((HERMES / "profiles/searcher/config.yaml").read_text())
+                      ["agent"]["system_prompt"].split())
+    assert "client (the Assistant, Creator or Marketer)" in prompt
+    if profile == "marketer":
+        assert "within your existing grant" in pipeline and "never self-approved" in pipeline
+    else:
+        assert "only within the budget the Assistant granted" in pipeline
+    assert "coverage statement" in pipeline and "no inquiry endpoint" in pipeline
+
+
+def test_searcher_technic_names_stay_in_sync_where_copied():
+    names = {p.parent.name for p in (HERMES / "profiles/searcher/skills/technic").glob("*/SKILL.md")}
+    gather = flat(TREE / "references/gather.md")
+    listed = re.search(r"Searcher's technic \(([^)]*)\)", gather).group(1)
+    assert set(re.findall(r"`([a-z0-9-]+)`", listed)) == names
+    marketer = (HERMES / "profiles/marketer/skills/marketer-pipeline/SKILL.md").read_text()
+    searcher_bullet = " ".join(marketer.split("- Searcher:", 1)[1].split("\n- ", 1)[0].split())
+    for name in names:
+        assert f"`{name}`" in searcher_bullet, name
 
 
 def test_worker_integration(tmp_path, monkeypatch):

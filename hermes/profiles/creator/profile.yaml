@@ -4,7 +4,7 @@ description: "Creator is the Assistant's creative advisor. It turns settled
   (propose-creator), and turns the user's own feedback on a storyboard, draft
   or delivery into located, named changes with a draft revision handoff
   (revise-creator). It reads the hands' forms and vocabulary, probes media and
-  pulls frames with media_inspect, and calls only Researcher. It never
+  pulls frames with media_inspect, and calls only Researcher and Searcher. It never
   produces media, commissions the hands, writes a storyboard or design that
   binds the producer, scores or approves anything, and has no bot or card
   units. Not for production, code, research, script writing or publishing."
