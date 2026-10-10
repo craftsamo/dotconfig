@@ -979,7 +979,7 @@ def test_read_only_never_edits_and_never_hands_work_to_an_editor():
     assert policy.decide(rules, "subagent", "explore-small") == "ask", "other subagents keep their own posture"
     assert policy.decide(rules, "shell", "git diff --output=x") == "deny"
     assert policy.decide(rules, "shell", "gh issue comment 1") == "deny"
-    for tool in ("git_commit", "git_stage_hunks"):
+    for tool in ("git_commit", "git_stage_hunks", "git_verify_commits"):
         assert policy.decide(rules, tool, "*") == "deny", tool
     write = policy.rules("write", None, {"main"})
     assert policy.decide(write, "git_commit", "*") != "deny", "a build commits through the tool"
