@@ -344,10 +344,13 @@ Contract: [docs/opencode.md](docs/opencode.md). When editing
   `metadata.hermes.repo` and the per-turn check in `_prepare` detect a stray
   session at its next turn; the only sanctioned move is
   `opencode_session workspace`. Never ask an OpenCode run to move itself, keep
-  the service's own worktree route unused (it can only make a detached HEAD), and
-  keep `workspace.py`'s git calls hook-free with the minimal environment: a
-  tracked `core.hooksPath` is repository-controlled code and this process holds
-  the gateway's secrets.
+  the service's own worktree route unused and `git_worktree` denied in the
+  ruleset (`workspace` creates, binds and rolls back in one step), and keep
+  `workspace.py`'s git calls hook-free with the minimal environment: a tracked
+  `core.hooksPath` is repository-controlled code and this process holds the
+  gateway's secrets. Its layout (`<root>/<origin repository name>/<branch>`)
+  matches OpenCode's worktree strategy in `opencode/lib/worktrees/`; change
+  both together.
 
 ## Candidates and cutover
 
