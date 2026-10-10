@@ -35,6 +35,9 @@ operator line; put multi-line text in a file with `write` and pass the path
 
 When this session will keep working in a worktree or another directory
 outside its current Location, move it with `session_move` through `execute`.
+Create a task worktree with `git_worktree` (`action: create`), not
+`git worktree add`: it cuts a branch from the fetched default branch at
+`~/Worktrees/<repository>/<branch>` and records it where the TUI lists it.
 The move applies at a safe boundary, so do the destination work in a later
 call. Do not move the session to aim a subagent at a worktree; pass that
 path to the worker instead. Rename the current session once, when its title
