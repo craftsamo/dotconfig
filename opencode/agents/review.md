@@ -1,83 +1,79 @@
 ---
 description: "Primary PR review mode. Reviews a PR end-to-end, delegates broad scans to reviewer and high-risk deep dives to reviewer-deep, and reports only final PR findings."
 mode: primary
-model: anthropic/claude-opus-5-5
-variant: high
-permission:
-  "*": ask
-  glob: allow
-  grep: allow
-  read:
-    "*": allow
-    "**/.env": deny
-    "**/.env.*": deny
-    "**/*.env": deny
-    "**/.env.example": allow
-    "**/.env.sample": allow
-  list: allow
-  edit: deny
-  external_directory: allow
-  task:
-    "*": deny
-    "explore*": allow
-    "searcher*": allow
-    reviewer: allow
-    reviewer-deep: allow
-    verifier: allow
-  question: allow
-  webfetch: allow
-  websearch: allow
-  bash:
-    "*": ask
-    "git status*": allow
-    "git diff*": allow
-    "git show*": allow
-    "git log*": allow
-    "git blame*": allow
-    "git ls-files*": allow
-    "git rev-parse*": allow
-    "git merge-base*": allow
-    "git branch --show-current": allow
-    "git remote -v": allow
-    "git remote get-url*": allow
-    "gh pr view*": allow
-    "gh pr diff*": allow
-    "gh pr status*": allow
-    "gh pr checks*": allow
-    "gh pr list*": allow
-    "gh repo view*": allow
-    # A redirect on an allowlisted command would write without asking. Ask,
-    # not deny: inline scripts often contain ">". Placed before the denies.
-    "*>*": ask
-    "git commit*": deny
-    "git push*": deny
-    "git reset*": deny
-    "git checkout*": deny
-    "git restore*": deny
-    "git clean*": deny
-    "npm install*": deny
-    "pnpm install*": deny
-    "yarn install*": deny
-    "bun install*": deny
-    "npm exec*": deny
-    "pnpm dlx*": deny
-    "yarn dlx*": deny
-    "bun x*": deny
-    "cargo install*": deny
-    "go install*": deny
-    "sudo *": deny
-    # Last match wins: these write files or spawn external programs.
-    "git * --output*": deny
-    "git * --ext-diff*": deny
-    "gh * --web*": deny
-    "gh * -w*": deny
-    # Best-effort: these read files outside git's view, past the .env read
-    # rules (git diff turns on --no-index by itself for an outside path).
-    "git * --no-index*": deny
-    "git diff* /*": deny
-    "git diff* ~*": deny
-    "git diff* ../*": deny
-    "git blame*--contents*": deny
+model: anthropic/claude-opus-5-5#high
+permissions:
+  - { action: "*", resource: "*", effect: ask }
+  - { action: glob, resource: "*", effect: allow }
+  - { action: grep, resource: "*", effect: allow }
+  - { action: read, resource: "*", effect: allow }
+  - { action: read, resource: "**/.env", effect: deny }
+  - { action: read, resource: "**/.env.*", effect: deny }
+  - { action: read, resource: "**/*.env", effect: deny }
+  - { action: read, resource: "**/.env.example", effect: allow }
+  - { action: read, resource: "**/.env.sample", effect: allow }
+  - { action: list, resource: "*", effect: allow }
+  - { action: edit, resource: "*", effect: deny }
+  - { action: external_directory, resource: "*", effect: allow }
+  - { action: subagent, resource: "*", effect: deny }
+  - { action: subagent, resource: "explore*", effect: allow }
+  - { action: subagent, resource: "searcher*", effect: allow }
+  - { action: subagent, resource: "reviewer", effect: allow }
+  - { action: subagent, resource: "reviewer-deep", effect: allow }
+  - { action: subagent, resource: "verifier", effect: allow }
+  - { action: question, resource: "*", effect: allow }
+  - { action: webfetch, resource: "*", effect: allow }
+  - { action: websearch, resource: "*", effect: allow }
+  - { action: shell, resource: "*", effect: ask }
+  - { action: shell, resource: "git status*", effect: allow }
+  - { action: shell, resource: "git diff*", effect: allow }
+  - { action: shell, resource: "git show*", effect: allow }
+  - { action: shell, resource: "git log*", effect: allow }
+  - { action: shell, resource: "git blame*", effect: allow }
+  - { action: shell, resource: "git ls-files*", effect: allow }
+  - { action: shell, resource: "git rev-parse*", effect: allow }
+  - { action: shell, resource: "git merge-base*", effect: allow }
+  - { action: shell, resource: "git branch --show-current", effect: allow }
+  - { action: shell, resource: "git remote -v", effect: allow }
+  - { action: shell, resource: "git remote get-url*", effect: allow }
+  - { action: shell, resource: "gh pr view*", effect: allow }
+  - { action: shell, resource: "gh pr diff*", effect: allow }
+  - { action: shell, resource: "gh pr status*", effect: allow }
+  - { action: shell, resource: "gh pr checks*", effect: allow }
+  - { action: shell, resource: "gh pr list*", effect: allow }
+  - { action: shell, resource: "gh repo view*", effect: allow }
+  # A redirect on an allowlisted command would write without asking. Ask,
+  # not deny: inline scripts often contain ">". Placed before the denies.
+  - { action: shell, resource: "*>*", effect: ask }
+  - { action: shell, resource: "git commit*", effect: deny }
+  - { action: shell, resource: "git push*", effect: deny }
+  - { action: shell, resource: "git reset*", effect: deny }
+  - { action: shell, resource: "git checkout*", effect: deny }
+  - { action: shell, resource: "git restore*", effect: deny }
+  - { action: shell, resource: "git clean*", effect: deny }
+  - { action: shell, resource: "npm install*", effect: deny }
+  - { action: shell, resource: "pnpm install*", effect: deny }
+  - { action: shell, resource: "yarn install*", effect: deny }
+  - { action: shell, resource: "bun install*", effect: deny }
+  - { action: shell, resource: "npm exec*", effect: deny }
+  - { action: shell, resource: "pnpm dlx*", effect: deny }
+  - { action: shell, resource: "yarn dlx*", effect: deny }
+  - { action: shell, resource: "bun x*", effect: deny }
+  - { action: shell, resource: "cargo install*", effect: deny }
+  - { action: shell, resource: "go install*", effect: deny }
+  - { action: shell, resource: "sudo *", effect: deny }
+  # Last match wins: these write files or spawn external programs.
+  - { action: shell, resource: "git * --output*", effect: deny }
+  - { action: shell, resource: "git * --ext-diff*", effect: deny }
+  - { action: shell, resource: "gh * --web*", effect: deny }
+  - { action: shell, resource: "gh * -w*", effect: deny }
+  # Best-effort: these read files outside git's view, past the .env read
+  # rules (git diff turns on --no-index by itself for an outside path).
+  - { action: shell, resource: "git * --no-index*", effect: deny }
+  - { action: shell, resource: "git diff* /*", effect: deny }
+  - { action: shell, resource: "git diff* ~*", effect: deny }
+  - { action: shell, resource: "git diff* ../*", effect: deny }
+  - { action: shell, resource: "git blame*--contents*", effect: deny }
 ---
 
 You are Review mode, a primary agent for pull-request-level code review. You do

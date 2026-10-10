@@ -1,72 +1,69 @@
 ---
 description: "Deep web research subagent on the OpenAI subscription tier: settles one topic to a confident, source-backed conclusion — resolving conflicting sources, tracing to primary sources, and verifying versions/dates. Falls back to a policy-gated real browser (agent-browser) for JS-rendered or fetch-blocked pages. Prefer invoking through the built-in subagent tool."
 mode: subagent
-model: openai/gpt-6.1-sol
-variant: medium
+model: openai/gpt-6.1-sol#medium
 hidden: false
-permission:
-  "*": deny
-  websearch: allow
-  webfetch: allow
-  x_search: allow
-  glob: allow
-  grep: allow
-  read:
-    "*": allow
-    "**/.env": deny
-    "**/.env.*": deny
-    "**/*.env": deny
-    "**/.env.example": allow
-    "**/.env.sample": allow
-  list: allow
-  edit: deny
-  external_directory: allow
-  task: deny
-  bash:
-    "*": deny
-    # Browser fallback: ONLY invocations carrying the research action-policy
-    # flag are runnable. NOTE: as of agent-browser 0.31.x the policy file is
-    # parsed and doctor-validated but NOT enforced by the daemon (upstream
-    # gap), so the flag is forward-compat only — the deny patterns below are
-    # the actual mechanical boundary. Last match wins.
-    "agent-browser --action-policy */.config/opencode/agent-browser/research-policy.json *": allow
-    # Arbitrary code / command smuggling
-    "agent-browser --action-policy * eval*": deny
-    "agent-browser --action-policy * batch*": deny
-    # File exchange with the local machine
-    "agent-browser --action-policy * upload*": deny
-    "agent-browser --action-policy * download*": deny
-    # Network manipulation and traffic capture (HAR may contain tokens)
-    "agent-browser --action-policy * network*": deny
-    # Identity, credentials, and session-state injection
-    "agent-browser --action-policy * auth*": deny
-    "agent-browser --action-policy * cookies set*": deny
-    "agent-browser --action-policy * storage*": deny
-    "agent-browser --action-policy * state*": deny
-    "agent-browser --action-policy * set credentials*": deny
-    "agent-browser --action-policy *--profile*": deny
-    "agent-browser --action-policy *--auto-connect*": deny
-    "agent-browser --action-policy *--state*": deny
-    "agent-browser --action-policy *--session-name*": deny
-    "agent-browser --action-policy *--headers*": deny
-    # Attaching to the user's real browser
-    "agent-browser --action-policy * connect*": deny
-    "agent-browser --action-policy *--cdp*": deny
-    # External AI loop and plugin execution
-    "agent-browser --action-policy * chat*": deny
-    "agent-browser --action-policy * plugin*": deny
-    # Install/upgrade side effects
-    "agent-browser --action-policy * install*": deny
-    "agent-browser --action-policy * upgrade*": deny
-    # No shell chaining, piping, substitution, or redirection — the allow
-    # pattern is prefix-matched, so these would smuggle arbitrary commands
-    "agent-browser --action-policy *&&*": deny
-    "agent-browser --action-policy *;*": deny
-    "agent-browser --action-policy *|*": deny
-    "agent-browser --action-policy *>*": deny
-    "agent-browser --action-policy *<*": deny
-    "agent-browser --action-policy *`*": deny
-    "agent-browser --action-policy *$(*": deny
+permissions:
+  - { action: "*", resource: "*", effect: deny }
+  - { action: websearch, resource: "*", effect: allow }
+  - { action: webfetch, resource: "*", effect: allow }
+  - { action: x_search, resource: "*", effect: allow }
+  - { action: glob, resource: "*", effect: allow }
+  - { action: grep, resource: "*", effect: allow }
+  - { action: read, resource: "*", effect: allow }
+  - { action: read, resource: "**/.env", effect: deny }
+  - { action: read, resource: "**/.env.*", effect: deny }
+  - { action: read, resource: "**/*.env", effect: deny }
+  - { action: read, resource: "**/.env.example", effect: allow }
+  - { action: read, resource: "**/.env.sample", effect: allow }
+  - { action: list, resource: "*", effect: allow }
+  - { action: edit, resource: "*", effect: deny }
+  - { action: external_directory, resource: "*", effect: allow }
+  - { action: subagent, resource: "*", effect: deny }
+  - { action: shell, resource: "*", effect: deny }
+  # Browser fallback: ONLY invocations carrying the research action-policy
+  # flag are runnable. NOTE: as of agent-browser 0.31.x the policy file is
+  # parsed and doctor-validated but NOT enforced by the daemon (upstream
+  # gap), so the flag is forward-compat only — the deny patterns below are
+  # the actual mechanical boundary. Last match wins.
+  - { action: shell, resource: "agent-browser --action-policy */.config/opencode/agent-browser/research-policy.json *", effect: allow }
+  # Arbitrary code / command smuggling
+  - { action: shell, resource: "agent-browser --action-policy * eval*", effect: deny }
+  - { action: shell, resource: "agent-browser --action-policy * batch*", effect: deny }
+  # File exchange with the local machine
+  - { action: shell, resource: "agent-browser --action-policy * upload*", effect: deny }
+  - { action: shell, resource: "agent-browser --action-policy * download*", effect: deny }
+  # Network manipulation and traffic capture (HAR may contain tokens)
+  - { action: shell, resource: "agent-browser --action-policy * network*", effect: deny }
+  # Identity, credentials, and session-state injection
+  - { action: shell, resource: "agent-browser --action-policy * auth*", effect: deny }
+  - { action: shell, resource: "agent-browser --action-policy * cookies set*", effect: deny }
+  - { action: shell, resource: "agent-browser --action-policy * storage*", effect: deny }
+  - { action: shell, resource: "agent-browser --action-policy * state*", effect: deny }
+  - { action: shell, resource: "agent-browser --action-policy * set credentials*", effect: deny }
+  - { action: shell, resource: "agent-browser --action-policy *--profile*", effect: deny }
+  - { action: shell, resource: "agent-browser --action-policy *--auto-connect*", effect: deny }
+  - { action: shell, resource: "agent-browser --action-policy *--state*", effect: deny }
+  - { action: shell, resource: "agent-browser --action-policy *--session-name*", effect: deny }
+  - { action: shell, resource: "agent-browser --action-policy *--headers*", effect: deny }
+  # Attaching to the user's real browser
+  - { action: shell, resource: "agent-browser --action-policy * connect*", effect: deny }
+  - { action: shell, resource: "agent-browser --action-policy *--cdp*", effect: deny }
+  # External AI loop and plugin execution
+  - { action: shell, resource: "agent-browser --action-policy * chat*", effect: deny }
+  - { action: shell, resource: "agent-browser --action-policy * plugin*", effect: deny }
+  # Install/upgrade side effects
+  - { action: shell, resource: "agent-browser --action-policy * install*", effect: deny }
+  - { action: shell, resource: "agent-browser --action-policy * upgrade*", effect: deny }
+  # No shell chaining, piping, substitution, or redirection — the allow
+  # pattern is prefix-matched, so these would smuggle arbitrary commands
+  - { action: shell, resource: "agent-browser --action-policy *&&*", effect: deny }
+  - { action: shell, resource: "agent-browser --action-policy *;*", effect: deny }
+  - { action: shell, resource: "agent-browser --action-policy *|*", effect: deny }
+  - { action: shell, resource: "agent-browser --action-policy *>*", effect: deny }
+  - { action: shell, resource: "agent-browser --action-policy *<*", effect: deny }
+  - { action: shell, resource: "agent-browser --action-policy *`*", effect: deny }
+  - { action: shell, resource: "agent-browser --action-policy *$(*", effect: deny }
 ---
 
 You are a deep, read-only web research subagent. You settle ONE topic per
