@@ -144,13 +144,48 @@ describe("git_stage_hunks", () => {
   test("refuses an empty selection and secret-bearing hunks", async () => {
     const f = repo()
     twoHunks(f)
-    await expect(git.stage_hunks.execute({ hunks: [9] }, ctx(f))).rejects.toThrow("No hunks matched the selection.")
+    await expect(git.stage_hunks.execute({ include: "nothing-like-this" }, ctx(f))).rejects.toThrow("No hunks matched the selection.")
     f.write("b.txt", "x\n")
     f.git("add", "b.txt")
     f.git("commit", "-q", "-m", "b")
     f.write("b.txt", `id ${AWS_KEY}\n`)
     const out = await run(git.stage_hunks, f, { paths: ["b.txt"], hunks: [1], denySecrets: true })
     expect(out.mode).toBe("blocked")
+    expect(f.git("diff", "--cached", "--name-only")).toBe("")
+  })
+
+  test("stages a later hunk at its own place when an earlier one is left out", async () => {
+    // Two identical blocks, and an unselected insertion above them that shifts
+    // the second hunk's new-side start onto the other block.
+    const block = (n: number) => ["ctx a", "ctx b", "ctx c", "value = old", "ctx d", "ctx e", "ctx f", `unique ${n}`]
+    const base = [...lines(20).trimEnd().split("\n"), ...block(1), ...lines(12).trimEnd().split("\n"), ...block(2)]
+    const f = repo()
+    f.commit("init", { "a.txt": base.join("\n") + "\n" })
+    const edited = [...base]
+    edited.splice(2, 0, ...Array.from({ length: 16 }, (_, i) => `inserted ${i}`))
+    const changed = edited.map((l) => (l === "value = old" ? "value = new" : l))
+    f.write("a.txt", changed.join("\n") + "\n")
+    const list = await run(git.stage_hunks, f)
+    expect(list.count).toBe(3)
+    await run(git.stage_hunks, f, { hunks: [2], token: list.token })
+    const staged = f.git("show", ":a.txt").split("\n")
+    expect(staged.indexOf("value = new")).toBe(base.indexOf("value = old"))
+    expect(staged.filter((l) => l === "value = old")).toHaveLength(1)
+    expect(staged).not.toContain("inserted 0")
+  })
+
+  test("refuses unknown ids, a stale listing and paths outside the repository", async () => {
+    const f = repo()
+    twoHunks(f)
+    await expect(git.stage_hunks.execute({ hunks: [1, 9] }, ctx(f))).rejects.toThrow("Unknown hunk id(s): 9")
+    const all = await run(git.stage_hunks, f)
+    const scoped = await run(git.stage_hunks, f, { paths: ["a.txt"] })
+    expect(scoped.token).toBe(all.token)
+    f.write("b.txt", "new\n")
+    f.git("add", "-N", "b.txt")
+    await expect(git.stage_hunks.execute({ hunks: [1], token: all.token }, ctx(f))).rejects.toThrow(/changed since that listing/)
+    await expect(git.stage_hunks.execute({ paths: ["/elsewhere/x.txt"] }, ctx(f))).rejects.toThrow(/outside this session's repository/)
+    await expect(git.stage_hunks.execute({ paths: ["../x.txt"] }, ctx(f))).rejects.toThrow(/outside/)
     expect(f.git("diff", "--cached", "--name-only")).toBe("")
   })
 
