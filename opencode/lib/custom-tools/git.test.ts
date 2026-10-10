@@ -233,7 +233,33 @@ describe("git_commit_lint", () => {
 
   test("passes a clean conventional message without commitlint", async () => {
     const f = repo()
-    expect(await lint(f, "feat(x): add a thing\n\nExplain why.")).toEqual({ pass: true, commitlintRan: false, errors: [], warnings: [] })
+    expect(await lint(f, "feat(x): add a thing\n\nExplain why.")).toEqual({
+      pass: true,
+      commitlintRan: false,
+      commitlint: "not-configured",
+      hook: null,
+      errors: [],
+      warnings: [],
+    })
+  })
+
+  test("fails when a commit-msg hook runs a commitlint that is not installed", async () => {
+    const husky = repo()
+    husky.write(".husky/commit-msg", "# lint\npnpm exec commitlint --edit $1\n")
+    const out = await lint(husky, "feat: fine")
+    expect(out).toMatchObject({ pass: false, commitlint: "not-installed", hook: "pnpm exec commitlint --edit $1" })
+    expect(out.errors[0].rule).toBe("commitlint-not-installed")
+
+    const custom = repo()
+    custom.write("hooks/commit-msg", "npx --no -- commitlint --edit $1\n")
+    custom.git("config", "core.hooksPath", "hooks")
+    expect(await lint(custom, "feat: fine")).toMatchObject({ pass: false, hook: "npx --no -- commitlint --edit $1" })
+
+    const configOnly = repo()
+    configOnly.write("package.json", '{"commitlint": {"extends": ["@commitlint/config-conventional"]}}')
+    const warned = await lint(configOnly, "feat: fine")
+    expect(warned).toMatchObject({ pass: true, commitlint: "not-installed", hook: null })
+    expect(warned.warnings.map((w: any) => w.rule)).toEqual(["commitlint-not-installed"])
   })
 
   test("reports subject, structure and body problems", async () => {
@@ -262,7 +288,7 @@ describe("git_commit_lint", () => {
     mkdirSync(bin, { recursive: true })
     writeFileSync(join(bin, "commitlint"), '#!/bin/sh\nif grep -q BAD "$2"; then echo "rejected by commitlint"; exit 1; fi\n')
     chmodSync(join(bin, "commitlint"), 0o755)
-    expect(await lint(f, "feat: fine")).toMatchObject({ pass: true, commitlintRan: true })
+    expect(await lint(f, "feat: fine")).toMatchObject({ pass: true, commitlintRan: true, commitlint: "ran" })
     const bad = await lint(f, "feat: BAD")
     expect(bad).toMatchObject({ pass: false, commitlintRan: true })
     expect(bad.errors[0]).toMatchObject({ rule: "commitlint", message: "rejected by commitlint" })
