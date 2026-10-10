@@ -36,7 +36,7 @@ async function ghApi(path: string, jq: string | undefined, cwd?: string): Promis
 }
 
 /** Local stack tracking (`gh stack view --json`), which also covers layers that have no PR yet. */
-async function localStack(head: string, cwd?: string): Promise<any> {
+export async function localStack(head: string, cwd?: string): Promise<any> {
   let view: any = null
   try {
     view = await runGhJson(["stack", "view", "--json"], cwd)

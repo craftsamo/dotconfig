@@ -74,10 +74,15 @@ fork?, timeout?, output_dir?)`; build also takes `approval` and
   `issue_approval` separately quotes an explicit request to manage this job in
   Issues. Both are records of the operating contract, not authentication.
 - **What a build may do:** edit files in its worktree and run routine commands.
-  Pushes, history rewrites, branch moves, package runners and Issue writes
-  without `issue_approval` come back to you as requests. Force and
-  protected-branch pushes, merges, `gh api`, Project writes and secret reads are
-  denied outright. A build refuses a worktree another OpenCode session is
+  It rebases its task branch onto the latest base before each push and may
+  amend or fix up its own commits; its tools refuse the default branch, shared
+  commits and protected branches. Pushes (a rebased branch's
+  `git push --force-with-lease origin HEAD:refs/heads/<task branch>` and
+  `gh stack push`
+  included), shell history rewrites, branch moves, package runners and Issue
+  writes without `issue_approval` come back to you as requests. Every other
+  force push, protected-branch pushes, merges, `gh api`, Project writes and
+  secret reads are denied outright. A build refuses a worktree another OpenCode session is
   running in (a person's included); read-only runs may run alongside.
 - **`output_dir`:** an existing job directory inside a Workspaces draft
   (`<Group>/.agent/<YYYYMMDD>-<job>/…`), outside the worktree. The run may write
@@ -149,7 +154,7 @@ limitation on. Activity is time model steps ran, not human working time.
 ## Requests
 
 A run pauses as `waiting` when it needs a decision: a permission (a path
-outside the worktree, a push, a history rewrite, a branch move, a package
+outside the worktree, a push, a shell history rewrite, a branch move, a package
 runner, an Issue write without the grant, a subagent command outside its
 allowlist) or a question the agent would put to a person.
 `opencode_request(action="list", session_id)` shows each pending item with its

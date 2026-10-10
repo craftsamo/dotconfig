@@ -115,9 +115,10 @@ rather than committing ad hoc.
 
 <PullRequestSkill>
 
-When asked to open, push, or update a GitHub pull request — pushing a branch,
-creating a PR whose title and body match the repo, scanning the branch for
-related Issues/PRs to link, or marking it ready — load and follow the
+When asked to open, push, or update a GitHub pull request — rebasing the
+branch onto its latest base, pushing it, creating a PR whose title and body
+match the repo, scanning the branch for related Issues/PRs to link, marking it
+ready, or following its CI checks and review comments — load and follow the
 `git-pullrequest` skill. It does not create commits (use `git-commit`) and does
 not merge.
 

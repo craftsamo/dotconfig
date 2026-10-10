@@ -128,9 +128,10 @@ every subagent session copies its parent's ruleset. So the
 session ruleset (`policy.rules`) owns each run's constraints for the whole
 session tree, and it is applied after a subagent's own posture. It holds
 denies, asks and narrow allows: the worktree boundary (`external_directory`
-asks), secrets unreadable, history rewrites, branch moves, package runners and
-ungranted Issue writes as asks, the hard denies (force and protected-branch
-pushes, merges, `gh api`, Project writes), and last the person's own denies read
+asks), secrets unreadable, pushes, shell history rewrites, branch moves, package
+runners and ungranted Issue writes as asks, the hard denies (bare force and
+protected-branch pushes, merges, `gh api`, Project writes), and last the
+person's own denies read
 from the built-in `build` agent, so a broad allow never reopens `sudo` or
 `secret get`. One deliberate exception: a `write` run allows `edit` in its
 worktree. Without it every edit is a round trip to the caller; the cost is that
@@ -138,9 +139,20 @@ a subagent that denies itself edits (explore) loses that denial for the run. The
 allow is placed before the edit denies for OpenCode's config/skill directories
 and secret files, which therefore still win. `read-only` denies edits, the
 `worker` and `general` subagents, and the `git_commit` / `git_stage_hunks` /
-`git_verify_commits` tools, which write or run commands past the shell rules. A write run needs the user's quoted
-`approval`, a named non-default task branch, and a worktree no other session is
-running in (a person's included). V2 wildcards match whole values and `*` crosses
+`git_verify_commits` / `git_rebase` tools, which write or run commands past the
+shell rules. A `write` run rewrites its task branch the way the person's
+OpenCode does: `git_rebase` and `git_commit`'s amend/fixup run without asking,
+because they refuse the default branch, shared commits and protected branches
+themselves, and the result leaves the machine only through a push. Every force
+spelling stays denied except the task branch's own lease push, re-opened as an
+ask by its exact text (`git push --force-with-lease origin
+HEAD:refs/heads/<branch>`, optionally with `--force-if-includes`;
+`policy.lease_pushes`): a full destination, which push config cannot remap.
+In a write run every `gh stack` command but `view` asks, since it rebases and
+force-pushes layers and takes flags before its subcommand; a read-only run is
+denied `gh stack` entirely, and merging or unstacking a stack always. A write run needs the user's quoted `approval`, a
+named non-default task branch, and a worktree no other session is running in
+(a person's included). V2 wildcards match whole values and `*` crosses
 `/`, so secrets are spelled `*.env`, `*.pem`, … (`**/.env` misses a root-level
 file).
 
