@@ -199,10 +199,13 @@ and [squash-message settings](https://docs.github.com/en/repositories/configurin
    layer; when `origin` is not writable, use the writable fork remote. Never
    force-push outside the stack mechanism unless explicitly asked. A request
    to edit a title/body alone does not authorize publishing local commits.
-6. Create or update: `gh pr create --base <base> --title "..." --body-file -`
-   fed by a heredoc (multi-line bodies survive quoting; never literal `\n`);
-   ready by default, add `--draft` only if asked. For a stack layer, publish
-   with `gh stack submit --open` and then set the title/body via `gh pr edit`.
+6. Create or update: write the body to a scratch file with the write tool,
+   then `gh pr create --base <base> --title "..." --body-file <file>`
+   (multi-line bodies survive quoting; never literal `\n`). A heredoc fed to
+   `--body-file -` breaks when anything follows its terminator line, such as
+   `&& gh pr view`. Ready by default, add `--draft` only if asked. For a
+   stack layer, publish with `gh stack submit --open` and then set the
+   title/body via `gh pr edit`.
    For metadata-only updates, use `gh pr edit` alone, not a stack submission;
    preserve unspecified fields and draft state. Set reviewers, labels,
    assignees, or a milestone only if the user asked.

@@ -20,6 +20,17 @@ git, and stream transforms.
 
 </FileTools>
 
+<ShellCommands>
+
+The shell is zsh. Quote every path that holds `[ ] ( ) * ?` or spaces
+(`'apps/web/[locale]/(route)/page.tsx'`): unquoted, zsh expands it and stops
+with `no matches found`. A heredoc ends only on a line holding nothing but
+its terminator, so never write `EOF && next` or follow the heredoc with an
+operator line; put multi-line text in a file with `write` and pass the path
+(`git_commit` takes the message itself, `gh pr create --body-file <file>`).
+
+</ShellCommands>
+
 <SessionLocation>
 
 When this session will keep working in a worktree or another directory
