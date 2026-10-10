@@ -939,6 +939,107 @@
       "resource": "git commit* -n*",
       "effect": "ask"
     },
+    // OpenCode matches each command as written, so options before the
+    // subcommand (`git --no-pager push`, `git -C x commit`) slip past the
+    // `git push*`-style asks above into `git *`. The gated verbs ask again
+    // wherever they appear, and so do the remote writes, which redirect what
+    // an approved push does. (An env prefix or a tab matches no allow and asks
+    // already.)
+    {
+      "action": "shell",
+      "resource": "*git* push",
+      "effect": "ask"
+    },
+    {
+      "action": "shell",
+      "resource": "*git* push *",
+      "effect": "ask"
+    },
+    {
+      "action": "shell",
+      "resource": "*git* rebase *",
+      "effect": "ask"
+    },
+    {
+      "action": "shell",
+      "resource": "*git* reset *",
+      "effect": "ask"
+    },
+    {
+      "action": "shell",
+      "resource": "*git* checkout *",
+      "effect": "ask"
+    },
+    {
+      "action": "shell",
+      "resource": "*git* switch *",
+      "effect": "ask"
+    },
+    {
+      "action": "shell",
+      "resource": "*git* restore *",
+      "effect": "ask"
+    },
+    {
+      "action": "shell",
+      "resource": "*git* clean *",
+      "effect": "ask"
+    },
+    {
+      "action": "shell",
+      "resource": "*git* commit *",
+      "effect": "ask"
+    },
+    {
+      "action": "shell",
+      "resource": "*git* merge *",
+      "effect": "ask"
+    },
+    {
+      "action": "shell",
+      "resource": "*git* revert *",
+      "effect": "ask"
+    },
+    {
+      "action": "shell",
+      "resource": "*git* cherry-pick *",
+      "effect": "ask"
+    },
+    {
+      "action": "shell",
+      "resource": "*git* config *",
+      "effect": "ask"
+    },
+    {
+      "action": "shell",
+      "resource": "*git* remote* add *",
+      "effect": "ask"
+    },
+    {
+      "action": "shell",
+      "resource": "*git* remote* set-url *",
+      "effect": "ask"
+    },
+    {
+      "action": "shell",
+      "resource": "*git* remote* rename *",
+      "effect": "ask"
+    },
+    {
+      "action": "shell",
+      "resource": "*git* remote* remove *",
+      "effect": "ask"
+    },
+    {
+      "action": "shell",
+      "resource": "*git* remote* rm *",
+      "effect": "ask"
+    },
+    {
+      "action": "shell",
+      "resource": "*git* remote* set-branches *",
+      "effect": "ask"
+    },
     // Build / test (runs project code)
     {
       "action": "shell",
@@ -1075,6 +1176,75 @@
     {
       "action": "shell",
       "resource": "gh project item-delete*",
+      "effect": "ask"
+    },
+    // `gh pr -R o/r merge` puts a flag before the verb; an alias or an
+    // extension runs any command past these rules; `gh pr checkout` switches
+    // branches like `git checkout`. Spelled by position, not containment, so
+    // a PR title saying "merge" does not ask.
+    {
+      "action": "shell",
+      "resource": "gh pr -R* merge *",
+      "effect": "ask"
+    },
+    {
+      "action": "shell",
+      "resource": "gh pr --repo* merge *",
+      "effect": "ask"
+    },
+    {
+      "action": "shell",
+      "resource": "gh pr checkout *",
+      "effect": "ask"
+    },
+    {
+      "action": "shell",
+      "resource": "gh pr -R* checkout *",
+      "effect": "ask"
+    },
+    {
+      "action": "shell",
+      "resource": "gh pr --repo* checkout *",
+      "effect": "ask"
+    },
+    {
+      "action": "shell",
+      "resource": "gh alias set *",
+      "effect": "ask"
+    },
+    {
+      "action": "shell",
+      "resource": "gh alias import *",
+      "effect": "ask"
+    },
+    {
+      "action": "shell",
+      "resource": "gh alias delete *",
+      "effect": "ask"
+    },
+    {
+      "action": "shell",
+      "resource": "gh ext* install *",
+      "effect": "ask"
+    },
+    {
+      "action": "shell",
+      "resource": "gh ext* exec *",
+      "effect": "ask"
+    },
+    {
+      "action": "shell",
+      "resource": "gh ext* upgrade *",
+      "effect": "ask"
+    },
+    {
+      "action": "shell",
+      "resource": "gh ext* remove *",
+      "effect": "ask"
+    },
+    {
+      "action": "shell",
+      "resource": "gh ext* create *",
       "effect": "ask"
     },
     // Note: npx / bunx / pip / uv / docker / node / python / ruby / bash -c stay ask by default
