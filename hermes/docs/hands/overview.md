@@ -120,7 +120,10 @@ controlled vocabulary that still accepts a free value; a leaf
 that has `references/<field>/` must back every listed option there (`style` maps
 to `references/styles/`, `theme` to `references/themes/`; an explicit
 `references` declaration makes the backing mandatory even when the directory is
-missing). `note` is the escape
+missing). An option reference describes a look by its traits, never by a
+studio, director, artist, title or brand: Creator proposes from it and the
+hands build prompts from it, and a name invites imitation of someone else's
+designs or a provider refusal. `note` is the escape
 hatch every leaf carries. The SKILL.md body has exactly three sections —
 `<Procedure>`, `<QA>`, `<Report>` — because `description` and `form` already
 say the rest. An option is not a requirement to generate every default item:

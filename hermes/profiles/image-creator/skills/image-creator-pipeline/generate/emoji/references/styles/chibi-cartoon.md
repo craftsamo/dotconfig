@@ -3,7 +3,7 @@
 **Look.** A big-headed cartoon character: head two thirds of the frame,
 huge expressive eyes, tiny body or head-and-shoulders only, thick dark
 outline, flat bold colours with one cel-shade tone, exaggerated
-expressions. The Discord/Twitch emote family.
+expressions. The chat and live-stream emote family.
 
 **Prompt block.**
 > chibi cartoon emoji of <subject>, oversized head, huge expressive
