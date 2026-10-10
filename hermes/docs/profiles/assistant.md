@@ -1,6 +1,6 @@
 # Assistant
 
-Front-door Client: quality gate, visual design, creative early delivery, entry routing, tiers and pinned topics. Part of the Hermes design docs — index: [`PROFILES.md`](../../PROFILES.md).
+Front-door Client: quality gate, visual design, creative early delivery, entry routing, tiers and pinned topics. Read it before changing the Assistant's entries, gate or topics. Part of the Hermes design docs — index: [`PROFILES.md`](../../PROFILES.md).
 
 ## Assistant quality gate
 
@@ -58,11 +58,6 @@ moving reference, demonstrate composition and progression, not just an ending
 or static frame. Rejection of the idea returns to interpretation rather than
 minor polish. Samples retain their existing approval and spending rules.
 
-Status: paired public/private candidate, not a live cutover; paired candidate
-verification does not authorize it. Timing and creative quality require fresh
-real work after explicit rollout approval (see [topology](../topology.md)
-"Candidate rollout and cutover").
-
 ## Assistant entry routing
 
 The `assistant-pipeline` root is tracked in this repository like every other
@@ -71,7 +66,7 @@ technic shelf, which the entries reach by skill name only. The root owns
 invariant lifecycle, grants and delivery policy. Its
 19 independent child skills are `chat-assistant` plus
 `{plan,execute,qa}-assistant-<domain>` for engineering, creative, writing,
-research, search and marketing. Each child root `SKILL.md` owns its former
+research, search and marketing. Each child root `SKILL.md` owns its
 mode/domain index; each child's `references/` holds details and creative legacy.
 No entry lives below the parent's `references/`. The shared parent files are
 only `references/plan/index.md`, `references/execute/{index,resident-sessions}.md`
@@ -80,14 +75,11 @@ entry body. No aliases, generated index, new overlay/symlink install mapping or
 default `skills.external_dirs` expansion. Writer's acceptance rubric remains in
 its own pipeline, not copied into the Assistant's QA entries.
 
-Loading follows the shared [entry loading contract](../topology.md#entry-loading-contract):
-each entry requires the invariant kernel and its mode-common procedure before
-applying relevant details. An approval-only reply follows existing job state
-and scope; it never restarts planning or widens a grant. Default's CLI adapter
-reads the same tree through the filesystem (see [topology](../topology.md)
-"Default is the assistant's CLI counterpart").
-
-Status: deployed; existing messaging histories are not proven refreshed.
+Loading follows the shared [entry loading contract](../topology.md#entry-loading-contract);
+an approval-only reply follows existing job state and scope and never restarts
+planning or widens a grant. Default's CLI adapter reads the same tree through
+the filesystem (see [topology](../topology.md) "Default is the assistant's CLI
+counterpart").
 
 ### Routing and tiers
 
@@ -240,9 +232,7 @@ skill surface, and a per-topic skill layer only duplicated that routing. Each
 topic's contract lives entirely in its `channel_prompts['<thread_id>']` entry
 (template in `config.example.yaml`). The validator
 (`validate_assistant_dm_topics`) rejects any topic carrying a `skill:` key and
-any `dm_topics` list without a topic literally named `Inbox`, so the retired
-desk layer (Personal / Projects / Brainstorm and their skills and `desks/`
-overlay link) cannot creep back.
+any `dm_topics` list without a topic literally named `Inbox`.
 
 - **Inbox** receives system cron output and starts no work. Jobs keep bare
   `deliver: telegram`; `scripts/profile-secrets.sh` derives
