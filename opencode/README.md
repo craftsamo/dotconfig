@@ -6,18 +6,18 @@ needed. Installed from the `anomalyco/tap/opencode-v2` formula (see the
 
 ## User-managed content
 
-| Path              | Purpose                                                     |
-| ----------------- | ----------------------------------------------------------- |
-| `opencode.jsonc`  | main configuration (models, permissions, MCP, ...)          |
-| `cli.json`        | terminal UI preferences (theme, keybinds, session view)     |
-| `AGENTS.md`       | global instructions, loaded into every session              |
-| `agent/`          | custom agents / subagents (`*.md`)                          |
-| `command/`        | custom slash commands (`*.md`)                              |
-| `plugins/`        | local plugins (`*.ts`), auto-discovered                     |
-| `lib/`            | code imported by plugins (not scanned by OpenCode)          |
-| `skills/`         | opencode-only skills (`<name>/SKILL.md`)                    |
-| `package.json`    | plugin dependencies, installed by `install.sh --deps`       |
-| `opencode-quota/` | quota plugin settings (`quota-toast.jsonc`)                 |
+| Path              | Purpose                                                 |
+| ----------------- | ------------------------------------------------------- |
+| `opencode.jsonc`  | main configuration (models, permissions, MCP, ...)      |
+| `cli.json`        | terminal UI preferences (theme, keybinds, session view) |
+| `AGENTS.md`       | global instructions, loaded into every session          |
+| `agents/`         | custom agents / subagents (`*.md`)                      |
+| `commands/`       | custom slash commands (`*.md`)                          |
+| `plugins/`        | local plugins (`*.ts`), auto-discovered                 |
+| `lib/`            | code imported by plugins (not scanned by OpenCode)      |
+| `skills/`         | opencode-only skills (`<name>/SKILL.md`)                |
+| `package.json`    | plugin dependencies, installed by `install.sh --deps`   |
+| `opencode-quota/` | quota plugin settings (`quota-toast.jsonc`)             |
 
 A fresh clone needs `./install.sh --deps` once: OpenCode 2 does not install
 config-directory dependencies, and without `node_modules/zod` the custom-tools
@@ -27,7 +27,7 @@ plugin fails to load. The `opencode-v2` formula conflicts with the 1.x
 Custom tools live in `lib/custom-tools/<file>.ts` and are registered by
 `plugins/custom-tools.ts`, which exports both a V1 `server()` and a V2
 `setup()`. Tool IDs keep the `<file>_<export>` form (`git_secret_scan`,
-`x_search`, ...), matching the permission keys in `opencode.jsonc`. Do not
+`x_search`, ...), matching the permission actions in `opencode.jsonc`. Do not
 add a `tools/` directory: V1 would register the same IDs twice and V2 does
 not load it. Keep subdirectories out of `plugins/`; V2 loads each one as a
 plugin package.
@@ -46,8 +46,11 @@ All global instructions live in `AGENTS.md`. Do not reintroduce an
 ## Delegation and progress in V2
 
 V2's `subagent` tool takes `agent`, not V1's `task` / `subagent_type`.
-The files remain under `agent/` and retain supported legacy frontmatter;
-V2 normalizes those settings without rewriting them.
+Agents and permissions use the native V2 shape: agent files under `agents/`,
+`model: provider/model#variant`, and ordered `permissions` lists with the V2
+action names (`shell`, `subagent`, `edit`). Keep each agent entirely in one
+format; V2 does not merge V1 and V2 fields inside one agent. The last
+matching rule wins, and an agent's rules come after the global ones.
 
 `hidden: true` hides an agent from both interactive discovery and the model's
 subagent catalog; no agent here uses it, so the twelve specialist subagents
@@ -60,7 +63,7 @@ permissions decide which specialists may run.
 - Debug and Review exclude editing agents and ask `verifier` for checks only,
   never formatter application. Build may request scoped formatter application.
 - Plan and the built-in Explore explicitly deny edits, overriding the global
-  `edit: ask`. Plan retains its exception for `~/.opencode/plan/*`; writing a
+  `edit` ask rule. Plan retains its exception for `~/.opencode/plan/*`; writing a
   plan file still requires the user's explicit request.
 
 New subagents use their configured model, otherwise the parent's model. A
