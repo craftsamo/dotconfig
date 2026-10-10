@@ -26,10 +26,10 @@ export type ToolContext = {
   signal?: AbortSignal
   /** The calling session's metadata (V2 only; Hermes keeps its binding under `hermes`). */
   sessionMetadata?(): Promise<Record<string, unknown> | undefined>
-  /** OpenCode's worktree operations for the calling session's project (V2 only). */
+  /** OpenCode's worktree inventory for the calling session's project (V2 only). */
   worktrees?: {
-    create(input: { name?: string; branch?: string }): Promise<{ directory: string }>
-    remove(input: { directory: string; force: boolean }): Promise<void>
+    /** Re-reads the worktrees on disk into the inventory, as the TUI's refresh does. */
+    refresh(): Promise<void>
     list(): Promise<{ directory: string; strategy?: string }[]>
   }
 }
