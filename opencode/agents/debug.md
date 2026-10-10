@@ -13,6 +13,7 @@ permissions:
   - { action: read, resource: "*.env.example", effect: allow }
   - { action: read, resource: "*.env.sample", effect: allow }
   - { action: git_provenance, resource: "*", effect: allow }
+  - { action: git_state, resource: "*", effect: allow }
   - { action: git_commit, resource: "*", effect: deny }
   - { action: edit, resource: "*", effect: deny }
   - { action: external_directory, resource: "*", effect: allow }

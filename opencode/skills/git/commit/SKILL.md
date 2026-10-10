@@ -197,9 +197,11 @@ a deterministic reproduction; local/unpushed commits have no PR or Issue.
 
 <Steps>
 
-1. Confirm the user asked to commit. Inspect: `git status` (including
-   untracked files), `git diff` (unstaged) and `git diff --cached` (staged);
-   resolve the convention per <ConventionResolution>.
+1. Confirm the user asked to commit. Get the overview with `git_state` (branch,
+   staged / unstaged / untracked / conflicted files, an operation in progress,
+   the branch's commits since its base), then read the content with `git diff`
+   (unstaged) and `git diff --cached` (staged); resolve the convention per
+   <ConventionResolution>.
 2. Plan the split along concern and build boundaries (see <CommitGranularity>);
    resolve amend-vs-link first for changes that belong to earlier work. Unless
    the diff is a single trivial concern, this is a required gate: enumerate the
