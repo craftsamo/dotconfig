@@ -83,8 +83,11 @@ agreement, and [Build](references/build.md) executes agreed retrieval or a
 settled brief and ends by checking results against agreed scope and coverage.
 The mode entry says what each stage means for its kind of retrieval.
 
-On-chain retrieval also reads the chain's one shared reference:
-[EVM](references/platforms/evm.md) or [Solana](references/platforms/solana.md).
+Retrieval on a service also reads that service's one shared reference:
+[X](references/platforms/x.md), [YouTube](references/platforms/youtube.md),
+[note](references/platforms/note.md), [Substack](references/platforms/substack.md),
+or for on-chain facts the chain's: [EVM](references/platforms/evm.md) or
+[Solana](references/platforms/solana.md).
 
 </Modes>
 
