@@ -58,7 +58,8 @@ limits. `web_ui_check` (`lib/custom-tools/web_ui.ts`) runs
 `lib/web-ui-check/web-ui-check.mjs` in a Node child process, because Playwright
 is not reliable inside the Bun plugin host; `install.sh --deps` also installs
 Playwright's headless shell for it. Tests: `bun test lib/custom-tools
-lib/worktrees` and `node --test lib/web-ui-check/web-ui-check.test.mjs`.
+lib/worktrees lib/permissions` and `node --test
+lib/web-ui-check/web-ui-check.test.mjs`.
 
 All global instructions live in `AGENTS.md`. Do not reintroduce an
 `instructions` array: OpenCode V2 accepts the key but does not load its files
@@ -90,7 +91,13 @@ neither layer and enforce their own limits.
 
 Patterns are whole-value wildcards where `*` also matches `/`. A file at the
 Location root has no directory part, so match secrets with `*.env`, `.env.*`
-and `*/.env.*`, never `**/.env`. To compare the resolved rules before and
+and `*/.env.*`, never `**/.env`. A shell rule sees each command as written:
+an environment prefix, a wrapper (`env`, `sh -c`) or a tab matches no allow
+and asks, but options before git's subcommand (`git --no-pager push`) land in
+`git *`. So the gated git verbs and the remote writes ask again as
+containment patterns (`*git* push *`), and `gh` aliases, extensions and
+`gh pr -R … merge` ask the same way; `lib/permissions` checks these forms
+against the config. To compare the resolved rules before and
 after an edit, read `/api/agent` from a private server whose
 `XDG_CONFIG_HOME` points at the candidate config (query it twice: the first
 request for a new Location returns an empty list).
