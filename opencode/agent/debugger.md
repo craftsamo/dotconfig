@@ -85,7 +85,8 @@ permission:
     "make lint*": allow
     "make check*": allow
     "make build*": allow
-    "tsc*": allow
+    "tsc --noEmit": allow
+    "tsc -p * --noEmit": allow
     "eslint*": allow
     "prettier --check*": allow
     "ruff check*": allow
@@ -111,6 +112,47 @@ permission:
     "git branch --show-current": allow
     "git remote -v": allow
     "git remote get-url*": allow
+    # A redirect or a write/exec flag on an allowlisted prefix (eslint --fix,
+    # vitest -u, go test -update) would write or run a program without
+    # asking. Best-effort: flags have too many spellings for a complete list.
+    # Ask, not deny: inline scripts often contain ">". Placed before the
+    # denies so they still win.
+    "*>*": ask
+    "* --fix": ask
+    "* --fix *": ask
+    "* --fix=*": ask
+    "* --fix-only*": ask
+    "npm*:fix*": ask
+    "pnpm*:fix*": ask
+    "yarn*:fix*": ask
+    "bun*:fix*": ask
+    "make*fix*": ask
+    "*--write*": ask
+    "jest* -u*": ask
+    "jest*--update*": ask
+    "vitest* -u*": ask
+    "*test* -u": ask
+    "*test* -u *": ask
+    "*test*-update*": ask
+    "*test*:update*": ask
+    "*--inline-snapshot*": ask
+    "pytest*--basetemp*": ask
+    "*--add-noqa*": ask
+    "*--install-types*": ask
+    "*--output-file*": ask
+    "*--outputFile*": ask
+    "eslint* -o *": ask
+    "go test* -o *": ask
+    "go test*-o=*": ask
+    "go test*--o *": ask
+    "go test*-exec*": ask
+    "go test*profile*": ask
+    "go test*-trace*": ask
+    "go test*-outputdir*": ask
+    "*-toolexec*": ask
+    "*-vettool*": ask
+    "tsc*--init*": ask
+    "tsc*--generate*": ask
     "git commit*": deny
     "git push*": deny
     "git reset*": deny
@@ -130,6 +172,21 @@ permission:
     "cargo install*": deny
     "go install*": deny
     "sudo *": deny
+    # Last match wins: these write files or spawn external programs.
+    "git * --output*": deny
+    "git * --ext-diff*": deny
+    "gh * --web*": deny
+    "gh pr * -w*": deny
+    "gh issue * -w*": deny
+    "gh run view* -w*": deny
+    "gh repo * -w*": deny
+    # Best-effort: these read files outside git's view, past the .env read
+    # rules (git diff turns on --no-index by itself for an outside path).
+    "git * --no-index*": deny
+    "git diff* /*": deny
+    "git diff* ~*": deny
+    "git diff* ../*": deny
+    "git blame*--contents*": deny
 ---
 
 You are a read-only debugging subagent. Your output is consumed by a
@@ -147,9 +204,12 @@ concretely and skip any that adds nothing for a simple failure. Do not pad a
 small finding to look thorough.
 
 You are callable by any primary, so stay self-sufficient: do the regression and
-isolation work yourself rather than assuming the caller framed it. Run
-inspection commands individually — never chain them with `&&`, or one
-non-allowlisted command rejects the whole line.
+isolation work yourself rather than assuming the caller framed it. Run one
+command per Bash call with `workdir` instead of `cd` or `git -C`; never chain
+with `&&`, `;`, or pipes, and never redirect with `>`: any non-allowlisted
+part, a `>`, or a write flag such as `--fix` makes the whole line wait for
+approval, and a denied part rejects it. Read and search files with Read, Grep,
+and Glob, not `cat`, `sed`, or `grep`.
 
 Use this agent for:
 

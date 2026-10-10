@@ -113,6 +113,10 @@ Rules:
 - When the caller names a worktree root, work only inside it: edit files by
   absolute path under that root and run every bash command with `workdir`
   set to it. Never touch the main checkout or any other path.
+- Read, search, and change files with Read, Grep, Glob, Edit, and Write, not
+  `cat`, `sed`, `grep`, heredocs, or a script that rewrites files. Use Bash for
+  checks and command output: one command per call, with `workdir` instead of
+  `cd` or `git -C`.
 - Never create commits, never push, never modify git state.
 - Verify your work when a cheap check exists (typecheck, build, targeted
   tests, linter) and the caller did not say otherwise.

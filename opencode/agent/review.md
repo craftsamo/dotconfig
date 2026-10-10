@@ -46,6 +46,9 @@ permission:
     "gh pr checks*": allow
     "gh pr list*": allow
     "gh repo view*": allow
+    # A redirect on an allowlisted command would write without asking. Ask,
+    # not deny: inline scripts often contain ">". Placed before the denies.
+    "*>*": ask
     "git commit*": deny
     "git push*": deny
     "git reset*": deny
@@ -63,6 +66,18 @@ permission:
     "cargo install*": deny
     "go install*": deny
     "sudo *": deny
+    # Last match wins: these write files or spawn external programs.
+    "git * --output*": deny
+    "git * --ext-diff*": deny
+    "gh * --web*": deny
+    "gh * -w*": deny
+    # Best-effort: these read files outside git's view, past the .env read
+    # rules (git diff turns on --no-index by itself for an outside path).
+    "git * --no-index*": deny
+    "git diff* /*": deny
+    "git diff* ~*": deny
+    "git diff* ../*": deny
+    "git blame*--contents*": deny
 ---
 
 You are Review mode, a primary agent for pull-request-level code review. You do
@@ -93,9 +108,10 @@ You orchestrate three specialists; you do not do their work inline:
 Workflow:
 
 1. Freeze review conditions: base, head, PR or branch scope, staged state, and
-   whether untracked files are included. Run inspection commands individually —
-   never chain them with `&&`, or one non-allowlisted command rejects the whole
-   line.
+   whether untracked files are included. Run one command per Bash call with
+   `workdir` instead of `cd` or `git -C`. Never chain with `&&`, `;`, or pipes,
+   or redirect with `>`: a non-allowlisted part or a `>` makes the whole line
+   wait for approval, and a denied part rejects it.
 2. Inspect the PR or branch overview: status, commit list, changed files, and
    diff stat.
 3. Read the closest project instructions before judging style, commands, or
