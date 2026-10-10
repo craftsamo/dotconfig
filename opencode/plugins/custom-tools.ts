@@ -75,8 +75,7 @@ type V2Context = {
     get(input: { sessionID: string }): Promise<{ projectID?: string; location?: { directory?: string }; metadata?: Record<string, unknown> }>
   }
   worktree: {
-    create(input: { projectID: string; name?: string; branch?: string }): Promise<{ directory: string }>
-    remove(input: { projectID: string; directory: string; force: boolean }): Promise<unknown>
+    refresh(input: { projectID: string }): Promise<unknown>
     list(input: { projectID: string }): Promise<{ directory: string; strategy?: string }[]>
   }
   integration: {
@@ -109,8 +108,10 @@ async function setup(ctx: V2Context) {
     return gitToplevel(directory)
   }
 
-  // Worktree operations bound to the calling session's project, so the tool
-  // goes through the same strategy and inventory as the TUI.
+  // The worktree inventory of the calling session's project. git_worktree
+  // creates and removes through the strategy itself (V2's create takes a
+  // directory name, which cannot carry a branch with a slash), then refreshes
+  // this inventory so the TUI lists the result.
   const worktreesFor = (sessionID: string): ToolContext["worktrees"] => {
     const projectID = async () => {
       const id = (await ctx.session.get({ sessionID })).projectID
@@ -118,9 +119,8 @@ async function setup(ctx: V2Context) {
       return id
     }
     return {
-      create: async (input) => ctx.worktree.create({ projectID: await projectID(), ...input }),
-      remove: async (input) => {
-        await ctx.worktree.remove({ projectID: await projectID(), ...input })
+      refresh: async () => {
+        await ctx.worktree.refresh({ projectID: await projectID() })
       },
       list: async () => ctx.worktree.list({ projectID: await projectID() }),
     }
