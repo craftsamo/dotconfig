@@ -48,10 +48,11 @@ HARD_DENY_SHELL = (
     "git reset *--hard*", "git clean *-*f*",
 )
 # Writes that OpenCode tools perform past the shell rules. A run never makes or
-# removes worktrees itself (`workspace` does), and a read-only run never commits
-# or stages.
+# removes worktrees itself (`workspace` does), and a read-only run never commits,
+# stages or runs a command at each commit (git_verify_commits asks, and the
+# caller must not approve that for a read-only run).
 TOOL_DENY = ("git_worktree",)
-READ_ONLY_DENY_TOOLS = ("git_commit", "git_stage_hunks")
+READ_ONLY_DENY_TOOLS = ("git_commit", "git_stage_hunks", "git_verify_commits")
 PROJECT_WRITES = (
     "github_project_create", "github_project_field_ensure", "github_project_item_add",
     "github_project_item_set", "github_project_item_note", "github_project_item_promote",
