@@ -1,8 +1,8 @@
 # Creator hands — overview
 
-The v3 hands contract: client model, skill tree, form, handoff, media craft, migration. Part of the Hermes design docs — index: [`PROFILES.md`](../../PROFILES.md).
+The contract shared by the three media hands (image-creator, video-creator, audio-creator): client model, skill tree, form, handoff message and media craft knowledge. Read it before adding or changing a hands leaf. Part of the Hermes design docs — index: [`PROFILES.md`](../../PROFILES.md).
 
-## Creator hands (v3, 2026-09)
+## Creator hands
 
 Media production runs in three **hands** profiles — `image-creator`
 (A2A `:9907`), `video-creator` (`:9908`) and `audio-creator` (`:9909`). Each
@@ -24,8 +24,7 @@ private handoff record, distinguishes current instructions from non-actionable
 history, and identifies the caller as an agent even during conversational
 follow-ups. This is provenance for inspection, not authenticated human approval.
 Keep relayed human decisions with their source/proposal/scope separate from
-agent implementation choices. Do not weaken the outcome to match a template;
-use the granted discretion without unnecessary repeated questions.
+agent implementation choices.
 
 The hands have one **client**, the Assistant. It picks the leaf, **fills its
 form** from the user's words and relayed decisions (with Creator's draft
@@ -40,21 +39,14 @@ Creator reads the forms and option references to propose directions and
 revisions, but never sends a handoff and never receives a report. When to
 consult it, and how a `Q<n>:` is answered: [`broker.md`](../broker.md).
 
-For a stuck resident transport, `specialist_session(action="reconcile", ...,
-evidence=...)` verifies its recorded process group is gone and its shell lock is
-absent or belongs to that same dead process. It retains an owned dead lock and
-records `interrupted`, with external effects still unknown and no continuation
-allowed. A2A, missing handles and foreign/unverifiable locks remain blocked.
-Bookkeeping close is neither acceptance nor evidence that a retry is safe.
+A stuck resident transport is closed with `specialist_session(action="reconcile")`
+([`profiles/specialist-calls.md`](../profiles/specialist-calls.md) owns it); a
+bookkeeping close is neither acceptance nor evidence that a retry is safe.
 
 Acceptance follows the initial audience/outcome and the actual returned version,
-not the producer's chosen metaphor or successful process exit. Record component
-versions and dependent checks in existing job notes; revisions invalidate only
-affected evidence. Local acceptance, preview approval and a reopened service-side
-draft are separate facts. The work-continuity verification (see `AGENTS.md`)
-checks routing coverage for all hands, real skill discovery and the
-profile/runtime regressions; subjective comprehension and live save behavior
-still need actual-use evidence.
+not the producer's chosen metaphor or successful process exit. Revisions
+invalidate only affected evidence; local acceptance, preview approval and a
+reopened service-side draft are separate facts.
 
 ### Skill tree
 
@@ -77,8 +69,7 @@ profiles/<hands>/skills/
   published asset and record its license (free); `analyze` — inspect an
   existing asset and return findings, not new/repaired media (free). Most
   analyze leaves return reply findings; analyze-ad may retain its report and
-  evidence at an explicit deliver path for a later creative brief, never a new
-  ad. The `create`/`generate` boundary is whether a generation model is asked
+  evidence at an explicit deliver path, never a new ad. The `create`/`generate` boundary is whether a generation model is asked
   to draw.
 - **Cost is independent of verb.** `free` means no metered media-provider fee,
   not zero reasoning cost or unlimited compute. Local speech synthesis still
@@ -96,23 +87,9 @@ profiles/<hands>/skills/
   maintainer; they never patch tracked skill roots (`skill-topology` blocks
   such writes at the tool layer).
 
-**Execution-environment traps** go into the Procedure of the leaf that hits
-them, not into a shared note:
-
-- Japanese `。` in an argv string trips the terminal guard → pass text as a file.
-- Foreground terminal calls die at 420 s → long renders run `background: true`
-  and are polled.
-- Vision holds ~3 images → contact sheet first, then one image at a time.
-- Append each look's finding to `qa.md` before the next `vision_analyze`; an
-  unwritten look did not happen — an image leaves the context three looks later.
-  `qa.md` is appended, never rewritten.
-- `magick montage` aborts without a default font → use `+append`.
-- A multi-file `rm` trips the guard → leave `/tmp` alone.
-- An inline `for` loop over a script variable trips the guard → run batches
-  through a script file.
-- The write guard reads the WHOLE terminal command, so `cp … && <skill script>`
-  is refused → run a skill script in a command of its own.
-- A 32 px tile is judged point-magnified 4x.
+**Execution-environment traps** (terminal-guard limits, foreground timeouts,
+vision-window habits) go into the Procedure of the leaf that hits them, not
+into a shared note.
 
 **Instruction context.** The hands' always-on contracts re-evaluate the named
 leaf and selected references on inbound turns/completions and before a changed
@@ -131,29 +108,26 @@ that hands' executor.
 ---
 name: generate-icon
 description: >-
-  <one sentence: what this leaf delivers, from which inputs — the only line
-  a client needs to choose it>
-version: 1.0.0
+  <one sentence: what this leaf delivers, from which inputs>
 metadata:
   hermes:
     category: hands
     hands: image-creator
     cost: metered                      # free | metered
-    output: "icon_<slug>_<size>.png (transparent, square) + .svg when vector"
+    output: "icon_<slug>_<size>.png (transparent, square)"
     form:
-      what_for:   {required: true,  label: "何のアイコンか", example: "Slack 通知 bot"}
-      style:      {required: true,  options: [flat-minimal, glass, pixel, line, clay], other: true}
-      background: {required: false, options: [transparent, brand-fill, tile], other: true}
-      reference:  {required: false, type: image, label: "参照画像のパス"}
-      note:       {required: false, type: text}
+      what_for: {required: true, label: "何のアイコンか", example: "Slack 通知 bot"}
+      style:    {required: true, options: [flat-minimal, glass, pixel], other: true}
+      note:     {required: false, type: text}
 ---
 ```
 
 Field keys: `required` (bool), `label` / `example` (interview prompts),
 `options` + `other: true` (a controlled vocabulary that still accepts a
 free value — the leaf's `references/styles/<option>.md` backs each listed
-option), `type` (`text` default, `image`, `file`, `path`, `int`). `note` is
-the escape hatch every leaf carries. The SKILL.md body has exactly three
+option), `type` (`text` default, `image`, `file`, `path`, `int`); the
+validator is the authority on the full set. `note` is the escape hatch every
+leaf carries. The SKILL.md body has exactly three
 sections — `<Procedure>`, `<QA>`, `<Report>` — no Goal / Inputs / Presets
 sections, because `description` and `form` already say that.
 
@@ -181,7 +155,7 @@ topology validator passes.
 ```
 skill: generate-icon
 intent: new | revise <path of the previous delivery>
-deliver: ~/Workspaces/Projects/<Group>/.agent/<YYYYMMDD>-<job>/
+deliver: <Group root>/.agent/<YYYYMMDD>-<job>/
 budget: 4 variants + 1 corrective          # media calls or local speech takes
 form:
   what_for: Slack 通知 bot のアプリアイコン
@@ -194,8 +168,8 @@ form:
 The selected Group must already exist. Its draft job directory
 `.agent/<YYYYMMDD>-<job>/` and job-owned descendants (such as `video-plan` or
 `music-plan`) are accepted by all three hands; so are the Group root itself
-and the unassigned `~/Workspaces/.agent/<YYYYMMDD>-<job>/`. Everything under `.agent/` is a draft; the Workspaces rules
-own promotion and cleanup.
+and the unassigned `~/Workspaces/.agent/<YYYYMMDD>-<job>/`. Everything under `.agent/` is a draft;
+the Workspaces rules own promotion and cleanup.
 A job directory may be created beneath an existing parent, subject to the
 leaf's exclusive-output checks. Never create a new Group or relocate a
 valid Group-local job merely because it is below the Group root. This is
@@ -217,9 +191,9 @@ Transport limits: A2A identifies loopback callers by IP, not by a
 cryptographically verified profile, so a verbal origin confirmation adds no
 security; keep the localhost restriction and never widen the transport. All
 three hands run in the single multiplex gateway; after a restart, readiness is
-proven by the agent card answering HTTP 200 plus listener ownership, not by
-launchctl's return. An early `Unknown toolsets: a2a` CLI warning during plugin
-discovery is benign — never add a second gateway to work around it.
+the agent card answering HTTP 200 plus listener ownership, not launchctl's
+return. Never add a second gateway to work around an `Unknown toolsets: a2a`
+warning.
 
 ### Media craft knowledge
 
@@ -245,37 +219,28 @@ ambiguous knowledge is a named stop for that decision, never an install or
 capability expansion. Mechanical work skips the craft reading. Audio perception
 stays human-reported: acceptance uses attributed human listening, meters and ASR
 never become a listening verdict, and the shared skill authorizes no new tool.
-Fresh conversations are needed after an explicitly approved install/cutover.
-Existing jobs and frozen outputs are not migrated. Candidate and
-structural/discovery validation is neither live cutover nor artistic acceptance.
 
 ### Vision window
 
 Native `vision_analyze` puts the image itself into the tool result, and Hermes
-sends only the newest three image-bearing tool results with each request. A
-step that asked for 29 frames showed three, while the other 26 results still
-read "Image loaded into your context"; the model saw no image, assumed the
-load had failed and asked again. In the 2026-09-23 Creator A/B one frame was
-opened 68-80 times, 566-972 looks per 16 s job over 30-44 files, against 19-47
-for OpenCode on the same brief. Most of the 20-40M input tokens per job were
-that long history replayed, not the images.
+sends only the newest three image-bearing tool results with each request. The
+older results still read "Image loaded into your context", so the model sees no
+image, assumes the load failed and asks again, in a loop that replays a long
+history.
 
 The `vision-window` plugin (enabled on creator and the three hands) rewrites
 native `vision_analyze` results through the `transform_tool_result` hook, with
-no Hermes core change:
+no Hermes core change — never fix this with a hermes-agent patch:
 
 - The 4th and later image in one step returns "Image not shown: <path>. Only 3
-  images can be shown to you per step ... request it again in your next step."
-  The model is told the truth instead of a false "loaded".
-- An image whose bytes were already shown 3 times in the turn returns "Image
-  not shown again ... Use what you already noted about it." This stops
-  flip-flopping comparisons; a re-rendered file has new bytes and is shown.
+  images can be shown to you per step ...", so the model is told the truth
+  instead of a false "loaded".
+- An image whose bytes were already shown 3 times in the turn is not shown
+  again; a re-rendered file has new bytes and is shown.
 
-Which three of a parallel batch are shown follows completion order. Verified
-on an isolated home with the unmodified runtime (6 parallel frames: 3 shown, 3
-"not shown", and the model reported exactly which). Leaf procedures keep their
-rules: contact sheets, at most three looks per step, a finding in `qa.md`
-before the next look.
+Which three of a parallel batch are shown follows completion order. Leaf
+procedures keep their rules: contact sheets, at most three looks per step, a
+finding in `qa.md` before the next look.
 
 ### Families and former technics
 
@@ -285,36 +250,30 @@ from the hands' own CLI with a pasted filled form, (3) both client-side
 references ([`broker.md`](../broker.md) "References each side owns"), (4) a soak
 through the Assistant, recording what the form got wrong.
 
-Creator's former `creator-*` technics end with the advisor cutover. Five became
-hands leaves: on image-creator the SVG diagram (`create-diagram`), grid-exact
-pixel art (`create-pixel-art`), text-free generated illustration
-(`generate-illustration`) and official brand-asset sourcing (the official path
-of `source-icon`), and on video-creator pixel animation
-(`create-pixel-animation`). The other fourteen are archived under `hermes/archive/creator-technic/`, which no profile
-reads; `image_gen` / `video_gen` / `tts` / `unreal-engine` leave Creator's
-toolsets with them.
+Creator's former technics are not hands subjects: which became leaves and which
+are archived is owned by [`broker.md`](../broker.md) "Legacy routes".
 
-| Family          | Hands         | Leaves                                                                                                            | Former technic                                                                                       |
-| --------------- | ------------- | ----------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| icon            | image-creator | source, create, generate, edit, analyze                                                                           | `creator-logo-icons` retired; `creator-brand-asset-sourcing` folds into `source-icon`                |
-| emoji           | image-creator | create, generate, edit, analyze                                                                                   | none; published glyphs use `source-icon`                                                             |
-| mascot          | image-creator | generate, edit, analyze                                                                                           | none                                                                                                 |
-| reimagine       | image-creator | generate                                                                                                          | none                                                                                                 |
-| kit             | image-creator | source, create, generate, edit, analyze                                                                           | none maps 1:1                                                                                        |
-| card            | image-creator | create, generate, edit, analyze                                                                                   | `creator-text-card` archived                                                                         |
-| diagram         | image-creator | create                                                                                                            | `creator-svg-diagram` archived                                                                       |
-| pixel-art       | image-creator | create                                                                                                            | `creator-pixel-art` archived                                                                         |
-| illustration    | image-creator | generate                                                                                                          | `creator-generated-image` archived                                                                   |
-| clip            | video-creator | generate, edit, analyze                                                                                           | `creator-generated-video` archived (local ComfyUI included)                                          |
-| music-video     | video-creator | generate                                                                                                          | none                                                                                                 |
-| tour            | video-creator | create                                                                                                            | `creator-html-motion` archived                                                                       |
-| ad              | video-creator | analyze, create (a generated ad is generate-clip shots composed by create-ad; an authored PV is create-promotion) | none                                                                                                 |
-| explainer-video | video-creator | create                                                                                                            | `creator-manim-explainer` archived                                                                   |
-| promotion       | video-creator | create                                                                                                            | `creator-html-motion` archived (overlays on footage, captioned narration, audio-reactive, >60 s too) |
-| story           | video-creator | create                                                                                                            | `creator-html-motion` archived                                                                       |
-| master          | video-creator | create                                                                                                            | `creator-media-assembly` archived (segment sound, ducking, edit-spec trims too)                      |
-| pixel-animation | video-creator | create                                                                                                            | `creator-pixel-video` archived                                                                       |
-| speech          | audio-creator | generate, edit, analyze                                                                                           | voice card retired; AudioCraft/HeartMuLa/songsee withdrawn                                           |
-| sfx             | audio-creator | create, generate, edit, analyze                                                                                   | none                                                                                                 |
-| music           | audio-creator | create, generate, edit, analyze                                                                                   | vocal-song generation and standalone audio visualization withdrawn                                   |
-| mix             | audio-creator | create, edit, analyze                                                                                             | none                                                                                                 |
+| Family          | Hands         | Leaves                                                                                                            |
+| --------------- | ------------- | ----------------------------------------------------------------------------------------------------------------- |
+| icon            | image-creator | source, create, generate, edit, analyze                                                                           |
+| emoji           | image-creator | create, generate, edit, analyze (published glyphs use `source-icon`)                                              |
+| mascot          | image-creator | generate, edit, analyze                                                                                           |
+| reimagine       | image-creator | generate                                                                                                          |
+| kit             | image-creator | source, create, generate, edit, analyze                                                                           |
+| card            | image-creator | create, generate, edit, analyze                                                                                   |
+| diagram         | image-creator | create                                                                                                            |
+| pixel-art       | image-creator | create                                                                                                            |
+| illustration    | image-creator | generate                                                                                                          |
+| clip            | video-creator | generate, edit, analyze                                                                                           |
+| music-video     | video-creator | generate                                                                                                          |
+| tour            | video-creator | create                                                                                                            |
+| ad              | video-creator | analyze, create (a generated ad is generate-clip shots composed by create-ad; an authored PV is create-promotion) |
+| explainer-video | video-creator | create                                                                                                            |
+| promotion       | video-creator | create                                                                                                            |
+| story           | video-creator | create                                                                                                            |
+| master          | video-creator | create                                                                                                            |
+| pixel-animation | video-creator | create                                                                                                            |
+| speech          | audio-creator | generate, edit, analyze                                                                                           |
+| sfx             | audio-creator | create, generate, edit, analyze                                                                                   |
+| music           | audio-creator | create, generate, edit, analyze                                                                                   |
+| mix             | audio-creator | create, edit, analyze                                                                                             |
