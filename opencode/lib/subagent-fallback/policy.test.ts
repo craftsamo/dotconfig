@@ -203,6 +203,21 @@ describe("launch preference", () => {
       }),
     ).toBe(false)
   })
+  test("pin keeps a role's route whatever model is configured, but never an explicit model, continuation or unknown role", () => {
+    const changed = { providerID: "openai", id: "gpt-5.6-terra" }
+    for (const configured of [changed, undefined, ROUTES.reviewer.primary])
+      expect(routeForLaunch({ agent: "reviewer" }, configured, true)).toBe(
+        ROUTES.reviewer,
+      )
+    for (const input of [
+      { agent: "reviewer", model: "explicit" },
+      { agent: "reviewer", sessionID: "ses_1" },
+      { agent: "unknown" },
+      { agent: "__proto__" },
+      {},
+    ])
+      expect(routeForLaunch(input, changed, true)).toBeUndefined()
+  })
   test("every routed role's global agent file names its route's primary", async () => {
     // ROUTES and the agent files name the same models; a drift between them
     // would go unnoticed at launch.

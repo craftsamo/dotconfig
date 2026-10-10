@@ -87,16 +87,20 @@ export function modelsEqual(a: ModelRef, b: ModelRef): boolean {
   )
 }
 
+// With pin, a role keeps its route even when the agent definition in effect
+// (a project's own agent file, say) names another model or none at all.
 export function routeForLaunch(
   input: { agent?: unknown; model?: unknown; sessionID?: unknown },
   configured: ModelRef | undefined,
+  pin = false,
 ): Route | undefined {
   if (input.model !== undefined) return undefined
   if (input.sessionID !== undefined) return undefined
   if (typeof input.agent !== "string") return undefined
   if (!Object.hasOwn(ROUTES, input.agent)) return undefined
-  if (!configured) return undefined
   const route = ROUTES[input.agent]
+  if (pin) return route
+  if (!configured) return undefined
   if (!modelsEqual(route.primary, configured)) return undefined
   return route
 }
