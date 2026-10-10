@@ -1,6 +1,6 @@
 import { tool } from "../define"
 import { runGhJson, tryGit } from "../exec"
-import { fileExists } from "./shared"
+import { COMMITLINT_CONFIGS, fileExists } from "./shared"
 
 export const history_digest = tool({
   description:
@@ -26,15 +26,7 @@ export const history_digest = tool({
       }
     }
     const configCandidates = [
-      "commitlint.config.js",
-      "commitlint.config.cjs",
-      "commitlint.config.mjs",
-      "commitlint.config.ts",
-      ".commitlintrc",
-      ".commitlintrc.json",
-      ".commitlintrc.js",
-      ".commitlintrc.yml",
-      ".commitlintrc.yaml",
+      ...COMMITLINT_CONFIGS,
       ".gitmessage",
       ".czrc",
       ".cz.json",
