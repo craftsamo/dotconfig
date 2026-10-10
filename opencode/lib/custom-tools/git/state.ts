@@ -59,7 +59,7 @@ export async function operation(cwd: string): Promise<string | null> {
 }
 
 /** The remote default branch as recorded locally (origin/HEAD), else origin/main or origin/master. */
-async function defaultRef(cwd: string): Promise<string | null> {
+export async function defaultRef(cwd: string): Promise<string | null> {
   const head = await tryGit(["symbolic-ref", "--quiet", "--short", "refs/remotes/origin/HEAD"], cwd)
   if (head.ok && head.stdout.trim()) return head.stdout.trim()
   for (const ref of ["origin/main", "origin/master"])
