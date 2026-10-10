@@ -22,9 +22,8 @@ the hands. Creator is consulted when a required field is open, a look or a
 reference needs interpreting, or the user's feedback on a storyboard, draft or
 delivery is too vague to map onto a form. A look is settled only when named
 concretely (a leaf style or option, a reference, colours, typefaces or motifs);
-a mood given as an adjective or two is open, because in the advisor study the
-run that commissioned straight from 「あたたかみのある感じで」 lost its case. The
-user picks among Creator's directions or changes; the Assistant records that
+a mood given as an adjective or two (「あたたかみのある感じで」) is open, since it
+settles no field. The user picks among Creator's directions or changes; the Assistant records that
 human decision separately from Creator's suggestion and sends the picked draft
 handoff.
 
@@ -67,8 +66,8 @@ recovery dependencies.
   returned. The Assistant never computes, refreshes or invents a hash.
 - Approvals and choices are the user's only. An unreachable user leaves the
   gate open: the Assistant stops and reports, and the hands treat an approval
-  the Assistant or Creator gave on its own judgement as none (the advisor study
-  caught both arms approving storyboards for a client they could not reach).
+  the Assistant or Creator gave on its own judgement as none. An approval hash
+  binds bytes, not the approver's identity.
 - Asset and operation upload consent is relayed explicitly. A local path, a
   public URL, a direction choice or "use this" is not consent; reuse rights,
   model upload, remote analysis and publication are separate permissions.
@@ -79,14 +78,12 @@ recovery dependencies.
 ## Legacy routes
 
 There is no legacy production route. Of Creator's 19 former technics, five
-became hands leaves before the advisor cutover: `create-diagram` (the SVG
-diagram), `create-pixel-art`, `generate-illustration` and the official path of
-`source-icon` (official brand-asset sourcing) on image-creator, and
-`create-pixel-animation` on video-creator. The other fourteen are archived under
-`hermes/archive/creator-technic/`, which no profile reads; a request only they
-covered returns `no leaf fits` until a leaf exists. The Assistant's legacy Plan
-and QA references retire with them. Existing frozen outputs, proposal hashes
-and approvals are never rewritten.
+became hands leaves: `create-diagram`, `create-pixel-art`,
+`generate-illustration` and the official path of `source-icon` on
+image-creator, and `create-pixel-animation` on video-creator. The other
+fourteen are archived under `hermes/archive/creator-technic/`, which no profile
+reads; no leaf fits a request only they covered until a leaf exists (`no leaf
+fits`). Frozen outputs, proposal hashes and approvals are never rewritten.
 
 ## Other producers
 

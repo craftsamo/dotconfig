@@ -1,6 +1,6 @@
 # Researcher and Searcher
 
-Research and search dialogue, mode entries and shared stages. Part of the Hermes design docs — index: [`PROFILES.md`](../../PROFILES.md).
+Research and search dialogue, mode entries and shared stages. Read it before changing Researcher or Searcher entries, tools or planning rules. Part of the Hermes design docs — index: [`PROFILES.md`](../../PROFILES.md).
 
 ## Research and search dialogue
 
@@ -29,7 +29,7 @@ success.
 
 ### Researcher
 
-Researcher's v11.0.0 `researcher-pipeline` kernel routes four mode entries, one
+Researcher's `researcher-pipeline` kernel routes four mode entries, one
 per kind of question: `investigate-researcher` (an open question, answered as an
 evidence pack), `compare-researcher` (named options on fixed criteria, a
 tradeoff matrix), `verify-researcher` (exact claims, verdicts and a durable
@@ -70,7 +70,7 @@ modes of the same name; the validator enforces that caller-side mapping.
 
 ### Searcher
 
-Searcher's v10.0.0 `searcher-pipeline` kernel (retrieval, release and the
+Searcher's `searcher-pipeline` kernel (retrieval, release and the
 resident runtime) routes three mode entries, `lookup-searcher`,
 `sweep-searcher` and `hunt-searcher`, over the same shared Plan and Build
 stage references. Retrieval and link integrity remain its limits: no trust
@@ -84,32 +84,18 @@ the fallback for when `x_search` is unavailable, within a capped share of the
 shared X reads. It never gets the messaging tools, the user's own drafts,
 statistics or channels, or any write.
 
-Its last cards were the `survey-enumeration` and `exhaustive-hunt` units, which
-ran a hunt through a `goal_mode` loop with a completion judge. Both are gone,
-and so is `goal_mode`: a long or multi-hop retrieval is one resident
-conversation the caller continues. A hunt keeps running hops until saturation,
+A long or multi-hop retrieval is one resident conversation the caller
+continues; there is no `goal_mode`. A hunt keeps running hops until saturation,
 its done criteria or the agreed cap, and a turn that must end first hands back
 its ledger and gaps. The caller may author a complete brief, and an explicitly
 authorized settled one goes directly to Build.
 
 ### Entries and status
 
-Neither tree keeps an alias for its former `plan-`, `build-` and `qa-` entries
-or their per-stage unit references, and neither adds a second common-mode
-index. All seven mode entries follow the shared
-[entry loading contract](../topology.md#entry-loading-contract): full kernel,
-selected mode entry and current stage reference bodies on every
-caller/judge/resume/completion turn and before mode/stage/scope changes,
-including direct entry. Selection/resume never resets coverage/frontier or
-consumed/remaining budget. Parent references are Hermes-specific dependencies:
+Neither tree keeps an alias for `plan-`, `build-` or `qa-` entries or per-stage
+unit references, and neither adds a second common-mode index. All seven mode entries follow the shared
+[entry loading contract](../topology.md#entry-loading-contract), with the
+current stage reference bodies loaded too. Selection/resume never resets
+coverage/frontier or consumed/remaining budget. Parent references are Hermes-specific dependencies:
 never duplicate Gather, the stages, evidence floors or the kernel to satisfy
-the generic portability check.
-
-Status: implemented candidate, awaiting explicit live cutover and real-model
-verification (see [topology](../topology.md) "Candidate rollout and cutover").
-`test_researcher_entries.py`, `test_searcher_pipeline.py` and
-`test_searcher_entry_runtime.py` stay registered in `verify-work-continuity.py`;
-they check mode/stage contracts and real discovery/read/dedup/recovery
-mechanics, not model routing or actual research. No new profile, peer, tool
-grant, external root or install mapping is introduced, and no other profile
-gains these entries.
+the generic portability check. No other profile gains these entries.

@@ -1,18 +1,15 @@
-# Gateway, tracking and status
+# Gateway and tracking
 
-Gateway as a persistent service, what is tracked, and the current state. Part of the Hermes design docs — index: [`PROFILES.md`](../PROFILES.md).
+How the multiplex gateway runs as a LaunchAgent and which per-profile files are tracked. Read it before changing the launcher, the plist or the symlink set. Part of the Hermes design docs — index: [`PROFILES.md`](../PROFILES.md).
 
 ## Gateway as a persistent service
 
-The **default** profile hosts ONE multiplex gateway keychain-pure via a
-**LaunchAgent**: `gateway.multiplex_profiles: true` in the root `config.yaml`
-makes that single process serve every profile directory under `profiles/`
-(there is no allowlist; only `hermes -p <name> gateway stop` parks one, so never
-use it on a role that must stay reachable) and connect each one's enabled
-platforms — assistant Telegram (+ topics) and Discord, the marketer Telegram bot, and the A2A endpoints on 127.0.0.1:9903-9909. Profiles
-without platforms (searcher) are served as well and carry `secrets.command` →
-`profile-secrets.sh`. Secondary profiles never run
-their own gateway. Three tracked, machine-agnostic files in `hermes/launchd/`:
+The **default** profile hosts the ONE multiplex gateway keychain-pure via a
+**LaunchAgent**; which profiles and A2A ports it serves is in
+[`topology.md`](./topology.md) "Multiplex gateway and A2A peer graph".
+Secondary profiles never run their own gateway (never use
+`hermes -p <name> gateway stop` on a role that must stay reachable). Three
+tracked, machine-agnostic files in `hermes/launchd/`:
 
 - **`bin/hermes-gateway-multiplex`** — the launcher. Sets its own `PATH` (a
   LaunchAgent can start with a stripped one), `cd`s to `~/Workspaces`, logs to
@@ -39,16 +36,14 @@ their own gateway. Three tracked, machine-agnostic files in `hermes/launchd/`:
   `ExitTimeOut` 60.
 - **`gateway-launchctl.sh`** — renders the template (`__HOME__` → `$HOME`) into
   `~/Library/LaunchAgents/` (host-local, never committed) and loads it; on
-  install it also unloads and removes the legacy `ai.hermes.keychain-multiplex`,
-  `local.hermes.gateway.multiplex` and `local.hermes.gateway.assistant` agents so two pollers never race one bot
-  token.
+  install it also unloads the launcher's `LEGACY_LABELS` agents so two pollers
+  never race one bot token.
 
-**Telegram + Discord.** Gateway DB calls run off the asyncio loop
-(`AsyncSessionDB` / `asyncio.to_thread`, upstream #40695) with dedicated
-regression tests — synchronous SQLite access from `_handoff_watcher` stalls
-Discord heartbeats — so the launcher exposes both platform
-credentials. Keep the Discord toolset granular and equal to Telegram; never
-replace either list with a broad bundled toolset.
+**Telegram + Discord.** No synchronous SQLite in the gateway: gateway DB calls
+run off the asyncio loop (`AsyncSessionDB` / `asyncio.to_thread`) because
+synchronous access from `_handoff_watcher` stalls Discord heartbeats. Keep the
+Discord toolset granular and equal to Telegram; never replace either list with
+a broad bundled toolset.
 
 Discord is limited to the private config's user and channel allowlists. A channel
 mention creates a thread; the parent channel's `assistant-pipeline` binding and
@@ -65,9 +60,8 @@ scope-registered tools such as character-voice from another.
 registration-only tests and direct CLI synthesis cannot detect this
 gateway-specific failure.
 
-Activate on the **gateway host only** (one bot token = one live connection —
-three bots means three tokens, all owned by this one process; stop any gateway
-elsewhere first):
+Activate on the **gateway host only** (one bot token = one live connection;
+stop any gateway elsewhere first):
 
 ```
 hermes/launchd/gateway-launchctl.sh install      # render template + load
@@ -85,21 +79,8 @@ tracked `config.example.yaml`), `profile.yaml` (holds the routing `description`)
 is never linked or tracked — Hermes owns it machine-local. Everything outside
 the symlink set stays untracked (inert `~/.hermes/kanban.db`, `kanban/`,
 `workspace/`, `auth.json`, `.env`, `memories/`, `sessions/`, `state.db*`);
-adoption steps are in [`README.md`](../README.md#tracking-a-profile).
+adoption steps are in [`ops/tracking.md`](ops/tracking.md) "Tracking a profile".
 
 Routing quality depends on `profile.yaml` descriptions — create workers with
 `hermes profile create <name> --description "<role>"` (or
 `hermes profile describe <name> --text "…"`).
-
-## Current state
-
-| Component                                                                                    | State                                                                                                                                                   | Documented in                                                                      |
-| -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
-| Multiplex gateway (3 Telegram bots, assistant Discord, A2A endpoints)                        | deployed, one host                                                                                                                                      | "Gateway as a persistent service" above; [`topology.md`](./topology.md) "Topology" |
-| A2A peer graph (`a2a_agents`, `timeout: 310`)                                                | deployed; peer-list enforcement is config + operating contract, not a plugin hook                                                                       | [`topology.md`](./topology.md) "Topology"                                          |
-| Resident sessions (fire-and-forget / cron / mass-parallel work goes through cron or resident sessions) | deployed; a real short-video production run through this flow is still unverified; direction is a stepwise move toward flatter, equal-primary operation | [`topology.md`](./topology.md) "Two delegation layers"                           |
-| Per-profile secret scopes                                                                    | deployed                                                                                                                                                | [`models-auth.md`](./models-auth.md) "Secrets layering"                            |
-| Model chains                                                                                 | deployed; probed per provider/model, per-profile behavior unevaluated                                                                                   | [`models-auth.md`](./models-auth.md) "Models and fallback chains"                  |
-| Hands commissioning and Creator advisor                                                      | candidate: Assistant commissions the hands, Creator advises; not deployed                                                                               | [`broker.md`](./broker.md), [`profiles/creator.md`](./profiles/creator.md)         |
-| Writer v8                                                                                    | deployed; resident `work` from the Assistant exercised through CLI and Telegram                                                                         | [`profiles/writer.md`](./profiles/writer.md)                                       |
-| Role-entry candidates (Researcher/Searcher entries, Creative early delivery)    | candidates, not deployed; cutover needs explicit approval, a controlled gateway restart and fresh sessions                                              | [`profiles/`](./profiles/) per role                                                |

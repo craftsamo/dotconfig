@@ -1,6 +1,6 @@
 # Creator
 
-Creator as creative advisor. Part of the Hermes design docs — index: [`PROFILES.md`](../../PROFILES.md).
+Creator as creative advisor: what it answers, what it never does, and how it hands off to the Assistant and the hands. Read it before changing Creator's tools, entries or references. Part of the Hermes design docs — index: [`PROFILES.md`](../../PROFILES.md).
 
 ## Creator as creative advisor
 
@@ -18,13 +18,12 @@ delivery ([broker.md](../broker.md)). The hands own production, their
 storyboards and proposals, and their self-checks
 ([hands/overview.md](../hands/overview.md)).
 
-The split follows the blind studies under
-`~/Workspaces/Projects/Acme/docs/hermes-studies/`. The storyboard author
-decided a film's rating, whoever implemented it. A named technique vocabulary
-given to that author raised ratings. A rules layer, self-critique, an
-independent critic and designs authored above the producer lowered ratings or
-left them unchanged. Creator therefore supplies vocabulary and choices. It never
-writes a design that binds the producer, and it never judges a result.
+The split follows blind studies: the storyboard author decided a film's
+rating, whoever implemented it; a named technique vocabulary given to that
+author raised ratings, while a rules layer, self-critique, an independent critic
+and designs authored above the producer lowered ratings or left them unchanged.
+Creator therefore supplies vocabulary and choices. It never writes a design that
+binds the producer, and it never judges a result.
 
 ### Client
 
@@ -37,7 +36,7 @@ only when the Assistant says so, never inferred from message shape.
 
 ### Entries
 
-`creator-pipeline` (v10) is the kernel; its two independent entries sit outside
+`creator-pipeline` is the kernel; its two independent entries sit outside
 `references/`:
 
 | Entry             | Input                                                                                                                              | Returns                             |
@@ -105,11 +104,11 @@ capability.
 ### Model
 
 Creator stays on Opus 5.5 ([models-auth.md](../models-auth.md) "The Creator
-family splits by hand").
+family splits by hand"): Sonnet trails on authored video
+([decision](../decisions/creator-family-model-split.md)).
 
 ### Acceptance
 
-The advisor path is accepted only by a blind comparison against the current
-best path (the Assistant passes intent and video-creator writes the storyboard
-with the vocabulary): it must not rank below it, and it must cut elapsed time
-and the user's round-trips.
+The advisor path counts as better only if a blind comparison against the
+producer-led path (the Assistant passes intent, video-creator writes the
+storyboard) does not rank it lower and it cuts elapsed time and round-trips.
