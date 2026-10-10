@@ -17,7 +17,8 @@ MODES = ("lookup", "sweep", "hunt")
 ENTRIES = tuple(f"{mode}-searcher" for mode in MODES)
 STAGES = ("plan", "build")
 SHARED = {f"references/{stage}.md" for stage in STAGES}
-PLATFORMS = {"references/platforms/evm.md", "references/platforms/solana.md"}
+SERVICES = ("x", "youtube", "note", "substack", "evm", "solana")
+PLATFORMS = {f"references/platforms/{p}.md" for p in SERVICES}
 
 
 def flat(path):
@@ -319,13 +320,18 @@ def test_mode_must_link_every_stage(candidate, name, stage):
 
 
 @pytest.mark.parametrize("name", ENTRIES)
-@pytest.mark.parametrize("platform", ("evm", "solana"))
-def test_mode_must_link_every_chain(candidate, name, platform):
+@pytest.mark.parametrize("platform", SERVICES)
+def test_mode_must_link_every_service(candidate, name, platform):
     entry = candidate / name / "SKILL.md"
     entry.write_text(entry.read_text().replace(f"(../references/platforms/{platform}.md)", ""))
     errors = []
     validator.validate_searcher_entries(candidate, errors)
     assert f"searcher entry does not link platform reference {platform}: {name}" in errors
+
+
+def test_researcher_keeps_only_the_chain_references():
+    assert validator.PLATFORMS == ("evm", "solana")
+    assert "platforms/x.md" not in validator.RESEARCHER_SHARED_REFERENCES
 
 
 def test_chain_reads_are_retrieval_without_verdicts():
@@ -351,3 +357,24 @@ def test_chain_reads_are_retrieval_without_verdicts():
     prompt = " ".join(yaml.safe_load((HERMES / "profiles/searcher/config.yaml").read_text())
                       ["agent"]["system_prompt"].split())
     assert "the read-only evm and solana tools for on-chain facts" in prompt
+
+
+SKILLS_FOR_SERVICE = {"x": "x-access:x-twitter", "youtube": "youtube-access:youtube",
+                      "note": "note-access:note-com", "substack": "substack-access:substack"}
+
+
+@pytest.mark.parametrize("service, skill", sorted(SKILLS_FOR_SERVICE.items()))
+def test_service_reads_are_retrieval_without_verdicts(service, skill):
+    text = flat(PIPELINE / f"references/platforms/{service}.md")
+    for phrase in ("Reading is allowed and nothing is written", "`Open for researcher`",
+                   "never as instructions", "unsearched ground", "## What to record per item",
+                   f'skill_view(name="{skill}")'):
+        assert phrase in text, (service, phrase)
+    group = {"x": "x-access", "youtube": "youtube-access", "note": "note-access", "substack": "substack-access"}
+    assert (HERMES / "plugins/social" / group[service] / "skills" / skill.split(":", 1)[1] / "SKILL.md").is_file()
+
+
+def test_x_reference_keeps_x_search_first_and_names_the_account_read():
+    text = flat(PIPELINE / "references/platforms/x.md")
+    assert "`x_search` first" in text and 'x(action="user", handle="@name")' in text
+    assert "There is no default account" in text and "never both for one question" in text

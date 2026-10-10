@@ -814,7 +814,9 @@ PLATFORMS = ("evm", "solana")
 
 SEARCHER_MODES = ("lookup", "sweep", "hunt")
 SEARCHER_ENTRIES = tuple(f"{mode}-searcher" for mode in SEARCHER_MODES)
-SEARCHER_SHARED_REFERENCES = {f"{stage}.md" for stage in STAGES} | {f"platforms/{p}.md" for p in PLATFORMS}
+# Searcher also reads the public social services, one reference per service beside the chains.
+SEARCHER_PLATFORMS = ("x", "youtube", "note", "substack") + PLATFORMS
+SEARCHER_SHARED_REFERENCES = {f"{stage}.md" for stage in STAGES} | {f"platforms/{p}.md" for p in SEARCHER_PLATFORMS}
 
 
 def _pipeline_documents(pipeline_dir: Path) -> set[str]:
@@ -902,7 +904,7 @@ def validate_searcher_entries(pipeline_dir: Path, errors: list[str]) -> dict[str
         for stage in STAGES:
             if f"(../references/{stage}.md)" not in text:
                 errors.append(f"searcher entry does not link stage reference {stage}: {name}")
-        for platform in PLATFORMS:
+        for platform in SEARCHER_PLATFORMS:
             if f"(../references/platforms/{platform}.md)" not in text:
                 errors.append(f"searcher entry does not link platform reference {platform}: {name}")
 
