@@ -1012,10 +1012,32 @@ class HandsLeafTest(unittest.TestCase):
         self.assertEqual(["generate-speech"], sorted(leaves))
 
 
+def _is_linked_worktree() -> bool:
+    result = subprocess.run(
+        ["git", "-C", str(VALIDATOR.REPO_ROOT), "rev-parse",
+         "--path-format=absolute", "--git-dir", "--git-common-dir"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    dirs = result.stdout.split()
+    return result.returncode == 0 and len(dirs) == 2 and dirs[0] != dirs[1]
+
+
 class EndToEndTest(unittest.TestCase):
     def test_all_profiles_pass(self) -> None:
         if not VALIDATOR.PRIVATE_OVERLAY.is_dir():
             self.skipTest("deployment-only: private overlay is absent")
+        # The overlay is read from HOME, but the Assistant config from this
+        # checkout; a task worktree has that link only after
+        # ../worktree-setup.sh. The live checkout never skips, and a dangling
+        # link still reaches the validator.
+        assistant_config = VALIDATOR.HERMES_ROOT / "profiles" / "assistant" / "config.yaml"
+        if not os.path.lexists(assistant_config) and _is_linked_worktree():
+            self.skipTest(
+                f"worktree lacks its private overlay links ({assistant_config}); "
+                "run ../worktree-setup.sh"
+            )
         # Invoke via sys.executable, not the script's `uv run --script` shebang:
         # this pins the actual provisioned interpreter running the test itself,
         # instead of letting uv/mise resolve one under a possibly-faked HOME.
