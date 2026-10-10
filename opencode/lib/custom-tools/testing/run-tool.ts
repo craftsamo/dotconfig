@@ -1,8 +1,7 @@
 /**
  * Runs one custom tool in a child process and prints `{ ok, out | error }` as
- * JSON. Tests use it for tools that call `gh`: Bun.$ resolves programs from
- * the PATH the process started with, so a fake `gh` only takes effect in a
- * process launched with that PATH.
+ * JSON. Tests use it for tools that call `gh`, so a fake `gh` on PATH stays
+ * confined to that child instead of the whole test process.
  *
  * Input (env TOOL_INPUT): { module, name, args, cwd }.
  */
