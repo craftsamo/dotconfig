@@ -947,7 +947,7 @@ def test_session_ruleset_holds_no_broad_allow_but_worktree_edits():
     posture, so an allow here would reopen what a subagent denies itself. The one
     exception is a write run's edits inside its worktree."""
     scratch, readable = policy.directories("/tmp/fake-opencode")
-    narrow = set(scratch + readable) | set(policy.SAMPLE_READS) | set(policy.WRITE_ALLOW_AFTER_ASK) | set(policy.STACK_READS)
+    narrow = set(scratch + readable) | set(policy.SAMPLE_READS) | set(policy.STACK_READS)
     for kind in config.POLICIES:
         for issue in (None, "granted"):
             rules = policy.rules(kind, issue, {"main"}, tmp="/tmp/fake-opencode", branch="topic")
@@ -977,6 +977,99 @@ def test_session_ruleset_holds_no_broad_allow_but_worktree_edits():
                 assert policy.decide(rules, "shell", command) == "deny", (kind, command)
             assert policy.decide(rules, "github_project_item_add", "*") == "deny"
             assert policy.decide(rules, "git_worktree", "*") == "deny", "workspace owns worktrees"
+
+
+def test_never_approved_commands_stay_denied_however_spelled():
+    """OpenCode matches each command as written, so a prefix, a wrapper, options
+    before the subcommand, a tab or quotes must not turn a deny into an ask."""
+    for kind in config.POLICIES:
+        rules = fakes.agent_info("build")["permissions"] + policy.rules(kind, None, {"main"}, branch="topic")
+        for command in ("FOO=1 git push --force origin topic", "env GIT_TRACE=1 git push -f origin topic",
+                        "sh -c 'git push --force origin topic'", "git --no-pager push --force origin topic",
+                        "git -P push origin +topic", "git\tpush --force origin topic", "git push origin '+topic'",
+                        "git push -d origin topic", "git push -ud origin topic", "git push --prune origin",
+                        "git push origin HEAD:heads/main", 'git push origin HEAD:"main"', "git -C x push origin main",
+                        "git --git-dir=.git push origin :topic", "git -c x=y reset --hard HEAD~1",
+                        "git clean -fd", "git --no-pager config user.name x",
+                        "git remote set-url origin https://example.com/x", "git -C . remote add other x",
+                        "gh alias set sp 'stack push'", "gh alias set --shell x 'git push -f'", "gh extension exec stack push",
+                        "gh ext install x/y", "gh pr -R o/r merge 3", "env X=1 gh api repos/x", "npm publish",
+                        "xargs gh pr merge", "gh repo sync --force", "git send-pack --force x HEAD:refs/heads/main",
+                        "git -c alias.p=push p --force origin topic", "git -c remote.origin.mirror=true push origin",
+                        "GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=x GIT_CONFIG_VALUE_0=y git push origin topic",
+                        "git push \\\n--force origin topic", "pnpm -r publish --access public", "npm -w pkg publish",
+                        "yarn npm publish", "gh pr -Ro/r merge 3", "gh issue -Ro/r close 5",
+                        "sh -c 'gh pr merge 3'", "gh api\trepos/x", "gh pr\tmerge 3",
+                        "gh auth\ttoken", "gh pr -R o/r\tmerge 3", "/opt/homebrew/bin/gh api x", "gh extension list",
+                        "git clean -xdf", "git clean -Xdf",
+                        "X=push git --config-env=alias.p=X p --force origin main"):
+            assert policy.decide(rules, "shell", command) == "deny", (kind, command)
+        assert policy.decide(rules, "shell", "sh -c 'git push'") == ("ask" if kind == "write" else "deny")
+        for path in (".git/config", ".git/hooks/pre-commit", "sub/.git/config", f"{Path.home()}/.gitconfig",
+                     f"{Path.home()}/.config/gh/config.yml"):
+            assert policy.decide(rules, "edit", path) == "deny", (kind, path)
+        # The known cost of containment for git: a command that merely quotes such words.
+        assert policy.decide(rules, "shell", "grep -rn 'git push --force' docs") == "deny"
+
+
+def test_gh_denies_follow_the_subcommand_not_the_text():
+    rules = fakes.agent_info("build")["permissions"] + policy.rules("write", "granted", {"main"}, branch="topic")
+    for command in ('gh pr create --title "Fix merge order"', 'gh pr comment 3 --body "Ready to merge"',
+                    'gh pr create --title "Add api retries"', 'gh pr edit 3 --title "Refactor auth flow"',
+                    'gh issue comment 5 --body "Will close after #6"', "gh pr view 3 --json mergeable,mergeStateStatus",
+                    "gh alias list", "gh repo view --json defaultBranchRef",
+                    'gh pr create --title "Route calls through api gateway"',
+                    'gh pr create --title "Walk through project setup"', 'gh pr comment 3 --body "high extensibility"',
+                    "gh pr -R o/r view 3 --json mergeable,mergeStateStatus", "gh pr -R o/r list --state merged",
+                    "gh issue -R o/r view 5 --json createdAt"):
+        assert policy.decide(rules, "shell", command) == "allow", command
+    # The known cost of `?` between gh's words: an identifier spelled like a subcommand.
+    assert policy.decide(rules, "shell", "rg -n gh_api src") == "deny"
+
+
+def test_options_and_prefixes_cannot_skip_the_person_asks():
+    for kind in config.POLICIES:
+        rules = fakes.agent_info("build")["permissions"] + policy.rules(kind, None, {"main"}, branch="topic",
+                                                                        gh_aliases=("co",))
+        # A write run's caller decides; a read-only run is denied, as its agents may deny these themselves.
+        expected = "ask" if kind == "write" else "deny"
+        for command in ("git --no-pager push origin topic", "FOO=1 git push origin topic", "git -C x commit -m 'fix status'",
+                        "git --no-pager commit -m x", "git --work-tree=. checkout other", "git -C x push origin status",
+                        "git -c core.fsmonitor=x status", "git --exec-path=/tmp status", "gh pr checkout 3",
+                        "gh pr -R o/r checkout 3", "gh co 3"):
+            assert policy.decide(rules, "shell", command) == expected, (kind, command)
+        for command in ("git --no-pager log -1", "git -C x status", "git -P diff", "git status", "git log --grep fix",
+                        "git merge-base HEAD main", "git show HEAD:src/checkout.ts"):
+            assert policy.decide(rules, "shell", command) == "allow", (kind, command)
+
+
+def test_read_only_session_reopens_nothing_a_reviewer_denies():
+    """A read-only run's session rules come after its agent's own posture, so they
+    must add no ask or allow that turns one of the agent's denies back."""
+    posture = [{"action": "shell", "resource": "*", "effect": "deny"},
+               {"action": "shell", "resource": "git *", "effect": "allow"},
+               {"action": "shell", "resource": "git push*", "effect": "deny"},
+               {"action": "shell", "resource": "*--ext-diff*", "effect": "deny"}]
+    rules = posture + policy.rules("read-only", None, {"main"}, branch="topic", gh_aliases=("co",))
+    for command in ("git push origin topic", "git -C . diff --ext-diff", "git -c diff.external=x diff", "ls"):
+        assert policy.decide(rules, "shell", command) == "deny", command
+    assert not [r for r in policy.rules("read-only", None, {"main"}) if r["action"] == "shell" and r["effect"] != "deny"]
+
+
+def test_ruleset_stays_small_enough_to_send_every_turn():
+    # Every turn re-sends it; the service took about 2,350 rules in tens of ms.
+    assert len(policy.rules("write", None, {"main", "master"}, branch="topic", gh_aliases=("co",))) < 3000
+
+
+def test_gh_aliases_come_from_gh(monkeypatch):
+    def run(argv, **kwargs):
+        assert argv == ["gh", "alias", "list"] and "GH_TOKEN" not in kwargs["env"]
+        return subprocess.CompletedProcess(argv, 0, "co:\tpr checkout\nbad name: x\nsp: stack push\n", "")
+    monkeypatch.setenv("GH_TOKEN", "x")
+    monkeypatch.setattr(policy.subprocess, "run", run)
+    assert policy.gh_aliases() == ("co", "sp")
+    monkeypatch.setattr(policy.subprocess, "run", lambda argv, **kwargs: subprocess.CompletedProcess(argv, 1, "", ""))
+    assert policy.gh_aliases() == ()
 
 
 def test_read_only_never_edits_and_never_hands_work_to_an_editor():
