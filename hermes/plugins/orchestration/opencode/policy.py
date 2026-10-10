@@ -34,15 +34,23 @@ WRITE_ASK_SHELL = (
     "npm exec *", "npm create *", "pnpm dlx *", "pnpm exec *", "pnpm create *", "yarn dlx *",
     "yarn create *", "bun x *", "cargo install *", "go install *",
 )
+# gh stack rebases, moves branches and force-pushes layers past the git rules,
+# and takes flags before its subcommand, so a write run asks for all of it but
+# viewing and a read-only run is denied it (an allow there would reopen what a
+# subagent denies itself); merging or unstacking on GitHub is never allowed.
+STACK_ALL = "gh stack *"
+STACK_READS = ("gh stack view *",)
 # Read-only git with `-C <dir>` would otherwise pause on the `git -C *` ask.
 WRITE_ALLOW_AFTER_ASK = tuple(f"git -C * {verb} *" for verb in (
     "status", "diff", "log", "show", "rev-parse", "ls-files", "blame", "merge-base"))
 ISSUE_WRITES = tuple(f"gh issue {verb} *" for verb in ("create", "edit", "comment", "reopen"))
 # Never, for any policy or subagent: the caller cannot approve these either.
 HARD_DENY_SHELL = (
-    "gh pr merge *", "gh repo create *", "gh repo delete *", "gh repo edit *", "gh api *",
+    "gh pr merge *", "gh stack merge*", "gh stack * merge*", "gh stack unstack*", "gh stack * unstack*", "gh repo create *", "gh repo delete *", "gh repo edit *", "gh api *",
     "gh project *", "gh issue delete *", "gh issue close *", "gh auth *", "gh secret *",
     "npm publish *", "pnpm publish *", "git config *",
+    # Every force spelling, the lease included: a rebased task branch's own lease
+    # push is re-opened as an ask by its exact text only (`lease_pushes`).
     "git push *--force*", "git push -f*", "git push * -f*", "git push * +*", "git push *--mirror*",
     "git push *--all*", "git push *--delete*", "git push * :*",
     "git reset *--hard*", "git clean *-*f*",
@@ -50,11 +58,12 @@ HARD_DENY_SHELL = (
 # Writes that OpenCode tools perform past the shell rules. A run never makes or
 # removes worktrees itself (`workspace` does), and a read-only run never commits,
 # stages, rebases or runs a command at each commit (git_verify_commits asks, and
-# the caller must not approve that for a read-only run). A write run's rebase
-# comes back to the caller like a shell `git rebase`.
+# the caller must not approve that for a read-only run). A write run's
+# git_commit amend/fixup and git_rebase stay open: they refuse by themselves to
+# rewrite the default branch, shared or protected commits, and what they rewrote
+# leaves the machine only through a push, which asks.
 TOOL_DENY = ("git_worktree",)
 READ_ONLY_DENY_TOOLS = ("git_commit", "git_stage_hunks", "git_verify_commits", "git_rebase")
-WRITE_ASK_TOOLS = ("git_rebase",)
 PROJECT_WRITES = (
     "github_project_create", "github_project_field_ensure", "github_project_item_add",
     "github_project_item_set", "github_project_item_note", "github_project_item_promote",
@@ -97,10 +106,21 @@ def output_dir(value):
     return str(path)
 
 
-def rules(policy, issue_approval, protected, *, tmp=None, person_denies=(), output=None):
+def lease_pushes(branch):
+    """The exact pushes of a rebased task branch that ask instead of hitting the
+    force deny: a lease, to origin, naming the branch itself. No wildcard, so no
+    other destination or extra flag rides along."""
+    # An explicit, full destination: a bare `<branch>` is remapped by push config,
+    # and git would read `HEAD:heads/main` as main.
+    return [f"git push {flags} origin HEAD:refs/heads/{branch}"
+            for flags in ("--force-with-lease", "--force-with-lease --force-if-includes")]
+
+
+def rules(policy, issue_approval, protected, *, tmp=None, person_denies=(), output=None, branch=None):
     """The session ruleset for one run, ordered broad to narrow under last-match
     evaluation. Its one caller-chosen allow is the output directory, which the
-    person's own outside-path denies still override."""
+    person's own outside-path denies still override. `branch` is a write run's
+    task branch, whose own lease push asks rather than being denied."""
     person = [d for d in person_denies if d.get("effect") == "deny"]
     scratch, readable = directories(tmp)
     out = [rule("external_directory", "*", "ask")]
@@ -129,25 +149,26 @@ def rules(policy, issue_approval, protected, *, tmp=None, person_denies=(), outp
             # never a secret-looking file there.
             out += [rule("edit", output, "allow"), rule("edit", f"{output}/*", "allow")]
             out += [rule("edit", pattern, "deny") for pattern in SECRET_READS]
-        out += [rule("shell", pattern, "deny") for pattern in READ_ONLY_DENY_SHELL + ISSUE_WRITES]
+        out += [rule("shell", pattern, "deny") for pattern in READ_ONLY_DENY_SHELL + ISSUE_WRITES + (STACK_ALL,)]
         out += [rule("subagent", name, "deny") for name in READ_ONLY_DENY_SUBAGENTS]
         out += [rule(name, "*", "deny") for name in READ_ONLY_DENY_TOOLS]
     else:
-        out += [rule("shell", pattern, "ask") for pattern in WRITE_ASK_SHELL]
-        out += [rule("shell", pattern, "allow") for pattern in WRITE_ALLOW_AFTER_ASK]
-        out += [rule(name, "*", "ask") for name in WRITE_ASK_TOOLS]
+        out += [rule("shell", pattern, "ask") for pattern in WRITE_ASK_SHELL + (STACK_ALL,)]
+        out += [rule("shell", pattern, "allow") for pattern in WRITE_ALLOW_AFTER_ASK + STACK_READS]
         if not issue_approval:
             out += [rule("shell", pattern, "ask") for pattern in ISSUE_WRITES]
     deny = list(HARD_DENY_SHELL)
-    for branch in sorted(protected):
-        deny += [f"git push * {branch}", f"git push * {branch} *", f"git push *:{branch}*",
-                 f"git push *:refs/heads/{branch}*", f"git push * refs/heads/{branch}",
-                 f"git push * refs/heads/{branch} *"]
+    for name in sorted(protected):
+        deny += [f"git push * {name}", f"git push * {name} *", f"git push *:{name}*",
+                 f"git push *:refs/heads/{name}*", f"git push * refs/heads/{name}",
+                 f"git push * refs/heads/{name} *"]
     # The same denies when `-C <dir>` / `-c <k=v>` precede the subcommand. Not a
     # bare `git * push`: that would also match a commit message saying "push".
     deny += [f"git {option} * " + pattern[len("git "):] for option in ("-C", "-c") for pattern in deny
              if pattern.startswith(("git push ", "git reset ", "git clean ", "git config "))]
     out += [rule("shell", pattern, "deny") for pattern in deny]
+    if policy == "write" and branch and not branch.startswith("detached:") and branch not in protected:
+        out += [rule("shell", command, "ask") for command in lease_pushes(branch)]
     out += [rule(name, "*", "deny") for name in PROJECT_WRITES + TOOL_DENY]
     # A person's own denies are re-stated last, so an agent's broad allow (build's
     # `shell: *`) never reopens `sudo` or `secret get`. Their `external_directory`

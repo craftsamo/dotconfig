@@ -76,7 +76,9 @@ user's chosen control.
 4. **Hand-backs.** Act on each completion notification that brings a new
    state; one for a state you already read or reported is `[SILENT]`. Answer
    pending requests through `opencode_request`: a permission inside the user's approved
-   scope `once` (the task-branch push included), anything else `reject` with a
+   scope `once` (the task-branch push included, also as
+   `git push --force-with-lease origin HEAD:refs/heads/<task branch>` after
+   the build rebased the branch onto its base), anything else `reject` with a
    reason and a question to the user. Settle in-scope technical questions; take
    material changes of scope, cost or public behavior to the user. A model or
    variant the user prefers goes in the run's own arguments; a refused name is
