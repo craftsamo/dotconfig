@@ -1,6 +1,6 @@
 # Image hands (image-creator)
 
-Icon, emoji, mascot, reimagine, card and kit families, plus the image-generation capability surface. Part of the Hermes design docs — index: [`PROFILES.md`](../../PROFILES.md).
+Icon, emoji, mascot, reimagine, card, kit, diagram, pixel-art and illustration families, plus the image-generation capability surface. Read it when changing or commissioning an image leaf. Part of the Hermes design docs — index: [`PROFILES.md`](../../PROFILES.md).
 
 `image-creator` receives filled forms on A2A `:9907` (receive-only). Shared
 contract: [`overview.md`](./overview.md).
@@ -19,45 +19,35 @@ from the tool schema. After an upstream change, verify with
 
 ## Icon, emoji and mascot families
 
-- **Icon**: `source-icon`, `create-icon`, `generate-icon` (styles flat-minimal /
-  glass / pixel / line / clay), `edit-icon`, `analyze-icon`. `source-icon` with
-  `icon: twemoji:<name>` also covers published emoji glyphs, so there is no
-  `source-emoji`.
+- **Icon**: `source-icon`, `create-icon`, `generate-icon`, `edit-icon`,
+  `analyze-icon`. `source-icon` with `icon: twemoji:<name>` also covers
+  published emoji glyphs, so there is no `source-emoji`.
 
-  **Official brand marks:** `source-icon` with `official: yes` (plus
-  `vendor`, `variant` glyph / lockup / wordmark and `backdrop` light / dark) delivers
-  a vendor's own logo file byte for byte from its brand page or press kit —
-  aggregators (Simple Icons, svgl) are named as such — with `provenance.json`
-  and a `terms.txt` usage summary; nothing is redrawn, recoloured or
-  generated, and a vendor without a distributed mark is reported, not
-  approximated. `brand-check.py` (stdlib plus `rsvg-convert` and `magick`, no
-  network): `render` requires each SVG to parse, carry a viewBox and render
-  non-blank over a grey backdrop; `provenance` records the sha256s, tests the
-  archive, byte-compares the delivery against the archive member and writes
-  `provenance.json`, never overwriting one. Vendor findings and the recipe for
-  bot-protected brand pages live in the leaf's `references/`. It replaces the
-  archived `creator-brand-asset-sourcing` technic.
+  **Official brand marks:** `source-icon` with `official: yes` delivers a
+  vendor's own logo file byte for byte from its brand page or press kit —
+  never redrawn, recoloured or generated; aggregators (Simple Icons, svgl) are
+  named as such — with `provenance.json` and a `terms.txt` usage summary. A
+  vendor without a distributed mark is reported, not approximated.
+  `brand-check.py` (no network) checks each SVG renders non-blank, and records
+  sha256s and a byte-compare of the delivery against the archive member;
+  `provenance.json` is never overwritten. Vendor findings and the recipe for
+  bot-protected brand pages live in the leaf's `references/`.
 
-- **Emoji**: `emoji-fit.sh` is the ONE home of the platform table (slack /
-  discord 128 PNG, telegram 512 WebP + stroke, telegram-emoji 100 WebP, line
-  180 PNG; `--spec` prints a row for `analyze-emoji`). `generate-emoji` runs in
+- **Emoji**: `emoji-fit.sh` is the ONE home of the platform table (sizes and
+  formats; `--spec` prints a row for `analyze-emoji`). `generate-emoji` runs in
   two rounds: without `anchor` it draws three character sheets and stops;
   `intent: revise` + `anchor:` draws the pack on that one reference. Props are
   drawn large, saturated and off the hair — small props vanish at 32 px.
-  `create-emoji` renders text emoji (Hiragino Sans W8) from an items FILE.
-  `analyze-emoji` reads packs over six tiles in halves; an unreached check is a
-  GAP, never a pass.
+  `create-emoji` renders text emoji from an items FILE. `analyze-emoji` reads
+  packs over six tiles in halves; an unreached check is a GAP, never a pass.
 - **Mascot**: `generate-mascot` runs in two rounds — three full-body concepts +
-  a silhouette sheet (round A is exactly three looks: sheet, silhouette, the
-  recommended one at native size), then `anchor:` + `pack:` (turnaround / poses
-  / custom). A mascot's approved anchor is the `reference:` of its emoji pack.
-  `edit-mascot` does background swap (including a chroma key that re-composites
-  the cut-out on flat `#00ff00`), head / bust crop, resize and outline — never a
-  recolour. `analyze-mascot` checks square, cut-out, silhouette, 64 px,
-  light/dark, measured palette vs asked and identity vs anchor; line-art ink and
-  highlights are tagged, not scored. No `source-` or `create-mascot`: a mascot
-  is designed, not fetched, and a first-party mark becomes an icon set.
-  `mascot-fit.sh` (corner flood or global key; `key_px` in its RESULT) draws on
+  a silhouette sheet (round A is exactly three looks), then `anchor:` + `pack:`
+  (turnaround / poses / custom). A mascot's approved anchor is the `reference:`
+  of its emoji pack. `edit-mascot` does background swap, head / bust crop,
+  resize and outline — never a recolour. `analyze-mascot` checks square,
+  cut-out, silhouette, 64 px, light/dark, measured palette vs asked and identity
+  vs anchor. No `source-` or `create-mascot`: a mascot is designed, not
+  fetched, and a first-party mark becomes an icon set. `mascot-fit.sh` keys on
   chroma green (magenta when the palette has green), never white — on white,
   `key_px` counts eye whites and speculars.
 
@@ -87,13 +77,12 @@ Destinations are values of one subject (OG, social, headers, thumbnails, title
 cards, X pair/carousel and custom WxH), not a menu or a new profile. The shared
 `scripts/card.py` owns file-spec rendering/fit/measurement and consumes the
 canonical `create/card/references/destination/` scalar front matter and
-`styles/*.md` CSS blocks (bounded text effects on copy; compositing and gradient
-masks only on layers that paint below it) plus an optional seeded texture — paper, washi,
-watercolor or chalk — that card.py renders offline with ImageMagick, since CSS
-alone cannot draw grain. Generate's style references are backdrop prompt prose
-only, never duplicated CSS. Exact text is font-rendered after generation.
-Generate proposes 3+1 attempts across resumes but needs explicit current-work
-user budget approval before paid calls.
+`styles/*.md` CSS blocks (bounded text effects on copy; compositing and
+gradient masks only on layers that paint below it) plus an optional seeded
+texture that card.py renders offline with ImageMagick, since CSS alone cannot
+draw grain. Generate's style references are backdrop prompt prose only, never
+duplicated CSS. Exact text is font-rendered after generation. Generate needs
+explicit current-work user budget approval before paid calls.
 
 Local HTML rendering uses an isolated offline agent-browser with frozen
 assets/fonts, no inherited login/CDP, and exclusive output bundles. Full
@@ -105,24 +94,19 @@ a user-verified ratio, not the official 1500x600; all other pixel
 defaults/gaps are authoring choices. Do not post tests or inspect authenticated
 accounts without consent.
 
-Create-card's additive authored path accepts task-local static `layout_html`
-with exact copy/asset bindings and optional per-tile `copy_blocks`;
-ImageCreator authors it, not the Client. It is the continuity path for centered
-covers and custom typography — not an expansion of the template CSS allowlist
-and not a silent legacy fallback. Named templates remain available and saved
-template specs keep their template behavior; do not weaken a design to fit them.
-Additional per-tile copy or repeated branding uses explicit `copy_blocks`, never
-invented labels or hidden CSS text. Authored work uses a resident conversation
-even for a named look or single tile, freezes its source with a hash, and
-measures real geometry, supported visibility and text overlap without
-auto-shrinking. Visual QA still owns masks, occlusion, contrast, glyph coverage
-and use-size readability. A template limitation is not permission to relax the
-Client's design, buy new art, fall back silently or relabel an agent choice as
-human approval.
-
-Card has no legacy route: `creator-text-card` is archived (see
-[`overview.md`](./overview.md) "Families and former technics"). Card needs no new profile, ports,
-toolsets, secrets, test posts, authenticated access or gateway restart.
+Create-card's authored path accepts task-local static `layout_html` with exact
+copy/asset bindings and optional per-tile `copy_blocks`; ImageCreator authors
+it, not the Client. It is the continuity path for centered covers and custom
+typography — not an expansion of the template CSS allowlist and not a silent
+fallback. Saved template specs keep their template behavior; do not weaken a
+design to fit them. Additional per-tile copy or repeated branding uses explicit
+`copy_blocks`, never invented labels or hidden CSS text. Authored work uses a
+resident conversation even for a named look or single tile, freezes its source
+with a hash, and measures real geometry, supported visibility and text overlap
+without auto-shrinking. Visual QA still owns masks, occlusion, contrast, glyph
+coverage and use-size readability. A template limitation is not permission to
+relax the Client's design, buy new art, fall back silently or relabel an agent
+choice as human approval.
 
 ## Kit family
 
@@ -134,41 +118,35 @@ whole list, replacing defaults. State variants are named items and count
 toward the generation budget. Unknown styles/categories remain possible
 through described inputs, with item sizes settled before production.
 
-- `generate-kit`: pixel, 3d-render, cel-shaded, hand-painted, flat-vector
-  and described looks. Round A proposes style sheets containing examples
-  from the selected categories and stops before production (the style-sheet /
-  list approval gate). Round B needs the approved sheet, item list and design
-  lock. Defaults: 3 candidates, then 1 call/item + ceil(n/4) correctives; over
-  24 items requires explicit budget. A shared style anchor does not guarantee
-  exact state geometry — exact state registration is a `create-kit` use case.
-- `create-kit`: deterministic flat-vector/pixel buttons, panels and bars,
-  with state colours, SVG/PNG pairs and tested 9-slice borders. Its UI
-  geometry is deliberately simple, not a generative style renderer.
-  Flat-vector requires installed librsvg; no lower-fidelity fallback.
-  Window slice insets protect the title band as well as the corners.
-- `edit-kit`: lossless native-frame atlas or explicit fitting/palette
-  changes; transforms may invalidate existing pivots/slicing metadata.
+- `generate-kit`: Round A proposes style sheets containing examples from the
+  selected categories and stops before production (the style-sheet / list
+  approval gate). Round B needs the approved sheet, item list and design lock;
+  large item counts require an explicit budget. A shared style anchor does not
+  guarantee exact state geometry — exact state registration is a `create-kit`
+  use case.
+- `create-kit`: deterministic flat-vector/pixel buttons, panels and bars, with
+  state colours, SVG/PNG pairs and tested 9-slice borders; deliberately simple
+  UI geometry. Flat-vector requires installed librsvg, no lower-fidelity
+  fallback. Window slice insets protect the title band as well as the corners.
+- `edit-kit`: lossless native-frame atlas or explicit fitting/palette changes;
+  transforms may invalidate existing pivots/slicing metadata.
 - `analyze-kit`: measured dimensions/alpha/palette plus visual findings;
   absent expectations remain GAP. It never performs a repair.
-- `source-kit`: Kenney page discovery and CC0-verified ZIP retrieval,
-  selected files under assets, source license and SHA-256 provenance.
-  ZIP paths/symlinks/case collisions and decompressed size are checked
-  before publication. READMEs are preserved, never quoted as licenses.
+- `source-kit`: Kenney page discovery and CC0-verified ZIP retrieval with
+  source license and SHA-256 provenance; ZIP paths/symlinks and decompressed
+  size are checked before publication. READMEs are preserved, never quoted as
+  licenses.
 
-`kit-images.py` is the shared local image helper (stdlib + ImageMagick) and
-owns fit, palette, atlas and measure. Atlas/measure have a 64-file limit and
-reject stale nonempty QA/atlas output directories; split large kits into
-category subsets and use fresh QA directories after corrections. Alpha bounds
-come from alpha, not colour trimming: a hollow frame touches its canvas corners
-and must not be cropped to its transparent interior. Palette remapping
-detaches/reattaches alpha with scoped ImageMagick operations; tests assert
-actual hues, not only a palette-size ceiling. Pixel native intermediates live
-outside the final assets tree. Failed assets stay marked in the manifest.
-Re-finishing from saved raws (e.g. `--cutout key`) costs no image call and is
-allowed even when the image-call grant forbids retries. A reduced style sheet
-or `key_px=0` is not native-pixel proof; inspect finished assets at native size.
-Kit fixtures are smoke evidence, not proof that every style has earned
-production use; soak against real client jobs is still pending.
+`kit-images.py` is the shared local image helper (stdlib + ImageMagick) for
+fit, palette, atlas and measure; it rejects stale nonempty QA/atlas output
+directories, so use fresh ones after corrections. Alpha bounds come from alpha,
+not colour trimming: a hollow frame touches its canvas corners and must not be
+cropped to its transparent interior. Pixel native intermediates live outside
+the final assets tree. Failed assets stay marked in the manifest. Re-finishing
+from saved raws (e.g. `--cutout key`) costs no image call and is allowed even
+when the image-call grant forbids retries. A reduced style sheet or `key_px=0`
+is not native-pixel proof; inspect finished assets at native size. Kit fixtures
+are smoke evidence, not proof that every style has earned production use.
 
 ## Diagram family
 
@@ -176,17 +154,15 @@ production use; soak against real client jobs is still pending.
 draws an architecture, flow, sequence or concept diagram deterministically as
 one self-contained HTML file with inline SVG plus 1x and 2x PNG renders, from
 the nodes, edges and exact labels in the form; nothing is generated and it is
-free. It replaces the archived `creator-svg-diagram` technic.
+free.
 
 - **Engines:** upstream `architecture-diagram` (architecture) and the optional
   `concept-diagrams` (flow, sequence, concept), attached through the hands'
   `skills.external_dirs`; the leaf takes their drawing conventions only, never
   their clarify or intake.
-- **`diagram.py render`:** stdlib Python plus `agent-browser` and `magick`.
-  It rejects remote URLs, `<script>` and stylesheet links, requires every label
-  of `labels.json` in the SVG text, renders offline at 1x and at device scale
-  factor 2, requires two identical screenshots per scale and no browser errors,
-  and writes `diagram.png`, `diagram@2x.png`, `sheet.png` and `render.json`
+- **`diagram.py render`:** rejects remote URLs, `<script>` and stylesheet links,
+  requires every label of `labels.json` in the SVG text, and renders offline at
+  1x and 2x, requiring identical screenshots per scale and no browser errors,
   into a new directory.
 
 ## Pixel-art family
@@ -199,23 +175,18 @@ nearest-neighbour preview, either by reducing a source image to the grid
 (`mode: draw`); the palette is fixed, there is no anti-aliasing, nothing is
 generated by a model and it is free. A model-drawn "pixel" look is not this
 leaf but the `pixel` style of the generate leaves, which guarantees neither
-grid nor palette. It replaces the archived `creator-pixel-art` technic.
+grid nor palette.
 
-- **`render-pixel-art.sh`:** `reduce` mode. Fits the source to the native
-  canvas with `magick` (explicit fit, gravity and alpha policy), then
-  quantizes through the upstream `pixel_art.py` backend found under
-  `~/.agents/skills/pixel-art` or the hermes-agent optional-skills checkout,
-  and upscales the preview by integer nearest neighbour.
-- **`palette-extract.py`:** locks one palette across a batch (a colour cap
-  from the source, or a sample from an earlier delivery) so items are never
+- **`render-pixel-art.sh`:** `reduce` mode: explicit fit, gravity and alpha
+  policy through `magick`, quantized through the upstream `pixel_art.py`
+  backend, previewed by integer nearest-neighbour upscale.
+- **`palette-extract.py`:** locks one palette across a batch so items are never
   quantized independently.
-- **`pixel.py`:** stdlib plus Pillow. `draw` renders a cell map (rows of
-  palette keys, `.` transparent) into `native.png`, `preview.png` and
-  `palette.json` in a new directory, refusing ragged rows and unknown keys;
-  `palette` writes `palette.json` from a native PNG; `check` verifies native
-  size, palette membership, absence of partial alpha, integer preview scale,
-  uniform blocks and the alpha state, prints one `RESULT:` line and exits
-  non-zero on failure. `check` writes nothing.
+- **`pixel.py`:** `draw` renders a cell map (rows of palette keys, `.`
+  transparent) into `native.png`, `preview.png` and `palette.json` in a new
+  directory, refusing ragged rows and unknown keys; `check` verifies native
+  size, palette membership, no partial alpha, integer preview scale and
+  uniform blocks, and writes nothing.
 
 ## Illustration family
 
@@ -226,9 +197,7 @@ social art) in a named or described look, as variants at an exact size and
 format next to a contact sheet with one recommended variant. Exact text never
 goes into the pixels: that is a card (`create-card`, `generate-card`); icons,
 emoji, mascots, kits and photo reimaginings have their own leaves. It is
-metered through core `image_generate`: default 4 variants + 1 corrective across
-resumes, failed calls count and `attempts.json` is the tally. A reference image
-leaves the machine only with explicit upload consent. Variants are normalized
-with the shared `img-postprocess.sh`. It replaces the archived
-`creator-generated-image` technic; its prompt craft is distilled into the
-leaf's `references/craft-notes.md`.
+metered through core `image_generate`: failed calls count and `attempts.json`
+is the tally. A reference image leaves the machine only with explicit upload
+consent. Variants are normalized with the shared `img-postprocess.sh`; prompt
+craft lives in the leaf's `references/craft-notes.md`.
