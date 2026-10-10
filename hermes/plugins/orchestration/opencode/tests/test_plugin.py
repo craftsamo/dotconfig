@@ -959,6 +959,7 @@ def test_session_ruleset_holds_no_broad_allow_but_worktree_edits():
                             "gh pr merge 3", "gh api repos/x", "git reset --hard HEAD~1"):
                 assert policy.decide(rules, "shell", command) == "deny", (kind, command)
             assert policy.decide(rules, "github_project_item_add", "*") == "deny"
+            assert policy.decide(rules, "git_worktree", "*") == "deny", "workspace owns worktrees"
 
 
 def test_read_only_never_edits_and_never_hands_work_to_an_editor():
@@ -969,6 +970,10 @@ def test_read_only_never_edits_and_never_hands_work_to_an_editor():
     assert policy.decide(rules, "subagent", "explore-small") == "ask", "other subagents keep their own posture"
     assert policy.decide(rules, "shell", "git diff --output=x") == "deny"
     assert policy.decide(rules, "shell", "gh issue comment 1") == "deny"
+    for tool in ("git_commit", "git_stage_hunks"):
+        assert policy.decide(rules, tool, "*") == "deny", tool
+    write = policy.rules("write", None, {"main"})
+    assert policy.decide(write, "git_commit", "*") != "deny", "a build commits through the tool"
 
 
 def test_write_asks_for_person_gated_commands_and_keeps_person_denies():
