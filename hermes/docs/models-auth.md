@@ -26,8 +26,8 @@ and the **image-creator** / **audio-creator** hands lead on
   coding at a lower token rate. The Opus-led judgment profiles take **Fable 5.1
   as T2**, never another Opus: every Opus model draws on the same Opus weekly
   sub-cap, so an Opus T2 fails exactly when that cap is why T1 failed, while
-  Fable draws on its own 50%-of-week ceiling. (The one Opus that may follow T1
-  is on the Console API lane: a different account, so no shared sub-cap — see
+  Fable draws on its own 50%-of-week ceiling. (An Opus on the Console API lane,
+  ahead of or after T1, is a different account: no shared sub-cap — see
   "Console credit lanes".) **Sonnet 5.5 is the last Claude
   tier** everywhere: Anthropic meters Opus separately from "all other models"
   per week, so Sonnet stays alive when the Opus cap is the reason T1 failed.
@@ -87,10 +87,11 @@ and the **image-creator** / **audio-creator** hands lead on
 | **writer**                           | `anthropic-oauth` / **claude-sonnet-5-5** | `anthropic-oauth` / claude-opus-5-5   | `anthropic-oauth` / claude-fable-5-1  | `openai-codex` / gpt-6.1-sol        | `openrouter` / `deepseek/deepseek-v4-flash` | `medium`           |
 | **marketer**                         | `anthropic-oauth` / **claude-opus-5-5**   | `anthropic-oauth` / claude-fable-5-1  | `anthropic-oauth` / claude-sonnet-5-5 | `openrouter` / `xiaomi/mimo-v2.5`   | —                                           | `medium`           |
 
-Every `anthropic-oauth` above is the subscription lane. **assistant** and
-**marketer** carry one more tier between T1 and the table's T2: `anthropic` /
-the same Opus 5.5 on the Console API lane (see "Console credit lanes"). The
-table shows the subscription chain.
+Every `anthropic-oauth` above is the subscription lane, and the table shows the
+subscription chain. **assistant** carries one more tier between T1 and the
+table's T2: `anthropic` / the same Opus 5.5 on the Console API lane. **marketer**
+and **writer** lead on that lane instead (`anthropic` / Opus 5.5 and Sonnet 5.5),
+so the table's T1 is their T2 (see "Console credit lanes").
 
 A `fallback_providers` entry carries no per-entry `reasoning_effort` or
 `api_mode` for the main agent: on each fallback activation Hermes re-reads the
@@ -259,12 +260,24 @@ at the end of the billing cycle; Claude Code and extra usage cannot spend them,
 only an API key can. OpenCode spends the same credits
 ([`opencode/README.md`](../../opencode/README.md) "Console credit lanes").
 
-- **Tier.** assistant and marketer carry `anthropic` / Opus 5.5 right after T1,
-  then the table's T2 onward. A credit Opus draws on no subscription sub-cap,
-  which is why it may sit ahead of Fable. Creator's family stays off the lane:
-  one video job reads tens of millions of tokens and would empty it. The other
-  profiles are unchanged. While the subscription's reset is ahead, turns stay on
-  the lane: that drains the credits by design.
+- **Tier.** assistant carries `anthropic` / Opus 5.5 right after T1, then the
+  table's T2 onward. A credit Opus draws on no subscription sub-cap, which is why
+  it may sit ahead of Fable. **marketer and writer lead on the lane** (Opus 5.5
+  and Sonnet 5.5) and fall back to the subscription's tier of the same model,
+  then the table's chain: credits expire, and the Sub org's balance needs a
+  steady consumer (about $10 a day to be spent by its renewal). Those two are
+  low-turn profiles, about that size, and not a front door. assistant stays
+  subscription-first: its volume would empty Sub in days and a lane 429 would
+  slow the front door. Creator's family stays off the lane: one video job reads
+  tens of millions of tokens and would empty it. The other profiles are
+  unchanged. While the subscription's reset is ahead, turns stay on the lane:
+  that drains the credits by design.
+- **Rate limits.** A Console org linked for credits starts on the Start tier.
+  One org's Limits page showed Opus 5.5 and Sonnet 5.5 at 2M input tokens (cache
+  reads excluded), 400k output tokens and 1,000 requests per quota row, with a
+  24 h peak of 36% under OpenCode's parallel specialists; the other org was not
+  checked. A lane-first profile adds little to that. Raising a tier is a request
+  in the Console; its Edit button only lowers a workspace's share.
 - **Two orgs, one tier.** The `anthropic` credential pool holds both keys as
   env-sourced entries: `ANTHROPIC_CREDIT_SUB_ACCOUNT_KEY` (priority 0), then
   `ANTHROPIC_CREDIT_MAIN_ACCOUNT_KEY` (priority 1); `hermes auth list` shows
@@ -276,15 +289,19 @@ only an API key can. OpenCode spends the same credits
   code (read, not run), a billing 400 benches that key for an hour and rotates
   to the next pool entry, a 429 is retried once on the same key and then
   rotates, a 401 rotates, and with both keys spent the turn moves to the next
-  fallback entry (Fable). Benches are saved to disk, and while more than ten
+  fallback entry (Fable for assistant; the subscription's tier of the same
+  model for marketer and writer). Benches are saved to disk, and while more than ten
   minutes of one remain the walk skips the lane without a request, so an empty
   lane costs at most one rejected request per key per hour. In the last ten
   minutes of a bench the lane is no longer skipped but has nothing to select, so
   it counts as unconfigured and is skipped for the rest of that cached session
   (until the chain config changes or the gateway restarts): after the credits
-  refill, restart the gateway if a session stays off the lane. The primary's own
-  restore cooldown is 60 s, doubling on repeated rate-limit or billing failures
-  up to 4 h, or the provider's reset time when the 429 gives one.
+  refill, restart the gateway if a session stays off the lane. That was read for
+  a lane tier behind T1; a profile that leads on the lane (marketer, writer) has
+  not been observed through a bench, so after a refill check `billing_provider`
+  in its `session_model_usage`. The primary's own restore cooldown is 60 s,
+  doubling on repeated rate-limit or billing failures up to 4 h, or the
+  provider's reset time when the 429 gives one.
 - **Auxiliary tasks follow the turn.** An `auto` auxiliary call (`vision`,
   `web_extract`) uses the main runtime, so while turns stay on the lane through
   the cooldown or a reset gate, those calls bill the credits too (Opus 5.5).
