@@ -489,8 +489,10 @@
     { "action": "github_project_view_ensure", "resource": "*", "effect": "allow" },
     { "action": "github_project_issue_link", "resource": "*", "effect": "allow" },
     { "action": "github_project_issue_develop", "resource": "*", "effect": "allow" },
-    // Custom git workflow tools (lib/custom-tools/git/) — read/index only, plus
-    // git_commit (staged changes only; no amend, no --no-verify); no push/merge.
+    // Custom git workflow tools (lib/custom-tools/git/) — read/index only,
+    // except git_commit (staged changes only; no amend, no --no-verify),
+    // git_worktree (never discards changes; deletes landed branches only) and
+    // git_verify_commits (runs a given command: ask). No push/merge/rewrite.
     // Plan, Explore, Review and Debug deny git_commit and git_worktree themselves.
     { "action": "git_commit", "resource": "*", "effect": "allow" },
     { "action": "git_worktree", "resource": "*", "effect": "allow" },

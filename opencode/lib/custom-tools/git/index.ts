@@ -6,10 +6,15 @@
  * open a PR) live in those skills; the mechanics live here.
  *
  * Safety: these tools run git/gh as child processes, which do NOT pass
- * through the shell permission gates, so they are deliberately limited to read
- * and index operations, plus `commit`, which only records what is staged and
- * refuses to amend, skip hooks or stage on its own. They never push, rewrite
- * history, or merge — those stay as gated commands the agent issues directly.
+ * through the shell permission gates. Most are read-only or touch only the
+ * index (`stage_hunks`). The exceptions are bounded on purpose:
+ * - `commit` records only what is staged; it cannot amend, skip hooks or stage.
+ * - `worktree` creates and removes task worktrees; it never discards
+ *   uncommitted changes and deletes a branch only once it has landed.
+ * - `verify_commits` runs a caller-given command, so its permission is `ask`.
+ * None of them pushes, rewrites history or merges — those stay gated shell
+ * commands. Read-only agents deny the writing ones (opencode.jsonc,
+ * agents/*.md, and Hermes' run rulesets).
  */
 
 export { amend_check } from "./amend"
