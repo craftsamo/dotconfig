@@ -77,60 +77,64 @@ export const conflicts = tool({
     paths: tool.schema.array(tool.schema.string()).optional().describe("Only these conflicted files (default: all)."),
   },
   async execute(args, context) {
-    const cwd = context.worktree
-    const root = (await runGit(["rev-parse", "--show-toplevel"], cwd)).trim()
-    const op = await operation(cwd)
-    const status = await runGit(["status", "--porcelain=v2", "-z"], cwd)
-    let files = status
-      .split("\0")
-      .filter((r) => r.startsWith("u "))
-      .map((r) => {
-        const parts = r.split(" ")
-        return { path: parts.slice(10).join(" "), xy: parts[1] }
-      })
-    if (args.paths?.length) files = files.filter((f) => args.paths!.includes(f.path))
+    return JSON.stringify(await conflictMap(context.worktree, args.paths), null, 2)
+  },
+})
 
-    const theirsRef = { merge: "MERGE_HEAD", rebase: "REBASE_HEAD", "cherry-pick": "CHERRY_PICK_HEAD", revert: "REVERT_HEAD" }[op ?? ""]
-    const sides = {
-      ours: await side(cwd, "HEAD"),
-      theirs: theirsRef ? await side(cwd, theirsRef) : null,
-      note:
-        op === "rebase"
-          ? "In a rebase, ours is the branch being rebased onto and theirs is your commit being replayed."
-          : op === "revert"
-            ? "In a revert, theirs is the commit being reverted; its inverse is what is being applied."
-            : "ours is the current branch (HEAD); theirs is what is being brought in.",
-    }
+/** The conflicts the running operation left: its sides and each conflicted file's regions. */
+export async function conflictMap(cwd: string, paths?: string[]) {
+  const root = (await runGit(["rev-parse", "--show-toplevel"], cwd)).trim()
+  const op = await operation(cwd)
+  const status = await runGit(["status", "--porcelain=v2", "-z"], cwd)
+  let files = status
+    .split("\0")
+    .filter((r) => r.startsWith("u "))
+    .map((r) => {
+      const parts = r.split(" ")
+      return { path: parts.slice(10).join(" "), xy: parts[1] }
+    })
+  if (paths?.length) files = files.filter((f) => paths.includes(f.path))
 
-    const out = files.map((f) => {
-      const name = basename(f.path)
-      const kind = KINDS[f.xy] ?? f.xy
-      const lockfile = LOCKFILES[name]
-      if (lockfile)
-        return {
-          path: f.path,
-          kind,
-          lockfile: true,
-          resolve: `Resolve its manifest first, keep one side (\`git checkout --ours -- ${f.path}\` keeps ${op === "rebase" ? "the branch being rebased onto" : "the current branch"}), run \`${lockfile}\` where the lockfile lives, then \`git add ${f.path}\`.`,
-        }
-      let text: string | null = null
-      try {
-        text = readFileSync(join(root, f.path), "utf8")
-      } catch {
-        // deleted on our side, or unreadable
-      }
-      if (text === null || text.includes("\0")) return { path: f.path, kind, lockfile: false, binary: text !== null, regions: [] }
-      const regions = parseRegions(text)
+  const theirsRef = { merge: "MERGE_HEAD", rebase: "REBASE_HEAD", "cherry-pick": "CHERRY_PICK_HEAD", revert: "REVERT_HEAD" }[op ?? ""]
+  const sides = {
+    ours: await side(cwd, "HEAD"),
+    theirs: theirsRef ? await side(cwd, theirsRef) : null,
+    note:
+      op === "rebase"
+        ? "In a rebase, ours is the branch being rebased onto and theirs is your commit being replayed."
+        : op === "revert"
+          ? "In a revert, theirs is the commit being reverted; its inverse is what is being applied."
+          : "ours is the current branch (HEAD); theirs is what is being brought in.",
+  }
+
+  const out = files.map((f) => {
+    const name = basename(f.path)
+    const kind = KINDS[f.xy] ?? f.xy
+    const lockfile = LOCKFILES[name]
+    if (lockfile)
       return {
         path: f.path,
         kind,
-        lockfile: false,
-        regionCount: regions.length,
-        regions: regions.slice(0, REGION_MAX),
-        regionsTruncated: regions.length > REGION_MAX,
+        lockfile: true,
+        resolve: `Resolve its manifest first, keep one side (\`git checkout --ours -- ${f.path}\` keeps ${op === "rebase" ? "the branch being rebased onto" : "the current branch"}), run \`${lockfile}\` where the lockfile lives, then \`git add ${f.path}\`.`,
       }
-    })
+    let text: string | null = null
+    try {
+      text = readFileSync(join(root, f.path), "utf8")
+    } catch {
+      // deleted on our side, or unreadable
+    }
+    if (text === null || text.includes("\0")) return { path: f.path, kind, lockfile: false, binary: text !== null, regions: [] }
+    const regions = parseRegions(text)
+    return {
+      path: f.path,
+      kind,
+      lockfile: false,
+      regionCount: regions.length,
+      regions: regions.slice(0, REGION_MAX),
+      regionsTruncated: regions.length > REGION_MAX,
+    }
+  })
 
-    return JSON.stringify({ operation: op, sides, count: out.length, files: out }, null, 2)
-  },
-})
+  return { operation: op, sides, count: out.length, files: out }
+}
