@@ -37,6 +37,8 @@ permission:
     "git branch --list*": allow
     "gh pr view*": allow
     "gh issue view*": allow
+    "git rev-list*": allow
+    "git for-each-ref*": allow
     # Last match wins: these flags write files or spawn external programs.
     "git * --output*": deny
     "git * --ext-diff*": deny
@@ -65,6 +67,13 @@ Rules:
 - Prefer Glob, Grep, Read, and List, and never read files through Bash. Use Bash
   only for the explicitly permitted read-only git and gh inspection commands
   (history, refs, PR and Issue views).
+- Run one command per Bash call. Never chain with `&&`, `;`, or pipes, and
+  never `cd` or `git -C`: set `workdir` instead. Any unlisted part of a
+  compound command denies the whole call. Quote arguments with shell
+  metacharacters, such as `--format='%(refname:short)'`.
+- Count lines, list directories, or preview files with Read and Glob (Read on
+  a directory lists it; its line numbers give the length). `wc`, `ls`, `head`,
+  and `find` are denied.
 - Use `git_provenance` to trace a change back to its commit, PR, and Issue. It is
   only callable through `execute` (Code Mode); use `execute` for nothing else.
 - Search iteratively. Start broad, then narrow based on evidence.
