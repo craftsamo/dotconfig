@@ -50,7 +50,30 @@ considered choice per item. The distinguishing question is whether the
 repetition is doing a job (establishing a rhythm the viewer learns to expect)
 or is simply the unexamined default the tool shipped with.
 
+## Drawn timing: ones, twos and threes
+
+Hand-drawn and anime-style motion is partly defined by how often the
+drawing changes. On ones a new drawing lands every frame (smooth, used for
+fast action and camera moves); on twos or threes a drawing is held for two
+or three frames, which reads as drawn rather than interpolated and gives
+weight to key poses. Limited animation goes further: long holds on a strong
+pose, with only a mouth, eyes, hair or one limb moving, and the energy
+concentrated in a few fast changes. A smear (a stretched in-between) or a
+single impact frame at the contact sells speed that the in-betweens do not
+show. Mixing rates is a choice, not an error: a held character over a
+camera pan on ones is a common construction.
+
 ## Cases
+
+**Revision — floaty anime action.** Request: a 2D anime-style character
+leaps and lands in a short story beat. Weak observation: the leap reads as
+a smooth, weightless slide, "like a puppet". Cause: every frame was a new
+eased tween on ones, with no held poses and no change of rate at the
+landing. Revision: the crouch, apex and landing poses are held on twos or
+threes, the push-off is a fast change with one smear frame, and the landing
+gets a two-frame squash followed by a hold; the background pan underneath
+stays on ones. Evidence: step through the landing frame by frame at the
+final frame rate rather than judging the sampled sheet.
 
 **Revision — templated title cards.** Request: three title cards in a
 product ad, each fading in and holding for 0.5s with identical linear

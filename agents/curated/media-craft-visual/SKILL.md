@@ -39,7 +39,8 @@ read all six for a small fix.
   "bigger" or "smaller" without a stated reason: read
   [references/typography.md](references/typography.md).
 - The surface itself looks flat, plasticky, muddy, or over-textured (adding
-  grain or a gradient did not fix the actual problem): read
+  grain or a gradient did not fix the actual problem), or a drawn shading
+  model such as cel shading keeps drifting: read
   [references/surface-light.md](references/surface-light.md).
 - The subject is a small silhouette, an icon, an emoji, or a character
   (mascot, avatar) and gesture, expression, pose consistency, or optical

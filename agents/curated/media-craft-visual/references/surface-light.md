@@ -90,6 +90,43 @@ Evidence method: compared the badge at native resolution against two or three
 real reference photos of brushed vs. polished metal side by side, rather than
 judging "does this look like metal" from memory alone.
 
+## Case 3: a cel-shaded character that slid into soft rendering
+
+Request: an anime-style character for a short animated story, drawn in a
+clean cel look so it can sit on painted backgrounds; the first draws were
+described as "muddy" and "not really anime".
+
+Weak result (observed): the character had airbrushed gradients on the face
+and clothes, five or six tones per colour, and shadow edges that faded out;
+against a painted background the character and the world melted into one
+soft filter, and the shadow side moved from pose to pose.
+
+Diagnosis: cel shading is a designed value structure, not a lighter amount
+of rendering. It reads when each colour has a base tone and one (at most
+two) shadow tones with hard edges whose shapes follow the form (under the
+chin, the far side of the cheek, folds of the sleeve), all from one light
+direction, with a highlight used sparingly on hair and eyes. Soft gradients
+erase that structure, and they also remove the contrast that separates a
+cel character from a painterly background.
+
+Revision (specific choice): rewrote the brief as "flat base fills, one
+hard-edged shadow tone per colour, light from the upper left, shadow shapes
+under the chin, hair and sleeves, small hard highlights on hair and eyes,
+even dark line"; kept the background painterly so the two layers stay
+distinct.
+
+Retain: the character design, palette and line weight stayed; only the
+shading model changed.
+
+When NOT to use this fix: a painted-character look, a soft picture-book
+style or toon-shaded 3D with its own volume cues can use more tones on
+purpose; do not force hard two-tone shading onto a style the client chose
+for its softness.
+
+Evidence method: viewed the character at native size next to the
+background it will sit on, counted tones per colour on two poses, and
+checked that the shadow side stayed on the same side across poses.
+
 ## Sources
 
 No single external source is cited for value/material rendering here; the

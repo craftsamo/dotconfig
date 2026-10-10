@@ -40,7 +40,11 @@
 # Prints one RESULT: line: png, width, height, bytes, channels, coverage
 # (opaque fraction), corner_alpha (0 = corners transparent), key_px (opaque
 # pixels still near the removed background colour — 0 is clean), plus the
-# options used. Deterministic for a given input + options; re-running is free.
+# options used, plus removed (the background colour actually sampled from the
+# drawing, which a model rarely draws as pure #00ff00) and, for --cutout key,
+# key_loss (the share of the corner-cut subject the key also removed: a pocket
+# is a few percent, a costume colour inside the key tolerance is holes).
+# Deterministic for a given input + options; re-running is free.
 #
 # Tooling: ImageMagick (magick), curl for URLs.
 
@@ -101,7 +105,7 @@ fi
 # 2) Cut out (flood fill from the four corners, joined by a 1px border so a
 #    subject touching an edge cannot wall a corner off; or a global key) and
 #    trim. Remember the removed colour so the RESULT can count what is left.
-CUT="$WORK/cut.png"; BGCOLOR=""
+CUT="$WORK/cut.png"; BGCOLOR=""; KEY_LOSS=""
 if [ "$CUTOUT" = yes ]; then
   read -r W H < <(magick identify -format '%w %h\n' "$SRC")
   BGCOLOR="#$(magick "$SRC" -alpha off -depth 8 -format '%[hex:p{0,0}]' info:)"
@@ -111,10 +115,22 @@ if [ "$CUTOUT" = yes ]; then
     -draw "color 0,$((H+1)) floodfill" -draw "color $((W+1)),$((H+1)) floodfill" \
     -shave 1x1 -trim +repage "$CUT" || die "cut-out failed"
 elif [ "$CUTOUT" = key ]; then
+  read -r W H < <(magick identify -format '%w %h\n' "$SRC")
   BGCOLOR="#$(magick "$SRC" -alpha off -depth 8 -format '%[hex:p{0,0}]' info:)"
   magick "$SRC" -alpha set -fuzz "$FUZZ" -transparent "$BGCOLOR" \
     \( +clone -alpha extract -morphology Erode Diamond:1 \) \
     -alpha off -compose CopyOpacity -composite -trim +repage "$CUT" || die "key failed"
+  # The share of the corner-flood subject the global key removes (before the
+  # erode): a trapped pocket is a few percent; a costume colour inside the
+  # tolerance of the drawn background is far more, and that is holes.
+  magick "$SRC" -alpha set -bordercolor "$BGCOLOR" -border 1 -fuzz "$FUZZ" -fill none \
+    -draw "color 0,0 floodfill" -draw "color $((W+1)),0 floodfill" \
+    -draw "color 0,$((H+1)) floodfill" -draw "color $((W+1)),$((H+1)) floodfill" \
+    -shave 1x1 -alpha extract -threshold 50% "$WORK/flood_a.png" || die "flood mask failed"
+  magick "$SRC" -alpha set -fuzz "$FUZZ" -transparent "$BGCOLOR" -alpha extract -threshold 50% -negate "$WORK/key_gone.png"
+  KEY_LOSS="$(magick "$WORK/flood_a.png" "$WORK/key_gone.png" -compose Multiply -composite -format '%[fx:mean]' info:)"
+  FLOOD_COV="$(magick "$WORK/flood_a.png" -format '%[fx:mean]' info:)"
+  KEY_LOSS="$(python3 -c 'import sys; f=float(sys.argv[2]); print(round(float(sys.argv[1])/f, 4) if f > 0 else 1)' "$KEY_LOSS" "$FLOOD_COV")"
 else
   magick "$SRC" -alpha set -trim +repage "$CUT"
 fi
@@ -161,4 +177,7 @@ if [ -n "$BGCOLOR" ]; then
     \( -clone 0 -alpha extract -threshold 50% \) -delete 0 -compose Multiply -composite -format '%[fx:round(mean*w*h)]' info:)"
 fi
 BGOUT="$BG"; [ "$BG" = chromakey ] && BGOUT="chromakey($KEY)"
-echo "RESULT: png=$OUTPUT width=$RW height=$RH bytes=$BYTES channels=$CH coverage=$COVERAGE corner_alpha=$CORNER key_px=$KEY_PX background=$BGOUT cutout=$CUTOUT crop=$CROP stroke=$STROKE"
+EXTRA=""
+[ -n "$BGCOLOR" ] && EXTRA=" removed=$BGCOLOR"
+[ -n "$KEY_LOSS" ] && EXTRA="$EXTRA key_loss=$KEY_LOSS"
+echo "RESULT: png=$OUTPUT width=$RW height=$RH bytes=$BYTES channels=$CH coverage=$COVERAGE corner_alpha=$CORNER key_px=$KEY_PX background=$BGOUT cutout=$CUTOUT crop=$CROP stroke=$STROKE$EXTRA"

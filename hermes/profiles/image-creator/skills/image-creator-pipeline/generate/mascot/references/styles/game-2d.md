@@ -4,7 +4,8 @@
 confident dark outline of varying weight, bold saturated colours, one
 cel-shade tone plus a small specular highlight, big readable eyes, a
 slightly exaggerated head-to-body ratio (about 1:2.5). The mobile /
-indie game hero family — Angry Birds, Cut the Rope, Brawl Stars.
+indie game hero family: a character that reads on a phone-sized title
+screen and an app icon.
 
 **Prompt block.**
 > polished 2D game mascot character of <subject>, clean vector shapes,

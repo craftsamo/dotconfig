@@ -2,7 +2,7 @@
 name: generate-mascot
 description: >-
   A mascot character — a brand's, product's or team's — designed from a
-  concept by an image model in a named style (game-2d, chibi,
+  concept by an image model in a named style (game-2d, chibi, anime-2d,
   retro-cartoon, flat-vector, painterly, pixel, clay, low-poly, toon-3d,
   crayon, or a described one), in
   the client's palette, cut out on a transparent, chroma-key or flat
@@ -29,7 +29,7 @@ metadata:
         example: "開発ツール Forge のマスコット。小型の作業ロボット、好奇心旺盛で几帳面。頭にヘッドランプ、胸に六角ナットの紋章。README と Slack と動画に出る"
       style:
         required: true
-        options: [game-2d, chibi, retro-cartoon, flat-vector, painterly, pixel, clay, low-poly, toon-3d, crayon]
+        options: [game-2d, chibi, anime-2d, retro-cartoon, flat-vector, painterly, pixel, clay, low-poly, toon-3d, crayon]
         other: true
         label: "a listed style (references/styles/<style>.md), or a described look in a sentence"
       palette:
@@ -94,8 +94,11 @@ three images and stops.
    one from the reference or the concept and SAY so in the report), and
    what NOT to draw (incidental background, text, a second character).
    Choose `<bg>`, the flat colour the model draws on: pure `#00ff00`
-   green, unless the palette contains green, then `#ff00ff` magenta.
-   Never white: a mascot has eye whites and specular highlights, and on
+   green, unless the palette contains green — or is led by browns,
+   olives, khaki or yellow-greens — then `#ff00ff` magenta. The model
+   draws the green duller and darker than asked (a sampled `#53C440`
+   sits inside a 30 % key of a chestnut-brown apron), so a palette near
+   that drift loses colour to the key. Never white: a mascot has eye whites and specular highlights, and on
    a white `<bg>` the finish's `key_px` counts them (thousands on a
    clean cut-out, earned on the first live run) so the leak check is
    blind. The model cannot draw transparency; the finish cuts the
@@ -125,11 +128,22 @@ three images and stops.
      --size <size> --background <background> [--key "#0000ff"]
    ```
 
-   Read `RESULT:`. `key_px` is the count of opaque pixels still near the
-   removed background colour — background trapped in a pocket (between an
-   arm and the body, under a tail, inside a handle) that the corner flood
-   cannot reach at any fuzz. `key_px > 50` → re-run with `--cutout key
-   --fuzz 30%`, which keys the colour everywhere and erodes 1 px; free.
+   Read `RESULT:`. `removed=` is the background colour actually sampled
+   from the drawing. `key_px` is the count of opaque pixels still near
+   it — background trapped in a pocket (between an arm and the body,
+   under a tail, inside a handle, between hair locks) that the corner
+   flood cannot reach at any fuzz, OR a costume colour that merely sits
+   near `removed=`. `key_px > 50` → re-run with `--cutout key --fuzz
+   30%`, which keys the colour everywhere and erodes 1 px; free. Then
+   read `key_loss`, the share of the character the key also removed:
+   ≤ 0.03 is pockets cleared — keep it; above that the key is punching
+   holes in a palette colour — step the key down (`--fuzz 18%`, then
+   `12%`) while `key_loss` stays ≤ 0.03, and if pockets still show on
+   the sheet keep the corner-flood finish and name the pockets in
+   `qa.md`: they are a corrective generation on magenta (or `#0000ff`
+   blue when the palette has pink, red or purple), never a key that
+   eats the costume. A high `key_px` with `key_loss` ≈ 0 and no visible
+   pocket on a contrasting ground is costume, not background.
    A cut-out that ate part of the character (coverage dropped, a limb
    missing on the sheet) is re-run with `--fuzz 5%`; a fringe of the
    background colour on the edge with `--fuzz 16%`, then `30%`. All of
@@ -223,7 +237,9 @@ Every check with its evidence:
 - **Round A** — per candidate: `RESULT:` shows `width=height=<size>`,
   `corner_alpha=0` (transparent) or `=1` (chromakey / fill), coverage
   0.2-0.7 for full-body (a character, not a blob and not a sliver),
-  `key_px` ≤ 50; vision against `character.md`: every recognisable
+  `key_px` ≤ 50 (or, when it is costume near `removed=`, `key_loss`
+  ≈ 0 and no pocket visible on a contrasting ground — say which);
+  a key finish only with `key_loss` ≤ 0.03; vision against `character.md`: every recognisable
   feature present (name them), palette kept, style cues from the style
   file each named with a verdict; one character, no text, no watermark,
   no ground shadow, feet visible for full-body.
