@@ -10,8 +10,9 @@ import subprocess
 import sys
 import wave
 
-import numpy as np
 import pytest
+
+np = pytest.importorskip("numpy", reason="needs numpy, absent from the Hermes test environment")
 
 SCRIPT = Path(__file__).resolve().parents[2] / "profiles/audio-creator/skills/audio-creator-pipeline/scripts/sfx-media.py"
 KINDS = ("click", "beep", "chime", "whoosh", "riser", "pop", "ui-tick", "noise-burst")

@@ -36,6 +36,14 @@ def _load(name, path):
 
 mix_audio = _load("mix_audio", VIDEO_PIPELINE / "scripts/mix_audio.py")
 mix_media = _load("mix_media", AUDIO_MIX_SCRIPTS / "mix-media.py")
+
+
+def require_mix_numpy():
+    """Audio Mix renders with numpy, a Hermes runtime dependency the test
+    interpreter lacks. Ask the loaded script, not a fresh import: a later test
+    can make numpy importable after Audio Mix loaded without it."""
+    if mix_media.np is None:
+        pytest.skip("Audio Mix rendering needs numpy, absent from the Hermes test environment")
 ad = _load("ad_render", AD_LEAF / "scripts/ad-render.py")
 authored = _load("authored_tour", TOUR_LEAF / "scripts/authored.py")
 ad_example = _load("create_ad_example", Path(__file__).parent / "fixtures/create-ad/example.py")
@@ -192,6 +200,7 @@ def build_mix_bundle(tmp_path, duration=6.0, slug="mix", silent=False, timing=Fa
     """Build a REAL, complete Mix bundle by calling Audio Mix's own
     `propose()`/`render()` directly - never a hand-typed take.json/receipt.
     `timing=True` embeds a matching, hash-frozen `timing.json` in the bundle."""
+    require_mix_numpy()
     src = tmp_path / "mix-src"
     src.mkdir()
     wav_path = src / "voice.wav"
@@ -617,6 +626,7 @@ def test_check_final_audio_duration_tolerance_is_plus_minus_0_1(duration, ok):
 def build_mix_bundle_with_captions(tmp_path, duration=4.0, words=(("hello", .5, 1.), ("there", 1.5, 2.))):
     """A real captions-producing Mix bundle: a speech source with a matching,
     hash-bound .words.json sidecar, built through Audio Mix's own propose/render."""
+    require_mix_numpy()
     src = tmp_path / "mix-src"
     src.mkdir()
     wav_path = src / "voice.wav"
