@@ -138,9 +138,10 @@ a subagent that denies itself edits (explore) loses that denial for the run. The
 allow is placed before the edit denies for OpenCode's config/skill directories
 and secret files, which therefore still win. `read-only` denies edits, the
 `worker` and `general` subagents, and the `git_commit` / `git_stage_hunks` /
-`git_verify_commits` tools, which write or run commands past the shell rules. A write run needs the user's quoted
-`approval`, a named non-default task branch, and a worktree no other session is
-running in (a person's included). V2 wildcards match whole values and `*` crosses
+`git_verify_commits` / `git_rebase` tools, which write or run commands past the
+shell rules; a `write` run's `git_rebase` asks, like a shell `git rebase`. A
+write run needs the user's quoted `approval`, a named non-default task branch,
+and a worktree no other session is running in (a person's included). V2 wildcards match whole values and `*` crosses
 `/`, so secrets are spelled `*.env`, `*.pem`, … (`**/.env` misses a root-level
 file).
 
