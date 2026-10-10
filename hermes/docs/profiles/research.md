@@ -75,14 +75,38 @@ resident runtime) routes three mode entries, `lookup-searcher`,
 `sweep-searcher` and `hunt-searcher`, over the same shared Plan and Build
 stage references. Retrieval and link integrity remain its limits: no trust
 verdicts, synthesis, rankings or production. Beyond web search and `x_search`,
-it reads public X posts, YouTube, note and Substack through the `x`, `youtube`,
-`note` and `substack` tools, each limited to a public-only action list (see
-[x-access.md](../x-access.md) "Profiles"), and reads chains through `evm` and
-`solana` (what to record, kept to facts, in its own
-`references/platforms/evm.md` and `solana.md`); the `x` tool's `search` is only
-the fallback for when `x_search` is unavailable, within a capped share of the
+it reads public X posts and named accounts' profiles, YouTube, note and
+Substack through the `x`, `youtube`, `note` and `substack` tools, each limited
+to a public-only action list (see [x-access.md](../x-access.md) "Profiles"),
+and reads chains through `evm` and `solana`. When to use each service and what
+to record, kept to facts, is one reference per service in its
+`references/platforms/` (`x`, `youtube`, `note`, `substack`, `evm`, `solana`;
+Researcher keeps only the two chains); the `x` tool's `search` is only the
+fallback for when `x_search` is unavailable, within a capped share of the
 shared X reads. It never gets the messaging tools, the user's own drafts,
 statistics or channels, or any write.
+
+### Searcher technics
+
+Some retrieval purposes recur with the same sources, fields and checks every
+time. Those are Searcher **technics** — flat `technic/<name>/` leaves, each
+naming one mode in `metadata.hermes.mode` and routed by the kernel's
+`references/capabilities.md`. A technic is loaded beside its mode entry and
+adds the purpose's brief fields, source route, per-item fields and extra
+checks; it never replaces the mode's procedure, the shared stages, the floors
+or release, and choosing one is not release. The mode stays the shape every
+profile mirrors (the Assistant's units and QA contracts are still lookup, sweep
+and hunt), so a technic needs no caller-side unit or QA contract of its own:
+the Assistant's search Plan entry names each technic with its unit and the
+brief fields it needs, and a test keeps that table equal to `technic/`.
+`validate_searcher_technics` checks each leaf's mode, its loading and recovery
+contract and that its capability row routes it to the same mode.
+
+The kernel's "People are not unmasked" floor holds for every unit, with or
+without a technic: an account-footprint purpose may record weak leads apart
+from its map, but never ties a pseudonymous account to a legal identity or
+collects private life. The leaves own their own fields and floors; the
+inventory is `capabilities.md`.
 
 A long or multi-hop retrieval is one resident conversation the caller
 continues; there is no `goal_mode`. A hunt keeps running hops until saturation,

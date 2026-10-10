@@ -111,6 +111,27 @@ state tool. A planning reply is not retrieved findings.
 Each leaf names its QA contract; the validator enforces the
 mapping.
 
+## Technics — recurring purposes
+
+Searcher keeps a recipe for some recurring purposes. Name it in the brief
+(`technic: <name>`) and Searcher loads it on top of the unit's mode: it brings
+the purpose's sources, per-item fields and checks, so the brief adds only the
+table's fields to the unit's core above (a hunt still needs done criteria and
+exclusions). The unit, its QA contract and release stay those of the mode. A
+purpose no row fits is an ordinary unit.
+
+| Technic | Unit | Add to the unit's core |
+| --- | --- | --- |
+| `public-footprint` — one person's, brand's or organization's public accounts, activity, self-made claims and published addresses, from a starting account | hunt | the start account or URL and its service; subject kind (public figure, business, private individual); services in scope; window; cap |
+| `primary-fact-pack` — first-party facts or verbatim quotes on a settled item list | lookup (itemized) | the item list; fields beyond the defaults; what counts as primary; language; cap |
+| `release-digest` — changes at named vendors inside a date window, minus what was already covered | sweep | the vendors; the window as dates; audience and inclusion rule; the exclusion-list path; count floor and cap |
+
+A footprint hunt maps what the subject shows of itself, graded by the links
+that tie each piece to it; it never names who is behind a pseudonymous account
+or gathers private life. Whether the subject or its claims can be trusted is a
+researcher question on top of it. A digest returns its candidates ready to
+append; you add them to the exclusion list after acceptance.
+
 ## Boundaries
 
 - **Retrieval, not depth.** Analysis, synthesis, tradeoffs,

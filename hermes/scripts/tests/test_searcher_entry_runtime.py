@@ -1,5 +1,6 @@
 """Opt-in, offline integration with the real Hermes source and the public
-Searcher candidate docs (kernel + 3 modes + 2 stage and 2 chain references), no private checkout.
+Searcher candidate docs (kernel + 3 modes + 2 stage, capability and 6 service
+references), no private checkout.
 
 Empty PYTHONPATH skips (offline default); an explicit PYTHONPATH lacking a
 real Hermes source checkout fails. The candidate tree resolves relative to
@@ -32,10 +33,13 @@ import pytest
 
 CHILDREN = ("lookup-searcher", "sweep-searcher", "hunt-searcher")
 STAGES = ("plan", "build")
-EXPECTED = {"searcher-pipeline"} | set(CHILDREN)
+SERVICES = ("x", "youtube", "note", "substack", "evm", "solana")
+TECHNICS = ("public-footprint", "primary-fact-pack", "release-digest")
+EXPECTED = {"searcher-pipeline"} | set(CHILDREN) | set(TECHNICS)
 ALLOW = {"skills_list", "skill_view", "read_file"}
 CASES = ("discovery", "reads_and_reuse", "recovery", "relocation")
 TREE = Path("hermes/profiles/searcher/skills/searcher-pipeline")
+TECHNIC_TREE = Path("hermes/profiles/searcher/skills/technic")
 
 
 @pytest.mark.parametrize("case", CASES)
@@ -56,9 +60,13 @@ def test_searcher_entry_runtime(case):
     docs = sorted(candidate_tree.rglob("*.md"))
     assert {p.relative_to(candidate_tree).as_posix() for p in docs} == {
         "SKILL.md", *(f"{name}/SKILL.md" for name in CHILDREN),
-        *(f"references/{stage}.md" for stage in STAGES),
-        "references/platforms/evm.md", "references/platforms/solana.md",
-    }, "Searcher must have exactly eight instruction documents: kernel, modes, stages and chains"
+        *(f"references/{stage}.md" for stage in STAGES), "references/capabilities.md",
+        *(f"references/platforms/{p}.md" for p in SERVICES),
+    }, "Searcher must have exactly its kernel, modes, stages, capabilities and service references"
+    technic_tree = (repo_root / TECHNIC_TREE).resolve()
+    assert {p.relative_to(technic_tree).as_posix() for p in technic_tree.rglob("*.md")} == {
+        f"{name}/SKILL.md" for name in TECHNICS
+    }, "Searcher technics must be exactly the routed leaves"
 
     with tempfile.TemporaryDirectory(prefix="searcher-entry-runtime-") as directory:
         sandbox = Path(directory).resolve()
@@ -78,16 +86,16 @@ def test_searcher_entry_runtime(case):
         }
         result = subprocess.run(
             [sys.executable, "-B", str(Path(__file__).resolve()), "--child",
-             case, str(sandbox), str(candidate_tree), str(source)],
+             case, str(sandbox), str(candidate_tree), str(technic_tree), str(source)],
             cwd=home, env=env, text=True, capture_output=True, timeout=120,
         )
         # Child emits only public case/name/count diagnostics, never file bodies.
         assert result.returncode == 0, result.stdout
         report = json.loads(result.stdout)
-        assert report == {"case": case, "searcher_names": sorted(EXPECTED), "count": 4}
+        assert report == {"case": case, "searcher_names": sorted(EXPECTED), "count": len(EXPECTED)}
 
 
-def _child(case, sandbox, candidate_tree, source):
+def _child(case, sandbox, candidate_tree, technic_tree, source):
     import logging
     import socket
     from contextlib import ExitStack
@@ -123,7 +131,7 @@ def _child(case, sandbox, candidate_tree, source):
                 return
             if write:
                 raise AssertionError("Write outside isolated temporary HOME forbidden")
-            if path.is_relative_to(candidate_tree) and path.suffix == ".md":
+            if (path.is_relative_to(candidate_tree) or path.is_relative_to(technic_tree)) and path.suffix == ".md":
                 return
             if path.name in {".env", "auth.json", "config.yaml", "SOUL.md"}:
                 raise AssertionError("Non-fixture configuration/credentials forbidden")
@@ -147,7 +155,7 @@ def _child(case, sandbox, candidate_tree, source):
         skills = home / ".hermes/skills"
         tree = skills / "searcher-pipeline"
         docs = sorted(candidate_tree.rglob("*.md"))
-        assert len(docs) == 8, "Candidate tree must hold kernel + modes + stage and chain references"
+        assert len(docs) == 13, "Candidate tree must hold kernel + modes + stage, capability and service references"
         for path in docs:
             assert not path.is_symlink() and path.resolve().is_relative_to(candidate_tree)
             target = tree / path.relative_to(candidate_tree)
@@ -156,6 +164,17 @@ def _child(case, sandbox, candidate_tree, source):
         assert (tree / "SKILL.md").is_file()
         for child in CHILDREN:
             assert (tree / child / "SKILL.md").is_file()
+        technics = skills / "technic"
+        for name in TECHNICS:
+            source_leaf = technic_tree / name / "SKILL.md"
+            assert not source_leaf.is_symlink() and source_leaf.resolve().is_relative_to(technic_tree)
+            (technics / name).mkdir(parents=True)
+            (technics / name / "SKILL.md").write_bytes(source_leaf.read_bytes())
+
+        def skill_path(name):
+            if name == "searcher-pipeline":
+                return tree / "SKILL.md"
+            return technics / name / "SKILL.md" if name in TECHNICS else tree / name / "SKILL.md"
         # Synthetic, not copied from any private config.
         (home / ".hermes/config.yaml").write_text(
             "skills:\n  external_dirs: []\n  disabled: []\n  template_vars: true\n"
@@ -208,25 +227,26 @@ def _child(case, sandbox, candidate_tree, source):
             assert payload.get("content") == expected, "Body must match the candidate document"
 
         def check_discovery():
+            count = len(EXPECTED)
             files = list(su.iter_skill_index_files(skills, "SKILL.md"))
-            assert len(files) == 4
+            assert len(files) == count
             assert {su.parse_frontmatter(p.read_text(encoding="utf-8"))[0]["name"] for p in files} == EXPECTED
             found = st._find_all_skills()
-            assert len(found) == 4 and {s["name"] for s in found} == EXPECTED
+            assert len(found) == count and {s["name"] for s in found} == EXPECTED
             prompt = index()
             visible = rows(prompt)
-            assert len(visible) == 4 and set(visible) == EXPECTED
-            assert len(set(visible.values())) == 4
+            assert len(visible) == count and set(visible) == EXPECTED
+            assert len(set(visible.values())) == count
             for name, desc in visible.items():
                 assert 0 < len(desc) <= 60
-                path = tree / ("SKILL.md" if name == "searcher-pipeline" else f"{name}/SKILL.md")
+                path = skill_path(name)
                 fm, _ = su.parse_frontmatter(path.read_text(encoding="utf-8"))
                 assert su.parse_frontmatter(path.read_text(encoding="utf-8")[:4000])[0] == fm
                 assert desc == su.extract_skill_description(fm)
                 if name in CHILDREN:
                     assert name.split("-", 1)[0].lower() in desc.lower()
             listing = json.loads(st.skills_list())
-            assert listing["count"] == 4 and {s["name"] for s in listing["skills"]} == EXPECTED
+            assert listing["count"] == count and {s["name"] for s in listing["skills"]} == EXPECTED
             return prompt
 
         try:
@@ -305,6 +325,18 @@ def _child(case, sandbox, candidate_tree, source):
                     documents.append((name, None, tree / name / "SKILL.md"))
                 documents.extend(("searcher-pipeline", f"references/{stage}.md", tree / f"references/{stage}.md")
                                  for stage in STAGES)
+                documents.extend((name, None, technics / name / "SKILL.md") for name in TECHNICS)
+
+                # Both recovery paths render to real documents: a technic's to the kernel, the
+                # kernel's to every technic.
+                kernel_text = view("searcher-pipeline", task="recovery-paths")["content"]
+                for name in TECHNICS:
+                    rendered = re.search(r"`([^`]*/technic/<technic>/SKILL\.md)`", kernel_text).group(1)
+                    assert Path(rendered.replace("<technic>", name)).resolve() == (technics / name / "SKILL.md")
+                    leaf = view(name, task="recovery-paths")["content"]
+                    back = re.search(r"`([^`]*/searcher-pipeline/SKILL\.md)`", leaf).group(1)
+                    assert Path(back).resolve() == root_path.resolve()
+                st.reset_skill_view_dedup()
                 for name, relative, path in documents:
                     task = f"recovery-{name}-{relative}"
                     body_matches(view(name, relative, task=task), path, rendered=relative is None)
@@ -386,9 +418,9 @@ if __name__ == "__main__":
     import traceback
 
     try:
-        assert len(sys.argv) == 6 and sys.argv[1] == "--child"
+        assert len(sys.argv) == 7 and sys.argv[1] == "--child"
         _child(sys.argv[2], *(Path(p).resolve() for p in sys.argv[3:]))
-        print(json.dumps({"case": sys.argv[2], "searcher_names": sorted(EXPECTED), "count": 4}))
+        print(json.dumps({"case": sys.argv[2], "searcher_names": sorted(EXPECTED), "count": len(EXPECTED)}))
     except BaseException as error:
         frames = [(frame.f_code.co_name, line) for frame, line in traceback.walk_tb(error.__traceback__)]
         print(json.dumps({"case": sys.argv[2], "error_type": type(error).__name__, "frames": frames}))

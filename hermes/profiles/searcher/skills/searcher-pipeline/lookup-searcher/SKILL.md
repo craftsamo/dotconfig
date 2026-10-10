@@ -21,9 +21,13 @@ reference in current context, not a past load or summary. Direct entry requires
 `skill_view(name="searcher-pipeline")` before any stage. Load
 `skill_view(name="lookup-searcher")` and the current stage with
 `skill_view(name="searcher-pipeline", file_path="references/<stage>.md")`:
-[Plan](../references/plan.md) or [Build](../references/build.md). On-chain retrieval also requires the chain's
-shared reference: [EVM](../references/platforms/evm.md) or
-[Solana](../references/platforms/solana.md).
+[Plan](../references/plan.md) or [Build](../references/build.md). Retrieval on a service also requires its
+shared reference: [X](../references/platforms/x.md),
+[YouTube](../references/platforms/youtube.md), [note](../references/platforms/note.md),
+[Substack](../references/platforms/substack.md), [EVM](../references/platforms/evm.md) or
+[Solana](../references/platforms/solana.md). A technic the brief names or
+[Capabilities](../references/capabilities.md) matches is loaded too with
+`skill_view(name="<technic>")`; it adds to this mode and never replaces it.
 If unchanged is returned while the earlier body is unavailable, or a body is
 missing, use read_file on canonical
 `${HERMES_SKILL_DIR}/../SKILL.md`, `${HERMES_SKILL_DIR}/SKILL.md` and
@@ -64,6 +68,9 @@ include independent corroboration, leaving conflicting answers unadjudicated.
    - Official / primary (docs, specs, repos, filings) first.
    - General web via `web_search`.
    - `x_search` for real-time events, expert takes, and sentiment.
+   - What someone published on a service — a video or channel, a note
+     article, a Substack post, a post or profile on X — through that service's
+     tool and reference, not a web snippet of it.
    - Forums / community for lived experience.
 3. **Capture each hit shallowly** — title, URL, source/author, date (when
    time-sensitive), and a one-line gist. Do **not** deep-read or summarize at

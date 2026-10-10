@@ -21,9 +21,13 @@ reference in current context, not a past load or summary. Direct entry requires
 `skill_view(name="searcher-pipeline")` before any stage. Load
 `skill_view(name="hunt-searcher")` and the current stage with
 `skill_view(name="searcher-pipeline", file_path="references/<stage>.md")`:
-[Plan](../references/plan.md) or [Build](../references/build.md). On-chain retrieval also requires the chain's
-shared reference: [EVM](../references/platforms/evm.md) or
-[Solana](../references/platforms/solana.md).
+[Plan](../references/plan.md) or [Build](../references/build.md). Retrieval on a service also requires its
+shared reference: [X](../references/platforms/x.md),
+[YouTube](../references/platforms/youtube.md), [note](../references/platforms/note.md),
+[Substack](../references/platforms/substack.md), [EVM](../references/platforms/evm.md) or
+[Solana](../references/platforms/solana.md). A technic the brief names or
+[Capabilities](../references/capabilities.md) matches is loaded too with
+`skill_view(name="<technic>")`; it adds to this mode and never replaces it.
 If unchanged is returned while the earlier body is unavailable, or a body is
 missing, use read_file on canonical
 `${HERMES_SKILL_DIR}/../SKILL.md`, `${HERMES_SKILL_DIR}/SKILL.md` and
@@ -73,9 +77,10 @@ Each hop:
 
 1. **Frontier** — pick the most promising open leads from the ledger (unread
    citations, named authors/orgs, referenced documents, dissenting mentions).
-2. **Retrieve** — `web_search` / `x_search` / direct URL reads on those leads;
-   prefer primary documents (papers, filings, specs, first-party posts) over
-   coverage of them.
+2. **Retrieve** — `web_search` / `x_search` / direct URL reads on those leads,
+   and the service tools for a lead that lives on X, YouTube, note or
+   Substack; prefer primary documents (papers, filings, specs, first-party
+   posts) over coverage of them.
 3. **Extract leads** — every new hit yields citations, names, and documents;
    push them onto the frontier. Note claim-level agreements/conflicts between
    sources (flag only — don't adjudicate).
