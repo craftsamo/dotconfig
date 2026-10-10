@@ -72,22 +72,26 @@ needed. Gateway up adds cron for fire-and-forget work; gateway down,
 
 ## Profile roster
 
-| Profile           | Role                                                                                                                                                                                                                                                                    | Front door           | `terminal.cwd`         | Toolsets                                                                                                                                                    | Gateway                  | Tracked               |
-| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------- | ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------ | --------------------- |
-| **default**       | CLI front door — assistant's CLI counterpart (neutral persona); hosts the multiplex gateway                                                                                                                                                                             | CLI                  | `.` (launch dir)       | `web,browser,terminal,file,code_execution,vision,x_search,skills,todo,memory,clarify,delegation,cronjob`                                                    | host                     | yes                   |
-| **assistant**     | primary: messaging front door, non-creative quality gate, GitHub bookkeeping; drives OpenCode (see [opencode.md](./opencode.md))                                                                                                                                        | Telegram + Discord   | `~/Workspaces`         | `web,browser,terminal,file,vision,x_search,skills,todo,memory,clarify,delegation,cronjob,computer_use,specialist,opencode,characters` + `unreal-engine` MCP | served                   | yes (private overlay) |
-| **researcher**    | purpose-first depth modes investigate / compare / verify / advise over shared Plan / Build stages (Build ends with a self-check); proposes own-role scope, requests heavy breadth from the caller; serves creator/marketer only (not Assistant directly), cards refused | — (A2A receive-only) | `.` (launch / task ws) | `file,web,vision,video,skills,memory,delegation`                                                                                                            | served (a2a :9906)       | yes                   |
-| **searcher**      | purpose-first retrieval modes lookup / sweep / hunt over shared Plan / Build stages (Build ends with a check); resident sessions only, cards refused; a multi-hop hunt is one conversation the caller continues                                                         | — (specialist)       | `.` (launch / task ws) | `file,web,x_search,x_access,youtube_access,note_access,substack_access,skills,memory`                                                                       | served (no platforms)    | yes                   |
-| **creator**       | the Assistant's creative advisor: turns intent into 2-3 named directions with draft hands handoffs, and feedback into located, named revisions; never produces or commissions (see [creator.md](./profiles/creator.md))                                                 | — (Assistant only)   | `.` (launch / task ws) | `file,vision,web,skills,memory,specialist,media_inspect`                                                                                                    | served (a2a :9903)       | yes                   |
-| **image-creator** | still-image hands: runs one `<verb>/<subject>` leaf from a filled form, QA with evidence, report; answers only the Assistant                                                                                                                                            | — (A2A receive-only) | `.` (launch / task ws) | `terminal,file,vision,image_gen,skills,memory`                                                                                                              | served (a2a :9907)       | yes                   |
-| **video-creator** | video hands: clip, tour, ad, explainer-video, promotion, story, master, pixel-animation and music-video leaves from approved forms; answers only the Assistant                                                                                                          | — (A2A receive-only) | `.` (launch / task ws) | `terminal,file,vision,video_gen,video,skills,memory`                                                                                                        | served (a2a :9908)       | yes                   |
-| **audio-creator** | audio hands: speech, sfx, music (instrumental BGM/melodic pieces only) and mix (placing already-finished sources, never synthesis) from approved forms; measured/readback QA, no claims of listening; no full songs or voice registration; answers only the Assistant   | — (A2A receive-only) | `.` (launch / task ws) | `terminal,file,tts,sfx_gen,music_gen,skills,memory`                                                                                                         | served (a2a :9909)       | yes                   |
-| **writer**        | reader-facing prose and producer-facing scripts from released units (outline / piece / whole job); draft-only, never publishes; serves the assistant                                                                                                                    | — (A2A receive-only) | `.` (launch / task ws) | `writing-inspection,characters,file,web,skills,memory,delegation`                                                                                           | served (a2a :9905)       | yes                   |
-| **marketer**      | primary: strategy advisor — discovery, positioning, campaigns, review findings and outcome analysis for the assistant and the human; read-only toward every service; clients execute                                                                                    | Telegram (own bot)   | `.` (launch / task ws) | `terminal,file,web,browser,x_search,x_access,substack_access,youtube_access,note_access,vision,skills,memory,delegation,specialist,clarify`                 | served (bot + a2a :9904) | yes                   |
+Each role's detail is in its doc under [`profiles/`](./profiles/); `terminal.cwd`
+is `.` (launch / task workspace) except the assistant's `~/Workspaces`.
+
+| Profile           | Role                                                                                                                                    | Front door           | Gateway                  |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------- | -------------------- | ------------------------ |
+| **default**       | CLI front door — assistant's CLI counterpart (neutral persona); hosts the multiplex gateway                                             | CLI                  | host                     |
+| **assistant**     | primary: messaging front door, non-creative quality gate, GitHub bookkeeping; drives OpenCode ([opencode.md](./opencode.md))            | Telegram + Discord   | served                   |
+| **researcher**    | depth modes investigate / compare / verify / advise; serves creator/marketer only (not Assistant directly), cards refused               | — (A2A receive-only) | served (a2a :9906)       |
+| **searcher**      | retrieval modes lookup / sweep / hunt; resident sessions only, cards refused                                                            | — (specialist)       | served (no platforms)    |
+| **creator**       | the Assistant's creative advisor: directions and located revisions; never produces or commissions ([creator.md](./profiles/creator.md)) | — (Assistant only)   | served (a2a :9903)       |
+| **image-creator** | still-image hands: runs one `<verb>/<subject>` leaf from a filled form; answers only the Assistant                                      | — (A2A receive-only) | served (a2a :9907)       |
+| **video-creator** | video hands: runs video leaves from approved forms; answers only the Assistant                                                          | — (A2A receive-only) | served (a2a :9908)       |
+| **audio-creator** | audio hands: speech, sfx, music (instrumental only) and mix (finished sources, never synthesis); no claims of listening                 | — (A2A receive-only) | served (a2a :9909)       |
+| **writer**        | reader-facing prose and producer-facing scripts from released units; draft-only, never publishes; serves the assistant                  | — (A2A receive-only) | served (a2a :9905)       |
+| **marketer**      | primary: strategy advisor, read-only toward every service; clients execute                                                              | Telegram (own bot)   | served (bot + a2a :9904) |
 
 ### Toolsets
 
-The table lists each role's native capability allowlist.
+A profile's top-level `toolsets` is its role's native capability allowlist (see
+each profile's `config.yaml`).
 `platform_toolsets.<platform>` is the effective runtime allowlist and stays
 granular: the composite `hermes-cli` / `hermes-telegram` toolsets expand to a
 broad surface and strip default-off tools such as `video` / `video_gen`.
@@ -116,8 +120,7 @@ normal flow stays **searcher (retrieve) → researcher (synthesize) → OpenCode
 production stages, and **creator** (creative direction) and **marketer**
 (strategy) as advisors beside them; the assistant commissions the hands itself,
 saves the resulting service drafts and the user publishes. User approval follows
-the domain's checks. Creative production uses direct early delivery rather than
-another broker inspection.
+the domain's checks.
 
 ### Planning ownership
 
@@ -161,8 +164,8 @@ expose Writer's production leaves to solve a reference lookup.
 
 ### Two working directories per worker
 
-- **Direct / `delegate_task` work** starts in `terminal.cwd` — currently `.`
-  (the launch dir) for most workers; pin an absolute path per worker for a fixed
+- **Direct / `delegate_task` work** starts in `terminal.cwd` — `.` (the launch
+  dir) for most workers; pin an absolute path per worker for a fixed
   directory. `workspace/` is per-machine and never tracked.
 
 ## Operating layers (per profile)
@@ -199,73 +202,32 @@ Three per-profile layers, kept separate:
   knowledge becomes a skill), and `user_profile_enabled` is off for workers —
   they never converse with the human.
 
-- **skills/** — detailed, on-demand playbooks. Every local library uses the same
-  ownership types. A worker has one tracked `<profile>-pipeline/` plus tracked,
-  directly selectable `technic/` leaves. The assistant owns a tracked
-  `assistant-pipeline/` (kernel + child entries) and may add private
-  technics on the overlay's own `technic/` shelf, read through
-  `skills.external_dirs` (see
-  [ops/skills.md "Skill placement"](ops/skills.md)); default owns the shared tracked
-  `default-pipeline/` adapter. A plugin's own tool mechanics are skills shipped
-  inside the plugin and registered per profile as `<plugin>:<skill>` (see
-  [ops/skills.md "Skill placement"](ops/skills.md)). Pinned Telegram topics bind no skill (see
-  [assistant.md](./profiles/assistant.md) "Pinned Telegram topics").
-  Runtime-authored skills (background review, curator, `/learn`, ordinary
-  `skill_manage(create)`) go to the untracked `learned/` category through
-  `skills.create_dir: skills/learned` in every `config.yaml` (an optional
-  `category` nests as `learned/<category>/<name>`). Moving a complete package
-  from `learned/` to `technic/` is the explicit maintainer-review boundary.
-  External directories remain provider-owned and never become local technics
-  implicitly.
-  - assistant → `assistant-pipeline` (Chat / Plan / Execute / Quality Assurance
-    over tiers inline / resident; `chat-assistant` and
-    `{plan,execute,qa}-assistant-<domain>` children; resident sessions via
-    `resident-session.sh`; assistant-run QA contracts). Default's
-    `default-pipeline` records only terminal-specific deltas. External libraries
-    via `skills.external_dirs`: official apple / creative / email / github / media
-    / note-taking / productivity / research / smart-home / social-media plus
-    optional `one-three-one-rule` (decision framing) and `watchers` (RSS/API
-    polling for cron sweeps), the three hands pipelines (read for their forms;
-    the commissioning references live in `execute-assistant-creative`, see
-    [`broker.md`](./broker.md)); heavy tool-bound creative entries (`comfyui`,
-    `touchdesigner-mcp`, `manim-video`, `ascii-video`) sit in `skills.disabled` —
-    media production is the hands'.
-  - researcher → `researcher-pipeline` (resident sessions + inbound A2A from
-    creator/marketer; investigate / compare / verify / advise modes;
-    returns spec-gap and granularity findings; see [research.md](./profiles/research.md)) + optional
-    `domain-intel` and `osint-investigation` (stdlib-only recon /
-    public-records) plus keyless `duckduckgo-search` (run through `uvx ddgs`).
-  - searcher → `searcher-pipeline` (resident sessions only; lookup / sweep / hunt
-    modes with spec-gap and granularity findings and the
-    link-integrity floor; no technics; see [research.md](./profiles/research.md)) +
-    keyless optional `duckduckgo-search` and `domain-intel`.
-  - image-creator → `image-creator-pipeline` (the hands root: validate the filled
-    form → load the leaf → run → QA → report; leaves are
-    `<verb>/<subject>`, see [`hands/overview.md`](./hands/overview.md)).
-    video-creator and audio-creator follow the same shape
-    ([`hands/video.md`](./hands/video.md), [`hands/audio.md`](./hands/audio.md)).
-  - creator → `creator-pipeline`: `propose-creator` (intent into 2-3
-    named directions, each with an existing example and a draft hands handoff)
-    and `revise-creator` (verbatim feedback into located, named changes, each
-    with a draft revision handoff); one capability reference per served subject
-    under `references/<hands>/<subject>.md` (see
-    [creator.md](./profiles/creator.md)). No technics.
-    External libraries: the three hands pipelines (read-only, for forms and
-    option references), the curated `media-craft-*` skills and the HyperFrames
-    store's knowledge skills for vocabulary; no production engines.
-  - writer → `writer-pipeline` (resident + inbound A2A, cards refused; released
-    units — outline / piece / whole job — with spec-gap and granularity findings;
-    `<write|edit|analyze>/<subject>/SKILL.md` leaves across post, article,
-    document, message, copy and script plus `consult-writer`; see
-    [writer.md](./profiles/writer.md)). External skills: the curated
-    `profiles/writer/external-skills/` symlink dir (the single `japanese-writing`
-    skill — shared Japanese workflow, references and read-only inspector,
+- **skills/** — detailed, on-demand playbooks. Ownership types, placement,
+  `learned/` creates and the `learned/` → `technic/` promotion:
+  [ops/skills.md](ops/skills.md) "Skill placement" and "Skills". A worker has one tracked
+  `<profile>-pipeline/` plus tracked, directly selectable `technic/` leaves; the
+  assistant owns `assistant-pipeline/` and reads private technics through
+  `skills.external_dirs`; default owns only the thin `default-pipeline/`
+  adapter. A plugin's own tool mechanics ship inside the plugin as
+  `<plugin>:<skill>`. Pinned Telegram topics bind no skill (see
+  [assistant.md](./profiles/assistant.md) "Pinned Telegram topics"). Each
+  profile's pipeline and modes are in its doc under [`profiles/`](./profiles/)
+  and [`hands/`](./hands/overview.md); the exclusions that matter here:
+  - assistant → heavy tool-bound creative entries (`comfyui`,
+    `touchdesigner-mcp`, `manim-video`, `ascii-video`) sit in `skills.disabled`:
+    media production is the hands'. It reads the three hands pipelines for their
+    forms; the commissioning references live in `execute-assistant-creative`
+    ([`broker.md`](./broker.md)).
+  - searcher and creator have no technics. creator reads the hands pipelines
+    read-only for forms and option references, plus curated `media-craft-*` and
+    HyperFrames knowledge skills for vocabulary; no production engines.
+  - writer → external skills only through the curated
+    `profiles/writer/external-skills/` symlink dir (`japanese-writing`,
     single-sourced with the shared `agents/curated/` store) and upstream
     `creative/humanizer` (explicit-request only).
-  - marketer → `marketer-pipeline` (plan / review / analyze advisory entries;
-    browsing resident-only, cards refused; see [marketer.md](./profiles/marketer.md)).
-    Its only external skill is the private `hermes-browser-relaunch`; Writer's
-    pipeline is not readable there. No xurl/humanizer imports or publish engine.
+  - marketer → its only external skill is the private `hermes-browser-relaunch`;
+    Writer's pipeline is not readable there; no xurl/humanizer imports or
+    publish engine.
 
   **Upstream wiring pattern.** Official `skills/` libraries attach per category
   directory, `optional-skills/` per individual skill directory, and unwanted
@@ -295,9 +257,8 @@ Profile docs list only their deltas to this shared contract:
   recover via canonical `read_file`, following genuine `next_offset` truncation
   offsets; if a required body is still unavailable, stop the affected action —
   never an invented pass. Never evade dedup through aliases, alternate paths or
-  artificial ranges. Read dedup (`tools/skills_tool_dedup.py`,
-  `tools/file_tools.py`) and compression-aware resets do not guarantee that
-  instructions remain visible.
+  artificial ranges. Read dedup and compression-aware resets do not guarantee
+  that instructions remain visible.
 - **No authority from loading.** Selection, reading or resume never grants scope,
   widens or resets approvals/grants/budget/coverage, restarts planning or replays
   completed work; a short approval advances the retained plan.
@@ -305,8 +266,7 @@ Profile docs list only their deltas to this shared contract:
   index, no generated menu; detail references are reached through their entry,
   not discovered as independent skills. Nested entries, parent/sibling references
   and `metadata.hermes` are intentional exceptions to the generic
-  skill-authoring validator (which also treats named cross-checkout OpenCode
-  resources as local files); the repository validator and isolated runtime tests
+  skill-authoring validator; the repository validator and isolated runtime tests
   check the real owner. Never duplicate a kernel or shared reference to silence
   that portability check; the exception never authorizes a broken dependency.
 - **Cached index.** The gateway caches its skill index in-process; manual file
