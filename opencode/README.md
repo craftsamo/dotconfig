@@ -37,10 +37,17 @@ looks programs up on the PATH the process started with).
 The git tools (`lib/custom-tools/git/`) back the `git-commit` and
 `git-pullrequest` skills: `git_state` (one snapshot of the branch and
 worktree), `git_commit` (lint, secret scan and `git commit -F` on the same
-message), `git_stage_hunks`, `git_conflicts`, `git_verify_commits` (each
-commit in a scratch worktree; asks every call), `git_worktree`, and the
-read-only history and lint helpers. `gh_pr_status` (`lib/custom-tools/gh.ts`)
-reads a PR's checks, failed-job logs and review threads and can wait for CI.
+message; also amend and fixup), `git_rebase` (onto the fetched base without an
+editor, folding fixups; stops with a conflict map), `git_stage_hunks`,
+`git_conflicts`, `git_verify_commits` (each commit in a scratch worktree; asks
+every call), `git_worktree`, and the read-only history and lint helpers.
+Rewrites follow one rule (`git/rewrite.ts`, also behind `git_amend_check`): a
+task branch's own commits may be rewritten even once pushed (the result says
+when the push needs `--force-with-lease`), never the default branch, commits
+already on it or held by another remote branch (layers above in the same
+native stack excepted), or a branch GitHub protects against force pushes.
+`gh_pr_status` (`lib/custom-tools/gh.ts`) reads a PR's checks, failed-job logs
+and review threads and can wait for CI.
 `plugins/worktrees.ts` registers the worktree strategy in
 `lib/worktrees/strategy.ts`, so the TUI, the API and `git_worktree` all place
 worktrees at `~/Worktrees/<repository>/<branch>` on a new branch, the layout

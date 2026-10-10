@@ -17,6 +17,7 @@ permissions:
   - { action: gh_pr_status, resource: "*", effect: allow }
   - { action: git_commit, resource: "*", effect: deny }
   - { action: git_worktree, resource: "*", effect: deny }
+  - { action: git_rebase, resource: "*", effect: deny }
   - { action: edit, resource: "*", effect: deny }
   - { action: external_directory, resource: "*", effect: allow }
   - { action: subagent, resource: "*", effect: deny }
