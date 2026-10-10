@@ -25,7 +25,7 @@ metadata:
       aspect: {required: false, options: ["16:9", "9:16", "1:1", "4:5"], label: "default 9:16"}
       duration: {required: false, type: int, label: "10..120s; default 60"}
       fps: {required: false, options: ["24", "25", "30", "50", "60"], label: "default 30"}
-      style: {required: false, options: [picture-book, cartoon, paper-cut, sumi-ink, watercolor, crayon, silhouette], other: true, label: "world rendering; must suit the cast art"}
+      style: {required: false, options: [picture-book, cartoon, anime-2d, paper-cut, sumi-ink, watercolor, crayon, silhouette], other: true, label: "world rendering; must suit the cast art"}
       world: {required: false, type: text, label: "setting, era, places, mood"}
       assets: {required: false, type: path, label: "supplied backgrounds, props, footage inserts"}
       audio: {required: false, type: file, label: "finished WAV or Mix master from audio-creator"}
@@ -49,6 +49,7 @@ metadata:
 2. Read [authoring](references/authoring.md), the selected style
    ([picture-book](references/styles/picture-book.md),
    [cartoon](references/styles/cartoon.md),
+   [anime-2d](references/styles/anime-2d.md),
    [paper-cut](references/styles/paper-cut.md),
    [sumi-ink](references/styles/sumi-ink.md),
    [watercolor](references/styles/watercolor.md),
