@@ -95,6 +95,9 @@ only; a walk is then a swap between approved walk poses over a sliding ground.
 | seamless loop | the last frame matches the first, so it can repeat | every tween returns to its start or travels a whole period; finite repeat count |
 | boil | a drawn line redraws slightly every few frames, alive like hand animation | swap between 2-3 fixed displacement seeds on steps of 2-3 frames |
 | animate on twos | the motion updates every other frame, reading as hand-drawn or stop motion | `steps()` ease, or time rounded to 1/12 s |
+| limited-animation hold | a strong pose held still for a beat while only hair, eyes, a mouth or one prop moves; the energy sits in a few fast changes | a pose swap followed by a hold; secondary parts on `steps()`; the hold is a timed gap, not a frozen render |
+| smear frame | one stretched in-between that sells a fast swing or dash | on your own drawn shapes: one frame of a stretched shape along the path; on supplied whole-pose art: a drawn streak layer behind it for 1-2 frames, never a deformed cast |
+| impact frame | at a hit, one to three frames flash to a stark two-tone or inverted palette with radial speed lines, then snap back | a full-frame overlay layer (flat colour plus `mix-blend-mode: difference` or a drawn two-tone plate) and an SVG radial line burst, each held 1-3 frames on a seeded schedule; never more than 3 flashes in any one second, and no saturated red full-frame flash |
 
 ## Effects
 
@@ -199,6 +202,13 @@ imitation named in the same row.
 | paper cut-out (kirie) | silhouettes cut from stacked coloured paper, a flat colour per layer with a small shadow, lit windows punched through | flat SVG layers, one drop shadow per layer, parallax by layer |
 | chalkboard | chalk lines and handwriting on dark green slate, dusty edges, faint ghosts of erased writing | stroked paths through a grain mask on a dark green surface; write-on via `stroke-dashoffset`; ghosts as low-opacity blurred copies |
 | one-line drawing | a whole object drawn as one continuous line, a few flat colour blobs offset behind it | a single path drawn by `stroke-dashoffset`; blobs as soft shapes that fade in after the line passes |
+
+### Anime
+
+| Name | Looks like | Built with |
+| --- | --- | --- |
+| cel anime | TV-style 2D: flat base fills, one hard-edged shadow tone per colour from one light direction, an even dark line, skies as a flat colour or one clean gradient, small hard highlights | SVG shapes with a base fill and a separate hard-edged shadow path per form; `stroke` at the cast's line weight; no blur or soft gradients on drawn forms; motion on twos with limited-animation holds |
+| painted anime backdrop | backgrounds painted with visible brush texture and atmospheric depth behind crisp cel characters, natural light, wind in grass and cloud | layered SVG or supplied painted plates with a fixed-seed brush-texture mask; haze as a low-opacity light layer per depth plane; parallax by plane; the cast layer never takes the paint texture |
 
 ### Graphic
 
