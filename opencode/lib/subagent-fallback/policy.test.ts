@@ -203,6 +203,19 @@ describe("launch preference", () => {
       }),
     ).toBe(false)
   })
+  test("every routed role's global agent file names its route's primary", async () => {
+    // ROUTES and the agent files name the same models; a drift between them
+    // would go unnoticed at launch.
+    for (const [role, route] of Object.entries(ROUTES)) {
+      const file = new URL(`../../agents/${role}.md`, import.meta.url)
+      const text = await Bun.file(file).text()
+      const line = text.match(/^model:\s*(\S+)\s*$/m)?.[1]
+      const p = route.primary
+      expect(`${role}: ${line}`).toBe(
+        `${role}: ${p.providerID}/${p.id}${p.variant ? `#${p.variant}` : ""}`,
+      )
+    }
+  })
   test("stale/future/reset data is unknown, but fresh 0% needs no reset proof", () => {
     expect(freshState(quota("exhausted"), NOW)).toBe("exhausted")
     expect(
