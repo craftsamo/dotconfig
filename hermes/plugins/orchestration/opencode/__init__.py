@@ -248,7 +248,7 @@ def _setup(home, owner, role_name, role, plan, kwargs):
     server = turn.call("get", "/api/info") or {}
     tmp = (server.get("paths") or {}).get("tmp") if isinstance(server, dict) else None
     ruleset = policy.rules(role["policy"], plan["issue_approval"], plan["protected"], tmp=tmp, person_denies=person,
-                           output=plan["output"])
+                           output=plan["output"], branch=plan["branch"])
     model = models.engine(role, plan["chosen"], info, directory,
                           models.caller_models(home, kwargs.get("session_id")))
     hermes = {"v": 2, "profile": home.name, "owner": owner, "role": role_name, "branch": plan["branch"],

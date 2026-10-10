@@ -947,10 +947,10 @@ def test_session_ruleset_holds_no_broad_allow_but_worktree_edits():
     posture, so an allow here would reopen what a subagent denies itself. The one
     exception is a write run's edits inside its worktree."""
     scratch, readable = policy.directories("/tmp/fake-opencode")
-    narrow = set(scratch + readable) | set(policy.SAMPLE_READS) | set(policy.WRITE_ALLOW_AFTER_ASK)
+    narrow = set(scratch + readable) | set(policy.SAMPLE_READS) | set(policy.WRITE_ALLOW_AFTER_ASK) | set(policy.STACK_READS)
     for kind in config.POLICIES:
         for issue in (None, "granted"):
-            rules = policy.rules(kind, issue, {"main"}, tmp="/tmp/fake-opencode")
+            rules = policy.rules(kind, issue, {"main"}, tmp="/tmp/fake-opencode", branch="topic")
             broad = [r for r in rules if r["effect"] == "allow" and r["resource"] not in narrow]
             assert broad == ([{"action": "edit", "resource": "*", "effect": "allow"}] if kind == "write" else []), kind
             assert policy.decide(rules, "edit", "src/a.py") == ("allow" if kind == "write" else "deny")
@@ -964,8 +964,16 @@ def test_session_ruleset_holds_no_broad_allow_but_worktree_edits():
             assert policy.decide(rules, "read", ".env.example") == "allow"
             assert policy.decide(rules, "external_directory", "/somewhere/else/*") == "ask"
             assert policy.decide(rules, "external_directory", "/tmp/fake-opencode/*") == "allow"
-            for command in ("git push --force origin topic", "git push origin main", "git -C x push origin main",
-                            "gh pr merge 3", "gh api repos/x", "git reset --hard HEAD~1"):
+            for command in ("git push --force origin topic", "git push origin topic --force", "git push -f origin topic",
+                            'git push "--force" origin topic', "git push origin +topic",
+                            "git push --force-with-lease --force origin topic", "git push --force-with-lease origin main",
+                            "git push --force-with-lease origin HEAD:heads/main", 'git push --force-with-lease origin HEAD:"main"',
+                            "git push --force-with-lease origin topic:main", "git push --force-with-lease origin other",
+                            "git push --force-with-lease origin HEAD", "git push --force-with-lease origin HEAD:topic",
+                            "git push --force-with-lease origin topic",
+                            "git -C x push --force-with-lease origin topic", "git push origin main",
+                            "git -C x push origin main", "gh pr merge 3", "gh stack merge", "gh stack -R o/r merge",
+                            "gh stack unstack", "gh api repos/x", "git reset --hard HEAD~1"):
                 assert policy.decide(rules, "shell", command) == "deny", (kind, command)
             assert policy.decide(rules, "github_project_item_add", "*") == "deny"
             assert policy.decide(rules, "git_worktree", "*") == "deny", "workspace owns worktrees"
@@ -979,23 +987,32 @@ def test_read_only_never_edits_and_never_hands_work_to_an_editor():
     assert policy.decide(rules, "subagent", "explore-small") == "ask", "other subagents keep their own posture"
     assert policy.decide(rules, "shell", "git diff --output=x") == "deny"
     assert policy.decide(rules, "shell", "gh issue comment 1") == "deny"
+    for command in ("gh stack push", "gh stack -R o/r push", "gh stack view"):
+        assert policy.decide(rules, "shell", command) == "deny", command
     for tool in ("git_commit", "git_stage_hunks", "git_verify_commits", "git_rebase"):
         assert policy.decide(rules, tool, "*") == "deny", tool
     write = policy.rules("write", None, {"main"})
-    assert policy.decide(write, "git_commit", "*") != "deny", "a build commits through the tool"
-    assert policy.decide(write, "git_rebase", "*") == "ask", "a rebase comes back to the caller, as a shell one does"
+    for tool in ("git_commit", "git_rebase"):
+        assert policy.decide(write, tool, "*") != "deny", f"a build rewrites its own commits through {tool}"
 
 
 def test_write_asks_for_person_gated_commands_and_keeps_person_denies():
     person = PERSON_DENIES + [{"action": "shell", "resource": "ls *", "effect": "allow"}]
-    rules = policy.rules("write", None, {"main"}, tmp="/tmp/fake-opencode", person_denies=person)
+    rules = policy.rules("write", None, {"main"}, tmp="/tmp/fake-opencode", person_denies=person, branch="topic")
     assert {"action": "shell", "resource": "ls *", "effect": "deny"} not in rules
     combined = fakes.agent_info("build")["permissions"] + rules
-    for command in ("git push origin topic", "git rebase main", "git checkout other", "git -C .. status x",
+    for command in ("git push origin topic", "git push --force-with-lease origin HEAD:refs/heads/topic",
+                    "git push --force-with-lease --force-if-includes origin HEAD:refs/heads/topic", "git rebase main",
+                    "git commit --amend", "gh stack rebase", "gh stack push", "gh stack -R o/r push",
+                    "gh stack submit --open", "gh stack view --json", "git checkout other", "git -C .. status x",
                     "npm exec foo", "gh issue comment 1"):
-        expected = "allow" if command.startswith("git -C .. status") else "ask"
+        expected = "allow" if command.startswith(("git -C .. status", "gh stack view")) else "ask"
         assert policy.decide(combined, "shell", command) == expected, command
     assert policy.decide(combined, "shell", "pytest -q") == "allow"
+    assert policy.decide(combined, "shell", "gh stack checkout fix/merge-order") == "ask"
+    unbound = fakes.agent_info("build")["permissions"] + policy.rules("write", None, {"main"}, branch="main")
+    assert policy.decide(unbound, "shell", "git push --force-with-lease origin HEAD:refs/heads/main") == "deny", \
+        "never a protected lease"
     assert policy.decide(combined, "shell", "sudo rm -rf /") == "deny"
     assert policy.decide(combined, "edit", "src/a.py") == "allow"
     assert policy.decide(rules, "external_directory", "/secret/x/*") == "deny"
