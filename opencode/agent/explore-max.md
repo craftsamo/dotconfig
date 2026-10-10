@@ -44,6 +44,15 @@ permission:
     "git * --ext-diff*": deny
     "gh * --web*": deny
     "gh * -w*": deny
+    # A redirect writes a file even when the command itself is allowlisted.
+    "*>*": deny
+    # Best-effort: these read files outside git's view, past the .env read
+    # rules (git diff turns on --no-index by itself for an outside path).
+    "git * --no-index*": deny
+    "git diff* /*": deny
+    "git diff* ~*": deny
+    "git diff* ../*": deny
+    "git blame*--contents*": deny
 ---
 
 You are a max-depth, read-only codebase investigation subagent.
@@ -71,8 +80,8 @@ Rules:
   (history, refs, PR and Issue views) when they materially improve confidence.
 - Run one command per Bash call. Never chain with `&&`, `;`, or pipes, and
   never `cd` or `git -C`: set `workdir` instead. Any unlisted part of a
-  compound command denies the whole call. Quote arguments with shell
-  metacharacters, such as `--format='%(refname:short)'`.
+  compound command, or a `>` redirect, denies the whole call. Quote arguments
+  with shell metacharacters, such as `--format='%(refname:short)'`.
 - Count lines, list directories, or preview files with Read and Glob (Read on
   a directory lists it; its line numbers give the length). `wc`, `ls`, `head`,
   and `find` are denied.
