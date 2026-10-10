@@ -8,12 +8,11 @@ permissions:
   - { action: glob, resource: "*", effect: allow }
   - { action: grep, resource: "*", effect: allow }
   - { action: read, resource: "*", effect: allow }
-  - { action: read, resource: "**/.env", effect: deny }
-  - { action: read, resource: "**/.env.*", effect: deny }
-  - { action: read, resource: "**/*.env", effect: deny }
-  - { action: read, resource: "**/.env.example", effect: allow }
-  - { action: read, resource: "**/.env.sample", effect: allow }
-  - { action: list, resource: "*", effect: allow }
+  - { action: read, resource: "*.env", effect: deny }
+  - { action: read, resource: ".env.*", effect: deny }
+  - { action: read, resource: "*/.env.*", effect: deny }
+  - { action: read, resource: "*.env.example", effect: allow }
+  - { action: read, resource: "*.env.sample", effect: allow }
   - { action: execute, resource: "*", effect: allow }
   - { action: git_provenance, resource: "*", effect: allow }
   - { action: edit, resource: "*", effect: deny }

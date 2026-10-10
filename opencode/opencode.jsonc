@@ -212,13 +212,14 @@
     { "action": "external_directory", "resource": "~/.config/opencode/skills/*", "effect": "allow" },
     // .env may hold secrets — gate whole-file reads via the Read tool too
     // (bash cat/head/tail on .env is already denied below). Last match wins:
-    // example/sample templates stay free.
+    // example/sample templates stay free. `*` also matches `/`, and a file at
+    // the Location root has no directory part, so `**/.env` would miss it.
     { "action": "read", "resource": "*", "effect": "allow" },
-    { "action": "read", "resource": "**/.env", "effect": "ask" },
-    { "action": "read", "resource": "**/.env.*", "effect": "ask" },
-    { "action": "read", "resource": "**/*.env", "effect": "ask" },
-    { "action": "read", "resource": "**/.env.example", "effect": "allow" },
-    { "action": "read", "resource": "**/.env.sample", "effect": "allow" },
+    { "action": "read", "resource": "*.env", "effect": "ask" },
+    { "action": "read", "resource": ".env.*", "effect": "ask" },
+    { "action": "read", "resource": "*/.env.*", "effect": "ask" },
+    { "action": "read", "resource": "*.env.example", "effect": "allow" },
+    { "action": "read", "resource": "*.env.sample", "effect": "allow" },
     { "action": "shell", "resource": "*", "effect": "ask" },
     // Read / inspect (safe)
     { "action": "shell", "resource": "ls*", "effect": "allow" },
@@ -256,7 +257,6 @@
     { "action": "shell", "resource": "tree*", "effect": "allow" },
     { "action": "shell", "resource": "type *", "effect": "allow" },
     { "action": "shell", "resource": "command -v*", "effect": "allow" },
-    { "action": "shell", "resource": "printenv *", "effect": "allow" },
     { "action": "shell", "resource": "base64 *", "effect": "allow" },
     { "action": "shell", "resource": "xxd *", "effect": "allow" },
     { "action": "shell", "resource": "shasum *", "effect": "allow" },
@@ -289,7 +289,8 @@
     { "action": "shell", "resource": "groups*", "effect": "allow" },
     { "action": "shell", "resource": "hostname*", "effect": "allow" },
     { "action": "shell", "resource": "uptime*", "effect": "allow" },
-    { "action": "shell", "resource": "arch*", "effect": "allow" },
+    // Bare `arch` only: `arch -arm64 <cmd>` runs any command.
+    { "action": "shell", "resource": "arch", "effect": "allow" },
     { "action": "shell", "resource": "nproc*", "effect": "allow" },
     { "action": "shell", "resource": "sw_vers*", "effect": "allow" },
     { "action": "shell", "resource": "getconf *", "effect": "allow" },
@@ -445,6 +446,7 @@
     { "action": "shell", "resource": "cat *.env.*", "effect": "deny" },
     // Secret: destructive / value-exposing
     { "action": "shell", "resource": "secret get*", "effect": "deny" },
+    { "action": "shell", "resource": "secret env*", "effect": "deny" },
     { "action": "shell", "resource": "secret rm*", "effect": "deny" },
     { "action": "shell", "resource": "secret del*", "effect": "deny" },
     { "action": "shell", "resource": "secret export*", "effect": "deny" },
