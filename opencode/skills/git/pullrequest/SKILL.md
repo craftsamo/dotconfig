@@ -1,25 +1,28 @@
 ---
 name: git-pullrequest
 description: >-
-  Use when opening, pushing, or updating a GitHub pull request — pushing a
-  branch, creating a PR whose title and body match the repository's own
-  convention, marking it ready, adding a layer to a native GitHub stack, and
-  scanning the branch for related Issues and PRs to link (PR, pull request,
+  Use when opening, pushing, or updating a GitHub pull request — rebasing the
+  branch onto the latest base, pushing it, creating a PR whose title and body
+  match the repository's own convention, marking it ready, adding a layer to a
+  native GitHub stack, scanning the branch for related Issues and PRs to link,
+  and following the PR's CI checks and review feedback (PR, pull request,
   プルリク, プルリクエスト, push, gh pr, open a PR, レビュー依頼, 関連Issue,
-  related issues, link PR, stacked PR, gh stack, スタック). Resolves the PR
-  title/body convention from merged PRs and a template, derives links from
-  commits, the branch name and targeted gh queries, and defaults to
-  ready-for-review. Do NOT use to create commits (use git-commit) or to merge —
-  merging stays gated and explicit.
+  related issues, link PR, stacked PR, gh stack, スタック, rebase onto main,
+  最新の main を取り込む, CI, checks, CI の結果, チェックが落ちた, レビュー
+  コメント, review comments). Resolves the PR title/body convention from merged
+  PRs and a template, derives links from commits, the branch name and targeted
+  gh queries, and defaults to ready-for-review. Do NOT use to create commits
+  (use git-commit) or to merge — merging stays gated and explicit.
 author: CraftSamo
 license: MIT
 ---
 
 <Goal>
 
-Open or update the pull request the user asked for: push the branch, write a
-title and body that match the repository's convention, and link the related
-Issues and PRs the branch's work actually touches. Never merge.
+Open or update the pull request the user asked for: rebase the branch onto its
+base's latest state, push it, write a title and body that match the
+repository's convention, link the related Issues and PRs the branch's work
+actually touches, and follow its checks and reviews when asked. Never merge.
 
 </Goal>
 
@@ -28,6 +31,8 @@ Issues and PRs the branch's work actually touches. Never merge.
 
 - The user asks to open, push, or update a pull request for the current branch.
 - The user asks to mark a PR ready, or to refresh its title, body, or links.
+- The user asks how a PR's checks or reviews stand, or to follow CI after a
+  push (Step 10 alone).
 
 </UseWhen>
 
@@ -135,9 +140,9 @@ hand-managed base branches.
   actually finishes the issue; earlier layers use `Refs`.
 - **A branch created from an issue closes it regardless.** A PR opened from a
   `gh issue develop` branch lands in the issue's `closingIssuesReferences`
-  with no keyword written anywhere. Check `gh pr view --json
-  closingIssuesReferences` before merging a lower layer, or the issue closes
-  while the rest of the stack is still open.
+  with no keyword written anywhere. Check the layer's `closingIssues` with
+  `gh_pr_status` before merging a lower layer, or the issue closes while the
+  rest of the stack is still open.
 - Merging (`gh stack merge`) stays out of scope here, like every other merge.
 
 </StackedPRs>
@@ -175,9 +180,12 @@ and [squash-message settings](https://docs.github.com/en/repositories/configurin
 <Steps>
 
 1. Confirm the user asked to open or update a PR. Inspect the branch with
-   `git_state` (branch, upstream ahead/behind, base, uncommitted files, the
-   branch's PR); do not open a PR from the default branch. Warn that
-   uncommitted changes will not be in the PR.
+   `git_state` (branch, upstream ahead/behind, uncommitted files, the
+   branch's PR). Its `base` is the merge-base with the remote default branch,
+   not the PR's base (Step 2 resolves that), and it reads local refs only:
+   ahead/behind are as of `lastFetch`. Do not open a PR from the default
+   branch; move the work to a task branch (`git_worktree`, `action: create`)
+   first. Warn that uncommitted changes will not be in the PR.
 2. Run <RelatedScan> before comparing changes, writing descriptions or pushing.
    Resolve the existing PR and stack membership, then determine the base: the
    stack's immediate lower layer wins. For a non-stack PR, honor an explicit
@@ -186,20 +194,48 @@ and [squash-message settings](https://docs.github.com/en/repositories/configurin
    PR without a selected base (`gh repo view --json defaultBranchRef`). If
    adding/rebasing layers changes the topology, rescan and resolve the base
    again before continuing.
-3. Inspect `git log --oneline <base>..HEAD` and `git diff <base>...HEAD` using
+3. Bring in the base's latest state before every push, for a new PR and for an
+   update alike (skip it for a metadata-only update). For a stack,
+   `gh stack rebase` (see <StackedPRs>). Otherwise `git_rebase` with
+   `action: start` and `onto: <base>`: it fetches the base, replays the
+   branch's commits on it without an editor, and folds pending fixups.
+   - `upToDate` — nothing to do.
+   - `conflicts` — resolve each file from its conflict map (in a rebase `ours`
+     is the base, `theirs` the commit being replayed; lockfiles are
+     regenerated, not merged), `git add` it, then `git_rebase` with
+     `action: continue`; `abort` restores the branch.
+   - `empty` — the replayed commit's change is already in the base:
+     `action: skip` drops it.
+   - `rebase` with `inProgress` — git stopped for another reason (an
+     untracked file in the way, signing): fix what `output` names, then
+     `action: continue`. Never `skip` it: that drops a real commit.
+   - `rewrite` — the rewrite rule refuses (the default branch, commits
+     already on it or held by another remote branch, or a branch GitHub
+     protects; see `git_amend_check`): stop and report; do not merge the base
+     in or rebase with shell git instead.
+   Keep the result's `before` sha for the report: `undo` restores it. Then,
+   before every push, run the project's quick check once on the final commit;
+   a failure is fixed with a commit (`git-commit`) before pushing.
+4. Inspect `git log --oneline <base>..HEAD` and `git diff <base>...HEAD` using
    that resolved base. Confirm the PR introduces changes and review every
    included commit, not only the latest. For a stack, separate lower-layer
    context from the changes this layer actually introduces. For metadata-only
    updates, inspect the published PR with `gh pr diff` and
    `gh pr view --json commits` instead of unpublished local HEAD.
-4. Build the title and body per <ConventionResolution> and <StackedPRs>, folding
+5. Build the title and body per <ConventionResolution> and <StackedPRs>, folding
    in verified links. Update an existing PR instead of creating a duplicate.
-5. Push only when publishing a new PR or an authorized branch update:
+6. Push only when publishing a new PR or an authorized branch update:
    `git push -u origin HEAD` (gated `ask`), or `gh stack push` for a stack
-   layer; when `origin` is not writable, use the writable fork remote. Never
-   force-push outside the stack mechanism unless explicitly asked. A request
-   to edit a title/body alone does not authorize publishing local commits.
-6. Create or update: write the body to a scratch file with the write tool,
+   layer; when `origin` is not writable, use the writable fork remote. When a
+   `git_rebase` (Step 3, or a fixup's fold) or a `git_commit` amend reported
+   `needsForcePush`, push with
+   `git push --force-with-lease origin HEAD:refs/heads/<branch>` (that exact
+   form: the full destination cannot be remapped by push config, and some
+   rulesets open no other force spelling).
+   Force-push only then and as `gh stack push` does — never a bare `--force`,
+   and otherwise only when explicitly asked. A request to edit a title/body
+   alone does not authorize publishing local commits.
+7. Create or update: write the body to a scratch file with the write tool,
    then `gh pr create --base <base> --title "..." --body-file <file>`
    (multi-line bodies survive quoting; never literal `\n`). A heredoc fed to
    `--body-file -` breaks when anything follows its terminator line, such as
@@ -209,17 +245,23 @@ and [squash-message settings](https://docs.github.com/en/repositories/configurin
    For metadata-only updates, use `gh pr edit` alone, not a stack submission;
    preserve unspecified fields and draft state. Set reviewers, labels,
    assignees, or a milestone only if the user asked.
-7. Re-read the published PR's base, title, body and draft state, and the stack
+8. Re-read the published PR's base, title, body and draft state, and the stack
    order when applicable. Confirm the description matches the layer diff;
    do not assume submission or base retargeting preserved that match.
-8. Report the PR URL and its ready/draft state, including the immediate base
-   for a stack. Keep any later merge-message handoff separate. Do not merge.
-9. When CI or review feedback should be followed, read it with
-   `gh_pr_status` (`wait: true` to wait for the checks) instead of `sleep` +
-   `gh pr checks` loops or `--watch`. It returns the checks' verdict, the
-   failed jobs' errors, mergeability and unresolved threads; `endedBy:
-   no_checks` with a hint means CI will not start (a conflict, no workflow),
-   not that it passed.
+9. Report the PR URL and its ready/draft state, including the immediate base
+   for a stack, and whether Step 3 rebased (with its `before` sha). Keep any
+   later merge-message handoff separate. Do not merge.
+10. When CI or review feedback should be followed, read it with
+    `gh_pr_status` (`wait: true` to wait for the checks) instead of `sleep` +
+    `gh pr checks` loops or `--watch`. It returns the checks' verdict, the
+    failed jobs' errors, mergeability, closing issues and unresolved review
+    threads. Act on `waited.endedBy`:
+    - `complete` — read `checks.overall`; report unresolved threads.
+    - `failed` — read `failedLogs` (the `##[error]` lines first); a fix is a
+      new commit or a fixup (`git-commit`), then Steps 3 and 6 again.
+    - `timeout` — checks are still pending: call it again, do not sleep.
+    - `no_checks` — read `hints`: CI will not start (a conflict with the
+      base, no workflow, runs awaiting approval); it has not passed.
 
 </Steps>
 
@@ -241,8 +283,11 @@ and [squash-message settings](https://docs.github.com/en/repositories/configurin
 - Do not open or update a PR unless explicitly asked.
 - Do not create commits here — that is `git-commit`'s job.
 - Do not merge, and do not bypass the `git push` or `gh pr merge` gates.
-- Do not force-push unless explicitly asked, or as part of `gh stack push`
-  after a `gh stack rebase`.
+- Do not force-push unless explicitly asked, except `--force-with-lease`
+  after a `git_rebase` or `git_commit` amend that reported `needsForcePush`,
+  and `gh stack push` after a `gh stack rebase`. Never a bare `--force`.
+- Do not push a branch without first bringing in its base (Step 3), and do
+  not merge the base in or rebase with shell git when `git_rebase` refuses.
 - Do not run `gh stack link` without an explicit `--base` — it silently
   retargets existing PRs to the default branch.
 - Do not create a stack layer as a draft unless requested: `gh stack submit

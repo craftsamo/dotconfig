@@ -1,9 +1,10 @@
 import { tool } from "../define"
 import { runGit, tryGit } from "../exec"
+import { checkRewrite } from "./rewrite"
 
 export const amend_check = tool({
   description:
-    "Classify whether a commit can be safely amended or fixed up in place (local and unpushed) or must be corrected with a new linked-fix commit (already published). Checks whether the commit is HEAD, is in the branch's upstream, and is on any remote branch. Read-only; never rewrites history. Returns a recommendation of amend / fixup / linked-fix.",
+    "Classify how to correct a commit: amend (it is HEAD), fixup (an earlier commit of this branch, folded in by git_rebase), or linked-fix (a new commit that links it). A task branch's own commits may be rewritten even once pushed; then `needsForcePush` is true. Rewriting is refused, and linked-fix recommended, on the default branch, for a commit already on the default branch or held by another remote branch (layers above it in the same native stack excepted), or when GitHub protects the pushed branch against force pushes. Read-only; never rewrites history.",
   args: {
     sha: tool.schema.string().optional().describe("Commit to check. Defaults to HEAD."),
   },
@@ -26,19 +27,44 @@ export const amend_check = tool({
     const remoteBranches = rb.ok ? rb.stdout.split("\n").map((s) => s.trim()).filter(Boolean) : []
     const pushed = inUpstream || remoteBranches.length > 0
 
+    const onBranch = isHead || (await tryGit(["merge-base", "--is-ancestor", sha, "HEAD"], cwd)).ok
+    const check = onBranch ? await checkRewrite(cwd, sha) : null
+
     let recommendation: "amend" | "fixup" | "linked-fix"
     let reason: string
-    if (pushed) {
+    if (!check) {
       recommendation = "linked-fix"
-      reason = "Commit is already published; do not rewrite it. Make a new commit that links it."
+      reason = "The commit is not on this branch; make a new commit that links it."
+    } else if (!check.allowed) {
+      recommendation = "linked-fix"
+      reason = check.refusals.map((r) => r.message).join(" ")
     } else if (isHead) {
       recommendation = "amend"
-      reason = "Commit is local, unpushed, and is HEAD; `git commit --amend` is safe."
+      reason = check.needsForcePush
+        ? "HEAD of a task branch; amend it with git_commit (amend: true), then push with `git push --force-with-lease origin HEAD:refs/heads/<branch>`."
+        : "HEAD and not pushed; amend it with git_commit (amend: true)."
     } else {
       recommendation = "fixup"
-      reason = "Commit is local and unpushed but not HEAD; use `git commit --fixup` + `git rebase --autosquash`."
+      reason = `An earlier commit of this branch; commit the fix with git_commit (fixup: sha), then fold it in with git_rebase (keepBase: true)${check.needsForcePush ? " and push with `git push --force-with-lease origin HEAD:refs/heads/<branch>`" : ""}.`
     }
 
-    return JSON.stringify({ sha, ref, isHead, hasUpstream, inUpstream, remoteBranches, pushed, recommendation, reason }, null, 2)
+    return JSON.stringify(
+      {
+        sha,
+        ref,
+        isHead,
+        hasUpstream,
+        inUpstream,
+        remoteBranches,
+        pushed,
+        recommendation,
+        reason,
+        needsForcePush: check?.needsForcePush ?? false,
+        refusals: check?.refusals ?? [],
+        warnings: check?.warnings ?? [],
+      },
+      null,
+      2,
+    )
   },
 })
