@@ -926,9 +926,11 @@ def validate_searcher_entries(pipeline_dir: Path, errors: list[str]) -> dict[str
     return entries
 
 
-def validate_searcher_technics(pipeline_dir: Path, technics: dict[str, Path], errors: list[str]) -> None:
-    """A technic is a purpose recipe on one mode: it names that mode, loads it with the kernel, and the
-    capability row routes it to the same mode. The generic worker check pairs rows with directories."""
+def validate_mode_technics(role: str, modes: tuple[str, ...], pipeline_dir: Path,
+                           technics: dict[str, Path], errors: list[str]) -> None:
+    """A technic is a purpose recipe on one of the role's modes: it names that mode, loads it with the
+    kernel, and the capability row routes it to the same mode. The generic worker check pairs rows with
+    directories."""
     rows: dict[str, str] = {}
     capabilities = pipeline_dir / "references" / "capabilities.md"
     if capabilities.is_file():
@@ -940,29 +942,33 @@ def validate_searcher_technics(pipeline_dir: Path, technics: dict[str, Path], er
         data = frontmatter(path)
         hermes = (data.get("metadata") or {}).get("hermes") or {}
         mode = hermes.get("mode") if isinstance(hermes, dict) else None
-        if mode not in SEARCHER_MODES:
-            errors.append(f"searcher technic must name one mode ({', '.join(SEARCHER_MODES)}): {name}")
+        if mode not in modes:
+            errors.append(f"{role} technic must name one mode ({', '.join(modes)}): {name}")
             continue
         if name in rows and not rows[name].startswith(mode):
-            errors.append(f"searcher capability row routes {name} to another mode than {mode}")
+            errors.append(f"{role} capability row routes {name} to another mode than {mode}")
         raw = path.read_text(encoding="utf-8")
         if raw.find("\n---", 4) not in range(4, 4000):
-            errors.append(f"searcher technic frontmatter exceeds 4000-character discovery prefix: {name}")
+            errors.append(f"{role} technic frontmatter exceeds 4000-character discovery prefix: {name}")
         read_before = re.search(r"<ReadBeforeWork>(.*?)</ReadBeforeWork>", raw, re.S)
         block = " ".join(read_before.group(1).split()) if read_before else ""
         for required in (
-            'skill_view(name="searcher-pipeline")', f'skill_view(name="{mode}-searcher")',
+            f'skill_view(name="{role}-pipeline")', f'skill_view(name="{mode}-{role}")',
             'file_path="references/<stage>.md"', "${HERMES_SKILL_DIR}/SKILL.md",
-            "${HERMES_SKILL_DIR}/../../searcher-pipeline/SKILL.md", "never replaces",
+            f"${{HERMES_SKILL_DIR}}/../../{role}-pipeline/SKILL.md", "never replaces",
             "current context", "read_file", "caller's release",
         ):
             if required not in block:
-                errors.append(f"searcher technic ReadBeforeWork missing {required}: {name}")
+                errors.append(f"{role} technic ReadBeforeWork missing {required}: {name}")
         for section in ("## Brief", "## Verification additions"):
             if section not in raw:
-                errors.append(f"searcher technic missing {section}: {name}")
+                errors.append(f"{role} technic missing {section}: {name}")
         if "goal_mode" in raw:
-            errors.append(f"searcher has no goal_mode loop: {path}")
+            errors.append(f"{role} has no goal_mode loop: {path}")
+
+
+def validate_searcher_technics(pipeline_dir: Path, technics: dict[str, Path], errors: list[str]) -> None:
+    validate_mode_technics("searcher", SEARCHER_MODES, pipeline_dir, technics, errors)
 
 
 RESEARCHER_MODES = ("investigate", "compare", "verify", "advise")
