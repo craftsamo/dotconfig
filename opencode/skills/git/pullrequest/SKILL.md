@@ -117,7 +117,9 @@ hand-managed base branches.
   which contradicts this skill's ready-by-default rule.
 - **Pushing.** Use `gh stack push`, not `git push`. Rewriting a lower layer
   requires `gh stack rebase` first; the stack cannot merge unless every layer
-  is a linear descendant of the one below.
+  is a linear descendant of the one below. When a rebase stops on conflicts,
+  read them with `git_conflicts` (in a rebase `ours` is the layer below,
+  `theirs` the commit being replayed; lockfiles are regenerated, not merged).
 - **Force-push is expected here.** `gh stack push` force-pushes rewritten
   layers with `--force-with-lease`. That is the mechanism, not a violation of
   the no-force-push rule — but it is not atomic across branches, so re-read the
@@ -172,8 +174,9 @@ and [squash-message settings](https://docs.github.com/en/repositories/configurin
 
 <Steps>
 
-1. Confirm the user asked to open or update a PR. Inspect the current branch
-   and `git status`; do not open a PR from the default branch. Warn that
+1. Confirm the user asked to open or update a PR. Inspect the branch with
+   `git_state` (branch, upstream ahead/behind, base, uncommitted files, the
+   branch's PR); do not open a PR from the default branch. Warn that
    uncommitted changes will not be in the PR.
 2. Run <RelatedScan> before comparing changes, writing descriptions or pushing.
    Resolve the existing PR and stack membership, then determine the base: the
@@ -196,10 +199,13 @@ and [squash-message settings](https://docs.github.com/en/repositories/configurin
    layer; when `origin` is not writable, use the writable fork remote. Never
    force-push outside the stack mechanism unless explicitly asked. A request
    to edit a title/body alone does not authorize publishing local commits.
-6. Create or update: `gh pr create --base <base> --title "..." --body-file -`
-   fed by a heredoc (multi-line bodies survive quoting; never literal `\n`);
-   ready by default, add `--draft` only if asked. For a stack layer, publish
-   with `gh stack submit --open` and then set the title/body via `gh pr edit`.
+6. Create or update: write the body to a scratch file with the write tool,
+   then `gh pr create --base <base> --title "..." --body-file <file>`
+   (multi-line bodies survive quoting; never literal `\n`). A heredoc fed to
+   `--body-file -` breaks when anything follows its terminator line, such as
+   `&& gh pr view`. Ready by default, add `--draft` only if asked. For a
+   stack layer, publish with `gh stack submit --open` and then set the
+   title/body via `gh pr edit`.
    For metadata-only updates, use `gh pr edit` alone, not a stack submission;
    preserve unspecified fields and draft state. Set reviewers, labels,
    assignees, or a milestone only if the user asked.
@@ -208,6 +214,12 @@ and [squash-message settings](https://docs.github.com/en/repositories/configurin
    do not assume submission or base retargeting preserved that match.
 8. Report the PR URL and its ready/draft state, including the immediate base
    for a stack. Keep any later merge-message handoff separate. Do not merge.
+9. When CI or review feedback should be followed, read it with
+   `gh_pr_status` (`wait: true` to wait for the checks) instead of `sleep` +
+   `gh pr checks` loops or `--watch`. It returns the checks' verdict, the
+   failed jobs' errors, mergeability and unresolved threads; `endedBy:
+   no_checks` with a hint means CI will not start (a conflict, no workflow),
+   not that it passed.
 
 </Steps>
 

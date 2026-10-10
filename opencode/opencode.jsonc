@@ -72,6 +72,11 @@
     "max_lines": 1000,
     "max_bytes": 36864,
   },
+  // New worktrees: plugins/worktrees.ts places them at
+  // ~/Worktrees/<repository>/<branch> on a new branch from the fetched remote
+  // default branch, like the Hermes workspace; this parent is what OpenCode
+  // suggests (and creates) before calling it.
+  "worktree": { "directory": "~/Worktrees" },
   "agents": {
     "plan": {
       "color": "#f5f5f5",
@@ -82,6 +87,8 @@
       "permissions": [
         { "action": "edit", "resource": "*", "effect": "deny" },
         { "action": "edit", "resource": "~/.opencode/plan/*", "effect": "allow" },
+        { "action": "git_commit", "resource": "*", "effect": "deny" },
+        { "action": "git_worktree", "resource": "*", "effect": "deny" },
         { "action": "subagent", "resource": "*", "effect": "deny" },
         { "action": "subagent", "resource": "explore*", "effect": "allow" },
         { "action": "subagent", "resource": "searcher*", "effect": "allow" },
@@ -96,7 +103,11 @@
     },
     "explore": {
       // Global edit: ask must not turn read-only exploration into editing.
-      "permissions": [{ "action": "edit", "resource": "*", "effect": "deny" }],
+      "permissions": [
+        { "action": "edit", "resource": "*", "effect": "deny" },
+        { "action": "git_commit", "resource": "*", "effect": "deny" },
+        { "action": "git_worktree", "resource": "*", "effect": "deny" },
+      ],
     },
     "review": {
       "color": "#A855F7",
@@ -478,7 +489,17 @@
     { "action": "github_project_view_ensure", "resource": "*", "effect": "allow" },
     { "action": "github_project_issue_link", "resource": "*", "effect": "allow" },
     { "action": "github_project_issue_develop", "resource": "*", "effect": "allow" },
-    // Custom git workflow tools (lib/custom-tools/git.ts) — read/index only, no commit/push/merge
+    // Custom git workflow tools (lib/custom-tools/git/) — read/index only,
+    // except git_commit (staged changes only; no amend, no --no-verify),
+    // git_worktree (never discards changes; deletes landed branches only) and
+    // git_verify_commits (runs a given command: ask). No push/merge/rewrite.
+    // Plan, Explore, Review and Debug deny git_commit and git_worktree themselves.
+    { "action": "git_commit", "resource": "*", "effect": "allow" },
+    { "action": "git_worktree", "resource": "*", "effect": "allow" },
+    { "action": "git_state", "resource": "*", "effect": "allow" },
+    { "action": "git_conflicts", "resource": "*", "effect": "allow" },
+    // Runs an arbitrary command at each commit, outside the shell rules: ask.
+    { "action": "git_verify_commits", "resource": "*", "effect": "ask" },
     { "action": "git_secret_scan", "resource": "*", "effect": "allow" },
     { "action": "git_stage_hunks", "resource": "*", "effect": "allow" },
     { "action": "git_provenance", "resource": "*", "effect": "allow" },
@@ -486,6 +507,8 @@
     { "action": "git_history_digest", "resource": "*", "effect": "allow" },
     { "action": "git_amend_check", "resource": "*", "effect": "allow" },
     { "action": "git_commit_lint", "resource": "*", "effect": "allow" },
+    // Pull-request status and CI wait (lib/custom-tools/gh.ts) — read-only
+    { "action": "gh_pr_status", "resource": "*", "effect": "allow" },
     // Custom X search tool (lib/custom-tools/x.ts) — xAI server-side x_search, read-only external query
     { "action": "x_search", "resource": "*", "effect": "allow" },
     // Rendered web UI checks (lib/custom-tools/web_ui.ts) — writes only to a .agent/ draft or scratch

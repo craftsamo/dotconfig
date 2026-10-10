@@ -24,20 +24,34 @@ config-directory dependencies, and without `node_modules/zod` the custom-tools
 plugin fails to load. The `opencode-v2` formula conflicts with the 1.x
 `opencode` formula; uninstall that first on a machine that still has it.
 
-Custom tools live in `lib/custom-tools/<file>.ts` and are registered by
-`plugins/custom-tools.ts`, which exports both a V1 `server()` and a V2
-`setup()`. Tool IDs keep the `<file>_<export>` form (`git_secret_scan`,
-`x_search`, ...), matching the permission actions in `opencode.jsonc`. Do not
-add a `tools/` directory: V1 would register the same IDs twice and V2 does
-not load it. Keep subdirectories out of `plugins/`; V2 loads each one as a
-plugin package.
+Custom tools live in `lib/custom-tools/<module>.ts` (or `<module>/index.ts`)
+and are registered by `plugins/custom-tools.ts`, which exports both a V1
+`server()` and a V2 `setup()`. Tool IDs keep the `<module>_<export>` form
+(`git_secret_scan`, `gh_pr_status`, `x_search`, ...), matching the permission
+actions in `opencode.jsonc`. Do not add a `tools/` directory: V1 would register
+the same IDs twice and V2 does not load it. Keep subdirectories out of
+`plugins/`; V2 loads each one as a plugin package. Child processes go through
+`lib/custom-tools/exec.ts`, which spawns with an explicit environment (Bun.$
+looks programs up on the PATH the process started with).
+
+The git tools (`lib/custom-tools/git/`) back the `git-commit` and
+`git-pullrequest` skills: `git_state` (one snapshot of the branch and
+worktree), `git_commit` (lint, secret scan and `git commit -F` on the same
+message), `git_stage_hunks`, `git_conflicts`, `git_verify_commits` (each
+commit in a scratch worktree; asks every call), `git_worktree`, and the
+read-only history and lint helpers. `gh_pr_status` (`lib/custom-tools/gh.ts`)
+reads a PR's checks, failed-job logs and review threads and can wait for CI.
+`plugins/worktrees.ts` registers the worktree strategy in
+`lib/worktrees/strategy.ts`, so the TUI, the API and `git_worktree` all place
+worktrees at `~/Worktrees/<repository>/<branch>` on a new branch, the layout
+the Hermes workspace uses.
 
 Custom tools run without OpenCode's permission rules, so each enforces its own
 limits. `web_ui_check` (`lib/custom-tools/web_ui.ts`) runs
 `lib/web-ui-check/web-ui-check.mjs` in a Node child process, because Playwright
 is not reliable inside the Bun plugin host; `install.sh --deps` also installs
-Playwright's headless shell for it. Tests: `bun test lib/custom-tools` and
-`node --test lib/web-ui-check/web-ui-check.test.mjs`.
+Playwright's headless shell for it. Tests: `bun test lib/custom-tools
+lib/worktrees` and `node --test lib/web-ui-check/web-ui-check.test.mjs`.
 
 All global instructions live in `AGENTS.md`. Do not reintroduce an
 `instructions` array: OpenCode V2 accepts the key but does not load its files

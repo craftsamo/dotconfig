@@ -47,6 +47,12 @@ HARD_DENY_SHELL = (
     "git push *--all*", "git push *--delete*", "git push * :*",
     "git reset *--hard*", "git clean *-*f*",
 )
+# Writes that OpenCode tools perform past the shell rules. A run never makes or
+# removes worktrees itself (`workspace` does), and a read-only run never commits,
+# stages or runs a command at each commit (git_verify_commits asks, and the
+# caller must not approve that for a read-only run).
+TOOL_DENY = ("git_worktree",)
+READ_ONLY_DENY_TOOLS = ("git_commit", "git_stage_hunks", "git_verify_commits")
 PROJECT_WRITES = (
     "github_project_create", "github_project_field_ensure", "github_project_item_add",
     "github_project_item_set", "github_project_item_note", "github_project_item_promote",
@@ -123,6 +129,7 @@ def rules(policy, issue_approval, protected, *, tmp=None, person_denies=(), outp
             out += [rule("edit", pattern, "deny") for pattern in SECRET_READS]
         out += [rule("shell", pattern, "deny") for pattern in READ_ONLY_DENY_SHELL + ISSUE_WRITES]
         out += [rule("subagent", name, "deny") for name in READ_ONLY_DENY_SUBAGENTS]
+        out += [rule(name, "*", "deny") for name in READ_ONLY_DENY_TOOLS]
     else:
         out += [rule("shell", pattern, "ask") for pattern in WRITE_ASK_SHELL]
         out += [rule("shell", pattern, "allow") for pattern in WRITE_ALLOW_AFTER_ASK]
@@ -138,7 +145,7 @@ def rules(policy, issue_approval, protected, *, tmp=None, person_denies=(), outp
     deny += [f"git {option} * " + pattern[len("git "):] for option in ("-C", "-c") for pattern in deny
              if pattern.startswith(("git push ", "git reset ", "git clean ", "git config "))]
     out += [rule("shell", pattern, "deny") for pattern in deny]
-    out += [rule(name, "*", "deny") for name in PROJECT_WRITES]
+    out += [rule(name, "*", "deny") for name in PROJECT_WRITES + TOOL_DENY]
     # A person's own denies are re-stated last, so an agent's broad allow (build's
     # `shell: *`) never reopens `sudo` or `secret get`. Their `external_directory`
     # denies went in above the scratch-dir allows instead.
