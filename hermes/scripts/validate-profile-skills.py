@@ -771,6 +771,7 @@ def validate_worker(
             errors.append(f"duplicate marketer skill name: {name}")
     if profile == "searcher":
         entries = validate_searcher_entries(pipeline_dir, errors)
+        validate_searcher_technics(pipeline_dir, leaves, errors)
         for name in entries.keys() & (leaves.keys() | learned.keys()):
             errors.append(f"duplicate searcher skill name: {name}")
     if profile == "researcher":
@@ -816,7 +817,9 @@ SEARCHER_MODES = ("lookup", "sweep", "hunt")
 SEARCHER_ENTRIES = tuple(f"{mode}-searcher" for mode in SEARCHER_MODES)
 # Searcher also reads the public social services, one reference per service beside the chains.
 SEARCHER_PLATFORMS = ("x", "youtube", "note", "substack") + PLATFORMS
-SEARCHER_SHARED_REFERENCES = {f"{stage}.md" for stage in STAGES} | {f"platforms/{p}.md" for p in SEARCHER_PLATFORMS}
+SEARCHER_SHARED_REFERENCES = (
+    {f"{stage}.md" for stage in STAGES} | {f"platforms/{p}.md" for p in SEARCHER_PLATFORMS}
+    | {"capabilities.md"})
 
 
 def _pipeline_documents(pipeline_dir: Path) -> set[str]:
@@ -907,6 +910,8 @@ def validate_searcher_entries(pipeline_dir: Path, errors: list[str]) -> dict[str
         for platform in SEARCHER_PLATFORMS:
             if f"(../references/platforms/{platform}.md)" not in text:
                 errors.append(f"searcher entry does not link platform reference {platform}: {name}")
+        if "(../references/capabilities.md)" not in text:
+            errors.append(f"searcher entry does not link the technic capabilities: {name}")
 
     for path in sorted(pipeline_dir.rglob("*.md")):
         if "goal_mode" in path.read_text(encoding="utf-8"):
@@ -919,6 +924,45 @@ def validate_searcher_entries(pipeline_dir: Path, errors: list[str]) -> dict[str
             elif not target.is_file():
                 errors.append(f"broken searcher link: {link} in {path}")
     return entries
+
+
+def validate_searcher_technics(pipeline_dir: Path, technics: dict[str, Path], errors: list[str]) -> None:
+    """A technic is a purpose recipe on one mode: it names that mode, loads it with the kernel, and the
+    capability row routes it to the same mode. The generic worker check pairs rows with directories."""
+    rows: dict[str, str] = {}
+    capabilities = pipeline_dir / "references" / "capabilities.md"
+    if capabilities.is_file():
+        for line in capabilities.read_text(encoding="utf-8").splitlines():
+            cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
+            if line.startswith("|") and len(cells) >= 3 and re.fullmatch(r"`[a-z0-9-]+`", cells[1]):
+                rows[cells[1][1:-1]] = cells[2]
+    for name, path in sorted(technics.items()):
+        data = frontmatter(path)
+        hermes = (data.get("metadata") or {}).get("hermes") or {}
+        mode = hermes.get("mode") if isinstance(hermes, dict) else None
+        if mode not in SEARCHER_MODES:
+            errors.append(f"searcher technic must name one mode ({', '.join(SEARCHER_MODES)}): {name}")
+            continue
+        if name in rows and not rows[name].startswith(mode):
+            errors.append(f"searcher capability row routes {name} to another mode than {mode}")
+        raw = path.read_text(encoding="utf-8")
+        if raw.find("\n---", 4) not in range(4, 4000):
+            errors.append(f"searcher technic frontmatter exceeds 4000-character discovery prefix: {name}")
+        read_before = re.search(r"<ReadBeforeWork>(.*?)</ReadBeforeWork>", raw, re.S)
+        block = " ".join(read_before.group(1).split()) if read_before else ""
+        for required in (
+            'skill_view(name="searcher-pipeline")', f'skill_view(name="{mode}-searcher")',
+            'file_path="references/<stage>.md"', "${HERMES_SKILL_DIR}/SKILL.md",
+            "${HERMES_SKILL_DIR}/../../searcher-pipeline/SKILL.md", "never replaces",
+            "current context", "read_file", "caller's release",
+        ):
+            if required not in block:
+                errors.append(f"searcher technic ReadBeforeWork missing {required}: {name}")
+        for section in ("## Brief", "## Verification additions"):
+            if section not in raw:
+                errors.append(f"searcher technic missing {section}: {name}")
+        if "goal_mode" in raw:
+            errors.append(f"searcher has no goal_mode loop: {path}")
 
 
 RESEARCHER_MODES = ("investigate", "compare", "verify", "advise")
@@ -2110,7 +2154,7 @@ def main() -> int:
         )
         for profile in WORKER_PROFILES:
             technics, learned = validate_worker(profile, errors)
-            kind = "unit entries" if profile == "searcher" else "technics"
+            kind = "mode entries and technics" if profile == "searcher" else "technics"
             summaries.append(f"{profile}={technics} {kind}/{learned} learned")
         hands_leaves: dict[str, dict[str, Path]] = {}
         for profile in HANDS_PROFILES:
@@ -2144,7 +2188,7 @@ def main() -> int:
         technics, learned = validate_worker(
             args.profile, errors, args.dispatch
         )
-        kind = "unit entries" if args.profile == "searcher" else "technics"
+        kind = "mode entries and technics" if args.profile == "searcher" else "technics"
         summaries.append(f"{args.profile}={technics} {kind}/{learned} learned")
 
     for warning in warnings:
