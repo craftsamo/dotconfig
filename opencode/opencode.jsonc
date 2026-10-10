@@ -82,6 +82,7 @@
       "permissions": [
         { "action": "edit", "resource": "*", "effect": "deny" },
         { "action": "edit", "resource": "~/.opencode/plan/*", "effect": "allow" },
+        { "action": "git_commit", "resource": "*", "effect": "deny" },
         { "action": "subagent", "resource": "*", "effect": "deny" },
         { "action": "subagent", "resource": "explore*", "effect": "allow" },
         { "action": "subagent", "resource": "searcher*", "effect": "allow" },
@@ -96,7 +97,10 @@
     },
     "explore": {
       // Global edit: ask must not turn read-only exploration into editing.
-      "permissions": [{ "action": "edit", "resource": "*", "effect": "deny" }],
+      "permissions": [
+        { "action": "edit", "resource": "*", "effect": "deny" },
+        { "action": "git_commit", "resource": "*", "effect": "deny" },
+      ],
     },
     "review": {
       "color": "#A855F7",
@@ -478,7 +482,10 @@
     { "action": "github_project_view_ensure", "resource": "*", "effect": "allow" },
     { "action": "github_project_issue_link", "resource": "*", "effect": "allow" },
     { "action": "github_project_issue_develop", "resource": "*", "effect": "allow" },
-    // Custom git workflow tools (lib/custom-tools/git.ts) — read/index only, no commit/push/merge
+    // Custom git workflow tools (lib/custom-tools/git/) — read/index only, plus
+    // git_commit (staged changes only; no amend, no --no-verify); no push/merge.
+    // Plan, Explore, Review and Debug deny git_commit themselves.
+    { "action": "git_commit", "resource": "*", "effect": "allow" },
     { "action": "git_secret_scan", "resource": "*", "effect": "allow" },
     { "action": "git_stage_hunks", "resource": "*", "effect": "allow" },
     { "action": "git_provenance", "resource": "*", "effect": "allow" },
