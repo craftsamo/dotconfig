@@ -211,25 +211,154 @@ describe("git_stage_hunks", () => {
   })
 })
 
+/** A bare `origin` holding main, and the task branch `feat` checked out from it. */
+const withOrigin = (f: Fixture) => {
+  const remote = join(f.root, "remote.git")
+  Bun.spawnSync(["git", "init", "-q", "--bare", "-b", "main", remote])
+  f.git("remote", "add", "origin", remote)
+  f.git("push", "-q", "-u", "origin", "main")
+  f.git("checkout", "-q", "-b", "feat")
+  return remote
+}
+
+/** Commits to origin's main from a second clone, as someone else would. */
+const pushToMain = (f: Fixture, remote: string, files: Record<string, string>) => {
+  const other = join(f.root, "other")
+  const g = (...args: string[]) => {
+    const res = Bun.spawnSync(["git", "-c", "user.name=Other", "-c", "user.email=o@example.com", "-c", "commit.gpgsign=false", ...args], {
+      cwd: other,
+    })
+    if (res.exitCode !== 0) throw new Error(`git ${args.join(" ")}: ${res.stderr.toString()}`)
+  }
+  Bun.spawnSync(["rm", "-rf", other])
+  Bun.spawnSync(["git", "clone", "-q", remote, other])
+  for (const [path, content] of Object.entries(files)) writeFileSync(join(other, path), content)
+  g("add", "-A")
+  g("commit", "-q", "-m", "main moves on")
+  g("push", "-q", "origin", "main")
+}
+
 describe("git_amend_check", () => {
-  test("recommends amend for local HEAD, fixup for an older local commit, linked-fix once pushed", async () => {
+  test("lets a task branch rewrite its own commits, pushed or not", async () => {
     const f = repo()
+    const base = f.commit("base")
+    withOrigin(f)
     f.commit("one")
     const two = f.commit("two")
-    expect((await run(git.amend_check, f)).recommendation).toBe("amend")
+    expect(await run(git.amend_check, f)).toMatchObject({ sha: two, recommendation: "amend", needsForcePush: false })
     expect(await run(git.amend_check, f, { sha: "HEAD~1" })).toMatchObject({ recommendation: "fixup", isHead: false, pushed: false })
 
+    f.git("push", "-q", "-u", "origin", "feat")
+    expect(await run(git.amend_check, f)).toMatchObject({ recommendation: "amend", pushed: true, needsForcePush: true, refusals: [] })
+    expect((await run(git.amend_check, f, { sha: base })).refusals[0].rule).toBe("merged")
+  })
+
+  test("refuses on the default branch and for commits another branch holds", async () => {
+    const f = repo()
+    f.commit("base")
+    withOrigin(f)
+    f.commit("one")
+    f.git("push", "-q", "origin", "feat:someone-else")
+    const shared = await run(git.amend_check, f)
+    expect(shared).toMatchObject({ recommendation: "linked-fix" })
+    expect(shared.refusals[0]).toMatchObject({ rule: "shared" })
+    expect(shared.refusals[0].message).toContain("origin/someone-else")
+
+    f.git("checkout", "-q", "main")
+    f.commit("local on main")
+    const main = await run(git.amend_check, f)
+    expect(main).toMatchObject({ recommendation: "linked-fix", pushed: false })
+    expect(main.refusals[0].rule).toBe("default-branch")
+  })
+
+  test("asks GitHub whether the pushed branch may be force-pushed", () => {
+    const f = repo()
+    f.commit("base")
+    withOrigin(f)
+    f.commit("one")
+    f.git("push", "-q", "-u", "origin", "feat")
+    f.git("remote", "set-url", "origin", "https://github.com/o/r.git")
+    const check = (rules: { re: string; out?: string; code?: number }[]) => runWithFakeGh(f, { module: "git", name: "amend_check" }, rules)
+
+    const ruleset = check([{ re: "rules/branches/feat", out: '[{"type":"non_fast_forward"}]' }])
+    expect(ruleset.out.refusals[0]).toMatchObject({ rule: "protected" })
+    expect(ruleset.calls[0]).toContain("repos/o/r/rules/branches/feat")
+
+    const classic = check([
+      { re: "rules/branches/feat", out: "[]" },
+      { re: "branches/feat/protection", out: "gh: Resource not accessible by integration (HTTP 403)", code: 1 },
+      { re: "branches/feat", out: "true" },
+    ])
+    expect(classic.out.refusals[0].message).toContain("branch protection")
+
+    // `protected` is true under a ruleset alone; no classic protection then answers 404.
+    const rulesetOnly = check([
+      { re: "rules/branches/feat", out: '[{"type":"required_signatures"}]' },
+      { re: "branches/feat/protection", out: "gh: Branch not protected (HTTP 404)", code: 1 },
+      { re: "branches/feat", out: "true" },
+    ])
+    expect(rulesetOnly.out).toMatchObject({ recommendation: "amend", refusals: [] })
+
+    const open = check([
+      { re: "rules/branches/feat", out: '[{"type":"deletion"}]' },
+      { re: "branches/feat", out: "false" },
+    ])
+    expect(open.out).toMatchObject({ recommendation: "amend", needsForcePush: true, refusals: [], warnings: [] })
+
+    const offline = check([])
+    expect(offline.out).toMatchObject({ recommendation: "amend", refusals: [] })
+    expect(offline.out.warnings[0]).toContain("Could not read GitHub's protection")
+  })
+
+  test("does not count a tracked branch of another name as the branch's own", async () => {
+    const f = repo()
+    f.commit("base")
+    withOrigin(f)
+    const theirs = f.commit("feat: their work")
+    f.git("push", "-q", "origin", "feat:feat-a")
+    f.git("checkout", "-q", "-b", "feat-b", "--track", "origin/feat-a")
+    f.commit("feat: my work")
+    const out = await run(git.amend_check, f, { sha: theirs })
+    expect(out.refusals[0]).toMatchObject({ rule: "shared" })
+    expect(out.refusals[0].message).toContain("origin/feat-a")
+
+    const fresh = repo()
+    fresh.commit("base")
+    withOrigin(fresh)
+    fresh.git("branch", "-q", "--set-upstream-to", "origin/main")
+    fresh.commit("feat: unpushed")
+    fresh.git("checkout", "-q", "main")
+    fresh.commit("main moves")
+    fresh.git("push", "-q", "origin", "main")
+    fresh.git("checkout", "-q", "feat")
+    expect(await run(git.amend_check, fresh)).toMatchObject({ recommendation: "amend", needsForcePush: false })
+  })
+
+  test("refuses when the remote default branch is unknown", async () => {
+    const f = repo()
+    f.git("checkout", "-q", "-b", "develop")
+    f.commit("base")
     const remote = join(f.root, "remote.git")
     Bun.spawnSync(["git", "init", "-q", "--bare", remote])
     f.git("remote", "add", "origin", remote)
-    f.git("push", "-q", "-u", "origin", "main")
-    expect(await run(git.amend_check, f)).toMatchObject({
-      sha: two,
-      recommendation: "linked-fix",
-      hasUpstream: true,
-      inUpstream: true,
-      remoteBranches: ["origin/main"],
-    })
+    f.git("push", "-q", "-u", "origin", "develop")
+    f.commit("one")
+    const out = await run(git.amend_check, f)
+    expect(out).toMatchObject({ recommendation: "linked-fix" })
+    expect(out.refusals[0].message).toContain("remote default branch is unknown")
+  })
+
+  test("recommends linked-fix for a commit that is not on the branch, and refuses a detached HEAD", async () => {
+    const f = repo()
+    f.commit("base")
+    withOrigin(f)
+    f.git("checkout", "-q", "-b", "elsewhere")
+    const other = f.commit("elsewhere")
+    f.git("checkout", "-q", "feat")
+    expect(await run(git.amend_check, f, { sha: other })).toMatchObject({ recommendation: "linked-fix" })
+    f.commit("one")
+    f.git("checkout", "-q", "--detach")
+    expect((await run(git.amend_check, f)).refusals[0].rule).toBe("detached")
   })
 })
 
