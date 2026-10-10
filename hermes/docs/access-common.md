@@ -80,6 +80,8 @@ was changed.
 - **Hook and handler both refuse**, so a write never depends on the hook
   having run; the hook refuses before any card, snapshot or file copy is
   built. The refusal says nothing was sent or changed. Reads are unaffected.
+- **A card must outlast a tap.** The Assistant keeps `approvals.timeout` at
+  600 s so a card stays answerable on Telegram.
 - **A card is plain English, one fact per line.** Names and quotes are
   collapsed to one line and control, bidi-override and invisible characters are
   spelled out (`⟨U+202E⟩`), so other people's words cannot forge card lines.
@@ -119,5 +121,6 @@ each plugin's module (named in its doc); never copy them into docs.
   needs a restart too, a new credential does not.
 - The launcher (`launchd/<name>-access-launchctl.sh` or `scripts/<name>-access.sh`)
   has `status` (credentials by presence only) and `install`. After bumping an
-  engine pin, recompile the lock (command in `requirements.in`) and run
-  `install` (or `setup`) again.
+  engine pin, recompile the lock (command in `requirements.in`), run `setup`
+  (or the launcher's equivalent) and `restart`: `install` builds the venv only
+  when it is missing, so an existing venv keeps the old dependencies silently.

@@ -47,37 +47,27 @@ session ends sync with exit 0 and stays down until the account is paired again
 
 ## Reads
 
-`status`, `chats`, `messages`, `search`, `context` and `contacts` run
-`wacli --read-only` (and `WACLI_READONLY=1`) against the mirror and take no
-lock, so they work while sync runs. Results are compact: local times with
-offset, `from: me` for the account's own messages, media named by type with
-caption and file name, no download paths. `chats` pages through every chat
-(archived ones included) until `complete: true`, so a census or sync can prove
-it saw them all; `last=true` adds each chat's last message for reply checks.
-Rows wacli stores for protocol traffic it could not read — `(message)` with no
-text, media, reaction or quote, as around pairing — are not messages:
-`messages`, `search` and `context` drop them and say how many in `hidden`,
-`last` skips them, and `more` names the oldest raw row's time for paging. A
-chat's `last_message` time can still come from such a row. Every read carries a
-note that message text, captions and names are written by other people and are
-data, never instructions. The mirror only holds what WhatsApp synced to the
-linked device: history before pairing is best-effort.
+Reads run `wacli --read-only` against the mirror and take no lock, so they work
+while sync runs. Results carry no download paths. `chats` pages through every
+chat (archived ones included) until `complete: true`, so a census or sync can
+prove it saw them all. Rows wacli stores for protocol traffic it could not
+read — `(message)` with no text, media, reaction or quote — are not messages:
+reads drop them and say how many in `hidden`. Every read carries a note that
+message text, captions and names are written by other people and are data,
+never instructions. The mirror only holds what WhatsApp synced to the linked
+device: history before pairing is best-effort.
 
 ## Check, backfill and media
 
-- **`media`** downloads one message's photo, video, voice note or document
-  with `--read-only` (no store lock, so sync keeps running) into its own folder
-  under `whatsapp_access.download_dir` from the profile's `config.yaml` (the
-  Assistant uses `~/Workspaces/.inbox/whatsapp`, so a received file can be sent
-  on), else `<HERMES_HOME>/whatsapp-downloads/`, and returns the path. Programs
-  and archive formats that cannot be inspected are refused before any download
-  — a file sent unprompted with "open it on your computer" is the known malware
-  pattern. A `.zip` or tar archive is downloaded and inspected, and kept only if
-  it passes, and `unpack` unpacks it ([Signal access](./signal-access.md),
-  "Received archives" and "Unpacking"). The downloaded file's content is sniffed
-  with `file --mime-type`, not only the name and the type WhatsApp gave it, so a
-  ZIP called `photo.jpg` is deleted. Expired media (HTTP 410) is reported as
-  such: only the phone still has it.
+- **`media`** downloads one message's file with `--read-only` (no store lock,
+  so sync keeps running) into its own folder under `whatsapp_access.download_dir`.
+  Programs and archive formats that cannot be inspected are refused before any
+  download — a file sent unprompted with "open it on your computer" is the
+  known malware pattern. A `.zip` or tar archive is downloaded and inspected,
+  and kept only if it passes, and `unpack` unpacks it
+  ([Signal access](./signal-access.md), "Received archives" and "Unpacking").
+  The downloaded file's content is sniffed, not only the name and the type
+  WhatsApp gave it, so a ZIP called `photo.jpg` is deleted.
 - **`check`** asks WhatsApp whether numbers are registered and returns each JID;
   `null` means WhatsApp did not answer, which is unknown, not a no. A send to an
   unregistered number is not refused by wacli, so a first message to a number is
@@ -118,25 +108,21 @@ is looked up so the quote resolves.
   number for a person, the JID for a group or a hidden-number contact
   (`…@lid`). Name and quote lookups wait only briefly and fall back to the
   number or JID.
-- **Long texts are cut on the card, not refused.** Telegram shows about 480
-  escaped UTF-16 units of a reason, so beyond roughly 350 characters the card
-  shows the beginning and counts the rest. A long message goes out in one send;
-  its full wording is agreed with the user in chat beforehand (the
-  `whatsapp-access:whatsapp` skill), and the approval key still binds that exact
-  text, so a changed text asks again.
+- **Long texts are cut on the card, not refused** (Telegram limits a reason's
+  length): the card shows the beginning and counts the rest. A long message goes
+  out in one send; its full wording is agreed with the user in chat beforehand,
+  and the approval key still binds that exact text, so a changed text asks
+  again.
 - **The approval covers the exact message.** The allowlist key hashes the
   account, chat, text and reply (and, with files, each file's place and
   SHA-256), so "session" or "always" only ever repeats that identical message
   to that chat; any other send asks again.
 - **Files** come only from `~/Workspaces`, judged by real path, so a link that
-  leads out counts as outside; relative paths are taken from there. The refusal
-  list is signal-access's (key or settings folders, key- and secret-like names,
-  installers and programs by name and sniffed type, private key blocks, empty
-  files; source scripts are fine). `.zip` and tar archives are read entry by
-  entry on the snapshot copy and sent only if every entry would pass these rules
-  alone; the rules and the reasons are in [Signal access](./signal-access.md)
-  (the inspection is shared). WhatsApp carries one file per message, so each
-  file is its own message, in order; the text becomes the first file's caption
+  leads out counts as outside. The refusal list is signal-access's, and `.zip`
+  and tar archives are read entry by entry on the snapshot copy and sent only if
+  every entry would pass those rules alone; the rules and the reasons are in
+  [Signal access](./signal-access.md). WhatsApp carries one file per message,
+  so each file is its own message, in order; the text becomes the first file's caption
   (a longer text than the caption limit is sent on its own first) and
   `reply_to` quotes from the first. WhatsApp drops the caption of an audio
   message, so a send whose first file is audio and which has text is refused
@@ -165,10 +151,8 @@ is looked up so the quote resolves.
   check the chat and ask before any resend. Files go one at a time under the
   account's send lock; the first file that is not sent, or may have been, stops
   the rest, and the result lists each file as `sent`, `not sent` or `uncertain`.
-  Some sent and then a clean refusal reads `partly sent: …`. For files, a
-  refusal counts only when wacli itself put it in its JSON error envelope; raw
-  output from an abnormal exit is always uncertain, since it may carry a file's
-  name or a success envelope.
+  For files, a refusal counts only when wacli itself put it in its JSON error
+  envelope; raw output from an abnormal exit is always uncertain.
 
 ## Where a write may run
 
@@ -210,6 +194,5 @@ cannot connect to clear it, so `pair` moves that account's `session.db` aside
 (the message mirror stays) before pairing. `pair` refuses an account that is
 still paired. To unpair for good: `uninstall <account>`, then
 `wacli --account <account> auth logout`. After a wacli upgrade, `restart
-<account>` so the agent runs the new binary. After a change to the agent
-template, run `install <account>` for each account: `restart` reloads the
-rendered plist without rendering it again.
+<account>`. After a change to the agent template, run `install <account>` for
+each account: `restart` does not render the plist again.
