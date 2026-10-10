@@ -3,8 +3,8 @@
 **Look.** A chibi cute character: head about half the total height, huge
 glossy eyes, tiny simplified body and hands, soft rounded shapes, blush
 marks, thin-to-medium dark outline, flat pastel-leaning colours with one
-soft shade tone. The kawaii mascot family — Sanrio, LINE Friends,
-Kirby-adjacent.
+soft shade tone. The kawaii character-goods family: a design that would
+sit on a sticker sheet or a plush tag.
 
 **Prompt block.**
 > chibi cute mascot character of <subject>, oversized round head about

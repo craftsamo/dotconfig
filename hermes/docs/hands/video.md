@@ -65,8 +65,8 @@ Front-matter prefix rule: [`overview.md`](./overview.md) "The form (front
 matter is the only representation)".
 
 - Style, theme and direction options live in the leaf's `SKILL.md`; they are
-  authored recipes, not live-render-certified presets. Looks are described by
-  traits, never by a studio, director or artist name.
+  authored recipes, not live-render-certified presets, and name looks by
+  traits ([`overview.md`](./overview.md) "The form").
 - Pace and transition are carried by prompt and QA, not just the form. A tempo
   change requires renewed approval and never resets the spent allowance. A
   post-render speedup is no substitute for the requested direction, and failed

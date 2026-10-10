@@ -5,8 +5,8 @@ fill colour per shape, a thin flat-colour stroke, no gradients, no drop
 shadows, no bevels. A button is a rounded rect; a window panel is a rounded
 rect with a flat title-bar strip; a bar is a rounded outline (the frame)
 plus a rounded fill inset inside it by the frame's own stroke width. The
-"clean mobile-game HUD" family — Kenney/Godot-default rather than a AAA
-diegetic HUD.
+"clean mobile-game HUD" family — a free starter-asset or engine-default
+look rather than a AAA diegetic HUD.
 
 **Drawing rules.** Every shape is an SVG `<rect rx ry>` with `fill` +
 `stroke` + `stroke-width`, nothing else — no filters, no `<linearGradient>`,
