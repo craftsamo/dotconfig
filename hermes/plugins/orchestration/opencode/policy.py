@@ -178,10 +178,12 @@ def rules(policy, issue_approval, protected, *, tmp=None, person_denies=(), outp
 
 
 def matches(pattern, value, shell=False):
-    regex = "".join(".*" if c == "*" else "." if c == "?" else re.escape(c) for c in pattern)
-    if re.fullmatch(regex, value, re.S):
-        return True
-    return shell and pattern.endswith(" *") and value == pattern[:-2]
+    """OpenCode's wildcard: `*` any run of characters, `?` one, and a shell
+    pattern's trailing ` *` optional (`git push *` also matches `git push`)."""
+    optional = shell and pattern.endswith(" *")
+    body = pattern[:-2] if optional else pattern
+    regex = "".join(".*" if c == "*" else "." if c == "?" else re.escape(c) for c in body)
+    return re.fullmatch(regex + ("( .*)?" if optional else ""), value, re.S) is not None
 
 
 def decide(ruleset, action, resource):
