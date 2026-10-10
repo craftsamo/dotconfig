@@ -901,18 +901,9 @@
       "resource": "git config*",
       "effect": "ask"
     },
-    // Safe local commits (message-bearing) bypass the gate; bare `git commit` stays ask
-    {
-      "action": "shell",
-      "resource": "git commit -m*",
-      "effect": "allow"
-    },
-    {
-      "action": "shell",
-      "resource": "git commit --message*",
-      "effect": "allow"
-    },
-    // Re-gate risky flags in ANY position (last match wins over the -m allows above)
+    // Every shell `git commit` asks: commits go through git_commit, which lints
+    // and scans for secrets first. The flags below stay ask in ANY position, so
+    // a later broader allow cannot reopen them.
     {
       "action": "shell",
       "resource": "git commit*--amend*",
