@@ -1863,18 +1863,6 @@
           "BLENDER_PORT": "9876",
         },
       },
-      "21st-dev": {
-        "type": "local",
-        "command": [
-          "npx",
-          "-y",
-          "@21st-dev/magic@latest"
-        ],
-        "disabled": true,
-        "environment": {
-          "API_KEY": "{env:MAGIC_API_KEY}",
-        },
-      },
     },
   },
 }
