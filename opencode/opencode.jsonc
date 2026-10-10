@@ -28,7 +28,6 @@
   // No "instructions" array: OpenCode V2 accepts it but never loads the files
   // (anomalyco/opencode#51341). All global rules live in AGENTS.md, which both
   // V1 and V2 read.
-  "small_model": "openai/gpt-6-luna",
   // Anthropic's prompt cache lives five minutes, and a miss rewrites the whole
   // conversation (about $1 per rewrite at 380k tokens on Sonnet 5.5). A
   // keep-alive every four minutes holds it through pauses of up to twenty
@@ -109,75 +108,68 @@
       // Trial: revert to claude-sonnet-5-5 (medium) if summaries drop key facts.
       "model": "anthropic/claude-haiku-5-5#medium",
     },
+    // Session titles (V1 small_model).
+    "title": {
+      "model": "openai/gpt-6-luna",
+    },
   },
-  "provider": {
+  "providers": {
     "openai": {
       "models": {
         // OpenAI API list prices (USD per 1M tokens), used only for OpenCode's
         // cost estimates. Source: https://developers.openai.com/api/docs/pricing
+        // A second entry with a context tier applies above 200k tokens.
         "gpt-6-astra": {
-          "cost": {
-            "input": 10,
-            "cache_read": 1,
-            "output": 50,
-            "context_over_200k": {
+          "cost": [
+            { "input": 10, "output": 50, "cache": { "read": 1 } },
+            {
+              "tier": { "type": "context", "size": 200000 },
               "input": 20,
-              "cache_read": 2,
               "output": 75,
+              "cache": { "read": 2 },
             },
-          },
+          ],
         },
         "gpt-6-sol": {
-          "cost": {
-            "input": 2,
-            "cache_read": 0.2,
-            "output": 10,
-            "context_over_200k": {
+          "cost": [
+            { "input": 2, "output": 10, "cache": { "read": 0.2 } },
+            {
+              "tier": { "type": "context", "size": 200000 },
               "input": 4,
-              "cache_read": 0.4,
               "output": 15,
+              "cache": { "read": 0.4 },
             },
-          },
+          ],
         },
         "gpt-6.1-sol": {
-          "cost": {
-            "input": 2,
-            "cache_read": 0.1,
-            "output": 10,
-          },
+          "cost": [{ "input": 2, "output": 10, "cache": { "read": 0.1 } }],
         },
         "gpt-6-luna": {
-          "cost": {
-            "input": 0.1,
-            "cache_read": 0.01,
-            "output": 0.5,
-            "context_over_200k": {
+          "cost": [
+            { "input": 0.1, "output": 0.5, "cache": { "read": 0.01 } },
+            {
+              "tier": { "type": "context", "size": 200000 },
               "input": 0.2,
-              "cache_read": 0.02,
               "output": 0.75,
+              "cache": { "read": 0.02 },
             },
-          },
+          ],
         },
         // Spark has no separate public API pricing table; use the published
         // gpt-5.3-codex rate so OpenCode cost estimates are not unknown.
         "gpt-5.3-codex-spark": {
-          "cost": {
-            "input": 1.75,
-            "cache_read": 0.175,
-            "output": 14,
-          },
+          "cost": [{ "input": 1.75, "output": 14, "cache": { "read": 0.175 } }],
         },
       },
     },
-  },
-  // Console credit lanes: the monthly API credits that Max plans grant, one
-  // Console org per plan. They cannot be used by Claude Code or as extra usage,
-  // only through an API key. Keys come from the Keychain project `opencode`
-  // (never named ANTHROPIC_API_KEY, which would override the OAuth login), and
-  // a lane stays inactive while its variable is unset. No payment method or
-  // auto-reload on either org, so an empty balance fails instead of billing.
-  // canonical inherits the anthropic catalog: models, limits and list prices.
-  "providers": {
+    // Console credit lanes: the monthly API credits that Max plans grant, one
+    // Console org per plan. They cannot be used by Claude Code or as extra
+    // usage, only through an API key. Keys come from the Keychain project
+    // `opencode` (never named ANTHROPIC_API_KEY, which would override the
+    // OAuth login), and a lane stays inactive while its variable is unset. No
+    // payment method or auto-reload on either org, so an empty balance fails
+    // instead of billing. canonical inherits the anthropic catalog: models,
+    // limits and list prices.
     "anthropic-credit-main": {
       "name": "Anthropic Main Credit",
       "canonical": "anthropic",
@@ -539,29 +531,24 @@
     ],
   },
   "mcp": {
-    "blender-mcp": {
-      "type": "local",
-      "command": [
-        "uvx",
-        "blender-mcp"
-      ],
-      "enabled": false,
-      "environment": {
-        "BLENDER_HOST": "localhost",
-        "BLENDER_PORT": "9876"
-      }
+    "servers": {
+      "blender-mcp": {
+        "type": "local",
+        "command": ["uvx", "blender-mcp"],
+        "disabled": true,
+        "environment": {
+          "BLENDER_HOST": "localhost",
+          "BLENDER_PORT": "9876",
+        },
+      },
+      "21st-dev": {
+        "type": "local",
+        "command": ["npx", "-y", "@21st-dev/magic@latest"],
+        "disabled": true,
+        "environment": {
+          "API_KEY": "{env:MAGIC_API_KEY}",
+        },
+      },
     },
-    "21st-dev": {
-      "type": "local",
-      "command": [
-        "npx",
-        "-y",
-        "@21st-dev/magic@latest"
-      ],
-      "enabled": false,
-      "environment": {
-        "API_KEY": "{env:MAGIC_API_KEY}"
-      }
-    }
-  }
+  },
 }
