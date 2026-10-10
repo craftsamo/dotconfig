@@ -55,8 +55,8 @@ Resolve the message format in this priority order. Detect, do not assume.
 3. Fallback — Conventional Commits: `type(scope): subject`.
 
 - Hard gate: when a convention is enforced (a `commit-msg` hook or commitlint),
-  the message MUST pass it regardless of habit; `git_commit_lint` runs the
-  repo's commitlint when it is present.
+  the message MUST pass it regardless of habit; `git_commit` (and
+  `git_commit_lint`) run the repo's commitlint when it is present.
 - No usable history (empty or brand-new repo, shallow clone): skip to 2,
   then 3.
 - Message language follows the dominant language of recent subjects — infer
@@ -209,36 +209,45 @@ a deterministic reproduction; local/unpushed commits have no PR or Issue.
    resist, not accept.
 3. Stage intentionally: explicit paths, or specific hunks via `git_stage_hunks`.
    Never `git add -A` or `git add .` blindly. Re-check `git diff --cached`.
-4. Scan the staged diff with `git_secret_scan` (built-in rules plus gitleaks
-   when available; values are redacted). Judge each finding: a genuine secret
-   stops the commit — report it and point at `keychain-secrets`; a clear false
-   positive (lockfile integrity hash, minified bundle, fixture data) does not —
-   proceed and note it.
-5. Write the message per <ConventionResolution> and <MessageHygiene>, then
-   validate it with `git_commit_lint`; fix errors before committing (warnings
-   yield to the repo's own convention). Add provenance links when committing a
-   fix or follow-up.
-6. Commit with the message-bearing form: `git commit -m "subject" -m "body
-   paragraph"` (one `-m` per paragraph), or `-m "$(cat <<'EOF' ... EOF)"` for
-   longer bodies — never encode newlines as literal `\n`. If pre-commit hooks
-   or formatters modify files, re-stage and redo steps 4-5 before committing
-   again; if a hook rejects, fix the cause and re-commit — never `--no-verify`.
-7. Verify the commit passes the project's relevant quick checks — with partial
+4. Write the message per <ConventionResolution> and <MessageHygiene>, wrapped
+   exactly as it should land. Add provenance links when committing a fix or
+   follow-up.
+5. Commit with `git_commit` (`message` = the whole message). It lints that
+   text (built-in rules plus the repo's commitlint), scans the staged diff for
+   secrets (built-in rules plus gitleaks; values redacted), and only then runs
+   `git commit -F` on the same file, so the hook sees what was linted. Act on
+   `stoppedAt`:
+   - `lint` — fix the errors (warnings yield to the repo's own convention);
+     `commitlint-not-installed` means install the repo's dependencies first.
+   - `secrets` — judge each finding: a genuine secret stops the commit; report
+     it and point at `keychain-secrets`. Only when every finding is a clear
+     false positive (lockfile integrity hash, minified bundle, fixture data)
+     retry with `acceptSecretFindings: true` and note it.
+   - `hook` — fix what the hook reports and commit again; never
+     `--no-verify`.
+   On success, `changedByHook` / `leftModified` name files a hook rewrote or
+   left modified: re-check them, and stage the leftovers into this or the next
+   commit deliberately. Do not lint with `git_commit_lint` and then retype the
+   message into `git commit -m`: rewrapping it is how a passing lint still
+   fails the hook. Shell `git commit` remains for what the tool refuses
+   (`--amend`, `--fixup`).
+6. Verify the commit passes the project's relevant quick checks — with partial
    staging, a passing worktree does not prove the commit passes on its own.
    For a strict check, run the checks with the leftover changes stashed
    (`git stash push -u` after committing, `git stash pop` when done); at
    minimum
    verify the final commit of a sequence. Fix breakage immediately — `--amend`
    while still local.
-8. Show the result: `git show --stat HEAD` (or `git log --oneline` for a
-   multi-commit sequence).
+7. Show the result: `git_commit` returns the sha, subject and stat (use
+   `git log --oneline` for a multi-commit sequence).
 
 </Steps>
 
 <MessageHygiene>
 
-Draft the message, then check it with `git_commit_lint` — it validates the
-rules below (and the repo's commitlint when present).
+Draft the message; `git_commit` validates the rules below (and the repo's
+commitlint when present) before committing. `git_commit_lint` runs the same
+checks alone, for a draft you are not committing yet.
 
 - Subject: imperative, concise. Target ≤ 50 characters, hard ceiling 72. If
   commitlint enforces a length, that wins.

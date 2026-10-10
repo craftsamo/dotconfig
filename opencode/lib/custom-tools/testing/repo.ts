@@ -46,6 +46,10 @@ export function fixture(prefix = "custom-tools-git-"): Fixture {
   }
 
   git("init", "-q", "-b", "main")
+  // Tools run git with the real environment; local config keeps their commits deterministic too.
+  git("config", "user.name", "Test")
+  git("config", "user.email", "test@example.com")
+  git("config", "commit.gpgsign", "false")
   return { root, dir, git, write, commit, cleanup: () => rmSync(root, { recursive: true, force: true }) }
 }
 

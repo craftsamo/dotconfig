@@ -7,11 +7,13 @@
  *
  * Safety: these tools run git/gh as child processes, which do NOT pass
  * through the shell permission gates, so they are deliberately limited to read
- * and index operations. They never commit, push, or merge — those stay as
- * gated commands the agent issues directly.
+ * and index operations, plus `commit`, which only records what is staged and
+ * refuses to amend, skip hooks or stage on its own. They never push, rewrite
+ * history, or merge — those stay as gated commands the agent issues directly.
  */
 
 export { amend_check } from "./amend"
+export { commit } from "./commit"
 export { stage_hunks } from "./hunks"
 export { history_digest } from "./history"
 export { commit_lint } from "./lint"

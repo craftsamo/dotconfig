@@ -33,6 +33,7 @@ describe("registry", () => {
     const ids = Object.keys((await plugin.server()).tool).sort()
     expect(ids).toEqual([
       "git_amend_check",
+      "git_commit",
       "git_commit_lint",
       "git_history_digest",
       "git_provenance",
@@ -292,6 +293,91 @@ describe("git_commit_lint", () => {
     const bad = await lint(f, "feat: BAD")
     expect(bad).toMatchObject({ pass: false, commitlintRan: true })
     expect(bad.errors[0]).toMatchObject({ rule: "commitlint", message: "rejected by commitlint" })
+  })
+})
+
+describe("git_commit", () => {
+  const hook = (f: Fixture, name: string, script: string) => {
+    f.write(`.git/hooks/${name}`, `#!/bin/sh\n${script}\n`)
+    chmodSync(join(f.dir, ".git", "hooks", name), 0o755)
+  }
+  const body = "Explain why, wrapped the way it\nshould land in the history."
+
+  test("commits exactly the staged changes with the message as written", async () => {
+    const f = repo()
+    f.commit("init", { "a.txt": "a\n", "b.txt": "b\n" })
+    f.write("a.txt", "a2\n")
+    f.write("b.txt", "b2\n")
+    f.write("new.txt", "n\n")
+    f.git("add", "a.txt")
+    const out = await run(git.commit, f, { message: `feat: change a\n\n${body}\n` })
+    expect(out).toMatchObject({
+      committed: true,
+      subject: "feat: change a",
+      messageMatches: true,
+      changedByHook: [],
+      leftModified: [],
+      remaining: { staged: 0, unstaged: 1, untracked: 1 },
+      commitlint: "not-configured",
+    })
+    expect(out.sha).toBe(f.git("rev-parse", "HEAD").trim())
+    expect(f.git("log", "-1", "--format=%B")).toBe(`feat: change a\n\n${body}\n\n`)
+    expect(f.git("show", "--name-only", "--format=", "HEAD").trim()).toBe("a.txt")
+  })
+
+  test("refuses when nothing is staged", async () => {
+    const f = repo()
+    f.commit("init", { "a.txt": "a\n" })
+    f.write("a.txt", "b\n")
+    await expect(git.commit.execute({ message: "feat: x" }, ctx(f))).rejects.toThrow(/Nothing is staged/)
+  })
+
+  test("stops before committing on a lint error or a secret finding", async () => {
+    const f = repo()
+    const head = f.commit("init", { "a.txt": "a\n" })
+    f.write("a.txt", `id ${AWS_KEY}\n`)
+    f.git("add", "a.txt")
+    const lint = await run(git.commit, f, { message: "x".repeat(80) })
+    expect(lint).toMatchObject({ committed: false, stoppedAt: "lint" })
+    const secret = await run(git.commit, f, { message: "feat: add id" })
+    expect(secret).toMatchObject({ committed: false, stoppedAt: "secrets" })
+    expect(JSON.stringify(secret)).not.toContain(AWS_KEY)
+    expect(f.git("rev-parse", "HEAD").trim()).toBe(head)
+    expect(await run(git.commit, f, { message: "feat: add id", acceptSecretFindings: true })).toMatchObject({ committed: true })
+  })
+
+  test("stops when the hook's commitlint is not installed", async () => {
+    const f = repo()
+    f.commit("init")
+    f.write(".husky/commit-msg", "pnpm exec commitlint --edit $1\n")
+    f.git("add", ".husky/commit-msg")
+    expect(await run(git.commit, f, { message: "chore: add hook" })).toMatchObject({
+      committed: false,
+      stoppedAt: "lint",
+      commitlint: "not-installed",
+    })
+  })
+
+  test("reports a hook rejection with its output", async () => {
+    const f = repo()
+    const head = f.commit("init", { "a.txt": "a\n" })
+    hook(f, "commit-msg", 'echo "subject rejected by policy" >&2\nexit 1')
+    f.write("a.txt", "b\n")
+    f.git("add", "a.txt")
+    const out = await run(git.commit, f, { message: "feat: x" })
+    expect(out).toMatchObject({ committed: false, stoppedAt: "hook", exitCode: 1 })
+    expect(out.output).toContain("subject rejected by policy")
+    expect(f.git("rev-parse", "HEAD").trim()).toBe(head)
+  })
+
+  test("reports files a hook rewrote into the commit or left modified", async () => {
+    const f = repo()
+    f.commit("init", { "a.txt": "a\n", "b.txt": "b\n" })
+    hook(f, "pre-commit", "echo formatted >> a.txt\ngit add a.txt\necho touched >> b.txt")
+    f.write("a.txt", "a2\n")
+    f.git("add", "a.txt")
+    const out = await run(git.commit, f, { message: "feat: x" })
+    expect(out).toMatchObject({ committed: true, changedByHook: ["a.txt"], leftModified: ["b.txt"] })
   })
 })
 
