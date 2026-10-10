@@ -11,7 +11,7 @@ Read the [kernel](../../SKILL.md) first. The leaf's form is authoritative; this 
 ## Range
 
 - Generated: 1–15 s (default 5), silent, 720p request; aspects 16:9 (default), 9:16, 1:1, 4:3, 3:4, 3:2, 2:3. One visible action and one camera instruction, not a multi-scene storyboard.
-- Looks: cinematic, flat-animation, painted-anime, picture-book, clay, pixel (an aesthetic, not grid-correct sprite animation), or a described one.
+- Looks: cinematic, flat-animation, anime-2d (TV-style cel, simple backgrounds), painted-anime (cel characters on lush painted backgrounds), picture-book, clay, pixel (an aesthetic, not grid-correct sprite animation), or a described one.
 - A starting still (`source`) or one appearance image (`reference`) can steer it; either needs consent for the upload.
 - Not expressible: narration, montage, exact lip-sync, a deterministic animation of a logo, seamless loops.
 - Edit and analyze work on sources of at most 60 s; edit changes length, format, framing and sound, not the picture.
