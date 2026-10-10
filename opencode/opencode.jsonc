@@ -488,6 +488,8 @@
     { "action": "git_commit", "resource": "*", "effect": "allow" },
     { "action": "git_state", "resource": "*", "effect": "allow" },
     { "action": "git_conflicts", "resource": "*", "effect": "allow" },
+    // Runs an arbitrary command at each commit, outside the shell rules: ask.
+    { "action": "git_verify_commits", "resource": "*", "effect": "ask" },
     { "action": "git_secret_scan", "resource": "*", "effect": "allow" },
     { "action": "git_stage_hunks", "resource": "*", "effect": "allow" },
     { "action": "git_provenance", "resource": "*", "effect": "allow" },

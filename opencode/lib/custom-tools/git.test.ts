@@ -43,6 +43,7 @@ describe("registry", () => {
       "git_secret_scan",
       "git_stage_hunks",
       "git_state",
+      "git_verify_commits",
       "github_project_create",
       "github_project_field_ensure",
       "github_project_issue_develop",
@@ -503,6 +504,47 @@ describe("git_conflicts", () => {
     const f = repo()
     f.commit("init")
     expect(await run(git.conflicts, f)).toMatchObject({ operation: null, count: 0, files: [] })
+  })
+})
+
+describe("git_verify_commits", () => {
+  // Each commit must hold a file "ok" containing "yes" to pass.
+  const check = "test \"$(cat ok)\" = yes"
+
+  test("checks each commit in a scratch worktree and stops at the first failure", async () => {
+    const f = repo()
+    const base = f.commit("init", { ok: "yes\n" })
+    f.commit("one", { "a.txt": "1\n" })
+    const broken = f.commit("broken", { ok: "no\n" })
+    f.commit("fixed", { ok: "yes\n" })
+    f.write("dirty.txt", "local work\n")
+    const out = await run(git.verify_commits, f, { base, command: check })
+    expect(out).toMatchObject({ total: 3, checked: 2, pass: false, firstFailure: broken.slice(0, 12) })
+    expect(out.results.map((r: any) => [r.subject, r.ok])).toEqual([
+      ["one", true],
+      ["broken", false],
+    ])
+    const all = await run(git.verify_commits, f, { base, command: check, keepGoing: true })
+    expect(all.results.map((r: any) => r.ok)).toEqual([true, false, true])
+    expect(f.git("worktree", "list").trim().split("\n")).toHaveLength(1)
+    expect(f.git("status", "--porcelain")).toBe("?? dirty.txt\n")
+  })
+
+  test("runs setup once, defaults the base to the remote default branch, and refuses an empty range", async () => {
+    const f = repo()
+    f.commit("init", { ok: "yes\n" })
+    const remote = join(f.root, "remote.git")
+    Bun.spawnSync(["git", "init", "-q", "--bare", remote])
+    f.git("remote", "add", "origin", remote)
+    f.git("push", "-q", "origin", "main")
+    f.git("symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/main")
+    await expect(git.verify_commits.execute({ command: "true" }, ctx(f))).rejects.toThrow(/No commits between/)
+    f.commit("two", { "sub/x.txt": "x\n" })
+    const out = await run(git.verify_commits, f, { command: "test -f marker && test -f x.txt", setup: "touch marker", cwd: "sub" })
+    expect(out).toMatchObject({ total: 1, pass: true, setup: { ok: true } })
+    const failedSetup = await run(git.verify_commits, f, { command: "true", setup: "echo cannot install; exit 4" })
+    expect(failedSetup).toMatchObject({ pass: false, checked: 0, setup: { ok: false, output: "cannot install" } })
+    await expect(git.verify_commits.execute({ command: "true", cwd: "../x" }, ctx(f))).rejects.toThrow(/relative path inside/)
   })
 })
 

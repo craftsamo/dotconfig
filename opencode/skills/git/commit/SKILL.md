@@ -236,10 +236,12 @@ a deterministic reproduction; local/unpushed commits have no PR or Issue.
    (`--amend`, `--fixup`).
 6. Verify the commit passes the project's relevant quick checks — with partial
    staging, a passing worktree does not prove the commit passes on its own.
-   For a strict check, run the checks with the leftover changes stashed
-   (`git stash push -u` after committing, `git stash pop` when done); at
-   minimum
-   verify the final commit of a sequence. Fix breakage immediately — `--amend`
+   For a sequence, `git_verify_commits` (`command` = the quick check, `setup`
+   = the dependency install) runs it at every commit in a scratch worktree
+   and names the first failing one; it asks for approval each call. Without
+   it, run the checks with the leftover changes stashed (`git stash push -u`
+   after committing, `git stash pop` when done); at minimum verify the final
+   commit of a sequence. Fix breakage immediately — `--amend` (or a fixup)
    while still local.
 7. Show the result: `git_commit` returns the sha, subject and stat (use
    `git log --oneline` for a multi-commit sequence).
