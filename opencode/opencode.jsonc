@@ -15,13 +15,27 @@
     // quota. enabled: false stops new selection but retains in-flight guards.
     {
       "package": "./lib/subagent-fallback",
-      "options": { "enabled": true, "creditsLastResort": true }
+      "options": {
+        "enabled": true,
+        "creditsLastResort": true,
+        // Console credit lanes, in spending order (see the providers below).
+        // Specialists try them before the subscription; the primary moves to
+        // them when the subscription hits a window limit. [] turns it off.
+        "creditLanes": ["anthropic-credit-main", "anthropic-credit-sub"]
+      }
     }
   ],
   // No "instructions" array: OpenCode V2 accepts it but never loads the files
   // (anomalyco/opencode#51341). All global rules live in AGENTS.md, which both
   // V1 and V2 read.
   "small_model": "openai/gpt-6-luna",
+  // Anthropic's prompt cache lives five minutes, and a miss rewrites the whole
+  // conversation (about $1 per rewrite at 380k tokens on Sonnet 5.5). A
+  // keep-alive every four minutes holds it through pauses of up to twenty
+  // minutes; the longest pause measured in one long session was sixteen. It is
+  // a real request on every provider, the subscription included: each one costs
+  // a cache read (a tenth of the input price), at most four per idle window.
+  "warming": { "interval": "4 minutes", "duration": "20 minutes" },
   // OpenCode 2 formats nothing unless a config sets "formatter"; the object
   // form also enables the built-ins whose tools are installed.
   "formatter": {
@@ -157,6 +171,39 @@
             "output": 14,
           },
         },
+      },
+    },
+  },
+  // Console credit lanes: the monthly API credits that Max plans grant, one
+  // Console org per plan. They cannot be used by Claude Code or as extra usage,
+  // only through an API key. Keys come from the Keychain project `opencode`
+  // (never named ANTHROPIC_API_KEY, which would override the OAuth login), and
+  // a lane stays inactive while its variable is unset. No payment method or
+  // auto-reload on either org, so an empty balance fails instead of billing.
+  // canonical inherits the anthropic catalog: models, limits and list prices.
+  "providers": {
+    "anthropic-credit-main": {
+      "name": "Anthropic Main Credit",
+      "canonical": "anthropic",
+      "package": "@opencode/ai/providers/anthropic",
+      "env": ["ANTHROPIC_CREDIT_MAIN_ACCOUNT_KEY"],
+      "models": {
+        "claude-fable-5-1": {},
+        "claude-opus-5-5": {},
+        "claude-sonnet-5-5": {},
+        "claude-haiku-5-5": {},
+      },
+    },
+    "anthropic-credit-sub": {
+      "name": "Anthropic Sub Credit",
+      "canonical": "anthropic",
+      "package": "@opencode/ai/providers/anthropic",
+      "env": ["ANTHROPIC_CREDIT_SUB_ACCOUNT_KEY"],
+      "models": {
+        "claude-fable-5-1": {},
+        "claude-opus-5-5": {},
+        "claude-sonnet-5-5": {},
+        "claude-haiku-5-5": {},
       },
     },
   },

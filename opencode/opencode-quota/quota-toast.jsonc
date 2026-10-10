@@ -1,6 +1,34 @@
 {
-  "enabledProviders": ["anthropic", "openai", "xai"],
+  "enabledProviders": ["anthropic", "openai", "xai", "quota-providers"],
+  // Console credit lanes. Anthropic has no balance API, so plugins/credit-lanes
+  // serves an estimate from `opencode stats` on loopback (lib/credit-lanes).
+  // Quota sends the lane's key as the bearer token, and the endpoint only
+  // answers a request carrying it. Not Quota's own local-estimate mode: that
+  // re-reads the whole history database on every refresh.
+  "quotaProviders": [
+    {
+      "id": "anthropic-credit-main",
+      "label": "Anthropic Main Credit",
+      "mode": "remote-api",
+      "format": "quota-v1",
+      "apiKeyEnv": "ANTHROPIC_CREDIT_MAIN_ACCOUNT_KEY",
+      "url": "http://127.0.0.1:47631/anthropic-credit-main",
+    },
+    {
+      "id": "anthropic-credit-sub",
+      "label": "Anthropic Sub Credit",
+      "mode": "remote-api",
+      "format": "quota-v1",
+      "apiKeyEnv": "ANTHROPIC_CREDIT_SUB_ACCOUNT_KEY",
+      "url": "http://127.0.0.1:47631/anthropic-credit-sub",
+    },
+  ],
   "formatStyle": "allWindows",
+  // How long Quota reuses a provider's result: the sidebar refreshes every 60 s
+  // but shows a cached result for this long. The default is 5 minutes, which
+  // made the credit lanes look frozen. It applies to every provider, so it is
+  // not set lower than 2 minutes.
+  "minIntervalMs": 120000,
   "enableToast": false,
   // Share Quota's cached public JSON with the local launch selector. No extra
   // provider fetch: Quota's home footer writes this on its normal refresh.
