@@ -1,28 +1,25 @@
 ---
 description: "Ultra-fast read-only needle lookups in a pre-identified narrow scope (specific files/dirs/symbols). Small context — not for open-ended exploration."
 mode: subagent
-model: anthropic/claude-haiku-5-5
-variant: low
-hidden: false
-# Haiku 5.5 has adaptive thinking on by default (effort medium); the low
+# Haiku 5.5 has adaptive thinking on by default (effort medium); the #low
 # variant keeps lookups fast. Keep in sync with ROUTES in
 # lib/subagent-fallback/policy.ts. An options block would be ignored by
 # OpenCode 2 (anomalyco/opencode#49550).
-permission:
-  "*": deny
-  glob: allow
-  grep: allow
-  read:
-    "*": allow
-    "**/.env": deny
-    "**/.env.*": deny
-    "**/*.env": deny
-    "**/.env.example": allow
-    "**/.env.sample": allow
-  list: allow
-  edit: deny
-  external_directory: allow
-  task: deny
+model: anthropic/claude-haiku-5-5#low
+hidden: false
+permissions:
+  - { action: "*", resource: "*", effect: deny }
+  - { action: glob, resource: "*", effect: allow }
+  - { action: grep, resource: "*", effect: allow }
+  - { action: read, resource: "*", effect: allow }
+  - { action: read, resource: "*.env", effect: deny }
+  - { action: read, resource: ".env.*", effect: deny }
+  - { action: read, resource: "*/.env.*", effect: deny }
+  - { action: read, resource: "*.env.example", effect: allow }
+  - { action: read, resource: "*.env.sample", effect: allow }
+  - { action: edit, resource: "*", effect: deny }
+  - { action: external_directory, resource: "*", effect: allow }
+  - { action: subagent, resource: "*", effect: deny }
 ---
 
 You are an ultra-fast, read-only needle-lookup subagent with a SMALL context

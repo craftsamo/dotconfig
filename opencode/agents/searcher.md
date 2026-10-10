@@ -1,29 +1,25 @@
 ---
 description: "Fast web research subagent on the OpenAI subscription tier: fact checks, docs lookups, version/changelog checks, and broad option surveys. Reads local files only to ground queries. Prefer invoking through the built-in subagent tool."
 mode: subagent
-model: openai/gpt-6.1-sol
-variant: low
+model: openai/gpt-6.1-sol#low
 hidden: false
-permission:
-  "*": deny
-  websearch: allow
-  webfetch: allow
-  x_search: allow
-  glob: allow
-  grep: allow
-  read:
-    "*": allow
-    "**/.env": deny
-    "**/.env.*": deny
-    "**/*.env": deny
-    "**/.env.example": allow
-    "**/.env.sample": allow
-  list: allow
-  edit: deny
-  external_directory: allow
-  task: deny
-  bash:
-    "*": deny
+permissions:
+  - { action: "*", resource: "*", effect: deny }
+  - { action: websearch, resource: "*", effect: allow }
+  - { action: webfetch, resource: "*", effect: allow }
+  - { action: x_search, resource: "*", effect: allow }
+  - { action: glob, resource: "*", effect: allow }
+  - { action: grep, resource: "*", effect: allow }
+  - { action: read, resource: "*", effect: allow }
+  - { action: read, resource: "*.env", effect: deny }
+  - { action: read, resource: ".env.*", effect: deny }
+  - { action: read, resource: "*/.env.*", effect: deny }
+  - { action: read, resource: "*.env.example", effect: allow }
+  - { action: read, resource: "*.env.sample", effect: allow }
+  - { action: edit, resource: "*", effect: deny }
+  - { action: external_directory, resource: "*", effect: allow }
+  - { action: subagent, resource: "*", effect: deny }
+  - { action: shell, resource: "*", effect: deny }
 ---
 
 You are a fast, read-only web research subagent. Your output is consumed by a
