@@ -3,10 +3,11 @@ name: git-commit
 description: >-
   Use when creating git commits — staging, splitting work into atomic
   build-passing commits, writing commit messages that match the repo's own
-  convention, folding a change into an earlier local commit, and tracing which
-  commit/PR/Issue a change came from to link a fix or follow-up (コミット,
-  commit, git commit, atomic commit, conventional commits, ステージング, amend,
-  fixup, 直前のコミットに追加, どのコミット/PR/Issue 由来, 来歴, blame, bisect,
+  convention, folding a change into an earlier commit of the branch (amend,
+  fixup + autosquash), and tracing which commit/PR/Issue a change came from to
+  link a fix or follow-up (コミット, commit, git commit, atomic commit,
+  conventional commits, ステージング, amend, fixup, autosquash, 直前のコミットに
+  追加, 前のコミットに混ぜる, どのコミット/PR/Issue 由来, 来歴, blame, bisect,
   trace, provenance). Resolves the commit convention from history → config
   files → Conventional Commits; one concern per commit; never commits secrets.
   Do NOT use for creating/merging pull requests or pushing — only commit
@@ -56,7 +57,10 @@ Resolve the message format in this priority order. Detect, do not assume.
 
 - Hard gate: when a convention is enforced (a `commit-msg` hook or commitlint),
   the message MUST pass it regardless of habit; `git_commit` (and
-  `git_commit_lint`) run the repo's commitlint when it is present.
+  `git_commit_lint`) run the repo's commitlint when it is installed. When it
+  is not, a `commit-msg` hook that runs it makes `commitlint-not-installed` an
+  error (install the dependencies first, or the hook rejects the commit); a
+  config alone makes it a warning (only the built-in rules ran).
 - No usable history (empty or brand-new repo, shallow clone): skip to 2,
   then 3.
 - Message language follows the dominant language of recent subjects — infer
@@ -126,32 +130,50 @@ precise.
 Mechanics:
 
 - One file, several concerns: split by hunk with `git_stage_hunks` — list the
-  hunks with stable ids, then stage exactly the ones for this commit (by id,
-  or with include/exclude; set `denySecrets` for risky content). It applies
-  them deterministically via `git apply --cached`, avoiding fragile
-  interactive `git add -p`. Verify with `git diff --cached` before committing.
+  hunks, then stage exactly the ones for this commit (by id, or with
+  include/exclude; set `denySecrets` for risky content), passing the
+  listing's `token`. It applies them deterministically via
+  `git apply --cached`, avoiding fragile interactive `git add -p`. Ids are
+  positions in one listing: after any staging they shift, so list again
+  before the next selection; the `token` makes a stale selection fail instead
+  of staging other hunks. Verify with `git diff --cached` before committing.
 - Mixed changes already staged (e.g. after `git add -A`): unstage with
   `git reset` first, then stage selectively — the tool lists only unstaged
   hunks.
 - A large pre-written diff (a big branch, many files): do not stage it whole.
   `git reset` to unstage everything, then build the sequence one concern at a
-  time — stage only that concern's hunks with `git_stage_hunks`, confirm with
-  `git diff --cached`, commit, and repeat for the next concern. Iterating
-  concern-by-concern is what keeps each commit small; staging all then
-  committing once is the failure to avoid.
+  time — list and stage only that concern's hunks with `git_stage_hunks`,
+  confirm with `git diff --cached`, commit, and repeat (with a fresh listing)
+  for the next concern. Iterating concern-by-concern is what keeps each
+  commit small; staging all then committing once is the failure to avoid.
 - Untracked and binary files cannot be hunk-split: `git add <path>` them
   whole, into the commit whose concern they serve.
 - One hunk mixing two concerns: edit the file down to the first concern's
   state, commit, then restore the rest — or accept the coarser commit. Never
   commit a broken intermediate; co-dependent changes stay in one commit.
 - A change that belongs to an earlier commit: run `git_amend_check` (pass the
-  `sha`, default HEAD) to classify it.
-  - `amend` / `fixup` (local, unpushed): fold it in with `git commit --amend`
-    (for HEAD) or `git commit --fixup=<sha>` followed by
-    `git rebase -i --autosquash`. If that rebase stops on conflicts, map them
-    with `git_conflicts` before editing.
-  - `linked-fix` (already pushed or on another branch): do not rewrite it. Make
-    a new commit that links the origin (see <Provenance>), e.g.
+  `sha`, default HEAD) to classify it. A task branch's own commits may be
+  rewritten even once pushed; it refuses (and recommends `linked-fix`) on the
+  default branch, for a commit already on it or held by another remote branch
+  (layers above it in the same native stack excepted), and when GitHub
+  protects the pushed branch against force pushes. `git_commit` and
+  `git_rebase` apply the same rule themselves (`stoppedAt: rewrite`).
+  - `amend` (HEAD): stage the change and `git_commit` with `amend: true`
+    (omit `message` to keep HEAD's, or pass the new one to reword).
+  - `fixup` (an earlier commit of the branch): stage the change, `git_commit`
+    with `fixup: <sha>` (the `fixup! <subject>` message is generated), then
+    fold it in with `git_rebase` (`action: start`, `keepBase: true`). If it
+    stops at `conflicts`, resolve the files from its conflict map, `git add`
+    them and `git_rebase` with `action: continue` (or `abort` to restore);
+    `empty` means the commit has nothing left (`action: skip`), while
+    `rebase` with `inProgress` means fix what `output` names and continue.
+  - When the result says `needsForcePush`, the branch was already pushed: the
+    next push is `git push --force-with-lease origin HEAD:refs/heads/<branch>`
+    (gated `ask`). On a native
+    stack layer, fold with `keepBase: true` as well, then `gh stack rebase`
+    moves the layers above and `gh stack push` publishes them.
+  - `linked-fix` (refused): do not rewrite it. Make a new commit that links
+    the origin (see <Provenance>), e.g.
     `fix(scope): add missing num arg (follow-up to abc1234)`.
 
 </CommitGranularity>
@@ -167,7 +189,9 @@ Hop 1 — symptom → commit:
 
 - From a location or a string, `git_provenance` locates the commit for you:
   pass `file` + `lines` (blame) or `token` / `regex` (pickaxe — when a string
-  entered), and it continues straight into hops 2-3.
+  entered), and it continues straight into hops 2-3. Blame and pickaxe need
+  the local clone; for a commit of another repository pass its `sha` with
+  `repo` (`owner/name`), which reads it from GitHub.
 - From a behavior (most reliable, manual): `git bisect start <bad> <good>` →
   `git bisect run <test-cmd>` → culprit, then `git bisect reset`.
 - Caveat: blame reports the last modifier, not necessarily the introducer.
@@ -202,7 +226,9 @@ a deterministic reproduction; local/unpushed commits have no PR or Issue.
    staged / unstaged / untracked / conflicted files, an operation in progress,
    the branch's commits since its base), then read the content with `git diff`
    (unstaged) and `git diff --cached` (staged); resolve the convention per
-   <ConventionResolution>.
+   <ConventionResolution>. If an operation is in progress, finish it first:
+   map its conflicts with `git_conflicts`, and continue a rebase with
+   `git_rebase` (`action: continue`).
 2. Plan the split along concern and build boundaries (see <CommitGranularity>);
    resolve amend-vs-link first for changes that belong to earlier work. Unless
    the diff is a single trivial concern, this is a required gate: enumerate the
@@ -215,36 +241,46 @@ a deterministic reproduction; local/unpushed commits have no PR or Issue.
 4. Write the message per <ConventionResolution> and <MessageHygiene>, wrapped
    exactly as it should land. Add provenance links when committing a fix or
    follow-up.
-5. Commit with `git_commit` (`message` = the whole message). It lints that
-   text (built-in rules plus the repo's commitlint), scans the staged diff for
-   secrets (built-in rules plus gitleaks; values redacted), and only then runs
-   `git commit -F` on the same file, so the hook sees what was linted. Act on
-   `stoppedAt`:
+5. Commit with `git_commit` (`message` = the whole message; `amend` / `fixup`
+   per <CommitGranularity>). It lints that text (built-in rules plus the
+   repo's commitlint), scans the staged diff for secrets (built-in rules plus
+   gitleaks; values redacted), and only then runs `git commit -F` on the same
+   file, so the hook sees what was linted. Pass `allowTrailers: true` only
+   when the user asked for a trailer. Act on `stoppedAt`:
+   - `rewrite` — the amend or fixup is refused (see <CommitGranularity>):
+     make a linked-fix commit instead.
    - `lint` — fix the errors (warnings yield to the repo's own convention);
-     `commitlint-not-installed` means install the repo's dependencies first.
+     for `commitlint-not-installed`, install the repo's dependencies first.
    - `secrets` — judge each finding: a genuine secret stops the commit; report
      it and point at `keychain-secrets`. Only when every finding is a clear
      false positive (lockfile integrity hash, minified bundle, fixture data)
      retry with `acceptSecretFindings: true` and note it.
-   - `hook` — fix what the hook reports and commit again; never
-     `--no-verify`. `commit` means git itself refused (identity, signing,
-     unmerged paths): read `output`.
-   On success, `changedByHook` / `leftModified` name files a hook rewrote or
-   left modified: re-check them, and stage the leftovers into this or the next
-   commit deliberately. `hookFindings` are secrets in what a hook staged; a
-   genuine one means the commit must be undone before anything is pushed. Do not lint with `git_commit_lint` and then retype the
-   message into `git commit -m`: rewrapping it is how a passing lint still
-   fails the hook. Shell `git commit` remains for what the tool refuses
-   (`--amend`, `--fixup`).
+   - `hook` — a commit failed while hooks are installed: read `output`. Fix
+     what a hook reports and commit again; never `--no-verify`. The same
+     output can also be git's own refusal (identity, signing, unmerged
+     paths), which `commit` names when no hook is installed.
+   - `stopped` — the session stopped the call; nothing was committed.
+   On success, check `messageMatches` (false means the landed message differs
+   from the linted one: read it with `git log -1`). `changedByHook` /
+   `leftModified` name files a hook rewrote or left modified: re-check them,
+   and stage the leftovers into this or the next commit deliberately.
+   `hookFindings` are secrets in what a hook staged; a genuine one means the
+   commit must be undone before anything is pushed. `remaining` counts what is
+   still uncommitted, which tells whether the planned sequence is done.
+   Commit only through `git_commit`: a shell `git commit` asks for approval
+   and skips the lint and the secret scan, and retyping a linted message into
+   `git commit -m` is how a passing lint still fails the hook.
 6. Verify the commit passes the project's relevant quick checks — with partial
    staging, a passing worktree does not prove the commit passes on its own.
    For a sequence, `git_verify_commits` (`command` = the quick check, `setup`
-   = the dependency install) runs it at every commit in a scratch worktree
-   and names the first failing one; it asks for approval each call. Without
-   it, run the checks with the leftover changes stashed (`git stash push -u`
-   after committing, `git stash pop` when done); at minimum verify the final
-   commit of a sequence. Fix breakage immediately — `--amend` (or a fixup)
-   while still local.
+   = the dependency install, `cwd` = the package directory in a monorepo)
+   runs it at every commit in a scratch worktree and names the first failing
+   one; it asks for approval each call. It checks the commits after the
+   merge-base with the default branch, at most 30: on a stacked layer pass
+   `base` = the layer below. Without it, run the checks with the leftover
+   changes stashed (`git stash push -u` after committing, `git stash pop` when
+   done); at minimum verify the final commit of a sequence. Fix breakage
+   immediately — with an amend or a fixup while the rewrite rule allows it.
 7. Show the result: `git_commit` returns the sha, subject and stat (use
    `git log --oneline` for a multi-commit sequence).
 
@@ -281,7 +317,9 @@ checks alone, for a draft you are not committing yet.
 - Do not `git add -A` or `git add .` blindly; stage intentionally.
 - Do not stage or commit secret values or `.env` files.
 - Do not `--no-verify` to skip hooks; fix what the hook flags.
-- Do not `--amend` or force-push a commit that is already pushed or shared.
+- Do not rewrite a commit that `git_amend_check` refuses — on the default
+  branch, already on it, held by another remote branch, or on a protected
+  branch — and do not work around a `stoppedAt: rewrite` with shell git.
 - Do not mix unrelated changes or different concerns into one commit.
 - Do not use the build gate or a large diff as an excuse to lump independent
   concerns; scope means more commits, not a bigger one.
