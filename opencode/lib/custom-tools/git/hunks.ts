@@ -1,3 +1,4 @@
+import { resolve, sep } from "path"
 import { tool } from "../define"
 import { runGit, withTempFile } from "../exec"
 import { dedupe, scanDiff } from "./secrets"
@@ -60,11 +61,30 @@ function parseHunks(diff: string): Hunk[] {
   return hunks
 }
 
+const HUNK_HEADER = /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/
+
+/**
+ * Re-anchors a hunk's new-side start for a patch that leaves earlier hunks of
+ * the file out. git apply searches from that start and takes the nearest
+ * match, so a start still offset by unselected hunks can land an identical
+ * block elsewhere. A zero count means "the line before", as git writes it.
+ */
+function reanchor(body: string, shift: number): string {
+  return body.replace(HUNK_HEADER, (_, a: string, b: string | undefined, _c: string, d: string | undefined) => {
+    const oldStart = Number(a)
+    const oldCount = b === undefined ? 1 : Number(b)
+    const newCount = d === undefined ? 1 : Number(d)
+    const start = oldStart + shift + (oldCount === 0 ? 1 : 0) - (newCount === 0 ? 1 : 0)
+    return `@@ -${a}${b === undefined ? "" : `,${b}`} +${start}${d === undefined ? "" : `,${d}`} @@`
+  })
+}
+
 function buildPatch(selected: Hunk[]): string {
-  const byFile = new Map<string, { preamble: string; bodies: string[] }>()
+  const byFile = new Map<string, { preamble: string; bodies: string[]; shift: number }>()
   for (const h of selected) {
-    const cur = byFile.get(h.preamble) ?? { preamble: h.preamble, bodies: [] }
-    cur.bodies.push(h.body)
+    const cur = byFile.get(h.preamble) ?? { preamble: h.preamble, bodies: [], shift: 0 }
+    cur.bodies.push(h.binary ? h.body : reanchor(h.body, cur.shift))
+    cur.shift += h.added - h.removed
     byFile.set(h.preamble, cur)
   }
   const parts: string[] = []
@@ -74,13 +94,26 @@ function buildPatch(selected: Hunk[]): string {
   return parts.join("\n") + "\n"
 }
 
+/** Identifies one listing: ids are positions in exactly this diff. */
+const listToken = (diff: string) => new Bun.CryptoHasher("sha1").update(diff).digest("hex").slice(0, 12)
+
+function checkPaths(paths: string[], cwd: string): void {
+  const root = resolve(cwd)
+  for (const p of paths) {
+    const full = resolve(root, p)
+    if (full !== root && !full.startsWith(root + sep))
+      throw new Error(`${p} is outside this session's repository (${root}); run from the repository that holds it.`)
+  }
+}
+
 export const stage_hunks = tool({
   description:
-    "List and stage individual diff hunks deterministically — a reliable replacement for `git add -p`. Call with no selection (or list:true) to enumerate the unstaged hunks with stable ids; call with `hunks` (ids) and/or `include`/`exclude` (regex on hunk text) to stage exactly those via `git apply --cached`. Set denySecrets to refuse staging hunks that contain secrets. Operates on the index only (reversible); never commits. Returns the chosen hunks and the resulting staged stat.",
+    "List and stage individual diff hunks deterministically — a reliable replacement for `git add -p`. Call with no selection (or list:true) to enumerate the unstaged hunks with ids and a `token`; call with `hunks` (ids) and/or `include`/`exclude` (regex on hunk text) to stage exactly those via `git apply --cached`. Ids are positions in that listing: pass the same `paths` and its `token` so a changed diff is refused instead of staging the wrong hunks, and list again after every staging. Set denySecrets to refuse staging hunks that contain secrets. Operates on the index only (reversible); never commits. Returns the chosen hunks and the resulting staged stat.",
   args: {
     paths: tool.schema.array(tool.schema.string()).optional().describe("Limit to these files (default: all unstaged changes)."),
     list: tool.schema.boolean().optional().describe("List hunks without staging. Implied when no selection is given."),
     hunks: tool.schema.array(tool.schema.number()).optional().describe("Hunk ids to stage (from the list output)."),
+    token: tool.schema.string().optional().describe("The `token` of the listing the ids come from; refuses to stage if the diff changed since."),
     include: tool.schema.string().optional().describe("Stage only hunks whose text matches this regex."),
     exclude: tool.schema.string().optional().describe("Never stage hunks whose text matches this regex."),
     denySecrets: tool.schema.boolean().optional().describe("Scan selected hunks for secrets and refuse to stage if any are found."),
@@ -88,13 +121,19 @@ export const stage_hunks = tool({
   async execute(args, context) {
     const cwd = context.worktree
     const diffArgs = ["diff", "--no-color"]
-    if (args.paths?.length) diffArgs.push("--", ...args.paths)
-    const hunks = parseHunks(await runGit(diffArgs, cwd))
+    if (args.paths?.length) {
+      checkPaths(args.paths, cwd)
+      diffArgs.push("--", ...args.paths)
+    }
+    const diff = await runGit(diffArgs, cwd)
+    const hunks = parseHunks(diff)
+    const token = listToken(diff)
 
     if (args.list || (!args.hunks?.length && !args.include)) {
       return JSON.stringify(
         {
           mode: "list",
+          token,
           count: hunks.length,
           hunks: hunks.map((h) => ({
             id: h.id,
@@ -111,8 +150,12 @@ export const stage_hunks = tool({
       )
     }
 
+    if (args.token && args.token !== token)
+      throw new Error("The diff changed since that listing (different paths, or hunks staged since); list again and use the new ids.")
     let selected = hunks.filter((h) => !h.binary)
     if (args.hunks?.length) {
+      const unknown = args.hunks.filter((id) => !hunks.some((h) => h.id === id))
+      if (unknown.length) throw new Error(`Unknown hunk id(s): ${unknown.join(", ")}; this listing has ${hunks.length}. List again and use its ids.`)
       const set = new Set(args.hunks)
       selected = selected.filter((h) => set.has(h.id))
     }
