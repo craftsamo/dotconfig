@@ -44,6 +44,7 @@ describe("registry", () => {
       "git_stage_hunks",
       "git_state",
       "git_verify_commits",
+      "git_worktree",
       "github_project_create",
       "github_project_field_ensure",
       "github_project_issue_develop",
