@@ -39,6 +39,7 @@ describe("registry", () => {
       "git_conflicts",
       "git_history_digest",
       "git_provenance",
+      "git_rebase",
       "git_related_scan",
       "git_secret_scan",
       "git_stage_hunks",
@@ -594,6 +595,201 @@ describe("git_commit", () => {
     expect(out).toMatchObject({ committed: false, stoppedAt: "rewrite" })
     expect(out.refusals[0].rule).toBe("default-branch")
     expect(f.git("rev-parse", "HEAD").trim()).toBe(head)
+  })
+})
+
+describe("git_rebase", () => {
+  const rebase = (f: Fixture, args: Record<string, unknown>) => {
+    const res = runWithFakeGh(f, { module: "git", name: "rebase", args }, [])
+    if (!res.ok) throw new Error(res.error)
+    return res.out
+  }
+
+  test("replays the branch onto the freshly fetched default branch", () => {
+    const f = repo()
+    f.commit("base", { "a.txt": "a\n" })
+    const remote = withOrigin(f)
+    const before = f.commit("feat: add b", { "b.txt": "b\n" })
+    pushToMain(f, remote, { "m.txt": "m\n" })
+    const out = rebase(f, { action: "start" })
+    expect(out).toMatchObject({ rebased: true, branch: "feat", before, needsForcePush: false, folded: 0 })
+    expect(out.onto.ref).toBe("origin/main")
+    expect(out.commits.map((c: string) => c.slice(c.indexOf(" ") + 1))).toEqual(["feat: add b"])
+    expect(f.git("show", "HEAD:m.txt")).toBe("m\n")
+    expect(out.undo).toBe(`git reset --keep ${before}`)
+    expect(rebase(f, { action: "start" })).toMatchObject({ rebased: false, upToDate: true })
+  })
+
+  test("folds fixups in without moving the base, and flags the force push", async () => {
+    const f = repo()
+    const base = f.commit("base", { "a.txt": "a\n" })
+    withOrigin(f)
+    f.commit("feat: add b", { "b.txt": "b\n" })
+    f.commit("feat: add c", { "c.txt": "c\n" })
+    f.git("push", "-q", "-u", "origin", "feat")
+    f.write("b.txt", "b2\n")
+    f.git("add", "b.txt")
+    expect(await run(git.commit, f, { fixup: "HEAD~1" })).toMatchObject({ committed: true })
+    const out = rebase(f, { action: "start", keepBase: true })
+    expect(out).toMatchObject({ rebased: true, folded: 1, needsForcePush: true })
+    expect(out.onto.sha).toBe(base)
+    expect(f.git("log", "--format=%s", "main..HEAD").trim().split("\n")).toEqual(["feat: add c", "feat: add b"])
+    expect(f.git("show", "HEAD~1:b.txt")).toBe("b2\n")
+  })
+
+  test("stops on conflicts with their map, then continues", () => {
+    const f = repo()
+    f.commit("base", { "a.txt": "one\n" })
+    const remote = withOrigin(f)
+    f.commit("feat: a says two", { "a.txt": "two\n" })
+    pushToMain(f, remote, { "a.txt": "three\n" })
+    const stopped = rebase(f, { action: "start" })
+    expect(stopped).toMatchObject({ rebased: false, stoppedAt: "conflicts" })
+    expect(stopped.conflicts.files[0]).toMatchObject({ path: "a.txt", kind: "both modified" })
+    expect(stopped.stoppedOn).toContain("feat: a says two")
+
+    expect(rebase(f, { action: "continue" })).toMatchObject({ stoppedAt: "conflicts", unresolved: ["a.txt"] })
+    f.write("a.txt", "two and three\n")
+    f.git("add", "a.txt")
+    const done = rebase(f, { action: "continue" })
+    expect(done).toMatchObject({ rebased: true, branch: "feat" })
+    expect(f.git("show", "HEAD:a.txt")).toBe("two and three\n")
+  })
+
+  test("drops a commit whose change the base already has", () => {
+    const f = repo()
+    f.commit("base", { "a.txt": "one\n" })
+    const remote = withOrigin(f)
+    f.commit("feat: a says two", { "a.txt": "two\n" })
+    f.commit("feat: add b", { "b.txt": "b\n" })
+    // A superset of the commit's change: a different patch that leaves it empty.
+    pushToMain(f, remote, { "a.txt": "two\n", "z.txt": "z\n" })
+    const out = rebase(f, { action: "start" })
+    expect(out).toMatchObject({ rebased: true })
+    expect(out.commits.map((c: string) => c.slice(c.indexOf(" ") + 1))).toEqual(["feat: add b"])
+  })
+
+  test("does not call a stop without conflicts empty unless git says so", () => {
+    const f = repo()
+    f.commit("base", { "a.txt": "a\n" })
+    const remote = withOrigin(f)
+    f.commit("feat: add u", { "u.txt": "mine\n" })
+    f.git("rm", "-q", "u.txt")
+    f.git("commit", "-q", "-m", "feat: drop u")
+    pushToMain(f, remote, { "m.txt": "m\n" })
+    // Untracked, so the clean-tree check lets it through; replaying "add u" trips on it.
+    f.write("u.txt", "in the way\n")
+    const out = rebase(f, { action: "start" })
+    expect(out).toMatchObject({ rebased: false, stoppedAt: "rebase", inProgress: true })
+    expect(out.next).toContain("continue")
+    expect(rebase(f, { action: "abort" })).toMatchObject({ aborted: true })
+  })
+
+  test("refuses to replay commits another branch holds, merged-in ones too", () => {
+    const f = repo()
+    f.commit("base", { "a.txt": "a\n" })
+    const remote = withOrigin(f)
+    f.git("checkout", "-q", "-b", "feat-x")
+    f.commit("feat: x", { "x.txt": "x\n" })
+    f.git("push", "-q", "origin", "feat-x")
+    f.git("checkout", "-q", "feat")
+    f.commit("feat: mine", { "m.txt": "m\n" })
+    f.git("merge", "-q", "--no-edit", "--no-ff", "feat-x")
+    pushToMain(f, remote, { "z.txt": "z\n" })
+    const out = rebase(f, { action: "start" })
+    expect(out).toMatchObject({ rebased: false, stoppedAt: "rewrite" })
+    expect(out.refusals[0].message).toContain("origin/feat-x")
+  })
+
+  test("folds fixups on a stack layer, sparing the layers above", async () => {
+    const f = repo()
+    f.commit("base", { "a.txt": "a\n" })
+    withOrigin(f)
+    f.commit("feat: layer one", { "b.txt": "b\n" })
+    f.git("push", "-q", "origin", "feat", "feat:feat-2")
+    f.write("b.txt", "b2\n")
+    f.git("add", "b.txt")
+    expect(await run(git.commit, f, { fixup: "HEAD" })).toMatchObject({ committed: false, stoppedAt: "rewrite" })
+    const stack = [{ re: "^stack view", out: JSON.stringify({ currentBranch: "feat", trunk: "main", branches: [{ name: "feat" }, { name: "feat-2" }] }) }]
+    const fixup = runWithFakeGh(f, { module: "git", name: "commit", args: { fixup: "HEAD" } }, stack)
+    expect(fixup.out).toMatchObject({ committed: true })
+    const out = runWithFakeGh(f, { module: "git", name: "rebase", args: { action: "start", keepBase: true } }, stack)
+    expect(out.out).toMatchObject({ rebased: true, folded: 1, needsForcePush: true })
+    expect(out.out.warnings.join(" ")).toContain("gh stack rebase")
+  })
+
+  test("folds fixups on an upper stack layer against the layer below", async () => {
+    const f = repo()
+    f.commit("base", { "a.txt": "a\n" })
+    withOrigin(f)
+    f.commit("feat: layer one", { "b.txt": "b\n" })
+    f.git("push", "-q", "-u", "origin", "feat")
+    f.git("checkout", "-q", "-b", "feat-2")
+    f.commit("feat: layer two", { "c.txt": "c\n" })
+    f.git("push", "-q", "-u", "origin", "feat-2")
+    f.write("c.txt", "c2\n")
+    f.git("add", "c.txt")
+    const stack = [
+      { re: "^stack view", out: JSON.stringify({ currentBranch: "feat-2", trunk: "main", branches: [{ name: "feat" }, { name: "feat-2" }] }) },
+    ]
+    expect(runWithFakeGh(f, { module: "git", name: "commit", args: { fixup: "HEAD" } }, stack).out).toMatchObject({ committed: true })
+    const out = runWithFakeGh(f, { module: "git", name: "rebase", args: { action: "start", keepBase: true } }, stack)
+    expect(out.out).toMatchObject({ rebased: true, folded: 1, needsForcePush: true })
+    expect(out.out.onto.ref).toBe("feat")
+    expect(f.git("log", "--format=%s", "feat..HEAD").trim()).toBe("feat: layer two")
+  })
+
+  test("lets a branch that merged main in fix up its own commit", async () => {
+    const f = repo()
+    f.commit("base", { "a.txt": "a\n" })
+    const remote = withOrigin(f)
+    const x = f.commit("feat: x", { "x.txt": "x\n" })
+    pushToMain(f, remote, { "m.txt": "m\n" })
+    f.git("fetch", "-q", "origin")
+    f.git("merge", "-q", "--no-edit", "origin/main")
+    f.write("x.txt", "x2\n")
+    f.git("add", "x.txt")
+    expect(await run(git.commit, f, { fixup: x })).toMatchObject({ committed: true, fixupOf: x })
+  })
+
+  test("rejects an option where a branch is expected", () => {
+    const f = repo()
+    f.commit("base")
+    withOrigin(f)
+    f.commit("one")
+    expect(() => rebase(f, { action: "start", onto: "--upload-pack=touch /tmp/x" })).toThrow(/not an option/)
+  })
+
+  test("aborts back to where it started", () => {
+    const f = repo()
+    f.commit("base", { "a.txt": "one\n" })
+    const remote = withOrigin(f)
+    const head = f.commit("feat: a says two", { "a.txt": "two\n" })
+    pushToMain(f, remote, { "a.txt": "three\n" })
+    expect(rebase(f, { action: "start" })).toMatchObject({ stoppedAt: "conflicts" })
+    expect(rebase(f, { action: "abort" })).toMatchObject({ aborted: true, branch: "feat", head })
+  })
+
+  test("refuses uncommitted changes, a stack branch and the default branch", () => {
+    const f = repo()
+    f.commit("base", { "a.txt": "a\n" })
+    const remote = withOrigin(f)
+    f.commit("feat: add b", { "b.txt": "b\n" })
+    f.write("a.txt", "dirty\n")
+    expect(() => rebase(f, { action: "start" })).toThrow(/uncommitted changes/)
+    f.git("checkout", "-q", "--", "a.txt")
+
+    const stacked = runWithFakeGh(f, { module: "git", name: "rebase", args: { action: "start" } }, [
+      { re: "^stack view", out: JSON.stringify({ currentBranch: "feat", trunk: "main", branches: [{ name: "feat" }, { name: "feat-2" }] }) },
+    ])
+    expect(stacked.error).toContain("gh stack rebase")
+
+    f.git("checkout", "-q", "main")
+    f.commit("local on main", { "c.txt": "c\n" })
+    pushToMain(f, remote, { "m.txt": "m\n" })
+    const main = rebase(f, { action: "start" })
+    expect(main).toMatchObject({ rebased: false, stoppedAt: "rewrite" })
+    expect(main.refusals[0].rule).toBe("default-branch")
   })
 })
 

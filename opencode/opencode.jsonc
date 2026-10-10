@@ -124,6 +124,11 @@
           "effect": "deny"
         },
         {
+          "action": "git_rebase",
+          "resource": "*",
+          "effect": "deny"
+        },
+        {
           "action": "subagent",
           "resource": "*",
           "effect": "deny"
@@ -174,6 +179,11 @@
         },
         {
           "action": "git_worktree",
+          "resource": "*",
+          "effect": "deny"
+        },
+        {
+          "action": "git_rebase",
           "resource": "*",
           "effect": "deny"
         },
@@ -1625,12 +1635,20 @@
       "effect": "allow"
     },
     // Custom git workflow tools (lib/custom-tools/git/) — read/index only,
-    // except git_commit (staged changes only; no amend, no --no-verify),
-    // git_worktree (never discards changes; deletes landed branches only) and
-    // git_verify_commits (runs a given command: ask). No push/merge/rewrite.
-    // Plan, Explore, Review and Debug deny git_commit and git_worktree themselves.
+    // except git_commit (staged changes only; no --no-verify), git_rebase
+    // (current task branch, no editor), git_worktree (never discards changes;
+    // deletes landed branches only) and git_verify_commits (runs a given
+    // command: ask). git_commit's amend/fixup and git_rebase rewrite only a
+    // task branch's own commits: never the default branch, commits on it or on
+    // another remote branch, or a branch GitHub protects (git/rewrite.ts).
+    // No push/merge. Plan, Explore, Review and Debug deny the writing ones.
     {
       "action": "git_commit",
+      "resource": "*",
+      "effect": "allow"
+    },
+    {
+      "action": "git_rebase",
       "resource": "*",
       "effect": "allow"
     },
