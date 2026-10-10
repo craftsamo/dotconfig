@@ -227,10 +227,12 @@ a deterministic reproduction; local/unpushed commits have no PR or Issue.
      false positive (lockfile integrity hash, minified bundle, fixture data)
      retry with `acceptSecretFindings: true` and note it.
    - `hook` — fix what the hook reports and commit again; never
-     `--no-verify`.
+     `--no-verify`. `commit` means git itself refused (identity, signing,
+     unmerged paths): read `output`.
    On success, `changedByHook` / `leftModified` name files a hook rewrote or
    left modified: re-check them, and stage the leftovers into this or the next
-   commit deliberately. Do not lint with `git_commit_lint` and then retype the
+   commit deliberately. `hookFindings` are secrets in what a hook staged; a
+   genuine one means the commit must be undone before anything is pushed. Do not lint with `git_commit_lint` and then retype the
    message into `git commit -m`: rewrapping it is how a passing lint still
    fails the hook. Shell `git commit` remains for what the tool refuses
    (`--amend`, `--fixup`).
