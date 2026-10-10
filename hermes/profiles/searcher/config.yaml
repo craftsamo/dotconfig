@@ -38,6 +38,9 @@ agent:
     missing body. Reuse only full bodies present in current context, not a past
     load, summary or root preload. The kernel owns released-unit discipline,
     the runtime, retrieval floors and routing; modes and stages own procedures.
+    When the brief names a technic or its purpose matches a row of the kernel's
+    references/capabilities.md, load that technic too: it adds a purpose's brief
+    fields, sources and checks to its mode and never replaces the mode.
     If unchanged is returned while the earlier body is unavailable, recover with
     read_file on the canonical document under its own skill_dir, following
     next_offset for truncation. If recovery fails, stop the affected search and

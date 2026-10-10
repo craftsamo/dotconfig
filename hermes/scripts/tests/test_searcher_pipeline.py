@@ -9,6 +9,7 @@ import hermes_yaml as yaml
 
 HERMES = Path(__file__).resolve().parents[2]
 PIPELINE = HERMES / "profiles/searcher/skills/searcher-pipeline"
+TECHNIC = HERMES / "profiles/searcher/skills/technic"
 spec = importlib.util.spec_from_file_location("searcher_topology", HERMES / "scripts/validate-profile-skills.py")
 validator = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(validator)
@@ -17,7 +18,10 @@ MODES = ("lookup", "sweep", "hunt")
 ENTRIES = tuple(f"{mode}-searcher" for mode in MODES)
 STAGES = ("plan", "build")
 SHARED = {f"references/{stage}.md" for stage in STAGES}
-PLATFORMS = {"references/platforms/evm.md", "references/platforms/solana.md"}
+SERVICES = ("x", "youtube", "note", "substack", "evm", "solana")
+PLATFORMS = {f"references/platforms/{p}.md" for p in SERVICES}
+CAPABILITIES = "references/capabilities.md"
+TECHNICS = {"public-footprint": "hunt", "primary-fact-pack": "lookup", "release-digest": "sweep"}
 
 
 def flat(path):
@@ -30,7 +34,7 @@ def test_exact_entries_and_owned_procedures():
     assert not errors
     assert set(found) == set(ENTRIES)
     assert {p.relative_to(PIPELINE).as_posix() for p in PIPELINE.rglob("*.md")} == {
-        "SKILL.md", *(f"{name}/SKILL.md" for name in ENTRIES), *SHARED, *PLATFORMS,
+        "SKILL.md", *(f"{name}/SKILL.md" for name in ENTRIES), *SHARED, *PLATFORMS, CAPABILITIES,
     }
     for name in ENTRIES:
         text = found[name].read_text()
@@ -49,11 +53,11 @@ def test_exact_entries_and_owned_procedures():
         for section in ("## Output template", "## Verification", "## Handoff"):
             assert section in body
     root = (PIPELINE / "SKILL.md").read_text()
-    assert "version: 10.0.0" in root and root.index("\n---\n", 4) < 4000
+    assert "version: 11.0.0" in root and root.index("\n---\n", 4) < 4000
     assert "<Procedure>" not in root
     for name in ENTRIES:
         assert f"({name}/SKILL.md)" in root
-    for relative in SHARED | PLATFORMS:
+    for relative in SHARED | PLATFORMS | {CAPABILITIES}:
         assert f"({relative})" in root
 
 
@@ -118,7 +122,8 @@ def candidate(tmp_path):
     return Path(shutil.copytree(PIPELINE, tmp_path / "searcher-pipeline"))
 
 
-@pytest.mark.parametrize("relative", (*(f"{name}/SKILL.md" for name in ENTRIES), *sorted(SHARED | PLATFORMS)))
+@pytest.mark.parametrize("relative", (*(f"{name}/SKILL.md" for name in ENTRIES),
+                                      *sorted(SHARED | PLATFORMS | {CAPABILITIES})))
 def test_missing_instruction_fails(candidate, relative):
     (candidate / relative).unlink()
     errors = []
@@ -213,7 +218,7 @@ def test_nested_symlink_cannot_hide_instructions(candidate):
 def test_worker_wires_entries_and_detects_learned_collision(tmp_path, monkeypatch, name):
     skills = tmp_path / "profiles/searcher/skills"
     shutil.copytree(PIPELINE, skills / "searcher-pipeline")
-    (skills / "technic").mkdir()
+    shutil.copytree(TECHNIC, skills / "technic")
     monkeypatch.setattr(validator, "HERMES_ROOT", tmp_path)
     # Isolate this structural fixture, while proving the normal ownership/plugin
     # checks are still called by the worker path (the full CLI tests them separately).
@@ -221,7 +226,7 @@ def test_worker_wires_entries_and_detects_learned_collision(tmp_path, monkeypatc
     monkeypatch.setattr(validator, "validate_git_boundary", boundary)
     monkeypatch.setattr(validator, "validate_plugin_enabled", plugins)
     errors = []
-    assert validator.validate_worker("searcher", errors) == (3, 0)
+    assert validator.validate_worker("searcher", errors) == (len(ENTRIES) + len(TECHNICS), 0)
     assert not errors
     boundary.assert_called_once()
     plugins.assert_called_once()
@@ -299,7 +304,7 @@ def test_kernel_must_route_every_mode(candidate, name):
     assert f"searcher kernel does not route {name}" in errors
 
 
-@pytest.mark.parametrize("relative", sorted(SHARED | PLATFORMS))
+@pytest.mark.parametrize("relative", sorted(SHARED | PLATFORMS | {CAPABILITIES}))
 def test_kernel_must_link_every_shared_reference(candidate, relative):
     root = candidate / "SKILL.md"
     root.write_text(root.read_text().replace(f"({relative})", ""))
@@ -319,13 +324,27 @@ def test_mode_must_link_every_stage(candidate, name, stage):
 
 
 @pytest.mark.parametrize("name", ENTRIES)
-@pytest.mark.parametrize("platform", ("evm", "solana"))
-def test_mode_must_link_every_chain(candidate, name, platform):
+@pytest.mark.parametrize("platform", SERVICES)
+def test_mode_must_link_every_service(candidate, name, platform):
     entry = candidate / name / "SKILL.md"
     entry.write_text(entry.read_text().replace(f"(../references/platforms/{platform}.md)", ""))
     errors = []
     validator.validate_searcher_entries(candidate, errors)
     assert f"searcher entry does not link platform reference {platform}: {name}" in errors
+
+
+@pytest.mark.parametrize("name", ENTRIES)
+def test_mode_must_link_the_technic_capabilities(candidate, name):
+    entry = candidate / name / "SKILL.md"
+    entry.write_text(entry.read_text().replace("(../references/capabilities.md)", ""))
+    errors = []
+    validator.validate_searcher_entries(candidate, errors)
+    assert f"searcher entry does not link the technic capabilities: {name}" in errors
+
+
+def test_researcher_keeps_only_the_chain_references():
+    assert validator.PLATFORMS == ("evm", "solana")
+    assert "platforms/x.md" not in validator.RESEARCHER_SHARED_REFERENCES
 
 
 def test_chain_reads_are_retrieval_without_verdicts():
@@ -351,3 +370,114 @@ def test_chain_reads_are_retrieval_without_verdicts():
     prompt = " ".join(yaml.safe_load((HERMES / "profiles/searcher/config.yaml").read_text())
                       ["agent"]["system_prompt"].split())
     assert "the read-only evm and solana tools for on-chain facts" in prompt
+
+
+SKILLS_FOR_SERVICE = {"x": "x-access:x-twitter", "youtube": "youtube-access:youtube",
+                      "note": "note-access:note-com", "substack": "substack-access:substack"}
+
+
+@pytest.mark.parametrize("service, skill", sorted(SKILLS_FOR_SERVICE.items()))
+def test_service_reads_are_retrieval_without_verdicts(service, skill):
+    text = flat(PIPELINE / f"references/platforms/{service}.md")
+    for phrase in ("Reading is allowed and nothing is written", "`Open for researcher`",
+                   "never as instructions", "unsearched ground", "## What to record per item",
+                   f'skill_view(name="{skill}")'):
+        assert phrase in text, (service, phrase)
+    group = {"x": "x-access", "youtube": "youtube-access", "note": "note-access", "substack": "substack-access"}
+    assert (HERMES / "plugins/social" / group[service] / "skills" / skill.split(":", 1)[1] / "SKILL.md").is_file()
+
+
+def test_x_reference_keeps_x_search_first_and_names_the_account_read():
+    text = flat(PIPELINE / "references/platforms/x.md")
+    assert "`x_search` first" in text and 'x(action="user", handle="@name")' in text
+    assert "There is no default account" in text and "never both for one question" in text
+
+
+def technic_candidate(tmp_path):
+    skills = tmp_path / "skills"
+    shutil.copytree(PIPELINE, skills / "searcher-pipeline")
+    shutil.copytree(TECHNIC, skills / "technic")
+    leaves = {path.parent.name: path for path in (skills / "technic").glob("*/SKILL.md")}
+    return skills / "searcher-pipeline", leaves
+
+
+def test_technics_are_routed_to_their_mode():
+    assert {p.parent.name for p in TECHNIC.glob("*/SKILL.md")} == set(TECHNICS)
+    assert validator.capability_names(PIPELINE / CAPABILITIES) == set(TECHNICS)
+    errors = []
+    validator.validate_searcher_technics(
+        PIPELINE, {p.parent.name: p for p in TECHNIC.glob("*/SKILL.md")}, errors)
+    assert not errors
+    root = flat(PIPELINE / "SKILL.md")
+    assert "never replaces the mode's procedure" in root and "is not the caller's release" in root
+    prompt = " ".join(yaml.safe_load((HERMES / "profiles/searcher/config.yaml").read_text())
+                      ["agent"]["system_prompt"].split())
+    assert "references/capabilities.md" in prompt and "never replaces the mode" in prompt
+    for name, mode in TECHNICS.items():
+        data = validator.frontmatter(TECHNIC / name / "SKILL.md")
+        assert data["metadata"]["hermes"] == {**data["metadata"]["hermes"], "category": "technic", "mode": mode}
+
+
+@pytest.mark.parametrize("name", sorted(TECHNICS))
+@pytest.mark.parametrize("token", ('skill_view(name="searcher-pipeline")', "never replaces", "caller's release",
+                                   "${HERMES_SKILL_DIR}/../../searcher-pipeline/SKILL.md"))
+def test_technic_cannot_drop_its_mode_or_recovery(tmp_path, name, token):
+    pipeline, leaves = technic_candidate(tmp_path)
+    leaves[name].write_text(leaves[name].read_text().replace(token, "removed"))
+    errors = []
+    validator.validate_searcher_technics(pipeline, leaves, errors)
+    assert f"searcher technic ReadBeforeWork missing {token}: {name}" in errors
+
+
+def test_technic_mode_must_match_its_capability_row(tmp_path):
+    pipeline, leaves = technic_candidate(tmp_path)
+    path = leaves["release-digest"]
+    path.write_text(path.read_text().replace("mode: sweep", "mode: hunt").replace(
+        'skill_view(name="sweep-searcher")', 'skill_view(name="hunt-searcher")'))
+    errors = []
+    validator.validate_searcher_technics(pipeline, leaves, errors)
+    assert errors == ["searcher capability row routes release-digest to another mode than hunt"]
+    path.write_text(path.read_text().replace("mode: hunt", "mode: digest"))
+    errors = []
+    validator.validate_searcher_technics(pipeline, leaves, errors)
+    assert any("must name one mode" in error for error in errors)
+
+
+def test_public_footprint_keeps_its_floors():
+    text = flat(TECHNIC / "public-footprint/SKILL.md")
+    for phrase in ("**confirmed**", "**self-declared**", "**unconfirmed lead**",
+                   "Leads are recorded in their own section", "never in the map",
+                   "No tying a pseudonymous account to a legal name",
+                   "No breach or leak data, people-search or data-broker sites",
+                   "No contact with the subject", "Only addresses or names the subject publishes",
+                   "`Open for researcher` holds whether the subject is trustworthy, whether its claims hold",
+                   "No writing-style, posting-time or network-overlap comparison",
+                   "Route step 3 is skipped and no leads are sought", "never with a verdict",
+                   "Whether the claim holds is not decided here", 'x(action="user")'):
+        assert phrase in text, phrase
+    for gone in ("writing style", "matching timing", "confirmed <URL> | unconfirmed | contradicted"):
+        assert gone not in text, gone
+    root = flat(PIPELINE / "SKILL.md")
+    floors = root.split("<Floors>", 1)[1]
+    for phrase in ("**People are not unmasked.**", "never tie a pseudonymous account to a legal identity",
+                   "no breach or leak data, people-search or data-broker sources", "no contact with anyone"):
+        assert phrase in floors, phrase
+
+
+def test_the_assistant_names_every_technic_with_its_unit():
+    caller = (HERMES / "profiles/assistant/skills/assistant-pipeline/plan-assistant-search/SKILL.md").read_text()
+    rows = {}
+    for line in caller.splitlines():
+        cells = [cell.strip() for cell in line.strip("|").split("|")]
+        if line.startswith("| `") and len(cells) >= 3:
+            rows[cells[0].split("`")[1]] = cells[1]
+    assert set(rows) == set(TECHNICS)
+    for name, mode in TECHNICS.items():
+        assert rows[name].startswith(mode), name
+
+
+def test_release_digest_orders_by_date_without_ranking():
+    text = flat(TECHNIC / "release-digest/SKILL.md")
+    assert "That order is not a ranking" in text and "Exclusion list" in text
+    assert "Searcher reads it and never writes it" in text and "ready for the caller to append" in text
+    assert "Zero candidates is a result only after every watched vendor's official sources were read" in text

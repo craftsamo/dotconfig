@@ -22,7 +22,9 @@ skill lives under its profile's `skills/`.
   capability router, auto-loaded by its operating contract). Entry and leaf
   shapes per profile are in the per-profile docs ([`../profiles/`](../profiles/)).
   Researcher and Searcher share `references/{plan,build}.md` stages across
-  their entries and have no technics.
+  their entries. Researcher has no technics; Searcher's technics are purpose
+  recipes layered on one mode, routed by its `references/capabilities.md`
+  ([`../profiles/research.md`](../profiles/research.md) "Searcher technics").
 - **Directly selectable leaf technics** sit exactly one directory below
   `skills/technic/` (flat canonical leaves) and are pinned by name. A technic's
   references are modes only when tools, spend class and QA stay the same;

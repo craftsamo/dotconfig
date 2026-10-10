@@ -45,7 +45,9 @@ fields and same-role units; the Client agrees within granted discretion and
 escalates material human-only or out-of-scope decisions. No detailed prebuilt
 spec is required to start Plan. An explicitly authorized settled brief can go
 directly to Build without unnecessary reapproval; fields or transport kind alone
-are not authorization. One session per question cluster retains the source trail.
+are not authorization. A recurring purpose names its Searcher technic in the
+brief (`../plan-assistant-search/SKILL.md` "Technics"). One session per
+question cluster retains the source trail.
 
 Use `specialist_call(target="searcher", kind="work", message=...)` and retain
 `conversation_id` for proposal, agreement and feedback messages;

@@ -218,9 +218,11 @@ Three per-profile layers, kept separate:
     media production is the hands'. It reads the three hands pipelines for their
     forms; the commissioning references live in `execute-assistant-creative`
     ([`broker.md`](./broker.md)).
-  - searcher and creator have no technics. creator reads the hands pipelines
-    read-only for forms and option references, plus curated `media-craft-*` and
-    HyperFrames knowledge skills for vocabulary; no production engines.
+  - creator has no technics. It reads the hands pipelines read-only for forms
+    and option references, plus curated `media-craft-*` and HyperFrames
+    knowledge skills for vocabulary; no production engines.
+  - searcher's technics only layer a recurring purpose on one of its modes
+    ([research.md](./profiles/research.md) "Searcher technics").
   - writer → external skills only through the curated
     `profiles/writer/external-skills/` symlink dir (`japanese-writing`,
     single-sourced with the shared `agents/curated/` store) and upstream

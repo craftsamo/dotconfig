@@ -21,9 +21,13 @@ reference in current context, not a past load or summary. Direct entry requires
 `skill_view(name="searcher-pipeline")` before any stage. Load
 `skill_view(name="sweep-searcher")` and the current stage with
 `skill_view(name="searcher-pipeline", file_path="references/<stage>.md")`:
-[Plan](../references/plan.md) or [Build](../references/build.md). On-chain retrieval also requires the chain's
-shared reference: [EVM](../references/platforms/evm.md) or
-[Solana](../references/platforms/solana.md).
+[Plan](../references/plan.md) or [Build](../references/build.md). Retrieval on a service also requires its
+shared reference: [X](../references/platforms/x.md),
+[YouTube](../references/platforms/youtube.md), [note](../references/platforms/note.md),
+[Substack](../references/platforms/substack.md), [EVM](../references/platforms/evm.md) or
+[Solana](../references/platforms/solana.md). A technic the brief names or
+[Capabilities](../references/capabilities.md) matches is loaded too with
+`skill_view(name="<technic>")`; it adds to this mode and never replaces it.
 If unchanged is returned while the earlier body is unavailable, or a body is
 missing, use read_file on canonical
 `${HERMES_SKILL_DIR}/../SKILL.md`, `${HERMES_SKILL_DIR}/SKILL.md` and
@@ -68,7 +72,9 @@ truncation, personalization, estimates and engine-specific caveats. No risk verd
    what makes the coverage claim honest later.
 2. **Enumerate cell by cell.** Official / primary sources first, then general
    `web_search`, `x_search` for current/community signal, forums for lived
-   experience. Rotate phrasings inside a cell before declaring it thin.
+   experience. A cell on a service (YouTube, note, Substack, X) is read
+   through that service's tool and reference, not only through web snippets.
+   Rotate phrasings inside a cell before declaring it thin.
 3. **Capture per item** — name/title, URL, source, date, one-line gist, plus
    whatever per-item fields the brief requires (the evidence a
    downstream researcher needs to judge each candidate).
