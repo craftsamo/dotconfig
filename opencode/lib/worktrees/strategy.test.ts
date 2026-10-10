@@ -86,6 +86,7 @@ describe("worktree strategy", () => {
     const merged = await createWorktree({ sourceDirectory: f.dir, branch: "done", root })
     expect(await removeWorktree({ directory: merged.directory, force: false })).toMatchObject({ branch: "done", branchDeleted: true })
     expect(existsSync(merged.directory)).toBe(false)
+    expect(existsSync(join(root, "dotconfig")), "the emptied repository folder goes too").toBe(false)
 
     const open = await createWorktree({ sourceDirectory: f.dir, branch: "open", root })
     Bun.spawnSync(["git", "-C", open.directory, "commit", "-q", "--allow-empty", "-m", "wip"])

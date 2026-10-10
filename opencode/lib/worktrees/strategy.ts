@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, realpathSync } from "fs"
+import { existsSync, mkdirSync, realpathSync, rmdirSync } from "fs"
 import { homedir } from "os"
 import { basename, dirname, join, sep } from "path"
 import { exec } from "../custom-tools/exec"
@@ -149,6 +149,12 @@ export async function removeWorktree(input: { directory: string; force: boolean 
     const error = new Error(dirty ? `${message}. Removing it with force discards those changes.` : message)
     if (dirty) Object.assign(error, { forceRequired: true })
     throw error
+  }
+  // Drop the repository's folder under the root once its last worktree is gone.
+  try {
+    rmdirSync(dirname(input.directory))
+  } catch {
+    // not empty
   }
   if (!branch) return { directory: input.directory, branch, branchDeleted: false, reason: "detached HEAD" }
   const def = (await defaultRef(main))?.replace(/^origin\//, "")
