@@ -14,6 +14,7 @@
 
 export { amend_check } from "./amend"
 export { commit } from "./commit"
+export { conflicts } from "./conflicts"
 export { stage_hunks } from "./hunks"
 export { history_digest } from "./history"
 export { commit_lint } from "./lint"
