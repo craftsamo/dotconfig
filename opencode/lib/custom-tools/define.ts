@@ -26,6 +26,12 @@ export type ToolContext = {
   signal?: AbortSignal
   /** The calling session's metadata (V2 only; Hermes keeps its binding under `hermes`). */
   sessionMetadata?(): Promise<Record<string, unknown> | undefined>
+  /** OpenCode's worktree operations for the calling session's project (V2 only). */
+  worktrees?: {
+    create(input: { name?: string; branch?: string }): Promise<{ directory: string }>
+    remove(input: { directory: string; force: boolean }): Promise<void>
+    list(): Promise<{ directory: string; strategy?: string }[]>
+  }
 }
 
 export type ToolSpec<Args extends z.ZodRawShape = z.ZodRawShape> = {

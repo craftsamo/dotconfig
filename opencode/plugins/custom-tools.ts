@@ -72,7 +72,12 @@ async function server() {
 type V2Context = {
   location: { directory: string }
   session: {
-    get(input: { sessionID: string }): Promise<{ location?: { directory?: string }; metadata?: Record<string, unknown> }>
+    get(input: { sessionID: string }): Promise<{ projectID?: string; location?: { directory?: string }; metadata?: Record<string, unknown> }>
+  }
+  worktree: {
+    create(input: { projectID: string; name?: string; branch?: string }): Promise<{ directory: string }>
+    remove(input: { projectID: string; directory: string; force: boolean }): Promise<unknown>
+    list(input: { projectID: string }): Promise<{ directory: string; strategy?: string }[]>
   }
   integration: {
     connection: {
@@ -104,6 +109,23 @@ async function setup(ctx: V2Context) {
     return gitToplevel(directory)
   }
 
+  // Worktree operations bound to the calling session's project, so the tool
+  // goes through the same strategy and inventory as the TUI.
+  const worktreesFor = (sessionID: string): ToolContext["worktrees"] => {
+    const projectID = async () => {
+      const id = (await ctx.session.get({ sessionID })).projectID
+      if (!id) throw new Error(`Session ${sessionID} has no project.`)
+      return id
+    }
+    return {
+      create: async (input) => ctx.worktree.create({ projectID: await projectID(), ...input }),
+      remove: async (input) => {
+        await ctx.worktree.remove({ projectID: await projectID(), ...input })
+      },
+      list: async () => ctx.worktree.list({ projectID: await projectID() }),
+    }
+  }
+
   const oauthAccess = async (integrationID: string): Promise<OAuthAccess | undefined> => {
     const connection = await ctx.integration.connection.active(integrationID)
     if (!connection) return undefined
@@ -125,6 +147,7 @@ async function setup(ctx: V2Context) {
             oauthAccess,
             sessionID: context.sessionID,
             signal: context.signal,
+            worktrees: worktreesFor(context.sessionID),
             sessionMetadata: async () => {
               try {
                 return (await ctx.session.get({ sessionID: context.sessionID })).metadata
