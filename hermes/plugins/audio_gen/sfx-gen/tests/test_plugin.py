@@ -8,8 +8,11 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-import fal_client
 import pytest
+
+fal_client = pytest.importorskip(
+    "fal_client", reason="needs fal_client, absent from the Hermes test environment"
+)
 
 
 PLUGIN = Path(__file__).resolve().parents[1] / "__init__.py"

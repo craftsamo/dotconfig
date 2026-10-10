@@ -1,8 +1,11 @@
-import { afterAll, beforeAll, describe, expect, test } from "bun:test"
+import { afterAll, beforeAll, describe as suite, expect, test } from "bun:test"
 import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "fs"
 import { tmpdir } from "os"
 import { join } from "path"
-import { check, checkUrl, findNode, resolveBaseline, resolveOut, scratchRoot } from "./web_ui"
+import { load, skip } from "./testing/deps"
+
+const describe = suite.skipIf(skip)
+const { check, checkUrl, findNode, resolveBaseline, resolveOut, scratchRoot } = await load(() => import("./web_ui"))
 
 let root: string
 let worktree: string

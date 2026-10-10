@@ -1,6 +1,10 @@
-import { afterEach, describe, expect, test } from "bun:test"
-import { normalizeCheck, overall } from "./gh"
-import { fixture, runWithFakeGh, type Fixture, type GhRule } from "./testing/repo"
+import { afterEach, describe as suite, expect, test } from "bun:test"
+import { load, skip } from "./testing/deps"
+import type { Fixture, GhRule } from "./testing/repo"
+
+const describe = suite.skipIf(skip)
+const { normalizeCheck, overall } = await load(() => import("./gh"))
+const { fixture, runWithFakeGh } = await load(() => import("./testing/repo"))
 
 const fixtures: Fixture[] = []
 afterEach(() => {

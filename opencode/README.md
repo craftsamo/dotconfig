@@ -59,7 +59,9 @@ limits. `web_ui_check` (`lib/custom-tools/web_ui.ts`) runs
 is not reliable inside the Bun plugin host; `install.sh --deps` also installs
 Playwright's headless shell for it. Tests: `bun test lib/custom-tools
 lib/worktrees lib/permissions` and `node --test
-lib/web-ui-check/web-ui-check.test.mjs`.
+lib/web-ui-check/web-ui-check.test.mjs`. `node_modules` is gitignored, so in
+a task worktree run `../worktree-setup.sh` first (it links the live checkout's
+copy); without it the suites that need zod, axe-core or Playwright skip.
 
 All global instructions live in `AGENTS.md`. Do not reintroduce an
 `instructions` array: OpenCode V2 accepts the key but does not load its files
