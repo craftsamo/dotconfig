@@ -262,5 +262,25 @@
     "review_evidence": [
       "view the chosen variant at cover size with the title placement in mind"
     ]
+  },
+  {
+    "id": "mascot-cel-shading-muddy",
+    "request": "Our anime-style mascot concepts look muddy and not really anime; it has to sit on painted backgrounds in a story video.",
+    "operation": "revise",
+    "expected": [
+      "diagnoses the soft gradients and extra tones as a lost cel value structure",
+      "rewrites the look as flat base fills with one hard-edged shadow tone per colour from one light direction",
+      "keeps the character design, palette and line weight unchanged"
+    ],
+    "must_not": [
+      "must not add grain or more rendering to fix a shading-model problem",
+      "must not force hard two-tone shading onto a style chosen for its softness"
+    ],
+    "subjects": [
+      "mascot"
+    ],
+    "review_evidence": [
+      "view two candidates at native size beside the intended background and count tones per colour"
+    ]
   }
 ]

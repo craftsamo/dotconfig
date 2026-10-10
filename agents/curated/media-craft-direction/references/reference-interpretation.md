@@ -78,6 +78,33 @@ words in the prompt guarantee the mood.
 **Evidence.** Human comparison of the same spoken passage with each bed, with
 level differences disclosed. Confirm both approachability and forward movement.
 
+## Worked case: "like that famous anime film"
+
+**Request.** A bakery wants a short animated greeting with its mascot and asks
+for it to look "like" a well-known animated feature, named by title.
+
+**Weak interpretation.** The title goes into the production prompt as the style.
+The result imitates surface marks of that film's characters, drifts between
+draws, and a generator may refuse or quietly substitute its own idea of the name.
+
+**Diagnosis.** A title is a pointer to remembered qualities, not a
+specification, and it carries other people's designs. What the client most
+likely values can be stated as observable traits: fine even line on the
+characters with one or two hard-edged shadow tones; backgrounds painted with
+visible brush texture and atmospheric depth; natural light; unhurried timing
+with secondary motion in grass, hair and cloth.
+
+**Revision.** Restate the analogy as two or three named trait sets and ask
+which one the client means, for example painted backgrounds with clean cel
+characters, or a stark high-contrast graphic look with a two- or three-colour
+palette and abrupt cuts. The chosen traits, never the title, a studio or a
+person's name, travel into the producer's brief. The mascot keeps its own
+approved design; only the rendering language follows the traits.
+
+**Evidence.** The client recognises the restated traits as what they meant
+before any production, and the delivered frames show those traits without
+borrowing a character, logo or composition from the named work.
+
 ## Do not apply mechanically
 
 An exact reconstruction may genuinely require the reference's geometry. A client

@@ -1,5 +1,25 @@
 [
   {
+    "id": "story-anime-leap-floaty",
+    "request": "In our anime-style story the character's leap and landing feel floaty, like a puppet sliding around.",
+    "operation": "revise",
+    "expected": [
+      "diagnoses continuous eased tweens on ones with no held poses as the cause",
+      "holds crouch, apex and landing on twos or threes, with one fast change or smear at the push-off and a short squash then hold at the landing",
+      "allows the background pan to stay on ones while the character is held"
+    ],
+    "must_not": [
+      "must not redraw or restyle the approved cast art to fix timing",
+      "must not judge the landing from a sampled contact sheet alone"
+    ],
+    "subjects": [
+      "story"
+    ],
+    "review_evidence": [
+      "step through the landing frame by frame at the final frame rate"
+    ]
+  },
+  {
     "id": "clip-camera-tag-cross-model",
     "request": "Write a shot brief for a 6-second product clip reusing the 'slow dolly-in' camera tag from a brief that worked on a different text-to-video model.",
     "operation": "generated_shot_brief",
