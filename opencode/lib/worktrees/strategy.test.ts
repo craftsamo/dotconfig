@@ -1,9 +1,15 @@
-import { afterEach, beforeEach, describe, expect, test } from "bun:test"
+import { afterEach, beforeEach, describe as suite, expect, test } from "bun:test"
 import { chmodSync, existsSync, mkdirSync, realpathSync, rmSync, writeFileSync } from "fs"
 import { join } from "path"
-import * as git from "../custom-tools/git"
-import { fixture, type Fixture } from "../custom-tools/testing/repo"
-import { createWorktree, listWorktrees, removeWorktree, repositoryName, strategy, targetPath } from "./strategy"
+import { load, skip } from "../custom-tools/testing/deps"
+import type { Fixture } from "../custom-tools/testing/repo"
+
+const describe = suite.skipIf(skip)
+const git = await load(() => import("../custom-tools/git"))
+const { fixture } = await load(() => import("../custom-tools/testing/repo"))
+const { createWorktree, listWorktrees, removeWorktree, repositoryName, strategy, targetPath } = await load(
+  () => import("./strategy"),
+)
 
 const fixtures: Fixture[] = []
 afterEach(() => {

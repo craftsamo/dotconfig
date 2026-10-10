@@ -12,8 +12,11 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock
 
-import fal_client
 import pytest
+
+fal_client = pytest.importorskip(
+    "fal_client", reason="needs fal_client, absent from the Hermes test environment"
+)
 
 PLUGIN = Path(__file__).resolve().parents[1] / "__init__.py"
 SPEC = importlib.util.spec_from_file_location("music_gen_tests", PLUGIN)

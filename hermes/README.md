@@ -123,6 +123,10 @@ Run from `~/.config/hermes`.
   `--import-mode=importlib` is not optional: every plugin keeps its suite at
   `tests/test_plugin.py`, those basenames collide under the default import mode,
   and the hyphenated plugin directories are not importable package names.
+  In a task worktree, run `../worktree-setup.sh` once first: the private
+  overlay links are gitignored, so without them the overlay-dependent tests
+  skip (or are not collected) rather than run. Tests needing `numpy` or
+  `fal_client`, which the test environment lacks, skip with that reason.
 
 - `./scripts/verify-work-continuity.py --runtime <hermes-agent-checkout> --private <paired-private-checkout>`
   — before a cutover and after every upstream update; it installs, restarts and

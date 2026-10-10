@@ -84,8 +84,8 @@ class VideoCreatorConfigTest(unittest.TestCase):
 
     def test_plugins_allow_tool_override_true(self) -> None:
         entries = self.video["plugins"]["entries"]
-        self.assertIn("video-analyze-mimo", entries)
-        self.assertTrue(entries["video-analyze-mimo"]["allow_tool_override"])
+        self.assertIn("inspection/video-analyze-mimo", entries)
+        self.assertTrue(entries["inspection/video-analyze-mimo"]["allow_tool_override"])
 
     def test_budget_is_two_not_four(self) -> None:
         prompt = self.video["agent"]["system_prompt"]

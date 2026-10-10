@@ -1,9 +1,13 @@
-import { afterEach, describe, expect, test } from "bun:test"
+import { afterEach, describe as suite, expect, test } from "bun:test"
 import { chmodSync, mkdirSync, writeFileSync } from "fs"
 import { join } from "path"
-import plugin from "../../plugins/custom-tools"
-import * as git from "./git"
-import { fixture, runWithFakeGh, type Fixture } from "./testing/repo"
+import { load, skip } from "./testing/deps"
+import type { Fixture } from "./testing/repo"
+
+const describe = suite.skipIf(skip)
+const { default: plugin } = await load(() => import("../../plugins/custom-tools"))
+const git = await load(() => import("./git"))
+const { fixture, runWithFakeGh } = await load(() => import("./testing/repo"))
 
 // Characterization tests: they pin the tools' current behavior so the
 // lib/custom-tools/git refactor can be checked against them.
