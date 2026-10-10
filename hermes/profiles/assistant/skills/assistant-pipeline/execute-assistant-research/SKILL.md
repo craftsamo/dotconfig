@@ -35,7 +35,9 @@ Read only applicable detail references below.
 The specialist is the **researcher** — analytic hands; it verifies
 and concludes, it never performs heavy breadth retrieval and never crafts.
 Bounded preliminary depth discovery is allowed only after primary agreement;
-enumerations, surveys and exhaustive hunts remain Searcher dependencies.
+enumerations, surveys and exhaustive hunts remain Searcher dependencies — yours
+to release, or the consuming primary's within the budget you granted it, in
+which case it relays Searcher's coverage statement and spend with the baseline.
 **The researcher is not your peer**: you never start researcher
 sessions. Research is consumed through
 the peers whose peer the researcher is — creator or marketer —

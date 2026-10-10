@@ -776,6 +776,7 @@ def validate_worker(
             errors.append(f"duplicate searcher skill name: {name}")
     if profile == "researcher":
         entries = validate_researcher_entries(pipeline_dir, errors)
+        validate_researcher_technics(pipeline_dir, leaves, errors)
         for name in entries.keys() & (leaves.keys() | learned.keys()):
             errors.append(f"duplicate researcher skill name: {name}")
     allowed.update(path.relative_to(skills).parts for path in entries.values())
@@ -926,9 +927,11 @@ def validate_searcher_entries(pipeline_dir: Path, errors: list[str]) -> dict[str
     return entries
 
 
-def validate_searcher_technics(pipeline_dir: Path, technics: dict[str, Path], errors: list[str]) -> None:
-    """A technic is a purpose recipe on one mode: it names that mode, loads it with the kernel, and the
-    capability row routes it to the same mode. The generic worker check pairs rows with directories."""
+def validate_mode_technics(role: str, modes: tuple[str, ...], pipeline_dir: Path,
+                           technics: dict[str, Path], errors: list[str]) -> None:
+    """A technic is a purpose recipe on one of the role's modes: it names that mode, loads it with the
+    kernel, and the capability row routes it to the same mode. The generic worker check pairs rows with
+    directories."""
     rows: dict[str, str] = {}
     capabilities = pipeline_dir / "references" / "capabilities.md"
     if capabilities.is_file():
@@ -940,35 +943,44 @@ def validate_searcher_technics(pipeline_dir: Path, technics: dict[str, Path], er
         data = frontmatter(path)
         hermes = (data.get("metadata") or {}).get("hermes") or {}
         mode = hermes.get("mode") if isinstance(hermes, dict) else None
-        if mode not in SEARCHER_MODES:
-            errors.append(f"searcher technic must name one mode ({', '.join(SEARCHER_MODES)}): {name}")
+        if mode not in modes:
+            errors.append(f"{role} technic must name one mode ({', '.join(modes)}): {name}")
             continue
         if name in rows and not rows[name].startswith(mode):
-            errors.append(f"searcher capability row routes {name} to another mode than {mode}")
+            errors.append(f"{role} capability row routes {name} to another mode than {mode}")
         raw = path.read_text(encoding="utf-8")
         if raw.find("\n---", 4) not in range(4, 4000):
-            errors.append(f"searcher technic frontmatter exceeds 4000-character discovery prefix: {name}")
+            errors.append(f"{role} technic frontmatter exceeds 4000-character discovery prefix: {name}")
         read_before = re.search(r"<ReadBeforeWork>(.*?)</ReadBeforeWork>", raw, re.S)
         block = " ".join(read_before.group(1).split()) if read_before else ""
         for required in (
-            'skill_view(name="searcher-pipeline")', f'skill_view(name="{mode}-searcher")',
+            f'skill_view(name="{role}-pipeline")', f'skill_view(name="{mode}-{role}")',
             'file_path="references/<stage>.md"', "${HERMES_SKILL_DIR}/SKILL.md",
-            "${HERMES_SKILL_DIR}/../../searcher-pipeline/SKILL.md", "never replaces",
+            f"${{HERMES_SKILL_DIR}}/../../{role}-pipeline/SKILL.md", "never replaces",
             "current context", "read_file", "caller's release",
         ):
             if required not in block:
-                errors.append(f"searcher technic ReadBeforeWork missing {required}: {name}")
+                errors.append(f"{role} technic ReadBeforeWork missing {required}: {name}")
         for section in ("## Brief", "## Verification additions"):
             if section not in raw:
-                errors.append(f"searcher technic missing {section}: {name}")
+                errors.append(f"{role} technic missing {section}: {name}")
         if "goal_mode" in raw:
-            errors.append(f"searcher has no goal_mode loop: {path}")
+            errors.append(f"{role} has no goal_mode loop: {path}")
+
+
+def validate_searcher_technics(pipeline_dir: Path, technics: dict[str, Path], errors: list[str]) -> None:
+    validate_mode_technics("searcher", SEARCHER_MODES, pipeline_dir, technics, errors)
+
+
+def validate_researcher_technics(pipeline_dir: Path, technics: dict[str, Path], errors: list[str]) -> None:
+    validate_mode_technics("researcher", RESEARCHER_MODES, pipeline_dir, technics, errors)
 
 
 RESEARCHER_MODES = ("investigate", "compare", "verify", "advise")
 RESEARCHER_ENTRIES = {f"{mode}-researcher" for mode in RESEARCHER_MODES}
 RESEARCHER_SHARED_REFERENCES = (
-    {"gather.md"} | {f"{stage}.md" for stage in STAGES} | {f"platforms/{p}.md" for p in PLATFORMS})
+    {"gather.md", "capabilities.md"} | {f"{stage}.md" for stage in STAGES}
+    | {f"platforms/{p}.md" for p in PLATFORMS})
 
 
 def validate_researcher_entries(pipeline_dir: Path, errors: list[str]) -> dict[str, Path]:
@@ -1036,6 +1048,8 @@ def validate_researcher_entries(pipeline_dir: Path, errors: list[str]) -> dict[s
         for platform in PLATFORMS:
             if f"(../references/platforms/{platform}.md)" not in text:
                 errors.append(f"researcher entry does not link platform reference {platform}: {name}")
+        if "(../references/capabilities.md)" not in text:
+            errors.append(f"researcher entry does not link the technic capabilities: {name}")
     for doc in sorted(pipeline_dir.rglob("*.md")):
         if doc.is_symlink() or not doc.resolve().is_relative_to(pipeline_dir.resolve()):
             errors.append(f"researcher document escapes pipeline: {doc}")
@@ -2154,7 +2168,7 @@ def main() -> int:
         )
         for profile in WORKER_PROFILES:
             technics, learned = validate_worker(profile, errors)
-            kind = "mode entries and technics" if profile == "searcher" else "technics"
+            kind = "mode entries and technics" if profile in {"searcher", "researcher"} else "technics"
             summaries.append(f"{profile}={technics} {kind}/{learned} learned")
         hands_leaves: dict[str, dict[str, Path]] = {}
         for profile in HANDS_PROFILES:
@@ -2188,7 +2202,7 @@ def main() -> int:
         technics, learned = validate_worker(
             args.profile, errors, args.dispatch
         )
-        kind = "mode entries and technics" if args.profile == "searcher" else "technics"
+        kind = "mode entries and technics" if args.profile in {"searcher", "researcher"} else "technics"
         summaries.append(f"{args.profile}={technics} {kind}/{learned} learned")
 
     for warning in warnings:

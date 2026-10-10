@@ -17,6 +17,7 @@ import hermes_yaml as yaml
 HERMES = Path(__file__).resolve().parents[2]
 PROFILE = HERMES / "profiles/researcher"
 TREE = PROFILE / "skills/researcher-pipeline"
+TECHNIC = PROFILE / "skills/technic"
 SPEC = importlib.util.spec_from_file_location(
     "researcher_validator", HERMES / "scripts/validate-profile-skills.py"
 )
@@ -33,8 +34,11 @@ MODES = ("investigate", "compare", "verify", "advise")
 STAGES = ("plan", "build")
 ENTRIES = {f"{mode}-researcher" for mode in MODES}
 PLATFORMS = {"references/platforms/evm.md", "references/platforms/solana.md"}
-SHARED = {"references/gather.md"} | {f"references/{stage}.md" for stage in STAGES} | PLATFORMS
+CAPABILITIES = "references/capabilities.md"
+SHARED = ({"references/gather.md", CAPABILITIES} | {f"references/{stage}.md" for stage in STAGES}
+          | PLATFORMS)
 DOCUMENTS = {"SKILL.md"} | SHARED | {f"{name}/SKILL.md" for name in ENTRIES}
+TECHNICS = {"evidence-screen": "verify", "claim-check": "verify"}
 
 
 def flat(path):
@@ -46,8 +50,8 @@ def test_candidate_topology_and_always_on_contract():
     assert set(VALIDATOR.validate_researcher_entries(TREE, errors)) == ENTRIES
     assert errors == []
     assert {p.relative_to(TREE).as_posix() for p in TREE.rglob("*.md")} == DOCUMENTS
-    assert len(DOCUMENTS) == 10
-    assert VALIDATOR.frontmatter(TREE / "SKILL.md")["version"] == "11.0.0"
+    assert len(DOCUMENTS) == 11
+    assert VALIDATOR.frontmatter(TREE / "SKILL.md")["version"] == "12.0.0"
     for name in ENTRIES:
         path = TREE / name / "SKILL.md"
         data = VALIDATOR.frontmatter(path)
@@ -96,17 +100,47 @@ def test_primary_relays_acceptance_baseline_without_transferring_handle(caller):
     assert "Assistant's handle" in text or "handle stays yours" in text
 
 
-def test_creator_advisor_reaches_only_researcher_for_evidence():
+def test_creator_advisor_reaches_only_researcher_and_searcher_for_evidence():
     root = HERMES / "profiles/creator"
     config = yaml.safe_load((root / "config.yaml").read_text())
-    assert config["specialist_call"]["resident_targets"] == ["researcher"]
+    assert config["specialist_call"]["resident_targets"] == ["researcher", "searcher"]
     assert set(config["a2a_agents"]) == {"researcher"}
     text = " ".join(config["agent"]["system_prompt"].split())
-    for phrase in ("only for researcher", "purpose, consumer, constraints and budget",
-                   "evidence, not a decision", "never retry an unknown result"):
+    for phrase in ("only for researcher and searcher", "purpose, consumer, constraints and budget",
+                   "evidence, not a decision", "never retry an unknown result",
+                   "Searcher retrieves sourced links"):
         assert phrase in text
     kernel = " ".join((root / "skills/creator-pipeline/SKILL.md").read_text().split())
-    assert "`specialist_call` reaches Researcher only" in kernel
+    assert "`specialist_call` reaches Researcher" in kernel and "and Searcher, for references" in kernel
+
+
+@pytest.mark.parametrize("profile", ("creator", "marketer"))
+def test_breadth_goes_from_the_client_to_searcher(profile):
+    pipeline = flat(HERMES / "profiles" / profile / f"skills/{profile}-pipeline/SKILL.md")
+    assert "When Researcher reports that a question needs breadth, release that retrieval to Searcher" in pipeline
+    gather = flat(TREE / "references/gather.md")
+    assert "releases to Searcher directly" in gather and "the creator or marketer client" in gather
+    searcher = flat(HERMES / "profiles/searcher/skills/searcher-pipeline/SKILL.md")
+    assert "the Assistant, Creator or Marketer, whichever opened the conversation" in searcher
+    prompt = " ".join(yaml.safe_load((HERMES / "profiles/searcher/config.yaml").read_text())
+                      ["agent"]["system_prompt"].split())
+    assert "client (the Assistant, Creator or Marketer)" in prompt
+    if profile == "marketer":
+        assert "within your existing grant" in pipeline and "never self-approved" in pipeline
+    else:
+        assert "only within the budget the Assistant granted" in pipeline
+    assert "coverage statement" in pipeline and "no inquiry endpoint" in pipeline
+
+
+def test_searcher_technic_names_stay_in_sync_where_copied():
+    names = {p.parent.name for p in (HERMES / "profiles/searcher/skills/technic").glob("*/SKILL.md")}
+    gather = flat(TREE / "references/gather.md")
+    listed = re.search(r"Searcher's technic \(([^)]*)\)", gather).group(1)
+    assert set(re.findall(r"`([a-z0-9-]+)`", listed)) == names
+    marketer = (HERMES / "profiles/marketer/skills/marketer-pipeline/SKILL.md").read_text()
+    searcher_bullet = " ".join(marketer.split("- Searcher:", 1)[1].split("\n- ", 1)[0].split())
+    for name in names:
+        assert f"`{name}`" in searcher_bullet, name
 
 
 def test_worker_integration(tmp_path, monkeypatch):
@@ -118,7 +152,7 @@ def test_worker_integration(tmp_path, monkeypatch):
     monkeypatch.setattr(VALIDATOR, "validate_git_boundary", lambda *args: None)
     errors = []
     count, learned = VALIDATOR.validate_worker("researcher", errors)
-    assert count == 4 and learned == 0
+    assert count == len(ENTRIES) + len(TECHNICS) and learned == 0
     assert errors == []
 
 
@@ -347,6 +381,131 @@ def test_declared_source_floors_and_shared_gather():
         assert token in gather
 
 
+def _technic_leaves(root=TECHNIC):
+    return {path.parent.name: path for path in root.glob("*/SKILL.md")}
+
+
+def test_technics_are_routed_to_their_mode():
+    assert set(_technic_leaves()) == set(TECHNICS)
+    assert VALIDATOR.capability_names(TREE / CAPABILITIES) == set(TECHNICS)
+    errors = []
+    VALIDATOR.validate_researcher_technics(TREE, _technic_leaves(), errors)
+    assert errors == []
+    for name, mode in TECHNICS.items():
+        data = VALIDATOR.frontmatter(TECHNIC / name / "SKILL.md")
+        assert data["metadata"]["hermes"]["category"] == "technic" and data["metadata"]["hermes"]["mode"] == mode
+    kernel = flat(TREE / "SKILL.md")
+    assert "(references/capabilities.md)" in kernel and "never replaces the mode's procedure" in kernel
+    assert "is not the caller's release" in kernel
+    prompt = " ".join(yaml.safe_load((PROFILE / "config.yaml").read_text())["agent"]["system_prompt"].split())
+    assert "references/capabilities.md" in prompt and "never replaces the mode" in prompt
+    for name in ENTRIES:
+        assert "(../references/capabilities.md)" in (TREE / name / "SKILL.md").read_text()
+
+
+@pytest.mark.parametrize("name", sorted(TECHNICS))
+@pytest.mark.parametrize("token", ('skill_view(name="researcher-pipeline")', "never replaces", "caller's release",
+                                   "${HERMES_SKILL_DIR}/../../researcher-pipeline/SKILL.md"))
+def test_technic_cannot_drop_its_mode_or_recovery(tmp_path, name, token):
+    shutil.copytree(TECHNIC, tmp_path / "technic")
+    leaves = _technic_leaves(tmp_path / "technic")
+    leaves[name].write_text(leaves[name].read_text().replace(token, "removed"))
+    errors = []
+    VALIDATOR.validate_researcher_technics(TREE, leaves, errors)
+    assert f"researcher technic ReadBeforeWork missing {token}: {name}" in errors
+
+
+def test_technic_mode_must_match_its_capability_row(tmp_path):
+    shutil.copytree(TECHNIC, tmp_path / "technic")
+    leaves = _technic_leaves(tmp_path / "technic")
+    path = leaves["claim-check"]
+    path.write_text(path.read_text().replace("mode: verify", "mode: advise").replace(
+        'skill_view(name="verify-researcher")', 'skill_view(name="advise-researcher")'))
+    errors = []
+    VALIDATOR.validate_researcher_technics(TREE, leaves, errors)
+    assert errors == ["researcher capability row routes claim-check to another mode than advise"]
+    path.write_text(path.read_text().replace("mode: advise", "mode: lookup"))
+    errors = []
+    VALIDATOR.validate_researcher_technics(TREE, leaves, errors)
+    assert any("must name one mode" in error for error in errors)
+
+
+def test_entry_must_link_the_technic_capabilities(tmp_path):
+    tree = tmp_path / "researcher-pipeline"
+    shutil.copytree(TREE, tree)
+    entry = tree / "verify-researcher/SKILL.md"
+    entry.write_text(entry.read_text().replace("(../references/capabilities.md)", ""))
+    errors = []
+    VALIDATOR.validate_researcher_entries(tree, errors)
+    assert "researcher entry does not link the technic capabilities: verify-researcher" in errors
+
+
+def _technic_rows(text):
+    rows = {}
+    for line in text.splitlines():
+        line = line.strip()
+        cells = [cell.strip() for cell in line.strip("|").split("|")]
+        if line.startswith("| `") and len(cells) >= 3:
+            rows[cells[0].split("`")[1]] = cells[1]
+    return rows
+
+
+@pytest.mark.parametrize("caller", (
+    "assistant/skills/assistant-pipeline/plan-assistant-research/SKILL.md",
+    "marketer/skills/marketer-pipeline/SKILL.md",
+))
+def test_callers_name_every_technic_with_its_unit(caller):
+    rows = _technic_rows((HERMES / "profiles" / caller).read_text())
+    assert set(rows) == set(TECHNICS)
+    for name in TECHNICS:
+        assert rows[name].startswith("fact-check"), (caller, name)
+
+
+def test_creator_names_every_technic_and_one_work_conversation():
+    kernel = flat(HERMES / "profiles/creator/skills/creator-pipeline/SKILL.md")
+    for name in TECHNICS:
+        assert f"`{name}`" in kernel
+    assert 'Both run as one `kind="work"` conversation' in kernel
+    marketer = flat(HERMES / "profiles/marketer/skills/marketer-pipeline/SKILL.md")
+    assert "never one call per few items" in marketer and "stays your decision" in marketer
+
+
+def test_people_are_not_unmasked():
+    people = flat(TREE / "SKILL.md").split("<People>", 1)[1].split("</People>", 1)[0]
+    for phrase in ("People are not unmasked", "never tie a pseudonymous account to a legal identity",
+                   "no breach or leak data, people-search or data-broker sources", "no contact with anyone",
+                   "Contact details found in supplied evidence stay out"):
+        assert phrase in people, phrase
+
+
+def test_evidence_screen_keeps_the_clients_statuses_and_go_no_go():
+    text = flat(TECHNIC / "evidence-screen/SKILL.md")
+    for phrase in ("Every item gets exactly one of them", "A status that does not fit any item is not invented",
+                   "one resident work conversation, not one call per few items",
+                   "write the item to the output file before moving on",
+                   "is evidence of what it shows, not of current capability",
+                   "never merge or drop one", "the capturing agent's observation",
+                   "Contact values (phone, email, personal names) never enter the output",
+                   "is the client's decision", "no new status appeared", "in the listed order",
+                   "## How verify applies here", "items × rubric criteria, agreed in Plan",
+                   "never `supported` alone", "none found in the supplied files",
+                   "derived from the criterion verdicts by the rubric's own rule, mechanically",
+                   "no field recommends a next step", "the verify ledger at the agreed path",
+                   "The ledger exists at the agreed path"):
+        assert phrase in text, phrase
+    assert "downstream-use" not in text
+
+
+def test_claim_check_separates_framing_from_fact_and_bounds_wording():
+    text = flat(TECHNIC / "claim-check/SKILL.md")
+    for phrase in ("**fact error**", "**framing error**", "**overclaim**", "**number caution**",
+                   "Each is mapped to the verify verdicts in Plan", "labelled `recalled`",
+                   "never carries a verdict alone", "within the bound",
+                   "never asserts more than the cited sources do", "stays with the writer and the client",
+                   "partial results with their status beat a timed-out reply"):
+        assert phrase in text, phrase
+
+
 def test_real_runtime_discovery_reads_and_recovery():
     roots = [Path(p).resolve() for p in os.environ.get("PYTHONPATH", "").split(os.pathsep) if p]
     source = next((p for p in roots if (p / "agent/skill_utils.py").is_file()), None)
@@ -374,7 +533,7 @@ def test_real_runtime_discovery_reads_and_recovery():
             cwd=home, env=env, capture_output=True, text=True, timeout=120,
         )
         assert result.returncode == 0, result.stdout + result.stderr
-        assert json.loads(result.stdout) == {"names": sorted(ENTRIES | {"researcher-pipeline"})}
+        assert json.loads(result.stdout) == {"names": sorted(ENTRIES | set(TECHNICS) | {"researcher-pipeline"})}
 
 
 def runtime_child(sandbox, source, configured_external):
@@ -388,6 +547,10 @@ def runtime_child(sandbox, source, configured_external):
     tree = home / ".hermes/skills/researcher-pipeline"
     # Copy only the candidate instruction documents, never live config or state.
     shutil.copytree(TREE, tree)
+    technics = home / ".hermes/skills/technic"
+    for name in TECHNICS:
+        (technics / name).mkdir(parents=True)
+        (technics / name / "SKILL.md").write_bytes((TECHNIC / name / "SKILL.md").read_bytes())
     (home / ".hermes/config.yaml").write_text(
         "skills:\n  external_dirs: []\n  disabled: []\n  template_vars: true\n"
         "  inline_shell: false\nplugins:\n  enabled: []\n"
@@ -441,13 +604,13 @@ def runtime_child(sandbox, source, configured_external):
             stack.enter_context(patch.object(skill_usage, name, return_value=None))
         for module in (st, sp):
             stack.enter_context(patch.object(module, "_mark_background_review_read", return_value=None))
-        names = ENTRIES | {"researcher-pipeline"}
+        names = ENTRIES | set(TECHNICS) | {"researcher-pipeline"}
         assert {s["name"] for s in st._find_all_skills()} == names
         prompt = pb.build_skills_system_prompt(
             available_tools={"skill_view", "skills_list", "read_file"}, available_toolsets={"skills", "file"}
         )
         rows = dict(re.findall(r"^    - ([^: \n]+): (.*)$", prompt, re.M))
-        assert set(rows) == names and len(set(rows.values())) == 5
+        assert set(rows) == names and len(set(rows.values())) == len(names)
         assert all(0 < len(desc) <= 60 for desc in rows.values())
         assert all(rows[f"{mode}-researcher"].lower().startswith(mode + " ") for mode in MODES)
 
@@ -455,7 +618,17 @@ def runtime_child(sandbox, source, configured_external):
             return json.loads(registry.dispatch("skill_view", {"name": name, "file_path": file_path}, task_id="research-test"))
 
         kernel = view("researcher-pipeline")
-        assert kernel["content"] == (tree / "SKILL.md").read_text()
+        assert kernel["content"] == (tree / "SKILL.md").read_text().replace("${HERMES_SKILL_DIR}", str(tree))
+        # Both recovery paths render to real documents: the kernel's to every technic, a technic's
+        # back to the kernel.
+        to_technic = re.search(r"`([^`]*/technic/<technic>/SKILL\.md)`", kernel["content"]).group(1)
+        for name in TECHNICS:
+            assert Path(to_technic.replace("<technic>", name)).resolve() == (technics / name / "SKILL.md")
+            leaf = view(name)
+            assert leaf["content"] == (technics / name / "SKILL.md").read_text().replace(
+                "${HERMES_SKILL_DIR}", str(technics / name))
+            back = re.search(r"`([^`]*/researcher-pipeline/SKILL\.md)`", leaf["content"]).group(1)
+            assert Path(back).resolve() == (tree / "SKILL.md").resolve()
         # Real read mechanics only: this loop selects modes and stages, not a model.
         for mode in MODES:
             name = f"{mode}-researcher"
@@ -494,7 +667,8 @@ def runtime_child(sandbox, source, configured_external):
         owner = tree / "investigate-researcher"
         canonical = [owner / "../SKILL.md", *(owner / ".." / relative for relative in sorted(SHARED))]
         canonical.extend(tree / name / "SKILL.md" for name in sorted(ENTRIES))
-        assert len(canonical) == 10
+        canonical.extend(technics / name / "SKILL.md" for name in sorted(TECHNICS))
+        assert len(canonical) == 1 + len(SHARED) + len(ENTRIES) + len(TECHNICS)
         continued = 0
         with patch.object(ft, "_get_max_read_chars", return_value=1000):
             for path in canonical:

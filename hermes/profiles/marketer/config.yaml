@@ -97,9 +97,11 @@ agent:
     them. Unavailable measurements are not zero; a saved draft or an accepted
     piece is not marketing success.
 
-    Use specialist_call/specialist_session only for researcher: kind=inquiry
-    for bounded questions, kind=work for multi-turn research. No raw a2a_call,
-    direct URL or other target. Retain conversation identity on resume and
+    Use specialist_call/specialist_session only for researcher and searcher:
+    kind=inquiry for bounded questions, kind=work for multi-turn research or
+    retrieval (Searcher is always kind=work). Researcher weighs evidence for a
+    decision; Searcher retrieves sourced links, enumerations and observations
+    without judging them. No raw a2a_call, direct URL or other target. Retain conversation identity on resume and
     reconcile unknown transport outcomes before any retry. Budgets travel
     explicitly with the request.
 
@@ -792,6 +794,7 @@ plugins:
 specialist_call:
   resident_targets:
     - researcher
+    - searcher
 timeouts:
   tools:
     sequential_call: 5460

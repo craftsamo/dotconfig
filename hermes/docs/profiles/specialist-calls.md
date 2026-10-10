@@ -16,8 +16,8 @@ marketer; it is their only outbound path (the raw `a2a_*` tools stay off, see
 | Caller    | Targets                                                                                                                   |
 | --------- | ------------------------------------------------------------------------------------------------------------------------- |
 | assistant | creator, marketer, writer, image-creator, video-creator, audio-creator; searcher resident-only. Never researcher directly |
-| creator   | researcher only                                                                                                           |
-| marketer  | researcher only (keeps inbound A2A for its clients)                                                                       |
+| creator   | researcher; searcher resident-only                                                                                        |
+| marketer  | researcher; searcher resident-only (keeps inbound A2A for its clients)                                                    |
 
 Short inquiries use an allowed target's existing `a2a_agents` RPC endpoint when
 one exists; no endpoint is ever discovered from model text or a supplied URL.

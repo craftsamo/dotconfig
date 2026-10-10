@@ -29,6 +29,9 @@ Gathering beyond a few direct lookups requires
 [Gather](../references/gather.md). Reading strategy does not authorize searches.
 Evidence from a chain also requires that chain's shared reference:
 [EVM](../references/platforms/evm.md) or [Solana](../references/platforms/solana.md).
+A technic the brief names or [Capabilities](../references/capabilities.md)
+matches is loaded too with `skill_view(name="<technic>")`; it adds to this mode
+and never replaces it.
 If `skill_view` returns unchanged with a missing body or cannot supply it, use
 `read_file` on canonical `${HERMES_SKILL_DIR}/../SKILL.md`,
 `${HERMES_SKILL_DIR}/SKILL.md`, `${HERMES_SKILL_DIR}/../references/<stage>.md`,

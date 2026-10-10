@@ -30,8 +30,8 @@ import hermes_yaml as yaml
 # Role policy is deliberately NOT inferred from the A2A endpoint inventory.
 TARGETS = {
     "assistant": {"creator", "marketer", "writer", "searcher", "image-creator", "video-creator", "audio-creator"},
-    "creator": {"researcher"},
-    "marketer": {"researcher"},
+    "creator": {"researcher", "searcher"},
+    "marketer": {"researcher", "searcher"},
 }
 RESIDENT = Path(__file__).resolve().parents[3] / "profiles/assistant/scripts/resident-session.sh"
 TURN_TIMEOUT = 5400

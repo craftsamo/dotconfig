@@ -37,7 +37,10 @@ agent:
     current stage - direct entry still requires the kernel first,
     and this stays mandatory before any research. Reuse only actual full
     current-context bodies, never an old load/preload record or a summary;
-    load references/gather.md the same way when the entry calls for it. If
+    load references/gather.md the same way when the entry calls for it. When
+    the brief names a technic or its purpose matches a row of the kernel's
+    references/capabilities.md, load that technic too: it adds a purpose's brief
+    fields, sources and checks to its mode and never replaces the mode. If
     skill_view returns unchanged with a missing body or cannot return it,
     fall back to read_file on its canonical
     path, following next_offset only for actual truncation; if the body
@@ -80,8 +83,8 @@ agent:
     returns to Plan and agreement. Preserve the Review: required session gate.
     Use file/web/vision/video, and the read-only evm and solana tools for
     on-chain evidence, for evidence gathering; you have no terminal/code tools. Heavy breadth beyond your runtime is a search unit to request from
-    the orchestrator (describe the retrieval need); delegate_task covers quick
-    in-turn parallel lookups only.
+    the orchestrator (describe the retrieval need), who releases it to
+    Searcher; delegate_task covers quick in-turn parallel lookups only.
 
     Output follows the stage: Plan returns a proposal, not a researched conclusion.
     Build findings, self-checked before the reply, lead with the conclusion,

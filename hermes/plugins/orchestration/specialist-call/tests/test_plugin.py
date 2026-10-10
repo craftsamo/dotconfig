@@ -29,9 +29,15 @@ spec.loader.exec_module(p)
 A2A = p._a2a
 EXECUTE_SYNC = p._execute_sync
 RESIDENT_IMPL = p._resident
-CREATOR_TARGETS = ("researcher",)
+CREATOR_TARGETS = ("researcher", "searcher")
 HANDS_TARGETS = ("image-creator", "video-creator", "audio-creator")
-MARKETER_TARGETS = ("researcher",)
+MARKETER_TARGETS = ("researcher", "searcher")
+# Targets with an inbound A2A endpoint; Searcher has none, so even an inquiry runs resident.
+PEERS = ("researcher",)
+
+
+def expected_backend(target, kind):
+    return "a2a" if kind == "inquiry" and target in PEERS else "resident"
 
 
 @pytest.fixture
@@ -104,16 +110,17 @@ def creator_caller(caller, monkeypatch):
     home = caller[0].parent / "creator"
     home.mkdir()
     config = yaml.safe_load((PLUGIN.parents[3] / "profiles/creator/config.yaml").read_text())
-    assert set(config["a2a_agents"]) == set(CREATOR_TARGETS) == p.TARGETS["creator"]
-    assert set(config["specialist_call"]["resident_targets"]) == set(CREATOR_TARGETS)
+    assert set(config["a2a_agents"]) == set(PEERS)
+    assert set(config["specialist_call"]["resident_targets"]) == set(CREATOR_TARGETS) == p.TARGETS["creator"]
     (home / "config.yaml").write_text(yaml.safe_dump(config))
     monkeypatch.setattr(p, "_scope", lambda: (home, "creator-owner", False, False))
     return home, caller[1]
 
 
 @pytest.mark.parametrize("target", CREATOR_TARGETS)
-@pytest.mark.parametrize("kind,backend", [("inquiry", "a2a"), ("work", "resident")])
-def test_creator_configured_targets(creator_caller, target, kind, backend):
+@pytest.mark.parametrize("kind", ["inquiry", "work"])
+def test_creator_configured_targets(creator_caller, target, kind):
+    backend = expected_backend(target, kind)
     result = call(target, kind=kind)
     assert result["status"] == "completed" and result["backend"] == backend
     continued = call(target, conversation_id=result["conversation_id"])
@@ -122,7 +129,7 @@ def test_creator_configured_targets(creator_caller, target, kind, backend):
     assert session("close", result["conversation_id"])["status"] == "closed"
 
 
-@pytest.mark.parametrize("target", ["assistant", "creator", "searcher", "engineer", "marketer", "writer", "image-creator", "video-creator", "audio-creator", "arbitrary", "../writer", "http://127.0.0.1:9907"])
+@pytest.mark.parametrize("target", ["assistant", "creator", "engineer", "marketer", "writer", "image-creator", "video-creator", "audio-creator", "arbitrary", "../writer", "http://127.0.0.1:9907"])
 def test_creator_arbitrary_targets_cannot_be_enabled(creator_caller, target):
     home, calls = creator_caller
     config = yaml.safe_load((home / "config.yaml").read_text())
@@ -165,25 +172,32 @@ def test_creator_inbound_cannot_launch_work(creator_caller, monkeypatch, target)
     monkeypatch.setattr(p, "_scope", lambda: (home, "creator-owner", False, True))
     assert "reissue" in call(target, kind="work")["error"]
     assert not calls
-    assert call(target)["backend"] == "a2a"
+    if target in PEERS:
+        assert call(target)["backend"] == "a2a"
+    else:  # no endpoint: an inbound turn cannot open a resident conversation either
+        assert "reissue" in call(target)["error"] and not calls
 
 
 @pytest.fixture
 def marketer_caller(caller, monkeypatch):
     home = caller[0].parent / "marketer"
     home.mkdir()
+    config = yaml.safe_load((PLUGIN.parents[3] / "profiles/marketer/config.yaml").read_text())
+    assert set(config["specialist_call"]["resident_targets"]) == set(MARKETER_TARGETS) == p.TARGETS["marketer"]
+    assert set(config["a2a_agents"]) == set(PEERS)
     (home / "config.yaml").write_text(yaml.safe_dump({
         "specialist_call": {"resident_targets": sorted(p.TARGETS["marketer"])},
         "a2a_agents": {t: {"url": "http://127.0.0.1:990{}".format(i)}
-                       for i, t in enumerate(MARKETER_TARGETS, start=3)},
+                       for i, t in enumerate(PEERS, start=3)},
     }))
     monkeypatch.setattr(p, "_scope", lambda: (home, "marketer-owner", False, False))
     return home, caller[1]
 
 
 @pytest.mark.parametrize("target", MARKETER_TARGETS)
-@pytest.mark.parametrize("kind,backend", [("inquiry", "a2a"), ("work", "resident")])
-def test_marketer_configured_targets(marketer_caller, target, kind, backend):
+@pytest.mark.parametrize("kind", ["inquiry", "work"])
+def test_marketer_configured_targets(marketer_caller, target, kind):
+    backend = expected_backend(target, kind)
     result = call(target, kind=kind)
     assert result["status"] == "completed" and result["backend"] == backend
     continued = call(target, conversation_id=result["conversation_id"])
@@ -192,7 +206,7 @@ def test_marketer_configured_targets(marketer_caller, target, kind, backend):
     assert session("close", result["conversation_id"])["status"] == "closed"
 
 
-@pytest.mark.parametrize("target", ["assistant", "engineer", "creator", "writer", "searcher", "image-creator", "arbitrary",
+@pytest.mark.parametrize("target", ["assistant", "engineer", "creator", "writer", "image-creator", "arbitrary",
                                     "../creator", "http://127.0.0.1:9907"])
 def test_marketer_arbitrary_targets_cannot_be_enabled(marketer_caller, target):
     home, calls = marketer_caller
@@ -236,7 +250,10 @@ def test_marketer_inbound_cannot_launch_work(marketer_caller, monkeypatch, targe
     monkeypatch.setattr(p, "_scope", lambda: (home, "marketer-owner", False, True))
     assert "reissue" in call(target, kind="work")["error"]
     assert not calls
-    assert call(target)["backend"] == "a2a"
+    if target in PEERS:
+        assert call(target)["backend"] == "a2a"
+    else:  # no endpoint: an inbound turn cannot open a resident conversation either
+        assert "reissue" in call(target)["error"] and not calls
 
 
 def test_marketer_cross_profile_ownership_rejected(marketer_caller, monkeypatch):

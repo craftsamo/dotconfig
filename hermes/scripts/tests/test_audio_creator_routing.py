@@ -45,7 +45,7 @@ class AudioCreatorRoutingTest(unittest.TestCase):
         )
         # Creator is an advisor: no audio-creator peer, target or skills of its own to commission.
         self.assertNotIn("audio-creator", self.creator["a2a_agents"])
-        self.assertEqual(["researcher"], self.creator["specialist_call"]["resident_targets"])
+        self.assertEqual(["researcher", "searcher"], self.creator["specialist_call"]["resident_targets"])
 
     def test_toolsets_are_exact_allowlist_no_broad_grants(self) -> None:
         expected = {"terminal", "file", "tts", "sfx_gen", "music_gen", "skills", "memory"}
