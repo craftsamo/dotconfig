@@ -46,6 +46,9 @@ permission:
     "gh pr checks*": allow
     "gh pr list*": allow
     "gh repo view*": allow
+    # A redirect on an allowlisted command would write without asking. Ask,
+    # not deny: inline scripts often contain ">". Placed before the denies.
+    "*>*": ask
     "git commit*": deny
     "git push*": deny
     "git reset*": deny
@@ -63,6 +66,18 @@ permission:
     "cargo install*": deny
     "go install*": deny
     "sudo *": deny
+    # Last match wins: these write files or spawn external programs.
+    "git * --output*": deny
+    "git * --ext-diff*": deny
+    "gh * --web*": deny
+    "gh * -w*": deny
+    # Best-effort: these read files outside git's view, past the .env read
+    # rules (git diff turns on --no-index by itself for an outside path).
+    "git * --no-index*": deny
+    "git diff* /*": deny
+    "git diff* ~*": deny
+    "git diff* ../*": deny
+    "git blame*--contents*": deny
 ---
 
 You are Review mode, a primary agent for pull-request-level code review. You do
