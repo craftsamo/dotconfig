@@ -2,8 +2,9 @@
 name: searcher-pipeline
 description: >-
   Searcher kernel: retrieval scope, floors, runtime and release gates, required
-  by the lookup, sweep and hunt modes. Not synthesis or production.
-version: 10.0.0
+  by the lookup, sweep and hunt modes and their technics. Not synthesis or
+  production.
+version: 11.0.0
 author: CraftSamo
 license: MIT
 metadata:
@@ -91,16 +92,34 @@ or for on-chain facts the chain's: [EVM](references/platforms/evm.md) or
 
 </Modes>
 
+<Technics>
+
+A technic is a recipe for one recurring purpose (an account's public footprint,
+a primary-source fact pack, a release digest), layered on a mode: the mode says
+how to retrieve, the technic says what this purpose needs — the brief fields to
+settle, the sources to walk and in what order, the per-item fields and the extra
+checks. [Capabilities](references/capabilities.md) lists them with their mode.
+
+When the brief names a technic, or its purpose matches a row there, load it
+with `skill_view(name="<technic>")` beside the mode entry. A technic never
+replaces the mode's procedure, the stages, these floors or the release rules,
+and choosing one is not the caller's release: its brief fields are proposed in
+Plan like any other, and a settled brief that names it still needs the
+authorization Build requires. A purpose no technic fits runs on the mode alone.
+
+</Technics>
+
 <ReadBeforeWork>
 
-Require full-body kernel, selected mode entry and current stage reference in
-current context, not a past load or summary. Direct entry requires this kernel
+Require full-body kernel, selected mode entry, any selected technic and current
+stage reference in current context, not a past load or summary. Direct entry requires this kernel
 before every stage. Use `skill_view` for the selected entry and
 `skill_view(name="searcher-pipeline", file_path="references/<stage>.md")` for
 the current stage. If unchanged is returned while the earlier body is
 unavailable, or a body is missing, use read_file on canonical
 `${HERMES_SKILL_DIR}/SKILL.md`, `${HERMES_SKILL_DIR}/<mode>-searcher/SKILL.md`
-and `${HERMES_SKILL_DIR}/references/<stage>.md` from this kernel. Follow
+and `${HERMES_SKILL_DIR}/references/<stage>.md` from this kernel, and for a
+selected technic `${HERMES_SKILL_DIR}/../technic/<technic>/SKILL.md`. Follow
 next_offset through actual truncation; stop the affected action if still
 unavailable, reporting the missing instructions through the runtime protocol.
 No alternate paths or artificial ranges to evade dedup. In raw text the skill
@@ -121,6 +140,11 @@ never supplies the caller's release or resets coverage/frontier/budget.
   reads of the x, youtube, note and substack tools and the chain reads of the
   evm and solana tools, which never sign or send. "Read-only" is why those
   reads are safe, never a reason to skip a platform the question touches.
+- **People are not unmasked.** Whatever the purpose: never tie a pseudonymous
+  account to a legal identity, face, address, family or private contact it has
+  not published itself; no breach or leak data, people-search or data-broker
+  sources, or pages behind a login; no collecting sensitive traits; no contact
+  with anyone. Retrieval about a person or account follows `public-footprint`.
 - **Dates matter.** Time-sensitive claims carry source dates; flag stale hits.
 - Name searched, thin and unsearched ground. No padding or treating silence as
   coverage. Heavy retrieval returns bounded results with open gaps.
