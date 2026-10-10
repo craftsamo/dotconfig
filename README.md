@@ -90,6 +90,17 @@ Installed outside the [Brewfile](./Brewfile):
   sudo can prompt for a password.
 - At the end it runs `./private/install.sh` when present — see below.
 
+## worktree-setup.sh
+
+A task worktree carries only tracked files. `./worktree-setup.sh`, run inside
+one, gives it what tests need from the live checkout: every gitignored symlink
+there that points into the private overlay, and `opencode/node_modules` as a
+link to the live copy. `--private <dir>` links the overlay links to another
+private checkout (a paired candidate) instead. It writes only inside the
+worktree, refuses to run in the live checkout, and never overwrites a real
+file. If the worktree changes `opencode/package.json`, replace the link with
+`npm install --prefix opencode`.
+
 ## Private overlay
 
 This repo is public. Its private counterpart is `craftsamo/private-dotconfig`,
