@@ -36,8 +36,10 @@ from the tool schema. After an upstream change, verify with
   `reference:` of its emoji pack. `edit-mascot` never recolours. No `source-` or
   `create-mascot`: a mascot is designed, not fetched, and a first-party mark
   becomes an icon set. `mascot-fit.sh` keys on chroma green (magenta when the
-  palette has green), never white — on white, `key_px` counts eye whites and
-  speculars.
+  palette has green or is led by browns and olives, since models draw the green
+  duller than asked), never white — on white, `key_px` counts eye whites and
+  speculars. A global key is kept only while `key_loss` shows it removed
+  pockets, not costume.
 
 ## Reimagine family
 
