@@ -74,11 +74,13 @@ ASSISTANT_ENTRIES = {
 }
 # Required Chat entry references and extra shared Execute files.
 REQUIRED_MODE_FILES = {
-    "chat": {"workspace-ops.md", "message-reply.md", "work-report.md", "cron.md", "lookups.md", "whatsapp.md",
+    "chat": {"workspace-ops.md", "message-reply.md", "cron.md", "lookups.md", "whatsapp.md",
              "signal.md", "discord.md", "telegram.md", "x.md", "note.md", "substack.md",
              "youtube.md", "google.md", "web3.md"},
     "execute": {"resident-sessions.md"},
 }
+# Kernel-root references beside the mode directories (shared workspace rules).
+REQUIRED_KERNEL_REFERENCES = {"workspace-layout.md"}
 # Verification contracts that must exist (migration-loss guard); extra
 # leaves may grow beside them as long as the dir index routes them.
 REQUIRED_QA_CONTRACTS = {
@@ -206,7 +208,8 @@ def validate_assistant_pipeline(errors: list[str]) -> int:
         for mode in CAPABILITY_MODES
         for name in {"index.md", *REQUIRED_MODE_FILES.get(mode, set())}
     }
-    for rel in sorted(shared_files):
+    kernel_files = set(REQUIRED_KERNEL_REFERENCES)
+    for rel in sorted(shared_files | kernel_files):
         if not (references / rel).is_file():
             errors.append(f"missing shared mode file: references/{rel}")
     if references.is_dir():
@@ -214,7 +217,7 @@ def validate_assistant_pipeline(errors: list[str]) -> int:
             rel = path.relative_to(references).as_posix()
             if any(part.startswith(".") for part in Path(rel).parts):
                 continue
-            if (path.is_dir() and rel in CAPABILITY_MODES) or rel in shared_files:
+            if (path.is_dir() and rel in CAPABILITY_MODES) or rel in shared_files | kernel_files:
                 continue
             errors.append(f"unexpected shared reference: references/{rel}")
     for mode in sorted(CAPABILITY_MODES):

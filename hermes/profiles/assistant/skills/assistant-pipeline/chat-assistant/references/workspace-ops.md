@@ -4,7 +4,8 @@ Operate the personal/project ledgers inline via the workspace skills:
 
 - the workspace registry — people, projects, memberships and repos — through the
   `workspace_registry` tool (data: `~/Workspaces/.registry/*.csv`)
-- `household-budget` (`hb`) — budget/ledger
+- personal ledgers — through the installed skills that are available; do not
+  invent an engine
 
 ## Sensitive data rule
 

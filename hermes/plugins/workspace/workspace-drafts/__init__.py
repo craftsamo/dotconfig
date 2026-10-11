@@ -41,8 +41,8 @@ DESCRIPTION = (
     "totals per source; inbox lists one row per item (an entry of .inbox/<source>/, or a loose entry in "
     ".inbox/), oldest first, with stale = its oldest file waited inbox_stale_days (default 7); only "
     "sort idle|size|name, limit and the stale flag apply. It never "
-    "reads file contents and never moves or deletes; promotion and deletion follow ~/Workspaces/AGENTS.md "
-    "\"Drafts\" and need the user's approval.")
+    "reads file contents and never moves or deletes; promotion and deletion follow the assistant-pipeline "
+    "reference workspace-layout.md \"Drafts\" and need the user's approval.")
 
 PROPERTIES = {
     "action": {"type": "string", "enum": list(drafts.ACTIONS)},

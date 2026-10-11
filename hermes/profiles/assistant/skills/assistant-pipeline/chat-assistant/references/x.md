@@ -44,7 +44,8 @@ the tool.
 paths; a second call reuses what is already there. Deliver with a bare
 `MEDIA:/abs/path` line. The files are other people's work: they stay for the
 user's own use, and moving a keeper into a Group's `assets/` or deleting the
-folder follows the user's OK (`~/Workspaces/AGENTS.md`). A post that cannot be
+folder follows the user's OK (`read_file`
+`~/.hermes/profiles/assistant/skills/assistant-pipeline/references/workspace-layout.md`). A post that cannot be
 read may be deleted, protected, withheld or marked sensitive — report the
 reason the tool gives. `verify` with `save=true` keeps raw replies in
 `~/Workspaces/.inbox/x/verify/`, under the same rule.

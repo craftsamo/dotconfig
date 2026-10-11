@@ -35,5 +35,6 @@ Do them inline with the tool.
   workspace and can be sent on as it is.
 - Files `media` saves land in `~/Workspaces/.inbox/whatsapp/`. Moving a
   keeper into a Group's typed surface or a draft job, or deleting the folder,
-  follows `~/Workspaces/AGENTS.md`.
+  follows the layout in `read_file` of
+  `~/.hermes/profiles/assistant/skills/assistant-pipeline/references/workspace-layout.md`.
 - Report a send from the tool result, not from what was asked.
