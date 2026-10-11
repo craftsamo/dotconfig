@@ -37,6 +37,7 @@ toolsets:
 - computer_use
 - specialist
 - media_inspect
+- workspace_registry
 max_concurrent_sessions: null
 agent:
   system_prompt: |
@@ -741,7 +742,7 @@ telegram:
       Topic contract — Admin:
       - This topic is the inline surface for small administrative work that does not
         deserve a topic of its own: workspace bookkeeping (project registry, group or repo
-        scaffolding, people and household-budget records, docs/data touch-ups), edits to
+        scaffolding, people and ledger records, docs/data touch-ups), edits to
         the ~/.config dotconfig repo and its Hermes profiles, and Hermes upkeep (browser
         relaunch, cron and validator checks, skill housekeeping).
       - Finish the work here in the Assistant session with the owning workspace skill or
@@ -894,6 +895,7 @@ _config_version: 29
 platform_toolsets:
   cli:
   - media_inspect
+  - workspace_registry
   - web
   - browser
   - terminal
@@ -911,6 +913,7 @@ platform_toolsets:
   - no_mcp
   telegram:
   - media_inspect
+  - workspace_registry
   - web
   - browser
   - terminal
@@ -928,6 +931,7 @@ platform_toolsets:
   - no_mcp
   discord:
   - media_inspect
+  - workspace_registry
   - web
   - browser
   - terminal
@@ -978,6 +982,7 @@ video_analyze:
   model: xiaomi/mimo-v2.5
 plugins:
   enabled:
+  - workspace-registry
   - specialist-call
   - irodori-tts
   - qwen3-tts

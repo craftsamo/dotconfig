@@ -27,8 +27,8 @@ directories are in [`../../AGENTS.md`](../../AGENTS.md) "Skills".
   ignored and the plugin fails to load. Current groups:
   `messaging/` (chat accounts), `social/` (public platforms: x, note, substack,
   youtube), `web3/` (chain reads and the wallet), `orchestration/` (specialist,
-  OpenCode and session-history transports), `workspace/` (drafts, repos and the
-  private registry/report overlay), `guards/` (topology and Worker guards),
+  OpenCode and session-history transports), `workspace/` (the public drafts, repos and
+  registry engines; a local overlay may add more), `guards/` (topology and Worker guards),
   `inspection/` (vision window, video analysis, media and writing inspection),
   and the media families `image_gen/`, `video_gen/`, `audio_gen/`, `tts/`,
   `transcription/`. `google-access` and `hermes-achievements` (upstream writes

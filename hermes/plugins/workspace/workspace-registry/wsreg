@@ -1,0 +1,132 @@
+#!/usr/bin/env python3
+"""wsreg — the workspace registry (people, projects, memberships, repos) from a shell.
+
+    wsreg [--root DIR] <action> [--key value | --flag]...
+
+Actions are the workspace_registry tool's (hyphens or underscores):
+  read   whois --query Q | person --id ID | persons [--status --kind --project]
+         project --id ID | projects [--status --kind --organization] | members [--project --person]
+         repos [--project] | search --query Q | review | validate
+  write  person-set --id ID [--display-name ..] [--timezone ..] ...
+         project-set --id ID [--canonical-name ..] [--organization-id ..] ...
+         group-create --id ID [project-set fields]   new Group: Projects/ID/{github,docs,data},
+                    a seeded AGENTS.md and the registry row (existing files are kept)
+         member-set --project P --person ID [--role R]... [--area A]... [--responsibility X]...
+                    [--note N]... [--can-merge] [--can-deploy] [--status ..] [--working-relationship ..]
+         member-rm --project P --person ID
+         repo-set --project P --name N [--owner ..] [--host ..] [--url ..] [--ghq-path ..] [--status ..]
+         repo-rm --project P --name N | link-repo --project P --name N
+         add|remove --facet F (--person ID | --project P) --value V [--channel ..] [--kind ..]
+                    [--label ..] [--axis ..] [--proficiency ..] [--primary] [--date YYYY-MM-DD]
+         rename (--person ID | --project P) --new-id NEW
+  setup  init   create an empty registry under <root>/.registry
+
+For a *-set action and group-create every flag other than the identifying ones is a field.
+member-set list flags (--role, --area, --responsibility, --note) REPLACE that whole list:
+repeat the flag for every item to keep.
+Read actions print {"contract_version": 1, "skill": "registry", "data": ...};
+--json is accepted and ignored. Exit 1 on errors (validate: on any error).
+"""
+
+from __future__ import annotations
+
+import importlib.util
+import json
+from pathlib import Path
+import sys
+
+HERE = Path(__file__).resolve().parent
+
+
+def _engine():
+    name = "hermes_workspace_registry_engine"
+    if name not in sys.modules:
+        spec = importlib.util.spec_from_file_location(name, HERE / "registry.py")
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[name] = module
+        spec.loader.exec_module(module)
+    return sys.modules[name]
+
+
+IDENT = {"id", "project", "person", "name", "new_id"}
+TOP = IDENT | {"query", "facet", "value", "channel", "kind", "label", "axis", "proficiency", "primary",
+               "date", "status", "organization"}
+LISTS = {"role": "roles", "area": "areas", "responsibility": "responsibilities", "note": "notes"}
+BOOL_FLAGS = {"primary", "can_merge", "can_deploy", "has_agents_md"}
+
+
+def parse(argv):
+    """argv -> (root or None, args dict for registry.run)."""
+    root, rest = None, list(argv)
+    if rest[:1] == ["--root"]:
+        if len(rest) < 2:
+            raise SystemExit("wsreg: --root needs a directory")
+        root, rest = rest[1], rest[2:]
+    if not rest or rest[0] in ("-h", "--help", "help"):
+        print(__doc__.strip())
+        raise SystemExit(0)
+    action = rest.pop(0).replace("-", "_")
+    raw = {}
+    i = 0
+    while i < len(rest):
+        tok = rest[i]
+        if not tok.startswith("--"):
+            raise SystemExit(f"wsreg: unexpected argument {tok!r}")
+        key = tok[2:].replace("-", "_")
+        if key == "json":
+            i += 1
+            continue
+        if key in BOOL_FLAGS and (i + 1 == len(rest) or rest[i + 1].startswith("--")):
+            val, i = True, i + 1
+        elif i + 1 < len(rest):
+            val, i = rest[i + 1], i + 2
+        else:
+            raise SystemExit(f"wsreg: --{key} needs a value")
+        if key in LISTS and action == "member_set":
+            raw.setdefault(LISTS[key], []).append(val)
+        else:
+            raw[key] = val
+    args = {"action": action}
+    if action.endswith("_set") or action == "group_create":
+        fields = {}
+        for k, v in raw.items():
+            (args if k in IDENT else fields)[k] = v
+        if action in ("project_set", "group_create") and "organization" in fields:
+            fields["organization_id"] = fields.pop("organization")
+        if fields:
+            args["fields"] = fields
+    else:
+        unknown = sorted(set(raw) - TOP)
+        if unknown:
+            raise SystemExit(f"wsreg: unknown option(s) {', '.join('--' + k for k in unknown)}")
+        args.update(raw)
+    return root, args
+
+
+def main(argv=None):
+    root, args = parse(sys.argv[1:] if argv is None else argv)
+    reg = _engine()
+    try:
+        if args["action"] == "init":
+            print(json.dumps({"ok": True, "created": str(reg.init(root or reg.default_root()))}))
+            return 0
+        out = reg.run(args, root=root)
+    except reg.RegistryError as exc:
+        print(f"wsreg: {exc}", file=sys.stderr)
+        return 1
+    if args["action"] == "validate":
+        for w in out["warnings"]:
+            print(f"WARN: {w}", file=sys.stderr)
+        for e in out["errors"]:
+            print(f"ERROR: {e}", file=sys.stderr)
+        print(f"registry validation {'passed' if out['ok'] else 'failed'}: "
+              f"{len(out['errors'])} error(s), {len(out['warnings'])} warning(s)")
+        return 0 if out["ok"] else 1
+    if args["action"] in reg.READS:
+        out = {"contract_version": 1, "skill": "registry", "data": out}
+    print(json.dumps(out, ensure_ascii=False, indent=2))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
