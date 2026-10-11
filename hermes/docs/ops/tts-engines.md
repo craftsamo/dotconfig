@@ -154,7 +154,8 @@ re-encoded per request).
 `install` builds a git checkout of the upstream server plus a uv venv under the
 ignored `local/irodori-tts/`; the launcher's explicit uv `--python` is
 mandatory, since uv otherwise picks 3.12 and the pinned `sentencepiece` has no
-wheel for it. The pins file is named `.conf` because `**/*.env` is ignored and
+wheel for it. The pin is 3.11 rather than upstream's 3.10, because the lock's
+3.10 scipy does not load on macOS 27 (reason in `pinned.conf`). The pins file is named `.conf` because `**/*.env` is ignored and
 the pins must be tracked. `register-lexicon` validates the JSON and refuses to
 write through a symlink — that is how the private overlay owns the file. The
 plugin caches the lexicon per process, so a live gateway needs a restart.
