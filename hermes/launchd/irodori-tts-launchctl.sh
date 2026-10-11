@@ -288,8 +288,8 @@ sync_server() {
   #
   # --python is not optional. Left to itself uv takes the default interpreter,
   # and on 3.12 the pinned sentencepiece 0.1.99 has no wheel, so uv falls back to
-  # building it from source and dies in build_bundled.sh. 3.10 has wheels for the
-  # whole graph and matches upstream's .python-version.
+  # building it from source and dies in build_bundled.sh. The pinned version
+  # (pinned.conf says why it is not upstream's 3.10) has wheels for the whole graph.
   ( cd "$SERVER_DIR" \
     && UV_NO_CONFIG=1 uv sync --frozen \
          --python "$IRODORI_PYTHON_VERSION" \
