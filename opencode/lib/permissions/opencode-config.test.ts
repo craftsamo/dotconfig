@@ -85,3 +85,26 @@ describe("global shell rules", () => {
       expect([command, shell(command)]).toEqual([command, "allow"])
   })
 })
+
+describe("global skill rules", () => {
+  // OpenCode asks for a skill by its id, the directory holding SKILL.md, never
+  // by the frontmatter `name`.
+  const skill = (id: string) => {
+    let effect = "ask"
+    for (const r of rules) if (matches(r.action, "skill", false) && matches(r.resource, id, false)) effect = r.effect
+    return effect
+  }
+  const skillsDir = join(import.meta.dir, "../../skills")
+  const ids = (family: string) =>
+    [...new Bun.Glob(`${family}/*/SKILL.md`).scanSync(skillsDir)].map((path) => path.split("/").at(-2)!)
+
+  test("each git and approach skill is allowed by its id", () => {
+    const allowed = [...ids("git"), ...ids("approach")]
+    expect(allowed).toContain("commit")
+    for (const id of allowed) expect([id, skill(id)]).toEqual([id, "allow"])
+  })
+
+  test("an unlisted skill still asks", () => {
+    expect(skill("some-new-skill")).toBe("ask")
+  })
+})
