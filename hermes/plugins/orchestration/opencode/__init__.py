@@ -346,14 +346,20 @@ def _launch_notifier(home, sid, task_id):
 
 def _notifier_running(home, sid):
     """Whether a notifier for this run is already alive in Hermes' own process registry
-    (read, never recorded here), so a status read does not start a second one."""
+    (read, never recorded here), so a status read does not start a second one.
+
+    The registry offers no public lookup by full command (`list_sessions` cuts it
+    before the session id), so this reads `_any_running`, which also refreshes a
+    detached process that already ended. If upstream renames it, every status read
+    would start another notifier; that is logged rather than passing silently."""
     tail = " " + shlex.join(["notify", str(home), sid])
     try:
         from tools.process_registry import process_registry
-        running = list(getattr(process_registry, "_running", {}).values())
-    except Exception:
+        probe = process_registry._any_running
+    except Exception as exc:
+        _diagnose(home, sid, f"warn registry unreadable ({type(exc).__name__}); notifier detection off")
         return False
-    return any(not getattr(s, "exited", True) and str(getattr(s, "command", "")).endswith(tail) for s in running)
+    return probe(lambda s: str(getattr(s, "command", "")).endswith(tail))
 
 
 NOTIFIER_NOTE = (f"A notification follows at the run's next stop, or after {NOTIFY_LIMIT // 60} minutes as a "
