@@ -258,12 +258,15 @@ checks; fresh-context use and actual-media quality need separate evidence.
 `motion-vocabulary` gives every motion one shared name with Japanese aliases.
 `SKILL.md` routes each authoring decision to a names file
 (`references/<area>.md`: Feel, For, Looks like, The tell) and to how the entry
-is built in a rendered video (`references/video/<area>.md`). Hermes
+is built in a rendered video (`references/video/<area>.md`) and on a real web
+page (`references/web/<area>.md`: trigger, build, reduced-motion form). Hermes
 video-creator pins it for its authored leaves, Creator reads it through the
-store, and any CLI building a video can use the same names.
+store, and any CLI building a video or a front end uses the same names.
 
-Names and builds stay descriptive: no numeric defaults, avoid-lists or scores
-(`hermes/docs/decisions/storyboard-vocabulary-rule-free.md`). Names were
+Names and video builds stay descriptive: no numeric defaults, avoid-lists or
+scores (`hermes/docs/decisions/storyboard-vocabulary-rule-free.md`). Web builds
+carry typical values and reduced-motion forms, because a shipped page needs
+them; a project's own motion tokens still win. Names were
 adopted from the motion-reference.takayustudio.jp catalogue and a scroll-motion
 cheat sheet posted on X; every description is independently written.
 `hermes/scripts/audit-motion-vocabulary.py` checks shape, routing, sizes,
