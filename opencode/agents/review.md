@@ -17,6 +17,8 @@ permissions:
   - { action: git_commit, resource: "*", effect: deny }
   - { action: git_worktree, resource: "*", effect: deny }
   - { action: git_rebase, resource: "*", effect: deny }
+  - { action: git_stack, resource: "*", effect: deny }
+  - { action: git_stack_publish, resource: "*", effect: deny }
   - { action: edit, resource: "*", effect: deny }
   - { action: external_directory, resource: "*", effect: allow }
   - { action: subagent, resource: "*", effect: deny }
@@ -46,6 +48,7 @@ permissions:
   - { action: shell, resource: "gh pr checks*", effect: allow }
   - { action: shell, resource: "gh pr list*", effect: allow }
   - { action: shell, resource: "gh repo view*", effect: allow }
+  - { action: shell, resource: "gh stack view*", effect: allow }
   # A redirect on an allowlisted command would write without asking. Ask,
   # not deny: inline scripts often contain ">". Placed before the denies.
   - { action: shell, resource: "*>*", effect: ask }
