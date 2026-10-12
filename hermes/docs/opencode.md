@@ -130,7 +130,8 @@ own fixed plan directory (`~/.opencode/plan`), so the model never tries, and
 widening Plan's own `edit` rules would change nothing. So when a read-only turn
 completes without its own edit tools touching the output directory, the plugin
 saves the turn's final reply there as `<worktree>-<role>-<turn>.md` and returns
-it as `report`; the file is the run's deliverable, never read back.
+it as `report`; the file is the run's deliverable, never read back (only its
+existence is checked, so a later status read does not write it twice).
 
 **Permissions.** OpenCode 2 evaluates ordered rules, last match wins: global
 config, then the agent's own `permissions`, then the session's ruleset; and
