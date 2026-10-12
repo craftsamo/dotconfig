@@ -57,6 +57,24 @@ class WorkspaceLayoutOwnershipTest(unittest.TestCase):
         self.assertNotIn("wsreg", text)
         self.assertNotIn(".registry", text)
 
+    def test_draft_users_read_the_plugin_skill_explicitly(self):
+        call = 'skill_view(name="workspace-drafts:workspace-drafts")'
+        for ref in (LAYOUT, ROOT / "SKILL.md"):
+            text = " ".join(ref.read_text(encoding="utf-8").split())
+            self.assertIn(call, text, ref.name)
+
+    def test_drafts_plugin_skill_owns_procedures_not_layout(self):
+        path = REPO / "hermes/plugins/workspace/workspace-drafts/skills/workspace-drafts/SKILL.md"
+        self.assertTrue(path.is_file())
+        text = path.read_text(encoding="utf-8")
+        self.assertTrue(text.startswith("---\nname: workspace-drafts\n"))
+        for needle in ("summary", "list", "inbox", "read-only", "metadata", "inbound A2A",
+                       "truncated", "status=partial", "AND"):
+            self.assertIn(needle, text)
+        for header in ("## Map", "## Drafts"):
+            self.assertNotIn(header, text)
+        self.assertNotRegex(text, r"(?m)^```(?:sh|bash|zsh|shell)\b")
+
     def test_public_installer_seeds_nothing_private_dependent(self):
         text = (REPO / "install.sh").read_text(encoding="utf-8")
         self.assertNotIn("Workspaces/AGENTS", text)

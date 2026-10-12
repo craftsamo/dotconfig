@@ -405,7 +405,7 @@ def test_drafts_inbox_command(inbox, monkeypatch):
 
 class Ctx:
     def __init__(self, profile):
-        self.profile_name, self.tools, self.commands = profile, [], []
+        self.profile_name, self.tools, self.commands, self.skills = profile, [], [], {}
 
     def register_tool(self, **kw):
         self.tools.append(kw)
@@ -413,12 +413,49 @@ class Ctx:
     def register_command(self, name, handler, **kw):
         self.commands.append(name)
 
+    def register_skill(self, name, path, description="", frontmatter=None):
+        assert path.is_file() and frontmatter["name"] == name and description
+        self.skills[name] = (path, description)
+
 
 @pytest.mark.parametrize("profile,expected", [("assistant", True), ("engineer", False), ("creator", False)])
 def test_registration_is_limited_to_the_assistant(profile, expected):
     ctx = Ctx(profile)
     plugin.register(ctx)
     assert bool(ctx.tools) is expected and bool(ctx.commands) is expected
+    assert bool(ctx.skills) is expected
     if expected:
         assert ctx.tools[0]["toolset"] == "workspace_drafts" and ctx.commands == ["drafts"]
         assert ctx.tools[0]["schema"]["parameters"]["additionalProperties"] is False
+
+
+def test_skill_is_registered_with_its_own_path():
+    ctx = Ctx("assistant")
+    plugin.register(ctx)
+    path, description = ctx.skills["workspace-drafts"]
+    assert path == ROOT / "skills" / "workspace-drafts" / "SKILL.md" and description
+
+
+@pytest.mark.parametrize("profile", ["engineer", "creator"])
+def test_register_skills_skips_other_profiles(profile):
+    ctx = Ctx(profile)
+    plugin.register_skills(ctx, profile)
+    assert ctx.skills == {}
+
+
+def test_failed_skill_registration_keeps_tool_and_command(monkeypatch, caplog):
+    import sys
+    import types
+
+    def bad(_text):
+        raise ValueError("bad")
+
+    module = types.ModuleType("agent.skill_utils")
+    module.parse_frontmatter = bad
+    monkeypatch.setitem(sys.modules, "agent", types.ModuleType("agent"))
+    monkeypatch.setitem(sys.modules, "agent.skill_utils", module)
+    ctx = Ctx("assistant")
+    with caplog.at_level("WARNING", logger=plugin.logger.name):
+        plugin.register(ctx)
+    assert len(ctx.tools) == 1 and ctx.commands == ["drafts"] and ctx.skills == {}
+    assert any(r.levelname == "WARNING" and "workspace-drafts" in r.getMessage() for r in caplog.records)
