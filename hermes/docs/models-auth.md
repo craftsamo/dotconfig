@@ -297,17 +297,17 @@ same shim, so **every profile gets `global` + `hermes`** — mechanics in
   session (OpenRouter, `GITHUB_TOKEN`, `FAL_KEY`, `GROQ_API_KEY`, the dashboard
   auth pair and the two `ANTHROPIC_CREDIT_*` lane keys shared with OpenCode).
   The messaging keys (`TELEGRAM_*` / `DISCORD_*`) parked here are the
-  **assistant's**: `profile-secrets.sh` passes them to assistant unfiltered,
-  keeps only the shared owner allowlist `TELEGRAM_ALLOWED_USERS` for creator /
-  marketer, and drops every messaging key for the other profiles. Do not delete
-  them as dead weight.
+  **assistant's**: `profile-secrets.sh` passes them to assistant unfiltered
+  and drops every messaging key for the other profiles. Do not delete them as
+  dead weight.
 - **`global`** — keys the shim shares with other tools (editor, MCP servers,
   CLIs), including the web-search keys.
-- **`hermes-<profile>`** (assistant / creator / marketer) — that bot's own
-  `TELEGRAM_BOT_TOKEN` + `TELEGRAM_ALLOWED_USERS` (assistant also
-  `TELEGRAM_HOME_CHANNEL` / `TELEGRAM_DM_CHAT_ID` / `DISCORD_*`). One bot, one
-  layer; never share a bot token between layers (the owner allowlist in
-  `hermes` is the one deliberately shared value).
+- **`hermes-<profile>`** — the bot's own `TELEGRAM_BOT_TOKEN` +
+  `TELEGRAM_ALLOWED_USERS` (plus `TELEGRAM_HOME_CHANNEL` /
+  `TELEGRAM_DM_CHAT_ID` / `DISCORD_*`). Only `hermes-assistant` carries them:
+  the assistant is the one bot, and `profile-secrets.sh` drops messaging keys
+  from every other profile's layer. One bot, one layer; never share a bot
+  token between layers.
 - **OAuth** is not a layer: see "Authentication inheritance".
 
 **Multiplex changes where these layers land.** Scope-aware reads inside the
