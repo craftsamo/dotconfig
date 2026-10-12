@@ -10,7 +10,7 @@ Read the [kernel](../../SKILL.md) first. The leaf's form is authoritative; this 
 
 - Any native `grid` `WxH`; a fixed palette (from a `source` native PNG or a create-pixel-art delivery, or drawn from a `subject`); `effective_fps` (unique frames per second, default 10) held equally in the container; a seamless `loop` (default) or a one-shot; integer `scale` (default 8) and optional `gif`.
 - Measured, not promised: grid and scale, palette, cadence and loop seam are checked numerically on the encoded files, so it suits sprites, avatars, logo and scene loops, rain, snow, embers and stepped parallax.
-- Named techniques from video-creator's `references/motion-vocabulary.md` (`skill_view(name="video-creator-pipeline", file_path="references/motion-vocabulary.md")`) apply where they can be stepped on the grid (squash and stretch, anticipation, a camera push as integer shifts); smooth easing, blur, rotation and sub-pixel moves do not exist here.
+- Named techniques from the shared motion vocabulary (`skill_view(name="motion-vocabulary", file_path="references/core.md")`) apply where they can be stepped on the grid (squash and stretch, anticipation, a camera push as integer shifts); smooth easing, blur, rotation and sub-pixel moves do not exist here.
 - It does not suit photographic or painterly motion: a model-made clip with a pixel look is `generate-clip` and guarantees no grid.
 
 ## Where directions go

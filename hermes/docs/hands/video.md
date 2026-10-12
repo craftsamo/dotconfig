@@ -126,15 +126,18 @@ motion is time-based, so draft and final differ only in sampling). Motion
 Canvas stays 30-only; create-master needs every segment at one shared rate, so
 mixed rates go through edit-clip first.
 
-**Motion vocabulary.** The kernel's `references/motion-vocabulary.md` is read
-by the five authored leaves before the plan that fixes their beats; they name
-its entries instead of generic "fade" or "card". The core holds what most
-films use (text basics, transitions, camera, components, compositions, film
-structures, visual metaphors) and routes, in its "More names" table, to one
-neighbouring `motion-vocabulary-*.md` file per authoring decision, read on
-demand; the core stays small because every plan reads it. It adds no plan
-field, schema or rule, and a drawn look never re-renders supplied art, a cast
-or a logo. `scripts/audit-motion-vocabulary.py` checks routing, table shape,
+**Motion vocabulary.** The shared `motion-vocabulary` skill (how it is
+pinned: [overview.md](./overview.md) "Media craft knowledge") is read by the
+five authored leaves before the plan that fixes their beats; they name its
+entries instead of generic "fade" or "card". The skill's SKILL.md routes
+each authoring decision to one names file (`references/<area>.md`: Feel, For,
+Looks like, The tell) and its video builds (`references/video/<area>.md`).
+Planning reads SKILL.md and `references/core.md` (what most films use: text
+basics, transitions, camera, components, compositions, film structures,
+visual metaphors) plus the names file a decision needs; building reads the
+video rows of the entries the approved plan names. The core stays small
+because every plan reads it. It adds no plan field, schema or rule, and a
+drawn look never re-renders supplied art, a cast or a logo. `scripts/audit-motion-vocabulary.py` checks routing, table shape,
 sizes, references and descriptive tells; pass the source prose with
 `--source` when names are taken from a third-party catalogue.
 Why: "Storyboard vocabulary" under the Promotion family.
@@ -305,8 +308,8 @@ and the leaf's `<Standard>`, fixed by redesign. Why:
 [decisions/explainer-structure-approval.md](../decisions/explainer-structure-approval.md).
 
 **Storyboard vocabulary.** The storyboard decides the film's taste, not the
-implementer, so Round A names entries of the kernel's
-`references/motion-vocabulary.md` (names, looks, tells and usual builds, no rules)
+implementer, so Round A names entries of the shared motion vocabulary
+(names, looks, tells and usual builds, no rules)
 instead of generic "fade" or "card". Keep the vocabulary rule-free:
 [decisions/storyboard-vocabulary-rule-free.md](../decisions/storyboard-vocabulary-rule-free.md).
 

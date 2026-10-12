@@ -144,3 +144,15 @@ def test_creator_config_has_no_generation_or_hands_reach():
     external = [str(p) for p in config["skills"]["external_dirs"]]
     for hands in ("image-creator", "video-creator", "audio-creator"):
         assert f"~/.hermes/profiles/{hands}/skills/{hands}-pipeline" in external
+
+
+def test_creator_names_motion_by_feel_and_tell():
+    # Creator reaches the shared motion vocabulary through the whole ~/.agents/skills store.
+    assert "~/.agents/skills" in [str(p) for p in creator_config()["skills"]["external_dirs"]]
+    kernel = compact(text(pipeline("creator") / "SKILL.md"))
+    assert 'skill_view(name="motion-vocabulary")' in kernel
+    assert "the `references/video/` builds are the producer's" in kernel
+    propose = compact(text(pipeline("creator") / "propose-creator/SKILL.md"))
+    revise = compact(text(pipeline("creator") / "revise-creator/SKILL.md"))
+    for body in (propose, revise):
+        assert "Feel column" in body and "tell" in body

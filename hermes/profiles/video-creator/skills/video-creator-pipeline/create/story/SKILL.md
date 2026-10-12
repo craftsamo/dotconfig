@@ -59,12 +59,17 @@ metadata:
    [silhouette](references/styles/silhouette.md); a custom value is written
    out as concretely, never mapped onto these), the kernel's
    [craft reading](../../references/craft.md) (motion + visual) and the
-   shared HyperFrames policy and vocabulary through the parent skill:
+   shared HyperFrames policy through the parent skill and the shared motion
+   vocabulary:
 
    ```text
    skill_view(name="video-creator-pipeline", file_path="references/hyperframes.md")
-   skill_view(name="video-creator-pipeline", file_path="references/motion-vocabulary.md")
+   skill_view(name="motion-vocabulary")
+   skill_view(name="motion-vocabulary", file_path="references/core.md")
    ```
+
+   Its table routes to the other areas; when building, read each named
+   entry's row in the matching `references/video/` file of that skill.
 
    Attempt the applicable technical lookups, report unavailable references
    and continue with local authoring. Look once at each cast image (at most
