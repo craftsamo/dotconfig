@@ -216,6 +216,21 @@
         { "action": "skill", "resource": "pullrequest", "effect": "allow" },
         { "action": "skill", "resource": "japanese-*", "effect": "allow" },
         { "action": "shell", "resource": "lsof *", "effect": "allow" },
+        // A build runs the project's own scripts and installed tools all day:
+        // nps tasks, package scripts and `pnpm exec` (which never downloads).
+        // A deployment, a publication, a secret or a remote resource reached
+        // through them still asks (a best-effort list, not a sandbox).
+        { "action": "shell", "resource": "nps *", "effect": "allow" },
+        { "action": "shell", "resource": "pnpm run *", "effect": "allow" },
+        { "action": "shell", "resource": "pnpm test*", "effect": "allow" },
+        { "action": "shell", "resource": "pnpm exec *", "effect": "allow" },
+        { "action": "shell", "resource": "npm run *", "effect": "allow" },
+        { "action": "shell", "resource": "npm test*", "effect": "allow" },
+        { "action": "shell", "resource": "*deploy*", "effect": "ask" },
+        { "action": "shell", "resource": "*publish*", "effect": "ask" },
+        { "action": "shell", "resource": "*secret*", "effect": "ask" },
+        { "action": "shell", "resource": "*--remote*", "effect": "ask" },
+        { "action": "shell", "resource": "*--prod*", "effect": "ask" },
       ],
     },
     "explore": {
