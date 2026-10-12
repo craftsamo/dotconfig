@@ -9,6 +9,7 @@ type Rule = { action: string; resource: string; effect: "allow" | "ask" | "deny"
 
 const config = Bun.JSONC.parse(await Bun.file(join(import.meta.dir, "../../opencode.jsonc")).text()) as {
   permissions: Rule[]
+  agents: Record<string, { permissions?: Rule[] }>
 }
 // What the built-in build agent resolves before the global rules.
 const builtIn: Rule[] = [
@@ -108,4 +109,38 @@ describe("global skill rules", () => {
   test("an unlisted skill still asks", () => {
     expect(skill("some-new-skill")).toBe("ask")
   })
+})
+
+describe("agent rules over a project's catch-all", () => {
+  // OpenCode evaluates top-level rules (global, then project) before every
+  // agent's own rules, so a project ending in `skill *: ask` re-asks what the
+  // global top level allows unless the agent restates it.
+  const full = config
+  const project: Rule[] = [
+    { action: "shell", resource: "*", effect: "ask" },
+    { action: "skill", resource: "*", effect: "ask" },
+  ]
+  const decide = (agent: string, action: string, resource: string) => {
+    let effect = "ask"
+    for (const r of [...rules, ...project, ...(full.agents[agent]?.permissions ?? [])])
+      if (matches(r.action, action, false) && matches(r.resource, resource, action === "shell")) effect = r.effect
+    return effect
+  }
+  const topSkillAllows = full.permissions
+    .filter((r) => r.action === "skill" && r.effect === "allow")
+    .map((r) => r.resource)
+
+  for (const agent of ["build", "plan"]) {
+    test(`${agent} restates every global skill allow and lsof`, () => {
+      const own = (full.agents[agent].permissions ?? [])
+        .filter((r) => r.action === "skill" && r.effect === "allow")
+        .map((r) => r.resource)
+      expect(own.sort()).toEqual([...topSkillAllows].sort())
+      for (const id of ["commit", "pullrequest", "new-feature", "japanese-writing"])
+        expect([id, decide(agent, "skill", id)]).toEqual([id, "allow"])
+      expect(decide(agent, "shell", "lsof -nP -iTCP:3000 -sTCP:LISTEN")).toBe("allow")
+      expect(decide(agent, "skill", "some-new-skill")).toBe("ask")
+      expect(decide(agent, "shell", "rm -rf build")).toBe("ask")
+    })
+  }
 })
