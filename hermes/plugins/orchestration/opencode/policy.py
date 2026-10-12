@@ -164,9 +164,15 @@ def protected_pushes(name):
 # the caller must not approve that for a read-only run). A write run's
 # git_commit amend/fixup and git_rebase stay open: they refuse by themselves to
 # rewrite the default branch, shared or protected commits, and what they rewrote
-# leaves the machine only through a push, which asks.
+# leaves the machine only through a push, which asks. git_stack moves a
+# native stack's local branches (split, add, rebase) like git_rebase;
+# git_stack_publish pushes and opens or links its PRs and asks through the
+# person's global rules, as git_verify_commits does. A write run states no ask
+# for it: a session-level rule would come after, and reopen, the deny a
+# read-only subagent sets itself. A read-only run is denied both.
 TOOL_DENY = ("git_worktree",)
-READ_ONLY_DENY_TOOLS = ("git_commit", "git_stage_hunks", "git_verify_commits", "git_rebase")
+READ_ONLY_DENY_TOOLS = ("git_commit", "git_stage_hunks", "git_verify_commits", "git_rebase", "git_stack",
+                        "git_stack_publish")
 PROJECT_WRITES = (
     "github_project_create", "github_project_field_ensure", "github_project_item_add",
     "github_project_item_set", "github_project_item_note", "github_project_item_promote",
