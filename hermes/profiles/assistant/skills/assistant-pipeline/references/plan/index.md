@@ -23,8 +23,9 @@ answer). Plan conversationally, backward from the goal:
    screen, but never round away what changes for people: what they can do,
    see or keep is shown in full. Present alternatives only when a real
    tradeoff exists.
-5. **One approval** — a single `clarify` (approve / adjust). The user's
-   approval sanctions the named grants as planned.
+5. **One approval** — a single `clarify` (approve / adjust) whose
+   `context` carries the plan from step 4. The user's approval sanctions the
+   named grants as planned.
    Small obvious jobs (one asset, one fix, clear spec) skip the ceremony:
    state what you're about to do and proceed unless stopped. A new product
    or a build of several PRs is the exception: engineering agrees it in
