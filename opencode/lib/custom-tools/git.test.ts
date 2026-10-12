@@ -1291,6 +1291,196 @@ describe("git_stack", () => {
       expect(res.calls).toContain("pr edit 4 --repo o/r --base develop")
       expect(res.calls.some((c) => c.startsWith("pr create") || c.startsWith("pr ready"))).toBe(false)
     })
+
+    describe("attachments", () => {
+      const ghNew = { re: "^--version$", out: "gh version 2.102.0 (2026-09-30)\n" }
+      const publicView = {
+        re: "^repo view --json nameWithOwner,viewerPermission",
+        out: '{"nameWithOwner":"o/r","viewerPermission":"WRITE","defaultBranchRef":{"name":"main"},"visibility":"PUBLIC"}',
+      }
+      const withArgs = (f: Fixture, args: any, rules: any[]) => runWithFakeGh(f, { module: "git", name: "publish_preview", args }, rules)
+      /** A screenshot outside the worktree, so the tree stays clean. */
+      const shot = (f: Fixture, name = "shot.png", bytes = "png-bytes") => {
+        const path = join(f.root, name)
+        writeFileSync(path, bytes)
+        return path
+      }
+
+      test("previews each file, who can open it, and pins its content in the token", () => {
+        const f = repo()
+        threeCommits(f)
+        const path = shot(f)
+        const attachments = [{ branch: "feat", path, alt: "Login screen" }]
+        const out = withArgs(f, { attachments }, [noStack, publicView, noPRs, ghNew]).out
+        expect(out.refusals).toEqual([])
+        expect(out.attachments).toMatchObject({ visibility: "PUBLIC", layers: [{ branch: "feat", pr: null, files: [{ path, name: "shot.png", kind: "image", alt: "Login screen" }] }] })
+        expect(out.attachments.note).toContain("anyone")
+        expect(out.token).not.toBe(preview(f, [noStack, publicView, noPRs]).out.token)
+        writeFileSync(path, "other-bytes")
+        expect(withArgs(f, { attachments }, [noStack, publicView, noPRs, ghNew]).out.token).not.toBe(out.token)
+      })
+
+      test("refuses missing, unsupported, duplicate and captioned-video files, an old gh, and other branches", () => {
+        const f = repo()
+        threeCommits(f)
+        const png = shot(f)
+        const attachments = [
+          { branch: "feat", path: join(f.root, "missing.png") },
+          { branch: "feat", path: shot(f, "notes.txt") },
+          { branch: "feat", path: shot(f, "clip.mp4"), alt: "A clip" },
+          { branch: "feat", path: png },
+          { branch: "feat", path: png },
+          { branch: "feat", path: shot(f, "empty.gif", "") },
+        ]
+        const out = withArgs(f, { attachments }, [noStack, repoView, noPRs, { re: "^--version$", out: "gh version 2.95.0 (2026-06-17)\n" }]).out
+        const messages = out.refusals.filter((r: any) => r.rule === "attachments").map((r: any) => r.message).join("\n")
+        for (const part of ["missing.png does not exist", "notes.txt is not an image or video", "takes no alt text", "attached to feat twice", "empty.gif is empty", "gh 2.95.0 cannot attach"])
+          expect(messages).toContain(part)
+        expect(out.attachments.note).toContain("could not be read")
+        expect(withArgs(f, { attachments: [{ branch: "other", path: png }] }, [noStack, repoView, noPRs, ghNew]).error).toContain("not being published here")
+      })
+
+      test("refuses alt text that makes gh read a longer file name, and pins the visibility", () => {
+        const f = repo()
+        threeCommits(f)
+        const path = shot(f)
+        shot(f, "shot.png#private.png", "other")
+        const shadowed = withArgs(f, { attachments: [{ branch: "feat", path, alt: "private.png" }] }, [noStack, repoView, noPRs, ghNew]).out
+        expect(shadowed.refusals.map((r: any) => r.message).join("\n")).toContain("gh would read")
+        const attachments = [{ branch: "feat", path }]
+        const privateView = { re: publicView.re, out: publicView.out.replace("PUBLIC", "PRIVATE") }
+        const hidden = withArgs(f, { attachments }, [noStack, privateView, noPRs, ghNew]).out
+        expect(hidden.attachments.note).toContain("only people with access")
+        expect(withArgs(f, { attachments }, [noStack, publicView, noPRs, ghNew]).out.token).not.toBe(hidden.token)
+      })
+
+      test("finds a file whose bytes changed, or that is shadowed, after it was pinned", async () => {
+        const f = repo()
+        const { unsafeNow, checkAttachments } = await load(() => import("./git/attachments"))
+        const path = shot(f)
+        const { list } = checkAttachments(f.dir, [{ branch: "feat", path, alt: "a#b" }], [{ branch: "feat", pr: null }], { ghVersion: "gh version 2.99.0", visibility: "PRIVATE" })
+        expect(list).toHaveLength(1)
+        expect(unsafeNow(list, "feat")).toEqual([])
+        shot(f, "shot.png#a")
+        expect(unsafeNow(list, "feat")).toEqual([`gh would now read ${path}#a instead of ${path}`])
+        writeFileSync(path, "swapped")
+        expect(unsafeNow(list, "feat")[0]).toBe(`${path} changed since the preview`)
+      })
+
+      test("keeps opening and linking the layers above one whose uploads partly failed", () => {
+        const f = repo()
+        const stack = layered(f)
+        const path = shot(f)
+        const clip = shot(f, "clip.webm", "webm-bytes")
+        const pr = (number: number, head: string, base: string) => ({ number, headRefName: head, baseRefName: base, isDraft: false, url: `u${number}`, isCrossRepository: false, autoMergeRequest: null })
+        const attachments = [
+          { branch: "x/l2", path },
+          { branch: "x/l2", path: clip },
+        ]
+        const { token } = withArgs(f, { attachments }, [stack, repoView, noPRs, ghNew]).out
+        const res = publish(f, { action: "submit", token, attachments }, [
+          stack,
+          repoView,
+          ghNew,
+          { re: "^pr list --repo o/r --state open", out: "[]", times: 3 },
+          { re: "^pr list --repo o/r --state open", out: JSON.stringify([pr(4, "x/l1", "main"), pr(5, "x/l2", "x/l1"), pr(6, "feat", "x/l2")]) },
+          ...["x/l1", "x/l2", "feat"].map((b) => ({ re: `^api repos/o/r/branches/${b} --jq`, out: f.git("rev-parse", b) })),
+          { re: "^pr create --repo o/r --base main --head x/l1 ", out: "https://github.com/o/r/pull/4\n" },
+          { re: `^pr create --repo o/r --base x/l1 --head x/l2 .*--attach=${path} --attach=${clip}$`, out: "https://github.com/o/r/pull/5\n", code: 1 },
+          { re: "^pr create --repo o/r --base x/l2 --head feat ", out: "https://github.com/o/r/pull/6\n" },
+          { re: "^stack link --base main 4 5 6$", out: "linked" },
+          { re: "^api ", out: "null" },
+        ])
+        expect(res.out).toMatchObject({ published: true, link: { ok: true } })
+        expect(res.out.attachments.errors).toEqual([expect.stringContaining("#5 was opened")])
+        expect(res.out.attachments.sent).toEqual([{ branch: "x/l2", pr: 5, files: [path, clip] }])
+        expect(res.calls.filter((c) => c.includes("--attach")).length).toBe(1)
+      })
+
+      test("submits the files with --attach and keeps the PR when only some upload", () => {
+        const f = repo()
+        threeCommits(f)
+        const path = shot(f)
+        const attachments = [{ branch: "feat", path, alt: "Login screen" }]
+        const created = { number: 8, headRefName: "feat", baseRefName: "main", isDraft: false, url: "u8", isCrossRepository: false, autoMergeRequest: null }
+        const rules = (createCode: number) => [
+          noStack,
+          repoView,
+          ghNew,
+          { re: "^pr list --repo o/r --state open", out: "[]", times: 1 },
+          { re: "^pr list --repo o/r --state open", out: JSON.stringify([created]) },
+          { re: "^api repos/o/r/branches/feat --jq", out: sha(f, "feat") },
+          { re: "^pr create --repo o/r --base main --head feat --title Plain change --body-file ", out: "https://github.com/o/r/pull/8\n", code: createCode },
+          { re: "^api ", out: "null" },
+        ]
+        const { token } = withArgs(f, { attachments }, [noStack, repoView, noPRs, ghNew]).out
+        expect(publish(f, { action: "push", token, attachments }, rules(0)).error).toContain("submit")
+        const args = { action: "submit", token, attachments, prs: [{ branch: "feat", title: "Plain change", body: "![Login](./shot.png)" }] }
+        const ok = publish(f, args, rules(0))
+        expect(ok.calls.find((c) => c.startsWith("pr create"))).toEndWith(`--attach=${path}#Login screen`)
+        expect(ok.out).toMatchObject({ published: true, attachments: { sent: [{ branch: "feat", pr: 8, files: [path] }] } })
+        expect(ok.out.attachments.errors).toBeUndefined()
+
+        // The first publication pushed feat, so the remote moved: preview again.
+        const again = withArgs(f, { attachments }, [noStack, repoView, noPRs, ghNew]).out.token
+        const partial = publish(f, { ...args, token: again }, rules(1))
+        expect(partial.out).toMatchObject({ published: true, layers: [{ pr: { number: 8 } }] })
+        expect(partial.out.attachments.errors[0]).toContain("#8 was opened")
+        expect(partial.out.attachments.next).toContain("Do not run git_publish again")
+      })
+
+      test("uploads nothing for a layer whose file a hook changed during publishing", () => {
+        const f = repo()
+        threeCommits(f)
+        const path = shot(f)
+        const hook = join(f.dir, ".git", "hooks", "pre-push")
+        writeFileSync(hook, `#!/bin/sh\nprintf swapped > '${path}'\n`)
+        chmodSync(hook, 0o755)
+        const attachments = [{ branch: "feat", path }]
+        const { token } = withArgs(f, { attachments }, [noStack, repoView, noPRs, ghNew]).out
+        const res = publish(f, { action: "submit", token, attachments }, [
+          noStack,
+          repoView,
+          ghNew,
+          noPRs,
+          { re: "^api repos/o/r/branches/feat --jq", out: sha(f, "feat") },
+          { re: "^pr create --repo o/r --base main --head feat ", out: "https://github.com/o/r/pull/8\n" },
+          { re: "^api ", out: "null" },
+        ])
+        expect(res.calls.some((c) => c.includes("--attach"))).toBe(false)
+        expect(res.out.attachments).toMatchObject({ sent: [], skipped: [{ branch: "feat", reasons: [`${path} changed since the preview`] }] })
+      })
+
+      test("attaches to an existing PR with gh pr edit", () => {
+        const f = repo()
+        threeCommits(f)
+        f.git("push", "-q", "origin", "feat")
+        const path = shot(f)
+        const existing = { number: 4, headRefName: "feat", baseRefName: "main", isDraft: false, url: "u4", isCrossRepository: false, autoMergeRequest: null }
+        const listed = { re: "^pr list --repo o/r --state open", out: JSON.stringify([existing]) }
+        const attachments = [{ branch: "feat", path }]
+        const shown = withArgs(f, { attachments }, [noStack, repoView, listed, ghNew]).out
+        expect(shown.warnings.join("\n")).toContain("already has PR #4")
+        const rules = (attachCode: number) => [
+          noStack,
+          repoView,
+          listed,
+          ghNew,
+          { re: "^api repos/o/r/branches/feat --jq", out: sha(f, "feat") },
+          { re: "^pr edit 4 --repo o/r --title New title$", out: "u4\n" },
+          { re: "^pr edit 4 --repo o/r --attach=", out: "u4\n", code: attachCode },
+          { re: "^api ", out: "null" },
+        ]
+        const args = { action: "submit", token: shown.token, attachments, prs: [{ branch: "feat", title: "New title" }] }
+        const res = publish(f, args, rules(0))
+        // The title goes alone first, so an upload failure can only be the second call's.
+        expect(res.calls.filter((c) => c.startsWith("pr edit 4"))).toEqual(["pr edit 4 --repo o/r --title New title", `pr edit 4 --repo o/r --attach=${path}`])
+        expect(res.out).toMatchObject({ published: true, attachments: { sent: [{ pr: 4 }] } })
+        const failed = publish(f, args, rules(1)).out
+        expect(failed.attachments.errors[0]).toContain("#4")
+        expect(failed.errors).toEqual([expect.stringContaining("may not have been updated")])
+      })
+    })
   })
 
   test("links PR numbers only, always on the default branch", () => {

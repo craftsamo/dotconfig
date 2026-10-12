@@ -46,7 +46,11 @@ over `gh stack`: split a branch into layers, add one, rebase),
 would do, pinned in a token) and `git_publish` (asks: pushes, opens or
 updates PRs, or links exactly the previewed branch or stack, then re-reads
 each layer), and the read-only
-history and lint helpers.
+history and lint helpers. Both publishing tools take `attachments`: images and
+videos that `gh pr create/edit --attach` (gh 2.99.0 or later) uploads into a
+PR body. `git/attachments.ts` checks them in the preview against gh's own
+limits and pins each file's content in the token, since an upload cannot be
+deleted. A failed upload is reported, never retried.
 Rewrites follow one rule (`git/rewrite.ts`, also behind `git_amend_check`): a
 task branch's own commits may be rewritten even once pushed (the result says
 when the push needs `--force-with-lease`), never the default branch, commits

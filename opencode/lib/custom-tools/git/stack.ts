@@ -2,6 +2,7 @@ import { existsSync, readFileSync, realpathSync } from "fs"
 import { join } from "path"
 import { tool } from "../define"
 import { exec, runGit, tryGit, withTempFile } from "../exec"
+import { attachArgs, checkAttachments, unsafeNow, type AttachmentRequest } from "./attachments"
 import { conflictMap } from "./conflicts"
 import { ghApi, localStack } from "./related"
 import { currentBranch, forcePushBlock } from "./rewrite"
@@ -245,7 +246,7 @@ async function pushPinned(cwd: string, layers: Layer[], signal?: AbortSignal) {
  * `base`, else its open PR's base, else the default branch.
  */
 type MetaOpts = MetaRequest & { infer?: boolean }
-type PlanOpts = { base?: string; meta?: MetaOpts; layerMeta?: { branch: string; meta: MetaOpts }[] }
+type PlanOpts = { base?: string; meta?: MetaOpts; layerMeta?: { branch: string; meta: MetaOpts }[]; attachments?: AttachmentRequest[] }
 
 const union = (a?: string[], b?: string[]) => (a || b ? [...new Set([...(a ?? []), ...(b ?? [])])] : undefined)
 
@@ -306,9 +307,10 @@ async function plan(cwd: string, opts: PlanOpts = {}) {
   refusals.push(...remoteRefusals)
 
   let githubDefault: string | undefined
+  let visibility: string | null = null
   if (repo) {
     // Fail closed: gh resolves its own target repository, which must be known to be origin's.
-    const view = await ghJson(["repo", "view", "--json", "nameWithOwner,viewerPermission,defaultBranchRef"], cwd)
+    const view = await ghJson(["repo", "view", "--json", "nameWithOwner,viewerPermission,defaultBranchRef,visibility"], cwd)
     if (!view) refusals.push({ rule: "repository", message: "Could not read the repository gh targets; its target, your permission and the default branch are unknown." })
     else {
       if (String(view.nameWithOwner).toLowerCase() !== repo.toLowerCase())
@@ -319,6 +321,7 @@ async function plan(cwd: string, opts: PlanOpts = {}) {
       if (!["WRITE", "MAINTAIN", "ADMIN"].includes(view.viewerPermission))
         refusals.push({ rule: "permission", message: `You have ${view.viewerPermission ?? "no"} access to ${repo}; the branches must live in the repository itself.` })
       githubDefault = view.defaultBranchRef?.name || undefined
+      visibility = view.visibility || null
     }
   }
   if (githubDefault && !stack && branch === githubDefault)
@@ -406,6 +409,13 @@ async function plan(cwd: string, opts: PlanOpts = {}) {
     secrets = { gitleaksRan: net.gitleaksRan, findings: dedupe([...net.findings, ...perCommit]) }
   }
 
+  // Files gh uploads into the PR bodies after the push; checked now, since an upload cannot be undone.
+  const requested = opts.attachments ?? []
+  const ghVersion = requested.length ? await gh(["--version"], cwd) : null
+  const attached = checkAttachments(cwd, requested, active, { ghVersion: ghVersion?.ok ? ghVersion.stdout : null, visibility })
+  refusals.push(...attached.refusals)
+  warnings.push(...attached.warnings)
+
   // Metadata the publication sets, judged per layer as gh_pr_meta judges it.
   const meta: LayerMeta[] = []
   let metaInfo: Pick<Assessment, "environment"> | null = null
@@ -469,12 +479,32 @@ async function plan(cwd: string, opts: PlanOpts = {}) {
         retarget,
         layers: layers.map((l) => [l.branch, l.local, l.remote, l.merged]),
         meta: [opts.meta ?? null, opts.layerMeta ?? null, metaDigests, meta.map((m) => [m.branch, m.changes.map((c) => [c.kind, c.op, c.value, c.status])])],
+        // Who can open the uploads is part of what the user approved.
+        attachments: requested.length ? [requested.length, visibility, attached.list.map((a) => [a.branch, a.path, a.alt, a.sha256])] : null,
       }),
     )
     .digest("hex")
     .slice(0, 12)
 
-  return { mode, branch, repo, trunk, trunkRemote, retarget, layers, prs, meta, metaInfo, metaShas, refusals, warnings, secrets, token }
+  return {
+    mode,
+    branch,
+    repo,
+    trunk,
+    trunkRemote,
+    retarget,
+    layers,
+    prs,
+    meta,
+    metaInfo,
+    metaShas,
+    attachments: attached.list,
+    attachmentInfo: attached.info,
+    refusals,
+    warnings,
+    secrets,
+    token,
+  }
 }
 
 const summary = (p: Awaited<ReturnType<typeof plan>>) => ({
@@ -504,6 +534,7 @@ const summary = (p: Awaited<ReturnType<typeof plan>>) => ({
         },
       }
     : {}),
+  ...(p.attachmentInfo ? { attachments: p.attachmentInfo } : {}),
   secretScan: { pass: p.secrets.findings.length === 0, gitleaksRan: p.secrets.gitleaksRan, findings: p.secrets.findings },
   refusals: p.refusals,
   warnings: p.warnings,
@@ -727,15 +758,34 @@ function publishMetaArgs() {
   }
 }
 
+const attachmentsArg = () =>
+  tool.schema
+    .array(
+      tool.schema.object({
+        branch: tool.schema.string().describe("The layer whose PR body gets the file."),
+        path: tool.schema.string().describe("The image or video: absolute, ~/, or relative to the worktree root. Keep it outside the worktree or gitignored; an untracked file there makes the tree dirty."),
+        alt: tool.schema.string().optional().describe("Image alt text (default: the file name); videos take none."),
+      }),
+    )
+    .optional()
+    .describe(
+      "submit: images (png, jpg, gif, webp, svg; at most 10 MiB) and videos (mp4, mov, webm; at most 100 MiB) gh uploads into each layer's PR body, at most 50 per PR (gh 2.99.0 or later). A body reference to the file, `![alt](./shot.png)` relative to the worktree root or by absolute path, becomes the uploaded URL; other files are appended.",
+    )
+
 export const publish_preview = tool({
   description:
-    "Preview what git_publish would do for the current branch, read-only. A branch in a native stack publishes every layer on the default branch; any other branch publishes as one plain PR on `base` (else its open PR's base, else the default branch; `retarget` shows an existing PR's base change). Shows each layer's commits against the one below, whether its push creates, fast-forwards or force-pushes, its PR, refusals (dirty tree, behind the base, merges, fork/cross-repository, redirected or multiple push URLs, unreadable gh target or PR list, protected branch, a base missing on origin, a stack off the default branch), a secret scan of every commit, and the `token` git_publish requires. With `meta` (and `layerMeta` for one layer of a stack) it also judges the labels, assignees, review requests and milestone each PR will get, as gh_pr_meta does (harmless, approval with reasons, invalid, unchanged; `infer` adds your habitual assignee and labels). Show it to the user before publishing.",
+    "Preview what git_publish would do for the current branch, read-only. A branch in a native stack publishes every layer on the default branch; any other branch publishes as one plain PR on `base` (else its open PR's base, else the default branch; `retarget` shows an existing PR's base change). Shows each layer's commits against the one below, whether its push creates, fast-forwards or force-pushes, its PR, refusals (dirty tree, behind the base, merges, fork/cross-repository, redirected or multiple push URLs, unreadable gh target or PR list, protected branch, a base missing on origin, a stack off the default branch), a secret scan of every commit, and the `token` git_publish requires. With `meta` (and `layerMeta` for one layer of a stack) it also judges the labels, assignees, review requests and milestone each PR will get, as gh_pr_meta does (harmless, approval with reasons, invalid, unchanged; `infer` adds your habitual assignee and labels). With `attachments` it checks each file submit would upload into a PR body (exists, image or video type, size, at most 50 per PR, gh 2.99.0 or later), pins its content in the token and says who can open the uploads (anyone, for a public repository). Show it to the user before publishing.",
   args: {
     base: tool.schema.string().optional().describe("Plain branch only: the PR's base branch (default: its open PR's base, else the default branch)."),
     ...publishMetaArgs(),
+    attachments: attachmentsArg(),
   },
   async execute(args, context) {
-    return JSON.stringify(summary(await plan(context.worktree, { base: args.base, meta: args.meta, layerMeta: args.layerMeta })), null, 2)
+    return JSON.stringify(
+      summary(await plan(context.worktree, { base: args.base, meta: args.meta, layerMeta: args.layerMeta, attachments: args.attachments })),
+      null,
+      2,
+    )
   },
 })
 
@@ -821,7 +871,7 @@ async function applyMeta(cwd: string, p: Awaited<ReturnType<typeof plan>>, prNum
 
 export const publish = tool({
   description:
-    "Publish the current branch exactly as git_publish_preview showed it: every layer of its native stack, or a plain branch as one PR. Pass the preview's `token` (and the same `base`, `meta` and `layerMeta`); the metadata the preview judged is set on each PR once it exists, this approval covering it: if any layer, the base or the remote moved since, it refuses. Re-checks every refusal first (dirty tree, behind the base, fork/cross-repository, unreadable gh target or PR list, protected branch, a stack off the default branch, more than one push URL) and the secret scan (every commit, not only the net diff). push: one atomic `git push` of exactly the pinned commits to origin, each leased on the remote commit the preview saw. submit: that push, then a PR for each layer without one (`gh pr create` on the layer below or the base; ready unless `draft`; title and body from `prs`, else the layer's first commit subject), existing PRs keep their draft state and get `prs` titles and bodies, a plain PR's base changes when the preview showed `retarget`, and two or more stack PRs are linked with `gh stack link --base <default>` — none of these steps pushes; if stacks are unavailable it returns stacksUnavailable with the PRs left unlinked. link: link existing open PRs of this repository (numbers, bottom-up) into a stack on the default branch, always with an explicit --base. Afterwards it re-reads each layer's remote commit, PR, base and draft state, the native stack, and which PRs lost auto-merge. Never merges or unstacks.",
+    "Publish the current branch exactly as git_publish_preview showed it: every layer of its native stack, or a plain branch as one PR. Pass the preview's `token` (and the same `base`, `meta`, `layerMeta` and `attachments`); the metadata the preview judged is set on each PR once it exists, this approval covering it: if any layer, the base or the remote moved since, it refuses. Re-checks every refusal first (dirty tree, behind the base, fork/cross-repository, unreadable gh target or PR list, protected branch, a stack off the default branch, more than one push URL) and the secret scan (every commit, not only the net diff). push: one atomic `git push` of exactly the pinned commits to origin, each leased on the remote commit the preview saw. submit: that push, then a PR for each layer without one (`gh pr create` on the layer below or the base; ready unless `draft`; title and body from `prs`, else the layer's first commit subject), existing PRs keep their draft state and get `prs` titles and bodies, a plain PR's base changes when the preview showed `retarget`, the `attachments` the preview checked are uploaded into each layer's body (`--attach`; when some fail the PR still stands and attachmentErrors lists them — do not re-run, that uploads every file again), and two or more stack PRs are linked with `gh stack link --base <default>` — none of these steps pushes; if stacks are unavailable it returns stacksUnavailable with the PRs left unlinked. link: link existing open PRs of this repository (numbers, bottom-up) into a stack on the default branch, always with an explicit --base. Afterwards it re-reads each layer's remote commit, PR, base and draft state, the native stack, and which PRs lost auto-merge. Never merges or unstacks.",
   args: {
     action: tool.schema.enum(["push", "submit", "link"]).describe("push, submit or link."),
     token: tool.schema.string().optional().describe("push / submit: the token from git_publish_preview."),
@@ -834,13 +884,15 @@ export const publish = tool({
       .describe("submit: title and body per layer branch, applied once its PR exists."),
     numbers: tool.schema.array(tool.schema.string()).optional().describe("link: PR numbers of this repository, bottom-up (two or more)."),
     acceptSecretFindings: tool.schema.boolean().optional().describe("push / submit: publish despite secret-scan findings the user confirmed are not secrets."),
+    attachments: attachmentsArg(),
   },
   async execute(args, context) {
     const cwd = context.worktree
     if (args.action === "link") return JSON.stringify(await link(cwd, args.numbers ?? []), null, 2)
 
     if (!args.token) throw new Error("Pass the token from git_publish_preview; publishing needs the state the user saw.")
-    const p = await plan(cwd, { base: args.base, meta: args.meta, layerMeta: args.layerMeta })
+    if (args.action === "push" && args.attachments?.length) throw new Error("push opens and edits no PR; attachments go into PR bodies with submit.")
+    const p = await plan(cwd, { base: args.base, meta: args.meta, layerMeta: args.layerMeta, attachments: args.attachments })
     if (p.token !== args.token.trim())
       throw new Error("The branch changed since the preview (a layer, the base or the remote moved, or another `base` was passed); run git_publish_preview again and confirm it.")
     if (p.refusals.length) return JSON.stringify({ published: false, refusals: p.refusals, warnings: p.warnings }, null, 2)
@@ -878,31 +930,53 @@ export const publish = tool({
     const entries = new Map((args.prs ?? []).map((e) => [e.branch, e]))
     const numbers: string[] = []
     const prNumbers = new Map<string, number>()
+    // An upload cannot be undone, so a failed one is reported, never retried, and stops nothing else.
+    const attachmentErrors: string[] = []
+    const sent: { branch: string; files: string[] }[] = []
+    const skipped: { branch: string; reasons: string[] }[] = []
+    /** The layer's --attach arguments, decided at the last moment: hooks, the push and earlier gh calls ran since plan() hashed the files. */
+    const finalAttach = (branch: string) => {
+      const reasons = unsafeNow(p.attachments, branch)
+      if (reasons.length) {
+        skipped.push({ branch, reasons })
+        attachmentErrors.push(`${branch}: none of its files were uploaded: ${reasons.join("; ")}.`)
+        return []
+      }
+      const args = attachArgs(p.attachments, branch)
+      if (args.length) sent.push({ branch, files: p.attachments.filter((a) => a.branch === branch).map((a) => a.path) })
+      return args
+    }
     for (const [i, l] of activeLayers.entries()) {
       const entry = entries.get(l.branch)
       const existing = before[l.branch]
+      const planned = p.attachments.some((a) => a.branch === l.branch)
+      let attached = false
       if (existing) {
         numbers.push(String(existing.number))
         prNumbers.set(l.branch, existing.number)
         // Only a plain PR's base moves here; a stack's bases are gh stack link's.
         const newBase = p.mode === "plain" && p.retarget ? p.retarget.to : undefined
-        if (newBase || (entry && (entry.title !== undefined || entry.body !== undefined))) {
-          const edit = (bodyFile?: string) =>
-            gh(
-              [
-                "pr",
-                "edit",
-                String(existing.number),
-                "--repo",
-                p.repo!,
-                ...(newBase ? ["--base", newBase] : []),
-                ...(entry?.title !== undefined ? ["--title", entry.title] : []),
-                ...(bodyFile ? ["--body-file", bodyFile] : []),
-              ],
-              cwd,
-            )
-          const done = entry?.body !== undefined ? await withTempFile("opencode-pr-body", ".md", entry.body, edit) : await edit()
-          if (!done.ok) errors.push(`#${existing.number} base/title/body update failed: ${output(done)}`)
+        const fields = [...(newBase ? ["--base", newBase] : []), ...(entry?.title !== undefined ? ["--title", entry.title] : [])]
+        const edit = (extra: string[]) => gh(["pr", "edit", String(existing.number), "--repo", p.repo!, ...extra], cwd, context.signal)
+        // With attachments the base and title go first, alone, so a failed upload is never mistaken for a failed update.
+        if (planned && fields.length) {
+          const done = await edit(fields)
+          if (!done.ok) errors.push(`#${existing.number} base/title update failed: ${output(done)}`)
+        }
+        const own = planned ? [] : fields
+        if (own.length || planned || entry?.body !== undefined) {
+          const send = async (bodyFile?: string) => {
+            const attach = planned ? finalAttach(l.branch) : []
+            attached = attach.length > 0
+            // Nothing left to send when every file was skipped and nothing else changes.
+            return attach.length || own.length || bodyFile ? await edit([...own, ...(bodyFile ? ["--body-file", bodyFile] : []), ...attach]) : null
+          }
+          const done = entry?.body !== undefined ? await withTempFile("opencode-pr-body", ".md", entry.body, send) : await send()
+          if (!done) continue
+          if (!done.ok && attached) {
+            attachmentErrors.push(`#${existing.number}: the body update with attachments failed; gh's output says what was uploaded: ${output(done)}`)
+            errors.push(`#${existing.number}'s body may not have been updated; see attachments.errors.`)
+          } else if (!done.ok) errors.push(`#${existing.number} base/title/body update failed: ${output(done)}`)
         }
         continue
       }
@@ -913,18 +987,23 @@ export const publish = tool({
         break
       }
       const base = i === 0 ? p.trunk : activeLayers[i - 1].branch
-      const create = (bodyFile: string) =>
-        gh(
-          ["pr", "create", "--repo", p.repo!, "--base", base, "--head", l.branch, "--title", title, "--body-file", bodyFile, ...(args.draft ? ["--draft"] : [])],
+      const create = (bodyFile: string) => {
+        const attach = planned ? finalAttach(l.branch) : []
+        attached = attach.length > 0
+        return gh(
+          ["pr", "create", "--repo", p.repo!, "--base", base, "--head", l.branch, "--title", title, "--body-file", bodyFile, ...(args.draft ? ["--draft"] : []), ...attach],
           cwd,
           context.signal,
         )
+      }
       const res = await withTempFile("opencode-pr-body", ".md", entry?.body ?? "", create)
-      const number = res.ok ? res.stdout.match(/\/pull\/(\d+)/)?.[1] : undefined
+      // With attachments gh still opens the PR, and prints its URL, when only some uploaded.
+      const number = res.ok || attached ? res.stdout.match(/\/pull\/(\d+)/)?.[1] : undefined
       if (!number) {
         errors.push(`Opening the PR for ${l.branch} failed; the layers above were left without PRs: ${output(res)}`)
         break
       }
+      if (!res.ok) attachmentErrors.push(`#${number} was opened, but not every attachment uploaded: ${output(res)}`)
       numbers.push(number)
       prNumbers.set(l.branch, Number(number))
     }
@@ -950,6 +1029,21 @@ export const publish = tool({
           ? {
               stacksUnavailable: true,
               next: "Stacks are unavailable for this repository: the PRs exist, each based on the layer below, but are not linked; tell the user, or close them and open one plain PR.",
+            }
+          : {}),
+        ...(p.attachments.length
+          ? {
+              attachments: {
+                // What reached gh, not what was planned: layers past a failure, or with a changed file, are absent.
+                sent: sent.map((s) => ({ ...s, pr: prNumbers.get(s.branch) ?? null })),
+                ...(skipped.length ? { skipped } : {}),
+                ...(attachmentErrors.length
+                  ? {
+                      errors: attachmentErrors,
+                      next: "Do not run git_publish again to retry: it uploads and appends every file again. Tell the user which files are missing, and attach them with `gh pr edit <n> --attach` once they agree.",
+                    }
+                  : {}),
+              },
             }
           : {}),
         ...(errors.length ? { errors } : {}),
