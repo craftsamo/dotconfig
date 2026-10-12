@@ -184,7 +184,9 @@ layers, and publishes every PR, plain or stacked, through three tools:
 `git_publish` (push, submit, link) asks through
 the person's global rules (a session rule would reopen the deny a read-only
 subagent sets itself) and publishes only the exact state the preview's token
-pinned. In a write run every
+pinned, metadata it judged included. `gh_pr_meta` sets PR metadata nothing
+reacts to without asking and `gh_pr_meta_apply` asks for the rest, the same
+way. In a write run every
 `gh stack` command but `view` asks too, since it rebases and force-pushes
 layers and takes flags before its subcommand; a read-only run is denied
 `gh stack` and both tools entirely, and merging or unstacking a stack always. A write

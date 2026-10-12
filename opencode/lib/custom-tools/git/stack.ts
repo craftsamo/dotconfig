@@ -5,6 +5,7 @@ import { exec, runGit, tryGit, withTempFile } from "../exec"
 import { conflictMap } from "./conflicts"
 import { ghApi, localStack } from "./related"
 import { currentBranch, forcePushBlock } from "./rewrite"
+import { applyChanges, assess, environmentUnchanged, metaArgs, prTarget, type Assessment, type Judged, type MetaRequest, type Target } from "../pr-meta"
 import { dedupe, scanDiff, scanSecrets } from "./secrets"
 import { defaultRef, operation } from "./state"
 
@@ -243,7 +244,35 @@ async function pushPinned(cwd: string, layers: Layer[], signal?: AbortSignal) {
  * default branch; any other branch publishes as one layer — a plain PR — on
  * `base`, else its open PR's base, else the default branch.
  */
-async function plan(cwd: string, opts: { base?: string } = {}) {
+type MetaOpts = MetaRequest & { infer?: boolean }
+type PlanOpts = { base?: string; meta?: MetaOpts; layerMeta?: { branch: string; meta: MetaOpts }[] }
+
+const union = (a?: string[], b?: string[]) => (a || b ? [...new Set([...(a ?? []), ...(b ?? [])])] : undefined)
+
+/** A layer's metadata: the shared request with its own added on top. */
+function mergeMeta(common?: MetaOpts, own?: MetaOpts): MetaOpts {
+  const pair = (k: "labels" | "assignees" | "reviewers") => {
+    const add = union(common?.[k]?.add, own?.[k]?.add)
+    const remove = union(common?.[k]?.remove, own?.[k]?.remove)
+    return add || remove ? { ...(add ? { add } : {}), ...(remove ? { remove } : {}) } : undefined
+  }
+  const m: MetaOpts = {}
+  for (const k of ["labels", "assignees", "reviewers"] as const) {
+    const v = pair(k)
+    if (v) m[k] = v
+  }
+  const milestone = own?.milestone ?? common?.milestone
+  if (milestone) m.milestone = milestone
+  if (own?.removeMilestone ?? common?.removeMilestone) m.removeMilestone = true
+  if (own?.infer ?? common?.infer) m.infer = true
+  return m
+}
+
+const isEmptyMeta = (m: MetaOpts) => !m.labels && !m.assignees && !m.reviewers && !m.milestone && !m.removeMilestone && !m.infer
+
+type LayerMeta = { branch: string; pr: number | null; changes: Judged[]; habits?: unknown }
+
+async function plan(cwd: string, opts: PlanOpts = {}) {
   const branch = await currentBranch(cwd)
   if (!branch) throw new Error("HEAD is detached; check out the branch to publish first.")
   const stack = await localStack(branch, cwd)
@@ -377,12 +406,75 @@ async function plan(cwd: string, opts: { base?: string } = {}) {
     secrets = { gitleaksRan: net.gitleaksRan, findings: dedupe([...net.findings, ...perCommit]) }
   }
 
+  // Metadata the publication sets, judged per layer as gh_pr_meta judges it.
+  const meta: LayerMeta[] = []
+  let metaInfo: Pick<Assessment, "environment"> | null = null
+  const metaDigests: string[] = []
+  const metaShas: Record<string, string | null> = {}
+  const known = new Set(active.map((l) => l.branch))
+  for (const m of opts.layerMeta ?? []) if (!known.has(m.branch)) throw new Error(`${m.branch} is not being published here (${[...known].join(", ")}).`)
+  const wanted = active.map((l) => ({ l, request: mergeMeta(opts.meta, opts.layerMeta?.find((m) => m.branch === l.branch)?.meta) })).filter((x) => !isEmptyMeta(x.request))
+  if (wanted.length && !repo) refusals.push({ rule: "metadata", message: "PR metadata needs a GitHub repository." })
+  else if (wanted.length) {
+    const groups = new Map<string, { request: MetaOpts; items: { l: Layer; target: Target }[] }>()
+    for (const { l, request } of wanted) {
+      if (!l.local) continue
+      // A layer's base is the layer below, read at the commit about to be pushed.
+      const below = active[active.indexOf(l) - 1]
+      const baseSha = below?.local ?? undefined
+      const subject = l.commits.items[0]
+      let target: Target = {
+        id: l.branch,
+        number: null,
+        headSha: l.local,
+        base: l.base,
+        baseSha,
+        author: null,
+        labels: [],
+        assignees: [],
+        reviewers: [],
+        milestone: null,
+        typeHint: subject ? subject.slice(subject.indexOf(" ") + 1) : null,
+      }
+      if (l.pr) {
+        try {
+          // Judged against the commit about to be pushed and the base it will have.
+          target = { ...(await prTarget(repo!, String(l.pr.number), cwd)), headSha: l.local, base: l.base, baseSha }
+        } catch {
+          refusals.push({ rule: "metadata", message: `Could not read PR #${l.pr.number}'s current metadata.` })
+          continue
+        }
+      }
+      const key = JSON.stringify(request)
+      if (!groups.has(key)) groups.set(key, { request, items: [] })
+      groups.get(key)!.items.push({ l, target })
+    }
+    for (const { request, items } of groups.values()) {
+      const a = await assess({ repo: repo!, defaultBranch: githubDefault ?? defName, targets: items.map((i) => i.target), request, infer: request.infer, cwd })
+      metaInfo ??= { environment: a.environment }
+      metaDigests.push(a.digest)
+      Object.assign(metaShas, a.shas)
+      for (const [i, t] of a.targets.entries()) meta.push({ branch: items[i].l.branch, pr: t.number, changes: t.changes, ...(t.habits ? { habits: t.habits } : {}) })
+    }
+  }
+
   const token = new Bun.CryptoHasher("sha1")
-    .update(JSON.stringify({ mode, repo, pushUrl, trunk, trunkRemote, retarget, layers: layers.map((l) => [l.branch, l.local, l.remote, l.merged]) }))
+    .update(
+      JSON.stringify({
+        mode,
+        repo,
+        pushUrl,
+        trunk,
+        trunkRemote,
+        retarget,
+        layers: layers.map((l) => [l.branch, l.local, l.remote, l.merged]),
+        meta: [opts.meta ?? null, opts.layerMeta ?? null, metaDigests, meta.map((m) => [m.branch, m.changes.map((c) => [c.kind, c.op, c.value, c.status])])],
+      }),
+    )
     .digest("hex")
     .slice(0, 12)
 
-  return { mode, branch, repo, trunk, trunkRemote, retarget, layers, prs, refusals, warnings, secrets, token }
+  return { mode, branch, repo, trunk, trunkRemote, retarget, layers, prs, meta, metaInfo, metaShas, refusals, warnings, secrets, token }
 }
 
 const summary = (p: Awaited<ReturnType<typeof plan>>) => ({
@@ -398,6 +490,20 @@ const summary = (p: Awaited<ReturnType<typeof plan>>) => ({
       : p.layers.filter((l) => !l.merged).length >= 2
         ? "GitHub links two or more PRs into a native stack."
         : "A single layer publishes as an ordinary PR: GitHub forms a stack from two PRs, so linking waits for the next layer.",
+  ...(p.meta.length
+    ? {
+        metadata: {
+          layers: p.meta.map((m) => ({
+            branch: m.branch,
+            pr: m.pr,
+            changes: m.changes.map(({ kind, op, value, source, status, reasons }) => ({ kind, op, value, source, status, reasons })),
+            ...(m.habits ? { habits: m.habits } : {}),
+          })),
+          note: "Publishing applies every harmless and every approval change shown here, since the publication itself is approved; invalid and unchanged ones are skipped.",
+          ...p.metaInfo,
+        },
+      }
+    : {}),
   secretScan: { pass: p.secrets.findings.length === 0, gitleaksRan: p.secrets.gitleaksRan, findings: p.secrets.findings },
   refusals: p.refusals,
   warnings: p.warnings,
@@ -608,14 +714,28 @@ export const stack = tool({
 
 // ---------------------------------------- git_publish_preview / git_publish --
 
+function publishMetaArgs() {
+  const meta = tool.schema.object(metaArgs)
+  return {
+    meta: meta
+      .optional()
+      .describe("PR metadata for every published PR (labels, assignees, reviewers, milestone, infer), judged in the preview and set on publishing."),
+    layerMeta: tool.schema
+      .array(tool.schema.object({ branch: tool.schema.string(), meta }))
+      .optional()
+      .describe("Stack only: metadata for one layer, added on top of `meta`."),
+  }
+}
+
 export const publish_preview = tool({
   description:
-    "Preview what git_publish would do for the current branch, read-only. A branch in a native stack publishes every layer on the default branch; any other branch publishes as one plain PR on `base` (else its open PR's base, else the default branch; `retarget` shows an existing PR's base change). Shows each layer's commits against the one below, whether its push creates, fast-forwards or force-pushes, its PR, refusals (dirty tree, behind the base, merges, fork/cross-repository, redirected or multiple push URLs, unreadable gh target or PR list, protected branch, a base missing on origin, a stack off the default branch), a secret scan of every commit, and the `token` git_publish requires. Show it to the user before publishing.",
+    "Preview what git_publish would do for the current branch, read-only. A branch in a native stack publishes every layer on the default branch; any other branch publishes as one plain PR on `base` (else its open PR's base, else the default branch; `retarget` shows an existing PR's base change). Shows each layer's commits against the one below, whether its push creates, fast-forwards or force-pushes, its PR, refusals (dirty tree, behind the base, merges, fork/cross-repository, redirected or multiple push URLs, unreadable gh target or PR list, protected branch, a base missing on origin, a stack off the default branch), a secret scan of every commit, and the `token` git_publish requires. With `meta` (and `layerMeta` for one layer of a stack) it also judges the labels, assignees, review requests and milestone each PR will get, as gh_pr_meta does (harmless, approval with reasons, invalid, unchanged; `infer` adds your habitual assignee and labels). Show it to the user before publishing.",
   args: {
     base: tool.schema.string().optional().describe("Plain branch only: the PR's base branch (default: its open PR's base, else the default branch)."),
+    ...publishMetaArgs(),
   },
   async execute(args, context) {
-    return JSON.stringify(summary(await plan(context.worktree, { base: args.base })), null, 2)
+    return JSON.stringify(summary(await plan(context.worktree, { base: args.base, meta: args.meta, layerMeta: args.layerMeta })), null, 2)
   },
 })
 
@@ -672,13 +792,41 @@ async function verify(cwd: string, p: Awaited<ReturnType<typeof plan>>, before: 
 
 const UNAVAILABLE = /stacks? (are |is )?(not available|unavailable|not enabled)|ErrStacksUnavailable/i
 
+/**
+ * Set the metadata the preview judged, on each layer's PR. The publication's
+ * own approval covers every change the preview showed, harmless or not.
+ */
+async function applyMeta(cwd: string, p: Awaited<ReturnType<typeof plan>>, prNumbers: Map<string, number>) {
+  if (!p.meta.length) return {}
+  const applied = []
+  const skipped = []
+  const errors: string[] = []
+  // The workflows, bots and rules judged were read at these commits; if one moved, judge again.
+  if (!(await environmentUnchanged(p.repo!, p.metaShas, cwd)))
+    return { metadata: { applied, notApplied: "A branch the metadata judgment read moved during publishing; set it with gh_pr_meta, which judges again." } }
+  for (const m of p.meta) {
+    const todo = m.changes.filter((c) => c.status === "harmless" || c.status === "approval")
+    if (!todo.length) continue
+    const number = prNumbers.get(m.branch)
+    if (!number) {
+      skipped.push({ branch: m.branch, reason: "it has no PR (submit opens one)" })
+      continue
+    }
+    const res = await applyChanges(p.repo!, number, todo, cwd)
+    if (res.ok) applied.push({ pr: number, changes: todo.map(({ kind, op, value, source }) => ({ kind, op, value, source })) })
+    else errors.push(`#${number}: ${res.output}`)
+  }
+  return { metadata: { applied, ...(skipped.length ? { skipped } : {}), ...(errors.length ? { errors } : {}) } }
+}
+
 export const publish = tool({
   description:
-    "Publish the current branch exactly as git_publish_preview showed it: every layer of its native stack, or a plain branch as one PR. Pass the preview's `token` (and the same `base`): if any layer, the base or the remote moved since, it refuses. Re-checks every refusal first (dirty tree, behind the base, fork/cross-repository, unreadable gh target or PR list, protected branch, a stack off the default branch, more than one push URL) and the secret scan (every commit, not only the net diff). push: one atomic `git push` of exactly the pinned commits to origin, each leased on the remote commit the preview saw. submit: that push, then a PR for each layer without one (`gh pr create` on the layer below or the base; ready unless `draft`; title and body from `prs`, else the layer's first commit subject), existing PRs keep their draft state and get `prs` titles and bodies, a plain PR's base changes when the preview showed `retarget`, and two or more stack PRs are linked with `gh stack link --base <default>` — none of these steps pushes; if stacks are unavailable it returns stacksUnavailable with the PRs left unlinked. link: link existing open PRs of this repository (numbers, bottom-up) into a stack on the default branch, always with an explicit --base. Afterwards it re-reads each layer's remote commit, PR, base and draft state, the native stack, and which PRs lost auto-merge. Never merges or unstacks.",
+    "Publish the current branch exactly as git_publish_preview showed it: every layer of its native stack, or a plain branch as one PR. Pass the preview's `token` (and the same `base`, `meta` and `layerMeta`); the metadata the preview judged is set on each PR once it exists, this approval covering it: if any layer, the base or the remote moved since, it refuses. Re-checks every refusal first (dirty tree, behind the base, fork/cross-repository, unreadable gh target or PR list, protected branch, a stack off the default branch, more than one push URL) and the secret scan (every commit, not only the net diff). push: one atomic `git push` of exactly the pinned commits to origin, each leased on the remote commit the preview saw. submit: that push, then a PR for each layer without one (`gh pr create` on the layer below or the base; ready unless `draft`; title and body from `prs`, else the layer's first commit subject), existing PRs keep their draft state and get `prs` titles and bodies, a plain PR's base changes when the preview showed `retarget`, and two or more stack PRs are linked with `gh stack link --base <default>` — none of these steps pushes; if stacks are unavailable it returns stacksUnavailable with the PRs left unlinked. link: link existing open PRs of this repository (numbers, bottom-up) into a stack on the default branch, always with an explicit --base. Afterwards it re-reads each layer's remote commit, PR, base and draft state, the native stack, and which PRs lost auto-merge. Never merges or unstacks.",
   args: {
     action: tool.schema.enum(["push", "submit", "link"]).describe("push, submit or link."),
     token: tool.schema.string().optional().describe("push / submit: the token from git_publish_preview."),
     base: tool.schema.string().optional().describe("push / submit, plain branch only: the same `base` the preview was given."),
+    ...publishMetaArgs(),
     draft: tool.schema.boolean().optional().describe("submit: leave newly created PRs as drafts (default: ready for review)."),
     prs: tool.schema
       .array(tool.schema.object({ branch: tool.schema.string(), title: tool.schema.string().optional(), body: tool.schema.string().optional() }))
@@ -692,7 +840,7 @@ export const publish = tool({
     if (args.action === "link") return JSON.stringify(await link(cwd, args.numbers ?? []), null, 2)
 
     if (!args.token) throw new Error("Pass the token from git_publish_preview; publishing needs the state the user saw.")
-    const p = await plan(cwd, { base: args.base })
+    const p = await plan(cwd, { base: args.base, meta: args.meta, layerMeta: args.layerMeta })
     if (p.token !== args.token.trim())
       throw new Error("The branch changed since the preview (a layer, the base or the remote moved, or another `base` was passed); run git_publish_preview again and confirm it.")
     if (p.refusals.length) return JSON.stringify({ published: false, refusals: p.refusals, warnings: p.warnings }, null, 2)
@@ -712,7 +860,10 @@ export const publish = tool({
     const pushed = await pushPinned(cwd, p.layers, context.signal)
     if (!pushed.ok)
       return JSON.stringify({ published: false, stoppedAt: "push", output: pushed.output, ...(await verify(cwd, p, before)), ...warnings }, null, 2)
-    if (args.action === "push") return JSON.stringify({ published: true, action: "push", ...(await verify(cwd, p, before)), output: pushed.output, ...warnings }, null, 2)
+    if (args.action === "push") {
+      const metaResult = await applyMeta(cwd, p, new Map(activeLayers.filter((l) => before[l.branch]).map((l) => [l.branch, before[l.branch]!.number])))
+      return JSON.stringify({ published: true, action: "push", ...(await verify(cwd, p, before)), ...metaResult, output: pushed.output, ...warnings }, null, 2)
+    }
 
     // submit: open a PR for each layer that has none, then link a stack's PRs.
     // None of these steps pushes, so nothing but the pinned commits leaves.
@@ -726,11 +877,13 @@ export const publish = tool({
     if (errors.length) return JSON.stringify({ published: false, stoppedAt: "github", errors, ...(await verify(cwd, p, before)), ...warnings }, null, 2)
     const entries = new Map((args.prs ?? []).map((e) => [e.branch, e]))
     const numbers: string[] = []
+    const prNumbers = new Map<string, number>()
     for (const [i, l] of activeLayers.entries()) {
       const entry = entries.get(l.branch)
       const existing = before[l.branch]
       if (existing) {
         numbers.push(String(existing.number))
+        prNumbers.set(l.branch, existing.number)
         // Only a plain PR's base moves here; a stack's bases are gh stack link's.
         const newBase = p.mode === "plain" && p.retarget ? p.retarget.to : undefined
         if (newBase || (entry && (entry.title !== undefined || entry.body !== undefined))) {
@@ -773,6 +926,7 @@ export const publish = tool({
         break
       }
       numbers.push(number)
+      prNumbers.set(l.branch, Number(number))
     }
 
     let linked: { ok: boolean; output: string } | null = null
@@ -783,12 +937,14 @@ export const publish = tool({
       stacksUnavailable = !res.ok && UNAVAILABLE.test(`${res.stdout}\n${res.stderr}`)
       if (!res.ok && !stacksUnavailable) errors.push(`Linking the PRs into a stack failed: ${linked.output}`)
     }
+    const metaResult = await applyMeta(cwd, p, prNumbers)
     const result = await verify(cwd, p, before)
     return JSON.stringify(
       {
         published: !errors.length && !stacksUnavailable,
         action: "submit",
         ...result,
+        ...metaResult,
         ...(linked ? { link: linked } : {}),
         ...(stacksUnavailable
           ? {

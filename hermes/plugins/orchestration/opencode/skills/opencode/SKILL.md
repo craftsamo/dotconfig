@@ -82,7 +82,11 @@ fork?, timeout?, output_dir?)`; build also takes `approval` and
   link). The request carries only a preview token: approve it against the
   `git_publish_preview` the build reported (the base, each layer, its commits,
   its PR and whether it is force-pushed), and ask for that preview first if it
-  did not.
+  did not; the metadata it judged (labels, assignees, review requests, a
+  milestone) is set with that approval. Metadata on an existing PR is applied
+  without asking when nothing reacts to it; the rest arrives as a
+  `gh_pr_meta_apply` request, to approve against the reasons the build
+  reported (a workflow, a merge bot, a webhook, or the people it notifies).
   Pushes (a rebased
   branch's `git push --force-with-lease origin HEAD:refs/heads/<task branch>`,
   `git_publish` and `gh stack push` included), shell history rewrites, branch moves, package

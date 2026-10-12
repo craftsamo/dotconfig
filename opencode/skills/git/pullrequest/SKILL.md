@@ -4,7 +4,9 @@ description: >-
   Use when opening, pushing, or updating a GitHub pull request — rebasing the
   branch onto the latest base, pushing it, creating a PR whose title and body
   match the repository's own convention, marking it ready, preferring a native
-  GitHub stack of PRs whenever the work splits into reviewable layers, scanning the branch for related Issues and PRs to link,
+  GitHub stack of PRs whenever the work splits into reviewable layers, setting
+  labels, assignees, reviewers and milestones after judging what they trigger
+  (ラベル, アサイン, レビュアー, マイルストーン), scanning the branch for related Issues and PRs to link,
   and following the PR's CI checks and review feedback (PR, pull request,
   プルリク, プルリクエスト, push, gh pr, open a PR, レビュー依頼, 関連Issue,
   related issues, link PR, stacked PR, gh stack, スタック, rebase onto main,
@@ -30,7 +32,8 @@ actually touches, and follow its checks and reviews when asked. Never merge.
 <UseWhen>
 
 - The user asks to open, push, or update a pull request for the current branch.
-- The user asks to mark a PR ready, or to refresh its title, body, or links.
+- The user asks to mark a PR ready, or to refresh its title, body, links, or
+  its labels, assignees, reviewers or milestone (<Metadata>).
 - The user asks how a PR's checks or reviews stand, or to follow CI after a
   push (Step 10 alone).
 
@@ -132,7 +135,8 @@ stacked alike:
   every commit. For a plain branch pass `base` only for a base the user chose
   (Step 2); otherwise the open PR's base, else the default branch, is kept.
 - `git_publish` (asks) publishes exactly that, given the `token` and the same
-  `base`: `push` sends the commits only; `submit` also opens each missing PR
+  `base` (and `meta`): `push` sends the commits and sets the previewed
+  metadata on PRs that already exist; `submit` also opens each missing PR
   (ready unless asked for drafts), applies `prs` titles and bodies to new and
   existing PRs, moves a plain PR's base when the preview showed `retarget`,
   and links a stack's PRs. Existing PRs keep their draft state.
@@ -150,6 +154,31 @@ where the tools refuse by design: a PR from a fork, a remote that is not
 github.com, or a metadata-only update of title or body with nothing to push.
 
 </Publishing>
+
+<Metadata>
+
+Labels, assignees, review requests and a milestone can start workflows,
+merge bots and notifications, so they are judged before they are set.
+
+- **At publication.** Pass `meta` to `git_publish_preview` and `git_publish`
+  alike (and `layerMeta` for one layer of a stack). By default that is
+  `infer: true`: the repository's habit, read from your merged PRs, adds
+  yourself as assignee and the labels most of them carry; a habitual milestone
+  is only suggested. Add what the user asked for on top. The preview judges
+  each change — `harmless`, `approval` (with reasons), `invalid` (a label,
+  milestone or person that does not exist; nothing is created) or
+  `unchanged` — and publishing sets the harmless and approval ones, so show
+  them with the rest of the preview.
+- **On an existing PR.** `gh_pr_meta` applies what nothing reacts to at once
+  and returns the rest as `pending` with its reasons; show those to the user
+  and apply them with `gh_pr_meta_apply` (asks) only after they agree.
+- **Reviewers only on request.** A review request notifies people (and
+  `@copilot` uses AI credits); never infer or add one the user did not ask
+  for. The PR's author cannot review it.
+- Report what was set, inferred (with its counts) or skipped, from the tool's
+  re-read rather than from the request.
+
+</Metadata>
 
 <StackedPRs>
 
@@ -291,7 +320,8 @@ and [squash-message settings](https://docs.github.com/en/repositories/configurin
    in verified links. Update an existing PR instead of creating a duplicate.
 6. Publish only a new PR or an authorized branch update, through
    <Publishing>: `git_publish_preview` (with `base` from Step 2 when one was
-   chosen), show it, then `git_publish` with its `token` — `push` when every
+   chosen, and `meta` per <Metadata>), show it, then `git_publish` with its
+   `token` and the same arguments — `push` when every
    PR already exists, `submit` when one is missing or its title, body or base
    changes. A rebase (Step 3, or a fixup's fold) that reported
    `needsForcePush` is published the same way: the leased push is the force
@@ -313,8 +343,8 @@ and [squash-message settings](https://docs.github.com/en/repositories/configurin
    `gh pr create --base <base> --title "..." --body-file <file>` or
    `gh pr edit` (never literal `\n`; a heredoc fed to `--body-file -` breaks
    when anything follows its terminator line). Preserve unspecified fields and
-   draft state. Set reviewers, labels, assignees, or a milestone only if the
-   user asked.
+   draft state. Metadata goes through `gh_pr_meta` there too (<Metadata>),
+   never through `gh pr` flags.
 8. Re-read the published PR's base, title, body and draft state, and the stack
    order when applicable (`git_publish` returns them per layer, with any
    `baseMismatch`, `pushed: false` or `errors`). Confirm the description
@@ -375,7 +405,9 @@ and [squash-message settings](https://docs.github.com/en/repositories/configurin
 - Do not open a PR from the default branch, and do not duplicate an existing
   open PR — update it.
 - Do not silently exclude uncommitted work; warn that only pushed commits ship.
-- Do not set reviewers, labels, assignees, or a milestone unless asked.
+- Do not request a review, change a milestone, or set metadata beyond the
+  repository's habit unless asked; do not apply `pending` metadata without the
+  user's agreement, or create labels or milestones to make a change valid.
 - Do not fabricate an Issue or PR link — leave it out or ask when unsure.
 - Do not invent a title or body convention that contradicts the repo's merged
   PRs.

@@ -1204,6 +1204,67 @@ describe("git_stack", () => {
       expect(res.calls.some((c) => c.startsWith("stack link"))).toBe(false)
     })
 
+    const metaRules = [
+      { re: "^api user --jq", out: "me\n" },
+      { re: "^api repos/o/r/commits/main --jq", out: `${"a".repeat(40)}\n` },
+      { re: "^api --paginate --slurp repos/o/r/hooks", out: "[[]]" },
+      { re: "^api --paginate --slurp repos/o/r/rules/branches/main", out: "[[]]" },
+      { re: "^api --paginate --slurp repos/o/r/milestones", out: "[[]]" },
+      { re: "^api repos/o/r/collaborators/", out: "" },
+      { re: "^api repos/o/r/contents/", out: "HTTP 404: Not Found", code: 1 },
+      { re: "^api repos/o/\\.github/contents/", out: "HTTP 404: Not Found", code: 1 },
+      { re: "^label list --repo o/r", out: '[{"name":"bug"}]' },
+    ]
+
+    test("judges the metadata in the preview and sets it once the PR exists", () => {
+      const f = repo()
+      threeCommits(f)
+      const created = { number: 8, headRefName: "feat", baseRefName: "main", isDraft: false, url: "u8", isCrossRepository: false, autoMergeRequest: null }
+      const meta = { labels: { add: ["bug", "nope"] }, reviewers: { add: ["alice"] } }
+      const shown = runWithFakeGh(f, { module: "git", name: "publish_preview", args: { meta } }, [noStack, repoView, noPRs, ...metaRules]).out
+      expect(shown.metadata.layers[0].changes.map((c: any) => [c.value, c.status])).toEqual([
+        ["bug", "harmless"],
+        ["nope", "invalid"],
+        ["alice", "approval"],
+      ])
+      expect(shown.token).not.toBe(preview(f, [noStack, repoView, noPRs]).out.token)
+
+      const rules = [
+        noStack,
+        repoView,
+        { re: "^pr list --repo o/r --state open", out: "[]", times: 1 },
+        { re: "^pr list --repo o/r --state open", out: JSON.stringify([created]) },
+        { re: "^api repos/o/r/branches/feat --jq", out: sha(f, "feat") },
+        { re: "^pr create --repo o/r --base main --head feat", out: "https://github.com/o/r/pull/8\n" },
+        { re: "^pr edit 8 --repo o/r --add-label=bug --add-reviewer=alice$", out: "" },
+        ...metaRules,
+        { re: "^api ", out: "null" },
+      ]
+      expect(publish(f, { action: "submit", token: shown.token }, rules).error).toContain("changed since the preview")
+      const res = publish(f, { action: "submit", token: shown.token, meta }, rules)
+      expect(res.out.metadata.applied).toEqual([
+        {
+          pr: 8,
+          changes: [
+            { kind: "label", op: "add", value: "bug", source: "request" },
+            { kind: "reviewer", op: "add", value: "alice", source: "request" },
+          ],
+        },
+      ])
+      expect(res.calls.findIndex((c) => c.startsWith("pr edit 8"))).toBeGreaterThan(res.calls.findIndex((c) => c.startsWith("pr create")))
+    })
+
+    test("refuses layer metadata for a branch it does not publish", () => {
+      const f = repo()
+      threeCommits(f)
+      const res = runWithFakeGh(f, { module: "git", name: "publish_preview", args: { layerMeta: [{ branch: "other", meta: { labels: { add: ["bug"] } } }] } }, [
+        noStack,
+        repoView,
+        noPRs,
+      ])
+      expect(res.error).toContain("not being published here")
+    })
+
     test("retargets an existing PR's base only when the preview showed it, and pins the base in the token", () => {
       const f = repo()
       threeCommits(f)
