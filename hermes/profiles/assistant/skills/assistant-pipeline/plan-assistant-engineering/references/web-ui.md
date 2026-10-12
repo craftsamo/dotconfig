@@ -6,9 +6,10 @@ the user approved, kept as the repository's baseline at
 `~/Workspaces/Projects/<Group>/assets/ui-baseline/<repo>/` (outside the
 repository, canonical like any Group asset).
 
-1. **Direction in words.** An existing design system or the current look wins;
-   extend it. Without one, ask OpenCode's plan run for one concrete direction
-   grounded in the project, and let the user choose or adjust. Suggestions stay
+1. **Direction the user can see.** An existing design system or the current
+   look wins; extend it. Without one, a `design` run draws one concrete
+   direction grounded in the project as HTML mocks the user opens, and the user
+   chooses or adjusts. Suggestions stay
    proposals until the user decides. Missing copy or media is a dependency on
    Writer or the hands, never a fabricated placeholder presented as final.
 2. **Pages in scope.** Name the routes the change touches; viewports and dark

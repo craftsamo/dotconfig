@@ -1,7 +1,10 @@
 # Stateful Web application - Client guide
 
-Describe the user journeys, who may access which information, existing data,
-external integrations and operational constraints. Ask about real user needs,
+A new application, or new screens or stored data, starts with
+[new-product.md](new-product.md): the user sees the capabilities, screens and
+data as HTML mocks before a roadmap. Describe the user journeys, who may access
+which information, existing data, external integrations and operational
+constraints. Ask about real user needs,
 not database schemas the user would have to inspect code to answer. An OpenCode plan run
 investigates and proposes the technical design, dependencies and sequence.
 
