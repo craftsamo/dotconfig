@@ -942,13 +942,46 @@ def test_a_notification_fits_what_hermes_keeps_of_it():
         {"kind": "permission", "id": f"per_{n}x", "action": "shell", "resources": ["git log " + "x" * 500]}
         for n in range(5)]}))
     assert [p["id"] for p in paused["pending"]] == ["per_0x", "per_1x", "per_2x"] and paused["pending_more"] == 2
-    assert len(paused["pending"][0]["resource"]) == 120 and "opencode_request" in paused["next"]
+    assert len(paused["pending"][0]["resources"][0]) == plugin.NOTICE_RESOURCE + 1
+    assert paused["pending"][0]["complete"] is False and "opencode_request list" in paused["next"]
     beat = json.loads(plugin._notice({"session_id": "ses_1abc", "status": "running", "timed_out": True}))
     assert "Heartbeat" in beat["next"]
     crowded = plugin._notice({"session_id": "ses_1abc", "status": "waiting", "directory": "/" + "d" * 3000,
                               "pending": [{"id": "per_0x", "kind": "permission"}]})
     assert len(crowded) <= plugin.NOTICE_LIMIT and json.loads(crowded)["pending_ids"] == ["per_0x"], \
         "an oversized notice keeps what to do next, never a cut JSON"
+    assert json.loads(crowded)["complete"] is False and "opencode_request list" in json.loads(crowded)["next"]
+
+
+def test_a_paused_notice_names_every_command_of_a_request():
+    """The part of a compound command that needs approval is often not the first one:
+    the notice carries each, and says when it could not carry them all."""
+    chained = ["nps lint", "nps test > out.log", "printf 'exit=%s\\n' \"$s\"", 'kill -TERM -- -4242']
+    shown = json.loads(plugin._notice({"session_id": "ses_1abc", "status": "waiting", "pending": [
+        {"kind": "permission", "id": "per_1x", "action": "shell", "resources": chained}]}))
+    request = shown["pending"][0]
+    assert request["resources"] == chained and "complete" not in request and "resources_more" not in request
+    many = json.loads(plugin._notice({"session_id": "ses_1abc", "status": "waiting", "pending": [
+        {"kind": "permission", "id": "per_2x", "action": "shell", "resources": [f"cmd {n} " + "y" * 60
+                                                                               for n in range(20)]}]}))
+    request = many["pending"][0]
+    assert request["complete"] is False and request["resources_more"] == 20 - len(request["resources"])
+    assert sum(len(r) for r in request["resources"]) <= plugin.NOTICE_REQUEST
+    full = plugin._notice({"session_id": "ses_1abc", "status": "waiting", "pending": [
+        {"kind": "permission", "id": f"per_{n}x", "action": "shell", "resources": ["z" * 400] * 9}
+        for n in range(3)]})
+    assert len(full) <= plugin.NOTICE_LIMIT and all("resources" in p for p in json.loads(full)["pending"]), \
+        "three crowded requests still fit with their commands"
+    escaped = plugin._notice({"session_id": "ses_1abc", "status": "waiting", "pending": [
+        {"kind": "permission", "id": f"per_{n}x", "action": "shell", "title": "t" * 500,
+         "resources": ['printf "%s\\n" "a\\"b"\n' * 20] * 9} for n in range(3)]})
+    shown = json.loads(escaped)
+    assert len(escaped) <= plugin.NOTICE_LIMIT
+    if "pending" in shown:
+        assert all(len(p["title"]) == plugin.NOTICE_TITLE and p["complete"] is False for p in shown["pending"])
+    else:
+        assert shown["complete"] is False and "opencode_request list" in shown["next"], \
+            "commands that did not fit are flagged, never silently dropped"
 
 
 def test_the_notifier_logs_its_life_and_reports_its_own_failure(fixture, monkeypatch):
