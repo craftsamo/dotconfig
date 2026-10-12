@@ -232,29 +232,17 @@
             },
           ],
         },
-        "gpt-6-sol": {
-          "cost": [
-            {
-              "input": 2,
-              "output": 10,
-              "cache": {
-                "read": 0.2
-              }
-            },
-            {
-              "tier": {
-                "type": "context",
-                "size": 200000
-              },
-              "input": 4,
-              "output": 15,
-              "cache": {
-                "read": 0.4
-              },
-            },
-          ],
-        },
+        // Codex raised the default window to 500k (model max 1M), but the
+        // catalog still reports 272k input. Compaction starts at the input
+        // limit minus the default 10% buffer (the old 272k input gave ~245k),
+        // so a 555k input starts it at about 500k. context = input + output
+        // keeps the result the same if it is derived from context - output.
         "gpt-6.1-sol": {
+          "limit": {
+            "context": 683000,
+            "input": 555000,
+            "output": 128000
+          },
           "cost": [
             {
               "input": 2,
