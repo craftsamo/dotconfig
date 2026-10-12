@@ -300,6 +300,16 @@ export async function setupPreflight(
     deps.now,
   )
   const episodes = new Episodes(EPISODE_TTL_MS, deps.now)
+  // An empty balance is the one exact reading the balance estimate gets
+  // without the Console. Requests in flight report it together, so at most
+  // once a minute per lane.
+  const emptied = new Map<string, number>()
+  const noteEmpty = (provider: string) => {
+    const at = deps.now()
+    if (at - (emptied.get(provider) ?? -Infinity) < 60_000) return
+    emptied.set(provider, at)
+    void deps.creditEmpty?.(provider).catch(() => {})
+  }
   const primaryFallback = ctx.options.primaryFallback !== false
   const pinModels = ctx.options.pinModels === true
   const protectedChild = async (sessionID: string) => {
@@ -532,6 +542,7 @@ export async function setupPreflight(
         if (!onLane && provider !== OAUTH_PROVIDER) return
         const failure = classify(event.error, event.decision)
         if (!failure) return
+        if (onLane && failure === "credit") noteEmpty(provider)
         // A subscription failure matters only as a window limit; a lane
         // failure is any of the three.
         if (!onLane && failure !== "quota") return

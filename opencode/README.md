@@ -377,21 +377,69 @@ stops only new lane launches.
   primary on the subscription.
 - **Probing.** There is no balance API: a lane is probed by use. After its
   cooldown the next request fails fast if it is still empty, which costs one
-  rejected request an hour.
+  rejected request an hour. Each empty-balance error also records a $0
+  checkpoint for the balance estimate below (at most once a minute per lane).
 - A session never revisits a provider within five minutes, so the chain cannot
   loop. Children launched under the subscription preflight keep their own
   guards and are never moved.
 
 **Balance.** Anthropic has no balance API, and an Admin API is not available to
-personal orgs, so the balance is estimated from `opencode stats`: spend per lane
-since its grant, what is left, the pace and what would expire unused. It read
-within 3% of Console and answers in about a second. `lib/credit-lanes/lanes.json`
-holds each lane's `amount`, its `renewalDay` (the day of the month the plan
-renews) and its key variable; the cycle and its expiry follow from the date, so
-nothing needs editing each month, only when a plan changes. `since` is the day a
-lane began receiving its grant, for a first cycle that started part way through
-(it is older than the cycle after the first renewal and then unused). The
-renewal's time of day is not known, so a cycle starts at local midnight.
+personal orgs, so the balance is estimated: a **checkpoint** (a balance known at
+one moment) less the spend since. The spend is OpenCode's own cost accounting
+(`opencode stats`) plus Hermes', which spends the same orgs through its
+`anthropic` pool (see `hermes/docs/models-auth.md` "Console credit lanes");
+leaving Hermes out made both lanes read about $29 high in three days.
+
+- **Grants.** An org can hold several grants at once, each with its own expiry
+  (Main held one ending 10-13 and the next cycle's, which arrived three days
+  early). Spend takes the nearest expiry first; what a grant still holds when
+  it expires is lost. A grant expires at local midnight of its date.
+- **Checkpoints.** `status.ts checkpoint <lane> <balance>` records the balance
+  the Console shows now, the most exact reading: record one whenever the
+  Console disagrees. An empty-balance error on a lane (see "In flight") records
+  a $0 checkpoint on its own. Every lane is re-based together: the named lane
+  takes the reading, the others carry their estimate forward (`rolled`), all on
+  one Hermes baseline, since Hermes' spend is split between lanes by the
+  windows since their checkpoints. A grant expiring since the checkpoint
+  re-bases every lane the same way. Without any checkpoint, the cycle's grant
+  counts as full at the cycle start.
+- **Consistent readings only.** `opencode stats` counts whole local days, so a
+  checkpoint keeps the stats window its OpenCode figure came from
+  (`opencodeFrom`) and that window's cost then (`opencodeBase`); a carried
+  estimate keeps the very run it was computed from. A checkpoint is written
+  only when Hermes could be read, the day did not change during the reading,
+  and nothing was written since the reading began (the state counts its
+  writes in `revision`); otherwise the next reading tries again, and the CLI
+  retries or says why. A carried estimate below zero is carried as $0: the gap
+  was within the tolerance above, and carrying it would later infer a grant.
+  Writers (the Quota endpoint, the CLI, the retry hook) take a lock file beside
+  the state that names its holder; one left by a dead process is removed under
+  a short-lived guard, and only while it still names that holder.
+- **New grants are inferred.** The current cycle's grant is assumed to arrive
+  on its renewal day unless one expiring at the cycle's end is known
+  (`projected`). When the estimate falls more than $5 (or 10% of the spend
+  since the checkpoint) below zero, a grant must have arrived unlisted, since
+  neither org can go below zero: one expiring a cycle after the latest known is
+  recorded (`inferred`). An empty balance drops inferred grants again.
+  `status.ts grant <lane> <amount> <expires> [granted]` lists one from the
+  Console (amount 0 removes it).
+- **Hermes.** Its spend comes from each profile's `state.db`
+  (`session_model_usage` rows billed to `anthropic`, read-only, about 0.1 s),
+  as each row's growth since the checkpoint. It is charged in the pool's order,
+  `hermes.order` in `lanes.json` (Sub then Main), each lane taking only what
+  it still holds. This is an approximation: the rows do not say which org
+  billed them, and Hermes also moves on after a 429 or 401 while the first
+  lane still holds credit. If a profile cannot be read, Hermes is left out of
+  that run.
+- **Pace** is OpenCode's spend on the lane over the last seven days plus
+  Hermes' since the checkpoint; "Unused" is what that pace would leave on each
+  grant at its expiry.
+
+`lib/credit-lanes/lanes.json` holds each lane's `amount`, its `renewalDay` (the
+day of the month the plan renews) and its key variable, plus where Hermes lives
+and its lane order; it changes only with a plan. What the lanes learn (grants
+and the latest checkpoint) lives outside the repository in
+`~/.local/state/opencode/credit-lanes.json` (`CREDIT_LANES_STATE` overrides it).
 Three ways to read it:
 
 - `/credits`, or `bun opencode/lib/credit-lanes/status.ts` in a terminal.
@@ -400,8 +448,9 @@ Three ways to read it:
   port; a cached `opencode stats` run, 30 s), and `quotaProviders` in
   `opencode-quota/quota-toast.jsonc` points a remote-api provider at each. Quota
   sends the lane's own key as the bearer token and the endpoint answers only
-  that, so no new secret exists. The percentage, the expiry countdown and the
-  pace show in `/quota`. Quota reuses a provider's result for `minIntervalMs`
+  that, so no new secret exists. The percentage (of the grants that still hold
+  something), the countdown to the nearest of them expiring and the pace show
+  in `/quota`. Quota reuses a provider's result for `minIntervalMs`
   (5 minutes by default, 2 here) even though the sidebar refreshes every minute,
   so use shows up after that wait and the 30 s cache behind the endpoint.
 

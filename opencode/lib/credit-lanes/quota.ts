@@ -21,7 +21,7 @@ export type QuotaEntry =
       observedAtIso: string
     }
 
-const usd = (n: number) => `$${n.toFixed(2)}`
+const usd = (n: number) => (n < 0 ? `-$${(-n).toFixed(2)}` : `$${n.toFixed(2)}`)
 // Whole dollars: the sidebar is 36 columns wide.
 const perDay = (n: number) => `$${Math.round(n)}/day`
 
@@ -51,8 +51,10 @@ export function toQuotaV1(s: Summary, now: Date) {
       // The envelope rejects more than 100; overspend may go below zero.
       percentRemaining: Math.min(100, s.percentLeft),
       label: "Left:",
-      right: `${usd(s.remaining)}/${usd(s.lane.amount)}`,
-      resetTimeIso: s.cycleEnd.toISOString(),
+      right: `${usd(s.remaining)}/${usd(s.total)}`,
+      // The nearest grant with something left expires then; with nothing
+      // left, the next renewal refills the lane.
+      resetTimeIso: s.resetAt.toISOString(),
       observedAtIso,
     },
     row("Pace", "Pace:", perDay(s.pacePerDay)),
