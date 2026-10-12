@@ -90,7 +90,7 @@ fork?, timeout?, output_dir?)`; build also takes `approval` and
   Pushes (a rebased
   branch's `git push --force-with-lease origin HEAD:refs/heads/<task branch>`,
   `git_publish` and `gh stack push` included), shell history rewrites, branch moves, package
-  runners, per-command git configuration (`git -c`) and Issue writes without
+  downloaders (`npm exec`, `pnpm dlx`), anything naming `deploy`, `publish`, `secret`, `--remote` or `--prod`, per-command git configuration (`git -c`) and Issue writes without
   `issue_approval` come back to you as requests, also behind a prefix or a
   wrapper such as `env` or `sh -c`. Every other force push, protected-branch
   pushes, merges, `gh api`, Project writes, git config and remote rewrites,

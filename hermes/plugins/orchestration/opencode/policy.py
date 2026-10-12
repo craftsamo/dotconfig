@@ -90,15 +90,21 @@ def git_home_edits():
     return (f"{home}/.gitconfig", f"{config}/git/*", f"{config}/gh/*")
 
 
-# Writes that rewrite history, move branches or run packages come back to a
-# write run's caller as permission requests.
+# Writes that rewrite history, move branches or fetch and run packages come back to a
+# write run's caller as permission requests. `pnpm exec` runs only what the project
+# installed (it never downloads), so it is the person's agent rules' call like `pnpm run`.
 WRITE_ASK_SHELL = (
     "git push *", "git rebase *", "git reset *", "git checkout *", "git switch *", "git restore *",
     "git clean *", "git merge *", "git revert *", "git cherry-pick *",
     "git commit *--amend*", "git commit *--no-verify*",
-    "npm exec *", "npm create *", "pnpm dlx *", "pnpm exec *", "pnpm create *", "yarn dlx *",
+    "npm exec *", "npm create *", "pnpm dlx *", "pnpm create *", "yarn dlx *",
     "yarn create *", "bun x *", "cargo install *", "go install *",
 )
+# A deployment, a publication, a secret or a remote resource reached through a project's
+# own task runner (`nps deploy.web`, `wrangler secret put`, `wrangler d1 execute --remote`):
+# routine commands are allowed by the person's agent rules, and these would ride along
+# unless a write run asks for them by name. Best effort, like every shell rule here.
+DEPLOY_ASK_SHELL = ("*deploy*", "*publish*", "*secret*", "*--remote*", "*--prod*")
 # The same writes however spelled (`git --no-pager push`, `FOO=1 git commit`):
 # options before the subcommand slip past the prefix asks into the person's
 # `git *` allow. A write run asks for them; a read-only run is denied them,
@@ -200,6 +206,14 @@ def directories(tmp):
     return scratch, readable
 
 
+def references():
+    """OpenCode's read-only clones of a project's references (an upstream starter):
+    reading them is how a run compares the project with where it came from. Opened
+    before the person's own outside-path denies, which still win, and never editable."""
+    data = Path(os.environ.get("XDG_DATA_HOME") or Path.home() / ".local/share") / "opencode"
+    return [f"{data}/repos/*"]
+
+
 def output_dir(value):
     """The caller's output directory for a run's reports and screenshots: an existing
     directory inside a Workspaces draft (`.agent/`), never the repository, and spelled
@@ -256,6 +270,7 @@ def rules(policy, issue_approval, protected, *, tmp=None, person_denies=(), outp
     out = [rule("external_directory", "*", "ask")]
     if output:
         out += [rule("external_directory", output, "allow"), rule("external_directory", f"{output}/*", "allow")]
+    out += [rule("external_directory", path, "allow") for path in references()]
     # The person's own outside-path denies stay denies, not asks the caller could approve.
     out += [rule("external_directory", d["resource"], "deny") for d in person
             if d.get("action") == "external_directory"]
@@ -272,7 +287,8 @@ def rules(policy, issue_approval, protected, *, tmp=None, person_denies=(), outp
     out += [rule("read", pattern, "allow") for pattern in SAMPLE_READS]
     out += [rule("edit", pattern, "deny") for pattern in SECRET_READS]
     out += [rule("edit", pattern, "allow") for pattern in SAMPLE_READS]
-    out += [rule("edit", pattern, "deny") for pattern in GIT_DIR_EDITS + git_home_edits()]
+    # After the sample-file allows, so a reference clone's `.env.example` stays read-only too.
+    out += [rule("edit", pattern, "deny") for pattern in GIT_DIR_EDITS + git_home_edits() + tuple(references())]
     branch_moves = GH_BRANCH_MOVES + tuple(f"gh {name} *" for name in gh_aliases)
     risky_git = GIT_WRITES + GIT_CONFIG_ON_THE_FLY + branch_moves
     if policy == "read-only":
@@ -287,7 +303,7 @@ def rules(policy, issue_approval, protected, *, tmp=None, person_denies=(), outp
         out += [rule("subagent", name, "deny") for name in READ_ONLY_DENY_SUBAGENTS]
         out += [rule(name, "*", "deny") for name in READ_ONLY_DENY_TOOLS]
     else:
-        out += [rule("shell", pattern, "ask") for pattern in WRITE_ASK_SHELL + (STACK_ALL,)]
+        out += [rule("shell", pattern, "ask") for pattern in WRITE_ASK_SHELL + DEPLOY_ASK_SHELL + (STACK_ALL,)]
         out += [rule("shell", pattern, "allow") for pattern in STACK_READS]
         out += [rule("shell", pattern, "ask") for pattern in risky_git]
         if not issue_approval:
