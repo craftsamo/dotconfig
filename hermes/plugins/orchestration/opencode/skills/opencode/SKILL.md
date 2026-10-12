@@ -229,7 +229,9 @@ A notification for a state you already read (from a run call or a `wait`) and
 already reported carries nothing new: answer it with `[SILENT]`. Reading a
 state is not reporting it: a run that finished is news to the user until you
 told them. Reply when a notification brings a new state: a finish, a pause on
-a request or question, or an unknown outcome.
+a request or question, a Phase step that finished or stalled
+(`progress_changed`), or an unknown outcome. A state that carries `progress`
+shows the Phase's step list as counts, the step in hand and any blocked step.
 
 - `completed`: OpenCode reported the turn succeeded — not that the task
   passed. Read `result` for open questions, assumptions and unverified claims
@@ -256,6 +258,8 @@ Scale each message to how much changed, never to how often a run stops:
 | The run stopped because | Tell the user |
 | --- | --- |
 | You approved an in-scope request | Nothing by itself; count it in the next update ("3 approvals") |
+| A Phase step finished (`progress_changed`) | One line: the step and what it delivers, "N/M done"; then `opencode_session status` |
+| A Phase step is blocked | At once, the reason and what it needs, if anything, from the user |
 | A run finished, others still go | One or two sentences of what it found, the board of all runs, the details folded |
 | It needs the user (out-of-scope request, material question, failure, `unknown`) | At once, the decision first |
 | Every run of the job finished | The summary, a compact table, details folded |

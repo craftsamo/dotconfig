@@ -42,6 +42,7 @@ config = _load("hermes_opencode_config", _HERE / "config.py")
 policy = _load("hermes_opencode_policy", _HERE / "policy.py")
 models = _load("hermes_opencode_models", _HERE / "models.py")
 turn = _load("hermes_opencode_turn", _HERE / "turn.py")
+progress = _load("hermes_opencode_progress", _HERE / "progress.py")
 inventory = _load("hermes_opencode_history", _HERE / "history.py")
 preflight = _load("hermes_opencode_preflight", _HERE / "preflight.py")
 workspace = _load("hermes_opencode_workspace", _HERE / "workspace.py")
@@ -217,8 +218,10 @@ def _prompt(role, message, approval, issue_approval, output=None):
     return text
 
 
-def _instructions(role):
+def _instructions(role, output=None):
     text = DEFAULT_NOTE + " " + SHELL_NOTE + (" " + READ_ONLY_NOTE if role["policy"] == "read-only" else "")
+    if output and role["policy"] == "write":
+        text += " " + PROGRESS_NOTE.format(path=str(Path(output) / progress.FILE))
     return text + (("\n\n" + role["note"]) if role.get("note") else "")
 
 
@@ -328,12 +331,12 @@ def _setup(home, owner, role_name, role, plan, kwargs):
     return sid
 
 
-def _put_note(sid, role):
+def _put_note(sid, role, output=None):
     """The operating note as a durable session instruction. Experimental on the service:
     when it is refused, the caller prepends the note to the prompt instead."""
     try:
-        turn.call("put", "/api/experimental/session/{sid}/instructions/entries/{key}", {"value": _instructions(role)},
-                  sid=sid, key=NOTE_KEY)
+        turn.call("put", "/api/experimental/session/{sid}/instructions/entries/{key}",
+                  {"value": _instructions(role, output)}, sid=sid, key=NOTE_KEY)
         return True
     except (api.ApiError, api.Unavailable):
         return False
@@ -341,8 +344,8 @@ def _put_note(sid, role):
 
 def _admit(sid, role, message, plan):
     text = _prompt(role, message, plan["approval"], plan["issue_approval"], plan["output"])
-    if not _put_note(sid, role):
-        text = _instructions(role) + "\n\n" + text
+    if not _put_note(sid, role, plan["output"]):
+        text = _instructions(role, plan["output"]) + "\n\n" + text
     try:
         admitted = api.data(turn.call("post", "/api/session/{sid}/prompt", {"text": text}, sid=sid))
         return admitted["id"], None
@@ -1025,9 +1028,17 @@ def _captured_home(home_arg):
 
 def _notify(home_arg, sid):
     home = _captured_home(home_arg)
+    sid = _session_id(sid)
+    # A run that keeps a Phase step list wakes the caller as a step finishes or stalls; the
+    # watch remembers only where the list stood when this notifier started.
+    watch = None
+    with contextlib.suppress(Exception):
+        meta = turn.hermes_meta(turn.session_info(sid))
+        if progress.location(meta):
+            watch = progress.Watch(meta, PROGRESS_SETTLE)
     # A provider retry already reached the caller in the run call's own state; returning on it
     # again would only wake the caller with what it has just read.
-    record = turn.await_turn(_session_id(sid), NOTIFY_LIMIT, through_retry=True, poll=NOTIFY_POLL)
+    record = turn.await_turn(sid, NOTIFY_LIMIT, through_retry=True, poll=NOTIFY_POLL, watch=watch)
     return _keep_report(home, record)
 
 
@@ -1038,6 +1049,8 @@ NEXT = {
     "waiting": ("Answer each pending request with opencode_request after judging every command it names; "
                 "where complete is false, read them in full with opencode_request list first."),
     "running": "Heartbeat: still running. opencode_session status reads it and starts the next notifier.",
+    "progress": ("Phase steps finished or stalled; the run goes on. Tell the person in one line (a blocked step "
+                 "at once, with its reason), then opencode_session status re-arms the notification."),
     "unknown": "Read opencode_session status, diff and messages before any further turn.",
 }
 
@@ -1084,7 +1097,13 @@ def _notice(record):
             keep["pending_more"] = len(record["pending"]) - 3
     if record.get("changes"):
         keep["changed_files"] = len(record["changes"])
-    keep["next"] = NEXT.get(status, NEXT["unknown"])
+    if record.get("progress"):
+        keep["progress"] = {k: record["progress"][k] for k in ("done", "total", "doing", "blocked")
+                            if k in record["progress"]}
+    if record.get("progress_changed"):
+        keep["progress_changed"] = [{"id": s["id"], "state": s["state"], "title": s["title"][:NOTICE_TITLE]}
+                                    for s in record["progress_changed"][:6]]
+    keep["next"] = NEXT["progress"] if record.get("progress_changed") else NEXT.get(status, NEXT["unknown"])
     result = str(record.get("result") or "")
     budget = NOTICE_RESULT
     while True:
@@ -1097,6 +1116,8 @@ def _notice(record):
         budget = max(0, budget - (len(text) - NOTICE_LIMIT) - 40)
     # Still too long without any result: keep what tells the caller what to do.
     essential = {k: keep[k] for k in ("session_id", "status", "outcome", "timed_out", "next") if k in keep}
+    if keep.get("progress_changed"):
+        essential["progress_changed"] = [{"id": s["id"], "state": s["state"]} for s in keep["progress_changed"]]
     if keep.get("pending"):
         essential["pending_ids"] = [p.get("id") for p in record["pending"][:20]]
         # The commands did not fit: say so, so no request is answered on its id alone.
