@@ -7,7 +7,7 @@
     ws-drafts inbox                 what waits in ~/Workspaces/.inbox, oldest first
     ... --json                      the raw result instead of the table
 
-The layout rule lives in ~/Workspaces/AGENTS.md "Drafts": a job is one
+The layout rule lives in the assistant-pipeline reference workspace-layout.md "Drafts": a job is one
 directory ``.agent/<YYYYMMDD>-<job>/`` in its owning Group, or in the root
 ``~/Workspaces/.agent/`` when no single Group owns it. A draft that remains is
 work not yet promoted, so this list is also the list of open work.

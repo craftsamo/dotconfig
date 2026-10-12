@@ -74,11 +74,13 @@ ASSISTANT_ENTRIES = {
 }
 # Required Chat entry references and extra shared Execute files.
 REQUIRED_MODE_FILES = {
-    "chat": {"workspace-ops.md", "message-reply.md", "work-report.md", "cron.md", "lookups.md", "whatsapp.md",
+    "chat": {"workspace-ops.md", "message-reply.md", "cron.md", "lookups.md", "whatsapp.md",
              "signal.md", "discord.md", "telegram.md", "x.md", "note.md", "substack.md",
              "youtube.md", "google.md", "web3.md"},
     "execute": {"resident-sessions.md"},
 }
+# Kernel-root references beside the mode directories (shared workspace rules).
+REQUIRED_KERNEL_REFERENCES = {"workspace-layout.md"}
 # Verification contracts that must exist (migration-loss guard); extra
 # leaves may grow beside them as long as the dir index routes them.
 REQUIRED_QA_CONTRACTS = {
@@ -206,7 +208,8 @@ def validate_assistant_pipeline(errors: list[str]) -> int:
         for mode in CAPABILITY_MODES
         for name in {"index.md", *REQUIRED_MODE_FILES.get(mode, set())}
     }
-    for rel in sorted(shared_files):
+    kernel_files = set(REQUIRED_KERNEL_REFERENCES)
+    for rel in sorted(shared_files | kernel_files):
         if not (references / rel).is_file():
             errors.append(f"missing shared mode file: references/{rel}")
     if references.is_dir():
@@ -214,7 +217,7 @@ def validate_assistant_pipeline(errors: list[str]) -> int:
             rel = path.relative_to(references).as_posix()
             if any(part.startswith(".") for part in Path(rel).parts):
                 continue
-            if (path.is_dir() and rel in CAPABILITY_MODES) or rel in shared_files:
+            if (path.is_dir() and rel in CAPABILITY_MODES) or rel in shared_files | kernel_files:
                 continue
             errors.append(f"unexpected shared reference: references/{rel}")
     for mode in sorted(CAPABILITY_MODES):
@@ -486,19 +489,35 @@ def validate_plugin_source(errors: list[str]) -> None:
 
 _QUALIFIED_SKILL_CALL = re.compile(r'skill_view\(name="([A-Za-z0-9_-]+):([A-Za-z0-9_-]+)"')
 
+def plugin_skill_files(errors: list[str] | None = None) -> dict[str, dict[str, Path]]:
+    """``{plugin dir name: {skill: SKILL.md}}`` for skills shipped by plugins.
 
-def plugin_skill_files() -> dict[str, dict[str, Path]]:
-    """``{plugin dir name: {skill: SKILL.md}}`` for skills shipped under ``plugins/**/skills``.
-
-    A plugin sits at ``plugins/<name>`` or ``plugins/<group>/<name>``; its skills are read
-    only at runtime and registered as ``<plugin name>:<skill>``.
+    A plugin sits at ``plugins/<name>`` or ``plugins/<group>/<name>`` and is recognized by its
+    ``plugin.yaml``; the slot may be a symlink to an installed plugin directory. Only the
+    root and one group level are scanned, and only each plugin's ``skills/*/SKILL.md`` is read.
+    A dangling link in a slot is an error. Skills are read only at runtime and registered as
+    ``<plugin name>:<skill>``.
     """
     found: dict[str, dict[str, Path]] = {}
-    for path in sorted((HERMES_ROOT / "plugins").rglob("skills/*/SKILL.md")):
-        rel = path.relative_to(HERMES_ROOT / "plugins").parts
-        if len(rel) not in (4, 5) or "tests" in rel:
-            continue
-        found.setdefault(path.parents[2].name, {})[path.parent.name] = path
+
+    def scan(directory: Path, allow_group: bool) -> None:
+        for child in sorted(directory.iterdir()):
+            if child.is_symlink() and not child.exists():
+                if errors is not None:
+                    errors.append(f"dangling plugin directory link: {child}")
+                continue
+            if not child.is_dir():
+                continue
+            skills = sorted((child / "skills").glob("*/SKILL.md"))
+            if (child / "plugin.yaml").is_file() or skills:
+                for path in skills:
+                    found.setdefault(child.name, {})[path.parent.name] = path
+            elif allow_group and not child.is_symlink():
+                scan(child, False)
+
+    root = HERMES_ROOT / "plugins"
+    if root.is_dir():
+        scan(root, True)
     return found
 
 
@@ -509,7 +528,7 @@ def validate_plugin_skills(errors: list[str]) -> int:
 
     existing: set[str] = set()
     count = 0
-    for plugin, skills in plugin_skill_files().items():
+    for plugin, skills in plugin_skill_files(errors).items():
         plugin_dir = next(skills.values().__iter__()).parents[2]
         manifest = plugin_dir / "plugin.yaml"
         if not manifest.is_file():

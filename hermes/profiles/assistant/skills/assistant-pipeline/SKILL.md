@@ -144,7 +144,7 @@ Sort the request by where its work lives:
 | Request kind | Category |
 | --- | --- |
 | Code, repos, builds, project docs/data/state | **Projects** (`~/Workspaces/Projects/<Group>/`) |
-| Personal data, automation, and state (people, household-budget, etc.) | **Personal** (`~/Workspaces/Personal/<Group>/`) |
+| Personal data, automation, and state (people, ledgers, etc.) | **Personal** (`~/Workspaces/Personal/<Group>/`) |
 | Unassigned or intentionally cross-group drafts, inbox triage | **cross-cutting** (`~/Workspaces/.agent/`, `~/Workspaces/.inbox/`) |
 | Pure conversation / emotion / opinion / no workspace | **neither** |
 
@@ -154,7 +154,10 @@ Decide silently; surface only if ambiguous enough to merit a `clarify`.
 
 <Step2Locate>
 
-Identify the workspace concretely:
+Before locating workspace or draft work, `read_file`
+`${HERMES_SKILL_DIR}/references/workspace-layout.md` (this kernel's directory;
+a Markdown reference is not loaded automatically). It owns the full layout and
+the draft rules. Then identify the workspace concretely:
 
 - **Projects**: identify the `<Group>` and the `github/<repo>` if code
   work is implied. Confirm via the registry: `workspace_registry` action
@@ -177,7 +180,8 @@ Identify the workspace concretely:
 
 <StateLifecycle>
 
-The rule is `~/Workspaces/AGENTS.md` "Drafts": a file's location is its
+The rule is the shared workspace layout reference ("Drafts"; read it as in
+<Step2Locate>): a file's location is its
 status, everything under `.agent/` is a draft, canon is only a Group's
 `docs/`, `data/`, `assets/` or repo. What falls to you:
 
@@ -192,7 +196,8 @@ status, everything under `.agent/` is a draft, canon is only a Group's
   needs the user's OK.
 - You alone promote and delete. Producers write inside the path they are
   given and report their files.
-- Before opening a job, check `workspace_drafts` for an existing draft of the
+- Before opening a job, read `skill_view(name="workspace-drafts:workspace-drafts")`,
+  then check `workspace_drafts` for an existing draft of the
   same work and continue it rather than starting a second one.
 - The earlier `.agent/{scratch,deliverables,notes}/` and root `.scratch/`,
   `.deliverables/`, `.notes/` are retired; never start work there. A job still

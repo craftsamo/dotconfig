@@ -40,7 +40,7 @@ skills=` in its summary) and `skills list` does not show them;
   `skill_view(name="<plugin>:<skill>")` does. Tool mechanics for the Assistant's
   accounts and wallets live there; `technic/` keeps what has no plugin.
 - **The Assistant's `assistant-pipeline`** (kernel, entries, shared mode
-  references) is tracked here like every other pipeline (only the
+  references, including the shared workspace layout) is tracked here like every other pipeline (only the
   private technic shelf, `config.yaml` and `SOUL.md` live in the overlay; see
   [`tracking.md`](./tracking.md) "Tracked vs ignored"). Its pinned Telegram
   topics bind no skill; their contracts are `channel_prompts` entries. Its tests

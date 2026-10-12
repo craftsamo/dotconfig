@@ -1,0 +1,4 @@
+name: workspace-registry
+version: 1.0.0
+description: The workspace_registry tool — people, projects, memberships and repos of ~/Workspaces (CSV under ~/Workspaces/.registry) without a terminal.
+kind: standalone

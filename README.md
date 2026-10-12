@@ -114,8 +114,8 @@ What lives there: private Hermes skills (read in place via
 `skills.external_dirs` as `~/.config/private/hermes/skills`), the real
 persona/config files this repo only ships `*.example.*` templates for
 (overlaid into this tree as symlinks by the overlay's `install.sh`), the
-assistant's personal workflow trees (`desks/`, `assistant-pipeline/` —
-overlaid as directory symlinks), the `~/Workspaces` AGENTS.md doctrine
+assistant's personal procedures (plugin skills and the external private
+shelf; the assistant pipeline and the public workspace engines live here), the `~/Workspaces` AGENTS.md doctrine
 (linked straight into place), private opencode skills, and private shell
 config (`private/zsh/*.zsh`, sourced by `config.zsh` when present).
 

@@ -715,7 +715,10 @@ def test_profile_configuration_and_plugin_api():
             assert platforms["telegram"] == [] and platforms["discord"] == []
             assert platforms["a2a"] == platforms["cli"]
         else:
-            assert platforms["a2a"] == [tool for tool in platforms["cli"] if tool != "media_inspect"]
+            assert platforms["a2a"] == [
+                tool for tool in platforms["cli"] if tool not in {"media_inspect", "workspace_registry"}
+            ]
+            assert "workspace_registry" not in platforms["a2a"]
         for tools in [config["toolsets"], *platforms.values()]:
             assert "a2a" not in tools
             if tools:
