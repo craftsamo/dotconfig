@@ -3,8 +3,8 @@ name: git-pullrequest
 description: >-
   Use when opening, pushing, or updating a GitHub pull request — rebasing the
   branch onto the latest base, pushing it, creating a PR whose title and body
-  match the repository's own convention, marking it ready, adding a layer to a
-  native GitHub stack, scanning the branch for related Issues and PRs to link,
+  match the repository's own convention, marking it ready, preferring a native
+  GitHub stack of PRs whenever the work splits into reviewable layers, scanning the branch for related Issues and PRs to link,
   and following the PR's CI checks and review feedback (PR, pull request,
   プルリク, プルリクエスト, push, gh pr, open a PR, レビュー依頼, 関連Issue,
   related issues, link PR, stacked PR, gh stack, スタック, rebase onto main,
@@ -94,11 +94,36 @@ cross-repo or private refs may not resolve; solo repos surface few Issues.
 
 </RelatedScan>
 
+<StackDecision>
+
+Prefer a native GitHub stack whenever the work splits into reviewable layers;
+one plain PR is the fallback, not the default. Decide before Step 4.
+
+- **Always stack** when the branch builds on an unmerged PR of the same
+  repository: adopt that PR's branch and add a layer (<StackedPRs>), never
+  hand-manage a base branch.
+- **Propose a split** when the branch's own commits fall into two or more
+  layers that each review and build on their own — an extraction before its
+  use, a schema or API before its callers, a refactor before a behavior
+  change. Cuts run between existing commits: never reorder or rewrite commits
+  to make a cut fit. Propose the cut once (each layer's commits, its branch
+  name, why it stands alone, and that the quick check passes at each cut,
+  `git_verify_commits`), and split only after the user agrees.
+- **Stay plain** when one reviewable change remains: a single layer gains
+  nothing (GitHub forms a stack from two PRs, while gh stack force-pushes and
+  turns off auto-merge). Also when the PR comes from a fork (stacks cannot span
+  a fork and its upstream), the remote is not github.com, or
+  `git_stack_publish` returns `stacksUnavailable`. A plain PR can still join a
+  stack later.
+- A purpose in `approach-github-projects` follows its own `<BranchTopology>`,
+  which already decides the stack.
+
+</StackDecision>
+
 <StackedPRs>
 
-A purpose executes as a chain of PRs (`approach-github-projects`
-`<BranchTopology>`). When the branch belongs to one, `gh stack` owns the base
-and the push; this skill still owns the title, body and links.
+When the branch belongs to a stack, the stack owns the base and the push; this
+skill still owns the title, body and links.
 
 - **Layer descriptions.** Derive the title and change summary from the diff
   against the layer immediately below (the trunk for the bottom layer), not
@@ -106,33 +131,52 @@ and the push; this skill still owns the title, body and links.
   PR introduces; put the broader purpose and dependencies in body context or
   links. Never broaden the top PR's title to serve as a whole-stack merge title.
 
-`gh stack` is the `github/gh-stack` extension, declared in `GH_EXTENSIONS` in
-`install.sh`. If the command is missing, install it
-(`gh extension install github/gh-stack`) rather than falling back to
-hand-managed base branches.
+Two tools drive it, over the `github/gh-stack` extension (`gh stack`, declared
+in `GH_EXTENSIONS` in `install.sh`; if it is missing, install it rather than
+falling back to hand-managed base branches):
+
+- `git_stack` (local only, runs without asking): `split`, `add`, `rebase`,
+  `preview`.
+- `git_stack_publish` (asks): `push`, `submit`, `link`. It publishes only the
+  state a `preview` token pinned, re-checks every refusal and the secret scan,
+  then re-reads each layer's remote commit, PR, base and draft state.
+
+Prefer them to shell `gh stack`, which stays available (asking) for what they
+do not cover, such as `gh stack sync` or `gh stack checkout`.
 
 - **Detect first.** `git_related_scan` returns `stack` — trunk, position, size,
   the layers below and above, and `needsRebase` — for a layer that has no PR
   yet as well as one that has. If the branch is in a stack, do not compute a
-  base yourself: the layer below is the base and `gh stack` maintains it,
+  base yourself: the layer below is the base and the stack maintains it,
   including retargeting survivors after a partial merge.
-- **Adding a layer.** `gh stack top` then `gh stack add <branch>` (append only
-  — the CLI refuses to insert mid-stack, and `gh stack modify` is TUI-only).
-  Publish with `gh stack submit --open`: `--auto` alone creates **drafts**,
-  which contradicts this skill's ready-by-default rule.
-- **Pushing.** Use `gh stack push`, not `git push`. Rewriting a lower layer
-  requires `gh stack rebase` first; the stack cannot merge unless every layer
-  is a linear descendant of the one below. When a rebase stops on conflicts,
-  read them with `git_conflicts` (in a rebase `ours` is the layer below,
-  `theirs` the commit being replayed; lockfiles are regenerated, not merged).
-- **Force-push is expected here.** `gh stack push` force-pushes rewritten
-  layers with `--force-with-lease`. That is the mechanism, not a violation of
-  the no-force-push rule — but it is not atomic across branches, so re-read the
-  result instead of assuming all layers moved.
-- **Never `gh stack link` without `--base`.** It defaults the trunk to the
-  repository default branch and silently rewrites an existing PR's base to
-  match. Pass `--base` explicitly whenever the intended trunk is anything else,
-  and re-read the resulting bases afterwards.
+- **Creating.** `git_stack` `split` with `at` (the last commit of each lower
+  layer, bottom-up) and `names` turns the current branch into the top layer
+  on the default branch. With no cuts it adopts the branch, and its open PR,
+  as a one-layer stack, so work that builds on an unmerged PR can follow as a
+  new layer.
+- **Adding a layer.** `git_stack` `add` with the new branch name appends on
+  top (it switches to the top first). The CLI cannot insert mid-stack, and
+  `gh stack modify` is TUI-only.
+- **Rebasing.** `git_stack` `rebase` brings the trunk's latest state into
+  every layer and moves the layers above a changed one; publishing refuses a
+  stack that is behind the trunk or out of order. On conflicts it returns the
+  layer, the worktree and the conflict map (`ours` is the layer below,
+  `theirs` the commit being replayed; lockfiles are regenerated, not merged):
+  resolve, `git add`, then `step: continue`, or `step: abort` to restore every
+  layer. Keep its `before` commits for the report.
+- **Publishing.** Run `git_stack` `preview`, show the user its layers (each
+  layer's commits, `push` of create / fast-forward / force, PR and base) with
+  any refusals and warnings, then call `git_stack_publish` with its `token`:
+  `submit` for new layers (it opens each missing PR on the layer below, ready
+  unless asked for drafts, and links them; existing PRs keep their draft
+  state; `prs` sets each layer's title and body), `push` for updates. A force
+  push is the mechanism here, not a violation of the no-force-push rule: the
+  previewed commits leave in one atomic push, each layer leased on the remote
+  commit the preview saw. Still read `pushed` and `pr` per layer, and report
+  `autoMergeDisabled`, `errors` or `stacksUnavailable` when present.
+- **Linking existing PRs.** `git_stack_publish` `link` with PR numbers
+  bottom-up; it always passes the default branch as `--base`. Never run a bare
+  `gh stack link`: it silently retargets existing PRs.
 - **Closing keywords work from any layer** of a stack rooted at the default
   branch — a mid-stack `Closes #N` does fire on merge. This is NOT true when
   the stack is rooted elsewhere, which is one reason the topology fixes the
@@ -196,7 +240,7 @@ and [squash-message settings](https://docs.github.com/en/repositories/configurin
    again before continuing.
 3. Bring in the base's latest state before every push, for a new PR and for an
    update alike (skip it for a metadata-only update). For a stack,
-   `gh stack rebase` (see <StackedPRs>). Otherwise `git_rebase` with
+   `git_stack` `rebase` (see <StackedPRs>). Otherwise `git_rebase` with
    `action: start` and `onto: <base>`: it fetches the base, replays the
    branch's commits on it without an editor, and folds pending fixups.
    - `upToDate` — nothing to do.
@@ -216,6 +260,9 @@ and [squash-message settings](https://docs.github.com/en/repositories/configurin
    Keep the result's `before` sha for the report: `undo` restores it. Then,
    before every push, run the project's quick check once on the final commit;
    a failure is fixed with a commit (`git-commit`) before pushing.
+   For a new PR not yet in a stack, apply <StackDecision> now, on the rebased
+   commits: an agreed split or an adoption goes through `git_stack`, and
+   Step 2's scan runs again, since every layer now has its own base.
 4. Inspect `git log --oneline <base>..HEAD` and `git diff <base>...HEAD` using
    that resolved base. Confirm the PR introduces changes and review every
    included commit, not only the latest. For a stack, separate lower-layer
@@ -225,14 +272,16 @@ and [squash-message settings](https://docs.github.com/en/repositories/configurin
 5. Build the title and body per <ConventionResolution> and <StackedPRs>, folding
    in verified links. Update an existing PR instead of creating a duplicate.
 6. Push only when publishing a new PR or an authorized branch update:
-   `git push -u origin HEAD` (gated `ask`), or `gh stack push` for a stack
-   layer; when `origin` is not writable, use the writable fork remote. When a
+   `git push -u origin HEAD` (gated `ask`), or for a stack `git_stack`
+   `preview` then `git_stack_publish` (`push`, or `submit` when a layer has no
+   PR yet; <StackedPRs>); when `origin` is not writable, use the writable fork
+   remote, as a plain PR. When a
    `git_rebase` (Step 3, or a fixup's fold) or a `git_commit` amend reported
    `needsForcePush`, push with
    `git push --force-with-lease origin HEAD:refs/heads/<branch>` (that exact
    form: the full destination cannot be remapped by push config, and some
    rulesets open no other force spelling).
-   Force-push only then and as `gh stack push` does — never a bare `--force`,
+   Force-push only then and as a stack publication does — never a bare `--force`,
    and otherwise only when explicitly asked. A request to edit a title/body
    alone does not authorize publishing local commits.
 7. Create or update: write the body to a scratch file with the write tool,
@@ -240,14 +289,19 @@ and [squash-message settings](https://docs.github.com/en/repositories/configurin
    (multi-line bodies survive quoting; never literal `\n`). A heredoc fed to
    `--body-file -` breaks when anything follows its terminator line, such as
    `&& gh pr view`. Ready by default, add `--draft` only if asked. For a
-   stack layer, publish with `gh stack submit --open` and then set the
-   title/body via `gh pr edit`.
+   stack, `git_stack_publish` `submit` creates the layers' PRs and sets each
+   title and body from `prs` in the same call (ready unless `draft`). If it
+   returns `stacksUnavailable`, the layer PRs already exist, each on the layer
+   below, just unlinked: report them and ask the user whether to keep them so
+   or close them for one plain PR; do not open another PR on your own.
    For metadata-only updates, use `gh pr edit` alone, not a stack submission;
    preserve unspecified fields and draft state. Set reviewers, labels,
    assignees, or a milestone only if the user asked.
 8. Re-read the published PR's base, title, body and draft state, and the stack
-   order when applicable. Confirm the description matches the layer diff;
-   do not assume submission or base retargeting preserved that match.
+   order when applicable (`git_stack_publish` returns them per layer, with any
+   `baseMismatch`, `pushed: false` or `errors`). Confirm the description
+   matches the layer diff; do not assume submission or base retargeting
+   preserved that match.
 9. Report the PR URL and its ready/draft state, including the immediate base
    for a stack, and whether Step 3 rebased (with its `before` sha). Keep any
    later merge-message handoff separate. Do not merge.
@@ -285,14 +339,18 @@ and [squash-message settings](https://docs.github.com/en/repositories/configurin
 - Do not merge, and do not bypass the `git push` or `gh pr merge` gates.
 - Do not force-push unless explicitly asked, except `--force-with-lease`
   after a `git_rebase` or `git_commit` amend that reported `needsForcePush`,
-  and `gh stack push` after a `gh stack rebase`. Never a bare `--force`.
+  and a `git_stack_publish` after a `git_stack` rebase. Never a bare `--force`.
 - Do not push a branch without first bringing in its base (Step 3), and do
   not merge the base in or rebase with shell git when `git_rebase` refuses.
-- Do not run `gh stack link` without an explicit `--base` — it silently
-  retargets existing PRs to the default branch.
-- Do not create a stack layer as a draft unless requested: `gh stack submit
-  --auto` defaults to draft, so use `--open` for ready publication. Preserve
-  existing draft state during metadata-only updates.
+- Do not open one large PR when its commits split into reviewable layers, and
+  do not split without the user's agreement or by reordering commits.
+- Do not hand-manage a base branch for work on top of an unmerged PR — stack it.
+- Do not publish a stack without showing the user its `git_stack` preview, and
+  do not retry `git_stack_publish` with a fresh token to get past a refusal or
+  a changed stack without showing the new preview.
+- Do not run a bare `gh stack link` or `gh stack submit --open`: link without
+  `--base` retargets existing PRs, and `--open` marks existing drafts ready.
+  Preserve existing draft state during metadata-only updates.
 - Do not open a PR from the default branch, and do not duplicate an existing
   open PR — update it.
 - Do not silently exclude uncommitted work; warn that only pushed commits ship.

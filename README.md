@@ -64,7 +64,8 @@ Installed outside the [Brewfile](./Brewfile):
 - **GitHub CLI extensions** — `gh` has no manifest of its own, so they are
   declared in the `GH_EXTENSIONS` array at the top of
   [`install.sh`](./install.sh) and installed after `brew bundle`. Currently
-  `github/gh-stack` (native stacked PRs), which the `git-pullrequest` and
+  `github/gh-stack` (native stacked PRs), which the OpenCode `git_stack` /
+  `git_stack_publish` tools and the `git-pullrequest` and
   `approach-github-projects` skills require
 
 ## install.sh
