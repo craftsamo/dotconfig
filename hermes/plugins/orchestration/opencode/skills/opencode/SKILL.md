@@ -166,7 +166,10 @@ runner, an Issue write without the grant, a subagent command outside its
 allowlist) or a question the agent would put to a person.
 `opencode_request(action="list", session_id)` shows each pending item with its
 `kind`, `id`, whether a subagent asked, and its action and resources or its
-fields and options.
+fields and options. A shell request names every simple command of a chain as
+its own resource, and the one that needs you is often the last (`kill`,
+`rm`, `git push`): judge them all before answering. A notification shortens
+them; where it says `complete: false`, read the request with `list` first.
 
 `opencode_request(action="reply", session_id, request_id, …)`:
 
@@ -188,7 +191,8 @@ A run call returns at once with the current state. While that state is
 `running`, a notification arrives at the run's next stop (finished, waiting,
 unknown) or, after 20 minutes without one, as a heartbeat (`running`,
 `timed_out`); a state that is already final or paused comes with no
-notification. A notification is a summary: `status`, `pending` ids,
+notification. A notification is a summary: `status`, `pending` requests with
+their commands shortened,
 `result_head` (the reply's beginning) and `next`. Read `opencode_session status`
 for the full result before you report or accept anything. Every `status` or
 `wait` that finds the run still `running` starts the next notifier (one per

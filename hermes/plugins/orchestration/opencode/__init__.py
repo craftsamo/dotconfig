@@ -78,6 +78,10 @@ NOTIFY_POLL = 15
 # boundary, so a notification stays below that and spans several lines.
 NOTICE_LIMIT = 1800
 NOTICE_RESULT = 900
+# Each pending request's commands, shortened: three requests stay well inside NOTICE_LIMIT.
+NOTICE_RESOURCE = 160
+NOTICE_REQUEST = 360
+NOTICE_TITLE = 100
 MESSAGE_LIMIT = 100000
 STEER_LIMIT = 20000
 LIST_PAGES = 5
@@ -945,10 +949,33 @@ NEXT = {
     "completed": "Read opencode_session status for the full result and changes before reporting.",
     "failed": "Read opencode_session status for the error and changes before reporting.",
     "interrupted": "Read the diff and worktree before continuing on the same session.",
-    "waiting": "Answer each pending request with opencode_request (opencode_request list shows details).",
+    "waiting": ("Answer each pending request with opencode_request after judging every command it names; "
+                "where complete is false, read them in full with opencode_request list first."),
     "running": "Heartbeat: still running. opencode_session status reads it and starts the next notifier.",
     "unknown": "Read opencode_session status, diff and messages before any further turn.",
 }
+
+
+def _shown_resources(resources):
+    """A request's resources as the notice carries them: each one, shortened, within a
+    per-request budget; what did not fit is counted so the caller knows to read
+    `opencode_request list` before answering."""
+    shown, used = [], 0
+    for resource in resources:
+        text = str(resource)
+        cut = text[:NOTICE_RESOURCE] + ("…" if len(text) > NOTICE_RESOURCE else "")
+        # Measured as it is encoded: quotes, backslashes and newlines grow in JSON.
+        size = len(json.dumps(cut, ensure_ascii=False))
+        if shown and used + size > NOTICE_REQUEST:
+            break
+        shown.append(cut)
+        used += size
+    out = {"resources": shown} if shown else {}
+    if len(shown) < len(resources):
+        out["resources_more"] = len(resources) - len(shown)
+    if any(s.endswith("…") for s in shown) or "resources_more" in out:
+        out["complete"] = False
+    return out
 
 
 def _notice(record):
@@ -961,8 +988,11 @@ def _notice(record):
     if isinstance(keep.get("error"), str):
         keep["error"] = keep["error"][:300]
     if record.get("pending"):
-        keep["pending"] = [{**{k: p[k] for k in ("kind", "id", "action", "title") if p.get(k)},
-                            **({"resource": str(p["resources"][0])[:120]} if p.get("resources") else {})}
+        # Every resource, not just the first: in a compound command the part that needs
+        # approval is often the last one, and a caller must never approve on a head alone.
+        keep["pending"] = [{**{k: p[k] for k in ("kind", "id", "action") if p.get(k)},
+                            **({"title": str(p["title"])[:NOTICE_TITLE]} if p.get("title") else {}),
+                            **_shown_resources(p.get("resources") or [])}
                            for p in record["pending"][:3]]
         if len(record["pending"]) > 3:
             keep["pending_more"] = len(record["pending"]) - 3
@@ -983,6 +1013,9 @@ def _notice(record):
     essential = {k: keep[k] for k in ("session_id", "status", "outcome", "timed_out", "next") if k in keep}
     if keep.get("pending"):
         essential["pending_ids"] = [p.get("id") for p in record["pending"][:20]]
+        # The commands did not fit: say so, so no request is answered on its id alone.
+        essential["complete"] = False
+        essential["next"] = "The commands did not fit: read them with opencode_request list before answering any."
     return json.dumps(essential, ensure_ascii=False, indent=1)
 
 
