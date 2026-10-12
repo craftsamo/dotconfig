@@ -6,15 +6,15 @@ description: >-
   match the repository's own convention, marking it ready, preferring a native
   GitHub stack of PRs whenever the work splits into reviewable layers, setting
   labels, assignees, reviewers and milestones after judging what they trigger
-  (ラベル, アサイン, レビュアー, マイルストーン), scanning the branch for related Issues and PRs to link,
+  (ラベル, アサイン, レビュアー, マイルストーン), attaching screenshots (スクショ添付,
+  attach screenshot), scanning the branch for related Issues and PRs to link,
   and following the PR's CI checks and review feedback (PR, pull request,
   プルリク, プルリクエスト, push, gh pr, open a PR, レビュー依頼, 関連Issue,
   related issues, link PR, stacked PR, gh stack, スタック, rebase onto main,
   最新の main を取り込む, CI, checks, CI の結果, チェックが落ちた, レビュー
   コメント, review comments). Resolves the PR title/body convention from merged
-  PRs and a template, derives links from commits, the branch name and targeted
-  gh queries, and defaults to ready-for-review. Do NOT use to create commits
-  (use git-commit) or to merge — merging stays gated and explicit.
+  PRs and a template and defaults to ready-for-review. Do NOT use to create
+  commits (use git-commit) or to merge — merging stays gated and explicit.
 author: CraftSamo
 license: MIT
 ---
@@ -34,6 +34,7 @@ actually touches, and follow its checks and reviews when asked. Never merge.
 - The user asks to open, push, or update a pull request for the current branch.
 - The user asks to mark a PR ready, or to refresh its title, body, links, or
   its labels, assignees, reviewers or milestone (<Metadata>).
+- The user asks to attach screenshots or recordings to a PR (<Media>).
 - The user asks how a PR's checks or reviews stand, or to follow CI after a
   push (Step 10 alone).
 
@@ -138,8 +139,8 @@ stacked alike:
   every commit. For a plain branch pass `base` only for a base the user chose
   (Step 2); otherwise the open PR's base, else the default branch, is kept.
 - `git_publish` (asks) publishes exactly that, given the `token` and the same
-  `base` (and `meta`): `push` sends the commits and sets the previewed
-  metadata on PRs that already exist; `submit` also opens each missing PR
+  `base` (and `meta`, `attachments`): `push` sends the commits and sets the
+  previewed metadata on PRs that already exist; `submit` also opens each missing PR
   (ready unless asked for drafts), applies `prs` titles and bodies to new and
   existing PRs, moves a plain PR's base when the preview showed `retarget`,
   and links a stack's PRs. Existing PRs keep their draft state.
@@ -149,8 +150,8 @@ A refusal is fixed, never worked around: rebase (Step 3), commit or stash,
 remove a secret, or ask. A force push after a rebase is the mechanism here,
 not a violation of the no-force-push rule: the pinned commits leave in one
 atomic push, each branch leased on the remote commit the preview saw. Read
-`pushed`, `pr`, `baseMismatch`, `errors` and `autoMergeDisabled` in the result
-rather than assuming success.
+`pushed`, `pr`, `baseMismatch`, `errors`, `autoMergeDisabled` and
+`attachments` in the result rather than assuming success.
 
 Fall back to the gated shell (`git push`, `gh pr create`, `gh pr edit`) only
 where the tools refuse by design: a PR from a fork, a remote that is not
@@ -182,6 +183,51 @@ merge bots and notifications, so they are judged before they are set.
   re-read rather than from the request.
 
 </Metadata>
+
+<Media>
+
+Screenshots and recordings show a reviewer what the diff cannot. `git_publish`
+uploads them into a PR body through `attachments` (`{ branch, path, alt? }`
+per file; gh 2.99.0 or later). An upload cannot be deleted, so nothing is
+attached that the user has not agreed to.
+
+- **When.** If the PR changes what a page or screen renders and `web_ui_check`
+  ran, propose its screenshots (the `Screenshots:` directory; the comparison
+  images under `Comparison images:` when it compared a baseline): name each
+  file and what it shows, and attach only those the user picks. Otherwise
+  attach only what the user asks for.
+- **Files.** Images and videos; the preview refuses a type, size or count gh
+  would refuse, and warns that videos over 10 MiB upload only on paid plans.
+  Keep them outside the worktree or gitignored: an untracked file there makes
+  the preview refuse a dirty tree (`web_ui_check` already writes outside it).
+  Do not touch a file after the preview: a changed file fails the token, or
+  is skipped if it changes while publishing.
+- **Placement.** Reference a file where it belongs in the body,
+  `![After, 375px](<absolute path>)` or a path relative to the worktree root,
+  and gh replaces it with the uploaded URL, keeping that reference's alt text.
+  Files the body does not reference are appended at the end, with `alt` (else
+  the file name) as alt text. Videos render as a player and take no alt text.
+- **Preview.** Pass the same `attachments` to `git_publish_preview` and
+  `git_publish` (`submit` only). Show the preview's `attachments` (each file
+  and its size, the `visibility` and its `note` on who can open the uploads)
+  with its refusals and warnings; a refusal with rule `attachments` is fixed
+  like any other. On a public repository anyone can open them, and the secret
+  scan does not read images: check that no screenshot shows a token, a
+  private page or personal data before asking.
+- **Existing PRs.** A body in `prs` replaces the current one; without it the
+  files are appended to the current body. Either way, publishing again
+  uploads and appends them again: attach each file once.
+- **Result.** `attachments.sent` lists the files handed to gh, not those that
+  uploaded; `errors` names the failures and `skipped` the layers whose files
+  were withheld. The PR still stands either way: never re-run `git_publish` to
+  retry. Tell the user which files are missing and, once they agree, add them
+  with the shell fallback below on `gh pr edit <n>`.
+- **Shell fallback.** For a fork or a non-GitHub remote, `gh pr create` and
+  `gh pr edit` take `--attach '<absolute path>#<alt>'` (repeatable, `#<alt>`
+  optional, no `#` inside the alt); check `gh --version` first. GitHub
+  Enterprise Server cannot attach files.
+
+</Media>
 
 <StackedPRs>
 
@@ -321,10 +367,12 @@ and [squash-message settings](https://docs.github.com/en/repositories/configurin
    `gh pr view --json commits` instead of unpublished local HEAD.
 5. Build the title and body per <ConventionResolution> and <StackedPRs>, folding
    in verified links. Update an existing PR instead of creating a duplicate.
+   When the change is visible on screen, settle its attachments per <Media>
+   and reference them in the body.
 6. Publish only a new PR or an authorized branch update, through
    <Publishing>: `git_publish_preview` (with `base` from Step 2 when one was
-   chosen, and `meta` per <Metadata>), show it, then `git_publish` with its
-   `token` and the same arguments — `push` when every
+   chosen, `meta` per <Metadata> and `attachments` per <Media>), show it,
+   then `git_publish` with its `token` and the same arguments — `push` when every
    PR already exists, `submit` when one is missing or its title, body or base
    changes. A rebase (Step 3, or a fixup's fold) that reported
    `needsForcePush` is published the same way: the leased push is the force
@@ -352,7 +400,9 @@ and [squash-message settings](https://docs.github.com/en/repositories/configurin
    order when applicable (`git_publish` returns them per layer, with any
    `baseMismatch`, `pushed: false` or `errors`). Confirm the description
    matches the layer diff; do not assume submission or base retargeting
-   preserved that match.
+   preserved that match. An attached file's local path in the body now reads
+   as its uploaded URL, and unreferenced files sit at the end: that is the
+   expected difference from the body you wrote.
 9. Report the PR URL and its ready/draft state, including the immediate base
    for a stack, and whether Step 3 rebased (with its `before` sha). Keep any
    later merge-message handoff separate. Do not merge.
@@ -411,6 +461,8 @@ and [squash-message settings](https://docs.github.com/en/repositories/configurin
 - Do not request a review, change a milestone, or set metadata beyond the
   repository's habit unless asked; do not apply `pending` metadata without the
   user's agreement, or create labels or milestones to make a change valid.
+- Do not attach a file the user has not agreed to, and do not re-run
+  `git_publish` to retry a failed upload: it appends every file again.
 - Do not fabricate an Issue or PR link — leave it out or ask when unsure.
 - Do not invent a title or body convention that contradicts the repo's merged
   PRs.
