@@ -6,6 +6,7 @@ build/commit, not an earlier screenshot or a different worktree's server.
 
 | Archetype | Inspect |
 | --- | --- |
+| new-product | Each Phase's PR delivers what its plan said people can do, observed the way the user will try it; screens match the approved mock or the difference is explained by a later decision in the log |
 | web-content | Agreed pages, copy, links and target-device rendering are evidenced; pending assets are named |
 | webapp | Named journeys and relevant auth/data boundaries have execution evidence; external gaps remain explicit |
 | tool | Representative permitted input/output and failure exit behavior were observed; scheduling claims separately proven |
