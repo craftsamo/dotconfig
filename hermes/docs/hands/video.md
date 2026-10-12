@@ -299,7 +299,7 @@ and the leaf's `<Standard>`, fixed by redesign. Why:
 
 **Storyboard vocabulary.** The storyboard decides the film's taste, not the
 implementer, so Round A names entries of the kernel's
-`references/motion-vocabulary.md` (names, looks and usual builds, no rules)
+`references/motion-vocabulary.md` (names, looks, tells and usual builds, no rules)
 instead of generic "fade" or "card". Keep the vocabulary rule-free:
 [decisions/storyboard-vocabulary-rule-free.md](../decisions/storyboard-vocabulary-rule-free.md).
 

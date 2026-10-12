@@ -46,6 +46,12 @@ class VideoCreatorRoutingTest(unittest.TestCase):
                 self.assertIn('file_path="references/motion-vocabulary.md"', text)
                 self.assertIn('instead of generic "fade", "slide" or "card"', " ".join(text.split()))
 
+    def test_core_entries_carry_feel_use_and_tell(self) -> None:
+        refs = HERMES_ROOT / "profiles/video-creator/skills/video-creator-pipeline/references"
+        core = (refs / "motion-vocabulary.md").read_text()
+        self.assertIn("| Name | Feel | For | Looks like | The tell | Built with |", core)
+        self.assertIn("| Name | Looks like | The tell |", core)
+
 
 if __name__ == "__main__":
     unittest.main()
