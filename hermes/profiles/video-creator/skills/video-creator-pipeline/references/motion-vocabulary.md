@@ -20,6 +20,7 @@ This file holds what most films use. The rest lives in neighbouring files; open 
 | how one element or a group enters, moves, scales, rotates, reacts or takes attention | `skill_view(name="video-creator-pipeline", file_path="references/motion-vocabulary-elements.md")` |
 | charts, maps, drawn paths, diagrams and number moments | `skill_view(name="video-creator-pipeline", file_path="references/motion-vocabulary-data.md")` |
 | how words appear, leave, swap, type out or take emphasis | `skill_view(name="video-creator-pipeline", file_path="references/motion-vocabulary-text.md")` |
+| a treatment inside the letters: physics, path, colour, glitch, depth, variable fonts, counters | `skill_view(name="video-creator-pipeline", file_path="references/motion-vocabulary-text-styling.md")` |
 
 Japanese names in parentheses are aliases for finding an entry from a Japanese request; either name works in a storyboard. Motion tables carry Feel (the five words of the timing file's "## Feel"), For (what an entry is usually applied to) and The tell (the detail that makes it read as itself and how it differs from a near neighbour).
 
