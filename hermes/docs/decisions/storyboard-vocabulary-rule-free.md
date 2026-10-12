@@ -5,8 +5,9 @@ Owner doc: docs/hands/video.md "Promotion family" (Storyboard vocabulary)
 
 ## Decision
 
-The shared `motion-vocabulary` skill (`agents/curated/`) lists names, looks,
-the detail that tells an entry apart, and usual builds only, all
+The shared `motion-vocabulary` skill (`agents/curated/`) lists names, looks
+and the detail that tells an entry apart (`references/*.md`), and the usual
+build of each in a rendered video (`references/video/*.md`), all
 descriptive. Authored leaves name its entries in the
 storyboard; it adds no plan field, schema or rule.
 

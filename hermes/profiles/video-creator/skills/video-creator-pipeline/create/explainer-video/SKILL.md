@@ -161,7 +161,7 @@ skill_view(name="video-creator-pipeline", file_path="references/three-graphics.m
    into concrete space, materials, visual relationships and changes. Free text
    overrides defaults, never maps to the nearest option. No theme/style/character
    combination menu. The same explanation without a character needs intentional
-   recomposition, not an empty presenter slot. Also read the kernel's motion,
+   recomposition, not an empty presenter slot. Also read the shared motion,
    component and visual-metaphor vocabulary and name its entries (or a more
    precise name) in each unit's `change` and the samples' `expect` text,
    instead of generic "fade", "slide" or "card"; an abstract idea gets a
@@ -169,8 +169,12 @@ skill_view(name="video-creator-pipeline", file_path="references/three-graphics.m
    looks, and build them per that engine's own reference:
 
    ```text
+   skill_view(name="motion-vocabulary")
    skill_view(name="motion-vocabulary", file_path="references/core.md")
    ```
+
+   Its table routes to the other areas; when building, read each named
+   entry's row in the matching `references/video/` file of that skill.
 5. Round A: author `spec.json` per the reference, not HTML. Preserve exact spoken
    and on-screen words. Every unit names its learning goal and before/change/after
    states; every important change has a proof sample. User-facing forms do not

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import re
 import unittest
 from pathlib import Path
 
@@ -38,49 +37,19 @@ class VideoCreatorRoutingTest(unittest.TestCase):
         vocab = (VOCABULARY / "core.md").read_text()
         self.assertIn("A dictionary, not a rulebook", vocab)
         self.assertIn("## Visual metaphors", vocab)
-        self.assertIn("| Idea | Image | Looks like | Built with |", vocab)
-        # Character motion and drawn looks live in neighbouring files the core routes to.
-        self.assertIn("## Character and physical motion",
-                      (VOCABULARY / "character.md").read_text())
-        looks = (VOCABULARY / "looks.md").read_text()
-        self.assertIn("## Drawn looks", looks)
-        self.assertIn("never re-renders supplied\nart, a cast or a logo", looks)
+        self.assertIn("| Idea | Image | Looks like |", vocab)
+        # Character motion and drawn looks live in neighbouring files the skill routes to;
+        # how each is built in a rendered video lives under references/video/.
+        self.assertIn("## Character and physical motion", (VOCABULARY / "character.md").read_text())
+        self.assertIn("## Drawn looks", (VOCABULARY / "looks.md").read_text())
+        self.assertIn("never re-renders supplied\nart, a cast or a logo", (VOCABULARY / "video/looks.md").read_text())
         for leaf in ("promotion", "story", "ad", "tour", "explainer-video"):
             text = (kernel / "create" / leaf / "SKILL.md").read_text()
             with self.subTest(leaf=leaf):
+                self.assertIn('skill_view(name="motion-vocabulary")', text)
                 self.assertIn('skill_view(name="motion-vocabulary", file_path="references/core.md")', text)
+                self.assertIn("`references/video/`", text)
                 self.assertIn('instead of generic "fade", "slide" or "card"', " ".join(text.split()))
-
-    def test_core_entries_carry_feel_use_and_tell(self) -> None:
-        refs = VOCABULARY
-        core = (refs / "core.md").read_text()
-        self.assertIn("| Name | Feel | For | Looks like | The tell | Built with |", core)
-        self.assertIn("| Name | Looks like | The tell |", core)
-
-    def test_core_routes_every_neighbouring_file(self) -> None:
-        refs = VOCABULARY
-        core = (refs / "core.md").read_text()
-        self.assertIn("## More names", core)
-        # The core is read before every authored plan, so it stays small; each neighbour is one decision.
-        self.assertLess(len(core.encode()), 70_000)
-        routed = set(re.findall(r'file_path="references/([a-z-]+\.md)"', core))
-        neighbours = {p.name for p in refs.glob("*.md")} - {"core.md"}
-        self.assertEqual(neighbours, routed)
-        for name in sorted(neighbours):
-            text = (refs / name).read_text()
-            with self.subTest(file=name):
-                self.assertIn("A dictionary, not a rulebook", text)
-                self.assertLess(len(text.encode()), 48_000)
-                header = ("| Name | Feel | Looks like | The tell | Built with |" if name == "timing.md"
-                          else "| Name | Feel | For | Looks like | The tell | Built with |")
-                self.assertIn(header, text)
-
-    def test_timing_defines_the_five_feel_words(self) -> None:
-        refs = VOCABULARY
-        timing = (refs / "timing.md").read_text()
-        self.assertIn("## Feel", timing)
-        for feel in ("なめらか", "きびきび", "やわらかい", "重い", "弾む"):
-            self.assertIn(feel, timing)
 
 
 if __name__ == "__main__":

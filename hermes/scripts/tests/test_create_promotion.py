@@ -199,7 +199,7 @@ def test_round_a_names_techniques_from_the_vocabulary():
         assert section in vocab
     # Effects moved to the looks file that the core routes to.
     assert "## Effects" in (VOCABULARY / "looks.md").read_text()
-    assert 'file_path="references/looks.md"' in vocab
+    assert "](references/looks.md)" in (VOCABULARY.parent / "SKILL.md").read_text()
     assert "A dictionary, not a rulebook" in vocab
 
 
