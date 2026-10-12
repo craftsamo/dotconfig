@@ -109,7 +109,7 @@ async function outcome(
 
 export const rebase = tool({
   description:
-    "Rebase the current task branch without an editor, folding fixup!/squash! commits in (autosquash). start: fetch `onto` (default: the remote default branch) and replay the branch's own commits on its latest state, dropping any whose change the base already has; keepBase: true keeps the current base and only folds the fixups (also on a native stack layer, then `gh stack rebase` moves the layers above). Refuses with uncommitted changes, an operation in progress, a detached HEAD, a native stack layer without keepBase (use `gh stack rebase`), or a rewrite that git_amend_check's rule forbids (the default branch, commits already on it or held by another remote branch, a branch GitHub protects). On conflicts it stops and returns the conflict map: resolve, `git add`, then continue (or skip / abort). Returns the commit before (to undo), the new commits, how many fixups were folded, and needsForcePush when the pushed branch must now be pushed with --force-with-lease. Never pushes.",
+    "Rebase the current task branch without an editor, folding fixup!/squash! commits in (autosquash). start: fetch `onto` (default: the remote default branch) and replay the branch's own commits on its latest state, dropping any whose change the base already has; keepBase: true keeps the current base and only folds the fixups (also on a native stack layer, then `git_stack rebase` moves the layers above). Refuses with uncommitted changes, an operation in progress, a detached HEAD, a native stack layer without keepBase (use `git_stack rebase`), or a rewrite that git_amend_check's rule forbids (the default branch, commits already on it or held by another remote branch, a branch GitHub protects). On conflicts it stops and returns the conflict map: resolve, `git add`, then continue (or skip / abort). Returns the commit before (to undo), the new commits, how many fixups were folded, and needsForcePush when the pushed branch must now be pushed with --force-with-lease. Never pushes.",
   args: {
     action: tool.schema.enum(["start", "continue", "skip", "abort"]).describe("start a rebase, or continue / skip / abort the one in progress."),
     onto: tool.schema
@@ -164,11 +164,11 @@ export const rebase = tool({
     if (args.onto?.trim().startsWith("-")) throw new Error("`onto` must name a branch or ref, not an option.")
     const stack = await localStack(branch, cwd)
     if (stack && !args.keepBase)
-      throw new Error(`${branch} is layer ${stack.position} of ${stack.size} of a native stack; rebase it with \`gh stack rebase\` so every layer moves together.`)
+      throw new Error(`${branch} is layer ${stack.position} of ${stack.size} of a native stack; rebase it with \`git_stack rebase\` so every layer moves together.`)
 
     const warnings: string[] = []
     if (stack && stack.position < stack.size)
-      warnings.push("Layers above this one still hold the old commits: run `gh stack rebase` to move them onto the folded layer.")
+      warnings.push("Layers above this one still hold the old commits: run `git_stack rebase` to move them onto the folded layer.")
     const def = await defaultRef(cwd)
     let ontoRef: string
     if (args.keepBase) {
@@ -202,7 +202,7 @@ export const rebase = tool({
     if (!ontoSha)
       throw new Error(
         stack && !args.onto?.trim()
-          ? `The layer below (${ontoRef}) no longer exists; run \`gh stack rebase\` first, or pass \`onto\`.`
+          ? `The layer below (${ontoRef}) no longer exists; run \`git_stack rebase\` first, or pass \`onto\`.`
           : `Unknown branch or ref: ${ontoRef}.`,
       )
     const mergeBase = (await runGit(["merge-base", "HEAD", ontoSha], cwd)).trim()

@@ -129,6 +129,16 @@
           "effect": "deny"
         },
         {
+          "action": "git_stack",
+          "resource": "*",
+          "effect": "deny"
+        },
+        {
+          "action": "git_stack_publish",
+          "resource": "*",
+          "effect": "deny"
+        },
+        {
           "action": "subagent",
           "resource": "*",
           "effect": "deny"
@@ -218,6 +228,16 @@
         },
         {
           "action": "git_rebase",
+          "resource": "*",
+          "effect": "deny"
+        },
+        {
+          "action": "git_stack",
+          "resource": "*",
+          "effect": "deny"
+        },
+        {
+          "action": "git_stack_publish",
           "resource": "*",
           "effect": "deny"
         },
@@ -1860,7 +1880,10 @@
     // command: ask). git_commit's amend/fixup and git_rebase rewrite only a
     // task branch's own commits: never the default branch, commits on it or on
     // another remote branch, or a branch GitHub protects (git/rewrite.ts).
-    // No push/merge. Plan, Explore, Review and Debug deny the writing ones.
+    // No push/merge, except git_stack_publish (pushes and opens PRs of a
+    // native stack, only as a git_stack preview pinned it: ask). git_stack
+    // moves local stack branches only. Plan, Explore, Review and Debug deny
+    // the writing ones.
     {
       "action": "git_commit",
       "resource": "*",
@@ -1875,6 +1898,16 @@
       "action": "git_worktree",
       "resource": "*",
       "effect": "allow"
+    },
+    {
+      "action": "git_stack",
+      "resource": "*",
+      "effect": "allow"
+    },
+    {
+      "action": "git_stack_publish",
+      "resource": "*",
+      "effect": "ask"
     },
     {
       "action": "git_state",

@@ -21,7 +21,7 @@ function parseIssueRefs(text: string): { closes: number[]; refs: number[] } {
 // yields nothing — a null result is as much a miss as a failed call here.
 const STACKS_API_VERSION = "2026-03-10"
 
-async function ghApi(path: string, jq: string | undefined, cwd?: string): Promise<any> {
+export async function ghApi(path: string, jq: string | undefined, cwd?: string): Promise<any> {
   const argv = ["api", path]
   if (jq) argv.push("--jq", jq)
   for (const attempt of [argv, [...argv, "-H", `X-GitHub-Api-Version: ${STACKS_API_VERSION}`]]) {
@@ -133,7 +133,7 @@ async function describeStack(opts: {
         native: false,
         trunk: null,
         basePR,
-        note: `Branch targets non-default base "${base}" but is not in a native stack. Link it with \`gh stack link --base <trunk> …\` (never omit --base: it silently retargets to ${defBranch}).`,
+        note: `Branch targets non-default base "${base}" but is not in a native stack. Link the PRs with git_stack_publish link (it always passes --base ${defBranch}; a bare \`gh stack link\` silently retargets them).`,
       }
     }
   }

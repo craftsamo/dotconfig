@@ -46,6 +46,8 @@ describe("registry", () => {
       "git_rebase",
       "git_related_scan",
       "git_secret_scan",
+      "git_stack",
+      "git_stack_publish",
       "git_stage_hunks",
       "git_state",
       "git_verify_commits",
@@ -719,7 +721,7 @@ describe("git_rebase", () => {
     expect(fixup.out).toMatchObject({ committed: true })
     const out = runWithFakeGh(f, { module: "git", name: "rebase", args: { action: "start", keepBase: true } }, stack)
     expect(out.out).toMatchObject({ rebased: true, folded: 1, needsForcePush: true })
-    expect(out.out.warnings.join(" ")).toContain("gh stack rebase")
+    expect(out.out.warnings.join(" ")).toContain("git_stack rebase")
   })
 
   test("folds fixups on an upper stack layer against the layer below", async () => {
@@ -786,7 +788,7 @@ describe("git_rebase", () => {
     const stacked = runWithFakeGh(f, { module: "git", name: "rebase", args: { action: "start" } }, [
       { re: "^stack view", out: JSON.stringify({ currentBranch: "feat", trunk: "main", branches: [{ name: "feat" }, { name: "feat-2" }] }) },
     ])
-    expect(stacked.error).toContain("gh stack rebase")
+    expect(stacked.error).toContain("git_stack rebase")
 
     f.git("checkout", "-q", "main")
     f.commit("local on main", { "c.txt": "c\n" })
@@ -916,6 +918,246 @@ describe("git_conflicts", () => {
     const f = repo()
     f.commit("init")
     expect(await run(git.conflicts, f)).toMatchObject({ operation: null, count: 0, files: [] })
+  })
+})
+
+describe("git_stack", () => {
+  /** feat holds three commits b, c, d above main; origin looks like github.com/o/r but is the bare repo. */
+  const threeCommits = (f: Fixture) => {
+    f.commit("base", { "a.txt": "a\n" })
+    const remote = withOrigin(f)
+    f.git("config", "remote.origin.url", "https://github.com/o/r.git")
+    f.git("config", `url.${remote}.insteadOf`, "https://github.com/o/r.git")
+    const b = f.commit("feat: b", { "b.txt": "b\n" })
+    const c = f.commit("feat: c", { "c.txt": "c\n" })
+    const d = f.commit("feat: d", { "d.txt": "d\n" })
+    return { remote, b, c, d }
+  }
+  const view = (current: string, names: string[], extra: Record<string, unknown> = {}) => ({
+    re: "^stack view",
+    out: JSON.stringify({ trunk: "main", currentBranch: current, branches: names.map((name) => ({ name, ...extra })) }),
+  })
+  const repoView = {
+    re: "^repo view --json nameWithOwner,viewerPermission",
+    out: '{"nameWithOwner":"o/r","viewerPermission":"WRITE","defaultBranchRef":{"name":"main"}}',
+  }
+  const noPRs = { re: "^pr list --repo o/r --state open", out: "[]" }
+  const stackTool = (f: Fixture, args: any, rules: any[]) => runWithFakeGh(f, { module: "git", name: "stack", args }, rules)
+  const publish = (f: Fixture, args: any, rules: any[]) => runWithFakeGh(f, { module: "git", name: "stack_publish", args }, rules)
+  const layered = (f: Fixture) => {
+    const { b, c } = threeCommits(f)
+    f.git("branch", "x/l1", b)
+    f.git("branch", "x/l2", c)
+    return view("feat", ["x/l1", "x/l2", "feat"])
+  }
+
+  test("splits the branch at the cuts and adopts the layers on the default branch", () => {
+    const f = repo()
+    const { b, c } = threeCommits(f)
+    const res = stackTool(f, { action: "split", at: [b, c], names: ["x/l1", "x/l2"] }, [
+      { re: "^stack view", code: 1 },
+      { re: "^stack init", out: "adopted" },
+      { re: "^pr list --head feat", out: '[{"number":4,"url":"u"}]' },
+    ])
+    expect(res.calls).toContain("stack init --base main x/l1 x/l2 feat")
+    expect(f.git("rev-parse", "x/l1").trim()).toBe(b)
+    expect(f.git("rev-parse", "x/l2").trim()).toBe(c)
+    expect(res.out.layers.map((l: any) => [l.branch, l.commits.items.map((s: string) => s.slice(s.indexOf(" ") + 1))])).toEqual([
+      ["x/l1", ["feat: b"]],
+      ["x/l2", ["feat: c"]],
+      ["feat", ["feat: d"]],
+    ])
+    expect(res.out.warnings[0]).toContain("#4")
+  })
+
+  test("removes the new branches when gh stack init fails", () => {
+    const f = repo()
+    const { b } = threeCommits(f)
+    const res = stackTool(f, { action: "split", at: [b], names: ["x/l1"] }, [
+      { re: "^stack view", code: 1 },
+      { re: "^stack init", out: "boom", code: 1 },
+    ])
+    expect(res.error).toContain("gh stack init failed")
+    expect(f.git("branch", "--list", "x/l1").trim()).toBe("")
+  })
+
+  test("adopts the branch as a one-layer stack when there are no cuts", () => {
+    const f = repo()
+    threeCommits(f)
+    const res = stackTool(f, { action: "split" }, [
+      { re: "^stack view", code: 1 },
+      { re: "^stack init", out: "adopted" },
+      { re: "^pr list --head feat", out: "[]" },
+    ])
+    expect(res.calls).toContain("stack init --base main feat")
+    expect(res.out.layers).toHaveLength(1)
+  })
+
+  test("refuses untracked files, the tip as a cut, cuts out of order, merges and the default branch", () => {
+    const f = repo()
+    const { b, c, d } = threeCommits(f)
+    const notStacked = [{ re: "^stack view", code: 1 }]
+    f.write("note.txt", "scratch\n")
+    expect(stackTool(f, { action: "split", at: [b], names: ["x/l1"] }, notStacked).error).toContain("note.txt")
+    Bun.spawnSync(["rm", join(f.dir, "note.txt")])
+    expect(stackTool(f, { action: "split", at: [d], names: ["x/l1"] }, notStacked).error).toContain("tip")
+    expect(stackTool(f, { action: "split", at: [c, b], names: ["x/l1", "x/l2"] }, notStacked).error).toContain("bottom up")
+    expect(stackTool(f, { action: "split", at: [b], names: ["--force"] }, notStacked).error).toContain("not a branch name")
+    expect(stackTool(f, { action: "split", at: [b], names: ["x/l1"] }, [view("feat", ["feat"])]).error).toContain("already a layer")
+    f.git("checkout", "-q", "-b", "side", b)
+    f.commit("side", { "s.txt": "s\n" })
+    f.git("checkout", "-q", "feat")
+    f.git("merge", "-q", "--no-edit", "--no-ff", "side")
+    expect(stackTool(f, { action: "split", at: [b], names: ["x/l1"] }, notStacked).error).toContain("merge commits")
+    f.git("checkout", "-q", "main")
+    expect(stackTool(f, { action: "split", at: [b], names: ["x/l1"] }, notStacked).error).toContain("default branch")
+  })
+
+  test("previews each layer's push, PR and commits, and pins them in a token", () => {
+    const f = repo()
+    const stack = layered(f)
+    f.git("push", "-q", "origin", "x/l1")
+    const rules = [stack, repoView, { re: "^pr list --repo o/r --state open", out: JSON.stringify([{ number: 9, headRefName: "x/l1", baseRefName: "main", isDraft: true, url: "u9", isCrossRepository: false, autoMergeRequest: null }]) }]
+    const out = stackTool(f, { action: "preview" }, rules).out
+    expect(out.refusals).toEqual([])
+    expect(out.layers.map((l: any) => [l.branch, l.push, l.base, l.commits.count, l.pr?.number ?? null])).toEqual([
+      ["x/l1", "none", "main", 1, 9],
+      ["x/l2", "create", "x/l1", 1, null],
+      ["feat", "create", "x/l2", 1, null],
+    ])
+    expect(out.token).toBe(stackTool(f, { action: "preview" }, rules).out.token)
+    f.git("checkout", "-q", "x/l2")
+    f.commit("feat: c2", { "c.txt": "c2\n" })
+    f.git("checkout", "-q", "feat")
+    expect(stackTool(f, { action: "preview" }, rules).out.token).not.toBe(out.token)
+  })
+
+  test("refuses a stack behind the trunk, a fork target and a non-default trunk", () => {
+    const f = repo()
+    const stack = layered(f)
+    pushToMain(f, join(f.root, "remote.git"), { "m.txt": "m\n" })
+    const rules = [stack, { re: "^repo view --json nameWithOwner", out: '{"nameWithOwner":"up/r","viewerPermission":"READ"}' }, noPRs]
+    const rulesSeen = stackTool(f, { action: "preview" }, rules).out.refusals.map((r: any) => r.rule)
+    expect(rulesSeen).toEqual(expect.arrayContaining(["rebase", "cross-repository", "permission"]))
+    const unreadable = stackTool(f, { action: "preview" }, [stack, { re: "^repo view", code: 1 }, { re: "^pr list", code: 1 }]).out
+    expect(unreadable.refusals.map((r: any) => r.rule)).toEqual(expect.arrayContaining(["repository", "pull-requests"]))
+    f.git("config", "--add", "remote.origin.pushurl", "https://github.com/o/r.git")
+    f.git("config", "--add", "remote.origin.pushurl", "https://github.com/evil/r.git")
+    expect(stackTool(f, { action: "preview" }, rules).out.refusals.map((r: any) => r.rule)).toContain("remote")
+    f.git("config", "--unset-all", "remote.origin.pushurl")
+    const develop = { re: "^stack view", out: JSON.stringify({ trunk: "develop", currentBranch: "feat", branches: [{ name: "feat" }] }) }
+    expect(stackTool(f, { action: "preview" }, [develop, repoView, noPRs]).out.refusals.map((r: any) => r.rule)).toContain("trunk")
+  })
+
+  test("publishes only the previewed state and reports what actually reached origin", () => {
+    const f = repo()
+    const stack = layered(f)
+    const rules = [stack, repoView, noPRs, { re: "^stack push", out: "pushed" }, { re: "^api ", out: "null" }]
+    const { token } = stackTool(f, { action: "preview" }, rules).out
+    expect(publish(f, { action: "push" }, rules).error).toContain("token")
+    expect(publish(f, { action: "push", token: "000000000000" }, rules).error).toContain("changed since the preview")
+    const res = publish(f, { action: "push", token }, rules)
+    // The pinned commits leave through the tool's own leased push, not gh stack's.
+    expect(res.calls.some((c) => c.startsWith("stack push"))).toBe(false)
+    expect(res.out).toMatchObject({ published: true })
+    expect(res.out.layers.map((l: any) => l.pushed)).toEqual([true, true, true])
+    expect(f.git("ls-remote", "origin", "refs/heads/x/l2").split("\t")[0]).toBe(f.git("rev-parse", "x/l2").trim())
+
+    f.write("note.txt", "scratch\n")
+    const dirty = stackTool(f, { action: "preview" }, rules).out
+    const refused = publish(f, { action: "push", token: dirty.token }, rules)
+    expect(refused.out).toMatchObject({ published: false })
+    expect(refused.calls.some((c) => c.startsWith("stack push"))).toBe(false)
+  })
+
+  test("submits by opening the missing PRs on the layer below and linking them, without gh stack pushing", () => {
+    const f = repo()
+    const stack = layered(f)
+    const pr = (number: number, head: string, base: string, isDraft = false) => ({
+      number,
+      headRefName: head,
+      baseRefName: base,
+      isDraft,
+      url: `u${number}`,
+      isCrossRepository: false,
+      autoMergeRequest: null,
+    })
+    const existing = pr(3, "x/l1", "main", true)
+    const rules = [
+      stack,
+      repoView,
+      // plan() asks once per layer; later lookups see the new PRs.
+      { re: "^pr list --repo o/r --state open", out: JSON.stringify([existing]), times: 3 },
+      { re: "^pr list --repo o/r --state open", out: JSON.stringify([existing, pr(5, "x/l2", "x/l1"), pr(6, "feat", "x/l2")]) },
+      ...["x/l1", "x/l2", "feat"].map((b) => ({ re: `^api repos/o/r/branches/${b} --jq`, out: f.git("rev-parse", b) })),
+      { re: "^pr create --repo o/r --base x/l1 --head x/l2 --title Layer two --body-file ", out: "https://github.com/o/r/pull/5\n" },
+      { re: "^pr create --repo o/r --base x/l2 --head feat --title feat: d --body-file ", out: "https://github.com/o/r/pull/6\n" },
+      { re: "^stack link --base main 3 5 6$", out: "linked" },
+      { re: "^api ", out: "null" },
+    ]
+    const { token } = stackTool(f, { action: "preview" }, [stack, repoView, { re: "^pr list", out: JSON.stringify([existing]) }]).out
+    const res = publish(f, { action: "submit", token, prs: [{ branch: "x/l2", title: "Layer two", body: "Refs #1" }] }, rules)
+    expect(res.out).toMatchObject({ published: true, link: { ok: true } })
+    expect(res.calls.some((c) => /^stack (push|submit|sync)/.test(c))).toBe(false)
+    expect(res.calls.some((c) => c.startsWith("pr ready") || c.includes("--draft"))).toBe(false)
+    expect(res.out.layers.map((l: any) => [l.pushed, l.pr?.number])).toEqual([
+      [true, 3],
+      [true, 5],
+      [true, 6],
+    ])
+  })
+
+  test("opens no PR when GitHub's branch is not the pinned commit", () => {
+    const f = repo()
+    const stack = layered(f)
+    const rules = [stack, repoView, noPRs, { re: "^api repos/o/r/branches/", out: "0".repeat(40) }, { re: "^api ", out: "null" }]
+    const { token } = stackTool(f, { action: "preview" }, rules).out
+    const res = publish(f, { action: "submit", token }, rules)
+    expect(res.out).toMatchObject({ published: false, stoppedAt: "github" })
+    expect(res.calls.some((c) => c.startsWith("pr create") || c.startsWith("stack link"))).toBe(false)
+  })
+
+  test("finds a secret one layer adds and a later layer removes", () => {
+    const f = repo()
+    threeCommits(f)
+    f.commit("feat: key", { "k.ts": `export const id = "${AWS_KEY}"\n` })
+    f.git("branch", "x/l1")
+    f.commit("feat: drop key", { "k.ts": "export {}\n" })
+    const out = stackTool(f, { action: "preview" }, [view("feat", ["x/l1", "feat"]), repoView, noPRs]).out
+    expect(out.secretScan.findings.some((x: any) => x.rule === "aws-access-key-id")).toBe(true)
+    expect(JSON.stringify(out)).not.toContain(AWS_KEY)
+  })
+
+  test("refuses to rebase a stack whose commits another remote branch holds", () => {
+    const f = repo()
+    const { b } = threeCommits(f)
+    f.git("push", "-q", "origin", `${b}:refs/heads/someone-else`)
+    f.git("fetch", "-q", "origin")
+    const res = stackTool(f, { action: "rebase" }, [view("feat", ["feat"])])
+    expect(res.error).toContain("origin/someone-else")
+    expect(res.calls.some((c) => c.startsWith("stack rebase"))).toBe(false)
+  })
+
+  test("asks about every layer's own commits, a lower layer's diverged copy too", () => {
+    const f = repo()
+    threeCommits(f)
+    // The bottom layer was amended (b2) while feat still holds the old b; b2 is someone else's too.
+    f.git("checkout", "-q", "-b", "x/l1", "main")
+    const b2 = f.commit("feat: b amended", { "b.txt": "b2\n" })
+    f.git("checkout", "-q", "feat")
+    f.git("push", "-q", "origin", `${b2}:refs/heads/someone-else`)
+    f.git("fetch", "-q", "origin")
+    expect(stackTool(f, { action: "rebase" }, [view("feat", ["x/l1", "feat"])]).error).toContain("origin/someone-else")
+  })
+
+  test("links PR numbers only, always on the default branch", () => {
+    const f = repo()
+    threeCommits(f)
+    expect(publish(f, { action: "link", numbers: ["3", "feat"] }, []).error).toContain("not a PR number")
+    const pr = (n: number, head: string, base: string) => ({ re: `^pr view ${n} --repo o/r`, out: JSON.stringify({ number: n, state: "OPEN", baseRefName: base, headRefName: head, isCrossRepository: false, isDraft: false, url: `u${n}` }) })
+    const res = publish(f, { action: "link", numbers: ["3", "5"] }, [repoView, pr(3, "x/l1", "main"), pr(5, "x/l2", "x/l1"), { re: "^stack link", out: "" }, { re: "^api ", out: "null" }])
+    expect(res.calls).toContain("stack link --base main 3 5")
+    expect(res.out.prs.map((p: any) => p.base)).toEqual(["main", "x/l1"])
   })
 })
 
