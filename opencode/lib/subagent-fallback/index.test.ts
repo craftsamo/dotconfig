@@ -65,6 +65,7 @@ async function fixture() {
     now: NOW,
     version: SUPPORTED_VERSION,
     reads: 0,
+    emptied: [] as string[],
     fetchedAt: undefined as number | undefined,
     path: "",
     unavailable: false,
@@ -252,6 +253,9 @@ async function fixture() {
             ]),
           ),
         })
+      },
+      creditEmpty: async (provider) => {
+        env.emptied.push(provider)
       },
     })
     return {
@@ -956,6 +960,18 @@ describe("Console credit lanes", () => {
     expect(env.originals[1]).toBe(input)
     expect(marker(env).model).toEqual(SONNET)
     expect(marker(env).fallback).toBe(false)
+  })
+  test("an empty balance is reported once a minute per lane, and nothing else is", async () => {
+    const { env, inst } = await laned()
+    specialist(env)
+    await retry(inst, "ses_lane", on(MAIN), CREDIT)
+    await retry(inst, "ses_lane", on(MAIN), CREDIT)
+    await retry(inst, "ses_lane", on(SUB), AUTH)
+    await retry(inst, "ses_lane", on("anthropic"), CREDIT)
+    expect(env.emptied).toEqual([MAIN])
+    env.now += 61_000
+    await retry(inst, "ses_lane", on(MAIN), CREDIT)
+    expect(env.emptied).toEqual([MAIN, MAIN])
   })
   test("a lane is tried again after its cooldown", async () => {
     const { env, inst } = await laned()

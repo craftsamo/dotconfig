@@ -1,16 +1,21 @@
 import { readFile } from "node:fs/promises"
 import { homedir } from "node:os"
 import { join } from "node:path"
+import { recordCheckpoint } from "../credit-lanes/collect"
 import { QUOTA_MAX_AGE_MS, type AccountProof, type QuotaProof } from "./policy"
 
 export type Dependencies = {
   readExport: (path: string) => Promise<string>
   now: () => number
+  // A lane reported an empty balance: a checkpoint for the balance estimate
+  // (lib/credit-lanes).
+  creditEmpty?: (provider: string) => Promise<void>
 }
 
 export const dependencies: Dependencies = {
   readExport: (path) => readFile(path, "utf8"),
   now: Date.now,
+  creditEmpty: (provider) => recordCheckpoint(provider, 0, "empty"),
 }
 
 export function exportPath(

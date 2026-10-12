@@ -377,7 +377,8 @@ stops only new lane launches.
   primary on the subscription.
 - **Probing.** There is no balance API: a lane is probed by use. After its
   cooldown the next request fails fast if it is still empty, which costs one
-  rejected request an hour.
+  rejected request an hour. Each empty-balance error also records a $0
+  checkpoint for the balance estimate below (at most once a minute per lane).
 - A session never revisits a provider within five minutes, so the chain cannot
   loop. Children launched under the subscription preflight keep their own
   guards and are never moved.
