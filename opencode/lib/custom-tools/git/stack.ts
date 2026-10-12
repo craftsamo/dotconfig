@@ -17,13 +17,15 @@ import { defaultRef, operation } from "./state"
  * - `git_publish_preview` (allow, read-only) shows what publishing would do
  *   and pins it in a token.
  * - `git_publish` (ask) pushes and creates or links PRs, and only the
- *   exact state a preview showed: its token covers the remote, the trunk and
+ *   exact state a preview showed: its token covers the remote, the base and
  *   every layer's local and remote commit, so anything that moved since the
  *   preview is refused rather than published. The commits leave through one
  *   leased push of the pinned shas; gh stack's own pushing commands (push,
  *   submit, sync) are never run, only `link`, which pushes nothing.
- * The trunk is always the remote default branch. Neither tool merges or
- * unstacks; those stay gated shell commands.
+ * Publishing covers a plain branch too, as a stack of one layer that is never
+ * linked: its base may be any branch on origin, while a stack's trunk is
+ * always the remote default branch. No tool merges or unstacks; those stay
+ * gated shell commands.
  */
 
 const tail = (text: string, n = 40) => text.trim().split("\n").slice(-n).join("\n")
@@ -235,52 +237,81 @@ async function pushPinned(cwd: string, layers: Layer[], signal?: AbortSignal) {
   return { ok: res.ok, pushed: res.ok ? moving.map((l) => l.branch) : [], output: output(res) }
 }
 
-/** The publication the current stack would make, what blocks it, and the token that pins it. */
-async function plan(cwd: string) {
-  const { branch, stack } = await requireStack(cwd)
+/**
+ * The publication the current branch would make, what blocks it, and the
+ * token that pins it. A branch in a native stack publishes every layer on the
+ * default branch; any other branch publishes as one layer — a plain PR — on
+ * `base`, else its open PR's base, else the default branch.
+ */
+async function plan(cwd: string, opts: { base?: string } = {}) {
+  const branch = await currentBranch(cwd)
+  if (!branch) throw new Error("HEAD is detached; check out the branch to publish first.")
+  const stack = await localStack(branch, cwd)
+  const mode: "stack" | "plain" = stack ? "stack" : "plain"
+  const what = stack ? "the stack" : branch
   const refusals: Refusal[] = []
   const warnings: string[] = []
   const defName = await defaultName(cwd)
-  const trunk: string = stack.trunk ?? defName
-  const names: string[] = stack.layers.map((l: any) => l.head)
+  const names: string[] = stack ? stack.layers.map((l: any) => l.head) : [branch]
+  const mergedFlags: boolean[] = stack ? stack.layers.map((l: any) => Boolean(l.merged)) : [false]
+  const explicitBase = opts.base?.trim() || undefined
+  if (explicitBase && (explicitBase.startsWith("-") || !(await tryGit(["check-ref-format", "--branch", explicitBase], cwd)).ok))
+    throw new Error(`\`${explicitBase}\` is not a branch name.`)
+  if (stack && explicitBase && explicitBase !== (stack.trunk ?? defName))
+    throw new Error("A stack's base is its trunk, the default branch; `base` applies to a plain branch only.")
 
-  if (trunk !== defName)
-    refusals.push({ rule: "trunk", message: `The stack's trunk is ${trunk}, not the default branch ${defName}; closing keywords do not fire there. Re-create it on ${defName}.` })
-  if (names.includes(defName)) refusals.push({ rule: "default-branch", message: `${defName} is a layer of this stack; it is never published as one.` })
+  if (stack) {
+    const trunk = stack.trunk ?? defName
+    if (trunk !== defName)
+      refusals.push({ rule: "trunk", message: `The stack's trunk is ${trunk}, not the default branch ${defName}; closing keywords do not fire there. Re-create it on ${defName}.` })
+  }
+  if (names.includes(defName))
+    refusals.push({ rule: "default-branch", message: stack ? `${defName} is a layer of this stack; it is never published as one.` : `${branch} is the default branch; publish from a task branch.` })
   const op = await operation(cwd)
   if (op) refusals.push({ rule: "operation", message: `A ${op} is in progress; finish or abort it first.` })
   if (existsSync(await rebaseStateFile(cwd))) refusals.push({ rule: "operation", message: "A gh stack rebase is in progress; git_stack rebase continue or abort it first." })
   const dirty = await dirtyFiles(cwd)
-  if (dirty.length) refusals.push({ rule: "dirty", message: `Uncommitted or untracked files (${dirty.slice(0, 5).join(", ")}); gh stack refuses to run with them.` })
+  if (dirty.length) refusals.push({ rule: "dirty", message: `Uncommitted or untracked files (${dirty.slice(0, 5).join(", ")}); commit or stash them, only committed work is published.` })
 
   const { repo, pushUrl, refusals: remoteRefusals } = await originOf(cwd)
   refusals.push(...remoteRefusals)
 
+  let githubDefault: string | undefined
   if (repo) {
-    // Fail closed: gh stack takes no repository flag, so gh's own target must be known to match origin.
+    // Fail closed: gh resolves its own target repository, which must be known to be origin's.
     const view = await ghJson(["repo", "view", "--json", "nameWithOwner,viewerPermission,defaultBranchRef"], cwd)
     if (!view) refusals.push({ rule: "repository", message: "Could not read the repository gh targets; its target, your permission and the default branch are unknown." })
     else {
       if (String(view.nameWithOwner).toLowerCase() !== repo.toLowerCase())
         refusals.push({
           rule: "cross-repository",
-          message: `gh targets ${view.nameWithOwner} but origin is ${repo}; native stacks cannot span a fork and its upstream. Open a plain PR instead.`,
+          message: `gh targets ${view.nameWithOwner} but origin is ${repo}; these tools publish within one repository. Open a PR from a fork with the shell (gh pr create).`,
         })
       if (!["WRITE", "MAINTAIN", "ADMIN"].includes(view.viewerPermission))
-        refusals.push({ rule: "permission", message: `You have ${view.viewerPermission ?? "no"} access to ${repo}; a stack's branches must live in the repository itself.` })
-      const githubDefault = view.defaultBranchRef?.name
-      if (githubDefault && githubDefault !== trunk)
-        refusals.push({ rule: "trunk", message: `GitHub's default branch is ${githubDefault}, not the stack's trunk ${trunk}; run \`git remote set-head origin --auto\` and re-create the stack on it.` })
+        refusals.push({ rule: "permission", message: `You have ${view.viewerPermission ?? "no"} access to ${repo}; the branches must live in the repository itself.` })
+      githubDefault = view.defaultBranchRef?.name || undefined
     }
   }
+  if (githubDefault && !stack && branch === githubDefault)
+    refusals.push({ rule: "default-branch", message: `${branch} is the default branch; publish from a task branch.` })
+
+  const prs = repo ? await openPRs(repo, cwd, names) : undefined
+  // Without them a publication cannot tell an existing draft from a new PR.
+  if (repo && !prs) refusals.push({ rule: "pull-requests", message: "Could not list the open PRs; their state and draft flags are unknown." })
+
+  // The bottom layer's base: a stack's trunk; a plain branch's explicit base, else its PR's, else the default branch.
+  const existingBase = !stack ? prs?.get(branch)?.baseRefName : undefined
+  const trunk: string = stack ? (stack.trunk ?? defName) : (explicitBase ?? existingBase ?? githubDefault ?? defName)
+  if (stack && githubDefault && githubDefault !== trunk)
+    refusals.push({ rule: "trunk", message: `GitHub's default branch is ${githubDefault}, not the stack's trunk ${trunk}; run \`git remote set-head origin --auto\` and re-create the stack on it.` })
+  if (!stack && trunk === branch) refusals.push({ rule: "base", message: `${branch} cannot be its own base.` })
+  const retarget = !stack && existingBase && explicitBase && existingBase !== explicitBase ? { from: existingBase, to: explicitBase } : null
 
   const remote = await lsRemote(cwd, [trunk, ...names])
   if (!remote) warnings.push("Could not read origin's branches (ls-remote failed); remote state is as of the last fetch.")
   const remoteOf = async (name: string) => (remote ? (remote.get(name) ?? null) : await sha(cwd, `refs/remotes/origin/${name}`))
   const trunkRemote = await remoteOf(trunk)
-  const prs = repo ? await openPRs(repo, cwd, names) : undefined
-  // Without them a publication cannot tell an existing draft from a new PR.
-  if (repo && !prs) refusals.push({ rule: "pull-requests", message: "Could not list the open PRs; their state and draft flags are unknown." })
+  if (!trunkRemote) refusals.push({ rule: "base", message: `origin has no branch ${trunk} to base ${what} on.` })
 
   // Where the bottom layer's own commits start: the trunk as origin has it, else locally, else the default branch.
   const trunkRef =
@@ -289,7 +320,7 @@ async function plan(cwd: string) {
   for (const [i, name] of names.entries()) {
     const local = await sha(cwd, `refs/heads/${name}`)
     const remoteSha = await remoteOf(name)
-    const merged = Boolean(stack.layers[i].merged)
+    const merged = mergedFlags[i]
     if (!local && !merged) refusals.push({ rule: "missing", message: `Layer ${name} has no local branch; restore it with \`gh stack checkout\`.` })
     let push: Layer["push"] = "none"
     if (merged) push = "skip"
@@ -316,13 +347,14 @@ async function plan(cwd: string) {
   const active = layers.filter((l) => !l.merged)
   for (const l of active) if (l.local && !l.commits.count) warnings.push(`Layer ${l.branch} has no commits of its own; GitHub will not open a PR for it.`)
 
-  // Each layer must sit on the one below, and the bottom on the trunk's latest commit.
-  if (stack.needsRebase) refusals.push({ rule: "rebase", message: "A layer no longer sits on the one below it; run git_stack rebase first." })
+  // Each layer must sit on the one below, and the bottom on the base's latest commit.
+  const rebaseWith = stack ? "git_stack rebase" : `git_rebase (onto ${trunk})`
+  if (stack?.needsRebase) refusals.push({ rule: "rebase", message: "A layer no longer sits on the one below it; run git_stack rebase first." })
   const bottom = active[0]?.local
   if (bottom && trunkRemote) {
     const known = (await tryGit(["cat-file", "-e", `${trunkRemote}^{commit}`], cwd)).ok
     if (!known || !(await isAncestor(cwd, trunkRemote, bottom)))
-      refusals.push({ rule: "rebase", message: `The stack is behind origin/${trunk}; run git_stack rebase first so every layer is built on its latest state.` })
+      refusals.push({ rule: "rebase", message: `${stack ? "The stack" : branch} is behind origin/${trunk}; run ${rebaseWith} first so it is built on its latest state.` })
   }
 
   if (repo)
@@ -335,7 +367,7 @@ async function plan(cwd: string) {
   const top = active[active.length - 1]
   let secrets = { gitleaksRan: false, findings: [] as any[] }
   if (top?.local && (await runGit(["rev-list", "--merges", `${trunkRef}..refs/heads/${top.branch}`], cwd)).trim())
-    refusals.push({ rule: "merges", message: "The stack contains merge commits; layers must be linear. Rebase with git_stack rebase." })
+    refusals.push({ rule: "merges", message: `${stack ? "The stack" : branch} contains merge commits; publish linear history. Rebase with ${rebaseWith}.` })
   if (top?.local) {
     // The net diff hides a secret one layer adds and a later one removes, yet
     // the lower branch still publishes it: scan every commit's own diff too.
@@ -346,22 +378,26 @@ async function plan(cwd: string) {
   }
 
   const token = new Bun.CryptoHasher("sha1")
-    .update(JSON.stringify({ repo, pushUrl, trunk, trunkRemote, layers: layers.map((l) => [l.branch, l.local, l.remote, l.merged]) }))
+    .update(JSON.stringify({ mode, repo, pushUrl, trunk, trunkRemote, retarget, layers: layers.map((l) => [l.branch, l.local, l.remote, l.merged]) }))
     .digest("hex")
     .slice(0, 12)
 
-  return { branch, repo, trunk, trunkRemote, layers, prs, refusals, warnings, secrets, token }
+  return { mode, branch, repo, trunk, trunkRemote, retarget, layers, prs, refusals, warnings, secrets, token }
 }
 
 const summary = (p: Awaited<ReturnType<typeof plan>>) => ({
+  mode: p.mode,
   repo: p.repo,
-  trunk: p.trunk,
+  base: p.trunk,
   current: p.branch,
+  ...(p.retarget ? { retarget: p.retarget } : {}),
   layers: p.layers,
   nativeStack:
-    p.layers.filter((l) => !l.merged).length >= 2
-      ? "GitHub links two or more PRs into a native stack."
-      : "A single layer publishes as an ordinary PR: GitHub forms a stack from two PRs, so linking waits for the next layer.",
+    p.mode === "plain"
+      ? "A plain branch publishes as one ordinary PR; adopt it as a stack (git_stack split) to build layers on it."
+      : p.layers.filter((l) => !l.merged).length >= 2
+        ? "GitHub links two or more PRs into a native stack."
+        : "A single layer publishes as an ordinary PR: GitHub forms a stack from two PRs, so linking waits for the next layer.",
   secretScan: { pass: p.secrets.findings.length === 0, gitleaksRan: p.secrets.gitleaksRan, findings: p.secrets.findings },
   refusals: p.refusals,
   warnings: p.warnings,
@@ -574,10 +610,12 @@ export const stack = tool({
 
 export const publish_preview = tool({
   description:
-    "Preview what git_publish would do for the current native GitHub stack, read-only: each layer's commits against the one below, whether its push creates, fast-forwards or force-pushes, its PR, refusals (dirty tree, behind the trunk, merges, fork/cross-repository, redirected or multiple push URLs, unreadable gh target or PR list, protected branch, non-default trunk), a secret scan of every commit, and the `token` git_publish requires. Show it to the user before publishing.",
-  args: {},
-  async execute(_args, context) {
-    return JSON.stringify(summary(await plan(context.worktree)), null, 2)
+    "Preview what git_publish would do for the current branch, read-only. A branch in a native stack publishes every layer on the default branch; any other branch publishes as one plain PR on `base` (else its open PR's base, else the default branch; `retarget` shows an existing PR's base change). Shows each layer's commits against the one below, whether its push creates, fast-forwards or force-pushes, its PR, refusals (dirty tree, behind the base, merges, fork/cross-repository, redirected or multiple push URLs, unreadable gh target or PR list, protected branch, a base missing on origin, a stack off the default branch), a secret scan of every commit, and the `token` git_publish requires. Show it to the user before publishing.",
+  args: {
+    base: tool.schema.string().optional().describe("Plain branch only: the PR's base branch (default: its open PR's base, else the default branch)."),
+  },
+  async execute(args, context) {
+    return JSON.stringify(summary(await plan(context.worktree, { base: args.base })), null, 2)
   },
 })
 
@@ -620,7 +658,7 @@ async function verify(cwd: string, p: Awaited<ReturnType<typeof plan>>, before: 
     .map(([, pr]) => pr!.number)
   let native: unknown = null
   const firstPR = layers.find((l) => l.pr)?.pr
-  if (firstPR) {
+  if (firstPR && p.mode === "stack") {
     const membership = await ghApi(`repos/${p.repo}/pulls/${firstPR.number}`, ".stack", cwd)
     native = membership?.number ? { stack: membership.number, size: membership.size ?? null } : null
   }
@@ -636,10 +674,11 @@ const UNAVAILABLE = /stacks? (are |is )?(not available|unavailable|not enabled)|
 
 export const publish = tool({
   description:
-    "Publish the current native GitHub stack exactly as git_publish_preview showed it. Pass the preview's `token`: if any layer, the trunk or the remote moved since, it refuses. Re-checks every refusal first (dirty tree, behind the trunk, fork/cross-repository, unreadable gh target or PR list, protected branch, non-default trunk, more than one push URL) and the stack's secret scan (every commit, not only the net diff). push: one atomic `git push` of exactly the pinned commits to origin, each leased on the remote commit the preview saw. submit: that push, then a PR for each layer without one (`gh pr create` on the layer below; ready unless `draft`; title and body from `prs`, else the layer's first commit subject), existing PRs keep their draft state and get `prs` titles and bodies, and two or more PRs are linked with `gh stack link --base <default>` — neither step pushes; if stacks are unavailable it returns stacksUnavailable with the PRs left unlinked. link: link existing open PRs of this repository (numbers, bottom-up) into a stack on the default branch, always with an explicit --base. Afterwards it re-reads each layer's remote commit, PR, base and draft state, the native stack, and which PRs lost auto-merge. Never merges or unstacks.",
+    "Publish the current branch exactly as git_publish_preview showed it: every layer of its native stack, or a plain branch as one PR. Pass the preview's `token` (and the same `base`): if any layer, the base or the remote moved since, it refuses. Re-checks every refusal first (dirty tree, behind the base, fork/cross-repository, unreadable gh target or PR list, protected branch, a stack off the default branch, more than one push URL) and the secret scan (every commit, not only the net diff). push: one atomic `git push` of exactly the pinned commits to origin, each leased on the remote commit the preview saw. submit: that push, then a PR for each layer without one (`gh pr create` on the layer below or the base; ready unless `draft`; title and body from `prs`, else the layer's first commit subject), existing PRs keep their draft state and get `prs` titles and bodies, a plain PR's base changes when the preview showed `retarget`, and two or more stack PRs are linked with `gh stack link --base <default>` — none of these steps pushes; if stacks are unavailable it returns stacksUnavailable with the PRs left unlinked. link: link existing open PRs of this repository (numbers, bottom-up) into a stack on the default branch, always with an explicit --base. Afterwards it re-reads each layer's remote commit, PR, base and draft state, the native stack, and which PRs lost auto-merge. Never merges or unstacks.",
   args: {
     action: tool.schema.enum(["push", "submit", "link"]).describe("push, submit or link."),
     token: tool.schema.string().optional().describe("push / submit: the token from git_publish_preview."),
+    base: tool.schema.string().optional().describe("push / submit, plain branch only: the same `base` the preview was given."),
     draft: tool.schema.boolean().optional().describe("submit: leave newly created PRs as drafts (default: ready for review)."),
     prs: tool.schema
       .array(tool.schema.object({ branch: tool.schema.string(), title: tool.schema.string().optional(), body: tool.schema.string().optional() }))
@@ -653,14 +692,14 @@ export const publish = tool({
     if (args.action === "link") return JSON.stringify(await link(cwd, args.numbers ?? []), null, 2)
 
     if (!args.token) throw new Error("Pass the token from git_publish_preview; publishing needs the state the user saw.")
-    const p = await plan(cwd)
+    const p = await plan(cwd, { base: args.base })
     if (p.token !== args.token.trim())
-      throw new Error("The stack changed since the preview (a layer, the trunk or the remote moved); run git_publish_preview again and confirm it.")
+      throw new Error("The branch changed since the preview (a layer, the base or the remote moved, or another `base` was passed); run git_publish_preview again and confirm it.")
     if (p.refusals.length) return JSON.stringify({ published: false, refusals: p.refusals, warnings: p.warnings }, null, 2)
     if (p.secrets.findings.length && !args.acceptSecretFindings)
       return JSON.stringify({ published: false, stoppedAt: "secrets", findings: p.secrets.findings, next: "Remove the secret from the commits, or confirm with the user that these are not secrets and pass acceptSecretFindings." }, null, 2)
     const known = new Set(p.layers.map((l) => l.branch))
-    for (const entry of args.prs ?? []) if (!known.has(entry.branch)) throw new Error(`${entry.branch} is not a layer of this stack.`)
+    for (const entry of args.prs ?? []) if (!known.has(entry.branch)) throw new Error(`${entry.branch} is not being published here (${[...known].join(", ")}).`)
 
     const activeLayers = p.layers.filter((l) => !l.merged)
     const active = activeLayers.map((l) => l.branch)
@@ -675,8 +714,8 @@ export const publish = tool({
       return JSON.stringify({ published: false, stoppedAt: "push", output: pushed.output, ...(await verify(cwd, p, before)), ...warnings }, null, 2)
     if (args.action === "push") return JSON.stringify({ published: true, action: "push", ...(await verify(cwd, p, before)), output: pushed.output, ...warnings }, null, 2)
 
-    // submit: open a PR for each layer that has none, then link them into a
-    // stack. Neither step pushes, so nothing but the pinned commits leaves.
+    // submit: open a PR for each layer that has none, then link a stack's PRs.
+    // None of these steps pushes, so nothing but the pinned commits leaves.
     const errors: string[] = []
     // PRs open on GitHub's branches, which must hold the pinned commits (origin may be a local mirror).
     for (const l of activeLayers) {
@@ -692,14 +731,25 @@ export const publish = tool({
       const existing = before[l.branch]
       if (existing) {
         numbers.push(String(existing.number))
-        if (entry && (entry.title !== undefined || entry.body !== undefined)) {
+        // Only a plain PR's base moves here; a stack's bases are gh stack link's.
+        const newBase = p.mode === "plain" && p.retarget ? p.retarget.to : undefined
+        if (newBase || (entry && (entry.title !== undefined || entry.body !== undefined))) {
           const edit = (bodyFile?: string) =>
             gh(
-              ["pr", "edit", String(existing.number), "--repo", p.repo!, ...(entry.title !== undefined ? ["--title", entry.title] : []), ...(bodyFile ? ["--body-file", bodyFile] : [])],
+              [
+                "pr",
+                "edit",
+                String(existing.number),
+                "--repo",
+                p.repo!,
+                ...(newBase ? ["--base", newBase] : []),
+                ...(entry?.title !== undefined ? ["--title", entry.title] : []),
+                ...(bodyFile ? ["--body-file", bodyFile] : []),
+              ],
               cwd,
             )
-          const done = entry.body !== undefined ? await withTempFile("opencode-pr-body", ".md", entry.body, edit) : await edit()
-          if (!done.ok) errors.push(`#${existing.number} title/body update failed: ${output(done)}`)
+          const done = entry?.body !== undefined ? await withTempFile("opencode-pr-body", ".md", entry.body, edit) : await edit()
+          if (!done.ok) errors.push(`#${existing.number} base/title/body update failed: ${output(done)}`)
         }
         continue
       }
@@ -727,7 +777,7 @@ export const publish = tool({
 
     let linked: { ok: boolean; output: string } | null = null
     let stacksUnavailable = false
-    if (!errors.length && numbers.length >= 2) {
+    if (p.mode === "stack" && !errors.length && numbers.length >= 2) {
       const res = await ghStack(["link", "--base", p.trunk, ...numbers], cwd, context.signal)
       linked = { ok: res.ok, output: output(res) }
       stacksUnavailable = !res.ok && UNAVAILABLE.test(`${res.stdout}\n${res.stderr}`)
