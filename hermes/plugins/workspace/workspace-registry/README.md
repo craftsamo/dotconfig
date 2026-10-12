@@ -4,6 +4,9 @@ People, projects, memberships and repositories of `~/Workspaces`, kept as CSV
 files and reached through one Hermes tool (`workspace_registry`) and one thin
 CLI (`wsreg`). Both run the same stdlib engine, `registry.py`.
 
+The Assistant's operation procedures live in `skills/workspace-registry/SKILL.md`;
+it reads the namespaced entry `workspace-registry:workspace-registry`.
+
 One registry, no database, no migrations, no audit log. The source is public;
 records, local integrations and historical data migration scripts are not.
 
@@ -126,12 +129,11 @@ People and projects are never deleted through the tool — set `status`.
 
 ## New Groups
 
-`group_create` (`wsreg group-create`) is the one way to start a Group: it validates the
-project row first, then makes `Projects/<id>/{github,docs,data}`, seeds `AGENTS.md` from
-`templates/group.AGENTS.md` (never overwriting one) and writes the row. `org` and
-`external` projects have no directory; register them with `project_set`. Repos are
-`~/ghq` clones linked with `repo_set` + `link_repo` (or `wslink`), never created here.
-A Personal group is just `Personal/<Group>/{data,docs}` made by hand, never under git.
+`group_create` (`wsreg group-create`) validates the project row first, then makes the
+group directories and writes the row. Existing directories and an existing `AGENTS.md`
+are kept; the seed comes from `templates/group.AGENTS.md`. `org` and `external` projects
+are directory-less rows. The Assistant's procedure is in the plugin skill; the shared
+layout and drafts are owned by the pipeline's common workspace-layout reference.
 
 ## Interfaces
 

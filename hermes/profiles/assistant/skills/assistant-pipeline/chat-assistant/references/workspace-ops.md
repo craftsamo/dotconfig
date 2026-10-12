@@ -3,7 +3,8 @@
 Operate the personal/project ledgers inline via the workspace skills:
 
 - the workspace registry — people, projects, memberships and repos — through the
-  `workspace_registry` tool (data: `~/Workspaces/.registry/*.csv`)
+  `workspace_registry` tool (data: `~/Workspaces/.registry/*.csv`); before calling it, read
+  `skill_view(name="workspace-registry:workspace-registry")`
 - personal ledgers — through the installed skills that are available; do not
   invent an engine
 

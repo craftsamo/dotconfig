@@ -16,10 +16,14 @@ spec.loader.exec_module(plugin)
 
 class Ctx:
     def __init__(self, profile):
-        self.profile_name, self.tools = profile, []
+        self.profile_name, self.tools, self.skills = profile, [], {}
 
     def register_tool(self, **kwargs):
         self.tools.append(kwargs)
+
+    def register_skill(self, name, path, description="", frontmatter=None):
+        assert path.is_file() and frontmatter["name"] == name and description
+        self.skills[name] = (path, description)
 
 
 class RegisterTest(unittest.TestCase):
@@ -28,6 +32,31 @@ class RegisterTest(unittest.TestCase):
             ctx = Ctx(profile)
             plugin.register(ctx)
             self.assertEqual(len(ctx.tools), n, profile)
+            self.assertEqual(len(ctx.skills), n, profile)
+
+    def test_skill_is_registered_with_its_own_path(self):
+        ctx = Ctx("assistant")
+        plugin.register(ctx)
+        path, description = ctx.skills["workspace-registry"]
+        self.assertEqual(path, HERE / "skills" / "workspace-registry" / "SKILL.md")
+        self.assertTrue(description)
+
+    def test_register_skills_skips_other_profiles(self):
+        for profile in ("engineer", "creator"):
+            ctx = Ctx(profile)
+            plugin.register_skills(ctx, profile)
+            plugin.register_skills(ctx, profile)
+            self.assertEqual(ctx.skills, {}, profile)
+
+    def test_failed_skill_registration_keeps_the_tool(self):
+        ctx = Ctx("assistant")
+        with mock.patch.dict("sys.modules", {"agent": mock.Mock(), "agent.skill_utils": mock.Mock(
+                parse_frontmatter=mock.Mock(side_effect=ValueError("bad")))}):
+            with self.assertLogs(plugin.logger, "WARNING") as logs:
+                plugin.register(ctx)
+        self.assertEqual(len(ctx.tools), 1)
+        self.assertEqual(ctx.skills, {})
+        self.assertIn("workspace-registry", logs.output[0])
 
     def test_schema_matches_the_engine(self):
         ctx = Ctx("assistant")

@@ -26,6 +26,8 @@ This reference owns these facts; other documents point here.
 - `.registry/*.csv` — the workspace registry: people (identity, aliases, contacts,
   languages), projects (Groups and organizations), memberships and repos. Read and write
   it only with the `workspace_registry` tool, never a terminal command or a file edit.
+  Before calling the registry, read `skill_view(name="workspace-registry:workspace-registry")`
+  for its plugin-owned operation procedures.
   **Sensitive** like `Personal/`: people records and member calibration
   (`working_relationship`, notes) are summarized, never pasted raw into chat or logs.
 - Third-party / tool clones live in `~/ghq`, not here.
