@@ -128,8 +128,15 @@ mixed rates go through edit-clip first.
 
 **Motion vocabulary.** The kernel's `references/motion-vocabulary.md` is read
 by the five authored leaves before the plan that fixes their beats; they name
-its entries instead of generic "fade" or "card". It adds no plan field, schema
-or rule, and a drawn look never re-renders supplied art, a cast or a logo.
+its entries instead of generic "fade" or "card". The core holds what most
+films use (text basics, transitions, camera, components, compositions, film
+structures, visual metaphors) and routes, in its "More names" table, to one
+neighbouring `motion-vocabulary-*.md` file per authoring decision, read on
+demand; the core stays small because every plan reads it. It adds no plan
+field, schema or rule, and a drawn look never re-renders supplied art, a cast
+or a logo. `scripts/audit-motion-vocabulary.py` checks routing, table shape,
+sizes, references and descriptive tells; pass the source prose with
+`--source` when names are taken from a third-party catalogue.
 Why: "Storyboard vocabulary" under the Promotion family.
 
 **Three graphics** is an opt-in (`graphics: three-webgl2`) on create-tour,
@@ -299,7 +306,7 @@ and the leaf's `<Standard>`, fixed by redesign. Why:
 
 **Storyboard vocabulary.** The storyboard decides the film's taste, not the
 implementer, so Round A names entries of the kernel's
-`references/motion-vocabulary.md` (names, looks and usual builds, no rules)
+`references/motion-vocabulary.md` (names, looks, tells and usual builds, no rules)
 instead of generic "fade" or "card". Keep the vocabulary rule-free:
 [decisions/storyboard-vocabulary-rule-free.md](../decisions/storyboard-vocabulary-rule-free.md).
 

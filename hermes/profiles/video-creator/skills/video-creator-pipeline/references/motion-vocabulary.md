@@ -8,265 +8,194 @@ storyboard or design by name (one entry per event or component; combine
 entries freely; a more precise name of your own is fine). Each entry gives
 what it looks like and how it is usually built in HTML/CSS/SVG/GSAP.
 
+## More names
+
+This file holds what most films use. The rest lives in neighbouring files; open the one the current decision needs.
+
+| Deciding | Open |
+| --- | --- |
+| a drawn look, texture, light, glow or finishing effect | `skill_view(name="video-creator-pipeline", file_path="references/motion-vocabulary-looks.md")` |
+| weight and physics on anything, characters or UI cards alike: squash and stretch, anticipation, spring settle, follow-through, walk, blink, loops | `skill_view(name="video-creator-pipeline", file_path="references/motion-vocabulary-character.md")` |
+| speed, easing, springs, rhythm, or a described feel (なめらか / きびきび / やわらかい / 重い / 弾む) | `skill_view(name="video-creator-pipeline", file_path="references/motion-vocabulary-timing.md")` |
+| how one element or a group enters, moves, scales, rotates, reacts or takes attention | `skill_view(name="video-creator-pipeline", file_path="references/motion-vocabulary-elements.md")` |
+| charts, maps, drawn paths, diagrams and number moments | `skill_view(name="video-creator-pipeline", file_path="references/motion-vocabulary-data.md")` |
+| how words appear, leave, swap, type out or take emphasis | `skill_view(name="video-creator-pipeline", file_path="references/motion-vocabulary-text.md")` |
+| a treatment inside the letters: physics, path, colour, glitch, depth, variable fonts, counters | `skill_view(name="video-creator-pipeline", file_path="references/motion-vocabulary-text-styling.md")` |
+| captions, subtitles, telop, film titles, Japanese typesetting (縦書き, ルビ, 文節) | `skill_view(name="video-creator-pipeline", file_path="references/motion-vocabulary-telop.md")` |
+| a scrolling page or LP: sticky, pin + scrub, parallax, snap, scrollytelling, scroll-driven text | `skill_view(name="video-creator-pipeline", file_path="references/motion-vocabulary-scroll.md")` |
+| buttons, toggles, forms, gestures, loaders, toasts and reactions in a shown interface | `skill_view(name="video-creator-pipeline", file_path="references/motion-vocabulary-ui-controls.md")` |
+| page transitions, overlays, spatial and depth UI, material and surface motion in a shown interface | `skill_view(name="video-creator-pipeline", file_path="references/motion-vocabulary-ui-space.md")` |
+| a game screen: HUD, hits, rewards, quests, game cinematics | `skill_view(name="video-creator-pipeline", file_path="references/motion-vocabulary-game.md")` |
+
+Japanese names in parentheses are aliases for finding an entry from a Japanese request; either name works in a storyboard. Motion tables carry Feel (the five words of the timing file's "## Feel"), For (what an entry is usually applied to) and The tell (the detail that makes it read as itself and how it differs from a near neighbour).
+
 ## Text animations
 
-| Name | Looks like | Built with |
-| --- | --- | --- |
-| split-text stagger | letters/words/lines arrive one after another as a wave | split into spans; stagger 0.02-0.08 s on y/opacity |
-| mask reveal (line rise) | each line slides up out of an invisible slot, cut off below (vertical writing: each column slides down from above) | line wrapper `overflow:hidden`; inner span y 110% -> 0 (x for vertical columns) |
-| blur-in / focus pull | words arrive soft and snap sharp as they land | `filter: blur()` 12-20px -> 0 with y or scale |
-| scale punch | a key word lands oversized and settles to size | scale 1.3-1.6 -> 1, expo/back ease |
-| tracking-in | letters spread wide then contract into the word | letter-spacing 0.5em -> normal, opacity |
-| typewriter + caret | characters appear one by one with a blinking caret | per-char opacity set; caret element |
-| scramble / decode | random glyphs resolve into the real word | per-char text swap from a fixed seeded glyph list |
-| word swap slot | one word in a sentence rolls to the next option | vertical stack in a masked slot, y steps |
-| odometer digits | each digit column rolls like a mechanical counter | per-digit column of 0-9, masked, y tween |
-| count-up | a number climbs to its value | tween an object, write rounded value per frame |
-| marker highlight | a colour band sweeps behind a word | pseudo-element scaleX 0 -> 1 from the left |
-| underline draw | a stroke draws under the word | SVG path `stroke-dashoffset` |
-| outline-to-fill | hollow outlined letters fill with colour | `-webkit-text-stroke` + fill clip or opacity layer |
-| gradient sweep text | a light band travels across the letters | `background-clip:text`, animate background-position |
-| echo stack | the word repeats in fading copies behind itself | duplicated layers offset in y/z, decreasing opacity |
-| karaoke highlight | words brighten in reading order | colour/opacity per word on a stagger |
-| kinetic lockup | words of a line fly in from different directions and lock into a block | per-word from-vectors, shared end time |
-| text as window | giant type acts as a mask revealing imagery/UI inside it | `background-clip:text` or SVG mask with text |
+| Name | Feel | For | Looks like | The tell | Built with |
+| --- | --- | --- | --- | --- | --- |
+| split-text stagger（スタッガー） | smooth | text | letters/words/lines arrive one after another as a wave | each unit starts a hair after the one before it with the same motion, so a ripple runs through the line in reading order — vs `kinetic lockup`: every piece here travels the same way, there the pieces come from different directions | split into spans; stagger 0.02-0.08 s on y/opacity |
+| mask reveal (line rise)（マスクリビール、行マスク・せり上がり） | smooth | text | each line slides up out of an invisible slot, cut off below (vertical writing: each column slides down from above) | the text is clipped by a hard edge and never fades: the glyphs emerge from the slot boundary as if pushed through it — vs `split-text stagger`: that one fades pieces in place, this one slides them out of a clip | line wrapper `overflow:hidden`; inner span y 110% -> 0 (x for vertical columns) |
+| blur-in / focus pull（ブラーイン、文字ブラーイン） | soft | text | words arrive soft and snap sharp as they land | the sharpness arrives last: the word is a smear for most of the move and clears in the final stretch as it settles — vs `scale punch`: that one changes size and stays crisp, this one changes focus | `filter: blur()` 12-20px -> 0 with y or scale |
+| scale punch（スケールパンチ） | snappy/bouncy | text | a key word lands oversized and settles to size | it starts oversized and drops in fast, overshooting below its final size for a moment before resting; the speed is at the very start — vs `blur-in / focus pull`: this one stays sharp throughout | scale 1.3-1.6 -> 1, expo/back ease |
+| tracking-in（字間が縮まって入る、トラッキング・エクスパンド、トラッキング収束） | smooth | text | letters spread wide then contract into the word | the gaps close from both sides toward the centre while the letters fade up, and the word is complete only when the spacing stops moving — vs `split-text stagger`: no letter arrives separately, the whole line breathes inward | letter-spacing 0.5em -> normal, opacity |
+| typewriter + caret（タイプライター、カーソル点滅タイプ） | snappy | text | characters appear one by one with a blinking caret | characters pop on whole at an even beat with no fade, and the caret keeps blinking after the last one — vs `scramble / decode`: no wrong glyphs appear first, each character is final when it shows | per-char opacity set; caret element |
+| scramble / decode（スクランブル、スクランブル解読） | snappy | text | random glyphs resolve into the real word | every slot flickers through wrong glyphs and locks to the right one in turn, so the line is readable from the left while the right is still noise — vs `typewriter + caret`: that one shows only correct characters, this one passes through junk | per-char text swap from a fixed seeded glyph list |
+| word swap slot（ワード切り替えスロット、縦ロールで単語切替） | smooth | text | one word in a sentence rolls to the next option | only the one word moves while the rest of the sentence stays still, the old word leaving upward as the next rises into its place — vs `odometer digits`: this swaps whole words in one slot, that rolls separate digit columns | vertical stack in a masked slot, y steps |
+| odometer digits（オドメーター、オドメーター桁ロール） | smooth | text, UI | each digit column rolls like a mechanical counter | every digit is its own reel, and the low digits spin through more numerals than the high ones before all stop together — vs `count-up`: that one rewrites the number in place, this one visibly scrolls the numerals | per-digit column of 0-9, masked, y tween |
+| count-up（カウントアップ） | smooth | text, UI | a number climbs to its value | the digits change in place, fast at first and slowing as they near the target, ending exactly on the final value — vs `odometer digits`: nothing scrolls, the text just changes | tween an object, write rounded value per frame |
+| marker highlight（マーカーハイライト、マーカー強調） | smooth | text | a colour band sweeps behind a word | the band grows from its left edge to cover the word while the letters stay still and legible on top — vs `underline draw`: this fills the body of the word, that traces a line beneath it | pseudo-element scaleX 0 -> 1 from the left |
+| underline draw（アンダーライン描画、下線ドロー） | smooth | text | a stroke draws under the word | a thin line is traced from one end to the other as if by a pen, with the leading tip visible while it runs — vs `marker highlight`: that one fills behind the word, this is a single stroke below | SVG path `stroke-dashoffset` |
+| outline-to-fill（縁取りから塗りへ、輪郭→塗りスイープ） | smooth | text | hollow outlined letters fill with colour | the outline is there first and the interior colour arrives afterwards, so the word reads as drawn before it is filled — vs `gradient sweep text`: this changes hollow to solid, that moves light across solid letters | `-webkit-text-stroke` + fill clip or opacity layer |
+| gradient sweep text（グラデーションスイープ、シャイン・スイープ） | smooth | text | a light band travels across the letters | the letters stay in place and only a bright band passes over them, so the highlight crosses glyph after glyph — vs `marker highlight`: that colours behind the word, this lights the letters themselves | `background-clip:text`, animate background-position |
+| echo stack（エコースタック、エコートレイル字幕） | soft | text | the word repeats in fading copies behind itself | the sharp copy leads and the ghosts trail in depth, each fainter than the one in front, so the word seems to leave a wake — vs `split-text stagger`: the copies are the same word, not separate pieces | duplicated layers offset in y/z, decreasing opacity |
+| karaoke highlight（カラオケ風ハイライト、カラオケ塗り） | smooth | text | words brighten in reading order | the whole line is visible from the start and a bright state moves along it word by word, the lit word the only change on screen — vs `split-text stagger`: that one makes words arrive, this one lights words already there | colour/opacity per word on a stagger |
+| kinetic lockup（キネティックロックアップ） | snappy | text | words of a line fly in from different directions and lock into a block | pieces approach from different sides and all come to rest on the same frame, ending as a tidy block — vs `split-text stagger`: that one has one direction and staggered ends, this has many directions and one end | per-word from-vectors, shared end time |
+| text as window（文字の窓抜き、テクスチャ/動画の流し込み、文字窓ズーム） | smooth | text | giant type acts as a mask revealing imagery/UI inside it | the letters are the only place where the picture shows, and the picture can move behind them while the letter shapes hold still — vs `mask reveal (line rise)`: this masks by glyph shape, that masks by a straight slot | `background-clip:text` or SVG mask with text |
 
 ## Transitions (between beats)
 
-| Name | Looks like | Built with |
-| --- | --- | --- |
-| hard cut on hit | instant change on a beat, no dissolve | `tl.set` visibility at the cut |
-| match cut | the next beat's shape appears exactly where the last one was | align geometry of both sides at the cut |
-| carrier handoff | one object keeps moving across the cut and becomes part of the next beat | same element (or aligned twin) continues its tween |
-| shared-element morph | a card grows into a full page / a button becomes a panel | FLIP: tween position, size, radius between two layouts |
-| zoom-through | camera pushes through the outgoing beat into the next | scale up + blur on exit, incoming scales from 0.8 |
-| inverse zoom / arrival | the next beat arrives oversized and settles back | incoming scale 1.25 -> 1, outgoing shrinks |
-| dolly into screen | camera flies into a device screen, which becomes the frame | scale the device until its screen fills the canvas, swap |
-| pull-back reveal | a close detail pulls back to reveal the whole | start scaled 3-5x on a detail, tween to 1 |
-| whip pan | very fast sideways travel with streaked blur | x travel + directional blur (SVG feGaussianBlur x only) |
-| clip-path wipe | a hard-edged shape sweeps the new beat in | `clip-path: inset()/polygon()` tween |
-| iris / circle reveal | a circle opens from a point (often a click) | `clip-path: circle(0 -> 150%)` |
-| light wipe | a band of light sweeps and leaves the new beat behind it | bright gradient bar tweened across, swap under it |
-| glow wash | a bloom rises to near-white, beat swaps under it | full-frame radial white overlay opacity up/down |
-| rack focus | the scene defocuses, swaps, refocuses | wrapper blur spike, swap at peak |
-| card flip | a surface turns over and its back is the next beat | `rotateY(180deg)`, `backface-visibility` |
-| fold / unfold | a panel folds along a crease into the next shape | two halves with `rotateX` on a shared edge |
-| shutter slices | the frame splits into strips that slide away | N strips with staggered x/y |
-| push stack | the new beat slides over the old like a card on a pile | incoming y from 100%, old scales to 0.94 and dims |
-| split-screen expand | a divider opens, one side grows to fill the frame | width/clip tween on two panes |
-| dither / pixel dissolve | the image breaks into pixels and rebuilds | canvas or SVG pattern mask, seeded |
-| ink bleed | a wash spreads from a point with a soft ragged edge and floods the frame; the next beat is under it | a growing blurred shape through a fixed-seed displacement mask, scale tween, swap at full cover |
-| brush wipe | one broad brush stroke sweeps across and leaves the next beat behind it | reveal mask along a thick stroked path (`stroke-dashoffset` on the mask), ragged edge by displacement |
+| Name | Feel | For | Looks like | The tell | Built with |
+| --- | --- | --- | --- | --- | --- |
+| hard cut on hit（ハードカット、拍で切る、hard cut） | snappy | UI, text, logo, character, 3D | instant change on a beat, no dissolve | the swap lands on a single frame with nothing between the two beats, and the beat's accent falls on that same frame — vs `crossfade / dissolve`: that one overlaps both beats, this one has no overlap at all | `tl.set` visibility at the cut |
+| crossfade / dissolve（クロスフェード、ディゾルブ） | smooth/soft | UI, text, logo, character, 3D | the old beat thins out while the new one thickens in the same place, so for a short stretch both are visible as a double exposure; the pace is even, no moment lands harder than another | the speed stays level and the middle holds both beats at half strength as a ghosted overlay, with no leading edge — vs `hard cut on hit`: there is nothing in between, here the overlap itself says time has passed | two full-frame layers on one shared overlap: outgoing opacity down and incoming opacity up with a linear ease, both starting and ending together, the outgoing layer hidden once the incoming is solid |
+| blur crossfade（ブラー・クロスフェード） | smooth/soft | UI, text, character, 3D | the old beat defocuses, the swap happens at the blurriest instant, and the new beat sharpens out of the blur, like focus drifting away and coming back | the blur peaks exactly at the swap and is mirrored on both sides, so the middle is a soft smear with no crisp edge to catch — vs `crossfade / dissolve`: that overlap stays sharp, this one spends it out of focus | blur filter on each scene layer rising then falling on `sine.inOut`, symmetric around the swap, with an opacity crossfade layered on top; the blur sits on drawn scene layers and the swap lands at its peak |
+| push / slide（プッシュ、押し出し） | smooth/snappy | UI, text, logo, character, 3D | the incoming and outgoing beats travel as one wide strip, sliding sideways at the same speed with no gap opening between them | the seam between the two beats runs across the frame at the middle speed, with a soft start and soft stop shared by both layers — vs `push stack`: there the new beat covers the old one, here the old one is physically moved out | both layers translated on x by one frame width in the same direction on `power2.inOut`, the incoming starting just off-frame; one shared tween drives both so the seam stays closed, the outgoing layer hidden at the end |
+| match cut（マッチカット） | snappy | UI, text, logo, character, 3D | the next beat's shape appears exactly where the last one was | the cut is invisible as a change of place: the matching outline sits on the same spot and size across the swap, so only the content behind it jumps — vs `carrier handoff`: nothing travels across the cut here, the two shapes just coincide | align geometry of both sides at the cut |
+| carrier handoff（キャリーハンドオフ） | smooth | UI, text, logo, character, 3D | one object keeps moving across the cut and becomes part of the next beat | the object's path and speed carry on unbroken through the swap while the scene around it changes — vs `match cut`: there two shapes coincide at a still cut, here one body is in motion through it | same element (or aligned twin) continues its tween |
+| shared-element morph（共有要素モーフ） | smooth | UI, text, logo | a card grows into a full page / a button becomes a panel | one element's position, size and corner radius change continuously from its small layout to its large one, while the content around it swaps out — vs `shape-morph bridge`: that one morphs an outline between two shapes, this one resizes the same element between two layouts | FLIP: tween position, size, radius between two layouts |
+| zoom-through（ズームスルー、scale-through） | smooth/snappy | UI, text, character, 3D | camera pushes through the outgoing beat into the next | the outgoing beat grows and blurs as it rushes past the viewer while the incoming one scales up from smaller, so the speed sits late on the exit — vs `inverse zoom / arrival`: that one has the next beat arrive large and settle back, this one flies through the old beat | scale up + blur on exit, incoming scales from 0.8 |
+| inverse zoom / arrival（逆ズーム、アライバル） | smooth/bouncy | UI, text, logo, character, 3D | the next beat arrives oversized and settles back | the incoming beat starts larger than the frame and shrinks onto its final size, with the speed early and a soft landing, while the outgoing one shrinks away — vs `zoom-through`: that one pushes into the old beat, this one lets the new beat come toward the viewer | incoming scale 1.25 -> 1, outgoing shrinks |
+| dolly into screen（画面へ飛び込む） | smooth | UI, 3D | camera flies into a device screen, which becomes the frame | the device grows until its screen edge passes the canvas edge and its bezel leaves view, so the screen's content takes over the whole frame — vs `zoom-through`: that one rushes through a full-frame beat, this one enters a framed object | scale the device until its screen fills the canvas, swap |
+| pull-back reveal（引きで見せる） | smooth | UI, text, logo, character, 3D | a close detail pulls back to reveal the whole | the opening frame shows only a fragment too large to identify, and the move eases back so the surrounding context arrives last — vs `inverse zoom / arrival`: that one shrinks a whole beat onto its size, this one starts on a detail of it | start scaled 3-5x on a detail, tween to 1 |
+| whip pan（ウィップパン、ウィップ、急な振り、whip） | snappy | UI, text, character, 3D | very fast sideways travel with streaked blur | the middle of the move is a horizontal smear with no readable detail, and the next beat snaps in as the smear ends — vs `light-streak whip`: no bright band is added here, the blur alone hides the swap | x travel + directional blur (SVG feGaussianBlur x only) |
+| clip-path wipe（クリップパスワイプ、ワイプ、linear wipe、インセット・クリップ、inset、マスクワイプ） | smooth/snappy | UI, text, logo, character, 3D | a hard-edged shape sweeps the new beat in | one crisp straight edge travels across the frame with the new beat on one side and the old on the other, and neither beat moves — vs `push / slide`: the edge moves here, the pictures stay still | `clip-path: inset()/polygon()` tween |
+| clock wipe（クロックワイプ） | smooth | UI, text, logo, character, 3D | a radial edge sweeps round from the top like a clock hand; the swept wedge already shows the next beat while the rest still holds the old one, and one full turn finishes it | the boundary is a straight line turning about the centre, so the wedge of the new beat widens at an even angular rate — vs `iris / circle reveal`: that boundary is a growing circle, not a turning line | conic-gradient or wedge mask on the incoming layer whose angle tweens from nothing to a full turn on `sine.inOut`, starting at twelve o'clock; an optional thin line rides the leading edge |
+| iris / circle reveal（アイリス、丸く開く、アイリスオープン、アイリス円形リビール） | smooth/snappy | UI, text, logo, character, 3D | a circle opens from a point (often a click) | the new beat is seen only inside a round window whose edge starts from a point of interest and leaves the frame at the corners — vs `shaped iris`: that one opens a meaningful outline, this one is a plain circle | `clip-path: circle(0 -> 150%)` |
+| shaped iris（形のアイリス、ハート、鍵穴） | soft | UI, text, logo, character, 3D | a heart, keyhole or similar shape opens from a point and grows until its outline slips past the corners, the next beat visible only through it | the shape stays readable most of the way, so the opening itself says something about the beat — vs `iris / circle reveal`: same growth, but the outline itself carries meaning | an SVG shape path as the mask on the incoming layer, scaled from the origin point on `power2.in` until it overshoots the farthest corner so no edge remains, centred on the subject |
+| colour flood（カラーフラッド） | snappy | UI, text, logo, character, 3D | one flat colour spreads from a point until it covers everything, the frame is briefly a blank solid, then it drains away to reveal a different beat swapped in underneath | the frame passes through one solid colour with a hard edge on both the way in and the way out, so nothing else shows at the midpoint — vs `glow wash`: that is a soft near-white bloom, this is a saturated block with a hard edge | a full-frame colour disc or rect scaled out from the origin on an ease-in, the swap on the frame it fully covers, then pulled back on an ease-out; the reach passes the farthest corner, the colour is the brand accent |
+| slats / blinds（スラット、ブラインド） | smooth | UI, text, logo, character, 3D | thin bars open one after another from one side, each turning or shrinking away, so the next beat appears in stripes that widen until the image is whole | each bar eases out as it opens and the starts ripple across from one side, so the image fills in as a travelling band of stripes — vs `shutter slices`: the bars stay in place and turn, they do not slide off | a row of bars over the next beat, each `scaleY` or `rotateX` to nothing on `power2.out`, starts staggered from one side by a small constant offset; a moderate bar count keeps it from flickering, bars removed at the end |
+| staggered blocks（ブロックで覆う） | snappy | UI, text, logo, character, 3D | a grid of flat tiles pops in as a wave until the frame is covered, the swap happens underneath, then the same wave clears them to show the next beat | the sweep direction is the same going in and coming out, so the tiles cover and uncover along one diagonal or row order — vs `dither / pixel dissolve`: tiles here arrive in an ordered sweep, there cells flip in random order | a grid of rects with scale or opacity tweens whose start offsets follow distance along one direction (light seeded jitter allowed), the swap at full cover, then the clearing in the same order on `power2.inOut` |
+| light wipe（ライトワイプ） | smooth/soft | UI, text, logo, character, 3D | a band of light sweeps and leaves the new beat behind it | a bright gradient band moves across with the new beat appearing behind its trailing edge, the old beat lit up just ahead of it — vs `light-streak whip`: that one adds blur and accelerates, this band travels steadily | bright gradient bar tweened across, swap under it |
+| glow wash（グローウォッシュ） | soft | UI, text, logo, character, 3D | a bloom rises to near-white, beat swaps under it | the whole frame brightens evenly toward white with a soft edge and then falls back, with no direction to it — vs `colour flood`: that is a hard-edged saturated block that spreads from a point | full-frame radial white overlay opacity up/down |
+| rack focus（ラックフォーカス） | smooth/soft | UI, text, character, 3D | the scene defocuses, swaps, refocuses | the whole frame goes out of focus as one piece and returns to sharp with the next beat, the blur peak at the swap — vs `blur crossfade`: that one trades opacity between two layers, this one swaps once at the peak | wrapper blur spike, swap at peak |
+| card flip（カードフリップ、3Dフリップ、3D card flip） | smooth | UI, text, character, 3D | a surface turns over and its back is the next beat | the card turns edge-on at the middle so for an instant it is a thin line, then widens again showing the other face — vs `fold / unfold`: this turns about its own centre, that one hinges on a crease | `rotateY(180deg)`, `backface-visibility` |
+| fold / unfold（折りたたみ） | smooth | UI, text, 3D | a panel folds along a crease into the next shape | two halves hinge on one shared edge, the folding half foreshortening as it closes onto the other — vs `card flip`: that one turns a whole surface about its centre, this one hinges at a crease | two halves with `rotateX` on a shared edge |
+| shutter slices（シャッタースライス） | snappy | UI, text, character, 3D | the frame splits into strips that slide away | the strips leave in alternating directions with offset starts, so the frame is briefly a set of displaced bands — vs `slats / blinds`: those stay in place and turn, these slide off | N strips with staggered x/y |
+| push stack（プッシュスタック） | smooth | UI, text, logo, character, 3D | the new beat slides over the old like a card on a pile | the incoming beat travels up on top while the outgoing one stays put, shrinks slightly and dims beneath it — vs `push / slide`: there both beats move together as a strip, here only the new one travels | incoming y from 100%, old scales to 0.94 and dims |
+| split-screen expand（分割拡大） | smooth/snappy | UI, text, logo, character, 3D | a divider opens, one side grows to fill the frame | the frame starts as two panes and the divider line travels until one pane owns the whole canvas, with no beat overlapping the other — vs `clip-path wipe`: that one sweeps across a single frame, this one begins as two panes | width/clip tween on two panes |
+| dither / pixel dissolve（ピクセルディゾルブ） | snappy | UI, text | the image breaks into pixels and rebuilds | cells flip from old to new in a scattered order, so the picture is a patchwork of both beats at the midpoint — vs `staggered blocks`: those arrive in an ordered sweep, these in random order | canvas or SVG pattern mask, seeded |
+| shape-morph bridge（シェイプモーフで橋渡し） | smooth | UI, text, logo | a shape that belongs to the old beat flows continuously into a shape that belongs to the new one, and the eye follows it across the change; colour and position drift along with the outline | the outline travels and reshapes through the swap while the scene behind it changes, so the eye stays on it — vs `match cut`: the cut jumps between two shapes, this one travels between them | an SVG path morph from path A to path B with equal point counts and aligned start points on `power2.inOut`, fill and position tweened in step; the scene swap hides while the shape covers the frame |
+| glitch cut（グリッチ、RGBずれ） | snappy | UI, text | for a few frames at the cut the picture tears: horizontal slices jump sideways and the colour channels split apart, then everything snaps clean onto the new beat | nothing eases: slices jump and the colour channels separate in hard steps in a short burst around the swap, then everything snaps back — vs `glitch`: that is a lasting texture, this is one short burst tied to the swap | seeded slice offsets through clip-path strips and RGB-split copies on the drawn scene layers, on `steps()` timing, held a few frames either side of the swap and then removed |
+| ink bleed（インクブリード、インクリビール） | soft | UI, text, character | a wash spreads from a point with a soft ragged edge and floods the frame; the next beat is under it | the edge is irregular and soft where it spreads, like liquid soaking through paper, and the frame is covered before the swap — vs `colour flood`: that one has a crisp edge, this one a ragged soft one | a growing blurred shape through a fixed-seed displacement mask, scale tween, swap at full cover |
+| brush wipe（ブラシワイプ） | soft | UI, text, logo, character, 3D | one broad brush stroke sweeps across and leaves the next beat behind it | a thick stroke with a rough edge travels once across the frame and the new beat is seen only where the brush has passed — vs `clip-path wipe`: that edge is a hard straight line, this one is a hand-painted band | reveal mask along a thick stroked path (`stroke-dashoffset` on the mask), ragged edge by displacement |
+| letterform mask wipe（文字の中を抜けて次へ） | smooth/snappy | UI, 3D | the next beat shows inside the outline of a giant letter, then the letter swells faster and faster until the camera is inside it and its edges leave the frame | the speed sits at the very end: the letter holds the next beat for a while, then swells in a rush until its edges are gone — vs `zoom-through`: there the old beat rushes at the viewer, here a letter frames the next beat before the dive | a heavy glyph as an SVG mask or clip on the incoming layer, scaled on `expo.in` about a point on the letter nearest the next subject, the swap hidden inside it, the mask dropped once it fills the frame |
+| gravity drop（グラビティドロップ） | heavy | UI, text, logo, character, 3D | the old beat tilts slightly and falls out the bottom, picking up speed the whole way, and uncovers a next beat that was already waiting beneath | the fall never brakes: speed climbs to the last frame and the old beat leaves tilted, while the next beat sits still behind it — vs `push / slide`: that moves both beats together, here only the old one moves, and under gravity | the outgoing layer on top, y tween past the bottom edge on `power2.in` with a small rotate in step; the incoming layer stays still underneath from the start and the old layer is hidden at the end |
+| light-streak whip（ライトストリーク・ウィップ） | snappy | UI, text, character, 3D | a broad, feathered band of light accelerates across the frame and the beat swaps behind it as it crosses the middle | the band is wide and feathered enough that no seam shows, and it adds a flash of light on top of the sideways blur — vs `whip pan`: that hides the swap in blur alone, this adds a bright cover that reads as a flash of light | x travel with directional blur on the scene layers plus a feathered light bar tweened across on `power3.in`, the swap while the bar is over the centre, the bar leaving the frame after |
+| J-cut / L-cut（Jカット、Lカット） | smooth | UI, text, logo, character, 3D | picture and sound change at different moments: in a J-cut the next beat's sound starts under the old picture, in an L-cut the old sound runs on under the new picture | no visual layer takes part: the sound and picture switch at offset moments, so the join is felt in the audio before or after the picture changes — vs `hard cut on hit`: there sound and picture switch on the same frame | the audio clip start or end time offset against the picture cut on the master timeline, the lead shorter than the trail; the offset lives in the audio mix, no visual layer is involved |
 
 ## Camera
 
-| Name | Looks like | Built with |
-| --- | --- | --- |
-| push-in / pull-out | slow move toward/away from the subject | scale on a camera wrapper |
-| truck / pedestal | sideways / vertical travel over a wide layout | x/y on a camera wrapper over an oversized stage |
-| orbit | camera circles an object in 3D | `rotateY` on the object inside a `perspective` parent |
-| snap / crash zoom | abrupt fast zoom onto a detail | short scale tween, expo.in-out |
-| parallax layers | foreground, midground, background move at different rates | same tween, different distances per layer |
-| infinite canvas pan | camera travels across one huge board of UI and text | one large stage translated through keyed positions |
-| tilt-shift | top and bottom blurred, middle sharp; looks miniature | gradient-masked blurred copies or backdrop-filter bands |
-| dutch tilt | slightly rotated frame for energy | small rotate on the camera wrapper |
-| focus follow | depth of field shifts to whatever becomes important | per-layer blur tweens |
-| camera shake | a short jolt after an impact that dies away | seeded list of x/y/rotate offsets on the camera wrapper, amplitude decaying over 0.3-0.6 s |
+| Name | Feel | For | Looks like | The tell | Built with |
+| --- | --- | --- | --- | --- | --- |
+| push-in / pull-out（プッシュイン、プルアウト、ドリーイン、push in / dolly in、pull out） | smooth | UI, text, logo, character, 3D | slow move toward/away from the subject | the frame creeps steadily with near layers growing a little faster than far ones, so depth is felt as the subject fills or leaves the frame — vs `zoom (flat)`: that one scales every layer equally and stays flat | scale on a camera wrapper |
+| truck / pedestal（トラック、ペデスタル、横移動、上下移動） | smooth | UI, text, logo, character, 3D | sideways / vertical travel over a wide layout | the whole layout slides in a straight line past a fixed viewpoint, near items outrunning far ones, and the path is level with no arc — vs `pan`: that one swivels in place and layers keep their positions | x/y on a camera wrapper over an oversized stage |
+| pan（パン、首振り） | smooth | UI, text, logo, character, 3D | the camera swivels in place and the scene glides across; all layers move together, so relative positions hold steady and just a faint perspective turn suggests rotation | every layer shifts by the same offset with a soft start and soft stop, and only a hint of perspective turn betrays the swivel — vs `truck / pedestal`: there near layers outrun far ones, here nothing separates by depth | a single shared x offset on every scene layer using `sine.inOut`, possibly a small rotateY within a `perspective` parent on the camera wrapper; blur applied only to quick pans |
+| roll（ロール、傾き） | snappy | UI, text, logo, character, 3D | the whole frame tilts a little about its centre at the moment of an impact and quickly levels out again; it is an accent, quick out and quicker back, never a slow lean | the tilt starts on the hit, peaks almost at once and returns faster than it left, ending exactly level — vs `dutch tilt`: that holds the slant as a look, this returns to level | a rotate tween on the camera wrapper, out on `power2.out` then back with a short spring-like settle; the amplitude is slight and the start is timed to the hit |
+| zoom (flat)（ズーム、平板） | smooth | UI, text, logo, character, 3D | the picture magnifies with every layer growing by the same factor, so the sense of depth never changes and it reads flat, like a long lens or surveillance footage | foreground and background keep their size ratios throughout, so nothing slides past anything else and the picture simply enlarges around one point — vs `push-in / pull-out`: there nearer layers grow more, giving depth, here the whole picture just gets bigger | one uniform scale tween on a single flat layer, or all layers at an equal factor, on `power2.inOut`, with the origin on the point of interest |
+| dolly zoom (vertigo)（ドリーズーム、めまい） | smooth/heavy | UI, text, logo, character, 3D | the subject holds its size while the background stretches away or squeezes in around it, an uneasy shift of perspective | the subject stays locked in size at centre while the room behind it swells or collapses, so all the change happens around the hero — vs `push-in / pull-out`: there the subject itself grows or shrinks | the camera wrapper moves forward in z while the background layers scale the opposite way to cancel it, the subject layer held at constant size, on `power2.inOut`, used once at the key moment |
+| crane / jib（クレーン、ジブ） | smooth | UI, text, logo, character, 3D | the camera climbs in a long sweeping arc, tilting down as it rises so the subject stays in frame, and arrives at a viewpoint looking over the whole scene | the climb curves rather than runs straight, with the tilt counter-turning as height gains, and both ends of the sweep ease softly — vs `truck / pedestal`: a pedestal is a straight vertical move, the crane arcs and tilts | y travel on the camera wrapper with a slight scale and a rotate tilt that compensates the rise, on `power2.inOut`, over a long stretch |
+| orbit（オービット、ターンテーブル、turntable、周回） | smooth | 3D | camera circles an object in 3D | the object turns steadily about its vertical axis while the viewpoint stays put, so its sides come into view one after another and the speed stays even — vs `pan`: that one swivels the viewpoint over a scene, this one circles one object | `rotateY` on the object inside a `perspective` parent |
+| handheld drift（手持ち風のゆれ） | soft | UI, text, logo, character, 3D | a slight, irregular sway like a camera held by a person; the pattern does not visibly repeat because several slow waves of different lengths overlap, and the travel stays small | the frame wanders in x, y and a trace of rotation with no beat the eye can count, and it never settles or stops — vs `camera shake`: shake is one jolt that dies away, drift never stops | seeded noise or a sum of slow sines with different periods on x, y and a very small rotate of the camera wrapper, finite and closing at the end |
+| snap / crash zoom（クラッシュズーム） | snappy | UI, text, logo, character, 3D | abrupt fast zoom onto a detail | the zoom is nearly all in the first frames and lands hard on the detail, with a quick blur or smear during the rush and no drift afterward — vs `zoom (flat)`: that one is a steady magnify, this one is a lunge | short scale tween, expo.in-out |
+| punch-in on the beat（拍でパンチイン） | snappy | UI, text, logo, character, 3D | on every beat the frame steps closer at once and eases back before the next, the pops growing after the drop; the hit sits exactly on the beat and the return is quicker than the gap to the next | the closer step lands on the beat itself and relaxes back to rest before the following beat, with larger pops after the drop — vs `snap / crash zoom`: that goes in once and stays, this keeps returning to rest | scale on the camera wrapper stepped up at each time in the beat list and decaying back on `power2.out`, a larger step for beats after the drop |
+| ken burns（ケン・バーンズ） | smooth/soft | UI, text, logo, character, 3D | a still photo gradually enlarges and slides sideways, as if a gaze were wandering over it; steady unhurried tempo with no easing and the motion aims at the subject | the image drifts at an unchanging speed from its first frame to its last, enlarging while sliding toward the subject, with no ramp at either end — vs `push-in / pull-out`: that is a pure move in depth, this adds a sideways drift and belongs to stills | one image layer with scale and x/y translate tweened on a linear ease across a long span, drift aimed at the subject and zoom kept modest so the image stays sharp |
+| parallax layers（視差、パララックス、パララックスレイヤー） | smooth | UI, text, logo, character, 3D | foreground, midground, background move at different rates | the near layer travels farthest and the far layer least, all in the same direction, so the layers visibly slip against each other — vs `truck / pedestal`: that one slides the layout as a block, this separates the layers by rate | same tween, different distances per layer |
+| follow with lookahead（フォロー、先読みで追う） | smooth | UI, text, logo, character, 3D | the camera tracks a mover but aims a little ahead of it, so open space lies in front of the direction of travel and the mover sits slightly behind centre; the camera trails on a soft spring rather than locking on | empty room opens ahead of the mover and the mover drifts a little behind centre, with the framing easing after each turn of direction — vs `truck / pedestal`: that is a scripted slide, this reacts to where the mover goes | the camera target eased toward the mover's current position plus its velocity times a short lead, with a spring-like ease on the wrapper's x and y |
+| infinite canvas pan（無限キャンバスパン） | smooth | UI, text | camera travels across one huge board of UI and text | one continuous board stays in view edge to edge while the viewpoint slides and pauses on each cluster, with no cut between stops — vs `truck / pedestal`: that one passes over a wide layout in one move, this visits keyed spots on a board | one large stage translated through keyed positions |
+| tilt-shift（ティルトシフト） | soft | UI, text, character, 3D | top and bottom blurred, middle sharp; looks miniature | a sharp horizontal band sits in the middle and softens smoothly toward the top and bottom edges, so a full-size scene reads like a tabletop model — vs `focus follow`: that one moves the sharp depth around, this keeps a fixed band | gradient-masked blurred copies or backdrop-filter bands |
+| dutch tilt（ダッチアングル） | smooth | UI, text, logo, character, 3D | slightly rotated frame for energy | the horizon and verticals sit at a steady slant for the whole shot, as a held look rather than a move — vs `roll`: that one tilts at an impact and returns to level | small rotate on the camera wrapper |
+| focus follow（フォーカスフォロー） | soft/smooth | UI, text, character, 3D | depth of field shifts to whatever becomes important | the sharp layer hands over: one item softens while the next sharpens, and the two changes overlap in time — vs `tilt-shift`: that one has a fixed sharp band, this moves the sharp plane between subjects | per-layer blur tweens |
+| camera shake（カメラシェイク、衝撃のシェイク、screen shake on hit） | snappy/heavy | UI, text, logo, character, 3D | a short jolt after an impact that dies away | the frame kicks hardest right at the impact and the offsets shrink steadily until it rests, a single burst — vs `handheld drift`: drift is a continuous sway, this is one jolt that dies away | seeded list of x/y/rotate offsets on the camera wrapper, amplitude decaying over 0.3-0.6 s |
 
-## Character and physical motion
+## Sync to sound
 
-How things and characters move as if they had weight, joints and material.
-Joint-level entries (walk cycle, blink, follow-through of a tail) need a
-character built from separate parts: your own drawn shapes or supplied part
-files. Supplied whole-pose art moves by pose swaps and whole-body transforms
-only; a walk is then a swap between approved walk poses over a sliding ground.
-
-| Name | Looks like | Built with |
-| --- | --- | --- |
-| timing contrast | the same move reads heavy when slow-in, light when snappy; a hold makes the next move land | duration and ease choice per move; a short hold before a fast move |
-| spring settle | the object overshoots and settles in shrinking swings | `elastic.out(amplitude, period)` or a damped keyframe list; a drawn coil is an SVG zig-zag scaled in y with `vector-effect: non-scaling-stroke` |
-| squash and stretch | stretched along its path while falling, flat only while touching the floor, leaves stretched, round at the top | scaleX/scaleY with `transform-origin` at the contact point, width x height kept near constant; one `fromTo` per phase so seeking in any order gives the same frame |
-| anticipation | a small move the opposite way just before the main action | a short reverse tween before the main one |
-| follow-through / lag | hair, tails, cloth and chained parts arrive after the body and swing past its stop | the same rotation on each link with a growing delay and a small overshoot |
-| jointed walk cycle | legs swing from the hip, the knee folds on the forward swing, the body bobs twice per stride, arms swing against the legs | nested limbs with `transform-origin` at each joint; thigh +-25-30 deg per stride, the knee folds so the foot trails behind (away from the facing direction); finite repeats; the ground or background slides under a walker held in frame |
-| blink and mouth flap | eyes shut for 2-4 frames at uneven intervals; a loose mouth open/close on spoken syllables | eye scaleY to ~0.1 and back; a mouth-shape swap on a list of times. Loose flapping, not lip sync |
-| line draw and retract | a line draws itself, loops, then pulls back into its own tip | `stroke-dasharray` + `stroke-dashoffset` forward, then continue the offset past the length so the tail chases the head |
-| page turn | a page lifts, turns over the spine under a travelling shadow and shows its back | page with two faces (`backface-visibility: hidden`, back face `rotateY(180deg)`), `rotateY` on the spine edge inside `perspective`; a shade overlay peaks at 90 deg. Stacked faces trip the layout overlap audit: mark only the page-number/text blocks `data-layout-allow-overlap` |
-| seamless loop | the last frame matches the first, so it can repeat | every tween returns to its start or travels a whole period; finite repeat count |
-| boil | a drawn line redraws slightly every few frames, alive like hand animation | swap between 2-3 fixed displacement seeds on steps of 2-3 frames |
-| animate on twos | the motion updates every other frame, reading as hand-drawn or stop motion | `steps()` ease, or time rounded to 1/12 s |
-| limited-animation hold | a strong pose held still for a beat while only hair, eyes, a mouth or one prop moves; the energy sits in a few fast changes | a pose swap followed by a hold; secondary parts on `steps()`; the hold is a timed gap, not a frozen render |
-| smear frame | one stretched in-between that sells a fast swing or dash | on your own drawn shapes: one frame of a stretched shape along the path; on supplied whole-pose art: a drawn streak layer behind it for 1-2 frames, never a deformed cast |
-| impact frame | at a hit, one to three frames flash to a stark two-tone or inverted palette with radial speed lines, then snap back | a full-frame overlay layer (flat colour plus `mix-blend-mode: difference` or a drawn two-tone plate) and an SVG radial line burst, each held 1-3 frames on a seeded schedule; never more than 3 flashes in any one second, and no saturated red full-frame flash |
-
-## Effects
-
-| Name | Looks like | Built with |
-| --- | --- | --- |
-| bloom / glow | light bleeding around bright elements | blurred duplicate behind, `mix-blend-mode: screen` |
-| light leak | warm/cool soft light spills across a corner | large blurred gradient blobs drifting |
-| light field | soft coloured glows living in the background | 2-4 radial gradients, slow drift |
-| lens streak | a thin horizontal flare line across a highlight | thin blurred bar, screen blend |
-| sheen / shimmer | a diagonal gloss passes over a surface | angled gradient masked to the element, x tween |
-| glassmorphism | frosted translucent panels over colour | `backdrop-filter: blur()`, 1px light border |
-| shadow stack | contact + ambient + tinted shadows under objects | multiple `box-shadow` layers |
-| reflection floor | objects mirrored faintly on a glossy floor | flipped copy with gradient mask |
-| motion blur | streak along fast movement | directional blur only while moving |
-| depth of field | far things soft, near things sharp | per-layer blur |
-| film grain | fine moving noise over everything | SVG `feTurbulence` or seeded noise overlay, low opacity |
-| chromatic aberration | colour fringe on fast moves | RGB-split copies offset a few px |
-| pulse ring | a ring expands from a tap or node | circle scale 1 -> 3, opacity 1 -> 0 |
-| particle burst | small shapes spray out from an impact | pre-placed seeded particles, radial tweens |
-| sparkle | brief star glints on a success moment | small scale/rotate pops |
-| spotlight | a soft pool of light follows the focus | radial gradient positioned on the subject |
-| halftone / dither | printed dot or pixel texture | pattern fill or SVG filter |
-| vignette | edges darkened to hold the eye in the centre | radial gradient overlay |
-| noise gradient / mesh gradient | rich multi-colour soft background | several blurred blobs, optional grain |
+| Name | Feel | For | Looks like | The tell | Built with |
+| --- | --- | --- | --- | --- | --- |
+| SFX cues on the grid（SFXを拍に置く） | snappy | UI, text, logo, character, 3D | every click, pop, thump or whoosh falls precisely on a beat or a measured peak of the picture, making sound and visual hit a single event | the sound sits on the motion's peak, not on its start, so sound and picture land as one event — vs `word-locked sync`: that locks to spoken words, this locks to beats and impacts | cue times snapped to the beat list or to the tween's measured peak, sound onset and visual peak sharing one frame, placed on the picture's own timeline |
+| audio bars（オーディオビジュアライザー） | snappy/bouncy | UI | a row of bars swells and dips with the sound | low-frequency bars sweep large and slowly, high-frequency bars stay small and quick, and each bar leaps fast but settles back gradually — vs `sidechain duck`: that pumps the whole picture on one beat, this shows the level of each frequency band | bar heights read from precomputed per-frame band levels, a quick rise on an ease-out and a slower decay, bands laid out left to right |
+| sidechain duck（サイドチェイン・ダック） | snappy/bouncy | UI, text, logo, character, 3D | the picture pumps in time with the kick: on each beat it dips at once, then swells back up before the next | the dip is the hit and the recovery is the breath, the whole scene moving together as one pulse — vs `punch-in on the beat`: that pops outward and returns, this goes down and recovers | a scale or brightness dip on the whole scene at each beat time, followed by a quick return on `power2.out`, repeated down the beat list |
+| word-locked sync（歌詞・字幕を語に合わせる） | smooth/bouncy | text | lyrics or captions light up on exactly the word being spoken, so the eye reads in step with the ear | each word changes at its own start, in uneven steps that follow the speech, not in a regular tick — vs `karaoke highlight`: that names the look of words brightening in order, this is the timing source that makes it match the voice | per-word start times taken from timestamps, each word's colour or opacity tween begun at its time, the previous word settling as the next lights |
 
 ## Components (drawn UI and graphics)
 
-| Name | Looks like | Built with |
-| --- | --- | --- |
-| phone frame | realistic device with bezel, notch, screen content | rounded rects, inner screen, gloss |
-| browser window | chrome with traffic lights, tabs, URL bar | flex header + content area |
-| URL / domain bar | a pill showing a web address with a lock | pill, icon, text |
-| one-page site mock | hero, sections, menu, hours, map, footer with real-looking content | stacked sections, real words and numbers |
-| bento grid | tiles of different sizes each showing a feature | CSS grid, varied spans |
-| floating UI cards | pieces of UI detached and floating in depth | absolutely positioned cards with z/shadow |
-| exploded view | an interface separated into layers in 3D | same layers offset in `translateZ` |
-| wall of screens | many screens tiled, camera travels across | grid of mini mocks |
-| notification toast stack | notifications dropping in and stacking | stacked cards, y/scale offsets |
-| chat bubbles | a conversation building up | alternating bubbles, typing dots |
-| form with caret | fields filling themselves, focus ring moving | inputs as divs, per-char reveal |
-| button press | a button squashes, changes state, ripples | scale 0.96 -> 1, colour change, ring |
-| oversized cursor | a big pointer that travels and clicks | SVG pointer, eased path, click squash |
-| toggle / switch | a switch flips on | knob x tween, track colour |
-| checklist with ticks | items tick off one by one | SVG check path draw per item |
-| progress bar / ring | fills to a value | scaleX or `stroke-dashoffset` |
-| stepper / timeline | numbered steps connected by a line that fills | nodes + line fill |
-| calendar strip | days in a row, a range highlighting | row of day cells, fill sweep |
-| price tag | a hanging tag with an amount | shape + string, pendulum rotation |
-| pricing card | plan card with price, period, inclusions | card with large numeral |
-| receipt / invoice | a slip printing line by line | clip reveal downward |
-| stat card | a big number with a label | count-up numeral |
-| badge / chip / pill | small labelled capsules | rounded spans |
-| avatar stack | overlapping round portraits | negative margins, stagger in |
-| map + pin + route | a map with a dropping pin and a path drawing | SVG shapes, pin drop, path draw |
-| search bar with typed query | a query types, results drop in | caret typing, list stagger |
-| tooltip / callout | a label with a leader line pointing at a detail | line draw + label pop |
-| hand-drawn annotation | circles and arrows scribbled on the UI | SVG path draw, rough stroke |
-| marquee / ticker | a line of text or logos scrolling endlessly | duplicated row, linear x |
-| carousel | cards sliding past a focus position | row x steps, scale on centre |
-| sticky note | a paper note slapped on | rotate + scale pop with shadow |
-| QR / scan frame | a scan frame locking onto a code | corner brackets tighten |
-| logo lockup reveal | the mark resolves with the wordmark | the supplied file, opacity/position only when the brand forbids effects |
+| Name | Feel | For | Looks like | The tell | Built with |
+| --- | --- | --- | --- | --- | --- |
+| phone frame（スマホフレーム） | smooth | UI | realistic device with bezel, notch, screen content | the screen content is clipped by rounded corners and a glossy highlight crosses the glass, so the content reads as living inside a device — vs `browser window`: this has a bezel and notch, that has chrome and tabs | rounded rects, inner screen, gloss |
+| browser window（ブラウザウィンドウ） | smooth | UI | chrome with traffic lights, tabs, URL bar | the toolbar strip with three dots, tabs and an address field sits above a flat content area, and the page changes while the frame stays — vs `phone frame`: that one is a handheld bezel, this is desktop chrome | flex header + content area |
+| URL / domain bar（URLバー） | smooth | UI, text | a pill showing a web address with a lock | a small rounded capsule with a lock icon leading the address, nothing else around it — vs `browser window`: just the address pill without any window | pill, icon, text |
+| one-page site mock（ワンページサイトのモック） | smooth | UI | hero, sections, menu, hours, map, footer with real-looking content | a tall page of stacked sections with plausible words and numbers, which the view scrolls through top to bottom — vs `bento grid`: a vertical stack of full-width bands, not a tiled arrangement | stacked sections, real words and numbers |
+| bento grid（ベントーグリッド） | smooth | UI | tiles of different sizes each showing a feature | tiles of unequal size fit together in one rectangle with even gaps, each holding its own small picture or figure — vs `wall of screens`: these tiles are features of different sizes, those are equal screens | CSS grid, varied spans |
+| floating UI cards（浮遊UIカード） | smooth/soft | UI, 3D | pieces of UI detached and floating in depth | cards hover at different depths with soft shadows and drift gently out of step with each other — vs `exploded view`: these are separate pieces, that one is a single interface split into stacked layers | absolutely positioned cards with z/shadow |
+| exploded view（分解ビュー） | smooth | UI, 3D | an interface separated into layers in 3D | layers of one screen slide apart along the depth axis while keeping their alignment, so the stack reads as a single object opened up — vs `floating UI cards`: those scatter loose pieces, this keeps one aligned stack | same layers offset in `translateZ` |
+| wall of screens（スクリーンの壁） | smooth | UI | many screens tiled, camera travels across | a grid of equal small screens fills the frame and the view glides over it, so different screens come into focus in turn — vs `bento grid`: equal tiles that the camera moves across, not mixed sizes held still | grid of mini mocks |
+| notification toast stack（通知トーストの積み重ね） | bouncy/snappy | UI | notifications dropping in and stacking | each new card drops in from the top and pushes the earlier ones down and slightly smaller beneath it — vs `chat bubbles`: these are separate alerts piling up, those alternate sides in one thread | stacked cards, y/scale offsets |
+| chat bubbles（チャット吹き出し） | snappy/soft | UI | a conversation building up | bubbles alternate left and right, each preceded by typing dots, and older messages move upward as new ones appear — vs `notification toast stack`: one conversation with two sides, not a pile of alerts | alternating bubbles, typing dots |
+| form with caret（キャレット付きフォーム） | snappy | UI, text | fields filling themselves, focus ring moving | a focus ring hops from field to field and a caret types into the active one, so the form fills without a visible pointer — vs `search bar with typed query`: several fields in turn, not one box | inputs as divs, per-char reveal |
+| button press（ボタン押下） | snappy/bouncy | UI | a button squashes, changes state, ripples | the button dips slightly on the press, its colour or label changes at the lowest point and a ring spreads out afterwards — vs `toggle / switch`: the button returns to its shape, the switch stays in its new position | scale 0.96 -> 1, colour change, ring |
+| oversized cursor（大きなカーソル） | smooth/snappy | UI | a big pointer that travels and clicks | the pointer glides along a curved path with a calm approach, then squashes briefly at the click while the target answers — vs `button press`: this is the pointer travelling, that is the control reacting | SVG pointer, eased path, click squash |
+| toggle / switch（トグルスイッチ） | snappy | UI | a switch flips on | the knob crosses the track fast and the track colour follows it, and then everything stays still in the new state — vs `button press`: this state persists, a pressed button springs back | knob x tween, track colour |
+| checklist with ticks（チェックリスト） | smooth/snappy | UI | items tick off one by one | each tick is drawn as a stroke inside its box, one item at a time in list order, with the line itself usually unchanged — vs `progress bar / ring`: discrete ticks, not a continuous fill | SVG check path draw per item |
+| progress bar / ring（プログレスバー、リング） | smooth | UI | fills to a value | one continuous fill grows along a track or around a circle and stops at a marked value — vs `stepper / timeline`: this has no numbered stops, it is a single smooth fill | scaleX or `stroke-dashoffset` |
+| stepper / timeline（ステッパー、タイムライン） | smooth | UI | numbered steps connected by a line that fills | the connecting line fills toward each node in turn and each node lights as the fill reaches it — vs `progress bar / ring`: the fill pauses at numbered stops | nodes + line fill |
+| calendar strip（カレンダーストリップ） | smooth | UI | days in a row, a range highlighting | a row of equal day cells with a coloured band that spreads across the chosen run, the end cells capped by rounded ends — vs `stepper / timeline`: cells in a row with a highlighted range, not connected numbered stops | row of day cells, fill sweep |
+| price tag（値札） | soft/bouncy | UI | a hanging tag with an amount | the tag swings from its string like a pendulum, each swing smaller, while the amount stays horizontal-readable — vs `pricing card`: a hanging object that swings, not a flat card | shape + string, pendulum rotation |
+| pricing card（料金プランカード） | smooth | UI, text | plan card with price, period, inclusions | a card with an oversized price numeral, a small period label and a list of inclusions beneath — vs `stat card`: this has a plan list under the number, that has only a label | card with large numeral |
+| receipt / invoice（レシート、請求書） | smooth | UI | a slip printing line by line | the slip emerges from a slot, lines appearing from top to bottom as if printed, the bottom edge still open — vs `pricing card`: a long strip revealed downward, not a fixed card | clip reveal downward |
+| stat card（数値カード、大きな数字のカード） | smooth | UI, text | a big number with a label | one dominant number with a small label beneath it and nothing else, the number the only moving part — vs `pricing card`: a single figure and caption, no inclusions | count-up numeral |
+| badge / chip / pill（バッジ、チップ） | snappy/soft | UI, text | small labelled capsules | small rounded capsules with a short label, often several in a row, each popping in separately — vs `avatar stack`: text capsules, not overlapping portraits | rounded spans |
+| avatar stack（アバタースタック） | smooth/soft | UI | overlapping round portraits | round portraits sit partly over one another in a row, each arriving after its neighbour — vs `badge / chip / pill`: overlapping circles rather than separate labelled capsules | negative margins, stagger in |
+| map + pin + route（地図とピンとルート、地図にピンが落ちる） | smooth/bouncy | UI | a map with a dropping pin and a path drawing | the pin falls onto the map and settles with a small bounce, then a dotted route draws away from it toward the destination — vs `tooltip / callout`: this marks a place with a route, that points at a detail with a line | SVG shapes, pin drop, path draw |
+| search bar with typed query（検索バーに入力） | snappy | UI, text | a query types, results drop in | one field types a query with a caret, and result rows then drop in below it one after another — vs `form with caret`: one box and a result list, not several fields | caret typing, list stagger |
+| tooltip / callout（ツールチップ、コールアウト） | snappy/smooth | UI | a label with a leader line pointing at a detail | a line draws out from the detail first and the label pops in at its far end — vs `hand-drawn annotation`: a tidy straight leader and a boxed label, not a scribble | line draw + label pop |
+| hand-drawn annotation（手描きの書き込み、手描き丸囲み） | smooth | UI | circles and arrows scribbled on the UI | wobbly strokes are traced on top of the interface as if by a marker, the line ends slightly uneven — vs `tooltip / callout`: a rough scribble, not a clean line with a label | SVG path draw, rough stroke |
+| marquee / ticker（マーキー、流れる帯、ティッカー、無限マーキー） | smooth | text, UI | a line of text or logos scrolling endlessly | a band moves at one constant rate and the end meets the start without a visible seam — vs `carousel`: this never stops on an item, that pauses on each | duplicated row, linear x |
+| carousel（カルーセル） | smooth | UI | cards sliding past a focus position | the row advances in steps, and the card at the centre is larger and brighter before the row moves on — vs `marquee / ticker`: this rests on each item, that moves continuously | row x steps, scale on centre |
+| sticky note（付箋） | bouncy | UI, text | a paper note slapped on | the note arrives slightly large and tilted and shrinks onto the surface, a soft shadow settling beneath it — vs `badge / chip / pill`: a tilted paper square, not a tidy capsule | rotate + scale pop with shadow |
+| QR / scan frame（QRスキャン枠） | snappy | UI | a scan frame locking onto a code | four corner brackets close in from wide and stop at the code, then a brief confirm cue — vs `tooltip / callout`: a frame that tightens on a target, not a line to a label | corner brackets tighten |
+| logo lockup reveal（ロゴロックアップの登場） | smooth | logo | the mark resolves with the wordmark | the supplied mark appears whole, the wordmark follows beside it or beneath, and neither changes shape during the arrival — vs `marker highlight`: this reveals a finished lockup, not an effect on letters | the supplied file, opacity/position only when the brand forbids effects |
 
 ## Compositions
 
-| Name | Looks like |
-| --- | --- |
-| full-bleed hero | one object or word fills the whole frame, edges cropped |
-| oversized type crop | letters bigger than the frame, only part visible |
-| centre stack | headline, object, sub-line stacked on the centre axis |
-| split layout | frame divided into two zones (text / object), often diagonal |
-| over-the-shoulder device | device held close to camera, content readable, background soft |
-| macro close-up | extreme close view of one UI detail |
-| top-down flat lay | objects arranged on a surface seen from above |
-| isometric | 3D-looking layout without perspective convergence |
-| tunnel / corridor | cards lining the walls of a corridor the camera travels through |
-| orbit around headline | objects circling a central line of text |
-| collage | many cut-out elements overlapping at different scales |
-| screen within screen | a device whose screen shows another device or the film itself |
-| before / after split | two states side by side with a moving divider |
-
-## Drawn looks
-
-The rendering language of the world you draw: backgrounds, props, type and
-your own drawn shapes. Name one in the look-in-words; the leaf's own `style`
-reference, when chosen, is the fuller brief. A look never re-renders supplied
-art, a cast or a logo: apply a look's filters and textures to world layers,
-never to a wrapper that contains supplied art. Entries marked 3D need
-`graphics: three-webgl2` where the leaf offers it; elsewhere build the 2.5D
-imitation named in the same row.
-
-### Hand-drawn and paper
-
-| Name | Looks like | Built with |
+| Name | Looks like | The tell |
 | --- | --- | --- |
-| risograph | two or three flat spot inks overprinted, darker where they overlap, halftone dots, plates slightly out of register, paper grain | one layer per ink with `mix-blend-mode: multiply`; dots as a `radial-gradient` with `background-size`; a few px offset per plate; fixed-seed `feTurbulence` grain (see halftone / dither) |
-| origami | everything folded from paper: triangle facets and creases, each facet one tone lighter or darker than its neighbour, soft shadows | SVG polygons in 2-3 tones of one hue; unfolding = facets rotating on their shared crease (`transform-origin` on the edge) |
-| sumi-ink brush | black ink on off-white paper; strokes swell and thin with pressure, dry-brush streaks at the tail, soft grey wash hills | a filled variable-width stroke shape revealed by a mask path drawn along its centreline (`stroke-dashoffset` on the mask, slow-fast-slow ease; a plain stroke keeps one width); fixed-seed `feTurbulence` + `feDisplacementMap` for the ragged edge; a thinner offset stroke through a grain mask for dry brush; washes as blurred low-opacity shapes; ink bleed / brush wipe between beats |
-| pencil sketch | graphite on white: construction lines, hatching for shade, smudged edges; objects look drawn, not rendered | shapes made of many thin hatch paths; draw-on per stroke group; low-scale displacement for hand wobble; paper-tooth overlay |
-| crayon | waxy thick strokes, paper tooth showing through, scribble fills that miss the outline, wobbly child-like shapes | fills as dense zig-zag strokes clipped to the shape; coarse grain mask on fill and outline; boil |
-| watercolor | soft pigment pools with darker dried edges, colours bleeding into each other, white paper kept for highlights | layered blurred shapes with `mix-blend-mode: multiply`; the same shape stroked and less blurred for the edge; fixed-seed noise mask for blooms; bleed-in = slow scale/opacity spread |
-| paper cut-out (kirie) | silhouettes cut from stacked coloured paper, a flat colour per layer with a small shadow, lit windows punched through | flat SVG layers, one drop shadow per layer, parallax by layer |
-| chalkboard | chalk lines and handwriting on dark green slate, dusty edges, faint ghosts of erased writing | stroked paths through a grain mask on a dark green surface; write-on via `stroke-dashoffset`; ghosts as low-opacity blurred copies |
-| one-line drawing | a whole object drawn as one continuous line, a few flat colour blobs offset behind it | a single path drawn by `stroke-dashoffset`; blobs as soft shapes that fade in after the line passes |
-
-### Anime
-
-| Name | Looks like | Built with |
-| --- | --- | --- |
-| cel anime | TV-style 2D: flat base fills, one hard-edged shadow tone per colour from one light direction, an even dark line, skies as a flat colour or one clean gradient, small hard highlights | SVG shapes with a base fill and a separate hard-edged shadow path per form; `stroke` at the cast's line weight; no blur or soft gradients on drawn forms; motion on twos with limited-animation holds |
-| painted anime backdrop | backgrounds painted with visible brush texture and atmospheric depth behind crisp cel characters, natural light, wind in grass and cloud | layered SVG or supplied painted plates with a fixed-seed brush-texture mask; haze as a low-opacity light layer per depth plane; parallax by plane; the cast layer never takes the paint texture |
-
-### Graphic
-
-| Name | Looks like | Built with |
-| --- | --- | --- |
-| flat Bauhaus | red, blue, yellow and black on cream: circles, half discs, bars, one strong diagonal | SVG primitives; motion as half discs rotating and bars sliding on a grid |
-| isometric | see Compositions: isometric; blocks with a light top and two darker sides, things travel along the axes | SVG on an isometric grid, or one `rotateX(60deg) rotateZ(45deg)` plane |
-| infographic | calm charts: donut, flowing bands (sankey), dot matrix, labelled axes, one accent colour | SVG paths; donut arcs by `stroke-dashoffset`; labels by count-up |
-| blueprint | white hairlines on blue over a fine grid, dimension arrows, section marks, numbered callouts | grid from repeating linear gradients; line draw per part; callouts as tooltip / callout |
-| stained glass | jewel-coloured panes between thick dark lead lines, light glowing through | SVG polygons with a thick dark stroke, an inner radial glow, a sheen / shimmer passing over |
-| tile mosaic | the image built from small square tiles with grout gaps and slightly uneven colours | a grid of small rects coloured from a source shape, fixed-seed jitter; reveal staggered from the centre |
-| silhouette | solid dark shapes against a warm gradient sky; smoke and steam as soft shapes | flat dark SVG shapes over a gradient, parallax layers |
-| stark graphic | two or three flat colours (black, white, one accent), places as bold geometric planes and repeated forms, extreme angles, wide empty fields, full-frame colour cards between scenes | flat SVG fills with no blur, gradient or texture; long holds broken by one snap move; hard cuts on the beat; cards as full-frame rects; never more than 3 flashes in any one second, and no saturated red full-frame flash |
-
-### Screen and retro
-
-| Name | Looks like | Built with |
-| --- | --- | --- |
-| CRT / VHS | curved glass, scanlines, colour bleed, a rolling tracking band | repeating-gradient scanlines; rounded inner vignette for the glass; chromatic aberration; a band tweened down the frame |
-| pixel art | a low-resolution grid with hard edges and a small palette | draw small and scale with `image-rendering: pixelated`, or `shape-rendering: crispEdges` rects; motion in whole-pixel steps |
-| ASCII terminal | the subject drawn with characters in a monospace grid under a command prompt | a `<pre>` grid whose characters come from a brightness ramp computed per frame from a deterministic shape; typewriter + caret for the prompt |
-| glitch | slices of the frame jump sideways, colour channels split, blocks flicker | `clip-path` slices offset on a seeded schedule; RGB-split copies; each burst held 2-6 frames |
-| neon sign | glowing tubes on a dark wall, a flicker on ignition, a coloured halo on the wall | stroked text/paths with layered blurred copies (bloom / glow); seeded opacity steps for the flicker; radial gradient halo |
-
-### Solid (3D)
-
-| Name | Looks like | Built with |
-| --- | --- | --- |
-| low-poly 3D | faceted, flat-shaded meshes; bright toy landscapes | 3D: flat-shaded procedural geometry; 2.5D: SVG triangles in three tones |
-| toon 3D | 3D forms with two-tone cel shading and an outline | 3D: toon material plus an inverted-hull outline; 2.5D: flat shapes with one hard shadow shape |
-| clay stop-motion | soft rounded forms with a handled, fingerprinted surface, moving on twos | 3D: rough material with fixed noise; 2.5D: soft gradients and grain; animate on twos |
-| product shot | a real product on a seamless sweep, soft key light, contact shadow, slow turn | only from supplied product photos or renders, never invented packaging; shadow stack, reflection floor; 3D turntable only for a procedural stand-in shape |
-
-### Generative, math and data
-
-| Name | Looks like | Built with |
-| --- | --- | --- |
-| flow field | thousands of fine lines streaming across the frame and bending around an obstacle | lines precomputed from a field (potential flow around a circle, psi = y(1 - R^2/r^2), or fixed-seed noise angles); motion by `stroke-dashoffset` along each line |
-| particles | a shape made of fine grains that disperses and re-forms into another shape | canvas or SVG points with seeded starts, each grain tweening between two samplings of the shapes |
-| marbling (suminagashi) | concentric ink rings on water, pulled into swirls | closed rings around seeded centres, warped by fixed-seed displacement whose scale tweens |
-| math diagram | a unit circle whose turning radius draws y = sin theta beside it, with live values | SVG; one angle tween drives the radius end, a growing path and the written number |
-| transit map | coloured lines over a faint street map, a station marker, the camera closing on one station | lines by `stroke-dashoffset`; map + pin + route; push-in |
-| kinetic typography | one giant character with small vertical kana beside it, letters that snap, blur and settle | kinetic lockup, scale punch, blur-in, outline-to-fill |
+| full-bleed hero（全面ヒーロー） | one object or word fills the whole frame, edges cropped | the subject touches or crosses every edge and nothing else shares the frame — vs `oversized type crop`: that one is letters cut by the frame, this can be any object |
+| oversized type crop（巨大文字のトリミング） | letters bigger than the frame, only part visible | glyphs run off the edges so only fragments are legible, and the word is read from its visible parts — vs `full-bleed hero`: that one fills the frame with one subject, this is cropped lettering |
+| centre stack（中央積み） | headline, object, sub-line stacked on the centre axis | three tiers share one vertical axis with generous margins at the sides, symmetrical left and right — vs `split layout`: that one divides the frame into zones, this keeps one column |
+| split layout（分割レイアウト） | frame divided into two zones (text / object), often diagonal | two clearly separate areas of different content meet at an edge, the line between them straight or slanted — vs `before / after split`: that one shows two states of one thing, this pairs different content |
+| over-the-shoulder device（肩越しのデバイス） | device held close to camera, content readable, background soft | the screen is large in the foreground at a slight angle, with a defocused room behind it — vs `macro close-up`: that one fills the frame with a single detail, this shows the whole device |
+| macro close-up（マクロクローズアップ） | extreme close view of one UI detail | a single control or glyph is enlarged until it fills the frame and its edges show crisp texture — vs `over-the-shoulder device`: that one keeps the whole device in view |
+| top-down flat lay（真上のフラットレイ） | objects arranged on a surface seen from above | items sit on one plane with no perspective lines, spaced evenly like a tabletop photo — vs `isometric`: that one tilts to show three faces, this looks straight down |
+| isometric（アイソメトリック） | 3D-looking layout without perspective convergence | boxes show top and two sides at a fixed angle and parallel lines stay parallel into the distance — vs `top-down flat lay`: that one shows one face, this shows three |
+| tunnel / corridor（トンネル、回廊） | cards lining the walls of a corridor the camera travels through | cards sit on both sides and converge toward a vanishing point at the centre, with the nearest ones largest and cropped by the frame — vs `orbit around headline`: that one circles a centre, this recedes into depth |
+| orbit around headline（見出しを周回） | objects circling a central line of text | a ring of items sits around a fixed headline, the nearer ones larger and the farther ones smaller, the text staying upright at the centre — vs `tunnel / corridor`: that one lines items along a path, this wraps them around a point |
+| collage（コラージュ） | many cut-out elements overlapping at different scales | cut-outs of mixed size overlap with visible edges and layered order, with no common grid — vs `split layout`: that one organises two zones, this piles pieces |
+| screen within screen（画面の中の画面） | a device whose screen shows another device or the film itself | the nested picture repeats the outer frame at a smaller size inside its screen — vs `over-the-shoulder device`: that one has readable content, this puts a frame inside a frame |
+| before / after split（ビフォーアフター分割） | two states side by side with a moving divider | the same subject appears on both sides of a divider line, one side showing the earlier state — vs `split layout`: that one pairs different content, this pairs two states of one thing |
 
 ## Film structures
 
 The shape of a whole piece, named in the storyboard's intent.
 
-| Name | Looks like |
-| --- | --- |
-| product reveal | teaser detail, build-up, full reveal on the drop, name and one line, end card |
-| showcase reel (PV) | the subject's own cover in the first frame, a tour of its best moments, a brand end card |
-| series opening | world, each character or feature in one signature glimpse, a held key visual with room for the title |
-| sizzle montage | fast cuts of many moments on the beat, energy rising to one closing line |
-| before / after story | the problem state held long enough to feel, a turn, the resolved state |
-| day in the life | one person or place across a sequence of moments in time order |
-| countdown / list | numbered items, each with one hero moment, the last one biggest |
-| logo sting | a short build that resolves into the mark and holds |
+| Name | Looks like | The tell |
+| --- | --- | --- |
+| product reveal（プロダクトリビール） | teaser detail, build-up, full reveal on the drop, name and one line, end card | the product stays partly hidden until the single moment the full object appears on the drop, then the name follows — vs `showcase reel (PV)`: that one tours many moments, this holds back one object |
+| showcase reel (PV)（ショーケースリール） | the subject's own cover in the first frame, a tour of its best moments, a brand end card | the piece opens on the subject's own cover and then runs through highlight after highlight before a closing card — vs `sizzle montage`: that one is a fast pulse of fragments, this is a tour of full moments |
+| series opening（シリーズオープニング） | world, each character or feature in one signature glimpse, a held key visual with room for the title | each member of the cast gets one short signature moment, then the frame settles on one key picture with open space left for the title — vs `showcase reel (PV)`: that one ends on a brand card, this ends on a key visual |
+| sizzle montage（シズルモンタージュ） | fast cuts of many moments on the beat, energy rising to one closing line | cuts land on the beat and get shorter as the energy climbs, ending on a single line of text — vs `countdown / list`: that one is ordered and numbered, this is a pulse of fragments |
+| before / after story（ビフォーアフターストーリー） | the problem state held long enough to feel, a turn, the resolved state | a long first state, one clear turning point, then a changed state that mirrors the first in framing — vs `product reveal`: that one withholds an object, this contrasts two states |
+| day in the life（一日の流れ） | one person or place across a sequence of moments in time order | the same subject recurs in scenes marked by changing light or clock time, running forward through the day — vs `series opening`: that one gives each cast member a glimpse, this follows one subject through time |
+| countdown / list（カウントダウン、リスト） | numbered items, each with one hero moment, the last one biggest | numerals tick through the items in order, each given its own moment and the final one given the largest treatment — vs `sizzle montage`: that one is unordered fast cuts, this is numbered |
+| logo sting（ロゴスティング） | a short build that resolves into the mark and holds | pieces gather into the finished mark in a short build and the mark then stays still on screen — vs `product reveal`: that one is a whole piece, this is a brief mark-only resolve |
 
 ## Visual metaphors
 
@@ -277,36 +206,36 @@ above.
 
 | Idea | Image | Looks like | Built with |
 | --- | --- | --- | --- |
-| bottleneck | funnel / hourglass neck | many items crowd the wide mouth and trickle through one at a time | dots on paths converging to one point, staggered release |
-| filtering / selection | sieve | a stream of items falls, only the right ones pass, the rest bounce away | two particle groups, one passes a mesh line, one deflects |
-| growth | sprout | a stem rises, leaves unfold, the plant reaches the number | SVG stem path draw, leaf scale from the node, count-up at the tip |
-| compounding | snowball | a small ball rolls downhill and swells with each turn | scale tied to x, rotation, trail |
-| scale / replication | tile cloning | one unit copies itself outward until it fills a grid | one element, staggered clones from its position |
-| sync / integration | meshing gears | separate gears slide together, teeth catch, all turn as one | SVG gears, rotation ratios by tooth count, start on contact |
-| connection / network | nodes and threads | points appear, lines draw between them, a pulse travels the links | node pop, path draw, dot along path |
-| handoff / trust | baton pass | an object passes from one hand or lane to the next without stopping | carrier handoff between two tracks |
-| pipeline / flow | conveyor or pipe | items ride through stations and change at each one | items on a path, state swap at station x |
-| transformation | machine or box | a rough shape goes in one side, a finished one comes out | occluder box, swap the shape while hidden |
-| automation | repeating arm | a mechanism does the same task again and again without a hand | looped sub-timeline repeated on the master clock |
-| chaos to order | snap to grid | scattered, rotated pieces fly into a clean aligned layout | seeded start positions and angles, shared end layout |
-| simplification | untangling | a knotted line pulls straight | SVG path morph from a tangled path to a straight one |
-| complexity / clutter | pile or tangle | items overlap and keep arriving until the frame is crowded | growing stack with jitter-free seeded offsets |
-| overload | overflow | a container fills past its rim and spills | fill level tween, spill particles past the edge |
-| accumulation / saving | filling jar or stack | coins or blocks drop in and the level climbs | stacked drops with settle, level line |
-| waiting / delay | queue | a line of items shuffles forward one step at a time | row x steps with holds between |
-| speed | streak | the subject leaves speed lines and a blurred trail | lines behind the motion vector, directional blur |
-| breakthrough | wall cracking | a barrier fractures and the subject bursts through | crack path draw, pre-cut shards pushed outward |
-| protection / security | shield or lock | a shell closes around the subject; attacks glance off | shield scale-in, deflected dots, lock shackle drop |
-| isolation / sandbox | glass bubble | the subject sits inside a clear sphere; outside things bounce off | circle with sheen, collisions reflect at its radius |
-| unlock / access | key and door | a key turns, a door or lid opens onto what was inside | key rotate, door `rotateY` on its hinge |
-| dependency / chain reaction | dominoes | one tile tips and knocks the rest down in sequence | per-tile rotate with stagger from the pivot edge |
-| layers / abstraction | stacked plates | thin layers separate vertically, each labelled | exploded view of flat panels in `translateZ` or y |
-| decision / branching | forked path | a road splits; one branch lights up and the traveller takes it | path draw, highlight one branch, dot along it |
-| journey / progress | road with milestones | a traveller moves past markers toward a goal | camera truck along a path, markers pop as passed |
-| feedback loop | circular track | a pulse runs round a loop and changes something each lap | dot on a closed path, state change per lap |
-| balance / trade-off | scale | two pans tip as weight moves from one side to the other | beam rotation from summed weights, pans hang level |
-| memory / cache | shelf or drawer | a thing is put away, later pulled out instantly instead of fetched far | drawer x slide, second retrieval much shorter |
-| fit / solution | puzzle piece | the missing piece turns and clicks into the gap | rotate + translate into the slot, small settle |
-| signal from noise | tuning wave | a jagged waveform smooths into a clean wave | SVG path morph between noisy and clean |
-| clarity / focus | lens | a blurry scene sharpens where a lens passes | masked sharp layer under a moving circle |
-| spark / idea | ignition | a small point flashes and lights up the shapes around it | pulse ring, bloom, radial stagger of lit elements |
+| bottleneck（ボトルネック） | funnel / hourglass neck | many items crowd the wide mouth and trickle through one at a time | dots on paths converging to one point, staggered release |
+| filtering / selection（絞り込み、選別） | sieve | a stream of items falls, only the right ones pass, the rest bounce away | two particle groups, one passes a mesh line, one deflects |
+| growth（成長） | sprout | a stem rises, leaves unfold, the plant reaches the number | SVG stem path draw, leaf scale from the node, count-up at the tip |
+| compounding（複利） | snowball | a small ball rolls downhill and swells with each turn | scale tied to x, rotation, trail |
+| scale / replication（拡大、複製） | tile cloning | one unit copies itself outward until it fills a grid | one element, staggered clones from its position |
+| sync / integration（同期、連携） | meshing gears | separate gears slide together, teeth catch, all turn as one | SVG gears, rotation ratios by tooth count, start on contact |
+| connection / network（つながり、ネットワーク） | nodes and threads | points appear, lines draw between them, a pulse travels the links | node pop, path draw, dot along path |
+| handoff / trust（引き継ぎ、信頼） | baton pass | an object passes from one hand or lane to the next without stopping | carrier handoff between two tracks |
+| pipeline / flow（パイプライン、流れ） | conveyor or pipe | items ride through stations and change at each one | items on a path, state swap at station x |
+| transformation（変身、変換） | machine or box | a rough shape goes in one side, a finished one comes out | occluder box, swap the shape while hidden |
+| automation（自動化） | repeating arm | a mechanism does the same task again and again without a hand | looped sub-timeline repeated on the master clock |
+| chaos to order（混沌から秩序へ） | snap to grid | scattered, rotated pieces fly into a clean aligned layout | seeded start positions and angles, shared end layout |
+| simplification（シンプル化） | untangling | a knotted line pulls straight | SVG path morph from a tangled path to a straight one |
+| complexity / clutter（複雑さ、散らかり） | pile or tangle | items overlap and keep arriving until the frame is crowded | growing stack with jitter-free seeded offsets |
+| overload（過負荷） | overflow | a container fills past its rim and spills | fill level tween, spill particles past the edge |
+| accumulation / saving（蓄積、貯蓄） | filling jar or stack | coins or blocks drop in and the level climbs | stacked drops with settle, level line |
+| waiting / delay（待ち、遅延） | queue | a line of items shuffles forward one step at a time | row x steps with holds between |
+| speed（スピード） | streak | the subject leaves speed lines and a blurred trail | lines behind the motion vector, directional blur |
+| breakthrough（ブレイクスルー） | wall cracking | a barrier fractures and the subject bursts through | crack path draw, pre-cut shards pushed outward |
+| protection / security（保護、セキュリティ） | shield or lock | a shell closes around the subject; attacks glance off | shield scale-in, deflected dots, lock shackle drop |
+| isolation / sandbox（隔離、サンドボックス） | glass bubble | the subject sits inside a clear sphere; outside things bounce off | circle with sheen, collisions reflect at its radius |
+| unlock / access（解錠、アクセス） | key and door | a key turns, a door or lid opens onto what was inside | key rotate, door `rotateY` on its hinge |
+| dependency / chain reaction（依存、連鎖反応） | dominoes | one tile tips and knocks the rest down in sequence | per-tile rotate with stagger from the pivot edge |
+| layers / abstraction（レイヤー、抽象化） | stacked plates | thin layers separate vertically, each labelled | exploded view of flat panels in `translateZ` or y |
+| decision / branching（意思決定、分岐） | forked path | a road splits; one branch lights up and the traveller takes it | path draw, highlight one branch, dot along it |
+| journey / progress（旅路、進捗） | road with milestones | a traveller moves past markers toward a goal | camera truck along a path, markers pop as passed |
+| feedback loop（フィードバックループ） | circular track | a pulse runs round a loop and changes something each lap | dot on a closed path, state change per lap |
+| balance / trade-off（バランス、トレードオフ） | scale | two pans tip as weight moves from one side to the other | beam rotation from summed weights, pans hang level |
+| memory / cache（記憶、キャッシュ） | shelf or drawer | a thing is put away, later pulled out instantly instead of fetched far | drawer x slide, second retrieval much shorter |
+| fit / solution（適合、解決策） | puzzle piece | the missing piece turns and clicks into the gap | rotate + translate into the slot, small settle |
+| signal from noise（ノイズから信号へ） | tuning wave | a jagged waveform smooths into a clean wave | SVG path morph between noisy and clean |
+| clarity / focus（明快さ、フォーカス） | lens | a blurry scene sharpens where a lens passes | masked sharp layer under a moving circle |
+| spark / idea（ひらめき、アイデア） | ignition | a small point flashes and lights up the shapes around it | pulse ring, bloom, radial stagger of lit elements |
