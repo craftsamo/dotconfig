@@ -76,9 +76,15 @@ fork?, timeout?, output_dir?)`; build also takes `approval` and
 - **What a build may do:** edit files in its worktree and run routine commands.
   It rebases its task branch onto the latest base before each push and may
   amend or fix up its own commits; its tools refuse the default branch, shared
-  commits and protected branches. Pushes (a rebased branch's
-  `git push --force-with-lease origin HEAD:refs/heads/<task branch>` and
-  `gh stack push` included), shell history rewrites, branch moves, package
+  commits and protected branches. When its work splits into reviewable
+  layers it opens a native GitHub stack of PRs instead of one PR; publishing
+  that stack arrives as a `git_stack_publish` request (push, submit or link).
+  The request carries only a preview token: approve it against the
+  `git_stack` preview the build reported (each layer, its commits, its PR and
+  whether it is force-pushed), and ask for that preview first if it did not.
+  Pushes (a rebased
+  branch's `git push --force-with-lease origin HEAD:refs/heads/<task branch>`,
+  `git_stack_publish` and `gh stack push` included), shell history rewrites, branch moves, package
   runners, per-command git configuration (`git -c`) and Issue writes without
   `issue_approval` come back to you as requests, also behind a prefix or a
   wrapper such as `env` or `sh -c`. Every other force push, protected-branch

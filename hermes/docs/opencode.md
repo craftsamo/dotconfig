@@ -167,8 +167,8 @@ a subagent that denies itself edits (explore) loses that denial for the run. The
 allow is placed before the edit denies for OpenCode's config/skill directories
 and secret files, which therefore still win. `read-only` denies edits, the
 `worker` and `general` subagents, and the `git_commit` / `git_stage_hunks` /
-`git_verify_commits` / `git_rebase` tools, which write or run commands past the
-shell rules. A `write` run rewrites its task branch the way the person's
+`git_verify_commits` / `git_rebase` / `git_stack` / `git_stack_publish` tools,
+which write or run commands past the shell rules. A `write` run rewrites its task branch the way the person's
 OpenCode does: `git_rebase` and `git_commit`'s amend/fixup run without asking,
 because they refuse the default branch, shared commits and protected branches
 themselves, and the result leaves the machine only through a push. Every force
@@ -176,9 +176,15 @@ spelling stays denied except the task branch's own lease push, re-opened as an
 ask by its exact text (`git push --force-with-lease origin
 HEAD:refs/heads/<branch>`, optionally with `--force-if-includes`;
 `policy.lease_pushes`): a full destination, which push config cannot remap.
-In a write run every `gh stack` command but `view` asks, since it rebases and
-force-pushes layers and takes flags before its subcommand; a read-only run is
-denied `gh stack` entirely, and merging or unstacking a stack always. A write
+A build prefers a native stack for a PR whose work splits into reviewable
+layers, through two tools: `git_stack` (split, add, rebase and preview; local
+branches only) runs without asking like `git_rebase`, and `git_stack_publish`
+(push, submit, link) asks through the person's global rules (a session rule
+would reopen the deny a read-only subagent sets itself) and publishes only the
+exact state its preview token pinned. In a write run every
+`gh stack` command but `view` asks too, since it rebases and force-pushes
+layers and takes flags before its subcommand; a read-only run is denied
+`gh stack` and both tools entirely, and merging or unstacking a stack always. A write
 run needs the user's quoted `approval`, a named non-default task branch, and a
 worktree no other session is running in (a person's included). V2 wildcards match whole values and `*` crosses
 `/`, so secrets are spelled `*.env`, `*.pem`, … (`**/.env` misses a root-level

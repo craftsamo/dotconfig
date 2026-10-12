@@ -1285,11 +1285,14 @@ def test_read_only_never_edits_and_never_hands_work_to_an_editor():
     assert policy.decide(rules, "shell", "gh issue comment 1") == "deny"
     for command in ("gh stack push", "gh stack -R o/r push", "gh stack view"):
         assert policy.decide(rules, "shell", command) == "deny", command
-    for tool in ("git_commit", "git_stage_hunks", "git_verify_commits", "git_rebase"):
+    for tool in ("git_commit", "git_stage_hunks", "git_verify_commits", "git_rebase", "git_stack", "git_stack_publish"):
         assert policy.decide(rules, tool, "*") == "deny", tool
     write = policy.rules("write", None, {"main"})
-    for tool in ("git_commit", "git_rebase"):
+    for tool in ("git_commit", "git_rebase", "git_stack"):
         assert policy.decide(write, tool, "*") != "deny", f"a build rewrites its own commits through {tool}"
+    reviewer = [{"action": "*", "resource": "*", "effect": "deny"}] + write
+    for tool in ("git_stack", "git_stack_publish"):
+        assert policy.decide(reviewer, tool, "*") == "deny", f"a write run must not reopen a subagent's own {tool} deny"
 
 
 def test_write_asks_for_person_gated_commands_and_keeps_person_denies():
