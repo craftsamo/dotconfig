@@ -20,9 +20,22 @@ OpenCode API from the terminal, and never substitute another coding agent to
 get around these tools.
 
 OpenCode is the developer: it investigates, plans, implements, tests, reviews
-and commits with its own agents and skills. Keep messages to the job-specific
-delta (outcome, constraints, decisions, what to verify); do not paste its
+and commits with its own agents and skills. You relay, you do not stand in for
+the person: a message carries the person's own words for what they want, the
+goal of the current stage, and the path of the job's decision log. Leave out
+what the session already holds (its earlier turns, the plan it wrote), what its
+tools and ruleset already enforce (prohibited commands, commit rules, push and
+merge limits), and how to do the work (commands, steps, file lists, retry
+counts): spelling those out narrows the model and buys nothing. Never paste its
 global instructions or whole skill bodies into a prompt.
+
+- **A constraint the tools do not enforce** and that must hold for the whole
+  session (no deployment, a file left alone) goes in once with
+  `opencode_instructions` (`put`, key `hermes.<name>`), not into every message.
+- **A technical question** from the run (a library, a schema detail, how to
+  test, how to split commits or PRs) goes back as its own call: answer that it
+  decides and records the choice in its report or PR. Relay only what changes
+  what people can do or see, what is stored, cost, or anything irreversible.
 
 The tools drive the person's shared OpenCode service. Runs appear in their
 OpenCode history and keep running when a Hermes turn ends. Nothing is recorded
@@ -31,10 +44,13 @@ on the Hermes side: a run's state is read from OpenCode each time.
 ## Runs
 
 One tool per role: `opencode_run_plan`, `opencode_run_review`,
-`opencode_run_debug` (read-only: they never edit) and `opencode_run_build`
-(write). Each takes `(directory?, session_id?, message, model?, variant?,
-fork?, timeout?, output_dir?)`; build also takes `approval` and
-`issue_approval`.
+`opencode_run_debug` (read-only: they never edit), `opencode_run_design`
+(read-only in the repository; it writes HTML mocks and diagrams into
+`output_dir` only, for the person to open) and `opencode_run_build` (write).
+Each takes `(directory?, session_id?, message, model?, variant?, fork?,
+timeout?, output_dir?)`; build also takes `approval` and `issue_approval`.
+Which roles exist is configuration: a role missing from your tools is not
+configured.
 
 - **New session:** `directory` is an absolute Git worktree root (not a
   subdirectory). Keep the returned `session_id` and pass it on every later
@@ -62,13 +78,21 @@ fork?, timeout?, output_dir?)`; build also takes `approval` and
   `opencode_run_build` with the same `session_id` and `approval` switches
   agent, model and policy while OpenCode keeps the whole investigation and
   proposal in context. Do not create the worktree or branch yourself, and
-  never ask OpenCode to move itself. A new session knows nothing: paste the
-  proposal's sections and every settled decision verbatim.
+  never ask OpenCode to move itself. A new session knows nothing: point it at
+  the decision log and the plan files in the job directory.
+- **A plan of several Phases** (Phase N = one reviewable layer: one PR, or one
+  layer of a native stack) keeps the approved plan session as the trunk and
+  forks it for each Phase: `opencode_session fork` of the trunk, `workspace` on
+  the fork (`base=head` from the previous Phase's branch when it builds on an
+  unmerged layer), a plan turn for that Phase's steps (Phase N.m), then its
+  build on the fork. The fork inherits the investigation and the approved
+  roadmap but not the previous Phase's long build history; what earlier Phases
+  built is in Git. Give each Phase its own `output_dir` (`<job>/phase-N`).
 - **`fork=true`** copies the entire history of `session_id` and runs on the
-  copy: for parallel variants or an independent diagnosis, not to drop stale
-  context (a lighter context is a new session). A fork starts in the parent's
-  worktree; give it its own with `workspace`. Fork an approved plan before its
-  build to keep the clean plan to return to or to try a second approach.
+  copy: for a Phase, parallel variants or an independent diagnosis. A fork
+  starts in the parent's worktree; give it its own with `workspace`. Fork an
+  approved plan before its build to keep the clean plan to return to or to try
+  a second approach.
 - **`approval`** quotes the user's explicit, scoped implementation decision as
   text — never a boolean, never your own words. Quote it on every build turn.
   `issue_approval` separately quotes an explicit request to manage this job in
@@ -90,7 +114,7 @@ fork?, timeout?, output_dir?)`; build also takes `approval` and
   Pushes (a rebased
   branch's `git push --force-with-lease origin HEAD:refs/heads/<task branch>`,
   `git_publish` and `gh stack push` included), shell history rewrites, branch moves, package
-  runners, per-command git configuration (`git -c`) and Issue writes without
+  downloaders (`npm exec`, `pnpm dlx`), anything naming `deploy`, `publish`, `secret`, `--remote` or `--prod`, per-command git configuration (`git -c`) and Issue writes without
   `issue_approval` come back to you as requests, also behind a prefix or a
   wrapper such as `env` or `sh -c`. Every other force push, protected-branch
   pushes, merges, `gh api`, Project writes, git config and remote rewrites,
@@ -107,10 +131,13 @@ fork?, timeout?, output_dir?)`; build also takes `approval` and
   a read-only turn that writes nothing there gets its final reply saved there
   as `<worktree>-<role>-<turn>.md`, named as `report` in the result: ask for the
   complete report in the final reply, and never ask a build to copy one.
-- Ask in the message for what you need: actual check results, a review pass
-  ("run a review pass", "deep review <area>") when an increment is risky, a
-  checkpoint commit of verified work, `web_ui_check` for a page change
-  (OpenCode's tool; it writes into `output_dir`).
+  A write run with an output directory keeps its Phase steps in
+  `progress.md` there (its operating note says how); that is the step list
+  you report against.
+- Ask for outcomes, not methods: the checks' actual results, and a review pass
+  ("deep review <area>") only where the person's stake is high (who can see
+  what, stored data, money). Checkpoint commits, `web_ui_check` for a page
+  change and how to test are the run's own practice.
 - Permission rules match each command as written, and every unmatched one
   pauses the run for you. So never tell a run to write commands with a
   `NAME=value` prefix, a status wrapper (`…; exit "$status"`) or a launcher
@@ -188,21 +215,26 @@ its own resource, and the one that needs you is often the last (`kill`,
 `rm`, `git push`): judge them all before answering. A notification shortens
 them; where it says `complete: false`, read the request with `list` first.
 
-`opencode_request(action="reply", session_id, request_id, …)`:
+`opencode_request(action="reply", session_id, replies=[{request_id, …}, …])`
+answers every pending request in one call (`request_id` alone answers one); all
+replies are checked before any is sent. The result is the run's next state when
+it comes within a few seconds (often the next request), so answer that in the
+same way rather than waiting for a notification.
 
 - A permission inside the user's approved scope → `decision: "once"`. Outside
   it or unclear → `decision: "reject"` with a short `reason` OpenCode can act
   on, then take the decision to the user if the work needs it.
-- A question: answer it with `answer: {field: value}` when it is an in-scope
-  technical choice you can settle; relay a decision that changes outcome, scope,
-  cost or public behavior to the user first. `decision: "reject"` declines it.
+- A question: a technical choice goes back as the run's own call
+  (`answer` that it decides and states the choice in its report). Relay to the
+  user, first, only a decision about what people can do or see, what is stored,
+  cost or anything irreversible, and pass their answer back in their words.
+  `decision: "reject"` declines it.
 
 There is no broader approval: `always` would save a project-wide rule the
 person's own sessions inherit. If the same in-scope request keeps coming, say
-in the next message how to avoid it: usually a prefixed or wrapped command
-(above), an inline interpreter where a project script exists, or a server the
-run starts and stops by hand. A request stays pending until answered,
-and the run waits meanwhile.
+so once with `opencode_instructions` (for example: use the read and grep tools
+instead of `cat`/`grep`, run the project script instead of `node -e`). A
+request stays pending until answered, and the run waits meanwhile.
 
 ## Results
 
@@ -224,7 +256,9 @@ A notification for a state you already read (from a run call or a `wait`) and
 already reported carries nothing new: answer it with `[SILENT]`. Reading a
 state is not reporting it: a run that finished is news to the user until you
 told them. Reply when a notification brings a new state: a finish, a pause on
-a request or question, or an unknown outcome.
+a request or question, a Phase step that finished or stalled
+(`progress_changed`), or an unknown outcome. A state that carries `progress`
+shows the Phase's step list as counts, the step in hand and any blocked step.
 
 - `completed`: OpenCode reported the turn succeeded — not that the task
   passed. Read `result` for open questions, assumptions and unverified claims
@@ -251,6 +285,8 @@ Scale each message to how much changed, never to how often a run stops:
 | The run stopped because | Tell the user |
 | --- | --- |
 | You approved an in-scope request | Nothing by itself; count it in the next update ("3 approvals") |
+| A Phase step finished (`progress_changed`) | One line: the step and what it delivers, "N/M done"; then `opencode_session status` |
+| A Phase step is blocked | At once, the reason and what it needs, if anything, from the user |
 | A run finished, others still go | One or two sentences of what it found, the board of all runs, the details folded |
 | It needs the user (out-of-scope request, material question, failure, `unknown`) | At once, the decision first |
 | Every run of the job finished | The summary, a compact table, details folded |
@@ -282,10 +318,11 @@ the same limited model.
 
 ## Boundaries
 
-The tools keep plan/review/debug read-only, let a build edit only its worktree
-(and the output directory), refuse default-branch builds and return pushes and
-Issue writes without the grant to you as requests. Command rules are defense in
-depth, not a sandbox. Carry a narrower user restriction (local commit only, no
-push, one file) in the message and verify it afterwards through Git; if a
+The tools keep plan/review/debug/design read-only, let a build edit only its
+worktree (and the output directory), refuse default-branch builds and return
+pushes, deployments, `--remote` commands and Issue writes without the grant to
+you as requests. Command rules are defense in depth, not a sandbox. Carry a
+narrower user restriction (local commit only, no push, one file) once through
+`opencode_instructions` and verify it afterwards through Git; if a
 restriction cannot be honored that way and the effect is irreversible, say so
 instead of starting the run.
