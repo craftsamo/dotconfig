@@ -5,9 +5,10 @@ Owner doc: docs/hands/video.md "Promotion family" (Storyboard vocabulary)
 
 ## Decision
 
-The kernel's `references/motion-vocabulary.md` lists names, looks and usual
-builds only. Authored leaves name its entries in the storyboard; it adds no
-plan field, schema or rule.
+The kernel's `references/motion-vocabulary.md` and the neighbouring files it
+links list names, looks, the detail that tells an entry apart, and usual
+builds only, all descriptive. Authored leaves name its entries in the
+storyboard; it adds no plan field, schema or rule.
 
 ## Why
 

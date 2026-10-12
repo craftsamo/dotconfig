@@ -194,8 +194,11 @@ def test_round_a_names_techniques_from_the_vocabulary():
     vocab = (LEAF.parent.parent / "references/motion-vocabulary.md").read_text()
     assert 'file_path="references/motion-vocabulary.md"' in leaf
     assert "name the" in leaf and 'instead of generic "fade", "slide" or "card"' in " ".join(leaf.split())
-    for section in ("## Text animations", "## Transitions", "## Camera", "## Effects", "## Components", "## Compositions"):
+    for section in ("## Text animations", "## Transitions", "## Camera", "## Components", "## Compositions"):
         assert section in vocab
+    # Effects moved to the looks file that the core routes to.
+    assert "## Effects" in (LEAF.parent.parent / "references/motion-vocabulary-looks.md").read_text()
+    assert 'file_path="references/motion-vocabulary-looks.md"' in vocab
     assert "A dictionary, not a rulebook" in vocab
 
 
