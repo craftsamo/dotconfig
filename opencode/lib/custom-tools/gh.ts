@@ -1,6 +1,8 @@
 import { tool } from "./define"
 import { exec, runGhJson } from "./exec"
 
+export { pr_meta, pr_meta_apply } from "./pr-meta"
+
 /**
  * GitHub pull-request status. Read-only: it never pushes, comments, reruns or
  * merges. Waiting happens inside the tool, so a caller gets one final state

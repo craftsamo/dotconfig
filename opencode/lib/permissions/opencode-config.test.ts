@@ -85,6 +85,31 @@ describe("global shell rules", () => {
     for (const command of ["gh stack view", "gh stack view --json"]) expect([command, shell(command)]).toEqual([command, "allow"])
   })
 
+  test("PR metadata from the shell asks; titles and bodies stay free", () => {
+    for (const command of [
+      "gh pr edit 3 --add-label bug",
+      "gh pr edit 3 --remove-assignee x",
+      "gh pr edit 3 --add-reviewer alice",
+      "gh pr edit 3 --milestone v1",
+      "gh pr edit 3 -m v1",
+      "gh pr edit 3 --remove-milestone",
+      'gh pr create --title "x" --body-file b.md --label bug',
+      'gh pr create --title "x" --body-file b.md -r alice',
+      'gh pr create --title "x" --body-file b.md -a @me',
+      "gh pr -R o/r edit 3 --add-reviewer alice",
+      "gh pr --repo o/r edit 3 --add-label bug",
+      "gh pr create -r alice --title x --body-file b.md",
+      "gh pr edit -m v1",
+      "gh pr edit 3 -mv1",
+      "gh pr -R o/r create -l bug --title x",
+      "gh pr create -dr alice --title x --body-file b.md",
+      "gh pr create -fa @me",
+    ])
+      expect([command, shell(command)]).toEqual([command, "ask"])
+    for (const command of ['gh pr edit 3 --title "Fix label parsing"', "gh pr edit 3 --body-file b.md", 'gh pr create --title "Add milestone view" --body-file b.md'])
+      expect([command, shell(command)]).toEqual([command, "allow"])
+  })
+
   test("reads stay free", () => {
     for (const command of [
       "git status",
