@@ -925,6 +925,21 @@ def test_notifier_does_not_return_on_a_provider_retry(fixture, monkeypatch):
     assert settled["timed_out"] is True and "retrying" not in settled
 
 
+
+def test_a_running_turn_is_polled_without_rereading_the_session_or_its_messages(fixture):
+    _, directory, _, fake = fixture
+    scripted(fake, "hold")
+    sid = run("plan", directory, timeout=1)["session_id"]
+    fake.calls.clear()
+    settled = turn.await_turn(sid, 0.3, through_retry=True, poll=0.01)
+    assert settled["status"] == "running" and settled["timed_out"] is True
+    routes = [route.split("?")[0] for _, route, _ in fake.calls]
+    cycles = routes.count("/api/session/active")
+    assert cycles > 3
+    assert routes.count(f"/api/session/{sid}") == 2, "read once at the start and once at the hand-back"
+    assert routes.count(f"/api/session/{sid}/message") == 0
+
+
 # ---------------------------------------------------------------- waiting
 
 def test_wait_limit_stays_below_the_tool_deadline(fixture, monkeypatch):
