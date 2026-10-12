@@ -167,7 +167,8 @@ a subagent that denies itself edits (explore) loses that denial for the run. The
 allow is placed before the edit denies for OpenCode's config/skill directories
 and secret files, which therefore still win. `read-only` denies edits, the
 `worker` and `general` subagents, and the `git_commit` / `git_stage_hunks` /
-`git_verify_commits` / `git_rebase` / `git_stack` / `git_publish` tools,
+`git_verify_commits` / `git_rebase` / `git_stack` / `git_publish` /
+`gh_pr_meta` / `gh_pr_meta_apply` tools,
 which write or run commands past the shell rules. A `write` run rewrites its task branch the way the person's
 OpenCode does: `git_rebase` and `git_commit`'s amend/fixup run without asking,
 because they refuse the default branch, shared commits and protected branches

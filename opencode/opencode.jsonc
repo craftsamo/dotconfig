@@ -139,6 +139,16 @@
           "effect": "deny"
         },
         {
+          "action": "gh_pr_meta",
+          "resource": "*",
+          "effect": "deny"
+        },
+        {
+          "action": "gh_pr_meta_apply",
+          "resource": "*",
+          "effect": "deny"
+        },
+        {
           "action": "subagent",
           "resource": "*",
           "effect": "deny"
@@ -238,6 +248,16 @@
         },
         {
           "action": "git_publish",
+          "resource": "*",
+          "effect": "deny"
+        },
+        {
+          "action": "gh_pr_meta",
+          "resource": "*",
+          "effect": "deny"
+        },
+        {
+          "action": "gh_pr_meta_apply",
           "resource": "*",
           "effect": "deny"
         },
@@ -1309,6 +1329,107 @@
       "resource": "gh stack view*",
       "effect": "allow"
     },
+    // Labels, assignees, review requests and milestones can start workflows,
+    // merge bots and notifications: gh_pr_meta judges them; the shell asks.
+    // Spelled by containment so `gh pr -R o/r edit` and first-position or
+    // attached short options (`-mv1`) ask too; a title holding such a word
+    // asks as well, which only costs a prompt.
+    {
+      "action": "shell",
+      "resource": "gh pr *edit*--add-label*",
+      "effect": "ask"
+    },
+    {
+      "action": "shell",
+      "resource": "gh pr *edit*--remove-label*",
+      "effect": "ask"
+    },
+    {
+      "action": "shell",
+      "resource": "gh pr *edit*--add-assignee*",
+      "effect": "ask"
+    },
+    {
+      "action": "shell",
+      "resource": "gh pr *edit*--remove-assignee*",
+      "effect": "ask"
+    },
+    {
+      "action": "shell",
+      "resource": "gh pr *edit*--add-reviewer*",
+      "effect": "ask"
+    },
+    {
+      "action": "shell",
+      "resource": "gh pr *edit*--remove-reviewer*",
+      "effect": "ask"
+    },
+    {
+      "action": "shell",
+      "resource": "gh pr *edit*--milestone*",
+      "effect": "ask"
+    },
+    {
+      "action": "shell",
+      "resource": "gh pr *edit*--remove-milestone*",
+      "effect": "ask"
+    },
+    {
+      "action": "shell",
+      "resource": "gh pr *edit* -m*",
+      "effect": "ask"
+    },
+    {
+      "action": "shell",
+      "resource": "gh pr *create*--label*",
+      "effect": "ask"
+    },
+    {
+      "action": "shell",
+      "resource": "gh pr *create*--assignee*",
+      "effect": "ask"
+    },
+    {
+      "action": "shell",
+      "resource": "gh pr *create*--reviewer*",
+      "effect": "ask"
+    },
+    {
+      "action": "shell",
+      "resource": "gh pr *create*--milestone*",
+      "effect": "ask"
+    },
+    {
+      "action": "shell",
+      "resource": "gh pr *create* -l*",
+      "effect": "ask"
+    },
+    {
+      "action": "shell",
+      "resource": "gh pr *create* -a*",
+      "effect": "ask"
+    },
+    {
+      "action": "shell",
+      "resource": "gh pr *create* -r*",
+      "effect": "ask"
+    },
+    {
+      "action": "shell",
+      "resource": "gh pr *create* -m*",
+      "effect": "ask"
+    },
+    // Boolean short options combine with the metadata ones (`-dr alice`).
+    {
+      "action": "shell",
+      "resource": "gh pr *create* -d?*",
+      "effect": "ask"
+    },
+    {
+      "action": "shell",
+      "resource": "gh pr *create* -f?*",
+      "effect": "ask"
+    },
     // Note: npx / bunx / pip / uv / docker / node / python / ruby / bash -c stay ask by default
     // Version checks (gated tools)
     {
@@ -1984,6 +2105,18 @@
       "action": "gh_pr_status",
       "resource": "*",
       "effect": "allow"
+    },
+    // PR metadata (lib/custom-tools/pr-meta.ts): gh_pr_meta applies only what
+    // nothing reacts to and returns the rest; gh_pr_meta_apply applies that: ask.
+    {
+      "action": "gh_pr_meta",
+      "resource": "*",
+      "effect": "allow"
+    },
+    {
+      "action": "gh_pr_meta_apply",
+      "resource": "*",
+      "effect": "ask"
     },
     // Custom X search tool (lib/custom-tools/x.ts) — xAI server-side x_search, read-only external query
     {

@@ -53,7 +53,11 @@ when the push needs `--force-with-lease`), never the default branch, commits
 already on it or held by another remote branch (layers above in the same
 native stack excepted), or a branch GitHub protects against force pushes.
 `gh_pr_status` (`lib/custom-tools/gh.ts`) reads a PR's checks, failed-job logs
-and review threads and can wait for CI.
+and review threads and can wait for CI. `gh_pr_meta`
+(`lib/custom-tools/pr-meta.ts`) sets labels, assignees, review requests and a
+milestone, applying at once only what no workflow, merge bot, webhook or
+mandated ruleset reacts to and that notifies nobody else; `gh_pr_meta_apply`
+(asks) applies the rest against its token.
 `plugins/worktrees.ts` registers the worktree strategy in
 `lib/worktrees/strategy.ts`, so the TUI, the API and `git_worktree` all place
 worktrees at `~/Worktrees/<repository>/<branch>` on a new branch, the layout

@@ -170,10 +170,12 @@ def protected_pushes(name):
 # global rules, as git_verify_commits does. A write run states no ask for it:
 # a session-level rule would come after, and reopen, the deny a read-only
 # subagent sets itself. A read-only run is denied both; git_publish_preview
-# only reads and stays open to every run.
+# only reads and stays open to every run. gh_pr_meta writes PR metadata it
+# judged harmless and gh_pr_meta_apply (asks) the rest: read-only runs are
+# denied both.
 TOOL_DENY = ("git_worktree",)
 READ_ONLY_DENY_TOOLS = ("git_commit", "git_stage_hunks", "git_verify_commits", "git_rebase", "git_stack",
-                        "git_publish")
+                        "git_publish", "gh_pr_meta", "gh_pr_meta_apply")
 PROJECT_WRITES = (
     "github_project_create", "github_project_field_ensure", "github_project_item_add",
     "github_project_item_set", "github_project_item_note", "github_project_item_promote",
