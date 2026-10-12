@@ -53,10 +53,10 @@ Where a file sits is its status. There is no job record, state file or log.
   file counts and bytes match, and delete the job's draft directory. Unassigned work
   gets its owning Group chosen at promotion; the root has no canonical surface.
 - **A draft that remains is work not yet promoted.** Deleting a draft without
-  promotion also needs the user's OK. The `workspace_drafts` tool (`/drafts`,
-  `ws-drafts` in a shell) lists every draft with its age, size and flags
-  (`stale`, `misnamed`, `legacy`); it only reads. `/drafts inbox` lists what
-  waits in `.inbox/` (never a draft), stale once a file has waited 7 days.
+  promotion also needs the user's OK. Before the `workspace_drafts`
+  inventory, read `skill_view(name="workspace-drafts:workspace-drafts")`. The
+  tool and the `/drafts` command only read; incoming `.inbox/` material is not
+  a draft.
 - Deliver from the draft with a bare `MEDIA:/abs/path` line.
 - The earlier layout (`.scratch/`, `.deliverables/`, `.notes/` at the root and
   `.agent/{scratch,deliverables,notes}/` in Groups) is retired: never start work
