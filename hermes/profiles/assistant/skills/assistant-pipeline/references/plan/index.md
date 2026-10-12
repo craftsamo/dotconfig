@@ -19,12 +19,17 @@ answer). Plan conversationally, backward from the goal:
    further.
 4. **Present one plan** — deliverable, capability route, stages with
    tiers, rough cost/time, and the grants it needs (Budget / Authority /
-   Publish), in the persona's voice, sized to a phone screen. Present
-   alternatives only when a real tradeoff exists.
+   Publish), in the persona's voice. Keep the technical detail to a phone
+   screen, but never round away what changes for people: what they can do,
+   see or keep is shown in full. Present alternatives only when a real
+   tradeoff exists.
 5. **One approval** — a single `clarify` (approve / adjust). The user's
    approval sanctions the named grants as planned.
    Small obvious jobs (one asset, one fix, clear spec) skip the ceremony:
-   state what you're about to do and proceed unless stopped.
+   state what you're about to do and proceed unless stopped. A new product
+   or a build of several PRs is the exception: engineering agrees it in
+   stages and approves each Phase before its build
+   (`plan-assistant-engineering`).
 
 Do not repeat approval of the same plan. This does not waive a capability's
 later exact-proposal, preview, upload or Publish gate, or authorize an
@@ -56,7 +61,7 @@ entry whose full instructions are already available.
 
 | Capability | File | Owns |
 | --- | --- | --- |
-| engineering | [plan-assistant-engineering](../../plan-assistant-engineering/SKILL.md) | Client outcome/constraints, OpenCode plan-run proposal, implementation approval |
+| engineering | [plan-assistant-engineering](../../plan-assistant-engineering/SKILL.md) | The user's intent relayed to OpenCode, its proposals relayed back, the decision log, approval per Phase |
 | creative | [plan-assistant-creative](../../plan-assistant-creative/SKILL.md) | Client outcome, optional reference research, grants and acceptance criteria; Creator proposes directions and the hands produce |
 | writing | [plan-assistant-writing](../../plan-assistant-writing/SKILL.md) | type decisions, unit decomposition (outline / piece), sources |
 | research | [plan-assistant-research](../../plan-assistant-research/SKILL.md) | purpose and constraints through the primary Client; Researcher proposal and agreement |
