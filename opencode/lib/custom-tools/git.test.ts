@@ -1152,6 +1152,84 @@ describe("git_stack", () => {
     expect(stackTool(f, { action: "rebase" }, [view("feat", ["x/l1", "feat"])]).error).toContain("origin/someone-else")
   })
 
+  describe("plain branches", () => {
+    const noStack = { re: "^stack view", code: 1 }
+    const sha = (f: Fixture, ref: string) => f.git("rev-parse", ref).trim()
+
+    test("preview a plain branch as one layer on the default branch", () => {
+      const f = repo()
+      threeCommits(f)
+      const out = preview(f, [noStack, repoView, noPRs]).out
+      expect(out).toMatchObject({ mode: "plain", base: "main", current: "feat", refusals: [] })
+      expect(out.layers.map((l: any) => [l.branch, l.push, l.base, l.commits.count])).toEqual([["feat", "create", "main", 3]])
+    })
+
+    test("takes an explicit base that exists on origin, and refuses one that does not", () => {
+      const f = repo()
+      threeCommits(f)
+      f.git("push", "-q", "origin", "main:refs/heads/develop")
+      const out = runWithFakeGh(f, { module: "git", name: "publish_preview", args: { base: "develop" } }, [noStack, repoView, noPRs]).out
+      expect(out).toMatchObject({ mode: "plain", base: "develop", refusals: [] })
+      const missing = runWithFakeGh(f, { module: "git", name: "publish_preview", args: { base: "nowhere" } }, [noStack, repoView, noPRs]).out
+      expect(missing.refusals.map((r: any) => r.rule)).toContain("base")
+      expect(runWithFakeGh(f, { module: "git", name: "publish_preview", args: { base: "--upload-pack=x" } }, [noStack]).error).toContain("not a branch name")
+    })
+
+    test("refuses publishing the default branch itself", () => {
+      const f = repo()
+      threeCommits(f)
+      f.git("checkout", "-q", "main")
+      expect(preview(f, [noStack, repoView, noPRs]).out.refusals.map((r: any) => r.rule)).toContain("default-branch")
+    })
+
+    test("submits one PR on the base and never links a plain branch", () => {
+      const f = repo()
+      threeCommits(f)
+      const created = { number: 8, headRefName: "feat", baseRefName: "main", isDraft: false, url: "u8", isCrossRepository: false, autoMergeRequest: null }
+      const rules = [
+        noStack,
+        repoView,
+        { re: "^pr list --repo o/r --state open", out: "[]", times: 1 },
+        { re: "^pr list --repo o/r --state open", out: JSON.stringify([created]) },
+        { re: "^api repos/o/r/branches/feat --jq", out: sha(f, "feat") },
+        { re: "^pr create --repo o/r --base main --head feat --title Plain change --body-file ", out: "https://github.com/o/r/pull/8\n" },
+        { re: "^api ", out: "null" },
+      ]
+      const { token } = preview(f, [noStack, repoView, noPRs]).out
+      const res = publish(f, { action: "submit", token, prs: [{ branch: "feat", title: "Plain change", body: "Why" }] }, rules)
+      expect(res.out).toMatchObject({ published: true, nativeStack: null })
+      expect(res.out.layers[0]).toMatchObject({ pushed: true, pr: { number: 8, base: "main" } })
+      expect(res.calls.some((c) => c.startsWith("stack link"))).toBe(false)
+    })
+
+    test("retargets an existing PR's base only when the preview showed it, and pins the base in the token", () => {
+      const f = repo()
+      threeCommits(f)
+      f.git("push", "-q", "origin", "main:refs/heads/develop")
+      f.git("push", "-q", "origin", "feat")
+      const existing = { number: 4, headRefName: "feat", baseRefName: "main", isDraft: true, url: "u4", isCrossRepository: false, autoMergeRequest: null }
+      const listed = { re: "^pr list --repo o/r --state open", out: JSON.stringify([existing]) }
+      const kept = preview(f, [noStack, repoView, listed]).out
+      expect(kept).toMatchObject({ base: "main" })
+      expect(kept.retarget).toBeUndefined()
+      const moved = runWithFakeGh(f, { module: "git", name: "publish_preview", args: { base: "develop" } }, [noStack, repoView, listed]).out
+      expect(moved).toMatchObject({ base: "develop", retarget: { from: "main", to: "develop" } })
+
+      const rules = [
+        noStack,
+        repoView,
+        listed,
+        { re: "^api repos/o/r/branches/feat --jq", out: sha(f, "feat") },
+        { re: "^pr edit 4 --repo o/r --base develop$", out: "" },
+        { re: "^api ", out: "null" },
+      ]
+      expect(publish(f, { action: "submit", token: moved.token }, rules).error).toContain("changed since the preview")
+      const res = publish(f, { action: "submit", token: moved.token, base: "develop" }, rules)
+      expect(res.calls).toContain("pr edit 4 --repo o/r --base develop")
+      expect(res.calls.some((c) => c.startsWith("pr create") || c.startsWith("pr ready"))).toBe(false)
+    })
+  })
+
   test("links PR numbers only, always on the default branch", () => {
     const f = repo()
     threeCommits(f)

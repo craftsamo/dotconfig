@@ -177,9 +177,10 @@ ask by its exact text (`git push --force-with-lease origin
 HEAD:refs/heads/<branch>`, optionally with `--force-if-includes`;
 `policy.lease_pushes`): a full destination, which push config cannot remap.
 A build prefers a native stack for a PR whose work splits into reviewable
-layers, through three tools: `git_stack` (split, add, rebase; local branches
-only) runs without asking like `git_rebase`, `git_publish_preview` only reads
-and is open to every run, and `git_publish` (push, submit, link) asks through
+layers, and publishes every PR, plain or stacked, through three tools:
+`git_stack` (split, add, rebase; local branches only) runs without asking like
+`git_rebase`, `git_publish_preview` only reads and is open to every run, and
+`git_publish` (push, submit, link) asks through
 the person's global rules (a session rule would reopen the deny a read-only
 subagent sets itself) and publishes only the exact state the preview's token
 pinned. In a write run every

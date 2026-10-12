@@ -77,11 +77,12 @@ fork?, timeout?, output_dir?)`; build also takes `approval` and
   It rebases its task branch onto the latest base before each push and may
   amend or fix up its own commits; its tools refuse the default branch, shared
   commits and protected branches. When its work splits into reviewable
-  layers it opens a native GitHub stack of PRs instead of one PR; publishing
-  that stack arrives as a `git_publish` request (push, submit or link).
-  The request carries only a preview token: approve it against the
-  `git_publish_preview` the build reported (each layer, its commits, its PR and
-  whether it is force-pushed), and ask for that preview first if it did not.
+  layers it opens a native GitHub stack of PRs instead of one PR. Publishing a
+  PR, plain or stacked, arrives as a `git_publish` request (push, submit or
+  link). The request carries only a preview token: approve it against the
+  `git_publish_preview` the build reported (the base, each layer, its commits,
+  its PR and whether it is force-pushed), and ask for that preview first if it
+  did not.
   Pushes (a rebased
   branch's `git push --force-with-lease origin HEAD:refs/heads/<task branch>`,
   `git_publish` and `gh stack push` included), shell history rewrites, branch moves, package

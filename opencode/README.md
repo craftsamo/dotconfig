@@ -42,9 +42,10 @@ editor, folding fixups; stops with a conflict map), `git_stage_hunks`,
 `git_conflicts`, `git_verify_commits` (each commit in a scratch worktree; asks
 every call), `git_worktree`, `git_stack` (a native GitHub stack's local side
 over `gh stack`: split a branch into layers, add one, rebase),
-`git_publish_preview` (read-only: what publishing would do, pinned in a token)
-and `git_publish` (asks: pushes, submits or links exactly the previewed
-stack, then re-reads each layer), and the read-only
+`git_publish_preview` (read-only: what publishing a plain branch or a stack
+would do, pinned in a token) and `git_publish` (asks: pushes, opens or
+updates PRs, or links exactly the previewed branch or stack, then re-reads
+each layer), and the read-only
 history and lint helpers.
 Rewrites follow one rule (`git/rewrite.ts`, also behind `git_amend_check`): a
 task branch's own commits may be rewritten even once pushed (the result says
