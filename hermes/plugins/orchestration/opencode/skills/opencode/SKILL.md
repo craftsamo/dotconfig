@@ -188,21 +188,26 @@ its own resource, and the one that needs you is often the last (`kill`,
 `rm`, `git push`): judge them all before answering. A notification shortens
 them; where it says `complete: false`, read the request with `list` first.
 
-`opencode_request(action="reply", session_id, request_id, …)`:
+`opencode_request(action="reply", session_id, replies=[{request_id, …}, …])`
+answers every pending request in one call (`request_id` alone answers one); all
+replies are checked before any is sent. The result is the run's next state when
+it comes within a few seconds (often the next request), so answer that in the
+same way rather than waiting for a notification.
 
 - A permission inside the user's approved scope → `decision: "once"`. Outside
   it or unclear → `decision: "reject"` with a short `reason` OpenCode can act
   on, then take the decision to the user if the work needs it.
-- A question: answer it with `answer: {field: value}` when it is an in-scope
-  technical choice you can settle; relay a decision that changes outcome, scope,
-  cost or public behavior to the user first. `decision: "reject"` declines it.
+- A question: a technical choice goes back as the run's own call
+  (`answer` that it decides and states the choice in its report). Relay to the
+  user, first, only a decision about what people can do or see, what is stored,
+  cost or anything irreversible, and pass their answer back in their words.
+  `decision: "reject"` declines it.
 
 There is no broader approval: `always` would save a project-wide rule the
 person's own sessions inherit. If the same in-scope request keeps coming, say
-in the next message how to avoid it: usually a prefixed or wrapped command
-(above), an inline interpreter where a project script exists, or a server the
-run starts and stops by hand. A request stays pending until answered,
-and the run waits meanwhile.
+so once with `opencode_instructions` (for example: use the read and grep tools
+instead of `cat`/`grep`, run the project script instead of `node -e`). A
+request stays pending until answered, and the run waits meanwhile.
 
 ## Results
 
