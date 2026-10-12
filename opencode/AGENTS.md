@@ -58,14 +58,20 @@ and report it.
 <PlanHandoff>
 
 When a plan is aligned in Plan mode, publish a conversation task list shaped
-`Phase{N}.{m} - <task> (executor)` — Phase = dependency wave, {m} = reference
-id within the phase (no ordering implied), executor = Build | worker |
-reviewer | verifier | debugger (default Build; worker only for
-mechanical work).
+`Phase{N}.{m} - <task> (executor)`, executor = Build | worker | reviewer |
+verifier | debugger (default Build; worker only for mechanical work). When
+the work ends in pull requests, Phase N is one reviewable layer: one PR, or one
+layer of a native stack when there are several (git-pullrequest), in stack
+order; {m} are the steps inside it, each ending in a verified checkpoint
+commit. Work that ends in no PR keeps Phase = dependency wave, {m} = reference
+id within the phase (no ordering implied). Do not hide a layer's substance in
+one line: a step names what it delivers.
 
 OpenCode V2 has no native Todo tool. Do not claim to have registered todos or
 create local TODO/plan files to simulate it. Keep the execution queue in the
 conversation; durable cross-session work belongs on GitHub Projects when asked.
+The one exception: a Hermes-driven run whose operating note names a
+`progress.md` keeps the steps there as that note says.
 Ask the user to switch to Build; never switch automatically or start executing
 while still in Plan. Build executes phases in order, delegates per the executor
 tag, and updates the conversation list with pending, in-progress, completed,

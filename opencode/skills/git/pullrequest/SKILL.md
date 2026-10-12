@@ -101,6 +101,9 @@ cross-repo or private refs may not resolve; solo repos surface few Issues.
 
 Prefer a native GitHub stack whenever the work splits into reviewable layers;
 one plain PR is the fallback, not the default. Decide before Step 4.
+When the work was planned in Phases, each Phase is one layer, in stack order,
+and its Phase{N}.{m} steps are that layer's commits: a cut the plan already
+agreed needs no second proposal.
 
 - **Always stack** when the branch builds on an unmerged PR of the same
   repository: adopt that PR's branch and add a layer (<StackedPRs>), never

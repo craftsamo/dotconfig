@@ -37,10 +37,13 @@ Non-trivial work runs through this spine; do not jump straight to edits:
    stated needs further decomposition. Persist durable or cross-session plans
    via `approach-github-projects`, not local TODO files.
 5. Hand off to execution: publish the agreed plan as a conversation
-   task list shaped `Phase{N}.{m} - <task> (executor)` — Phase is the
-   dependency wave, {m} a reference id within the phase (no ordering implied),
-   executor one of Build | worker | reviewer | verifier | debugger (default
-   Build; worker only for mechanical work). V2 has no native Todo tool; do not
+   task list shaped `Phase{N}.{m} - <task> (executor)` — each sub-goal is a
+   Phase, one reviewable PR (one layer of a native stack when there are
+   several, in stack order), and {m} are its commit-sized steps; executor one
+   of Build | worker | reviewer | verifier | debugger (default Build; worker
+   only for mechanical work). For a sub-goal that adds screens or stored data,
+   agree what people can do, the screens and the data with the user before its
+   steps; a mock or diagram beats prose there. V2 has no native Todo tool; do not
    create local TODO/plan files to simulate it. Ask the user to switch to
    Build; do not switch automatically or execute until the user switches.
    Build executes phases in order, delegates according to the tag, and updates
