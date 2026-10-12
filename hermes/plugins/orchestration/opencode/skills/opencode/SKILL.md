@@ -100,6 +100,12 @@ fork?, timeout?, output_dir?)`; build also takes `approval` and
   ("run a review pass", "deep review <area>") when an increment is risky, a
   checkpoint commit of verified work, `web_ui_check` for a page change
   (OpenCode's tool; it writes into `output_dir`).
+- Permission rules match each command as written, and every unmatched one
+  pauses the run for you. So never tell a run to write commands with a
+  `NAME=value` prefix, a status wrapper (`…; exit "$status"`) or a launcher
+  (`npx`, `mise exec`): name the target as the program's own option instead
+  (`gh -R owner/repo …`, a script's flag). The operating note tells the run the
+  same.
 - Never start a second turn on a session that is still running: wait, steer or
   interrupt it.
 
@@ -166,7 +172,10 @@ runner, an Issue write without the grant, a subagent command outside its
 allowlist) or a question the agent would put to a person.
 `opencode_request(action="list", session_id)` shows each pending item with its
 `kind`, `id`, whether a subagent asked, and its action and resources or its
-fields and options.
+fields and options. A shell request names every simple command of a chain as
+its own resource, and the one that needs you is often the last (`kill`,
+`rm`, `git push`): judge them all before answering. A notification shortens
+them; where it says `complete: false`, read the request with `list` first.
 
 `opencode_request(action="reply", session_id, request_id, …)`:
 
@@ -179,7 +188,9 @@ fields and options.
 
 There is no broader approval: `always` would save a project-wide rule the
 person's own sessions inherit. If the same in-scope request keeps coming, say
-in the next message how to avoid it. A request stays pending until answered,
+in the next message how to avoid it: usually a prefixed or wrapped command
+(above), an inline interpreter where a project script exists, or a server the
+run starts and stops by hand. A request stays pending until answered,
 and the run waits meanwhile.
 
 ## Results
@@ -188,7 +199,8 @@ A run call returns at once with the current state. While that state is
 `running`, a notification arrives at the run's next stop (finished, waiting,
 unknown) or, after 20 minutes without one, as a heartbeat (`running`,
 `timed_out`); a state that is already final or paused comes with no
-notification. A notification is a summary: `status`, `pending` ids,
+notification. A notification is a summary: `status`, `pending` requests with
+their commands shortened,
 `result_head` (the reply's beginning) and `next`. Read `opencode_session status`
 for the full result before you report or accept anything. Every `status` or
 `wait` that finds the run still `running` starts the next notifier (one per

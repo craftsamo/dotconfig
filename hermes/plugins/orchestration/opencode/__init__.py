@@ -67,6 +67,13 @@ READ_ONLY_NOTE = (
     "This run is read-only. Prefer the read, grep and glob tools to shell commands. Every inline "
     "interpreter (`python3 -c`, `node -e`), pipe, chain or unlisted command waits for Hermes to approve "
     "it, one round trip each, so plan the checks you need and batch them into as few commands as possible.")
+# Permission rules match each simple command as written, so a prefix or wrapper turns an
+# allowed command into one that waits for Hermes.
+SHELL_NOTE = (
+    "Permission rules match each command as written. Write a command as its plain program and arguments: "
+    "no `NAME=value` prefix (pass the setting as the program's own flag or option, such as `gh -R owner/repo`), "
+    "no status wrapper (`…; exit \"$status\"`, `result=$?`), and no launcher around a command already on PATH "
+    "(`npx`, `mise exec`). Run the project's own scripts for checks rather than inline code.")
 SETTLE_AFTER_INTERRUPT = 20
 # A notifier hands back at the run's next stop, else after this long as a heartbeat
 # ("still running"); the caller's next status read starts the next one.
@@ -78,6 +85,10 @@ NOTIFY_POLL = 15
 # boundary, so a notification stays below that and spans several lines.
 NOTICE_LIMIT = 1800
 NOTICE_RESULT = 900
+# Each pending request's commands, shortened: three requests stay well inside NOTICE_LIMIT.
+NOTICE_RESOURCE = 160
+NOTICE_REQUEST = 360
+NOTICE_TITLE = 100
 MESSAGE_LIMIT = 100000
 STEER_LIMIT = 20000
 LIST_PAGES = 5
@@ -192,7 +203,7 @@ def _prompt(role, message, approval, issue_approval, output=None):
 
 
 def _instructions(role):
-    text = DEFAULT_NOTE + (" " + READ_ONLY_NOTE if role["policy"] == "read-only" else "")
+    text = DEFAULT_NOTE + " " + SHELL_NOTE + (" " + READ_ONLY_NOTE if role["policy"] == "read-only" else "")
     return text + (("\n\n" + role["note"]) if role.get("note") else "")
 
 
@@ -342,14 +353,20 @@ def _launch_notifier(home, sid, task_id):
 
 def _notifier_running(home, sid):
     """Whether a notifier for this run is already alive in Hermes' own process registry
-    (read, never recorded here), so a status read does not start a second one."""
+    (read, never recorded here), so a status read does not start a second one.
+
+    The registry offers no public lookup by full command (`list_sessions` cuts it
+    before the session id), so this reads `_any_running`, which also refreshes a
+    detached process that already ended. If upstream renames it, every status read
+    would start another notifier; that is logged rather than passing silently."""
     tail = " " + shlex.join(["notify", str(home), sid])
     try:
         from tools.process_registry import process_registry
-        running = list(getattr(process_registry, "_running", {}).values())
-    except Exception:
+        probe = process_registry._any_running
+    except Exception as exc:
+        _diagnose(home, sid, f"warn registry unreadable ({type(exc).__name__}); notifier detection off")
         return False
-    return any(not getattr(s, "exited", True) and str(getattr(s, "command", "")).endswith(tail) for s in running)
+    return probe(lambda s: str(getattr(s, "command", "")).endswith(tail))
 
 
 NOTIFIER_NOTE = (f"A notification follows at the run's next stop, or after {NOTIFY_LIMIT // 60} minutes as a "
@@ -945,10 +962,33 @@ NEXT = {
     "completed": "Read opencode_session status for the full result and changes before reporting.",
     "failed": "Read opencode_session status for the error and changes before reporting.",
     "interrupted": "Read the diff and worktree before continuing on the same session.",
-    "waiting": "Answer each pending request with opencode_request (opencode_request list shows details).",
+    "waiting": ("Answer each pending request with opencode_request after judging every command it names; "
+                "where complete is false, read them in full with opencode_request list first."),
     "running": "Heartbeat: still running. opencode_session status reads it and starts the next notifier.",
     "unknown": "Read opencode_session status, diff and messages before any further turn.",
 }
+
+
+def _shown_resources(resources):
+    """A request's resources as the notice carries them: each one, shortened, within a
+    per-request budget; what did not fit is counted so the caller knows to read
+    `opencode_request list` before answering."""
+    shown, used = [], 0
+    for resource in resources:
+        text = str(resource)
+        cut = text[:NOTICE_RESOURCE] + ("…" if len(text) > NOTICE_RESOURCE else "")
+        # Measured as it is encoded: quotes, backslashes and newlines grow in JSON.
+        size = len(json.dumps(cut, ensure_ascii=False))
+        if shown and used + size > NOTICE_REQUEST:
+            break
+        shown.append(cut)
+        used += size
+    out = {"resources": shown} if shown else {}
+    if len(shown) < len(resources):
+        out["resources_more"] = len(resources) - len(shown)
+    if any(s.endswith("…") for s in shown) or "resources_more" in out:
+        out["complete"] = False
+    return out
 
 
 def _notice(record):
@@ -961,8 +1001,11 @@ def _notice(record):
     if isinstance(keep.get("error"), str):
         keep["error"] = keep["error"][:300]
     if record.get("pending"):
-        keep["pending"] = [{**{k: p[k] for k in ("kind", "id", "action", "title") if p.get(k)},
-                            **({"resource": str(p["resources"][0])[:120]} if p.get("resources") else {})}
+        # Every resource, not just the first: in a compound command the part that needs
+        # approval is often the last one, and a caller must never approve on a head alone.
+        keep["pending"] = [{**{k: p[k] for k in ("kind", "id", "action") if p.get(k)},
+                            **({"title": str(p["title"])[:NOTICE_TITLE]} if p.get("title") else {}),
+                            **_shown_resources(p.get("resources") or [])}
                            for p in record["pending"][:3]]
         if len(record["pending"]) > 3:
             keep["pending_more"] = len(record["pending"]) - 3
@@ -983,6 +1026,9 @@ def _notice(record):
     essential = {k: keep[k] for k in ("session_id", "status", "outcome", "timed_out", "next") if k in keep}
     if keep.get("pending"):
         essential["pending_ids"] = [p.get("id") for p in record["pending"][:20]]
+        # The commands did not fit: say so, so no request is answered on its id alone.
+        essential["complete"] = False
+        essential["next"] = "The commands did not fit: read them with opencode_request list before answering any."
     return json.dumps(essential, ensure_ascii=False, indent=1)
 
 
