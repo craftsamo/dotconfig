@@ -55,8 +55,11 @@ reopen decisions the user did not question.
    sound.
 4. Turn the feedback into a few changes, each at a position: a storyboard beat,
    or a time and frame. For each, say what is seen there now and the named
-   change, using vocabulary names, not adjectives. When the feedback can mean
-   two different things, offer both as alternatives for the user to pick.
+   change, using vocabulary names, not adjectives. A feel word in the feedback
+   (「もっと弾む感じ」, 「重すぎる」, "too stiff") is matched through the motion
+   vocabulary's Feel column to an entry, and the change quotes that entry's
+   tell as what the viewer will see instead. When the feedback can mean two
+   different things, offer both as alternatives for the user to pick.
 5. Mark any change that alters what a storyboard approval covered (beats,
    timing, copy, audio plan) as needing a new approval; a look-only change does
    not.

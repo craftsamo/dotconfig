@@ -64,8 +64,12 @@ return one `Q<n>:` block instead of guessing.
 5. Write the draft handoff for each: the leaf, real form fields only, the
    direction in existing fields (`style`, `theme`, `direction`, `what_for`) and
    `note`, with named techniques from the vocabulary rather than generic "fade"
-   or "clean". For authored video, the direction names techniques and pacing in
-   words; the producer writes the storyboard.
+   or "clean". Give each named motion its tell from the motion vocabulary in
+   a short clause (for a heavy stop, "the squash only at arrival"), so the
+   producer cannot fall back to a generic move; a feel the client describes
+   (なめらか, きびきび, やわらかい, 重い, 弾む) is matched through the Feel column. For
+   authored video, the direction names techniques and pacing in words; the
+   producer writes the storyboard.
 
 Do not propose research or several concepts for a request whose look is
 already settled; say so and return the single handoff instead.
