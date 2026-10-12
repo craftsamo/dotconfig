@@ -75,6 +75,10 @@ class AuditMotionVocabularyTest(unittest.TestCase):
             errors = AUDIT.audit(root, None, [source])["errors"]
             self.assertTrue(any("shares wording with the source" in e for e in errors), errors)
 
+    def test_shared_easing_numbers_are_not_wording(self) -> None:
+        curve = "ease cubic-bezier(0.34, 1.56, 0.64, 1) over 400 ms"
+        self.assertEqual(set(), AUDIT.shingles(curve) & AUDIT.shingles("uses " + curve))
+
     def test_web_catalog_must_match_vocabulary_names_and_aliases(self) -> None:
         with TemporaryDirectory() as tmp:
             root = Path(tmp)

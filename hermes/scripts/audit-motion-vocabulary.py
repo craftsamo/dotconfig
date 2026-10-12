@@ -86,8 +86,10 @@ def words(text: str) -> list[str]:
 
 
 def shingles(text: str, n: int = 8) -> set[str]:
+    """Runs of n words; runs that are mostly numbers (a shared easing curve) are not wording."""
     w = words(text)
-    return {" ".join(w[i:i + n]) for i in range(len(w) - n + 1)}
+    runs = (w[i:i + n] for i in range(len(w) - n + 1))
+    return {" ".join(r) for r in runs if sum(t.isdigit() for t in r) * 2 < n}
 
 
 def audit(root: Path, web: Path | None, sources: list[Path]) -> dict:
