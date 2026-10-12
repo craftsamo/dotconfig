@@ -139,9 +139,13 @@ every subagent session copies its parent's ruleset. So the
 session ruleset (`policy.rules`) owns each run's constraints for the whole
 session tree, and it is applied after a subagent's own posture. It holds
 denies, asks and narrow allows: the worktree boundary (`external_directory`
-asks), secrets unreadable, pushes, shell history rewrites, branch moves
-(`gh pr checkout` and the person's `gh` aliases included), package runners and
-ungranted Issue writes as asks, the hard denies (force and protected-branch
+asks; OpenCode's read-only reference clones under its data `repos/` readable),
+secrets unreadable, pushes, shell history rewrites, branch moves
+(`gh pr checkout` and the person's `gh` aliases included), package downloaders
+(`npm exec`, `pnpm dlx`; `pnpm exec` runs only installed tools and is left to
+the person's agent rules), anything naming `deploy`, `publish`, `secret`,
+`--remote` or `--prod` (a project's task runner can reach those past every other
+rule; a best-effort list) and ungranted Issue writes as asks, the hard denies (force and protected-branch
 pushes, merges, `gh api`, Project writes, git config, remote rewrites, `gh`
 aliases and extensions, edits under `.git/`), and last the person's own denies
 read from the built-in `build` agent, so a broad allow never reopens `sudo` or

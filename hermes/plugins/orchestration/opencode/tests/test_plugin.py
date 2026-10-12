@@ -1145,7 +1145,7 @@ def test_session_ruleset_holds_no_broad_allow_but_worktree_edits():
     posture, so an allow here would reopen what a subagent denies itself. The one
     exception is a write run's edits inside its worktree."""
     scratch, readable = policy.directories("/tmp/fake-opencode")
-    narrow = set(scratch + readable) | set(policy.SAMPLE_READS) | set(policy.STACK_READS)
+    narrow = set(scratch + readable + policy.references()) | set(policy.SAMPLE_READS) | set(policy.STACK_READS)
     for kind in config.POLICIES:
         for issue in (None, "granted"):
             rules = policy.rules(kind, issue, {"main"}, tmp="/tmp/fake-opencode", branch="topic")
@@ -1310,6 +1310,11 @@ def test_write_asks_for_person_gated_commands_and_keeps_person_denies():
         expected = "allow" if command.startswith(("git -C .. status", "gh stack view")) else "ask"
         assert policy.decide(combined, "shell", command) == expected, command
     assert policy.decide(combined, "shell", "pytest -q") == "allow"
+    assert policy.decide(combined, "shell", "pnpm exec prettier --check src") == "allow", \
+        "pnpm exec runs only what the project installed: the person's rules decide"
+    for command in ("nps deploy.web", "pnpm exec wrangler deploy", "wrangler d1 execute DB --remote --command x",
+                    "pnpm dlx create-x"):
+        assert policy.decide(combined, "shell", command) == "ask", command
     assert policy.decide(combined, "shell", "gh stack checkout fix/merge-order") == "ask"
     unbound = fakes.agent_info("build")["permissions"] + policy.rules("write", None, {"main"}, branch="main")
     assert policy.decide(unbound, "shell", "git push --force-with-lease origin HEAD:refs/heads/main") == "deny", \
@@ -1318,6 +1323,15 @@ def test_write_asks_for_person_gated_commands_and_keeps_person_denies():
     assert policy.decide(combined, "edit", "src/a.py") == "allow"
     assert policy.decide(rules, "external_directory", "/secret/x/*") == "deny"
     assert policy.decide(rules, "external_directory", "/tmp/fake-opencode/*") == "allow"
+    cache = Path.home() / ".local/share/opencode/repos/github.com/o/starter@main/README.md"
+    assert policy.decide(rules, "external_directory", str(cache)) == "allow", "reference clones are readable"
+    assert policy.decide(rules, "edit", str(cache)) == "deny", "and never edited"
+    assert policy.decide(rules, "edit", str(cache.with_name(".env.example"))) == "deny", "not even a sample file"
+    walled = policy.rules("write", None, {"main"}, person_denies=[
+        {"action": "external_directory", "resource": f"{Path.home()}/.local/share/opencode/*", "effect": "deny"}])
+    assert policy.decide(walled, "external_directory", str(cache)) == "deny", "the person's outside-path deny wins"
+    for command in ("pnpm exec wrangler secret put TOKEN", "pnpm run publish:docs", "pnpm exec vercel --prod"):
+        assert policy.decide(combined, "shell", command) == "ask", command
     granted = policy.rules("write", "granted", {"main"}, tmp="/tmp/fake-opencode")
     assert policy.decide(fakes.agent_info("build")["permissions"] + granted, "shell", "gh issue comment 1") == "allow"
 
