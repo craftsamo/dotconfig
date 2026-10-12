@@ -50,7 +50,8 @@ Epic (parent issue) … the high-level requirement; tracking only
     │              (Requirements Draft→Fixed) and implementation outline
     └ Stack layer … one reviewable PR in the purpose's native GitHub stack;
        │            NOT an issue — its slice spec lives in the PR body
-       └ Commit … the steps inside that PR
+       │            (Phase N of the conversation task list)
+       └ Commit … the steps inside that PR (Phase N.m)
 ```
 
 There is deliberately **no work sub-issue tier**. A work issue and its PR
