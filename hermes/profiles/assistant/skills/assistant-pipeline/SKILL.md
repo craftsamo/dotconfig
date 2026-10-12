@@ -66,11 +66,13 @@ relaying a specialist's question that comes with options.
 Rules:
 
 - **One question at a time.** `clarify` enforces this; don't stack.
-- **Self-contained.** The user sees only your visible text and the
-  question — never your reasoning. A plan, draft or option set the
-  question refers to ("この計画で進めていい？") must already be sent as
-  visible text in this turn, or be inside the question itself. Drafting
-  it in your thinking does not show it.
+- **Material goes in `context`.** The user sees only your visible text and
+  the card — never your reasoning. A plan, draft, option set or file the
+  question refers to ("この計画で進めていい？") goes in that question's
+  `context`, written for the user: it is delivered right before the card,
+  `MEDIA:` files included. Files never ride in the reply text of a turn that
+  asks: they would arrive after the card. A question with nothing on screen
+  since the user last spoke and no `context` is refused.
 - Put your recommendation in the question text, not as a fifth option.
 - **Max 4 choices.** The auto "Other" covers free-text.
 - Plain chat only when informing, or when no meaningful preset options
