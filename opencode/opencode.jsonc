@@ -757,6 +757,12 @@
       "resource": "ps *",
       "effect": "allow"
     },
+    // Which process holds a port (a dev server a run started and must stop).
+    {
+      "action": "shell",
+      "resource": "lsof *",
+      "effect": "allow"
+    },
     {
       "action": "shell",
       "resource": "pgrep *",
@@ -1658,6 +1664,9 @@
       "resource": "secret keychain master reveal*",
       "effect": "deny"
     },
+    // A skill's permission resource is its id, the directory holding SKILL.md
+    // (`git/commit/SKILL.md` -> `commit`), not its frontmatter `name`
+    // (`git-commit`). A project config with a later `skill *` rule still wins.
     {
       "action": "skill",
       "resource": "*",
@@ -1673,9 +1682,30 @@
       "resource": "keychain-secrets",
       "effect": "allow"
     },
+    // skills/approach/*
     {
       "action": "skill",
-      "resource": "approach*",
+      "resource": "new-feature",
+      "effect": "allow"
+    },
+    {
+      "action": "skill",
+      "resource": "refactor",
+      "effect": "allow"
+    },
+    {
+      "action": "skill",
+      "resource": "rebuild-migration",
+      "effect": "allow"
+    },
+    {
+      "action": "skill",
+      "resource": "performance",
+      "effect": "allow"
+    },
+    {
+      "action": "skill",
+      "resource": "github-projects",
       "effect": "allow"
     },
     {
@@ -1688,9 +1718,15 @@
       "resource": "manage-github-projects",
       "effect": "allow"
     },
+    // skills/git/*
     {
       "action": "skill",
-      "resource": "git-*",
+      "resource": "commit",
+      "effect": "allow"
+    },
+    {
+      "action": "skill",
+      "resource": "pullrequest",
       "effect": "allow"
     },
     {

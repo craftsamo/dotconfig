@@ -942,13 +942,46 @@ def test_a_notification_fits_what_hermes_keeps_of_it():
         {"kind": "permission", "id": f"per_{n}x", "action": "shell", "resources": ["git log " + "x" * 500]}
         for n in range(5)]}))
     assert [p["id"] for p in paused["pending"]] == ["per_0x", "per_1x", "per_2x"] and paused["pending_more"] == 2
-    assert len(paused["pending"][0]["resource"]) == 120 and "opencode_request" in paused["next"]
+    assert len(paused["pending"][0]["resources"][0]) == plugin.NOTICE_RESOURCE + 1
+    assert paused["pending"][0]["complete"] is False and "opencode_request list" in paused["next"]
     beat = json.loads(plugin._notice({"session_id": "ses_1abc", "status": "running", "timed_out": True}))
     assert "Heartbeat" in beat["next"]
     crowded = plugin._notice({"session_id": "ses_1abc", "status": "waiting", "directory": "/" + "d" * 3000,
                               "pending": [{"id": "per_0x", "kind": "permission"}]})
     assert len(crowded) <= plugin.NOTICE_LIMIT and json.loads(crowded)["pending_ids"] == ["per_0x"], \
         "an oversized notice keeps what to do next, never a cut JSON"
+    assert json.loads(crowded)["complete"] is False and "opencode_request list" in json.loads(crowded)["next"]
+
+
+def test_a_paused_notice_names_every_command_of_a_request():
+    """The part of a compound command that needs approval is often not the first one:
+    the notice carries each, and says when it could not carry them all."""
+    chained = ["nps lint", "nps test > out.log", "printf 'exit=%s\\n' \"$s\"", 'kill -TERM -- -4242']
+    shown = json.loads(plugin._notice({"session_id": "ses_1abc", "status": "waiting", "pending": [
+        {"kind": "permission", "id": "per_1x", "action": "shell", "resources": chained}]}))
+    request = shown["pending"][0]
+    assert request["resources"] == chained and "complete" not in request and "resources_more" not in request
+    many = json.loads(plugin._notice({"session_id": "ses_1abc", "status": "waiting", "pending": [
+        {"kind": "permission", "id": "per_2x", "action": "shell", "resources": [f"cmd {n} " + "y" * 60
+                                                                               for n in range(20)]}]}))
+    request = many["pending"][0]
+    assert request["complete"] is False and request["resources_more"] == 20 - len(request["resources"])
+    assert sum(len(r) for r in request["resources"]) <= plugin.NOTICE_REQUEST
+    full = plugin._notice({"session_id": "ses_1abc", "status": "waiting", "pending": [
+        {"kind": "permission", "id": f"per_{n}x", "action": "shell", "resources": ["z" * 400] * 9}
+        for n in range(3)]})
+    assert len(full) <= plugin.NOTICE_LIMIT and all("resources" in p for p in json.loads(full)["pending"]), \
+        "three crowded requests still fit with their commands"
+    escaped = plugin._notice({"session_id": "ses_1abc", "status": "waiting", "pending": [
+        {"kind": "permission", "id": f"per_{n}x", "action": "shell", "title": "t" * 500,
+         "resources": ['printf "%s\\n" "a\\"b"\n' * 20] * 9} for n in range(3)]})
+    shown = json.loads(escaped)
+    assert len(escaped) <= plugin.NOTICE_LIMIT
+    if "pending" in shown:
+        assert all(len(p["title"]) == plugin.NOTICE_TITLE and p["complete"] is False for p in shown["pending"])
+    else:
+        assert shown["complete"] is False and "opencode_request list" in shown["next"], \
+            "commands that did not fit are flagged, never silently dropped"
 
 
 def test_the_notifier_logs_its_life_and_reports_its_own_failure(fixture, monkeypatch):
@@ -991,11 +1024,27 @@ def test_notifier_detection_reads_hermes_process_registry(monkeypatch, tmp_path)
     command = "/usr/bin/env python3 launch.py " + plugin.shlex.join(["notify", str(home), "ses_1abc"])
     live = types.SimpleNamespace(command=command, exited=False)
     gone = types.SimpleNamespace(command=command.replace("ses_1abc", "ses_2abc"), exited=True)
-    registry = types.SimpleNamespace(_running={"proc_1": live, "proc_2": gone})
+    sessions = [live, gone]
+    registry = types.SimpleNamespace(
+        _any_running=lambda predicate: any(not s.exited and predicate(s) for s in sessions))
     monkeypatch.setitem(sys.modules, "tools.process_registry", types.SimpleNamespace(process_registry=registry))
     assert plugin._notifier_running(home, "ses_1abc") is True
     assert plugin._notifier_running(home, "ses_2abc") is False
     assert plugin._notifier_running(home, "ses_1ab") is False
+    (home / "logs").mkdir(parents=True)
+    monkeypatch.setitem(sys.modules, "tools.process_registry",
+                        types.SimpleNamespace(process_registry=types.SimpleNamespace()))
+    assert plugin._notifier_running(home, "ses_1abc") is False
+    assert "registry unreadable" in (home / "logs/opencode-notifier.log").read_text(), \
+        "a renamed registry lookup is logged, not silently treated as 'no notifier'"
+
+
+def test_the_registry_lookup_the_notifier_detection_uses_exists_upstream():
+    """`_any_running` is private to Hermes' process registry: pin it against the real runtime."""
+    registry = pytest.importorskip("tools.process_registry")
+    probe = getattr(registry.process_registry, "_any_running", None)
+    assert callable(probe), "Hermes renamed ProcessRegistry._any_running: update _notifier_running"
+    assert probe(lambda s: False) is False
 
 
 def test_a_read_only_turn_that_wrote_no_report_leaves_its_reply_in_the_output_directory(fixture, tmp_path,
@@ -1056,6 +1105,8 @@ def test_read_only_runs_are_told_to_batch_their_commands(fixture):
     configure(home, "  roles:\n    plan: {agent: plan, policy: read-only}\n    build: {agent: build, policy: write}\n")
     run("build", session_id=sid, approval="Client: implement the plan")
     assert plugin.READ_ONLY_NOTE not in fake.entries[sid]["hermes.note"]
+    assert plugin.SHELL_NOTE in fake.entries[sid]["hermes.note"], \
+        "every run learns that a prefix or wrapper turns an allowed command into a wait for Hermes"
 
 
 def test_a_running_turn_is_polled_without_rereading_the_session_or_its_messages(fixture):
@@ -1124,6 +1175,11 @@ def test_session_ruleset_holds_no_broad_allow_but_worktree_edits():
                 assert policy.decide(rules, "shell", command) == "deny", (kind, command)
             assert policy.decide(rules, "github_project_item_add", "*") == "deny"
             assert policy.decide(rules, "git_worktree", "*") == "deny", "workspace owns worktrees"
+            # OpenCode reports `(exit) >/tmp/x` as the resource `exit` and checks no redirect
+            # target, so even a bare `exit` allow would approve a file write unseen.
+            project_ask = [{"action": "shell", "resource": "*", "effect": "ask"}]
+            for command in ("exit", "exit 1", 'exit "$status"', "exit >/tmp/x"):
+                assert policy.decide(project_ask + rules, "shell", command) == "ask", (kind, command)
 
 
 def test_never_approved_commands_stay_denied_however_spelled():

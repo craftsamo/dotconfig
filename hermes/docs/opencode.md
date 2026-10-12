@@ -72,8 +72,10 @@ OpenCode agent, a policy (`read-only` or `write`), and optionally a model
 tool; with no `roles` the four defaults apply (plan, review and debug
 read-only, build write). The agents are the person's own modes — there are no
 hidden primaries and no operating contract beyond a short `hermes.note`
-instruction entry (a read-only role's note also asks it to batch commands,
-since each unlisted one waits for the caller). Hermes sits in the person's seat: a question the agent asks
+instruction entry. Because rules match each command as written and every
+unmatched one waits for the caller, the note asks every run to write commands
+plainly (no `NAME=value` prefix, status wrapper or launcher such as `npx`), and
+a read-only role's note also asks it to batch commands. Hermes sits in the person's seat: a question the agent asks
 and a permission it needs arrive as `waiting` and are answered with
 `opencode_request`.
 
@@ -128,7 +130,8 @@ own fixed plan directory (`~/.opencode/plan`), so the model never tries, and
 widening Plan's own `edit` rules would change nothing. So when a read-only turn
 completes without its own edit tools touching the output directory, the plugin
 saves the turn's final reply there as `<worktree>-<role>-<turn>.md` and returns
-it as `report`; the file is the run's deliverable, never read back.
+it as `report`; the file is the run's deliverable, never read back (only its
+existence is checked, so a later status read does not write it twice).
 
 **Permissions.** OpenCode 2 evaluates ordered rules, last match wins: global
 config, then the agent's own `permissions`, then the session's ruleset; and
@@ -155,7 +158,10 @@ every turn) is capped by a test.
 The gated git writes, per-command configuration (`git -c`, `--config-env`)
 and branch moves ask in a write run and are denied in a read-only one, whose
 session rules hold denies only: a read-only agent may deny those itself, and
-an ask or allow there would reopen it. One deliberate exception: a `write` run allows `edit` in its
+an ask or allow there would reopen it. No shell builtin is allowed either,
+not even `exit`: OpenCode reports `(exit) >/tmp/x` as the resource `exit` and
+checks no redirect target, so an allow would approve a file write unseen; the
+operating note asks runs not to wrap commands in `exit` instead. One deliberate exception: a `write` run allows `edit` in its
 worktree. Without it every edit is a round trip to the caller; the cost is that
 a subagent that denies itself edits (explore) loses that denial for the run. The
 allow is placed before the edit denies for OpenCode's config/skill directories
@@ -220,9 +226,13 @@ already in the result, and a notifier would return it again at once. A
 notifier ends at the run's next stop or after 20 minutes as a heartbeat, so
 every `status` or `wait` that finds the run `running` starts the next one,
 unless Hermes' process registry shows one already watching that run; without
-that, a run that paused once or outlived a notifier went unwatched. Its
-output is a summary under 1,800 characters on several lines (status, pending
-ids, the reply's head, the next step), because Hermes shows only the last
+that, a run that paused once or outlived a notifier went unwatched. The
+registry has no public lookup by full command, so the check reads its private
+`_any_running`; a test pins it against the runtime, and if it disappears the
+notifier log records it rather than the check passing silently. Its
+output is a summary under 1,800 characters on several lines (status, each
+pending request with every command it names, shortened and marked
+`complete: false` when cut, the reply's head, the next step), because Hermes shows only the last
 ~2,000 characters of a notification snapped to a line, and a single long JSON
 line shows nothing; the caller reads the full state with `status`. It polls
 every 15 seconds and reads the session and its messages only when the run
