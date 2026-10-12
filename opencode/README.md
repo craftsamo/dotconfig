@@ -125,9 +125,9 @@ matching rule wins, and an agent's rules come after the global ones.
 
 `hidden: true` hides an agent from both interactive discovery and the model's
 subagent catalog; no agent here uses it, so the twelve specialist subagents
-are visible. Hermes drives the plan, build, review and debug primaries through
-the API like a person does. Visibility is not authorization: caller-specific
-permissions decide which specialists may run.
+are visible. Hermes drives the plan, build, review, debug and design primaries
+through the API like a person does. Visibility is not authorization:
+caller-specific permissions decide which specialists may run.
 
 - Plan allows read-only exploration, research, diagnosis, and review, but not
   `general`, `worker`, or `verifier` (which can apply formatters).
@@ -139,6 +139,10 @@ permissions decide which specialists may run.
   defense in depth rather than a sandbox. Worker, debugger and verifier reset
   shell to ask and restate the plain reads (`cat`, `head`, `tail`, `wc`, `ls`,
   `grep`, `rg`, `ps`) after it.
+- Design (`agents/design.md`) shows a person what a product will let them do
+  before it is planned: static HTML mocks and diagrams, self-contained so they
+  open offline from a chat. It reads the repository and writes only under a
+  `.agent/` drafts directory (under Hermes, exactly the run's output directory).
 - Plan and the built-in Explore explicitly deny edits, overriding the global
   `edit` ask rule. Plan retains its exception for `~/.opencode/plan/*`; writing a
   plan file still requires the user's explicit request.
