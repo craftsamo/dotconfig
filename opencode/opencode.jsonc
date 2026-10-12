@@ -158,11 +158,45 @@
           "resource": "reviewer-deep",
           "effect": "allow"
         },
+        // Personal allows restated per agent: see build.
+        { "action": "skill", "resource": "customize-opencode", "effect": "allow" },
+        { "action": "skill", "resource": "keychain-secrets", "effect": "allow" },
+        { "action": "skill", "resource": "new-feature", "effect": "allow" },
+        { "action": "skill", "resource": "refactor", "effect": "allow" },
+        { "action": "skill", "resource": "rebuild-migration", "effect": "allow" },
+        { "action": "skill", "resource": "performance", "effect": "allow" },
+        { "action": "skill", "resource": "github-projects", "effect": "allow" },
+        { "action": "skill", "resource": "resolve-dependabot-alerts", "effect": "allow" },
+        { "action": "skill", "resource": "manage-github-projects", "effect": "allow" },
+        { "action": "skill", "resource": "commit", "effect": "allow" },
+        { "action": "skill", "resource": "pullrequest", "effect": "allow" },
+        { "action": "skill", "resource": "japanese-*", "effect": "allow" },
+        { "action": "shell", "resource": "lsof *", "effect": "allow" },
       ],
     },
     "build": {
       "color": "#ff6f00",
       "model": "anthropic/claude-opus-5-5#medium",
+      // A project's top-level `skill *` / `shell *` catch-all comes after the
+      // global top-level rules and would re-ask what is allowed there; an
+      // agent's own rules come after every top-level rule. So the personal
+      // skill and read-only command allows are restated here (and in plan).
+      // review and debug keep their own ask-everything posture.
+      "permissions": [
+        { "action": "skill", "resource": "customize-opencode", "effect": "allow" },
+        { "action": "skill", "resource": "keychain-secrets", "effect": "allow" },
+        { "action": "skill", "resource": "new-feature", "effect": "allow" },
+        { "action": "skill", "resource": "refactor", "effect": "allow" },
+        { "action": "skill", "resource": "rebuild-migration", "effect": "allow" },
+        { "action": "skill", "resource": "performance", "effect": "allow" },
+        { "action": "skill", "resource": "github-projects", "effect": "allow" },
+        { "action": "skill", "resource": "resolve-dependabot-alerts", "effect": "allow" },
+        { "action": "skill", "resource": "manage-github-projects", "effect": "allow" },
+        { "action": "skill", "resource": "commit", "effect": "allow" },
+        { "action": "skill", "resource": "pullrequest", "effect": "allow" },
+        { "action": "skill", "resource": "japanese-*", "effect": "allow" },
+        { "action": "shell", "resource": "lsof *", "effect": "allow" },
+      ],
     },
     "explore": {
       // Global edit: ask must not turn read-only exploration into editing.
