@@ -129,6 +129,8 @@ touches, one check. The approval covers what the user saw, so the plan card
 you show is the scope Build is held to. Models are OpenCode's own defaults; name
 one in the plan only when you depart from it (an alternate after a limit error).
 
+Investigations that run several sessions at once (a survey of many
+repositories) report progress as the plugin skill's "Progress" section says.
 During the build, report only at four points, one line each: the build starts,
 a PR is done (say how many checks hold), it pauses for the user, QA is done. A deviation
 inside the approved scope is continued and mentioned afterwards; one that

@@ -73,8 +73,9 @@ user's chosen control.
    Respect an explicit narrower grant (local commit only, no push, one file):
    carry it in the message, still through the ordinary build tool, and verify
    it afterwards in Git.
-4. **Hand-backs.** Act on each completion notification that brings a new
-   state; one for a state you already read or reported is `[SILENT]`. Answer
+4. **Hand-backs.** Act on each notification that brings a new state; one for a
+   state you already read and reported is `[SILENT]`. Report progress as the
+   plugin skill's "Progress" section says. Answer
    pending requests through `opencode_request`: a permission inside the user's approved
    scope `once` (the task-branch push included, also as
    `git push --force-with-lease origin HEAD:refs/heads/<task branch>` after
