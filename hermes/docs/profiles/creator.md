@@ -74,6 +74,11 @@ the curated `media-craft-*` skills. One plain reference per served subject,
 its options, its boundary with neighbouring leaves and where its examples live.
 The validator requires exactly one per served subject.
 
+Motion is named from the vocabulary's names files, never its builds: a feel
+the client describes (なめらか, 弾む, "too stiff") is matched through the Feel
+column to an entry, and a direction or change gives that entry's tell, the
+detail that keeps the producer from a generic move.
+
 A direction only names what a served leaf can make. Technique names (GSAP,
 Three.js, shaders) appear only where the selected leaf supports them, such as
 an explicit `graphics: three-webgl2` option; missing runtime support is a named
