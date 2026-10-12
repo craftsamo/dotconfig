@@ -1,6 +1,6 @@
 # Specialist calls and work continuity
 
-How primaries open, continue and close conversations with specialists and hands
+How callers open, continue and close conversations with specialists and hands
 (`plugins/orchestration/specialist-call`), and what survives a failure. Read it
 before changing call, wait, cancel or deadline behavior. Part of the Hermes
 design docs — index: [`PROFILES.md`](../../PROFILES.md). Install/enable steps

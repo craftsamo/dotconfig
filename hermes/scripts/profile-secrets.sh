@@ -11,13 +11,12 @@
 #   1. `secret env -p global`               — shared web-search / tool keys
 #   2. `secret env -p hermes`               — shared model/provider keys.
 #      The messaging keys (TELEGRAM_*/DISCORD_*) parked there are the
-#      ASSISTANT's: assistant gets them unfiltered; the other bot profile
-#      (marketer) keeps only TELEGRAM_ALLOWED_USERS (the
-#      owner allowlist is shared) and drop the rest; non-bot profiles drop
-#      every messaging key
-#   3. `secret env -p hermes-<profile>`     — this bot's own TELEGRAM_BOT_TOKEN
-#      etc. (layer may not exist for non-bot profiles; that is fine). creator
-#      no longer runs a bot: messaging keys left in its old layer are dropped.
+#      ASSISTANT's, the only bot profile: assistant gets them unfiltered;
+#      every other profile drops every messaging key
+#   3. `secret env -p hermes-<profile>`     — the assistant's own
+#      TELEGRAM_BOT_TOKEN etc. (layer may not exist for other profiles; that
+#      is fine). Only the assistant runs a bot: messaging keys left in another
+#      profile's layer are dropped.
 #
 # assistant only: TELEGRAM_CRON_THREAD_ID is derived from the persisted Inbox
 # topic id in the assistant config (same awk as the old gateway launcher) so
@@ -55,27 +54,20 @@ emit_layer() { # $1 = project layer; missing layer is not an error
 # Hermes kills the helper at `helper_timeout_seconds` with NO retry: a
 # profile whose helper times out at startup has no bot token for the
 # whole process lifetime ("No bot token configured" is non-retryable).
-# Fetching the shared layer twice for the bot profiles is what pushed
-# the bot profiles past the budget.
+# Fetching the shared layer twice per profile is what pushed a bot
+# profile past the budget.
 emit_layer global
 HERMES_LAYER="$(emit_layer hermes)"
 case "$PROFILE" in
   assistant)
     printf '%s\n' "$HERMES_LAYER"
-    ;;
-  marketer)
-    printf '%s\n' "$HERMES_LAYER" | grep -v -E '^(TELEGRAM_|DISCORD_)' || true
-    printf '%s\n' "$HERMES_LAYER" | grep -E '^TELEGRAM_ALLOWED_USERS=' || true
+    emit_layer "hermes-$PROFILE"
     ;;
   *)
     printf '%s\n' "$HERMES_LAYER" | grep -v -E '^(TELEGRAM_|DISCORD_)' || true
+    emit_layer "hermes-$PROFILE" | grep -v -E '^(TELEGRAM_|DISCORD_)' || true
     ;;
 esac
-if [ "$PROFILE" = "creator" ]; then
-  emit_layer "hermes-$PROFILE" | grep -v -E '^(TELEGRAM_|DISCORD_)' || true
-else
-  emit_layer "hermes-$PROFILE"
-fi
 
 # A2A-serving profiles: the gateway authz gate reads A2A_ALLOWED_USERS from
 # the profile scope, and a localhost peer (no bearer token configured)

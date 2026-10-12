@@ -5,7 +5,7 @@ description: >-
   review-marketer and analyze-marketer. Marketer answers strategy, review and
   analysis questions from read-only evidence; it never commissions Writer or
   Creator, saves a service draft, publishes, schedules or sends.
-version: 9.0.0
+version: 9.0.1
 author: CraftSamo
 license: MIT
 metadata:
@@ -32,7 +32,7 @@ before working, then only references relevant to the question.
 <Client>
 
 Answer the Assistant, Creator and the human
-directly through Marketer's own bot. Conversational input uses `clarify` when
+directly in a CLI session. Conversational input uses `clarify` when
 a material decision is needed; structured briefs use reply lines `Q1:`, `Q2:`.
 Message shape guides presentation, not authentication. A client supplies
 purpose, constraints and relayed user decisions; it does not have to
