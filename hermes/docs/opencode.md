@@ -72,8 +72,10 @@ OpenCode agent, a policy (`read-only` or `write`), and optionally a model
 tool; with no `roles` the four defaults apply (plan, review and debug
 read-only, build write). The agents are the person's own modes — there are no
 hidden primaries and no operating contract beyond a short `hermes.note`
-instruction entry (a read-only role's note also asks it to batch commands,
-since each unlisted one waits for the caller). Hermes sits in the person's seat: a question the agent asks
+instruction entry. Because rules match each command as written and every
+unmatched one waits for the caller, the note asks every run to write commands
+plainly (no `NAME=value` prefix, status wrapper or launcher such as `npx`), and
+a read-only role's note also asks it to batch commands. Hermes sits in the person's seat: a question the agent asks
 and a permission it needs arrive as `waiting` and are answered with
 `opencode_request`.
 
@@ -155,7 +157,10 @@ every turn) is capped by a test.
 The gated git writes, per-command configuration (`git -c`, `--config-env`)
 and branch moves ask in a write run and are denied in a read-only one, whose
 session rules hold denies only: a read-only agent may deny those itself, and
-an ask or allow there would reopen it. One deliberate exception: a `write` run allows `edit` in its
+an ask or allow there would reopen it. No shell builtin is allowed either,
+not even `exit`: OpenCode reports `(exit) >/tmp/x` as the resource `exit` and
+checks no redirect target, so an allow would approve a file write unseen; the
+operating note asks runs not to wrap commands in `exit` instead. One deliberate exception: a `write` run allows `edit` in its
 worktree. Without it every edit is a round trip to the caller; the cost is that
 a subagent that denies itself edits (explore) loses that denial for the run. The
 allow is placed before the edit denies for OpenCode's config/skill directories
