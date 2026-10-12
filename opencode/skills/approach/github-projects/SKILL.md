@@ -127,7 +127,7 @@ Only purposes derived from an already-confirmed spec start as Fixed.
 <BranchTopology>
 
 A purpose executes as one **native GitHub stack** (`gh stack`, driven through
-the `git_stack` / `git_stack_publish` tools as `git-pullrequest`
+the `git_stack` / `git_publish` tools as `git-pullrequest`
 `<StackedPRs>` describes) whose trunk is always the default branch.
 
 - **Epics have no branch.** They are tracking-only; a months-long epic branch
@@ -195,7 +195,7 @@ the `git_stack` / `git_stack_publish` tools as `git-pullrequest`
 5. **Execute layer by layer.** Implement the current layer, PR it via
    `git-pullrequest`, then `git_stack` `add` for the next one. Tick the
    outline checklist as layers land. After changing a lower layer, `git_stack`
-   `rebase`, then preview and `git_stack_publish` `push` — the stack cannot
+   `rebase`, then `git_publish_preview` and `git_publish` `push` — the stack cannot
    merge unless each layer is a linear descendant of the one below. Land,
    only on an explicit request, with `gh stack merge`
    (atomic: if any layer is not mergeable, none merge); merging the top layer
