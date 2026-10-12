@@ -42,6 +42,17 @@ class MotionVocabularyTest(unittest.TestCase):
                 self.assertIn("never a real input", text)
                 self.assertLess(len(text.encode()), 25_000)
 
+    def test_web_builds_keep_their_shape(self) -> None:
+        self.assertIn("prefers-reduced-motion", (REFS / "web" / "building.md").read_text(encoding="utf-8"))
+        for path in sorted((REFS / "web").glob("*.md")):
+            if path.name == "building.md":
+                continue
+            text = path.read_text(encoding="utf-8")
+            with self.subTest(file=f"web/{path.name}"):
+                self.assertTrue((REFS / path.name).is_file())
+                self.assertIn("| Name | Trigger | Web build | Reduced motion |", text)
+                self.assertLess(len(text.encode()), 48_000)
+
     def test_timing_defines_the_five_feel_words(self) -> None:
         timing = (REFS / "timing.md").read_text(encoding="utf-8")
         self.assertIn("## Feel", timing)

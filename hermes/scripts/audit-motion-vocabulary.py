@@ -50,7 +50,7 @@ CAUTION = re.compile(
 LIVE = re.compile(r"Math\.random|IntersectionObserver|addEventListener|requestAnimationFrame|\blerp\b|"
                   r"\bonscroll\b|:hover\b", re.I)
 DIMENSION = re.compile(r"\b\d(?:\.\d)?D\b")
-REF = re.compile(r"(?:vs|core:) `([^`]+)`")
+REF = re.compile(r"\b(?:vs|core:) `([^`]+)`")
 LINK = re.compile(r"\]\(references/([a-z-]+(?:/[a-z-]+)?\.md)\)")
 
 
