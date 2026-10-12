@@ -41,6 +41,7 @@ EXPECTED = {
         "substack-drafts": {"assistant"},
     },
     "google-access": {"google-sheets": {"assistant"}},
+    "workspace/workspace-registry": {"workspace-registry": {"assistant"}},
     "messaging/discord-access": {"discord-account": {"assistant"}},
     "messaging/signal-access": {"signal": {"assistant"}},
     "messaging/telegram-access": {"telegram-account": {"assistant"}},

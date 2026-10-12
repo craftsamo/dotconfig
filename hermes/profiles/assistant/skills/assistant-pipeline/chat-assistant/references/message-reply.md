@@ -11,8 +11,9 @@ a reply that grows into a crafted piece goes through Plan (writing).
 **0. Parse the request.** Separate the sender (a handle or name), the content
 (the message itself) and the user's ask: interpret, draft a reply, or both.
 
-**1. Resolve the sender** with the `workspace_registry` tool, never a terminal
-command or the CSV files:
+**1. Resolve the sender.** First load
+`skill_view(name="workspace-registry:workspace-registry")`, then look the sender
+up with the `workspace_registry` tool, never a terminal command or the CSV files:
 
 ```text
 workspace_registry(action="whois", query="<handle or name>")
@@ -23,9 +24,8 @@ and `languages`, `timezone`, `notes`, and per-project `memberships`
 (`project_id`, `working_relationship`, `roles`, `responsibilities`, `areas`,
 `can_merge` / `can_deploy`, `notes`). Memberships are the bridge from "who" to
 "which work"; a person may belong to several projects. No match → proceed
-with what is known and offer to add them (`person_set` with `id` and
-`display_name`, plus `add` facet=contact for a handle the user gave). Never
-invent facts.
+with what is known and offer to register them through the plugin workflow
+after approval. Never invent facts.
 
 **2. Classify the scope** — Projects, Personal or unrelated — person first,
 then reconciled with the text:

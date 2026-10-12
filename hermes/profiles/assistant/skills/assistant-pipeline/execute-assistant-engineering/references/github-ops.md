@@ -18,6 +18,7 @@ the same build session when released.
 ## Repository lifecycle
 
 Use the decisions from [bootstrap](../../plan-assistant-engineering/references/bootstrap.md).
+Before any registry call, read `skill_view(name="workspace-registry:workspace-registry")`.
 Create a missing Group with the `workspace_registry` `group_create` action only when approved;
 pass an organization only when it names a real approved registry record.
 Establish GitHub repositories with approved owner, visibility and history:
