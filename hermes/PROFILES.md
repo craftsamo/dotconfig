@@ -1,10 +1,10 @@
 # Profiles and design docs — index
 
-How this machine runs several Hermes agents that cooperate: two **front doors** a
-human talks to (the Assistant on Telegram/Discord, the Marketer bot), plus named
-**worker** profiles they delegate to in the background (Creator, Writer,
-Researcher, Searcher and the three media hands image-creator, video-creator and
-audio-creator). A profile is a separate `HERMES_HOME`
+How this machine runs several Hermes agents that cooperate: one messaging
+**front door** a human talks to (the Assistant on Telegram/Discord), plus named
+**worker** profiles it delegates to in the background (Creator, Marketer,
+Writer, Researcher, Searcher and the three media hands image-creator,
+video-creator and audio-creator). A profile is a separate `HERMES_HOME`
 (`~/.hermes/profiles/<name>/`) with its own `config.yaml`, `SOUL.md`, skills and
 state; the default profile is `~/.hermes` itself.
 

@@ -5,9 +5,9 @@ Process topology, the multiplex gateway and A2A peer graph, delegation layers, t
 ## Topology
 
 ```
-   human (terminal)     human (Telegram × 2 bots + Discord)
-          │                │        │
-        default        assistant  marketer   ← two PRIMARY bots
+   human (terminal)     human (Telegram + Discord)
+          │                │
+        default        assistant   ← the PRIMARY bot
          (CLI)              │      (all adapters live in ONE multiplex gateway
           │                │       process, hosted by default)
           └──────┬─────────┘
@@ -21,12 +21,12 @@ Process topology, the multiplex gateway and A2A peer graph, delegation layers, t
   chat --resume <id>                       searcher: no endpoint — resident only)
 ```
 
-Two profiles are **primaries** — assistant (the original front door) and
-marketer — each with its own Telegram bot. Primaries and Creator
-reach the specialists only through `specialist_call` against configured
-targets, never a direct URL; Telegram cannot carry bot-to-bot traffic. Creator
-is the Assistant's creative advisor with no bot; it calls only Researcher and
-Searcher, as Marketer does.
+The assistant is the one **primary**: the messaging front door, with the only
+Telegram bot. The assistant, Creator and Marketer reach the specialists only
+through `specialist_call` against configured targets, never a direct URL;
+Telegram cannot carry bot-to-bot traffic. Creator and Marketer are the
+Assistant's advisors with no bot; each calls only Researcher and Searcher, and
+the human reaches Marketer directly in a CLI session.
 writer, researcher and the three hands serve inbound A2A but initiate nothing;
 searcher has no A2A endpoint. Heavy interactive work runs in **resident sessions** (a
 persistent `hermes -p <specialist> chat` started by `specialist_call(kind="work")`
@@ -76,18 +76,18 @@ needed. Gateway up adds cron for fire-and-forget work; gateway down,
 Each role's detail is in its doc under [`profiles/`](./profiles/); `terminal.cwd`
 is `.` (launch / task workspace) except the assistant's `~/Workspaces`.
 
-| Profile           | Role                                                                                                                                    | Front door           | Gateway                  |
-| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------- | -------------------- | ------------------------ |
-| **default**       | CLI front door — assistant's CLI counterpart (neutral persona); hosts the multiplex gateway                                             | CLI                  | host                     |
-| **assistant**     | primary: messaging front door, non-creative quality gate, GitHub bookkeeping; drives OpenCode ([opencode.md](./opencode.md))            | Telegram + Discord   | served                   |
-| **researcher**    | depth modes investigate / compare / verify / advise; serves creator/marketer only (not Assistant directly), cards refused               | — (A2A receive-only) | served (a2a :9906)       |
-| **searcher**      | retrieval modes lookup / sweep / hunt; resident sessions only, cards refused                                                            | — (specialist)       | served (no platforms)    |
-| **creator**       | the Assistant's creative advisor: directions and located revisions; never produces or commissions ([creator.md](./profiles/creator.md)) | — (Assistant only)   | served (a2a :9903)       |
-| **image-creator** | still-image hands: runs one `<verb>/<subject>` leaf from a filled form; answers only the Assistant                                      | — (A2A receive-only) | served (a2a :9907)       |
-| **video-creator** | video hands: runs video leaves from approved forms; answers only the Assistant                                                          | — (A2A receive-only) | served (a2a :9908)       |
-| **audio-creator** | audio hands: speech, sfx, music (instrumental only) and mix (finished sources, never synthesis); no claims of listening                 | — (A2A receive-only) | served (a2a :9909)       |
-| **writer**        | reader-facing prose and producer-facing scripts from released units; draft-only, never publishes; serves the assistant                  | — (A2A receive-only) | served (a2a :9905)       |
-| **marketer**      | primary: strategy advisor, read-only toward every service; clients execute                                                              | Telegram (own bot)   | served (bot + a2a :9904) |
+| Profile           | Role                                                                                                                                    | Front door           | Gateway               |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------- | -------------------- | --------------------- |
+| **default**       | CLI front door — assistant's CLI counterpart (neutral persona); hosts the multiplex gateway                                             | CLI                  | host                  |
+| **assistant**     | primary: messaging front door, non-creative quality gate, GitHub bookkeeping; drives OpenCode ([opencode.md](./opencode.md))            | Telegram + Discord   | served                |
+| **researcher**    | depth modes investigate / compare / verify / advise; serves creator/marketer only (not Assistant directly), cards refused               | — (A2A receive-only) | served (a2a :9906)    |
+| **searcher**      | retrieval modes lookup / sweep / hunt; resident sessions only, cards refused                                                            | — (specialist)       | served (no platforms) |
+| **creator**       | the Assistant's creative advisor: directions and located revisions; never produces or commissions ([creator.md](./profiles/creator.md)) | — (Assistant only)   | served (a2a :9903)    |
+| **image-creator** | still-image hands: runs one `<verb>/<subject>` leaf from a filled form; answers only the Assistant                                      | — (A2A receive-only) | served (a2a :9907)    |
+| **video-creator** | video hands: runs video leaves from approved forms; answers only the Assistant                                                          | — (A2A receive-only) | served (a2a :9908)    |
+| **audio-creator** | audio hands: speech, sfx, music (instrumental only) and mix (finished sources, never synthesis); no claims of listening                 | — (A2A receive-only) | served (a2a :9909)    |
+| **writer**        | reader-facing prose and producer-facing scripts from released units; draft-only, never publishes; serves the assistant                  | — (A2A receive-only) | served (a2a :9905)    |
+| **marketer**      | strategy advisor, read-only toward every service; clients execute ([marketer.md](./profiles/marketer.md))                               | CLI + Assistant      | served (a2a :9904)    |
 
 ### Toolsets
 
@@ -98,10 +98,9 @@ granular: the composite `hermes-cli` / `hermes-telegram` toolsets expand to a
 broad surface and strip default-off tools such as `video` / `video_gen`.
 Top-level `toolsets` mirrors the role.
 
-- **Messaging lists.** The two bots (assistant, marketer) carry
-  real `telegram` lists; assistant alone adds `discord`. creator, writer,
-  researcher, searcher, the hands and default keep their Telegram / Discord lists
-  empty.
+- **Messaging lists.** Only the assistant, the one bot, carries real
+  `telegram` and `discord` lists. marketer, creator, writer, researcher,
+  searcher, the hands and default keep their Telegram / Discord lists empty.
 - **A2A lists.** Every A2A-serving profile has an `a2a` list for its inbound peer
   sessions, usually narrower than CLI (Marketer's inbound A2A has no browser,
   terminal or delegation, so its browsing needs a resident session).
