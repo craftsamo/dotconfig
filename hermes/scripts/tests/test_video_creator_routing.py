@@ -74,6 +74,13 @@ class VideoCreatorRoutingTest(unittest.TestCase):
                           else "| Name | Feel | For | Looks like | The tell | Built with |")
                 self.assertIn(header, text)
 
+    def test_timing_defines_the_five_feel_words(self) -> None:
+        refs = HERMES_ROOT / "profiles/video-creator/skills/video-creator-pipeline/references"
+        timing = (refs / "motion-vocabulary-timing.md").read_text()
+        self.assertIn("## Feel", timing)
+        for feel in ("なめらか", "きびきび", "やわらかい", "重い", "弾む"):
+            self.assertIn(feel, timing)
+
 
 if __name__ == "__main__":
     unittest.main()
