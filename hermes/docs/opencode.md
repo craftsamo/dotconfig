@@ -220,7 +220,10 @@ already in the result, and a notifier would return it again at once. A
 notifier ends at the run's next stop or after 20 minutes as a heartbeat, so
 every `status` or `wait` that finds the run `running` starts the next one,
 unless Hermes' process registry shows one already watching that run; without
-that, a run that paused once or outlived a notifier went unwatched. Its
+that, a run that paused once or outlived a notifier went unwatched. The
+registry has no public lookup by full command, so the check reads its private
+`_any_running`; a test pins it against the runtime, and if it disappears the
+notifier log records it rather than the check passing silently. Its
 output is a summary under 1,800 characters on several lines (status, each
 pending request with every command it names, shortened and marked
 `complete: false` when cut, the reply's head, the next step), because Hermes shows only the last

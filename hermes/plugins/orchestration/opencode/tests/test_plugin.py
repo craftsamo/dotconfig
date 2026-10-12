@@ -1024,11 +1024,27 @@ def test_notifier_detection_reads_hermes_process_registry(monkeypatch, tmp_path)
     command = "/usr/bin/env python3 launch.py " + plugin.shlex.join(["notify", str(home), "ses_1abc"])
     live = types.SimpleNamespace(command=command, exited=False)
     gone = types.SimpleNamespace(command=command.replace("ses_1abc", "ses_2abc"), exited=True)
-    registry = types.SimpleNamespace(_running={"proc_1": live, "proc_2": gone})
+    sessions = [live, gone]
+    registry = types.SimpleNamespace(
+        _any_running=lambda predicate: any(not s.exited and predicate(s) for s in sessions))
     monkeypatch.setitem(sys.modules, "tools.process_registry", types.SimpleNamespace(process_registry=registry))
     assert plugin._notifier_running(home, "ses_1abc") is True
     assert plugin._notifier_running(home, "ses_2abc") is False
     assert plugin._notifier_running(home, "ses_1ab") is False
+    (home / "logs").mkdir(parents=True)
+    monkeypatch.setitem(sys.modules, "tools.process_registry",
+                        types.SimpleNamespace(process_registry=types.SimpleNamespace()))
+    assert plugin._notifier_running(home, "ses_1abc") is False
+    assert "registry unreadable" in (home / "logs/opencode-notifier.log").read_text(), \
+        "a renamed registry lookup is logged, not silently treated as 'no notifier'"
+
+
+def test_the_registry_lookup_the_notifier_detection_uses_exists_upstream():
+    """`_any_running` is private to Hermes' process registry: pin it against the real runtime."""
+    registry = pytest.importorskip("tools.process_registry")
+    probe = getattr(registry.process_registry, "_any_running", None)
+    assert callable(probe), "Hermes renamed ProcessRegistry._any_running: update _notifier_running"
+    assert probe(lambda s: False) is False
 
 
 def test_a_read_only_turn_that_wrote_no_report_leaves_its_reply_in_the_output_directory(fixture, tmp_path,
