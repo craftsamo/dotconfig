@@ -171,7 +171,7 @@ Mechanics:
     next push is `git push --force-with-lease origin HEAD:refs/heads/<branch>`
     (gated `ask`). On a native
     stack layer, fold with `keepBase: true` as well, then `git_stack` `rebase`
-    moves the layers above and `git_stack_publish` publishes them
+    moves the layers above and `git_publish` publishes them
     (`git-pullrequest`).
   - `linked-fix` (refused): do not rewrite it. Make a new commit that links
     the origin (see <Provenance>), e.g.

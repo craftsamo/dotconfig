@@ -133,7 +133,7 @@ async function describeStack(opts: {
         native: false,
         trunk: null,
         basePR,
-        note: `Branch targets non-default base "${base}" but is not in a native stack. Link the PRs with git_stack_publish link (it always passes --base ${defBranch}; a bare \`gh stack link\` silently retargets them).`,
+        note: `Branch targets non-default base "${base}" but is not in a native stack. Link the PRs with git_publish link (it always passes --base ${defBranch}; a bare \`gh stack link\` silently retargets them).`,
       }
     }
   }

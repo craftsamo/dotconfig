@@ -9,12 +9,14 @@ import { dedupe, scanDiff, scanSecrets } from "./secrets"
 import { defaultRef, operation } from "./state"
 
 /**
- * Native GitHub stacks (`gh stack`, the github/gh-stack extension) as two
+ * Native GitHub stacks (`gh stack`, the github/gh-stack extension) as three
  * tools, split by what they touch, because a tool's permission is decided once
  * per call and cannot ask halfway through:
  * - `git_stack` (allow) works on local branches only: split a branch into
- *   layers, add a layer, rebase the stack, and preview a publication.
- * - `git_stack_publish` (ask) pushes and creates or links PRs, and only the
+ *   layers, add a layer, rebase the stack.
+ * - `git_publish_preview` (allow, read-only) shows what publishing would do
+ *   and pins it in a token.
+ * - `git_publish` (ask) pushes and creates or links PRs, and only the
  *   exact state a preview showed: its token covers the remote, the trunk and
  *   every layer's local and remote commit, so anything that moved since the
  *   preview is refused rather than published. The commits leave through one
@@ -441,8 +443,8 @@ async function split(cwd: string, at: string[], names: string[]) {
     layers,
     ...(warnings.length ? { warnings } : {}),
     next: names.length
-      ? "Preview with git_stack preview, then publish with git_stack_publish submit."
-      : "Add the next layer with git_stack add, commit its work, then git_stack preview and git_stack_publish submit.",
+      ? "Preview with git_publish_preview, then publish with git_publish submit."
+      : "Add the next layer with git_stack add, commit its work, then git_publish_preview and git_publish submit.",
   }
 }
 
@@ -466,7 +468,7 @@ async function add(cwd: string, name: string) {
     on: top,
     position: after?.position ?? null,
     size: after?.size ?? null,
-    next: "Commit this layer's work (git_commit), then git_stack preview and git_stack_publish submit.",
+    next: "Commit this layer's work (git_commit), then git_publish_preview and git_publish submit.",
   }
 }
 
@@ -540,15 +542,15 @@ async function rebase(cwd: string, action: "start" | "continue" | "abort", scope
     ...(before ? { before, moved: names.filter((n) => before![n] !== after[n]) } : {}),
     after,
     output: output(res),
-    next: "Run the quick check, then git_stack preview and git_stack_publish push (or submit).",
+    next: "Run the quick check, then git_publish_preview and git_publish push (or submit).",
   }
 }
 
 export const stack = tool({
   description:
-    "Work with a native GitHub stack (gh stack) locally; never pushes. preview: what publishing the current stack would do — each layer's commits against the one below, whether its push creates, fast-forwards or force-pushes, its PR, refusals (dirty tree, behind the trunk, fork/cross-repository, protected branch, non-default trunk), a secret scan of the stack, and the token git_stack_publish requires. split: cut the current branch's own commits into layers — `at` lists the last commit of each lower layer bottom-up, `names` their new branch names; the current branch becomes the top layer and the trunk is the default branch; with no cuts it adopts the branch (and its PR) as a one-layer stack, so add can build on an unmerged PR (refuses the default branch, uncommitted or untracked files, merge commits, an existing stack). add: append a new layer branch on top of the stack (switches to the top first). rebase: `gh stack rebase` without an editor — start (scope all/downstack/upstack, noTrunk), continue, abort; on conflicts returns the conflict map and the layer and worktree they are in; returns each layer's commit before and after.",
+    "Work with a native GitHub stack (gh stack) locally; never pushes (git_publish_preview and git_publish publish it). split: cut the current branch's own commits into layers — `at` lists the last commit of each lower layer bottom-up, `names` their new branch names; the current branch becomes the top layer and the trunk is the default branch; with no cuts it adopts the branch (and its PR) as a one-layer stack, so add can build on an unmerged PR (refuses the default branch, uncommitted or untracked files, merge commits, an existing stack). add: append a new layer branch on top of the stack (switches to the top first). rebase: `gh stack rebase` without an editor — start (scope all/downstack/upstack, noTrunk), continue, abort; on conflicts returns the conflict map and the layer and worktree they are in; returns each layer's commit before and after.",
   args: {
-    action: tool.schema.enum(["preview", "split", "add", "rebase"]).describe("preview, split, add or rebase."),
+    action: tool.schema.enum(["split", "add", "rebase"]).describe("split, add or rebase."),
     at: tool.schema.array(tool.schema.string()).optional().describe("split: the last commit of each lower layer, bottom-up."),
     names: tool.schema.array(tool.schema.string()).optional().describe("split: a new branch name per entry of `at`, bottom-up."),
     name: tool.schema.string().optional().describe("add: the new layer's branch name."),
@@ -559,8 +561,7 @@ export const stack = tool({
   async execute(args, context) {
     const cwd = context.worktree
     let out: unknown
-    if (args.action === "preview") out = summary(await plan(cwd))
-    else if (args.action === "split") out = await split(cwd, args.at ?? [], args.names ?? [])
+    if (args.action === "split") out = await split(cwd, args.at ?? [], args.names ?? [])
     else if (args.action === "add") {
       if (!args.name) throw new Error("add requires `name`.")
       out = await add(cwd, args.name.trim())
@@ -569,7 +570,16 @@ export const stack = tool({
   },
 })
 
-// ---------------------------------------------------- git_stack_publish --
+// ---------------------------------------- git_publish_preview / git_publish --
+
+export const publish_preview = tool({
+  description:
+    "Preview what git_publish would do for the current native GitHub stack, read-only: each layer's commits against the one below, whether its push creates, fast-forwards or force-pushes, its PR, refusals (dirty tree, behind the trunk, merges, fork/cross-repository, redirected or multiple push URLs, unreadable gh target or PR list, protected branch, non-default trunk), a secret scan of every commit, and the `token` git_publish requires. Show it to the user before publishing.",
+  args: {},
+  async execute(_args, context) {
+    return JSON.stringify(summary(await plan(context.worktree)), null, 2)
+  },
+})
 
 type PRState = Record<string, { number: number; base: string; draft: boolean; url: string; autoMerge: boolean } | null>
 
@@ -624,12 +634,12 @@ async function verify(cwd: string, p: Awaited<ReturnType<typeof plan>>, before: 
 
 const UNAVAILABLE = /stacks? (are |is )?(not available|unavailable|not enabled)|ErrStacksUnavailable/i
 
-export const stack_publish = tool({
+export const publish = tool({
   description:
-    "Publish the current native GitHub stack exactly as git_stack preview showed it. Pass the preview's `token`: if any layer, the trunk or the remote moved since, it refuses. Re-checks every refusal first (dirty tree, behind the trunk, fork/cross-repository, unreadable gh target or PR list, protected branch, non-default trunk, more than one push URL) and the stack's secret scan (every commit, not only the net diff). push: one atomic `git push` of exactly the pinned commits to origin, each leased on the remote commit the preview saw. submit: that push, then a PR for each layer without one (`gh pr create` on the layer below; ready unless `draft`; title and body from `prs`, else the layer's first commit subject), existing PRs keep their draft state and get `prs` titles and bodies, and two or more PRs are linked with `gh stack link --base <default>` — neither step pushes; if stacks are unavailable it returns stacksUnavailable with the PRs left unlinked. link: link existing open PRs of this repository (numbers, bottom-up) into a stack on the default branch, always with an explicit --base. Afterwards it re-reads each layer's remote commit, PR, base and draft state, the native stack, and which PRs lost auto-merge. Never merges or unstacks.",
+    "Publish the current native GitHub stack exactly as git_publish_preview showed it. Pass the preview's `token`: if any layer, the trunk or the remote moved since, it refuses. Re-checks every refusal first (dirty tree, behind the trunk, fork/cross-repository, unreadable gh target or PR list, protected branch, non-default trunk, more than one push URL) and the stack's secret scan (every commit, not only the net diff). push: one atomic `git push` of exactly the pinned commits to origin, each leased on the remote commit the preview saw. submit: that push, then a PR for each layer without one (`gh pr create` on the layer below; ready unless `draft`; title and body from `prs`, else the layer's first commit subject), existing PRs keep their draft state and get `prs` titles and bodies, and two or more PRs are linked with `gh stack link --base <default>` — neither step pushes; if stacks are unavailable it returns stacksUnavailable with the PRs left unlinked. link: link existing open PRs of this repository (numbers, bottom-up) into a stack on the default branch, always with an explicit --base. Afterwards it re-reads each layer's remote commit, PR, base and draft state, the native stack, and which PRs lost auto-merge. Never merges or unstacks.",
   args: {
     action: tool.schema.enum(["push", "submit", "link"]).describe("push, submit or link."),
-    token: tool.schema.string().optional().describe("push / submit: the token from git_stack preview."),
+    token: tool.schema.string().optional().describe("push / submit: the token from git_publish_preview."),
     draft: tool.schema.boolean().optional().describe("submit: leave newly created PRs as drafts (default: ready for review)."),
     prs: tool.schema
       .array(tool.schema.object({ branch: tool.schema.string(), title: tool.schema.string().optional(), body: tool.schema.string().optional() }))
@@ -642,10 +652,10 @@ export const stack_publish = tool({
     const cwd = context.worktree
     if (args.action === "link") return JSON.stringify(await link(cwd, args.numbers ?? []), null, 2)
 
-    if (!args.token) throw new Error("Pass the token from git_stack preview; publishing needs the state the user saw.")
+    if (!args.token) throw new Error("Pass the token from git_publish_preview; publishing needs the state the user saw.")
     const p = await plan(cwd)
     if (p.token !== args.token.trim())
-      throw new Error("The stack changed since the preview (a layer, the trunk or the remote moved); run git_stack preview again and confirm it.")
+      throw new Error("The stack changed since the preview (a layer, the trunk or the remote moved); run git_publish_preview again and confirm it.")
     if (p.refusals.length) return JSON.stringify({ published: false, refusals: p.refusals, warnings: p.warnings }, null, 2)
     if (p.secrets.findings.length && !args.acceptSecretFindings)
       return JSON.stringify({ published: false, stoppedAt: "secrets", findings: p.secrets.findings, next: "Remove the secret from the commits, or confirm with the user that these are not secrets and pass acceptSecretFindings." }, null, 2)
