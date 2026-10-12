@@ -8,13 +8,35 @@ const LANE: Lane = {
   label: "Main",
   amount: 200,
   renewalDay: 13,
-  since: "2026-10-09",
 }
 const NOW = new Date(2026, 9, 10, 12)
+// A full $200 grant from 10-09 to 10-13, and `cost` spent since.
 const summary = (cost: number, now = NOW): Summary =>
   summarize(
     LANE,
-    [{ model: { providerID: LANE.provider, id: "m" }, cost }],
+    {
+      grants: [
+        {
+          amount: 200,
+          granted: "2026-10-09",
+          expires: "2026-10-13",
+          source: "console",
+        },
+      ],
+      checkpoint: {
+        at: new Date(2026, 9, 9).toISOString(),
+        balance: 200,
+        source: "console",
+        opencodeFrom: "2026-10-09",
+        opencodeBase: 0,
+      },
+      opencode: cost,
+      // Spent over the day and a half since the grant.
+      opencodePerDay: cost / 1.5,
+      hermes: 0,
+      hermesCounted: false,
+      byModel: [],
+    },
     now,
   )
 

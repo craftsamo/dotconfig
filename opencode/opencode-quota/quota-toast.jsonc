@@ -1,7 +1,8 @@
 {
   "enabledProviders": ["anthropic", "openai", "xai", "quota-providers"],
   // Console credit lanes. Anthropic has no balance API, so plugins/credit-lanes
-  // serves an estimate from `opencode stats` on loopback (lib/credit-lanes).
+  // serves an estimate on loopback (lib/credit-lanes): a checkpoint less
+  // OpenCode's and Hermes' spend since.
   // Quota sends the lane's key as the bearer token, and the endpoint only
   // answers a request carrying it. Not Quota's own local-estimate mode: that
   // re-reads the whole history database on every refresh.
