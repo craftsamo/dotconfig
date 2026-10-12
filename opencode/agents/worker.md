@@ -23,8 +23,24 @@ permissions:
   - { action: external_directory, resource: "*/.worktrees/*", effect: allow }
   - { action: subagent, resource: "*", effect: deny }
   - { action: shell, resource: "*", effect: ask }
+  # Reading through the shell, which the top-level allows grant but the reset
+  # above takes back; the read/grep/glob tools are still the first choice.
+  - { action: shell, resource: "cat *", effect: allow }
+  - { action: shell, resource: "head *", effect: allow }
+  - { action: shell, resource: "tail *", effect: allow }
+  - { action: shell, resource: "wc *", effect: allow }
+  - { action: shell, resource: "ls*", effect: allow }
+  - { action: shell, resource: "grep *", effect: allow }
+  - { action: shell, resource: "rg *", effect: allow }
+  - { action: shell, resource: "ps *", effect: allow }
   - { action: shell, resource: "git status*", effect: allow }
   - { action: shell, resource: "git diff*", effect: allow }
+  - { action: shell, resource: "nps typecheck*", effect: allow }
+  - { action: shell, resource: "nps lint*", effect: allow }
+  - { action: shell, resource: "nps format*", effect: allow }
+  - { action: shell, resource: "nps build*", effect: allow }
+  - { action: shell, resource: "nps test*", effect: allow }
+  - { action: shell, resource: "nps check*", effect: allow }
   - { action: shell, resource: "npm test*", effect: allow }
   - { action: shell, resource: "npm run test*", effect: allow }
   - { action: shell, resource: "npm run lint*", effect: allow }
