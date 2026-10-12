@@ -312,15 +312,21 @@ def await_turn(sid, limit, *, through_retry=False, poll=None, sleep=time.sleep, 
     deadline = clock() + limit
     cache, last_retry = {}, None
     unseen = unreachable = None
-    retry = None
+    retry = info = None
+    first = True
     while True:
         now = clock()
         try:
-            info = session_info(sid)
+            # Each request starts an `opencode api` process (seconds each), so a cycle
+            # asks only what can have changed: the session itself is read once (its
+            # directory holds while it runs) and again when the state is handed back,
+            # and the turn's messages only once it stopped or for a retry check.
+            if info is None:
+                info = session_info(sid)
             running_sessions = active()
             running = sid in running_sessions
-            turn = latest_turn(sid)
             found = pending(sid, directory_of(info), cache)
+            turn = None if running else latest_turn(sid)
             unreachable = None
         except api.Unavailable:
             unreachable = unreachable or now
@@ -335,33 +341,47 @@ def await_turn(sid, limit, *, through_retry=False, poll=None, sleep=time.sleep, 
                       "error": f"OpenCode session no longer readable ({exc.status})"}
             return {**record, "note": note(record)}
         if not running and turn["outcome"]:
-            return finished(sid, info, turn)
+            return finished(sid, reread(sid, info, first), turn)
         if found:
-            return with_note(describe(sid, info, "waiting", turn=turn, found=found))
+            return with_note(describe(sid, reread(sid, info, first), "waiting", turn=turn, found=found))
         if not running and turn["start"] is None:
-            return describe(sid, info, "idle")
+            return describe(sid, reread(sid, info, first), "idle")
         if running:
             unseen = None
             if not through_retry and (last_retry is None or now - last_retry >= RETRY_POLL):
                 last_retry = now
                 with contextlib.suppress(api.ApiError, api.Unavailable):
+                    turn = latest_turn(sid)
                     retry = retrying(sid, turn["start"], running_sessions, cache)
                 if actionable(retry):
-                    return with_note(describe(sid, info, "running", turn=turn, extra={"retrying": retry}))
+                    return with_note(describe(sid, reread(sid, info, first), "running", turn=turn,
+                                              extra={"retrying": retry}))
         else:
             unseen = unseen or now
             if now - unseen >= NO_OUTCOME_GRACE:
-                record = describe(sid, info, "unknown", turn=turn, extra={
+                record = describe(sid, reread(sid, info, first), "unknown", turn=turn, extra={
                     "error": "The turn ended without an outcome (the OpenCode service restarted or stopped it)",
                     "changes": safe_changes(sid, turn["start"])})
                 return with_note(record)
         if now >= deadline:
             if running:
-                return with_note(describe(sid, info, "running", turn=turn, extra={"timed_out": True}))
-            return with_note(describe(sid, info, "unknown", turn=turn, extra={
+                return with_note(describe(sid, reread(sid, info, first), "running", turn=turn,
+                                          extra={"timed_out": True}))
+            return with_note(describe(sid, reread(sid, info, first), "unknown", turn=turn, extra={
                 "error": "The session is not running and no idle marker closed its newest turn",
                 "changes": safe_changes(sid, turn["start"])}))
+        first = False
         sleep(min(poll, max(0.0, deadline - now)))
+
+
+def reread(sid, info, first):
+    """The session as handed back: read once more unless it was read in this very cycle,
+    so tokens and model are current; the earlier read stands in when that fails."""
+    if first:
+        return info
+    with contextlib.suppress(api.ApiError, api.Unavailable):
+        return session_info(sid)
+    return info
 
 
 def safe_changes(sid, start):
