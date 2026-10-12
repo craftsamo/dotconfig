@@ -184,4 +184,46 @@ describe("agent rules over a project's catch-all", () => {
       expect(decide(agent, "shell", "rm -rf build")).toBe("ask")
     })
   }
+
+  test("build runs the project's scripts and installed tools, never a deployment unasked", () => {
+    for (const command of ["nps lint", "nps test.web.e2e.worker", "pnpm run build", "pnpm test", "pnpm exec prettier --check src", "npm run lint"])
+      expect([command, decide("build", "shell", command)]).toEqual([command, "allow"])
+    for (const command of [
+      "nps deploy.web",
+      "pnpm exec wrangler deploy",
+      "pnpm run deploy",
+      "pnpm exec wrangler d1 execute DB --remote --command x",
+      "pnpm exec wrangler secret put TOKEN",
+      "pnpm run publish:docs",
+      "pnpm exec vercel --prod",
+      "pnpm dlx create-x",
+      "npx nps lint",
+      "FOO=1 nps lint",
+    ])
+      expect([command, decide("build", "shell", command)]).toEqual([command, "ask"])
+    expect(decide("plan", "shell", "nps lint")).toBe("ask")
+  })
+})
+
+describe("subagents that reset shell to ask", () => {
+  // worker, debugger and verifier start their shell rules with `*: ask`, which
+  // takes back the top-level read allows; they restate the plain reads.
+  const front = async (name: string) => {
+    const text = await Bun.file(join(import.meta.dir, `../../agents/${name}.md`)).text()
+    return Bun.YAML.parse(text.split("---")[1]) as { permissions: Rule[] }
+  }
+  for (const name of ["worker", "debugger", "verifier"]) {
+    test(`${name} reads through the shell without asking`, async () => {
+      const own = (await front(name)).permissions
+      const decide = (command: string) => {
+        let effect = "ask"
+        for (const r of [...rules, ...own]) if (matches(r.action, "shell", false) && matches(r.resource, command, true)) effect = r.effect
+        return effect
+      }
+      for (const command of ["cat playwright.config.ts playwright.worker.config.ts", "grep -n share src/index.ts", "head -30 a.ts", "ls packages", "rg -n token src", "ps -axo pid,command"])
+        expect([command, decide(command)]).toEqual([command, "allow"])
+      for (const command of ["node -e 'x'", "kill -TERM 1", "awk '{print}' a"]) expect([command, decide(command)]).toEqual([command, "ask"])
+      if (name === "debugger") expect(decide("cat a > b")).toBe("ask")
+    })
+  }
 })
