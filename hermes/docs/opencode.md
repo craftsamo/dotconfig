@@ -53,7 +53,8 @@ still runs; pending permission requests and forms say whether it is paused.
 Why: the service is the one source of truth and sessions survive Hermes. The
 cost is deliberate — nothing enforces a deadline, so a run outlives its Hermes
 turn until the caller interrupts it, and an unanswered request stays pending.
-The only local file is a per-worktree lock that serializes concurrent starts.
+The only local state is a per-worktree lock that serializes concurrent starts;
+the notifier's log (below) is written for people and never read back.
 Approval text is an operating-contract record, not authentication; permission
 rules are not a process sandbox.
 
@@ -71,7 +72,8 @@ OpenCode agent, a policy (`read-only` or `write`), and optionally a model
 tool; with no `roles` the four defaults apply (plan, review and debug
 read-only, build write). The agents are the person's own modes — there are no
 hidden primaries and no operating contract beyond a short `hermes.note`
-instruction entry. Hermes sits in the person's seat: a question the agent asks
+instruction entry (a read-only role's note also asks it to batch commands,
+since each unlisted one waits for the caller). Hermes sits in the person's seat: a question the agent asks
 and a permission it needs arrive as `waiting` and are answered with
 `opencode_request`.
 
@@ -120,7 +122,13 @@ inside a Workspaces draft (`.agent/`), outside the worktree and spelled without
 wildcards. The session ruleset allows `external_directory` for exactly that
 directory, ahead of the person's own outside-path denies (which still win), and
 a read-only run may edit there too (never a secret-looking file). Every turn
-validates the stored value again.
+validates the stored value again. The permission alone does not make Plan
+write there: OpenCode's built-in Plan mode reminder forbids every file but its
+own fixed plan directory (`~/.opencode/plan`), so the model never tries, and
+widening Plan's own `edit` rules would change nothing. So when a read-only turn
+completes without its own edit tools touching the output directory, the plugin
+saves the turn's final reply there as `<worktree>-<role>-<turn>.md` and returns
+it as `report`; the file is the run's deliverable, never read back.
 
 **Permissions.** OpenCode 2 evaluates ordered rules, last match wins: global
 config, then the agent's own `permissions`, then the session's ruleset; and
@@ -208,10 +216,22 @@ it. A read-only role simply reruns; for a write role the diff is read first.
 **Hand-back.** A live caller gets the current state at once. Only while that
 state is `running` it also gets a notifier process, launched through the terminal
 tool with completion notification, for the next hand-back; any other state is
-already in the result, and a notifier would return it again at once. The
-notifier cannot know whether the caller already read its hand-back through
-`opencode_session wait`, so the caller answers such a notification with
-`[SILENT]`. A blocking (CLI/resident) caller's run tool returns when the turn
+already in the result, and a notifier would return it again at once. A
+notifier ends at the run's next stop or after 20 minutes as a heartbeat, so
+every `status` or `wait` that finds the run `running` starts the next one,
+unless Hermes' process registry shows one already watching that run; without
+that, a run that paused once or outlived a notifier went unwatched. Its
+output is a summary under 1,800 characters on several lines (status, pending
+ids, the reply's head, the next step), because Hermes shows only the last
+~2,000 characters of a notification snapped to a line, and a single long JSON
+line shows nothing; the caller reads the full state with `status`. It polls
+every 15 seconds and reads the session and its messages only when the run
+stops, since every request starts an `opencode api` process. It logs its start
+and end to the profile's `logs/opencode-notifier.log` for tracing a missing
+notification, and a failure of its own still ends in an `unknown`
+notification. The notifier cannot know whether the caller already read its
+hand-back through `opencode_session wait`, so the caller answers such a
+notification with `[SILENT]`. A blocking (CLI/resident) caller's run tool returns when the turn
 finished (`completed`, `failed`, `interrupted`), paused (`waiting`), is stuck in
 a provider retry worth a decision, or cannot be confirmed (`unknown`);
 otherwise it returns `running` with `timed_out` before the tool and turn
