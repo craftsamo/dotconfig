@@ -306,8 +306,11 @@ def test_actual_config_is_a_read_only_advisor():
     assert "specialist-call" in config["plugins"]["enabled"]
     assert "a2a" not in config["toolsets"]
     assert config["platforms"]["a2a"]["enabled"] is True
-    assert config["platforms"]["telegram"]["enabled"] is True
-    for platform in ("cli", "telegram", "a2a"):
+    # No bot: the human reaches Marketer in a CLI session, clients over specialist_call.
+    assert not config["platforms"].get("telegram")
+    assert config["platform_toolsets"]["telegram"] == []
+    assert config["platform_toolsets"]["discord"] == []
+    for platform in ("cli", "a2a"):
         tools = config["platform_toolsets"][platform]
         assert "specialist" in tools and "a2a" not in tools and "no_mcp" in tools
         for reader in ("x_access", "x_search", "substack_access", "youtube_access", "note_access", "web"):
@@ -316,7 +319,7 @@ def test_actual_config_is_a_read_only_advisor():
             assert not {"browser", "terminal", "delegation"} & set(tools)
         else:
             assert "browser" in tools and "terminal" in tools
-    assert "clarify" in config["platform_toolsets"]["telegram"]
+    assert "clarify" in config["platform_toolsets"]["cli"]
     assert config["browser"]["use_real_profile"] is True
     assert config["browser"]["real_profile_pin"] == "Profile 13"
     # Writer's pipeline is no longer read: the client owns acceptance.
