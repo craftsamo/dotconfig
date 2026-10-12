@@ -80,13 +80,17 @@ skill_view(name="video-creator-pipeline", file_path="references/three-graphics.m
    [Web](references/capture/web.md) or [macOS](references/capture/macos.md).
    Propose semantic steps from the goal/audience/start state; the client approves
    outcomes and scope, not a coordinate/keystroke script. Before proposing,
-   read the kernel's motion, component and visual-metaphor vocabulary and
+   read the shared motion, component and visual-metaphor vocabulary and
    name its entries (or a more precise name) for the intro, outro and
    transitions between steps, instead of generic "fade", "slide" or "card":
 
    ```text
+   skill_view(name="motion-vocabulary")
    skill_view(name="motion-vocabulary", file_path="references/core.md")
    ```
+
+   Its table routes to the other areas; when building, read each named
+   entry's row in the matching `references/video/` file of that skill.
 
    For explicit screen_mode, first return only proposal-vN.md + SHA-256. Use a single fenced `tour` JSON
    block containing `form` (fully defaulted form, excluding approved_plan and

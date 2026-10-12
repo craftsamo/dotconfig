@@ -88,14 +88,18 @@ skill_view(name="video-creator-pipeline", file_path="references/three-graphics.m
    points, not an exhaustive preset menu; a custom `other: true` value is
    implemented locally, verbatim, and never silently mapped onto a listed
    option. If direction is ambiguous, return one clarification or a concrete
-   beat proposal before authoring. Also read the kernel's motion, component
+   beat proposal before authoring. Also read the shared motion, component
    and visual-metaphor vocabulary and name its entries (or a more precise
    name) in the samples' `expect` text, instead of generic "fade", "slide"
    or "card"; it adds no plan field and no rule:
 
    ```text
+   skill_view(name="motion-vocabulary")
    skill_view(name="motion-vocabulary", file_path="references/core.md")
    ```
+
+   Its table routes to the other areas; when building, read each named
+   entry's row in the matching `references/video/` file of that skill.
 3. Round A (no `approved_plan`): for final purpose author `plan.json` per the schema in
    [authoring](references/authoring.md) — exact copy rows (id/text/role/
    start/end) that include the client's literal `message` and `cta` text,

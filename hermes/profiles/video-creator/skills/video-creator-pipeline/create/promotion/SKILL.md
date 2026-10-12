@@ -96,12 +96,16 @@ template and not "close enough". Judge every frame against it:
    ```
 
    Attempt the applicable technical lookups, report unavailable references
-   and continue with local authoring. Also read the kernel's motion and
+   and continue with local authoring. Also read the shared motion and
    component vocabulary:
 
    ```text
+   skill_view(name="motion-vocabulary")
    skill_view(name="motion-vocabulary", file_path="references/core.md")
    ```
+
+   Its table routes to the other areas; when building, read each named
+   entry's row in the matching `references/video/` file of that skill.
 
 4. Round A (no `approved_plan`): write `storyboard.md` per
    [authoring](references/authoring.md). It fixes STRUCTURE only: beat order

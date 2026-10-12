@@ -126,16 +126,18 @@ motion is time-based, so draft and final differ only in sampling). Motion
 Canvas stays 30-only; create-master needs every segment at one shared rate, so
 mixed rates go through edit-clip first.
 
-**Motion vocabulary.** The shared `motion-vocabulary` skill
-(`agents/curated/`, pinned in video-creator's `skills.external_dirs`) is read
-by the five authored leaves before the plan that fixes their beats; they name
-its entries instead of generic "fade" or "card". Its core,
-`references/core.md`, holds what most films use (text basics, transitions,
-camera, components, compositions, film structures, visual metaphors) and
-routes, in its "More names" table, to one neighbouring file per authoring
-decision, read on demand; the core stays small because every plan reads it. It adds no plan
-field, schema or rule, and a drawn look never re-renders supplied art, a cast
-or a logo. `scripts/audit-motion-vocabulary.py` checks routing, table shape,
+**Motion vocabulary.** The shared `motion-vocabulary` skill (how it is
+pinned: [overview.md](./overview.md) "Media craft knowledge") is read by the
+five authored leaves before the plan that fixes their beats; they name its
+entries instead of generic "fade" or "card". The skill's SKILL.md routes
+each authoring decision to one names file (`references/<area>.md`: Feel, For,
+Looks like, The tell) and its video builds (`references/video/<area>.md`).
+Planning reads SKILL.md and `references/core.md` (what most films use: text
+basics, transitions, camera, components, compositions, film structures,
+visual metaphors) plus the names file a decision needs; building reads the
+video rows of the entries the approved plan names. The core stays small
+because every plan reads it. It adds no plan field, schema or rule, and a
+drawn look never re-renders supplied art, a cast or a logo. `scripts/audit-motion-vocabulary.py` checks routing, table shape,
 sizes, references and descriptive tells; pass the source prose with
 `--source` when names are taken from a third-party catalogue.
 Why: "Storyboard vocabulary" under the Promotion family.
