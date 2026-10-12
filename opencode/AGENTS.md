@@ -144,6 +144,14 @@ broker references and Assistant guides. Assessment alone never authorizes edits.
 
 </HermesHandsReferencesSkill>
 
+<MotionVocabularyUpkeepSkill>
+
+For adding to, deepening or auditing the shared `motion-vocabulary` skill
+(names, video builds, web builds), including names taken from an article, a
+catalogue or a post, load `motion-vocabulary-upkeep`.
+
+</MotionVocabularyUpkeepSkill>
+
 <WebUiCheckTool>
 
 After a change that alters what a web page renders, run `web_ui_check` against

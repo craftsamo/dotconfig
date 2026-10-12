@@ -9,7 +9,9 @@ The shared `motion-vocabulary` skill (`agents/curated/`) lists names, looks
 and the detail that tells an entry apart (`references/*.md`), and the usual
 build of each in a rendered video (`references/video/*.md`), all
 descriptive. Authored leaves name its entries in the
-storyboard; it adds no plan field, schema or rule.
+storyboard; it adds no plan field, schema or rule. The web builds
+(`references/web/`) are outside this decision: a shipped page needs typical
+values and reduced-motion forms.
 
 ## Why
 

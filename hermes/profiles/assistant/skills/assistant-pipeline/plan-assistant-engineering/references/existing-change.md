@@ -14,6 +14,12 @@ filenames or fields from the user or invent them. Findings alone never authorize
 repairs or factual-status upgrades. OpenCode's `hermes-hands-references` skill
 owns the maintenance procedure.
 
+Taking motion names or expressions from a source (an article, a motion
+catalogue, a post) into the shared motion vocabulary is the same kind of
+maintenance. Relay the source as given (link or supplied text) and what the
+user wants adopted; OpenCode's `motion-vocabulary-upkeep` skill owns the
+procedure, including keeping the source's wording out.
+
 OpenCode owns code-grounded planning. Do not prescribe per-file
 changes, a fixed unit count or an approach already supplied by OpenCode's skills.
 Preserve meaningful distinctions: a refactor keeps behavior, a bug fix addresses
