@@ -17,7 +17,7 @@ Read the [kernel](../../SKILL.md) first. The leaf's form is authoritative; this 
 
 ## Where directions go
 
-- Authored video: the producer writes the storyboard. The direction travels in `note` (plus `style`, `direction`, `what_for`) with named techniques from video-creator's `references/motion-vocabulary.md`: `skill_view(name="video-creator-pipeline", file_path="references/motion-vocabulary.md")`; depth work: `references/three-graphics.md` in the same skill.
+- Authored video: the producer writes the storyboard. The direction travels in `note` (plus `style`, `direction`, `what_for`) with named techniques from the shared motion vocabulary: `skill_view(name="motion-vocabulary", file_path="references/core.md")`; depth work: video-creator's `references/three-graphics.md`.
 - `style` and `direction` are free text here; `create-promotion` holds no per-option files, only `references/authoring.md`.
 
 ## Boundaries

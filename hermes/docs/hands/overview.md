@@ -184,7 +184,10 @@ The four tracked, portable `media-craft-direction`, `media-craft-visual`,
 not in hands' production trees or generated Styles catalogs. Creator's shared
 store exposes them; image-creator pins direction/visual, video-creator
 direction/visual/motion, audio-creator direction/audio individually, and the
-Assistant pins direction. No hands receives the whole store. Each hands kernel's
+Assistant pins direction. The shared `motion-vocabulary` skill sits beside them
+in `agents/curated/`: video-creator pins it for the authored leaves' named
+techniques, and Creator reads it through the store. No hands receives the
+whole store. Each hands kernel's
 `references/craft.md` owns conditional reading for its subjects; Creator reads
 the same knowledge to name directions and changes.
 

@@ -670,6 +670,7 @@ skills:
     - ~/.agents/skills/media-craft-direction
     - ~/.agents/skills/media-craft-visual
     - ~/.agents/skills/media-craft-motion
+    - ~/.agents/skills/motion-vocabulary
   create_dir: skills/learned
   disabled:
     - video-render-environment

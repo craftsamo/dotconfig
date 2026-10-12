@@ -253,6 +253,23 @@ Behavioral cases and the independent evaluation contract live under
 `agents/tests/`. Run `uv run --with pytest python -m pytest agents/tests -q` for structural
 checks; fresh-context use and actual-media quality need separate evidence.
 
+## Motion vocabulary
+
+`motion-vocabulary` gives every motion one shared name with Japanese aliases.
+`SKILL.md` routes each authoring decision to a names file
+(`references/<area>.md`: Feel, For, Looks like, The tell) and to how the entry
+is built in a rendered video (`references/video/<area>.md`). Hermes
+video-creator pins it for its authored leaves, Creator reads it through the
+store, and any CLI building a video can use the same names.
+
+Names and builds stay descriptive: no numeric defaults, avoid-lists or scores
+(`hermes/docs/decisions/storyboard-vocabulary-rule-free.md`). Names were
+adopted from the motion-reference.takayustudio.jp catalogue and a scroll-motion
+cheat sheet posted on X; every description is independently written.
+`hermes/scripts/audit-motion-vocabulary.py` checks shape, routing, sizes,
+references and tells, and with `--source` flags wording shared with a
+third-party source.
+
 ## Third-party skills
 
 Third-party skills are never committed; they are restored from their source.
