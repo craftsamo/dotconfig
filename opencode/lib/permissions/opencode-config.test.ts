@@ -81,6 +81,7 @@ describe("global shell rules", () => {
       'gh pr comment 3 --body "checkout works again"',
       "gh alias list",
       "gh extension list",
+      "lsof -nP -iTCP:3000 -sTCP:LISTEN",
     ])
       expect([command, shell(command)]).toEqual([command, "allow"])
   })
