@@ -921,9 +921,141 @@ def test_notifier_does_not_return_on_a_provider_retry(fixture, monkeypatch):
     scripted(fake, "retry:The usage limit has been reached:1", "hold")
     sid = run("plan", directory, timeout=1)["session_id"]
     monkeypatch.setattr(plugin, "NOTIFY_LIMIT", 1)
+    monkeypatch.setattr(plugin, "NOTIFY_POLL", 0.01)
     settled = plugin._notify(home, sid)
     assert settled["timed_out"] is True and "retrying" not in settled
 
+
+def test_a_notification_fits_what_hermes_keeps_of_it():
+    long_line = "調査結果" * 3000
+    record = {"session_id": "ses_1abc", "role": "plan", "status": "completed", "outcome": "succeeded",
+              "directory": "/w", "branch": "main", "engine": "openai/gpt-6.1-sol#high", "result": long_line,
+              "changes": [{"file": "a.py"}], "tokens": {"input": 1}, "note": "x" * 5000}
+    text = plugin._notice(record)
+    assert len(text) <= plugin.NOTICE_LIMIT and text.count("\n") > 5, \
+        "Hermes keeps the last ~2000 characters snapped to a line: one long line would show nothing"
+    shown = json.loads(text)
+    assert shown["status"] == "completed" and shown["changed_files"] == 1
+    assert shown["result_head"].startswith("調査結果") and shown["result_head"].endswith("…[truncated]")
+    assert "opencode_session status" in shown["next"] and "tokens" not in shown and "note" not in shown
+    paused = json.loads(plugin._notice({"session_id": "ses_1abc", "status": "waiting", "pending": [
+        {"kind": "permission", "id": f"per_{n}x", "action": "shell", "resources": ["git log " + "x" * 500]}
+        for n in range(5)]}))
+    assert [p["id"] for p in paused["pending"]] == ["per_0x", "per_1x", "per_2x"] and paused["pending_more"] == 2
+    assert len(paused["pending"][0]["resource"]) == 120 and "opencode_request" in paused["next"]
+    beat = json.loads(plugin._notice({"session_id": "ses_1abc", "status": "running", "timed_out": True}))
+    assert "Heartbeat" in beat["next"]
+    crowded = plugin._notice({"session_id": "ses_1abc", "status": "waiting", "directory": "/" + "d" * 3000,
+                              "pending": [{"id": "per_0x", "kind": "permission"}]})
+    assert len(crowded) <= plugin.NOTICE_LIMIT and json.loads(crowded)["pending_ids"] == ["per_0x"], \
+        "an oversized notice keeps what to do next, never a cut JSON"
+
+
+def test_the_notifier_logs_its_life_and_reports_its_own_failure(fixture, monkeypatch):
+    home, directory, _, fake = fixture
+    (home / "logs").mkdir()
+    sid = run("plan", directory)["session_id"]
+    assert plugin._watch(str(home), sid)["status"] == "completed"
+    monkeypatch.setattr(plugin, "_notify", lambda *a: (_ for _ in ()).throw(RuntimeError("boom")))
+    failed = plugin._watch(str(home), sid)
+    assert failed["status"] == "unknown" and "boom" in failed["error"]
+    lines = (home / "logs/opencode-notifier.log").read_text().splitlines()
+    assert [line.split(" ", 3)[2:] for line in lines] == [[sid, "start"], [sid, "end completed"],
+                                                          [sid, "start"], [sid, "end unknown"]]
+    stray = plugin._watch(str(home.parent), sid)
+    assert stray["status"] == "unknown" and "Invalid captured" in stray["error"]
+
+
+def test_a_status_read_of_a_running_run_starts_the_next_notifier_once(fixture, monkeypatch):
+    home, directory, owner, fake = fixture
+    monkeypatch.setattr(plugin, "_scope", lambda: (home, owner, True))
+    launched = []
+    monkeypatch.setattr(plugin, "_launch_notifier", lambda h, sid, task: launched.append(sid) or "proc_1")
+    scripted(fake, "hold")
+    sid = run("plan", directory)["session_id"]
+    assert launched == [sid]
+    monkeypatch.setattr(plugin, "_notifier_running", lambda h, s: False)
+    again = session("status", sid)
+    assert again["status"] == "running" and again["process_session_id"] == "proc_1" and launched == [sid, sid], \
+        "after a heartbeat or a pause the notifier has ended: a status read starts the next one"
+    monkeypatch.setattr(plugin, "_notifier_running", lambda h, s: True)
+    watched = session("status", sid)
+    assert launched == [sid, sid] and "process_session_id" not in watched, "one notifier per run"
+    assert "[SILENT]" in watched["note"]
+
+
+def test_notifier_detection_reads_hermes_process_registry(monkeypatch, tmp_path):
+    import sys
+    import types
+    home = tmp_path / "profiles/assistant"
+    command = "/usr/bin/env python3 launch.py " + plugin.shlex.join(["notify", str(home), "ses_1abc"])
+    live = types.SimpleNamespace(command=command, exited=False)
+    gone = types.SimpleNamespace(command=command.replace("ses_1abc", "ses_2abc"), exited=True)
+    registry = types.SimpleNamespace(_running={"proc_1": live, "proc_2": gone})
+    monkeypatch.setitem(sys.modules, "tools.process_registry", types.SimpleNamespace(process_registry=registry))
+    assert plugin._notifier_running(home, "ses_1abc") is True
+    assert plugin._notifier_running(home, "ses_2abc") is False
+    assert plugin._notifier_running(home, "ses_1ab") is False
+
+
+def test_a_read_only_turn_that_wrote_no_report_leaves_its_reply_in_the_output_directory(fixture, tmp_path,
+                                                                                         monkeypatch):
+    home, directory, _, fake = fixture
+    monkeypatch.setenv("HOME", str(tmp_path.resolve()))
+    job = tmp_path / "Workspaces/Projects/Acme/.agent/20261011-survey"
+    job.mkdir(parents=True)
+    scripted(fake, "finish:succeeded:# Report\nfindings")
+    out = run("plan", directory, output_dir=str(job))
+    saved = Path(out["report"])
+    assert saved.parent == job.resolve() and saved.read_text() == "# Report\nfindings\n", out
+    assert saved.name.startswith("work_tree-plan-")
+    assert session("status", out["session_id"])["report"] == str(saved), "the same turn keeps one file"
+    assert [p.name for p in job.iterdir()] == [saved.name]
+    assert "put the complete report in your final reply" in fake.prompts[-1][1]
+
+    sid = out["session_id"]
+    fake.scripts[sid] = ["hold"]
+    run("plan", session_id=sid, timeout=1)
+    fake.append(sid, {"id": f"msg_a{fake.tick()}", "type": "assistant", "content": [
+        {"type": "tool", "name": "write", "state": {"input": {"filePath": f"{job.resolve()}/own.md"}}}]})
+    fake.finish(sid, text="Saved own.md")
+    fake.scripts[sid] = []
+    wrote_itself = session("wait", sid)
+    assert wrote_itself["status"] == "completed" and "report" not in wrote_itself, \
+        "a turn that wrote into the directory itself gets nothing added"
+    assert sorted(p.name for p in job.iterdir()) == [saved.name]
+
+    fake.scripts[sid] = ["hold"]
+    run("plan", session_id=sid, timeout=1)
+    fake.append(sid, {"id": f"msg_a{fake.tick()}", "type": "assistant", "content": [
+        {"type": "tool", "name": "edit", "state": {"input": {
+            "path": "~/" + str(job.resolve().relative_to(Path.home())) + "/own.md"}}}]})
+    fake.finish(sid, text="Edited own.md")
+    fake.scripts[sid] = []
+    assert "report" not in session("wait", sid), "a home-relative spelling of the directory counts as written"
+
+    job.chmod(0o500)
+    try:
+        fake.scripts[sid] = ["finish:succeeded:second report"]
+        refused = run("plan", session_id=sid)
+        assert "report" not in refused and "Could not save" in refused["report_error"], refused
+    finally:
+        job.chmod(0o700)
+
+    configure(home, "  roles:\n    plan: {agent: plan, policy: read-only}\n    build: {agent: build, policy: write}\n")
+    built = run("build", session_id=sid, approval="Client: implement the plan")
+    assert built["status"] == "completed" and "report" not in built, "a write run's reply is not filed"
+    fake.calls.clear()
+    assert plugin._keep_report(home, built) == built and fake.calls == [], "and costs no further request"
+
+
+def test_read_only_runs_are_told_to_batch_their_commands(fixture):
+    home, directory, _, fake = fixture
+    sid = run("plan", directory)["session_id"]
+    assert plugin.READ_ONLY_NOTE in fake.entries[sid]["hermes.note"]
+    configure(home, "  roles:\n    plan: {agent: plan, policy: read-only}\n    build: {agent: build, policy: write}\n")
+    run("build", session_id=sid, approval="Client: implement the plan")
+    assert plugin.READ_ONLY_NOTE not in fake.entries[sid]["hermes.note"]
 
 
 def test_a_running_turn_is_polled_without_rereading_the_session_or_its_messages(fixture):

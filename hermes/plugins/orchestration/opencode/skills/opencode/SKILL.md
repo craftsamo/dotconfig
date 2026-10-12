@@ -92,7 +92,10 @@ fork?, timeout?, output_dir?)`; build also takes `approval` and
   (`<Group>/.agent/<YYYYMMDD>-<job>/…`), outside the worktree. The run may write
   there without asking (reports, screenshots), and later
   turns of the session keep it. Create the directory first. Nothing else outside
-  the worktree opens.
+  the worktree opens. Plan mode writes no files at all (its built-in rule), so
+  a read-only turn that writes nothing there gets its final reply saved there
+  as `<worktree>-<role>-<turn>.md`, named as `report` in the result: ask for the
+  complete report in the final reply, and never ask a build to copy one.
 - Ask in the message for what you need: actual check results, a review pass
   ("run a review pass", "deep review <area>") when an increment is risky, a
   checkpoint commit of verified work, `web_ui_check` for a page change
@@ -182,16 +185,23 @@ and the run waits meanwhile.
 ## Results
 
 A run call returns at once with the current state. While that state is
-`running`, a completion notification arrives at the next hand-back (finished or
-waiting); a state that is already final or paused comes with no notification.
-Act on the notification; never poll. When a call returns `running` with `timed_out`, or a
-tool times out, issue ONE `opencode_session wait` or wait for the
-notification.
+`running`, a notification arrives at the run's next stop (finished, waiting,
+unknown) or, after 20 minutes without one, as a heartbeat (`running`,
+`timed_out`); a state that is already final or paused comes with no
+notification. A notification is a summary: `status`, `pending` ids,
+`result_head` (the reply's beginning) and `next`. Read `opencode_session status`
+for the full result before you report or accept anything. Every `status` or
+`wait` that finds the run still `running` starts the next notifier (one per
+run), so after a heartbeat or after answering a request, the run stays watched.
+Act on notifications; never poll. When a call returns `running` with
+`timed_out`, or a tool times out, issue ONE `opencode_session wait` or wait for
+the notification.
 
-A notification for a state you already read (from a run call or a `wait`, and
-for a turn you have already reported) carries nothing new: answer it with
-`[SILENT]`. Reply only when it brings a new state: another finish, a pause on a
-request or question, or an unknown outcome.
+A notification for a state you already read (from a run call or a `wait`) and
+already reported carries nothing new: answer it with `[SILENT]`. Reading a
+state is not reporting it: a run that finished is news to the user until you
+told them. Reply when a notification brings a new state: a finish, a pause on
+a request or question, or an unknown outcome.
 
 - `completed`: OpenCode reported the turn succeeded — not that the task
   passed. Read `result` for open questions, assumptions and unverified claims

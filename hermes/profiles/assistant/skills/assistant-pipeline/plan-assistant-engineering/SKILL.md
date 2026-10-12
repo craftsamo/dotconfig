@@ -51,6 +51,7 @@ question; you never read or edit target code yourself.
 | Case | Run |
 | --- | --- |
 | How does X work, where is Y | `plan` (read-only) |
+| Survey whose deliverable is a report (inventory, audit, handover) | `plan` with the job directory as `output_dir`, one session per repository; its final reply is saved there as the report |
 | Bug, failing test, incident | `debug`; a fix is a separate approval |
 | Review of someone's change | `review` on a fresh session |
 | Feature, change, refactor, migration, performance | `plan`, then `build` on the same session |

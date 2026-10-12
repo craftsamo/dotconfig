@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import contextlib
 import importlib.util
+import json
 import os
 from pathlib import Path
 import re
@@ -167,6 +168,34 @@ def latest_turn(sid):
         elif kind == "assistant" and reply is None and text(message):
             reply = text(message)
     return {"start": start, "outcome": outcome, "reply": reply}
+
+
+EDIT_TOOLS = {"edit", "write", "patch", "apply_patch", "multiedit"}
+
+
+def wrote_into(sid, directories):
+    """Whether the newest turn's own edit tools touched a file under one of `directories`
+    (spellings of one directory): the sign that a run wrote its report itself. Subagent
+    sessions and turns longer than the newest 100 messages are not read."""
+    prefixes = [d.rstrip(os.sep) + os.sep for d in directories]
+    body = call("get", "/api/session/{sid}/message", query={"order": "desc", "limit": 100}, sid=sid)
+    seen_turn = False
+    for message in api.data(body, list):
+        kind = message.get("type")
+        if kind == "idle" and seen_turn:
+            break
+        if kind == "user":
+            seen_turn = True
+        if kind != "assistant":
+            continue
+        for part in message.get("content") or []:
+            if part.get("type") != "tool" or part.get("name") not in EDIT_TOOLS:
+                continue
+            given = (part.get("state") or {}).get("input") or part.get("input") or {}
+            text = json.dumps(given, ensure_ascii=False)
+            if any(prefix in text for prefix in prefixes):
+                return True
+    return False
 
 
 def latest_assistant(sid, after=None):
