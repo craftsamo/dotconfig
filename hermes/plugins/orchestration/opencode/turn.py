@@ -331,12 +331,16 @@ def wait_limit(home, settings, requested=None):
     return max(1.0, min(limits))
 
 
-def await_turn(sid, limit, *, through_retry=False, poll=None, sleep=time.sleep, clock=time.time):
+def await_turn(sid, limit, *, through_retry=False, poll=None, sleep=time.sleep, clock=time.time, ignore=(),
+               watch=None):
     """Block until the newest turn hands back to the caller, or `limit` seconds pass.
 
     Handing back means: the turn finished (an idle marker closed it), it is paused on a
-    permission request or question, it is stuck in a provider retry worth a decision, or
-    its outcome cannot be confirmed. Nothing is written anywhere."""
+    permission request or question, it is stuck in a provider retry worth a decision, its
+    outcome cannot be confirmed, or `watch(now)` (a notifier's progress watch) reports
+    Phase steps that finished or stalled. Requests in `ignore` were just answered: the
+    service can still list one for a moment, and it is never handed back again. Nothing
+    is written anywhere."""
     poll = POLL if poll is None else poll
     deadline = clock() + limit
     cache, last_retry = {}, None
@@ -354,7 +358,7 @@ def await_turn(sid, limit, *, through_retry=False, poll=None, sleep=time.sleep, 
                 info = session_info(sid)
             running_sessions = active()
             running = sid in running_sessions
-            found = pending(sid, directory_of(info), cache)
+            found = [p for p in pending(sid, directory_of(info), cache) if p.get("id") not in ignore]
             turn = None if running else latest_turn(sid)
             unreachable = None
         except api.Unavailable:

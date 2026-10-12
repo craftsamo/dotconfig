@@ -74,7 +74,22 @@ SHELL_NOTE = (
     "no `NAME=value` prefix (pass the setting as the program's own flag or option, such as `gh -R owner/repo`), "
     "no status wrapper (`…; exit \"$status\"`, `result=$?`), and no launcher around a command already on PATH "
     "(`npx`, `mise exec`). Run the project's own scripts for checks rather than inline code.")
+# Only Hermes-driven write runs with an output directory keep a progress file there; a
+# person's own sessions keep their plan in the conversation.
+PROGRESS_NOTE = (
+    "When this turn implements a Phase (one reviewable layer: one PR, or one layer of a stack), keep its steps "
+    "in `{path}`, one line per step in the order you will take them: `- [ ] PhaseN.m - <what the step delivers>`. "
+    "Write the list before the first step; mark a step `[~]` when you start it, `[x]` once it is verified and "
+    "committed, and `[!] … — blocked: <why>` when it cannot go on. Hermes tells the person as each step finishes.")
 SETTLE_AFTER_INTERRUPT = 20
+# After a reply the run usually reaches its next request or step within seconds; a live
+# caller waits this long for it, so one tool result carries the next state instead of a
+# notification and a further turn. Polled sparsely: each poll starts `opencode api`.
+REPLY_SETTLE = 20
+REPLY_POLL = 5.0
+# Steps finishing within this long of each other arrive as one notification.
+PROGRESS_SETTLE = 30
+REPLY_LIMIT = 10
 # A notifier hands back at the run's next stop, else after this long as a heartbeat
 # ("still running"); the caller's next status read starts the next one.
 NOTIFY_LIMIT = 1200
@@ -387,12 +402,21 @@ def _arm(home, live, sid, out, kwargs):
     return {**out, "process_session_id": process, "note": " ".join(filter(None, [out.get("note"), message]))}
 
 
-def _handoff(home, live, sid, kwargs, limit=None):
+def _handoff(home, live, sid, kwargs, limit=None, answered=()):
     """A blocking caller (CLI/resident) waits for the hand-back; a live caller gets the
-    current state at once and, while the run is still going, a notifier process."""
+    current state at once and, while the run is still going, a notifier process. After a
+    reply (`answered`) a live caller first waits a few seconds for the run's next state."""
+    if live and answered:
+        settle = min(REPLY_SETTLE, turn.wait_limit(home, _lenient(home), limit))
+        record = turn.await_turn(sid, settle, poll=REPLY_POLL, ignore=set(answered))
+        if record.get("status") == "running":
+            record = {k: v for k, v in record.items() if k != "timed_out"}
+            record["note"] = turn.note(record)
+        return _arm(home, live, sid, _keep_report(home, record), kwargs)
     if live:
         return _arm(home, live, sid, _keep_report(home, turn.snapshot(sid)), kwargs)
-    return _keep_report(home, turn.await_turn(sid, turn.wait_limit(home, _lenient(home), limit)))
+    return _keep_report(home, turn.await_turn(sid, turn.wait_limit(home, _lenient(home), limit),
+                                              ignore=set(answered)))
 
 
 REPORT_NAME = re.compile(r"[^A-Za-z0-9._-]+")
@@ -644,9 +668,39 @@ def _answer(value):
     return value
 
 
+REPLY_FIELDS = ("request_id", "decision", "reason", "answer")
+
+
+def _reply_plan(found, entry):
+    """One validated reply as (item, route, segments, body); sends nothing."""
+    if not isinstance(entry, dict) or set(entry) - set(REPLY_FIELDS):
+        raise ValueError(f"Each reply takes only {', '.join(REPLY_FIELDS)}")
+    request_id = entry.get("request_id")
+    item = next((p for p in found if p["id"] == request_id), None)
+    if item is None:
+        raise ValueError(f"{request_id!r} is not pending in this run (answered, cancelled or foreign)")
+    reason, decision = entry.get("reason"), entry.get("decision")
+    if reason is not None and (not isinstance(reason, str) or len(reason) > 2000):
+        raise ValueError("reason must be text of at most 2000 characters")
+    if item["kind"] == "permission":
+        if not PERMISSION_ID.fullmatch(request_id) or decision not in DECISIONS:
+            raise ValueError("decision must be once or reject (never always: it saves a project-wide approval "
+                             "people's own sessions would inherit)")
+        body = {"decision": decision, **({"message": reason} if reason else {})}
+        return item, "post", "/api/session/{sid}/permission/{per}/reply", {"per": request_id}, body
+    if not FORM_ID.fullmatch(request_id):
+        raise ValueError("Invalid form id")
+    if "answer" in entry:
+        return item, "post", "/api/session/{sid}/form/{form}/reply", {"form": request_id}, \
+            {"answer": _answer(entry["answer"])}
+    if decision == "reject":
+        return item, "delete", "/api/session/{sid}/form/{form}", {"form": request_id}, None
+    raise ValueError("Answer a question with answer={field: value}, or decline it with decision=reject")
+
+
 def opencode_request(args, **kwargs):
     try:
-        allowed = {"action", "session_id", "request_id", "decision", "reason", "answer"}
+        allowed = {"action", "session_id", "replies", *REPLY_FIELDS}
         if set(args) - allowed:
             raise ValueError("Unexpected arguments")
         home, owner, live = _scope()
@@ -657,31 +711,41 @@ def opencode_request(args, **kwargs):
             return json.dumps({"session_id": sid, "pending": found})
         if action != "reply":
             raise ValueError("Use list or reply")
-        request_id = args.get("request_id")
-        item = next((p for p in found if p["id"] == request_id), None)
-        if item is None:
-            raise ValueError("That request is not pending in this run (answered, cancelled or foreign)")
-        reason, decision = args.get("reason"), args.get("decision")
-        if reason is not None and (not isinstance(reason, str) or len(reason) > 2000):
-            raise ValueError("reason must be text of at most 2000 characters")
-        if item["kind"] == "permission":
-            if not PERMISSION_ID.fullmatch(request_id) or decision not in DECISIONS:
-                raise ValueError("decision must be once or reject (never always: it saves a project-wide approval "
-                                 "people's own sessions would inherit)")
-            reply = {"decision": decision, **({"message": reason} if reason else {})}
-            turn.call("post", "/api/session/{sid}/permission/{per}/reply", reply, sid=item["session_id"],
-                      per=request_id)
+        if "replies" in args:
+            if set(args) & set(REPLY_FIELDS):
+                raise ValueError("Pass either replies or one request_id, not both")
+            entries = args["replies"]
+            if not isinstance(entries, list) or not 1 <= len(entries) <= REPLY_LIMIT:
+                raise ValueError(f"replies must list 1..{REPLY_LIMIT} replies")
         else:
-            if not FORM_ID.fullmatch(request_id):
-                raise ValueError("Invalid form id")
-            if "answer" in args:
-                turn.call("post", "/api/session/{sid}/form/{form}/reply", {"answer": _answer(args["answer"])},
-                          sid=item["session_id"], form=request_id)
-            elif decision == "reject":
-                turn.call("delete", "/api/session/{sid}/form/{form}", sid=item["session_id"], form=request_id)
-            else:
-                raise ValueError("Answer a question with answer={field: value}, or decline it with decision=reject")
-        return json.dumps(_handoff(home, live, sid, kwargs))
+            entries = [{k: args[k] for k in REPLY_FIELDS if k in args}]
+        # Every reply is checked before any is sent, so a bad one sends none.
+        planned = [_reply_plan(found, entry) for entry in entries]
+        ids = [item["id"] for item, *_ in planned]
+        if len(set(ids)) != len(ids):
+            raise ValueError("Each request may be answered once")
+        # One budget for the whole call: each send may take up to the API timeout, and
+        # the call must return below the caller's tool deadline with what it did.
+        deadline = time.monotonic() + turn.wait_limit(home, _lenient(home))
+        sent, problem = [], None
+        for item, method, route, segments, body in planned:
+            if sent and time.monotonic() + api.TIMEOUT > deadline:
+                problem = "the call's time ran out before this reply was sent; send it again"
+                break
+            try:
+                turn.call(method, route, body, sid=item["session_id"], **segments)
+            except Exception as exc:
+                problem = (f"reply to {item['id']} failed ({exc}); OpenCode may still have taken it, so "
+                           "list the pending requests before answering it again")
+                break
+            sent.append(item["id"])
+        if problem:
+            # Report what was sent and the run's state now, never a bare error.
+            state = _arm(home, live, sid, turn.snapshot(sid), kwargs) if sent else {}
+            unsent = [item["id"] for item, *_ in planned if item["id"] not in sent]
+            return json.dumps({**state, "error": problem, "answered": sent, "unanswered": unsent})
+        remaining = max(1, int(deadline - time.monotonic()))
+        return json.dumps(_handoff(home, live, sid, kwargs, remaining, answered=sent))
     except Exception as exc:
         return json.dumps({"error": str(exc)})
 
@@ -888,11 +952,20 @@ def register(ctx):
                      "takes once or reject; reject also declines a question"},
         "reason": {"type": "string", "description": "reply only: shown to OpenCode; required in spirit for reject"},
         "answer": {"type": "object", "description": "reply only, for a question: field key -> answer"},
+        "replies": {"type": "array", "maxItems": REPLY_LIMIT, "description": "reply only: answer several pending "
+                    "requests at once, each {request_id, decision?, reason?, answer?}; all are checked before any "
+                    "is sent. Use instead of request_id.",
+                    "items": {"type": "object", "properties": {
+                        "request_id": {"type": "string"},
+                        "decision": {"type": "string", "enum": list(DECISIONS)},
+                        "reason": {"type": "string"}, "answer": {"type": "object"}},
+                        "required": ["request_id"], "additionalProperties": False}},
     }, ["action", "session_id"],
-        "List or answer what a run is paused on: permission requests (once within the Client's approved scope, "
-        "otherwise reject with a reason and ask the Client) and questions the agent put to a person (answer "
-        "them yourself when it is an in-scope technical question; relay material Client decisions). Requests stay "
-        "pending until answered; after a reply this waits for the next hand-back.")
+        "List or answer what a run is paused on: permission requests (once within the approved scope, otherwise "
+        "reject with a reason and take it to the person) and questions the agent put to a person (a technical "
+        "choice goes back as the run's own call; relay a decision only the person can make). Answer every pending "
+        "request in one call with replies. Requests stay pending until answered; after a reply this returns the "
+        "run's next state when it arrives within a few seconds.")
     add("opencode_instructions", opencode_instructions, {
         "action": {"type": "string", "enum": ["list", "put", "remove"]},
         "session_id": {"type": "string"},

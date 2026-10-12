@@ -201,8 +201,15 @@ file).
 
 **Requests.** An `ask` pauses the run as `waiting`, from the session or any of
 its subagents (requests are listed per location; the plugin keeps those of its
-own session tree). The caller answers each with `opencode_request`: a permission
-`once`, or `reject` with a reason; a question with its answer. There is no
+own session tree). The caller answers them with `opencode_request`, all pending
+ones in one call (`replies`, each checked before any is sent, and sent within
+one time budget below the tool deadline; a batch that stops part-way returns
+what was `answered` and `unanswered` with the run's state): a permission
+`once`, or `reject` with a reason; a question with its answer. A live caller's
+reply then waits up to 20 seconds (polling every 5) for the run's next state, so
+the next request usually arrives in the same tool result instead of a
+notification and a further turn; requests just answered are ignored while the
+service still lists them. There is no
 broader approval: `always` saves a project-wide approval people's own sessions
 would inherit, and a session-wide allow would be copied into every subagent
 session after its own denies. The decision rule lives in the plugin skill and
