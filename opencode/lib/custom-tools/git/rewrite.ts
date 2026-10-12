@@ -65,7 +65,7 @@ export async function needsForcePush(cwd: string, branch: string): Promise<boole
   return false
 }
 
-function githubRepo(url: string): string | null {
+export function githubRepo(url: string): string | null {
   const m = url.trim().match(/github\.com[:/]([^/]+\/[^/]+?)(?:\.git)?\/?$/)
   return m ? m[1] : null
 }
@@ -73,7 +73,7 @@ function githubRepo(url: string): string | null {
 const branchPath = (name: string) => name.split("/").map(encodeURIComponent).join("/")
 
 /** Why GitHub refuses a force push to `name`, null when it allows one, undefined when it could not be read. */
-async function forcePushBlock(repo: string, name: string, cwd: string): Promise<string | null | undefined> {
+export async function forcePushBlock(repo: string, name: string, cwd: string): Promise<string | null | undefined> {
   let rules: any
   try {
     rules = await runGhJson(["api", `repos/${repo}/rules/branches/${branchPath(name)}`], cwd)
