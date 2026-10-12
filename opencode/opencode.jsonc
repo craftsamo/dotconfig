@@ -1295,6 +1295,20 @@
       "resource": "gh ext* create *",
       "effect": "ask"
     },
+    // gh stack (github/gh-stack) pushes, rebases, retargets PR bases, merges
+    // and unstacks past the git rules, and takes flags before its verb: all
+    // of it asks but viewing. git_stack / git_stack_publish are the checked
+    // path; these commands stay as the fallback.
+    {
+      "action": "shell",
+      "resource": "gh stack *",
+      "effect": "ask"
+    },
+    {
+      "action": "shell",
+      "resource": "gh stack view*",
+      "effect": "allow"
+    },
     // Note: npx / bunx / pip / uv / docker / node / python / ruby / bash -c stay ask by default
     // Version checks (gated tools)
     {
