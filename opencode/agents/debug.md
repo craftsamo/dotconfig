@@ -18,6 +18,8 @@ permissions:
   - { action: git_commit, resource: "*", effect: deny }
   - { action: git_worktree, resource: "*", effect: deny }
   - { action: git_rebase, resource: "*", effect: deny }
+  - { action: git_stack, resource: "*", effect: deny }
+  - { action: git_stack_publish, resource: "*", effect: deny }
   - { action: edit, resource: "*", effect: deny }
   - { action: external_directory, resource: "*", effect: allow }
   - { action: subagent, resource: "*", effect: deny }
@@ -163,6 +165,8 @@ permissions:
   - { action: shell, resource: "git restore*", effect: deny }
   - { action: shell, resource: "git clean*", effect: deny }
   - { action: shell, resource: "gh pr merge*", effect: deny }
+  - { action: shell, resource: "gh stack merge*", effect: deny }
+  - { action: shell, resource: "gh stack unstack*", effect: deny }
   - { action: shell, resource: "gh run rerun*", effect: deny }
   - { action: shell, resource: "npm install*", effect: deny }
   - { action: shell, resource: "pnpm install*", effect: deny }

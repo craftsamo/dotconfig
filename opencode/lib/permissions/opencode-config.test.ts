@@ -69,6 +69,22 @@ describe("global shell rules", () => {
       expect([command, shell(command)]).toEqual([command, "ask"])
   })
 
+  test("gh stack asks for everything but viewing", () => {
+    for (const command of [
+      "gh stack push",
+      "gh stack submit --auto --open",
+      "gh stack rebase",
+      "gh stack sync",
+      "gh stack link 3 4",
+      "gh stack merge",
+      "gh stack unstack",
+      "gh stack -R o/r push",
+      "gh stack init feat",
+    ])
+      expect([command, shell(command)]).toEqual([command, "ask"])
+    for (const command of ["gh stack view", "gh stack view --json"]) expect([command, shell(command)]).toEqual([command, "allow"])
+  })
+
   test("reads stay free", () => {
     for (const command of [
       "git status",
