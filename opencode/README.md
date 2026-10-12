@@ -133,6 +133,12 @@ permissions decide which specialists may run.
   `general`, `worker`, or `verifier` (which can apply formatters).
 - Debug and Review exclude editing agents and ask `verifier` for checks only,
   never formatter application. Build may request scoped formatter application.
+- Build allows the project's own scripts and installed tools (`nps`,
+  `pnpm run`, `pnpm exec`, `npm run`) and still asks for anything naming
+  `deploy`, `publish`, `secret`, `--remote` or `--prod`: a best-effort list,
+  defense in depth rather than a sandbox. Worker, debugger and verifier reset
+  shell to ask and restate the plain reads (`cat`, `head`, `tail`, `wc`, `ls`,
+  `grep`, `rg`, `ps`) after it.
 - Plan and the built-in Explore explicitly deny edits, overriding the global
   `edit` ask rule. Plan retains its exception for `~/.opencode/plan/*`; writing a
   plan file still requires the user's explicit request.
