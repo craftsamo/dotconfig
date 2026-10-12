@@ -126,8 +126,9 @@ Only purposes derived from an already-confirmed spec start as Fixed.
 
 <BranchTopology>
 
-A purpose executes as one **native GitHub stack** (`gh stack`) whose trunk is
-always the default branch.
+A purpose executes as one **native GitHub stack** (`gh stack`, driven through
+the `git_stack` / `git_stack_publish` tools as `git-pullrequest`
+`<StackedPRs>` describes) whose trunk is always the default branch.
 
 - **Epics have no branch.** They are tracking-only; a months-long epic branch
   would starve the default branch and rot. The epic's progress is its
@@ -146,12 +147,12 @@ always the default branch.
   open. Use plain branches instead (`git-commit` creates them). This is the
   one place where the Development panel costs more than it gives.
 - **Grow the stack, do not pre-build it.** Add a layer only when you are about
-  to implement it (`gh stack top` then `gh stack add`). The CLI can only append
+  to implement it (`git_stack` `add`, which goes to the top first). The CLI can only append
   to the top: inserting or reordering needs `gh stack modify`, which is TUI-only
   and not drivable from a session. Keeping unwritten layers as outline text
   instead of PRs is what keeps the plan re-sliceable.
 - **The trunk is the default branch, always.** A non-default trunk is possible
-  (`gh stack init --base`) but poisoned: closing keywords do not fire for the
+  (`gh stack init --base`; `git_stack` refuses it) but poisoned: closing keywords do not fire for the
   layers of such a stack, and it re-introduces two kinds of PR with different
   rules. One trunk, one kind of PR.
 - **Closing.** Intermediate layers carry `Refs #<purpose>`; the layer that
@@ -187,13 +188,16 @@ always the default branch.
 4. **Kickoff a purpose (repeat per purpose).** Pick the next purpose by the
    Wave table: run its system research → settle Open decisions → update the
    body to Fixed with `## Implementation outline` as a layer checklist →
-   `gh stack init <purpose-number>-<slug>/l1` off the default branch. A one-PR
-   purpose instead takes a linked branch via `github_project_issue_develop`.
+   a task branch `<purpose-number>-<slug>/l1` off the default branch
+   (`git_worktree`, `action: create`); after its first commit, `git_stack`
+   `split` with no cuts makes it the stack's bottom layer. A one-PR purpose
+   instead takes a linked branch via `github_project_issue_develop`.
 5. **Execute layer by layer.** Implement the current layer, PR it via
-   `git-pullrequest`, then `gh stack top` + `gh stack add` for the next one.
-   Tick the outline checklist as layers land. After changing a lower layer,
-   `gh stack rebase` then `gh stack push` — the stack cannot merge unless each
-   layer is a linear descendant of the one below. Land with `gh stack merge`
+   `git-pullrequest`, then `git_stack` `add` for the next one. Tick the
+   outline checklist as layers land. After changing a lower layer, `git_stack`
+   `rebase`, then preview and `git_stack_publish` `push` — the stack cannot
+   merge unless each layer is a linear descendant of the one below. Land,
+   only on an explicit request, with `gh stack merge`
    (atomic: if any layer is not mergeable, none merge); merging the top layer
    closes the purpose. Keep the epic's Plan in sync.
 6. **Close the loop.** When all purposes land, run the epic's `## Acceptance`
