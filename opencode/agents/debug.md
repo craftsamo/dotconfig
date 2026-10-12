@@ -19,7 +19,8 @@ permissions:
   - { action: git_worktree, resource: "*", effect: deny }
   - { action: git_rebase, resource: "*", effect: deny }
   - { action: git_stack, resource: "*", effect: deny }
-  - { action: git_stack_publish, resource: "*", effect: deny }
+  - { action: git_publish, resource: "*", effect: deny }
+  - { action: git_publish_preview, resource: "*", effect: allow }
   - { action: edit, resource: "*", effect: deny }
   - { action: external_directory, resource: "*", effect: allow }
   - { action: subagent, resource: "*", effect: deny }

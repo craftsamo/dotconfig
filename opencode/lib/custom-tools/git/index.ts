@@ -16,13 +16,13 @@
  *   uncommitted changes and deletes a branch only once it has landed.
  * - `verify_commits` runs a caller-given command, so its permission is `ask`.
  * - `stack` moves only local branches of a native GitHub stack (split, add,
- *   rebase); `stack_publish` pushes and opens or links its PRs, so its
- *   permission is `ask`, and it publishes only the state a `stack` preview
+ *   rebase); `publish` pushes and opens or links its PRs, so its permission
+ *   is `ask`, and it publishes only the state a `publish_preview` (read-only)
  *   pinned with its token.
  * The rewrite rule (`rewrite.ts`): a task branch's own commits may be
  * rewritten, pushed or not, but never the default branch, commits already on
  * it or held by another remote branch, or a branch GitHub protects against
- * force pushes. Apart from `stack_publish`, none of the tools pushes, and none
+ * force pushes. Apart from `publish`, none of the tools pushes, and none
  * merges — those stay gated shell commands. Read-only agents deny the writing ones (opencode.jsonc,
  * agents/*.md, and Hermes' run rulesets).
  */
@@ -37,7 +37,7 @@ export { provenance } from "./provenance"
 export { rebase } from "./rebase"
 export { related_scan } from "./related"
 export { secret_scan } from "./secrets"
-export { stack, stack_publish } from "./stack"
+export { publish, publish_preview, stack } from "./stack"
 export { state } from "./state"
 export { verify_commits } from "./verify"
 export { worktree } from "./worktree"

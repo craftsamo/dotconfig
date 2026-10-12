@@ -134,7 +134,7 @@
           "effect": "deny"
         },
         {
-          "action": "git_stack_publish",
+          "action": "git_publish",
           "resource": "*",
           "effect": "deny"
         },
@@ -237,7 +237,7 @@
           "effect": "deny"
         },
         {
-          "action": "git_stack_publish",
+          "action": "git_publish",
           "resource": "*",
           "effect": "deny"
         },
@@ -1297,7 +1297,7 @@
     },
     // gh stack (github/gh-stack) pushes, rebases, retargets PR bases, merges
     // and unstacks past the git rules, and takes flags before its verb: all
-    // of it asks but viewing. git_stack / git_stack_publish are the checked
+    // of it asks but viewing. git_stack / git_publish are the checked
     // path; these commands stay as the fallback.
     {
       "action": "shell",
@@ -1894,10 +1894,10 @@
     // command: ask). git_commit's amend/fixup and git_rebase rewrite only a
     // task branch's own commits: never the default branch, commits on it or on
     // another remote branch, or a branch GitHub protects (git/rewrite.ts).
-    // No push/merge, except git_stack_publish (pushes and opens PRs of a
-    // native stack, only as a git_stack preview pinned it: ask). git_stack
-    // moves local stack branches only. Plan, Explore, Review and Debug deny
-    // the writing ones.
+    // No push/merge, except git_publish (pushes and opens PRs of a native
+    // stack, only as a git_publish_preview pinned it: ask). git_stack moves
+    // local stack branches only; git_publish_preview only reads. Plan,
+    // Explore, Review and Debug deny the writing ones.
     {
       "action": "git_commit",
       "resource": "*",
@@ -1919,7 +1919,12 @@
       "effect": "allow"
     },
     {
-      "action": "git_stack_publish",
+      "action": "git_publish_preview",
+      "resource": "*",
+      "effect": "allow"
+    },
+    {
+      "action": "git_publish",
       "resource": "*",
       "effect": "ask"
     },
