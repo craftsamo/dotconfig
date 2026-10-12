@@ -7,9 +7,9 @@ import {
 
 /**
  * Serves the Console credit lane balance on 127.0.0.1 for OpenCode Quota's
- * custom remote provider (see lib/credit-lanes and the README). Read-only, a
- * cached `opencode stats` run behind it; nothing here touches the history
- * database.
+ * custom remote provider (see lib/credit-lanes and the README). Behind it, a
+ * cached `opencode stats` run and a read of Hermes' usage rows; it writes only
+ * the lanes' own state file. Nothing here touches the history database.
  */
 async function setup() {
   const port = Number(process.env.CREDIT_LANES_PORT) || DEFAULT_PORT
