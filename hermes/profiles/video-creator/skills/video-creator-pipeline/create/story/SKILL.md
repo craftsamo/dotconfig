@@ -63,7 +63,7 @@ metadata:
 
    ```text
    skill_view(name="video-creator-pipeline", file_path="references/hyperframes.md")
-   skill_view(name="video-creator-pipeline", file_path="references/motion-vocabulary.md")
+   skill_view(name="motion-vocabulary", file_path="references/core.md")
    ```
 
    Attempt the applicable technical lookups, report unavailable references

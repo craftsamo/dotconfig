@@ -169,7 +169,7 @@ skill_view(name="video-creator-pipeline", file_path="references/three-graphics.m
    looks, and build them per that engine's own reference:
 
    ```text
-   skill_view(name="video-creator-pipeline", file_path="references/motion-vocabulary.md")
+   skill_view(name="motion-vocabulary", file_path="references/core.md")
    ```
 5. Round A: author `spec.json` per the reference, not HTML. Preserve exact spoken
    and on-screen words. Every unit names its learning goal and before/change/after

@@ -61,6 +61,8 @@ def test_hands_config_safe_yaml_offline_mechanical(hands_config):
         "audio-creator": ("direction", "audio"),
     }
     expected += [f"~/.agents/skills/media-craft-{name}" for name in craft[profile]]
+    if profile == "video-creator":
+        expected.append("~/.agents/skills/motion-vocabulary")
     if profile == "image-creator":
         # create-diagram's drawing conventions, read for conventions only.
         expected += [

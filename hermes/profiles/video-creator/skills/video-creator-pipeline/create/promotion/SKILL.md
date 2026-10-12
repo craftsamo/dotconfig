@@ -100,7 +100,7 @@ template and not "close enough". Judge every frame against it:
    component vocabulary:
 
    ```text
-   skill_view(name="video-creator-pipeline", file_path="references/motion-vocabulary.md")
+   skill_view(name="motion-vocabulary", file_path="references/core.md")
    ```
 
 4. Round A (no `approved_plan`): write `storyboard.md` per

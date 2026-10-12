@@ -1,15 +1,15 @@
 # Game motion vocabulary
 
-A dictionary, not a rulebook. It extends the core motion-vocabulary.md with the
+A dictionary, not a rulebook. It extends the core.md with the
 motions of a game screen, drawn either as the whole frame or as graphic moments
 inside a video. Everything is performed by the timeline inside the frame: no
 player, no input; bars, counters and menus move because tweens move them. The
-Feel column uses the five feel words defined in motion-vocabulary-timing.md
+Feel column uses the five feel words defined in timing.md
 "## Feel" (smooth / snappy / soft / heavy / bouncy). For says what an entry is
 usually applied to; The tell names the detail that makes it read as itself and
 how it differs from a near neighbour. Tints, colour drains and
 distortions here go on the drawn world layers, as with the drawn looks of
-`motion-vocabulary-looks.md`;
+`looks.md`;
 supplied art, a cast or a logo moves, holds or is copied, never re-rendered.
 
 ## Game HUD

@@ -85,7 +85,7 @@ skill_view(name="video-creator-pipeline", file_path="references/three-graphics.m
    transitions between steps, instead of generic "fade", "slide" or "card":
 
    ```text
-   skill_view(name="video-creator-pipeline", file_path="references/motion-vocabulary.md")
+   skill_view(name="motion-vocabulary", file_path="references/core.md")
    ```
 
    For explicit screen_mode, first return only proposal-vN.md + SHA-256. Use a single fenced `tour` JSON

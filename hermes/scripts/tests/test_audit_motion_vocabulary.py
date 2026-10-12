@@ -17,7 +17,7 @@ SPEC.loader.exec_module(AUDIT)
 HEADER = "| Name | Feel | For | Looks like | The tell | Built with |\n| --- | --- | --- | --- | --- | --- |\n"
 CORE = (
     "# Motion and component vocabulary\n\n## More names\n\n| Deciding | Open |\n| --- | --- |\n"
-    '| a scrolling page | `skill_view(name="video-creator-pipeline", file_path="references/motion-vocabulary-scroll.md")` |\n\n'
+    '| a scrolling page | `skill_view(name="motion-vocabulary", file_path="references/scroll.md")` |\n\n'
     "## Text animations\n\n" + HEADER +
     "| count-up（カウントアップ） | snappy | text | a number climbs | the units digit races ahead — vs `sticky`: that holds still | tween an object |\n"
 )
@@ -42,8 +42,8 @@ class AuditMotionVocabularyTest(unittest.TestCase):
     def test_clean_fixture_passes(self) -> None:
         with TemporaryDirectory() as tmp:
             root = Path(tmp)
-            write(root, "motion-vocabulary.md", CORE)
-            write(root, "motion-vocabulary-scroll.md", SCROLL)
+            write(root, "core.md", CORE)
+            write(root, "scroll.md", SCROLL)
             self.assertEqual(0, AUDIT.main(["--root", str(root)]))
 
     def test_each_breakage_is_reported(self) -> None:
@@ -55,21 +55,21 @@ class AuditMotionVocabularyTest(unittest.TestCase):
                 "| snap | snappy | UI | sections lock |\n"
                 "| pin（ピン） | heavy | UI | a panel pins | it holds — vs `missing entry`: none | pinned layer |\n"
             )
-            write(root, "motion-vocabulary.md", CORE)
-            write(root, "motion-vocabulary-scroll.md", broken)
-            write(root, "motion-vocabulary-orphan.md", "# Orphan\n")
+            write(root, "core.md", CORE)
+            write(root, "scroll.md", broken)
+            write(root, "orphan.md", "# Orphan\n")
             errors = "\n".join(AUDIT.audit(root, None, [])["errors"])
             for expected in ("digit in The tell of parallax", "caution or advice in The tell of marquee",
                              "live, non-seekable build in marquee", "4 cells under a 6-cell header",
-                             "unknown entry `missing entry`", "does not route motion-vocabulary-orphan.md"):
+                             "unknown entry `missing entry`", "does not route orphan.md"):
                 self.assertIn(expected, errors)
             self.assertEqual(1, AUDIT.main(["--root", str(root)]))
 
     def test_source_wording_is_reported(self) -> None:
         with TemporaryDirectory() as tmp:
             root = Path(tmp)
-            write(root, "motion-vocabulary.md", CORE)
-            write(root, "motion-vocabulary-scroll.md", SCROLL)
+            write(root, "core.md", CORE)
+            write(root, "scroll.md", SCROLL)
             source = root / "source.txt"
             source.write_text("Here a block stays put while the page moves past it.", encoding="utf-8")
             errors = AUDIT.audit(root, None, [source])["errors"]
@@ -82,8 +82,8 @@ class AuditMotionVocabularyTest(unittest.TestCase):
     def test_web_catalog_must_match_vocabulary_names_and_aliases(self) -> None:
         with TemporaryDirectory() as tmp:
             root = Path(tmp)
-            write(root, "motion-vocabulary.md", CORE)
-            write(root, "motion-vocabulary-scroll.md", SCROLL)
+            write(root, "core.md", CORE)
+            write(root, "scroll.md", SCROLL)
             web = root / "web"
             web.mkdir()
             (web / "scroll.md").write_text(
@@ -97,7 +97,7 @@ class AuditMotionVocabularyTest(unittest.TestCase):
     def test_invalid_invocation_returns_two(self) -> None:
         with TemporaryDirectory() as tmp:
             self.assertEqual(2, AUDIT.main(["--root", tmp]))
-            write(Path(tmp), "motion-vocabulary.md", CORE)
+            write(Path(tmp), "core.md", CORE)
             self.assertEqual(2, AUDIT.main(["--root", tmp, "--source", str(Path(tmp) / "absent.txt")]))
 
 

@@ -94,7 +94,7 @@ skill_view(name="video-creator-pipeline", file_path="references/three-graphics.m
    or "card"; it adds no plan field and no rule:
 
    ```text
-   skill_view(name="video-creator-pipeline", file_path="references/motion-vocabulary.md")
+   skill_view(name="motion-vocabulary", file_path="references/core.md")
    ```
 3. Round A (no `approved_plan`): for final purpose author `plan.json` per the schema in
    [authoring](references/authoring.md) — exact copy rows (id/text/role/
