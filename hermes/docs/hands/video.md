@@ -128,8 +128,12 @@ mixed rates go through edit-clip first.
 
 **Motion vocabulary.** The kernel's `references/motion-vocabulary.md` is read
 by the five authored leaves before the plan that fixes their beats; they name
-its entries instead of generic "fade" or "card". It adds no plan field, schema
-or rule, and a drawn look never re-renders supplied art, a cast or a logo.
+its entries instead of generic "fade" or "card". The core holds what most
+films use (text basics, transitions, camera, components, compositions, film
+structures, visual metaphors) and routes, in its "More names" table, to one
+neighbouring `motion-vocabulary-*.md` file per authoring decision, read on
+demand; the core stays small because every plan reads it. It adds no plan field, schema or rule, and
+a drawn look never re-renders supplied art, a cast or a logo.
 Why: "Storyboard vocabulary" under the Promotion family.
 
 **Three graphics** is an opt-in (`graphics: three-webgl2`) on create-tour,
