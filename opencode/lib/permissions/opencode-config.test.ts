@@ -226,4 +226,23 @@ describe("subagents that reset shell to ask", () => {
       if (name === "debugger") expect(decide("cat a > b")).toBe("ask")
     })
   }
+
+  test("design reads the repository and writes only drafts", async () => {
+    const own = (await front("design")).permissions
+    const decide = (action: string, resource: string) => {
+      let effect = "ask"
+      for (const r of [...rules, ...own])
+        if (matches(r.action, action, false) && matches(r.resource, resource, action === "shell")) effect = r.effect
+      return effect
+    }
+    expect(decide("read", "src/app/page.tsx")).toBe("allow")
+    expect(decide("read", "apps/web/.env")).toBe("deny")
+    expect(decide("edit", "src/app/page.tsx")).toBe("deny")
+    expect(decide("edit", "/w/Projects/Acme/.agent/20261012-form/design/index.html")).toBe("allow")
+    expect(decide("edit", "/w/Projects/Acme/.agent/job/x.env")).toBe("deny")
+    expect(decide("git_commit", "*")).toBe("deny")
+    for (const command of ["git log --oneline -5", "git diff main", "ls apps"]) expect([command, decide("shell", command)]).toEqual([command, "allow"])
+    for (const command of ["git diff --output=x.patch", "git log > x", "rm -rf src", "node -e 'x'"])
+      expect([command, decide("shell", command)]).toEqual([command, "ask"])
+  })
 })
