@@ -75,9 +75,13 @@ hidden primaries and no operating contract beyond a short `hermes.note`
 instruction entry. Because rules match each command as written and every
 unmatched one waits for the caller, the note asks every run to write commands
 plainly (no `NAME=value` prefix, status wrapper or launcher such as `npx`), and
-a read-only role's note also asks it to batch commands. Hermes sits in the person's seat: a question the agent asks
-and a permission it needs arrive as `waiting` and are answered with
-`opencode_request`.
+a read-only role's note also asks it to batch commands. A write run with an
+output directory is also asked to keep its Phase steps in `progress.md` there
+(below); a person's own sessions never are. Hermes sits in the person's seat: a
+question the agent asks and a permission it needs arrive as `waiting` and are
+answered with `opencode_request`. The Assistant's `design` role runs a
+read-only OpenCode `design` agent that writes HTML mocks and diagrams into the
+output directory only, for the user to open before a plan is fixed.
 
 **Plan → Build on the same session.** The next run on a plan session may use
 `opencode_run_build` plus `approval`: the session keeps its whole history in
@@ -271,6 +275,17 @@ deadlines. A failed turn records `provider_error` (`kind` limit / auth / other)
 from its last assistant message. `unknown` blocks nothing: with no record there
 is nothing to reconcile, so the caller reads the diff and worktree before another
 turn.
+
+**Phase progress.** A Hermes write run with an output directory keeps its
+Phase's steps in `<output_dir>/progress.md`, one checklist line per step
+(`- [x] Phase2.1 - …`; `[ ]` pending, `[~]` in hand, `[x]` done, `[!]`
+blocked). The run writes it; the plugin only reads it (no link followed, 64 KiB
+at most), so it is the run's deliverable, not a run record. Every state record
+carries its summary as `progress`. A notifier remembers in memory where the list
+stood when it started and hands back `running` with `progress_changed` once a
+step reaches done or blocked (steps within 30 seconds of each other arrive
+together), so the user hears of each step without the caller polling; the
+caller's status read starts the next notifier.
 
 **Untrusted output.** Run results, diffs, repository files, Issue and PR text
 are material written by others, returned as results, not instructions.

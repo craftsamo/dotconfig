@@ -300,7 +300,9 @@ Contract: [docs/opencode.md](docs/opencode.md). When editing
   a run's state is read from the service (the turn's `idle` message carries its
   outcome). A state file, watcher or stored PID would become a second source of
   truth that disagrees with the service. The per-worktree lock only serializes
-  starts. No deadline is enforced on purpose (a run outlives Hermes).
+  starts. No deadline is enforced on purpose (a run outlives Hermes). A Phase's
+  `progress.md` in the output directory is the run's own file: the plugin only
+  reads it, and a notifier holds its baseline in memory, never on disk.
 - **Roles are configuration, not code.** Names, agents, policies and models come
   from `opencode.roles` (`DEFAULT_ROLES` is only the fallback); code keys on the
   policy (`read-only` / `write`), never on a role or agent name.

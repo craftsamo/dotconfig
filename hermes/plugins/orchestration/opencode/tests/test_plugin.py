@@ -983,6 +983,57 @@ def test_notifier_returns_at_the_next_handback(fixture):
         plugin._notify(home.parent, sid)
 
 
+def test_progress_lines_are_read_as_phase_steps():
+    steps = turn.progress.parse("# Phase 2\n- [x] Phase2.1 - schema\n* [~] Phase 2.2: builder\n- [!] Phase2.3 — "
+                                "export — blocked: no CSV spec\n- [ ] Phase2.4 - docs\n- [ ] not a step\n"
+                                "- [X] Phase2.2 - builder\n")
+    assert [(s["id"], s["state"]) for s in steps] == [("Phase2.1", "done"), ("Phase2.3", "blocked"),
+                                                     ("Phase2.4", "pending"), ("Phase2.2", "done")]
+    assert turn.progress.summary(steps) == {"done": 2, "total": 4, "blocked": [
+        {"id": "Phase2.3", "title": "export — blocked: no CSV spec"}]}
+    assert turn.progress.read({}) is None, "no output directory, no progress"
+    before = turn.progress.parse("- [x] Phase1.1 - a\n- [~] Phase1.2 - b\n")
+    after = turn.progress.parse("- [x] Phase1.1 - a\n- [x] Phase1.2 - b\n- [!] Phase1.3 - c\n")
+    assert [s["id"] for s in turn.progress.reached(before, after)] == ["Phase1.2", "Phase1.3"]
+
+
+def test_a_build_keeps_its_phase_steps_and_the_notifier_reports_each_one(fixture, tmp_path, monkeypatch):
+    home, directory, _, fake = fixture
+    job = tmp_path / "Workspaces/Projects/Acme/.agent/20261012-form/phase-2"
+    job.mkdir(parents=True)
+    scripted(fake, "hold")
+    started = run("build", directory, output_dir=str(job), approval="Client: build Phase 2", timeout=1)
+    sid = started["session_id"]
+    assert str(job.resolve() / "progress.md") in fake.entries[sid]["hermes.note"]
+    assert "progress.md" not in plugin._instructions({"policy": "read-only"}, str(job)), "write runs only"
+    assert "progress.md" not in plugin._instructions({"policy": "write"}), "only with an output directory"
+    (job / "progress.md").write_text("- [~] Phase2.1 - schema\n- [ ] Phase2.2 - builder\n")
+    monkeypatch.setattr(plugin, "NOTIFY_LIMIT", 2)
+    monkeypatch.setattr(plugin, "NOTIFY_POLL", 0.01)
+    monkeypatch.setattr(plugin, "PROGRESS_SETTLE", 0)
+    import threading
+    threading.Timer(0.1, lambda: (job / "progress.md").write_text(
+        "- [x] Phase2.1 - schema\n- [~] Phase2.2 - builder\n")).start()
+    woke = plugin._notify(home, sid)
+    assert woke["status"] == "running" and woke["progress_changed"] == [
+        {"id": "Phase2.1", "state": "done", "title": "schema"}]
+    assert woke["progress"] == {"done": 1, "total": 2, "doing": ["Phase2.2"]}
+    notice = json.loads(plugin._notice(woke))
+    assert notice["progress_changed"][0]["id"] == "Phase2.1" and "one line" in notice["next"]
+    status = session("status", sid)
+    assert status["progress"]["done"] == 1, "a status read carries the step list's state"
+    quiet = plugin._notify(home, sid)
+    assert quiet.get("timed_out") and "progress_changed" not in quiet, "a step already reported does not wake again"
+    import os
+    (job / "progress.md").unlink()
+    os.mkfifo(job / "progress.md")
+    assert turn.progress.read({"output_dir": str(job)}) is None, "a FIFO is never opened for reading"
+    (job / "progress.md").unlink()
+    (job / "progress.md").symlink_to(tmp_path / "elsewhere.md")
+    (tmp_path / "elsewhere.md").write_text("- [x] Phase9.1 - x\n")
+    assert turn.progress.read({"output_dir": str(job)}) is None, "a link is never followed"
+
+
 def test_notifier_does_not_return_on_a_provider_retry(fixture, monkeypatch):
     home, directory, _, fake = fixture
     scripted(fake, "retry:The usage limit has been reached:1", "hold")
