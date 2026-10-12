@@ -392,6 +392,73 @@ def test_subagent_requests_are_found_through_the_session_tree(fixture):
     assert done["status"] == "waiting" or done["status"] == "completed"
 
 
+def test_replies_answer_every_pending_request_in_one_call(fixture, monkeypatch):
+    _, directory, _, fake = fixture
+    monkeypatch.setattr(api, "TIMEOUT", 0)
+    scripted(fake, "ask-permission", "finish")
+    paused = run("plan", directory)
+    sid, first = paused["session_id"], paused["pending"][0]["id"]
+    second = fake.ask(sid, action="shell", resources=("pnpm run lint",), save=("pnpm run *",))["id"]
+    fake.question(sid)
+    form = fake.forms[-1]["id"]
+    bad = request("reply", sid, replies=[{"request_id": first, "decision": "once"},
+                                         {"request_id": second, "decision": "always"}])
+    assert "never always" in bad["error"] and not fake.replies, "a bad reply sends none of them"
+    assert "once" in request("reply", sid, replies=[{"request_id": first, "decision": "once"},
+                                                    {"request_id": first, "decision": "reject"}])["error"]
+    assert "not both" in request("reply", sid, request_id=first, decision="once", replies=[])["error"]
+    done = request("reply", sid, replies=[{"request_id": first, "decision": "once"},
+                                          {"request_id": second, "decision": "reject", "reason": "Use the script."},
+                                          {"request_id": form, "answer": {"q0": "Red"}}])
+    assert done["status"] == "completed", done
+    assert fake.replies == [(first, {"decision": "once"}),
+                            (second, {"decision": "reject", "message": "Use the script."})]
+    assert fake.answers == [(form, {"answer": {"q0": "Red"}})]
+
+
+def test_a_batch_that_stops_part_way_says_what_was_sent(fixture, monkeypatch):
+    _, directory, _, fake = fixture
+    scripted(fake, "ask-permission", "hold")
+    paused = run("plan", directory)
+    sid, first = paused["session_id"], paused["pending"][0]["id"]
+    second = fake.ask(sid)["id"]
+    third = fake.ask(sid)["id"]
+    out = request("reply", sid, replies=[{"request_id": i, "decision": "once"} for i in (first, second, third)])
+    assert out["answered"] == [first] and out["unanswered"] == [second, third], "the time budget stops the batch"
+    assert "send it again" in out["error"] and out["status"] in ("running", "waiting")
+    monkeypatch.setattr(api, "TIMEOUT", 0)
+    real = fake._route
+
+    def refuse(method, parts, query, data):
+        if parts[-1:] == ["reply"] and parts[-2] == third:
+            raise api.Unavailable("service down")
+        return real(method, parts, query, data)
+    fake._route = refuse
+    out = request("reply", sid, replies=[{"request_id": i, "decision": "once"} for i in (second, third)])
+    assert out["answered"] == [second] and out["unanswered"] == [third] and "may still have taken it" in out["error"]
+
+
+def test_a_live_reply_returns_the_runs_next_state(fixture, monkeypatch):
+    home, directory, owner, fake = fixture
+    monkeypatch.setattr(plugin, "_scope", lambda: (home, owner, True))
+    monkeypatch.setattr(plugin, "REPLY_POLL", 0.01)
+    launched = []
+    monkeypatch.setattr(plugin, "_launch_notifier", lambda h, sid, task: launched.append(sid) or "proc_1")
+    scripted(fake, "ask-permission", "ask-permission", "hold")
+    paused = run("plan", directory)
+    sid, first = paused["session_id"], paused["pending"][0]["id"]
+    nxt = request("reply", sid, request_id=first, decision="once")
+    assert nxt["status"] == "waiting" and nxt["pending"][0]["id"] != first, "the next request, in the same result"
+    assert launched == [], "a paused state needs no notifier"
+    monkeypatch.setattr(plugin, "REPLY_SETTLE", 0.05)
+    running = request("reply", sid, request_id=nxt["pending"][0]["id"], decision="once")
+    assert running["status"] == "running" and "timed_out" not in running
+    assert running["process_session_id"] == "proc_1", "a run still going after the settle gets its notifier"
+    stale = fake.ask(sid)["id"]
+    held = turn.await_turn(sid, 0.05, ignore={stale})
+    assert held["status"] == "running" and held["timed_out"], "a request just answered is never handed back"
+
+
 def test_pending_requests_stay_until_answered(fixture):
     _, directory, _, fake = fixture
     scripted(fake, "ask-permission", "finish")
