@@ -2,6 +2,7 @@ model:
   default: gpt-6.1-sol
   provider: openai-codex
   base_url: https://chatgpt.com/backend-api/codex
+  context_length: 1000000
 fallback_providers:
   - provider: anthropic-oauth
     model: claude-sonnet-5-5
@@ -190,7 +191,7 @@ compression:
   hygiene_hard_message_limit: 400
   protect_first_n: 3
   abort_on_summary_failure: false
-  codex_gpt55_autoraise: true
+  codex_gpt55_autoraise: false
 prompt_caching:
   cache_ttl: 5m
 openrouter:

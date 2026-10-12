@@ -50,7 +50,11 @@ Hermes touches it for image generation and, on `writer` / `researcher` /
   `xai-oauth` / grok-4.7, then the OpenRouter tail. xAI stays in the chain
   because `x_search` and Imagine video draw on it. Searcher is the only profile
   that leads on the shared ChatGPT allowance, so re-size OpenCode's usage if its
-  retrieval volume grows ("Codex" below).
+  retrieval volume grows ("Codex" below). Its window is pinned
+  (`model.context_length: 1000000`, `compression.threshold: 0.5`,
+  `codex_gpt55_autoraise: false`) so compression starts at 500k: the Codex
+  catalog still reports 272k for GPT-6.1 Sol, and the autoraise would pin the
+  trigger to 85 % of the window instead.
 - The coding model inside OpenCode is a separate layer: its roles use OpenCode's
   own per-agent defaults (OpenCode's own Anthropic account, nothing from the
   Hermes weekly pool), optionally overridden by `model` on a role in
