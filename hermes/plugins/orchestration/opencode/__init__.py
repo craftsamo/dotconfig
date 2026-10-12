@@ -67,6 +67,13 @@ READ_ONLY_NOTE = (
     "This run is read-only. Prefer the read, grep and glob tools to shell commands. Every inline "
     "interpreter (`python3 -c`, `node -e`), pipe, chain or unlisted command waits for Hermes to approve "
     "it, one round trip each, so plan the checks you need and batch them into as few commands as possible.")
+# Permission rules match each simple command as written, so a prefix or wrapper turns an
+# allowed command into one that waits for Hermes.
+SHELL_NOTE = (
+    "Permission rules match each command as written. Write a command as its plain program and arguments: "
+    "no `NAME=value` prefix (pass the setting as the program's own flag or option, such as `gh -R owner/repo`), "
+    "no status wrapper (`…; exit \"$status\"`, `result=$?`), and no launcher around a command already on PATH "
+    "(`npx`, `mise exec`). Run the project's own scripts for checks rather than inline code.")
 SETTLE_AFTER_INTERRUPT = 20
 # A notifier hands back at the run's next stop, else after this long as a heartbeat
 # ("still running"); the caller's next status read starts the next one.
@@ -196,7 +203,7 @@ def _prompt(role, message, approval, issue_approval, output=None):
 
 
 def _instructions(role):
-    text = DEFAULT_NOTE + (" " + READ_ONLY_NOTE if role["policy"] == "read-only" else "")
+    text = DEFAULT_NOTE + " " + SHELL_NOTE + (" " + READ_ONLY_NOTE if role["policy"] == "read-only" else "")
     return text + (("\n\n" + role["note"]) if role.get("note") else "")
 
 

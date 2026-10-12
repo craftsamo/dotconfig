@@ -1105,6 +1105,8 @@ def test_read_only_runs_are_told_to_batch_their_commands(fixture):
     configure(home, "  roles:\n    plan: {agent: plan, policy: read-only}\n    build: {agent: build, policy: write}\n")
     run("build", session_id=sid, approval="Client: implement the plan")
     assert plugin.READ_ONLY_NOTE not in fake.entries[sid]["hermes.note"]
+    assert plugin.SHELL_NOTE in fake.entries[sid]["hermes.note"], \
+        "every run learns that a prefix or wrapper turns an allowed command into a wait for Hermes"
 
 
 def test_a_running_turn_is_polled_without_rereading_the_session_or_its_messages(fixture):
@@ -1173,6 +1175,11 @@ def test_session_ruleset_holds_no_broad_allow_but_worktree_edits():
                 assert policy.decide(rules, "shell", command) == "deny", (kind, command)
             assert policy.decide(rules, "github_project_item_add", "*") == "deny"
             assert policy.decide(rules, "git_worktree", "*") == "deny", "workspace owns worktrees"
+            # OpenCode reports `(exit) >/tmp/x` as the resource `exit` and checks no redirect
+            # target, so even a bare `exit` allow would approve a file write unseen.
+            project_ask = [{"action": "shell", "resource": "*", "effect": "ask"}]
+            for command in ("exit", "exit 1", 'exit "$status"', "exit >/tmp/x"):
+                assert policy.decide(project_ask + rules, "shell", command) == "ask", (kind, command)
 
 
 def test_never_approved_commands_stay_denied_however_spelled():

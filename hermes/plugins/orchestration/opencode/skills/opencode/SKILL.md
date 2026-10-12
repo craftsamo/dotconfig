@@ -100,6 +100,12 @@ fork?, timeout?, output_dir?)`; build also takes `approval` and
   ("run a review pass", "deep review <area>") when an increment is risky, a
   checkpoint commit of verified work, `web_ui_check` for a page change
   (OpenCode's tool; it writes into `output_dir`).
+- Permission rules match each command as written, and every unmatched one
+  pauses the run for you. So never tell a run to write commands with a
+  `NAME=value` prefix, a status wrapper (`…; exit "$status"`) or a launcher
+  (`npx`, `mise exec`): name the target as the program's own option instead
+  (`gh -R owner/repo …`, a script's flag). The operating note tells the run the
+  same.
 - Never start a second turn on a session that is still running: wait, steer or
   interrupt it.
 
@@ -182,7 +188,9 @@ them; where it says `complete: false`, read the request with `list` first.
 
 There is no broader approval: `always` would save a project-wide rule the
 person's own sessions inherit. If the same in-scope request keeps coming, say
-in the next message how to avoid it. A request stays pending until answered,
+in the next message how to avoid it: usually a prefixed or wrapped command
+(above), an inline interpreter where a project script exists, or a server the
+run starts and stops by hand. A request stays pending until answered,
 and the run waits meanwhile.
 
 ## Results
