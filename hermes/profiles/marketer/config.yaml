@@ -626,41 +626,6 @@ model_catalog:
 network:
   force_ipv4: false
 platforms:
-  telegram:
-    enabled: true
-    extra:
-      command_menu:
-        priority_mode: replace
-        max_commands: 28
-        priority:
-          - help
-          - new
-          - stop
-          - status
-          - resume
-          - sessions
-          - model
-          - restart
-          - commands
-          - approve
-          - deny
-          - queue
-          - steer
-          - btw
-          - usage
-          - topic
-          - save
-          - retry
-          - title
-          - branch
-          - compress
-          - agents
-          - plan
-          - moa
-          - context
-          - voice
-          - learn
-          - insights
   a2a:
     enabled: true
     extra:
@@ -745,26 +710,7 @@ platform_toolsets:
     - x_access
     - x_search
     - youtube_access
-  telegram:
-    - browser
-    - clarify
-    - connections
-    - delegation
-    - evm_access
-    - file
-    - memory
-    - no_mcp
-    - note_access
-    - skills
-    - solana_access
-    - specialist
-    - substack_access
-    - terminal
-    - vision
-    - web
-    - x_access
-    - x_search
-    - youtube_access
+  telegram: []
   discord: []
   a2a:
     - connections
