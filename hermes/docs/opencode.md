@@ -8,11 +8,15 @@ of the Hermes design docs — index: [`PROFILES.md`](../PROFILES.md).
 ## Who does what
 
 OpenCode is the developer. It investigates, plans, implements, tests, reviews
-and commits with its own agents and skills (`opencode/AGENTS.md`). The
-Assistant is the user's Client and supervisor: it frames the outcome, grounds
-the plan through OpenCode plan/debug/review runs, obtains the user's explicit
-implementation approval, drives the build to a task-branch PR, answers what the
-runs pause on and accepts the result. It never edits target code itself, and it
+and commits with its own agents and skills (`opencode/AGENTS.md`), and owns
+every technical choice: methods, checks, commit and PR splitting. The Assistant
+relays between the user and OpenCode rather than standing in for either: it
+passes the user's own words and the current stage's goal, turns OpenCode's
+proposals and questions into plain language for the user, keeps the job's
+decision log, obtains the user's explicit implementation approval, answers what
+the runs pause on and accepts the result. Detailed instructions narrow the
+model without adding information, so a message carries no commands, steps or
+restated rules. It never edits target code itself, and it
 sends every code question or change to OpenCode, however small. The Assistant's
 engineering entries (`{plan,execute,qa}-assistant-engineering`) carry those
 decisions; the plugin's own skill (`opencode:opencode`) carries the tool
@@ -24,14 +28,16 @@ checkout effective at once, so it plans there read-only and builds only in the
 task worktree `opencode_session workspace` creates; the plugin refuses a write
 run in the live checkout. Cutover stays the person's decision.
 
-| Relationship                 | Owner of decisions                                                  |
-| ---------------------------- | ------------------------------------------------------------------- |
-| User with the Assistant      | Outcome, scope, important tradeoffs and the implementation approval |
-| Assistant with OpenCode      | Requests, in-scope technical answers, acceptance evidence           |
-| OpenCode with its own agents | Code-level methods, exploration, testing and review                 |
+| Relationship                 | Owner of decisions                                                                  |
+| ---------------------------- | ----------------------------------------------------------------------------------- |
+| User with the Assistant      | What people can do and see, what is stored, scope, cost, the approval of each Phase |
+| Assistant with OpenCode      | The user's words, the stage's goal, the decision log, acceptance evidence           |
+| OpenCode with its own agents | Technical design, methods, exploration, testing, review, commit and PR splitting    |
 
-One explicit implementation approval releases the agreed scope through QA,
-task-branch push and PR delivery. Issue writes need a separate, explicit
+A plan of several Phases (Phase N = one reviewable layer: one PR, or one layer
+of a native stack) is approved as a roadmap, then each Phase's steps
+(Phase N.m) before that Phase's build; one approval releases that Phase through
+QA, task-branch push and PR delivery. Issue writes need a separate, explicit
 request; never merge, deployment, repository creation or default-branch push.
 
 ## The plugin
