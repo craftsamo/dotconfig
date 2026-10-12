@@ -93,10 +93,10 @@ the missing capability; never propose an unsupported method or an archived one.
 
 Read vocabulary in place and never copy it into a reply as a rulebook:
 
-- Motion, transitions, text animation, components: video-creator's
-  `references/motion-vocabulary.md`, through `skill_view(name="video-creator-pipeline",
-  file_path="references/motion-vocabulary.md")`; its "More names" section
-  routes to the neighbouring files. Japanese aliases find an entry from the
+- Motion, transitions, text animation, components: the shared motion
+  vocabulary, through `skill_view(name="motion-vocabulary",
+  file_path="references/core.md")`; its "More names" section routes to the
+  neighbouring files. Japanese aliases find an entry from the
   user's own words, and a described feel (なめらか, 弾む…) from the Feel
   columns.
 - A leaf's looks, themes and destinations: its own option references.

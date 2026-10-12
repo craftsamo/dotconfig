@@ -1,6 +1,6 @@
 # Interface controls vocabulary
 
-A dictionary, not a rulebook. It extends the core `motion-vocabulary.md` with the motion of controls in a shown web or app interface: interaction feedback, buttons, toggles and selection, forms, gestures, loaders, toasts and reactions. Everything is performed by the timeline inside the frame: a hover, click, drag or scroll is a tween the timeline plays, drawn as a cursor, a finger or a moving page, never a real input. The Feel column uses the five feel words defined in `motion-vocabulary-timing.md` "## Feel" (smooth / snappy / soft / heavy / bouncy). For says what an entry is usually applied to; The tell names the detail that makes it read as itself and how it differs from a near neighbour.
+A dictionary, not a rulebook. It extends the core `core.md` with the motion of controls in a shown web or app interface: interaction feedback, buttons, toggles and selection, forms, gestures, loaders, toasts and reactions. Everything is performed by the timeline inside the frame: a hover, click, drag or scroll is a tween the timeline plays, drawn as a cursor, a finger or a moving page, never a real input. The Feel column uses the five feel words defined in `timing.md` "## Feel" (smooth / snappy / soft / heavy / bouncy). For says what an entry is usually applied to; The tell names the detail that makes it read as itself and how it differs from a near neighbour.
 
 ## Web interaction
 

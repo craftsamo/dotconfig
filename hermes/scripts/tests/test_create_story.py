@@ -210,7 +210,7 @@ def test_leaf_form_and_routing():
     body = " ".join(text[end:].split())
     assert "never redraw, restyle, trace or generate a character" in body
     assert "local-authoring fallback" in text.split("<Report>")[1]
-    assert 'file_path="references/motion-vocabulary.md"' in text
+    assert 'skill_view(name="motion-vocabulary", file_path="references/core.md")' in text
     assert "create-story" in (VIDEO / "references/hyperframes.md").read_text()
     row = next(line for line in COMMISSION.read_text().splitlines() if "| `create-story` |" in line)
     assert "kind=\"work\"" in row

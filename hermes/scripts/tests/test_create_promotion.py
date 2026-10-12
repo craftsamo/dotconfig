@@ -14,6 +14,7 @@ import hermes_yaml as yaml
 HERMES_ROOT = Path(__file__).resolve().parents[2]
 VIDEO = HERMES_ROOT / "profiles/video-creator/skills/video-creator-pipeline"
 LEAF = VIDEO / "create/promotion"
+VOCABULARY = HERMES_ROOT.parent / "agents/curated/motion-vocabulary/references"
 CREATOR = HERMES_ROOT / "profiles/creator"
 ADVISOR = CREATOR / "skills/creator-pipeline/references/video-creator/promotion.md"
 COMMISSION = HERMES_ROOT / "profiles/assistant/skills/assistant-pipeline/execute-assistant-creative/references/promotion.md"
@@ -191,14 +192,14 @@ def test_compare_sheet_handles_shorter_reference_of_another_aspect(tmp_path):
 
 def test_round_a_names_techniques_from_the_vocabulary():
     leaf = (LEAF / "SKILL.md").read_text()
-    vocab = (LEAF.parent.parent / "references/motion-vocabulary.md").read_text()
-    assert 'file_path="references/motion-vocabulary.md"' in leaf
+    vocab = (VOCABULARY / "core.md").read_text()
+    assert 'skill_view(name="motion-vocabulary", file_path="references/core.md")' in leaf
     assert "name the" in leaf and 'instead of generic "fade", "slide" or "card"' in " ".join(leaf.split())
     for section in ("## Text animations", "## Transitions", "## Camera", "## Components", "## Compositions"):
         assert section in vocab
     # Effects moved to the looks file that the core routes to.
-    assert "## Effects" in (LEAF.parent.parent / "references/motion-vocabulary-looks.md").read_text()
-    assert 'file_path="references/motion-vocabulary-looks.md"' in vocab
+    assert "## Effects" in (VOCABULARY / "looks.md").read_text()
+    assert 'file_path="references/looks.md"' in vocab
     assert "A dictionary, not a rulebook" in vocab
 
 
@@ -211,7 +212,7 @@ def test_pv_and_series_are_promotion_not_a_new_subject():
     assert "never redrawn as stand-ins" in body and "never invented" in body
     authoring = (LEAF / "references/authoring.md").read_text()
     assert "## Showcase and series" in authoring and "the earlier episode is never edited" in authoring
-    vocab = (LEAF.parent.parent / "references/motion-vocabulary.md").read_text()
+    vocab = (VOCABULARY / "core.md").read_text()
     assert "## Film structures" in vocab and "showcase reel (PV)" in vocab
     assert not (LEAF.parent / "pv").exists()
     row = next(line for line in COMMISSION.read_text().splitlines() if line.endswith("| `create-promotion` | free"

@@ -67,8 +67,7 @@ not reach Creator at all; the Assistant commissions it directly.
 ### Vocabulary and feasibility
 
 Creator reads its vocabulary in place and never copies it:
-video-creator's `references/motion-vocabulary.md` (and the neighbouring
-`motion-vocabulary-*.md` files it links), each leaf's form and option
+the shared `motion-vocabulary` skill, each leaf's form and option
 references (styles, themes, destinations), the hands' `references/craft.md` and
 the curated `media-craft-*` skills. One plain reference per served subject,
 `references/<hands>/<subject>.md`, says what that leaf can express: its range,

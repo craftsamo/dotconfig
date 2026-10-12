@@ -178,6 +178,12 @@ skills.
   ([docs/ops/skills.md "Skill placement"](docs/ops/skills.md)). Verify with
   `hermes -p creator skills list` — a bare `hyperframes skills` installs rather
   than reports.
+- **Curated skills a profile pins arrive only through `../install.sh`.**
+  video-creator pins `media-craft-*` and `motion-vocabulary` from
+  `~/.agents/skills`, which holds links into `agents/curated/` that the
+  installer creates. After adding or moving a curated skill, run it on the
+  merged checkout before the next Hermes session, or the leaves'
+  `skill_view(name="motion-vocabulary")` finds nothing at read time.
 - **Writing worker playbooks:** worker terminal approvals cannot prompt, so a
   flagged command just fails. Build playbooks on scripts and wrapper CLIs,
   never inline interpreters or one-liners, and keep `command_allowlist` empty

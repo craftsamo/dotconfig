@@ -1,6 +1,6 @@
 # Timing, easing and feel vocabulary
 
-A dictionary, not a rulebook. It extends the core `motion-vocabulary.md` with the
+A dictionary, not a rulebook. It extends the core `core.md` with the
 names for how a motion moves: principles, easing curves, springs and rhythm.
 Everything here is performed by the timeline inside the frame; nothing reacts to
 a real user. The Feel column of the other vocabulary files uses the five feel

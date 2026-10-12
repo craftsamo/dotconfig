@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Read-only audit of the motion vocabulary and the web motion catalog.
 
-The video-creator kernel's motion vocabulary is one core file that routes to
-neighbouring files (references/motion-vocabulary*.md). This audit checks what
+The shared motion-vocabulary skill (agents/curated) keeps one core file that
+routes to neighbouring files (references/*.md). This audit checks what
 editing can silently break:
 
 - every table row has as many cells as its header;
@@ -34,9 +34,9 @@ import re
 import sys
 from pathlib import Path
 
-VOCAB_DIR = Path("hermes/profiles/video-creator/skills/video-creator-pipeline/references")
+VOCAB_DIR = Path("agents/curated/motion-vocabulary/references")
 WEB_DIR = Path("agents/curated/web-motion-catalog/references")
-CORE = "motion-vocabulary.md"
+CORE = "core.md"
 CORE_LIMIT, NEIGHBOUR_LIMIT = 70_000, 48_000
 FLASH = "never more than 3 flashes in any one second, and no saturated red full-frame flash"
 CAUTION = re.compile(
@@ -49,7 +49,7 @@ LIVE = re.compile(r"Math\.random|IntersectionObserver|addEventListener|requestAn
                   r"\bonscroll\b|:hover\b", re.I)
 DIMENSION = re.compile(r"\b\d(?:\.\d)?D\b")
 REF = re.compile(r"(?:vs|core:) `([^`]+)`")
-ROUTE = re.compile(r'file_path="references/(motion-vocabulary-[a-z-]+\.md)"')
+ROUTE = re.compile(r'file_path="references/([a-z-]+\.md)"')
 
 
 def cells(line: str) -> list[str]:
@@ -96,7 +96,7 @@ def audit(root: Path, web: Path | None, sources: list[Path]) -> dict:
     errors: list[str] = []
     warnings: list[str] = []
     vdir = root / VOCAB_DIR
-    files = sorted(vdir.glob("motion-vocabulary*.md"))
+    files = sorted(vdir.glob("*.md"))
     texts = {f.name: f.read_text(encoding="utf-8") for f in files}
     core = texts.get(CORE, "")
 
