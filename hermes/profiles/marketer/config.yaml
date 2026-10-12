@@ -733,6 +733,7 @@ x_access:
 plugins:
   enabled:
     - skill-topology
+    - clarify-context
     - specialist-call
     - note-access
     - x-access

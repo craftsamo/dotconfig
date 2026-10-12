@@ -92,3 +92,12 @@ user keys.
   `learned/`). It does not intercept dashboard direct-create APIs or arbitrary
   terminal/file writes — the validator catches those after the fact
   ([`skills.md`](./skills.md) "Skills").
+- **guards/clarify-context** refuses a `clarify` whose subject the user has not
+  seen: nothing visible since their last message and no question `context`, or
+  `MEDIA:` tags in a reply of the current turn that the question's `context`
+  does not carry (reply attachments arrive after the turn, so after the card;
+  `context` attachments arrive before it). Gateway
+  notifications do not count as the user speaking. It needs the hermes-agent `feat/clarify-context` patch
+  (the `context` field, delivered and verified before the card) and stands down
+  with a warning on a runtime without it. Enabled where `clarify` is allowed:
+  the Assistant and Marketer.
