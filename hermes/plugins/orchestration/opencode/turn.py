@@ -27,6 +27,7 @@ def _load(name, filename):
 
 api = _load("hermes_opencode_api", "api.py")
 config = _load("hermes_opencode_config", "config.py")
+progress = _load("hermes_opencode_progress", "progress.py")
 
 POLL = 2.0
 # A turn that is neither running nor closed by an idle marker for this long ended
@@ -288,6 +289,11 @@ def describe(sid, info, status, *, turn=None, found=(), extra=None):
         record["tokens"] = info["tokens"]
     if found:
         record["pending"] = list(found)
+    # The Phase's step list, when the run keeps one in its output directory: a local
+    # file the run writes, read here without a further request to the service.
+    steps = progress.summary(progress.read(meta))
+    if steps:
+        record["progress"] = steps
     record.update({k: v for k, v in (extra or {}).items() if v not in (None, [], "")})
     return record
 
@@ -298,6 +304,10 @@ def note(record):
         return ("OpenCode is paused on the pending request(s). Answer each with opencode_request reply: a permission "
                 "request once within the Client's approved scope, otherwise reject with a reason; a question "
                 "with its answer. They stay pending until answered.")
+    if status == "running" and record.get("progress_changed"):
+        return ("A Phase step finished or stalled while the run goes on (progress_changed). Tell the person in "
+                "one line, a blocked step at once with its reason; opencode_session status re-arms the "
+                "notification.")
     if status == "running" and record.get("retrying"):
         retry = record["retrying"]
         who = "a subagent of the run" if retry.get("subagent") else "the run"
@@ -381,6 +391,10 @@ def await_turn(sid, limit, *, through_retry=False, poll=None, sleep=time.sleep, 
             return describe(sid, reread(sid, info, first), "idle")
         if running:
             unseen = None
+            changed = watch(now) if watch else None
+            if changed:
+                return with_note(describe(sid, reread(sid, info, first), "running", turn=turn,
+                                          extra={"progress_changed": changed}))
             if not through_retry and (last_retry is None or now - last_retry >= RETRY_POLL):
                 last_retry = now
                 with contextlib.suppress(api.ApiError, api.Unavailable):
