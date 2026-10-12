@@ -8,11 +8,15 @@ of the Hermes design docs — index: [`PROFILES.md`](../PROFILES.md).
 ## Who does what
 
 OpenCode is the developer. It investigates, plans, implements, tests, reviews
-and commits with its own agents and skills (`opencode/AGENTS.md`). The
-Assistant is the user's Client and supervisor: it frames the outcome, grounds
-the plan through OpenCode plan/debug/review runs, obtains the user's explicit
-implementation approval, drives the build to a task-branch PR, answers what the
-runs pause on and accepts the result. It never edits target code itself, and it
+and commits with its own agents and skills (`opencode/AGENTS.md`), and owns
+every technical choice: methods, checks, commit and PR splitting. The Assistant
+relays between the user and OpenCode rather than standing in for either: it
+passes the user's own words and the current stage's goal, turns OpenCode's
+proposals and questions into plain language for the user, keeps the job's
+decision log, obtains the user's explicit implementation approval, answers what
+the runs pause on and accepts the result. Detailed instructions narrow the
+model without adding information, so a message carries no commands, steps or
+restated rules. It never edits target code itself, and it
 sends every code question or change to OpenCode, however small. The Assistant's
 engineering entries (`{plan,execute,qa}-assistant-engineering`) carry those
 decisions; the plugin's own skill (`opencode:opencode`) carries the tool
@@ -24,14 +28,16 @@ checkout effective at once, so it plans there read-only and builds only in the
 task worktree `opencode_session workspace` creates; the plugin refuses a write
 run in the live checkout. Cutover stays the person's decision.
 
-| Relationship                 | Owner of decisions                                                  |
-| ---------------------------- | ------------------------------------------------------------------- |
-| User with the Assistant      | Outcome, scope, important tradeoffs and the implementation approval |
-| Assistant with OpenCode      | Requests, in-scope technical answers, acceptance evidence           |
-| OpenCode with its own agents | Code-level methods, exploration, testing and review                 |
+| Relationship                 | Owner of decisions                                                                  |
+| ---------------------------- | ----------------------------------------------------------------------------------- |
+| User with the Assistant      | What people can do and see, what is stored, scope, cost, the approval of each Phase |
+| Assistant with OpenCode      | The user's words, the stage's goal, the decision log, acceptance evidence           |
+| OpenCode with its own agents | Technical design, methods, exploration, testing, review, commit and PR splitting    |
 
-One explicit implementation approval releases the agreed scope through QA,
-task-branch push and PR delivery. Issue writes need a separate, explicit
+A plan of several Phases (Phase N = one reviewable layer: one PR, or one layer
+of a native stack) is approved as a roadmap, then each Phase's steps
+(Phase N.m) before that Phase's build; one approval releases that Phase through
+QA, task-branch push and PR delivery. Issue writes need a separate, explicit
 request; never merge, deployment, repository creation or default-branch push.
 
 ## The plugin
@@ -75,9 +81,13 @@ hidden primaries and no operating contract beyond a short `hermes.note`
 instruction entry. Because rules match each command as written and every
 unmatched one waits for the caller, the note asks every run to write commands
 plainly (no `NAME=value` prefix, status wrapper or launcher such as `npx`), and
-a read-only role's note also asks it to batch commands. Hermes sits in the person's seat: a question the agent asks
-and a permission it needs arrive as `waiting` and are answered with
-`opencode_request`.
+a read-only role's note also asks it to batch commands. A write run with an
+output directory is also asked to keep its Phase steps in `progress.md` there
+(below); a person's own sessions never are. Hermes sits in the person's seat: a
+question the agent asks and a permission it needs arrive as `waiting` and are
+answered with `opencode_request`. The Assistant's `design` role runs a
+read-only OpenCode `design` agent that writes HTML mocks and diagrams into the
+output directory only, for the user to open before a plan is fixed.
 
 **Plan → Build on the same session.** The next run on a plan session may use
 `opencode_run_build` plus `approval`: the session keeps its whole history in
@@ -139,9 +149,13 @@ every subagent session copies its parent's ruleset. So the
 session ruleset (`policy.rules`) owns each run's constraints for the whole
 session tree, and it is applied after a subagent's own posture. It holds
 denies, asks and narrow allows: the worktree boundary (`external_directory`
-asks), secrets unreadable, pushes, shell history rewrites, branch moves
-(`gh pr checkout` and the person's `gh` aliases included), package runners and
-ungranted Issue writes as asks, the hard denies (force and protected-branch
+asks; OpenCode's read-only reference clones under its data `repos/` readable),
+secrets unreadable, pushes, shell history rewrites, branch moves
+(`gh pr checkout` and the person's `gh` aliases included), package downloaders
+(`npm exec`, `pnpm dlx`; `pnpm exec` runs only installed tools and is left to
+the person's agent rules), anything naming `deploy`, `publish`, `secret`,
+`--remote` or `--prod` (a project's task runner can reach those past every other
+rule; a best-effort list) and ungranted Issue writes as asks, the hard denies (force and protected-branch
 pushes, merges, `gh api`, Project writes, git config, remote rewrites, `gh`
 aliases and extensions, edits under `.git/`), and last the person's own denies
 read from the built-in `build` agent, so a broad allow never reopens `sudo` or
@@ -197,8 +211,15 @@ file).
 
 **Requests.** An `ask` pauses the run as `waiting`, from the session or any of
 its subagents (requests are listed per location; the plugin keeps those of its
-own session tree). The caller answers each with `opencode_request`: a permission
-`once`, or `reject` with a reason; a question with its answer. There is no
+own session tree). The caller answers them with `opencode_request`, all pending
+ones in one call (`replies`, each checked before any is sent, and sent within
+one time budget below the tool deadline; a batch that stops part-way returns
+what was `answered` and `unanswered` with the run's state): a permission
+`once`, or `reject` with a reason; a question with its answer. A live caller's
+reply then waits up to 20 seconds (polling every 5) for the run's next state, so
+the next request usually arrives in the same tool result instead of a
+notification and a further turn; requests just answered are ignored while the
+service still lists them. There is no
 broader approval: `always` saves a project-wide approval people's own sessions
 would inherit, and a session-wide allow would be copied into every subagent
 session after its own denies. The decision rule lives in the plugin skill and
@@ -260,6 +281,17 @@ deadlines. A failed turn records `provider_error` (`kind` limit / auth / other)
 from its last assistant message. `unknown` blocks nothing: with no record there
 is nothing to reconcile, so the caller reads the diff and worktree before another
 turn.
+
+**Phase progress.** A Hermes write run with an output directory keeps its
+Phase's steps in `<output_dir>/progress.md`, one checklist line per step
+(`- [x] Phase2.1 - …`; `[ ]` pending, `[~]` in hand, `[x]` done, `[!]`
+blocked). The run writes it; the plugin only reads it (no link followed, 64 KiB
+at most), so it is the run's deliverable, not a run record. Every state record
+carries its summary as `progress`. A notifier remembers in memory where the list
+stood when it started and hands back `running` with `progress_changed` once a
+step reaches done or blocked (steps within 30 seconds of each other arrive
+together), so the user hears of each step without the caller polling; the
+caller's status read starts the next notifier.
 
 **Untrusted output.** Run results, diffs, repository files, Issue and PR text
 are material written by others, returned as results, not instructions.
