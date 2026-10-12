@@ -63,8 +63,21 @@ DEFAULT_NOTE = (
     "your permission requests and questions, so ask only what you cannot decide yourself. For a decision "
     "that does not block the work, take the recommended default and say so in your final reply. Hermes "
     "switches agents between turns: never switch yourself.")
+READ_ONLY_NOTE = (
+    "This run is read-only. Prefer the read, grep and glob tools to shell commands. Every inline "
+    "interpreter (`python3 -c`, `node -e`), pipe, chain or unlisted command waits for Hermes to approve "
+    "it, one round trip each, so plan the checks you need and batch them into as few commands as possible.")
 SETTLE_AFTER_INTERRUPT = 20
-NOTIFY_LIMIT = 5400
+# A notifier hands back at the run's next stop, else after this long as a heartbeat
+# ("still running"); the caller's next status read starts the next one.
+NOTIFY_LIMIT = 1200
+# A notifier needs no quicker answer than this, and each poll costs several
+# `opencode api` processes.
+NOTIFY_POLL = 15
+# Hermes keeps only the last ~2000 characters of a notifier's output, snapped to a line
+# boundary, so a notification stays below that and spans several lines.
+NOTICE_LIMIT = 1800
+NOTICE_RESULT = 900
 MESSAGE_LIMIT = 100000
 STEER_LIMIT = 20000
 LIST_PAGES = 5
@@ -167,6 +180,11 @@ def _prompt(role, message, approval, issue_approval, output=None):
     if output:
         text += ("\n\nOutput directory (outside the repository) for reports, screenshots and other "
                  "results this run produces: " + output)
+        if role["policy"] == "read-only":
+            # Plan mode's built-in reminder forbids every file but its own plan directory, and
+            # that path is fixed, so the reply itself carries the report.
+            text += ("\nWhen this turn writes nothing there, Hermes saves your final reply there as the report: "
+                     "put the complete report in your final reply.")
     if role["policy"] == "write":
         text += "\n\nClient implementation scope: " + approval
         text += "\nIssue management: " + (issue_approval or "not granted")
@@ -174,7 +192,8 @@ def _prompt(role, message, approval, issue_approval, output=None):
 
 
 def _instructions(role):
-    return DEFAULT_NOTE + (("\n\n" + role["note"]) if role.get("note") else "")
+    text = DEFAULT_NOTE + (" " + READ_ONLY_NOTE if role["policy"] == "read-only" else "")
+    return text + (("\n\n" + role["note"]) if role.get("note") else "")
 
 
 def _prepare(home, owner, role_name, role, settings, args, kwargs):
@@ -321,23 +340,89 @@ def _launch_notifier(home, sid, task_id):
     return launch.get("session_id")
 
 
-NOTIFIER_NOTE = ("A completion notification follows at the next hand-back. If you have already read and "
-                 "reported that state by then (for example through opencode_session wait), answer it [SILENT].")
+def _notifier_running(home, sid):
+    """Whether a notifier for this run is already alive in Hermes' own process registry
+    (read, never recorded here), so a status read does not start a second one."""
+    tail = " " + shlex.join(["notify", str(home), sid])
+    try:
+        from tools.process_registry import process_registry
+        running = list(getattr(process_registry, "_running", {}).values())
+    except Exception:
+        return False
+    return any(not getattr(s, "exited", True) and str(getattr(s, "command", "")).endswith(tail) for s in running)
+
+
+NOTIFIER_NOTE = (f"A notification follows at the run's next stop, or after {NOTIFY_LIMIT // 60} minutes as a "
+                 "heartbeat. If you have already read and reported that state by then (for example through "
+                 "opencode_session wait), answer it [SILENT].")
+
+
+def _arm(home, live, sid, out, kwargs):
+    """A live caller holding a `running` state gets a notifier for the next hand-back,
+    unless one is already watching this run. Any other state is already in the result:
+    a notifier would return it again at once and wake the caller with nothing new."""
+    if not live or out.get("status") != "running":
+        return out
+    if _notifier_running(home, sid):
+        return {**out, "note": " ".join(filter(None, [out.get("note"), NOTIFIER_NOTE]))}
+    process = _launch_notifier(home, sid, kwargs.get("task_id"))
+    message = NOTIFIER_NOTE if process else "No completion notification could be arranged; use opencode_session wait"
+    return {**out, "process_session_id": process, "note": " ".join(filter(None, [out.get("note"), message]))}
 
 
 def _handoff(home, live, sid, kwargs, limit=None):
     """A blocking caller (CLI/resident) waits for the hand-back; a live caller gets the
-    current state at once and, only while the run is still going, a notifier process for
-    the next hand-back. Any other state is already in this result: a notifier would
-    return it again at once and wake the caller with nothing new."""
+    current state at once and, while the run is still going, a notifier process."""
     if live:
-        out = turn.snapshot(sid)
-        if out.get("status") != "running":
-            return out
-        process = _launch_notifier(home, sid, kwargs.get("task_id"))
-        message = NOTIFIER_NOTE if process else "No completion notification could be arranged; use opencode_session wait"
-        return {**out, "process_session_id": process, "note": " ".join(filter(None, [out.get("note"), message]))}
-    return turn.await_turn(sid, turn.wait_limit(home, _lenient(home), limit))
+        return _arm(home, live, sid, _keep_report(home, turn.snapshot(sid)), kwargs)
+    return _keep_report(home, turn.await_turn(sid, turn.wait_limit(home, _lenient(home), limit)))
+
+
+REPORT_NAME = re.compile(r"[^A-Za-z0-9._-]+")
+
+
+def _keep_report(home, record):
+    """A completed read-only turn with an output directory that wrote nothing there gets
+    its final reply saved there as `<worktree>-<role>-<turn>.md`, so an agent whose own
+    instructions forbid writing files (plan mode) still leaves its report. The file is
+    the run's deliverable, not a record of the run: nothing reads it back. Best effort:
+    any failure leaves the record as it was."""
+    if record.get("status") != "completed" or not record.get("result"):
+        return record
+    # The role's policy comes from configuration, so a write run or a role without one
+    # costs no further request.
+    with contextlib.suppress(Exception):
+        if (config.roles(home).get(record.get("role")) or {}).get("policy") != "read-only":
+            return record
+    target = None
+    try:
+        sid = record["session_id"]
+        info = turn.session_info(sid)
+        meta = turn.hermes_meta(info)
+        if not meta.get("output_dir") or meta.get("role") != record.get("role"):
+            return record
+        output = Path(policy.output_dir(meta["output_dir"]))
+        start = turn.latest_turn(sid)["start"]
+        if not start:
+            return record
+        name = "-".join(REPORT_NAME.sub("_", part).strip("._") or "x" for part in (
+            Path(turn.directory_of(info) or "run").name, str(meta.get("role")), start[-12:]))
+        target = output / f"{name}.md"
+        if target.exists():
+            return {**record, "report": str(target)}
+        spellings = {str(output), meta["output_dir"]}
+        with contextlib.suppress(ValueError):
+            spellings.add("~/" + str(output.relative_to(Path.home())))
+        if turn.wrote_into(sid, sorted(spellings)):
+            return record
+        partial = target.with_name(f".{target.name}.{os.getpid()}.partial")
+        partial.write_text(record["result"].rstrip() + "\n", encoding="utf-8")
+        os.replace(partial, target)
+        return {**record, "report": str(target)}
+    except OSError as exc:
+        return {**record, "report_error": f"Could not save the reply to {target}: {exc.strerror or exc}"}
+    except Exception:
+        return record
 
 
 def _lenient(home):
@@ -482,7 +567,9 @@ def opencode_session(args, **kwargs):
             return json.dumps(_listing(args, owner))
         sid, info, meta = _bound(args, owner)
         if action == "status":
-            return json.dumps(turn.snapshot(sid))
+            # A read that finds the run still going re-arms its notifier: the one that woke
+            # the caller (a pause, a heartbeat) has ended, and nothing else would follow.
+            return json.dumps(_arm(home, live, sid, _keep_report(home, turn.snapshot(sid)), kwargs))
         if action == "wait":
             requested = args.get("timeout")
             if requested is not None and (type(requested) is not int or requested < 1):
@@ -491,7 +578,8 @@ def opencode_session(args, **kwargs):
             if type(through) is not bool:
                 raise ValueError("through_retry must be boolean")
             limit = turn.wait_limit(home, _lenient(home), requested)
-            return json.dumps(turn.await_turn(sid, limit, through_retry=through))
+            settled = _keep_report(home, turn.await_turn(sid, limit, through_retry=through))
+            return json.dumps(_arm(home, live, sid, settled, kwargs))
         if action == "steer":
             text = args.get("message")
             if not isinstance(text, str) or not text.strip() or len(text) > STEER_LIMIT:
@@ -838,18 +926,94 @@ def register(ctx):
         "diagnostics.")
 
 
-def _notify(home_arg, sid):
+def _captured_home(home_arg):
     home = Path(home_arg)
     if home.name not in PROFILES or home.parent.name != "profiles":
         raise ValueError("Invalid captured OpenCode caller home")
+    return home
+
+
+def _notify(home_arg, sid):
+    home = _captured_home(home_arg)
     # A provider retry already reached the caller in the run call's own state; returning on it
     # again would only wake the caller with what it has just read.
-    return turn.await_turn(_session_id(sid), NOTIFY_LIMIT, through_retry=True)
+    record = turn.await_turn(_session_id(sid), NOTIFY_LIMIT, through_retry=True, poll=NOTIFY_POLL)
+    return _keep_report(home, record)
+
+
+NEXT = {
+    "completed": "Read opencode_session status for the full result and changes before reporting.",
+    "failed": "Read opencode_session status for the error and changes before reporting.",
+    "interrupted": "Read the diff and worktree before continuing on the same session.",
+    "waiting": "Answer each pending request with opencode_request (opencode_request list shows details).",
+    "running": "Heartbeat: still running. opencode_session status reads it and starts the next notifier.",
+    "unknown": "Read opencode_session status, diff and messages before any further turn.",
+}
+
+
+def _notice(record):
+    """The notifier's output as the caller's notification shows it: one indented JSON
+    document below NOTICE_LIMIT characters (Hermes keeps only the tail of a longer one,
+    and a single long line not at all), with the result's head and a pointer to the rest."""
+    status = record.get("status")
+    keep = {k: record[k] for k in ("session_id", "role", "status", "outcome", "directory", "branch", "engine",
+                                   "timed_out", "report", "error") if record.get(k) not in (None, "", [])}
+    if isinstance(keep.get("error"), str):
+        keep["error"] = keep["error"][:300]
+    if record.get("pending"):
+        keep["pending"] = [{**{k: p[k] for k in ("kind", "id", "action", "title") if p.get(k)},
+                            **({"resource": str(p["resources"][0])[:120]} if p.get("resources") else {})}
+                           for p in record["pending"][:3]]
+        if len(record["pending"]) > 3:
+            keep["pending_more"] = len(record["pending"]) - 3
+    if record.get("changes"):
+        keep["changed_files"] = len(record["changes"])
+    keep["next"] = NEXT.get(status, NEXT["unknown"])
+    result = str(record.get("result") or "")
+    budget = NOTICE_RESULT
+    while True:
+        head = result[:budget] + (" …[truncated]" if len(result) > budget else "")
+        text = json.dumps({**keep, **({"result_head": head} if head else {})}, ensure_ascii=False, indent=1)
+        if len(text) <= NOTICE_LIMIT:
+            return text
+        if budget == 0:
+            break
+        budget = max(0, budget - (len(text) - NOTICE_LIMIT) - 40)
+    # Still too long without any result: keep what tells the caller what to do.
+    essential = {k: keep[k] for k in ("session_id", "status", "outcome", "timed_out", "next") if k in keep}
+    if keep.get("pending"):
+        essential["pending_ids"] = [p.get("id") for p in record["pending"][:20]]
+    return json.dumps(essential, ensure_ascii=False, indent=1)
+
+
+def _diagnose(home, sid, event):
+    """One line per notifier start and end in the profile's logs, for tracing a missing
+    notification later. Diagnostics only: nothing reads it back."""
+    with contextlib.suppress(Exception):
+        stamp = time.strftime("%Y-%m-%dT%H:%M:%S%z")
+        with open(home / "logs" / "opencode-notifier.log", "a", encoding="utf-8") as log:
+            log.write(f"{stamp} pid={os.getpid()} {sid} {event}\n")
+
+
+def _watch(home_arg, sid):
+    """The notifier process: wait for the run's next stop and describe it. A failure
+    still ends in a notification that says so, never in a bare traceback."""
+    home = None
+    try:
+        home = _captured_home(home_arg)
+        _diagnose(home, sid, "start")
+        record = _notify(home_arg, sid)
+    except Exception as exc:
+        record = {"session_id": sid, "status": "unknown",
+                  "error": f"The notifier failed ({type(exc).__name__}: {exc})"[:300]}
+    if home is not None:
+        _diagnose(home, sid, "end " + str(record.get("status")) + (" timed_out" if record.get("timed_out") else ""))
+    return record
 
 
 if __name__ == "__main__":
     mode, home_arg, sid_arg = sys.argv[1:4]
     if mode != "notify":
         raise SystemExit(f"unknown mode {mode}")
-    print(json.dumps(_notify(home_arg, sid_arg)))
+    print(_notice(_watch(home_arg, sid_arg)))
     raise SystemExit(0)

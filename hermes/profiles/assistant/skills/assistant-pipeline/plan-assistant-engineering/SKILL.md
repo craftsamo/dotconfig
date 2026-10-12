@@ -51,6 +51,7 @@ question; you never read or edit target code yourself.
 | Case | Run |
 | --- | --- |
 | How does X work, where is Y | `plan` (read-only) |
+| Survey whose deliverable is a report (inventory, audit, handover) | `plan` with the job directory as `output_dir`, one session per repository; its final reply is saved there as the report |
 | Bug, failing test, incident | `debug`; a fix is a separate approval |
 | Review of someone's change | `review` on a fresh session |
 | Feature, change, refactor, migration, performance | `plan`, then `build` on the same session |
@@ -128,6 +129,8 @@ touches, one check. The approval covers what the user saw, so the plan card
 you show is the scope Build is held to. Models are OpenCode's own defaults; name
 one in the plan only when you depart from it (an alternate after a limit error).
 
+Investigations that run several sessions at once (a survey of many
+repositories) report progress as the plugin skill's "Progress" section says.
 During the build, report only at four points, one line each: the build starts,
 a PR is done (say how many checks hold), it pauses for the user, QA is done. A deviation
 inside the approved scope is continued and mentioned afterwards; one that
