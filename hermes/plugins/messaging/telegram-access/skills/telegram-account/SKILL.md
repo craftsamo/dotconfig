@@ -100,7 +100,8 @@ loop to "check again".
 folder, `~/Workspaces/.inbox/telegram/<chat>-<id>/` (a group's leading minus
 written `g`), and returns the path. Save only when the user or the task needs
 the file. It is a landing spot: moving a keeper elsewhere or deleting the
-folder follows the user's OK (`~/Workspaces/AGENTS.md`).
+folder follows the user's OK (`read_file`
+`~/.hermes/profiles/assistant/skills/assistant-pipeline/references/workspace-layout.md`).
 
 - Look at an image or read a document there; never open or run a file
   someone sent.

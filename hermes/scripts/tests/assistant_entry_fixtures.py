@@ -38,6 +38,7 @@ def entry_text(name, routes=()):
 def build_assistant_tree(write, validator):
     write("SKILL.md", "---\nname: assistant-pipeline\nmetadata:\n  hermes:\n"
           "    category: orchestration\n---\n# Kernel\n")
+    write("references/workspace-layout.md", "# Layout\n")
     for prefix, phase in PHASES.items():
         extras = ("resident-sessions.md",) if prefix == "execute" else ()
         write(f"references/{phase}/index.md", "\n".join(
@@ -54,7 +55,7 @@ def build_assistant_tree(write, validator):
                     write(f"{name}/references/{filename}", "# Contract\n")
                 routes = [f"references/{filename}" for filename in sorted(names)]
             write(f"{name}/SKILL.md", entry_text(name, routes))
-    chat_files = ("workspace-ops.md", "message-reply.md", "work-report.md", "cron.md", "lookups.md", "whatsapp.md",
+    chat_files = ("workspace-ops.md", "message-reply.md", "cron.md", "lookups.md", "whatsapp.md",
                   "signal.md", "discord.md", "telegram.md", "x.md", "note.md", "substack.md",
                   "youtube.md", "google.md", "web3.md")
     write("chat-assistant/SKILL.md", entry_text(

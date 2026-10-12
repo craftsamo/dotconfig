@@ -7,8 +7,9 @@ inbox, for the Assistant and people. Read it when changing the lister or its
 
 ## The rule it reads
 
-The layout rule is owned by `~/Workspaces/AGENTS.md` "Drafts" (private
-overlay), which the Assistant reads at runtime: a file's location is its status.
+The layout rule is owned by the assistant-pipeline reference
+`references/workspace-layout.md` "Drafts", which the Assistant reads at runtime:
+a file's location is its status.
 Everything under an `.agent/` is a draft; canon is only a Group's `docs/`,
 `data/`, `assets/` or repository. One job is one directory
 `<Group>/.agent/<YYYYMMDD>-<job>/` (the root `~/Workspaces/.agent/` when no
@@ -16,7 +17,7 @@ single Group owns it), promoted into canon only on the user's approval and then
 deleted. There is no job record or state file, so a draft that remains is work
 not yet promoted; this list is the only index of open work.
 
-The same file makes `~/Workspaces/.inbox/` the place for unsorted incoming
+The same reference makes `~/Workspaces/.inbox/` the place for unsorted incoming
 material, triaged into a Group or a draft job and kept near-empty. Tools that
 fetch files land them there (`.inbox/google`, `.inbox/signal`), so it fills
 without anyone deciding to.

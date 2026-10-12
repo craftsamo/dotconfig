@@ -31,7 +31,8 @@ The user's own direct requests: "〇〇さんとの DM 最近どうなってる�
 - Files from a message land in `~/Workspaces/.inbox/discord/<channel>-<message>/`.
   Deliver with a bare `MEDIA:/abs/path` line. Moving a keeper into a Group's
   `assets/` or deleting the folder follows the user's OK
-  (`~/Workspaces/AGENTS.md`).
+  (`read_file`
+  `~/.hermes/profiles/assistant/skills/assistant-pipeline/references/workspace-layout.md`).
 - A file to attach must be under `~/Workspaces`; one elsewhere (a download,
   say) is the user's to move there first, or to send from the app.
 - Report what changed from the tool's result: the chat, the target, and what

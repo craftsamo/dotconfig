@@ -14,9 +14,9 @@ and `fzf`, no daemons. Loaded automatically by [`config.zsh`](../config.zsh).
 
 `fzf` (browser), `jq` (registry JSON), `ghq` (clone listing) and `wsreg` (the
 workspace registry CLI). [`bin/wsreg`](../../bin/wsreg) is a launcher: the
-registry itself lives in the private overlay (`~/.config/private`), so it
-resolves the implementation there (`WSREG_BIN` overrides) and fails with a
-clear message when the overlay is not installed.
+registry engine ships in `hermes/plugins/workspace/workspace-registry/`, while
+records stay under `~/Workspaces/.registry/` (`WSREG_BIN` overrides the engine).
+No private overlay is required. Initialize your own records with `wsreg init`.
 
 ## Quick start
 

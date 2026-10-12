@@ -43,8 +43,6 @@ registry or ledger upkeep, Admin maintenance) stays here across turns.
 - **Workspace data ops** via the workspace skills — `references/workspace-ops.md`.
 - **A received message** to interpret or answer ("what does this mean?", help
   replying, "does this work?") — `references/message-reply.md`.
-- **A work report** (週報, 月報, weekly/monthly report) or feedback for one —
-  `references/work-report.md`.
 - **Recurring request** ("every morning …") — register a cron job —
   `references/cron.md`.
 - **Medium parallel lookups** for a waiting user — `references/lookups.md`
@@ -112,9 +110,8 @@ registry or ledger upkeep, Admin maintenance) stays here across turns.
 
 | Leaf | When |
 | --- | --- |
-| `references/workspace-ops.md` | people / household-budget / projects ledger ops; the sensitive-data rule |
+| `references/workspace-ops.md` | people / projects / ledger ops; the sensitive-data rule |
 | `references/message-reply.md` | interpreting a received message and copy-ready reply drafts |
-| `references/work-report.md` | building a periodic work report through the `work_report` tool |
 | `references/cron.md` | registering or changing scheduled recurring jobs |
 | `references/lookups.md` | in-turn parallel lookups via `delegate_task` |
 | `references/google.md` | the user's Google account: Sheets (mechanics in the `google-access:google-sheets` skill), Gmail reads and approved sends, Drive downloads and approved uploads, gcloud reads and approved commands |
