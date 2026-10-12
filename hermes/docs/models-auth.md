@@ -16,9 +16,9 @@ Models are chosen per role by the capability the role needs, not by the
 strongest model; the budget is each subscription's usage allowance, not
 dollars. **Hermes chat and auxiliary models run on Claude first**, on the
 Hermes Claude account; the ChatGPT subscription belongs to OpenCode, and
-Hermes touches it for image generation and, on `writer` / `researcher` /
-`assistant` only, as a last-resort chat tier ahead of the OpenRouter tail (see
-"Codex" below).
+Hermes touches it for image generation and, on every profile except
+`searcher` (which leads on it), as a last-resort chat tier ahead of the
+OpenRouter tail (see "Codex" below).
 
 - **Opus 5.5 leads the judgment profiles** (`default`, `assistant`, `marketer`,
   `creator`, `video-creator`); **Sonnet 5.5 leads** `researcher`, `writer`,
@@ -78,14 +78,15 @@ Provider facts:
   inheritance"). **Fable 5.1 is not in the `hermes model` picker**
   (`/v1/models` lags the alias), so it is written straight into `config.yaml`.
 - **Codex** — **images, plus one last-resort chat tier**: GPT-6.1 Sol sits ahead
-  of the OpenRouter tail on `writer`, `researcher` and `assistant`, so a spent
+  of the OpenRouter tail on every profile (`default` included), so a spent
   Claude weekly pool degrades to a capable model instead of a cheap one. The
   ChatGPT subscription is sized for OpenCode (its searchers, `debugger`,
   `reviewer-deep` and cheap subagents, plus the `alternate` of the Assistant's
-  OpenCode roles) and shares one Plus allowance with Hermes, so keep the tier
-  off profiles with heavy jobs (one `video-creator` job reads tens of millions
-  of tokens) and do not add it to another profile or an aux task without
-  re-sizing OpenCode's usage. Searcher's aux tasks stay `auto`, so they run on
+  OpenCode roles) and shares one Plus allowance with Hermes. The tier only runs
+  once the Claude tiers above it have failed, but a `video-creator` job reads
+  tens of millions of tokens, so a long spell on it drains the allowance:
+  re-size OpenCode's usage before adding the tier to an aux task. Searcher's
+  aux tasks stay `auto`, so they run on
   GPT-6.1 Sol. GPT-6.1 Sol rejects `reasoning.effort` `none` / `minimal`, so
   keep `reasoning_effort` at `low` or above. The Codex OAuth login in `default`
   stays on purpose: the `image-fallback` chains still try `openai-codex`.
