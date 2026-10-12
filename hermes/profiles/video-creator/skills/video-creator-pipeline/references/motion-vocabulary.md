@@ -23,6 +23,7 @@ This file holds what most films use. The rest lives in neighbouring files; open 
 | a treatment inside the letters: physics, path, colour, glitch, depth, variable fonts, counters | `skill_view(name="video-creator-pipeline", file_path="references/motion-vocabulary-text-styling.md")` |
 | captions, subtitles, telop, film titles, Japanese typesetting (縦書き, ルビ, 文節) | `skill_view(name="video-creator-pipeline", file_path="references/motion-vocabulary-telop.md")` |
 | a scrolling page or LP: sticky, pin + scrub, parallax, snap, scrollytelling, scroll-driven text | `skill_view(name="video-creator-pipeline", file_path="references/motion-vocabulary-scroll.md")` |
+| buttons, toggles, forms, gestures, loaders, toasts and reactions in a shown interface | `skill_view(name="video-creator-pipeline", file_path="references/motion-vocabulary-ui-controls.md")` |
 
 Japanese names in parentheses are aliases for finding an entry from a Japanese request; either name works in a storyboard. Motion tables carry Feel (the five words of the timing file's "## Feel"), For (what an entry is usually applied to) and The tell (the detail that makes it read as itself and how it differs from a near neighbour).
 
