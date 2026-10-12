@@ -158,6 +158,8 @@ permissions:
   - { action: shell, resource: "git restore*", effect: deny }
   - { action: shell, resource: "git clean*", effect: deny }
   - { action: shell, resource: "gh pr merge*", effect: deny }
+  - { action: shell, resource: "gh stack merge*", effect: deny }
+  - { action: shell, resource: "gh stack unstack*", effect: deny }
   - { action: shell, resource: "gh run rerun*", effect: deny }
   - { action: shell, resource: "npm install*", effect: deny }
   - { action: shell, resource: "pnpm install*", effect: deny }
