@@ -70,6 +70,18 @@ wins, so a relaunch keeps the clone's freshly rotated tokens (local patch;
 schema drift falls back to overwrite). Deletions do not
 propagate: a sign-out in the everyday Brave leaves the clone signed in.
 
+**The launching process must be allowed to read the everyday profile.** A cold
+launch copies from the everyday Brave's data directory, so the interpreter that
+runs the gateway (`realpath` of its `sys.executable`, the python under
+`~/.hermes/tools/`) needs read access to it; on macOS that is Full Disk Access,
+because the OS can deny one app's data to another process. The denial surfaces
+as "macOS denied this process read access …", which is **not** a lock: only
+Windows reads a `PermissionError` on the cookie DB as "browser running" (local
+patch), and on macOS neither quitting Brave nor `hermes browser close-profile`
+clears it. Grant the interpreter and restart the gateway (a grant reaches only
+processes started after it). A surviving clone hides a missing grant until the
+next cold launch.
+
 **Stop the clone and its daemon together.** Upstream closes the daemon session
 only when `get cdp-url` succeeds, so a daemon that outlived a killed clone keeps
 the dead port, ignores the next launch's `--cdp`, and every call fails with
