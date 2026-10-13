@@ -1,0 +1,7 @@
+name: clarify-context
+version: 1.0.0
+description: >-
+  Refuses a clarify whose subject the user has not seen: nothing visible since
+  their last message and no question context, or reply MEDIA that would arrive
+  after the card.
+kind: standalone
