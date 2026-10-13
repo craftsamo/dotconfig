@@ -133,7 +133,8 @@ skills.
   [docs/models-auth.md "Authentication inheritance"](docs/models-auth.md).
 - **Tracked configs say `provider: anthropic`; the real ones pick the lane.**
   `config.example.yaml` must run on a stock runtime, which knows one Anthropic
-  provider. On the patched runtime `anthropic` is the Console API key lane and
+  provider (`test_example_configs.py` enforces it, and no duplicate tier). On
+  the patched runtime `anthropic` is the Console API key lane and
   the subscription is `anthropic-oauth`, so the private `config.yaml` names
   the lane per tier; a Claude tier on the wrong lane is silent (it bills
   credits, or with no key is skipped). Change a chain in the example and in
