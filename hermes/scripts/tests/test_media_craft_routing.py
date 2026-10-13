@@ -121,10 +121,17 @@ def test_actual_discovery_and_all_reference_bodies(craft_store):
 def test_missing_and_ambiguous_knowledge_fail_without_hiding_producer(craft_store):
     from agent import skill_utils
 
+    from .skill_roots import add_external_skill_dir
+
     profile, skills, store, local = craft_store
     name = "media-craft-direction"
-    duplicate = local / name
+    duplicate = store.parent / "other" / name
     shutil.copytree(store / name, duplicate)
+    # Newer runtimes let a higher tier (the profile's own skills) shadow a lower one and treat a
+    # byte-identical copy as the same skill: only a different skill in the same tier is ambiguous.
+    with (duplicate / "SKILL.md").open("a", encoding="utf-8") as handle:
+        handle.write("\n<!-- a different skill under the same name -->\n")
+    add_external_skill_dir(duplicate)
     result = json.loads(skills.skill_view(name))
     assert result["success"] is False
     assert "Ambiguous skill name" in result["error"]

@@ -197,8 +197,16 @@ def test_missing_reference_file_is_reported_without_hiding_skill(skill_environme
 
 
 def test_ambiguous_external_skill_is_not_silently_chosen(skill_environment):
+    from .skill_roots import add_external_skill_dir
+
     skills, store, local = skill_environment
-    shutil.copytree(store / "hyperframes-core", local / "hyperframes-core")
+    duplicate = store.parent / "other" / "hyperframes-core"
+    shutil.copytree(store / "hyperframes-core", duplicate)
+    # Newer runtimes let a higher tier (the profile's own skills) shadow a lower one and treat a
+    # byte-identical copy as the same skill: only a different skill in the same tier is ambiguous.
+    with (duplicate / "SKILL.md").open("a", encoding="utf-8") as handle:
+        handle.write("\n<!-- a different skill under the same name -->\n")
+    add_external_skill_dir(duplicate)
     result = json.loads(skills.skill_view("hyperframes-core"))
     assert result["success"] is False
     assert "Ambiguous skill name" in result["error"]
