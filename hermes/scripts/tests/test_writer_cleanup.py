@@ -55,7 +55,7 @@ def test_consultation_is_bounded_advice_not_a_fourth_operation():
 
 
 def test_injected_policy_cannot_reactivate_legacy_workflows():
-    config = yaml.safe_load((HERMES / "profiles/writer/config.yaml").read_text())
+    config = yaml.safe_load((HERMES / "profiles/writer/config.example.yaml").read_text())
     policy = config["agent"]["system_prompt"]
     assert "consult-writer" in policy
     assert "On every inbound turn or completion" in policy

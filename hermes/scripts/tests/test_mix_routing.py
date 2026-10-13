@@ -21,7 +21,7 @@ class MixRoutingTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         cls.audio = yaml.safe_load(
-            (HERMES_ROOT / "profiles" / "audio-creator" / "config.yaml").read_text()
+            (HERMES_ROOT / "profiles" / "audio-creator" / "config.example.yaml").read_text()
         )
 
     def test_mix_has_create_edit_analyze_leaves_and_no_generate(self) -> None:

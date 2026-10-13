@@ -229,7 +229,7 @@ def test_reference_fields_are_open_ended():
         folder = "styles" if key == "style" else key
         for option in form[key]["options"]:
             assert (LEAF / "references" / folder / (option + ".md")).is_file()
-    config = yaml.safe_load((ROOT / "profiles/video-creator/config.yaml").read_text())
+    config = yaml.safe_load((ROOT / "profiles/video-creator/config.example.yaml").read_text())
     assert "task-local" in config["agent"]["system_prompt"]
     assert "explicit none" in config["agent"]["system_prompt"]
 
@@ -241,7 +241,7 @@ def test_assistant_commissions_authored_tours_and_creator_only_advises():
     assert "task-local" in commission and "Explicit none is the only omission instruction" in commission
     advisor = (ROOT / "profiles/creator/skills/creator-pipeline/references/video-creator/tour.md").read_text()
     assert "create-tour" in advisor
-    config = yaml.safe_load((ROOT / "profiles/creator/config.yaml").read_text())
+    config = yaml.safe_load((ROOT / "profiles/creator/config.example.yaml").read_text())
     assert config["specialist_call"]["resident_targets"] == ["researcher", "searcher"]
     assert "video_gen" not in config["toolsets"]
 

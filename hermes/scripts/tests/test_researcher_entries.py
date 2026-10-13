@@ -59,7 +59,7 @@ def test_candidate_topology_and_always_on_contract():
         assert data["metadata"]["hermes"]["category"] == "researcher-pipeline"
         assert data["description"][:60].lower().startswith(name.split("-")[0] + " ")
         assert 4 <= path.read_text().find("\n---", 4) < 4000
-    config = yaml.safe_load((PROFILE / "config.yaml").read_text())
+    config = yaml.safe_load((PROFILE / "config.example.yaml").read_text())
     prompt = config["agent"]["system_prompt"]
     assert "first message is the brief" not in " ".join(prompt.lower().split())
     assert "Purpose alone is not execution authority" in prompt
@@ -91,7 +91,7 @@ def test_primary_relays_acceptance_baseline_without_transferring_handle(caller):
     if caller == "marketer":
         source = (root / "skills/marketer-pipeline/SKILL.md").read_text()
     else:
-        source = yaml.safe_load((root / "config.yaml").read_text())["agent"]["system_prompt"]
+        source = yaml.safe_load((root / "config.example.yaml").read_text())["agent"]["system_prompt"]
     text = " ".join(source.split())
     for field in ("questions", "done criteria", "source policy", "budget", "approved changes",
                   "explicitly none when unchanged", "conclusions", "consuming primary"):
@@ -102,7 +102,7 @@ def test_primary_relays_acceptance_baseline_without_transferring_handle(caller):
 
 def test_creator_advisor_reaches_only_researcher_and_searcher_for_evidence():
     root = HERMES / "profiles/creator"
-    config = yaml.safe_load((root / "config.yaml").read_text())
+    config = yaml.safe_load((root / "config.example.yaml").read_text())
     assert config["specialist_call"]["resident_targets"] == ["researcher", "searcher"]
     assert set(config["a2a_agents"]) == {"researcher"}
     text = " ".join(config["agent"]["system_prompt"].split())
@@ -122,7 +122,7 @@ def test_breadth_goes_from_the_client_to_searcher(profile):
     assert "releases to Searcher directly" in gather and "the creator or marketer client" in gather
     searcher = flat(HERMES / "profiles/searcher/skills/searcher-pipeline/SKILL.md")
     assert "the Assistant, Creator or Marketer, whichever opened the conversation" in searcher
-    prompt = " ".join(yaml.safe_load((HERMES / "profiles/searcher/config.yaml").read_text())
+    prompt = " ".join(yaml.safe_load((HERMES / "profiles/searcher/config.example.yaml").read_text())
                       ["agent"]["system_prompt"].split())
     assert "client (the Assistant, Creator or Marketer)" in prompt
     if profile == "marketer":
@@ -359,7 +359,7 @@ def test_onchain_evidence_rules_and_platform_references():
         assert "nothing is signed or sent" in text
     gather = flat(TREE / "references/gather.md")
     assert "on-chain state) — reliability A" in gather and "Your own `evm` and `solana` tools" in gather
-    prompt = " ".join(yaml.safe_load((PROFILE / "config.yaml").read_text())["agent"]["system_prompt"].split())
+    prompt = " ".join(yaml.safe_load((PROFILE / "config.example.yaml").read_text())["agent"]["system_prompt"].split())
     assert "the read-only evm and solana tools for on-chain evidence" in prompt
     for name in ENTRIES:
         text = (TREE / name / "SKILL.md").read_text()
@@ -397,7 +397,7 @@ def test_technics_are_routed_to_their_mode():
     kernel = flat(TREE / "SKILL.md")
     assert "(references/capabilities.md)" in kernel and "never replaces the mode's procedure" in kernel
     assert "is not the caller's release" in kernel
-    prompt = " ".join(yaml.safe_load((PROFILE / "config.yaml").read_text())["agent"]["system_prompt"].split())
+    prompt = " ".join(yaml.safe_load((PROFILE / "config.example.yaml").read_text())["agent"]["system_prompt"].split())
     assert "references/capabilities.md" in prompt and "never replaces the mode" in prompt
     for name in ENTRIES:
         assert "(../references/capabilities.md)" in (TREE / name / "SKILL.md").read_text()
@@ -511,7 +511,7 @@ def test_real_runtime_discovery_reads_and_recovery():
     source = next((p for p in roots if (p / "agent/skill_utils.py").is_file()), None)
     if source is None:
         pytest.skip("Set PYTHONPATH to Hermes source and run with its provisioned Python")
-    configured = yaml.safe_load((PROFILE / "config.yaml").read_text())["skills"]["external_dirs"]
+    configured = yaml.safe_load((PROFILE / "config.example.yaml").read_text())["skills"]["external_dirs"]
     prefix = "~/ghq/github.com/NousResearch/hermes-agent/"
     assert all(path.startswith(prefix) for path in configured), "Add an explicit isolated mapping for new external roots"
     external = [str(source / path.removeprefix(prefix)) for path in configured]

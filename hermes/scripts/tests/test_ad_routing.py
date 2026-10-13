@@ -85,10 +85,10 @@ CREATOR_PIPELINE = HERMES_ROOT / "profiles/creator/skills/creator-pipeline"
 class CommissioningAndVideoConfigTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
-        cls.creator_config = yaml.safe_load((HERMES_ROOT / "profiles/creator/config.yaml").read_text())
+        cls.creator_config = yaml.safe_load((HERMES_ROOT / "profiles/creator/config.example.yaml").read_text())
         cls.assistant_config = yaml.safe_load(
             (HERMES_ROOT / "profiles/assistant/config.example.yaml").read_text())
-        cls.video_config = yaml.safe_load((HERMES_ROOT / "profiles/video-creator/config.yaml").read_text())
+        cls.video_config = yaml.safe_load((HERMES_ROOT / "profiles/video-creator/config.example.yaml").read_text())
         cls.video_profile = (HERMES_ROOT / "profiles/video-creator/profile.yaml").read_text()
         cls.video_prompt = cls.video_config["agent"]["system_prompt"]
         cls.commission_md = (ASSISTANT_CREATIVE / "references/ad.md").read_text()

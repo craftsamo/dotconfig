@@ -808,7 +808,7 @@ class LearnedPlacementTest(unittest.TestCase):
             target = root / "profiles" / profile
             shutil.copytree(source / "skills" / f"{profile}-pipeline",
                             target / "skills" / f"{profile}-pipeline")
-            shutil.copy2(source / "config.yaml", target / "config.yaml")
+            shutil.copy2(source / "config.example.yaml", target / "config.example.yaml")
         learned = root / "profiles" / "audio-creator" / "skills" / "learned"
         for rel in ("flat", "audio/nested", "learned/doubled"):
             skill = learned / rel / "SKILL.md"

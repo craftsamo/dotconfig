@@ -593,6 +593,14 @@ def validate_plugin_enabled(profile: str, config: Path, errors: list[str]) -> No
         )
 
 
+def validate_profile_configs(profile: str, profile_root: Path, errors: list[str]) -> None:
+    """The tracked ``config.example.yaml`` always; the private ``config.yaml`` when linked."""
+    validate_plugin_enabled(profile, profile_root / "config.example.yaml", errors)
+    real = profile_root / "config.yaml"
+    if real.is_file():
+        validate_plugin_enabled(profile, real, errors)
+
+
 def validate_assistant_messaging_config(
     config: Path, errors: list[str]
 ) -> None:
@@ -823,7 +831,7 @@ def validate_worker(
     if profile == "creator":
         validate_creator_references(pipeline_dir, errors)
     validate_git_boundary([pipeline_dir, technic_dir], learned_dir, errors)
-    validate_plugin_enabled(profile, profile_root / "config.yaml", errors)
+    validate_profile_configs(profile, profile_root, errors)
     return len(leaves) + len(writing) + len(entries) + len(creator_entries), len(learned)
 
 
@@ -1502,7 +1510,7 @@ def validate_hands(profile: str, errors: list[str]) -> tuple[dict[str, Path], in
     allowed.update(learned_roots)
     validate_allowed_skill_roots(skills, allowed, errors)
     validate_git_boundary([pipeline_dir], learned_dir, errors)
-    validate_plugin_enabled(profile, profile_root / "config.yaml", errors)
+    validate_profile_configs(profile, profile_root, errors)
     return leaves, len(learned)
 
 
@@ -2140,7 +2148,7 @@ def validate_shared(errors: list[str]) -> tuple[int, int]:
     allowed.update(learned_roots)
     validate_allowed_skill_roots(skills, allowed, errors)
     validate_git_boundary([default_pipeline], learned_dir, errors)
-    validate_plugin_enabled("default", HERMES_ROOT / "config.yaml", errors)
+    validate_profile_configs("default", HERMES_ROOT, errors)
     return len(managed), len(learned)
 
 

@@ -186,6 +186,6 @@ def test_assistant_routes_finishing_to_create_master():
     mv = (CREATOR.parents[1] / "../assistant/skills/assistant-pipeline/execute-assistant-creative/references/music-video.md"
           ).resolve().read_text(encoding="utf-8")
     assert "[create-master](master.md)" in mv
-    config = yaml.safe_load((CREATOR.parents[1] / "config.yaml").read_text())
+    config = yaml.safe_load((CREATOR.parents[1] / "config.example.yaml").read_text())
     assert config["specialist_call"]["resident_targets"] == ["researcher", "searcher"]
     assert not (CREATOR.parents[0] / "technic/creator-media-assembly").exists()

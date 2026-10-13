@@ -1,9 +1,9 @@
 model:
   default: claude-opus-5-5
-  provider: anthropic-oauth
+  provider: anthropic
   base_url: https://api.anthropic.com
 fallback_providers:
-  - provider: anthropic-oauth
+  - provider: anthropic
     model: claude-sonnet-5-5
     base_url: https://api.anthropic.com
   - provider: openai-codex
@@ -188,7 +188,7 @@ auxiliary:
     api_key: ''
     timeout: 360
   compression:
-    provider: anthropic-oauth
+    provider: anthropic
     model: claude-sonnet-5
     base_url: https://api.anthropic.com
     api_key: ''
@@ -199,7 +199,7 @@ auxiliary:
         base_url: https://openrouter.ai/api/v1
         api_mode: chat_completions
   skills_hub:
-    provider: anthropic-oauth
+    provider: anthropic
     model: claude-sonnet-5
     base_url: https://api.anthropic.com
     api_key: ''
@@ -210,7 +210,7 @@ auxiliary:
         base_url: https://openrouter.ai/api/v1
         api_mode: chat_completions
   approval:
-    provider: anthropic-oauth
+    provider: anthropic
     model: claude-sonnet-5
     base_url: https://api.anthropic.com
     api_key: ''
@@ -221,7 +221,7 @@ auxiliary:
         base_url: https://openrouter.ai/api/v1
         api_mode: chat_completions
   mcp:
-    provider: anthropic-oauth
+    provider: anthropic
     model: claude-sonnet-5
     base_url: https://api.anthropic.com
     api_key: ''
@@ -232,7 +232,7 @@ auxiliary:
         base_url: https://openrouter.ai/api/v1
         api_mode: chat_completions
   title_generation:
-    provider: anthropic-oauth
+    provider: anthropic
     model: claude-sonnet-5
     base_url: https://api.anthropic.com
     api_key: ''
@@ -244,7 +244,7 @@ auxiliary:
         base_url: https://openrouter.ai/api/v1
         api_mode: chat_completions
   tts_audio_tags:
-    provider: anthropic-oauth
+    provider: anthropic
     model: claude-sonnet-5
     base_url: https://api.anthropic.com
     api_key: ''
@@ -255,7 +255,7 @@ auxiliary:
         base_url: https://openrouter.ai/api/v1
         api_mode: chat_completions
   triage_specifier:
-    provider: anthropic-oauth
+    provider: anthropic
     model: claude-sonnet-5
     base_url: https://api.anthropic.com
     api_key: ''
@@ -266,7 +266,7 @@ auxiliary:
         base_url: https://openrouter.ai/api/v1
         api_mode: chat_completions
   kanban_decomposer:
-    provider: anthropic-oauth
+    provider: anthropic
     model: claude-sonnet-5
     base_url: https://api.anthropic.com
     api_key: ''
@@ -277,7 +277,7 @@ auxiliary:
         base_url: https://openrouter.ai/api/v1
         api_mode: chat_completions
   profile_describer:
-    provider: anthropic-oauth
+    provider: anthropic
     model: claude-sonnet-5
     base_url: https://api.anthropic.com
     api_key: ''
@@ -288,7 +288,7 @@ auxiliary:
         base_url: https://openrouter.ai/api/v1
         api_mode: chat_completions
   curator:
-    provider: anthropic-oauth
+    provider: anthropic
     model: claude-sonnet-5
     base_url: https://api.anthropic.com
     api_key: ''
@@ -299,7 +299,7 @@ auxiliary:
         base_url: https://openrouter.ai/api/v1
         api_mode: chat_completions
   monitor:
-    provider: anthropic-oauth
+    provider: anthropic
     model: claude-sonnet-5
     base_url: https://api.anthropic.com
     api_key: ''

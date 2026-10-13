@@ -217,7 +217,7 @@ def test_leaf_form_and_routing():
     assert "no lip sync" in " ".join(COMMISSION.read_text().split())
     assert "`create-story`" in ADVISOR.read_text()
     assert "(references/video-creator/story.md)" in (CREATOR / "skills/creator-pipeline/SKILL.md").read_text()
-    config = yaml.safe_load((CREATOR / "config.yaml").read_text())
+    config = yaml.safe_load((CREATOR / "config.example.yaml").read_text())
     assert config["specialist_call"]["resident_targets"] == ["researcher", "searcher"]
 
 

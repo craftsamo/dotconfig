@@ -109,7 +109,7 @@ def test_target_policy(caller, target):
 def creator_caller(caller, monkeypatch):
     home = caller[0].parent / "creator"
     home.mkdir()
-    config = yaml.safe_load((PLUGIN.parents[3] / "profiles/creator/config.yaml").read_text())
+    config = yaml.safe_load((PLUGIN.parents[3] / "profiles/creator/config.example.yaml").read_text())
     assert set(config["a2a_agents"]) == set(PEERS)
     assert set(config["specialist_call"]["resident_targets"]) == set(CREATOR_TARGETS) == p.TARGETS["creator"]
     (home / "config.yaml").write_text(yaml.safe_dump(config))
@@ -182,7 +182,7 @@ def test_creator_inbound_cannot_launch_work(creator_caller, monkeypatch, target)
 def marketer_caller(caller, monkeypatch):
     home = caller[0].parent / "marketer"
     home.mkdir()
-    config = yaml.safe_load((PLUGIN.parents[3] / "profiles/marketer/config.yaml").read_text())
+    config = yaml.safe_load((PLUGIN.parents[3] / "profiles/marketer/config.example.yaml").read_text())
     assert set(config["specialist_call"]["resident_targets"]) == set(MARKETER_TARGETS) == p.TARGETS["marketer"]
     assert set(config["a2a_agents"]) == set(PEERS)
     (home / "config.yaml").write_text(yaml.safe_dump({
@@ -703,7 +703,7 @@ def test_profile_configuration_and_plugin_api():
     root = PLUGIN.parents[3]
     manifest = yaml.safe_load(PLUGIN.with_name("plugin.yaml").read_text())
     assert manifest["name"] == "specialist-call" and manifest["kind"] == "standalone"
-    paths = [root / "profiles/assistant/config.example.yaml", root / "profiles/creator/config.yaml"]
+    paths = [root / "profiles/assistant/config.example.yaml", root / "profiles/creator/config.example.yaml"]
     for path in paths:
         config = yaml.safe_load(path.read_text())
         assert "specialist-call" in config["plugins"]["enabled"]
