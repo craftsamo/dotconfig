@@ -5,8 +5,8 @@ Model fallback chains, authentication inheritance and secrets layering. Read it 
 ## Models and fallback chains
 
 Each profile carries its own `model:` (tier 1) plus a `fallback_providers:`
-list (tiers 2+); the actual chains live in `profiles/*/config.yaml` and the root
-`config.yaml`, this section keeps only the rules behind them.
+list (tiers 2+); the actual chains live in `profiles/*/config.example.yaml`, the
+private real `profiles/*/config.yaml` and the root `config.yaml`, this section keeps only the rules behind them.
 `fallback_providers` is **per-turn**: it triggers on errors (429 / 5xx / 401 /
 404 / malformed) and the primary is restored on the next turn. A tier may reuse
 the same provider with a different model; only an identical provider+model pair
@@ -61,8 +61,10 @@ OpenRouter tail (see "Codex" below).
   `opencode.roles`; see [`opencode.md`](./opencode.md) "Models". A GPT-family
   alternate draws on the ChatGPT allowance below.
 
-Every `anthropic-oauth` tier is the subscription lane; the `anthropic` tiers
-on assistant, marketer and writer are the Console lane ("Console credit lanes").
+The tracked examples name only `provider: anthropic` so they run on a stock
+runtime. In the private configs on the patched runtime, every `anthropic-oauth`
+tier is the subscription lane and the `anthropic` tiers on assistant, marketer
+and writer are the Console lane ("Console credit lanes").
 
 A `fallback_providers` entry carries no per-entry `reasoning_effort` or
 `api_mode`: on each fallback activation Hermes re-resolves both from provider /
@@ -174,9 +176,9 @@ These facts govern the paired Claude tiers:
 
 ### Console credit lanes
 
-Anthropic is two providers on one backend that bill different accounts:
-`anthropic-oauth` bills the Claude subscription, `anthropic` bills a Console API
-key. Each lane refuses the other's token shape (a Console key is `sk-ant-api…`
+On the patched runtime, Anthropic is two providers on one backend that bill
+different accounts: `anthropic-oauth` bills the Claude subscription, `anthropic`
+bills a Console API key (a stock runtime has the one `anthropic`). Each lane refuses the other's token shape (a Console key is `sk-ant-api…`
 or `sk-ant-usr…`), so one never bills the other. Max plans grant monthly API
 credits, one Console org per plan, spent before any purchased balance and lost
 at the end of the billing cycle; Claude Code and extra usage cannot spend them,
