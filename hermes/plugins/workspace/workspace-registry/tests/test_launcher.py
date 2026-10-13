@@ -4,11 +4,26 @@ import os
 from pathlib import Path
 import shutil
 import subprocess
+import sys
 import tempfile
 import unittest
 
 HERE = Path(__file__).resolve().parents[1]
 PUBLIC = HERE.parents[3]
+
+
+def pinned_python(tmp):
+    """A PATH whose ``python3`` is this interpreter.
+
+    The launcher ends in ``exec python3``. On a machine where that resolves to a
+    version-manager shim, the shim resolves its tools from ``HOME``; the test's
+    temporary HOME has none cached, so every launch asks the package registry for
+    each ``latest`` tool and the suite crawls (or never ends when that fails).
+    """
+    shim = Path(tmp) / "pinned-bin"
+    shim.mkdir()
+    (shim / "python3").symlink_to(sys.executable)
+    return f"{shim}{os.pathsep}{os.environ.get('PATH', '')}"
 
 
 class LauncherTest(unittest.TestCase):
@@ -27,7 +42,7 @@ class LauncherTest(unittest.TestCase):
             entry.symlink_to(bin_dir / "wsreg")
             env = dict(os.environ)
             env.update(HOME=str(home), WSREG_ROOT=str(home / "Workspaces"),
-                       WSREG_DIR=str(home / "Workspaces/.registry"))
+                       WSREG_DIR=str(home / "Workspaces/.registry"), PATH=pinned_python(tmp))
             env.pop("WSREG_BIN", None)
             env.pop("DOTCONFIG", None)
             result = subprocess.run([str(entry), "init"], env=env, capture_output=True, text=True)
@@ -44,7 +59,7 @@ class LauncherTest(unittest.TestCase):
             engine.write_text('import json\nprint(json.dumps({"override": True}))\n', encoding="utf-8")
             engine.chmod(0o755)
             result = subprocess.run([str(PUBLIC / "bin/wsreg"), "persons"],
-                                    env={**os.environ, "WSREG_BIN": str(engine)},
+                                    env={**os.environ, "WSREG_BIN": str(engine), "PATH": pinned_python(tmp)},
                                     capture_output=True, text=True)
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual(json.loads(result.stdout), {"override": True})
@@ -55,7 +70,7 @@ class LauncherTest(unittest.TestCase):
             plugin.mkdir(parents=True)
             (plugin / "wsreg").write_text('import json\nprint(json.dumps({"selected": True}))\n',
                                           encoding="utf-8")
-            env = {**os.environ, "DOTCONFIG": tmp}
+            env = {**os.environ, "DOTCONFIG": tmp, "PATH": pinned_python(tmp)}
             env.pop("WSREG_BIN", None)
             result = subprocess.run([str(PUBLIC / "bin/wsreg"), "persons"], env=env,
                                     capture_output=True, text=True)
