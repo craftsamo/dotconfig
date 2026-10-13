@@ -989,6 +989,7 @@ plugins:
   - stt-fallback
   - tts-fallback
   - skill-topology
+  - clarify-context
   - media-inspect
 timeouts:
   tools:
