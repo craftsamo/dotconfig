@@ -191,8 +191,10 @@ class AudioCreatorRoutingTest(unittest.TestCase):
         real distinct names — no generic 'music' fallback, no first-wins duplicate dropped."""
         import tools.skills_tool as skills_tool
 
+        from .skill_roots import search_dirs_result
+
         pipeline = HERMES_ROOT / "profiles" / "audio-creator" / "skills" / "audio-creator-pipeline"
-        with patch.object(skills_tool, "_skill_search_dirs", return_value=([], [pipeline], pipeline)), \
+        with patch.object(skills_tool, "_skill_search_dirs", return_value=search_dirs_result(pipeline)), \
              patch.object(skills_tool, "_get_disabled_skill_names", return_value=set()), \
              patch.object(skills_tool, "_SKILLS_CACHE", {}):
             skills = skills_tool._find_all_skills()

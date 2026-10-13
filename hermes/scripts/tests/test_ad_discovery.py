@@ -19,6 +19,8 @@ import hermes_yaml as yaml
 
 from tools import skills_tool
 
+from .skill_roots import search_dirs_result
+
 HERMES_ROOT = Path(__file__).resolve().parents[2]
 VIDEO_PIPELINE = HERMES_ROOT / "profiles" / "video-creator" / "skills" / "video-creator-pipeline"
 CREATE_AD_DIR = VIDEO_PIPELINE / "create" / "ad"
@@ -66,7 +68,7 @@ class AdSkillDiscoveryTest(unittest.TestCase):
         patchers = [
             patch.object(
                 skills_tool, "_skill_search_dirs",
-                return_value=([], [CREATE_AD_DIR, ANALYZE_AD_DIR], CREATE_AD_DIR),
+                return_value=search_dirs_result(CREATE_AD_DIR, ANALYZE_AD_DIR),
             ),
             patch.object(skills_tool, "_get_disabled_skill_names", return_value=set()),
             patch.dict(skills_tool._SKILLS_CACHE, {}, clear=True),

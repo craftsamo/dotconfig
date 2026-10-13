@@ -409,6 +409,10 @@ Commands: [README "Commands"](README.md#commands).
   optional (plugin suites share the `tests/test_plugin.py` basename in
   hyphenated, non-importable dirs). Private overlay tests likewise run with
   `hermes-python --test -m unittest …`.
+- A test that scopes the runtime's skill discovery builds its stub with
+  `scripts/tests/skill_roots.py`, not a literal tuple: `_skill_search_dirs` is
+  private and its return shape changes between runtimes, which breaks every
+  test that hard-codes one.
 - `../install.sh` after adding files; `hermes update` to update (not
   `setup.sh`); `hermes doctor` for providers and model tiers.
 - **`hermes -z` is YOLO.** It sets `HERMES_YOLO_MODE=1` before the agent
