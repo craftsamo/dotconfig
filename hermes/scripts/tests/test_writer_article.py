@@ -77,7 +77,7 @@ def test_platform_input_models_are_not_conflated():
 
 
 def test_writer_checks_note_format_through_the_tool_only():
-    config = yaml.safe_load((HERMES / "profiles/writer/config.yaml").read_text())
+    config = yaml.safe_load((HERMES / "profiles/writer/config.example.yaml").read_text())
     assert "note-access" in config["plugins"]["enabled"] and "note_access" in config["toolsets"]
     for platform, names in config["platform_toolsets"].items():
         assert ("note_access" in names) == (platform in ("cli", "a2a")), platform

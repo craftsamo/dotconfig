@@ -38,20 +38,39 @@ Keys live in the macOS Keychain (`secret set …`), never in a `.env`. Update
 with `hermes update`, not `setup.sh`. Details and the reasons:
 [`docs/ops/install.md`](docs/ops/install.md).
 
+## Runtime dependency: local patches
+
+This configuration targets a **patched** Hermes, not stock upstream. The
+runtime is the `local` branch of a hermes-agent checkout (remote `fork`): upstream
+plus every local `fix/*` and `feat/*` branch, merged. `setup.sh` clones stock
+upstream only, so on a fresh machine add the `fork` remote and check out `local`
+before relying on this repo. Without the patches the configs still load, but some
+parts fail silently or not at all:
+
+- thinking and `tool_choice` handling for newer Claude models
+  ([`docs/models-auth.md`](docs/models-auth.md) "Fable and the Claude weekly pool");
+- real-profile browser isolation ([`docs/ops/browser.md`](docs/ops/browser.md));
+- scope-keyed audio handling ([`docs/hands/audio.md`](docs/hands/audio.md)).
+
+The branch list in the checkout is the ledger, not a list in these docs:
+`./scripts/check-local-patches.sh` fails on any `fix/*` / `feat/*` branch that
+`local` does not contain. Run it after every `hermes update`
+([`AGENTS.md`](./AGENTS.md) "After `hermes update`").
+
 ## Symlinks
 
 Every link below points back into this repo, so edit the repo copy.
 `install.sh`'s `link()` never overwrites a real file: it prints
 `WARN … not overwriting` and skips.
 
-| Symlink                        | Target                                  |
-| ------------------------------ | --------------------------------------- |
-| `~/.hermes/config.yaml`        | `hermes/config.yaml`                    |
-| `~/.hermes/SOUL.md`            | `hermes/SOUL.md` (untracked; see below) |
-| `~/.hermes/mcp.json`           | `hermes/mcp.json`                       |
-| `~/.hermes/skills`             | `hermes/skills/`                        |
-| `~/.hermes/plugins`            | `hermes/plugins/`                       |
-| `~/.hermes/.no-bundled-skills` | `hermes/.no-bundled-skills`             |
+| Symlink                        | Target                                      |
+| ------------------------------ | ------------------------------------------- |
+| `~/.hermes/config.yaml`        | `hermes/config.yaml` (untracked; see below) |
+| `~/.hermes/SOUL.md`            | `hermes/SOUL.md` (untracked; see below)     |
+| `~/.hermes/mcp.json`           | `hermes/mcp.json`                           |
+| `~/.hermes/skills`             | `hermes/skills/`                            |
+| `~/.hermes/plugins`            | `hermes/plugins/`                           |
+| `~/.hermes/.no-bundled-skills` | `hermes/.no-bundled-skills`                 |
 
 For every `hermes/profiles/<name>/`, `install.sh` links `config.yaml`,
 `profile.yaml`, `SOUL.md`, `mcp.json`, `scripts/`, `skills/` and
@@ -59,16 +78,20 @@ For every `hermes/profiles/<name>/`, `install.sh` links `config.yaml`,
 shared `hermes/plugins/` (plugin discovery is `HERMES_HOME`-scoped). It never
 links `cron/`.
 
-A missing `SOUL.md` is seeded from the tracked `SOUL.example.md`, and the
-assistant's missing `config.yaml` from `config.example.yaml`; seeded copies stay
-untracked. The private overlay (`~/.config/private`, the `private-dotconfig`
-repo), when present, runs its own `install.sh` last and overlays the real
-`SOUL.md` files and `profiles/assistant/config.yaml`.
+A missing `SOUL.md` is seeded from the tracked `SOUL.example.md`, and a missing
+`config.yaml` (root or profile) from the tracked `config.example.yaml`; seeded
+copies stay untracked. The private overlay (`~/.config/private`, the
+`private-dotconfig` repo), when present, runs its own `install.sh` last and
+overlays the real `SOUL.md` and `config.yaml` files. On a machine with the
+overlay, run its `install.sh` before the public one when a branch first drops
+the tracked `config.yaml`: the public installer would otherwise seed a real
+file at that path and the overlay link would skip it.
 
 ## Layout
 
 ```
-config.yaml            default profile: models, providers, toolsets (Hermes rewrites it)
+config.example.yaml    default profile: models, providers, toolsets; the real config.yaml
+                       is private and untracked (Hermes rewrites it)
 mcp.json               MCP servers ({} = none)
 SOUL.example.md        persona template; the real SOUL.md is private and untracked
 setup.sh               installs the binary only
@@ -76,7 +99,7 @@ skills/                default-pipeline/ (shared) and learned/ (runtime-authored
 plugins/               grouped plugins: messaging/ social/ web3/ orchestration/ workspace/
                        guards/ inspection/ and the media families (image_gen/ video_gen/
                        audio_gen/ tts/ transcription/); _shared/ dirs are code, not plugins
-profiles/<name>/       one HERMES_HOME each: config.yaml, profile.yaml, SOUL.example.md,
+profiles/<name>/       one HERMES_HOME each: config.example.yaml, profile.yaml, SOUL.example.md,
                        skills/<name>-pipeline/, scripts/ (see docs/ops/skills.md)
 launchd/               LaunchAgent templates and launcher scripts
 engines/               hash-locked pins for the local engines (TTS, SFX, scraping, ...)
@@ -103,7 +126,7 @@ Run from `~/.config/hermes`.
   [`AGENTS.md`](./AGENTS.md) "After `hermes update`".
 - `./scripts/check-local-patches.sh [hermes-agent-dir]` — every local `fix/*`
   branch of the hermes-agent checkout must still be merged into `local`; exit 1
-  names what is missing.
+  names what is missing ([Runtime dependency: local patches](#runtime-dependency-local-patches)).
 - `hermes doctor` — validate providers and model tiers.
 
 **Validation and tests**

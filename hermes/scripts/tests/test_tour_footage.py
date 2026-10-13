@@ -456,7 +456,7 @@ def test_video_range_not_container_audio_duration(tmp_path):
 
 def test_effective_toolsets_not_widened():
     import hermes_yaml as yaml
-    config = yaml.safe_load((ROOT / "profiles/video-creator/config.yaml").read_text())
+    config = yaml.safe_load((ROOT / "profiles/video-creator/config.example.yaml").read_text())
     for platform in ("cli", "a2a"):
         tools = config["platform_toolsets"][platform]
         assert "terminal" in tools and not {"browser", "computer_use", "hermes-cli"} & set(tools)

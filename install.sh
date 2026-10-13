@@ -315,6 +315,9 @@ echo "[grok]"
 link "$DOTFILES/grok/AGENTS.md"   "$HOME/.grok/AGENTS.md"
 
 echo "[hermes]"
+# Like SOUL.md below: the real config.yaml is private (the overlay links it), and
+# a missing one is seeded from the tracked config.example.yaml. Never clobbers.
+[ -f "$DOTFILES/hermes/config.example.yaml" ] && [ ! -f "$DOTFILES/hermes/config.yaml" ] && { cp "$DOTFILES/hermes/config.example.yaml" "$DOTFILES/hermes/config.yaml"; echo "  seeded hermes/config.yaml from template (personalize locally; untracked)"; }
 link "$DOTFILES/hermes/config.yaml" "$HOME/.hermes/config.yaml"
 # Persona is private/local; seed from the tracked SOUL.example.md when the real
 # (gitignored, per-machine) SOUL.md is absent, then symlink it. Never clobbers.

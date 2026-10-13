@@ -173,7 +173,7 @@ class TourTest(unittest.TestCase):
 
     def test_routing_contract(self):
         import hermes_yaml as yaml
-        video = yaml.safe_load((ROOT / "profiles/video-creator/config.yaml").read_text())
+        video = yaml.safe_load((ROOT / "profiles/video-creator/config.example.yaml").read_text())
         self.assertNotIn("tts", video["toolsets"])
         commission = (ROOT / "profiles/assistant/skills/assistant-pipeline/execute-assistant-creative/references/tour.md").read_text()
         self.assertIn("## Leaves", commission)

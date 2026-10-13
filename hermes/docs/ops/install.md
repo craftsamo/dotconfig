@@ -30,6 +30,9 @@ Requires `ghq` (from `./install.sh --deps`).
 - **`setup.sh` installs only the binary.** Run
   [`install.sh`](../../../install.sh) separately for the `~/.hermes/` symlinks,
   and store keys with `secret set …` (no `.env`).
+- **`setup.sh` clones stock upstream, not the patched runtime.** This repo's
+  configs assume the `local` branch (upstream plus the local `fix/*` / `feat/*`
+  branches); see [README "Runtime dependency: local patches"](../../README.md#runtime-dependency-local-patches).
 - **Update with `hermes update`, not `setup.sh`.**
 - **Never hardcode a Python path.** PM owns the interpreter and the dependency
   generation; there is no in-tree `venv/`. Helpers that need Hermes'

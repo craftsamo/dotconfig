@@ -299,7 +299,7 @@ def test_validate_worker_accepts_three_entries_and_rejects_unknown_root(candidat
 
 
 def test_actual_config_is_a_read_only_advisor():
-    config = yaml.safe_load((HERMES / "profiles/marketer/config.yaml").read_text())
+    config = yaml.safe_load((HERMES / "profiles/marketer/config.example.yaml").read_text())
     assert config["specialist_call"]["resident_targets"] == ["researcher", "searcher"]
     assert set(config["a2a_agents"]) == {"researcher"}
     assert config["a2a_agents"]["researcher"]["timeout"] == 310
