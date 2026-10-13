@@ -63,10 +63,12 @@ hermes/**/browser-profile/
 hermes/SOUL.md
 hermes/**/SOUL.md
 
-# Assistant config holds a private Telegram chat ID (platforms.*.dm_topics);
-# the real file lives in the private overlay and is symlinked here. The
-# tracked config.example.yaml is the bootstrap fallback.
-hermes/profiles/assistant/config.yaml
+# The root and every profile's real config.yaml live in the private overlay
+# and are symlinked here (the Assistant's also holds a private Telegram chat
+# ID in platforms.*.dm_topics). The tracked config.example.yaml is the
+# bootstrap fallback.
+hermes/config.yaml
+hermes/profiles/*/config.yaml
 hermes/profiles/*/specialist-sessions/
 hermes/profiles/*/resident-sessions/
 hermes/profiles/*/opencode-sessions/

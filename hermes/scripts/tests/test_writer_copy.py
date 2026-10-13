@@ -99,7 +99,7 @@ def test_marketer_advises_on_copy_without_writing_or_accepting_it():
     assert "Do not score prose craft, shorten, strengthen, add urgency or run a humanizer" in review
     assert "let the client return it to the producer" in review
     assert "PASONA" not in review
-    config = yaml.safe_load((MARKETER.parents[1] / "config.yaml").read_text())
+    config = yaml.safe_load((MARKETER.parents[1] / "config.example.yaml").read_text())
     prompt = " ".join(config["agent"]["system_prompt"].split())
     assert "never a replacement manuscript" in prompt
     assert "references/acceptance/index.md" not in prompt

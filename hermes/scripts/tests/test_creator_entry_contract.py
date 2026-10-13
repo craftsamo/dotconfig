@@ -39,7 +39,7 @@ def block(value, tag):
 
 
 def creator_config():
-    return yaml.safe_load(text(ROOT / "profiles/creator/config.yaml"))
+    return yaml.safe_load(text(ROOT / "profiles/creator/config.example.yaml"))
 
 
 @pytest.mark.parametrize("entry", ENTRIES)

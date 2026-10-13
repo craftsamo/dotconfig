@@ -40,7 +40,7 @@ def test_post_family_is_routed_without_generic_fallback():
 
 
 def test_post_policy_does_not_expand_tools_or_publish():
-    config = yaml.safe_load((HERMES / "profiles/writer/config.yaml").read_text())
+    config = yaml.safe_load((HERMES / "profiles/writer/config.example.yaml").read_text())
     assert "terminal" not in config["toolsets"]
     assert "a2a" not in config["toolsets"]
     source = (PIPELINE / "analyze/post/SKILL.md").read_text()

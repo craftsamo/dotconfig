@@ -50,7 +50,7 @@ def test_searcher_handoff_still_states_the_remaining_minutes():
 
 def searcher_prompt() -> str:
     import hermes_yaml as yaml
-    config = yaml.safe_load((HERMES / "profiles/searcher/config.yaml").read_text())
+    config = yaml.safe_load((HERMES / "profiles/searcher/config.example.yaml").read_text())
     return " ".join(config["agent"]["system_prompt"].split())
 
 

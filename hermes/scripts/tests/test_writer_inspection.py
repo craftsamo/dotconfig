@@ -306,7 +306,7 @@ def test_actual_plugin_context_and_multiplex_toolset_cache(tmp_path, provisioned
 
 def test_writer_config_effective_toolsets_and_canonical_paths():
     import toolsets
-    config = yaml.safe_load((ROOT / "hermes/profiles/writer/config.yaml").read_text())
+    config = yaml.safe_load((ROOT / "hermes/profiles/writer/config.example.yaml").read_text())
     assert "writing-inspection" in config["plugins"]["enabled"]
     assert "writing-inspection" in config["toolsets"]
     for platform, names in config["platform_toolsets"].items():
@@ -317,7 +317,7 @@ def test_writer_config_effective_toolsets_and_canonical_paths():
     assert plugin.ROOT == ROOT
     assert plugin.SCRIPT == ROOT / "agents/curated/japanese-writing/scripts/inspect_text.py"
     assert plugin.PYTHON == ROOT / "hermes/local/writing-inspection/venv/bin/python"
-    for path in [ROOT / "hermes/config.yaml", *(ROOT / "hermes/profiles").glob("*/config.yaml")]:
+    for path in [ROOT / "hermes/config.example.yaml", *(ROOT / "hermes/profiles").glob("*/config.example.yaml")]:
         if path.parent.name != "writer":
             other = yaml.safe_load(path.read_text())
             assert "writing-inspection" not in other.get("plugins", {}).get("enabled", [])
@@ -388,7 +388,7 @@ def test_real_shared_protocol_with_test_interpreter(runtime, monkeypatch, text, 
 
 
 def assert_framework_safe(serialized):
-    limits = yaml.safe_load((ROOT / "hermes/profiles/writer/config.yaml").read_text())["tool_output"]
+    limits = yaml.safe_load((ROOT / "hermes/profiles/writer/config.example.yaml").read_text())["tool_output"]
     assert limits == {"max_bytes": 50000, "max_lines": 2000, "max_line_length": 2000}
     assert len(serialized.encode("utf-8")) <= plugin.REPORT_BYTES < limits["max_bytes"]
     assert len(serialized.splitlines()) <= plugin.REPORT_LINES < limits["max_lines"]

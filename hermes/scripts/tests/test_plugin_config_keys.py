@@ -20,7 +20,7 @@ from hermes_cli.plugins_manifest import manifest_key
 
 
 HERMES = Path(__file__).resolve().parents[2]
-CONFIGS = [c for c in sorted(HERMES.glob("profiles/*/config.yaml")) + [HERMES / "config.yaml"] if c.is_file()]
+CONFIGS = [c for c in sorted(HERMES.glob("profiles/*/config.example.yaml")) + [HERMES / "config.example.yaml"] if c.is_file()]
 
 
 @pytest.fixture(scope="module")
