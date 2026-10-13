@@ -168,9 +168,17 @@ class DeclaredFilesReallyExistTest(unittest.TestCase):
     def test_runtime_pytest_files_exist_on_disk(self) -> None:
         import hermes_constants
         runtime = Path(hermes_constants.__file__).resolve().parent
-        present = [rel for rel in V.RUNTIME_PYTEST_FILES if (runtime / rel).is_file()]
-        if not present:
-            self.skipTest(f"unpatched runtime: none of the declared patch tests exist in {runtime}")
+        # The list mixes tests the patches added with tests upstream also has, so a stock
+        # runtime holds some of them: only the patched `local` branch is held to all.
+        import subprocess
+
+        try:
+            branch = subprocess.run(["git", "-C", str(runtime), "symbolic-ref", "--short", "-q", "HEAD"],
+                                    capture_output=True, text=True, timeout=30).stdout.strip()
+        except (OSError, subprocess.SubprocessError):
+            branch = ""
+        if branch != "local":
+            self.skipTest(f"{runtime} is not the patched `local` branch (HEAD: {branch or 'none'})")
         for rel in V.RUNTIME_PYTEST_FILES:
             self.assertTrue((runtime / rel).is_file(), rel)
 

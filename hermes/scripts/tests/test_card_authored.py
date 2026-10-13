@@ -54,11 +54,13 @@ class CardAuthoredTests(unittest.TestCase):
     def test_real_runtime_discovery_preserves_distinct_card_leaves(self):
         from tools import skills_tool
 
+        from .skill_roots import search_dirs_result
+
         for verb in ("create", "generate", "edit", "analyze"):
             body = (card.ROOT / verb / "card/SKILL.md").read_text()
             self.assertLess(body.index("\n---", 4) + 4, 3800)
         with patch.object(skills_tool, "_SKILLS_CACHE", {}), \
-             patch.object(skills_tool, "_skill_search_dirs", return_value=([], [card.ROOT], card.ROOT)), \
+             patch.object(skills_tool, "_skill_search_dirs", return_value=search_dirs_result(card.ROOT)), \
              patch.object(skills_tool, "_skills_dir", return_value=card.ROOT), \
              patch("agent.skill_utils.get_external_skills_dirs", return_value=[]):
             names = {row["name"] for row in skills_tool._find_all_skills(skip_disabled=True)}
