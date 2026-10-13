@@ -9,14 +9,14 @@ Part of the Hermes mechanics docs — entry: [`README.md`](../../README.md).
 
 ## Tracked vs ignored
 
-**Tracked:** root `config.yaml` / `mcp.json` / `.no-bundled-skills`; per profile
-`config.yaml` (assistant: `config.example.yaml`), `profile.yaml`,
+**Tracked:** root `config.example.yaml` / `mcp.json` / `.no-bundled-skills`; per profile
+`config.example.yaml`, `profile.yaml`,
 `.no-bundled-skills`, `skills/<profile>-pipeline/` and `skills/technic/`,
 `scripts/`; every `SOUL.example.md`; `skills/default-pipeline/`; `plugins/`
 source; `launchd/`; `engines/`; `scripts/`; docs.
 
-**Ignored** (see [`.gitignore`](../../../.gitignore)): every `SOUL.md` and
-`profiles/assistant/config.yaml` (private overlay); `auth.json`, `.env*`,
+**Ignored** (see [`.gitignore`](../../../.gitignore)): every `SOUL.md`, the root
+`config.yaml` and `profiles/*/config.yaml` (private overlay); `auth.json`, `.env*`,
 `memories/`, `sessions/`, `state.db*`, `logs/`, `workspace/`, `plans/`,
 `*_cache/`, `local/`, `browser-profile/` (copied cookies — must never ship);
 `specialist-sessions/`, `resident-sessions/`, `opencode-sessions/`; skill
@@ -32,7 +32,8 @@ or host-rendered plists (`~/Library/LaunchAgents/…`).
 every worker's `<profile>-pipeline/` and `technic/` are maintainer-owned and
 tracked normally, and so is the assistant's `assistant-pipeline/`. What must
 stay private lives in the overlay repo instead: the assistant's private technic
-shelf, its `config.yaml` and the real `SOUL.md` files; commit those there.
+shelf, the real `config.yaml` files (root and every profile) and the real
+`SOUL.md` files; commit those there.
 Never use `skip-worktree` for managed skills: their changes must remain visible
 in `git status`.
 
@@ -77,9 +78,10 @@ into the repo (clearing the real files) before linking:
       ~/.config/hermes/profiles/<name>/
    ```
    Commit a `SOUL.example.md` persona template; `SOUL.md` itself stays
-   untracked (put the real one in the private overlay). A config holding private
-   identifiers follows the assistant pattern: track `config.example.yaml`, keep
-   the real `config.yaml` in the overlay.
+   untracked (put the real one in the private overlay). Commit the config as
+   `config.example.yaml` and keep the real `config.yaml` in the overlay
+   (`hermes/profiles/<name>/config.yaml` there): tests, the validator and a
+   fresh machine read the example.
 4. In that profile's `config.yaml`, point `skills.external_dirs` at the clone
    (`~/ghq/github.com/NousResearch/hermes-agent/skills`) — same as default.
 5. `./install.sh` — the `[hermes]` loop now symlinks them (no WARN).

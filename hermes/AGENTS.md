@@ -51,6 +51,11 @@ skills.
 - **`config.yaml` is rewritten by Hermes on load.** Match its output format
   (block style, key order) and keep diffs minimal; never hand-reformat or
   alphabetize. Custom top-level keys survive the rewrite.
+- **The real `config.yaml` files are private; the repo tracks
+  `config.example.yaml`.** Tests, the validator and a fresh machine read the
+  example, so a worktree without the overlay still passes. A change to a
+  profile's behavior goes into the example and the private copy in the same
+  paired change; the example is also what a person without the overlay gets.
 - **`cron/` is not in this repo.** Never re-link it and never re-add it with
   `skip-worktree` (that hid new jobs and broke branch switches). A missing
   `jobs.json` reads as zero jobs, silently — back it up before touching the
@@ -126,9 +131,13 @@ skills.
   **Hermes** account; OpenCode uses its own login outside the Keychain. A plain
   `claude /login` therefore silently switches Hermes' account. Verification:
   [docs/models-auth.md "Authentication inheritance"](docs/models-auth.md).
-- **`provider: anthropic` is the Console API key lane, not the subscription.**
-  The subscription is `anthropic-oauth`; a Claude tier on the wrong lane is
-  silent (it bills credits, or with no key is skipped). The credit keys' env
+- **Tracked configs say `provider: anthropic`; the real ones pick the lane.**
+  `config.example.yaml` must run on a stock runtime, which knows one Anthropic
+  provider. On the patched runtime `anthropic` is the Console API key lane and
+  the subscription is `anthropic-oauth`, so the private `config.yaml` names
+  the lane per tier; a Claude tier on the wrong lane is silent (it bills
+  credits, or with no key is skipped). Change a chain in the example and in
+  the private config together. The credit keys' env
   names (`ANTHROPIC_CREDIT_*`) are what the `anthropic` pool reads: renaming one
   empties that entry, in the root `auth.json` and in any per-profile copy.
   Details: [docs/models-auth.md "Console credit lanes"](docs/models-auth.md).
