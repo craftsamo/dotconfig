@@ -38,6 +38,25 @@ Keys live in the macOS Keychain (`secret set …`), never in a `.env`. Update
 with `hermes update`, not `setup.sh`. Details and the reasons:
 [`docs/ops/install.md`](docs/ops/install.md).
 
+## Runtime dependency: local patches
+
+This configuration targets a **patched** Hermes, not stock upstream. The
+runtime is the `local` branch of a hermes-agent checkout (remote `fork`): upstream
+plus every local `fix/*` and `feat/*` branch, merged. `setup.sh` clones stock
+upstream only, so on a fresh machine add the `fork` remote and check out `local`
+before relying on this repo. Without the patches the configs still load, but some
+parts fail silently or not at all:
+
+- thinking and `tool_choice` handling for newer Claude models
+  ([`docs/models-auth.md`](docs/models-auth.md) "Fable and the Claude weekly pool");
+- real-profile browser isolation ([`docs/ops/browser.md`](docs/ops/browser.md));
+- scope-keyed audio handling ([`docs/hands/audio.md`](docs/hands/audio.md)).
+
+The branch list in the checkout is the ledger, not a list in these docs:
+`./scripts/check-local-patches.sh` fails on any `fix/*` / `feat/*` branch that
+`local` does not contain. Run it after every `hermes update`
+([`AGENTS.md`](./AGENTS.md) "After `hermes update`").
+
 ## Symlinks
 
 Every link below points back into this repo, so edit the repo copy.
@@ -103,7 +122,7 @@ Run from `~/.config/hermes`.
   [`AGENTS.md`](./AGENTS.md) "After `hermes update`".
 - `./scripts/check-local-patches.sh [hermes-agent-dir]` — every local `fix/*`
   branch of the hermes-agent checkout must still be merged into `local`; exit 1
-  names what is missing.
+  names what is missing ([Runtime dependency: local patches](#runtime-dependency-local-patches)).
 - `hermes doctor` — validate providers and model tiers.
 
 **Validation and tests**
