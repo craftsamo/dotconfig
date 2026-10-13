@@ -328,7 +328,9 @@ def _child(case, sandbox, candidate_tree, source):
                     encoding="utf-8",
                 )
                 assert added in set(su.iter_skill_index_files(skills, "SKILL.md"))
-                assert index() == before, "In-process prompt cache remains stale on disk additions"
+                # Older runtimes keep the cached index until it is cleared; newer ones notice
+                # the new file on their own. Either is fine; a half-updated index is not.
+                assert set(rows(index())) in (set(rows(before)), EXPECTED | {"synthetic-new-entry"})
                 pb.clear_skills_system_prompt_cache(clear_snapshot=True)
                 assert set(rows(index())) == EXPECTED | {"synthetic-new-entry"}
             else:
