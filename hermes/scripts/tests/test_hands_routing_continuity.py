@@ -149,12 +149,14 @@ class HandsRuntimeDiscoveryTest(unittest.TestCase):
     def test_find_all_skills_discovers_every_leaf_once_with_real_names(self) -> None:
         import tools.skills_tool as skills_tool
 
+        from .skill_roots import search_dirs_result
+
         for profile in VALIDATOR.HANDS_PROFILES:
             with self.subTest(profile=profile):
                 pipeline = VALIDATOR.HERMES_ROOT / "profiles" / profile / "skills" / f"{profile}-pipeline"
                 expected = self._installed_leaves(profile)
                 self.assertTrue(expected, f"{profile} must have installed hands leaves to discover")
-                with patch.object(skills_tool, "_skill_search_dirs", return_value=([], [pipeline], pipeline)), \
+                with patch.object(skills_tool, "_skill_search_dirs", return_value=search_dirs_result(pipeline)), \
                      patch.object(skills_tool, "_get_disabled_skill_names", return_value=set()), \
                      patch.object(skills_tool, "_SKILLS_CACHE", {}):
                     skills = skills_tool._find_all_skills()

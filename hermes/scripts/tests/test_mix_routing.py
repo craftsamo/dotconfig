@@ -63,7 +63,9 @@ class MixRoutingTest(unittest.TestCase):
         duplicate."""
         import tools.skills_tool as skills_tool
 
-        with patch.object(skills_tool, "_skill_search_dirs", return_value=([], [PIPELINE], PIPELINE)), \
+        from .skill_roots import search_dirs_result
+
+        with patch.object(skills_tool, "_skill_search_dirs", return_value=search_dirs_result(PIPELINE)), \
              patch.object(skills_tool, "_get_disabled_skill_names", return_value=set()), \
              patch.object(skills_tool, "_SKILLS_CACHE", {}):
             skills = skills_tool._find_all_skills()
