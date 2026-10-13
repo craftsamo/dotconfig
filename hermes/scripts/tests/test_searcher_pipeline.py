@@ -62,7 +62,7 @@ def test_exact_entries_and_owned_procedures():
 
 
 def test_profile_selection_contract_and_unchanged_tool_surface():
-    config = yaml.safe_load((HERMES / "profiles/searcher/config.yaml").read_text())
+    config = yaml.safe_load((HERMES / "profiles/searcher/config.example.yaml").read_text())
     prompt = " ".join(config["agent"]["system_prompt"].split())
     assert "first message is the brief" not in prompt.lower()
     assert "Purpose alone is not execution authority" in prompt
@@ -367,7 +367,7 @@ def test_chain_reads_are_retrieval_without_verdicts():
     assert "`program`" in solana and "slot" in solana
     root = flat(PIPELINE / "SKILL.md")
     assert "chain reads of the evm and solana tools, which never sign or send" in root
-    prompt = " ".join(yaml.safe_load((HERMES / "profiles/searcher/config.yaml").read_text())
+    prompt = " ".join(yaml.safe_load((HERMES / "profiles/searcher/config.example.yaml").read_text())
                       ["agent"]["system_prompt"].split())
     assert "the read-only evm and solana tools for on-chain facts" in prompt
 
@@ -410,7 +410,7 @@ def test_technics_are_routed_to_their_mode():
     assert not errors
     root = flat(PIPELINE / "SKILL.md")
     assert "never replaces the mode's procedure" in root and "is not the caller's release" in root
-    prompt = " ".join(yaml.safe_load((HERMES / "profiles/searcher/config.yaml").read_text())
+    prompt = " ".join(yaml.safe_load((HERMES / "profiles/searcher/config.example.yaml").read_text())
                       ["agent"]["system_prompt"].split())
     assert "references/capabilities.md" in prompt and "never replaces the mode" in prompt
     for name, mode in TECHNICS.items():

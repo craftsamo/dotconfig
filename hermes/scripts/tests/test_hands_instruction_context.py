@@ -37,7 +37,7 @@ def block(value, tag):
 @pytest.fixture(params=HANDS)
 def hands_config(request):
     # Do not retain or expose model, plugin, secret helper or transport settings.
-    config = yaml.safe_load(text(ROOT / f"profiles/{request.param}/config.yaml"))
+    config = yaml.safe_load(text(ROOT / f"profiles/{request.param}/config.example.yaml"))
     safe = {
         "system_prompt": config["agent"]["system_prompt"],
         "skills": {key: config["skills"][key]

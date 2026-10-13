@@ -11,7 +11,7 @@ HANDS = ("image-creator", "video-creator", "audio-creator")
 
 
 def delivery(profile):
-    config = yaml.safe_load((ROOT / "profiles" / profile / "config.yaml").read_text())
+    config = yaml.safe_load((ROOT / "profiles" / profile / "config.example.yaml").read_text())
     prompt = config["agent"]["system_prompt"]
     return " ".join(prompt.split("Deliver: accept", 1)[1].split("\n\n", 1)[0].split())
 

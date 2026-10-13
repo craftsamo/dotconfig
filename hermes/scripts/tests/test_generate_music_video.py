@@ -236,8 +236,8 @@ class MusicVideoRootAndRoutingTest(unittest.TestCase):
         for text in (commission_text, advisor, kernel):
             self.assertNotIn("generate-mv", text)
         for relative in (
-            "creator/config.yaml", "creator/profile.yaml",
-            "video-creator/config.yaml", "video-creator/profile.yaml",
+            "creator/config.example.yaml", "creator/profile.yaml",
+            "video-creator/config.example.yaml", "video-creator/profile.yaml",
             "video-creator/skills/video-creator-pipeline/SKILL.md",
         ):
             with self.subTest(path=relative):
@@ -250,7 +250,7 @@ class MusicVideoRootAndRoutingTest(unittest.TestCase):
 
     def test_creator_is_not_a_music_video_client(self) -> None:
         creator = yaml.safe_load(
-            (VALIDATOR.HERMES_ROOT / "profiles" / "creator" / "config.yaml").read_text(encoding="utf-8")
+            (VALIDATOR.HERMES_ROOT / "profiles" / "creator" / "config.example.yaml").read_text(encoding="utf-8")
         )
         self.assertEqual(["researcher", "searcher"], creator["specialist_call"]["resident_targets"])
         self.assertNotIn("video_gen", creator["toolsets"])
@@ -264,7 +264,7 @@ class MusicVideoRootAndRoutingTest(unittest.TestCase):
     def test_no_model_or_provider_config_drift(self) -> None:
         """One shared top-level model/provider block for the whole profile;
         no leaf-specific override block was introduced for generate-music-video."""
-        config = VALIDATOR.HERMES_ROOT / "profiles" / "video-creator" / "config.yaml"
+        config = VALIDATOR.HERMES_ROOT / "profiles" / "video-creator" / "config.example.yaml"
         lines = config.read_text(encoding="utf-8").splitlines()
         self.assertEqual(1, sum(l.startswith("model:") for l in lines))
         self.assertEqual(1, sum(l.startswith("video_gen:") for l in lines))

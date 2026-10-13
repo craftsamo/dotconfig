@@ -13,10 +13,10 @@ VOCABULARY = HERMES_ROOT.parent / "agents/curated/motion-vocabulary/references"
 
 class VideoCreatorRoutingTest(unittest.TestCase):
     def test_gateway_and_assistant_wiring(self) -> None:
-        video_path = HERMES_ROOT / "profiles" / "video-creator" / "config.yaml"
+        video_path = HERMES_ROOT / "profiles" / "video-creator" / "config.example.yaml"
         video = yaml.safe_load(video_path.read_text())
-        root = yaml.safe_load((HERMES_ROOT / "config.yaml").read_text())
-        creator = yaml.safe_load((HERMES_ROOT / "profiles/creator/config.yaml").read_text())
+        root = yaml.safe_load((HERMES_ROOT / "config.example.yaml").read_text())
+        creator = yaml.safe_load((HERMES_ROOT / "profiles/creator/config.example.yaml").read_text())
         assistant = yaml.safe_load((HERMES_ROOT / "profiles/assistant/config.example.yaml").read_text())
         # One host gateway serves every profile directory; there is no allowlist to join.
         self.assertTrue(root["gateway"]["multiplex_profiles"])

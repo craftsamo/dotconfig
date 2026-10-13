@@ -25,7 +25,7 @@ def pipeline(profile):
 
 @pytest.mark.parametrize("profile", PROFILE_CRAFT)
 def test_exact_profile_craft_surface(profile):
-    config = yaml.safe_load((HERMES / "profiles" / profile / "config.yaml").read_text())["skills"]
+    config = yaml.safe_load((HERMES / "profiles" / profile / "config.example.yaml").read_text())["skills"]
     if profile == "creator":
         assert "~/.agents/skills" in config["external_dirs"]
     else:
@@ -88,7 +88,7 @@ def craft_store(request, tmp_path, monkeypatch):
         target = local / source.name / file.relative_to(source)
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(file, target)
-    skill_config = yaml.safe_load((HERMES / "profiles" / profile / "config.yaml").read_text())["skills"]
+    skill_config = yaml.safe_load((HERMES / "profiles" / profile / "config.example.yaml").read_text())["skills"]
     config = {"skills": skill_config}
     (home / "config.yaml").write_text(yaml.safe_dump(config))
     monkeypatch.setenv("HOME", str(tmp_path))

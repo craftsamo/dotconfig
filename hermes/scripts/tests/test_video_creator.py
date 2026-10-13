@@ -34,9 +34,9 @@ class VideoCreatorConfigTest(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls) -> None:
-        video_path = HERMES_ROOT / "profiles" / "video-creator" / "config.yaml"
-        image_path = HERMES_ROOT / "profiles" / "image-creator" / "config.yaml"
-        creator_path = HERMES_ROOT / "profiles" / "creator" / "config.yaml"
+        video_path = HERMES_ROOT / "profiles" / "video-creator" / "config.example.yaml"
+        image_path = HERMES_ROOT / "profiles" / "image-creator" / "config.example.yaml"
+        creator_path = HERMES_ROOT / "profiles" / "creator" / "config.example.yaml"
         cls.video = yaml.safe_load(video_path.read_text())
         cls.image = yaml.safe_load(image_path.read_text())
         cls.creator = yaml.safe_load(creator_path.read_text())
@@ -114,7 +114,7 @@ def skill_environment(tmp_path, monkeypatch):
     home = tmp_path / ".hermes"
     local = home / "skills"
     local.mkdir(parents=True)
-    config = {"skills": yaml.safe_load((PROFILE / "config.yaml").read_text())["skills"]}
+    config = {"skills": yaml.safe_load((PROFILE / "config.example.yaml").read_text())["skills"]}
     (home / "config.yaml").write_text(yaml.safe_dump(config))
     sources = [*PIPELINE.glob("**/SKILL.md"), PIPELINE / "references/hyperframes.md", PIPELINE / "references/three-graphics.md"]
     sources.extend(PIPELINE / "create" / subject / "references/authoring.md" for subject in ("tour", "ad", "explainer-video", "promotion", "story"))

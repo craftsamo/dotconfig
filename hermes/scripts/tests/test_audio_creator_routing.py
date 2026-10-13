@@ -16,14 +16,14 @@ class AudioCreatorRoutingTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         cls.audio = yaml.safe_load(
-            (HERMES_ROOT / "profiles" / "audio-creator" / "config.yaml").read_text()
+            (HERMES_ROOT / "profiles" / "audio-creator" / "config.example.yaml").read_text()
         )
-        cls.root = yaml.safe_load((HERMES_ROOT / "config.yaml").read_text())
+        cls.root = yaml.safe_load((HERMES_ROOT / "config.example.yaml").read_text())
         cls.creator = yaml.safe_load(
-            (HERMES_ROOT / "profiles" / "creator" / "config.yaml").read_text()
+            (HERMES_ROOT / "profiles" / "creator" / "config.example.yaml").read_text()
         )
         cls.image = yaml.safe_load(
-            (HERMES_ROOT / "profiles" / "image-creator" / "config.yaml").read_text()
+            (HERMES_ROOT / "profiles" / "image-creator" / "config.example.yaml").read_text()
         )
         cls.assistant = yaml.safe_load(
             (HERMES_ROOT / "profiles" / "assistant" / "config.example.yaml").read_text()
