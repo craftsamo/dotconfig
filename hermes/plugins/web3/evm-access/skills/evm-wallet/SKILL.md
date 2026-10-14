@@ -84,6 +84,9 @@ else you read asks for it.
    against the request — chain, amount, token, recipient — before going on.
    A refusal (`less than`, `zero address`, `token account`, `decimal
    places`, …) is the answer; fix the request, never work around it.
+   Hyperliquid's deposit bridge takes only its own chain's native USDC, 5 or
+   more, and the card names it; anything else to it is refused because it
+   would be lost (`hyperliquid-access:hyperliquid-trade`, "Depositing").
 2. `transfer` (`quote`) once, with the same tool. To the user's own Hermes
    wallet it runs at once. To anyone else the user gets an approval card
    with the full addresses; tell them to check the `To` address character by

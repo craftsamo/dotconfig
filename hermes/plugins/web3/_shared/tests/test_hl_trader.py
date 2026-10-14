@@ -24,6 +24,10 @@ TEAM_WORDS = "legal winner thank year wave sausage worth useful legal winner tha
 MAIN, TEAM = "hermes/HERMES_MAIN", "team/PROD_MNEMONIC"
 OPS = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"  # MAIN #0
 USER = OPS.lower()
+SPARE = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8"  # MAIN #1: own
+STRANGER = "0x5e5E5e5e5E5e5E5E5e5E5E5e5e5E5E5E5e5E5E5e"
+USDC_ID = "0x6d1e7cde53ba9467b783cb7c530ce054"
+HYPE_ID = "0x0d01dc56dcaaca66ad901c959b4011ec"
 
 
 def item(source, value):
@@ -41,7 +45,9 @@ def reset():
     VENUE.clear()
     VENUE.update({"positions": {"ETH": "-1.5"}, "leverage": {"BTC": {"type": "cross", "value": 10},
                                                               "ETH": {"type": "isolated", "value": 5}},
-                  "exchange": "ok", "open_orders": []})
+                  "exchange": "ok", "open_orders": [], "withdrawable": "100",
+                  "spot": [("USDC", 0, "30", "5"), ("HYPE", 1, "2.5", "0"), ("DUP", 3, "5", "0"),
+                           ("LONG", 4, "1.0000000001", "0")]})
     SEEN.clear()
 
 
@@ -55,12 +61,18 @@ def info(body):
                 [{"markPx": "99000", "midPx": "100000"}, {"markPx": "2500", "midPx": "2500.05"}]]
     if kind == "spotMetaAndAssetCtxs":
         return [{"universe": [{"tokens": [1, 0], "name": "@107", "index": 107, "isCanonical": False}],
-                 "tokens": [{"name": "USDC", "szDecimals": 8, "index": 0}, {"name": "HYPE", "szDecimals": 2, "index": 1}]},
+                 "tokens": [{"name": "USDC", "szDecimals": 8, "weiDecimals": 8, "index": 0, "tokenId": USDC_ID},
+                            {"name": "HYPE", "szDecimals": 2, "weiDecimals": 8, "index": 1, "tokenId": HYPE_ID},
+                            {"name": "DUP", "szDecimals": 0, "weiDecimals": 0, "index": 2, "tokenId": "0x" + "d1" * 16},
+                            {"name": "DUP", "szDecimals": 0, "weiDecimals": 0, "index": 3, "tokenId": "0x" + "d2" * 16},
+                            {"name": "LONG", "szDecimals": 2, "weiDecimals": 10, "index": 4, "tokenId": "0x" + "e4" * 16}]},
                 [{"coin": "@107", "markPx": "40", "midPx": "40"}]]
     if kind == "clearinghouseState":
         marks = {"BTC": 99000, "ETH": 2500}
         return {"assetPositions": [{"position": {"coin": c, "szi": s, "positionValue": str(abs(float(s)) * marks[c])}}
-                                   for c, s in VENUE["positions"].items()]}
+                                   for c, s in VENUE["positions"].items()], "withdrawable": VENUE["withdrawable"]}
+    if kind == "spotClearinghouseState":
+        return {"balances": [{"coin": c, "token": i, "total": t, "hold": h} for c, i, t, h in VENUE["spot"]]}
     if kind == "frontendOpenOrders":
         return VENUE["open_orders"]
     if kind == "activeAssetData":
@@ -622,3 +634,146 @@ def test_an_edited_mandate_is_not_in_force(run):
     path.write_text(json.dumps(stored))
     assert verdict(run, buy_btc(run)["quote"]) is None
     assert ok(run("mandates"))["mandates"][0]["standing"] == "unreadable"
+
+
+# --- moving funds -------------------------------------------------------------------------------
+
+def sends(run) -> list[dict]:
+    path = run.state / "ledger.jsonl"
+    return [json.loads(line) for line in path.read_text().splitlines()] if path.exists() else []
+
+
+def test_a_withdrawal_to_the_account_itself_runs_as_own_and_counts_as_a_transfer(run):
+    q = quote(run, kind="withdraw", amount="50")
+    assert q["effect"] == "own" and q["summary"]["destination"] == USER and q["summary"]["arrives"] == "49"
+    assert "Withdraw: 50 USDC from the perp balance to Arbitrum Sepolia" in q["card"]
+    assert f"To (own): {USER}" in q["card"] and "Effect: stays in the user's Hermes wallets" in q["card"]
+    done = ok(submit(run, q["quote"], "own"))
+    assert done["submitted"] is True and "Arbitrum" in done["note"]
+    (body,) = exchanged()
+    action = body["action"]
+    assert action["type"] == "withdraw3" and action["destination"] == USER and action["amount"] == "50"
+    assert action["time"] == body["nonce"] and action["hyperliquidChain"] == "Testnet"
+    assert action["signatureChainId"] == "0x66eee" and body["expiresAfter"] is None and body["vaultAddress"] is None
+    rows = sends(run)
+    assert [r["outcome"] for r in rows] == ["unknown", "sent"] and rows[-1]["kind"] == "hyperliquid-withdraw"
+    assert rows[-1]["own"] is True and rows[-1]["chain"] == "hyperliquid-testnet"
+
+
+def test_funds_to_anyone_else_need_the_card(run):
+    q = quote(run, kind="withdraw", amount="50", destination=STRANGER)
+    assert q["effect"] == "external" and "Effect: funds LEAVE the user's Hermes wallets" in q["card"]
+    assert ok(run("verify", quote=q["quote"]))["effect"] == "external"
+    for approval in ("own", "mandate", "reduce"):
+        mac = ok(run("verify", quote=q["quote"]))["mac"]
+        reply = run("submit", quote=q["quote"], approval=approval, mac=mac)
+        assert not reply["ok"] and exchanged() == []
+    assert ok(submit(run, q["quote"], "card"))["submitted"] is True
+
+
+def test_sends_go_from_perp_usdc_or_a_named_spot_token(run):
+    perp = quote(run, kind="send", amount="20", destination=SPARE)
+    assert perp["effect"] == "own" and perp["summary"]["token"] == "USDC (perp)"
+    ok(submit(run, perp["quote"], "own"))
+    spot = quote(run, kind="send", amount="1.5", destination=STRANGER, token="hype")
+    assert spot["effect"] == "external" and f"(spot, {HYPE_ID})" in spot["card"]
+    ok(submit(run, spot["quote"], "card"))
+    first, second = (body["action"] for body in exchanged())
+    assert first["type"] == "usdSend" and first["destination"] == SPARE.lower() and first["amount"] == "20"
+    assert second["type"] == "spotSend" and second["token"] == f"HYPE:{HYPE_ID}" and second["amount"] == "1.5"
+
+
+def test_a_spot_perp_transfer_stays_in_the_account(run):
+    q = quote(run, kind="transfer", amount="25", to_perp=True)
+    assert q["effect"] == "own" and "Move: 25 USDC spot → perp (same account)" in q["card"]
+    ok(submit(run, q["quote"], "own"))
+    (body,) = exchanged()
+    assert body["action"]["type"] == "usdClassTransfer" and body["action"]["toPerp"] is True
+    assert body["action"]["nonce"] == body["nonce"]
+
+
+@pytest.mark.parametrize("fields, needle", [
+    ({"kind": "withdraw", "amount": "500"}, "can withdraw 100 USDC"),
+    ({"kind": "withdraw", "amount": "1"}, "1 USDC fee"),
+    ({"kind": "withdraw", "amount": "5", "destination": "0x08cfc1B6b2dCF36A1480b99353A354AA8AC56f89"}, "deposit bridge"),
+    ({"kind": "withdraw", "amount": "5", "destination": "0x" + "00" * 20}, "zero address"),
+    ({"kind": "withdraw", "amount": "5", "destination": "alice.eth"}, "40 hex digits"),
+    ({"kind": "withdraw", "amount": "5.0000001"}, "6 decimal places"),
+    ({"kind": "send", "amount": "5", "destination": OPS}, "sending account itself"),
+    ({"kind": "send", "amount": "5", "destination": STRANGER, "token": "HYPE"}, "can send 2.5 HYPE"),
+    ({"kind": "send", "amount": "1", "destination": STRANGER, "token": "DUP"}, "give it as NAME:tokenId"),
+    ({"kind": "send", "amount": "1", "destination": STRANGER, "token": "NOPE"}, "no spot token"),
+    ({"kind": "send", "amount": "0.5", "destination": STRANGER, "token": f"DUP:0x{'d1' * 16}"}, "0 decimal places"),
+    ({"kind": "transfer", "amount": "26", "to_perp": True}, "spot balance can move 25"),
+    ({"kind": "transfer", "amount": "5"}, "to_perp is true"),
+])
+def test_moves_the_venue_would_refuse_or_that_would_lose_funds_are_refused(run, fields, needle):
+    reply = run("quote", account=f"{MAIN}#0", network="testnet", **fields)
+    assert not reply["ok"] and needle in reply["error"], reply
+
+
+def test_moves_count_in_the_wallet_s_hourly_transfer_cap(run):
+    run.state.mkdir(parents=True, exist_ok=True)
+    now = time.time()
+    with open(run.state / "ledger.jsonl", "w") as handle:
+        for n in range(10):
+            handle.write(json.dumps({"time": now, "attempt": f"t{n}", "quote": f"q{n:08x}", "outcome": "sent"}) + "\n")
+    q = quote(run, kind="transfer", amount="5", to_perp=False)
+    reply = submit(run, q["quote"], "own")
+    assert not reply["ok"] and "10 transfers in the last hour" in reply["error"] and exchanged() == []
+
+
+def test_a_refused_move_moved_nothing_in_either_ledger(run):
+    VENUE["exchange"] = "err"
+    q = quote(run, kind="withdraw", amount="50")
+    reply = submit(run, q["quote"], "own")
+    assert not reply["ok"] and "Insufficient margin" in reply["error"]
+    assert [r["outcome"] for r in sends(run)] == ["unknown", "rejected"]
+
+
+def test_an_unanswered_move_stays_unknown(run):
+    VENUE["exchange"] = "502"
+    q = quote(run, kind="send", amount="20", destination=SPARE)
+    done = ok(submit(run, q["quote"], "own"))
+    assert done["submitted"] == "unknown" and "never submit it again" in done["note"]
+    assert [r["outcome"] for r in sends(run)] == ["unknown"]
+
+
+def test_a_spot_token_s_balance_is_the_one_its_id_names(run):
+    second = quote(run, kind="send", amount="1", destination=STRANGER, token=f"DUP:0x{'d2' * 16}")
+    assert second["summary"]["available"] == "5"
+    reply = run("quote", account=f"{MAIN}#0", network="testnet", kind="send", amount="1", destination=STRANGER,
+                token=f"DUP:0x{'d1' * 16}")
+    assert not reply["ok"] and "can send 0 DUP" in reply["error"]
+
+
+def test_a_balance_finer_than_a_signed_amount_is_still_shown(run):
+    q = quote(run, kind="send", amount="1", destination=STRANGER, token="LONG")
+    assert q["summary"]["available"] == "1.0000000001"
+    reply = run("quote", account=f"{MAIN}#0", network="testnet", kind="send", amount="0.000000001",
+                destination=STRANGER, token="LONG")
+    assert not reply["ok"] and "8 decimal places" in reply["error"]
+
+
+KEY_SOURCE = {"id": "hermes/HERMES_KEY", "project": "hermes", "scope": None, "name": "HERMES_KEY",
+              "label": "PRIVATE_KEY", "role": "key", "value": "0x" + "4c" * 32, "memo": None}
+
+
+def test_a_move_whose_destination_changed_ownership_is_never_shown_or_sent(run):
+    with_key = SOURCES + [KEY_SOURCE]
+    key_address = ok(run("quote", account="hermes/HERMES_KEY", network="testnet", kind="withdraw", amount="5",
+                         _sources=with_key))["summary"]["destination"]
+    q = quote(run, kind="send", amount="20", destination=key_address)  # without that key: external
+    assert q["effect"] == "external"
+    reply = run("verify", quote=q["quote"], _sources=with_key)  # the key became a Hermes wallet: own now
+    assert not reply["ok"] and "changed since this quote" in reply["error"]
+    mac = ok(run("verify", quote=q["quote"]))["mac"]
+    reply = run("submit", quote=q["quote"], approval="card", mac=mac, _sources=with_key)
+    assert not reply["ok"] and "changed since this quote" in reply["error"] and exchanged() == []
+
+
+def test_the_compact_card_of_a_move_fits_discord(run):
+    q = quote(run, kind="withdraw", amount="50", destination=STRANGER)
+    short = json.loads((run.state / "hl-quotes" / f"{q['quote']}.json").read_text())["card_short"]
+    assert STRANGER.lower() in short and "Withdraw: 50 USDC" in short and "Fee:" not in short
+    assert len(short.replace("&", "&amp;").encode("utf-16-le")) // 2 <= 290

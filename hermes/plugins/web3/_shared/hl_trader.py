@@ -51,6 +51,7 @@ import urllib.request
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 
+import chains  # noqa: E402
 import hl  # noqa: E402
 import hl_mandate  # noqa: E402
 import hl_sign  # noqa: E402
@@ -69,7 +70,10 @@ EXPIRES_AFTER_MS = 60_000       # a signed action the venue has not seen within 
 POST_TIMEOUT = 30
 INCREASE_PER_HOUR = 30          # actions that may add exposure, every account together
 ALL_PER_HOUR = 200              # every action, reduce included: a loop stops here
-KINDS = ("order", "close", "tpsl", "modify", "cancel", "leverage", "margin", "mandate")
+MOVES = ("withdraw", "send", "transfer")  # funds moving out of a position: own or external, like a wallet send
+KINDS = ("order", "close", "tpsl", "modify", "cancel", "leverage", "margin", "mandate", *MOVES)
+WITHDRAW_FEE = Decimal("1")     # the venue's fee on a withdrawal to Arbitrum, in USDC
+ARBITRUM = {"mainnet": "arbitrum", "testnet": "arbitrum-sepolia"}
 SIDES = {"buy": True, "long": True, "sell": False, "short": False}
 SLIPPAGE_DEFAULT = Decimal("0.01")
 SLIPPAGE_MAX = Decimal("0.05")
@@ -79,6 +83,8 @@ MARGIN_MODES = ("cross", "isolated")
 NOTES = {
     "reduce": "this can only lower exposure: it runs without an approval card",
     "increase": "this can add exposure: the user approves it on a card",
+    "own": "the funds stay in the user's own Hermes wallets: it runs without an approval card",
+    "external": "the funds leave the user's Hermes wallets: the user approves it on a card",
 }
 
 
@@ -432,13 +438,157 @@ def build_margin(ctx, payload, user, mkt, quote_id) -> dict:
             "remove": remove, "reduce_only": False, "cloids": []}
 
 
+USDC_MARKET = {"coin": "USDC", "label": "USDC", "spot": False}
+
+
+def _destination(payload: dict, default: str | None = None) -> str:
+    value = payload.get("destination") or default
+    if not isinstance(value, str) or not re.match(r"^0x[0-9a-fA-F]{40}$", value):
+        raise ChainError("destination must be a 0x address of 40 hex digits")
+    if int(value, 16) == 0:
+        raise ChainError("the zero address burns funds; refused")
+    if chains.hyperliquid_bridge(value):
+        raise ChainError("that is Hyperliquid's deposit bridge, not an account; refused")
+    return value.lower()
+
+
+def _usdc(payload: dict) -> Decimal:
+    amount = _decimal(payload, "amount", required=True)
+    try:
+        hl_sign.usd_int(amount)
+    except hl_sign.SignError as exc:
+        raise ChainError(str(exc)) from None
+    return amount
+
+
+def _perp_free(ctx: hl.Ctx, user: str) -> Decimal:
+    found = ctx.api.info({"type": "clearinghouseState", "user": user})
+    if not isinstance(found, dict) or found.get("withdrawable") is None:
+        raise ChainError(f"{ctx.api.label} returned an unexpected account state")
+    return Decimal(str(found["withdrawable"]))
+
+
+def _spot_free(ctx: hl.Ctx, user: str, token: dict) -> Decimal:
+    """The spot balance of one token not held by open orders, matched by the token's index (names
+    repeat; the index does not)."""
+    found = ctx.api.info({"type": "spotClearinghouseState", "user": user})
+    if not isinstance(found, dict) or not isinstance(found.get("balances"), list):
+        raise ChainError(f"{ctx.api.label} returned unexpected spot balances")
+    for item in found["balances"]:
+        if isinstance(item, dict) and item.get("token") == token.get("index"):
+            return Decimal(str(item.get("total") or "0")) - Decimal(str(item.get("hold") or "0"))
+    return Decimal(0)
+
+
+def shown(number: Decimal) -> str:
+    """A balance as context, at whatever precision it has (never signed, so never wire-limited)."""
+    return signer.plain(number)
+
+
+def _spot_token(ctx: hl.Ctx, token) -> dict:
+    """A spot token by its name, or by NAME:0x… (its id) when names repeat: deployers choose names."""
+    if not isinstance(token, str) or not token.strip():
+        raise ChainError("token is a spot token's name, like HYPE or USDC")
+    name, _, token_id = token.strip().partition(":")
+    found = [t for t in ctx.spot()[0].get("tokens", []) if str(t.get("name")).upper() == name.upper()
+             and (not token_id or str(t.get("tokenId", "")).lower() == token_id.lower())]
+    if not found:
+        raise ChainError(f"no spot token {token!r} on {ctx.api.label}; balances lists what the account holds")
+    if len(found) > 1:
+        ids = ", ".join(f"{t['name']}:{t.get('tokenId')}" for t in found[:5])
+        raise ChainError(f"{token!r} names several spot tokens ({ids}); give it as NAME:tokenId")
+    return found[0]
+
+
+def build_withdraw(ctx, payload, user, mkt_unused, quote_id) -> dict:
+    amount = _usdc(payload)
+    if amount <= WITHDRAW_FEE:
+        raise ChainError(f"a withdrawal pays a {WITHDRAW_FEE} USDC fee; withdraw more than that")
+    destination = _destination(payload, user)
+    free = _perp_free(ctx, user)
+    if amount > free:
+        raise ChainError(f"the account can withdraw {shown(free)} USDC now (perp balance not held as margin)")
+    chain = ARBITRUM[ctx.network]
+    return {"action": None, "market": USDC_MARKET, "cloids": [], "amount": plain(amount), "destination": destination,
+            "fee": plain(WITHDRAW_FEE), "arrives": plain(amount - WITHDRAW_FEE), "available": shown(free),
+            "chain": chains.info(chain)["name"],
+            "move": {"type": "withdraw3", "destination": destination, "amount": plain(amount)}}
+
+
+def build_send(ctx, payload, user, mkt_unused, quote_id) -> dict:
+    amount = _decimal(payload, "amount", required=True)
+    destination = _destination(payload)
+    if destination == user:
+        raise ChainError("the destination is the sending account itself")
+    if payload.get("token") in (None, ""):
+        try:
+            hl_sign.usd_int(amount)
+        except hl_sign.SignError as exc:
+            raise ChainError(str(exc)) from None
+        free = _perp_free(ctx, user)
+        if amount > free:
+            raise ChainError(f"the perp balance can send {shown(free)} USDC now")
+        return {"action": None, "market": USDC_MARKET, "cloids": [], "amount": plain(amount), "token": "USDC (perp)",
+                "destination": destination, "available": shown(free),
+                "move": {"type": "usdSend", "destination": destination, "amount": plain(amount)}}
+    token = _spot_token(ctx, payload.get("token"))
+    # the token's own precision, and never past what a signed amount carries
+    decimals = min(int(token.get("weiDecimals", hl_sign.WIRE_DECIMALS)), hl_sign.WIRE_DECIMALS)
+    if amount != amount.quantize(Decimal(1).scaleb(-decimals)):
+        raise ChainError(f"{token['name']} has at most {decimals} decimal places")
+    free = _spot_free(ctx, user, token)
+    if amount > free:
+        raise ChainError(f"the spot balance can send {shown(free)} {token['name']} now")
+    wire_token = f"{token['name']}:{token.get('tokenId')}"
+    return {"action": None, "market": {"coin": token["name"], "label": token["name"], "spot": True}, "cloids": [],
+            "amount": plain(amount), "token": hl.ticker(token["name"]), "token_id": token.get("tokenId"),
+            "destination": destination, "available": shown(free),
+            "move": {"type": "spotSend", "destination": destination, "token": wire_token, "amount": plain(amount)}}
+
+
+def build_transfer(ctx, payload, user, mkt_unused, quote_id) -> dict:
+    amount = _usdc(payload)
+    to_perp = payload.get("to_perp")
+    if not isinstance(to_perp, bool):
+        raise ChainError("to_perp is true (spot to perp) or false (perp to spot)")
+    free = _spot_free(ctx, user, _spot_token(ctx, "USDC")) if to_perp else _perp_free(ctx, user)
+    if amount > free:
+        raise ChainError(f"the {'spot' if to_perp else 'perp'} balance can move {shown(free)} USDC now")
+    return {"action": None, "market": USDC_MARKET, "cloids": [], "amount": plain(amount), "to_perp": to_perp,
+            "available": shown(free), "move": {"type": "usdClassTransfer", "amount": plain(amount), "toPerp": to_perp}}
+
+
 def build_mandate(ctx, payload, user, mkt_unused, quote_id) -> dict:
     terms = hl_mandate.build(payload, lambda coin: market(ctx, coin))
     return {"action": None, "market": {"coin": "mandate", "label": "mandate", "spot": False}, **terms, "cloids": []}
 
 
 BUILDERS = {"order": build_order, "close": build_close, "tpsl": build_tpsl, "modify": build_modify,
-            "cancel": build_cancel, "leverage": build_leverage, "margin": build_margin, "mandate": build_mandate}
+            "cancel": build_cancel, "leverage": build_leverage, "margin": build_margin, "mandate": build_mandate,
+            "withdraw": build_withdraw, "send": build_send, "transfer": build_transfer}
+
+
+def move_effect(quote: dict, secrets_) -> str:
+    """own when the funds stay in the user's own Hermes wallets — a spot-perp transfer, or a destination
+    the secrets derive as own (computed from them, never taken from the model) — else external."""
+    move = quote["built"]["move"]
+    if move["type"] == "usdClassTransfer":
+        return "own"
+    return "own" if move["destination"].lower() in secrets_.own("evm") else "external"
+
+
+def move_action(move: dict, nonce: int) -> dict:
+    """The user-signed action of a stored move, with its time (the nonce it is signed under)."""
+    kind = move["type"]
+    if kind == "withdraw3":
+        return hl_sign.withdraw_action(move["destination"], move["amount"], nonce)
+    if kind == "usdSend":
+        return hl_sign.usd_send_action(move["destination"], move["amount"], nonce)
+    if kind == "spotSend":
+        return hl_sign.spot_send_action(move["destination"], move["token"], move["amount"], nonce)
+    if kind == "usdClassTransfer":
+        return hl_sign.usd_class_transfer_action(move["amount"], move["toPerp"], nonce)
+    raise ChainError(f"{kind!r} is not a move here")
 
 
 def _brief(order: dict) -> dict:
@@ -508,19 +658,32 @@ def _what(quote: dict) -> list[str]:
         return [f"Leverage: {m['label']} perp {before} → {b['leverage']}x {b['mode']}"]
     if kind == "margin":
         return [f"{'Remove' if b['remove'] else 'Add'} isolated margin: {b['amount']} USDC on {m['label']}"]
+    whose = "own" if quote.get("effect") == "own" else "external"
+    if kind == "withdraw":
+        return [f"Withdraw: {b['amount']} USDC from the perp balance to {b['chain']}",
+                f"To ({whose}): {b['destination']}",
+                f"Fee: {b['fee']} USDC (about {b['arrives']} arrives, in a few minutes)"]
+    if kind == "send":
+        token = b["token"] if isinstance(b["token"], str) else f"\"{b['token']['untrusted']}\""
+        what = token if b.get("token_id") is None else f"{token} (spot, {b['token_id']})"
+        return [f"Send on Hyperliquid: {b['amount']} {what}", f"To ({whose}): {b['destination']}"]
+    if kind == "transfer":
+        return [f"Move: {b['amount']} USDC {'spot → perp' if b['to_perp'] else 'perp → spot'} (same account)"]
     return [kind]
 
 
 def card(quote: dict, drop: tuple = ()) -> str:
     expires = datetime.fromtimestamp(quote["expires"]).astimezone().strftime("%H:%M UTC%z")
-    effect_line = "Effect: can only lower exposure" if quote["effect"] == "reduce" else "Effect: can add exposure"
+    effect_line = {"reduce": "Effect: can only lower exposure", "own": "Effect: stays in the user's Hermes wallets",
+                   "external": "Effect: funds LEAVE the user's Hermes wallets"}.get(quote["effect"],
+                                                                                   "Effect: can add exposure")
     lines = [f"Hyperliquid {_net(quote)}", *_what(quote), effect_line,
              f"Quote: {quote['id']} · expires {expires}", "", "--- Account ---",
              *signer._party_lines(quote["from_party"], quote["from"], drop)]
     return "\n".join(lines)
 
 
-CONTEXT = ("Value:", "Position now:")  # what the account looks like, not what is signed
+CONTEXT = ("Value:", "Position now:", "Fee:")  # what the account looks like or the venue takes, not what is signed
 
 
 def card_short(quote: dict) -> str:
@@ -573,7 +736,7 @@ def op_quote(payload: dict) -> dict:
     user = address.lower()
     ctx = _ctx(payload, network)
     quote_id = "h" + random.token_hex(4)
-    mkt = None if kind in ("cancel", "modify", "mandate") else market(ctx, payload.get("coin"))
+    mkt = None if kind in ("cancel", "modify", "mandate", *MOVES) else market(ctx, payload.get("coin"))
     built = BUILDERS[kind](ctx, payload, user, mkt, quote_id)
     mkt = built.pop("market", mkt)
     action = built.pop("action")
@@ -585,7 +748,7 @@ def op_quote(payload: dict) -> dict:
              "index": index, "network": network, "kind": kind, "from": address,
              "market": {k: (str(v) if isinstance(v, Decimal) else v) for k, v in mkt.items()},
              "action": action, "built": built, "from_party": secrets_.party(account)}
-    quote["effect"] = effect(quote)
+    quote["effect"] = move_effect(quote, secrets_) if kind in MOVES else effect(quote)
     quote["card"], quote["card_short"] = hl_mandate.cards(quote) if kind == "mandate" else cards(quote)
     quote["mac"] = _mac(secrets_, quote)
     with ledger.locked(state):
@@ -620,7 +783,18 @@ def _verified(state: Path, quote_id, secrets_, now: float) -> dict:
         raise ChainError("this quote was already used; make a new one")
     if now > quote["expires"]:
         raise ChainError("this quote expired; make a new one")
+    if quote["kind"] in MOVES and move_effect(quote, secrets_) != quote["effect"]:
+        # its card says own or external: a card that no longer tells the truth is never shown or used
+        raise ChainError("whether the destination is one of the user's own Hermes wallets changed since this quote; "
+                         "make a new one")
     return quote
+
+
+def _effect_now(quote: dict, secrets_) -> str:
+    """The effect as it reads now: the milder verdict only when the stored one and a recomputation agree."""
+    if quote["kind"] in MOVES:
+        return "own" if quote["effect"] == "own" and move_effect(quote, secrets_) == "own" else "external"
+    return "reduce" if quote["effect"] == "reduce" and effect(quote) == "reduce" else "increase"
 
 
 def op_verify(payload: dict) -> dict:
@@ -629,8 +803,8 @@ def op_verify(payload: dict) -> dict:
     secrets_ = signer.Secrets(payload)
     now = time.time()
     quote = _verified(state, payload.get("quote"), secrets_, now)
-    # recomputed from the authenticated action, never taken from the stored verdict alone
-    now_effect = "reduce" if quote["effect"] == "reduce" and effect(quote) == "reduce" else "increase"
+    # recomputed from the authenticated action and the secrets, never taken from the stored verdict alone
+    now_effect = _effect_now(quote, secrets_)
     result = {"quote": quote["id"], "network": quote["network"], "kind": quote["kind"], "effect": now_effect,
               "card": quote["card"], "card_short": quote["card_short"], "mac": quote["mac"]}
     if now_effect == "increase" and quote["kind"] != "mandate":
@@ -738,7 +912,7 @@ def _caps(state: Path, now: float, current: str) -> None:
         ledger.check_rate(state, now, LEDGER, ALL_PER_HOUR, "Hyperliquid actions")
         if current != "reduce":
             ledger.check_rate(state, now, LEDGER, INCREASE_PER_HOUR, "Hyperliquid actions that can add exposure",
-                              where=lambda row: row.get("effect") != "reduce")
+                              where=lambda row: row.get("effect") not in ("reduce", "own", "external"))
     except ledger.CapReached as exc:
         raise ChainError(str(exc)) from None
 
@@ -746,7 +920,7 @@ def _caps(state: Path, now: float, current: str) -> None:
 def op_submit(payload: dict) -> dict:
     state = _state(payload)
     approval = payload.get("approval")
-    if approval not in ("reduce", "card", "mandate"):
+    if approval not in ("reduce", "card", "mandate", "own"):
         raise ChainError("a submit needs the plugin's approval decision")
     with ledger.locked(state):
         secrets_ = signer.Secrets(payload)
@@ -756,6 +930,10 @@ def op_submit(payload: dict) -> dict:
             raise ChainError("this is not the quote that was approved; nothing was sent")
         if quote["kind"] == "mandate":
             return _make_mandate(state, secrets_, quote, approval, now)
+        if quote["kind"] in MOVES:
+            return _submit_move(payload, state, secrets_, quote, approval, now)
+        if approval == "own":
+            raise ChainError("only a move of funds is approved as own; nothing was sent")
         ctx = _ctx(payload, quote["network"])
         current = "reduce" if quote["effect"] == "reduce" and effect(quote) == "reduce" else "increase"
         if approval == "reduce" and current != "reduce":
@@ -814,6 +992,77 @@ def op_submit(payload: dict) -> dict:
     elif any(leg["status"] == "error" for leg in legs):
         result["note"] = "some legs were refused (see statuses); the others stand"
     return result
+
+
+MOVE_NOTES = {"withdraw3": "the venue pays it out on Arbitrum in a few minutes; check the balance there before "
+                           "anything else",
+              "usdSend": "it arrives on the destination's Hyperliquid account at once",
+              "spotSend": "it arrives on the destination's Hyperliquid spot balance at once",
+              "usdClassTransfer": "the balance moved within the account"}
+
+
+def _submit_move(payload: dict, state: Path, secrets_, quote: dict, approval: str, now: float) -> dict:
+    """Sign and send a withdrawal, a send or a spot-perp transfer (under the wallet lock). It counts
+    against the wallet's hourly transfer cap too, and its ledger rows are written before it posts."""
+    current = _effect_now(quote, secrets_)
+    if approval not in ("own", "card"):
+        raise ChainError("moving funds is approved as own or on its card, never by a mandate; nothing was sent")
+    if approval == "own" and current != "own":
+        raise ChainError("the destination is not one of the user's own Hermes wallets, so this needs the approval "
+                         "card; nothing was sent")
+    try:
+        ledger.check_rate(state, now)
+        ledger.check_rate(state, now, LEDGER, ALL_PER_HOUR, "Hyperliquid actions")
+    except ledger.CapReached as exc:
+        raise ChainError(str(exc)) from None
+    address, key = secrets_.signer(quote["account"], "evm")
+    if address != quote["from"]:
+        raise ChainError("this quote's account does not match its secret")
+    move = quote["built"]["move"]
+    nonce = _nonce(state, address.lower())
+    try:
+        action = hl_sign.user_action(move_action(move, nonce), quote["network"] == "mainnet")
+    except hl_sign.SignError as exc:
+        raise ChainError(str(exc)) from None
+    signature = hl_sign.sign_user(key, action)
+    if hl_sign.recover_user(action, signature) != address:
+        raise ChainError("the signature does not recover to this account; nothing was sent")
+    _consume(state, quote, now)
+    attempt = random.token_hex(8)
+    row = {"time": now, "attempt": attempt, "quote": quote["id"], "account": quote["account"],
+           "network": quote["network"], "kind": quote["kind"], "coin": quote["market"]["coin"], "effect": current,
+           "approval": approval, "nonce": nonce, "outcome": "unknown"}
+    send_row = {"time": now, "attempt": attempt, "quote": quote["id"], "account": quote["account"],
+                "chain": f"hyperliquid-{quote['network']}", "from": quote["from"],
+                "to": move.get("destination", quote["from"]), "asset": move.get("token", "USDC"),
+                "symbol": quote["market"]["coin"], "amount": move["amount"], "kind": f"hyperliquid-{quote['kind']}",
+                "own": current == "own", "approval": approval, "outcome": "unknown"}
+    ledger.append(state, row, LEDGER)
+    ledger.append(state, send_row)
+    try:
+        outcome, legs = statuses(post(_ctx(payload, quote["network"]).api, hl_sign.envelope(action, nonce, signature)))
+    except ChainError as exc:
+        for name, base in ((LEDGER, row), (ledger.SENDS, send_row)):
+            try:
+                ledger.append(state, {**base, "outcome": "rejected", "error": str(exc)[:300]}, name)
+            except Exception:
+                pass
+        raise ChainError(f"not sent: {exc}; make a new quote to try again") from None
+    except Exception as exc:
+        reason = str(exc) if isinstance(exc, Unknown) else f"the reply could not be read ({type(exc).__name__})"
+        return {"submitted": "unknown", "reason": reason, "network": quote["network"], "kind": quote["kind"],
+                "note": "the venue's answer did not come back or could not be read, so the funds may have moved; "
+                        "never submit it again — check balances (and for a withdrawal, the Arbitrum balance) first"}
+    for name, base in ((LEDGER, row), (ledger.SENDS, send_row)):
+        try:
+            ledger.append(state, {**base, "outcome": outcome, "statuses": legs}, name)
+        except Exception:
+            pass
+    if outcome == "rejected":
+        return {"submitted": False, "network": quote["network"], "kind": quote["kind"], "statuses": legs,
+                "note": "the venue refused it: nothing moved"}
+    return {"submitted": True, "network": quote["network"], "kind": quote["kind"], "amount": move["amount"],
+            "destination": move.get("destination"), "statuses": legs, "note": MOVE_NOTES[move["type"]]}
 
 
 def _consume(state: Path, quote: dict, now: float) -> None:
