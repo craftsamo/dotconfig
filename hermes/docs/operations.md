@@ -37,7 +37,10 @@ tracked, machine-agnostic files in `hermes/launchd/`:
 - **`gateway-launchctl.sh`** — renders the template (`__HOME__` → `$HOME`) into
   `~/Library/LaunchAgents/` (host-local, never committed) and loads it; on
   install it also unloads the launcher's `LEGACY_LABELS` agents so two pollers
-  never race one bot token.
+  never race one bot token. `restart` sends SIGUSR1 and waits for launchd's
+  relaunch; `install` does the same when the job is loaded and the rendered
+  plist is unchanged, because reloading SIGTERMs the gateway as an unplanned
+  stop (no turn resume, replies in flight left for the next boot).
 
 **Telegram + Discord.** No synchronous SQLite in the gateway: gateway DB calls
 run off the asyncio loop (`AsyncSessionDB` / `asyncio.to_thread`) because
@@ -65,6 +68,7 @@ stop any gateway elsewhere first):
 
 ```
 hermes/launchd/gateway-launchctl.sh install      # render template + load
+hermes/launchd/gateway-launchctl.sh restart       # planned restart (drain + resume)
 hermes/launchd/gateway-launchctl.sh status        # check
 hermes/launchd/gateway-launchctl.sh uninstall      # unload + remove
 ```

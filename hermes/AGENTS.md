@@ -168,8 +168,11 @@ skills.
   [docs/topology.md](docs/topology.md).
 - **Never run `hermes gateway run` / `restart` in a terminal while the
   LaunchAgent is loaded** — a second poller causes Telegram 409 conflicts.
-  Restart with `launchd/gateway-launchctl.sh install` or `/restart`; stop with
-  `uninstall`.
+  Restart with `launchd/gateway-launchctl.sh restart` (or `install`, which
+  restarts the same way when the plist is unchanged) or `/restart`; stop with
+  `uninstall`. Never restart by unloading the job or `launchctl kickstart -k`:
+  that SIGTERM reads as an unplanned kill, so interrupted turns are not resumed
+  and replies still being sent wait for the next boot.
 - Changes to code that runs inside the gateway (e.g. the Assistant-side
   `specialist_call` kind validation) need a gateway restart; runner, handoff
   and OpenCode-plugin changes apply on the next resident turn.
