@@ -25,10 +25,11 @@ _WALLET = re.compile(
     r"|\bcast\s+(send|wallet|mktx|publish)\b|\bsolana\s+(transfer|keygen)\b|\bspl-token\s+transfer\b"
     r"|eth_sendRawTransaction|sendTransaction"
     # Hyperliquid: the trader, its signing and state, the venue's signed endpoint and the official SDK
-    r"|hl_trader\.py|hl_sign\.py|(?<![\w-])hl-(quotes|nonce)(?![\w-])|hyperliquid(-testnet)?\.xyz/exchange"
+    r"|hl_trader\.py|hl_sign\.py|(?<![\w-])hl-(quotes|nonce|mandates)(?![\w-])|hyperliquid(-testnet)?\.xyz/exchange"
     r"|hyperliquid-python-sdk|\bfrom\s+hyperliquid\b|\bimport\s+hyperliquid\b|\bhyperliquid\.(exchange|utils)\b"
     # the engine modules imported or run by name from another script: the same signer without its hook
-    r"|\b(import|from)\s+(hl_trader|hl_sign|signer|keychain|seeds|ledger)\b|-m\s+(hl_trader|signer)\b"
+    r"|\b(import|from)\s+(hl_trader|hl_sign|hl_mandate|signer|keychain|seeds|ledger)\b|-m\s+(hl_trader|signer)\b"
+    r"|hl_mandate\.py"
     r"|web3/_shared(?![\w-])",
     re.IGNORECASE)
 _SOURCE_READ = re.compile(r"plugins/web3/[\w./-]+\.(py|yaml|md)$")

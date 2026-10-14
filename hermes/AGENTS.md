@@ -116,7 +116,10 @@ skills.
   `MNEMONIC` / `PRIVATE_KEY`; only names with the word `HERMES` sign or count as
   own, every other wallet is watch-only. The Hyperliquid trader reads keys
   only through the signer's `Secrets`, never on a path of its own, so the
-  same rules hold for it. Never widen the kinds it reads,
+  same rules hold for it, and an order that can add exposure skips its card
+  only inside a mandate made on its own card and fitted against the account
+  read at submit — never add another way around the card
+  ([decision](docs/decisions/hyperliquid-mandates.md)). Never widen the kinds it reads,
   loosen that name rule, or pass a wallet secret through a process
   environment — a project's own deployer key would start signing. Hermes
   wallets are stored `--no-env` so `secret env` (the helper and the shims)
