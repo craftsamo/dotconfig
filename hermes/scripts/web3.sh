@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Engine manager for the web3 plugins (evm-access and solana-access; docs/web3.md).
+# Engine manager for the web3 plugins (evm-access, solana-access and hyperliquid-access; docs/web3.md,
+# docs/hyperliquid.md).
 #
 # Both plugins run their engine with the interpreter of an isolated venv under the ignored
 # hermes/local/web3/, built from the hash-locked engines/web3/requirements.lock. The wallet uses
@@ -179,7 +180,7 @@ print(made["note"])
 PY
     ;;
   *)
-    sed -n '2,26p' "$0" | sed 's/^# \{0,1\}//'
+    sed -n '2,27p' "$0" | sed 's/^# \{0,1\}//'
     exit 2
     ;;
 esac

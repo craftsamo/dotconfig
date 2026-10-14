@@ -45,7 +45,8 @@ Each doc then holds only its own deltas.
 [Signal](./docs/signal-access.md) · [Discord](./docs/discord-access.md) ·
 [Telegram](./docs/telegram-access.md) · [X](./docs/x-access.md) ·
 [note](./docs/note-access.md) · [Substack](./docs/substack-access.md) ·
-[YouTube](./docs/youtube-access.md) · [Web3](./docs/web3.md)
+[YouTube](./docs/youtube-access.md) · [Web3](./docs/web3.md) ·
+[Hyperliquid](./docs/hyperliquid.md)
 
 ## Mechanics (`docs/ops/`)
 
