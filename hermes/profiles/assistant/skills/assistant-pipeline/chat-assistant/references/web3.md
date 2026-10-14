@@ -51,3 +51,7 @@ A Hermes wallet account's Hyperliquid account is its EVM address from the
   positions needs a mandate the user approved for it on its card (the trade
   skill's "Mandates"); without one, never schedule it. Revoke a mandate the
   moment the user asks.
+- Depositing, withdrawing and sending funds follow the trade skill's
+  "Depositing" and "Moving funds": to anyone but the user's own Hermes
+  wallets they wait for the card, and a first deposit to the venue's bridge
+  is small and confirmed before the rest.

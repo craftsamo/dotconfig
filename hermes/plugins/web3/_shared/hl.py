@@ -22,6 +22,7 @@ import sys
 import urllib.error
 import urllib.request
 
+import chains
 import rpc
 from rpc import ChainError
 
@@ -702,7 +703,20 @@ def export(ctx, args) -> dict:
     return result
 
 
-ACTIONS = {"dexs": dexs, "markets": markets, "spots": spots, "candles": candles, "funding": funding, "book": book,
+def deposit_info(ctx, args) -> dict:
+    """Where USDC enters the venue from Arbitrum, from the chain table: no request is made."""
+    chain, entry = next((c, e) for c, e in chains.HYPERLIQUID_BRIDGES.items() if e["network"] == ctx.network)
+    return {"network": ctx.network, "chain": chain, "chain_name": chains.info(chain)["name"],
+            "bridge": entry["bridge"], "usdc": entry["usdc"], "minimum_usdc": chains.HYPERLIQUID_MIN_DEPOSIT,
+            "credited_to": "the Hyperliquid account of the address that sends the USDC, in about a minute",
+            "never": f"anything but that USDC, or less than {chains.HYPERLIQUID_MIN_DEPOSIT} USDC: it is lost for good",
+            "note": ("this is Hyperliquid's legacy bridge, which the venue calls deprecated in favour of Circle's CCTP; "
+                     "it still credits deposits, but try a small one first")
+            + ("; the testnet faucet gives mock USDC only to an address that has deposited on mainnet"
+               if ctx.network == "testnet" else "")}
+
+
+ACTIONS = {"deposit_info": deposit_info, "dexs": dexs, "markets": markets, "spots": spots, "candles": candles, "funding": funding, "book": book,
            "state": state, "balances": balances, "fills": fills, "orders": orders, "review": review, "export": export}
 
 
