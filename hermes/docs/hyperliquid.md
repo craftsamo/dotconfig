@@ -247,8 +247,9 @@ signer's process and that every increase shows its card.
 
 1. `scripts/web3.sh install` (the same venv as the chain tools).
 2. Enable `hyperliquid-access` with the `hyperliquid_access` toolset in a
-   profile's config (the tracked Researcher, Searcher and Marketer examples
-   have it; the Assistant's lives in its private config), then restart the
-   gateway.
+   profile's config (the tracked Assistant, Researcher, Searcher and
+   Marketer examples have it, and the private configs pair with them; the
+   Assistant's a2a toolsets leave it out, since it refuses inbound A2A),
+   then restart the gateway.
 3. To trade, a Hermes wallet ([web3.md](web3.md) "Setup") with USDC on the
    venue, on the network the user means ("Deposits").
