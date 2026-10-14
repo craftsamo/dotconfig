@@ -23,10 +23,13 @@ name instead of "Python".
 
 ### Gateway
 
-`launchd/gateway-launchctl.sh {install,status,uninstall}` manages the multiplex
-gateway (`ai.hermes.multiplex`), **one host only** (one bot token = one live
-connection). `install` re-renders and reloads = **restart**; `/restart` in chat
-also applies config. **Stop = `uninstall`**. **Never** run `hermes gateway run`
+`launchd/gateway-launchctl.sh {install,restart,status,uninstall}` manages the
+multiplex gateway (`ai.hermes.multiplex`), **one host only** (one bot token = one
+live connection). **Restart = `restart`** (or `/restart` in chat): SIGUSR1, the
+gateway's planned restart — it drains, marks interrupted turns to resume, exits
+75 and launchd relaunches it. `install` re-renders the plist and takes the same
+path when nothing changed; only a changed plist is reloaded, which SIGTERMs the
+gateway as an unplanned stop. **Stop = `uninstall`**. **Never** run `hermes gateway run`
 or `restart` in a terminal while it is loaded — a second poller causes Telegram
 `getUpdates` 409 conflicts (`pgrep -fl 'gateway run'` ⇒ exactly 1). The A2A
 endpoints are the loopback ports `9903`–`9909`, one per A2A-serving profile
