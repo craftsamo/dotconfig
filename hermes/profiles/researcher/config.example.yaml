@@ -23,6 +23,7 @@ toolsets:
   - delegation
   - evm_access
   - solana_access
+  - hyperliquid_access
 max_concurrent_sessions:
 agent:
   system_prompt: |
@@ -683,6 +684,7 @@ platform_toolsets:
     - delegation
     - evm_access
     - file
+    - hyperliquid_access
     - memory
     - no_mcp
     - skills
@@ -697,6 +699,7 @@ platform_toolsets:
     - delegation
     - evm_access
     - file
+    - hyperliquid_access
     - memory
     - no_mcp
     - skills
@@ -713,6 +716,7 @@ plugins:
     - skill-topology
     - evm-access
     - solana-access
+    - hyperliquid-access
   entries:
     inspection/video-analyze-mimo:
       allow_tool_override: true

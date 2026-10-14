@@ -7,20 +7,22 @@ wallets, sending native coins and tokens from Hermes-only seed phrases and keys
 in the Keychain. Read it when changing the read engine, the signer or the
 approval path. The approval and bypass-guard rules follow
 [access-common.md](access-common.md). Part of the Hermes design docs — index:
-[`PROFILES.md`](../PROFILES.md).
+[`PROFILES.md`](../PROFILES.md). The third plugin of the group,
+`hyperliquid-access`, shares this engine bridge, A2A rule and guard; its own
+contract is [hyperliquid.md](hyperliquid.md).
 
 ## Shape
 
-| Piece                                                                                           | Home                                                                                                             |
-| ----------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| `evm` / `solana` tools (toolsets `evm_access`, `solana_access`)                                 | `plugins/web3/evm-access/`, `plugins/web3/solana-access/`: thin entry points                                     |
-| Tool schemas, per-profile actions, `pre_tool_call` approval hook, bypass guard                  | `plugins/web3/_shared/access.py`, `guard.py` (code, not a plugin: no `plugin.yaml`)                              |
-| Read engine: chain table, JSON-RPC, ABI and Solana parsing, prices                              | `_shared/reader.py` with `chains.py`, `rpc.py`, `abi.py`, `evm.py`, `sol.py`, `prices.py`                        |
-| Signer: derives accounts, builds, simulates, signs and sends; the only reader of wallet secrets | `_shared/signer.py` with `keychain.py`, `ledger.py`, `seeds.py`                                                  |
-| Engine dependencies, hash-locked                                                                | `engines/web3/requirements.{in,lock}` → `local/web3/venv`                                                        |
-| Setup and status launcher                                                                       | `scripts/web3.sh`                                                                                                |
+| Piece                                                                                           | Home                                                                                                                                      |
+| ----------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `evm` / `solana` tools (toolsets `evm_access`, `solana_access`)                                 | `plugins/web3/evm-access/`, `plugins/web3/solana-access/`: thin entry points                                                              |
+| Tool schemas, per-profile actions, `pre_tool_call` approval hook, bypass guard                  | `plugins/web3/_shared/access.py`, `guard.py` (code, not a plugin: no `plugin.yaml`)                                                       |
+| Read engine: chain table, JSON-RPC, ABI and Solana parsing, prices                              | `_shared/reader.py` with `chains.py`, `rpc.py`, `abi.py`, `evm.py`, `sol.py`, `prices.py`                                                 |
+| Signer: derives accounts, builds, simulates, signs and sends; the only reader of wallet secrets | `_shared/signer.py` with `keychain.py`, `ledger.py`, `seeds.py`                                                                           |
+| Engine dependencies, hash-locked                                                                | `engines/web3/requirements.{in,lock}` → `local/web3/venv`                                                                                 |
+| Setup and status launcher                                                                       | `scripts/web3.sh`                                                                                                                         |
 | How a profile reads a chain; how the Assistant lists wallets, makes new ones and sends          | plugin skills `evm-access:evm`, `solana-access:solana`, and for the Assistant only `evm-access:evm-wallet`, `solana-access:solana-wallet` |
-| What the Assistant does inline in Chat; how Researcher and Searcher use chain evidence          | the Assistant's Chat reference `web3.md`; each pipeline's `references/platforms/evm.md`, `solana.md`             |
+| What the Assistant does inline in Chat; how Researcher and Searcher use chain evidence          | the Assistant's Chat reference `web3.md`; each pipeline's `references/platforms/evm.md`, `solana.md`                                      |
 
 Every profile in the plugins' list gets the read actions; the Assistant's tools
 also carry the wallet actions. Both tools run their engine as a child process

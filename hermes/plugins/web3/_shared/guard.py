@@ -1,6 +1,6 @@
 """Ways around the web3 tools (docs/web3.md "Ways around the tools").
 
-Pure Python, loaded by path in Hermes' own interpreter by the evm and solana tools. A pattern match
+Pure Python, loaded by path in Hermes' own interpreter by the evm, solana and hyperliquid tools. A pattern match
 on the text of a terminal, code or file-tool call, not a sandbox: it stops ordinary use, not a
 determined script. A profile that can send (the Assistant) passes ``wallet=True`` for the stricter
 set: the signer and its state, the Keychain itself and signing CLIs.
@@ -26,8 +26,8 @@ _WALLET = re.compile(
 _SOURCE_READ = re.compile(r"plugins/web3/[\w./-]+\.(py|yaml|md)$")
 
 READ_MESSAGE = (
-    "Chains are read only through the evm and solana tools, never through the terminal, code or file tools; "
-    "the RPC provider keys (Keychain) and the engine are never used directly.")
+    "Chains and Hyperliquid are read only through the evm, solana and hyperliquid tools, never through the "
+    "terminal, code or file tools; the RPC provider keys (Keychain) and the engine are never used directly.")
 WALLET_MESSAGE = (
     "Funds move only through the evm and solana tools, never through the terminal, code or file tools: the "
     "seed phrases and keys (Keychain), the signer and the wallet's state are never touched directly, and no "

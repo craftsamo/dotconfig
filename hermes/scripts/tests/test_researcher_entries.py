@@ -33,7 +33,8 @@ def _skip_learned(directory, names):
 MODES = ("investigate", "compare", "verify", "advise")
 STAGES = ("plan", "build")
 ENTRIES = {f"{mode}-researcher" for mode in MODES}
-PLATFORMS = {"references/platforms/evm.md", "references/platforms/solana.md"}
+PLATFORMS = {"references/platforms/evm.md", "references/platforms/solana.md",
+             "references/platforms/hyperliquid.md"}
 CAPABILITIES = "references/capabilities.md"
 SHARED = ({"references/gather.md", CAPABILITIES} | {f"references/{stage}.md" for stage in STAGES}
           | PLATFORMS)
@@ -50,7 +51,7 @@ def test_candidate_topology_and_always_on_contract():
     assert set(VALIDATOR.validate_researcher_entries(TREE, errors)) == ENTRIES
     assert errors == []
     assert {p.relative_to(TREE).as_posix() for p in TREE.rglob("*.md")} == DOCUMENTS
-    assert len(DOCUMENTS) == 11
+    assert len(DOCUMENTS) == 12
     assert VALIDATOR.frontmatter(TREE / "SKILL.md")["version"] == "12.0.0"
     for name in ENTRIES:
         path = TREE / name / "SKILL.md"
@@ -73,8 +74,8 @@ def test_candidate_topology_and_always_on_contract():
     assert "artifact-vs-brief quality verdicts" in prompt
     assert "terminal" not in config["toolsets"]
     assert set(config["toolsets"]) == {"file", "web", "vision", "video", "skills", "memory", "delegation",
-                                       "evm_access", "solana_access"}
-    assert {"evm-access", "solana-access"} <= set(config["plugins"]["enabled"])
+                                       "evm_access", "solana_access", "hyperliquid_access"}
+    assert {"evm-access", "solana-access", "hyperliquid-access"} <= set(config["plugins"]["enabled"])
     for platform in ("cli", "a2a"):
         assert set(config["platform_toolsets"][platform]) == set(config["toolsets"]) | {"no_mcp", "connections"}
     assert config["platform_toolsets"]["telegram"] == []
@@ -364,6 +365,16 @@ def test_onchain_evidence_rules_and_platform_references():
     for name in ENTRIES:
         text = (TREE / name / "SKILL.md").read_text()
         assert "(../references/platforms/evm.md)" in text and "(../references/platforms/solana.md)" in text
+        assert "(../references/platforms/hyperliquid.md)" in text
+    venue = flat(TREE / "references/platforms/hyperliquid.md")
+    for phrase in ("nothing is signed or sent", 'skill_view(name="hyperliquid-access:hyperliquid")',
+                   "A read is a moment", "a testnet figure is never evidence about mainnet",
+                   "An account is an address, not a person", "never a yield forecast",
+                   "`review` findings are Inference", '`{"untrusted": …}`', "`unread`",
+                   "is not \"none ever\""):
+        assert phrase in venue, phrase
+    assert "Your own `hyperliquid` tool" in gather and "(platforms/hyperliquid.md)" in gather
+    assert "(references/platforms/hyperliquid.md)" in kernel
 
 
 def test_declared_source_floors_and_shared_gather():

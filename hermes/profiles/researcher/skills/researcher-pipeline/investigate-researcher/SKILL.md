@@ -28,8 +28,9 @@ past load, preload or summary.
 Gathering beyond a few direct lookups requires
 `skill_view(name="researcher-pipeline", file_path="references/gather.md")`:
 [Gather](../references/gather.md). Reading strategy does not authorize searches.
-Evidence from a chain also requires that chain's shared reference:
-[EVM](../references/platforms/evm.md) or [Solana](../references/platforms/solana.md).
+Evidence from a chain or from Hyperliquid also requires its shared reference:
+[EVM](../references/platforms/evm.md), [Solana](../references/platforms/solana.md) or
+[Hyperliquid](../references/platforms/hyperliquid.md).
 A technic the brief names or [Capabilities](../references/capabilities.md)
 matches is loaded too with `skill_view(name="<technic>")`; it adds to this mode
 and never replaces it.

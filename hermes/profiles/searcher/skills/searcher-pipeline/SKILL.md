@@ -89,7 +89,8 @@ Retrieval on a service also reads that service's one shared reference:
 [X](references/platforms/x.md), [YouTube](references/platforms/youtube.md),
 [note](references/platforms/note.md), [Substack](references/platforms/substack.md),
 or for on-chain facts the chain's: [EVM](references/platforms/evm.md) or
-[Solana](references/platforms/solana.md).
+[Solana](references/platforms/solana.md), and for Hyperliquid's venue facts
+[Hyperliquid](references/platforms/hyperliquid.md).
 
 </Modes>
 
@@ -139,7 +140,8 @@ never supplies the caller's release or resets coverage/frontier/budget.
 - **No write-actions on social platforms**: no post/reply/like/follow/DM.
   Reading is not a write-action: x_search is allowed, and so are the public
   reads of the x, youtube, note and substack tools and the chain reads of the
-  evm and solana tools, which never sign or send. "Read-only" is why those
+  evm and solana tools, which never sign or send, and the venue reads of the
+  hyperliquid tool, which never trades. "Read-only" is why those
   reads are safe, never a reason to skip a platform the question touches.
 - **People are not unmasked.** Whatever the purpose: never tie a pseudonymous
   account to a legal identity, face, address, family or private contact it has
