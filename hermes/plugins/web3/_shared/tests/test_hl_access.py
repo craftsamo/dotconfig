@@ -322,6 +322,44 @@ def test_a_quote_never_carries_a_mandate_id(monkeypatch):
     assert "mandate" not in seen[-1]["payload"] and seen[-1]["payload"]["markets"] == ["BTC"]
 
 
+OWN_MOVE = {**INCREASE, "kind": "withdraw", "effect": "own"}
+EXTERNAL_MOVE = {**INCREASE, "kind": "withdraw", "effect": "external"}
+
+
+def test_a_move_to_an_own_wallet_runs_without_a_card_even_unattended(monkeypatch):
+    seen = fake_engine(monkeypatch, {"ok": True, "data": {"submitted": True}}, verify=OWN_MOVE)
+    monkeypatch.setattr(access, "_no_human", lambda: "this is a cron job")
+    assert hl_access.check("assistant", tool_name="hyperliquid", args=submit()) is None
+    hl_access.run("assistant", submit())
+    assert seen[-1]["payload"]["approval"] == "own"
+
+
+def test_a_move_to_anyone_else_asks_and_is_blocked_unattended(monkeypatch):
+    fake_engine(monkeypatch, verify=EXTERNAL_MOVE)
+    assert hl_access.check("assistant", tool_name="hyperliquid", args=submit())["action"] == "approve"
+    monkeypatch.setattr(access, "_no_human", lambda: "this is a cron job")
+    blocked = hl_access.check("assistant", tool_name="hyperliquid", args=submit())
+    assert blocked["action"] == "block" and "moving funds to anyone but the user's own" in blocked["message"]
+
+
+def test_a_move_quote_carries_only_its_own_fields(monkeypatch):
+    seen = fake_engine(monkeypatch, {"ok": True, "data": {}})
+    hl_access.run("assistant", {"action": "quote", "network": "mainnet", "kind": "withdraw", "amount": "50",
+                                "destination": "0x" + "1" * 40, "to_perp": True, "token": "HYPE"})
+    payload = seen[-1]["payload"]
+    assert {k: payload[k] for k in ("kind", "amount", "destination", "to_perp", "token")} == {
+        "kind": "withdraw", "amount": "50", "destination": "0x" + "1" * 40, "to_perp": True, "token": "HYPE"}
+
+
+def test_deposit_info_is_a_read_for_every_reading_profile(monkeypatch):
+    seen = fake_engine(monkeypatch, {"ok": True, "data": {}})
+    for profile in ("assistant", "researcher", "searcher", "marketer"):
+        args = {"action": "deposit_info", "network": "testnet"}
+        assert hl_access.refused(profile, args) is None
+        hl_access.run(profile, args)
+        assert seen[-1]["script"] == "hl.py"
+
+
 def test_a_timed_out_submit_says_it_may_have_reached_the_venue(monkeypatch):
     fake_engine(monkeypatch, {"ok": False, "error": "the web3 engine did not finish within 180s; narrow a read"},
                 verify=REDUCE)

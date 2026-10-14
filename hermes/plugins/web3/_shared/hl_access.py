@@ -47,10 +47,10 @@ SKILL = "hyperliquid-access:hyperliquid"
 TRADE_SKILL = "hyperliquid-access:hyperliquid-trade"
 NETWORKS = ("mainnet", "testnet")
 READS = ("dexs", "markets", "spots", "candles", "funding", "book", "state", "balances", "fills", "orders",
-         "review", "export")
+         "review", "export", "deposit_info")
 TRADES = ("quote", "submit", "mandates", "revoke_mandate")
 QUOTE_ID = re.compile(r"^h[0-9a-f]{8}$")
-KINDS = ("order", "close", "tpsl", "modify", "cancel", "leverage", "margin", "mandate")
+KINDS = ("order", "close", "tpsl", "modify", "cancel", "leverage", "margin", "mandate", "withdraw", "send", "transfer")
 MANDATE_FIELDS = ("markets", "max_order_usd", "max_exposure_usd", "max_leverage", "per_hour", "days", "purpose")
 
 READ_HELP = (
@@ -65,7 +65,8 @@ READ_HELP = (
     "status by order id or 0x cloid), review (address, hours, coin, fills: realized PnL, fees, wins and losses per "
     "coin with each traded perp's trend and funding over the window, and leads such as fee drag, concentration or "
     "losses against the trend — heuristics, not a verdict), export (coin, interval, hours, end_time: candles and "
-    "funding as one normalized dataset for backtesting prep, at most 500 candles). Coins: a perp like BTC, a builder "
+    "funding as one normalized dataset for backtesting prep, at most 500 candles), deposit_info (where USDC enters "
+    "the venue from Arbitrum: the bridge, the USDC token, the minimum and how). Coins: a perp like BTC, a builder "
     "perp like xyz:GOLD, a spot pair like PURR/USDC, HYPE/USDC or its @N name. Times are Unix milliseconds.")
 UNTRUSTED = (
     " Builder dexs and spot tokens are deployed by third parties: their names and full names arrive as "
@@ -92,7 +93,14 @@ TRADE_HELP = (
     "those markets, max_leverage, per_hour, days up to 30, purpose) is submitted on its own card, only when the "
     "user asks for one; while it is in force, perp orders, modifies and leverage changes on that account and "
     "network that fit inside it run without a card, in cron too. mandates lists them with their use this hour; "
-    "revoke_mandate (mandate) ends one at once, without a card.")
+    "revoke_mandate (mandate) ends one at once, without a card. Moving funds is a quote too: withdraw (amount in "
+    "USDC from the perp balance, destination = an Arbitrum address, default the account's own; the venue takes "
+    "a 1 USDC fee), send (destination = a Hyperliquid address, amount, token = a spot token name to send from the "
+    "spot balance, left out for perp USDC), transfer (amount, to_perp true for spot to perp, false for perp to "
+    "spot). To the user's own Hermes wallets, or within the account, it runs at once; to anyone else it shows "
+    "the approval card, and is impossible without the user present; a mandate never covers it, and it counts "
+    "in the wallet's 10 transfers an hour. Depositing is the evm tool's transfer to the bridge deposit_info "
+    "names.")
 
 PROPERTIES = {
     "network": {"type": "string", "enum": list(NETWORKS),
@@ -152,6 +160,11 @@ TRADE_PROPERTIES = {
     "days": {"type": "integer", "description": "quote kind mandate: how long it lasts, at most 30"},
     "purpose": {"type": "string", "description": "quote kind mandate: one line on what it is for"},
     "mandate": {"type": "string", "description": "revoke_mandate: the mandate id from mandates, like m1a2b3c4d"},
+    "destination": {"type": "string", "description": "quote kind withdraw: the Arbitrum address, default the "
+                                                    "account's own; kind send: the Hyperliquid address"},
+    "token": {"type": "string", "description": "quote kind send: a spot token name like HYPE (NAME:tokenId when "
+                                              "names repeat); left out to send perp USDC"},
+    "to_perp": {"type": "boolean", "description": "quote kind transfer: true spot to perp, false perp to spot"},
 }
 TRADE_ONLY_OID = "orders: one order's status, by its order id as decimal digits or its 0x cloid; quote kind modify " \
                  "or cancel: the order"
@@ -258,7 +271,8 @@ def run(profile: str, args) -> str:
 
 
 def approval(args: dict) -> dict | None:
-    """The hook's directive for a submit: None to run (effect reduce), approve with the card, or block.
+    """The hook's directive for a submit: None to run (effect reduce, a move that stays own, or an
+    increase inside a mandate), approve with the card, or block.
     The trader verifies the quote first (its MAC, unused, unexpired) and reads its effect as it stands
     now, so only an authentic card is shown and the decision carries that quote's MAC."""
     quote_id = args.get("quote")
@@ -274,8 +288,8 @@ def approval(args: dict) -> dict | None:
     mac = data.get("mac")
     if not isinstance(mac, str) or not mac:
         return {"action": "block", "message": f"{TOOL}: the quote could not be verified"}
-    if data.get("effect") == "reduce":
-        access._decide(quote_id, "reduce", mac)
+    if data.get("effect") in ("reduce", "own"):
+        access._decide(quote_id, data["effect"], mac)
         return None
     mandate = data.get("mandate") if isinstance(data.get("mandate"), dict) else {}
     if mandate.get("fits") is True and data.get("kind") != "mandate":
@@ -284,6 +298,9 @@ def approval(args: dict) -> dict | None:
         return None
     reason = access._no_human()
     if reason:
+        if data.get("effect") == "external":
+            return {"action": "block", "message": f"{TOOL}: moving funds to anyone but the user's own Hermes wallets "
+                                                  f"needs the user's approval, and {reason}; nothing was sent"}
         outside = f" (outside its mandate: {mandate.get('reason')})" if mandate else ""
         return {"action": "block", "message": f"{TOOL}: an action that can add exposure needs the user's approval"
                                               f"{outside}, and {reason}; nothing was sent"}

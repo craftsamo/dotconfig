@@ -429,6 +429,8 @@ def card(quote: dict, drop: tuple = ()) -> str:
               "", "--- To ---", _to_type(quote)]
     if quote.get("ens"):
         lines.append(f"ENS: {quote['ens']}")
+    if quote.get("label"):
+        lines.append(f"Is: {quote['label']}")
     lines += _party_lines(quote.get("to_party"), quote["to"], drop)
     return "\n".join(lines)
 
@@ -443,6 +445,8 @@ def card_short(quote: dict) -> str:
         lines.append(f"{_asset_label(quote)}: {quote['asset_address']}")
     lines.append(f"From {one_line(quote['account'], 40)}: {quote['from']}")
     whose = "own" if quote["own"] else ("watch-only" if quote.get("to_party") else "external")
+    if quote.get("label"):
+        whose += ", HL bridge"
     lines.append(f"To ({whose}): {quote['to']}")
     lines.append(f"Fee ≤ {quote['max_fee']} {info['symbol']} · {quote['id']}")
     text = "\n".join(lines)
@@ -452,6 +456,14 @@ def card_short(quote: dict) -> str:
         count = "" if quote["amount"] == "1" else f"{quote['amount']} × "
         token = "" if nft["standard"] == "spl" else f" #{_ends(nft['token_id'], 6, 18)}"
         text = "\n".join([f"{net}Send {count}NFT{token} on {info['name']}", *lines[1:]])
+    elif card_units(text) > SHORT_BUDGET:
+        # context goes first — the USD estimate, then the account's long name — never an address
+        lines[0] = f"{net}Send {_what({**quote, 'usd': None}, compact=True)} on {info['name']}"
+        text = "\n".join(lines)
+        if card_units(text) > SHORT_BUDGET:
+            at = 2 if quote["asset"] != "native" else 1
+            lines[at] = f"From {one_line(quote['account'], 20)}: {quote['from']}"
+            text = "\n".join(lines)
     return text
 
 
@@ -540,6 +552,7 @@ def evm_quote(ctx: Ctx, sender: str, args: dict, asset: str, key: bytes | None =
         raise ChainError("the zero address burns funds; refused")
     if to.lower() == sender.lower():
         raise ChainError("the recipient is the sending account itself")
+    bridge = _hyperliquid_bridge(ctx.chain, to, asset)
     r = ctx.rpc
     if asset == "native":
         decimals, symbol = info["decimals"], info["symbol"]
@@ -566,10 +579,33 @@ def evm_quote(ctx: Ctx, sender: str, args: dict, asset: str, key: bytes | None =
         raw = bytes.fromhex((r.call("eth_call", [call, "latest"]) or "0x")[2:])
         if len(raw) >= 32 and int.from_bytes(raw[:32], "big") == 0:
             raise ChainError("the token's transfer returned false in simulation")
+    if bridge and amount < Decimal(chains.HYPERLIQUID_MIN_DEPOSIT):
+        raise ChainError(f"Hyperliquid's bridge credits deposits of {chains.HYPERLIQUID_MIN_DEPOSIT} USDC or more; "
+                         "less is lost for good. Refused")
     max_fee, build = _evm_cost(ctx, sender, call, key)
-    return {"to": to, "ens": ens, "symbol": symbol, "decimals": decimals, "amount": plain(amount),
-            "asset_address": None if asset == "native" else to_checksum_address(asset),
-            "max_fee": plain(native_units(max_fee, info["decimals"])), "build": build}
+    built = {"to": to, "ens": ens, "symbol": symbol, "decimals": decimals, "amount": plain(amount),
+             "asset_address": None if asset == "native" else to_checksum_address(asset),
+             "max_fee": plain(native_units(max_fee, info["decimals"])), "build": build}
+    if bridge:
+        built["label"] = (f"Hyperliquid deposit bridge (legacy): credits the sender's Hyperliquid "
+                          f"{bridge['network']} account")
+    return built
+
+
+def _hyperliquid_bridge(chain: str, to: str, asset: str) -> dict | None:
+    """Hyperliquid's deposit bridge entry when ``to`` is one, after refusing what it would lose: any
+    chain but its own, and anything but that chain's native USDC (the amount is checked by the caller)."""
+    found = chains.hyperliquid_bridge(to)
+    if found is None:
+        return None
+    where, entry = found
+    if where != chain:
+        raise ChainError(f"this is Hyperliquid's deposit bridge on {chains.info(where)['name']}; anything sent to it "
+                         f"on {chains.info(chain)['name']} is lost. Refused")
+    if asset != entry["usdc"]:
+        raise ChainError(f"Hyperliquid's bridge credits only native USDC ({entry['usdc']}); anything else sent to it "
+                         "is lost. Refused")
+    return entry
 
 
 def _evm_cost(ctx: Ctx, sender: str, call: dict, key: bytes | None) -> tuple[int, dict]:
@@ -695,6 +731,9 @@ def evm_nft(ctx: Ctx, sender: str, args: dict, asset: str, key: bytes) -> dict:
         raise ChainError("the zero address burns the NFT; refused")
     if to.lower() == sender.lower():
         raise ChainError("the recipient is the sending account itself")
+    if chains.hyperliquid_bridge(to):
+        raise ChainError("this is Hyperliquid's deposit bridge: it credits only USDC, and an NFT sent to it is lost. "
+                         "Refused")
     collection = to_checksum_address(asset)
     if to.lower() == asset:
         raise ChainError("the recipient is the collection's contract itself; an NFT sent there is lost")
@@ -1107,6 +1146,8 @@ def op_quote(payload: dict) -> dict:
                                      "asset_address", "max_fee", "usd")}
     if kind in ("revoke", "nft"):
         summary[kind] = quote[kind]
+    if quote.get("label"):
+        summary["label"] = quote["label"]
     return {"quote": quote["id"], "own": own, "card": quote["card"], "expires_in_seconds": QUOTE_TTL,
             "summary": summary}
 
