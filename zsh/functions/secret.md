@@ -139,15 +139,25 @@ comes first in `PATH` ([`config.zsh`](../config.zsh)), so every launch —
 interactive shell or the tmux `prefix o` popup — goes through the shim,
 which injects Keychain secrets and execs the real binary (resolved from
 `PATH`, skipping itself, so e.g. the Claude Code self-updater in
-`~/.local/bin` keeps working). The symlink name selects one of two modes:
+`~/.local/bin` keeps working). The symlink name selects one of three modes:
 
 | Mode    | Commands                                                                                                   | Injects                                                                                            |
 | ------- | ---------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
 | tool    | `opencode`, `claude`, `codex`, `copilot`, `grok` — and any name not listed below                           | the shared layers of `global`, then `<command>` (tool wins); never a repository scope              |
 | project | `npm`, `pnpm`, `node`, `bun`, `bunx`, `yarn`, `npx`, `python`, `python3`, `uv`, `docker`, `docker-compose` | `secret env` — the ambient project + repository scope of the CWD; nothing outside a git repository |
+| plain   | `pip`, `pip3`                                                                                              | nothing — wrapped only for the mise pin below                                                      |
 
-Both modes inject through `secret env`, so items stored `--no-env` never
-reach a wrapped command.
+Both injecting modes go through `secret env`, so items stored `--no-env`
+never reach a wrapped command.
+
+Every mode also pins mise's directories (`MISE_DATA_DIR`, `MISE_CONFIG_DIR`,
+`MISE_STATE_DIR`, `MISE_CACHE_DIR`) to the account's home from the user
+database, not `$HOME`, keeping inherited values — the same paths
+[`env.zsh`](../env.zsh) exports. A caller that swaps `HOME` for a temp dir
+and forwards little more than `PATH` (test harnesses that rebuild the child
+environment from an allowlist) still lands on these launchers first; without
+the pin, the mise shim behind them would see no installed tool and resolve,
+and install, every `latest` tool from the network on each call.
 
 Effective precedence in both modes:
 
@@ -273,11 +283,12 @@ master machinery via the `SECRET_MASTER_ACCOUNT` / `SECRET_TEST_ONLY_KC`
 hooks, and cleans up after itself — safe to run on a machine with real data.
 
 [`zsh/tests/secret-shim-selftest.zsh`](../tests/secret-shim-selftest.zsh) —
-28 assertions for the launcher shims: layer injection and override order,
+35 assertions for the launcher shims: layer injection and override order,
 inherited-environment precedence, dotenv name skipping (monorepo union from
 the root vs per-package precision, `.env.example` exclusion, `export NAME=`
-lines), sentinels, exec passthrough (arguments, exit codes, missing
-binaries). Same isolation and cleanup guarantees.
+lines), sentinels, the mise pin under a swapped `HOME` and plain mode, exec
+passthrough (arguments, exit codes, missing binaries). Same isolation and
+cleanup guarantees.
 
 ```sh
 zsh -f ~/.config/zsh/tests/secret-selftest.zsh

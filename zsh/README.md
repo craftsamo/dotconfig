@@ -13,10 +13,20 @@ exec zsh
 ## Load order
 
 `env.zsh` runs for _every_ zsh — including non-interactive `zsh -c`
-(opencode's bash tool, tmux launchers, scripts). It only builds `PATH`:
+(opencode's bash tool, tmux launchers, scripts). It builds `PATH`:
 `~/.config/bin` (secret-shim launchers — see
 [secret.md](./functions/secret.md)), `~/.local/bin`, `~/bin`, Docker,
-mise shims (node / pnpm / ...), then the Homebrew prefix.
+mise shims (node / pnpm / ...), then the Homebrew prefix. It also exports
+mise's directories (`MISE_DATA_DIR`, `MISE_CONFIG_DIR`, `MISE_STATE_DIR`,
+`MISE_CACHE_DIR`) as absolute paths, keeping an inherited value. A child
+that swaps `HOME` for a temp dir but keeps `PATH` would otherwise run the
+shims against an empty data dir, while still finding
+`~/.config/mise/config.toml` through its cwd: mise then sees no installed
+tool and resolves, and installs, every `latest` tool from the network on
+each shim call (before mise 2026.10.5, `npm view` re-entering the shims
+made that a process explosion). The pins equal mise's defaults with the
+`XDG_*` base dirs unset; a child that wants a clean mise sets (or unsets)
+`MISE_*` along with `HOME`.
 
 `config.zsh` adds the interactive layer on top:
 
