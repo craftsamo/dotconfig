@@ -29,15 +29,21 @@ resolved further down `PATH`, skipping the shim itself.
 
 <InjectionModes>
 
-The mode is chosen by the command name in `bin/secret-shim:44-49`.
+The mode is chosen by the command name in `bin/secret-shim:53-58`.
 
 | Mode | Commands | Injects |
 | --- | --- | --- |
 | tool | `opencode`, `claude`, `codex`, `copilot`, `grok`, and any unlisted name | shared layers only: `global`, then `<command>`; tool layer overrides global; never a repository scope |
 | project | `node npm pnpm bun bunx yarn npx python python3 uv docker docker-compose` | `secret env` for the current git repo's project + scope; only inside a git repo |
+| plain | `pip pip3` | nothing; wrapped only for the mise pin |
 
-Precedence in both modes:
+Precedence in the injecting modes:
 `exported env > .env files (project mode) > Keychain`.
+
+Every mode also exports `MISE_DATA_DIR`, `MISE_CONFIG_DIR`, `MISE_STATE_DIR`
+and `MISE_CACHE_DIR`, pinned to the account's real home (inherited values
+win), so a wrapped command launched under a swapped `HOME` still uses the
+real mise installs. Seeing these in a child's environment is expected.
 
 </InjectionModes>
 
