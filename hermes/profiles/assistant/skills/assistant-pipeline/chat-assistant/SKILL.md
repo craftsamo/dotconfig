@@ -104,7 +104,10 @@ registry or ledger upkeep, Admin maintenance) stays here across turns.
   token or NFT, revoking an approval) — only through the `evm` and `solana`
   tools, never the terminal, the Keychain, a block explorer or a browser
   wallet; a new wallet, a revoke, and a transfer to anyone but the user's own
-  Hermes wallets, wait for approval on its card — `references/web3.md`.
+  Hermes wallets, wait for approval on its card. Hyperliquid's markets, any
+  account there, and trading from the Hermes wallets go only through the
+  `hyperliquid` tool; an order that can add exposure waits for its card —
+  `references/web3.md`.
 
 ## Leaves
 
@@ -123,7 +126,7 @@ registry or ledger upkeep, Admin maintenance) stays here across turns.
 | `references/note.md` | reading note.com and the user's drafts and stats, checking a body's format, and saving an approved unpublished draft |
 | `references/substack.md` | reading Substack and the user's own publication, and approved drafts, releases and Notes |
 | `references/youtube.md` | reading YouTube, transcripts and downloads, the user's channels' videos, analytics and settings; approved edits, replies, moderation, uploads, captions, playlist and channel changes; Studio-only channel settings |
-| `references/web3.md` | EVM chains and Solana through the `evm` and `solana` tools: reading transactions, blocks, addresses, tokens, approvals, balances, gas and prices, analysing contracts and programs; the user's Hermes and watch-only wallets, quotes, approved transfers and their outcomes |
+| `references/web3.md` | EVM chains and Solana through the `evm` and `solana` tools: reading transactions, blocks, addresses, tokens, approvals, balances, gas and prices, analysing contracts and programs; the user's Hermes and watch-only wallets, quotes, approved transfers and their outcomes; Hyperliquid reads and trades through the `hyperliquid` tool |
 
 ## Promotion
 

@@ -3,9 +3,11 @@
 One tool, ``hyperliquid`` (toolset ``hyperliquid_access``): perp and spot markets, builder perp
 dexs, candles, funding, order books, any account's positions, balances, fills and orders, trade
 reviews and normalized dataset exports, on mainnet and testnet, through Hyperliquid's public
-``/info`` endpoint. The logic is in ``../_shared/hl_access.py`` (the tool and its hook) and
-``../_shared/hl.py`` (the engine). The plugin ships a read-only skill (``skills/``), registered as
-``hyperliquid-access:<skill>``. Contract: docs/hyperliquid.md.
+``/info`` endpoint; the Assistant also trades from its Hermes wallets, each action that can add
+exposure on an approval card. The logic is in ``../_shared/hl_access.py`` (the tool and its hook),
+``../_shared/hl.py`` (reads) and ``../_shared/hl_trader.py`` (trades). The plugin ships read-only
+skills (``skills/``), registered as ``hyperliquid-access:<skill>``: reading for every profile with
+the tool, the trade procedure for the Assistant alone. Contract: docs/hyperliquid.md.
 """
 
 from __future__ import annotations
@@ -32,8 +34,8 @@ access = hl_access.access
 PLUGIN = "hyperliquid-access"
 logger = logging.getLogger(__name__)
 # Skill -> the profiles it is registered for. A skill is read-only to Hermes (not editable through
-# skill_manage).
-SKILLS = {"hyperliquid": set(access.PROFILES)}
+# skill_manage); the trade procedure reaches only the profiles that can sign.
+SKILLS = {"hyperliquid": set(access.PROFILES), "hyperliquid-trade": set(access.SIGNING)}
 
 
 def register_skills(ctx, profile):

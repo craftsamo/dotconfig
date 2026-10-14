@@ -56,9 +56,9 @@ def entries(state: Path, since: float, name: str = SENDS) -> list[dict]:
     return list(rows.values())
 
 
-def attempted(state: Path, quote_id: str) -> bool:
+def attempted(state: Path, quote_id: str, name: str = SENDS) -> bool:
     """Whether the ledger has ever recorded a send of this quote."""
-    return any(row.get("quote") == quote_id for row in entries(state, 0))
+    return any(row.get("quote") == quote_id for row in entries(state, 0, name))
 
 
 def append(state: Path, row: dict, name: str = SENDS) -> None:
@@ -70,12 +70,15 @@ def append(state: Path, row: dict, name: str = SENDS) -> None:
         os.fsync(handle.fileno())
 
 
-def check_rate(state: Path, now: float | None = None) -> None:
-    """CapReached when MAX_PER_HOUR sends that may have moved funds happened in the last hour."""
+def check_rate(state: Path, now: float | None = None, name: str = SENDS, limit: int = MAX_PER_HOUR,
+               what: str = "transfers", where=None) -> None:
+    """CapReached when ``limit`` sends that may have moved funds happened in the last hour, in the ledger
+    ``name``, counting only the rows ``where`` accepts when it is given."""
     now = now or time.time()
-    recent = [r for r in entries(state, now - HOUR) if r.get("outcome") in COUNTED]
-    if len(recent) >= MAX_PER_HOUR:
-        raise CapReached(f"{MAX_PER_HOUR} transfers in the last hour is the limit; wait and try again")
+    recent = [r for r in entries(state, now - HOUR, name)
+              if r.get("outcome") in COUNTED and (where is None or where(r))]
+    if len(recent) >= limit:
+        raise CapReached(f"{limit} {what} in the last hour is the limit; wait and try again")
 
 
 def check_wallet_rate(state: Path, now: float | None = None) -> None:

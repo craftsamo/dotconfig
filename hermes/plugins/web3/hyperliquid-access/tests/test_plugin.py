@@ -43,11 +43,23 @@ def test_the_plugin_registers_the_hyperliquid_tool_from_the_shared_logic():
     assert ctx.tools == {} and ctx.skills == {}
 
 
-def test_the_read_skill_reaches_the_reading_profiles_and_describes_no_writes():
-    for profile in ("assistant", "researcher", "searcher", "marketer"):
+def test_the_trade_skill_reaches_only_the_profile_that_signs():
+    expected = {"assistant": {"hyperliquid", "hyperliquid-trade"}, "researcher": {"hyperliquid"},
+                "searcher": {"hyperliquid"}, "marketer": {"hyperliquid"}, "creator": set()}
+    for profile, names in expected.items():
         ctx = Ctx(profile)
         plugin.register(ctx)
-        assert set(ctx.skills) == {"hyperliquid"}
-        assert 'hyperliquid-access:hyperliquid"' in ctx.tools["hyperliquid"]["description"]
+        assert set(ctx.skills) == names
+        if not ctx.tools:
+            continue
+        description = ctx.tools["hyperliquid"]["description"]
+        assert 'hyperliquid-access:hyperliquid"' in description
+        assert ('hyperliquid-access:hyperliquid-trade"' in description) == (profile == "assistant")
+        actions = ctx.tools["hyperliquid"]["schema"]["parameters"]["properties"]["action"]["enum"]
+        assert ("submit" in actions) == (profile == "assistant")
+    for profile in ("researcher", "searcher", "marketer"):
+        ctx = Ctx(profile)
+        plugin.register(ctx)
         body = ctx.skills["hyperliquid"].read_text().lower()
         assert not any(word in body for word in ("`quote`", "`submit`", "mandate", "approval card", "use: sign"))
+        assert "trading" not in ctx.tools["hyperliquid"]["description"].lower()
