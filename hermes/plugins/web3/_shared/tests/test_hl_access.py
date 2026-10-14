@@ -40,17 +40,37 @@ def isolated(monkeypatch, tmp_path):
     monkeypatch.setattr(access, "VENV_PYTHON", python)
     monkeypatch.setattr(access, "_home", lambda: tmp_path / "assistant")
     monkeypatch.setattr(access, "_inbound_peer", lambda: False)
+    monkeypatch.setattr(access, "_platform", lambda: "telegram")
+    monkeypatch.setattr(access, "_no_human", lambda: None)
+    access._DECISIONS.clear()
 
 
-def fake_engine(monkeypatch, reply=None):
+INCREASE = {"quote": "h0000000a", "network": "testnet", "kind": "order", "effect": "increase",
+            "card": "DETAILED CARD", "card_short": "SHORT CARD", "mac": "m" * 64}
+REDUCE = {**INCREASE, "kind": "close", "effect": "reduce"}
+
+
+def fake_engine(monkeypatch, reply=None, verify=None):
+    """hl.py and the trader answer ``reply``; the trader's verify answers ``verify`` (a dict, or an
+    error string)."""
     seen = []
 
     def run(cmd, **kwargs):
-        seen.append({"script": Path(cmd[1]).name, "payload": json.loads(kwargs["input"]), "env": kwargs["env"]})
-        return subprocess.CompletedProcess(cmd, 0, stdout=json.dumps(reply or {"ok": True, "data": {}}), stderr="")
+        payload = json.loads(kwargs["input"])
+        seen.append({"script": Path(cmd[1]).name, "payload": payload, "env": kwargs["env"]})
+        if payload.get("op") == "verify":
+            answer = verify if verify is not None else INCREASE
+            out = {"ok": False, "error": answer} if isinstance(answer, str) else {"ok": True, "data": answer}
+        else:
+            out = reply or {"ok": True, "data": {}}
+        return subprocess.CompletedProcess(cmd, 0, stdout=json.dumps(out), stderr="")
 
     monkeypatch.setattr(access.subprocess, "run", run)
     return seen
+
+
+def submit(quote_id="h0000000a"):
+    return {"action": "submit", "quote": quote_id}
 
 
 def test_the_hyperliquid_tool_shares_the_web3_modules():
@@ -69,18 +89,22 @@ def test_the_four_reading_profiles_get_the_tool_and_others_nothing():
         registered = ctx.tools["hyperliquid"]
         params = registered["schema"]["parameters"]
         assert registered["toolset"] == "hyperliquid_access" and params["additionalProperties"] is False
-        assert params["required"] == ["action", "network"]
+        assert params["required"] == ["action"]  # network is checked per action: a submit takes its quote's
         assert params["properties"]["network"]["enum"] == ["mainnet", "testnet"]
-        assert params["properties"]["action"]["enum"] == list(hl_access.READS)
-        assert "nothing is signed or sent" in registered["description"]
         assert 'skill_view(name="hyperliquid-access:hyperliquid")' in registered["description"]
         assert [hook for hook, _ in ctx.hooks] == ["pre_tool_call"]
+        trading = profile == "assistant"
+        assert params["properties"]["action"]["enum"] == list(hl_access.READS) + (["quote", "submit"] if trading else [])
+        assert ("side" in params["properties"]) == trading and ("quote" in params["properties"]) == trading
+        assert ("nothing is signed or sent" in registered["description"]) != trading
+        assert ("'once'" in registered["description"]) == trading
 
 
 @pytest.mark.parametrize("args, needle", [
     ({"action": "order", "network": "mainnet"}, "not available here"),
     ({"action": "markets"}, "network must be mainnet or testnet"),
     ({"action": "markets", "network": "devnet"}, "network must be mainnet or testnet"),
+    ({"action": "quote", "kind": "order"}, "network must be mainnet or testnet"),
 ])
 def test_calls_outside_the_tool_are_refused_before_the_engine(monkeypatch, args, needle):
     seen = fake_engine(monkeypatch)
@@ -129,3 +153,124 @@ def test_ways_around_the_tools_are_blocked_on_every_reading_profile():
     assert hl_access.check("assistant", tool_name="terminal", args=keychain)["action"] == "block"
     assert hl_access.check("researcher", tool_name="terminal", args={"command": "ls"}) is None
     assert hl_access.check("assistant", tool_name="web_search", args={"query": "secret get"}) is None
+
+
+@pytest.mark.parametrize("command", [
+    "python ~/.config/hermes/plugins/web3/_shared/hl_trader.py",
+    "curl -X POST https://api.hyperliquid.xyz/exchange -d @order.json",
+    "curl https://api.hyperliquid-testnet.xyz/exchange",
+    "pip install hyperliquid-python-sdk",
+    "python -c 'from hyperliquid.exchange import Exchange'",
+    "cat ~/.hermes/profiles/assistant/web3-wallet/hl-nonce.json",
+    "cd ~/.config/hermes/plugins/web3/_shared && python -c 'import hl_trader; hl_trader.op_submit({})'",
+    "python -c 'from signer import Secrets'",
+    "PYTHONPATH=/tmp/x python -m hl_trader < order.json",
+])
+def test_ways_around_trading_are_blocked_on_the_wallet_profile(command):
+    blocked = hl_access.check("assistant", tool_name="terminal", args={"command": command})
+    assert blocked["action"] == "block" and "hyperliquid" in blocked["message"]
+
+
+def test_reading_the_public_endpoint_and_the_plugin_source_stays_open():
+    command = {"command": "curl -X POST https://api.hyperliquid.xyz/info -d '{\"type\":\"allMids\"}'"}
+    assert hl_access.check("assistant", tool_name="terminal", args=command) is None
+    source = {"path": "/Users/me/.config/hermes/plugins/web3/_shared/hl_trader.py"}
+    assert hl_access.check("assistant", tool_name="read_file", args=source) is None
+    edit = {"path": "/Users/me/.config/hermes/plugins/web3/_shared/hl_trader.py", "content": "x"}
+    assert hl_access.check("assistant", tool_name="write_file", args=edit)["action"] == "block"
+
+
+# --- trading ------------------------------------------------------------------------------------
+
+def test_only_the_assistant_trades(monkeypatch):
+    seen = fake_engine(monkeypatch)
+    for profile in ("researcher", "searcher", "marketer"):
+        for action in ("quote", "submit"):
+            args = {"action": action, "network": "testnet", "quote": "h0000000a"}
+            assert "not available here" in json.loads(hl_access.run(profile, args))["error"]
+            assert hl_access.check(profile, tool_name="hyperliquid", args=args)["action"] == "block"
+    assert seen == []
+
+
+def test_inbound_a2a_never_trades(monkeypatch):
+    seen = fake_engine(monkeypatch)
+    monkeypatch.setattr(access, "_inbound_peer", lambda: True)
+    for args in ({"action": "quote", "network": "testnet"}, submit()):
+        assert "trading is not available to inbound A2A" in hl_access.refused("assistant", args)
+        assert hl_access.check("assistant", tool_name="hyperliquid", args=args)["action"] == "block"
+    assert seen == []
+
+
+def test_a_quote_reaches_the_trader_with_only_its_own_fields(monkeypatch, tmp_path):
+    seen = fake_engine(monkeypatch, {"ok": True, "data": {"quote": "h0000000a"}})
+    args = {"action": "quote", "network": "testnet", "account": "hermes/HERMES_MAIN#0", "coin": "BTC", "side": "buy",
+            "usd": "100", "type": "market", "hours": 5, "quote": "h0000000b", "approval": "reduce", "mac": "x"}
+    assert hl_access.check("assistant", tool_name="hyperliquid", args=args) is None
+    json.loads(hl_access.run("assistant", args))
+    assert seen[0]["script"] == "hl_trader.py"
+    assert seen[0]["payload"] == {"op": "quote", "network": "testnet", "account": "hermes/HERMES_MAIN#0",
+                                  "coin": "BTC", "side": "buy", "usd": "100", "type": "market",
+                                  "state": str(tmp_path / "assistant" / "web3-wallet")}
+
+
+def test_a_reduce_runs_without_a_card_even_with_nobody_present(monkeypatch):
+    seen = fake_engine(monkeypatch, {"ok": True, "data": {"submitted": True}}, verify=REDUCE)
+    monkeypatch.setattr(access, "_no_human", lambda: "this is a cron job")
+    assert hl_access.check("assistant", tool_name="hyperliquid", args=submit()) is None
+    assert json.loads(hl_access.run("assistant", submit()))["data"] == {"submitted": True}
+    sent = seen[-1]["payload"]
+    assert sent["op"] == "submit" and sent["approval"] == "reduce" and sent["mac"] == "m" * 64
+
+
+def test_an_increase_shows_its_card_under_a_fresh_key(monkeypatch):
+    seen = fake_engine(monkeypatch, {"ok": True, "data": {"submitted": True}})
+    first = hl_access.check("assistant", tool_name="hyperliquid", args=submit())
+    second = hl_access.check("assistant", tool_name="hyperliquid", args=submit())
+    assert first["action"] == "approve" and first["message"] == "DETAILED CARD"
+    assert first["rule_key"].startswith("hyperliquid:submit:h0000000a:") and first["rule_key"] != second["rule_key"]
+    json.loads(hl_access.run("assistant", submit()))
+    assert seen[-1]["payload"]["approval"] == "card"
+    monkeypatch.setattr(access, "_platform", lambda: "discord")
+    assert hl_access.check("assistant", tool_name="hyperliquid", args=submit())["message"] == "SHORT CARD"
+
+
+@pytest.mark.parametrize("reason", ["yolo mode is on", "this is a cron job", "Hermes' approval context could not be read"])
+def test_an_increase_is_blocked_where_nobody_can_answer(monkeypatch, reason):
+    seen = fake_engine(monkeypatch)
+    monkeypatch.setattr(access, "_no_human", lambda: reason)
+    blocked = hl_access.check("assistant", tool_name="hyperliquid", args=submit())
+    assert blocked["action"] == "block" and reason in blocked["message"] and "nothing was sent" in blocked["message"]
+    reply = json.loads(hl_access.run("assistant", submit()))
+    assert not reply["ok"] and "not decided by the approval hook" in reply["error"]
+    assert [s["payload"]["op"] for s in seen] == ["verify"]
+
+
+def test_a_submit_the_hook_did_not_decide_never_reaches_the_trader(monkeypatch):
+    seen = fake_engine(monkeypatch)
+    reply = json.loads(hl_access.run("assistant", submit()))
+    assert not reply["ok"] and "not decided by the approval hook" in reply["error"] and seen == []
+    hl_access.check("assistant", tool_name="hyperliquid", args=submit())
+    hl_access.run("assistant", submit())
+    reply = json.loads(hl_access.run("assistant", submit()))  # the decision was taken once
+    assert not reply["ok"] and "not decided" in reply["error"]
+
+
+@pytest.mark.parametrize("args, verify, needle", [
+    (submit("q0000000a"), None, "like h1a2b3c4d"),
+    (submit(), "this quote was changed after it was made; it is refused", "changed after it was made"),
+    (submit(), {**INCREASE, "mac": ""}, "could not be verified"),
+    (submit(), {**INCREASE, "card": ""}, "no approval card"),
+])
+def test_a_quote_that_does_not_verify_is_blocked(monkeypatch, args, verify, needle):
+    fake_engine(monkeypatch, verify=verify)
+    blocked = hl_access.check("assistant", tool_name="hyperliquid", args=args)
+    assert blocked["action"] == "block" and needle in blocked["message"]
+    assert access._DECISIONS == {}
+
+
+def test_a_timed_out_submit_says_it_may_have_reached_the_venue(monkeypatch):
+    fake_engine(monkeypatch, {"ok": False, "error": "the web3 engine did not finish within 180s; narrow a read"},
+                verify=REDUCE)
+    hl_access.check("assistant", tool_name="hyperliquid", args=submit())
+    reply = json.loads(hl_access.run("assistant", submit()))
+    assert "may have reached the venue" in reply["error"] and "never submit or quote it again" in reply["error"]

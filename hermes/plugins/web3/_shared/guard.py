@@ -3,7 +3,8 @@
 Pure Python, loaded by path in Hermes' own interpreter by the evm, solana and hyperliquid tools. A pattern match
 on the text of a terminal, code or file-tool call, not a sandbox: it stops ordinary use, not a
 determined script. A profile that can send (the Assistant) passes ``wallet=True`` for the stricter
-set: the signer and its state, the Keychain itself and signing CLIs.
+set: the signer, the Hyperliquid trader and their state, the Keychain itself, signing CLIs, the
+venue's signed endpoint and its SDK.
 """
 
 from __future__ import annotations
@@ -22,16 +23,23 @@ _WALLET = re.compile(
     r"(?<![\w-])web3-wallet(?![\w-])|signer\.py|keychain\.py|ledger\.py|seeds\.py|web3\.sh"
     r"|\bsecret\s+(get|set|update|rm|import|export|env)\b|\bsecurity\s+\S*-generic-password\b"
     r"|\bcast\s+(send|wallet|mktx|publish)\b|\bsolana\s+(transfer|keygen)\b|\bspl-token\s+transfer\b"
-    r"|eth_sendRawTransaction|sendTransaction", re.IGNORECASE)
+    r"|eth_sendRawTransaction|sendTransaction"
+    # Hyperliquid: the trader, its signing and state, the venue's signed endpoint and the official SDK
+    r"|hl_trader\.py|hl_sign\.py|(?<![\w-])hl-(quotes|nonce)(?![\w-])|hyperliquid(-testnet)?\.xyz/exchange"
+    r"|hyperliquid-python-sdk|\bfrom\s+hyperliquid\b|\bimport\s+hyperliquid\b|\bhyperliquid\.(exchange|utils)\b"
+    # the engine modules imported or run by name from another script: the same signer without its hook
+    r"|\b(import|from)\s+(hl_trader|hl_sign|signer|keychain|seeds|ledger)\b|-m\s+(hl_trader|signer)\b"
+    r"|web3/_shared(?![\w-])",
+    re.IGNORECASE)
 _SOURCE_READ = re.compile(r"plugins/web3/[\w./-]+\.(py|yaml|md)$")
 
 READ_MESSAGE = (
     "Chains and Hyperliquid are read only through the evm, solana and hyperliquid tools, never through the "
     "terminal, code or file tools; the RPC provider keys (Keychain) and the engine are never used directly.")
 WALLET_MESSAGE = (
-    "Funds move only through the evm and solana tools, never through the terminal, code or file tools: the "
-    "seed phrases and keys (Keychain), the signer and the wallet's state are never touched directly, and no "
-    "other program signs or sends a transaction.")
+    "Funds move only through the web3 tools (evm, solana, hyperliquid), never through the terminal, code or "
+    "file tools: the seed phrases and keys (Keychain), the signer, the trader and the wallet's state are never "
+    "touched directly, and no other program signs or sends a transaction or a Hyperliquid action.")
 
 
 def _strings(value):

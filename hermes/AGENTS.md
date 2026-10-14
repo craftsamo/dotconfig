@@ -114,7 +114,9 @@ skills.
 - **The web3 wallet is the one reader across `secret` projects.** Its signer
   lists every project's names and kinds and reads only items of kind
   `MNEMONIC` / `PRIVATE_KEY`; only names with the word `HERMES` sign or count as
-  own, every other wallet is watch-only. Never widen the kinds it reads,
+  own, every other wallet is watch-only. The Hyperliquid trader reads keys
+  only through the signer's `Secrets`, never on a path of its own, so the
+  same rules hold for it. Never widen the kinds it reads,
   loosen that name rule, or pass a wallet secret through a process
   environment — a project's own deployer key would start signing. Hermes
   wallets are stored `--no-env` so `secret env` (the helper and the shims)
