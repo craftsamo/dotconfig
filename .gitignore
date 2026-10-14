@@ -17,6 +17,10 @@ yarn/
 # fish is unused here; the Grok Build installer/updater drops completions into it
 fish/
 
+# Docker Agent (formerly cagent, bundled with Docker Desktop) writes a first-run
+# marker and a per-machine user UUID here on its first launch
+cagent/
+
 # ~/.config/agents/skills is a registered install target of third-party skill
 # installers (`hyperframes skills` mirrors into it as the amp/universal agent
 # dir) — surrendered to tool droppings and ignored wholesale. The repo-curated
