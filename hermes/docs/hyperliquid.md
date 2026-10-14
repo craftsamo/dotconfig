@@ -18,6 +18,7 @@ bridge, A2A rule, approval record and bypass guard) and the rules of
 | Read engine: the public `/info` endpoint                         | `_shared/hl.py`, run with the web3 venv like `reader.py`                    |
 | Trader: quotes, effects, cards, submits; reads the wallet's keys | `_shared/hl_trader.py`, over `signer.Secrets`, `ledger.py` and `hl_sign.py` |
 | Action building and signing, byte-compatible with the SDK        | `_shared/hl_sign.py` (`msgpack` in `engines/web3/requirements.lock`)        |
+| Mandates: terms, cards, storage, fitting                         | `_shared/hl_mandate.py`, used by the trader                                 |
 | How a profile reads Hyperliquid; how the Assistant trades        | plugin skills `hyperliquid-access:hyperliquid`, `…:hyperliquid-trade`       |
 | How Researcher and Searcher weigh and record venue evidence      | each pipeline's `references/platforms/hyperliquid.md`                       |
 | What the Assistant does inline in Chat                           | the Assistant's Chat reference `web3.md`, section "Hyperliquid"             |
@@ -128,15 +129,65 @@ malformed request, a rate limit) and is a refusal. The card names the venue's
 own id of a spot pair beside its tickers, and the compact card keeps every
 signed leg, dropping only context.
 
+## Mandates
+
+A mandate is the one way an increase runs without its card
+([decision](decisions/hyperliquid-mandates.md)). It is a quote of kind
+`mandate` — one Hermes account, one network, a list of perp markets,
+`max_order_usd`, `max_exposure_usd` (positions plus every order that is not
+reduce-only, triggers included, in those markets), `max_leverage`,
+`per_hour` (at most 30) and `days` (at most 30, ending when its card said),
+with a purpose — submitted on its own card only: never on a mandate, never as
+a reduce, never where no person can answer. Both its cards carry every bound
+(the compact one leaves out only the purpose); terms that do not fit are
+refused at quote time.
+
+It is stored in `<state>/hl-mandates/` under an HMAC keyed from the account's
+secret. Which mandate is in force for an account and network is one MAC'd
+head file per pair: making a mandate points it there, revoking points it at
+none, and only the head decides; `hl-mandates.jsonl` is history for
+`mandates`. A newer mandate replaces the old one, its card names the one it
+replaces, and it is refused if a different one is in force by the time it is
+submitted.
+
+- **Fitting.** At verify the trader reads the account and says whether the
+  quote fits: an `order`, `modify` or `leverage` on a covered perp, worth at
+  most `max_order_usd`, with the market's leverage within `max_leverage`, the
+  markets' total after it within `max_exposure_usd` and the mandate's hourly
+  orders not used up. An order is worth its size at the highest of its own
+  price and the market's price now (a sell can fill above its limit); a
+  modify frees only what the old order still counts for in the fresh read,
+  and is refused when that order is gone; a leverage change needs the
+  markets' total within bounds already. A read that fails, or a reply of a
+  shape it does not know, is a no.
+- **The hook** runs a fitting increase without a card, unattended too, and
+  records the decision as `mandate`. Outside the mandate the increase asks
+  on its card, and the block message names why it does not fit.
+- **Submit** reads the account again under the wallet lock and refuses
+  (nothing sent) when the mandate is gone, revoked, expired or no longer
+  fits. The ledger row names the mandate, which is how its hourly use is
+  counted.
+- **Revoking** (`revoke_mandate`) needs no card and holds at once; `mandates`
+  lists every mandate with its standing and its use this hour.
+- Never covered: spot, margin taken out, any withdrawal or send, a new
+  mandate.
+- **What the files cannot stop.** The MACs stop an edited mandate or head,
+  but not a whole earlier head file copied back over the current one, which
+  would put an earlier, unexpired mandate back in force. As with the
+  transfer ledger, the boundary there is the guard and the state
+  directory's permissions; the 30-day ceiling bounds it.
+
 ## Approval
 
 The hook decides each `submit` from the quote as the trader verifies it:
 
 - **reduce** runs without asking, wherever it runs, cron included: closing,
   cancelling and protecting a position must never wait on a card.
-- **increase** shows its card through Hermes' gate, under a fresh rule key
-  per card (session and always never answer another card), and is blocked
-  wherever no person can answer (`_no_human`, as for external transfers).
+- **increase inside a mandate** runs without asking (above).
+- **any other increase** shows its card through Hermes' gate, under a fresh
+  rule key per card (session and always never answer another card), and is
+  blocked wherever no person can answer (`_no_human`, as for external
+  transfers).
 - The decision and the verified MAC travel in memory to the tool, once; a
   submit the hook did not see never reaches the trader.
 - **Caps:** at most 30 increases an hour, and 200 actions of any kind (a
@@ -144,7 +195,8 @@ The hook decides each `submit` from the quote as the trader verifies it:
   ledger: `sent` and `unknown` count, `rejected` does not. There are no size
   limits: an account should hold only what the user is ready to lose.
 
-Quotes live in `<state>/hl-quotes/`, beside the transfer quotes in the
+Quotes live in `<state>/hl-quotes/` and mandates in `<state>/hl-mandates/`,
+beside the transfer quotes in the
 wallet's state directory, which the guard already keeps out of the terminal.
 On the Assistant the guard also blocks the trader and signing modules, their
 state files, the engine modules imported or run by name from another script,
