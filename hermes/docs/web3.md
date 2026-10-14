@@ -165,6 +165,9 @@ or `nft` ([NFTs](#nfts)) beside the default `transfer`.
   cases the signer's quote validation names (zero address, self, a token's own
   contract, a program or token account as recipient, a new Solana account below
   the rent-exempt minimum, over-precise amounts).
+- **Hyperliquid's deposit bridge** takes only its own chain's native USDC, 5
+  or more; anything else to it is refused, since the bridge would lose it
+  ([hyperliquid.md](hyperliquid.md) "Deposits").
 - **The recipient that counts** is the one the signer encoded: for a token
   transfer, the recipient in the calldata or instruction, not the transaction's
   `to`. An ENS name is resolved at quote time and the card shows both.
