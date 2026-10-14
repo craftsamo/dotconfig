@@ -237,7 +237,9 @@ skills.
   renaming one breaks them at import, and a `plugin.yaml` there would make
   Hermes load it as a plugin — never add one. web3's evm-access and
   solana-access are thin entry points over `access.py` and share its one
-  in-memory record of approval decisions. Messaging's `unpacked_guard` keys on
+  in-memory record of approval decisions; hyperliquid-access reaches it
+  through `hl_access.py`, which must load it under the same module name
+  (`hermes_web3_access`), or it gets a second record of its own. Messaging's `unpacked_guard` keys on
   the `.unpacked` folder name that `extract` gives an unpacked archive, and the
   skills the messaging plugins ship name it too: rename it everywhere or the
   guard stops matching without a failure. Keep each sender's own file rules

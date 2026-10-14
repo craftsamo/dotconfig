@@ -33,7 +33,7 @@ import pytest
 
 CHILDREN = ("lookup-searcher", "sweep-searcher", "hunt-searcher")
 STAGES = ("plan", "build")
-SERVICES = ("x", "youtube", "note", "substack", "evm", "solana")
+SERVICES = ("x", "youtube", "note", "substack", "evm", "solana", "hyperliquid")
 TECHNICS = ("public-footprint", "primary-fact-pack", "release-digest")
 EXPECTED = {"searcher-pipeline"} | set(CHILDREN) | set(TECHNICS)
 ALLOW = {"skills_list", "skill_view", "read_file"}
@@ -155,7 +155,7 @@ def _child(case, sandbox, candidate_tree, technic_tree, source):
         skills = home / ".hermes/skills"
         tree = skills / "searcher-pipeline"
         docs = sorted(candidate_tree.rglob("*.md"))
-        assert len(docs) == 13, "Candidate tree must hold kernel + modes + stage, capability and service references"
+        assert len(docs) == 14, "Candidate tree must hold kernel + modes + stage, capability and service references"
         for path in docs:
             assert not path.is_symlink() and path.resolve().is_relative_to(candidate_tree)
             target = tree / path.relative_to(candidate_tree)

@@ -36,6 +36,9 @@ EXPECTED = {
         "solana": {"assistant", "researcher", "searcher", "marketer"},
         "solana-wallet": {"assistant"},
     },
+    "web3/hyperliquid-access": {
+        "hyperliquid": {"assistant", "researcher", "searcher", "marketer"},
+    },
     "social/substack-access": {
         "substack": ALL_READERS,
         "substack-drafts": {"assistant"},

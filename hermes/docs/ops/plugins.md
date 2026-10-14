@@ -26,7 +26,7 @@ directories are in [`../../AGENTS.md`](../../AGENTS.md) "Skills".
   (e.g. `allow_tool_override`) needs the full `group/name` key: a bare key is
   ignored and the plugin fails to load. Current groups:
   `messaging/` (chat accounts), `social/` (public platforms: x, note, substack,
-  youtube), `web3/` (chain reads and the wallet), `orchestration/` (specialist,
+  youtube), `web3/` (chain reads, Hyperliquid reads and the wallet), `orchestration/` (specialist,
   OpenCode and session-history transports), `workspace/` (the public drafts, repos and
   registry engines; a local overlay may add more), `guards/` (topology and Worker guards),
   `inspection/` (vision window, video analysis, media and writing inspection),
