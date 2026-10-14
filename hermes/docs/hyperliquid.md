@@ -129,6 +129,41 @@ malformed request, a rate limit) and is a refusal. The card names the venue's
 own id of a spot pair beside its tickers, and the compact card keeps every
 signed leg, dropping only context.
 
+## Moving funds
+
+`quote` also builds the user-signed moves: `withdraw` (`withdraw3`: USDC from
+the perp balance to an Arbitrum address, default the account's own; the venue
+takes a 1 USDC fee), `send` (`usdSend` from the perp balance, or `spotSend`
+of a named spot token from the spot balance, to a Hyperliquid address) and
+`transfer` (`usdClassTransfer`, spot ↔ perp within the account). Each checks
+the balance it draws on, the amount's precision, a destination that is not
+the zero address, the sender itself or the deposit bridge, and a spot token
+named unambiguously (`NAME:tokenId` when deployers reuse a name).
+
+A move's effect is `own` when the funds stay in the user's Hermes wallets —
+a transfer, or a destination the secrets derive as own, exactly as for wallet
+transfers ([web3.md](web3.md) "Approval") — and `external` otherwise. The
+hook runs `own` without asking, anywhere; `external` shows its card and is
+blocked where no person can answer; no mandate covers either. Submit
+re-derives `own` from the secrets, signs with the nonce as the action's time
+(user-signed actions take no `expiresAfter`), checks the signature recovers to
+the account, and writes a row both to `hyperliquid.jsonl` and to the
+wallet's transfer ledger before posting, so moves count in its ten transfers
+an hour.
+
+## Deposits
+
+USDC enters the venue through its legacy bridge on Arbitrum
+(`chains.HYPERLIQUID_BRIDGES`, from the venue's docs): native USDC sent to it
+is credited to the sender's Hyperliquid account. A deposit is the `evm`
+tool's ordinary quote and transfer; the signer refuses anything to a bridge
+address that would be lost — another chain's bridge, any token but that
+chain's USDC, less than 5 USDC, any NFT — and the card labels the bridge.
+`deposit_info` returns the bridge, the token and the minimum without a
+request. The venue calls this bridge deprecated in favour of Circle's CCTP,
+which needs a contract call the signer does not make; a CCTP path would be a
+new signed call, not a change to this one.
+
 ## Mandates
 
 A mandate is the one way an increase runs without its card
@@ -184,6 +219,8 @@ The hook decides each `submit` from the quote as the trader verifies it:
 - **reduce** runs without asking, wherever it runs, cron included: closing,
   cancelling and protecting a position must never wait on a card.
 - **increase inside a mandate** runs without asking (above).
+- **a move** runs without asking when `own` and asks on its card when
+  `external` ("Moving funds").
 - **any other increase** shows its card through Hermes' gate, under a fresh
   rule key per card (session and always never answer another card), and is
   blocked wherever no person can answer (`_no_human`, as for external
@@ -214,4 +251,4 @@ signer's process and that every increase shows its card.
    have it; the Assistant's lives in its private config), then restart the
    gateway.
 3. To trade, a Hermes wallet ([web3.md](web3.md) "Setup") with USDC on the
-   venue, on the network the user means.
+   venue, on the network the user means ("Deposits").

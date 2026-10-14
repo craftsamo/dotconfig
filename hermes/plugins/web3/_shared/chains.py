@@ -129,6 +129,26 @@ SOLANA = {
 
 CHAINS = (*EVM, *SOLANA)
 
+# Hyperliquid's legacy deposit bridge (Bridge2) per chain, from the venue's docs: native USDC sent to
+# it is credited to the sender's Hyperliquid account; anything else, or under the minimum, is lost.
+HYPERLIQUID_BRIDGES = {
+    "arbitrum": {"bridge": "0x2df1c51e09aecf9cacb7bc98cb1742757f163df7",
+                 "usdc": "0xaf88d065e77c8cc2239327c5edb3a432268e5831", "network": "mainnet"},
+    "arbitrum-sepolia": {"bridge": "0x08cfc1b6b2dcf36a1480b99353a354aa8ac56f89",
+                         "usdc": "0x1baabb04529d43a73232b713c0fe471f7c7334d5", "network": "testnet"},
+}
+HYPERLIQUID_MIN_DEPOSIT = "5"
+
+
+def hyperliquid_bridge(address: str | None) -> tuple[str, dict] | None:
+    """(chain, entry) when an address is one of Hyperliquid's deposit bridges, on any chain."""
+    if not isinstance(address, str):
+        return None
+    for chain, entry in HYPERLIQUID_BRIDGES.items():
+        if address.lower() == entry["bridge"]:
+            return chain, entry
+    return None
+
 # Well-known tokens per chain, read when no provider key lists an address's tokens. Symbols and
 # decimals are always read from the chain, never taken from here.
 KNOWN_TOKENS = {
