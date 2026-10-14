@@ -183,6 +183,45 @@ dockenv() {                    # like penv, but no SECRET_SHIM_MODE forcing
 [[ -z "$(dockenv B_DOTENV)" ]] \
   && ok "mode table: docker respects dotenv skip" || bad "mode table: docker respects dotenv skip"
 
+# --- mise pin ---------------------------------------------------------------
+# a caller that swaps HOME (and drops MISE_*) still gets the real home's dirs
+ln -s "$SHIM" "$TD/bin/pip"
+cat > "$TD/real/pip" <<'EOF'
+#!/bin/sh
+exec /usr/bin/printenv "$@"
+EOF
+chmod +x "$TD/real/pip"
+mkdir -p "$TD/fakehome"
+RH=$(setopt no_nomatch; print -r -- ${~:-"~$USERNAME"})   # the user database's home
+[[ $OSTYPE == darwin* ]] && RCACHE=$RH/Library/Caches/mise || RCACHE=$RH/.cache/mise
+swapped() {                    # $1 command name, $2.. -> printenv args
+  local c=$1; shift
+  ( cd "$TD/repo" || exit 9
+    path=("$TD/bin" "$TD/real" $path)
+    unset MISE_DATA_DIR MISE_CONFIG_DIR MISE_STATE_DIR MISE_CACHE_DIR
+    HOME=$TD/fakehome "$TD/bin/$c" "$@" 2>/dev/null )
+}
+[[ "$(swapped $PTOOL MISE_DATA_DIR)" == "$RH/.local/share/mise" \
+   && "$(swapped $PTOOL MISE_CONFIG_DIR)" == "$RH/.config/mise" \
+   && "$(swapped $PTOOL MISE_CACHE_DIR)" == "$RCACHE" ]] \
+  && ok "mise: dirs pinned to the real home under a swapped HOME" \
+  || bad "mise: dirs pinned to the real home under a swapped HOME"
+out=$(cd "$TD/repo" && path=("$TD/bin" "$TD/real" $path) \
+  MISE_DATA_DIR=/inherited HOME=$TD/fakehome "$TD/bin/$PTOOL" MISE_DATA_DIR 2>/dev/null)
+[[ $out == '/inherited' ]] \
+  && ok "mise: inherited dir wins" || bad "mise: inherited dir wins"
+[[ "$(swapped docker MISE_STATE_DIR)" == "$RH/.local/state/mise" ]] \
+  && ok "mise: project mode pins too" || bad "mise: project mode pins too"
+pipenv() {                     # plain mode in a mapped repo, real HOME
+  ( cd "$TD/repo" || exit 9
+    path=("$TD/bin" "$TD/real" $path)
+    "$TD/bin/pip" "$@" 2>/dev/null )
+}
+[[ -z "$(pipenv A_ONLY)" && -z "$(SECRET_SHIM_BASE=$PB pipenv TB_BASE)" ]] \
+  && ok "plain: pip injects no secrets" || bad "plain: pip injects no secrets"
+[[ "$(unset MISE_CACHE_DIR; pipenv MISE_CACHE_DIR)" == "$RCACHE" ]] \
+  && ok "plain: pip still pins mise" || bad "plain: pip still pins mise"
+
 # mapped project without a keychain: command must still run
 git -C "$TD" init -q nokc
 git -C "$TD/nokc" config secret.project $PNOKC
