@@ -32,7 +32,7 @@ LOCK="$HERMES_DIR/engines/web3/requirements.lock"
 VENV="$HERMES_DIR/local/web3/venv"
 PYTHON_VERSION="3.12.11"
 SECRET="$HOME/.config/bin/secret"
-PACKAGES="eth-account eth-abi mnemonic solders"
+PACKAGES="eth-account eth-abi mnemonic msgpack solders"
 
 die() { echo "error: $*" >&2; exit 1; }
 
