@@ -94,7 +94,9 @@ def test_the_four_reading_profiles_get_the_tool_and_others_nothing():
         assert 'skill_view(name="hyperliquid-access:hyperliquid")' in registered["description"]
         assert [hook for hook, _ in ctx.hooks] == ["pre_tool_call"]
         trading = profile == "assistant"
-        assert params["properties"]["action"]["enum"] == list(hl_access.READS) + (["quote", "submit"] if trading else [])
+        trades = ["quote", "submit", "mandates", "revoke_mandate"] if trading else []
+        assert params["properties"]["action"]["enum"] == list(hl_access.READS) + trades
+        assert ("max_exposure_usd" in params["properties"]) == trading
         assert ("side" in params["properties"]) == trading and ("quote" in params["properties"]) == trading
         assert ("nothing is signed or sent" in registered["description"]) != trading
         assert ("'once'" in registered["description"]) == trading
@@ -165,6 +167,8 @@ def test_ways_around_the_tools_are_blocked_on_every_reading_profile():
     "cd ~/.config/hermes/plugins/web3/_shared && python -c 'import hl_trader; hl_trader.op_submit({})'",
     "python -c 'from signer import Secrets'",
     "PYTHONPATH=/tmp/x python -m hl_trader < order.json",
+    "echo '{}' > ~/.hermes/profiles/assistant/web3-wallet/hl-mandates/m1.json",
+    "python -c 'import hl_mandate'",
 ])
 def test_ways_around_trading_are_blocked_on_the_wallet_profile(command):
     blocked = hl_access.check("assistant", tool_name="terminal", args={"command": command})
@@ -266,6 +270,56 @@ def test_a_quote_that_does_not_verify_is_blocked(monkeypatch, args, verify, need
     blocked = hl_access.check("assistant", tool_name="hyperliquid", args=args)
     assert blocked["action"] == "block" and needle in blocked["message"]
     assert access._DECISIONS == {}
+
+
+FITS = {**INCREASE, "mandate": {"id": "m0000000a", "fits": True, "reason": "inside the mandate"}}
+OUTSIDE = {**INCREASE, "mandate": {"id": "m0000000a", "fits": False, "reason": "BTC is above the mandate's 200"}}
+
+
+def test_an_increase_inside_a_mandate_runs_without_a_card_even_unattended(monkeypatch):
+    seen = fake_engine(monkeypatch, {"ok": True, "data": {"submitted": True}}, verify=FITS)
+    monkeypatch.setattr(access, "_no_human", lambda: "this is a cron job")
+    assert hl_access.check("assistant", tool_name="hyperliquid", args=submit()) is None
+    hl_access.run("assistant", submit())
+    assert seen[-1]["payload"]["approval"] == "mandate" and seen[-1]["payload"]["mac"] == "m" * 64
+
+
+def test_outside_its_mandate_an_increase_asks_or_is_blocked(monkeypatch):
+    fake_engine(monkeypatch, verify=OUTSIDE)
+    assert hl_access.check("assistant", tool_name="hyperliquid", args=submit())["action"] == "approve"
+    monkeypatch.setattr(access, "_no_human", lambda: "this is a cron job")
+    blocked = hl_access.check("assistant", tool_name="hyperliquid", args=submit())
+    assert blocked["action"] == "block" and "outside its mandate: BTC is above" in blocked["message"]
+
+
+def test_a_mandate_quote_always_needs_its_own_card(monkeypatch):
+    fake_engine(monkeypatch, verify={**FITS, "kind": "mandate"})
+    assert hl_access.check("assistant", tool_name="hyperliquid", args=submit())["action"] == "approve"
+    monkeypatch.setattr(access, "_no_human", lambda: "yolo mode is on")
+    assert hl_access.check("assistant", tool_name="hyperliquid", args=submit())["action"] == "block"
+
+
+def test_listing_and_revoking_mandates_reach_the_trader_without_a_card(monkeypatch, tmp_path):
+    seen = fake_engine(monkeypatch, {"ok": True, "data": {"standing": "revoked"}})
+    monkeypatch.setattr(access, "_no_human", lambda: "this is a cron job")
+    for args, op in (({"action": "mandates"}, "mandates"), ({"action": "mandates", "network": "testnet"}, "mandates"),
+                     ({"action": "revoke_mandate", "mandate": "m0000000a"}, "revoke")):
+        assert hl_access.check("assistant", tool_name="hyperliquid", args=args) is None
+        json.loads(hl_access.run("assistant", args))
+        assert seen[-1]["payload"]["op"] == op
+    assert seen[-1]["payload"] == {"op": "revoke", "mandate": "m0000000a",
+                                   "state": str(tmp_path / "assistant" / "web3-wallet")}
+    refused = hl_access.refused("assistant", {"action": "mandates", "network": "devnet"})
+    assert "mainnet or testnet" in refused
+    for profile in ("researcher", "searcher", "marketer"):
+        assert "not available here" in hl_access.refused(profile, {"action": "revoke_mandate", "mandate": "m0000000a"})
+
+
+def test_a_quote_never_carries_a_mandate_id(monkeypatch):
+    seen = fake_engine(monkeypatch, {"ok": True, "data": {}})
+    hl_access.run("assistant", {"action": "quote", "network": "testnet", "kind": "mandate", "markets": ["BTC"],
+                                "max_order_usd": "200", "mandate": "m0000000a"})
+    assert "mandate" not in seen[-1]["payload"] and seen[-1]["payload"]["markets"] == ["BTC"]
 
 
 def test_a_timed_out_submit_says_it_may_have_reached_the_venue(monkeypatch):

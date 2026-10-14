@@ -4,7 +4,8 @@ Part of the wallet's signer (docs/hyperliquid.md "Trading"): it reads the Hermes
 ``signer.Secrets`` (only names with HERMES sign) and keeps them in this process; replies carry quotes,
 cards, order ids and statuses, scrubbed of every value read.
 
-    {"op": "quote" | "verify" | "submit", "state": "<the wallet's state directory>", …the op's arguments}
+    {"op": "quote" | "verify" | "submit" | "mandates" | "revoke", "state": "<the wallet's state directory>",
+     …the op's arguments}
     → {"ok": true, "data": {…}} or {"ok": false, "error": "…"}
 
 The Hyperliquid account of a wallet account is its EVM address. ``quote`` reads the market and the
@@ -21,7 +22,12 @@ secret, so neither the action nor its card can change between approval and submi
 authenticated action, never taken from the stored verdict alone), signs with a fresh nonce and an
 ``expiresAfter`` a minute ahead, recovers the signer from the signature, writes the ledger row as
 ``unknown`` and only then posts to ``/exchange``. An answer that never came stays ``unknown``: the
-orders' client ids are looked up once, and nothing is ever re-sent. ``_api`` and ``_sources`` are
+orders' client ids are looked up once, and nothing is ever re-sent.
+
+An increase may also go on a mandate (``hl_mandate.py``): ``verify`` says whether the quote fits the
+account's mandate as the account stands now, and a submit approved that way is checked again under
+the lock, against the account read then. A mandate is itself a quote (kind ``mandate``) that only its
+own card makes; ``mandates`` lists them and ``revoke`` ends one at once. ``_api`` and ``_sources`` are
 honoured only under the engine's tests (``WEB3_ENGINE_TEST=1``).
 """
 
@@ -46,6 +52,7 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 
 import hl  # noqa: E402
+import hl_mandate  # noqa: E402
 import hl_sign  # noqa: E402
 import ledger  # noqa: E402
 import rpc  # noqa: E402
@@ -62,7 +69,7 @@ EXPIRES_AFTER_MS = 60_000       # a signed action the venue has not seen within 
 POST_TIMEOUT = 30
 INCREASE_PER_HOUR = 30          # actions that may add exposure, every account together
 ALL_PER_HOUR = 200              # every action, reduce included: a loop stops here
-KINDS = ("order", "close", "tpsl", "modify", "cancel", "leverage", "margin")
+KINDS = ("order", "close", "tpsl", "modify", "cancel", "leverage", "margin", "mandate")
 SIDES = {"buy": True, "long": True, "sell": False, "short": False}
 SLIPPAGE_DEFAULT = Decimal("0.01")
 SLIPPAGE_MAX = Decimal("0.05")
@@ -425,8 +432,13 @@ def build_margin(ctx, payload, user, mkt, quote_id) -> dict:
             "remove": remove, "reduce_only": False, "cloids": []}
 
 
+def build_mandate(ctx, payload, user, mkt_unused, quote_id) -> dict:
+    terms = hl_mandate.build(payload, lambda coin: market(ctx, coin))
+    return {"action": None, "market": {"coin": "mandate", "label": "mandate", "spot": False}, **terms, "cloids": []}
+
+
 BUILDERS = {"order": build_order, "close": build_close, "tpsl": build_tpsl, "modify": build_modify,
-            "cancel": build_cancel, "leverage": build_leverage, "margin": build_margin}
+            "cancel": build_cancel, "leverage": build_leverage, "margin": build_margin, "mandate": build_mandate}
 
 
 def _brief(order: dict) -> dict:
@@ -444,6 +456,8 @@ def effect(quote: dict) -> str:
     client (the venue's own app) may change the leverage between any read here and the venue's
     processing, so "lower than now" cannot be guaranteed. Anything unclear is increase."""
     action = quote["action"]
+    if quote["kind"] == "mandate" or not isinstance(action, dict):
+        return "increase"  # a mandate signs nothing at the venue, and is only ever made on its own card
     kind = action.get("type")
     spot = quote["market"]["spot"]
     if kind in ("cancel", "cancelByCloid"):
@@ -559,17 +573,20 @@ def op_quote(payload: dict) -> dict:
     user = address.lower()
     ctx = _ctx(payload, network)
     quote_id = "h" + random.token_hex(4)
-    mkt = None if kind in ("cancel", "modify") else market(ctx, payload.get("coin"))
+    mkt = None if kind in ("cancel", "modify", "mandate") else market(ctx, payload.get("coin"))
     built = BUILDERS[kind](ctx, payload, user, mkt, quote_id)
     mkt = built.pop("market", mkt)
     action = built.pop("action")
     now = time.time()
+    if kind == "mandate":
+        before = hl_mandate.current(state, secrets_, account, network, now)
+        built["replaces"] = before["id"] if before else None
     quote = {"id": quote_id, "created": now, "expires": now + QUOTE_TTL, "account": account, "source": source,
              "index": index, "network": network, "kind": kind, "from": address,
              "market": {k: (str(v) if isinstance(v, Decimal) else v) for k, v in mkt.items()},
              "action": action, "built": built, "from_party": secrets_.party(account)}
     quote["effect"] = effect(quote)
-    quote["card"], quote["card_short"] = cards(quote)
+    quote["card"], quote["card_short"] = hl_mandate.cards(quote) if kind == "mandate" else cards(quote)
     quote["mac"] = _mac(secrets_, quote)
     with ledger.locked(state):
         prune(state, now)
@@ -609,11 +626,20 @@ def _verified(state: Path, quote_id, secrets_, now: float) -> dict:
 def op_verify(payload: dict) -> dict:
     """What the hook decides on: the authentic quote, its effect as it reads now, its cards and MAC."""
     state = _state(payload)
-    quote = _verified(state, payload.get("quote"), signer.Secrets(payload), time.time())
+    secrets_ = signer.Secrets(payload)
+    now = time.time()
+    quote = _verified(state, payload.get("quote"), secrets_, now)
     # recomputed from the authenticated action, never taken from the stored verdict alone
     now_effect = "reduce" if quote["effect"] == "reduce" and effect(quote) == "reduce" else "increase"
-    return {"quote": quote["id"], "network": quote["network"], "kind": quote["kind"], "effect": now_effect,
-            "card": quote["card"], "card_short": quote["card_short"], "mac": quote["mac"]}
+    result = {"quote": quote["id"], "network": quote["network"], "kind": quote["kind"], "effect": now_effect,
+              "card": quote["card"], "card_short": quote["card_short"], "mac": quote["mac"]}
+    if now_effect == "increase" and quote["kind"] != "mandate":
+        mandate = hl_mandate.current(state, secrets_, quote["account"], quote["network"], now)
+        if mandate:
+            ctx = _ctx(payload, quote["network"])
+            fits, reason = hl_mandate.fits(ctx, state, quote, mandate, now, _reference(ctx, quote))
+            result["mandate"] = {"id": mandate["id"], "fits": fits, "reason": reason}
+    return result
 
 
 # --- submitting ---------------------------------------------------------------------------------
@@ -720,7 +746,7 @@ def _caps(state: Path, now: float, current: str) -> None:
 def op_submit(payload: dict) -> dict:
     state = _state(payload)
     approval = payload.get("approval")
-    if approval not in ("reduce", "card"):
+    if approval not in ("reduce", "card", "mandate"):
         raise ChainError("a submit needs the plugin's approval decision")
     with ledger.locked(state):
         secrets_ = signer.Secrets(payload)
@@ -728,11 +754,24 @@ def op_submit(payload: dict) -> dict:
         quote = _verified(state, payload.get("quote"), secrets_, now)
         if not hmac.compare_digest(str(payload.get("mac") or ""), quote["mac"]):
             raise ChainError("this is not the quote that was approved; nothing was sent")
+        if quote["kind"] == "mandate":
+            return _make_mandate(state, secrets_, quote, approval, now)
         ctx = _ctx(payload, quote["network"])
         current = "reduce" if quote["effect"] == "reduce" and effect(quote) == "reduce" else "increase"
         if approval == "reduce" and current != "reduce":
             raise ChainError("this action no longer reads as one that only lowers exposure, so it needs the "
                              "approval card; nothing was sent")
+        mandate_id = None
+        if approval == "mandate":
+            mandate = hl_mandate.current(state, secrets_, quote["account"], quote["network"], now)
+            if mandate is None:
+                raise ChainError("no mandate is in force for this account and network any more, so this needs "
+                                 "the approval card; nothing was sent")
+            fits, reason = hl_mandate.fits(ctx, state, quote, mandate, now, _reference(ctx, quote))
+            if not fits:
+                raise ChainError(f"this no longer fits the mandate ({reason}), so it needs the approval card; "
+                                 "nothing was sent")
+            mandate_id = mandate["id"]
         _caps(state, now, current)
         address, key = secrets_.signer(quote["account"], "evm")
         if address != quote["from"]:
@@ -743,16 +782,11 @@ def op_submit(payload: dict) -> dict:
         signature = hl_sign.sign_l1(key, quote["action"], nonce, mainnet, None, expires)
         if hl_sign.recover_l1(quote["action"], signature, nonce, mainnet, None, expires) != address:
             raise ChainError("the signature does not recover to this account; nothing was sent")
-        quote["consumed"] = now
-        path = state / QUOTES / f"{quote['id']}.json"
-        tmp = path.with_suffix(".tmp")
-        tmp.write_text(json.dumps(quote, ensure_ascii=False), encoding="utf-8")
-        os.chmod(tmp, 0o600)
-        tmp.replace(path)
+        _consume(state, quote, now)
         row = {"time": now, "attempt": random.token_hex(8), "quote": quote["id"], "account": quote["account"],
                "network": quote["network"], "kind": quote["kind"], "coin": quote["market"]["coin"],
                "effect": current, "approval": approval, "nonce": nonce, "cloids": quote["built"].get("cloids", []),
-               "outcome": "unknown"}
+               **({"mandate": mandate_id} if mandate_id else {}), "outcome": "unknown"}
         ledger.append(state, row, LEDGER)
         # from here the action may have reached the venue: only its explicit refusal is an error, and
         # nothing else may turn the reply into one (the ledger keeps "unknown", which counts)
@@ -773,12 +807,68 @@ def op_submit(payload: dict) -> dict:
         except Exception:
             pass  # the venue's answer is known; it is reported even if the ledger cannot take it
     result = {"submitted": outcome == "sent", "network": quote["network"], "kind": quote["kind"],
-              "coin": quote["market"]["coin"], "statuses": legs, "cloids": row["cloids"]}
+              "coin": quote["market"]["coin"], "statuses": legs, "cloids": row["cloids"],
+              **({"under_mandate": mandate_id} if mandate_id else {})}
     if outcome == "rejected":
         result["note"] = "the venue refused every leg: nothing changed; read the errors before a new quote"
     elif any(leg["status"] == "error" for leg in legs):
         result["note"] = "some legs were refused (see statuses); the others stand"
     return result
+
+
+def _consume(state: Path, quote: dict, now: float) -> None:
+    quote["consumed"] = now
+    path = state / QUOTES / f"{quote['id']}.json"
+    tmp = path.with_suffix(".tmp")
+    tmp.write_text(json.dumps(quote, ensure_ascii=False), encoding="utf-8")
+    os.chmod(tmp, 0o600)
+    tmp.replace(path)
+
+
+def _reference(ctx: hl.Ctx, quote: dict) -> Decimal | None:
+    """The market's price now, the higher of mid and mark, or None when it cannot be read."""
+    try:
+        mkt = market(ctx, quote["market"]["coin"])
+    except (ChainError, KeyError):
+        return None
+    prices = [p for p in (mkt.get("mid"), mkt.get("mark")) if p]
+    return max(prices) if prices else None
+
+
+def _make_mandate(state: Path, secrets_, quote: dict, approval: str, now: float) -> dict:
+    """An approved mandate quote: stored and made the account's mandate on its network. Only the card
+    makes one — never a mandate (a mandate cannot widen itself), never a reduce. Under the lock."""
+    if approval != "card":
+        raise ChainError("a mandate is made only on its own approval card; nothing was made")
+    mandate = hl_mandate.create(state, secrets_, quote, now)  # checks first, writes only when all hold
+    _consume(state, quote, now)
+    ledger.append(state, {"time": now, "attempt": random.token_hex(8), "quote": quote["id"],
+                          "account": quote["account"], "network": quote["network"], "kind": "mandate",
+                          "effect": "increase", "approval": approval, "mandate": mandate["id"], "outcome": "made"},
+                  LEDGER)
+    return {"mandate": mandate["id"], "made": True, "network": quote["network"], "account": quote["account"],
+            "replaced": quote["built"].get("replaces"), "markets": mandate["markets"],
+            "until": datetime.fromtimestamp(mandate["expires"]).astimezone().isoformat(timespec="minutes"),
+            "note": "orders inside these bounds now run without a card, in cron too; revoke_mandate ends it at once"}
+
+
+def op_mandates(payload: dict) -> dict:
+    state = _state(payload)
+    network = payload.get("network")
+    if network is not None:
+        _network(network)
+    rows = hl_mandate.listing(state, signer.Secrets(payload), time.time(), payload.get("account"), network)
+    return {"mandates": rows, "note": "active ones approve orders inside their bounds without a card; "
+                                      "revoke_mandate ends one at once"}
+
+
+def op_revoke(payload: dict) -> dict:
+    state = _state(payload)
+    with ledger.locked(state):
+        standing = hl_mandate.revoke(state, signer.Secrets(payload), payload.get("mandate"), time.time())
+    note = "from now on every order that can add exposure asks on its card again" if standing == "revoked" else \
+        "this mandate was not in force; nothing changed"
+    return {"mandate": payload.get("mandate"), "standing": standing, "note": note}
 
 
 def _unknown(ctx: hl.Ctx, user: str, quote: dict, row: dict, reason: str) -> dict:
@@ -800,7 +890,7 @@ def _look_up(ctx: hl.Ctx, user: str, cloids: list[str]) -> list[dict]:
     return found
 
 
-OPS = {"quote": op_quote, "verify": op_verify, "submit": op_submit}
+OPS = {"quote": op_quote, "verify": op_verify, "submit": op_submit, "mandates": op_mandates, "revoke": op_revoke}
 
 
 def run(payload: dict) -> dict:
