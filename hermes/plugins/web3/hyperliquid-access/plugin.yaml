@@ -1,0 +1,4 @@
+name: hyperliquid-access
+version: 1.0.0
+description: Hyperliquid through one hyperliquid tool — perp and spot markets, candles, funding, order books, any account's positions, fills and orders, trade reviews and dataset exports for four profiles.
+kind: standalone
