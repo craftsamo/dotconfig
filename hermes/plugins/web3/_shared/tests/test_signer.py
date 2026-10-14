@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import html
 from http.server import BaseHTTPRequestHandler, HTTPServer
 import json
 from pathlib import Path
@@ -60,6 +61,9 @@ DEV_USDC = "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU"
 TOKEN = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
 
 NFT = "0x7777777777777777777777777777777777777777"  # an NFT collection
+HL_BRIDGE = "0x08cfc1B6b2dCF36A1480b99353A354AA8AC56f89"  # Hyperliquid's testnet deposit bridge (Arbitrum Sepolia)
+HL_USDC2 = "0x1baAbB04529D43a73232B713C0FE471f7c7334d5"   # the USDC it credits there
+HL_BRIDGE_MAINNET = "0x2df1c51e09aecf9cacb7bc98cb1742757f163df7"
 SOL_NFT = "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB"  # stands in for a plain Solana NFT's mint on devnet
 
 FAKE = {"broadcast": "ok", "sent": [], "token_ata_exists": False, "symbol": "USDC", "landed": "success",
@@ -81,7 +85,7 @@ def handle(method: str, params: list):
     if method == "eth_getBalance":
         return hex(10 ** 18), None
     if method == "eth_getCode":
-        return ("0x6080604052" if params[0].lower() in (USDC.lower(), NFT) else "0x"), None
+        return ("0x6080604052" if params[0].lower() in (USDC.lower(), NFT, HL_USDC2.lower()) else "0x"), None
     if method == "eth_call":
         data = params[0].get("data", "")
         to = params[0].get("to", "").lower()
@@ -887,6 +891,56 @@ def test_a_long_token_id_stays_whole_on_the_card_and_its_ends_on_discord(tmp_pat
     assert compact_units(short) <= 290 and compact_units(data["card"]) <= 480
     assert f": {work0}" in short and f": {STRANGER}" in short and token_id[-18:] in short and token_id[:6] in short
     assert f"Token ID: {token_id}" in data["card"]  # the detailed card keeps the whole id
+
+
+def test_a_hyperliquid_deposit_is_native_usdc_of_five_or_more_on_its_own_chain(tmp_path, endpoint):
+    data = quote(tmp_path, endpoint, chain="arbitrum-sepolia", to=HL_BRIDGE, token=HL_USDC2, amount="10")
+    assert data["own"] is False and "Hyperliquid deposit bridge (legacy)" in data["summary"]["label"]
+    assert "Is: Hyperliquid deposit bridge (legacy): credits the sender's Hyperliquid testnet account" in data["card"]
+    short = json.loads(quote_file(tmp_path, data["quote"]).read_text())["card_short"]
+    assert "To (external, HL bridge)" in short
+    assert len(html.escape(short).encode("utf-16-le")) // 2 <= 290
+    cases = [
+        ({"amount": "4.99"}, "5 USDC or more"),
+        ({"token": None}, "credits only native USDC"),
+        ({"token": USDC}, "credits only native USDC"),
+        ({"chain": "sepolia"}, "deposit bridge on Arbitrum Sepolia"),
+        ({"to": HL_BRIDGE_MAINNET}, "deposit bridge on Arbitrum One"),
+    ]
+    for fields, message in cases:
+        args = {"account": f"{MAIN}#0", "chain": "arbitrum-sepolia", "to": HL_BRIDGE, "token": HL_USDC2,
+                "amount": "10", **fields}
+        reply = signer(tmp_path, endpoint, "quote", **{k: v for k, v in args.items() if v is not None})
+        assert reply["ok"] is False and message in reply["error"], (fields, reply)
+    FAKE["nft"] = "721"
+    reply = nft(tmp_path, endpoint, token_id="1", to=HL_BRIDGE)
+    assert reply["ok"] is False and "NFT sent to it is lost" in reply["error"]
+
+
+CARD_PROBE = r"""
+import json, sys
+sys.path.insert(0, sys.argv[1])
+import signer
+quote = json.loads(sys.stdin.read())
+short = signer.card_short(quote)
+print(json.dumps({"short": short, "units": signer.card_units(short), "budget": signer.SHORT_BUDGET}))
+"""
+
+
+def test_a_compact_card_over_budget_sheds_context_never_an_address(tmp_path):
+    quote = {"chain": "arbitrum", "asset": "0xaf88d065e77c8cc2239327c5edb3a432268e5831", "kind": "transfer",
+             "amount": "10000", "symbol": "USDC", "usd": 10000.0, "own": False, "to_party": None,
+             "asset_address": "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+             "account": "projectx/operations-desk/HERMES_TREASURY#0", "from": OPS, "to": HL_BRIDGE_MAINNET,
+             "label": "Hyperliquid deposit bridge", "max_fee": "0.00018", "id": "q0000000a"}
+    proc = subprocess.run([str(PYTHON), "-c", CARD_PROBE, str(SIGNER.parent)], input=json.dumps(quote),
+                          capture_output=True, text=True, timeout=60,
+                          env={"HOME": str(tmp_path), "PATH": "/usr/bin:/bin", "PYTHONDONTWRITEBYTECODE": "1"})
+    assert proc.returncode == 0, proc.stderr
+    found = json.loads(proc.stdout)
+    short = found["short"]
+    assert found["units"] <= found["budget"], short
+    assert OPS in short and HL_BRIDGE_MAINNET in short and "HL bridge" in short and "0xaf88d065" in short
 
 
 def test_an_nft_to_an_own_wallet_runs_without_a_card(tmp_path, endpoint):
