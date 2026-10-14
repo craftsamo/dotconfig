@@ -8,8 +8,9 @@ in the Keychain. Read it when changing the read engine, the signer or the
 approval path. The approval and bypass-guard rules follow
 [access-common.md](access-common.md). Part of the Hermes design docs — index:
 [`PROFILES.md`](../PROFILES.md). The third plugin of the group,
-`hyperliquid-access`, shares this engine bridge, A2A rule and guard; its own
-contract is [hyperliquid.md](hyperliquid.md).
+`hyperliquid-access`, shares this engine bridge, A2A rule, approval record and
+guard, and its trader reads the same Hermes wallets through the signer; its
+own contract is [hyperliquid.md](hyperliquid.md).
 
 ## Shape
 
@@ -280,7 +281,9 @@ file-tool calls are blocked when their text runs `secret get` / `env` / `set` /
 or overwritten seed is lost funds), runs `dump-keychain` or a chain CLI that
 signs or sends (`cast send`, `solana transfer`, `spl-token transfer`: a keypair
 on disk is not in the Keychain), or names the signer, `web3.sh`, the engine
-venv, the wallet's state directory or the `web3-rpc` scope. Researcher, Searcher
+venv, the wallet's state directory or the `web3-rpc` scope, imports or runs an
+engine module by name, or uses the shared code directory (reading its source
+with `read_file` excepted). Researcher, Searcher
 and Marketer, which have no wallet, block only the read engine's paths and the
 RPC keys. Patterns: `plugins/web3/_shared/guard.py`. Like the other access
 plugins this is a pattern match on the call's text, not a sandbox
