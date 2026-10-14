@@ -13,7 +13,7 @@ Part of the Hermes mechanics docs — entry: [`README.md`](../../README.md).
 new plugin needs no re-`install.sh` — only `plugins.enabled` (and any toolset)
 in the relevant `config.yaml`. After a plugin enablement change the multiplex
 gateway needs one normal drained restart (`/restart` or
-`gateway-launchctl.sh install`); never launch a second gateway.
+`gateway-launchctl.sh restart`); never launch a second gateway.
 
 Each plugin's `plugin.yaml` `description:` says what it is; its design is in the
 matching `docs/*.md` (index: [`../../PROFILES.md`](../../PROFILES.md)). Plugin
