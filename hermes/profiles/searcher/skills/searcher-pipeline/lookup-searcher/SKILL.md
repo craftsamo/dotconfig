@@ -24,8 +24,9 @@ reference in current context, not a past load or summary. Direct entry requires
 [Plan](../references/plan.md) or [Build](../references/build.md). Retrieval on a service also requires its
 shared reference: [X](../references/platforms/x.md),
 [YouTube](../references/platforms/youtube.md), [note](../references/platforms/note.md),
-[Substack](../references/platforms/substack.md), [EVM](../references/platforms/evm.md) or
-[Solana](../references/platforms/solana.md). A technic the brief names or
+[Substack](../references/platforms/substack.md), [EVM](../references/platforms/evm.md),
+[Solana](../references/platforms/solana.md) or
+[Hyperliquid](../references/platforms/hyperliquid.md). A technic the brief names or
 [Capabilities](../references/capabilities.md) matches is loaded too with
 `skill_view(name="<technic>")`; it adds to this mode and never replaces it.
 If unchanged is returned while the earlier body is unavailable, or a body is

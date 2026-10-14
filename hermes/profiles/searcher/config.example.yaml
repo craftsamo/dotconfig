@@ -26,6 +26,7 @@ toolsets:
   - memory
   - evm_access
   - solana_access
+  - hyperliquid_access
 max_concurrent_sessions:
 agent:
   system_prompt: |
@@ -616,6 +617,7 @@ platform_toolsets:
     - connections
     - evm_access
     - file
+    - hyperliquid_access
     - memory
     - no_mcp
     - note_access
@@ -640,3 +642,4 @@ plugins:
     - youtube-access
     - evm-access
     - solana-access
+    - hyperliquid-access
