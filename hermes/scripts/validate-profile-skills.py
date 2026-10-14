@@ -838,8 +838,9 @@ def validate_worker(
 STAGES = ("plan", "build")
 STAGE_SECTIONS = ("## Output template", "## Verification", "## Handoff")
 MODE_SECTIONS = ("## Plan", "## Build", "## Output template", "## Verification", "## Handoff")
-# One shared reference per chain the evm and solana tools read, like Marketer's per-service ones.
-PLATFORMS = ("evm", "solana")
+# One shared reference per chain the evm and solana tools read, and one for the venue the hyperliquid
+# tool reads, like Marketer's per-service ones.
+PLATFORMS = ("evm", "solana", "hyperliquid")
 
 SEARCHER_MODES = ("lookup", "sweep", "hunt")
 SEARCHER_ENTRIES = tuple(f"{mode}-searcher" for mode in SEARCHER_MODES)

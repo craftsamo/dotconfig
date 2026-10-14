@@ -18,7 +18,7 @@ MODES = ("lookup", "sweep", "hunt")
 ENTRIES = tuple(f"{mode}-searcher" for mode in MODES)
 STAGES = ("plan", "build")
 SHARED = {f"references/{stage}.md" for stage in STAGES}
-SERVICES = ("x", "youtube", "note", "substack", "evm", "solana")
+SERVICES = ("x", "youtube", "note", "substack", "evm", "solana", "hyperliquid")
 PLATFORMS = {f"references/platforms/{p}.md" for p in SERVICES}
 CAPABILITIES = "references/capabilities.md"
 TECHNICS = {"public-footprint": "hunt", "primary-fact-pack": "lookup", "release-digest": "sweep"}
@@ -82,12 +82,12 @@ def test_profile_selection_contract_and_unchanged_tool_surface():
                  "exhaustive-hunt", "STATE:", "DECISION(", "card gate"):
         assert gone not in prompt
     social = {"x_access", "youtube_access", "note_access", "substack_access"}
-    chains = {"evm_access", "solana_access"}
+    chains = {"evm_access", "solana_access", "hyperliquid_access"}
     assert set(config["toolsets"]) == {"file", "web", "x_search", "skills", "memory"} | social | chains
     assert set(config["platform_toolsets"]["cli"]) == {
         "file", "web", "x_search", "skills", "memory", "no_mcp", "connections"} | social | chains
     assert {"x-access", "youtube-access", "note-access", "substack-access",
-            "evm-access", "solana-access"} <= set(config["plugins"]["enabled"])
+            "evm-access", "solana-access", "hyperliquid-access"} <= set(config["plugins"]["enabled"])
     assert "messaging" not in " ".join(config["toolsets"]) and not [t for t in config["toolsets"] if t.endswith("_account")]
     assert config["platform_toolsets"]["telegram"] == []
     assert config["platform_toolsets"]["discord"] == []
@@ -342,8 +342,8 @@ def test_mode_must_link_the_technic_capabilities(candidate, name):
     assert f"searcher entry does not link the technic capabilities: {name}" in errors
 
 
-def test_researcher_keeps_only_the_chain_references():
-    assert validator.PLATFORMS == ("evm", "solana")
+def test_researcher_keeps_only_the_chain_and_venue_references():
+    assert validator.PLATFORMS == ("evm", "solana", "hyperliquid")
     assert "platforms/x.md" not in validator.RESEARCHER_SHARED_REFERENCES
 
 
@@ -370,6 +370,16 @@ def test_chain_reads_are_retrieval_without_verdicts():
     prompt = " ".join(yaml.safe_load((HERMES / "profiles/searcher/config.example.yaml").read_text())
                       ["agent"]["system_prompt"].split())
     assert "the read-only evm and solana tools for on-chain facts" in prompt
+
+
+def test_venue_reads_are_retrieval_without_verdicts():
+    text = flat(PIPELINE / "references/platforms/hyperliquid.md")
+    for phrase in ("Reading is allowed and it never writes", "nothing is signed or sent", "`Open for researcher`",
+                   '`{"untrusted": …}`', "explorer link", "unsearched ground", "network and time",
+                   'skill_view(name="hyperliquid-access:hyperliquid")'):
+        assert phrase in text, phrase
+    assert "venue reads of the hyperliquid tool, which never trades" in flat(PIPELINE / "SKILL.md")
+    assert (HERMES / "plugins/web3/hyperliquid-access/skills/hyperliquid/SKILL.md").is_file()
 
 
 SKILLS_FOR_SERVICE = {"x": "x-access:x-twitter", "youtube": "youtube-access:youtube",

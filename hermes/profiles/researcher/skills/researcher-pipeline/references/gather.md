@@ -30,6 +30,11 @@ Virality != truth. A high search rank is not reliability.
   storage. Read the chain's shared reference ([EVM](platforms/evm.md),
   [Solana](platforms/solana.md)) before relying on them; a fund trail or a
   sweep over many addresses is bounded like any other gathering.
+- **Your own `hyperliquid` tool** — read-only venue evidence: perp and spot
+  markets, funding, candles, the book, and any account's positions, fills and
+  orders. Read its shared reference ([Hyperliquid](platforms/hyperliquid.md))
+  before relying on it; the endpoint is rate-limited, so a sweep over many
+  accounts or coins is bounded too.
 - **`delegate_task`** — quick parallel lookups you can wait out inside one
   run (a handful of URL fetches, a definition check).
 - **Heavy breadth beyond your runtime** (link harvesting, enumerations,
