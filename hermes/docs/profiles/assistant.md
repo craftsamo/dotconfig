@@ -117,6 +117,7 @@ in the plugin skills; the contract in the linked doc.
 | Substack                              | `substack_access`             | Marketer reads only                                                                                                     | [substack-access.md](../substack-access.md) |
 | YouTube                               | `youtube_access`              | Marketer reads only; non-API settings via Studio after a `clarify`                                                      | [youtube-access.md](../youtube-access.md)   |
 | EVM / Solana                          | `evm_access`, `solana_access` | reads shared with Researcher, Searcher, Marketer; wallet actions the Assistant's alone                                  | [web3.md](../web3.md)                       |
+| Hyperliquid                           | `hyperliquid_access`          | reads shared with Researcher, Searcher, Marketer                                                                        | [hyperliquid.md](../hyperliquid.md)         |
 
 Marketing work is the Assistant's to execute, with Marketer as its strategy
 advisor ([marketer.md](./marketer.md)): the marketing entries consult Marketer on
