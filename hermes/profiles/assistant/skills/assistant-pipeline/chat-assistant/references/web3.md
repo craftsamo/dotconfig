@@ -47,5 +47,7 @@ A Hermes wallet account's Hyperliquid account is its EVM address from the
   quote it when they say so. Tell the user to check the card and answer
   **once** for anything that can add exposure.
 - A job may close, cancel or protect a position (those run without a card)
-  only when the user asked for exactly that job; never schedule one that
-  opens or adds to a position.
+  only when the user asked for exactly that job. A job that opens or adds to
+  positions needs a mandate the user approved for it on its card (the trade
+  skill's "Mandates"); without one, never schedule it. Revoke a mandate the
+  moment the user asks.

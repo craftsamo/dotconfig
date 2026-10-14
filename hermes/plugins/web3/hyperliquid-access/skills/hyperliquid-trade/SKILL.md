@@ -1,7 +1,7 @@
 ---
 name: hyperliquid-trade
-description: "Use to trade on Hyperliquid from the user's Hermes wallets (perps and spot, mainnet or testnet): place, close, protect (TP/SL), modify or cancel orders, and set leverage or isolated margin — quote, then submit, with an approval card for anything that can add exposure."
-version: 1.0.0
+description: "Use to trade on Hyperliquid from the user's Hermes wallets (perps and spot, mainnet or testnet): place, close, protect (TP/SL), modify or cancel orders, set leverage or isolated margin, and make, list or revoke a mandate — quote, then submit, with an approval card for anything that can add exposure outside a mandate."
+version: 1.1.0
 author: CraftSamo
 license: MIT
 metadata:
@@ -47,9 +47,10 @@ first. This skill owns the two trade actions of the `hyperliquid` tool:
      the user present.
    - **`effect: increase`** — anything that can add exposure: every spot
      order and every leverage change included (the venue sets leverage
-     unconditionally, so even a cut asks). The user gets an approval card
-     with the exact order; tell them to check it and answer **once**. Denied,
-     or the card timed out: nothing was sent; quote again only if they ask.
+     unconditionally, so even a cut asks). Inside a mandate it runs at once
+     (below); otherwise the user gets an approval card with the exact order:
+     tell them to check it and answer **once**. Denied, or the card timed
+     out: nothing was sent; quote again only if they ask.
 4. Read the result's `statuses`, one per leg: `filled` (size and average
    price), `resting` (its `oid`: it waits on the book), `error` (the venue's
    reason: nothing happened for that leg). Report them as they are.
@@ -72,6 +73,32 @@ Market orders are limit orders at a worst price: an IOC that fills up to
 `slippage` beyond the mid and drops the rest, so a thin book can fill only
 part. TP/SL fire as market orders, at worst 10% beyond the trigger.
 
+## Mandates
+
+A mandate lets orders that can add exposure run without a card, inside
+bounds the user approves once. Make one only when the user asks for it in
+this conversation — for a job that trades on its own, say — never to save
+them a card.
+
+1. `quote` with `kind: mandate`, `account`, `network`, `markets` (perps,
+   like `["BTC", "ETH"]`), `max_order_usd`, `max_exposure_usd` (what the
+   account may hold in those markets, resting orders included),
+   `max_leverage`, `per_hour` (at most 30), `days` (at most 30) and a
+   one-line `purpose`. Ask for any bound the user has not given; never pick
+   generous ones for them.
+2. `submit` it: it always shows its own card, and the user answers
+   **once**. One account and network has one mandate; a new one replaces
+   the old, and its card says so.
+3. While it is in force, an `order`, `modify` or `leverage` that fits runs at
+   once, in cron too; the result names it as `under_mandate`. One that does
+   not fit asks on its card, or where nobody can answer is refused with the
+   reason — report it; never split an order to squeeze it in.
+
+`mandates` lists them with what each allows and its use this hour.
+`revoke_mandate` (`mandate`) ends one at once, without a card: do it as soon
+as the user asks, and offer it when they say a strategy is over. A mandate
+never covers spot, margin taken out, withdrawals or sends.
+
 ## When it goes wrong
 
 - `not submitted: …` — nothing was sent; report the reason.
@@ -81,15 +108,16 @@ part. TP/SL fire as market orders, at worst 10% beyond the trigger.
   `oid`) and `state`, tell the user what you see, and wait for them.
 - Some legs `error` and others not — the others stand; say which.
 - A quote expires after 15 minutes and is single-use: a new attempt is a new
-  quote, and for an increase a new card.
+  quote, and for an increase outside a mandate a new card.
 
 ## Limits
 
 At most 30 actions that can add exposure an hour, every account together
-(reduce actions are not held back by it). Increases are refused in cron, a
-single query or under yolo, and inbound A2A requests never trade. Never
-schedule a job meant to open positions; a job may only reduce (close,
-cancel, TP/SL) and only when the user asked for exactly that. There is no
+(reduce actions are not held back by it). Outside a mandate, increases are
+refused in cron, a single query or under yolo, and inbound A2A requests never
+trade. A job that opens positions needs a mandate the user approved for it,
+and runs only what fits; a job may reduce (close, cancel, TP/SL) whenever the
+user asked for exactly that job. Outside a mandate's own bounds there is no
 size limit beyond what the account holds: the account should only hold what
 the user is ready to lose. Liquidation follows the mark price and the
 maintenance margin, not the leverage you set.
