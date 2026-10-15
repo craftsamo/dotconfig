@@ -19,6 +19,7 @@ pytestmark = pytest.mark.skipif(not PYTHON.exists(), reason="web3 engine venv no
 
 USER = "0x" + "ab" * 20
 BUSY = "0x" + "cd" * 20   # more fills than one read returns
+UNIFIED = "0x" + "ef" * 20  # a unified account: one balance for spot and perp
 NOW = int(time.time() * 1000)
 HOUR = 3_600_000
 
@@ -120,6 +121,8 @@ def handle(body: dict):
         return {"status": "unknownOid"}
     if kind == "historicalOrders":
         return []
+    if kind == "userAbstraction":
+        return "unifiedAccount" if body["user"] == UNIFIED else "default"
     return None
 
 
@@ -225,6 +228,14 @@ def test_an_account_shows_positions_balances_and_orders(api, tmp_path):
     status = data({"action": "orders", "address": USER, "oid": "42"}, api, tmp_path)
     assert status["status"] == "open" and status["order"]["side"] == "sell"
     assert data({"action": "orders", "address": USER, "oid": 43}, api, tmp_path)["status"] == "unknown order"
+    assert state["mode"] == "default" and "unified" not in state["note"]
+
+
+def test_a_unified_account_says_its_balance_is_the_spot_one(api, tmp_path):
+    state = data({"action": "state", "address": UNIFIED}, api, tmp_path)
+    assert state["mode"] == "unifiedAccount" and "spot and perp share one balance" in state["note"]
+    balances = data({"action": "balances", "address": UNIFIED}, api, tmp_path)
+    assert balances["mode"] == "unifiedAccount" and "which balances shows" in balances["note"]
 
 
 def test_fills_read_the_newest_and_say_when_the_window_is_cut(api, tmp_path):

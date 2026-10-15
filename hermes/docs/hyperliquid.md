@@ -67,6 +67,11 @@ One `action` per call; the tool schema lists them: `dexs`, `markets`,
 - **`export` is a dataset, not a backtest**: columns and rows with a schema
   name and an exact window, at most 500 candles, inline in the result.
 - **Account reads return the explorer link** for the address on that network.
+- **`state` and `balances` report the account's mode** (`userAbstraction`).
+  A unified account (`unifiedAccount`, or `portfolioMargin`) keeps one
+  balance per asset for spot and every perp dex, held in the spot state, so
+  its perp `account_value` and `withdrawable` read 0 with funds in it; both
+  reads say so for such an account.
 - **Names from third parties.** Builder perp dexs and spot tokens are
   deployed by anyone: a name that is more than a short ticker, and every full
   name, arrives as `{"untrusted": …}`, and the tool description says it is
@@ -127,7 +132,8 @@ explicit `err`: the client order ids are looked up once and nothing is
 re-sent. An HTTP 4xx comes back before the venue processes anything (a
 malformed request, a rate limit) and is a refusal. The card names the venue's
 own id of a spot pair beside its tickers, and the compact card keeps every
-signed leg, dropping only context.
+signed leg, dropping only context. A quote that will ask on a card is refused
+when its compact card would not fit Discord's limit, rather than shown cut.
 
 ## Moving funds
 
@@ -139,6 +145,19 @@ of a named spot token from the spot balance, to a Hyperliquid address) and
 the balance it draws on, the amount's precision, a destination that is not
 the zero address, the sender itself or the deposit bridge, and a spot token
 named unambiguously (`NAME:tokenId` when deployers reuse a name).
+
+A unified account (its mode, as the reads report it) has one balance for spot
+and perp, and the venue refuses `spotSend` and `usdClassTransfer` from it. Its
+`send` is `sendAsset` from that balance (`sourceDex: "spot"`) to the
+destination's spot balance for a named token, or its default perp balance for
+USDC — where `spotSend` and `usdSend` would have credited it — and its card
+says so; its `withdraw` draws on the same balance, at quote time never above
+what the venue calls available after maintenance margin when it says; its
+`transfer` is refused, since
+there is nothing to move. `sendAsset`'s signatures match the SDK's own signing
+function; that the venue still accepts `withdraw3` from a unified account is
+unverified (a refusal moves nothing). USDC that a move does not name is the
+venue's own, spot token 0, found by its index: deployers can reuse the name.
 
 A move's effect is `own` when the funds stay in the user's Hermes wallets —
 a transfer, or a destination the secrets derive as own, exactly as for wallet
