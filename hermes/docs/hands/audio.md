@@ -32,7 +32,11 @@ only, never as a speech-asset bypass.
   unlimited takes: failed calls count, and packaging retries reuse raw audio.
 - `edit-speech`: transforms existing audio into a new bundle; no new synthesis.
   A stale timing sidecar fails rather than being reused.
-- `analyze-speech`: findings only, no deliverable file.
+- `analyze-speech`: findings only, no deliverable file. Optional
+  `prosody: yes` adds per-segment pitch and level with jump candidates:
+  measured over the ASR word intervals (music and a change of speaker move
+  them too), places for a person to listen, never a verdict on delivery. It
+  needs the numpy that faster_whisper brings and fails before ASR without it.
 
 `speech-media.py` never installs an engine or downloads weights inside a job.
 Subtitle times are estimated from ASR, not forced alignment. ASR is evidence,
