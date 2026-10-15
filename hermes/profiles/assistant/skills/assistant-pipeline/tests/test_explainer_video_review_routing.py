@@ -34,12 +34,23 @@ class ExplainerVideoReviewRouting(unittest.TestCase):
 
     def test_owners_and_transports(self):
         text = flat(TECHNIC / "SKILL.md")
-        for owner in ("`analyze-speech`", '`kind="work"`, at most five videos per conversation',
+        for owner in ("video-creator `analyze-explainer-video`", "Never do this check yourself or through `delegate_task`",
+                      "review.py import", "`analyze-speech`", '`kind="work"`, at most five videos per conversation',
                       "`analyze-card`", "`destination: youtube-thumb`",
                       "`technic: primary-fact-pack`", "`technic: claim-check`, through Creator",
                       "`write-document`, format `report`"):
             self.assertIn(owner, text)
         self.assertNotIn('analyze-speech` with `kind="inquiry"', text)
+
+    def test_the_picture_leaf_is_commissioned_and_bounded(self):
+        commission = flat(ROOT / "execute-assistant-creative/references/explainer-video.md")
+        self.assertIn("`analyze-explainer-video`", commission)
+        self.assertIn('kind="work")`, one conversation per video', commission)
+        self.assertIn("`remote_analysis` defaults to no", commission)
+        leaf = flat(PUBLIC_ROOT / "hermes/profiles/video-creator/skills/video-creator-pipeline/analyze/explainer-video/SKILL.md")
+        for boundary in ("Never say whether a portrait looks like a real person", "List them; do not judge them",
+                         "Text heights come from `measure`", "No thumbnail review"):
+            self.assertIn(boundary, leaf)
 
     def test_requester_format_only_on_user_instruction(self):
         text = flat(TECHNIC / "SKILL.md")
@@ -49,7 +60,7 @@ class ExplainerVideoReviewRouting(unittest.TestCase):
 
     def test_judgments_stay_with_the_user(self):
         text = flat(TECHNIC / "SKILL.md")
-        self.assertIn("never likeness", text)
+        self.assertIn("| Listening, likeness, the final send | the user |", text)
         self.assertIn("leave the verdict to the user", text)
         self.assertIn("Nothing goes to the requester without the user's explicit OK", text)
 
