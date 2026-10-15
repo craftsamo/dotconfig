@@ -58,7 +58,9 @@ signed or sent, and any account can be read by its address.
 - `state` covers perp positions on one dex; spot holdings are in `balances`,
   and a builder dex's positions need its `dex`. `liquidation` depends on the
   mark price and the maintenance margin, and moves with the account's other
-  cross positions.
+  cross positions. Both report the account's `mode`: a unified account
+  (`unifiedAccount`, `portfolioMargin`) keeps one balance for spot and perp in
+  `balances`, so its `state` reads `account_value` 0 with funds in it.
 - `review` is a heuristic. Its `findings` (fee drag, concentration, losses
   against the trend) are leads, not verdicts: it sees fills, not intent,
   order placement or slippage. For deeper review, start with `review` to find

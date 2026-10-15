@@ -67,6 +67,11 @@ One `action` per call; the tool schema lists them: `dexs`, `markets`,
 - **`export` is a dataset, not a backtest**: columns and rows with a schema
   name and an exact window, at most 500 candles, inline in the result.
 - **Account reads return the explorer link** for the address on that network.
+- **`state` and `balances` report the account's mode** (`userAbstraction`).
+  A unified account (`unifiedAccount`, or `portfolioMargin`) keeps one
+  balance per asset for spot and every perp dex, held in the spot state, so
+  its perp `account_value` and `withdrawable` read 0 with funds in it; both
+  reads say so for such an account.
 - **Names from third parties.** Builder perp dexs and spot tokens are
   deployed by anyone: a name that is more than a short ticker, and every full
   name, arrives as `{"untrusted": …}`, and the tool description says it is
