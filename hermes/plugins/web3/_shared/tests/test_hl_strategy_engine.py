@@ -21,6 +21,7 @@ pytestmark = pytest.mark.skipif(not PYTHON.exists(), reason="web3 engine venv no
 
 HOUR = 3_600_000
 H4 = 4 * HOUR
+STEPS = {"4h": H4, "1d": 24 * HOUR}
 NOW = 1_790_000_000_000 - 1_790_000_000_000 % H4 + HOUR  # an hour into a forming 4h bar
 USER = "0x" + "ab" * 20
 
@@ -54,9 +55,9 @@ def reset():
         "positions": [], "orders": [], "leverage": 20, "equity": "1000"})
 
 
-def candle(t: int) -> dict:
+def candle(t: int, step: int = H4) -> dict:
     b = generated(t)
-    return {"t": t, "T": t + H4 - 1, "o": str(b["o"]), "h": str(b["h"]), "l": str(b["l"]), "c": str(b["c"]),
+    return {"t": t, "T": t + step - 1, "o": str(b["o"]), "h": str(b["h"]), "l": str(b["l"]), "c": str(b["c"]),
             "v": "1", "n": 1}
 
 
@@ -66,9 +67,10 @@ def handle(body: dict):
         req = body["req"]
         start, end = req["startTime"], req["endTime"]
         if req["coin"] == "UP":
-            first = max(start - start % H4, NOW - 5000 * H4)
-            return [candle(t) for t in range(first, end + 1, H4)
-                    if t >= start and t >= NOW - NOW % H4 - 5000 * H4][:5000]
+            step = STEPS[req["interval"]]  # a young venue: 5000 4h bars of history, fewer daily ones
+            since = NOW - NOW % step - (5000 * H4) // step * step
+            first = max(start - start % step, since)
+            return [candle(t, step) for t in range(first, end + 1, step) if t >= start][:5000]
         rows = STATE["bars"].get(req["coin"], [])
         return [{k: (str(v) if k != "t" else v) for k, v in r.items()} for r in rows if start <= r["t"] <= end]
     if kind == "fundingHistory":
@@ -101,16 +103,19 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):  # Binance's public klines
         url = urlparse(self.path)
         query = {k: v[0] for k, v in parse_qs(url.query).items()}
-        if url.path != "/api/v3/klines" or query.get("symbol") != "UPUSDT":
+        start = int(query.get("startTime", -1))
+        # Binance answers 400 to an unknown symbol and to a negative startTime alike
+        if url.path != "/api/v3/klines" or query.get("symbol") != "UPUSDT" or start < 0:
             self.send_response(400)
             self.end_headers()
             return
-        start, end, limit = int(query["startTime"]), int(query["endTime"]), int(query["limit"])
-        first = max(start + (-start) % H4, NOW - 9000 * H4)
+        end, limit = int(query["endTime"]), int(query["limit"])
+        step = STEPS[query["interval"]]
+        first = max(start + (-start) % step, NOW - 9000 * step)
         rows = []
-        for t in range(first, end + 1, H4):
+        for t in range(first, end + 1, step):
             b = generated(t)
-            rows.append([t, str(b["o"]), str(b["h"]), str(b["l"]), str(b["c"]), "1", t + H4 - 1])
+            rows.append([t, str(b["o"]), str(b["h"]), str(b["l"]), str(b["c"]), "1", t + step - 1])
             if len(rows) == limit:
                 break
         self.reply(rows)
@@ -181,6 +186,15 @@ def test_long_history_adds_older_binance_prices_and_walk_forward_reports_unseen_
     assert data["data"]["bars"] > 8000 and any("took the mean rate" in u for u in data["unread"])
     folds = data["walk_forward"]["folds"]
     assert len(folds) == 3 and all(f["train"]["end"] < f["test"]["start"] for f in folds)
+
+
+def test_daily_long_history_starts_where_the_exchange_does_not_before_the_epoch(api, tmp_path):
+    reply = backtest({"interval": "1d", "long_history": True}, api, tmp_path)
+    assert reply["ok"], reply
+    data = reply["data"]
+    sources = data["data"]["sources"]
+    assert sources[0]["source"].startswith("Binance spot UPUSDT") and sources[0]["start"] >= "2017-07-14"
+    assert not any("has no UPUSDT" in u for u in data.get("unread", []))
 
 
 def test_a_backtest_refuses_what_it_cannot_trade(api, tmp_path):

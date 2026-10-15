@@ -59,7 +59,8 @@ default when a stance does not hold, with a note saying why.
    2/3), for each market. Judge by `walk_forward.out_of_sample`, never by
    `result` alone: return, CAGR, maximum drawdown, MAR, trades, fees. Compare
    with buy-and-hold for scale, and say what `unread` says (assumed funding,
-   older prices from Binance spot).
+   older prices from Binance spot). Run the markets one after another: a
+   backtest reads many pages, and several at once hit the venue's rate limit.
 3. Propose one or two variants per the folds' choices; the user picks. Then
    run a plain `backtest` (no `walk_forward`) of each chosen rule set exactly
    as it will run: its `fingerprint` is what the spec records. A judgment the
