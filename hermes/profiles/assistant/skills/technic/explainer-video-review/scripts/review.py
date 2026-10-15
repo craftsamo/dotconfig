@@ -6,8 +6,9 @@ review sheet and the acceptance check of the written report are derived from
 it, so nothing is copied by hand.
 
     review.py script   <captions.txt> <out.txt>       strip "[m:ss] " prefixes
-    review.py frames   <video> <outdir> [--fps N]     1 fps stills for a picture check
     review.py validate <ledger.json> [--final]        schema; --final also refuses open findings
+    review.py import   <ledger.json> <episode> <findings.md> --source NAME
+                                                      add a hands report's `m:ss | aspect | ... ` lines
     review.py listen   <ledger.json> [--terms FILE]   add ear-check candidates from each caption file
     review.py sheet    <ledger.json> <out.md>         the user's review sheet
     review.py check    <ledger.json> <report>         does the report carry every kept finding?
@@ -50,8 +51,6 @@ import contextlib
 import json
 import os
 import re
-import shutil
-import subprocess
 import sys
 import tempfile
 import unicodedata
@@ -256,24 +255,79 @@ def cmd_script(args) -> int:
     return 0
 
 
-def cmd_frames(args) -> int:
-    ffmpeg = shutil.which("ffmpeg")
-    if not ffmpeg:
-        fail("ffmpeg not found")
-    out = Path(args.outdir)
-    out.mkdir(parents=True, exist_ok=True)
-    existing = sorted(out.glob("s*.png"))
-    if existing:
-        print(json.dumps({"ok": True, "frames": len(existing), "reused": True, "outdir": str(out)}))
-        return 0
-    command = [ffmpeg, "-nostdin", "-y", "-loglevel", "error", "-i", args.video,
-               "-vf", f"fps={args.fps}", "-start_number", "0", str(out / "s%03d.png")]
-    result = subprocess.run(command, capture_output=True, text=True)
-    if result.returncode != 0:
-        fail(result.stderr.strip() or "ffmpeg failed")
-    count = len(list(out.glob("s*.png")))
-    print(json.dumps({"ok": True, "frames": count, "reused": False, "outdir": str(out)}))
-    return 0
+# Quotation marks a hands report may put around verbatim on-screen words, in
+# whatever language the video uses; each pair's inner text becomes a quote the
+# written report must keep. Add a pair here for another writing system.
+QUOTE_PAIRS = (("\"", "\""), ("“", "”"), ("„", "“"), ("«", "»"), ("「", "」"), ("『", "』"))
+QUOTE = re.compile("|".join(
+    f"{re.escape(open_)}([^{re.escape(open_ + close)}\\n]+){re.escape(close)}" for open_, close in QUOTE_PAIRS
+))
+
+
+def quotes_in(text: str) -> list[str]:
+    return [next(group for group in match.groups() if group) for match in QUOTE.finditer(text)]
+
+
+# A blank/separator row, or a header row whose second cell names the aspect column.
+HEADER_OR_RULE = re.compile(r"^[\s|:\-]*$|^\|?[^|]*\|\s*aspect\s*\|", re.I)
+
+
+def report_rows(path: str, base: str | None = None) -> tuple[list[dict], list[str]]:
+    """``m:ss | aspect | problem | evidence | certain|confirm`` lines. Markdown
+    table pipes, a header and separator rows are ignored; a stray ``|`` inside
+    the problem is kept in it. Any other line that does not parse is returned
+    so the caller sees what was not imported."""
+    rows, skipped = [], []
+    for raw in Path(path).read_text(encoding="utf-8").splitlines():
+        line = raw.strip()
+        if "|" not in line or HEADER_OR_RULE.match(line):
+            continue
+        cells = [cell.strip() for cell in line.strip("|").split("|")]
+        if len(cells) < 5:
+            skipped.append(line)
+            continue
+        at, aspect = cells[0], cells[1].lower().strip(" .")
+        evidence, certainty = cells[-2], cells[-1].lower().strip(" .")
+        problem = " | ".join(cells[2:-2]).strip()
+        at = "" if at in ("", "-", "—") else at
+        if aspect not in ASPECTS or certainty not in CERTAINTIES or not problem or (at and not times_in(at)):
+            skipped.append(line)
+            continue
+        if base and evidence and not Path(evidence).is_absolute():
+            evidence = str(Path(base) / evidence)
+        rows.append({"at": at, "aspect": aspect, "problem": problem, "evidence": evidence,
+                     "certainty": certainty, "quotes": quotes_in(problem)})
+    return rows, skipped
+
+
+def cmd_import(args) -> int:
+    data = load(args.ledger)
+    errors = problems(data, final=False)
+    if errors:
+        fail("; ".join(errors))
+    if args.episode not in {e["label"] for e in data["episodes"]} | {ALL}:
+        fail(f"unknown episode {args.episode!r}")
+    if args.source not in SOURCES:
+        fail(f"source must be one of {', '.join(SOURCES)}")
+    base = args.base if args.base is not None else str(Path(args.findings).resolve().parent)
+    rows, skipped = report_rows(args.findings, base)
+    numbers = [int(m.group(1)) for f in data["findings"] if (m := re.fullmatch(r"F(\d+)", str(f.get("id"))))]
+    next_number = max(numbers, default=0) + 1
+    seen = {(f["episode"], f.get("at", ""), f["problem"]) for f in data["findings"]}
+    added = []
+    for row in rows:
+        key = (args.episode, row["at"], row["problem"])
+        if key in seen:
+            continue
+        seen.add(key)
+        fid = f"F{next_number:03d}"
+        next_number += 1
+        data["findings"].append({"id": fid, "episode": args.episode, **row,
+                                 "source": args.source, "status": "open"})
+        added.append(fid)
+    save(args.ledger, data)
+    print(json.dumps({"ok": not skipped, "added": added, "not_imported": skipped}, ensure_ascii=False))
+    return 0 if not skipped else 1
 
 
 def caption_lines(path: str) -> list[tuple[str, str]]:
@@ -491,11 +545,13 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("captions")
     p.add_argument("out")
     p.set_defaults(func=cmd_script)
-    p = sub.add_parser("frames")
-    p.add_argument("video")
-    p.add_argument("outdir")
-    p.add_argument("--fps", type=float, default=1.0)
-    p.set_defaults(func=cmd_frames)
+    p = sub.add_parser("import")
+    p.add_argument("ledger")
+    p.add_argument("episode")
+    p.add_argument("findings")
+    p.add_argument("--source", required=True)
+    p.add_argument("--base", help="directory relative evidence paths start from (default: the findings file's)")
+    p.set_defaults(func=cmd_import)
     p = sub.add_parser("validate")
     p.add_argument("ledger")
     p.add_argument("--final", action="store_true")

@@ -2,7 +2,7 @@
 name: video-creator-pipeline
 description: >-
   Root of video-creator's clip, MV, authored-UI-tour, ad, authored-explainer-video, authored-motion, story and finishing leaves. Load first for a filled form naming
-  generate-clip, edit-clip, analyze-clip, generate-music-video, create-tour, create-ad, analyze-ad, create-explainer-video, create-promotion, create-story or create-master, then load only that leaf.
+  generate-clip, edit-clip, analyze-clip, generate-music-video, create-tour, create-ad, analyze-ad, create-explainer-video, analyze-explainer-video, create-promotion, create-story or create-master, then load only that leaf.
   Not an interview, a video menu, or a generic movie-making workflow.
 version: 1.0.0
 author: CraftSamo
@@ -66,6 +66,9 @@ historical constraints, never a request to repeat its generation or spend.
    Analyze may omit `deliver`; its evidence stays in a fresh scratch dir.
    analyze-ad may retain its report/evidence at an explicit deliver path;
    it never produces a new ad. Use kind="work" for its bounded multi-pass review.
+   analyze-explainer-video likewise keeps findings.md, claims.md and evidence
+   under an explicit deliver path, reviews one video up to 600 s and never
+   produces or repairs one; it runs as kind="work".
    A2A's loopback IP is normal transport metadata, not a missing form field;
    the transport does not authenticate a profile name. Never ask the caller
    to prove its role by saying "I am the Assistant".

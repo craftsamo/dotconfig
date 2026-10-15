@@ -34,7 +34,7 @@ second commissioning contract.
 | Part | Owner | How |
 | --- | --- | --- |
 | Intake, fetch, staging, ledger, cross-episode checks, verification, review sheet, report acceptance | you | this technic and `scripts/review.py` |
-| On-screen text, picture, caption-vs-voice, portrait drawing defects | picture check (below) | one video per unit |
+| On-screen text, caption-vs-picture, overlaps, phone-size text, figure and portrait drawing defects, the claim list | video-creator `analyze-explainer-video` | one `kind="work"` conversation per video |
 | Speech: un-captioned speech, misread names, numbers and foreign-language terms | audio-creator `analyze-speech` | `kind="work"`, at most five videos per conversation |
 | Thumbnail legibility at use size | image-creator `analyze-card` | one thumbnail per `kind="inquiry"`, `destination: youtube-thumb` |
 | Factual claims, tier A | Searcher `lookup` with `technic: primary-fact-pack` | you judge each claim against the returned first-party facts |
@@ -72,12 +72,10 @@ conversation (`plan-assistant-research`).
 3. **Stage** one job directory under the owning Group's
    `.agent/<YYYYMMDD>-<job>/` with `<NN>/src/` per video. Copy each path the
    tool returned into it, one `cp` per file with literal paths; never work in
-   the download folder. Make the speech script from the captions and, for the
-   picture check, the stills, before dispatching:
+   the download folder. Make the speech script from the captions:
 
    ```sh
    python3 ${HERMES_SKILL_DIR}/scripts/review.py script <NN>/src/<id>.<lang>.txt <NN>/src/script.txt
-   python3 ${HERMES_SKILL_DIR}/scripts/review.py frames <NN>/src/<id>.mp4 <NN>/visual/f
    ```
 
    The caption file is what should be on screen; it is itself unchecked, so a
@@ -98,27 +96,21 @@ conversation (`plan-assistant-research`).
      speech stays unchecked and is named so on the sheet. An exit code 1 with
      `script_match FAIL` still produced findings: read its output before
      calling the run failed. ASR runs over music, so its output is candidates.
-   - Picture: one `delegate_task` child per video, never two, with the brief
-     in a file it reads and the stills already extracted. It looks at no more
-     than two images at once, writes `visual/findings.md` early and appends.
-     Checks: typos and missing glyphs, caption-vs-voice mismatch, text hidden
-     by an overlap, text too small for a phone (measured height), off-screen
-     text, and portrait drawing defects (name, title, year, a broken figure)
-     — never likeness. A label sitting on a character while every word stays
-     legible is staging, not a finding; keep an overlap only when it hides
-     text, a chart point or part of a figure. Re-sample a moving counter or
-     highlight at 0.3 s before calling it a mismatch. A flat-coloured limb
-     over same-coloured clothing is hidden, not missing. Each line is
-     `m:ss | aspect | problem | evidence | certain/confirm`, and the child
-     also lists every factual claim on screen or in the captions verbatim.
-     Its findings enter the ledger with `source: assistant`: the child is
-     yours, not a hands verdict.
+   - Picture: the [explainer-video](../../assistant-pipeline/execute-assistant-creative/references/explainer-video.md)
+     reference's `analyze-explainer-video`, one conversation per video, with
+     `source`, `captions`, `remote_analysis` (`no` unless consented) and
+     `focus` naming the aspects asked for, a portrait drawing check when
+     portraits are in scope, and the series' recurring defects. `deliver` is
+     the video's `<NN>/visual/`. Never do this check yourself or through
+     `delegate_task`: reading every still is the hands' work.
+     A video longer than 600 seconds is outside the leaf: its picture stays
+     unchecked and is named so on the sheet unless the user decides otherwise.
    - Thumbnail: the [card](../../assistant-pipeline/execute-assistant-creative/references/card.md)
      reference's `analyze-card` with `files` (the one thumbnail),
      `input_kind: single`, `destination: youtube-thumb`, `expected_text` when
      the intended title is known, and a note asking whether the thumbnail
      alone tells which topic it is at the reduced size.
-5. **Check the claims.** From the picture check's claim list, send tier A
+5. **Check the claims.** From each video's `claims.md`, send tier A
    first: one Searcher lookup per batch, `technic: primary-fact-pack`, the
    claims with figures, dates and ranks as the item list ([search
    plan](../../assistant-pipeline/plan-assistant-search/SKILL.md)). Judge each
@@ -129,13 +121,26 @@ conversation (`plan-assistant-research`).
    company's conduct or intent, got no first-party source or conflicting ones
    in tier A, or that the user marks. Record the tier in each finding's
    `source`.
-6. **Verify and enter the ledger.** Before a finding enters `ledger.json`,
-   open its cited frame or timestamp yourself; drop what you cannot
-   reproduce. For a numbered series, compare across episodes: a "last time"
+6. **Verify and enter the ledger.** Import each hands report's findings
+   instead of retyping them:
+
+   ```sh
+   python3 ${HERMES_SKILL_DIR}/scripts/review.py import ledger.json <label> <NN>/visual/review-<n>/findings.md --source video-creator
+   ```
+
+   It resolves evidence paths from the findings file's directory and exits 1
+   with every line it could not read under `not_imported`: enter those by
+   hand or ask the hands to restate them, never leave them out.
+   Enter speech, thumbnail and claim findings the same way when they come as
+   `m:ss | aspect | problem | evidence | certain|confirm` lines, otherwise by
+   editing `ledger.json`. Then open each finding's cited frame or crop
+   yourself; drop what you cannot reproduce (`status: drop`), and ask the
+   same hands conversation for a missing piece of evidence rather than
+   re-measuring. For a numbered series, compare across episodes: a "last time"
    reference must name the right episode, and a figure shown in several
    episodes (a price, a rank, a same-month value) must read the same in each.
-   Every entry starts `status: open`; `certainty: certain` only when you
-   reproduced it and no taste or listening is involved.
+   Every entry starts `status: open`; lower `certainty` to `confirm` when
+   you could not reproduce it exactly or it rests on taste or listening.
 7. **Build the review sheet** for the user and send it as a file:
 
    ```sh
@@ -187,9 +192,6 @@ conversation (`plan-assistant-research`).
 - The terminal guard rejects shell variables, brace expansion, loops and
   chained copies: call `review.py` and other scripts with literal absolute
   paths, `mkdir -p` as its own call, and put per-item lists in files.
-- Vision refuses a fourth load of the same file, crops included: render each
-  re-check as a new file instead of re-cropping one frame.
-- Measure text height by pixel row projection in a script, not by asking the
-  vision model for sizes.
-- Put contact-sheet time labels bottom-right: top-left hides header tabs that
-  are themselves checked.
+- Vision refuses a fourth load of the same file, crops included: when you
+  verify a finding, open the hands' own evidence file once, and for another
+  look ask the hands for a new crop rather than re-cropping one frame.
