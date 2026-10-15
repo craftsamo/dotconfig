@@ -8,7 +8,7 @@ Read [commissioning](../SKILL.md) first.
 | --- | --- | --- |
 | a house-voice or registered-character spoken line from an approved script (up to 600 characters), as narration or a voice message | `generate-speech` | free of provider cost, NOT free of an attempt allowance: 1 take + 1 corrective per script by default, counting every synthesis call including failures; house uses the language fallback chain, a qualified `<engine>:<voice>` id never falls back |
 | concatenation, boundary trim, speed, loudness normalization or format conversion of existing speech | `edit-speech` | free of generation; no resynthesis, no word changes, no voice conversion |
-| findings on an existing speech file against a destination format, with optional script readback | `analyze-speech` | free; measured and readback evidence only, never a listening verdict; deliver may be omitted |
+| findings on an existing speech file against a destination format, with optional script readback and optional `prosody: yes` (per-segment pitch/level with jump candidates) | `analyze-speech` | free; measured and readback evidence only, never a listening verdict; prosody candidates are places for the user to listen, not a judgement of delivery; deliver may be omitted |
 
 ## Choosing and filling
 

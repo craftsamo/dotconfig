@@ -238,6 +238,13 @@ class ReviewScript(unittest.TestCase):
         self.assertEqual(review.quotes_in("“a” „b“ «c» 「d」 『e』 \"f\""), ["a", "b", "c", "d", "e", "f"])
         self.assertEqual(review.quotes_in("it's a plain apostrophe"), [])
 
+    def test_import_leaves_a_non_path_evidence_word_alone(self):
+        findings = self.dir / "prosody.md"
+        findings.write_text("0:41 | voice | pitch +7.0 st (ASR: a sample line) | prosody | confirm\n", encoding="utf-8")
+        code, out, _ = self.run_cli("import", str(self.ledger), "#1", str(findings), "--source", "audio-creator")
+        self.assertEqual(code, 0, out)
+        self.assertEqual(self.data()["findings"][-1]["evidence"], "prosody")
+
     def test_import_refuses_an_unknown_episode_or_source(self):
         findings = self.dir / "findings.md"
         findings.write_text("0:01 | text | x | y | certain\n", encoding="utf-8")
