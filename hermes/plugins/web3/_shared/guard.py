@@ -28,8 +28,8 @@ _WALLET = re.compile(
     r"|hl_trader\.py|hl_sign\.py|(?<![\w-])hl-(quotes|nonce|mandates)(?![\w-])|hyperliquid(-testnet)?\.xyz/exchange"
     r"|hyperliquid-python-sdk|\bfrom\s+hyperliquid\b|\bimport\s+hyperliquid\b|\bhyperliquid\.(exchange|utils)\b"
     # the engine modules imported or run by name from another script: the same signer without its hook
-    r"|\b(import|from)\s+(hl_trader|hl_sign|hl_mandate|signer|keychain|seeds|ledger)\b|-m\s+(hl_trader|signer)\b"
-    r"|hl_mandate\.py"
+    r"|\b(import|from)\s+(hl_trader|hl_sign|hl_mandate|hl_moves|signer|keychain|seeds|ledger)\b"
+    r"|-m\s+(hl_trader|signer)\b|hl_mandate\.py|hl_moves\.py"
     r"|web3/_shared(?![\w-])",
     re.IGNORECASE)
 _SOURCE_READ = re.compile(r"plugins/web3/[\w./-]+\.(py|yaml|md)$")

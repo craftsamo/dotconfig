@@ -19,6 +19,7 @@ bridge, A2A rule, approval record and bypass guard) and the rules of
 | Trader: quotes, effects, cards, submits; reads the wallet's keys | `_shared/hl_trader.py`, over `signer.Secrets`, `ledger.py` and `hl_sign.py` |
 | Action building and signing, byte-compatible with the SDK        | `_shared/hl_sign.py` (`msgpack` in `engines/web3/requirements.lock`)        |
 | Mandates: terms, cards, storage, fitting                         | `_shared/hl_mandate.py`, used by the trader                                 |
+| Moves of funds: builders, signed types, card lines, notes        | `_shared/hl_moves.py`, one table entry per kind and per signed type         |
 | How a profile reads Hyperliquid; how the Assistant trades        | plugin skills `hyperliquid-access:hyperliquid`, `…:hyperliquid-trade`       |
 | How Researcher and Searcher weigh and record venue evidence      | each pipeline's `references/platforms/hyperliquid.md`                       |
 | What the Assistant does inline in Chat                           | the Assistant's Chat reference `web3.md`, section "Hyperliquid"             |
