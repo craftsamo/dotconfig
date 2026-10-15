@@ -56,8 +56,9 @@ Admiralty/SIFT source scoring, verbatim exact claims, durable claim ledgers,
 evidence gaps and Review gates remain; research self-check is neither caller
 acceptance, artifact-vs-brief craft QA nor the caller's final decision.
 
-Assistant reaches Researcher only through Creator or Marketer, its
-existing peers/session owners; no new direct peer. The consuming primary owns
+Assistant reaches Researcher only through an advisor — Creator, Marketer, or
+an advisor kept in the private overlay ([specialist-calls.md](./specialist-calls.md))
+— its existing peers/session owners; no new direct peer. The consuming primary owns
 the Researcher conversation and must relay the agreed baseline (questions, done
 criteria, source policy, budget and approved changes) with conclusions. A
 missing baseline stays unverified: Assistant requests it through that primary,
@@ -78,8 +79,9 @@ the accepted findings into the Researcher brief.
 Searcher's `searcher-pipeline` kernel (retrieval, release and the
 resident runtime) routes three mode entries, `lookup-searcher`,
 `sweep-searcher` and `hunt-searcher`, over the same shared Plan and Build
-stage references. Its clients are the Assistant, Creator and Marketer, each
-over a resident conversation it owns. Retrieval and link integrity remain its
+stage references. Its clients are the Assistant and the advisors (Creator,
+Marketer, and any the private overlay adds), each over a resident
+conversation it owns. Retrieval and link integrity remain its
 limits: no trust verdicts, synthesis, rankings or production. Beyond web
 search and `x_search`,
 it reads public X posts and named accounts' profiles, YouTube, note and

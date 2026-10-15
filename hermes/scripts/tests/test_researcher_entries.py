@@ -120,12 +120,13 @@ def test_breadth_goes_from_the_client_to_searcher(profile):
     pipeline = flat(HERMES / "profiles" / profile / f"skills/{profile}-pipeline/SKILL.md")
     assert "When Researcher reports that a question needs breadth, release that retrieval to Searcher" in pipeline
     gather = flat(TREE / "references/gather.md")
-    assert "releases to Searcher directly" in gather and "the creator or marketer client" in gather
+    assert "releases to Searcher directly" in gather
+    assert "the advisor client (creator, marketer or another)" in gather
     searcher = flat(HERMES / "profiles/searcher/skills/searcher-pipeline/SKILL.md")
-    assert "the Assistant, Creator or Marketer, whichever opened the conversation" in searcher
+    assert "the Assistant, Creator, Marketer or another advisor profile, whichever opened the conversation" in searcher
     prompt = " ".join(yaml.safe_load((HERMES / "profiles/searcher/config.example.yaml").read_text())
                       ["agent"]["system_prompt"].split())
-    assert "client (the Assistant, Creator or Marketer)" in prompt
+    assert "client (the Assistant, Creator, Marketer or another advisor profile)" in prompt
     if profile == "marketer":
         assert "within your existing grant" in pipeline and "never self-approved" in pipeline
     else:

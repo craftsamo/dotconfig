@@ -74,7 +74,9 @@ user keys.
 - **orchestration/specialist-call** gives the `specialist` toolset to assistant,
   creator and marketer. Enable `specialist-call` in `plugins.enabled`,
   `specialist` in the relevant `platform_toolsets` lists, and configure the
-  explicit `specialist_call.resident_targets` allowlist. Behavior:
+  explicit `specialist_call.resident_targets` allowlist. A profile kept in
+  the private overlay is added to the plugin's roster by the overlay's
+  `local_targets.json` link. Behavior:
   [`../profiles/specialist-calls.md`](../profiles/specialist-calls.md).
 - **orchestration/opencode** gives the assistant the OpenCode tools over the
   shared OpenCode service. Enable `opencode` in `plugins.enabled` and the

@@ -29,7 +29,7 @@ the shared stage references own the Plan and Build mechanics every mode runs.
 <Runtimes>
 
 **Resident session:** the counterpart is an orchestrating agent client
-(creator or marketer), not the end user. Ask batched `Q1:` / `Q2:`
+(creator, marketer or another advisor profile), not the end user. Ask batched `Q1:` / `Q2:`
 questions with 2-4 options and a recommendation in the reply, then wait on
 blocking choices. The caller owns session lifecycle and final acceptance;
 never carry unrelated jobs in one session. Deliver findings in the reply,

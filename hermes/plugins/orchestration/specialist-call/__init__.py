@@ -33,6 +33,50 @@ TARGETS = {
     "creator": {"researcher", "searcher"},
     "marketer": {"researcher", "searcher"},
 }
+# Callers and targets of profiles that exist only in a private overlay, which links this file in
+# (it is gitignored here): {"<caller>": ["<target>", …]}, added to TARGETS, never removing from it.
+# Like TARGETS it is read once, when the plugin loads, so neither a profile's config nor a later
+# write to this file changes what a running process allows: a change takes a gateway restart.
+LOCAL_TARGETS = Path(__file__).resolve().parent / "local_targets.json"
+_PROFILE_NAME = re.compile(r"[a-z][a-z0-9-]{0,39}")
+
+
+def _local_targets(path=None):
+    """The overlay's additions, or {} when there is none; a malformed file adds nothing."""
+    path = LOCAL_TARGETS if path is None else path
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):  # absent, unreadable or not JSON
+        return {}
+    if not isinstance(raw, dict):
+        return {}
+    added = {}
+    for caller, targets in raw.items():
+        if (not isinstance(caller, str) or not _PROFILE_NAME.fullmatch(caller) or caller == "default"
+                or not isinstance(targets, list)):
+            return {}
+        names = set()
+        for target in targets:
+            if (not isinstance(target, str) or not _PROFILE_NAME.fullmatch(target)
+                    or target in {caller, "default"}):
+                return {}
+            names.add(target)
+        added[caller] = names
+    return added
+
+
+def _roster(local):
+    merged = {caller: set(targets) for caller, targets in TARGETS.items()}
+    for caller, targets in local.items():
+        merged.setdefault(caller, set()).update(targets)
+    return merged
+
+
+ROSTER = _roster(_local_targets())
+
+
+def _targets():
+    return ROSTER
 RESIDENT = Path(__file__).resolve().parents[3] / "profiles/assistant/scripts/resident-session.sh"
 TURN_TIMEOUT = 5400
 BUSY = {"accepted", "running", "unknown"}
@@ -78,7 +122,7 @@ def _id(value):
 
 
 def _profile(home):
-    if home.parent.name != "profiles" or home.name not in TARGETS:
+    if home.parent.name != "profiles" or home.name not in _targets():
         raise ValueError("specialist tools are restricted to configured Client profiles")
     return home.name
 
@@ -175,7 +219,7 @@ def _wait_limit(home, requested=None):
 
 def _policy(home, target, backend=None, endpoint=None, tenant=""):
     profile = _profile(home)
-    if target not in TARGETS[profile]:
+    if target not in _targets()[profile]:
         raise ValueError("Target is not permitted for this caller")
     config = _config(home)
     allowed = (config.get("specialist_call") or {}).get("resident_targets", [])
@@ -1076,7 +1120,7 @@ def specialist_session(args, **kwargs):
 
 
 def register(ctx):
-    if ctx.profile_name not in TARGETS:
+    if ctx.profile_name not in _targets():
         return
     from hermes_constants import get_hermes_home
     identity = (ctx.profile_name, str(get_hermes_home().resolve()))
