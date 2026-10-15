@@ -20,6 +20,10 @@
     KeepAlive / ThrottleInterval / ExitTimeOut mirror Hermes' own generated plist:
     a clean exit (0) parks the job, exit 75 and crashes relaunch, at most every 30 s;
     60 s is the drain headroom the per-user launchd domain allows before SIGKILL.
+
+    ProcessType is Standard, not Background: children inherit the throttling, and a
+    turn's pre_tool_call hooks must finish inside Hermes' 30 s hook timeout (a web3
+    approval reads the Keychain there), or every tool of the profile is blocked.
   -->
   <key>Label</key>
   <string>ai.hermes.multiplex</string>
@@ -41,6 +45,6 @@
   <key>ExitTimeOut</key>
   <integer>60</integer>
   <key>ProcessType</key>
-  <string>Background</string>
+  <string>Standard</string>
 </dict>
 </plist>
