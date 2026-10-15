@@ -250,7 +250,8 @@ def test_a_revoke_quote_carries_its_kind_and_spender(monkeypatch, tmp_path):
                                   "state": str(tmp_path / "assistant" / "web3-wallet")}
     for family in ("evm", "solana"):
         props = access.schema_for(family, "assistant")["parameters"]["properties"]
-        assert props["kind"]["enum"] == ["transfer", "revoke", "nft"] and {"spender", "token_id"} <= set(props)
+        assert props["kind"]["enum"] == ["transfer", "revoke", "nft", "deposit"]
+        assert {"spender", "token_id", "dex"} <= set(props)
         assert "kind" not in access.schema_for(family, "researcher")["parameters"]["properties"]
 
 
@@ -263,6 +264,20 @@ def test_an_nft_to_an_own_wallet_runs_and_to_anyone_else_asks(monkeypatch, tmp_p
     tool("evm")({"action": "quote", "kind": "nft", "account": "hermes/HERMES_MAIN#0", "chain": "sepolia",
                  "token": "0xabc", "token_id": "7", "to": "0xdef"})
     assert seen[0]["payload"]["token_id"] == "7" and seen[0]["payload"]["kind"] == "nft"
+
+
+def test_a_deposit_into_an_own_hyperliquid_account_runs_and_into_another_asks(monkeypatch, tmp_path):
+    fake_engine(monkeypatch, verify={**VERIFIED, "kind": "deposit", "own": True})
+    assert gate(tool_name="evm", args=transfer()) is None and access._DECISIONS["q0000000a"][0] == "own"
+    fake_engine(monkeypatch, verify={**VERIFIED, "kind": "deposit"})
+    assert gate(tool_name="evm", args=transfer())["action"] == "approve"
+    monkeypatch.setattr(access, "_no_human", lambda: "this is a cron run")
+    blocked = gate(tool_name="evm", args=transfer())
+    assert blocked["action"] == "block" and "someone else's Hyperliquid account" in blocked["message"]
+    seen = fake_engine(monkeypatch)
+    tool("evm")({"action": "quote", "kind": "deposit", "account": "hermes/HERMES_MAIN#0", "chain": "sepolia",
+                 "amount": "10", "dex": "spot"})
+    assert seen[0]["payload"]["kind"] == "deposit" and seen[0]["payload"]["dex"] == "spot"
 
 
 def test_discord_gets_the_compact_card(monkeypatch):

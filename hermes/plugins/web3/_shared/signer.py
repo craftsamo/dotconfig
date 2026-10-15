@@ -49,6 +49,7 @@ import time
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 
+import cctp  # noqa: E402
 import chains  # noqa: E402
 import evm  # noqa: E402
 import fees  # noqa: E402
@@ -73,7 +74,7 @@ ATA_SPACE = {"TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA": 165, "TokenzQdBNbLqP
 SYSTEM = "11111111111111111111111111111111"
 ATA_PROGRAM = "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
 QUOTE_ID = re.compile(r"^q[0-9a-f]{8}$")
-KINDS = ("transfer", "revoke", "nft")  # what a quote does; a revoke always asks on its card
+KINDS = ("transfer", "revoke", "nft", "deposit")  # what a quote does; a revoke always asks on its card
 SYMBOL = re.compile(r"^[A-Za-z0-9.$_-]{1,12}$")
 MEMO_CLIP = 40
 L1_ORACLES = fees.L1_ORACLES  # chains.py "fee": an L1 fee on top of gas
@@ -433,8 +434,6 @@ def card(quote: dict, drop: tuple = ()) -> str:
               "", "--- To ---", _to_type(quote)]
     if quote.get("ens"):
         lines.append(f"ENS: {quote['ens']}")
-    if quote.get("label"):
-        lines.append(f"Is: {quote['label']}")
     lines += _party_lines(quote.get("to_party"), quote["to"], drop)
     return "\n".join(lines)
 
@@ -449,8 +448,6 @@ def card_short(quote: dict) -> str:
         lines.append(f"{_asset_label(quote)}: {quote['asset_address']}")
     lines.append(f"From {one_line(quote['account'], 40)}: {quote['from']}")
     whose = "own" if quote["own"] else ("watch-only" if quote.get("to_party") else "external")
-    if quote.get("label"):
-        whose += ", HL bridge"
     lines.append(f"To ({whose}): {quote['to']}")
     lines.append(f"Fee ≤ {quote['max_fee']} {info['symbol']} · {quote['id']}")
     text = "\n".join(lines)
@@ -508,13 +505,61 @@ def revoke_card_short(quote: dict) -> str:
     return text if card_units(text) <= SHORT_BUDGET else "\n".join([head, *rest])
 
 
+def _opening(d: dict) -> str:
+    """Circle's own fee for an account HyperCore does not have yet, when its wallet charges one."""
+    return f" + {d['opening_fee']} new account" if d.get("opening_fee") else ""
+
+
+def deposit_card(quote: dict, drop: tuple = ()) -> str:
+    """The detailed card of a Hyperliquid deposit: which step this transaction is, the Hyperliquid account
+    and balance credited, Circle's fee cap with what arrives at least, and the Keychain blocks. The token
+    and the spender are Circle's, fixed in the chain table and never from the caller, so they are named
+    rather than shown."""
+    info = chains.info(quote["chain"])
+    d = quote["deposit"]
+    expires = datetime.fromtimestamp(quote["expires"]).astimezone().strftime("%H:%M UTC%z")
+    step = f"Step 1/2: let Circle CCTP take exactly {quote['amount']} USDC; nothing moves yet" \
+        if d["step"] == "approve" else "Step 2/2: burn; Circle CCTP mints on HyperEVM, credits the account"
+    lines = [f"Deposit: {quote['amount']} USDC from {info['name']}({'testnet' if info['testnet'] else 'MAINNET'}) "
+             f"to Hyperliquid {d['network']} {d['dex']}", step,
+             f"Circle fee ≤ {d['circle_fee']} USDC{_opening(d)} (≥ {d['arrives']} arrives) · gas ≤ "
+             f"{quote['max_fee']} {info['symbol']}", f"Quote: {quote['id']} · expires {expires}",
+             "", "--- From ---", *_party_lines(quote["from_party"], quote["from"], drop),
+             "", "--- To (Hyperliquid account) ---", _to_type(quote),
+             *_party_lines(quote.get("to_party"), quote["to"], drop)]
+    return "\n".join(lines)
+
+
+def deposit_card_short(quote: dict) -> str:
+    """The compact card of a deposit: the step, both full addresses and Circle's fee cap."""
+    info = chains.info(quote["chain"])
+    d = quote["deposit"]
+    step = "1/2 approve exactly" if d["step"] == "approve" else "2/2 burn"
+    whose = "own" if quote["own"] else ("watch-only" if quote.get("to_party") else "external")
+    opening = f" +{d['opening_fee']} new acct" if d.get("opening_fee") else ""
+    lines = [f"{'' if info['testnet'] else 'MAINNET '}Deposit {quote['amount']} USDC {info['name']} → Hyperliquid "
+             f"{d['dex']}",
+             f"Step {step} · fee ≤ {d['circle_fee']}{opening} · ≥ {d['arrives']} arrives",
+             f"From {one_line(quote['account'], 40)}: {quote['from']}", f"To ({whose}): {quote['to']}",
+             f"Gas ≤ {quote['max_fee']} {info['symbol']} · {quote['id']}"]
+    text = "\n".join(lines)
+    if card_units(text) > SHORT_BUDGET:
+        lines[2] = f"From {one_line(quote['account'], 20)}: {quote['from']}"
+        text = "\n".join(lines)
+    return text
+
+
 def cards(quote: dict) -> tuple[str, str]:
     """(detailed, compact): the detailed card sheds the memos to fit Telegram's budget, and falls back to
     the compact one."""
-    revoke = quote.get("kind") == "revoke"
-    short = revoke_card_short(quote) if revoke else card_short(quote)
+    kind = quote.get("kind")
+    detailed = {"revoke": revoke_card, "deposit": deposit_card}.get(kind, card)
+    short = {"revoke": revoke_card_short, "deposit": deposit_card_short}.get(kind, card_short)(quote)
+    if kind == "deposit" and not quote["own"] and card_units(short) > SHORT_BUDGET:
+        raise ChainError("this deposit's compact approval card would not fit Discord's limit, so it is refused; "
+                         "a shorter account name fits")
     for drop in ((), ("memo",)):
-        text = revoke_card(quote, drop) if revoke else card(quote, drop)
+        text = detailed(quote, drop)
         if card_units(text) <= CARD_BUDGET:
             return text, short
     return short, short
@@ -556,7 +601,7 @@ def evm_quote(ctx: Ctx, sender: str, args: dict, asset: str, key: bytes | None =
         raise ChainError("the zero address burns funds; refused")
     if to.lower() == sender.lower():
         raise ChainError("the recipient is the sending account itself")
-    bridge = _hyperliquid_bridge(ctx.chain, to, asset)
+    _hyperliquid_bridge(ctx.chain, to, asset)
     r = ctx.rpc
     if asset == "native":
         decimals, symbol = info["decimals"], info["symbol"]
@@ -583,33 +628,87 @@ def evm_quote(ctx: Ctx, sender: str, args: dict, asset: str, key: bytes | None =
         raw = bytes.fromhex((r.call("eth_call", [call, "latest"]) or "0x")[2:])
         if len(raw) >= 32 and int.from_bytes(raw[:32], "big") == 0:
             raise ChainError("the token's transfer returned false in simulation")
-    if bridge and amount < Decimal(chains.HYPERLIQUID_MIN_DEPOSIT):
-        raise ChainError(f"Hyperliquid's bridge credits deposits of {chains.HYPERLIQUID_MIN_DEPOSIT} USDC or more; "
-                         "less is lost for good. Refused")
     max_fee, build = _evm_cost(ctx, sender, call, key)
-    built = {"to": to, "ens": ens, "symbol": symbol, "decimals": decimals, "amount": plain(amount),
-             "asset_address": None if asset == "native" else to_checksum_address(asset),
-             "max_fee": plain(native_units(max_fee, info["decimals"])), "build": build}
-    if bridge:
-        built["label"] = (f"Hyperliquid deposit bridge (legacy): credits the sender's Hyperliquid "
-                          f"{bridge['network']} account")
-    return built
+    return {"to": to, "ens": ens, "symbol": symbol, "decimals": decimals, "amount": plain(amount),
+            "asset_address": None if asset == "native" else to_checksum_address(asset),
+            "max_fee": plain(native_units(max_fee, info["decimals"])), "build": build}
 
 
-def _hyperliquid_bridge(chain: str, to: str, asset: str) -> dict | None:
-    """Hyperliquid's deposit bridge entry when ``to`` is one, after refusing what it would lose: any
-    chain but its own, and anything but that chain's native USDC (the amount is checked by the caller)."""
-    found = chains.hyperliquid_bridge(to)
-    if found is None:
-        return None
-    where, entry = found
-    if where != chain:
-        raise ChainError(f"this is Hyperliquid's deposit bridge on {chains.info(where)['name']}; anything sent to it "
-                         f"on {chains.info(chain)['name']} is lost. Refused")
-    if asset != entry["usdc"]:
-        raise ChainError(f"Hyperliquid's bridge credits only native USDC ({entry['usdc']}); anything else sent to it "
-                         "is lost. Refused")
-    return entry
+def _hyperliquid_bridge(chain: str, to: str, asset: str) -> None:
+    """Refuses anything sent to Hyperliquid's legacy deposit bridge: the venue deprecates it, a send to it
+    on another chain or of another token is lost, and deposits go through CCTP (kind deposit) instead."""
+    if chains.hyperliquid_bridge(to):
+        raise ChainError("this is Hyperliquid's legacy deposit bridge, which the venue deprecates: nothing is sent "
+                         "to it. Deposit to Hyperliquid with kind deposit (USDC through Circle's CCTP)")
+
+
+def evm_deposit(ctx: Ctx, sender: str, args: dict, key: bytes | None) -> dict:
+    """USDC into a Hyperliquid account through Circle's CCTP, as one of two transactions: an approval of
+    exactly the amount to Circle's TokenMessenger while it holds less, then the burn, whose mint Circle's
+    forwarder on HyperEVM credits to the account (docs/hyperliquid.md "Deposits"). The account defaults
+    to the sender's own; Circle's fee is capped in the burn."""
+    from eth_abi import encode as abi_encode
+    from eth_utils import to_checksum_address
+    import hl
+    info = chains.EVM[ctx.chain]
+    if ctx.chain not in chains.CCTP_USDC:
+        raise ChainError("a Hyperliquid deposit goes from a chain Circle's CCTP carries USDC on: "
+                         + ", ".join(chains.CCTP_USDC))
+    network = "testnet" if info["testnet"] else "mainnet"
+    target = args.get("to") or sender
+    if not isinstance(target, str) or not re.match(r"^0x[0-9a-fA-F]{40}$", target) or int(target, 16) == 0:
+        raise ChainError("to must be the Hyperliquid account's 0x address (default this account's own)")
+    recipient = to_checksum_address(target)
+    dex = args.get("dex") or "perp"
+    if dex not in cctp.DEX:
+        raise ChainError("dex is perp (default) or spot: the Hyperliquid balance credited")
+    usdc = to_checksum_address(chains.CCTP_USDC[ctx.chain])
+    amount, base = to_base(args.get("amount"), 6)
+
+    def exists(where: str) -> bool:
+        role = hl.Ctx(where, args).api.info({"type": "userRole", "user": recipient.lower()})
+        if not isinstance(role, dict) or not isinstance(role.get("role"), str):
+            raise ChainError(f"Hyperliquid {where} did not say whether the account exists; nothing was quoted")
+        return role["role"] != "missing"
+
+    if network == "testnet":
+        if amount > Decimal(chains.HYPERLIQUID_TESTNET_DEPOSIT_CAP):
+            raise ChainError(f"Circle credits at most {chains.HYPERLIQUID_TESTNET_DEPOSIT_CAP} testnet USDC to a "
+                             "Hyperliquid account; more is not credited. Refused")
+        # Circle's testnet forwards only to addresses with a mainnet account; others fail without an error
+        if not exists("mainnet"):
+            raise ChainError("Circle's testnet credits only Hyperliquid accounts that exist on mainnet, and this one "
+                             "does not: the USDC would not arrive. Refused")
+    # into an account HyperCore does not have yet, Circle's wallet may keep a fee of its own (owner-set)
+    opening = 0 if exists(network) else cctp.opening_fee(network, args.get("_hyperevm"))
+    r = ctx.rpc
+    held = evm.h2i(r.call("eth_call", [{"to": usdc, "data": "0x" + evm.SEL["balanceOf"]
+                                        + sender[2:].lower().rjust(64, "0")}, "latest"]) or "0x0")
+    if held < base:
+        raise ChainError(f"the account holds {evm.units(held, 6)} USDC here, less than {plain(amount)}")
+    messenger = to_checksum_address(chains.CCTP_TOKEN_MESSENGER[network])
+    circle = cctp.max_fee(network, chains.CCTP_DOMAINS[ctx.chain], base, args.get("_iris"))
+    if circle + opening >= base:
+        raise ChainError(f"Circle's fees may be up to {plain(native_units(circle + opening, 6))} USDC, all of this "
+                         "deposit; deposit more")
+    allowance = _view_word(r, usdc, evm.SEL["allowance"] + abi_encode(["address", "address"],
+                                                                         [sender, messenger]).hex(), "the allowance")
+    if allowance < base:
+        step, data = "approve", cctp.approve_data(messenger, base)
+    else:
+        step, data = "burn", cctp.burn_data(base, usdc, network, circle, recipient, dex)
+    call = {"from": sender, "to": usdc if step == "approve" else messenger, "value": "0x0", "data": data}
+    raw = bytes.fromhex((r.call("eth_call", [call, "latest"]) or "0x")[2:])
+    if step == "approve" and len(raw) >= 32 and int.from_bytes(raw[:32], "big") == 0:
+        raise ChainError("USDC's approve returned false in simulation")
+    max_fee, build = _evm_cost(ctx, sender, call, key)  # estimating gas runs it: a refusal stops here
+    return {"to": recipient, "ens": None, "symbol": "USDC", "decimals": 6, "amount": plain(amount),
+            "asset_address": to_checksum_address(usdc), "max_fee": plain(native_units(max_fee, info["decimals"])),
+            "build": build,
+            "deposit": {"step": step, "network": network, "dex": dex, "messenger": messenger,
+                        "circle_fee": plain(native_units(circle, 6)),
+                        **({"opening_fee": plain(native_units(opening, 6))} if opening else {}),
+                        "arrives": plain(native_units(base - circle - opening, 6))}}
 
 
 def _evm_cost(ctx: Ctx, sender: str, call: dict, key: bytes | None) -> tuple[int, dict]:
@@ -1098,6 +1197,13 @@ def op_quote(payload: dict) -> dict:
         raise ChainError("a revoke needs token: the token contract or collection (EVM) or the mint (Solana)")
     if kind == "nft" and token in (None, "", "native"):
         raise ChainError("an NFT needs token: the collection (EVM, with token_id) or the NFT's mint (Solana)")
+    if kind == "deposit":
+        if family != "evm" or chain not in chains.CCTP_USDC:
+            raise ChainError("a Hyperliquid deposit goes from an EVM chain Circle's CCTP carries USDC on: "
+                             + ", ".join(chains.CCTP_USDC))
+        if token not in (None, "") and str(token).lower() != chains.CCTP_USDC[chain].lower():
+            raise ChainError("a Hyperliquid deposit is the chain's native USDC; leave token out")
+        token = chains.CCTP_USDC[chain]
     if token in (None, "", "native"):
         asset = "native"
     elif family == "evm" and isinstance(token, str) and re.match(r"^0x[0-9a-fA-F]{40}$", token):
@@ -1117,6 +1223,8 @@ def op_quote(payload: dict) -> dict:
     elif kind == "nft":
         built = evm_nft(ctx, sender, payload, asset, secret) if family == "evm" \
             else sol_nft(ctx, sender, payload, asset)
+    elif kind == "deposit":
+        built = evm_deposit(ctx, sender, payload, secret)
     else:
         built = evm_quote(ctx, sender, payload, asset, secret) if family == "evm" \
             else sol_quote(ctx, sender, payload, asset)
@@ -1128,7 +1236,7 @@ def op_quote(payload: dict) -> dict:
     own_account = secrets_.addresses(family, "sign").get(recipient)
     watched = None if own_account else secrets_.addresses(family, "watch").get(recipient)
     # a revoke moves nothing to anyone, but it stops whatever used the approval: it always asks
-    own = own_account is not None and kind in ("transfer", "nft")
+    own = own_account is not None and kind in ("transfer", "nft", "deposit")
     now = time.time()
     quote = {"id": "q" + random.token_hex(4), "created": now, "expires": now + QUOTE_TTL, "account": account,
              "source": source, "index": index, "chain": chain, "family": family, "kind": kind, "from": sender,
@@ -1148,10 +1256,8 @@ def op_quote(payload: dict) -> dict:
             json.dump(quote, handle, ensure_ascii=False)
     summary = {k: quote[k] for k in ("account", "chain", "kind", "from", "to", "ens", "amount", "symbol",
                                      "asset_address", "max_fee", "usd")}
-    if kind in ("revoke", "nft"):
+    if kind in ("revoke", "nft", "deposit"):
         summary[kind] = quote[kind]
-    if quote.get("label"):
-        summary["label"] = quote["label"]
     return {"quote": quote["id"], "own": own, "card": quote["card"], "expires_in_seconds": QUOTE_TTL,
             "summary": summary}
 
@@ -1224,7 +1330,8 @@ def op_send(payload: dict) -> dict:
                "chain": quote["chain"],
                "from": quote["from"], "to": quote["to"], "asset": quote["asset"], "symbol": quote["symbol"],
                "amount": quote["amount"], "max_fee": quote["max_fee"], "kind": quote.get("kind", "transfer"),
-               **({"nft": quote["nft"]} if quote.get("nft") else {}), "own": own, "approval": approval,
+               **({"nft": quote["nft"]} if quote.get("nft") else {}),
+               **({"deposit": quote["deposit"]} if quote.get("deposit") else {}), "own": own, "approval": approval,
                "outcome": "unknown"}
         ledger.append(state, row)
         ctx = Ctx(quote["chain"], _override(payload))
@@ -1256,7 +1363,9 @@ def op_send(payload: dict) -> dict:
     return {"sent": True, "kind": quote.get("kind", "transfer"), "hash": sent, "chain": quote["chain"],
             **({"nft": quote["nft"]} if quote.get("nft") else {}), "amount": quote["amount"], "symbol": quote["symbol"],
             "to": quote["to"], **landed, "explorer": chains.explorer(quote["chain"], "tx", sent),
-            "note": CONFIRM_NOTES[landed["confirmation"]]}
+            "note": CONFIRM_NOTES[landed["confirmation"]],
+            **({"next": DEPOSIT_NEXT[quote["deposit"]["step"]]}
+               if quote.get("deposit") and landed["confirmation"] != "failed" else {})}
 
 
 def _landed(ctx: Ctx, family: str, sent: str) -> dict | None:
@@ -1315,6 +1424,12 @@ CONFIRM_NOTES = {
     "failed": "the transaction landed but failed: it changed nothing (no amount moved, no approval was revoked) "
               "and the fee was spent; never send it again on your own, tell the user",
     "pending": "broadcast but not in a block yet; check with the status action and never send again meanwhile",
+}
+DEPOSIT_NEXT = {
+    "approve": "step 1 of 2: once this approval is confirmed, quote the same deposit again: it becomes step 2, the "
+               "burn (until then a new quote is still the approval)",
+    "burn": "step 2 of 2: Circle attests the burn within about a minute and its forwarder credits the Hyperliquid "
+            "account; check it with the hyperliquid tool's balances or state, not on this chain",
 }
 
 

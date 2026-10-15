@@ -47,7 +47,7 @@ signed or sent, and any account can be read by its address.
 | Open orders and their triggers; one order's status | `orders`; `history=true` for recent past orders; `oid` for one order |
 | A post-trade review | `review` (`hours`, `coin`, `fills`) |
 | A dataset for backtesting prep | `export` (`coin`, `interval`, `hours`, `end_time`) |
-| Where USDC enters the venue from Arbitrum | `deposit_info` (the bridge, its USDC token, the 5 USDC minimum) |
+| How USDC enters the venue | `deposit_info` (Circle's CCTP: the network's chains and their USDC) |
 
 ## Reading the result
 

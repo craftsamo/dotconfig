@@ -129,15 +129,14 @@ SOLANA = {
 
 CHAINS = (*EVM, *SOLANA)
 
-# Hyperliquid's legacy deposit bridge (Bridge2) per chain, from the venue's docs: native USDC sent to
-# it is credited to the sender's Hyperliquid account; anything else, or under the minimum, is lost.
+# Hyperliquid's legacy deposit bridge (Bridge2) per chain, from the venue's docs, which deprecate it:
+# known only so that nothing is ever sent or withdrawn to it (deposits go through CCTP).
 HYPERLIQUID_BRIDGES = {
     "arbitrum": {"bridge": "0x2df1c51e09aecf9cacb7bc98cb1742757f163df7",
                  "usdc": "0xaf88d065e77c8cc2239327c5edb3a432268e5831", "network": "mainnet"},
     "arbitrum-sepolia": {"bridge": "0x08cfc1b6b2dcf36a1480b99353a354aa8ac56f89",
                          "usdc": "0x1baabb04529d43a73232b713c0fe471f7c7334d5", "network": "testnet"},
 }
-HYPERLIQUID_MIN_DEPOSIT = "5"
 
 
 def hyperliquid_bridge(address: str | None) -> tuple[str, dict] | None:
@@ -159,13 +158,42 @@ CCTP_DOMAINS = {
     "unichain-sepolia": 10, "linea": 11, "linea-sepolia": 11, "sonic": 13, "sonic-testnet": 13, "world-chain": 14,
     "world-chain-sepolia": 14, "ink": 21, "ink-sepolia": 21,
 }
-# HyperEVM, where Circle's contracts link HyperCore's USDC to CCTP: read only (a withdrawal's fee), never a
-# chain the wallet sends on. From Circle's HyperCore address table.
+# Circle's native USDC on each of those chains, the only token CCTP burns there (Circle's USDC address table).
+CCTP_USDC = {
+    "ethereum": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48", "sepolia": "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238",
+    "avalanche": "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E",
+    "optimism": "0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85",
+    "optimism-sepolia": "0x5fd84259d66Cd46123540766Be93DFE6D43130D7",
+    "arbitrum": "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+    "arbitrum-sepolia": "0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d",
+    "base": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", "base-sepolia": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+    "polygon": "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359",
+    "polygon-amoy": "0x41E94Eb019C0762f9Bfcf9Fb1E58725BfB0e7582",
+    "unichain": "0x078D782b760474a361dDA0AF3839290b0EF57AD6",
+    "unichain-sepolia": "0x31d0220469e10c4E71834a79b1f276d740d3768F",
+    "linea": "0x176211869cA2b568f2A7D4EE941E073a821EE1ff",
+    "linea-sepolia": "0xFEce4462D57bD51A6A552365A011b95f0E16d9B7",
+    "sonic": "0x29219dd400f2Bf60E5a23d13Be72B486D4038894",
+    "sonic-testnet": "0x0BA304580ee7c9a980CF72e55f5Ed2E9fd30Bc51",
+    "world-chain": "0x79A02482A880bCE3F13e09Da970dC34db4CD24d1",
+    "world-chain-sepolia": "0x66145f38cBAC35Ca6F1Dfb4914dF98F1614aeA88",
+    "ink": "0x2D270e6886d130D724215A266106e6832161EAEd", "ink-sepolia": "0xFabab97dCE620294D2B0b0e46C68964e326300Ac",
+}
+# CCTP V2's TokenMessenger: one address on every chain above, per network (Circle's contract table).
+CCTP_TOKEN_MESSENGER = {"mainnet": "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d",
+                        "testnet": "0x8FE6B999Dc680CcFDD5Bf7EB0974218be2542DAA"}
+CCTP_IRIS = {"mainnet": "https://iris-api.circle.com", "testnet": "https://iris-api-sandbox.circle.com"}
+HYPEREVM_DOMAIN = 19
+HYPERLIQUID_TESTNET_DEPOSIT_CAP = "1000"  # Circle credits at most this much testnet USDC to an address
+# HyperEVM, where Circle's contracts link HyperCore's USDC to CCTP: read only (a withdrawal's fee) and a
+# deposit's fixed forwarder, never a chain the wallet sends on. From Circle's HyperCore address table.
 HYPEREVM = {
     "mainnet": {"name": "HyperEVM", "rpc": "https://rpc.hyperliquid.xyz/evm",
-                "core_deposit_wallet": "0x6B9E773128f453f5c2C60935Ee2DE2CBc5390A24"},
+                "core_deposit_wallet": "0x6B9E773128f453f5c2C60935Ee2DE2CBc5390A24",
+                "forwarder": "0xb21D281DEdb17AE5B501F6AA8256fe38C4e45757"},
     "testnet": {"name": "HyperEVM testnet", "rpc": "https://rpc.hyperliquid-testnet.xyz/evm",
-                "core_deposit_wallet": "0x0B80659a4076E9E93C7DbE0f10675A16a3e5C206"},
+                "core_deposit_wallet": "0x0B80659a4076E9E93C7DbE0f10675A16a3e5C206",
+                "forwarder": "0x02e39ECb8368b41bF68FF99ff351aC9864e5E2a2"},
 }
 
 # Well-known tokens per chain, read when no provider key lists an address's tokens. Symbols and

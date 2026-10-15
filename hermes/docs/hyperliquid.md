@@ -197,16 +197,37 @@ an hour.
 
 ## Deposits
 
-USDC enters the venue through its legacy bridge on Arbitrum
-(`chains.HYPERLIQUID_BRIDGES`, from the venue's docs): native USDC sent to it
-is credited to the sender's Hyperliquid account. A deposit is the `evm`
-tool's ordinary quote and transfer; the signer refuses anything to a bridge
-address that would be lost — another chain's bridge, any token but that
-chain's USDC, less than 5 USDC, any NFT — and the card labels the bridge.
-`deposit_info` returns the bridge, the token and the minimum without a
-request. The venue calls this bridge deprecated in favour of Circle's CCTP,
-which needs a contract call the signer does not make; a CCTP path would be a
-new signed call, not a change to this one.
+USDC enters the venue through Circle's CCTP, from any of the network's chains
+Circle carries USDC on: the `evm` tool's quote with kind `deposit` (`cctp.py`
+builds its pieces, the signer quotes and sends it like a transfer). It is up to
+two transactions, each its own quote: while Circle's TokenMessenger may take
+less than the amount, the quote is `approve` of exactly the amount; once it may
+take the amount (at once, if an earlier approval allows it), the quote is the
+burn, `depositForBurnWithHook` to HyperEVM
+(domain 19) with the mint and its relay bound to Circle's `CctpForwarder` and
+a 56-byte hook naming the Hyperliquid account (`to`, default the sender's own)
+and its balance (`dex`, perp or spot). Every contract address and the token
+come from `chains`, never from the caller.
+
+Circle's fee is capped in the burn: its fast-transfer rate on the amount,
+rounded up, plus the forwarding fee's high estimate, read from Circle's fee
+service at quote time. Into an account HyperCore does not have yet, Circle's
+`CoreDepositWallet` may also keep an owner-set opening fee
+(`newCoreAccountFee`), read from it at quote time and named on the cards when
+it is not zero. What arrives is at least the amount less both, within about a
+minute, and Circle pays the gas on HyperEVM. Distinct burn quotes are not
+deduplicated: the exact approval normally stops a second one, so a burn is
+never sent twice on purpose. The quote refuses
+an amount the cap would swallow, a token other than the chain's USDC, and on
+testnet an account that does not exist on Hyperliquid mainnet or more than
+1000 USDC, which Circle's testnet would not credit. The effect follows the
+account like a transfer: into the user's own Hermes account it runs at once,
+into anyone else's it asks on its card. The card names the step, the account
+and Circle's cap; the token and spender are named rather than shown, being
+fixed. The signer refuses anything sent to Hyperliquid's legacy bridge
+(`chains.HYPERLIQUID_BRIDGES`), which the venue deprecates. `deposit_info`
+returns the chains, their USDC and how, without a request
+([decision](decisions/hyperliquid-cctp.md)).
 
 ## Mandates
 

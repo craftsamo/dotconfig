@@ -152,22 +152,27 @@ stay the user's. Watch-only wallets are not own, and an item renamed without
 `quote` validates, builds the exact transaction, simulates it and stores it as a
 single-use quote that outlives the approval wait; `transfer` sends exactly the
 stored quote and reports `confirmed`, `failed` (landed but reverted: only the
-fee was spent) or `pending`. `quote` takes `kind` `revoke` ([Revokes](#revokes))
-or `nft` ([NFTs](#nfts)) beside the default `transfer`.
+fee was spent) or `pending`. `quote` takes `kind` `revoke` ([Revokes](#revokes)),
+`nft` ([NFTs](#nfts)) or `deposit` (EVM: USDC into a Hyperliquid account through
+Circle's CCTP, [hyperliquid.md](hyperliquid.md) "Deposits") beside the default
+`transfer`.
 
 - **Fixed scope:** a native transfer, an ERC-20 `transfer`, a System Program
   transfer or an SPL `transferChecked` (creating the recipient's associated token
-  account when missing), plus the fixed calls of Revokes and NFTs (ERC-721/1155
-  `safeTransferFrom`, an SPL `transferChecked` of 1). No calldata, program or instruction from the caller is ever signed.
+  account when missing), plus the fixed calls of Revokes, NFTs (ERC-721/1155
+  `safeTransferFrom`, an SPL `transferChecked` of 1) and Hyperliquid deposits
+  (USDC's `approve` of exactly the amount to Circle's TokenMessenger, then its
+  `depositForBurnWithHook`, every address from the chain table). No calldata,
+  program or instruction from the caller is ever signed.
 - **Any token may be sent** (its contract decides what its `transfer` does), so
   it must have code, answer `decimals` and pass simulation, and the card names
   it by address with its self-declared symbol quoted. Refused outright are the
   cases the signer's quote validation names (zero address, self, a token's own
   contract, a program or token account as recipient, a new Solana account below
   the rent-exempt minimum, over-precise amounts).
-- **Hyperliquid's deposit bridge** takes only its own chain's native USDC, 5
-  or more; anything else to it is refused, since the bridge would lose it
-  ([hyperliquid.md](hyperliquid.md) "Deposits").
+- **Hyperliquid's legacy deposit bridge** receives nothing: the venue
+  deprecates it and deposits go through CCTP (kind `deposit`), so a transfer or
+  NFT to it is refused ([hyperliquid.md](hyperliquid.md) "Deposits").
 - **The recipient that counts** is the one the signer encoded: for a token
   transfer, the recipient in the calldata or instruction, not the transaction's
   `to`. An ENS name is resolved at quote time and the card shows both.
