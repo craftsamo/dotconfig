@@ -279,15 +279,17 @@ def test_candles_funding_and_export(api, tmp_path):
     assert not too_many["ok"] and "at most 500" in too_many["error"]
 
 
-def test_deposit_info_names_the_bridge_its_usdc_and_the_minimum(api, tmp_path):
+def test_deposit_info_names_the_cctp_route_from_the_network_s_chains(api, tmp_path):
     before = len(REQUESTS)
     testnet = data({"action": "deposit_info"}, api, tmp_path)
-    assert testnet["chain"] == "arbitrum-sepolia" and testnet["bridge"] == "0x08cfc1b6b2dcf36a1480b99353a354aa8ac56f89"
-    assert testnet["usdc"] == "0x1baabb04529d43a73232b713c0fe471f7c7334d5" and testnet["minimum_usdc"] == "5"
-    assert "deprecated" in testnet["note"] and "faucet" in testnet["note"] and "lost for good" in testnet["never"]
+    assert testnet["route"] == "Circle CCTP" and "arbitrum-sepolia" in testnet["from_chains"]
+    assert "arbitrum" not in testnet["from_chains"] and "celo-sepolia" not in testnet["from_chains"]
+    assert testnet["usdc"]["sepolia"] == "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238"
+    assert "kind deposit" in testnet["note"] and "exist on Hyperliquid mainnet" in testnet["note"]
+    assert "legacy bridge is never used" in testnet["note"]
     mainnet = data({"action": "deposit_info", "network": "mainnet"}, api, tmp_path)
-    assert mainnet["chain"] == "arbitrum" and mainnet["bridge"] == "0x2df1c51e09aecf9cacb7bc98cb1742757f163df7"
-    assert mainnet["usdc"] == "0xaf88d065e77c8cc2239327c5edb3a432268e5831" and "faucet" not in mainnet["note"]
+    assert "arbitrum" in mainnet["from_chains"] and "sepolia" not in mainnet["from_chains"]
+    assert "Hyperliquid mainnet" not in mainnet["note"]
     assert len(REQUESTS) == before  # nothing is asked of the venue
 
 

@@ -65,8 +65,8 @@ READ_HELP = (
     "status by order id or 0x cloid), review (address, hours, coin, fills: realized PnL, fees, wins and losses per "
     "coin with each traded perp's trend and funding over the window, and leads such as fee drag, concentration or "
     "losses against the trend — heuristics, not a verdict), export (coin, interval, hours, end_time: candles and "
-    "funding as one normalized dataset for backtesting prep, at most 500 candles), deposit_info (where USDC enters "
-    "the venue from Arbitrum: the bridge, the USDC token, the minimum and how). Coins: a perp like BTC, a builder "
+    "funding as one normalized dataset for backtesting prep, at most 500 candles), deposit_info (how USDC enters "
+    "the venue: Circle's CCTP from the network's EVM chains, their USDC, and how). Coins: a perp like BTC, a builder "
     "perp like xyz:GOLD, a spot pair like PURR/USDC, HYPE/USDC or its @N name. Times are Unix milliseconds.")
 UNTRUSTED = (
     " Builder dexs and spot tokens are deployed by third parties: their names and full names arrive as "
@@ -101,8 +101,8 @@ TRADE_HELP = (
     "transfer is refused. A send to an address with no account there pays the venue 1 USDC to open it (the card's "
     "Fee line). To the user's own Hermes wallets, or within the account, it runs at once; to anyone else it shows "
     "the approval card, and is impossible without the user present; a mandate never covers it, and it counts "
-    "in the wallet's 10 transfers an hour. Depositing is the evm tool's transfer to the bridge deposit_info "
-    "names.")
+    "in the wallet's 10 transfers an hour. Depositing is the evm tool's quote with kind deposit (Circle's CCTP; "
+    "deposit_info says how).")
 
 PROPERTIES = {
     "network": {"type": "string", "enum": list(NETWORKS),
