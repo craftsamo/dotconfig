@@ -8,7 +8,8 @@ or sent. Retrieve venue facts; judging them stays under `Open for researcher`.
 
 The actions and what each returns are
 `skill_view(name="hyperliquid-access:hyperliquid")` (`markets`, `spots`,
-`candles`, `funding`, `book`, `state`, `fills`, `orders`, `review`, `export`).
+`candles`, `funding`, `book`, `state`, `fills`, `orders`, `review`, `export`,
+`backtest`).
 Retrieve with them; the rules below are what Searcher adds.
 
 ## What to record per item

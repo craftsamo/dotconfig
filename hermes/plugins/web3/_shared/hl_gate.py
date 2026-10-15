@@ -1,0 +1,294 @@
+"""The cron gate of the Assistant's Hyperliquid strategies (docs/hyperliquid.md "Strategies").
+
+Run by ``profiles/assistant/scripts/hl-strategy-gate.sh`` with the web3 venv's interpreter, as the
+``script`` of a cron job that wakes the Assistant only when there is something to do:
+
+    hl_gate.py <HERMES_HOME>/hl-strategies
+
+For each directory there holding a ``spec.json`` whose strategy is active, it reads the account and
+the newest completed candles through the public ``/info`` endpoint, applies the stance in force
+(``stance.json``, an advisor's, when valid; else the spec's default) and the rules, and lists the
+exact ``hyperliquid`` quotes the rules call for: a close or a missing stop (reduce), and on a newly
+completed bar an entry with its stop (increase, inside the mandate the spec records). It prints one
+JSON line; when nothing is to be done or said, that line is ``{"wakeAgent": false}`` and no model
+runs. It never signs, never reads a key and never sends anything: the Assistant quotes and submits
+through the tool, where the trader and the mandate decide. Its own memory is ``state.json`` beside
+the spec: the bar each market was last read on, the side last allowed, and the notices already
+given. A failure it cannot place in a strategy exits nonzero, so Hermes reports it.
+"""
+
+from __future__ import annotations
+
+from datetime import datetime, timezone
+import hashlib
+import json
+import os
+from pathlib import Path
+import sys
+
+import hl
+import hl_strategy as hs
+import rpc
+from rpc import ChainError
+
+SCHEMA = "hermes-hyperliquid-gate/1"
+SPEC, STANCE, STATE = "spec.json", "stance.json", "state.json"
+SLIPPAGE = "0.01"
+EXPIRY_WARNING_MS = 3 * hs.DAY_MS
+REPORTED_KEPT = 100
+SILENT = {"wakeAgent": False}
+
+
+def _now_ms() -> int:
+    if rpc.testing() and os.environ.get("HL_GATE_NOW"):
+        return int(os.environ["HL_GATE_NOW"])
+    return int(datetime.now(timezone.utc).timestamp() * 1000)
+
+
+def _api_override() -> str | None:
+    return os.environ.get("HL_GATE_API") if rpc.testing() else None
+
+
+def _read_json(path: Path):
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return None
+    except (OSError, ValueError) as exc:
+        raise hs.StrategyError(f"{path.name} is not readable JSON ({type(exc).__name__})") from None
+
+
+def _write_state(path: Path, state: dict) -> None:
+    tmp = path.with_suffix(".tmp")
+    tmp.write_text(json.dumps(state, indent=1, sort_keys=True), encoding="utf-8")
+    os.replace(tmp, path)
+
+
+def _quote(strategy: dict, **fields) -> dict:
+    return {"action": "quote", "account": strategy["account"], "network": strategy["network"], **fields}
+
+
+class Account:
+    """What the strategy's account holds now, from public reads: equity, positions, stops, leverage."""
+
+    def __init__(self, ctx: hl.Ctx, address: str, markets: list[str]):
+        self.ctx, self.address = ctx, address
+        found = ctx.api.info({"type": "clearinghouseState", "user": address})
+        if not isinstance(found, dict) or not isinstance(found.get("assetPositions"), list):
+            raise ChainError(f"{ctx.api.label} returned an unexpected account state")
+        self.positions: dict[str, dict] = {}
+        for item in found["assetPositions"]:
+            p = item.get("position") or {}
+            size = hl.num(p.get("szi")) or 0.0
+            if p.get("coin") and size:
+                self.positions[p["coin"]] = {"side": "long" if size > 0 else "short", "size": abs(size),
+                                             "entry": hl.num(p.get("entryPx")),
+                                             "value": abs(hl.num(p.get("positionValue")) or 0.0)}
+        self.mode = hl.abstraction(ctx, address)
+        equity = hl.num((found.get("marginSummary") or {}).get("accountValue")) or 0.0
+        if self.mode in hl.UNIFIED:
+            spot = ctx.api.info({"type": "spotClearinghouseState", "user": address})
+            usdc = [b for b in (spot or {}).get("balances", []) if b.get("coin") == "USDC"]
+            equity = (hl.num(usdc[0].get("total")) or 0.0) if usdc else 0.0
+            equity += sum(hl.num((i.get("position") or {}).get("unrealizedPnl")) or 0.0
+                          for i in found["assetPositions"])
+        self.equity = equity
+        orders = ctx.api.info({"type": "frontendOpenOrders", "user": address})
+        if not isinstance(orders, list):
+            raise ChainError(f"{ctx.api.label} returned unexpected open orders")
+        self.orders = orders
+        self.held = sum(p["value"] for c, p in self.positions.items() if c in markets)
+        self.held += sum(hl.num(o.get("sz")) * max(hl.num(o.get("limitPx")) or 0, hl.num(o.get("triggerPx")) or 0)
+                         for o in orders if o.get("coin") in markets and not o.get("reduceOnly")
+                         and hl.num(o.get("sz")) is not None)
+
+    def stopped(self, coin: str) -> bool:
+        """Whether the position on ``coin`` has a stop loss on the venue for all of it: a reduce-only
+        stop trigger on the closing side, for the whole position or at least its size. A take profit
+        is not protection."""
+        position = self.positions.get(coin)
+        if not position:
+            return True
+        closing = "A" if position["side"] == "long" else "B"
+        for o in self.orders:
+            if (o.get("coin") != coin or not o.get("reduceOnly") or not o.get("isTrigger")
+                    or "stop" not in str(o.get("orderType", "")).lower() or o.get("side") != closing):
+                continue
+            if o.get("isPositionTpsl") or (hl.num(o.get("sz")) or 0) >= position["size"] * 0.999:
+                return True
+        return False
+
+    def leverage(self, coin: str) -> int | None:
+        found = self.ctx.api.info({"type": "activeAssetData", "user": self.address, "coin": coin})
+        lev = (found or {}).get("leverage") if isinstance(found, dict) else None
+        return lev.get("value") if isinstance(lev, dict) and isinstance(lev.get("value"), int) else None
+
+
+def _candles(ctx: hl.Ctx, coin: str, rule_set: dict, interval: str, now: int) -> list[dict]:
+    step = hs.INTERVAL_MS[interval]
+    count = min(hs.warmup(rule_set) * 2 + 10, hl.CANDLES_MAX)
+    rows = hl._candles(ctx, coin, interval, now - count * step, now)
+    return hs.bars(rows, interval, now)
+
+
+def run_strategy(directory: Path, now: int) -> dict:
+    """One strategy's part of the report: {"name", "intents", "notes", "problems", …}."""
+    state_path = directory / STATE
+    try:
+        state = _read_json(state_path) or {}
+    except hs.StrategyError:
+        state = {}
+    state.setdefault("bars", {})
+    state.setdefault("history", {})
+    reported = state.setdefault("reported", [])
+    out = {"name": directory.name, "intents": [], "notes": [], "problems": []}
+    try:
+        strategy = hs.spec(_read_json(directory / SPEC))
+    except hs.StrategyError as exc:
+        out["problems"].append(f"spec.json not used: {exc}")
+        return _finish(out, state, state_path, reported)
+    out.update({"name": strategy["name"], "network": strategy["network"], "account": strategy["account"]})
+    if strategy["name"] != directory.name:
+        out["problems"].append(f"spec.json names {strategy['name']!r} but lives in {directory.name!r}; not run")
+        return _finish(out, state, state_path, reported)
+    if not strategy["active"]:
+        out["inactive"] = True
+        return out
+    mandate = strategy["mandate"]
+    entries = mandate is not None and mandate["expires"] > now
+    if not entries:
+        out["notes"].append("no mandate in force: only closes and stops are proposed; make or renew one to trade")
+    elif mandate["expires"] - now < EXPIRY_WARNING_MS:
+        out["notes"].append(f"the mandate ends at {hs.iso(mandate['expires'])}")
+    try:
+        stance_raw = _read_json(directory / STANCE)
+    except hs.StrategyError as exc:
+        stance_raw = None
+        out["notes"].append(f"advisor stance not used: {exc}")
+    choices, stance_notes, state["history"] = hs.stance(strategy, stance_raw, now, state["history"])
+    out["notes"] += stance_notes
+    out["stance"] = {m: {k: v for k, v in c.items()} for m, c in choices.items()}
+    ctx = hl.Ctx(strategy["network"], {"_api": _api_override()})
+    limits = dict(strategy["limits"])
+    if mandate:
+        limits.update(max_order_usd=mandate["max_order_usd"], max_exposure_usd=mandate["max_exposure_usd"])
+    try:
+        account = Account(ctx, strategy["address"], strategy["markets"])
+    except ChainError as exc:
+        out["problems"].append(f"the account could not be read: {exc}")
+        return _finish(out, state, state_path, reported, transient=True)
+    out["equity_usd"] = hs.usd(account.equity)
+    held = account.held
+    for market in strategy["markets"]:
+        choice = choices[market]
+        rule_set = strategy["variants"][choice["variant"]]["rules"]
+        position = account.positions.get(market)
+        try:
+            series = _candles(ctx, market, rule_set, strategy["interval"], now)
+            ev = hs.evaluate(series, rule_set, choice, position["side"] if position else None)
+        except (ChainError, hs.StrategyError) as exc:
+            out["problems"].append(f"{market}: not read this run ({exc})")
+            continue
+        bar = ev.get("bar")
+        fresh = bar is not None and bar > int(state["bars"].get(market, 0))
+        retry = False
+        tag = f"{strategy['name']}:{market}:{bar}"
+        if position and ev["close"]:
+            out["intents"].append({"id": f"{tag}:close", "market": market, "effect": "reduce",
+                                   "why": f"close the {position['side']}: {ev['why']} "
+                                          f"(direction {choice['direction']})",
+                                   "quote": _quote(strategy, kind="close", coin=market)})
+        elif position and fresh and not account.stopped(market) and ev.get("atr"):
+            sign = -1 if position["side"] == "long" else 1
+            price = ev["price"]
+            stop = (position["entry"] or price) + sign * rule_set["stop_atr"] * ev["atr"]
+            if (position["side"] == "long" and stop >= price) or (position["side"] == "short" and stop <= price):
+                stop = price + sign * rule_set["stop_atr"] * ev["atr"]
+            out["intents"].append({"id": f"{tag}:protect", "market": market, "effect": "reduce",
+                                   "why": f"the {position['side']} has no stop on the venue",
+                                   "quote": _quote(strategy, kind="tpsl", coin=market, sl=hs.sig5(stop))})
+        if ev.get("open") and fresh:
+            if not entries:
+                out["notes"].append(f"{market}: the rules open a {ev['open']} ({ev['why']}), but no mandate is in "
+                                    "force")
+            else:
+                value, bound = hs.size_usd(account.equity, ev["price"], ev["stop"], rule_set, choice["size"], held,
+                                           limits)
+                if value is None:
+                    out["notes"].append(f"{market}: no {ev['open']} opened: {bound}")
+                else:
+                    try:
+                        leverage = account.leverage(market)
+                    except ChainError as exc:
+                        out["problems"].append(f"{market}: its leverage could not be read ({exc}); the entry "
+                                               "is tried again next run")
+                        leverage, retry = -1, True
+                    if leverage != -1:
+                        if leverage is None or leverage > limits["max_leverage"]:
+                            out["intents"].append({
+                                "id": f"{tag}:leverage", "market": market, "effect": "increase",
+                                "why": f"set {market} to {limits['max_leverage']}x cross before the entry, inside "
+                                       "the mandate", "quote": _quote(strategy, kind="leverage", coin=market,
+                                                                     leverage=limits["max_leverage"],
+                                                                     margin_mode="cross")})
+                        out["intents"].append({
+                            "id": f"{tag}:open", "market": market, "effect": "increase",
+                            "why": f"open a {ev['open']}: {ev['why']}; stop {hs.sig5(ev['stop'])} "
+                                   f"({rule_set['stop_atr']:g} ATR), {hs.usd(value)} USDC, bound by {bound}, "
+                                   f"size ×{choice['size']:g} ({choice['source']})",
+                            "quote": _quote(strategy, kind="order", coin=market,
+                                            side="buy" if ev["open"] == "long" else "sell", usd=hs.usd(value),
+                                            type="market", slippage=SLIPPAGE, sl=hs.sig5(ev["stop"]))})
+                        held += value
+        if fresh and not retry:  # a bar whose entry could not be decided is read again next run
+            state["bars"][market] = bar
+    return _finish(out, state, state_path, reported)
+
+
+def _finish(out: dict, state: dict, path: Path, reported: list, transient: bool = False) -> dict:
+    """Mark which notes and problems are new; a notice is said once, a transient read failure each time."""
+    fresh = []
+    for text in out["notes"] + out["problems"]:
+        key = hashlib.sha256(f"{out['name']}|{text}".encode()).hexdigest()[:16]
+        if key not in reported:
+            fresh.append(text)
+            if not (transient and text in out["problems"]):
+                reported.append(key)
+    state["reported"] = reported[-REPORTED_KEPT:]
+    out["new_notices"] = fresh
+    try:
+        _write_state(path, state)
+    except OSError as exc:
+        out["problems"].append(f"state.json could not be written ({type(exc).__name__})")
+        out["new_notices"].append(out["problems"][-1])
+    return out
+
+
+def run(root: Path, now: int) -> dict:
+    strategies = []
+    if root.is_dir():
+        for directory in sorted(p for p in root.iterdir() if p.is_dir() and (p / SPEC).is_file()):
+            strategies.append(run_strategy(directory, now))
+    acting = [s for s in strategies if s["intents"] or s.get("new_notices")]
+    if not acting:
+        return SILENT
+    return {"schema": SCHEMA, "time": hs.iso(now), "strategies": acting,
+            "instructions": 'skill_view(name="hyperliquid-access:hyperliquid-strategy"), section "Each run"',
+            "wakeAgent": True}
+
+
+def main(argv: list[str]) -> int:
+    if len(argv) != 2:
+        sys.stderr.write("usage: hl_gate.py <HERMES_HOME>/hl-strategies\n")
+        return 2
+    try:
+        report = run(Path(argv[1]), _now_ms())
+    except Exception as exc:  # a gate bug: say what, so Hermes reports it, and never act
+        sys.stderr.write(rpc.mask(f"hl_gate: {type(exc).__name__}: {exc}")[:500] + "\n")
+        return 1
+    sys.stdout.write(json.dumps(report, ensure_ascii=False, separators=(",", ":")) + "\n")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))

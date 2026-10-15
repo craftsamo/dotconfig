@@ -1,7 +1,7 @@
 ---
 name: hyperliquid
-description: "Use for reading Hyperliquid (perps, spot and builder-deployed perp dexs, mainnet or testnet): markets, candles, funding, the order book, an account's positions, balances, fills and orders, a post-trade review, or a candles-and-funding dataset for backtesting prep. Reads only."
-version: 1.0.0
+description: "Use for reading Hyperliquid (perps, spot and builder-deployed perp dexs, mainnet or testnet): markets, candles, funding, the order book, an account's positions, balances, fills and orders, a post-trade review, a candles-and-funding dataset, or a backtest of a trend rule set with walk-forward validation. Reads only."
+version: 1.1.0
 author: CraftSamo
 license: MIT
 metadata:
@@ -47,6 +47,7 @@ signed or sent, and any account can be read by its address.
 | Open orders and their triggers; one order's status | `orders`; `history=true` for recent past orders; `oid` for one order |
 | A post-trade review | `review` (`hours`, `coin`, `fills`) |
 | A dataset for backtesting prep | `export` (`coin`, `interval`, `hours`, `end_time`) |
+| How a rule set would have traded | `backtest` (`coin`, `interval`, `rules`; `long_history`, `costs`, `limits`, `direction`, `stance`, `walk_forward`, `end_time`) |
 | How USDC enters the venue | `deposit_info` (Circle's CCTP: the network's chains and their USDC) |
 
 ## Reading the result
@@ -70,6 +71,17 @@ signed or sent, and any account can be read by its address.
 - `export` returns columns and rows, not a backtest: it carries no fill or
   slippage model. Give `end_time` so the window can be read again the same
   way, and keep the `schema` and `window` with the data.
+- `backtest` trades `rules` over completed bars: a signal at a bar's close
+  fills at the next bar's open with `slippage_bps` and `taker_bps` (defaults
+  5 and 4.5), the ATR stop placed with the entry fills inside a bar that
+  reaches it, and funding is the venue's hourly rate (its mean where none was
+  read). `result` is the whole window, in-sample; `walk_forward` chooses from
+  a grid on past data and trades the choice on the next unseen window, and
+  its `out_of_sample` is the figure to judge by. `long_history` adds Binance
+  spot candles of the coin's USDT pair (prices only) before the venue's own
+  newest 5000. `fingerprint` names the rule set on its interval exactly.
+  Figures start from a notional 1000 USDC. It is a simulation, never a
+  forecast; give `end_time` so it can be run again the same way.
 - A pair named `@N` is traded under that name: use it as it is.
 
 ## Limits
