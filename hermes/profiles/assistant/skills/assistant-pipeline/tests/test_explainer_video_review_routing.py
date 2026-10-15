@@ -38,7 +38,8 @@ class ExplainerVideoReviewRouting(unittest.TestCase):
                       "review.py import", "`analyze-speech`", '`kind="work"`, at most five videos per conversation',
                       "`analyze-card`", "`destination: youtube-thumb`",
                       "`technic: primary-fact-pack`", "`technic: claim-check`, through Creator",
-                      "`write-document`, format `report`"):
+                      "`write-document`, format `report`", "`prosody: yes` when voice is in scope",
+                      "so they reach the user only on the review sheet"):
             self.assertIn(owner, text)
         self.assertNotIn('analyze-speech` with `kind="inquiry"', text)
 
