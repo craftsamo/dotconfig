@@ -46,7 +46,7 @@ def reset():
     VENUE.update({"positions": {"ETH": "-1.5"}, "leverage": {"BTC": {"type": "cross", "value": 10},
                                                               "ETH": {"type": "isolated", "value": 5}},
                   "exchange": "ok", "open_orders": [], "withdrawable": "100", "mode": "default", "after_margin": None,
-                  "missing": set(),
+                  "missing": set(), "cctp_fee": {0: 1_200_000},  # Circle's fee by domain, micro-USDC
                   "spot": [("USDC", 0, "30", "5"), ("HYPE", 1, "2.5", "0"), ("DUP", 3, "5", "0"),
                            ("LONG", 4, "1.0000000001", "0"),
                            ("A_DEPLOYER_CHOSE_THIS_VERY_LONG_TOKEN_NAME", 6, "9", "0")]})
@@ -54,6 +54,13 @@ def reset():
 
 
 def info(body):
+    if body.get("jsonrpc"):  # HyperEVM: Circle's withdrawal fee to a CCTP domain (0.2 USDC unless set)
+        call = body["params"][0]
+        assert call["data"].startswith("0xe26f7d23") and int(call["data"][10:74], 16) == 1  # with forwarding
+        if VENUE["cctp_fee"].get("fail"):
+            return {"jsonrpc": "2.0", "id": body["id"], "error": {"code": -32000, "message": "upstream down"}}
+        fee = VENUE["cctp_fee"].get(int(call["data"][74:], 16), 200_000)
+        return {"jsonrpc": "2.0", "id": body["id"], "result": f"0x{fee:064x}"}
     kind = body.get("type")
     if kind == "perpDexs":
         return [None]
@@ -158,7 +165,7 @@ def run(api, tmp_path):
     state = tmp_path / "web3-wallet"
 
     def call(op, **fields):
-        payload = {"op": op, "state": str(state), "_sources": SOURCES, "_api": api, **fields}
+        payload = {"op": op, "state": str(state), "_sources": SOURCES, "_api": api, "_hyperevm": api, **fields}
         env = {"HOME": str(tmp_path), "PATH": "/usr/bin:/bin", "LANG": "en_US.UTF-8", "WEB3_ENGINE_TEST": "1"}
         proc = subprocess.run([str(PYTHON), str(TRADER)], input=json.dumps(payload), capture_output=True, text=True,
                               timeout=90, env=env)
@@ -667,19 +674,57 @@ def sends(run) -> list[dict]:
 
 def test_a_withdrawal_to_the_account_itself_runs_as_own_and_counts_as_a_transfer(run):
     q = quote(run, kind="withdraw", amount="50")
-    assert q["effect"] == "own" and q["summary"]["destination"] == USER and q["summary"]["arrives"] == "49"
+    assert q["effect"] == "own" and q["summary"]["destination"] == USER and q["summary"]["arrives"] == "49.8"
+    assert q["summary"]["fee"] == "0.2" and q["summary"]["fee_from"] == "amount"
     assert "Withdraw: 50 USDC from the perp balance to Arbitrum Sepolia" in q["card"]
+    assert "Fee: 0.2 USDC to Circle's CCTP (about 49.8 arrives, usually within a minute)" in q["card"]
     assert f"To (own): {USER}" in q["card"] and "Effect: stays in the user's Hermes wallets" in q["card"]
     done = ok(submit(run, q["quote"], "own"))
-    assert done["submitted"] is True and "Arbitrum" in done["note"]
+    assert done["submitted"] is True and "mints it on Arbitrum Sepolia" in done["note"]
     (body,) = exchanged()
-    action = body["action"]
-    assert action["type"] == "withdraw3" and action["destination"] == USER and action["amount"] == "50"
-    assert action["time"] == body["nonce"] and action["hyperliquidChain"] == "Testnet"
-    assert action["signatureChainId"] == "0x66eee" and body["expiresAfter"] is None and body["vaultAddress"] is None
+    assert body["action"] == {"type": "sendToEvmWithData", "token": "USDC", "amount": "50", "sourceDex": "",
+                              "destinationRecipient": USER, "addressEncoding": "hex", "destinationChainId": 3,
+                              "gasLimit": 200000, "data": "0x", "nonce": body["nonce"],
+                              "signatureChainId": "0x66eee", "hyperliquidChain": "Testnet"}
+    assert body["expiresAfter"] is None and body["vaultAddress"] is None
     rows = sends(run)
     assert [r["outcome"] for r in rows] == ["unknown", "sent"] and rows[-1]["kind"] == "hyperliquid-withdraw"
     assert rows[-1]["own"] is True and rows[-1]["chain"] == "hyperliquid-testnet"
+    # the quote is pruned later: the ledgers keep where it went and what was to arrive
+    trail = {"to_chain": "arbitrum-sepolia", "fee": "0.2", "fee_from": "amount", "arrives": "49.8"}
+    assert {k: rows[-1][k] for k in trail} == trail
+    venue_row = [json.loads(line) for line in (run.state / "hyperliquid.jsonl").read_text().splitlines()][-1]
+    assert {k: venue_row[k] for k in trail} == trail
+
+
+def test_a_withdrawal_whose_fee_changed_since_its_quote_is_never_signed(run):
+    q = quote(run, kind="withdraw", amount="50")
+    VENUE["cctp_fee"][3] = 400_000  # Circle raised its fee to Arbitrum while the card waited
+    reply = submit(run, q["quote"], "own")
+    assert not reply["ok"] and "is 0.4 USDC now, not the 0.2 USDC this quote showed" in reply["error"]
+    assert exchanged() == [] and sends(run) == []
+    again = quote(run, kind="withdraw", amount="50")
+    VENUE["cctp_fee"]["fail"] = True  # an unreadable fee refuses too, before anything is signed
+    reply = submit(run, again["quote"], "own")
+    assert not reply["ok"] and "HyperEVM testnet" in reply["error"] and exchanged() == []
+
+
+def test_a_withdrawal_goes_to_a_named_cctp_chain_of_its_network_for_circle_s_fee(run):
+    q = quote(run, kind="withdraw", amount="10", chain="sepolia")  # Ethereum's domain 0 costs 1.2 here
+    assert q["summary"]["arrives"] == "8.8" and "to Sepolia" in q["card"]
+    short = json.loads((run.state / "hl-quotes" / f"{q['quote']}.json").read_text())["card_short"]
+    assert "Withdraw: 10 USDC from the perp balance to Sepolia (8.8 arrives)" in short
+    ok(submit(run, q["quote"], "own"))
+    (body,) = exchanged()
+    assert body["action"]["destinationChainId"] == 0
+    for chain, needle in (("arbitrum", "testnet withdrawal goes to one of sepolia"), ("celo-sepolia", "one of"),
+                          ("solana-devnet", "one of")):
+        reply = run("quote", account=f"{MAIN}#0", network="testnet", kind="withdraw", amount="10", chain=chain)
+        assert not reply["ok"] and needle in reply["error"], chain
+    mainnet = ok(run("quote", account=f"{MAIN}#0", network="mainnet", kind="withdraw", amount="10", chain="base"))
+    assert "to Base" in mainnet["card"] and mainnet["summary"]["arrives"] == "9.8"
+    reply = run("quote", account=f"{MAIN}#0", network="testnet", kind="withdraw", amount="1.2", chain="sepolia")
+    assert not reply["ok"] and "pays Circle 1.2 USDC; withdraw more than that" in reply["error"]
 
 
 def test_funds_to_anyone_else_need_the_card(run):
@@ -785,7 +830,7 @@ def test_a_unified_account_withdraws_from_its_one_balance_and_has_nothing_to_tra
     VENUE["withdrawable"] = "0"
     q = quote(run, kind="withdraw", amount="20")
     assert "Withdraw: 20 USDC from the unified balance to Arbitrum Sepolia" in q["card"]
-    assert q["summary"]["available"] == "25"
+    assert q["summary"]["available"] == "25" and q["summary"]["move"]["sourceDex"] == "spot"
     VENUE["after_margin"] = "12"  # positions hold the rest
     reply = run("quote", account=f"{MAIN}#0", network="testnet", kind="withdraw", amount="20")
     assert not reply["ok"] and "can withdraw 12 USDC now (unified balance after margin)" in reply["error"]
@@ -804,7 +849,7 @@ def test_a_spot_perp_transfer_stays_in_the_account(run):
 
 @pytest.mark.parametrize("fields, needle", [
     ({"kind": "withdraw", "amount": "500"}, "can withdraw 100 USDC"),
-    ({"kind": "withdraw", "amount": "1"}, "1 USDC fee"),
+    ({"kind": "withdraw", "amount": "0.2"}, "pays Circle 0.2 USDC"),
     ({"kind": "withdraw", "amount": "5", "destination": "0x08cfc1B6b2dCF36A1480b99353A354AA8AC56f89"}, "deposit bridge"),
     ({"kind": "withdraw", "amount": "5", "destination": "0x" + "00" * 20}, "zero address"),
     ({"kind": "withdraw", "amount": "5", "destination": "alice.eth"}, "40 hex digits"),

@@ -872,6 +872,7 @@ def _submit_move(payload: dict, state: Path, secrets_, quote: dict, approval: st
     if address != quote["from"]:
         raise ChainError("this quote's account does not match its secret")
     move = quote["built"]["move"]
+    hl_moves.recheck(quote, _ctx(payload, quote["network"]), payload)
     nonce = _nonce(state, address.lower())
     try:
         action = hl_sign.user_action(hl_moves.action(move, nonce), quote["network"] == "mainnet")
@@ -884,7 +885,7 @@ def _submit_move(payload: dict, state: Path, secrets_, quote: dict, approval: st
     attempt = random.token_hex(8)
     row = {"time": now, "attempt": attempt, "quote": quote["id"], "account": quote["account"],
            "network": quote["network"], "kind": quote["kind"], "coin": quote["market"]["coin"], "effect": current,
-           "approval": approval, "nonce": nonce, "outcome": "unknown"}
+           "approval": approval, "nonce": nonce, **hl_moves.trail(quote), "outcome": "unknown"}
     send_row = {"time": now, "attempt": attempt, "quote": quote["id"], "account": quote["account"],
                 "chain": f"hyperliquid-{quote['network']}", "from": quote["from"], **hl_moves.recorded(quote),
                 "symbol": quote["market"]["coin"], "amount": move["amount"], "kind": f"hyperliquid-{quote['kind']}",
@@ -904,7 +905,7 @@ def _submit_move(payload: dict, state: Path, secrets_, quote: dict, approval: st
         reason = str(exc) if isinstance(exc, Unknown) else f"the reply could not be read ({type(exc).__name__})"
         return {"submitted": "unknown", "reason": reason, "network": quote["network"], "kind": quote["kind"],
                 "note": "the venue's answer did not come back or could not be read, so the funds may have moved; "
-                        "never submit it again — check balances (and for a withdrawal, the Arbitrum balance) first"}
+                        "never submit it again — check balances (and for a withdrawal, the destination chain's) first"}
     for name, base in ((LEDGER, row), (ledger.SENDS, send_row)):
         try:
             ledger.append(state, {**base, "outcome": outcome, "statuses": legs}, name)
