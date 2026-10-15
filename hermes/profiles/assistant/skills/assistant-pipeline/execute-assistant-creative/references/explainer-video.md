@@ -6,6 +6,7 @@ Read [commissioning](../SKILL.md) first.
 
 | Deliverable | Leaf | Notes |
 | --- | --- | --- |
+| findings on one existing explainer video: on-screen text, caption-versus-picture, overlaps, phone-size text, figure and portrait drawing defects, and its claims verbatim | `analyze-explainer-video` | free, up to 600 seconds, kind="work"; `remote_analysis` defaults to no unless the user consented to uploading this video, and even yes runs only at <=30 MB or <=60 s (otherwise reported as not run); no speech, thumbnail, likeness or fact verdict; findings.md/claims.md land under `deliver` |
 | a bounded local-authored explanation of a topic for an audience with a learning_goal | `create-explainer-video` | free, 1..180 seconds, always kind="work"; explicit v1 HyperFrames or v2 Motion Canvas render (never a silent switch; an old v1 Motion Canvas discussion-only proposal needs a fresh v2 proposal and approval), 16:9 (1280x720)/9:16 (720x1280), HyperFrames at 24/25/30/50/60fps (default 30), Motion Canvas 30fps only; framing none/bust/full separate from performance still/puppet/animated and lip_sync off/cues/baked; missing character/script/grounding/audio inputs return as dependency requests, never invented; propose/freeze/snapshot/render mirrors Tour/Ad's proposal-then-approval shape |
 
 create-tour, create-ad and HyperFrames create-explainer-video
@@ -17,6 +18,17 @@ GSAP time. Addons, async asset loading, WebGPU and Motion Canvas combinations
 remain outside that scope. Existing exact proposals and previews still apply.
 
 ## Choosing and filling
+
+### Reviewing an existing explainer video
+
+`analyze-explainer-video` sees the picture and the caption file only. The
+speech of the same video is audio-creator's `analyze-speech`
+([speech](speech.md)) and its thumbnail image-creator's `analyze-card`
+([card](card.md)); a whole review of one or more videos is run by the
+`explainer-video-review` technic, which sends all three and keeps the
+findings in one ledger. Pass the caption file whenever one exists, put known
+recurring defects or a portrait drawing check in `focus`, and set `deliver`
+to the video's own directory inside the review job.
 
 ### Explainer video: scope, framing and dependencies
 
@@ -90,6 +102,7 @@ rewritten in place.
 | Leaf | Transport |
 | --- | --- |
 | video-creator's `create-explainer-video` | `specialist_call(target="video-creator", message=<the text>, kind="work")` even though free; the propose/freeze/snapshot/render rounds and any dependency-request round-trip are not one-reply work |
+| video-creator's `analyze-explainer-video` | `specialist_call(target="video-creator", message=<the text>, kind="work")`, one conversation per video; reading every still of a multi-minute video outlives one reply. Several videos run as parallel conversations |
 
 ## Round-trip and approvals
 
