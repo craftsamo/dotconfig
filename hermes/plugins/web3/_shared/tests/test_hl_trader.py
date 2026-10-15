@@ -45,9 +45,10 @@ def reset():
     VENUE.clear()
     VENUE.update({"positions": {"ETH": "-1.5"}, "leverage": {"BTC": {"type": "cross", "value": 10},
                                                               "ETH": {"type": "isolated", "value": 5}},
-                  "exchange": "ok", "open_orders": [], "withdrawable": "100",
+                  "exchange": "ok", "open_orders": [], "withdrawable": "100", "mode": "default", "after_margin": None,
                   "spot": [("USDC", 0, "30", "5"), ("HYPE", 1, "2.5", "0"), ("DUP", 3, "5", "0"),
-                           ("LONG", 4, "1.0000000001", "0")]})
+                           ("LONG", 4, "1.0000000001", "0"),
+                           ("A_DEPLOYER_CHOSE_THIS_VERY_LONG_TOKEN_NAME", 6, "9", "0")]})
     SEEN.clear()
 
 
@@ -65,14 +66,24 @@ def info(body):
                             {"name": "HYPE", "szDecimals": 2, "weiDecimals": 8, "index": 1, "tokenId": HYPE_ID},
                             {"name": "DUP", "szDecimals": 0, "weiDecimals": 0, "index": 2, "tokenId": "0x" + "d1" * 16},
                             {"name": "DUP", "szDecimals": 0, "weiDecimals": 0, "index": 3, "tokenId": "0x" + "d2" * 16},
-                            {"name": "LONG", "szDecimals": 2, "weiDecimals": 10, "index": 4, "tokenId": "0x" + "e4" * 16}]},
+                            {"name": "LONG", "szDecimals": 2, "weiDecimals": 10, "index": 4, "tokenId": "0x" + "e4" * 16},
+                            # a deployer's look-alike: the venue's USDC is token 0, never found by name
+                            {"name": "USDC", "szDecimals": 2, "weiDecimals": 8, "index": 5,
+                             "tokenId": "0x" + "f5" * 16},
+                            {"name": "A_DEPLOYER_CHOSE_THIS_VERY_LONG_TOKEN_NAME", "szDecimals": 2, "weiDecimals": 8,
+                             "index": 6, "tokenId": "0x" + "f6" * 16}]},
                 [{"coin": "@107", "markPx": "40", "midPx": "40"}]]
     if kind == "clearinghouseState":
         marks = {"BTC": 99000, "ETH": 2500}
         return {"assetPositions": [{"position": {"coin": c, "szi": s, "positionValue": str(abs(float(s)) * marks[c])}}
                                    for c, s in VENUE["positions"].items()], "withdrawable": VENUE["withdrawable"]}
     if kind == "spotClearinghouseState":
-        return {"balances": [{"coin": c, "token": i, "total": t, "hold": h} for c, i, t, h in VENUE["spot"]]}
+        found = {"balances": [{"coin": c, "token": i, "total": t, "hold": h} for c, i, t, h in VENUE["spot"]]}
+        if VENUE["after_margin"] is not None:
+            found["tokenToAvailableAfterMaintenance"] = [[0, VENUE["after_margin"]]]
+        return found
+    if kind == "userAbstraction":
+        return VENUE["mode"]
     if kind == "frontendOpenOrders":
         return VENUE["open_orders"]
     if kind == "activeAssetData":
@@ -681,6 +692,59 @@ def test_sends_go_from_perp_usdc_or_a_named_spot_token(run):
     first, second = (body["action"] for body in exchanged())
     assert first["type"] == "usdSend" and first["destination"] == SPARE.lower() and first["amount"] == "20"
     assert second["type"] == "spotSend" and second["token"] == f"HYPE:{HYPE_ID}" and second["amount"] == "1.5"
+
+
+def test_a_unified_account_sends_from_its_one_balance(run):
+    VENUE["mode"] = "unifiedAccount"
+    VENUE["withdrawable"] = "0"  # the perp state of a unified account counts nothing
+    perp = quote(run, kind="send", amount="20", destination=SPARE)
+    assert perp["effect"] == "own" and perp["summary"]["available"] == "25"
+    assert f"Send on Hyperliquid: 20 USDC ({USDC_ID})" in perp["card"]
+    assert "From the unified balance to their perp balance" in perp["card"]
+    short = json.loads((run.state / "hl-quotes" / f"{perp['quote']}.json").read_text())["card_short"]
+    assert "Unified → their perp" in short and len(short.replace("&", "&amp;").encode("utf-16-le")) // 2 <= 290
+    ok(submit(run, perp["quote"], "own"))
+    spot = quote(run, kind="send", amount="1.5", destination=STRANGER, token="hype")
+    assert "From the unified balance to their spot balance" in spot["card"]
+    ok(submit(run, spot["quote"], "card"))
+    first, second = (body["action"] for body in exchanged())
+    assert first == {"type": "sendAsset", "destination": SPARE.lower(), "sourceDex": "spot", "destinationDex": "",
+                     "token": f"USDC:{USDC_ID}", "amount": "20", "fromSubAccount": "", "nonce": first["nonce"],
+                     "signatureChainId": "0x66eee", "hyperliquidChain": "Testnet"}
+    assert second["type"] == "sendAsset" and second["destinationDex"] == "spot" and second["token"] == f"HYPE:{HYPE_ID}"
+    rows = sends(run)
+    assert rows[-1]["kind"] == "hyperliquid-send" and rows[-1]["outcome"] == "sent"
+    reply = run("quote", account=f"{MAIN}#0", network="testnet", kind="send", amount="1", destination=STRANGER,
+                token="USDC")  # named, it is ambiguous: only the implicit USDC is token 0
+    assert not reply["ok"] and "give it as NAME:tokenId" in reply["error"]
+
+
+def test_an_external_unified_send_s_compact_card_fits_discord_whole(run):
+    VENUE["mode"] = "unifiedAccount"
+    long_name = "hermes/HERMES_TRADING_WALLET_WITH_A_LONG_NAME"  # past the 40 the compact card shows
+    sources = [SOURCES[0], item(long_name, TEAM_WORDS)]
+    q = ok(run("quote", account=f"{long_name}#0", network="mainnet", kind="send", amount="0.123456",
+               destination=STRANGER, _sources=sources))
+    short = json.loads((run.state / "hl-quotes" / f"{q['quote']}.json").read_text())["card_short"]
+    assert q["effect"] == "external" and len(short.replace("&", "&amp;").encode("utf-16-le")) // 2 <= 290
+    for part in ("0.123456 USDC", USDC_ID, "Unified → their perp", STRANGER.lower(), "MAINNET"):
+        assert part in short, part
+    reply = run("quote", account=f"{long_name}#0", network="mainnet", kind="send", amount="1.12345678",
+                destination=STRANGER, token="A_DEPLOYER_CHOSE_THIS_VERY_LONG_TOKEN_NAME", _sources=sources)
+    assert not reply["ok"] and "would not fit Discord's limit" in reply["error"]  # refused, never shown cut
+
+
+def test_a_unified_account_withdraws_from_its_one_balance_and_has_nothing_to_transfer(run):
+    VENUE["mode"] = "portfolioMargin"
+    VENUE["withdrawable"] = "0"
+    q = quote(run, kind="withdraw", amount="20")
+    assert "Withdraw: 20 USDC from the unified balance to Arbitrum Sepolia" in q["card"]
+    assert q["summary"]["available"] == "25"
+    VENUE["after_margin"] = "12"  # positions hold the rest
+    reply = run("quote", account=f"{MAIN}#0", network="testnet", kind="withdraw", amount="20")
+    assert not reply["ok"] and "can withdraw 12 USDC now (unified balance after margin)" in reply["error"]
+    reply = run("quote", account=f"{MAIN}#0", network="testnet", kind="transfer", amount="5", to_perp=True)
+    assert not reply["ok"] and "unified account" in reply["error"] and "nothing to move" in reply["error"]
 
 
 def test_a_spot_perp_transfer_stays_in_the_account(run):
