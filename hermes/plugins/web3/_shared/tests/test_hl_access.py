@@ -375,6 +375,19 @@ def test_deposit_info_is_a_read_for_every_reading_profile(monkeypatch):
         assert seen[-1]["script"] == "hl.py"
 
 
+def test_a_backtest_is_a_read_that_carries_its_rules_to_the_engine(monkeypatch):
+    seen = fake_engine(monkeypatch, {"ok": True, "data": {}})
+    args = {"action": "backtest", "network": "mainnet", "coin": "BTC", "interval": "4h", "long_history": True,
+            "rules": {"kind": "breakout", "entry": 20}, "costs": {"taker_bps": 4.5}, "limits": {"exposure_pct": 70},
+            "direction": "long", "stance": [{"from": 1, "to": 2}], "walk_forward": {"folds": 3}}
+    for profile in ("assistant", "researcher", "searcher", "marketer"):
+        assert hl_access.refused(profile, args) is None
+        hl_access.run(profile, {**args, "account": "x", "side": "buy"})
+        payload = seen[-1]["payload"]
+        assert seen[-1]["script"] == "hl.py" and {k: payload[k] for k in args} == args
+        assert "account" not in payload and "side" not in payload
+
+
 def test_a_timed_out_submit_says_it_may_have_reached_the_venue(monkeypatch):
     fake_engine(monkeypatch, {"ok": False, "error": "the web3 engine did not finish within 180s; narrow a read"},
                 verify=REDUCE)
