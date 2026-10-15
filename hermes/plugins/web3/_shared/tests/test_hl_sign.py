@@ -1,5 +1,7 @@
 """Hyperliquid signing in the web3 venv against hyperliquid-python-sdk's own test vectors
-(tests/signing_test.py): the same key, actions and nonces must give the same signatures, byte for byte."""
+(tests/signing_test.py), and for the user-signed actions those tests leave out, against what the SDK's
+``utils/signing.py`` (0.24.0) signs for the same key and action: the same key, actions and nonces must
+give the same signatures, byte for byte."""
 
 from __future__ import annotations
 
@@ -18,6 +20,7 @@ pytestmark = pytest.mark.skipif(not PYTHON.exists(), reason="web3 engine venv no
 KEY = "0x0123456789012345678901234567890123456789012345678901234567890123"
 VAULT = "0x1719884eb866cb12b2287399b15f7db5e7d775ea"
 DEST = "0x5e9ee1089755c3435139848e47e6635505d5a13a"
+TOKEN = "USDC:0xeb62eee3685fc4c43992febcd9e75443"
 
 # Runs in the venv: builds each SDK test case with hl_sign's builders and prints what it signs.
 PROBE = r"""
@@ -51,6 +54,12 @@ out["usdSend/signer"] = s.recover_user(send, out["usdSend"])
 out["usdSend/action"] = send
 withdraw = s.user_action(s.withdraw_action(sys.argv[4], "1", 1687816341423), False)
 out["withdraw"] = s.sign_user(key, withdraw)
+spot = s.user_action(s.spot_send_action(sys.argv[4], sys.argv[5], "1", 1687816341423), False)
+out["spotSend"] = s.sign_user(key, spot)
+out["spotSend/signer"] = s.recover_user(spot, out["spotSend"])
+klass = s.user_action(s.usd_class_transfer_action("1", True, 1687816341423), False)
+out["usdClassTransfer"] = s.sign_user(key, klass)
+out["usdClassTransfer/signer"] = s.recover_user(klass, out["usdClassTransfer"])
 errors = {}
 for name, call in (("float", lambda: s.wire(0.1)), ("precision", lambda: s.wire("0.000000001")),
                    ("negative", lambda: s.wire("-1")), ("tif", lambda: s.limit("Fok")),
@@ -69,8 +78,8 @@ print(json.dumps(out))
 
 @pytest.fixture(scope="module")
 def signed():
-    proc = subprocess.run([str(PYTHON), "-c", PROBE, str(SHARED), KEY, VAULT, DEST], capture_output=True, text=True,
-                          timeout=60, env={"PATH": "/usr/bin:/bin", "PYTHONDONTWRITEBYTECODE": "1"})
+    proc = subprocess.run([str(PYTHON), "-c", PROBE, str(SHARED), KEY, VAULT, DEST, TOKEN], capture_output=True,
+                          text=True, timeout=60, env={"PATH": "/usr/bin:/bin", "PYTHONDONTWRITEBYTECODE": "1"})
     assert proc.returncode == 0, proc.stderr
     return json.loads(proc.stdout)
 
@@ -104,6 +113,11 @@ SDK_VECTORS = {
                    "0x11a6a24900e6e314136d2592e2f8d502cd89b7c15b198e1bee043c9589f9fad7", 27),
     "withdraw": sig("0x8363524c799e90ce9bc41022f7c39b4e9bdba786e5f9c72b20e43e1462c37cf9",
                     "0x58b1411a775938b83e29182e8ef74975f9054c8e97ebf5ec2dc8d51bfc893881", 28),
+    # from the SDK's sign_spot_transfer_action and sign_usd_class_transfer_action, not its tests
+    "spotSend": sig("0x9e2c79d14dc6692a8da5b321826a6da77de25be3a7d894936cf1f7e32b5a95e0",
+                    "0x5d22ac3ef4c390d8941bc84318f7b7bddaa6cb5451d206eed1a73df6931e357f", 27),
+    "usdClassTransfer": sig("0xe265b4f0207b3e5ba5d7f863c150b41a25449bf6f6bda1cf278f4b2b6db25279",
+                            "0x2469568d152f30acad5672b7657f0aa8e2f9d897fbd03b9b6b7dc3f443a1dff9", 27),
 }
 
 
@@ -120,7 +134,8 @@ def test_every_signature_recovers_to_its_own_key(signed):
     for case in ("dummy", "order", "cloid", "tpsl"):
         for net in ("mainnet", "testnet"):
             assert signed[f"{case}/{net}/signer"] == signed["address"]
-    assert signed["usdSend/signer"] == signed["address"]
+    for case in ("usdSend", "spotSend", "usdClassTransfer"):
+        assert signed[f"{case}/signer"] == signed["address"]
 
 
 def test_a_user_signed_action_names_its_network(signed):
