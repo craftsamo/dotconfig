@@ -293,7 +293,8 @@ def report_rows(path: str, base: str | None = None) -> tuple[list[dict], list[st
         if aspect not in ASPECTS or certainty not in CERTAINTIES or not problem or (at and not times_in(at)):
             skipped.append(line)
             continue
-        if base and evidence and not Path(evidence).is_absolute():
+        looks_like_path = "/" in evidence or bool(Path(evidence).suffix)
+        if base and looks_like_path and not Path(evidence).is_absolute():
             evidence = str(Path(base) / evidence)
         rows.append({"at": at, "aspect": aspect, "problem": problem, "evidence": evidence,
                      "certainty": certainty, "quotes": quotes_in(problem)})

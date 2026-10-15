@@ -88,10 +88,15 @@ conversation (`plan-assistant-research`).
    messages, never poll.
    - Speech: the [speech](../../assistant-pipeline/execute-assistant-creative/references/speech.md)
      reference's `analyze-speech` with `source` (the audio download),
-     `script`, `language` and a note asking for speech absent from the script
-     and for the heard words of every name, number and foreign-language term, findings
-     only. Fresh ASR on a whole batch outlives one turn, so split a batch into
-     conversations of at most five videos and send them together; every video
+     `script`, `language`, `prosody: yes` when voice is in scope, and a note
+     asking for speech absent from the script and for the heard words of
+     every name, number and foreign-language term, findings only. Its
+     prosody candidate lines go into the ledger as `confirm` voice findings
+     (save the returned lines as `<NN>/speech/prosody.md` and import them
+     with `--source audio-creator`), so they reach the user only on the
+     review sheet; a change of speaker also jumps, and the user decides which
+     are real. Fresh ASR on a whole batch outlives one turn, so split a batch
+     into conversations of at most five videos and send them together; every video
      still gets its check. The leaf takes up to 600 seconds: a longer video's
      speech stays unchecked and is named so on the sheet. An exit code 1 with
      `script_match FAIL` still produced findings: read its output before

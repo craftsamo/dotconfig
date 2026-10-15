@@ -28,6 +28,10 @@ metadata:
       language:
         required: false
         label: "ASR language code, omit for detection"
+      prosody:
+        required: false
+        options: ["yes", "no"]
+        label: "yes adds per-segment pitch and level with jump candidates (measured, for listening); default no"
       note:
         required: false
         type: text
@@ -42,7 +46,8 @@ metadata:
    hermes-python "${HERMES_SKILL_DIR}/../../scripts/speech-media.py" analyze <source>
    ```
 
-   Add `--script-file <path>` and `--language <code>` only when supplied.
+   Add `--script-file <path>` and `--language <code>` only when supplied,
+   and `--prosody` when `prosody: yes`.
    Text stays in files. Use a resident session/background polling when ASR
    would exceed the reply window; do not install/download a missing model.
 2. Read the whole `RESULT:` JSON even on a readback failure. Distinguish
@@ -53,6 +58,15 @@ metadata:
    next action. Normalized text equality is not a pronunciation verdict.
    Japanese coverage cannot excuse omitted foreign words. ASR substitutions
    need review, not automatic rewriting of the approved script.
+4. With `prosody: yes`, read `prosody`: per ASR segment, the median pitch in
+   semitones from the file's median and the voiced level, and `candidates`
+   where pitch or level jumps from the previous segment or sits well above
+   the file. Report each candidate as one line,
+   `m:ss | voice | <reasons> (ASR: <segment text>) | prosody | confirm`,
+   with `m:ss` the segment start floored to whole seconds (12.64 → 0:12)
+   and the ASR text flattened to one line, and say that music under the
+   voice and a change of speaker also move these numbers.
+   `status: unmeasured` is a gap, not a pass.
 
 </Procedure>
 
@@ -68,6 +82,8 @@ metadata:
   is unmeasurable, never zero. Mark downmixed sample/peak evidence as such.
 - With a script, quote readback, transcript and CPS; without one, no fidelity
   PASS. Listening, emotion, identity and pronunciation are always unverified.
+- Prosody numbers are measurements and its candidates are places to listen;
+  never call a delivery too excited, flat or unnatural from them.
 - No finding without named measurements or a disclosed limitation. No new
   speech, normalization, trim or output file is allowed during analysis.
 
@@ -76,7 +92,8 @@ metadata:
 <Report>
 
 Return `analyze-speech`, the source, findings table and blocking defects first,
-then proposed edit-speech/generate-speech handoffs (not execution). State the
+then the prosody candidate lines when requested, then proposed
+edit-speech/generate-speech handoffs (not execution). State the
 perceptual gap and `spend: free; takes 0`. No delivery path is required.
 
 </Report>

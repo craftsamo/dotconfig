@@ -3,7 +3,8 @@
 
 Requires ffmpeg/ffprobe on PATH; ASR uses faster_whisper's local 'base'
 model (never downloaded here — a missing cache is an actionable failure).
-Stdlib + optional faster_whisper only. Prints RESULT: <JSON> to stdout;
+Stdlib + optional faster_whisper only (analyze --prosody also uses the numpy
+that faster_whisper brings). Prints RESULT: <JSON> to stdout;
 never overwrites a source or an existing/symlinked output directory.
 
 No production test seam: the test suite exercises this module by importing
@@ -1061,10 +1062,156 @@ def _transcribe_pcm(pcm, duration, language):
 
 
 # --------------------------------------------------------------------------
+# Prosody: pitch and level per ASR segment (candidates, never a verdict)
+# --------------------------------------------------------------------------
+
+PROSODY_RATE = 16000
+PROSODY_WINDOW = 640  # 40 ms
+PROSODY_HOP = 160  # 10 ms
+PROSODY_FMIN, PROSODY_FMAX = 70.0, 400.0
+PROSODY_VOICING = 0.45
+PROSODY_FLOOR_DB = -45.0
+PROSODY_MIN_VOICED = 10
+# Wide enough that ordinary sentence intonation stays quiet; a change of
+# speaker (a character's line) still crosses them and is the listener's call.
+PROSODY_PITCH_JUMP = 6.0  # semitones between neighbouring segments
+PROSODY_LEVEL_JUMP = 6.0  # dB between neighbouring segments
+PROSODY_PITCH_HIGH = 6.0  # semitones above the file's median
+
+
+def _numpy():
+    try:
+        import numpy
+    except ImportError as exc:
+        raise DependencyError("prosody needs numpy (installed with faster_whisper)") from exc
+    return numpy
+
+
+def prosody_track(path, audio_index):
+    """Frame-wise f0 (Hz, 0 = unvoiced) and level (dBFS) at 100 frames/s.
+
+    Speech band only (70 Hz-1 kHz), normalised autocorrelation per 40 ms
+    window; music under the voice can still be picked up, so callers keep the
+    result to frames inside ASR word intervals and treat it as candidates."""
+    np = _numpy()
+    raw = run([
+        "ffmpeg", "-nostdin", "-v", "error", "-i", path, "-map", f"0:{audio_index}",
+        "-ac", "1", "-ar", str(PROSODY_RATE), "-af", "highpass=f=70,lowpass=f=1000",
+        "-t", f"{MAX_MEDIA_SECONDS + 0.01:.2f}", "-f", "f32le", "pipe:1",
+    ], binary=True).stdout
+    signal = np.frombuffer(raw, dtype="<f4").astype(np.float32)
+    count = max(0, 1 + (len(signal) - PROSODY_WINDOW) // PROSODY_HOP)
+    f0 = np.zeros(count, dtype=np.float32)
+    level = np.full(count, -120.0, dtype=np.float32)
+    if count == 0:
+        return f0, level
+    lag_lo = int(PROSODY_RATE / PROSODY_FMAX)
+    lag_hi = int(PROSODY_RATE / PROSODY_FMIN)
+    taper = np.hanning(PROSODY_WINDOW).astype(np.float32)
+    # Dividing by the taper's own autocorrelation (Boersma) removes the fall-off
+    # a window imposes with lag, which would otherwise favour the octave above
+    # a low voice and make low voices fail the voicing threshold.
+    taper_corr = np.fft.irfft(np.abs(np.fft.rfft(taper, n=2048)) ** 2)[:lag_hi + 2]
+    taper_corr = np.maximum(taper_corr / taper_corr[0], 1e-6)
+    for first in range(0, count, 4096):
+        idx = np.arange(first, min(count, first + 4096))
+        frames = np.stack([signal[i * PROSODY_HOP:i * PROSODY_HOP + PROSODY_WINDOW] for i in idx])
+        rms = np.sqrt(np.mean(frames ** 2, axis=1))
+        level[idx] = 20 * np.log10(np.maximum(rms, 1e-6))
+        spectrum = np.fft.rfft((frames - frames.mean(axis=1, keepdims=True)) * taper, n=2048, axis=1)
+        corr = np.fft.irfft(np.abs(spectrum) ** 2, axis=1)[:, :lag_hi + 2]
+        energy = np.maximum(corr[:, 0], 1e-12)
+        corr = corr / energy[:, None] / taper_corr[None, :]
+        band = corr[:, lag_lo:lag_hi + 1]
+        # A periodic voice correlates almost as well at every multiple of its
+        # period, so take the shortest-lag local peak within 90% of the best,
+        # not the global maximum (which drifts to a sub-octave).
+        peak = band.max(axis=1)
+        padded = np.pad(band, ((0, 0), (1, 1)), constant_values=-np.inf)
+        local = (band >= padded[:, :-2]) & (band >= padded[:, 2:])
+        eligible = local & (band >= 0.9 * peak[:, None])
+        best = np.where(eligible.any(axis=1), np.argmax(eligible, axis=1), np.argmax(band, axis=1))
+        strength = band[np.arange(len(idx)), best]
+        lag = (best + lag_lo).astype(np.float32)
+        left = corr[np.arange(len(idx)), np.clip(best + lag_lo - 1, 0, lag_hi + 1)]
+        mid = corr[np.arange(len(idx)), best + lag_lo]
+        right = corr[np.arange(len(idx)), np.clip(best + lag_lo + 1, 0, lag_hi + 1)]
+        denom = left - 2 * mid + right
+        shift = np.where(np.abs(denom) > 1e-12, 0.5 * (left - right) / np.where(denom == 0, 1, denom), 0)
+        voiced = (strength >= PROSODY_VOICING) & (level[idx] > PROSODY_FLOOR_DB)
+        f0[idx] = np.where(voiced, PROSODY_RATE / (lag + np.clip(shift, -1, 1)), 0)
+    return f0, level
+
+
+def prosody_report(f0, level, segments, words):
+    """Per-segment median pitch (Hz and semitones re the file median) and voiced
+    level, plus candidate jumps between neighbouring segments."""
+    np = _numpy()
+    speech = np.zeros(len(f0), dtype=bool)
+    for w in words:
+        lo, hi = int(w["start"] * 100), int(math.ceil(w["end"] * 100))
+        speech[max(0, lo):max(0, min(len(f0), hi))] = True
+    usable = speech & (f0 > 0)
+    if usable.sum() < PROSODY_MIN_VOICED:
+        return {"status": "unmeasured", "reason": "too few voiced speech frames", "segments": [], "candidates": []}
+    reference = float(np.median(f0[usable]))
+
+    def semitones(hz):
+        return 12 * math.log2(hz / reference)
+
+    rows = []
+    for seg in segments:
+        lo, hi = int(seg["start"] * 100), int(math.ceil(seg["end"] * 100))
+        mask = usable[lo:hi]
+        if mask.sum() < PROSODY_MIN_VOICED:
+            rows.append({"start": seg["start"], "end": seg["end"], "text": seg["text"], "measured": False})
+            continue
+        pitch = float(np.median(f0[lo:hi][mask]))
+        lower, upper = np.percentile(f0[lo:hi][mask], [10, 90])
+        rows.append({
+            "start": seg["start"], "end": seg["end"], "text": seg["text"], "measured": True,
+            "pitch_hz": round(pitch, 1), "pitch_st": round(semitones(pitch), 2),
+            "pitch_range_st": round(semitones(float(upper)) - semitones(float(lower)), 2),
+            "level_db": round(float(np.median(level[lo:hi][mask])), 1),
+            "voiced_frames": int(mask.sum()),
+        })
+    measured = [r for r in rows if r["measured"]]
+    level_reference = float(np.median([r["level_db"] for r in measured])) if measured else 0.0
+    candidates = []
+    previous = None
+    for row in measured:
+        reasons = []
+        if previous is not None:
+            pitch_step = row["pitch_st"] - previous["pitch_st"]
+            level_step = row["level_db"] - previous["level_db"]
+            if abs(pitch_step) >= PROSODY_PITCH_JUMP:
+                reasons.append(f"pitch {pitch_step:+.1f} st vs previous measured segment")
+            if abs(level_step) >= PROSODY_LEVEL_JUMP:
+                reasons.append(f"level {level_step:+.1f} dB vs previous measured segment")
+        if row["pitch_st"] >= PROSODY_PITCH_HIGH:
+            reasons.append(f"pitch {row['pitch_st']:+.1f} st above the file median")
+        if reasons:
+            candidates.append({"start": row["start"], "text": row["text"], "reasons": reasons,
+                               "pitch_st": row["pitch_st"], "level_db_vs_median": round(row["level_db"] - level_reference, 1)})
+        previous = row
+    return {
+        "status": "measured", "reference_hz": round(reference, 1), "level_reference_db": round(level_reference, 1),
+        "thresholds": {"pitch_jump_st": PROSODY_PITCH_JUMP, "level_jump_db": PROSODY_LEVEL_JUMP,
+                       "pitch_high_st": PROSODY_PITCH_HIGH},
+        "segments": rows, "candidates": candidates,
+        "note": "autocorrelation pitch over ASR word intervals; music under the voice can mislead it, "
+                "and a change of speaker also jumps. Candidates for listening, not a judgement of "
+                "delivery or emotion.",
+    }
+
+
+# --------------------------------------------------------------------------
 # CLI: analyze
 # --------------------------------------------------------------------------
 
 def analyze(args):
+    if getattr(args, "prosody", False):
+        _numpy()  # fail before minutes of ASR, not after
     source = resolve_source(args.source)
     script = read_script_file(args.script_file, EDIT_SCRIPT_MAX_CHARS) if args.script_file else None
     measured, pcm, input_measure = decode_and_measure(source)
@@ -1072,12 +1219,22 @@ def analyze(args):
     words_nonempty = bool(asr["words"])
     readback = readback_compare(script, asr["transcript"], words_nonempty) if script else None
     cps = cps_warning(asr["language"], len(asr["transcript"]), measured["duration"])
-    return {
+    result = {
         "source": str(source), "measure": measured, "input_measure": input_measure,
         "language": asr["language"],
         "transcript": asr["transcript"], "segments": asr["segments"], "words": asr["words"],
         "script": script, "readback": readback, "cps": cps, "perceptual_quality": "unverified",
     }
+    if getattr(args, "prosody", False):
+        try:
+            info = probe(source)
+            f0, level = prosody_track(info["path"], info["audio_index"])
+            result["prosody"] = prosody_report(f0, level, asr["segments"], asr["words"])
+        except (ValueError, OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired) as exc:
+            # An optional add-on never discards the ASR and measurements above.
+            result["prosody"] = {"status": "unmeasured", "reason": str(exc)[-500:],
+                                 "segments": [], "candidates": []}
+    return result
 
 
 # --------------------------------------------------------------------------
@@ -1113,6 +1270,8 @@ def main():
     p_analyze.add_argument("source")
     p_analyze.add_argument("--script-file")
     p_analyze.add_argument("--language")
+    p_analyze.add_argument("--prosody", action="store_true",
+                           help="add per-segment pitch/level and jump candidates (needs numpy)")
 
     args = parser.parse_args()
     try:
