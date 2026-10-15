@@ -439,12 +439,30 @@ def book(ctx, args) -> dict:
 
 # --- accounts -----------------------------------------------------------------------------------
 
+# Account modes that keep one balance per asset for spot and every perp dex, held in the spot state:
+# a perp dex's own account value and withdrawable mean nothing there, and the venue refuses spotSend
+# and usdClassTransfer from them (sendAsset moves their funds).
+UNIFIED = ("unifiedAccount", "portfolioMargin")
+UNIFIED_NOTE = ("a unified account: spot and perp share one balance per asset, which balances shows; this dex's "
+                "account value and withdrawable do not count it")
+
+
+def abstraction(ctx, user: str) -> str:
+    """The account's mode as the venue names it: default, disabled, unifiedAccount, portfolioMargin or
+    dexAbstraction."""
+    found = ctx.api.info({"type": "userAbstraction", "user": user})
+    if not isinstance(found, str) or not found:
+        raise ChainError(f"{ctx.api.label} returned an unexpected account mode")
+    return found
+
+
 def state(ctx, args) -> dict:
     user = address(args)
     dex = dex_arg(args)
     found = ctx.api.info({"type": "clearinghouseState", "user": user, **({"dex": dex} if dex else {})})
     if not isinstance(found, dict):
         raise ChainError(f"{ctx.api.label} returned an unexpected account state")
+    mode = abstraction(ctx, user)
     positions = []
     for item in found.get("assetPositions", []):
         p = item.get("position") or {}
@@ -460,13 +478,14 @@ def state(ctx, args) -> dict:
                           "funding_since_open": (p.get("cumFunding") or {}).get("sinceOpen")})
     summary = found.get("marginSummary") or {}
     cross = found.get("crossMarginSummary") or {}
-    return {**ctx.account(user), "dex": dex, "time": iso(found.get("time")),
+    note = "perp positions and margin on this dex only; spot holdings are in balances"
+    return {**ctx.account(user), "dex": dex, "time": iso(found.get("time")), "mode": mode,
             "account_value": summary.get("accountValue"), "margin_used": summary.get("totalMarginUsed"),
             "position_notional": summary.get("totalNtlPos"), "withdrawable": found.get("withdrawable"),
             "cross": {"account_value": cross.get("accountValue"), "margin_used": cross.get("totalMarginUsed"),
                       "maintenance_margin": found.get("crossMaintenanceMarginUsed")},
             "positions": positions,
-            "note": "perp positions and margin on this dex only; spot holdings are in balances"}
+            "note": f"positions on this dex; {UNIFIED_NOTE}" if mode in UNIFIED else note}
 
 
 def balances(ctx, args) -> dict:
@@ -476,8 +495,10 @@ def balances(ctx, args) -> dict:
              "entry_notional": b.get("entryNtl")}
             for b in (found or {}).get("balances", []) if num(b.get("total"))]
     limit = integer(args, "limit", 50, 1, 200)
-    return {**ctx.account(user), "count": len(rows), "balances": rows[:limit],
-            "note": "hold = committed to open spot orders"}
+    mode = abstraction(ctx, user)
+    note = "hold = committed to open spot orders"
+    return {**ctx.account(user), "mode": mode, "count": len(rows), "balances": rows[:limit],
+            "note": f"{note}; {UNIFIED_NOTE}" if mode in UNIFIED else note}
 
 
 def _fills(ctx, user: str, start: int, end: int, aggregate: bool, latest: bool) -> tuple[list[dict], bool]:
