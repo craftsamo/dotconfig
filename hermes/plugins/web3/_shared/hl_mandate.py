@@ -109,7 +109,7 @@ def _lines(quote: dict) -> list[str]:
              f"Markets: {', '.join(terms['markets'])} (perps)",
              f"Per order: up to {terms['max_order_usd']} USDC · held in total: up to {terms['max_exposure_usd']} USDC",
              f"Leverage: up to {terms['max_leverage']}x · at most {terms['per_hour']} orders an hour",
-             f"Until: {_when(until(quote))} ({terms['days']} days)",
+             f"Until: {_when(until(quote))} ({terms['days']} day{'' if terms['days'] == 1 else 's'})",
              f"Purpose: {terms['purpose']}"]
     if terms.get("replaces"):
         lines.append(f"Replaces: {terms['replaces']}")

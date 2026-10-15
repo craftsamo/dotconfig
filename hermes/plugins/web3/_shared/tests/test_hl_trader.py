@@ -447,6 +447,7 @@ def test_a_mandate_is_made_only_on_its_own_card(run):
     assert "Per order: up to 200 USDC · held in total: up to 1000 USDC" in card
     assert "Leverage: up to 10x · at most 5 orders an hour" in card and "(7 days)" in card
     assert "Purpose: Testnet momentum checks" in card and "Hyperliquid testnet" in card
+    assert "(1 day)" in quote(run, kind="mandate", **{**TERMS, "days": 1})["card"]
     assert verdict(run, q["quote"]) is None  # a mandate never approves another mandate
     for approval in ("reduce", "mandate"):
         mac = ok(run("verify", quote=q["quote"]))["mac"]
