@@ -52,8 +52,6 @@ send = s.user_action({"destination": sys.argv[4], "amount": "1", "time": 1687816
 out["usdSend"] = s.sign_user(key, send)
 out["usdSend/signer"] = s.recover_user(send, out["usdSend"])
 out["usdSend/action"] = send
-withdraw = s.user_action(s.withdraw_action(sys.argv[4], "1", 1687816341423), False)
-out["withdraw"] = s.sign_user(key, withdraw)
 spot = s.user_action(s.spot_send_action(sys.argv[4], sys.argv[5], "1", 1687816341423), False)
 out["spotSend"] = s.sign_user(key, spot)
 out["spotSend/signer"] = s.recover_user(spot, out["spotSend"])
@@ -126,8 +124,6 @@ SDK_VECTORS = {
                          "0x7ddad27e9a238d045c035bc606349d075d5c5cd00a6cd1da23ab5c39d4ef0f60", 27),
     "usdSend": sig("0x637b37dd731507cdd24f46532ca8ba6eec616952c56218baeff04144e4a77073",
                    "0x11a6a24900e6e314136d2592e2f8d502cd89b7c15b198e1bee043c9589f9fad7", 27),
-    "withdraw": sig("0x8363524c799e90ce9bc41022f7c39b4e9bdba786e5f9c72b20e43e1462c37cf9",
-                    "0x58b1411a775938b83e29182e8ef74975f9054c8e97ebf5ec2dc8d51bfc893881", 28),
     # from the SDK's sign_spot_transfer_action and sign_usd_class_transfer_action, not its tests
     "spotSend": sig("0x9e2c79d14dc6692a8da5b321826a6da77de25be3a7d894936cf1f7e32b5a95e0",
                     "0x5d22ac3ef4c390d8941bc84318f7b7bddaa6cb5451d206eed1a73df6931e357f", 27),

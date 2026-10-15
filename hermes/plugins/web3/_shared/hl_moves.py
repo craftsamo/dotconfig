@@ -22,15 +22,17 @@ from typing import Callable
 import chains
 import hl
 import hl_sign
+import rpc
 import signer
 from rpc import ChainError
 
 MOVES = ("withdraw", "send", "transfer")  # funds moving out of a position: own or external, like a wallet send
-WITHDRAW_FEE = Decimal("1")     # the venue's fee on a withdrawal to Arbitrum, in USDC
 # the venue's fee for a send to an address with no account there: usdSend takes it from the amount,
 # spotSend and sendAsset take it in USDC from the sender beside the amount
 NEW_ACCOUNT_FEE = Decimal("1")
-ARBITRUM = {"mainnet": "arbitrum", "testnet": "arbitrum-sepolia"}
+WITHDRAW_TO = {"mainnet": "arbitrum", "testnet": "arbitrum-sepolia"}  # a withdrawal's chain unless one is named
+CCTP_GAS_LIMIT = 200_000  # HyperEVM gas for the linked contract's burn, as Circle's withdrawal recipe sets it
+FEE_SELECTOR = "e26f7d23"  # calculateCrossChainWithdrawalFee(bool shouldForward, uint32 destinationDomain)
 USDC_MARKET = {"coin": "USDC", "label": "USDC", "spot": False}
 
 
@@ -170,21 +172,61 @@ def _spot_paid(ctx, user: str, token: dict, amount: Decimal, balance: str, new: 
 
 # --- builders -----------------------------------------------------------------------------------
 
+class _HyperEvm(rpc.Rpc):
+    """HyperEVM's public endpoint, for reads only: it is no chain of the wallet's table."""
+
+    def __init__(self, network: str, override: str | None = None):
+        entry = chains.HYPEREVM[network]
+        self.chain, self.name = None, entry["name"]
+        self.url, self.provider = (override, "test RPC") if override and rpc.testing() else (entry["rpc"], "public RPC")
+        self.ids, self.timeout = 0, rpc.TIMEOUT
+
+    @property
+    def label(self) -> str:
+        return f"{self.name} ({self.provider})"
+
+
+def _withdraw_chain(network: str, payload: dict) -> tuple[str, int]:
+    """(chain, CCTP domain) a withdrawal goes to: one of this network's chains Circle carries USDC on."""
+    chain = payload.get("chain") or WITHDRAW_TO[network]
+    testnet = network == "testnet"
+    offered = [c for c in chains.CCTP_DOMAINS if chains.EVM[c]["testnet"] == testnet]
+    if chain not in offered:
+        raise ChainError(f"a {network} withdrawal goes to one of {', '.join(offered)} (USDC through Circle's CCTP)")
+    return chain, chains.CCTP_DOMAINS[chain]
+
+
+def _withdrawal_fee(ctx: hl.Ctx, payload: dict, domain: int) -> Decimal:
+    """Circle's fee to burn and forward a withdrawal to a domain, as its HyperEVM contract states it now
+    (calculateCrossChainWithdrawalFee, with forwarding): USDC that comes off the amount."""
+    node = _HyperEvm(ctx.network, payload.get("_hyperevm"))
+    data = "0x" + FEE_SELECTOR + f"{1:064x}{domain:064x}"
+    found = node.call("eth_call", [{"to": chains.HYPEREVM[ctx.network]["core_deposit_wallet"], "data": data},
+                                   "latest"])
+    if not isinstance(found, str) or not re.match(r"^0x[0-9a-fA-F]{64}$", found):
+        raise ChainError(f"{node.label} returned an unexpected withdrawal fee")
+    return Decimal(int(found, 16)).scaleb(-6)
+
+
 def build_withdraw(ctx, payload, user, mkt_unused, quote_id) -> dict:
     amount = _usdc(payload)
-    if amount <= WITHDRAW_FEE:
-        raise ChainError(f"a withdrawal pays a {WITHDRAW_FEE} USDC fee; withdraw more than that")
+    chain, domain = _withdraw_chain(ctx.network, payload)
     destination = _destination(payload, user)
     unified = _unified(ctx, user)
     free = _spot_free(ctx, user, _usdc_token(ctx)) if unified else _perp_free(ctx, user)
     if amount > free:
         held = "unified balance after margin" if unified else "perp balance not held as margin"
         raise ChainError(f"the account can withdraw {shown(free)} USDC now ({held})")
-    chain = ARBITRUM[ctx.network]
+    fee = _withdrawal_fee(ctx, payload, domain)
+    if amount <= fee:
+        raise ChainError(f"a withdrawal to {chains.info(chain)['name']} pays Circle {shown(fee)} USDC; withdraw "
+                         "more than that")
     return {"action": None, "market": USDC_MARKET, "cloids": [], "amount": plain(amount), "destination": destination,
-            **_fee(WITHDRAW_FEE, "amount", "withdrawal", amount), "available": shown(free),
+            **_fee(fee, "amount", "withdrawal", amount), "available": shown(free),
             "chain": chains.info(chain)["name"], "balance": "unified" if unified else "perp",
-            "move": {"type": "withdraw3", "destination": destination, "amount": plain(amount)}}
+            "move": {"type": "sendToEvmWithData", "token": "USDC", "amount": plain(amount),
+                     "sourceDex": hl_sign.SPOT_DEX if unified else "", "destination": destination, "chain": chain,
+                     "domain": domain}}
 
 
 def build_send(ctx, payload, user, mkt_unused, quote_id) -> dict:
@@ -264,7 +306,12 @@ def build_transfer(ctx, payload, user, mkt_unused, quote_id) -> dict:
 def _withdraw_lines(b: dict, whose: str) -> list[str]:
     return [f"Withdraw: {b['amount']} USDC from the {b.get('balance', 'perp')} balance to {b['chain']}",
             f"To ({whose}): {b['destination']}",
-            f"Fee: {b['fee']} USDC (about {b['arrives']} arrives, in a few minutes)"]
+            f"Fee: {b['fee']} USDC to Circle's CCTP (about {b['arrives']} arrives, usually within a minute)"]
+
+
+def _withdraw_short(b: dict, lines: list[str]) -> list[str]:
+    """The compact card's withdrawal keeps what arrives: Circle's fee differs by chain."""
+    return [line + f" ({b['arrives']} arrives)" if line.startswith("Withdraw:") else line for line in lines]
 
 
 def _send_lines(b: dict, whose: str) -> list[str]:
@@ -309,22 +356,38 @@ class Kind:
 
 @dataclass(frozen=True)
 class Type:
-    """A signed move: its action from the stored fields and the nonce, and what the user is told once sent.
-    ``internal`` moves stay in the account (no destination), so they are always own."""
+    """A signed move: its action from the stored fields and the nonce, and what the user is told once sent
+    (a text, or one made from the move). ``internal`` moves stay in the account (no destination), so they
+    are always own. ``recheck`` reads again, just before signing, what the quote priced but the action
+    does not bind, and refuses when it changed."""
     action: Callable[[dict, int], dict]
-    note: str
+    note: str | Callable[[dict], str]
     internal: bool = False
+    recheck: Callable[[hl.Ctx, dict, dict], None] | None = None
+
+
+def _recheck_withdrawal_fee(ctx: hl.Ctx, payload: dict, quote: dict) -> None:
+    """Circle's fee is set on its contract and the signed burn carries no ceiling, so a fee raised since the
+    quote would take more than the card said: the quote is refused instead."""
+    built, move = quote["built"], quote["built"]["move"]
+    now = plain(_withdrawal_fee(ctx, payload, move["domain"]))
+    if now != built["fee"]:
+        raise ChainError(f"Circle's fee to {built['chain']} is {now} USDC now, not the {built['fee']} USDC this "
+                         "quote showed; nothing was sent: quote it again")
 
 
 KINDS = {
-    "withdraw": Kind(build_withdraw, _withdraw_lines),
+    "withdraw": Kind(build_withdraw, _withdraw_lines, _withdraw_short),
     "send": Kind(build_send, _send_lines, _send_short),
     "transfer": Kind(build_transfer, _transfer_lines),
 }
 TYPES = {
-    "withdraw3": Type(lambda m, n: hl_sign.withdraw_action(m["destination"], m["amount"], n),
-                      "the venue pays it out on Arbitrum in a few minutes; check the balance there before anything "
-                      "else"),
+    "sendToEvmWithData": Type(
+        lambda m, n: hl_sign.send_to_evm_action(m["token"], m["amount"], m["sourceDex"], m["destination"],
+                                                m["domain"], CCTP_GAS_LIMIT, n),
+        lambda m: f"Circle burns it now and mints it on {chains.info(m['chain'])['name']}, usually within a minute; "
+                  "check the balance there with the evm tool before anything else",
+        recheck=_recheck_withdrawal_fee),
     "usdSend": Type(lambda m, n: hl_sign.usd_send_action(m["destination"], m["amount"], n),
                     "it arrives on the destination's Hyperliquid account at once"),
     "spotSend": Type(lambda m, n: hl_sign.spot_send_action(m["destination"], m["token"], m["amount"], n),
@@ -360,7 +423,15 @@ def action(move: dict, nonce: int) -> dict:
 
 
 def note(move: dict) -> str:
-    return _type(move).note
+    said = _type(move).note
+    return said(move) if callable(said) else said
+
+
+def recheck(quote: dict, ctx: hl.Ctx, payload: dict) -> None:
+    """Before signing: refuse a quote whose unbound price changed (a no-op for moves that have none)."""
+    check = _type(quote["built"]["move"]).recheck
+    if check:
+        check(ctx, payload, quote)
 
 
 def lines(quote: dict) -> list[str]:
@@ -373,7 +444,16 @@ def short(quote: dict, lines_: list[str]) -> list[str]:
     return spec.short(quote["built"], lines_) if spec.short else lines_
 
 
+def trail(quote: dict) -> dict:
+    """What a move's ledger rows keep beyond the quote, which is pruned: the chain it went to and the fee
+    priced, with what was to arrive."""
+    built, move = quote["built"], quote["built"]["move"]
+    kept = {"to_chain": move.get("chain"), "fee": built.get("fee"), "fee_from": built.get("fee_from"),
+            "arrives": built.get("arrives")}
+    return {k: v for k, v in kept.items() if v is not None}
+
+
 def recorded(quote: dict) -> dict:
     """Where a move goes and what it moves, as the wallet's transfer ledger records it."""
     move = quote["built"]["move"]
-    return {"to": move.get("destination", quote["from"]), "asset": move.get("token", "USDC")}
+    return {"to": move.get("destination", quote["from"]), "asset": move.get("token", "USDC"), **trail(quote)}
