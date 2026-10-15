@@ -126,7 +126,8 @@ a minute ahead, so a signed action the venue has not seen by then is void,
 checks that the signature recovers to the account, marks the quote consumed
 and writes the ledger row as `unknown` — and only then posts. The venue's
 reply sets the outcome: `sent` with one status per leg (`filled`, `resting`,
-`error`), or `rejected` when it refused everything. No answer leaves
+`waiting for trigger` for an accepted TP/SL leg, `error`; the venue's other
+bare answer, `waitingForFill`, reads `waiting for fill`), or `rejected` when it refused everything. No answer leaves
 `unknown`, and so does any reply that is neither `ok` nor the venue's
 explicit `err`: the client order ids are looked up once and nothing is
 re-sent. An HTTP 4xx comes back before the venue processes anything (a
@@ -145,6 +146,14 @@ of a named spot token from the spot balance, to a Hyperliquid address) and
 the balance it draws on, the amount's precision, a destination that is not
 the zero address, the sender itself or the deposit bridge, and a spot token
 named unambiguously (`NAME:tokenId` when deployers reuse a name).
+
+A send to an address with no account on that network (`userRole` reads
+`missing`) pays the venue 1 USDC to open one, taken differently by action:
+`usdSend` takes it from the amount (the destination gets 1 less), while
+`spotSend` and `sendAsset` take it in USDC from the sender beside the amount
+(seen for USDC; for another token the same USDC fee is assumed). The quote
+checks the balance for both, and its cards name the fee, the compact one at
+the end of the send line.
 
 A unified account (its mode, as the reads report it) has one balance for spot
 and perp, and the venue refuses `spotSend` and `usdClassTransfer` from it. Its
