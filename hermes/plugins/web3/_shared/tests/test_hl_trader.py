@@ -115,6 +115,8 @@ def exchange(body):
         for order in action["orders"]:
             if "limit" in order["t"] and order["t"]["limit"]["tif"] == "Ioc":
                 legs.append({"filled": {"totalSz": order["s"], "avgPx": order["p"], "oid": 7}})
+            elif "trigger" in order["t"]:
+                legs.append(VENUE.get("waiting", "waitingForTrigger"))  # a TP/SL leg the venue accepted
             else:
                 legs.append({"resting": {"oid": 8}})
         return 200, {"status": "ok", "response": {"type": "order", "data": {"statuses": legs}}}
@@ -254,8 +256,13 @@ def test_close_and_tpsl_work_on_the_position_held(run):
     close = quote(run, kind="close", coin="ETH")["summary"]
     assert close["is_buy"] is True and close["size"] == "1.5" and close["reduce_only"] is True
     assert close["price"] == "2525"  # 2500.05 × 1.01, rounded down inside the bound
-    tpsl = quote(run, kind="tpsl", coin="ETH", tp="2300", sl="2700")["summary"]
-    assert [(leg["leg"], leg["size"]) for leg in tpsl["legs"]] == [("tp", "1.5"), ("sl", "1.5")]
+    tpsl = quote(run, kind="tpsl", coin="ETH", tp="2300", sl="2700")
+    assert [(leg["leg"], leg["size"]) for leg in tpsl["summary"]["legs"]] == [("tp", "1.5"), ("sl", "1.5")]
+    done = ok(submit(run, tpsl["quote"], "reduce"))
+    assert done["submitted"] is True and done["statuses"] == [{"status": "waiting for trigger"}] * 2
+    VENUE["waiting"] = "waitingForFill"
+    again = quote(run, kind="tpsl", coin="ETH", tp="2300", sl="2700")
+    assert ok(submit(run, again["quote"], "reduce"))["statuses"] == [{"status": "waiting for fill"}] * 2
 
 
 def test_cancel_and_modify_read_the_order_first(run):

@@ -935,9 +935,14 @@ def post(api: hl.Api, body: dict) -> dict:
     return reply
 
 
+WAITING = {"waitingForTrigger": "waiting for trigger", "waitingForFill": "waiting for fill"}  # TP/SL legs, accepted
+
+
 def _leg(item) -> dict:
     if item == "success":
         return {"status": "done"}
+    if isinstance(item, str) and item in WAITING:
+        return {"status": WAITING[item]}
     if isinstance(item, dict) and isinstance(item.get("resting"), dict):
         return {"status": "resting", "oid": item["resting"].get("oid")}
     if isinstance(item, dict) and isinstance(item.get("filled"), dict):

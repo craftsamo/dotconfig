@@ -126,7 +126,8 @@ a minute ahead, so a signed action the venue has not seen by then is void,
 checks that the signature recovers to the account, marks the quote consumed
 and writes the ledger row as `unknown` — and only then posts. The venue's
 reply sets the outcome: `sent` with one status per leg (`filled`, `resting`,
-`error`), or `rejected` when it refused everything. No answer leaves
+`waiting for trigger` for an accepted TP/SL leg, `error`; the venue's other
+bare answer, `waitingForFill`, reads `waiting for fill`), or `rejected` when it refused everything. No answer leaves
 `unknown`, and so does any reply that is neither `ok` nor the venue's
 explicit `err`: the client order ids are looked up once and nothing is
 re-sent. An HTTP 4xx comes back before the venue processes anything (a
