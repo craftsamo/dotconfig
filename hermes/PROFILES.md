@@ -68,4 +68,5 @@ Short records of why a design was fixed, for rules whose reason would otherwise
 look arbitrary:
 [Creator family model split](./docs/decisions/creator-family-model-split.md) ·
 [Explainer structure approval](./docs/decisions/explainer-structure-approval.md) ·
-[Storyboard vocabulary stays rule-free](./docs/decisions/storyboard-vocabulary-rule-free.md).
+[Storyboard vocabulary stays rule-free](./docs/decisions/storyboard-vocabulary-rule-free.md) ·
+[Hyperliquid strategies](./docs/decisions/hyperliquid-strategies.md).

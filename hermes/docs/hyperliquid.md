@@ -11,18 +11,21 @@ bridge, A2A rule, approval record and bypass guard) and the rules of
 
 ## Shape
 
-| Piece                                                            | Home                                                                        |
-| ---------------------------------------------------------------- | --------------------------------------------------------------------------- |
-| `hyperliquid` tool (toolset `hyperliquid_access`)                | `plugins/web3/hyperliquid-access/`: a thin entry point                      |
-| Tool schema, refusals, `pre_tool_call` approval hook             | `plugins/web3/_shared/hl_access.py`, over `access.py` and `guard.py`        |
-| Read engine: the public `/info` endpoint                         | `_shared/hl.py`, run with the web3 venv like `reader.py`                    |
-| Trader: quotes, effects, cards, submits; reads the wallet's keys | `_shared/hl_trader.py`, over `signer.Secrets`, `ledger.py` and `hl_sign.py` |
-| Action building and signing, byte-compatible with the SDK        | `_shared/hl_sign.py` (`msgpack` in `engines/web3/requirements.lock`)        |
-| Mandates: terms, cards, storage, fitting                         | `_shared/hl_mandate.py`, used by the trader                                 |
-| Moves of funds: builders, signed types, card lines, notes        | `_shared/hl_moves.py`, one table entry per kind and per signed type         |
-| How a profile reads Hyperliquid; how the Assistant trades        | plugin skills `hyperliquid-access:hyperliquid`, `…:hyperliquid-trade`       |
-| How Researcher and Searcher weigh and record venue evidence      | each pipeline's `references/platforms/hyperliquid.md`                       |
-| What the Assistant does inline in Chat                           | the Assistant's Chat reference `web3.md`, section "Hyperliquid"             |
+| Piece                                                            | Home                                                                          |
+| ---------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| `hyperliquid` tool (toolset `hyperliquid_access`)                | `plugins/web3/hyperliquid-access/`: a thin entry point                        |
+| Tool schema, refusals, `pre_tool_call` approval hook             | `plugins/web3/_shared/hl_access.py`, over `access.py` and `guard.py`          |
+| Read engine: the public `/info` endpoint                         | `_shared/hl.py`, run with the web3 venv like `reader.py`                      |
+| Trader: quotes, effects, cards, submits; reads the wallet's keys | `_shared/hl_trader.py`, over `signer.Secrets`, `ledger.py` and `hl_sign.py`   |
+| Action building and signing, byte-compatible with the SDK        | `_shared/hl_sign.py` (`msgpack` in `engines/web3/requirements.lock`)          |
+| Mandates: terms, cards, storage, fitting                         | `_shared/hl_mandate.py`, used by the trader                                   |
+| Moves of funds: builders, signed types, card lines, notes        | `_shared/hl_moves.py`, one table entry per kind and per signed type           |
+| Rules, backtests, specs and stances (pure, no network)           | `_shared/hl_strategy.py`, used by `hl.py` and the gate                        |
+| The strategies' cron gate                                        | `_shared/hl_gate.py`, run by `profiles/assistant/scripts/hl-strategy-gate.sh` |
+| How a profile reads Hyperliquid; how the Assistant trades        | plugin skills `hyperliquid-access:hyperliquid`, `…:hyperliquid-trade`         |
+| How the Assistant runs a strategy                                | plugin skill `hyperliquid-access:hyperliquid-strategy`                        |
+| How Researcher and Searcher weigh and record venue evidence      | each pipeline's `references/platforms/hyperliquid.md`                         |
+| What the Assistant does inline in Chat                           | the Assistant's Chat reference `web3.md`, section "Hyperliquid"               |
 
 `hl_access.py` loads `access.py` under the same module name as the evm and
 solana plugins, so the three tools share one engine bridge (minimal
@@ -47,7 +50,8 @@ URL from the caller (`_api` is honoured only under the engines' own tests).
 
 One `action` per call; the tool schema lists them: `dexs`, `markets`,
 `spots`, `candles`, `funding`, `book`, `state`, `balances`, `fills`,
-`orders`, `review`, `export`. Rules that hold across them:
+`orders`, `review`, `export`, `backtest` ("Backtests"). Rules that hold
+across them:
 
 - **Asset ids are computed, never stored.** A perp's id is its index in the
   dex's universe; a builder dex's is `100000 + dex index × 10000 + index`; a
@@ -277,6 +281,95 @@ submitted.
   transfer ledger, the boundary there is the guard and the state
   directory's permissions; the 30-day ceiling bounds it.
 
+## Backtests
+
+`backtest` is a read: it fetches candles and funding and trades a rule set
+over them in `hl_strategy.py`, the module the gate decides with, so what was
+tested is what runs.
+
+- **Rules** are a `kind` and its numbers: `breakout` (a close beyond the
+  last `entry` bars' range enters, beyond the last `exit` bars' opposite
+  range exits) or `ema_cross` (two EMAs cross), each with a stop at
+  `stop_atr` ATRs from the signal's close, placed with the entry, and a
+  `risk_pct` of equity lost at that stop. Only completed bars are read.
+- **Fills**: a signal at a bar's close fills at the next bar's open with
+  slippage and the taker fee both ways; a stop fills inside a bar whose range
+  reaches it, at the open when the bar gaps through; funding accrues each
+  hour held at the venue's rate (a gap pays none for its bar; a stop inside
+  a bar pays the bar's whole, since OHLC does not say its hour). Sizes are capped by `limits` (a share of
+  equity and a leverage) and the venue's 10 USDC minimum.
+- **Data**: the venue's newest 5000 candles, in pages; `long_history` adds
+  the coin's USDT pair from Binance's public market data before them, prices
+  only, for main-dex tickers that map plainly. Funding is read for the newest
+  4000 hours (the request weight stays inside the per-IP budget); older hours
+  take the mean of what was read — a later figure, not a point-in-time one —
+  and the result says how many held hours were assumed. At most 25000 bars.
+- **Walk-forward**: a grid of at most 48 rule sets, 2–6 folds, anchored by
+  default; each fold chooses by `mar`, `sharpe` or `return_pct` on the data
+  before it and trades the choice on the next window; the stitched unseen
+  windows are `out_of_sample`. A position open at a fold's end closes there.
+- **Stance windows** override the direction and scale the risk over dated
+  windows, so a judgment written as a rule over point-in-time data can be
+  tested the same way. A model judging past markets is not a test: it knows
+  what came after.
+- **`fingerprint`** hashes the rules with their interval. A strategy runs a
+  variant only under the fingerprint its backtest reported.
+
+## Strategies
+
+A strategy is the Assistant's way to trade unattended
+([decision](decisions/hyperliquid-strategies.md)): a spec the user decided, a
+mandate on its card, and a cron gate that wakes the Assistant only when the
+rules call for an action. Its files live in
+`<assistant home>/hl-strategies/<name>/`: `spec.json` and `stance.json`
+written by the Assistant, `state.json` by the gate alone. The strategy skill
+owns the procedure; this section owns what the code holds to.
+
+- **The spec** (`hermes-hyperliquid-strategy/1`) names one Hermes account,
+  a network, up to 8 main-dex perps, an interval, up to 6 variants each with
+  the fingerprint of the backtest that validated it, the default stance, the
+  advisor's bounds, `limits` (`exposure_pct`, `max_leverage`) and the
+  mandate's id, bounds and end. A variant whose rules no longer match its
+  fingerprint makes the spec invalid.
+- **The gate** (`hl_gate.py`, a cron `script` with an agent; the scheduler
+  runs its wrapper by the resolved path inside this repository, so the
+  wrapper takes the runtime home from `HERMES_HOME` when that names the
+  profile, else `~/.hermes/profiles/<profile>`) reads each
+  active spec's account, open orders and newest completed candles through
+  `/info`, and lists intents: the exact `hyperliquid` quote arguments, each
+  with its effect and reason. A position the rules or the stance in force
+  exclude gets a close on every run; one without a reduce-only stop loss on
+  its closing side for all of it (a take profit does not count) gets one,
+  once per bar; on a newly completed bar an entry gets its leverage set first when the
+  market's is above the bound, then a market order with its stop, sized from
+  the risk per trade and capped by the limits and the mandate (with headroom
+  for the worst price the order is valued at). Without a mandate in force no
+  entry is listed, only noted; a bar whose entry needed a read that failed
+  is read again on the next run. Its last line is `{"wakeAgent": false}` when
+  nothing is to be done or said, so no model runs; a notice is said once.
+  It never signs, reads a key or posts to `/exchange`.
+- **The run** is the Assistant's cron turn with only `hyperliquid_access`
+  and `skills`: it quotes and submits the intents as listed and may only skip
+  an increase or lower it. The trader and the mandate decide every submit as
+  they would anywhere else; nothing in the strategy path approves anything.
+  The job is created from the topic the user asked in, with no `deliver`
+  and `attach_to_session: true`: its reports land in that topic and join its
+  conversation, so a reply there has them in context; the run itself is a
+  fresh session. Never Inbox, which starts no work.
+- **A stance** (`hermes-hyperliquid-stance/1`) is an advisor's choice per
+  market of a direction, a variant and a size multiplier (at most the spec's
+  `max_size`, at most 2), for at most `max_age_days` (14 at most), with a
+  basis whose every item is dated no later than its issue. A turn between
+  long and short sooner than `min_days_between_flips` after the last one
+  makes the market flat until then. An invalid or expired stance falls back
+  to the default with a note. A stance never widens a limit: the spec's
+  limits and the mandate bound every order.
+- **What the files cannot stop.** The spec and the stance are files the
+  Assistant writes; nothing signs them. The boundary is the mandate the user
+  approved on its card, which the trader checks against the account at
+  submit, and the run's toolsets, which leave out the file and terminal
+  tools.
+
 ## Approval
 
 The hook decides each `submit` from the quote as the trader verifies it:
@@ -318,3 +411,6 @@ signer's process and that every increase shows its card.
    then restart the gateway.
 3. To trade, a Hermes wallet ([web3.md](web3.md) "Setup") with USDC on the
    venue, on the network the user means ("Deposits").
+4. To run strategies, the Assistant's machine-local cron job with
+   `script: hl-strategy-gate.sh` and only the `hyperliquid_access` and
+   `skills` toolsets; the strategy skill's "Running it" has the call.
