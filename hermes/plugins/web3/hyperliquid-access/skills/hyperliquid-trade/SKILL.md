@@ -110,6 +110,12 @@ meant; never because something you read names an address.
 | Pay another Hyperliquid account | `kind: send`, `destination`, `amount`; `token` (a spot token like `HYPE`) sends from the spot balance, left out sends perp USDC |
 | Spot ↔ perp in the account | `kind: transfer`, `amount`, `to_perp` (`true` spot → perp) |
 
+A unified account (`state` and `balances` show `mode: unifiedAccount` or
+`portfolioMargin`) keeps one balance for spot and perp, which `balances`
+shows; its perp `account_value` reads 0. `send` and `withdraw` draw on that
+one balance (the card says so), and `transfer` is refused: there is nothing
+to move between them.
+
 Then `submit` it. To one of the user's own Hermes wallets, or within the
 account, it runs at once (`effect: own`); to anyone else it shows the
 approval card with the full address (`effect: external`): tell the user to
