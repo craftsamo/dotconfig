@@ -7,9 +7,9 @@ for byte, without the SDK (it pins an older eth-account than the engine's lock).
   action — key order is part of the hash, so every builder here fixes it — then the nonce, the
   vault flag and the optional expiry, keccak'd into a "phantom agent" signed as EIP-712 under the
   ``Exchange`` domain (chain id 1337); ``source`` is ``a`` on mainnet, ``b`` on testnet.
-- **User-signed actions** (usdSend, spotSend, sendAsset, withdraw3, usdClassTransfer): EIP-712 under the
-  ``HyperliquidSignTransaction`` domain; ``hyperliquidChain`` names the network, so a signature for
-  one network never replays on the other.
+- **User-signed actions** (usdSend, spotSend, sendAsset, sendToEvmWithData, usdClassTransfer):
+  EIP-712 under the ``HyperliquidSignTransaction`` domain; ``hyperliquidChain`` names the network, so
+  a signature for one network never replays on the other.
 
 Prices, sizes and amounts are decimal strings throughout, never floats. Nothing here reads a key
 from anywhere: the caller passes the key bytes it derived, and ``recover_*`` lets it check that a
@@ -43,9 +43,6 @@ USER_TYPES = {
     "spotSend": ("HyperliquidTransaction:SpotSend", [
         {"name": "hyperliquidChain", "type": "string"}, {"name": "destination", "type": "string"},
         {"name": "token", "type": "string"}, {"name": "amount", "type": "string"}, {"name": "time", "type": "uint64"}]),
-    "withdraw3": ("HyperliquidTransaction:Withdraw", [
-        {"name": "hyperliquidChain", "type": "string"}, {"name": "destination", "type": "string"},
-        {"name": "amount", "type": "string"}, {"name": "time", "type": "uint64"}]),
     "usdClassTransfer": ("HyperliquidTransaction:UsdClassTransfer", [
         {"name": "hyperliquidChain", "type": "string"}, {"name": "amount", "type": "string"},
         {"name": "toPerp", "type": "bool"}, {"name": "nonce", "type": "uint64"}]),
@@ -54,6 +51,13 @@ USER_TYPES = {
         {"name": "sourceDex", "type": "string"}, {"name": "destinationDex", "type": "string"},
         {"name": "token", "type": "string"}, {"name": "amount", "type": "string"},
         {"name": "fromSubAccount", "type": "string"}, {"name": "nonce", "type": "uint64"}]),
+    # a call to the token's linked HyperEVM contract: for USDC, Circle's CCTP burn to another chain
+    "sendToEvmWithData": ("HyperliquidTransaction:SendToEvmWithData", [
+        {"name": "hyperliquidChain", "type": "string"}, {"name": "token", "type": "string"},
+        {"name": "amount", "type": "string"}, {"name": "sourceDex", "type": "string"},
+        {"name": "destinationRecipient", "type": "string"}, {"name": "addressEncoding", "type": "string"},
+        {"name": "destinationChainId", "type": "uint32"}, {"name": "gasLimit", "type": "uint64"},
+        {"name": "data", "type": "bytes"}, {"name": "nonce", "type": "uint64"}]),
 }
 SPOT_DEX = "spot"  # sendAsset's name for the spot balance; "" is the default perp dex
 
@@ -168,10 +172,6 @@ def spot_send_action(destination: str, token: str, amount, time: int) -> dict:
             "type": "spotSend"}
 
 
-def withdraw_action(destination: str, amount, time: int) -> dict:
-    return {"destination": _destination(destination), "amount": wire(amount), "time": time, "type": "withdraw3"}
-
-
 def usd_class_transfer_action(amount, to_perp: bool, nonce: int) -> dict:
     return {"type": "usdClassTransfer", "amount": wire(amount), "toPerp": bool(to_perp), "nonce": nonce}
 
@@ -186,6 +186,23 @@ def send_asset_action(destination: str, source_dex: str, destination_dex: str, t
     return {"type": "sendAsset", "destination": _destination(destination), "sourceDex": source_dex,
             "destinationDex": destination_dex, "token": token, "amount": wire(amount), "fromSubAccount": "",
             "nonce": nonce}
+
+
+def send_to_evm_action(token: str, amount, source_dex: str, recipient: str, domain: int, gas_limit: int,
+                       nonce: int, data: str = "0x") -> dict:
+    """A token from a balance (``spot``, or ``""`` the default perp dex) through its linked HyperEVM
+    contract to an EVM address on another chain: for USDC, a CCTP burn to ``domain`` (Circle's domain id,
+    not a chain id) that Circle mints and forwards there."""
+    if not isinstance(source_dex, str):
+        raise SignError("a dex is spot, or a perp dex's name (empty for the default one)")
+    for value, what in ((domain, "the destination domain"), (gas_limit, "the gas limit")):
+        if not isinstance(value, int) or isinstance(value, bool) or value < 0:
+            raise SignError(f"{what} must be a whole number")
+    if not isinstance(data, str) or not re.match(r"^0x([0-9a-f]{2})*$", data):
+        raise SignError("data must be 0x and lower-case hex bytes")
+    return {"type": "sendToEvmWithData", "token": token, "amount": wire(amount), "sourceDex": source_dex,
+            "destinationRecipient": _destination(recipient), "addressEncoding": "hex",
+            "destinationChainId": domain, "gasLimit": gas_limit, "data": data, "nonce": nonce}
 
 
 # --- hashing and signing ------------------------------------------------------------------------

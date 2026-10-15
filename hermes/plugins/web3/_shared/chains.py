@@ -149,6 +149,25 @@ def hyperliquid_bridge(address: str | None) -> tuple[str, dict] | None:
             return chain, entry
     return None
 
+
+# Circle's CCTP (V2) domain of each chain here that it carries native USDC on, mainnets and testnets, from
+# Circle's supported-chains table: a domain is Circle's own id, never the EVM chain id. Hyperliquid moves
+# USDC in and out through it (docs/hyperliquid.md "Moving funds").
+CCTP_DOMAINS = {
+    "ethereum": 0, "sepolia": 0, "avalanche": 1, "optimism": 2, "optimism-sepolia": 2, "arbitrum": 3,
+    "arbitrum-sepolia": 3, "base": 6, "base-sepolia": 6, "polygon": 7, "polygon-amoy": 7, "unichain": 10,
+    "unichain-sepolia": 10, "linea": 11, "linea-sepolia": 11, "sonic": 13, "sonic-testnet": 13, "world-chain": 14,
+    "world-chain-sepolia": 14, "ink": 21, "ink-sepolia": 21,
+}
+# HyperEVM, where Circle's contracts link HyperCore's USDC to CCTP: read only (a withdrawal's fee), never a
+# chain the wallet sends on. From Circle's HyperCore address table.
+HYPEREVM = {
+    "mainnet": {"name": "HyperEVM", "rpc": "https://rpc.hyperliquid.xyz/evm",
+                "core_deposit_wallet": "0x6B9E773128f453f5c2C60935Ee2DE2CBc5390A24"},
+    "testnet": {"name": "HyperEVM testnet", "rpc": "https://rpc.hyperliquid-testnet.xyz/evm",
+                "core_deposit_wallet": "0x0B80659a4076E9E93C7DbE0f10675A16a3e5C206"},
+}
+
 # Well-known tokens per chain, read when no provider key lists an address's tokens. Symbols and
 # decimals are always read from the chain, never taken from here.
 KNOWN_TOKENS = {
