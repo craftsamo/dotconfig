@@ -21,14 +21,15 @@ Hermes touches it for image generation and, on every profile except
 OpenRouter tail (see "Codex" below).
 
 - **Opus 5.5 leads the judgment profiles** (`default`, `assistant`, `marketer`,
-  `creator`, `video-creator`); **Sonnet 5.5 leads** `researcher`, `writer`,
-  `image-creator` and `audio-creator` (`writer` to spare the shared Claude
-  weekly pool). An Opus-led chain takes **Fable 5.1 as T2** (`default` is the
-  exception, below), never another Opus: every Opus model draws on the same Opus weekly sub-cap, so an Opus T2
+  `video-creator`), **Fable 5.1 leads `creator`**, and **Sonnet 5.5 leads**
+  `researcher`, `writer`, `image-creator` and `audio-creator` (`writer` to
+  spare the shared Claude weekly pool). An Opus-led chain takes **Fable 5.1 as
+  T2** (`default` is the exception, below), never another Opus: every Opus model draws on the same Opus weekly sub-cap, so an Opus T2
   fails exactly when that cap is why T1 failed, while Fable draws on its own
-  50%-of-week ceiling. (An Opus on the Console API lane is a different account,
+  50%-of-week ceiling. The Fable-led `creator` takes Opus 5.5 as T2 for the
+  same reason. (An Opus on the Console API lane is a different account,
   with no shared sub-cap: see "Console credit lanes".) **Sonnet 5.5 is the last
-  Claude tier** of an Opus-led chain: Anthropic meters Opus separately from "all
+  Claude tier** of an Opus- or Fable-led chain: Anthropic meters Opus separately from "all
   other models", so Sonnet stays alive when the Opus cap is the reason T1
   failed. A Sonnet-led chain takes Opus 5.5 as T2, then Fable 5.1 where it has
   one (`researcher` goes straight to Codex and carries no Fable). The profile
@@ -36,8 +37,8 @@ OpenRouter tail (see "Codex" below).
 - **`default` stays off Fable deliberately** — every `--clone` inherits its
   chain, and a neutral starting point should not lead with the model that has
   the tightest sub-cap.
-- **The Creator family splits by hand.** `creator` and `video-creator` lead
-  on Opus 5.5; `image-creator` and `audio-creator` lead on Sonnet 5.5, which
+- **The Creator family splits by hand.** `video-creator` leads on Opus 5.5
+  and `creator` on Fable 5.1; `image-creator` and `audio-creator` lead on Sonnet 5.5, which
   matches Opus on image and audio leaves at about 0.6x the tokens but is clearly
   behind on authored video (rule and reason:
   [decision](./decisions/creator-family-model-split.md)). All four keep
