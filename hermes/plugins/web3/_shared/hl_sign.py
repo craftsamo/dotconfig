@@ -7,7 +7,7 @@ for byte, without the SDK (it pins an older eth-account than the engine's lock).
   action — key order is part of the hash, so every builder here fixes it — then the nonce, the
   vault flag and the optional expiry, keccak'd into a "phantom agent" signed as EIP-712 under the
   ``Exchange`` domain (chain id 1337); ``source`` is ``a`` on mainnet, ``b`` on testnet.
-- **User-signed actions** (usdSend, spotSend, sendAsset, sendToEvmWithData, withdraw3, usdClassTransfer):
+- **User-signed actions** (usdSend, spotSend, sendAsset, sendToEvmWithData, usdClassTransfer):
   EIP-712 under the ``HyperliquidSignTransaction`` domain; ``hyperliquidChain`` names the network, so
   a signature for one network never replays on the other.
 
@@ -43,9 +43,6 @@ USER_TYPES = {
     "spotSend": ("HyperliquidTransaction:SpotSend", [
         {"name": "hyperliquidChain", "type": "string"}, {"name": "destination", "type": "string"},
         {"name": "token", "type": "string"}, {"name": "amount", "type": "string"}, {"name": "time", "type": "uint64"}]),
-    "withdraw3": ("HyperliquidTransaction:Withdraw", [
-        {"name": "hyperliquidChain", "type": "string"}, {"name": "destination", "type": "string"},
-        {"name": "amount", "type": "string"}, {"name": "time", "type": "uint64"}]),
     "usdClassTransfer": ("HyperliquidTransaction:UsdClassTransfer", [
         {"name": "hyperliquidChain", "type": "string"}, {"name": "amount", "type": "string"},
         {"name": "toPerp", "type": "bool"}, {"name": "nonce", "type": "uint64"}]),
@@ -173,10 +170,6 @@ def usd_send_action(destination: str, amount, time: int) -> dict:
 def spot_send_action(destination: str, token: str, amount, time: int) -> dict:
     return {"destination": _destination(destination), "amount": wire(amount), "token": token, "time": time,
             "type": "spotSend"}
-
-
-def withdraw_action(destination: str, amount, time: int) -> dict:
-    return {"destination": _destination(destination), "amount": wire(amount), "time": time, "type": "withdraw3"}
 
 
 def usd_class_transfer_action(amount, to_perp: bool, nonce: int) -> dict:

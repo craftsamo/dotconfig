@@ -94,8 +94,8 @@ TRADE_HELP = (
     "user asks for one; while it is in force, perp orders, modifies and leverage changes on that account and "
     "network that fit inside it run without a card, in cron too. mandates lists them with their use this hour; "
     "revoke_mandate (mandate) ends one at once, without a card. Moving funds is a quote too: withdraw (amount in "
-    "USDC from the perp balance, destination = an Arbitrum address, default the account's own; the venue takes "
-    "a 1 USDC fee), send (destination = a Hyperliquid address, amount, token = a spot token name to send from the "
+    "USDC from the perp balance to an EVM chain through Circle's CCTP, chain default arbitrum, destination default "
+    "the account's own; Circle's fee, read from its contract, comes off the amount), send (destination = a Hyperliquid address, amount, token = a spot token name to send from the "
     "spot balance, left out for perp USDC), transfer (amount, to_perp true for spot to perp, false for perp to "
     "spot). A unified account (state's mode) has one balance for both: send and withdraw draw on it, and "
     "transfer is refused. A send to an address with no account there pays the venue 1 USDC to open it (the card's "
@@ -162,8 +162,12 @@ TRADE_PROPERTIES = {
     "days": {"type": "integer", "description": "quote kind mandate: how long it lasts, at most 30"},
     "purpose": {"type": "string", "description": "quote kind mandate: one line on what it is for"},
     "mandate": {"type": "string", "description": "revoke_mandate: the mandate id from mandates, like m1a2b3c4d"},
-    "destination": {"type": "string", "description": "quote kind withdraw: the Arbitrum address, default the "
-                                                    "account's own; kind send: the Hyperliquid address"},
+    "destination": {"type": "string", "description": "quote kind withdraw: the address on the chain it goes to, "
+                                                    "default the account's own; kind send: the Hyperliquid address"},
+    "chain": {"type": "string", "description": "quote kind withdraw: the EVM chain the USDC goes to through Circle's "
+                                              "CCTP, default arbitrum (testnet: arbitrum-sepolia); one of ethereum, "
+                                              "base, arbitrum, optimism, polygon, avalanche, linea, unichain, sonic, "
+                                              "world-chain, ink, or their testnets on testnet"},
     "token": {"type": "string", "description": "quote kind send: a spot token name like HYPE (NAME:tokenId when "
                                               "names repeat); left out to send perp USDC"},
     "to_perp": {"type": "boolean", "description": "quote kind transfer: true spot to perp, false perp to spot"},

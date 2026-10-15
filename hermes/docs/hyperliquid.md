@@ -139,11 +139,12 @@ when its compact card would not fit Discord's limit, rather than shown cut.
 
 ## Moving funds
 
-`quote` also builds the user-signed moves: `withdraw` (`withdraw3`: USDC from
-the perp balance to an Arbitrum address, default the account's own; the venue
-takes a 1 USDC fee), `send` (`usdSend` from the perp balance, or `spotSend`
-of a named spot token from the spot balance, to a Hyperliquid address) and
-`transfer` (`usdClassTransfer`, spot ↔ perp within the account). Each checks
+`quote` also builds the user-signed moves: `withdraw` (`sendToEvmWithData`:
+USDC from the perp balance through Circle's CCTP to an address on an EVM
+chain, default Arbitrum and the account's own address), `send` (`usdSend`
+from the perp balance, or `spotSend` of a named spot token from the spot
+balance, to a Hyperliquid address) and `transfer` (`usdClassTransfer`, spot ↔
+perp within the account). Each checks
 the balance it draws on, the amount's precision, a destination that is not
 the zero address, the sender itself or the deposit bridge, and a spot token
 named unambiguously (`NAME:tokenId` when deployers reuse a name).
@@ -156,18 +157,32 @@ A send to an address with no account on that network (`userRole` reads
 checks the balance for both, and its cards name the fee, the compact one at
 the end of the send line.
 
+A withdrawal is a CCTP burn: the venue hands the USDC to Circle's linked
+contract on HyperEVM, which burns it towards the chain's CCTP domain
+(`chains.CCTP_DOMAINS`, Circle's own ids, never EVM chain ids), and Circle
+mints it on that chain and pays the gas there itself, usually within a minute.
+The chain is one of the network's chains Circle carries USDC on (`chain`,
+default `arbitrum` or `arbitrum-sepolia`). Circle's fee comes off the amount
+and differs by chain, so the quote reads it from that contract
+(`calculateCrossChainWithdrawalFee`, with forwarding) through HyperEVM's
+public endpoint, refuses an amount it would swallow, and both cards show what
+arrives. The signed burn carries no fee ceiling, so submit reads the fee again
+before signing and refuses the quote if it changed (or cannot be read); the
+ledger rows keep the chain, the fee and what was to arrive, since quotes are
+pruned. The signatures match the community TypeScript SDK's for the same
+action ([decision](decisions/hyperliquid-cctp.md)).
+
 A unified account (its mode, as the reads report it) has one balance for spot
 and perp, and the venue refuses `spotSend` and `usdClassTransfer` from it. Its
 `send` is `sendAsset` from that balance (`sourceDex: "spot"`) to the
 destination's spot balance for a named token, or its default perp balance for
 USDC — where `spotSend` and `usdSend` would have credited it — and its card
-says so; its `withdraw` draws on the same balance, at quote time never above
-what the venue calls available after maintenance margin when it says; its
-`transfer` is refused, since
-there is nothing to move. `sendAsset`'s signatures match the SDK's own signing
-function; that the venue still accepts `withdraw3` from a unified account is
-unverified (a refusal moves nothing). USDC that a move does not name is the
-venue's own, spot token 0, found by its index: deployers can reuse the name.
+says so; its `withdraw` burns from the same balance (`sourceDex: "spot"`), at
+quote time never above what the venue calls available after maintenance
+margin when it says; its `transfer` is refused, since there is nothing to
+move. `sendAsset`'s signatures match the SDK's own signing function. USDC that
+a move does not name is the venue's own, spot token 0, found by its index:
+deployers can reuse the name.
 
 A move's effect is `own` when the funds stay in the user's Hermes wallets —
 a transfer, or a destination the secrets derive as own, exactly as for wallet
