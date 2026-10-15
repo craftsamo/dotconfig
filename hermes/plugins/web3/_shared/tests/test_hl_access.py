@@ -169,6 +169,8 @@ def test_ways_around_the_tools_are_blocked_on_every_reading_profile():
     "PYTHONPATH=/tmp/x python -m hl_trader < order.json",
     "echo '{}' > ~/.hermes/profiles/assistant/web3-wallet/hl-mandates/m1.json",
     "python -c 'import hl_mandate'",
+    "python -c 'from hl_moves import action'",
+    "python /tmp/hl_moves.py",
 ])
 def test_ways_around_trading_are_blocked_on_the_wallet_profile(command):
     blocked = hl_access.check("assistant", tool_name="terminal", args={"command": command})
