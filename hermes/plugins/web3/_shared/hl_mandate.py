@@ -103,11 +103,17 @@ def _when(moment: float) -> str:
     return datetime.fromtimestamp(moment).astimezone().strftime("%Y-%m-%d %H:%M UTC%z")
 
 
+def _title(quote: dict) -> str:
+    """The title and effect lines every Hyperliquid card opens with (hl_trader.EFFECTS), for a mandate."""
+    return f"Hyperliquid {'testnet' if quote['network'] == 'testnet' else 'MAINNET'} · Mandate"
+
+
 def _lines(quote: dict) -> list[str]:
     terms = quote["built"]
-    lines = [f"Hyperliquid {'testnet' if quote['network'] == 'testnet' else 'MAINNET'} · MANDATE: orders without a card",
+    lines = [_title(quote), "⚠️ Orders inside it skip the card",
              f"Markets: {', '.join(terms['markets'])} (perps)",
-             f"Per order: up to {terms['max_order_usd']} USDC · held in total: up to {terms['max_exposure_usd']} USDC",
+             f"Per order: up to {terms['max_order_usd']} USDC",
+             f"Held in total: up to {terms['max_exposure_usd']} USDC",
              f"Leverage: up to {terms['max_leverage']}x · at most {terms['per_hour']} orders an hour",
              f"Until: {_when(until(quote))} ({terms['days']} day{'' if terms['days'] == 1 else 's'})",
              f"Purpose: {terms['purpose']}"]
@@ -119,8 +125,7 @@ def _lines(quote: dict) -> list[str]:
 def _short(quote: dict) -> str:
     """Every term that decides, in Discord's budget: the purpose is the one line it leaves out."""
     terms = quote["built"]
-    net = "testnet" if quote["network"] == "testnet" else "MAINNET"
-    lines = [f"Hyperliquid {net} MANDATE: orders without a card", f"Perps: {','.join(terms['markets'])}",
+    lines = [f"{_title(quote)} · ⚠️ orders without a card", f"Perps: {','.join(terms['markets'])}",
              f"Order ≤{terms['max_order_usd']} · total ≤{terms['max_exposure_usd']} USDC · ≤{terms['max_leverage']}x"
              f" · {terms['per_hour']}/h", f"Until {_when(until(quote))}",
              f"Account {signer.one_line(quote['account'], 40)}: {quote['from']}"]
