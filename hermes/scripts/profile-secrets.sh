@@ -73,10 +73,12 @@ esac
 # the profile scope, and a localhost peer (no bearer token configured)
 # authenticates as the identity `ip:127.0.0.1`. Without this line every
 # inbound peer call is dropped as "Unauthorized user: ip:127.0.0.1 on a2a".
+# Every worker gets it, by not being the Assistant (which serves no A2A) or
+# the root profile, so a profile kept in the private overlay needs no name
+# here; it matters only where the profile's config enables the a2a platform.
 case "$PROFILE" in
-  creator|marketer|writer|researcher|image-creator|video-creator|audio-creator)
-    echo "A2A_ALLOWED_USERS=ip:127.0.0.1"
-    ;;
+  assistant|default) ;;
+  *) echo "A2A_ALLOWED_USERS=ip:127.0.0.1" ;;
 esac
 
 if [ "$PROFILE" = "assistant" ]; then
