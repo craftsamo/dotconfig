@@ -7,7 +7,7 @@ for byte, without the SDK (it pins an older eth-account than the engine's lock).
   action — key order is part of the hash, so every builder here fixes it — then the nonce, the
   vault flag and the optional expiry, keccak'd into a "phantom agent" signed as EIP-712 under the
   ``Exchange`` domain (chain id 1337); ``source`` is ``a`` on mainnet, ``b`` on testnet.
-- **User-signed actions** (usdSend, spotSend, withdraw3, usdClassTransfer): EIP-712 under the
+- **User-signed actions** (usdSend, spotSend, sendAsset, withdraw3, usdClassTransfer): EIP-712 under the
   ``HyperliquidSignTransaction`` domain; ``hyperliquidChain`` names the network, so a signature for
   one network never replays on the other.
 
@@ -49,7 +49,13 @@ USER_TYPES = {
     "usdClassTransfer": ("HyperliquidTransaction:UsdClassTransfer", [
         {"name": "hyperliquidChain", "type": "string"}, {"name": "amount", "type": "string"},
         {"name": "toPerp", "type": "bool"}, {"name": "nonce", "type": "uint64"}]),
+    "sendAsset": ("HyperliquidTransaction:SendAsset", [
+        {"name": "hyperliquidChain", "type": "string"}, {"name": "destination", "type": "string"},
+        {"name": "sourceDex", "type": "string"}, {"name": "destinationDex", "type": "string"},
+        {"name": "token", "type": "string"}, {"name": "amount", "type": "string"},
+        {"name": "fromSubAccount", "type": "string"}, {"name": "nonce", "type": "uint64"}]),
 }
+SPOT_DEX = "spot"  # sendAsset's name for the spot balance; "" is the default perp dex
 
 
 class SignError(ValueError):
@@ -168,6 +174,18 @@ def withdraw_action(destination: str, amount, time: int) -> dict:
 
 def usd_class_transfer_action(amount, to_perp: bool, nonce: int) -> dict:
     return {"type": "usdClassTransfer", "amount": wire(amount), "toPerp": bool(to_perp), "nonce": nonce}
+
+
+def send_asset_action(destination: str, source_dex: str, destination_dex: str, token: str, amount,
+                      nonce: int) -> dict:
+    """A token from one balance (``spot``, or a perp dex by name, ``""`` the default one) to another
+    address's balance; the account itself, never a subaccount, sends it."""
+    for dex in (source_dex, destination_dex):
+        if not isinstance(dex, str):
+            raise SignError("a dex is spot, or a perp dex's name (empty for the default one)")
+    return {"type": "sendAsset", "destination": _destination(destination), "sourceDex": source_dex,
+            "destinationDex": destination_dex, "token": token, "amount": wire(amount), "fromSubAccount": "",
+            "nonce": nonce}
 
 
 # --- hashing and signing ------------------------------------------------------------------------
