@@ -29,6 +29,7 @@ spec.loader.exec_module(p)
 A2A = p._a2a
 EXECUTE_SYNC = p._execute_sync
 RESIDENT_IMPL = p._resident
+LOCAL_TARGETS = p.LOCAL_TARGETS
 CREATOR_TARGETS = ("researcher", "searcher")
 HANDS_TARGETS = ("image-creator", "video-creator", "audio-creator")
 MARKETER_TARGETS = ("researcher", "searcher")
@@ -38,6 +39,13 @@ PEERS = ("researcher",)
 
 def expected_backend(target, kind):
     return "a2a" if kind == "inquiry" and target in PEERS else "resident"
+
+
+@pytest.fixture(autouse=True)
+def no_local_targets(tmp_path, monkeypatch):
+    """A private overlay may link local_targets.json in; the tests run on the public roster."""
+    monkeypatch.setattr(p, "LOCAL_TARGETS", tmp_path / "no-local-targets.json")
+    monkeypatch.setattr(p, "ROSTER", p._roster({}))
 
 
 @pytest.fixture
@@ -568,6 +576,61 @@ def test_registration_is_role_gated():
         for tool in tools:
             assert tool["toolset"] == "specialist"
             assert tool["schema"]["parameters"]["additionalProperties"] is False
+
+
+def test_a_local_roster_adds_private_callers_and_targets_and_removes_nothing(caller, tmp_path, monkeypatch):
+    home, calls = caller
+    local = tmp_path / "local_targets.json"
+    local.write_text(json.dumps({"assistant": ["advisor"], "advisor": ["researcher", "searcher"]}))
+    monkeypatch.setattr(p, "ROSTER", p._roster(p._local_targets(local)))
+    merged = p._targets()
+    assert merged["assistant"] == p.TARGETS["assistant"] | {"advisor"}
+    assert merged["advisor"] == {"researcher", "searcher"} and merged["creator"] == p.TARGETS["creator"]
+    tools = []
+    p.register(SimpleNamespace(profile_name="advisor", register_tool=lambda **kw: tools.append(kw)))
+    assert len(tools) == 2
+    assert "resident_targets" in call("advisor")["error"]  # the caller's config must still enable it
+    config = yaml.safe_load((home / "config.yaml").read_text())
+    config["specialist_call"]["resident_targets"].append("advisor")
+    (home / "config.yaml").write_text(yaml.safe_dump(config))
+    assert call("advisor", kind="work")["status"] == "completed"
+    assert calls == [("resident", "advisor", "hello")]
+    advisor = home.parent / "advisor"
+    advisor.mkdir()
+    (advisor / "config.yaml").write_text(yaml.safe_dump({"specialist_call": {"resident_targets": ["researcher",
+                                                                                                    "writer"]}}))
+    monkeypatch.setattr(p, "_scope", lambda: (advisor, "advisor-owner", False, False))
+    assert call("researcher", kind="work")["status"] == "completed"
+    assert "not permitted" in call("writer", kind="work")["error"]
+
+
+@pytest.mark.parametrize("content", [
+    "not json", "[]", '{"assistant": "advisor"}', '{"Advisor": ["researcher"]}', '{"advisor": ["advisor"]}',
+    '{"advisor": ["../writer"]}', '{"default": ["researcher"]}', '{"advisor": ["default"]}',
+    '{"advisor": [1]}', '{"assistant": ["advisor"], "advisor": ["http://127.0.0.1:9999"]}',
+])
+def test_a_malformed_local_roster_adds_nothing(tmp_path, monkeypatch, content):
+    local = tmp_path / "local_targets.json"
+    local.write_text(content)
+    assert p._roster(p._local_targets(local)) == p.TARGETS
+
+
+def test_the_roster_is_read_once_so_a_later_write_widens_nothing(caller, tmp_path, monkeypatch):
+    home, calls = caller
+    local = tmp_path / "local_targets.json"
+    monkeypatch.setattr(p, "LOCAL_TARGETS", local)
+    config = yaml.safe_load((home / "config.yaml").read_text())
+    config["specialist_call"]["resident_targets"].append("researcher")
+    (home / "config.yaml").write_text(yaml.safe_dump(config))
+    local.write_text(json.dumps({"assistant": ["researcher"]}))  # written while the process runs
+    assert "not permitted" in call("researcher", kind="work")["error"]
+    assert not calls and p._local_targets() == {"assistant": {"researcher"}}  # only a reload would read it
+
+
+def test_the_local_roster_is_gitignored_beside_the_plugin():
+    assert LOCAL_TARGETS.parent == PLUGIN.parent and LOCAL_TARGETS.name == "local_targets.json"
+    ignore = (PLUGIN.parents[4] / ".gitignore").read_text().splitlines()
+    assert "hermes/plugins/orchestration/specialist-call/local_targets.json" in ignore
 
 
 @pytest.mark.parametrize("state,status", [

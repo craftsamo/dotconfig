@@ -19,6 +19,18 @@ marketer; it is their only outbound path (the raw `a2a_*` tools stay off, see
 | creator   | researcher; searcher resident-only                                                                                        |
 | marketer  | researcher; searcher resident-only (keeps inbound A2A for its clients)                                                    |
 
+A caller may call a target only when both the plugin's roster and the caller's
+`resident_targets` name it: the roster is code (`TARGETS`), so editing a
+profile's config never widens its reach. A profile that exists only in the
+private overlay joins through `local_targets.json` beside the plugin, which
+the overlay links in (it is gitignored here): `{"<caller>": ["<target>", …]}`
+adds callers and targets to the roster and never removes any; a malformed file
+adds nothing. Like `TARGETS` it is read once when the plugin loads, so a later
+write changes nothing until a gateway restart. The tracked tree names no such
+profile. Such a profile serves
+A2A like the tracked workers: `scripts/profile-secrets.sh` grants the
+localhost peer identity to every profile but the Assistant and the root one.
+
 Short inquiries use an allowed target's existing `a2a_agents` RPC endpoint when
 one exists; no endpoint is ever discovered from model text or a supplied URL.
 Work always uses the resident script (`assistant/scripts/resident-session.sh`).
