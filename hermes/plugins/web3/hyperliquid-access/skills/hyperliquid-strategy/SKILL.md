@@ -58,7 +58,10 @@ default when a stance does not hold, with a note saying why.
 2. `backtest` on mainnet with `long_history: true`, `end_time` fixed, and a
    `walk_forward` over a small grid (say entry 20/40/55, exit 10/20, stop_atr
    2/3, and trail_atr 0/3 to see whether a trailing stop helps), for each
-   market. Judge by `walk_forward.out_of_sample`, never by
+   market. A regime filter (`regime_ema`, say 0/600 on 4h: entries only on
+   the EMA's side) is tested the same way and kept per market, through
+   `default.markets`: what it does to one market's rules says nothing about
+   another's. Judge by `walk_forward.out_of_sample`, never by
    `result` alone: return, CAGR, maximum drawdown, MAR, trades, fees. Compare
    with buy-and-hold for scale, and say what `unread` says (assumed funding,
    older prices from Binance spot). Run the markets one after another: a
