@@ -484,40 +484,76 @@ def _net(quote: dict) -> str:
     return "testnet" if quote["network"] == "testnet" else "MAINNET"
 
 
+def _side(quote: dict) -> str:
+    b = quote["built"]
+    if quote["kind"] == "close":
+        return "Close"
+    return ("Buy" if b["is_buy"] else "Sell") + (" (reduce-only)" if b["reduce_only"] else "")
+
+
+def _leverage_was(b: dict) -> str:
+    was = b.get("was") or {}
+    return f"{was.get('value')}x {was.get('type')}" if was else "unknown"
+
+
 def _what(quote: dict) -> list[str]:
+    """What the detailed card says the action does, one fact a line: what is signed first, then the
+    account's context (Value, Position now, and a move's Fee lines), which the compact card leaves out."""
     b, m, kind = quote["built"], quote["market"], quote["kind"]
     venue = "spot" if m["spot"] else "perp"
     if kind in ("order", "close"):
-        side = ("Buy" if b["is_buy"] else "Sell") + (" (reduce-only)" if b["reduce_only"] else "")
-        how = f"market, worst price {b['price']}" if b["order_type"] == "market" else f"limit {b['price']} {b['tif']}"
-        lines = [f"{'Close' if kind == 'close' else side}: {b['size']} {m['label']} {venue} · {how}",
+        market = b["order_type"] == "market"
+        lines = [f"{_side(quote)}: {b['size']} {m['label']} {venue} · {'market' if market else 'limit'}",
+                 f"Price: worst {b['price']}" if market else f"Price: {b['price']} {b['tif']}",
+                 *[f"{leg['leg'].upper()}: trigger {leg['trigger']} → worst {leg['worst']}"
+                   for leg in b.get("legs", [])],
                  f"Value: ≈ {b['notional']} USDC"]
         if b.get("held") is not None:
             lev = b.get("leverage")
             lines.append(f"Position now: {b['held']}" + (f" · leverage {lev['value']}x {lev['type']}" if lev else ""))
-        for leg in b.get("legs", []):
-            lines.append(f"{leg['leg'].upper()}: trigger {leg['trigger']}, worst {leg['worst']}")
         return lines
     if kind == "tpsl":
-        return [f"Protect: {m['label']} perp position {b['held']}",
-                *[f"{leg['leg'].upper()}: trigger {leg['trigger']}, worst {leg['worst']} (whole position)"
-                  for leg in b["legs"]]]
+        return [f"Position: {b['held']} {m['label']} perp (the legs cover all of it)",
+                *[f"{leg['leg'].upper()}: trigger {leg['trigger']} → worst {leg['worst']}" for leg in b["legs"]]]
     if kind == "cancel":
         o = b["order"]
-        return [f"Cancel: order {o['oid']} · {o['side']} {o['size']} {m['label']} at {o['price']}"]
+        return [f"Order: {o['oid']}", f"Was: {o['side']} {o['size']} {m['label']} at {o['price']}"]
     if kind == "modify":
         o = b["order"]
-        return [f"Modify: order {o['oid']} · {o['side']} {m['label']}",
-                f"Price {o['price']} → {b['price']} · size {o['size']} → {b['size']}"]
+        return [f"Order: {o['oid']} · {o['side']} {m['label']}", f"Price: {o['price']} → {b['price']}",
+                f"Size: {o['size']} → {b['size']}"]
     if kind == "leverage":
-        was = b.get("was") or {}
-        before = f"{was.get('value')}x {was.get('type')}" if was else "unknown"
-        return [f"Leverage: {m['label']} perp {before} → {b['leverage']}x {b['mode']}"]
+        return [f"Market: {m['label']} perp", f"Leverage: {_leverage_was(b)} → {b['leverage']}x {b['mode']}"]
     if kind == "margin":
-        return [f"{'Remove' if b['remove'] else 'Add'} isolated margin: {b['amount']} USDC on {m['label']}"]
+        return [f"{'Remove' if b['remove'] else 'Add'}: {b['amount']} USDC isolated margin on {m['label']} perp"]
     if kind in MOVES:
         return hl_moves.lines(quote)
     return [kind]
+
+
+def _what_short(quote: dict) -> list[str]:
+    """The same in the compact card's words: everything that is signed — every leg included — and no
+    context; legs share one line to stay inside the budget."""
+    b, m, kind = quote["built"], quote["market"], quote["kind"]
+    venue = "spot" if m["spot"] else "perp"
+    legs = " · ".join(f"{leg['leg'].upper()} {leg['trigger']}→{leg['worst']}" for leg in b.get("legs") or [])
+    if kind in ("order", "close"):
+        how = f"market, worst {b['price']}" if b["order_type"] == "market" else f"limit {b['price']} {b['tif']}"
+        return [f"{_side(quote)} {b['size']} {m['label']} {venue} · {how}", *([legs] if legs else [])]
+    if kind == "tpsl":
+        return [f"{m['label']} perp position {b['held']} (all of it)", legs]
+    if kind == "cancel":
+        o = b["order"]
+        return [f"Order {o['oid']} · {o['side']} {o['size']} {m['label']} at {o['price']}"]
+    if kind == "modify":
+        o = b["order"]
+        return [f"Order {o['oid']} · {o['side']} {m['label']}",
+                f"Price {o['price']} → {b['price']} · size {o['size']} → {b['size']}"]
+    if kind == "leverage":
+        return [f"{m['label']} perp {_leverage_was(b)} → {b['leverage']}x {b['mode']}"]
+    if kind in MOVES:
+        return hl_moves.short(quote)
+    return _what(quote)
 
 
 TITLES = {"order": "Order", "close": "Close", "tpsl": "TP/SL", "modify": "Modify", "cancel": "Cancel",
@@ -558,22 +594,13 @@ def card(quote: dict, drop: tuple = ()) -> str:
     return "\n".join(lines)
 
 
-CONTEXT = ("Value:", "Position now:", "Fee:")  # what the account looks like or the venue takes, not what is signed
-
-
 def card_short(quote: dict) -> str:
-    """The compact card (Discord): the title with the effect, everything that is signed — every leg
-    included — and only the context dropped; legs share one line to stay inside the budget."""
+    """The compact card (Discord): the title with the effect, then everything that is signed, the account
+    and, for a move out of the account, its destination."""
     head = f"{_title(quote)} · {EFFECTS[quote['effect']][1]}"
-    if quote["kind"] in MOVES:
-        to = _to(quote)
-        what, side, after = hl_moves.short(quote), "From", [f"To ({to[0]}): {to[1]}"] if to else []
-    else:
-        signed = [line for line in _what(quote) if not line.startswith(CONTEXT)]
-        legs = [line for line in signed if line.startswith(("TP:", "SL:"))]
-        compact = " · ".join(line.replace(": trigger ", " ").replace(", worst ", "→") for line in legs)
-        what, side, after = [line for line in signed if line not in legs] + ([compact] if compact else []), \
-            "Account", []
+    to = _to(quote)
+    what, side = _what_short(quote), "From" if quote["kind"] in MOVES else "Account"
+    after = [f"To ({to[0]}): {to[1]}"] if to else []
     for clip in (40, 20):  # the account's long name goes before anything signed or any address does
         text = "\n".join([head, *what, f"{side} {signer.one_line(quote['account'], clip)}: {quote['from']}", *after,
                           f"Quote {quote['id']}"])
