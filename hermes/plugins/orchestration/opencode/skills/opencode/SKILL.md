@@ -30,9 +30,11 @@ no labelled blocks ("constraints:", "the person's words:"), and a list only
 for things that are a list (claim numbers, repositories to compare).
 
 - **The user's words** go inside your sentences where their wording carries
-  the intent (依頼者は「書き直した方が早そうだな」と言っていて、…), in 「」
-  in a Japanese message and "…" in an English one, never as a block of quotes
-  standing in for the requirement you draw from them. Quote exactly only what
+  the intent, in "…" in an English message (the user said "a weekly summary
+  is enough", so …) and 「」 in a Japanese one
+  (依頼者は「週に一度まとめて見られれば十分」と話していて、…), never as a
+  block of quotes standing in for the requirement you draw from them. Quote
+  exactly only what
   is itself specification (a label on a screen, a sentence that must appear);
   the decision log keeps the rest verbatim. Do not open by reporting who
   approved what: the tools record approval.
@@ -68,33 +70,49 @@ for things that are a list (claim numbers, repositories to compare).
   decides and records the choice in its report or PR. Relay only what changes
   what people can do or see, what is stored, cost, or anything irreversible.
 
-A build turn after the user changed the approved plan, not as a relay ("本人が
-承認した。本人の言葉: - 「…」 - 「…」 つまり… 制約: - … 終わったら…") but
-as a brief:
+A build turn after the user changed the approved plan, not as a relay
+("Approved by the user. The user's words: - "…" - "…" So … Constraints: - …
+When done …") but as a brief:
 
 ```text
-実装は進めて大丈夫。ただ計画から一つ大きく変わった。スターターの `scripts/setup`
-とデプロイのワークフローは書き換えずにそのまま使う。依頼者は「後から権限も変え
-れるんやろ？」と言っていて、ほかのサービスと型をそろえておきたいみたい。なので
-setup の置き換え（1.3）と命名の変更（1.4）はやめて、権限を絞るのはスターター本体
-を直すときに回す。
+Go ahead with the build, with one change from the plan. The CSV export stays,
+but the low-stock email alerts are out for now: the user said "let's see whether
+people actually look at the stock page before we decide on emails", so drop
+step 1.3 and leave alerts for a later Phase.
 
-今回はリポジトリの中の変更と PR まで。クラウドの設定とデプロイは依頼者が自分で
-やるので、その後に要る外の作業を PR の説明に並べておいてほしい。終わったら、実際
-に通した確認の結果と PR の URL を教えて。これまでの決定は
-`/Users/me/Workspaces/Projects/Acme/.agent/20261013-rebuild/decisions.md` にある。
+This turn covers the changes in the repository and the PR. The user sets up the
+hosting side themselves, so list the outside steps they will need in the PR
+description. When you are done, tell me the results of the checks you actually
+ran and the PR URL. Earlier decisions are in
+`/Users/me/Workspaces/Projects/Acme/.agent/20260301-inventory/decisions.md`.
 ```
 
-A read-only check of someone's claims:
+The same brief for a user who writes in Japanese:
 
 ```text
-別の担当者の資料に、このリポジトリについての主張がいくつかある。依頼者は「向こう
-から出てきた新情報を信用する事はできない。裏を取らないと」と言っていて、コードで
-確かめたい。`/Users/me/Workspaces/Projects/Acme/.agent/20261011-survey/claims.md`
-の F01〜F10 を、全ブランチのコードとコミット済みのファイルから判定してほしい。
-チェーンや外部サービスには問い合わせないで。前に調べた同じフォルダーの
-`report.md` と食い違うところがあれば、それも教えて。どこまでが確かめた事実で
-どこからが推測か、分かるように書いてくれると助かる。
+実装を進めてください。ただ、計画から一つ変更があります。
+CSV の書き出しはそのまま残し、在庫が少なくなったときのメール通知は今回は見送ります。
+依頼者は「在庫の画面をみんなが本当に見るか確かめてから、メールを送るか決めたい」と話していたので、
+手順 1.3 は外し、通知は後の Phase に回してください。
+
+今回の範囲は、リポジトリ内の変更と PR までです。
+ホスティング側の設定は依頼者が自分で行うので、そのときに必要になる作業を PR の説明に書き出しておいてください。
+終わったら、実際に行った確認の結果と PR の URL を教えてください。
+これまでの決定は `/Users/me/Workspaces/Projects/Acme/.agent/20260301-inventory/decisions.md` にまとめてあります。
+```
+
+A read-only check of someone's claims, with the intent in your own words
+where no remark of the user's carries it better:
+
+```text
+A migration proposal from another team makes several claims about this
+repository, and the user wants them checked against the code before anyone
+relies on them. Please check claims C01 to C08 in
+`/Users/me/Workspaces/Projects/Acme/.agent/20260305-claims-check/claims.md`
+against the code on every branch and the committed files. Do not query
+production or any external service. If anything disagrees with the earlier
+`report.md` in the same folder, point that out too. It helps if the report
+makes clear where checked fact ends and inference begins.
 ```
 
 The tools drive the person's shared OpenCode service. Runs appear in their
