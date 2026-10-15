@@ -307,10 +307,13 @@ tested is what runs.
   last `entry` bars' range enters, beyond the last `exit` bars' opposite
   range exits) or `ema_cross` (two EMAs cross), each with a stop at
   `stop_atr` ATRs from the signal's close, placed with the entry, and a
-  `risk_pct` of equity lost at that stop. An optional `trail_atr` moves the
-  stop to that many ATRs behind each completed close when that is tighter,
-  never looser; left out or 0, the rule set and its fingerprint are those of
-  the rules without it. Only completed bars are read.
+  `risk_pct` of equity lost at that stop. Two optional numbers: `trail_atr`
+  moves the stop to that many ATRs behind each completed close when that is
+  tighter, never looser; `regime_ema` takes longs only above that EMA and
+  shorts only below it (exits are the rules' own; three lengths of bars
+  warm it up, so a long one needs `long_history` to leave bars to trade).
+  Left out or 0, each leaves the rule set and its fingerprint
+  those of the rules without it. Only completed bars are read.
 - **Fills**: a signal at a bar's close fills at the next bar's open with
   slippage and the taker fee both ways; a stop fills inside a bar whose range
   reaches it, at the open when the bar gaps through; funding accrues each

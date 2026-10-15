@@ -7,7 +7,8 @@ what was tested is what runs. Contract: docs/hyperliquid.md "Strategies".
 
 - **Rules** are a ``kind`` and its numbers (``breakout``: a Donchian channel; ``ema_cross``: two
   EMAs), each with an ATR stop placed with the entry and a risk per trade, and optionally a
-  trailing stop (``trail_atr``) that follows each completed close and never loosens. ``fingerprint``
+  trailing stop (``trail_atr``) that follows each completed close and never loosens, and a regime
+  filter (``regime_ema``) that takes longs only above that EMA and shorts only below. ``fingerprint``
   names a rule set exactly (with its interval), so a strategy may only run rules a backtest reported.
 - **A strategy spec** names the account, network, markets, interval, its validated variants, the
   default stance, the bounds an advisor may choose within, and its limits.
@@ -57,8 +58,9 @@ PARAMS = {
     "ema_cross": {"fast": (2, 100, True), "slow": (3, 400, True), "atr": (5, 100, True),
                   "stop_atr": (0.5, 10.0, False), "risk_pct": (0.1, 5.0, False)},
 }
-# optional for every kind; 0 (or absent) leaves it out of the rule set, so earlier fingerprints hold
-OPTIONAL = {"trail_atr": (0.5, 10.0, False)}
+# optional for every kind; 0 (or absent) leaves it out of the rule set, so earlier fingerprints hold:
+# trail_atr trails the stop; regime_ema allows entries only on the side of that EMA (longs above it)
+OPTIONAL = {"trail_atr": (0.5, 10.0, False), "regime_ema": (10, 1500, True)}
 COSTS = {"taker_bps": (0.0, 100.0, 4.5), "slippage_bps": (0.0, 100.0, 5.0)}
 
 
@@ -154,10 +156,12 @@ def fingerprint(rule_set: dict, interval: str) -> str:
 
 
 def warmup(rule_set: dict) -> int:
-    """Completed bars needed before the first signal."""
+    """Completed bars needed before the first signal (an EMA seeded from the first close has settled
+    after about three lengths)."""
+    regime = rule_set.get("regime_ema", 0) * 3
     if rule_set["kind"] == "breakout":
-        return max(rule_set["entry"], rule_set["exit"], rule_set["atr"]) + 1
-    return max(rule_set["slow"] * 3, rule_set["atr"]) + 1
+        return max(rule_set["entry"], rule_set["exit"], rule_set["atr"], regime) + 1
+    return max(rule_set["slow"] * 3, rule_set["atr"], regime) + 1
 
 
 def costs(raw) -> dict:
@@ -252,12 +256,31 @@ def indicators(series: list[dict], rule_set: dict) -> dict:
     else:
         ind["fast"] = _ema(series, rule_set["fast"])
         ind["slow"] = _ema(series, rule_set["slow"])
+    if rule_set.get("regime_ema"):
+        ind["regime"] = _ema(series, rule_set["regime_ema"])
     return ind
 
 
 def signal(series: list[dict], ind: dict, i: int, rule_set: dict) -> dict | None:
     """What the rules say at the close of completed bar ``i``: {"long": enter?, "short": enter?,
-    "exit_long", "exit_short", "atr", "close", "why"}; None before the indicators are ready."""
+    "exit_long", "exit_short", "atr", "close", "why"}; None before the indicators are ready. A
+    regime EMA only withholds entries against it (a long below, a short above); exits are the
+    rules' own."""
+    sig = _signal(series, ind, i, rule_set)
+    if sig is None or "regime" not in ind:
+        return sig
+    regime = ind["regime"][i]
+    if regime is None:
+        return None
+    if sig["close"] < regime:
+        sig["long"] = False
+    elif sig["close"] > regime:
+        sig["short"] = False
+    sig["why"] += f"; EMA {rule_set['regime_ema']} regime {sig5(regime)}"
+    return sig
+
+
+def _signal(series: list[dict], ind: dict, i: int, rule_set: dict) -> dict | None:
     if i < warmup(rule_set) - 1 or ind["atr"][i] is None:
         return None
     close = series[i]["c"]
