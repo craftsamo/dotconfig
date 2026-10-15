@@ -800,7 +800,8 @@ def _effect_now(quote: dict, secrets_) -> str:
 def op_verify(payload: dict) -> dict:
     """What the hook decides on: the authentic quote, its effect as it reads now, its cards and MAC."""
     state = _state(payload)
-    secrets_ = signer.Secrets(payload)
+    # the approval hook runs this inside Hermes' 30 s hook timeout: read the Hermes wallets alone
+    secrets_ = signer.Secrets(payload, sign_only=True)
     now = time.time()
     quote = _verified(state, payload.get("quote"), secrets_, now)
     # recomputed from the authenticated action and the secrets, never taken from the stored verdict alone
@@ -923,7 +924,7 @@ def op_submit(payload: dict) -> dict:
     if approval not in ("reduce", "card", "mandate", "own"):
         raise ChainError("a submit needs the plugin's approval decision")
     with ledger.locked(state):
-        secrets_ = signer.Secrets(payload)
+        secrets_ = signer.Secrets(payload, sign_only=True)
         now = time.time()
         quote = _verified(state, payload.get("quote"), secrets_, now)
         if not hmac.compare_digest(str(payload.get("mac") or ""), quote["mac"]):
@@ -1106,7 +1107,8 @@ def op_mandates(payload: dict) -> dict:
     network = payload.get("network")
     if network is not None:
         _network(network)
-    rows = hl_mandate.listing(state, signer.Secrets(payload), time.time(), payload.get("account"), network)
+    rows = hl_mandate.listing(state, signer.Secrets(payload, sign_only=True), time.time(), payload.get("account"),
+                              network)
     return {"mandates": rows, "note": "active ones approve orders inside their bounds without a card; "
                                       "revoke_mandate ends one at once"}
 
@@ -1114,7 +1116,8 @@ def op_mandates(payload: dict) -> dict:
 def op_revoke(payload: dict) -> dict:
     state = _state(payload)
     with ledger.locked(state):
-        standing = hl_mandate.revoke(state, signer.Secrets(payload), payload.get("mandate"), time.time())
+        standing = hl_mandate.revoke(state, signer.Secrets(payload, sign_only=True), payload.get("mandate"),
+                                     time.time())
     note = "from now on every order that can add exposure asks on its card again" if standing == "revoked" else \
         "this mandate was not in force; nothing changed"
     return {"mandate": payload.get("mandate"), "standing": standing, "note": note}

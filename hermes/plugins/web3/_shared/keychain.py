@@ -133,14 +133,17 @@ def source_id(item: dict) -> str:
     return "/".join(part for part in (item["project"], item.get("scope"), item["name"]) if part)
 
 
-def discover() -> list[dict]:
-    """Every wallet-labelled seed phrase and private key in the Keychain, with its value."""
+def discover(sign_only: bool = False) -> list[dict]:
+    """Every wallet-labelled seed phrase and private key in the Keychain, with its value; with
+    sign_only, the Hermes wallets alone (watch-only values are then never read)."""
     items = []
     for project in projects():
         try:
             items += parse_listing(project, _run(["ls", "-p", project, "--long"]))
         except KeychainError:
             continue  # one unreadable project does not hide the others
+    if sign_only:
+        items = [item for item in items if item["use"] == "sign"]
     for item in items:
         try:
             item["value"] = read(item["name"], item["project"], item["scope"])

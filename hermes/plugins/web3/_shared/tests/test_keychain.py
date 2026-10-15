@@ -103,3 +103,25 @@ def test_values_are_read_only_for_wallet_items(monkeypatch, tmp_path):
                     ["get", "OLD_SEED", "-p", "work", "--shared"]]
     assert {item["id"] for item in items} == {"work/HERMES_MAIN", "work/deploy-ops/DEPLOYER", "work/OLD_SEED"}
     assert all(item["value"] == "value" for item in items)
+
+
+def test_sign_only_never_reads_a_watch_only_value(monkeypatch, tmp_path):
+    calls = []
+    fake = tmp_path / "secret"
+    fake.write_text("")
+    monkeypatch.setattr(keychain, "SECRET", fake)
+
+    def run(cmd, **kwargs):
+        args = cmd[1:]
+        calls.append(args)
+        out = {"projects": "work\n"}.get(args[0], "")
+        if args[:3] == ["ls", "-p", "work"]:
+            out = LISTING
+        if args[0] == "get":
+            out = "value\n"
+        return subprocess.CompletedProcess(cmd, 0, stdout=out, stderr="")
+
+    monkeypatch.setattr(keychain.subprocess, "run", run)
+    items = keychain.discover(sign_only=True)
+    assert [c for c in calls if c[0] == "get"] == [["get", "HERMES_MAIN", "-p", "work", "--shared"]]
+    assert [item["id"] for item in items] == ["work/HERMES_MAIN"]

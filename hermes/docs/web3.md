@@ -208,6 +208,10 @@ it asks, and it counts against the hourly cap.
 The hook decides before a `transfer` runs, from the quote as the signer verifies
 it (`verify`) — never from the quote file as read, nor from the model's
 arguments beyond the quote id — so a card is only ever the authentic one.
+The hook runs inside Hermes' 30 s `pre_tool_call` timeout, and a hook that
+overruns it blocks every tool of the profile for a while, so `verify` and the
+send behind it read the Hermes wallets alone: the own check and the MAC need
+nothing else, and a watch-only secret is never loaded there.
 
 - **Own recipient:** runs without asking, mainnets included (the funds stay the
   user's; only the fee is spent). The signer refuses a send approved this way
