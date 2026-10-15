@@ -5,6 +5,7 @@ Read the [kernel](../../SKILL.md) first. The leaf's form is authoritative; this 
 ## Leaves
 
 - `create-explainer-video` — an explanation of a topic toward a learning goal from approved words and supplied media, with no character, a bust presenter or a full-body presenter; a proposal comes first.
+- `analyze-explainer-video` — findings on an existing explainer video up to 600 s: on-screen text, caption-versus-picture, overlaps, phone-size text, figure and portrait drawing defects, and a verbatim claim list; no new video, no likeness or fact verdicts.
 
 ## Range
 
@@ -24,6 +25,7 @@ Read the [kernel](../../SKILL.md) first. The leaf's form is authoritative; this 
 
 - UI task walkthrough: [tour](tour.md). Persuasion toward an action: [ad](ad.md). Characters acting a narrative: [story](story.md). Brand or product presentation: [promotion](promotion.md).
 - Character art: [mascot](../image-creator/mascot.md). Narration: [speech](../audio-creator/speech.md).
+- Reviewing an existing video: `analyze-explainer-video` sees only the picture and captions; its speech is [speech](../audio-creator/speech.md)'s `analyze-speech` and its thumbnail [card](../image-creator/card.md)'s `analyze-card`.
 
 ## Examples
 

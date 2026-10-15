@@ -292,6 +292,20 @@ once, to avoid reverse-seek ordering conflicts.
 Final QA carries the engine's contrast-audit status; Motion Canvas has none and
 reports "requires manual visual review".
 
+**Review.** `analyze-explainer-video` reads one existing explainer video of up
+to 600 seconds — anyone's, in any release state — and returns findings and a
+verbatim claim list, never a new video. It owns the picture only: on-screen
+text, caption-versus-picture, overlaps that hide information, phone-size text
+measured by pixel rows, figure and portrait drawing defects. Speech stays with
+`analyze-speech`, the thumbnail with `analyze-card`, likeness with the user and
+claim verdicts with Searcher or Researcher; the Assistant's
+`explainer-video-review` technic runs the four together. Its local evidence
+helper (`explainer-evidence.py`) extracts 1 fps stills plus stills around
+detected cuts, so the 60-second cap of `analyze-clip` and `analyze-ad` does not
+apply. Remote analysis stays opt-in and runs only on a source of at most 30 MB
+or 60 seconds (the shared proxy helper's limit); a larger, longer one is
+reported as not run, never trimmed to fit. Always `kind="work"`.
+
 ## Promotion family
 
 `video-creator-pipeline/create/promotion/` serves `create-promotion`:
