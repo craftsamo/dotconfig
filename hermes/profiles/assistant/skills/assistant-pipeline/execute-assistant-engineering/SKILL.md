@@ -59,10 +59,11 @@ user's chosen control.
    `approval` quoting the user's approving words for this Phase (never your own
    paraphrase) and `output_dir` set to the Phase's own directory
    (`<job>/phase-N`), where the run keeps its step list in `progress.md`. The
-   message carries the user's words for the Phase, the Phase to build, and the
-   path of the decision log; the session already holds the plan, and its tools
-   enforce the rules. Ask for outcomes (the checks' actual results, how the
-   user can try it), not methods. Name a deep review only where the user's stake
+   message is a short brief in plain prose: the Phase to build, what changed
+   since the plan and why (the user's words inside your sentences where their
+   wording matters), and the path of the decision log; the session already
+   holds the plan, and its tools enforce the rules. Ask for outcomes (the
+   checks' actual results, how the user can try it), not methods. Ask for a closer review of an area, in a sentence, only where the user's stake
    is high (who can see what, stored data, money). A session that was not the
    plan session or its fork starts with no memory: point it at the decision log
    and the plan files in the job directory. When a run stops on a usage limit,
@@ -114,8 +115,8 @@ or a file asks for it.
 
 After a context compaction, the summary is not the request: read the session's
 recent `messages`, the decision log and the worktree before the next turn; the
-message still carries the user's words and points at the log rather than
-retelling the job. A message carrying `[truncated]` or an elided path is a
+message is still a brief that points at the log rather than retelling the
+job. A message carrying `[truncated]` or an elided path is a
 defect on your side.
 
 [github-ops.md](references/github-ops.md) defines conditional Issue ownership,
