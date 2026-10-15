@@ -30,7 +30,8 @@ class VideoCreatorConfigTest(unittest.TestCase):
     """The video-creator profile config must mirror image-creator's shape
     (Creator's other 'hand') except for the video-specific toolset/budget/
     plugin differences documented in hermes/docs/hands/video.md. Its model
-    chain follows Creator's, not image-creator's (docs/models-auth.md)."""
+    chain follows Creator's, not image-creator's, except that it keeps Opus
+    ahead of Fable while Creator trials a Fable lead (docs/models-auth.md)."""
 
     @classmethod
     def setUpClass(cls) -> None:
@@ -44,9 +45,19 @@ class VideoCreatorConfigTest(unittest.TestCase):
     def test_auxiliary_matches_image_creator(self) -> None:
         self.assertEqual(self.image["auxiliary"], self.video["auxiliary"])
 
-    def test_model_matches_creator(self) -> None:
-        self.assertEqual(self.creator["model"], self.video["model"])
-        self.assertEqual(self.creator["fallback_providers"], self.video["fallback_providers"])
+    def test_model_matches_creator_with_opus_lead(self) -> None:
+        self.assertEqual(self.video["model"]["default"], "claude-opus-5-5")
+        self.assertEqual(self.video["fallback_providers"][0]["model"], "claude-fable-5-1")
+        self.assertEqual(self.creator["model"]["default"], "claude-fable-5-1")
+        self.assertEqual(self.creator["fallback_providers"][0]["model"], "claude-opus-5-5")
+
+        def without_model(entry: dict) -> dict:
+            return {k: v for k, v in entry.items() if k not in ("default", "model")}
+
+        self.assertEqual(without_model(self.creator["model"]), without_model(self.video["model"]))
+        self.assertEqual(without_model(self.creator["fallback_providers"][0]),
+                         without_model(self.video["fallback_providers"][0]))
+        self.assertEqual(self.creator["fallback_providers"][1:], self.video["fallback_providers"][1:])
 
     def test_toolsets_contain_video_not_tts_image_gen_delegation_a2a(self) -> None:
         toolsets = self.video["toolsets"]
