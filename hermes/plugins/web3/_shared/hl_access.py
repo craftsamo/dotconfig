@@ -222,7 +222,8 @@ def schema_for(profile: str) -> dict:
         f"Hyperliquid perps and spot — {scope}. Every call names an action and a network (submit takes its "
         "quote's). " + READ_HELP + UNTRUSTED + (TRADE_HELP if trading else "")
         + f' Before sustained reading, load skill_view(name="{SKILL}")'
-        + (f' and, before trading, skill_view(name="{TRADE_SKILL}").' if trading else "."))
+        + (f', before trading, skill_view(name="{TRADE_SKILL}") and, before making or running a strategy, '
+           f'skill_view(name="{STRATEGY_SKILL}").' if trading else "."))
     return {"name": TOOL, "description": description, "parameters": {
         "type": "object", "properties": properties, "required": ["action"], "additionalProperties": False}}
 
