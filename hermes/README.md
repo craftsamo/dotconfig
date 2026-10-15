@@ -102,7 +102,8 @@ plugins/               grouped plugins: messaging/ social/ web3/ orchestration/ 
 profiles/<name>/       one HERMES_HOME each: config.example.yaml, profile.yaml, SOUL.example.md,
                        skills/<name>-pipeline/, scripts/ (see docs/ops/skills.md)
 launchd/               LaunchAgent templates and launcher scripts
-engines/               hash-locked pins for the local engines (TTS, SFX, scraping, ...)
+engines/               hash-locked pins for the local engines (TTS, SFX, scraping, ...) and
+                       the screen-listen helper's Swift source
 scripts/               helpers, validators and tests/ (see "Commands")
 docs/                  design contracts (index: PROFILES.md) and docs/ops/ mechanics
 archive/               retired material no profile reads
