@@ -67,11 +67,19 @@ for net, mainnet in (("mainnet", True), ("testnet", False)):
         out[f"sendAsset/{name}/{net}"] = s.sign_user(key, asset)
         out[f"sendAsset/{name}/{net}/signer"] = s.recover_user(asset, out[f"sendAsset/{name}/{net}"])
         out[f"sendAsset/{name}/{net}/action"] = asset
+for name, mainnet, dex, domain in (("perp/mainnet", True, "", 3), ("spot/testnet", False, "spot", 6)):
+    evm = s.user_action(s.send_to_evm_action("USDC", "10.5", dex, sys.argv[4], domain, 200000, 1687816341423),
+                        mainnet)
+    out[f"sendToEvmWithData/{name}"] = s.sign_user(key, evm)
+    out[f"sendToEvmWithData/{name}/signer"] = s.recover_user(evm, out[f"sendToEvmWithData/{name}"])
+    out[f"sendToEvmWithData/{name}/action"] = evm
 errors = {}
 for name, call in (("float", lambda: s.wire(0.1)), ("precision", lambda: s.wire("0.000000001")),
                    ("negative", lambda: s.wire("-1")), ("tif", lambda: s.limit("Fok")),
                    ("cloid", lambda: s.order_wire(1, True, "1", "1", False, s.limit("Gtc"), "0x1")),
-                   ("usd", lambda: s.usd_int("1.0000001")), ("dest", lambda: s.usd_send_action("0x12", "1", 1))):
+                   ("usd", lambda: s.usd_int("1.0000001")), ("dest", lambda: s.usd_send_action("0x12", "1", 1)),
+                   ("domain", lambda: s.send_to_evm_action("USDC", "1", "", sys.argv[4], -1, 200000, 1)),
+                   ("data", lambda: s.send_to_evm_action("USDC", "1", "", sys.argv[4], 3, 200000, 1, "0xABC"))):
     try:
         call()
     except s.SignError as exc:
@@ -134,6 +142,12 @@ SDK_VECTORS = {
                                   "0x498217552662ddc1c259235fc171b2840109cceae95d7524400e901632af9889", 28),
     "sendAsset/perp/testnet": sig("0x2323e1c5f00d484d7ca61d7c40ed5455228c1c94744247897633bad6712ee72",
                                   "0x22ade3dcf0ed783cd1702af2ebb997b3ae3aa60f12005741ef41c4a35f74ac01", 28),
+    # the Python SDK has no sendToEvmWithData: these come from @nktkas/hyperliquid 0.33.3's
+    # signUserSignedAction with its SendToEvmWithDataTypes (viem), same key, action and nonce
+    "sendToEvmWithData/perp/mainnet": sig("0x9c4f4f65da6f064d1764185f8c18f2322b116ae65c5bbc69c64fa14eeb1b7736",
+                                          "0x571b7408cce3bad3f99d060da7bd437a51a30f273c8dfbde6d7a9c6913d2ad74", 28),
+    "sendToEvmWithData/spot/testnet": sig("0x73fd5a262f74f725817e570e45887ab69df88077231321360fa345d33b8f600d",
+                                          "0x3a725549f3899d99f69d5b577e9b6880192850352018197cb7bff3cb38d33918", 28),
 }
 
 
@@ -150,8 +164,16 @@ def test_every_signature_recovers_to_its_own_key(signed):
     for case in ("dummy", "order", "cloid", "tpsl"):
         for net in ("mainnet", "testnet"):
             assert signed[f"{case}/{net}/signer"] == signed["address"]
-    for case in ("usdSend", "spotSend", "usdClassTransfer", "sendAsset/spot/mainnet", "sendAsset/perp/testnet"):
+    for case in ("usdSend", "spotSend", "usdClassTransfer", "sendAsset/spot/mainnet", "sendAsset/perp/testnet",
+                 "sendToEvmWithData/perp/mainnet", "sendToEvmWithData/spot/testnet"):
         assert signed[f"{case}/signer"] == signed["address"]
+
+
+def test_a_cctp_send_goes_on_the_wire_as_the_sdks_build_it(signed):
+    assert signed["sendToEvmWithData/perp/mainnet/action"] == {
+        "type": "sendToEvmWithData", "token": "USDC", "amount": "10.5", "sourceDex": "", "destinationRecipient": DEST,
+        "addressEncoding": "hex", "destinationChainId": 3, "gasLimit": 200000, "data": "0x", "nonce": 1687816341423,
+        "signatureChainId": "0x66eee", "hyperliquidChain": "Mainnet"}
 
 
 def test_send_asset_goes_on_the_wire_as_the_sdk_builds_it(signed):
@@ -175,6 +197,7 @@ def test_numbers_go_on_the_wire_as_the_sdk_writes_them(signed):
 
 def test_what_cannot_be_signed_exactly_is_refused(signed):
     errors = signed["errors"]
-    assert set(errors) == {"float", "precision", "negative", "tif", "cloid", "usd", "dest"}
+    assert set(errors) == {"float", "precision", "negative", "tif", "cloid", "usd", "dest", "domain", "data"}
     assert "not a float" in errors["float"] and "8 decimal places" in errors["precision"]
+    assert "whole number" in errors["domain"] and "lower-case hex bytes" in errors["data"]
     assert "positive" in errors["negative"] and "6 decimal places" in errors["usd"]
