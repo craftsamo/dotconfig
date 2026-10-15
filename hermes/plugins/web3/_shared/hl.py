@@ -20,9 +20,11 @@ import json
 import re
 import sys
 import urllib.error
+import urllib.parse
 import urllib.request
 
 import chains
+import hl_strategy
 import rpc
 from rpc import ChainError
 
@@ -379,10 +381,10 @@ def candles(ctx, args) -> dict:
     return result
 
 
-def _funding(ctx, coin: str, start: int, end: int) -> tuple[list[dict], bool]:
+def _funding(ctx, coin: str, start: int, end: int, pages: int = FUNDING_PAGES) -> tuple[list[dict], bool]:
     rows: list[dict] = []
     cursor = start
-    for _ in range(FUNDING_PAGES):
+    for _ in range(pages):
         page = ctx.api.info({"type": "fundingHistory", "coin": coin, "startTime": cursor, "endTime": end})
         page = page if isinstance(page, list) else []
         rows.extend(page)
@@ -724,6 +726,164 @@ def export(ctx, args) -> dict:
     return result
 
 
+# --- backtests ----------------------------------------------------------------------------------
+
+BACKTEST_BARS_MAX = 25_000   # bars one backtest trades over, both sources together
+VENUE_PAGE = 500             # candles asked for per candleSnapshot request
+BACKTEST_FUNDING_PAGES = 8   # the newest 4000 hours of funding are read; older hours take their mean
+LONG_HISTORY = {"label": "Binance spot", "api": "https://data-api.binance.vision", "page": 1000}
+_LONG_COIN = re.compile(r"^[A-Z0-9]{2,10}$")
+
+
+def _venue_candles(ctx, coin: str, interval: str, start: int, end: int) -> list[dict]:
+    """The venue's candles over a window, in pages; only its newest 5000 exist."""
+    step = hl_strategy.INTERVAL_MS[interval]
+    cursor, rows = max(start, end - CANDLES_MAX * step), []
+    while cursor < end:
+        upper = min(end, cursor + VENUE_PAGE * step)
+        rows.extend(_candles(ctx, coin, interval, cursor, upper - 1))
+        cursor = upper
+    return rows
+
+
+def _long_candles(payload: dict, coin: str, interval: str, start: int, end: int) -> tuple[list[dict], str | None]:
+    """Older candles of the same coin's USDT pair from Binance's public market data, for the years
+    before the venue's own 5000 candles: (rows, what could not be read, or None). Prices only."""
+    label = LONG_HISTORY["label"]
+    if not _LONG_COIN.match(coin):
+        return [], f"{label} has no history mapped for {coin}; only the venue's own candles were used"
+    base = payload.get("_long") if payload.get("_long") and rpc.testing() else LONG_HISTORY["api"]
+    step = hl_strategy.INTERVAL_MS[interval]
+    symbol, cursor, rows = f"{coin}USDT", start, []
+    while cursor < end and len(rows) < BACKTEST_BARS_MAX:
+        query = urllib.parse.urlencode({"symbol": symbol, "interval": interval, "startTime": cursor,
+                                        "endTime": end - 1, "limit": LONG_HISTORY["page"]})
+        request = urllib.request.Request(f"{base}/api/v3/klines?{query}",
+                                         headers={"Accept": "application/json", "User-Agent": rpc.USER_AGENT})
+        try:
+            with urllib.request.urlopen(request, timeout=TIMEOUT) as response:
+                page = json.loads(response.read())
+        except urllib.error.HTTPError as exc:
+            if exc.code == 400:
+                return rows, f"{label} has no {symbol}; only the venue's own candles were used"
+            return rows, f"{label} refused the history (HTTP {exc.code}); only part of it was read"
+        except (urllib.error.URLError, TimeoutError, OSError, ValueError):
+            return rows, f"{label} could not be reached; only part of the older history was read"
+        if not isinstance(page, list) or not page:
+            break
+        rows.extend({"t": r[0], "o": r[1], "h": r[2], "l": r[3], "c": r[4]} for r in page
+                    if isinstance(r, list) and len(r) >= 5)
+        last = page[-1][0] if isinstance(page[-1], list) and isinstance(page[-1][0], int) else None
+        if last is None or last < cursor:
+            break
+        cursor = last + step
+    return rows, None
+
+
+def _backtest_args(args: dict) -> dict:
+    try:
+        rule_set = hl_strategy.rules(args.get("rules"))
+        out = {"rules": rule_set, "costs": hl_strategy.costs(args.get("costs")),
+               "limits": hl_strategy.backtest_limits(args.get("limits")),
+               "stance": hl_strategy.timeline(args.get("stance"))}
+    except hl_strategy.StrategyError as exc:
+        raise ChainError(str(exc)) from None
+    direction = args.get("direction") or "both"
+    if direction not in hl_strategy.DIRECTIONS:
+        raise ChainError(f"direction is one of {', '.join(hl_strategy.DIRECTIONS)}")
+    long_history = args.get("long_history", False)
+    if not isinstance(long_history, bool):
+        raise ChainError("long_history is true (older Binance spot candles of the coin's USDT pair before the "
+                         "venue's own) or false")
+    history = "long" if long_history else "venue"
+    interval = args.get("interval") or "4h"
+    if interval not in hl_strategy.INTERVAL_MS:
+        raise ChainError(f"a backtest's interval is one of {', '.join(hl_strategy.INTERVAL_MS)}")
+    return {**out, "direction": direction, "history": history, "interval": interval}
+
+
+def backtest(ctx, args) -> dict:
+    """Trade a rule set over past candles with fees, slippage and funding, optionally walking forward:
+    the same signal the cron gate reads (hl_strategy.py). A result, not a forecast."""
+    coin = coin_arg(args)
+    if is_spot(coin) or ":" in coin or not hl_strategy._COIN.match(coin):
+        raise ChainError("a backtest takes a main-dex perp by its ticker, like BTC")
+    spec = _backtest_args(args)
+    interval, step = spec["interval"], hl_strategy.INTERVAL_MS[spec["interval"]]
+    end = window({"end_time": args.get("end_time")}, 1, 1)[1]
+    unread: list[str] = []
+    if args.get("hours") is not None:
+        start = end - integer(args, "hours", 1, 24, 24 * 365 * 10) * HOUR_MS
+    else:
+        start = end - (BACKTEST_BARS_MAX if spec["history"] == "long" else CANDLES_MAX) * step
+    if (end - start) // step > BACKTEST_BARS_MAX:
+        start = end - BACKTEST_BARS_MAX * step
+        unread.append(f"at most {BACKTEST_BARS_MAX} bars are traded: the window starts at {iso(start)}")
+    venue_rows = hl_strategy.bars(_venue_candles(ctx, coin, interval, start, end), interval, end)
+    if spec["history"] == "venue" and start < end - CANDLES_MAX * step:
+        unread.append(UNREAD_CANDLES + ", or long_history")
+    long_rows: list[dict] = []
+    first_venue = venue_rows[0]["t"] if venue_rows else end
+    if spec["history"] == "long" and start < first_venue:
+        raw, problem = _long_candles(args, coin, interval, start, first_venue)
+        long_rows = [b for b in hl_strategy.bars(raw, interval, end) if b["t"] < first_venue]
+        if problem:
+            unread.append(problem)
+    series = long_rows + venue_rows
+    if len(series) < hl_strategy.warmup(spec["rules"]) + 50:
+        raise ChainError(f"{len(series)} completed {interval} bars of {coin} on {ctx.api.label}: too few for these "
+                         "rules; a longer window, a shorter interval or long_history")
+    rows, _ = _funding(ctx, coin, max(start, end - BACKTEST_FUNDING_PAGES * FUNDING_PAGE * HOUR_MS), end,
+                       BACKTEST_FUNDING_PAGES)
+    funding = {}
+    for r in rows:
+        rate, t = num(r.get("fundingRate")), r.get("time")
+        if rate is not None and isinstance(t, int):
+            funding[t - t % HOUR_MS] = rate
+    mean = sum(funding.values()) / len(funding) if funding else hl_strategy.BASELINE_FUNDING
+    rates = hl_strategy.funding_by_bar(series, interval, funding, mean, spec["costs"]["funding"])
+    cost, limits, rule_set = spec["costs"], spec["limits"], spec["rules"]
+    try:
+        run = hl_strategy.simulate(series, rule_set, interval, cost, limits, rates=rates, stance=spec["stance"],
+                                   direction=spec["direction"])
+        walked = None
+        if args.get("walk_forward") is not None:
+            walked = hl_strategy.walk_forward(series, rule_set, interval, cost, limits, args["walk_forward"],
+                                              rates=rates, stance=spec["stance"], direction=spec["direction"])
+    except hl_strategy.StrategyError as exc:
+        raise ChainError(str(exc)) from None
+    sources = []
+    if long_rows:
+        sources.append({"source": f"{LONG_HISTORY['label']} {coin}USDT (prices only)", "bars": len(long_rows),
+                        "start": iso(long_rows[0]["t"]), "end": iso(long_rows[-1]["t"])})
+    if venue_rows:
+        sources.append({"source": f"{ctx.api.label} {coin}", "bars": len(venue_rows),
+                        "start": iso(venue_rows[0]["t"]), "end": iso(venue_rows[-1]["t"])})
+    assumed = run["totals"]["assumed_hours"]
+    result = {"schema": hl_strategy.BACKTEST_SCHEMA, "network": ctx.network, "coin": coin, "interval": interval,
+              "rules": rule_set, "fingerprint": hl_strategy.fingerprint(rule_set, interval), "costs": cost,
+              "limits": limits, "direction": spec["direction"], "stance_windows": len(spec["stance"]),
+              "data": {"bars": len(series), "start": iso(series[0]["t"]), "end": iso(series[-1]["t"]),
+                       "end_ms": end, "sources": sources,
+                       "funding": {"hours_read": len(funding), "mean_hourly": hl_strategy.sig5(abs(mean)) if mean else "0",
+                                   "mean_sign": "longs pay" if mean > 0 else "shorts pay" if mean < 0 else "none",
+                                   "hours_assumed_while_held": assumed, "mode": cost["funding"]}},
+              "result": hl_strategy.metrics(run),
+              "trades": {"count": len(run["trades"]), "newest": run["trades"][-hl_strategy.TRADES_SHOWN:]},
+              "equity": hl_strategy.curve_points(run["curve"]),
+              "note": ("a simulation on past bars from a notional 1000 USDC (fees_pct and funding_pct are of that "
+                       "start): fills at the next bar's open with slippage and the taker fee, stops inside a bar "
+                       "at the stop or a gapped open; neither a forecast nor a fill guarantee. A strategy may run "
+                       "this rule set on this interval only under its fingerprint.")}
+    if walked is not None:
+        result["walk_forward"] = walked
+    if assumed:
+        unread.append(f"{assumed} held hours had no venue funding read and took the mean rate")
+    if unread:
+        result["unread"] = unread
+    return result
+
+
 def deposit_info(ctx, args) -> dict:
     """How USDC enters the venue: Circle's CCTP from the network's chains, from the chain table; no request
     is made."""
@@ -742,7 +902,8 @@ def deposit_info(ctx, args) -> dict:
 
 
 ACTIONS = {"deposit_info": deposit_info, "dexs": dexs, "markets": markets, "spots": spots, "candles": candles, "funding": funding, "book": book,
-           "state": state, "balances": balances, "fills": fills, "orders": orders, "review": review, "export": export}
+           "state": state, "balances": balances, "fills": fills, "orders": orders, "review": review, "export": export,
+           "backtest": backtest}
 
 
 def run(payload: dict) -> dict:

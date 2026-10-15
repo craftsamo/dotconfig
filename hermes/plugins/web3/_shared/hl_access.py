@@ -47,7 +47,8 @@ SKILL = "hyperliquid-access:hyperliquid"
 TRADE_SKILL = "hyperliquid-access:hyperliquid-trade"
 NETWORKS = ("mainnet", "testnet")
 READS = ("dexs", "markets", "spots", "candles", "funding", "book", "state", "balances", "fills", "orders",
-         "review", "export", "deposit_info")
+         "review", "export", "backtest", "deposit_info")
+STRATEGY_SKILL = "hyperliquid-access:hyperliquid-strategy"
 TRADES = ("quote", "submit", "mandates", "revoke_mandate")
 QUOTE_ID = re.compile(r"^h[0-9a-f]{8}$")
 KINDS = ("order", "close", "tpsl", "modify", "cancel", "leverage", "margin", "mandate", "withdraw", "send", "transfer")
@@ -65,7 +66,14 @@ READ_HELP = (
     "status by order id or 0x cloid), review (address, hours, coin, fills: realized PnL, fees, wins and losses per "
     "coin with each traded perp's trend and funding over the window, and leads such as fee drag, concentration or "
     "losses against the trend — heuristics, not a verdict), export (coin, interval, hours, end_time: candles and "
-    "funding as one normalized dataset for backtesting prep, at most 500 candles), deposit_info (how USDC enters "
+    "funding as one normalized dataset for backtesting prep, at most 500 candles), backtest (a main-dex perp coin, "
+    "interval 15m to 1d, default 4h, and rules = {kind: breakout with entry, exit, atr, stop_atr, risk_pct | "
+    "ema_cross with fast, slow, atr, stop_atr, risk_pct}: trades them over the venue's newest 5000 candles, or with "
+    "long_history = true also older Binance spot candles of the coin's USDT pair, with the taker fee, slippage, "
+    "funding and an ATR stop; costs, limits {exposure_pct, max_leverage}, direction, stance = dated windows of "
+    "direction and size, hours, end_time; walk_forward = {grid of values per parameter, folds, objective, "
+    "min_trades} chooses rules on past data and trades them on the next unseen window; returns figures, the "
+    "newest trades and the rule set's fingerprint — a simulation, not a forecast), deposit_info (how USDC enters "
     "the venue: Circle's CCTP from the network's EVM chains, their USDC, and how). Coins: a perp like BTC, a builder "
     "perp like xyz:GOLD, a spot pair like PURR/USDC, HYPE/USDC or its @N name. Times are Unix milliseconds.")
 UNTRUSTED = (
@@ -107,8 +115,8 @@ TRADE_HELP = (
 PROPERTIES = {
     "network": {"type": "string", "enum": list(NETWORKS),
                 "description": "mainnet or testnet (separate markets, accounts and balances); always named"},
-    "coin": {"type": "string", "description": "candles / funding / book / export: the market; markets / spots: one "
-                                             "market's detail; review: only this coin"},
+    "coin": {"type": "string", "description": "candles / funding / book / export / backtest: the market; markets / "
+                                             "spots: one market's detail; review: only this coin"},
     "address": {"type": "string", "description": "state / balances / fills / orders / review: the account's 0x address"},
     "dex": {"type": "string", "description": "markets / state / orders: a builder perp dex name from dexs; left out "
                                             "for the main dex"},
@@ -117,17 +125,35 @@ PROPERTIES = {
     "limit": {"type": "integer", "description": "rows to show: markets / spots default 20, candles / funding 100, "
                                                "fills / orders 50"},
     "interval": {"type": "string", "enum": ["1m", "3m", "5m", "15m", "30m", "1h", "2h", "4h", "8h", "12h", "1d", "3d",
-                                            "1w", "1M"], "description": "candles / export: default 1h"},
+                                            "1w", "1M"], "description": "candles / export: default 1h; backtest: "
+                                                                         "15m to 1d, default 4h"},
     "hours": {"type": "integer", "description": "the window ending at end_time (default now): candles default 24, "
-                                               "funding 72, fills 24, review 72, export 168"},
-    "end_time": {"type": "integer", "description": "candles / funding / fills / review / export: the window's end, Unix "
-                                                  "milliseconds, for a reproducible window"},
+                                               "funding 72, fills 24, review 72, export 168, backtest every bar "
+                                               "available"},
+    "end_time": {"type": "integer", "description": "candles / funding / fills / review / export / backtest: the "
+                                                  "window's end, Unix milliseconds, for a reproducible window"},
     "levels": {"type": "integer", "description": "book: levels per side, default 10, at most 20"},
     "aggregate": {"type": "boolean", "description": "fills: merge the partial fills of one order"},
     "history": {"type": "boolean", "description": "orders: recent past orders instead of open ones"},
     "oid": {"type": "string", "description": "orders: one order's status, by its order id as decimal digits or its "
                                             "0x cloid"},
     "fills": {"type": "integer", "description": "review: at most this many of the newest fills, default 500"},
+    "rules": {"type": "object", "description": "backtest: {kind: breakout, entry, exit, atr, stop_atr, risk_pct} or "
+                                              "{kind: ema_cross, fast, slow, atr, stop_atr, risk_pct}"},
+    "costs": {"type": "object", "description": "backtest: {taker_bps (default 4.5), slippage_bps (default 5), "
+                                              "funding: venue | none}"},
+    "limits": {"type": "object", "description": "backtest: {exposure_pct of equity (default 70), max_leverage "
+                                               "(default 2)}"},
+    "direction": {"type": "string", "enum": ["both", "long", "short", "flat"],
+                  "description": "backtest: the sides the rules may open, default both"},
+    "stance": {"type": "array", "items": {"type": "object"}, "maxItems": 500,
+               "description": "backtest: dated windows {from, to, direction, size 0-2} that override direction and "
+                              "scale the risk, e.g. a rule-made advisor stance over time"},
+    "long_history": {"type": "boolean", "description": "backtest: add older Binance spot candles (prices only) "
+                                                      "before the venue's own"},
+    "walk_forward": {"type": "object", "description": "backtest: {grid: {parameter: [values]} (at most 48 rule "
+                                                     "sets), folds 2-6 (default 4), objective mar | sharpe | "
+                                                     "return_pct, min_trades (default 5), anchored (default true)}"},
 }
 TRADE_PROPERTIES = {
     "account": {"type": "string", "description": "quote: the Hermes wallet account, like hermes/HERMES_MAIN#0"},
@@ -174,8 +200,8 @@ TRADE_PROPERTIES = {
 }
 TRADE_ONLY_OID = "orders: one order's status, by its order id as decimal digits or its 0x cloid; quote kind modify " \
                  "or cancel: the order"
-TRADE_ONLY_COIN = "candles / funding / book / export: the market; markets / spots: one market's detail; review: " \
-                  "only this coin; quote: the market to trade"
+TRADE_ONLY_COIN = "candles / funding / book / export / backtest: the market; markets / spots: one market's detail; " \
+                  "review: only this coin; quote: the market to trade"
 
 
 def actions_for(profile: str) -> tuple[str, ...]:

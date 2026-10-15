@@ -28,6 +28,14 @@ The kernel's source evaluation and on-chain rules apply. In addition:
   placement or slippage; confirm them in `fills`, `orders`, `candles` and
   `funding` for the same window before stating them, and judge decisions
   apart from outcomes.
+- **A `backtest` is a simulation, and only its unseen windows count.** Its
+  figures follow from its own fill model (the next bar's open, slippage, the
+  taker fee, funding, a stop inside a bar) over past bars; the whole-window
+  `result` is in-sample, and choosing rules on it fits the past. What a rule
+  set would have earned is `walk_forward.out_of_sample`, with each fold's
+  chosen rules. State the window, the `sources` (older Binance spot candles
+  are prices only, and `unread` says how much funding was assumed), the
+  costs and the `fingerprint`; never a forecast.
 - **Third-party listings.** Builder perp dexs (`dex:COIN`) and spot tokens
   are deployed by third parties; names arrive as `{"untrusted": …}` when they
   are more than a short ticker. A name like a famous asset is the deployer's
@@ -46,6 +54,12 @@ The kernel's source evaluation and on-chain rules apply. In addition:
    then reads the same candles and funding. `export` returns them as one
    dataset with its `schema` and `window`; it carries no fill or slippage
    model, so a backtest built on it states its own.
+4. **A rule's track record.** `backtest` with `end_time`, the costs stated and
+   `walk_forward` over a small grid; `long_history` for the years before the
+   venue's own candles. A judgment the brief wants tested (a macro reading, a
+   positioning extreme) is first written as a rule over data dated before
+   each decision, then passed as `stance` windows; judging past markets with
+   hindsight is not a test.
 
 ## Limits
 
