@@ -98,7 +98,7 @@
   "agents": {
     "plan": {
       "color": "#f5f5f5",
-      "model": "anthropic/claude-opus-5-5#high",
+      "model": "anthropic/claude-fable-5-1#high",
       // Global edit: ask overrides the built-in deny. Restore Plan's boundary
       // here, and allow only read-only specialists. Verifier can apply a
       // formatter and worker/general can edit, so none belongs in Plan.
