@@ -725,16 +725,20 @@ def export(ctx, args) -> dict:
 
 
 def deposit_info(ctx, args) -> dict:
-    """Where USDC enters the venue from Arbitrum, from the chain table: no request is made."""
-    chain, entry = next((c, e) for c, e in chains.HYPERLIQUID_BRIDGES.items() if e["network"] == ctx.network)
-    return {"network": ctx.network, "chain": chain, "chain_name": chains.info(chain)["name"],
-            "bridge": entry["bridge"], "usdc": entry["usdc"], "minimum_usdc": chains.HYPERLIQUID_MIN_DEPOSIT,
-            "credited_to": "the Hyperliquid account of the address that sends the USDC, in about a minute",
-            "never": f"anything but that USDC, or less than {chains.HYPERLIQUID_MIN_DEPOSIT} USDC: it is lost for good",
-            "note": ("this is Hyperliquid's legacy bridge, which the venue calls deprecated in favour of Circle's CCTP; "
-                     "it still credits deposits, but try a small one first")
-            + ("; the testnet faucet gives mock USDC only to an address that has deposited on mainnet"
-               if ctx.network == "testnet" else "")}
+    """How USDC enters the venue: Circle's CCTP from the network's chains, from the chain table; no request
+    is made."""
+    testnet = ctx.network == "testnet"
+    sources = [c for c in chains.CCTP_USDC if chains.EVM[c]["testnet"] == testnet]
+    note = ("the evm tool's quote with kind deposit (account, chain, amount; to = the Hyperliquid account, default "
+            "the sender's own; dex = perp or spot) builds it in two transactions, an approval of exactly the amount "
+            "and then the burn, each sent with transfer; Circle's fee (about 0.2 USDC, more from Ethereum) comes off "
+            "the amount and the account is credited within about a minute. Hyperliquid's legacy bridge is never "
+            "used: the evm tool refuses anything sent to it")
+    if testnet:
+        note += (f"; on testnet Circle credits only accounts that exist on Hyperliquid mainnet, at most "
+                 f"{chains.HYPERLIQUID_TESTNET_DEPOSIT_CAP} USDC, and the quote refuses others")
+    return {"network": ctx.network, "route": "Circle CCTP", "from_chains": sources,
+            "usdc": {c: chains.CCTP_USDC[c] for c in sources}, "note": note}
 
 
 ACTIONS = {"deposit_info": deposit_info, "dexs": dexs, "markets": markets, "spots": spots, "candles": candles, "funding": funding, "book": book,

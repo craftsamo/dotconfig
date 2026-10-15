@@ -140,15 +140,28 @@ line ends with what arrives or `+1 USDC fee`); tell the user before they answer.
 
 ## Depositing
 
-`deposit_info` (`network`) names the bridge, its USDC token and the minimum
-(5 USDC; less is lost). The deposit is the `evm` tool's `quote` and
-`transfer` on that chain (load `evm-access:evm-wallet`): `to` the bridge,
-`token` that USDC, from the Hermes account to be credited, which needs a
-little ETH there for gas. The signer refuses anything else sent to the bridge.
-The bridge is Hyperliquid's legacy one, which the venue calls deprecated:
-suggest a small first deposit and confirm it arrived with `balances` /
-`state` before the rest. On testnet, mock USDC comes from the venue's faucet,
-which serves only addresses that have deposited on mainnet.
+USDC comes in through Circle's CCTP from an EVM chain; `deposit_info`
+(`network`) lists the chains and their USDC. The deposit is the `evm` tool's
+`quote` with `kind: deposit` (load `evm-access:evm-wallet`): `account` (the
+Hermes account paying, which needs a little gas on that chain), `chain`,
+`amount` in USDC, `to` the Hyperliquid account (default the same address),
+`dex` `perp` (default) or `spot`. It takes up to two transfers:
+
+1. Step 1/2 is an approval of exactly the amount to Circle's TokenMessenger:
+   `transfer` it and wait until it is confirmed. (If an earlier approval
+   already covers the amount, the first quote is already step 2/2.)
+2. `quote` the same deposit again: now it is step 2/2, the burn; `transfer`
+   it. Circle's fee (about 0.2 USDC, more from Ethereum) comes off the
+   amount, and into an account Hyperliquid does not have yet Circle may keep
+   an opening fee too; the card shows both and what arrives at least.
+
+Into the user's own Hermes account both run at once; into anyone else's each
+asks on its card. Circle credits the account within about a minute: confirm
+it with `balances` / `state` before anything else, and never send the burn
+twice. On testnet Circle credits only accounts that exist on Hyperliquid
+mainnet, at most 1000 USDC: the quote refuses others. Nothing is ever sent to
+Hyperliquid's legacy bridge; the testnet faucet's mock USDC is a separate
+source, for accounts with a mainnet deposit.
 
 ## When it goes wrong
 

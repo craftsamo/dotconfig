@@ -69,7 +69,8 @@ SOL_NFT = "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB"  # stands in for a plai
 FAKE = {"broadcast": "ok", "sent": [], "token_ata_exists": False, "symbol": "USDC", "landed": "success",
         "operator_fee": None, "receipt": {}, "allowance": 0, "operator": False, "delegate": False, "decimals": 6,
         "nft": None, "nft_owner": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266", "nft_held": 3, "nft_refused": False,
-        "nft_supply": "1", "frozen": False}
+        "nft_supply": "1", "frozen": False, "iris": {"bps": 1, "forward": 255976}, "iris_asked": [],
+        "hl_missing": set(), "opening": 0}
 
 
 def word(value: int) -> str:
@@ -108,6 +109,8 @@ def handle(method: str, params: list):
             return "0x", None
         if data.startswith("0x095ea7b3"):  # approve
             return "0x" + word(1), None
+        if data == "0x820b3e1e":  # Circle's CoreDepositWallet.newCoreAccountFee(), 8 decimals
+            return "0x" + word(FAKE["opening"]), None
         if data.startswith("0xa22cb465"):  # setApprovalForAll
             return "0x", None
         if params[0].get("to", "").lower() == "0x420000000000000000000000000000000000000f":
@@ -196,8 +199,26 @@ def handle(method: str, params: list):
 
 
 class Handler(BaseHTTPRequestHandler):
+    def _json(self, reply, code=200):
+        out = json.dumps(reply).encode()
+        self.send_response(code)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(out)))
+        self.end_headers()
+        self.wfile.write(out)
+
+    def do_GET(self):  # Circle's fee service: /v2/burn/USDC/fees/{source}/19?forward=true&hyperCoreDeposit=true
+        FAKE["iris_asked"].append(self.path)
+        if FAKE["iris"] == "down":
+            return self._json({"error": "unavailable"}, 503)
+        self._json([{"finalityThreshold": 1000, "minimumFee": FAKE["iris"]["bps"],
+                     "forwardFee": {"low": 1, "med": 2, "high": FAKE["iris"]["forward"]}},
+                    {"finalityThreshold": 2000, "minimumFee": 0, "forwardFee": {"low": 1, "med": 2, "high": 3}}])
+
     def do_POST(self):
         body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+        if isinstance(body, dict) and body.get("type") == "userRole":  # Hyperliquid mainnet's /info
+            return self._json({"role": "missing" if body["user"] in FAKE["hl_missing"] else "user"})
         items = body if isinstance(body, list) else [body]
         if FAKE["broadcast"] == "drop" and any(i["method"] in ("eth_sendRawTransaction", "sendTransaction")
                                                for i in items):
@@ -231,7 +252,8 @@ def fresh():
     FAKE.update(broadcast="ok", sent=[], token_ata_exists=False, symbol="USDC", landed="success", operator_fee=None,
                 receipt={}, allowance=0, operator=False, delegate=False, decimals=6, nft=None,
                 nft_owner="0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266", nft_held=3, nft_refused=False,
-                nft_supply="1", frozen=False)
+                nft_supply="1", frozen=False, iris={"bps": 1, "forward": 255976}, iris_asked=[], hl_missing=set(),
+                opening=0)
 
 
 def _env(tmp_path: Path) -> dict:
@@ -893,28 +915,109 @@ def test_a_long_token_id_stays_whole_on_the_card_and_its_ends_on_discord(tmp_pat
     assert f"Token ID: {token_id}" in data["card"]  # the detailed card keeps the whole id
 
 
-def test_a_hyperliquid_deposit_is_native_usdc_of_five_or_more_on_its_own_chain(tmp_path, endpoint):
-    data = quote(tmp_path, endpoint, chain="arbitrum-sepolia", to=HL_BRIDGE, token=HL_USDC2, amount="10")
-    assert data["own"] is False and "Hyperliquid deposit bridge (legacy)" in data["summary"]["label"]
-    assert "Is: Hyperliquid deposit bridge (legacy): credits the sender's Hyperliquid testnet account" in data["card"]
-    short = json.loads(quote_file(tmp_path, data["quote"]).read_text())["card_short"]
-    assert "To (external, HL bridge)" in short
-    assert len(html.escape(short).encode("utf-16-le")) // 2 <= 290
-    cases = [
-        ({"amount": "4.99"}, "5 USDC or more"),
-        ({"token": None}, "credits only native USDC"),
-        ({"token": USDC}, "credits only native USDC"),
-        ({"chain": "sepolia"}, "deposit bridge on Arbitrum Sepolia"),
-        ({"to": HL_BRIDGE_MAINNET}, "deposit bridge on Arbitrum One"),
-    ]
-    for fields, message in cases:
-        args = {"account": f"{MAIN}#0", "chain": "arbitrum-sepolia", "to": HL_BRIDGE, "token": HL_USDC2,
-                "amount": "10", **fields}
-        reply = signer(tmp_path, endpoint, "quote", **{k: v for k, v in args.items() if v is not None})
-        assert reply["ok"] is False and message in reply["error"], (fields, reply)
+def test_nothing_is_ever_sent_to_hyperliquid_s_legacy_bridge(tmp_path, endpoint):
+    cases = [{"chain": "arbitrum-sepolia", "to": HL_BRIDGE, "token": HL_USDC2},
+             {"chain": "arbitrum-sepolia", "to": HL_BRIDGE}, {"chain": "sepolia", "to": HL_BRIDGE, "token": USDC},
+             {"chain": "sepolia", "to": HL_BRIDGE_MAINNET}]
+    for fields in cases:
+        reply = signer(tmp_path, endpoint, "quote", account=f"{MAIN}#0", amount="10", **fields)
+        assert reply["ok"] is False and "legacy deposit bridge" in reply["error"] and "kind deposit" in reply["error"]
     FAKE["nft"] = "721"
     reply = nft(tmp_path, endpoint, token_id="1", to=HL_BRIDGE)
     assert reply["ok"] is False and "NFT sent to it is lost" in reply["error"]
+
+
+TESTNET_MESSENGER = "0x8FE6B999Dc680CcFDD5Bf7EB0974218be2542DAA"
+TESTNET_FORWARDER = "02e39ecb8368b41bf68ff99ff351ac9864e5e2a2"
+
+
+def ok_data(reply: dict) -> dict:
+    assert reply["ok"], reply
+    return reply["data"]
+
+
+def deposit(tmp_path, endpoint, **fields) -> dict:
+    return signer(tmp_path, endpoint, "quote", **{"account": f"{MAIN}#0", "chain": "sepolia", "kind": "deposit",
+                                                  "amount": "10", "_iris": endpoint, "_api": endpoint,
+                                                  "_hyperevm": endpoint, **fields})
+
+
+def test_a_deposit_into_an_account_hypercore_lacks_shows_circle_s_opening_fee(tmp_path, endpoint):
+    FAKE["hl_missing"], FAKE["opening"] = {STRANGER.lower()}, 100_000_000  # 1 USDC, set on the wallet
+    data = ok_data(deposit(tmp_path, endpoint, chain="arbitrum", to=STRANGER))
+    assert data["summary"]["deposit"]["opening_fee"] == "1" and data["summary"]["deposit"]["arrives"] == "8.743024"
+    assert "Circle fee ≤ 0.256976 USDC + 1 new account (≥ 8.743024 arrives)" in data["card"]
+    short = json.loads(quote_file(tmp_path, data["quote"]).read_text())["card_short"]
+    assert "MAINNET Deposit 10 USDC Arbitrum One → Hyperliquid perp" in short and "+1 new acct" in short
+    assert compact_units(short) <= 290
+    FAKE["opening"] = 0  # the wallet charges nothing: no line, nothing kept
+    data = ok_data(deposit(tmp_path, endpoint, chain="arbitrum", to=STRANGER))
+    assert "opening_fee" not in data["summary"]["deposit"] and "new account" not in data["card"]
+    FAKE["opening"] = 1_000_000_000  # 10 USDC: nothing would arrive
+    reply = deposit(tmp_path, endpoint, chain="arbitrum", to=STRANGER)
+    assert reply["ok"] is False and "deposit more" in reply["error"]
+
+
+def test_a_hyperliquid_deposit_first_approves_exactly_the_amount_to_circle(tmp_path, endpoint):
+    data = ok_data(deposit(tmp_path, endpoint))
+    assert data["own"] is True and data["summary"]["deposit"]["step"] == "approve"
+    assert data["summary"]["to"] == OPS and data["summary"]["asset_address"] == USDC
+    assert data["summary"]["deposit"]["messenger"] == TESTNET_MESSENGER
+    build = json.loads(quote_file(tmp_path, data["quote"]).read_text())["build"]
+    assert build["to"].lower() == USDC.lower()  # approve(messenger, exactly 10 USDC) on the token
+    assert build["data"] == "0x095ea7b3" + word(int(TESTNET_MESSENGER, 16)) + word(10_000_000)
+    assert FAKE["iris_asked"] == ["/v2/burn/USDC/fees/0/19?forward=true&hyperCoreDeposit=true"]
+    sent = send(tmp_path, endpoint, data["quote"], "own")
+    assert sent["ok"] and "quote the same deposit again" in sent["data"]["next"]
+
+
+def test_once_approved_a_deposit_burns_to_circle_s_forwarder_for_the_account(tmp_path, endpoint):
+    FAKE["allowance"] = 10 ** 9
+    data = ok_data(deposit(tmp_path, endpoint, dex="spot"))
+    assert data["summary"]["deposit"] == {
+        "step": "burn", "network": "testnet", "dex": "spot", "messenger": TESTNET_MESSENGER,
+        "circle_fee": "0.256976", "arrives": "9.743024"}  # 1 bp of 10 USDC, rounded up, plus forwarding's high
+    short = json.loads(quote_file(tmp_path, data["quote"]).read_text())["card_short"]
+    assert "Deposit 10 USDC Sepolia → Hyperliquid spot" in short and compact_units(short) <= 290
+    assert "Step 2/2 burn · fee ≤ 0.256976 · ≥ 9.743024 arrives" in short
+    build = json.loads(quote_file(tmp_path, data["quote"]).read_text())["build"]
+    assert build["to"].lower() == TESTNET_MESSENGER.lower() and build["data"].startswith("0x779b432d")
+    hook = b"cctp-forward".ljust(24, b"\0").hex() + "00000000" + "00000018" + OPS[2:].lower() + "ffffffff"
+    words = build["data"][10:]
+    assert words[:64] == word(10_000_000) and words[64:128] == word(19)
+    assert words[128:192] == TESTNET_FORWARDER.rjust(64, "0") and words[256:320] == TESTNET_FORWARDER.rjust(64, "0")
+    assert words[192:256] == USDC[2:].lower().rjust(64, "0") and words[320:384] == word(256976)
+    assert words[384:448] == word(1000) and word(56) + hook in words
+    sent = send(tmp_path, endpoint, data["quote"], "own")
+    assert sent["ok"] and "credits the Hyperliquid account" in sent["data"]["next"]
+    rows = [json.loads(line) for line in (tmp_path / "state" / "ledger.jsonl").read_text().splitlines()]
+    assert rows[-1]["kind"] == "deposit" and rows[-1]["deposit"]["step"] == "burn"  # kept after the quote goes
+    FAKE["landed"] = "failed"  # a burn that reverted moved nothing: no promise of a credit
+    again = ok_data(deposit(tmp_path, endpoint, dex="spot"))
+    sent = send(tmp_path, endpoint, again["quote"], "own")
+    assert sent["ok"] and sent["data"]["confirmation"] == "failed" and "next" not in sent["data"]
+
+
+def test_a_deposit_into_someone_else_s_account_asks_and_what_cannot_arrive_is_refused(tmp_path, endpoint):
+    data = ok_data(deposit(tmp_path, endpoint, to=STRANGER))
+    card = data["card"]  # the card the user answers: whole, inside Telegram's budget
+    assert data["own"] is False and "--- To (Hyperliquid account) ---\nType: External" in card
+    assert "Deposit: 10 USDC from Sepolia(testnet) to Hyperliquid testnet perp" in card
+    assert "Step 1/2: let Circle CCTP take exactly 10 USDC; nothing moves yet" in card
+    assert "Circle fee ≤ 0.256976 USDC (≥ 9.743024 arrives)" in card and compact_units(card) <= 480
+    reply = send(tmp_path, endpoint, data["quote"], "own")
+    assert reply["ok"] is False and "needs the approval card" in reply["error"]
+    FAKE["hl_missing"] = {STRANGER.lower()}
+    cases = [({"to": STRANGER}, "exist on mainnet"), ({"amount": "1000.01"}, "at most 1000 testnet USDC"),
+             ({"chain": "celo-sepolia"}, "chain Circle's CCTP carries USDC on"),
+             ({"token": NFT}, "leave token out"), ({"dex": "vault"}, "perp (default) or spot"),
+             ({"to": "0x" + "00" * 20}, "Hyperliquid account's 0x address"), ({"amount": "0.25"}, "deposit more")]
+    for fields, message in cases:
+        reply = deposit(tmp_path, endpoint, **fields)
+        assert reply["ok"] is False and message in reply["error"], (fields, reply)
+    FAKE["iris"] = "down"
+    reply = deposit(tmp_path, endpoint)
+    assert reply["ok"] is False and "fee service could not be read" in reply["error"]
 
 
 CARD_PROBE = r"""
@@ -931,8 +1034,8 @@ def test_a_compact_card_over_budget_sheds_context_never_an_address(tmp_path):
     quote = {"chain": "arbitrum", "asset": "0xaf88d065e77c8cc2239327c5edb3a432268e5831", "kind": "transfer",
              "amount": "10000", "symbol": "USDC", "usd": 10000.0, "own": False, "to_party": None,
              "asset_address": "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
-             "account": "projectx/operations-desk/HERMES_TREASURY#0", "from": OPS, "to": HL_BRIDGE_MAINNET,
-             "label": "Hyperliquid deposit bridge", "max_fee": "0.00018", "id": "q0000000a"}
+             "account": "projectx/operations-desk/HERMES_TREASURY#0", "from": OPS, "to": STRANGER,
+             "max_fee": "0.00018", "id": "q0000000a"}
     proc = subprocess.run([str(PYTHON), "-c", CARD_PROBE, str(SIGNER.parent)], input=json.dumps(quote),
                           capture_output=True, text=True, timeout=60,
                           env={"HOME": str(tmp_path), "PATH": "/usr/bin:/bin", "PYTHONDONTWRITEBYTECODE": "1"})
@@ -940,7 +1043,7 @@ def test_a_compact_card_over_budget_sheds_context_never_an_address(tmp_path):
     found = json.loads(proc.stdout)
     short = found["short"]
     assert found["units"] <= found["budget"], short
-    assert OPS in short and HL_BRIDGE_MAINNET in short and "HL bridge" in short and "0xaf88d065" in short
+    assert OPS in short and STRANGER in short and "0xaf88d065" in short
 
 
 def test_an_nft_to_an_own_wallet_runs_without_a_card(tmp_path, endpoint):
