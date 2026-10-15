@@ -93,16 +93,20 @@ INJECTED = ("stored without --no-env: secret env, and so the environment of ever
 class Secrets:
     """The wallet secrets of one call, held in memory only: seeds by source id, and keys by source
     id as (family, secret), each with its Keychain metadata. Only sources with HERMES in their name
-    (``use`` "sign") sign or count as own; the others are watch-only."""
+    (``use`` "sign") sign or count as own; the others are watch-only. ``sign_only`` loads the Hermes
+    wallets alone, for a call that signs or decides own and never names a watched wallet."""
 
-    def __init__(self, payload: dict, items: list[dict] | None = None):
+    def __init__(self, payload: dict, items: list[dict] | None = None, sign_only: bool = False):
         from eth_account.hdaccount import seed_from_mnemonic
         from mnemonic import Mnemonic
         if items is None and rpc.testing() and payload.get("_sources") is not None:
             items = payload.get("_sources")
+            if sign_only:
+                items = [item for item in items
+                         if keychain.use_of(item.get("name") or str(item.get("id", "")).rsplit("/", 1)[-1]) == "sign"]
         if items is None:
             try:
-                items = keychain.discover()
+                items = keychain.discover(sign_only=sign_only)
             except keychain.KeychainError as exc:
                 raise ChainError(str(exc)) from None
         self.seeds: dict[str, bytes] = {}
@@ -1181,7 +1185,8 @@ def op_verify(payload: dict) -> dict:
     """What the approval hook may show and decide on: the authentic quote's verdict and cards, and
     its MAC, which the send must present again."""
     state = _state(payload)
-    quote = _verified(state, payload.get("quote"), Secrets(payload), time.time())
+    # the approval hook runs this inside Hermes' 30 s hook timeout: read the Hermes wallets alone
+    quote = _verified(state, payload.get("quote"), Secrets(payload, sign_only=True), time.time())
     return {"quote": quote["id"], "chain": quote["chain"], "kind": quote.get("kind", "transfer"),
             "own": quote["own"], "card": quote["card"], "card_short": quote["card_short"], "mac": quote["mac"]}
 
@@ -1193,7 +1198,7 @@ def op_send(payload: dict) -> dict:
     if approval not in ("own", "card"):
         raise ChainError("a send needs the plugin's approval decision")
     with ledger.locked(state):
-        secrets_ = Secrets(payload)
+        secrets_ = Secrets(payload, sign_only=True)
         now = time.time()
         quote = _verified(state, payload.get("quote"), secrets_, now)
         if not hmac.compare_digest(str(payload.get("mac") or ""), quote["mac"]):
