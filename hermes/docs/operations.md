@@ -33,7 +33,10 @@ tracked, machine-agnostic files in `hermes/launchd/`:
   means `hermes gateway install/start/update` never regenerates it over the
   Keychain launcher. `KeepAlive` is `SuccessfulExit: false` (a clean exit parks
   the job; exit 75 and crashes relaunch), `ThrottleInterval` 30,
-  `ExitTimeOut` 60.
+  `ExitTimeOut` 60. `ProcessType` is `Standard`: under `Background` every child
+  inherits the CPU and I/O throttling, and a web3 approval hook that reads the
+  Keychain then overruns Hermes' 30 s `pre_tool_call` timeout, which blocks every
+  tool of that profile for a while. The message sync agents stay `Background`.
 - **`gateway-launchctl.sh`** — renders the template (`__HOME__` → `$HOME`) into
   `~/Library/LaunchAgents/` (host-local, never committed) and loads it; on
   install it also unloads the launcher's `LEGACY_LABELS` agents so two pollers
