@@ -161,6 +161,13 @@ skills.
   entries — never a second gateway process (one bot token = one live
   connection). Never run `hermes -p <role> gateway stop` on a specialist that
   must stay reachable: it parks that profile in the shared gateway.
+- **A profile kept in the private overlay is never named in tracked code.** It
+  joins `specialist-call`'s roster through the gitignored `local_targets.json`
+  the overlay links beside the plugin (read once at load, like `TARGETS`, so
+  a running profile cannot widen it), and serves A2A through
+  `profile-secrets.sh`'s grant to every profile but the Assistant and the root
+  one; adding its name to `TARGETS` or that case publishes it
+  ([docs/profiles/specialist-calls.md](docs/profiles/specialist-calls.md)).
 - **A2A ports go in `platforms.a2a.extra.port`, never an `A2A_PORT` env var** —
   it is read raw from the shared process env and would collide across
   profiles. Peer `a2a_agents` entries keep `timeout: 310` (the 120 s caller

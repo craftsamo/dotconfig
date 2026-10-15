@@ -33,7 +33,8 @@ initial purpose and coverage expectations. A snippet is not an inspected image
 or verified claim; inaccessible evidence stays a gap, not a narrower success.
 
 Resident session: the counterpart is the orchestrating client — the Assistant,
-Creator or Marketer, whichever opened the conversation. Initial and
+Creator, Marketer or another advisor profile, whichever opened the
+conversation. Initial and
 follow-up messages may be purpose, agreement, answers, feedback, a request to
 continue a long retrieval or a released execution brief. Ask batched
 `Q1:`/`Q2:` questions with 2-4 concrete options and a recommendation; pause
