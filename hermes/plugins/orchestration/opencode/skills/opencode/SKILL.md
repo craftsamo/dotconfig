@@ -20,15 +20,46 @@ OpenCode API from the terminal, and never substitute another coding agent to
 get around these tools.
 
 OpenCode is the developer: it investigates, plans, implements, tests, reviews
-and commits with its own agents and skills. You relay, you do not stand in for
-the person: a message carries the person's own words for what they want, the
-goal of the current stage, and the path of the job's decision log. Leave out
-what the session already holds (its earlier turns, the plan it wrote), what its
-tools and ruleset already enforce (prohibited commands, commit rules, push and
-merge limits), and how to do the work (commands, steps, file lists, retry
-counts): spelling those out narrows the model and buys nothing. Never paste its
-global instructions or whole skill bodies into a prompt.
+and commits with its own agents and skills, and the technical calls are its
+own. You are the client who commissions it, not a go-between: brief it as you
+would a capable colleague, in the user's language and in plain prose. Say what
+is wanted and why, what this turn should hand back, and what is already
+settled (point at the job's decision log for the detail). People read these
+messages in OpenCode too, so a message is a few short paragraphs: no headings,
+no labelled blocks ("constraints:", "the person's words:"), and a list only
+for things that are a list (claim numbers, repositories to compare).
 
+- **The user's words** go inside your sentences where their wording carries
+  the intent (依頼者は「書き直した方が早そうだな」と言っていて、…), in 「」
+  in a Japanese message and "…" in an English one, never as a block of quotes
+  standing in for the requirement you draw from them. Quote exactly only what
+  is itself specification (a label on a screen, a sentence that must appear);
+  the decision log keeps the rest verbatim. Do not open by reporting who
+  approved what: the tools record approval.
+- **Markup.** OpenCode shows the message as typed, so Markdown appears as raw
+  symbols. Use backticks, and nothing else, for paths, commands, identifiers,
+  settings keys and branch names: they mark exactly what is literal. A fenced
+  block (three backticks) only for several lines that must pass unchanged (an
+  error output, wording that appears on a screen); anything longer than a
+  screenful goes in a file you point at. No headings, bold, tables, link
+  syntax, `>` quotes or other fences such as `'''`, and no fenced steps or
+  command lists. `- ` or `1.` at a line start only for things that are a list.
+- **Paths.** A file in the session's repository is relative to its root
+  (`apps/web/src/app/page.tsx`): the session moves from the default checkout to
+  its own worktree after a plan, and forks share that layout, so an absolute
+  path inside the repository goes stale. Anything outside it (the decision log,
+  a shared brief, another repository) is absolute. `@file`, `@agent` and
+  `/command` are the TUI's own input: from Hermes they arrive as plain text.
+- **Leave out** what the session already holds (its earlier turns, the plan it
+  wrote), what its tools, ruleset and operating note already carry (prohibited
+  commands, commit rules, push and merge limits, how to write commands, where
+  the report goes), and how to do the work (commands, steps, file lists, retry
+  counts, a report template): spelling those out narrows the model and buys
+  nothing. Name the outcome you need ("make clear where checked fact ends and
+  inference begins"), not its layout. Never paste its global instructions or
+  whole skill bodies into a prompt.
+- **One request to several repositories:** write the shared brief once in the
+  job directory, then give each run its path and a sentence of its own.
 - **A constraint the tools do not enforce** and that must hold for the whole
   session (no deployment, a file left alone) goes in once with
   `opencode_instructions` (`put`, key `hermes.<name>`), not into every message.
@@ -36,6 +67,35 @@ global instructions or whole skill bodies into a prompt.
   test, how to split commits or PRs) goes back as its own call: answer that it
   decides and records the choice in its report or PR. Relay only what changes
   what people can do or see, what is stored, cost, or anything irreversible.
+
+A build turn after the user changed the approved plan, not as a relay ("本人が
+承認した。本人の言葉: - 「…」 - 「…」 つまり… 制約: - … 終わったら…") but
+as a brief:
+
+```text
+実装は進めて大丈夫。ただ計画から一つ大きく変わった。スターターの `scripts/setup`
+とデプロイのワークフローは書き換えずにそのまま使う。依頼者は「後から権限も変え
+れるんやろ？」と言っていて、ほかのサービスと型をそろえておきたいみたい。なので
+setup の置き換え（1.3）と命名の変更（1.4）はやめて、権限を絞るのはスターター本体
+を直すときに回す。
+
+今回はリポジトリの中の変更と PR まで。クラウドの設定とデプロイは依頼者が自分で
+やるので、その後に要る外の作業を PR の説明に並べておいてほしい。終わったら、実際
+に通した確認の結果と PR の URL を教えて。これまでの決定は
+`/Users/me/Workspaces/Projects/Acme/.agent/20261013-rebuild/decisions.md` にある。
+```
+
+A read-only check of someone's claims:
+
+```text
+別の担当者の資料に、このリポジトリについての主張がいくつかある。依頼者は「向こう
+から出てきた新情報を信用する事はできない。裏を取らないと」と言っていて、コードで
+確かめたい。`/Users/me/Workspaces/Projects/Acme/.agent/20261011-survey/claims.md`
+の F01〜F10 を、全ブランチのコードとコミット済みのファイルから判定してほしい。
+チェーンや外部サービスには問い合わせないで。前に調べた同じフォルダーの
+`report.md` と食い違うところがあれば、それも教えて。どこまでが確かめた事実で
+どこからが推測か、分かるように書いてくれると助かる。
+```
 
 The tools drive the person's shared OpenCode service. Runs appear in their
 OpenCode history and keep running when a Hermes turn ends. Nothing is recorded
@@ -134,9 +194,10 @@ configured.
   A write run with an output directory keeps its Phase steps in
   `progress.md` there (its operating note says how); that is the step list
   you report against.
-- Ask for outcomes, not methods: the checks' actual results, and a review pass
-  ("deep review <area>") only where the person's stake is high (who can see
-  what, stored data, money). Checkpoint commits, `web_ui_check` for a page
+- Ask for outcomes, not methods: the checks' actual results, and a closer
+  review in a plain sentence that names the area and why (no keyword triggers
+  one) only where the person's stake is high (who can see what, stored data,
+  money). Checkpoint commits, `web_ui_check` for a page
   change and how to test are the run's own practice.
 - Permission rules match each command as written, and every unmatched one
   pauses the run for you. So never tell a run to write commands with a
@@ -227,7 +288,8 @@ same way rather than waiting for a notification.
 - A question: a technical choice goes back as the run's own call
   (`answer` that it decides and states the choice in its report). Relay to the
   user, first, only a decision about what people can do or see, what is stored,
-  cost or anything irreversible, and pass their answer back in their words.
+  cost or anything irreversible, and pass their answer back as a plain
+  sentence that keeps their wording where it carries the intent.
   `decision: "reject"` declines it.
 
 There is no broader approval: `always` would save a project-wide rule the

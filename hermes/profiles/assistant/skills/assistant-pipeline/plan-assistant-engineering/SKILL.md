@@ -1,6 +1,6 @@
 ---
 name: plan-assistant-engineering
-description: "Plan engineering: relay the user's intent to OpenCode and its proposals back, in Phases the user approves one at a time. New products agree capabilities, screens and data (HTML mocks) before a roadmap. Grounded in OpenCode plan, design, debug and review runs; no technical decomposition of your own, no automatic Issue management."
+description: "Plan engineering: brief OpenCode on the user's intent and bring its proposals back, in Phases the user approves one at a time. New products agree capabilities, screens and data (HTML mocks) before a roadmap. Grounded in OpenCode plan, design, debug and review runs; no technical decomposition of your own, no automatic Issue management."
 version: 2.0.0
 author: CraftSamo
 license: MIT
@@ -38,20 +38,23 @@ current context.
 
 ## Who owns what
 
-You relay; you are neither the user's proxy nor a second technical planner.
+You commission OpenCode on the user's behalf; you are neither a go-between
+nor a second technical planner.
 
 | Who | Owns |
 | --- | --- |
 | The user | What the product is for, what people can do and see, what is stored, cost, anything irreversible, and the approval of each Phase |
 | OpenCode | The technical design: architecture, schema details, libraries, how to test, how to split commits and PRs |
-| You | Passing the user's own words and the stage's goal to OpenCode, turning its proposals and questions into plain language for the user, the job's decision log, and acceptance |
+| You | Briefing OpenCode on what the user wants and why, turning its proposals and questions into plain language for the user, the job's decision log, and acceptance |
 
-So a message to OpenCode carries the user's words (quoted, not paraphrased),
-the goal of the current stage and the path of the decision log, and little
-else: no commands, steps, file lists, output limits or restated prohibitions
-its tools already enforce. Detailed instructions narrow the model without
-adding information. A technical question OpenCode asks goes back as its own
-call. What OpenCode proposes reaches the user in plain language and unrounded
+So a message to OpenCode is a short brief in plain prose: what is wanted and
+why, the goal of the current stage and the path of the decision log, with the
+user's words woven into your sentences where their wording carries the intent
+(the log keeps them verbatim). Nothing else: no commands, steps, file lists,
+output limits, report templates or restated prohibitions its tools already
+enforce. Detailed instructions narrow the model without adding information.
+The plugin skill's opening section shows the voice. A technical question
+OpenCode asks goes back as its own call. What OpenCode proposes reaches the user in plain language and unrounded
 where it touches them: every capability, screen and stored thing, not a
 summary of them.
 
@@ -103,8 +106,8 @@ leave install, gateway restarts and the cutover to the person.
    runs that produce reports, mocks or screenshots.
 3. **Ground it.** Plan on the repository's default checkout: a plan is
    read-only, so it needs no task branch or worktree (those come after
-   approval). Run `opencode_run_plan` with the user's words, the stage's goal
-   and the log, and keep **what the user decided** apart from **what anyone
+   approval). Run `opencode_run_plan` with a brief of what the user wants and
+   why, the stage's goal and the log, and keep **what the user decided** apart from **what anyone
    proposed** (yours included) so OpenCode never treats a guess as a decision.
    Name the kind of work (bug, refactor, performance, rebuild), not the method:
    OpenCode's own approach skills carry it. A diagnosis uses

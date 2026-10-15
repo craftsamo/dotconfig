@@ -54,8 +54,8 @@ in ../index.md still applies.
 3. **Independent review** for a risky or non-trivial change (auth, data shape,
    concurrency, public API, migrations, money): a NEW `opencode_run_review`
    session on the worktree with the requirement and the current diff, not the
-   implementation conversation's claims ("deep review <area>" for the risky
-   part). It runs on a model other than yours. A small mechanical change needs
+   implementation conversation's claims, saying in a sentence which risky
+   part deserves the closest look and why. It runs on a model other than yours. A small mechanical change needs
    only your diff read.
 4. **Rendered UI.** For a change to what a page looks like, follow
    [web-ui.md](references/web-ui.md): mechanical failures, baseline

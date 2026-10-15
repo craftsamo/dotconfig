@@ -24,7 +24,7 @@ to the user as such; never as their decision because they did not object.
 ## 2. Capabilities, screens and data
 
 Run `opencode_run_design` on the repository (or a starter the user already
-chose) with the user's words, the decision log and a `design/` subdirectory of
+chose) with a brief of what the user wants, the decision log and a `design/` subdirectory of
 the job directory as `output_dir`; without a `design` tool, a `build` run on a
 task worktree with the same `output_dir` and an approval for mocks only does
 the same. It writes:

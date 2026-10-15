@@ -18,24 +18,41 @@ class EngineeringClientTests(unittest.TestCase):
             self.assertNotIn("opencode run", text, entry)
             self.assertIsNone(re.search(r"\bEngineer\b", text), entry)
 
-    def test_plan_relays_and_is_grounded_in_an_opencode_plan_run(self):
+    def test_plan_commissions_and_is_grounded_in_an_opencode_plan_run(self):
         text = read("plan-assistant-engineering/SKILL.md")
-        self.assertIn("You relay; you are neither the user's proxy nor a second technical planner", text)
+        self.assertIn("You commission OpenCode on the user's behalf; you are neither a go-between nor a "
+                      "second technical planner", text)
+        self.assertNotIn("You relay", text)
         self.assertIn("opencode_run_plan", text)
         self.assertIn("a plan is read-only, so it needs no task branch or worktree", text)
         self.assertIn("opencode_preflight", text)
         self.assertIn("Planning consent alone does not authorize implementation", text)
         self.assertIn("Issue management is explicit-only", text)
 
-    def test_messages_to_opencode_carry_words_goal_and_log_not_methods(self):
+    def test_messages_to_opencode_are_prose_briefs_not_relays_or_methods(self):
         text = read("plan-assistant-engineering/SKILL.md")
-        self.assertIn("the user's words (quoted, not paraphrased), the goal of the current stage and the path "
-                      "of the decision log", text)
-        self.assertIn("no commands, steps, file lists, output limits or restated prohibitions", text)
+        self.assertIn("a message to OpenCode is a short brief in plain prose: what is wanted and why, the goal "
+                      "of the current stage and the path of the decision log", text)
+        self.assertIn("the user's words woven into your sentences where their wording carries the intent", text)
+        self.assertNotIn("quoted, not paraphrased", text)
+        self.assertIn("no commands, steps, file lists, output limits, report templates or restated prohibitions",
+                      text)
+        execute = read("execute-assistant-engineering/SKILL.md")
+        self.assertIn("The message is a short brief in plain prose", execute)
         self.assertIn("A technical question OpenCode asks goes back as its own call", text)
         self.assertNotIn("at most seven", text)
         self.assertNotIn("Five rows", text)
         self.assertNotIn("Settle in-scope technical questions yourself", text)
+
+    def test_the_tool_skill_fixes_markup_and_paths_for_messages(self):
+        text = " ".join((ROOT.parents[3] / "plugins/orchestration/opencode/skills/opencode/SKILL.md")
+                        .read_text().split())
+        self.assertIn("Use backticks, and nothing else, for paths, commands, identifiers", text)
+        self.assertIn("A fenced block (three backticks) only for several lines that must pass unchanged", text)
+        self.assertIn("No headings, bold, tables, link syntax, `>` quotes or other fences", text)
+        self.assertIn("A file in the session's repository is relative to its root", text)
+        self.assertIn("`@file`, `@agent` and `/command` are the TUI's own input", text)
+        self.assertNotIn("deep review <area>", text)
 
     def test_a_proposal_becomes_a_decision_only_by_the_users_choice(self):
         log = read("plan-assistant-engineering/SKILL.md")

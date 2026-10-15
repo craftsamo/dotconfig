@@ -10,13 +10,19 @@ of the Hermes design docs — index: [`PROFILES.md`](../PROFILES.md).
 OpenCode is the developer. It investigates, plans, implements, tests, reviews
 and commits with its own agents and skills (`opencode/AGENTS.md`), and owns
 every technical choice: methods, checks, commit and PR splitting. The Assistant
-relays between the user and OpenCode rather than standing in for either: it
-passes the user's own words and the current stage's goal, turns OpenCode's
-proposals and questions into plain language for the user, keeps the job's
-decision log, obtains the user's explicit implementation approval, answers what
-the runs pause on and accepts the result. Detailed instructions narrow the
-model without adding information, so a message carries no commands, steps or
-restated rules. It never edits target code itself, and it
+commissions it on the user's behalf rather than relaying between them: it
+briefs OpenCode in plain prose on what the user wants and why and on the
+current stage's goal, turns OpenCode's proposals and questions into plain
+language for the user, keeps the job's decision log (the user's exact words
+live there), obtains the user's explicit implementation approval, answers what
+the runs pause on and accepts the result. People read the briefs in OpenCode
+too, and a relay of quoted remarks and restated approvals reads as a
+subcontract and narrows the run, so a message weaves the user's words into its
+own sentences and carries no commands, steps, report templates or restated
+rules. OpenCode shows the message as typed, so its only markup is backticks
+(and a fenced block for text that must pass unchanged); repository paths are
+relative to the root, since the session moves into a worktree after a plan,
+and `@` / `/` mentions are TUI input that the API's text does not resolve. It never edits target code itself, and it
 sends every code question or change to OpenCode, however small. The Assistant's
 engineering entries (`{plan,execute,qa}-assistant-engineering`) carry those
 decisions; the plugin's own skill (`opencode:opencode`) carries the tool
@@ -31,7 +37,7 @@ run in the live checkout. Cutover stays the person's decision.
 | Relationship                 | Owner of decisions                                                                  |
 | ---------------------------- | ----------------------------------------------------------------------------------- |
 | User with the Assistant      | What people can do and see, what is stored, scope, cost, the approval of each Phase |
-| Assistant with OpenCode      | The user's words, the stage's goal, the decision log, acceptance evidence           |
+| Assistant with OpenCode      | The brief (what and why), the stage's goal, the decision log, acceptance evidence   |
 | OpenCode with its own agents | Technical design, methods, exploration, testing, review, commit and PR splitting    |
 
 A plan of several Phases (Phase N = one reviewable layer: one PR, or one layer
