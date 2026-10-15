@@ -52,8 +52,10 @@ first. This skill owns the two trade actions of the `hyperliquid` tool:
      tell them to check it and answer **once**. Denied, or the card timed
      out: nothing was sent; quote again only if they ask.
 4. Read the result's `statuses`, one per leg: `filled` (size and average
-   price), `resting` (its `oid`: it waits on the book), `error` (the venue's
-   reason: nothing happened for that leg). Report them as they are.
+   price), `resting` (its `oid`: it waits on the book), `waiting for
+   trigger` (a TP/SL leg the venue accepted; `waiting for fill`, the
+   venue's other bare answer, is read the same way), `error` (the venue's reason:
+   nothing happened for that leg). Report them as they are.
 
 ## Kinds
 
@@ -125,7 +127,11 @@ and every move counts in the wallet's ten transfers an hour. A quote whose
 destination stopped (or started) being one of the user's Hermes wallets is
 refused: quote it again. A withdrawal pays the venue's 1 USDC fee
 and lands on Arbitrum in a few minutes: say so, and check the Arbitrum
-balance with the `evm` tool before calling it missing.
+balance with the `evm` tool before calling it missing. A send to an address
+with no Hyperliquid account yet pays the venue 1 USDC to open it: a perp USDC
+send takes it from the amount, a spot or unified send takes it beside the
+amount. The card says which (its `Fee:` line; on the compact card, the send
+line ends with what arrives or `+1 USDC fee`); tell the user before they answer.
 
 ## Depositing
 
