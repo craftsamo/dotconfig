@@ -78,6 +78,19 @@ def test_the_hyperliquid_tool_shares_the_web3_modules():
     assert hl_access.HL.name == "hl.py" and hl_access.HL.parent == Path(access.__file__).parent
 
 
+VENV_PYTHON = ROOT.parents[2] / "local" / "web3" / "venv" / "bin" / "python"
+
+
+@pytest.mark.skipif(not VENV_PYTHON.exists(), reason="web3 engine venv not installed")
+def test_the_tool_offers_the_kinds_the_trader_builds():
+    # the plugin runs in Hermes' interpreter and the trader in the venv's, so each keeps its own list
+    probe = "import json, sys; sys.path.insert(0, sys.argv[1]); import hl_trader; print(json.dumps(hl_trader.KINDS))"
+    proc = subprocess.run([str(VENV_PYTHON), "-c", probe, str(ROOT)], capture_output=True, text=True,
+                          timeout=60, env={"PATH": "/usr/bin:/bin", "PYTHONDONTWRITEBYTECODE": "1"})
+    assert proc.returncode == 0, proc.stderr
+    assert tuple(json.loads(proc.stdout)) == hl_access.KINDS
+
+
 def test_the_four_reading_profiles_get_the_tool_and_others_nothing():
     for profile in ("creator", "writer", "engineer", "default"):
         ctx = Ctx(profile)
