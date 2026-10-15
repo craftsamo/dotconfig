@@ -200,6 +200,53 @@ class ReviewScript(unittest.TestCase):
         self.write(data)
         self.assertIn("### Certain\n", self.sheet())
 
+    def test_import_adds_hands_lines_once_with_quotes_and_new_ids(self):
+        findings = self.dir / "findings.md"
+        findings.write_text(
+            "| m:ss | aspect | problem | evidence | certainty |\n"
+            "| --- | --- | --- | --- | --- |\n"
+            "| 2:30 | text | A label hides \"$0.5 trillion\" | detail-1/d150.png | certain |\n"
+            "- | portrait | The caption gives a different year | detail-2/d042.png | confirm\n"
+            "1:00 | mood | not an aspect | x | certain\n",
+            encoding="utf-8",
+        )
+        code, out, _ = self.run_cli("import", str(self.ledger), "#11", str(findings), "--source", "video-creator")
+        self.assertEqual(code, 1)
+        result = json.loads(out)
+        self.assertEqual(result["added"], ["F005", "F006"])
+        self.assertEqual(result["not_imported"], ["1:00 | mood | not an aspect | x | certain"])
+        added = {f["id"]: f for f in self.data()["findings"]}
+        self.assertEqual(added["F005"]["quotes"], ["$0.5 trillion"])
+        self.assertEqual((added["F005"]["episode"], added["F005"]["status"], added["F005"]["source"]),
+                         ("#11", "open", "video-creator"))
+        self.assertEqual(added["F005"]["evidence"], str(self.dir.resolve() / "detail-1/d150.png"))
+        self.assertEqual(added["F006"]["at"], "")
+        code, out, _ = self.run_cli("import", str(self.ledger), "#11", str(findings), "--source", "video-creator")
+        self.assertEqual(json.loads(out)["added"], [])
+
+    def test_import_tolerates_case_trailing_dots_and_a_pipe_inside_the_problem(self):
+        findings = self.dir / "findings.md"
+        findings.write_text("0:12 | Text | \"A\" | \"B\" cards overlap | /abs/e.png | Certain.\n", encoding="utf-8")
+        code, out, _ = self.run_cli("import", str(self.ledger), "#1", str(findings), "--source", "video-creator")
+        self.assertEqual(code, 0, out)
+        row = self.data()["findings"][-1]
+        self.assertEqual((row["aspect"], row["certainty"], row["evidence"]), ("text", "certain", "/abs/e.png"))
+        self.assertEqual(row["problem"], "\"A\" | \"B\" cards overlap")
+        self.assertEqual(row["quotes"], ["A", "B"])
+
+    def test_quotes_are_read_in_each_writing_systems_marks(self):
+        self.assertEqual(review.quotes_in("“a” „b“ «c» 「d」 『e』 \"f\""), ["a", "b", "c", "d", "e", "f"])
+        self.assertEqual(review.quotes_in("it's a plain apostrophe"), [])
+
+    def test_import_refuses_an_unknown_episode_or_source(self):
+        findings = self.dir / "findings.md"
+        findings.write_text("0:01 | text | x | y | certain\n", encoding="utf-8")
+        code, _, err = self.run_cli("import", str(self.ledger), "#9", str(findings), "--source", "video-creator")
+        self.assertEqual(code, 2)
+        self.assertIn("unknown episode", err)
+        code, _, err = self.run_cli("import", str(self.ledger), "#1", str(findings), "--source", "someone")
+        self.assertEqual(code, 2)
+
     def test_save_keeps_the_ledger_mode_and_leaves_no_temp_file(self):
         self.ledger.chmod(0o640)
         self.run_cli("listen", str(self.ledger))
