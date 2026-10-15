@@ -68,7 +68,12 @@ default when a stance does not hold, with a note saying why.
    as it will run: its `fingerprint` is what the spec records. A judgment the
    user or an advisor wants to add (a macro reading, positioning extremes)
    joins only as `stance` windows a rule made from data dated before each
-   window, and only if it does not lower the out-of-sample result.
+   window, and only if it does not lower the out-of-sample result. Standing
+   down around scheduled releases (FOMC, CPI, payrolls) is not a rule here:
+   a `flat` window loses the trend (an EMA cross re-enters only on the next
+   cross), and smaller entries before a release are a per-market result that
+   does not carry over. Test such an idea as windows before proposing it,
+   and say what they did per market.
 
 ## The spec
 
