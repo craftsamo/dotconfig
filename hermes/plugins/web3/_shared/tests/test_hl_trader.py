@@ -4,6 +4,7 @@ no Keychain). The wallet is Hardhat's public test mnemonic, passed as ``_sources
 
 from __future__ import annotations
 
+import html
 from http.server import BaseHTTPRequestHandler, HTTPServer
 import json
 from pathlib import Path
@@ -28,6 +29,21 @@ SPARE = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8"  # MAIN #1: own
 STRANGER = "0x5e5E5e5e5E5e5E5E5e5E5E5e5e5E5E5E5e5E5E5e"
 USDC_ID = "0x6d1e7cde53ba9467b783cb7c530ce054"
 HYPE_ID = "0x0d01dc56dcaaca66ad901c959b4011ec"
+
+
+def units(text: str) -> int:
+    """A card's length as the approval surfaces count it: HTML-escaped, in UTF-16 units."""
+    return len(html.escape(text).encode("utf-16-le")) // 2
+
+
+def hl_card(stored: dict) -> str:
+    """The detailed card of a stored quote, with every memo, even where its reply shows the compact one."""
+    probe = ("import json, sys; sys.path.insert(0, sys.argv[1]); import hl_trader; "
+             "print(hl_trader.card(json.load(sys.stdin)))")
+    proc = subprocess.run([str(PYTHON), "-c", probe, str(TRADER.parent)], input=json.dumps(stored), capture_output=True,
+                          text=True, timeout=60, env={"PATH": "/usr/bin:/bin", "PYTHONDONTWRITEBYTECODE": "1"})
+    assert proc.returncode == 0, proc.stderr
+    return proc.stdout
 
 
 def item(source, value):
@@ -202,7 +218,7 @@ def test_a_market_buy_is_rounded_to_the_venue_and_needs_the_card(run):
     assert s["price"] == "101000" and s["tif"] == "Ioc" and s["size"] == "0.00099"  # 100 / 101000, 5 decimals
     assert s["held"] == "0" and s["leverage"] == {"type": "cross", "value": 10}
     assert "Hyperliquid testnet" in q["card"] and "Buy: 0.00099 BTC perp · market, worst price 101000" in q["card"]
-    assert "Effect: can add exposure" in q["card"] and OPS in q["card"]
+    assert q["card"].startswith("Hyperliquid testnet · Order\n⚠️ Can add exposure\n") and OPS in q["card"]
     assert len(s["cloids"]) == 1 and s["cloids"][0].startswith("0x") and len(s["cloids"][0]) == 34
 
 
@@ -676,12 +692,12 @@ def test_a_withdrawal_to_the_account_itself_runs_as_own_and_counts_as_a_transfer
     q = quote(run, kind="withdraw", amount="50")
     assert q["effect"] == "own" and q["summary"]["destination"] == USER and q["summary"]["arrives"] == "49.8"
     assert q["summary"]["fee"] == "0.2" and q["summary"]["fee_from"] == "amount"
-    assert "Withdraw: 50 USDC from the perp balance to Arbitrum Sepolia" in q["card"]
+    # own on both sides, with both Keychain blocks, it is past Telegram's budget: the compact card stands in
+    assert q["card"].startswith("Hyperliquid testnet · Withdraw · ✅ to own wallet\n"
+                                "50 USDC perp → Arbitrum Sepolia\n")
     # with the venue's own fee for the burn, beside the amount and outside the signed action
-    assert ("Fee: 0.2 USDC to Circle's CCTP, +≈0.01 to the venue from the balance (about 49.8 arrives, usually "
-            "within a minute)") in q["card"]
-    assert q["summary"]["venue_fee_about"] == "0.01"
-    assert f"To (own): {USER}" in q["card"] and "Effect: stays in the user's Hermes wallets" in q["card"]
+    assert "Arrives ≈49.8 · fees 0.2 + ≈0.01" in q["card"] and q["summary"]["venue_fee_about"] == "0.01"
+    assert f"To (own): {OPS}" in q["card"]  # in checksum case, as wallets show it
     done = ok(submit(run, q["quote"], "own"))
     assert done["submitted"] is True and "mints it on Arbitrum Sepolia" in done["note"]
     (body,) = exchanged()
@@ -714,10 +730,9 @@ def test_a_withdrawal_whose_fee_changed_since_its_quote_is_never_signed(run):
 
 def test_a_withdrawal_goes_to_a_named_cctp_chain_of_its_network_for_circle_s_fee(run):
     q = quote(run, kind="withdraw", amount="10", chain="sepolia")  # Ethereum's domain 0 costs 1.2 here
-    assert q["summary"]["arrives"] == "8.8" and "to Sepolia" in q["card"]
+    assert q["summary"]["arrives"] == "8.8" and "→ Sepolia" in q["card"]
     short = json.loads((run.state / "hl-quotes" / f"{q['quote']}.json").read_text())["card_short"]
-    assert "Withdraw: 10 USDC perp → Sepolia (8.8 arrives; +≈0.01 fee)" in short
-    assert "more to the venue" not in short  # the compact card says it on the withdraw line only
+    assert "10 USDC perp → Sepolia\nArrives ≈8.8 · fees 1.2 + ≈0.01" in short
     ok(submit(run, q["quote"], "own"))
     (body,) = exchanged()
     assert body["action"]["destinationChainId"] == 0
@@ -726,14 +741,21 @@ def test_a_withdrawal_goes_to_a_named_cctp_chain_of_its_network_for_circle_s_fee
         reply = run("quote", account=f"{MAIN}#0", network="testnet", kind="withdraw", amount="10", chain=chain)
         assert not reply["ok"] and needle in reply["error"], chain
     mainnet = ok(run("quote", account=f"{MAIN}#0", network="mainnet", kind="withdraw", amount="10", chain="base"))
-    assert "to Base" in mainnet["card"] and mainnet["summary"]["arrives"] == "9.8"
+    assert "→ Base" in mainnet["card"] and mainnet["summary"]["arrives"] == "9.8"
     reply = run("quote", account=f"{MAIN}#0", network="testnet", kind="withdraw", amount="1.2", chain="sepolia")
     assert not reply["ok"] and "pays Circle 1.2 USDC; withdraw more than that" in reply["error"]
 
 
 def test_funds_to_anyone_else_need_the_card(run):
     q = quote(run, kind="withdraw", amount="50", destination=STRANGER)
-    assert q["effect"] == "external" and "Effect: funds LEAVE the user's Hermes wallets" in q["card"]
+    assert q["effect"] == "external"
+    # the detailed card, shaped like a wallet transfer's: the effect first, one fact a line, a block per side
+    for part in ("Hyperliquid testnet · Withdraw\n⚠️ Funds LEAVE your Hermes wallets\n",
+                 "Amount: 50 USDC perp → Arbitrum Sepolia (Circle CCTP)\nArrives: about 49.8 USDC within a minute\n",
+                 "Fee: 0.2 Circle (from amount) · ≈0.01 venue (beside)\n", "--- From ---\nProject: hermes(Shared)",
+                 f"--- To ---\nType: External\nAddress: {STRANGER}"):
+        assert part in q["card"], part
+    assert units(q["card"]) <= 480
     assert ok(run("verify", quote=q["quote"]))["effect"] == "external"
     for approval in ("own", "mandate", "reduce"):
         mac = ok(run("verify", quote=q["quote"]))["mac"]
@@ -757,9 +779,10 @@ def test_sends_go_from_perp_usdc_or_a_named_spot_token(run):
 def test_a_send_to_an_address_with_no_account_pays_the_venue_s_opening_fee(run):
     VENUE["missing"] = {STRANGER.lower()}
     perp = quote(run, kind="send", amount="20", destination=STRANGER)  # usdSend: the fee comes off the amount
-    assert "Fee: 1 USDC from the amount opens their account (about 19 arrives)" in perp["card"]
+    assert "Amount: 20 USDC (perp)\nArrives: about 19 USDC\nFee: 1 USDC from the amount opens their account" \
+        in perp["card"]
     short = json.loads((run.state / "hl-quotes" / f"{perp['quote']}.json").read_text())["card_short"]
-    assert perp["summary"]["arrives"] == "19" and "Send on Hyperliquid: 20 USDC (perp) (19 arrives)" in short
+    assert perp["summary"]["arrives"] == "19" and "\n20 USDC (perp) (19 arrives)\n" in short
     reply = run("quote", account=f"{MAIN}#0", network="testnet", kind="send", amount="1", destination=STRANGER)
     assert not reply["ok"] and "send more than that" in reply["error"]
     usdc = f"USDC:{USDC_ID}"  # spotSend: the fee is taken beside the amount, from the spot USDC (25 free)
@@ -769,7 +792,7 @@ def test_a_send_to_an_address_with_no_account_pays_the_venue_s_opening_fee(run):
     spot = quote(run, kind="send", amount="24", destination=STRANGER, token=usdc)
     assert "Fee: 1 USDC more, from the spot balance, opens their account" in spot["card"]
     short = json.loads((run.state / "hl-quotes" / f"{spot['quote']}.json").read_text())["card_short"]
-    assert f"Send on Hyperliquid: 24 USDC (spot, {USDC_ID}) +1 USDC fee" in short
+    assert f"\n24 USDC (spot, {USDC_ID}) +1 USDC fee\n" in short
     VENUE["spot"][0] = ("USDC", 0, "0.5", "0")  # another token's send still pays the fee in USDC
     reply = run("quote", account=f"{MAIN}#0", network="testnet", kind="send", amount="1", destination=STRANGER,
                 token="HYPE")
@@ -783,7 +806,10 @@ def test_a_unified_send_to_an_address_with_no_account_pays_the_fee_beside_it(run
     reply = run("quote", account=f"{MAIN}#0", network="testnet", kind="send", amount="25", destination=SPARE)
     assert not reply["ok"] and "unified balance can send 24 USDC now" in reply["error"]
     q = quote(run, kind="send", amount="24", destination=SPARE)
-    assert "Fee: 1 USDC more, from the unified balance, opens their account" in q["card"]
+    stored = json.loads((run.state / "hl-quotes" / f"{q['quote']}.json").read_text())
+    detailed = hl_card(stored)  # own on both sides it is past Telegram's budget, so the reply shows the compact one
+    assert "Fee: 1 USDC more, from the unified balance, opens their account" in detailed
+    assert f"\n24 USDC ({USDC_ID}) +1 USDC fee\nUnified → their perp\n" in q["card"]
     ok(submit(run, q["quote"], "own"))
     (body,) = exchanged()
     assert body["action"]["type"] == "sendAsset" and body["action"]["amount"] == "24"
@@ -794,13 +820,14 @@ def test_a_unified_account_sends_from_its_one_balance(run):
     VENUE["withdrawable"] = "0"  # the perp state of a unified account counts nothing
     perp = quote(run, kind="send", amount="20", destination=SPARE)
     assert perp["effect"] == "own" and perp["summary"]["available"] == "25"
-    assert f"Send on Hyperliquid: 20 USDC ({USDC_ID})" in perp["card"]
-    assert "From the unified balance to their perp balance" in perp["card"]
-    short = json.loads((run.state / "hl-quotes" / f"{perp['quote']}.json").read_text())["card_short"]
-    assert "Unified → their perp" in short and len(short.replace("&", "&amp;").encode("utf-16-le")) // 2 <= 290
+    stored = json.loads((run.state / "hl-quotes" / f"{perp['quote']}.json").read_text())
+    detailed = hl_card(stored)
+    assert f"Amount: 20 USDC ({USDC_ID}) from the unified balance\nCredited to: their perp balance" in detailed
+    assert "--- To ---\nType: Your own\nProject: hermes(Shared)\nName: HERMES_MAIN\nAddress #1: " + SPARE in detailed
+    assert "Unified → their perp" in stored["card_short"] and units(stored["card_short"]) <= 290
     ok(submit(run, perp["quote"], "own"))
     spot = quote(run, kind="send", amount="1.5", destination=STRANGER, token="hype")
-    assert "From the unified balance to their spot balance" in spot["card"]
+    assert "from the unified balance\nCredited to: their spot balance" in spot["card"]
     ok(submit(run, spot["quote"], "card"))
     first, second = (body["action"] for body in exchanged())
     assert first == {"type": "sendAsset", "destination": SPARE.lower(), "sourceDex": "spot", "destinationDex": "",
@@ -814,6 +841,16 @@ def test_a_unified_account_sends_from_its_one_balance(run):
     assert not reply["ok"] and "give it as NAME:tokenId" in reply["error"]
 
 
+def test_a_move_to_a_watch_only_wallet_names_it_on_both_cards_and_still_asks(run):
+    watched = "0x58A57ed9d8d624cBD12e2C467D34787555bB1b25"  # TEAM #0: in the Keychain, but no HERMES in its name
+    q = quote(run, kind="send", amount="5", destination=watched)
+    assert q["effect"] == "external"
+    assert "--- To ---\nType: Watch-only (external)\nProject: team(Shared)\nName: PROD_MNEMONIC\nAddress #0: " \
+        + watched in q["card"]
+    short = json.loads((run.state / "hl-quotes" / f"{q['quote']}.json").read_text())["card_short"]
+    assert f"To (watch-only): {watched}" in short and "⚠️ funds leave" in short
+
+
 def test_an_external_unified_send_s_compact_card_fits_discord_whole(run):
     VENUE["mode"] = "unifiedAccount"
     long_name = "hermes/HERMES_TRADING_WALLET_WITH_A_LONG_NAME"  # past the 40 the compact card shows
@@ -822,7 +859,7 @@ def test_an_external_unified_send_s_compact_card_fits_discord_whole(run):
                destination=STRANGER, _sources=sources))
     short = json.loads((run.state / "hl-quotes" / f"{q['quote']}.json").read_text())["card_short"]
     assert q["effect"] == "external" and len(short.replace("&", "&amp;").encode("utf-16-le")) // 2 <= 290
-    for part in ("0.123456 USDC", USDC_ID, "Unified → their perp", STRANGER.lower(), "MAINNET"):
+    for part in ("0.123456 USDC", USDC_ID, "Unified → their perp", f"To (external): {STRANGER}", "MAINNET"):
         assert part in short, part
     reply = run("quote", account=f"{long_name}#0", network="mainnet", kind="send", amount="1.12345678",
                 destination=STRANGER, token="A_DEPLOYER_CHOSE_THIS_VERY_LONG_TOKEN_NAME", _sources=sources)
@@ -837,28 +874,18 @@ def test_an_external_withdrawal_s_compact_card_fits_discord_at_its_longest(run):
                destination=STRANGER, chain="world-chain-sepolia", _sources=sources))
     short = json.loads((run.state / "hl-quotes" / f"{q['quote']}.json").read_text())["card_short"]
     assert q["effect"] == "external" and len(short.replace("&", "&amp;").encode("utf-16-le")) // 2 <= 290
-    assert "Withdraw: 24.123456 USDC unified → World Chain Sepolia (23.923456 arrives; +≈0.01 fee)" in short
-    assert STRANGER.lower() in short
-
-
-def test_a_withdrawal_quoted_before_the_venue_fee_was_known_still_shows_its_card():
-    # a stored quote without venue_fee_about, rendered by the trader's own interpreter
-    probe = ("import json, sys; sys.path.insert(0, sys.argv[1]); import hl_moves; k = hl_moves.KINDS['withdraw']; "
-             "b = {'amount': '3', 'balance': 'perp', 'chain': 'Arbitrum One', 'destination': '0xab', 'fee': '0.2', "
-             "'arrives': '2.8'}; lines = k.lines(b, 'own'); print(json.dumps([lines[-1], k.short(b, lines)[0]]))")
-    proc = subprocess.run([str(PYTHON), "-c", probe, str(TRADER.parent)], capture_output=True, text=True, timeout=60,
-                          env={"PATH": "/usr/bin:/bin", "PYTHONDONTWRITEBYTECODE": "1"})
-    assert proc.returncode == 0, proc.stderr
-    fee, short = json.loads(proc.stdout)
-    assert fee == "Fee: 0.2 USDC to Circle's CCTP (about 2.8 arrives, usually within a minute)"
-    assert short.endswith("(2.8 arrives)")
+    # the account's long name is clipped first; the effect, the amounts and both addresses stay whole
+    for part in ("Hyperliquid testnet · Withdraw · ⚠️ funds leave\n",
+                 "24.123456 USDC unified → World Chain Sepolia\nArrives ≈23.923456 · fees 0.2 + ≈0.01\n",
+                 f"To (external): {STRANGER}"):
+        assert part in short, part
 
 
 def test_a_unified_account_withdraws_from_its_one_balance_and_has_nothing_to_transfer(run):
     VENUE["mode"] = "portfolioMargin"
     VENUE["withdrawable"] = "0"
     q = quote(run, kind="withdraw", amount="20")
-    assert "Withdraw: 20 USDC from the unified balance to Arbitrum Sepolia" in q["card"]
+    assert "20 USDC unified → Arbitrum Sepolia" in q["card"]
     assert q["summary"]["available"] == "25" and q["summary"]["move"]["sourceDex"] == "spot"
     VENUE["after_margin"] = "12"  # positions hold the rest
     reply = run("quote", account=f"{MAIN}#0", network="testnet", kind="withdraw", amount="20")
@@ -961,5 +988,5 @@ def test_a_move_whose_destination_changed_ownership_is_never_shown_or_sent(run):
 def test_the_compact_card_of_a_move_fits_discord(run):
     q = quote(run, kind="withdraw", amount="50", destination=STRANGER)
     short = json.loads((run.state / "hl-quotes" / f"{q['quote']}.json").read_text())["card_short"]
-    assert STRANGER.lower() in short and "Withdraw: 50 USDC" in short and "Fee:" not in short
+    assert f"To (external): {STRANGER}" in short and "\n50 USDC perp → " in short and "Fee:" not in short
     assert len(short.replace("&", "&amp;").encode("utf-16-le")) // 2 <= 290
