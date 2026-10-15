@@ -73,6 +73,9 @@ ALL_PER_HOUR = 200              # every action, reduce included: a loop stops he
 MOVES = ("withdraw", "send", "transfer")  # funds moving out of a position: own or external, like a wallet send
 KINDS = ("order", "close", "tpsl", "modify", "cancel", "leverage", "margin", "mandate", *MOVES)
 WITHDRAW_FEE = Decimal("1")     # the venue's fee on a withdrawal to Arbitrum, in USDC
+# the venue's fee for a send to an address with no account there: usdSend takes it from the amount,
+# spotSend and sendAsset take it in USDC from the sender beside the amount
+NEW_ACCOUNT_FEE = Decimal("1")
 ARBITRUM = {"mainnet": "arbitrum", "testnet": "arbitrum-sepolia"}
 SIDES = {"buy": True, "long": True, "sell": False, "short": False}
 SLIPPAGE_DEFAULT = Decimal("0.01")
@@ -549,43 +552,77 @@ def build_send(ctx, payload, user, mkt_unused, quote_id) -> dict:
             hl_sign.usd_int(amount)
         except hl_sign.SignError as exc:
             raise ChainError(str(exc)) from None
+        new = _new_account(ctx, destination)
         if unified:
             # the one USDC balance, to the destination's perp balance, as usdSend would credit it
-            return _send_asset(ctx, user, _usdc_token(ctx), amount, destination, "")
+            return _send_asset(ctx, user, _usdc_token(ctx), amount, destination, "", new)
+        if new and amount <= NEW_ACCOUNT_FEE:
+            raise ChainError(f"{destination} has no Hyperliquid account yet, and the venue takes "
+                             f"{NEW_ACCOUNT_FEE} USDC from this send to open it; send more than that")
         free = _perp_free(ctx, user)
         if amount > free:
             raise ChainError(f"the perp balance can send {shown(free)} USDC now")
+        fee = {"fee": plain(NEW_ACCOUNT_FEE), "fee_from": "amount", "arrives": plain(amount - NEW_ACCOUNT_FEE)} \
+            if new else {}
         return {"action": None, "market": USDC_MARKET, "cloids": [], "amount": plain(amount), "token": "USDC (perp)",
-                "destination": destination, "available": shown(free),
+                "destination": destination, "available": shown(free), **fee,
                 "move": {"type": "usdSend", "destination": destination, "amount": plain(amount)}}
     token = _spot_token(ctx, payload.get("token"))
     # the token's own precision, and never past what a signed amount carries
     decimals = min(int(token.get("weiDecimals", hl_sign.WIRE_DECIMALS)), hl_sign.WIRE_DECIMALS)
     if amount != amount.quantize(Decimal(1).scaleb(-decimals)):
         raise ChainError(f"{token['name']} has at most {decimals} decimal places")
+    new = _new_account(ctx, destination)
     if unified:
-        return _send_asset(ctx, user, token, amount, destination, hl_sign.SPOT_DEX)
-    free = _spot_free(ctx, user, token)
-    if amount > free:
-        raise ChainError(f"the spot balance can send {shown(free)} {token['name']} now")
+        return _send_asset(ctx, user, token, amount, destination, hl_sign.SPOT_DEX, new)
+    free = _spot_paid(ctx, user, token, amount, "spot", new)
     wire_token = f"{token['name']}:{token.get('tokenId')}"
     return {"action": None, "market": {"coin": token["name"], "label": token["name"], "spot": True}, "cloids": [],
             "amount": plain(amount), "token": hl.ticker(token["name"]), "token_id": token.get("tokenId"),
-            "destination": destination, "available": shown(free),
+            "destination": destination, "available": shown(free), **_spot_fee(new, "spot"),
             "move": {"type": "spotSend", "destination": destination, "token": wire_token, "amount": plain(amount)}}
 
 
-def _send_asset(ctx, user: str, token: dict, amount: Decimal, destination: str, destination_dex: str) -> dict:
+def _new_account(ctx: hl.Ctx, address: str) -> bool:
+    """Whether an address has no account on this network yet: a send to it pays the venue's fee to open one."""
+    found = ctx.api.info({"type": "userRole", "user": address})
+    role = found.get("role") if isinstance(found, dict) else None
+    if not isinstance(role, str):
+        raise ChainError(f"{ctx.api.label} returned an unexpected account role")
+    return role == "missing"
+
+
+def _spot_paid(ctx, user: str, token: dict, amount: Decimal, balance: str, new: bool) -> Decimal:
+    """The token's free spot (or unified) balance, checked to cover the send and, to an address with no
+    account, the venue's opening fee, which it takes in USDC beside the amount (seen for USDC sends; for
+    another token the same USDC fee is assumed, so the check asks for 1 USDC free beside it)."""
+    free = _spot_free(ctx, user, token)
+    fee = NEW_ACCOUNT_FEE if new else Decimal(0)
+    usdc = token.get("index") == 0
+    if amount + (fee if usdc else 0) > free:
+        extra = f" (and {fee} USDC more to open the destination's account)" if new and usdc else ""
+        raise ChainError(f"the {balance} balance can send {shown(max(free - (fee if usdc else 0), Decimal(0)))} "
+                         f"{token['name']} now{extra}")
+    if new and not usdc and _spot_free(ctx, user, _usdc_token(ctx)) < fee:
+        raise ChainError(f"the destination has no Hyperliquid account yet, and the venue takes {fee} USDC from the "
+                         f"{balance} balance to open it, which does not hold that much USDC")
+    return free
+
+
+def _spot_fee(new: bool, balance: str) -> dict:
+    return {"fee": plain(NEW_ACCOUNT_FEE), "fee_from": balance} if new else {}
+
+
+def _send_asset(ctx, user: str, token: dict, amount: Decimal, destination: str, destination_dex: str,
+                new: bool) -> dict:
     """A send from a unified account's one balance (sendAsset from spot), to the destination's spot
     balance or its default perp one."""
-    free = _spot_free(ctx, user, token)
-    if amount > free:
-        raise ChainError(f"the unified balance can send {shown(free)} {token['name']} now")
+    free = _spot_paid(ctx, user, token, amount, "unified", new)
     wire_token = f"{token['name']}:{token.get('tokenId')}"
     return {"action": None, "market": {"coin": token["name"], "label": token["name"], "spot": True}, "cloids": [],
             "amount": plain(amount), "token": hl.ticker(token["name"]), "token_id": token.get("tokenId"),
             "destination": destination, "available": shown(free), "balance": "unified",
-            "to_balance": "spot" if destination_dex == hl_sign.SPOT_DEX else "perp",
+            "to_balance": "spot" if destination_dex == hl_sign.SPOT_DEX else "perp", **_spot_fee(new, "unified"),
             "move": {"type": "sendAsset", "destination": destination, "sourceDex": hl_sign.SPOT_DEX,
                      "destinationDex": destination_dex, "token": wire_token, "amount": plain(amount)}}
 
@@ -715,12 +752,17 @@ def _what(quote: dict) -> list[str]:
                 f"Fee: {b['fee']} USDC (about {b['arrives']} arrives, in a few minutes)"]
     if kind == "send":
         token = b["token"] if isinstance(b["token"], str) else f"\"{b['token']['untrusted']}\""
+        fee = []
+        if b.get("fee_from") == "amount":
+            fee = [f"Fee: {b['fee']} USDC from the amount opens their account (about {b['arrives']} arrives)"]
+        elif b.get("fee_from"):
+            fee = [f"Fee: {b['fee']} USDC more, from the {b['fee_from']} balance, opens their account"]
         if b.get("balance") == "unified":
             return [f"Send on Hyperliquid: {b['amount']} {token} ({b['token_id']})",
                     f"From the unified balance to their {b['to_balance']} balance",
-                    f"To ({whose}): {b['destination']}"]
+                    f"To ({whose}): {b['destination']}", *fee]
         what = token if b.get("token_id") is None else f"{token} (spot, {b['token_id']})"
-        return [f"Send on Hyperliquid: {b['amount']} {what}", f"To ({whose}): {b['destination']}"]
+        return [f"Send on Hyperliquid: {b['amount']} {what}", f"To ({whose}): {b['destination']}", *fee]
     if kind == "transfer":
         return [f"Move: {b['amount']} USDC {'spot → perp' if b['to_perp'] else 'perp → spot'} (same account)"]
     return [kind]
@@ -746,6 +788,11 @@ def card_short(quote: dict) -> str:
     what = [line.replace("From the unified balance to their ", "Unified → their ").removesuffix(" balance")
             if line.startswith("From the unified balance") else line
             for line in _what(quote) if not line.startswith(CONTEXT)]
+    b = quote["built"]
+    if quote["kind"] == "send" and b.get("fee_from"):
+        # an account-opening fee changes what arrives or what leaves: the compact card keeps it, briefly
+        tail = f" ({b['arrives']} arrives)" if b["fee_from"] == "amount" else f" +{b['fee']} USDC fee"
+        what = [line + tail if line.startswith("Send on Hyperliquid:") else line for line in what]
     legs = [line for line in what if line.startswith(("TP:", "SL:"))]
     rest = [line for line in what if line not in legs]
     compact = " · ".join(line.replace(": trigger ", " ").replace(", worst ", "→") for line in legs)

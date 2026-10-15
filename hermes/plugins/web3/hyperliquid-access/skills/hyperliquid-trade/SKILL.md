@@ -127,7 +127,11 @@ and every move counts in the wallet's ten transfers an hour. A quote whose
 destination stopped (or started) being one of the user's Hermes wallets is
 refused: quote it again. A withdrawal pays the venue's 1 USDC fee
 and lands on Arbitrum in a few minutes: say so, and check the Arbitrum
-balance with the `evm` tool before calling it missing.
+balance with the `evm` tool before calling it missing. A send to an address
+with no Hyperliquid account yet pays the venue 1 USDC to open it: a perp USDC
+send takes it from the amount, a spot or unified send takes it beside the
+amount. The card says which (its `Fee:` line; on the compact card, the send
+line ends with what arrives or `+1 USDC fee`); tell the user before they answer.
 
 ## Depositing
 

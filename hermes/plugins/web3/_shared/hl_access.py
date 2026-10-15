@@ -98,7 +98,8 @@ TRADE_HELP = (
     "a 1 USDC fee), send (destination = a Hyperliquid address, amount, token = a spot token name to send from the "
     "spot balance, left out for perp USDC), transfer (amount, to_perp true for spot to perp, false for perp to "
     "spot). A unified account (state's mode) has one balance for both: send and withdraw draw on it, and "
-    "transfer is refused. To the user's own Hermes wallets, or within the account, it runs at once; to anyone else it shows "
+    "transfer is refused. A send to an address with no account there pays the venue 1 USDC to open it (the card's "
+    "Fee line). To the user's own Hermes wallets, or within the account, it runs at once; to anyone else it shows "
     "the approval card, and is impossible without the user present; a mandate never covers it, and it counts "
     "in the wallet's 10 transfers an hour. Depositing is the evm tool's transfer to the bridge deposit_info "
     "names.")

@@ -147,6 +147,14 @@ the balance it draws on, the amount's precision, a destination that is not
 the zero address, the sender itself or the deposit bridge, and a spot token
 named unambiguously (`NAME:tokenId` when deployers reuse a name).
 
+A send to an address with no account on that network (`userRole` reads
+`missing`) pays the venue 1 USDC to open one, taken differently by action:
+`usdSend` takes it from the amount (the destination gets 1 less), while
+`spotSend` and `sendAsset` take it in USDC from the sender beside the amount
+(seen for USDC; for another token the same USDC fee is assumed). The quote
+checks the balance for both, and its cards name the fee, the compact one at
+the end of the send line.
+
 A unified account (its mode, as the reads report it) has one balance for spot
 and perp, and the venue refuses `spotSend` and `usdClassTransfer` from it. Its
 `send` is `sendAsset` from that balance (`sourceDex: "spot"`) to the

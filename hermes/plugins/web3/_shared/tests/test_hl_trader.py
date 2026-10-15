@@ -46,6 +46,7 @@ def reset():
     VENUE.update({"positions": {"ETH": "-1.5"}, "leverage": {"BTC": {"type": "cross", "value": 10},
                                                               "ETH": {"type": "isolated", "value": 5}},
                   "exchange": "ok", "open_orders": [], "withdrawable": "100", "mode": "default", "after_margin": None,
+                  "missing": set(),
                   "spot": [("USDC", 0, "30", "5"), ("HYPE", 1, "2.5", "0"), ("DUP", 3, "5", "0"),
                            ("LONG", 4, "1.0000000001", "0"),
                            ("A_DEPLOYER_CHOSE_THIS_VERY_LONG_TOKEN_NAME", 6, "9", "0")]})
@@ -84,6 +85,8 @@ def info(body):
         return found
     if kind == "userAbstraction":
         return VENUE["mode"]
+    if kind == "userRole":
+        return {"role": "missing" if body["user"] in VENUE["missing"] else "user"}
     if kind == "frontendOpenOrders":
         return VENUE["open_orders"]
     if kind == "activeAssetData":
@@ -700,6 +703,41 @@ def test_sends_go_from_perp_usdc_or_a_named_spot_token(run):
     first, second = (body["action"] for body in exchanged())
     assert first["type"] == "usdSend" and first["destination"] == SPARE.lower() and first["amount"] == "20"
     assert second["type"] == "spotSend" and second["token"] == f"HYPE:{HYPE_ID}" and second["amount"] == "1.5"
+
+
+def test_a_send_to_an_address_with_no_account_pays_the_venue_s_opening_fee(run):
+    VENUE["missing"] = {STRANGER.lower()}
+    perp = quote(run, kind="send", amount="20", destination=STRANGER)  # usdSend: the fee comes off the amount
+    assert "Fee: 1 USDC from the amount opens their account (about 19 arrives)" in perp["card"]
+    short = json.loads((run.state / "hl-quotes" / f"{perp['quote']}.json").read_text())["card_short"]
+    assert perp["summary"]["arrives"] == "19" and "Send on Hyperliquid: 20 USDC (perp) (19 arrives)" in short
+    reply = run("quote", account=f"{MAIN}#0", network="testnet", kind="send", amount="1", destination=STRANGER)
+    assert not reply["ok"] and "send more than that" in reply["error"]
+    usdc = f"USDC:{USDC_ID}"  # spotSend: the fee is taken beside the amount, from the spot USDC (25 free)
+    reply = run("quote", account=f"{MAIN}#0", network="testnet", kind="send", amount="25", destination=STRANGER,
+                token=usdc)
+    assert not reply["ok"] and "can send 24 USDC now (and 1 USDC more to open" in reply["error"]
+    spot = quote(run, kind="send", amount="24", destination=STRANGER, token=usdc)
+    assert "Fee: 1 USDC more, from the spot balance, opens their account" in spot["card"]
+    short = json.loads((run.state / "hl-quotes" / f"{spot['quote']}.json").read_text())["card_short"]
+    assert f"Send on Hyperliquid: 24 USDC (spot, {USDC_ID}) +1 USDC fee" in short
+    VENUE["spot"][0] = ("USDC", 0, "0.5", "0")  # another token's send still pays the fee in USDC
+    reply = run("quote", account=f"{MAIN}#0", network="testnet", kind="send", amount="1", destination=STRANGER,
+                token="HYPE")
+    assert not reply["ok"] and "does not hold that much USDC" in reply["error"]
+    assert "Fee:" not in quote(run, kind="send", amount="1", destination=SPARE, token="HYPE")["card"]
+
+
+def test_a_unified_send_to_an_address_with_no_account_pays_the_fee_beside_it(run):
+    VENUE["mode"] = "unifiedAccount"
+    VENUE["missing"] = {SPARE.lower()}
+    reply = run("quote", account=f"{MAIN}#0", network="testnet", kind="send", amount="25", destination=SPARE)
+    assert not reply["ok"] and "unified balance can send 24 USDC now" in reply["error"]
+    q = quote(run, kind="send", amount="24", destination=SPARE)
+    assert "Fee: 1 USDC more, from the unified balance, opens their account" in q["card"]
+    ok(submit(run, q["quote"], "own"))
+    (body,) = exchanged()
+    assert body["action"]["type"] == "sendAsset" and body["action"]["amount"] == "24"
 
 
 def test_a_unified_account_sends_from_its_one_balance(run):
