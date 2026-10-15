@@ -60,10 +60,22 @@ RUN_ARGS = {"directory", "session_id", "message", "model", "variant", "fork", "t
 WRITE_ARGS = {"approval", "issue_approval"}
 NOTE_KEY = "hermes.note"
 DEFAULT_NOTE = (
-    "A Hermes agent drives this session over the OpenCode API; no human is at the terminal. Hermes answers "
-    "your permission requests and questions, so ask only what you cannot decide yourself. For a decision "
-    "that does not block the work, take the recommended default and say so in your final reply. Hermes "
-    "switches agents between turns: never switch yourself.")
+    "No one is at the terminal: requests reach you through Hermes, which also answers your permission "
+    "requests and questions. The technical calls are yours: decide what you can, take the recommended "
+    "default where a choice does not block the work, and say what you chose in your final reply. Ask only "
+    "what you cannot decide yourself. Hermes switches agents between turns: never switch yourself.")
+# The output directory and how a report reaches it live in the note, not in each prompt,
+# so the message a person reads in OpenCode is the brief alone.
+OUTPUT_NOTE = (
+    "Reports, screenshots and other results go in `{path}`, outside the repository.")
+# Plan mode's built-in reminder forbids every file but its own plan directory, and that
+# path is fixed, so the reply itself carries the report.
+REPORT_NOTE = (
+    "When a turn writes nothing there, Hermes saves your final reply there as the report: "
+    "put the complete report in your final reply.")
+# A write run learns whether Issue writes are granted here rather than by trying one.
+ISSUE_NOTE = {True: "Managing this job in Issues is granted.",
+              False: "Issue writes are not granted for this job: leave Issues as they are."}
 READ_ONLY_NOTE = (
     "This run is read-only. Prefer the read, grep and glob tools to shell commands. Every inline "
     "interpreter (`python3 -c`, `node -e`), pipe, chain or unlisted command waits for Hermes to approve "
@@ -202,26 +214,15 @@ def _agent(name, where):
 # Starting a turn
 
 
-def _prompt(role, message, approval, issue_approval, output=None):
-    text = message
+def _instructions(role, output=None, issues=False):
+    """The operating note. The approval is the caller's record (validated in `_prepare`,
+    never consulted to authorize) and the ruleset enforces it, so neither it nor the output
+    directory is added to the prompt."""
+    read_only = role["policy"] == "read-only"
+    text = DEFAULT_NOTE + " " + SHELL_NOTE + " " + (READ_ONLY_NOTE if read_only else ISSUE_NOTE[bool(issues)])
     if output:
-        text += ("\n\nOutput directory (outside the repository) for reports, screenshots and other "
-                 "results this run produces: " + output)
-        if role["policy"] == "read-only":
-            # Plan mode's built-in reminder forbids every file but its own plan directory, and
-            # that path is fixed, so the reply itself carries the report.
-            text += ("\nWhen this turn writes nothing there, Hermes saves your final reply there as the report: "
-                     "put the complete report in your final reply.")
-    if role["policy"] == "write":
-        text += "\n\nClient implementation scope: " + approval
-        text += "\nIssue management: " + (issue_approval or "not granted")
-    return text
-
-
-def _instructions(role, output=None):
-    text = DEFAULT_NOTE + " " + SHELL_NOTE + (" " + READ_ONLY_NOTE if role["policy"] == "read-only" else "")
-    if output and role["policy"] == "write":
-        text += " " + PROGRESS_NOTE.format(path=str(Path(output) / progress.FILE))
+        text += " " + OUTPUT_NOTE.format(path=output)
+        text += " " + (REPORT_NOTE if read_only else PROGRESS_NOTE.format(path=str(Path(output) / progress.FILE)))
     return text + (("\n\n" + role["note"]) if role.get("note") else "")
 
 
@@ -275,7 +276,11 @@ def _prepare(home, owner, role_name, role, settings, args, kwargs):
         raise ValueError("output_dir must lie outside the worktree")
     return {"output": output, "writing": writing, "fork": fork, "chosen": chosen or meta.get("selection") or {},
             "explicit": bool(chosen), "sid": sid, "directory": directory, "branch": branch, "repo": repo,
-            "protected": protected, "approval": approval, "issue_approval": issue_approval}
+            "protected": protected, "approval": approval, "issue_approval": issue_approval,
+            # The latest build approval stays on the session as the record of its grant; the
+            # prompt no longer carries it.
+            "record": approval if writing else (meta.get("approval") if isinstance(meta.get("approval"), str)
+                                                else None)}
 
 
 def _setup(home, owner, role_name, role, plan, kwargs):
@@ -302,7 +307,8 @@ def _setup(home, owner, role_name, role, plan, kwargs):
     hermes = {"v": 2, "profile": home.name, "owner": owner, "role": role_name, "branch": plan["branch"],
               "repo": plan["repo"],
               **({"selection": plan["chosen"]} if plan["chosen"] else {}),
-              **({"output_dir": plan["output"]} if plan["output"] else {})}
+              **({"output_dir": plan["output"]} if plan["output"] else {}),
+              **({"approval": plan["record"]} if plan.get("record") else {})}
     metadata = {"hermes": hermes}
     if sid and plan["fork"]:
         sid = api.data(turn.call("post", "/api/session/{sid}/fork", {}, sid=sid))["id"]
@@ -331,21 +337,22 @@ def _setup(home, owner, role_name, role, plan, kwargs):
     return sid
 
 
-def _put_note(sid, role, output=None):
+def _put_note(sid, note):
     """The operating note as a durable session instruction. Experimental on the service:
     when it is refused, the caller prepends the note to the prompt instead."""
     try:
         turn.call("put", "/api/experimental/session/{sid}/instructions/entries/{key}",
-                  {"value": _instructions(role, output)}, sid=sid, key=NOTE_KEY)
+                  {"value": note}, sid=sid, key=NOTE_KEY)
         return True
     except (api.ApiError, api.Unavailable):
         return False
 
 
 def _admit(sid, role, message, plan):
-    text = _prompt(role, message, plan["approval"], plan["issue_approval"], plan["output"])
-    if not _put_note(sid, role, plan["output"]):
-        text = _instructions(role, plan["output"]) + "\n\n" + text
+    text = message
+    note = _instructions(role, plan["output"], plan["issue_approval"])
+    if not _put_note(sid, note):
+        text = note + "\n\n" + text
     try:
         admitted = api.data(turn.call("post", "/api/session/{sid}/prompt", {"text": text}, sid=sid))
         return admitted["id"], None
@@ -863,7 +870,9 @@ def _run_properties(role):
     properties = {
         "directory": {"type": "string", "description": "Absolute Git worktree root; for a new session"},
         "session_id": {"type": "string", "description": "Continue this session (ses_…)"},
-        "message": {"type": "string"},
+        "message": {"type": "string", "description": "A short brief in plain prose, sent as written: what is "
+                                                     "wanted and why, what this turn hands back, and the "
+                                                     "decision log's path; no steps or restated rules"},
         "model": {"type": "string", "description": "Optional provider/model from opencode_catalog models; "
                                                    "never your own model"},
         "variant": {"type": "string", "description": "Optional reasoning effort from that model's variants"},
@@ -875,7 +884,7 @@ def _run_properties(role):
     }
     if role["policy"] == "write":
         properties["approval"] = {"type": "string", "description": "The Client's explicit scoped implementation "
-                                                                   "approval, quoted"}
+                                                                   "approval, quoted; recorded, not shown to the run"}
         properties["issue_approval"] = {"type": "string", "description": "Quoted Client approval for Issue writes"}
     return properties
 

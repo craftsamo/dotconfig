@@ -84,10 +84,17 @@ OpenCode agent, a policy (`read-only` or `write`), and optionally a model
 tool; with no `roles` the four defaults apply (plan, review and debug
 read-only, build write). The agents are the person's own modes — there are no
 hidden primaries and no operating contract beyond a short `hermes.note`
-instruction entry. Because rules match each command as written and every
+instruction entry. The prompt is the caller's message exactly as written:
+everything mechanical (the operating note, the output directory, where a report
+goes) travels in that entry, which the service announces as session
+instructions, so the user message a person reads in the session is the brief alone;
+only when the service refuses the entry does the note lead the prompt instead.
+The note tells the run the technical calls are its own and to say what it chose.
+Because rules match each command as written and every
 unmatched one waits for the caller, the note asks every run to write commands
 plainly (no `NAME=value` prefix, status wrapper or launcher such as `npx`), and
-a read-only role's note also asks it to batch commands. A write run with an
+a read-only role's note also asks it to batch commands. A write run's note says
+whether Issue writes are granted, so it learns that before trying one. A write run with an
 output directory is also asked to keep its Phase steps in `progress.md` there
 (below); a person's own sessions never are. Hermes sits in the person's seat: a
 question the agent asks and a permission it needs arrive as `waiting` and are
@@ -140,7 +147,8 @@ inside a Workspaces draft (`.agent/`), outside the worktree and spelled without
 wildcards. The session ruleset allows `external_directory` for exactly that
 directory, ahead of the person's own outside-path denies (which still win), and
 a read-only run may edit there too (never a secret-looking file). Every turn
-validates the stored value again. The permission alone does not make Plan
+validates the stored value again and names it in the operating note, never in
+the prompt. The permission alone does not make Plan
 write there: OpenCode's built-in Plan mode reminder forbids every file but its
 own fixed plan directory (`~/.opencode/plan`), so the model never tries, and
 widening Plan's own `edit` rules would change nothing. So when a read-only turn
@@ -211,7 +219,10 @@ way. In a write run every
 layers and takes flags before its subcommand; a read-only run is denied
 `gh stack` and both tools entirely, and merging or unstacking a stack always. A write
 run needs the user's quoted `approval`, a named non-default task branch, and a
-worktree no other session is running in (a person's included). V2 wildcards match whole values and `*` crosses
+worktree no other session is running in (a person's included). The approval is
+the caller's record, kept as `metadata.hermes.approval` (the latest build's,
+carried through later read-only turns) and enforced by the ruleset; it is not
+added to the prompt, where a restated grant reads as a subcontract. V2 wildcards match whole values and `*` crosses
 `/`, so secrets are spelled `*.env`, `*.pem`, … (`**/.env` misses a root-level
 file).
 

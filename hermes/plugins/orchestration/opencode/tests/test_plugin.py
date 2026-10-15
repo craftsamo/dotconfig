@@ -102,7 +102,8 @@ def test_plan_run_creates_a_bound_session_and_completes(fixture):
                                              "branch": "topic", "repo": str(directory / ".git")}
     assert created["title"] == "work tree · plan", "the plugin titles the session, no model is asked to"
     assert {"action": "edit", "resource": "*", "effect": "deny"} in created["permissions"]
-    assert fake.entries[sid]["hermes.note"].startswith("A Hermes agent drives this session")
+    assert fake.entries[sid]["hermes.note"].startswith(plugin.DEFAULT_NOTE)
+    assert "The technical calls are yours" in fake.entries[sid]["hermes.note"]
     assert fake.prompts == [(sid, MESSAGE)], "the message reaches OpenCode literally"
     assert not (home / "opencode-sessions").exists(), "no run record is kept"
 
@@ -130,10 +131,17 @@ def test_plan_then_build_switches_agent_model_and_ruleset_on_one_session(fixture
     assert policy.decide(now["permissions"], "shell", "git push origin topic") == "ask"
     assert {"action": "shell", "resource": "gh issue comment *", "effect": "ask"} not in now["permissions"], \
         "an Issue grant lifts the Issue-write asks"
-    assert "Client implementation scope: Client: implement the plan" in fake.prompts[-1][1]
-    assert "Issue management: Client: file it" in fake.prompts[-1][1]
+    assert fake.prompts[-1] == (sid, MESSAGE), "the approval is the caller's record, not prompt text"
     assert now["metadata"]["hermes"]["role"] == "build"
+    assert now["metadata"]["hermes"]["approval"] == "Client: implement the plan"
+    assert "Client: implement the plan" not in fake.entries[sid]["hermes.note"]
+    assert plugin.ISSUE_NOTE[True] in fake.entries[sid]["hermes.note"]
+    assert plugin.ISSUE_NOTE[False] in plugin._instructions({"policy": "write"}), "no grant, said plainly"
+    assert "Issue" not in plugin._instructions({"policy": "read-only"})
     assert fake.prompts[0][1] == MESSAGE, "a read-only turn adds no scope text"
+    run("plan", session_id=sid)
+    assert fake.sessions[sid]["metadata"]["hermes"]["approval"] == "Client: implement the plan", \
+        "a later read-only turn keeps the record of the last grant"
 
 
 def test_output_dir_opens_one_draft_directory_and_outlives_the_turn(fixture, tmp_path):
@@ -148,7 +156,8 @@ def test_output_dir_opens_one_draft_directory_and_outlives_the_turn(fixture, tmp
     assert policy.decide(rules, "external_directory", f"{job.resolve()}/shots/a.png") == "allow"
     assert policy.decide(rules, "external_directory", str(job.parent.resolve()) + "/other") == "ask"
     assert fake.sessions[sid]["metadata"]["hermes"]["output_dir"] == str(job.resolve())
-    assert f"Output directory (outside the repository) for reports" in fake.prompts[-1][1]
+    assert fake.prompts[-1][1] == MESSAGE, "the output directory travels in the note, not the prompt"
+    assert f"go in `{job.resolve()}`, outside the repository" in fake.entries[sid]["hermes.note"]
     configure(home, "  roles:\n    plan: {agent: plan, policy: read-only}\n    build: {agent: build, policy: write}\n")
     built = run("build", session_id=sid, approval="Client: implement the plan")
     assert built["status"] == "completed", built
@@ -317,7 +326,8 @@ def test_refused_note_entry_falls_back_to_the_prompt(fixture):
     _, directory, _, fake = fixture
     fake.note_refused = True
     sid = run("plan", directory)["session_id"]
-    assert fake.prompts[0][1].startswith("A Hermes agent drives this session") and fake.prompts[0][1].endswith(MESSAGE)
+    assert fake.prompts[0][1] == plugin._instructions({"policy": "read-only"}) + "\n\n" + MESSAGE, \
+        "the note leads once and the brief follows unchanged"
     assert "hermes.note" not in fake.entries.get(sid, {})
 
 
@@ -1006,6 +1016,7 @@ def test_a_build_keeps_its_phase_steps_and_the_notifier_reports_each_one(fixture
     sid = started["session_id"]
     assert str(job.resolve() / "progress.md") in fake.entries[sid]["hermes.note"]
     assert "progress.md" not in plugin._instructions({"policy": "read-only"}, str(job)), "write runs only"
+    assert plugin.REPORT_NOTE not in fake.entries[sid]["hermes.note"], "a build writes its own files"
     assert "progress.md" not in plugin._instructions({"policy": "write"}), "only with an output directory"
     (job / "progress.md").write_text("- [~] Phase2.1 - schema\n- [ ] Phase2.2 - builder\n")
     monkeypatch.setattr(plugin, "NOTIFY_LIMIT", 2)
@@ -1178,7 +1189,8 @@ def test_a_read_only_turn_that_wrote_no_report_leaves_its_reply_in_the_output_di
     assert saved.name.startswith("work_tree-plan-")
     assert session("status", out["session_id"])["report"] == str(saved), "the same turn keeps one file"
     assert [p.name for p in job.iterdir()] == [saved.name]
-    assert "put the complete report in your final reply" in fake.prompts[-1][1]
+    assert "put the complete report in your final reply" in fake.entries[out["session_id"]]["hermes.note"]
+    assert "put the complete report" not in fake.prompts[-1][1]
 
     sid = out["session_id"]
     fake.scripts[sid] = ["hold"]
