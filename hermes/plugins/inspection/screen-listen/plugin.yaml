@@ -1,0 +1,8 @@
+name: screen-listen
+version: 1.0.0
+description: >-
+  The screen_listen tool for the Assistant: record what one allowed application
+  (Discord by default) is playing on this Mac for a bounded time through a Core
+  Audio process tap and return its transcript. Never the microphone, never the
+  screen; the helper app holds the one-time System Audio Recording consent.
+kind: standalone

@@ -29,7 +29,8 @@ directories are in [`../../AGENTS.md`](../../AGENTS.md) "Skills".
   youtube), `web3/` (chain reads, Hyperliquid reads and the wallet), `orchestration/` (specialist,
   OpenCode and session-history transports), `workspace/` (the public drafts, repos and
   registry engines; a local overlay may add more), `guards/` (topology and Worker guards),
-  `inspection/` (vision window, video analysis, media and writing inspection),
+  `inspection/` (vision window, video analysis, media and writing inspection,
+  listening to an app's audio),
   and the media families `image_gen/`, `video_gen/`, `audio_gen/`, `tts/`,
   `transcription/`. `google-access` and `hermes-achievements` (upstream writes
   its data to a fixed path; per-machine, ignored) stay at the top level. A
@@ -58,6 +59,12 @@ user keys.
   its own action list). It never writes next to the input: output goes to a
   fresh run directory under the OS temporary directory, and runs older than
   seven days are removed when the plugin registers.
+- **inspection/screen-listen** (`standalone`): the `screen_listen` tool for the
+  Assistant: record what one allowed app (Discord by default) is playing on this
+  Mac for a bounded time through a Core Audio process tap and transcribe it with
+  the profile's STT chain. The helper app is built by
+  `scripts/screen-listen.sh install` and holds the one-time System Audio
+  Recording consent. Contract: [`../screen-listen.md`](../screen-listen.md).
 - **tts/tts-fallback**, **tts/irodori-tts**, **tts/qwen3-tts**: see
   [`tts-engines.md`](./tts-engines.md). **transcription/stt-fallback**: see
   [`audio-tooling.md`](./audio-tooling.md) "Speech-to-text — fallback chain".
