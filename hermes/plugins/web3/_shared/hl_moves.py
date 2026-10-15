@@ -33,6 +33,11 @@ NEW_ACCOUNT_FEE = Decimal("1")
 WITHDRAW_TO = {"mainnet": "arbitrum", "testnet": "arbitrum-sepolia"}  # a withdrawal's chain unless one is named
 CCTP_GAS_LIMIT = 200_000  # HyperEVM gas for the linked contract's burn, as Circle's withdrawal recipe sets it
 FEE_SELECTOR = "e26f7d23"  # calculateCrossChainWithdrawalFee(bool shouldForward, uint32 destinationDomain)
+# the venue's own fee to run a withdrawal's burn on HyperEVM, in USDC from the balance beside the amount: unpublished
+# and not in the signed action (0.00901 on mainnet when seen), so the card states it as about this much and the
+# balance check keeps the reserve free for it
+VENUE_FEE_ABOUT = Decimal("0.01")
+VENUE_FEE_RESERVE = Decimal("0.05")
 USDC_MARKET = {"coin": "USDC", "label": "USDC", "spot": False}
 
 
@@ -214,16 +219,17 @@ def build_withdraw(ctx, payload, user, mkt_unused, quote_id) -> dict:
     destination = _destination(payload, user)
     unified = _unified(ctx, user)
     free = _spot_free(ctx, user, _usdc_token(ctx)) if unified else _perp_free(ctx, user)
-    if amount > free:
+    if amount + VENUE_FEE_RESERVE > free:
         held = "unified balance after margin" if unified else "perp balance not held as margin"
-        raise ChainError(f"the account can withdraw {shown(free)} USDC now ({held})")
+        raise ChainError(f"the account can withdraw {shown(max(free - VENUE_FEE_RESERVE, Decimal(0)))} USDC now "
+                         f"({held}; {VENUE_FEE_RESERVE} stays free for the venue's own fee beside the amount)")
     fee = _withdrawal_fee(ctx, payload, domain)
     if amount <= fee:
         raise ChainError(f"a withdrawal to {chains.info(chain)['name']} pays Circle {shown(fee)} USDC; withdraw "
                          "more than that")
     return {"action": None, "market": USDC_MARKET, "cloids": [], "amount": plain(amount), "destination": destination,
-            **_fee(fee, "amount", "withdrawal", amount), "available": shown(free),
-            "chain": chains.info(chain)["name"], "balance": "unified" if unified else "perp",
+            **_fee(fee, "amount", "withdrawal", amount), "venue_fee_about": plain(VENUE_FEE_ABOUT),
+            "available": shown(free), "chain": chains.info(chain)["name"], "balance": "unified" if unified else "perp",
             "move": {"type": "sendToEvmWithData", "token": "USDC", "amount": plain(amount),
                      "sourceDex": hl_sign.SPOT_DEX if unified else "", "destination": destination, "chain": chain,
                      "domain": domain}}
@@ -306,12 +312,23 @@ def build_transfer(ctx, payload, user, mkt_unused, quote_id) -> dict:
 def _withdraw_lines(b: dict, whose: str) -> list[str]:
     return [f"Withdraw: {b['amount']} USDC from the {b.get('balance', 'perp')} balance to {b['chain']}",
             f"To ({whose}): {b['destination']}",
-            f"Fee: {b['fee']} USDC to Circle's CCTP (about {b['arrives']} arrives, usually within a minute)"]
+            f"Fee: {b['fee']} USDC to Circle's CCTP{_venue_fee(b)} (about {b['arrives']} arrives, usually within a "
+            "minute)"]
+
+
+def _venue_fee(b: dict) -> str:
+    # quotes made before the venue's own fee was known carry no venue_fee_about
+    return f", +≈{b['venue_fee_about']} to the venue from the balance" if b.get("venue_fee_about") else ""
 
 
 def _withdraw_short(b: dict, lines: list[str]) -> list[str]:
-    """The compact card's withdrawal keeps what arrives: Circle's fee differs by chain."""
-    return [line + f" ({b['arrives']} arrives)" if line.startswith("Withdraw:") else line for line in lines]
+    """The compact card's withdrawal keeps what arrives (Circle's fee differs by chain) and the venue's own fee
+    beside it, saying the route briefly."""
+    if not b.get("venue_fee_about"):  # a quote made before the venue's own fee was known keeps its old line
+        return [line + f" ({b['arrives']} arrives)" if line.startswith("Withdraw:") else line for line in lines]
+    brief = (f"Withdraw: {b['amount']} USDC {b.get('balance', 'perp')} → {b['chain']} ({b['arrives']} arrives; "
+             f"+≈{b['venue_fee_about']} fee)")
+    return [brief if line.startswith("Withdraw:") else line for line in lines]
 
 
 def _send_lines(b: dict, whose: str) -> list[str]:
