@@ -156,7 +156,9 @@ configured.
 - **`approval`** quotes the user's explicit, scoped implementation decision as
   text — never a boolean, never your own words. Quote it on every build turn.
   `issue_approval` separately quotes an explicit request to manage this job in
-  Issues. Both are records of the operating contract, not authentication.
+  Issues. Both are records of the operating contract, not authentication, and
+  neither is shown to the run: the ruleset holds the grant, so the message
+  never opens by reporting the approval.
 - **What a build may do:** edit files in its worktree and run routine commands.
   It rebases its task branch onto the latest base before each push and may
   amend or fix up its own commits; its tools refuse the default branch, shared
@@ -189,8 +191,9 @@ configured.
   turns of the session keep it. Create the directory first. Nothing else outside
   the worktree opens. Plan mode writes no files at all (its built-in rule), so
   a read-only turn that writes nothing there gets its final reply saved there
-  as `<worktree>-<role>-<turn>.md`, named as `report` in the result: ask for the
-  complete report in the final reply, and never ask a build to copy one.
+  as `<worktree>-<role>-<turn>.md`, named as `report` in the result. The
+  operating note names the directory and tells the run its final reply becomes
+  the report, so the message need not; never ask a build to copy one.
   A write run with an output directory keeps its Phase steps in
   `progress.md` there (its operating note says how); that is the step list
   you report against.

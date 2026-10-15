@@ -62,7 +62,7 @@ summary of them.
 
 Each job keeps `decisions.md` in its draft directory
 (`<Group>/.agent/<YYYYMMDD>-<job>/`), one row per item: the item, its source
-(the user's words quoted / OpenCode's proposal / your proposal / found in the
+(the user's words quoted exactly here / OpenCode's proposal / your proposal / found in the
 repository) and its state (proposed / decided / withdrawn). Only the user's
 explicit choice moves a row to decided; a proposal nobody objected to stays
 proposed. A Chat opinion of yours enters as your proposal. Point OpenCode at
