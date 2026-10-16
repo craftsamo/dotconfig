@@ -34,6 +34,7 @@ toolsets:
 - computer_use
 - specialist
 - media_inspect
+- screen_listen
 - workspace_registry
 - hyperliquid_access
 max_concurrent_sessions: null
@@ -893,6 +894,7 @@ _config_version: 29
 platform_toolsets:
   cli:
   - media_inspect
+  - screen_listen
   - workspace_registry
   - web
   - browser
@@ -912,6 +914,7 @@ platform_toolsets:
   - no_mcp
   telegram:
   - media_inspect
+  - screen_listen
   - workspace_registry
   - web
   - browser
@@ -931,6 +934,7 @@ platform_toolsets:
   - no_mcp
   discord:
   - media_inspect
+  - screen_listen
   - workspace_registry
   - web
   - browser
@@ -981,6 +985,10 @@ video_gen:
 video_analyze:
   provider: openrouter
   model: xiaomi/mimo-v2.5
+screen_listen:
+  apps:
+    discord: com.hnc.Discord
+  max_seconds: 300
 plugins:
   enabled:
   - workspace-registry
@@ -992,6 +1000,7 @@ plugins:
   - skill-topology
   - clarify-context
   - media-inspect
+  - screen-listen
   - hyperliquid-access
 timeouts:
   tools:

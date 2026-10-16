@@ -114,6 +114,17 @@ hermes computer-use status       # verify
 
 `hermes update` refreshes the driver automatically when it's on `PATH`.
 
+**`screen-listen` helper** (the Assistant's `screen_listen` toolset — an allowed
+app's audio, transcribed) is built from in-tree Swift with Xcode or its Command
+Line Tools and needs one GUI consent:
+
+```sh
+hermes/scripts/screen-listen.sh install   # builds local/screen-listen/ScreenListen.app
+hermes/scripts/screen-listen.sh grant     # answer "System Audio Recording" once
+```
+
+Contract: [docs/screen-listen.md](../screen-listen.md).
+
 **API keys** — stored in the Keychain; the shim injects them. Run these
 yourself (the value is read from a no-echo prompt, never argv):
 
