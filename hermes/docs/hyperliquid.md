@@ -170,10 +170,15 @@ default `arbitrum` or `arbitrum-sepolia`). Circle's fee comes off the amount
 and differs by chain, so the quote reads it from that contract
 (`calculateCrossChainWithdrawalFee`, with forwarding) through HyperEVM's
 public endpoint, refuses an amount it would swallow, and both cards show what
-arrives. The signed burn carries no fee ceiling, so submit reads the fee again
-before signing and refuses the quote if it changed (or cannot be read); the
-ledger rows keep the chain, the fee and what was to arrive, since quotes are
-pruned. The signatures match the community TypeScript SDK's for the same
+arrives. The venue also takes a small fee of its own for running the burn on
+HyperEVM, in USDC from the balance beside the amount; it is unpublished and
+outside the signed action, so the cards state it as about 0.01 USDC and the
+quote keeps 0.05 USDC of the balance free for it (`VENUE_FEE_ABOUT`,
+`VENUE_FEE_RESERVE`). The compact card says the route briefly, so the line
+fits Discord's limit with both fees. The signed burn carries no fee ceiling,
+so submit reads Circle's fee again before signing and refuses the quote if it
+changed (or cannot be read); the ledger rows keep the chain, the fee and what
+was to arrive, since quotes are pruned. The signatures match the community TypeScript SDK's for the same
 action ([decision](decisions/hyperliquid-cctp.md)).
 
 A unified account (its mode, as the reads report it) has one balance for spot

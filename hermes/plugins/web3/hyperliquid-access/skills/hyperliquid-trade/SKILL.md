@@ -131,7 +131,10 @@ destination stopped (or started) being one of the user's Hermes wallets is
 refused: quote it again. A withdrawal goes through Circle's CCTP: Circle's
 fee (0.2 USDC to most chains, more to Ethereum; the card shows it and what
 arrives) comes off the amount, and Circle mints it on the chain, usually
-within a minute, paying the gas there itself. Say so, and check that chain's
+within a minute, paying the gas there itself. The venue also takes about
+0.01 USDC of its own from the balance beside the amount, so the balance drops
+by a little more than the amount, and the whole balance cannot be withdrawn
+(the quote says how much can). Say so, and check that chain's
 balance with the `evm` tool before calling it missing. `chain` is one of the
 network's chains Circle carries USDC on (ethereum, base, arbitrum, optimism,
 polygon, avalanche, linea, unichain, sonic, world-chain, ink, or their
