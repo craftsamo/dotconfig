@@ -136,10 +136,22 @@ bare answer, `waitingForFill`, reads `waiting for fill`), or `rejected` when it 
 `unknown`, and so does any reply that is neither `ok` nor the venue's
 explicit `err`: the client order ids are looked up once and nothing is
 re-sent. An HTTP 4xx comes back before the venue processes anything (a
-malformed request, a rate limit) and is a refusal. The card names the venue's
-own id of a spot pair beside its tickers, and the compact card keeps every
-signed leg, dropping only context. A quote that will ask on a card is refused
-when its compact card would not fit Discord's limit, rather than shown cut.
+malformed request, a rate limit) and is a refusal.
+
+Cards are plain text (both surfaces escape markup), shaped like a wallet
+transfer's: a title naming the network and the action, then the effect with a
+marker (⚠️ for one that can add exposure or sends funds out of the Hermes
+wallets, ✅ for one that cannot), then one fact a line, then a block per side
+with the Keychain's project, name, address and memo. A move's `--- To ---`
+block says whose the destination is (own, watch-only by its Keychain name, or
+external) and shows the address in checksum case, though the signed action
+carries it in lower case. The card names the venue's own id of a spot pair
+beside its tickers, and the compact card keeps the title with the effect and
+every signed leg, dropping only context and, when it is long, clipping the
+account's name before anything else. The detailed card sheds memos to fit
+Telegram's budget and otherwise falls back to the compact one. A quote that
+will ask on a card is refused when its compact card would not fit Discord's
+limit, rather than shown cut.
 
 ## Moving funds
 
@@ -174,12 +186,11 @@ arrives. The venue also takes a small fee of its own for running the burn on
 HyperEVM, in USDC from the balance beside the amount; it is unpublished and
 outside the signed action, so the cards state it as about 0.01 USDC and the
 quote keeps 0.05 USDC of the balance free for it (`VENUE_FEE_ABOUT`,
-`VENUE_FEE_RESERVE`). The compact card says the route briefly, so the line
-fits Discord's limit with both fees. The signed burn carries no fee ceiling,
+`VENUE_FEE_RESERVE`). The signed burn carries no fee ceiling,
 so submit reads Circle's fee again before signing and refuses the quote if it
 changed (or cannot be read); the ledger rows keep the chain, the fee and what
-was to arrive, since quotes are pruned. The signatures match the community TypeScript SDK's for the same
-action ([decision](decisions/hyperliquid-cctp.md)).
+was to arrive, since quotes are pruned. The signatures match the community
+TypeScript SDK's for the same action ([decision](decisions/hyperliquid-cctp.md)).
 
 A unified account (its mode, as the reads report it) has one balance for spot
 and perp, and the venue refuses `spotSend` and `usdClassTransfer` from it. Its
