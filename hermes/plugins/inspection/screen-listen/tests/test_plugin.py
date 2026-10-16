@@ -108,7 +108,8 @@ def test_skill_is_registered_for_the_assistant_only(monkeypatch):
     plugin.register(ctx)
     assert set(ctx.skills) == {"discord-live"}
     text = ctx.skills["discord-live"].read_text(encoding="utf-8")
-    for needle in ("screen_listen", "computer_use", "discord://-/channels/", "Leave"):
+    for needle in ("screen_listen", "computer_use", "discord://-/channels/", "Leave", "record_start", "record_stop",
+                   "transcribe", "specialist_call", "MEDIA:", "not labelled"):
         assert needle in text
     ctx = Ctx("creator")
     plugin.register(ctx)

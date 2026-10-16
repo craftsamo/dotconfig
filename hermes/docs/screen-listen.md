@@ -13,14 +13,15 @@ Part of the Hermes design docs — index: [`PROFILES.md`](../PROFILES.md).
 
 ## Shape
 
-| Piece                                                                      | Home                                                        | Reader    |
-| -------------------------------------------------------------------------- | ----------------------------------------------------------- | --------- |
-| Helper: the only code that records, a Core Audio process tap in a tiny app | `engines/screen-listen/main.swift`, `Info.plist`            | people    |
-| Built helper (ad-hoc signed, ignored)                                      | `local/screen-listen/ScreenListen.app`                      | plugin    |
-| Engine manager (`install`, `status`, `grant`)                              | `scripts/screen-listen.sh`                                  | people    |
-| `screen_listen` tool (toolset `screen_listen`), allowlist, STT handoff     | `plugins/inspection/screen-listen/__init__.py`, `listen.py` | Assistant |
-| Recording sessions (start, status, stop, the kept files)                   | `plugins/inspection/screen-listen/record.py`                | Assistant |
-| When and how the Assistant uses it with `computer_use`                     | the plugin skill `screen-listen:discord-live`               | Assistant |
+| Piece                                                                      | Home                                                                  | Reader    |
+| -------------------------------------------------------------------------- | --------------------------------------------------------------------- | --------- |
+| Helper: the only code that records, a Core Audio process tap in a tiny app | `engines/screen-listen/main.swift`, `Info.plist`                      | people    |
+| Built helper (ad-hoc signed, ignored)                                      | `local/screen-listen/ScreenListen.app`                                | plugin    |
+| Engine manager (`install`, `status`, `grant`)                              | `scripts/screen-listen.sh`                                            | people    |
+| `screen_listen` tool (toolset `screen_listen`), allowlist, STT handoff     | `plugins/inspection/screen-listen/__init__.py`, `listen.py`           | Assistant |
+| Recording sessions (start, status, stop, the kept files)                   | `plugins/inspection/screen-listen/record.py`                          | Assistant |
+| Transcripts of kept recordings (a detached local-whisper job)              | `plugins/inspection/screen-listen/transcript.py`, `transcribe_job.py` | Assistant |
+| When and how the Assistant uses it with `computer_use`                     | the plugin skill `screen-listen:discord-live`                         | Assistant |
 
 ## Why a process tap, and why an app
 
@@ -116,6 +117,18 @@ turn into minutes, share. It differs from a listen in three ways.
   the user's own voice is absent. `tracks` in `recording.json` is a list on
   purpose: a microphone track is the planned second entry, behind the
   Microphone consent, mixed into the same m4a.
+- **Its transcript is a job, not a call.** `transcribe` (by session `id` or
+  folder `dir`) starts `transcribe_job.py` detached under the gateway's own
+  interpreter and returns; called again it reports progress from
+  `transcript.job.json` and, once done, the files: `transcript.txt` (one line
+  per segment, `[H:MM:SS] text`), `transcript.vtt` and `segments.json`, all
+  beside the audio, so `recordings` lists them. The job uses local
+  faster-whisper with the profile's `stt.local.model` and language (a `model`
+  argument overrides, `small` for speed), not the STT chain: the recording is
+  long and private and the cloud tiers cap uploads. Speakers are not labelled.
+  A failed or finished job is reported, not rerun, unless `force`. Minutes are
+  Writer's work from `transcript.txt`; sharing goes through the existing
+  routes (the chat the user asked from, a messaging plugin's attachment, Drive).
 
 Recording other people for an hour is a different act from a five-minute
 listen: the skill requires that the user asked for this session and that it is

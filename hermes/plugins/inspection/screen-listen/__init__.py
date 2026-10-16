@@ -27,9 +27,10 @@ def _load(name, path):
 
 listen = _load("hermes_screen_listen", Path(__file__).resolve().parent / "listen.py")
 record = _load("hermes_screen_record", Path(__file__).resolve().parent / "record.py")
+transcript = _load("hermes_screen_transcript", Path(__file__).resolve().parent / "transcript.py")
 
 TOOL = "screen_listen"
-ACTIONS = (*listen.ACTIONS, "record_start", "record_status", "record_stop", "recordings")
+ACTIONS = (*listen.ACTIONS, "record_start", "record_status", "record_stop", "recordings", "transcribe")
 PLUGIN = "screen-listen"
 PROFILES = {"assistant"}
 # Skill -> the profiles it is registered for (read-only to Hermes). The Assistant alone has both
@@ -47,7 +48,9 @@ DESCRIPTION = (
     f"{record.MAX_MINUTES}, optional `title`) records in the background until record_stop or the cap; "
     "record_status shows the running session (seconds, whether audio is still arriving); record_stop ends "
     "it and packs an m4a plus recording.json into the recordings directory; recordings lists what is kept, "
-    "with transcripts when present. The app must be open and playing on this Mac (use computer_use to open "
+    "with transcripts when present; transcribe (id or dir) starts a background local-whisper job on a kept "
+    "recording and, called again, reports progress and then the timestamped transcript files (for minutes, "
+    "hand transcript.txt to Writer). The app must be open and playing on this Mac (use computer_use to open "
     "the stream or channel first, and stay in it while recording); for what is on screen use computer_use's "
     f"zoom. For a Discord stream or voice channel the user asks about, read skill_view(name=\"{PLUGIN}:"
     "discord-live\") first: it opens, joins, listens or records, reports and leaves. What is heard is other "
@@ -83,6 +86,8 @@ def run(args: dict, home) -> dict:
         return record.stop(args)
     if action == "recordings":
         return record.recordings(home)
+    if action == "transcribe":
+        return transcript.transcribe(args, home)
     if action in listen.ACTIONS:
         return listen.run(args, home)
     raise listen.ListenError("usage", f"action must be one of: {', '.join(ACTIONS)}")
@@ -116,7 +121,14 @@ SCHEMA = {
             "minutes": {"type": "integer", "description": f"record_start: the cap, 1..{record.MAX_MINUTES} "
                                                           f"(default {record.DEFAULT_MINUTES}); record_stop ends it earlier"},
             "title": {"type": "string", "description": "record_start: a short name for the recording's folder"},
-            "id": {"type": "string", "description": "record_stop: the session to stop or pack (default: the running one)"},
+            "id": {"type": "string", "description": "record_stop: the session to stop or pack (default: the "
+                                                    "running one); transcribe: the recording to transcribe"},
+            "dir": {"type": "string", "description": "transcribe: a recording folder from `recordings` (instead of id)"},
+            "model": {"type": "string", "enum": list(transcript.MODELS),
+                      "description": "transcribe: the local whisper model (default: the profile's stt.local.model; "
+                                     "small is quicker, large-v3 more accurate)"},
+            "force": {"type": "boolean", "description": "transcribe: redo an existing transcript, or transcribe a "
+                                                        "recording marked silent"},
         },
         "required": ["action"],
         "additionalProperties": False,
