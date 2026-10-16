@@ -677,7 +677,10 @@ def test_a_withdrawal_to_the_account_itself_runs_as_own_and_counts_as_a_transfer
     assert q["effect"] == "own" and q["summary"]["destination"] == USER and q["summary"]["arrives"] == "49.8"
     assert q["summary"]["fee"] == "0.2" and q["summary"]["fee_from"] == "amount"
     assert "Withdraw: 50 USDC from the perp balance to Arbitrum Sepolia" in q["card"]
-    assert "Fee: 0.2 USDC to Circle's CCTP (about 49.8 arrives, usually within a minute)" in q["card"]
+    # with the venue's own fee for the burn, beside the amount and outside the signed action
+    assert ("Fee: 0.2 USDC to Circle's CCTP, +≈0.01 to the venue from the balance (about 49.8 arrives, usually "
+            "within a minute)") in q["card"]
+    assert q["summary"]["venue_fee_about"] == "0.01"
     assert f"To (own): {USER}" in q["card"] and "Effect: stays in the user's Hermes wallets" in q["card"]
     done = ok(submit(run, q["quote"], "own"))
     assert done["submitted"] is True and "mints it on Arbitrum Sepolia" in done["note"]
@@ -713,7 +716,8 @@ def test_a_withdrawal_goes_to_a_named_cctp_chain_of_its_network_for_circle_s_fee
     q = quote(run, kind="withdraw", amount="10", chain="sepolia")  # Ethereum's domain 0 costs 1.2 here
     assert q["summary"]["arrives"] == "8.8" and "to Sepolia" in q["card"]
     short = json.loads((run.state / "hl-quotes" / f"{q['quote']}.json").read_text())["card_short"]
-    assert "Withdraw: 10 USDC from the perp balance to Sepolia (8.8 arrives)" in short
+    assert "Withdraw: 10 USDC perp → Sepolia (8.8 arrives; +≈0.01 fee)" in short
+    assert "more to the venue" not in short  # the compact card says it on the withdraw line only
     ok(submit(run, q["quote"], "own"))
     (body,) = exchanged()
     assert body["action"]["destinationChainId"] == 0
@@ -825,6 +829,31 @@ def test_an_external_unified_send_s_compact_card_fits_discord_whole(run):
     assert not reply["ok"] and "would not fit Discord's limit" in reply["error"]  # refused, never shown cut
 
 
+def test_an_external_withdrawal_s_compact_card_fits_discord_at_its_longest(run):
+    VENUE["mode"] = "unifiedAccount"  # the longer balance name, the longest chain name, a long name and amount
+    long_name = "hermes/HERMES_TRADING_WALLET_WITH_A_LONG_NAME"
+    sources = [SOURCES[0], item(long_name, TEAM_WORDS)]
+    q = ok(run("quote", account=f"{long_name}#0", network="testnet", kind="withdraw", amount="24.123456",
+               destination=STRANGER, chain="world-chain-sepolia", _sources=sources))
+    short = json.loads((run.state / "hl-quotes" / f"{q['quote']}.json").read_text())["card_short"]
+    assert q["effect"] == "external" and len(short.replace("&", "&amp;").encode("utf-16-le")) // 2 <= 290
+    assert "Withdraw: 24.123456 USDC unified → World Chain Sepolia (23.923456 arrives; +≈0.01 fee)" in short
+    assert STRANGER.lower() in short
+
+
+def test_a_withdrawal_quoted_before_the_venue_fee_was_known_still_shows_its_card():
+    # a stored quote without venue_fee_about, rendered by the trader's own interpreter
+    probe = ("import json, sys; sys.path.insert(0, sys.argv[1]); import hl_moves; k = hl_moves.KINDS['withdraw']; "
+             "b = {'amount': '3', 'balance': 'perp', 'chain': 'Arbitrum One', 'destination': '0xab', 'fee': '0.2', "
+             "'arrives': '2.8'}; lines = k.lines(b, 'own'); print(json.dumps([lines[-1], k.short(b, lines)[0]]))")
+    proc = subprocess.run([str(PYTHON), "-c", probe, str(TRADER.parent)], capture_output=True, text=True, timeout=60,
+                          env={"PATH": "/usr/bin:/bin", "PYTHONDONTWRITEBYTECODE": "1"})
+    assert proc.returncode == 0, proc.stderr
+    fee, short = json.loads(proc.stdout)
+    assert fee == "Fee: 0.2 USDC to Circle's CCTP (about 2.8 arrives, usually within a minute)"
+    assert short.endswith("(2.8 arrives)")
+
+
 def test_a_unified_account_withdraws_from_its_one_balance_and_has_nothing_to_transfer(run):
     VENUE["mode"] = "portfolioMargin"
     VENUE["withdrawable"] = "0"
@@ -833,7 +862,8 @@ def test_a_unified_account_withdraws_from_its_one_balance_and_has_nothing_to_tra
     assert q["summary"]["available"] == "25" and q["summary"]["move"]["sourceDex"] == "spot"
     VENUE["after_margin"] = "12"  # positions hold the rest
     reply = run("quote", account=f"{MAIN}#0", network="testnet", kind="withdraw", amount="20")
-    assert not reply["ok"] and "can withdraw 12 USDC now (unified balance after margin)" in reply["error"]
+    assert not reply["ok"] and "can withdraw 11.95 USDC now (unified balance after margin; 0.05 stays free" \
+        in reply["error"]
     reply = run("quote", account=f"{MAIN}#0", network="testnet", kind="transfer", amount="5", to_perp=True)
     assert not reply["ok"] and "unified account" in reply["error"] and "nothing to move" in reply["error"]
 
@@ -848,7 +878,8 @@ def test_a_spot_perp_transfer_stays_in_the_account(run):
 
 
 @pytest.mark.parametrize("fields, needle", [
-    ({"kind": "withdraw", "amount": "500"}, "can withdraw 100 USDC"),
+    ({"kind": "withdraw", "amount": "500"}, "can withdraw 99.95 USDC"),
+    ({"kind": "withdraw", "amount": "100"}, "can withdraw 99.95 USDC"),  # all of it leaves nothing for the venue
     ({"kind": "withdraw", "amount": "0.2"}, "pays Circle 0.2 USDC"),
     ({"kind": "withdraw", "amount": "5", "destination": "0x08cfc1B6b2dCF36A1480b99353A354AA8AC56f89"}, "deposit bridge"),
     ({"kind": "withdraw", "amount": "5", "destination": "0x" + "00" * 20}, "zero address"),
