@@ -39,9 +39,19 @@ class ExplainerVideoReviewRouting(unittest.TestCase):
                       "`analyze-card`", "`destination: youtube-thumb`",
                       "`technic: primary-fact-pack`", "`technic: claim-check`, through Creator",
                       "`write-document`, format `report`", "`prosody: yes` when voice is in scope",
-                      "so they reach the user only on the review sheet"):
+                      "never import a speech report as it is", "review.py triage-speech",
+                      'skill_view(name="google-access:google-sheets")', "review.py export", "review.py readback"):
             self.assertIn(owner, text)
         self.assertNotIn('analyze-speech` with `kind="inquiry"', text)
+
+    def test_the_spreadsheet_is_the_users_channel(self):
+        text = flat(TECHNIC / "SKILL.md")
+        for rule in ("The spreadsheet is the channel between you and the user, nobody else",
+                     "The user owns `judgment` and `memo`; you own `reply`",
+                     "the decision returns to the user, never to you",
+                     "never a local path", "send the sheet's URL, not a file",
+                     "the spreadsheet stays between you and the user"):
+            self.assertIn(rule, text)
 
     def test_the_picture_leaf_is_commissioned_and_bounded(self):
         commission = flat(ROOT / "execute-assistant-creative/references/explainer-video.md")
@@ -61,7 +71,7 @@ class ExplainerVideoReviewRouting(unittest.TestCase):
 
     def test_judgments_stay_with_the_user(self):
         text = flat(TECHNIC / "SKILL.md")
-        self.assertIn("| Listening, likeness, the final send | the user |", text)
+        self.assertIn("| Judgments, listening, likeness, the final send | the user |", text)
         self.assertIn("leave the verdict to the user", text)
         self.assertIn("Nothing goes to the requester without the user's explicit OK", text)
 
