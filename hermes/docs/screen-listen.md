@@ -159,14 +159,27 @@ turn into minutes, share. It differs from a listen in three ways.
   in the state directory and is removed when packed.
 - **It hears the other side only.** The tap is the app's output, so in a call
   the user's own voice is absent. `tracks` in `recording.json` is a list on
-  purpose: a microphone track is the planned second entry, behind the
+  purpose: a microphone track is the planned next entry, behind the
   Microphone consent, mixed into the same m4a.
+- **Video is a second track, not a second recording.** `record_start` with
+  `video: true` launches the helper's `capture` beside the audio helper (same
+  cap, the app's window, `window` to pick one by title) writing `video.mp4`
+  in the same folder; `record_stop` ends the capture first, then the audio,
+  and keeps the MP4 as the helper finalized it (no re-encode; it holds the
+  app's audio too, so it plays on its own). The audio stays the primary
+  deliverable: a capture that cannot start (Screen Recording refused, no
+  window) is reported in the start answer and the session goes on without
+  it; a capture that ends early (the window closed) leaves a shorter video,
+  said so at stop. `recording.json` names it as `video` and a `window` track;
+  `recordings` lists it. The transcript is always from the audio track.
 - **Its transcript is a job, not a call.** `transcribe` (by session `id` or
   folder `dir`) starts `transcribe_job.py` detached under the gateway's own
   interpreter and returns; called again it reports progress from
-  `transcript.job.json` and, once done, the files: `transcript.txt` (one line
-  per segment, `[H:MM:SS] text`), `transcript.vtt` and `segments.json`, all
-  beside the audio, so `recordings` lists them. The job uses local
+  `transcript.job.json` (`percent` and, once there is a pace, `eta_seconds`,
+  so the caller waits about that long instead of guessing) and, once done,
+  the files: `transcript.txt` (one line per segment, `[H:MM:SS] text`),
+  `transcript.vtt` and `segments.json`, all beside the audio, so `recordings`
+  lists them. The job uses local
   faster-whisper with the profile's `stt.local.model` and language (a `model`
   argument overrides, `small` for speed), not the STT chain: the recording is
   long and private and the cloud tiers cap uploads. Speakers are not labelled.
