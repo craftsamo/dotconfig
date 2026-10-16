@@ -3,10 +3,16 @@
 //
 //   screen-listen processes                         -> {"ok":true,"data":[{pid,bundle,running_output}]}
 //   screen-listen record (--bundle ID [--prefix] | --pid PID) --seconds N --out FILE
+//                        [--mono] [--progress FILE]
 //                                                   -> {"ok":true,"data":{...}} | {"ok":false,"kind","error"}
 //
-// Core Audio registers audio under the responsible process (what launched the app), so a
-// bundle id matches the app's own process objects; ``--pid`` serves diagnostics.
+// Core Audio registers one process object per process that plays, with that process's own
+// bundle id, so an app's helper processes (``<bundle>.helper`` and the like) are matched with
+// ``--prefix``; ``--pid`` serves diagnostics. ``--mono``
+// mixes the processes down to one channel (voice recordings; half the bytes). ``--progress``
+// rewrites a small JSON file every few seconds (pid, seconds, frames, peak, whether audio
+// arrived since the last write) so a long recording can be watched and stopped from outside:
+// SIGTERM ends it cleanly, with the WAV finalized and the final JSON on stdout.
 //
 // One JSON object on stdout, nothing else. The first `record` on this machine makes macOS ask
 // for "System Audio Recording" for the app bundle this binary lives in (NSAudioCaptureUsageDescription
@@ -16,7 +22,8 @@ import AVFoundation
 import CoreAudio
 import Foundation
 
-let maxSeconds = 3600.0
+let maxSeconds = 4 * 3600.0
+let progressInterval = 2.0
 nonisolated(unsafe) var stopRequested: Int32 = 0   // set by a signal handler, read by the wait loop
 
 struct Failure: Error {
@@ -111,8 +118,9 @@ final class Recorder {
     private(set) var sampleRate: Double = 0
     private(set) var channels: Int = 0
 
-    func start(processes: [AudioObjectID], output: URL) throws {
-        let description = CATapDescription(stereoMixdownOfProcesses: processes)
+    func start(processes: [AudioObjectID], output: URL, mono: Bool) throws {
+        let description = mono ? CATapDescription(monoMixdownOfProcesses: processes)
+                               : CATapDescription(stereoMixdownOfProcesses: processes)
         description.uuid = UUID()
         description.name = "screen-listen"
         description.isPrivate = true
@@ -235,8 +243,11 @@ func commandRecord(_ args: [String]) {
           seconds <= maxSeconds else { fail("usage", "--seconds must be between 0 and \(Int(maxSeconds))") }
     guard let outPath = option("--out", args), outPath.hasPrefix("/") else { fail("usage", "--out must be an absolute path") }
     let prefix = args.contains("--prefix")
+    let mono = args.contains("--mono")
     let output = URL(fileURLWithPath: outPath)
     if FileManager.default.fileExists(atPath: outPath) { fail("usage", "--out already exists") }
+    let progressPath = option("--progress", args)
+    if let progressPath, !progressPath.hasPrefix("/") { fail("usage", "--progress must be an absolute path") }
 
     let processes: [AudioProcess]
     do {
@@ -254,7 +265,7 @@ func commandRecord(_ args: [String]) {
     let recorder = Recorder()
     let started = Date()
     do {
-        try recorder.start(processes: processes.map(\.object), output: output)
+        try recorder.start(processes: processes.map(\.object), output: output, mono: mono)
     } catch let failure as Failure {
         recorder.stop()
         try? FileManager.default.removeItem(at: output)
@@ -268,17 +279,40 @@ func commandRecord(_ args: [String]) {
     signal(SIGINT) { _ in stopRequested = 1 }
     signal(SIGTERM) { _ in stopRequested = 1 }
     let deadline = started.addingTimeInterval(seconds)
+    var lastProgress = Date.distantPast
+    var lastFrames: Int64 = 0
+    func writeProgress(final: Bool) {
+        guard let progressPath else { return }
+        let now = Date()
+        let frames = recorder.frames
+        let object: [String: Any] = [
+            "pid": Int(getpid()), "seconds": (now.timeIntervalSince(started) * 10).rounded() / 10,
+            "frames": frames, "receiving": frames > lastFrames,
+            "peak": (Double(recorder.peak) * 10000).rounded() / 10000, "final": final,
+            "updated": ISO8601DateFormatter().string(from: now)]
+        if let data = try? JSONSerialization.data(withJSONObject: object, options: [.sortedKeys]) {
+            // .atomic writes beside and renames over, so a reader never sees a half-written file.
+            try? data.write(to: URL(fileURLWithPath: progressPath), options: .atomic)
+        }
+        lastProgress = now
+        lastFrames = frames
+    }
+    writeProgress(final: false)
     while stopRequested == 0 && Date() < deadline {
         Thread.sleep(forTimeInterval: min(0.1, max(0, deadline.timeIntervalSinceNow)))
+        if Date().timeIntervalSince(lastProgress) >= progressInterval { writeProgress(final: false) }
     }
     recorder.stop()
     let elapsed = Date().timeIntervalSince(started)
     if let writeError = recorder.writeError {
+        writeProgress(final: true)
         fail("io", "writing the WAV failed: \(writeError)")
     }
+    writeProgress(final: true)
     let size = (try? FileManager.default.attributesOfItem(atPath: outPath)[.size] as? Int) ?? 0
     emit(["ok": true, "data": [
         "file": outPath,
+        "pid": Int(getpid()),
         "bytes": size,
         "seconds": (elapsed * 100).rounded() / 100,
         "stopped_early": stopRequested != 0,
@@ -298,5 +332,6 @@ case "processes":
 case "record":
     commandRecord(Array(arguments.dropFirst()))
 default:
-    fail("usage", "commands: processes | record (--bundle ID [--prefix] | --pid PID) --seconds N --out FILE")
+    fail("usage", "commands: processes | record (--bundle ID [--prefix] | --pid PID) --seconds N --out FILE "
+                  + "[--mono] [--progress FILE]")
 }
