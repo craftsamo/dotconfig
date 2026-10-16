@@ -5,8 +5,8 @@ Discord by default, so a Go Live stream or a voice channel the user has open in
 the Discord app — either listened to for a few minutes and returned as text, or
 recorded as a session for hours and kept as a file the user can play back,
 transcribe and share. It is the audio half of "look at that stream for me"; the picture half is
-`computer_use` (cua-driver's `zoom` on the window), and opening the stream or
-channel in the first place is `computer_use` too. Nothing here touches the
+`computer_use` (a `capture` of the window), and joining the stream or channel
+in the first place is `computer_use` too, after a deep link opens it. Nothing here touches the
 Discord API, the user's Discord account ([discord-access.md](discord-access.md))
 or the Assistant's Discord bot. Read it when changing the plugin or its helper.
 Part of the Hermes design docs — index: [`PROFILES.md`](../PROFILES.md).
