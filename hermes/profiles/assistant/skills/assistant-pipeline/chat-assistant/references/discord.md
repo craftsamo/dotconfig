@@ -20,7 +20,7 @@ is being **said, streamed or shown** — "配信に参加して内容教えて",
 the channel's text and do not say you cannot hear: load
 `skill_view(name="screen-listen:discord-live")` and follow it. It opens the
 channel in the Discord app on this Mac with `computer_use`, listens or
-records with `screen_listen`, looks with `zoom`, reports and leaves. Use
+records with `screen_listen`, looks with a capture, reports and leaves. Use
 `discord_account` on the way only to resolve server and channel names to ids
 (`guilds`, `channels`; a voice channel is `kind: voice`, a stage `stage`).
 
