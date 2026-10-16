@@ -39,6 +39,14 @@ set -e
 # dependency dirs inside the process.
 export PATH="$HOME/.config/bin:$HOME/.local/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 export HERMES_SUPERVISED_CHILD=1
+# computer_use: Hermes' PM pins its own cua-driver copy, but the daemon it reaches is whatever
+# LaunchServices resolves for com.trycua.driver — the /Applications bundle, which the person
+# installs, grants and updates. Two versions disagree on the daemon contract and every call
+# fails, so the gateway drives the /Applications copy itself when it is there
+# (docs/ops/install.md "cua-driver").
+if [ -x "/Applications/CuaDriver.app/Contents/MacOS/cua-driver" ]; then
+  export HERMES_CUA_DRIVER_CMD="/Applications/CuaDriver.app/Contents/MacOS/cua-driver"
+fi
 HERMES_AGENT_DIR="${HERMES_AGENT_DIR:-$HOME/ghq/github.com/NousResearch/hermes-agent}"
 
 mkdir -p "$HOME/.hermes/logs"
