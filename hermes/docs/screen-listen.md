@@ -2,8 +2,9 @@
 
 The Assistant's ear on this Mac: what one allowed application is playing —
 Discord by default, so a Go Live stream or a voice channel the user has open in
-the Discord app — recorded for a bounded time and returned as text. It is the
-audio half of "look at that stream for me"; the picture half is
+the Discord app — either listened to for a few minutes and returned as text, or
+recorded as a session for hours and kept as a file the user can play back,
+transcribe and share. It is the audio half of "look at that stream for me"; the picture half is
 `computer_use` (cua-driver's `zoom` on the window), and opening the stream or
 channel in the first place is `computer_use` too. Nothing here touches the
 Discord API, the user's Discord account ([discord-access.md](discord-access.md))
@@ -18,6 +19,7 @@ Part of the Hermes design docs — index: [`PROFILES.md`](../PROFILES.md).
 | Built helper (ad-hoc signed, ignored)                                      | `local/screen-listen/ScreenListen.app`                      | plugin    |
 | Engine manager (`install`, `status`, `grant`)                              | `scripts/screen-listen.sh`                                  | people    |
 | `screen_listen` tool (toolset `screen_listen`), allowlist, STT handoff     | `plugins/inspection/screen-listen/__init__.py`, `listen.py` | Assistant |
+| Recording sessions (start, status, stop, the kept files)                   | `plugins/inspection/screen-listen/record.py`                | Assistant |
 | When and how the Assistant uses it with `computer_use`                     | the plugin skill `screen-listen:discord-live`               | Assistant |
 
 ## Why a process tap, and why an app
@@ -82,8 +84,43 @@ than the host, silently from the plugin's side (`open` fails with -10825).
 - No approval card: a listen records only an allowed app the user asked to
   hear, for a bounded time, into a private folder. Widening the allowlist is a
   config change by the user, not something the Assistant can do.
-- Not a monitor: there is no background or continuous listening; each listen is
-  one bounded tool call.
+- Not a monitor: nothing listens on its own. A listen is one bounded tool call;
+  a recording session runs only between the user's start and stop (or its cap)
+  and is announced as such.
+
+## Recording sessions
+
+A session is for a call or stream the user wants to keep whole: play back,
+turn into minutes, share. It differs from a listen in three ways.
+
+- **It outlives the tool call.** `record_start` launches the helper detached
+  (`open` without `-W`) with `--progress`, waits only until the helper reports
+  its pid, and returns; the helper records until `record_stop` sends it
+  SIGTERM or `minutes` (at most 240, default 180) runs out. `record_status`
+  reads the progress file: seconds so far and whether audio arrived in the
+  last write (a silent, left or restarted app shows `receiving: false`; a
+  restarted app is not followed, because the tap was built on its old
+  processes). One session at a time; a helper that died without an answer is
+  marked failed by the next action rather than blocking it.
+- **The file is a deliverable.** `record_stop` reads the helper's answer,
+  converts the mono WAV to a 64 kbps AAC m4a with ffmpeg (about 30 MB an
+  hour), deletes the WAV and writes `recording.json` (app, title, times,
+  seconds, peak, silence, the `tracks` list) beside it, under
+  `screen_listen.record_dir` (default `~/Workspaces/.inbox/recordings/`, so
+  the messaging plugins' attach roots reach it) in a folder named
+  `<YYYYMMDD-HHMM>-<app>[-<title>]`. `recordings` lists them, with transcripts
+  when present. A session that hit its cap is packed by the next
+  `record_stop`. Session bookkeeping (progress, the helper's stdout, pid) stays
+  in the state directory and is removed when packed.
+- **It hears the other side only.** The tap is the app's output, so in a call
+  the user's own voice is absent. `tracks` in `recording.json` is a list on
+  purpose: a microphone track is the planned second entry, behind the
+  Microphone consent, mixed into the same m4a.
+
+Recording other people for an hour is a different act from a five-minute
+listen: the skill requires that the user asked for this session and that it is
+their meeting or announced to its participants, and the Assistant says when a
+recording is running.
 
 ## Setup
 
