@@ -18,7 +18,7 @@ Part of the Hermes design docs — index: [`PROFILES.md`](../PROFILES.md).
 | Built helper (ad-hoc signed, ignored)                                      | `local/screen-listen/ScreenListen.app`                      | plugin    |
 | Engine manager (`install`, `status`, `grant`)                              | `scripts/screen-listen.sh`                                  | people    |
 | `screen_listen` tool (toolset `screen_listen`), allowlist, STT handoff     | `plugins/inspection/screen-listen/__init__.py`, `listen.py` | Assistant |
-| When and how the Assistant uses it with `computer_use`                     | the plugin skill `screen-listen:discord-live` (planned)     | Assistant |
+| When and how the Assistant uses it with `computer_use`                     | the plugin skill `screen-listen:discord-live`               | Assistant |
 
 ## Why a process tap, and why an app
 
@@ -73,7 +73,12 @@ than the host, silently from the plugin's side (`open` fails with -10825).
 
 - The app must be open and playing on this Mac: the user is a viewer, or the
   Assistant made the Mac one with `computer_use`. The tool never opens, joins
-  or leaves anything; that choreography is the skill's.
+  or leaves anything; that choreography is the skill's
+  (`screen-listen:discord-live`: resolve the channel with `discord_account`,
+  open its deep link in the background, join, watch, listen, report, leave).
+  The skill reads the app's controls from the accessibility tree by label in
+  the app's own language rather than assuming positions, because Discord's UI
+  changes.
 - No approval card: a listen records only an allowed app the user asked to
   hear, for a bounded time, into a private folder. Widening the allowlist is a
   config change by the user, not something the Assistant can do.
