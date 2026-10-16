@@ -37,8 +37,8 @@ Video is the one opt-in beyond that. The helper's `capture` records **one
 window of the allowed app** through ScreenCaptureKit (a desktop-independent
 window filter: the window as composited for itself, so other windows over it,
 notifications and the cursor are not in it), at a bounded frame rate and width
-(10 fps, 1280 points by default: a screen share is not a film, and an hour
-must stay in the hundreds of megabytes), with the app's own audio in the same
+(the plugin passes its `--fps` and `--max-width`; the file grows with both,
+and with how much the picture moves), with the app's own audio in the same
 MP4 (`SCRecordingOutput`, H.264 + AAC, macOS 15). It never captures a
 display. The consent for it is **Screen Recording**, asked only when video is
 used (`grant-screen`), and it behaves unlike the audio one: macOS re-confirms
@@ -164,7 +164,10 @@ turn into minutes, share. It differs from a listen in three ways.
 - **Video is a second track, not a second recording.** `record_start` with
   `video: true` launches the helper's `capture` beside the audio helper (same
   cap, the app's window, `window` to pick one by title) writing `video.mp4`
-  in the same folder; `record_stop` ends the capture first, then the audio,
+  in the same folder at `screen_listen.video_fps` (default 30, what a Discord
+  stream arrives at; a per-call `fps` overrides — 10 is enough for slides or
+  a terminal and far smaller) and at most `screen_listen.video_max_width`
+  points wide (1280); `record_stop` ends the capture first, then the audio,
   and keeps the MP4 as the helper finalized it (no re-encode; it holds the
   app's audio too, so it plays on its own). The audio stays the primary
   deliverable: a capture that cannot start (Screen Recording refused, no

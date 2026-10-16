@@ -47,8 +47,9 @@ STOP_WAIT = 60               # seconds for the helper to finalize after SIGTERM
 STALE_PROGRESS = 15          # a progress file older than this means the helper is gone
 FFMPEG_TIMEOUT = 600
 BITRATE = "64k"
-VIDEO_FPS = 10               # a screen share is not a film; this keeps an hour in the hundreds of MB
-VIDEO_MAX_WIDTH = 1280
+VIDEO_FPS = 30               # what a Discord stream arrives at; slides or a terminal are fine at 10 (a smaller file)
+VIDEO_MAX_FPS = 60
+VIDEO_MAX_WIDTH = 1280       # points; the file grows with the square of this
 VIDEO_MIN_BYTES = 4096       # an MP4 smaller than this holds no frames
 TITLE = re.compile(r"[^a-z0-9]+")
 RECENT = 20
@@ -60,6 +61,25 @@ def record_dir(home) -> Path:
     root.mkdir(parents=True, exist_ok=True)
     os.chmod(root, 0o700)
     return root
+
+
+def _configured(home, key: str, default: int, lo: int, hi: int) -> int:
+    """``screen_listen.<key>`` clamped to lo..hi; junk means the default, never wider."""
+    raw = listen.profile_config(home).get(key)
+    if raw is None or isinstance(raw, bool):
+        return default
+    try:
+        return max(lo, min(int(float(raw)), hi))
+    except (TypeError, ValueError):
+        return default
+
+
+def video_settings(home, args: dict) -> tuple[int, int]:
+    """(fps, max width): the profile's ``video_fps`` / ``video_max_width`` or the defaults, with a
+    per-call ``fps`` on top (slides at 10, a game at 30 or 60)."""
+    fps = _configured(home, "video_fps", VIDEO_FPS, 1, VIDEO_MAX_FPS)
+    width = _configured(home, "video_max_width", VIDEO_MAX_WIDTH, 320, 3840)
+    return listen._int(args, "fps", fps, 1, VIDEO_MAX_FPS), width
 
 
 def _private(path: Path) -> None:
@@ -180,6 +200,7 @@ def start(args: dict, home) -> dict:
     minutes = listen._int(args, "minutes", DEFAULT_MINUTES, 1, MAX_MINUTES)
     video = bool(args.get("video"))
     window = args.get("window").strip() if isinstance(args.get("window"), str) else ""
+    fps, max_width = video_settings(home, args)
     raw_title = args.get("title").strip() if isinstance(args.get("title"), str) else ""
     # The slug only names the folder (a Japanese title leaves it empty); the title itself is kept.
     title = TITLE.sub("-", raw_title.lower())[:40].strip("-")
@@ -210,7 +231,7 @@ def start(args: dict, home) -> dict:
     if video:
         session["video"] = {"mp4": str(folder / "video.mp4"), "progress": str(state / "video-progress.json"),
                             "log": str(state / "video.json"), "err": str(state / "video.err"),
-                            "window": window or None, "status": "starting"}
+                            "window": window or None, "fps": fps, "max_width": max_width, "status": "starting"}
     _save(session)
     command = ["/usr/bin/open", "-n", "-g", "--stdout", session["log"], "--stderr", session["err"], "-a",
                str(listen.APP), "--args", "record", "--bundle", bundle, "--prefix", "--seconds", str(minutes * 60),
@@ -281,7 +302,7 @@ def _start_video(session: dict, minutes: int) -> dict:
     video = session["video"]
     command = ["/usr/bin/open", "-n", "-g", "--stdout", video["log"], "--stderr", video["err"], "-a",
                str(listen.APP), "--args", "capture", "--bundle", session["bundle"], "--seconds", str(minutes * 60),
-               "--out", video["mp4"], "--fps", str(VIDEO_FPS), "--max-width", str(VIDEO_MAX_WIDTH),
+               "--out", video["mp4"], "--fps", str(video["fps"]), "--max-width", str(video["max_width"]),
                "--progress", video["progress"]]
     if video.get("window"):
         command += ["--window", video["window"]]
@@ -293,8 +314,8 @@ def _start_video(session: dict, minutes: int) -> dict:
             if progress and progress.get("pid"):
                 video.update({"pid": progress["pid"], "status": "recording"})
                 _save(session)
-                return {"video": True, "video_note": "the app's window is being recorded to video.mp4 beside the "
-                                                     "audio; it ends with the window if that closes"}
+                return {"video": True, "video_note": f"the app's window is being recorded to video.mp4 at {video['fps']} "
+                                                     "fps beside the audio; it ends with the window if that closes"}
             answer = listen._parse(_peek(video["log"])) if _peek(video["log"]).strip() else None
             if answer is not None and not answer.get("ok"):
                 break
