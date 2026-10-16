@@ -26,7 +26,8 @@ spec, the gate and what you do on each run.
   quote: you execute it, you never invent one.
 - **You may only take risk off an intent.** On a run you may skip an increase
   or lower its `usd`; never raise it, change its coin, side, stop or kind, or
-  add a quote of your own. Reduce intents (a close, a stop) are always sent.
+  add a quote of your own. Reduce intents (a close, a stop, a trailed stop
+  and the cancel of the one it replaces) are always sent.
 - **Bounds stay where they are.** The mandate is the hard bound; the spec's
   limits sit inside it. Never make, widen or renew a mandate on a run, never
   split an order to fit one, and never move funds for a strategy.
@@ -56,7 +57,8 @@ default when a stance does not hold, with a note saying why.
    wins rarely and big; most of its trades lose.
 2. `backtest` on mainnet with `long_history: true`, `end_time` fixed, and a
    `walk_forward` over a small grid (say entry 20/40/55, exit 10/20, stop_atr
-   2/3), for each market. Judge by `walk_forward.out_of_sample`, never by
+   2/3, and trail_atr 0/3 to see whether a trailing stop helps), for each
+   market. Judge by `walk_forward.out_of_sample`, never by
    `result` alone: return, CAGR, maximum drawdown, MAR, trades, fees. Compare
    with buy-and-hold for scale, and say what `unread` says (assumed funding,
    older prices from Binance spot). Run the markets one after another: a
@@ -186,6 +188,9 @@ The gate's report is a JSON line: per strategy, `intents` (each with an
      disagrees with the intent. Say why.
    - A `leverage` intent comes before its entry: if it is refused, skip the
      entry.
+   - An intent with `after` (the cancel of a stop a trailed one replaces) is
+     sent only once the intent it names was `sent`; if that one was refused
+     or `unknown`, skip it, so the position keeps the stop it has.
    - Refused, `not submitted`, or outside the mandate: nothing was sent;
      report the reason, never retry or work around it.
    - `unknown` or a submit that did not finish: stop that strategy for this

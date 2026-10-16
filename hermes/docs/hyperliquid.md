@@ -307,7 +307,10 @@ tested is what runs.
   last `entry` bars' range enters, beyond the last `exit` bars' opposite
   range exits) or `ema_cross` (two EMAs cross), each with a stop at
   `stop_atr` ATRs from the signal's close, placed with the entry, and a
-  `risk_pct` of equity lost at that stop. Only completed bars are read.
+  `risk_pct` of equity lost at that stop. An optional `trail_atr` moves the
+  stop to that many ATRs behind each completed close when that is tighter,
+  never looser; left out or 0, the rule set and its fingerprint are those of
+  the rules without it. Only completed bars are read.
 - **Fills**: a signal at a bar's close fills at the next bar's open with
   slippage and the taker fee both ways; a stop fills inside a bar whose range
   reaches it, at the open when the bar gaps through; funding accrues each
@@ -359,7 +362,11 @@ owns the procedure; this section owns what the code holds to.
   with its effect and reason. A position the rules or the stance in force
   exclude gets a close on every run; one without a reduce-only stop loss on
   its closing side for all of it (a take profit does not count) gets one,
-  once per bar; on a newly completed bar an entry gets its leverage set first when the
+  once per bar; under a trailing rule, one whose stop sits looser than the
+  trail after a newly completed bar gets the tighter stop first and then the
+  cancel of the one it replaces (the cancel names the stop intent in `after`,
+  and is sent only once that was), so it is never without one; on a newly
+  completed bar an entry gets its leverage set first when the
   market's is above the bound, then a market order with its stop, sized from
   the risk per trade and capped by the limits and the mandate (with headroom
   for the worst price the order is valued at). Without a mandate in force no
