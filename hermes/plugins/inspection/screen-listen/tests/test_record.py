@@ -67,8 +67,11 @@ class FakeHelper:
     """Stands in for `open` (detached helper) and ffmpeg. The helper 'runs' as this test
     process: progress and the final answer are written by the test."""
 
-    def __init__(self, pid=4242, running=True, playing=None):
+    def __init__(self, pid=4242, running=True, playing=None, video_pid=4343, video_refused=None):
         self.pid = pid
+        self.video_pid = video_pid
+        self.video_refused = video_refused   # an error the capture helper answers with instead of starting
+        self.video = None
         if running:
             LIVE.add(pid)
         self.ffmpeg_calls = []
@@ -77,6 +80,17 @@ class FakeHelper:
             {"pid": 1, "bundle": "com.hnc.Discord.helper", "running_output": True}]
 
     def __call__(self, command, **kwargs):
+        if command[0] == "/usr/bin/open" and "capture" in command:
+            self.open_calls.append(command)
+            self.video = {"progress": Path(command[command.index("--progress") + 1]),
+                          "log": Path(command[command.index("--stdout") + 1]),
+                          "mp4": Path(command[command.index("--out") + 1])}
+            if self.video_refused:
+                self.video["log"].write_text(json.dumps({"ok": False, "kind": "permission", "error": self.video_refused}))
+            else:
+                LIVE.add(self.video_pid)
+                self.write_video_progress(frames=0)
+            return subprocess.CompletedProcess(command, 0, "", "")
         if command[0] == "/usr/bin/open":
             self.open_calls.append(command)
             self.progress = Path(command[command.index("--progress") + 1])
@@ -107,6 +121,21 @@ class FakeHelper:
                                                                  "silent": silent, "frames": int(seconds * 48000),
                                                                  "stopped_early": True}}))
         LIVE.discard(self.pid)
+        if self.video and self.video_pid in LIVE:
+            self.finish_video(seconds)
+
+    def write_video_progress(self, frames, final=False):
+        self.video["progress"].write_text(json.dumps({"pid": self.video_pid, "seconds": frames / 10, "frames": frames,
+                                                      "receiving": True, "final": final,
+                                                      "updated": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}))
+
+    def finish_video(self, seconds=30.0, frames=None, stopped_by=None):
+        self.video["mp4"].write_bytes(b"\0" * 8192)
+        self.write_video_progress(frames=int(seconds * 10), final=True)
+        self.video["log"].write_text(json.dumps({"ok": True, "data": {
+            "seconds": seconds, "frames": int(seconds * 10), "width": 1280, "height": 800, "fps": 10,
+            "window": {"title": "Weekly - Discord"}, **({"stopped_by": stopped_by} if stopped_by else {})}}))
+        LIVE.discard(self.video_pid)
 
 
 def test_actions_and_schema_cover_recording():
@@ -114,7 +143,7 @@ def test_actions_and_schema_cover_recording():
     plugin.register(ctx)
     params = ctx.tools["screen_listen"]["schema"]["parameters"]
     assert set(params["properties"]["action"]["enum"]) >= {"record_start", "record_status", "record_stop", "recordings"}
-    assert {"minutes", "title", "id"} <= set(params["properties"])
+    assert {"minutes", "title", "id", "video", "window"} <= set(params["properties"])
     assert "record_start" in plugin.DESCRIPTION and "never the microphone" in plugin.DESCRIPTION
 
 
@@ -165,6 +194,82 @@ def test_start_says_when_the_app_is_idle(monkeypatch):
     monkeypatch.setattr(record.subprocess, "run", helper)
     out = call(action="record_start")
     assert out["ok"] and out["idle"] is True and "not outputting audio" in out["note"]
+
+
+def test_video_records_the_window_beside_the_audio(monkeypatch):
+    helper = FakeHelper()
+    monkeypatch.setattr(record.subprocess, "run", helper)
+
+    out = call(action="record_start", minutes=5, video=True, window="Weekly")
+    assert out["ok"] and out["video"] is True and "video.mp4" in out["video_note"]
+    capture = [c for c in helper.open_calls if "capture" in c][0]
+    assert capture[capture.index("--seconds") + 1] == "300" and capture[capture.index("--window") + 1] == "Weekly"
+    assert capture[capture.index("--fps") + 1] == str(record.VIDEO_FPS) and "--no-audio" not in capture
+    assert capture[capture.index("--out") + 1] == str(Path(out["dir"]) / "video.mp4")
+
+    helper.write_progress(frames=48000 * 5)
+    helper.write_video_progress(frames=50)
+    status = call(action="record_status")["active"]
+    assert status["video"] == {"seconds": 5.0, "frames": 50, "recording": True}
+
+    def kill(pid, sig):
+        SIGNALS.append((pid, sig))
+        if pid == helper.video_pid:
+            helper.finish_video(seconds=29.0)
+        else:
+            helper.finish(seconds=30.0)
+
+    monkeypatch.setattr(record.os, "kill", kill)
+    stopped = call(action="record_stop")
+    assert stopped["ok"] and stopped["seconds"] == 30.0
+    assert [s for s in SIGNALS] == [(helper.video_pid, 15), (helper.pid, 15)]   # the video first, then the audio
+    assert stopped["video"]["file"] == str(Path(stopped["dir"]) / "video.mp4") and stopped["video"]["width"] == 1280
+    assert stopped["video"]["seconds"] == 29.0 and oct(Path(stopped["video"]["file"]).stat().st_mode & 0o777) == "0o600"
+    meta = json.loads((Path(stopped["dir"]) / "recording.json").read_text())
+    assert meta["video"] == "video.mp4" and [t["kind"] for t in meta["tracks"]] == ["app", "window"]
+    assert meta["tracks"][1]["window"]["title"] == "Weekly - Discord"
+    assert not helper.video["progress"].exists() and not helper.video["log"].exists()
+    listed = call(action="recordings")["recordings"][0]
+    assert listed["video"] == stopped["video"]["file"]
+
+
+def test_video_that_cannot_start_leaves_the_audio_running(monkeypatch):
+    helper = FakeHelper(video_refused="ScreenCaptureKit refused to list windows")
+    monkeypatch.setattr(record.subprocess, "run", helper)
+    out = call(action="record_start", video=True)
+    assert out["ok"] and out["video"] is False and "grant-screen" in out["video_detail"]
+    assert "refused" in out["video_detail"] and not helper.video["mp4"].exists()
+    status = call(action="record_status")["active"]
+    assert status["video"]["recording"] is False and "refused" in status["video"]["detail"]
+
+    def kill(pid, sig):
+        SIGNALS.append((pid, sig))
+        helper.finish(seconds=12.0)
+
+    monkeypatch.setattr(record.os, "kill", kill)
+    stopped = call(action="record_stop")
+    assert stopped["ok"] and stopped["video"]["kept"] is False and "refused" in stopped["video"]["detail"]
+    assert SIGNALS == [(helper.pid, 15)]
+    meta = json.loads((Path(stopped["dir"]) / "recording.json").read_text())
+    assert "video" not in meta and len(meta["tracks"]) == 1
+
+
+def test_video_that_ended_with_its_window_is_kept_shorter(monkeypatch):
+    helper = FakeHelper()
+    monkeypatch.setattr(record.subprocess, "run", helper)
+    call(action="record_start", video=True)
+    helper.finish_video(seconds=8.0, stopped_by="window closed")   # the window went, the audio goes on
+    status = call(action="record_status")["active"]
+    assert status["video"]["recording"] is False and "ended" in status["video"]["note"]
+
+    def kill(pid, sig):
+        SIGNALS.append((pid, sig))
+        helper.finish(seconds=20.0)
+
+    monkeypatch.setattr(record.os, "kill", kill)
+    stopped = call(action="record_stop")
+    assert stopped["video"]["seconds"] == 8.0 and "shorter" in stopped["video"]["note"]
+    assert SIGNALS == [(helper.pid, 15)]
 
 
 def test_start_reports_a_helper_refusal(monkeypatch):

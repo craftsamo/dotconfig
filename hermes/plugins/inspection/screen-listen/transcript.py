@@ -15,6 +15,7 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+import time
 
 
 def _sibling(name: str):
@@ -127,6 +128,18 @@ def transcribe(args: dict, home) -> dict:
             "note": "transcribing in the background; call transcribe again for progress and, when done, the files"}
 
 
+def _eta(started, done: float, total: float) -> int | None:
+    """Seconds left at the pace so far, so the caller waits about that long instead of guessing;
+    None until the job has transcribed enough to have a pace."""
+    try:
+        elapsed = time.time() - time.mktime(time.strptime(str(started)[:19], "%Y-%m-%dT%H:%M:%S"))
+    except (TypeError, ValueError):
+        return None
+    if not total or done < 5 or elapsed <= 0:
+        return None
+    return max(0, round((total - done) * elapsed / done))
+
+
 def _report(folder: Path, state: dict, meta: dict) -> dict:
     out = {"ok": state.get("status") != "failed", "status": state.get("status"), "dir": str(folder),
            "model": state.get("model"), "seconds": meta.get("seconds")}
@@ -134,7 +147,11 @@ def _report(folder: Path, state: dict, meta: dict) -> dict:
         done, total = state.get("progress_seconds") or 0, state.get("duration") or meta.get("seconds") or 0
         out["progress_seconds"] = done
         out["percent"] = round(100 * done / total) if total else None
-        out["note"] = "still transcribing; call again later"
+        eta = _eta(state.get("started"), done, total)
+        if eta is not None:
+            out["eta_seconds"] = eta
+        out["note"] = ("still transcribing; call again later"
+                       + (f" (about {eta} s at the current pace)" if eta is not None else ""))
     elif state.get("status") == "done":
         out["files"] = {name: str(folder / name) for name in OUTPUTS if (folder / name).exists()}
         out["segments"] = state.get("segments")

@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+import time
 
 import pytest
 
@@ -84,6 +85,15 @@ def test_transcribe_starts_a_detached_job_and_reports_progress(monkeypatch, reco
 
     again = call(action="transcribe", dir=str(recording))
     assert again["status"] == "running" and again["percent"] == 33 and len(FakePopen.calls) == 1
+    assert "eta_seconds" not in again   # no start stamp yet: no pace to extrapolate
+
+    # 600 s done in 120 s of work: the remaining 1200 s take about 240 s.
+    started = time.strftime("%Y-%m-%dT%H:%M:%S%z", time.localtime(time.time() - 120))
+    (recording / "transcript.job.json").write_text(json.dumps({"status": "running", "pid": os.getpid(),
+                                                                "model": "medium", "progress_seconds": 600,
+                                                                "duration": 1800, "started": started}))
+    paced = call(action="transcribe", dir=str(recording))
+    assert 230 <= paced["eta_seconds"] <= 250 and "about" in paced["note"]
 
     (recording / "transcript.job.json").write_text(json.dumps({"status": "done", "model": "medium", "segments": 42,
                                                                 "detected_language": "ja"}))
