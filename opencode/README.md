@@ -446,8 +446,8 @@ leaving Hermes out made both lanes read about $29 high in three days.
 - **Hermes.** Its spend comes from each profile's `state.db`
   (`session_model_usage` rows billed to `anthropic`, read-only, about 0.1 s),
   as each row's growth since the checkpoint. It is charged in the pool's order,
-  `hermes.order` in `lanes.json` (Sub then Main), each lane taking only what
-  it still holds. This is an approximation: the rows do not say which org
+  `hermes.order` in `lanes.json` (the pool's priorities), each lane taking only
+  what it still holds. This is an approximation: the rows do not say which org
   billed them, and Hermes also moves on after a 429 or 401 while the first
   lane still holds credit. If a profile cannot be read, Hermes is left out of
   that run.
@@ -457,7 +457,13 @@ leaving Hermes out made both lanes read about $29 high in three days.
 
 `lib/credit-lanes/lanes.json` holds each lane's `amount`, its `renewalDay` (the
 day of the month the plan renews) and its key variable, plus where Hermes lives
-and its lane order; it changes only with a plan. What the lanes learn (grants
+and its lane order; it changes only with a plan. Those are account details, so
+the file is gitignored and lives in the private overlay, which links it into
+place (`private/install.sh`); the tracked `lanes.example.json` shows the shape,
+and a machine without the file has no lanes (`/credits` lists none, and the
+Quota endpoint answers 404 for each). Every provider in `creditLanes` needs a
+lane there, or `/credits` and Quota do not show it and Hermes' spend is never
+charged to it. What the lanes learn (grants
 and the latest checkpoint) lives outside the repository in
 `~/.local/state/opencode/credit-lanes.json` (`CREDIT_LANES_STATE` overrides it).
 Three ways to read it:

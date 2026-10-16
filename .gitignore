@@ -43,6 +43,12 @@ opencode/skills/*
 !opencode/skills/verify/
 !opencode/skills/web/
 
+# Console credit lanes: the grant amounts, renewal days and labels of each
+# lane are account details, so the real file lives in the private overlay and
+# is linked here by private/install.sh. lanes.example.json is the tracked shape;
+# a missing lanes.json reads as no lanes.
+opencode/lib/credit-lanes/lanes.json
+
 # machine-specific state rewritten by the Codex app (absolute home paths)
 codex/config.toml
 
