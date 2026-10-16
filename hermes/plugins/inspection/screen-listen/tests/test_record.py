@@ -67,12 +67,14 @@ class FakeHelper:
     """Stands in for `open` (detached helper) and ffmpeg. The helper 'runs' as this test
     process: progress and the final answer are written by the test."""
 
-    def __init__(self, pid=4242, running=True):
+    def __init__(self, pid=4242, running=True, playing=None):
         self.pid = pid
         if running:
             LIVE.add(pid)
         self.ffmpeg_calls = []
         self.open_calls = []
+        self.playing = playing if playing is not None else [
+            {"pid": 1, "bundle": "com.hnc.Discord.helper", "running_output": True}]
 
     def __call__(self, command, **kwargs):
         if command[0] == "/usr/bin/open":
@@ -88,6 +90,8 @@ class FakeHelper:
             return subprocess.CompletedProcess(command, 0, "", "")
         if command[0] == "/usr/bin/pkill":
             return subprocess.CompletedProcess(command, 0, "", "")
+        if command[-1] == "processes":
+            return subprocess.CompletedProcess(command, 0, json.dumps({"ok": True, "data": self.playing}), "")
         raise AssertionError(command)
 
     def write_progress(self, frames, final=False, receiving=True):
@@ -154,6 +158,13 @@ def test_start_status_stop_packs_an_m4a(monkeypatch, tmp_path):
     listed = call(action="recordings")
     assert listed["recordings"][0]["file"] == stopped["file"] and listed["recordings"][0]["title"] == "Weekly Sync!"
     assert call(action="record_status")["recent"][0]["status"] == "done"
+
+
+def test_start_says_when_the_app_is_idle(monkeypatch):
+    helper = FakeHelper(playing=[{"pid": 1, "bundle": "com.hnc.Discord", "running_output": False}])
+    monkeypatch.setattr(record.subprocess, "run", helper)
+    out = call(action="record_start")
+    assert out["ok"] and out["idle"] is True and "not outputting audio" in out["note"]
 
 
 def test_start_reports_a_helper_refusal(monkeypatch):

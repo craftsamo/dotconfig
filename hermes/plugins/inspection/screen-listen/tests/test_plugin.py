@@ -295,7 +295,16 @@ def test_chain_transcription_uses_the_runtime(monkeypatch, tmp_path):
     assert out == {"success": True, "transcript": "hi", "provider": "groq", "error": None}
 
 
-def test_no_frames_points_at_consent_and_leaves_nothing(monkeypatch, tmp_path):
+def test_no_frames_from_an_idle_app_is_silence(monkeypatch, tmp_path):
+    idle = [{"pid": 1, "bundle": "com.hnc.Discord", "running_output": False}]
+    monkeypatch.setattr(listen.subprocess, "run", fake_open(recorded(frames=0, peak=0.0, silent=True, processes=idle)))
+    out = call(action="listen")
+    assert out["ok"] and out["silent"] and out["idle"] and out["transcript"] == "" and "idle" in out["note"]
+    state = tmp_path / "state" / "hermes-screen-listen"
+    assert not [p for p in state.iterdir() if p.is_dir()]
+
+
+def test_no_frames_from_a_playing_app_points_at_consent_and_leaves_nothing(monkeypatch, tmp_path):
     monkeypatch.setattr(listen.subprocess, "run", fake_open(recorded(frames=0, peak=0.0, silent=True)))
     out = call(action="listen")
     assert out["ok"] is False and out["kind"] == "no_audio" and "grant" in out["error"]
