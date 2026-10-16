@@ -61,11 +61,12 @@ user keys.
   seven days are removed when the plugin registers.
 - **inspection/screen-listen** (`standalone`): the `screen_listen` tool for the
   Assistant: record what one allowed app (Discord by default) is playing on this
-  Mac through a Core Audio process tap — a few minutes transcribed with the
-  profile's STT chain, or a session of hours kept as an m4a under
-  `screen_listen.record_dir`. The helper app is built by
-  `scripts/screen-listen.sh install` and holds the one-time System Audio
-  Recording consent. Contract: [`../screen-listen.md`](../screen-listen.md).
+  Mac through a Core Audio process tap — a few minutes transcribed locally, or
+  a session of hours kept as an m4a under `screen_listen.record_dir`, with
+  the app's window on video (ScreenCaptureKit) when asked. The helper app is
+  built by `scripts/screen-listen.sh install` and holds the System Audio
+  Recording consent (and Screen Recording for video). Contract:
+  [`../screen-listen.md`](../screen-listen.md).
 - **tts/tts-fallback**, **tts/irodori-tts**, **tts/qwen3-tts**: see
   [`tts-engines.md`](./tts-engines.md). **transcription/stt-fallback**: see
   [`audio-tooling.md`](./audio-tooling.md) "Speech-to-text — fallback chain".
