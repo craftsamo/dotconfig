@@ -9,7 +9,10 @@
 # helper itself ("Hermes Screen Listen"), not to the gateway.
 #
 #   install       build the helper app with the system Swift toolchain (Xcode or its
-#                 Command Line Tools) and sign it ad hoc
+#                 Command Line Tools); signed with the identity below when it exists,
+#                 ad hoc otherwise (then every rebuild needs the consents again)
+#   identity      make a self-signed code-signing identity in the login keychain, once,
+#                 so rebuilds keep their consents (asks for the login password to trust it)
 #   status        whether the helper is built and current, and which processes Core Audio
 #                 sees playing audio right now
 #   grant         record one second of a speech synthesizer so macOS asks for System Audio
@@ -24,11 +27,17 @@ APP="$HERMES_DIR/local/screen-listen/ScreenListen.app"
 BIN="$APP/Contents/MacOS/screen-listen"
 BUNDLE_ID="local.hermes.screen-listen"   # CFBundleIdentifier in Info.plist; what tccutil keys on
 TARGET="$(uname -m)-apple-macosx14.2"   # LaunchServices refuses a binary whose minimum OS is newer than the host
+IDENTITY="Hermes Local Code Signing"     # self-signed, in the login keychain, made by `identity`
+KEYCHAIN="$HOME/Library/Keychains/login.keychain-db"
 
 die() { echo "error: $*" >&2; exit 1; }
 
 current() {
   [ -x "$BIN" ] && [ "$BIN" -nt "$SRC/main.swift" ] && [ "$APP/Contents/Info.plist" -nt "$SRC/Info.plist" ]
+}
+
+have_identity() {
+  security find-identity -v -p codesigning 2>/dev/null | grep -q "\"$IDENTITY\""
 }
 
 case "${1:-}" in
@@ -38,11 +47,47 @@ case "${1:-}" in
     mkdir -p "$APP/Contents/MacOS"
     cp "$SRC/Info.plist" "$APP/Contents/Info.plist"
     swiftc -O -target "$TARGET" -o "$BIN" "$SRC/main.swift"
-    codesign --force --sign - "$APP" 2>&1 | grep -v "replacing existing signature" || true
-    codesign --verify "$APP" || die "ad-hoc signing failed"
-    echo "installed the screen-listen helper in $APP"
-    echo "the ad-hoc signature is new, so macOS asks for System Audio Recording once more"
-    echo "next: $0 grant (answer the dialog); $0 grant-screen if video is used"
+    if have_identity; then
+      # The consents are stored against "identifier X and certificate leaf = <this cert>", which
+      # every build signed with it satisfies; an ad-hoc signature is a new identity each time.
+      codesign --force --sign "$IDENTITY" --timestamp=none "$APP" 2>&1 | grep -v "replacing existing signature" || true
+      codesign --verify "$APP" || die "signing with \"$IDENTITY\" failed"
+      echo "installed the screen-listen helper in $APP, signed as \"$IDENTITY\""
+      echo "the consents given to an earlier build signed the same way still hold"
+    else
+      codesign --force --sign - "$APP" 2>&1 | grep -v "replacing existing signature" || true
+      codesign --verify "$APP" || die "ad-hoc signing failed"
+      echo "installed the screen-listen helper in $APP (ad-hoc signed)"
+      echo "the ad-hoc signature is new, so macOS asks for the consents once more"
+      echo "next: $0 grant (answer the dialog); $0 grant-screen if video is used"
+      echo "      $0 identity makes a signing identity so later rebuilds keep their consents"
+    fi
+    ;;
+  identity)
+    if have_identity; then
+      echo "identity: \"$IDENTITY\" is in the login keychain already"
+      exit 0
+    fi
+    tmp=$(mktemp -d)
+    trap 'rm -rf "$tmp"' EXIT
+    # A self-signed certificate with the code-signing usage, imported with its key into the
+    # login keychain (only codesign may use the key without asking) and trusted for code
+    # signing in the user's trust settings: macOS asks for the login password once for that.
+    printf '%s\n' '[req]' 'distinguished_name = dn' 'x509_extensions = codesign' 'prompt = no' \
+      '[dn]' "CN = $IDENTITY" \
+      '[codesign]' 'basicConstraints = critical,CA:FALSE' 'keyUsage = critical,digitalSignature' \
+      'extendedKeyUsage = critical,codeSigning' 'subjectKeyIdentifier = hash' > "$tmp/req.cnf"
+    /usr/bin/openssl req -x509 -newkey rsa:2048 -nodes -days 3650 -config "$tmp/req.cnf" \
+      -keyout "$tmp/key.pem" -out "$tmp/cert.pem" 2>/dev/null || die "openssl could not make the certificate"
+    /usr/bin/openssl pkcs12 -export -inkey "$tmp/key.pem" -in "$tmp/cert.pem" -name "$IDENTITY" \
+      -out "$tmp/identity.p12" -passout pass:hermes-screen-listen || die "openssl could not pack the identity"
+    security import "$tmp/identity.p12" -k "$KEYCHAIN" -P hermes-screen-listen -T /usr/bin/codesign >/dev/null \
+      || die "could not import the identity into the login keychain"
+    echo "trusting the certificate for code signing; macOS asks for your login password once..."
+    security add-trusted-cert -r trustRoot -p codeSign -k "$KEYCHAIN" "$tmp/cert.pem" \
+      || die "the certificate was imported but not trusted; remove \"$IDENTITY\" in Keychain Access and retry"
+    have_identity || die "the identity is in the keychain but not valid for code signing"
+    echo "identity: \"$IDENTITY\" made; next: $0 install, then $0 grant and $0 grant-screen one last time"
     ;;
   status)
     if current; then
@@ -140,7 +185,7 @@ print("consent: Screen Recording allowed; %d windows visible to the helper" % le
 ' "$log"
     ;;
   *)
-    sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'
+    sed -n '2,21p' "$0" | sed 's/^# \{0,1\}//'
     exit 2
     ;;
 esac

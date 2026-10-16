@@ -132,6 +132,7 @@ Swift with Xcode or its Command Line Tools and needs one GUI consent, two with
 video:
 
 ```sh
+hermes/scripts/screen-listen.sh identity      # once; a self-signed identity so rebuilds keep the consents
 hermes/scripts/screen-listen.sh install       # builds local/screen-listen/ScreenListen.app
 hermes/scripts/screen-listen.sh grant         # answer "System Audio Recording" once
 hermes/scripts/screen-listen.sh grant-screen  # video only: "Screen Recording"
