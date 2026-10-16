@@ -47,8 +47,9 @@ class ExplainerVideoReviewRouting(unittest.TestCase):
     def test_the_spreadsheet_is_the_users_channel(self):
         text = flat(TECHNIC / "SKILL.md")
         for rule in ("The spreadsheet is the channel between you and the user, nobody else",
-                     "The user owns `judgment` and `memo`; you own `reply`",
-                     "the decision returns to the user, never to you",
+                     "The user owns the answer and `memo`; you own `reply`",
+                     "a claim of the defect that YES confirms",
+                     "decide it yourself, since the user has said they cannot",
                      "never a local path", "send the sheet's URL, not a file",
                      "the spreadsheet stays between you and the user"):
             self.assertIn(rule, text)
@@ -71,7 +72,7 @@ class ExplainerVideoReviewRouting(unittest.TestCase):
 
     def test_judgments_stay_with_the_user(self):
         text = flat(TECHNIC / "SKILL.md")
-        self.assertIn("| Judgments, listening, likeness, the final send | the user |", text)
+        self.assertIn("| Answers (seen, heard, checked), likeness, the final send | the user |", text)
         self.assertIn("leave the verdict to the user", text)
         self.assertIn("Nothing goes to the requester without the user's explicit OK", text)
 
