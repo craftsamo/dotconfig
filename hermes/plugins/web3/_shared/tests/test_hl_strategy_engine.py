@@ -209,13 +209,13 @@ def test_a_backtest_refuses_what_it_cannot_trade(api, tmp_path):
 
 # --- the gate -----------------------------------------------------------------------------------
 
-def strategy_dir(root: Path, mandate: bool = True, stance: dict | None = None) -> Path:
+def strategy_dir(root: Path, mandate: bool = True, stance: dict | None = None, **rule_over) -> Path:
     import importlib.util
 
     spec_mod = importlib.util.spec_from_file_location("hs_for_engine_test", SHARED / "hl_strategy.py")
     hs = importlib.util.module_from_spec(spec_mod)
     spec_mod.loader.exec_module(hs)
-    rules = {"kind": "breakout", "entry": 20, "exit": 10, "atr": 14, "stop_atr": 2, "risk_pct": 1}
+    rules = {"kind": "breakout", "entry": 20, "exit": 10, "atr": 14, "stop_atr": 2, "risk_pct": 1, **rule_over}
     spec = {"schema": hs.SPEC_SCHEMA, "name": "trend", "network": "testnet", "account": "hermes/HERMES_MAIN#0",
             "address": USER, "markets": ["BTC", "ETH"], "interval": "4h",
             "variants": {"t20": {"rules": rules, "validated": {"fingerprint": hs.fingerprint(hs.rules(rules), "4h")}}},
@@ -323,6 +323,33 @@ def test_a_take_profit_is_not_a_stop_but_a_whole_position_stop_is(api, tmp_path)
     (root / "trend" / "state.json").unlink()
     report = gate(root, api, tmp_path)
     assert not any(i["market"] == "ETH" for s in report.get("strategies", []) for i in s["intents"])
+
+
+def test_a_trailing_rule_replaces_a_looser_stop_once_per_bar_new_stop_first(api, tmp_path):
+    STATE["positions"] = [{"coin": "ETH", "szi": "-1", "entryPx": "50", "positionValue": "50"}]
+    loose = {"coin": "ETH", "side": "B", "orderType": "Stop Market", "reduceOnly": True, "isTrigger": True,
+             "sz": "1", "triggerPx": "60", "oid": 777}
+    stale = {**loose, "triggerPx": "65", "oid": 778}  # left from a run whose cancel did not go
+    STATE["orders"] = [stale, loose]
+    root = tmp_path / "hl-strategies"
+    strategy_dir(root, trail_atr=2)  # ETH's bars are flat at 50 with a range of 1: the trail sits at 52
+    intents = [i for i in gate(root, api, tmp_path)["strategies"][0]["intents"] if i["market"] == "ETH"]
+    assert [i["id"].split(":")[-1] for i in intents] == ["trail", "untrail", "untrail1"]
+    assert intents[0]["quote"]["kind"] == "tpsl" and float(intents[0]["quote"]["sl"]) == 52
+    assert "from 60 to 52" in intents[0]["why"]
+    assert intents[1]["quote"] == {"action": "quote", "account": "hermes/HERMES_MAIN#0", "network": "testnet",
+                                   "kind": "cancel", "oid": 777}
+    assert intents[2]["quote"]["oid"] == 778 and "at 65" in intents[2]["why"]
+    assert all(i["after"] == intents[0]["id"] for i in intents[1:]) and all(i["effect"] == "reduce" for i in intents)
+    assert gate(root, api, tmp_path) == {"wakeAgent": False}  # the same bar is read once
+    STATE["orders"] = [{**loose, "triggerPx": "51.5"}]  # a stop already tighter than the trail stays
+    (root / "trend" / "state.json").unlink()
+    again = gate(root, api, tmp_path)
+    assert not any(i["market"] == "ETH" for s in again.get("strategies", []) for i in s["intents"])
+    STATE["orders"] = []  # without any stop the protection placed is the trailed level, not the entry's
+    (root / "trend" / "state.json").unlink()
+    intents = [i for i in gate(root, api, tmp_path)["strategies"][0]["intents"] if i["market"] == "ETH"]
+    assert [i["id"].split(":")[-1] for i in intents] == ["protect"] and float(intents[0]["quote"]["sl"]) == 52
 
 
 def test_an_entry_whose_leverage_could_not_be_read_is_tried_again_next_run(api, tmp_path):

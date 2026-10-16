@@ -8,8 +8,10 @@ Run by ``profiles/assistant/scripts/hl-strategy-gate.sh`` with the web3 venv's i
 For each directory there holding a ``spec.json`` whose strategy is active, it reads the account and
 the newest completed candles through the public ``/info`` endpoint, applies the stance in force
 (``stance.json``, an advisor's, when valid; else the spec's default) and the rules, and lists the
-exact ``hyperliquid`` quotes the rules call for: a close or a missing stop (reduce), and on a newly
-completed bar an entry with its stop (increase, inside the mandate the spec records). It prints one
+exact ``hyperliquid`` quotes the rules call for: a close, a missing stop or a trailed stop and the
+cancel of the one it replaces (reduce), and on a newly completed bar an entry with its stop
+(increase, inside the mandate the spec records). An intent with ``after`` is sent only once the
+intent it names was. It prints one
 JSON line; when nothing is to be done or said, that line is ``{"wakeAgent": false}`` and no model
 runs. It never signs, never reads a key and never sends anything: the Assistant quotes and submits
 through the tool, where the trader and the mandate decide. Its own memory is ``state.json`` beside
@@ -102,21 +104,25 @@ class Account:
                          for o in orders if o.get("coin") in markets and not o.get("reduceOnly")
                          and hl.num(o.get("sz")) is not None)
 
-    def stopped(self, coin: str) -> bool:
-        """Whether the position on ``coin`` has a stop loss on the venue for all of it: a reduce-only
-        stop trigger on the closing side, for the whole position or at least its size. A take profit
-        is not protection."""
+    def stop_orders(self, coin: str) -> list[dict]:
+        """The stop losses protecting the position on ``coin`` for all of it: reduce-only stop
+        triggers on the closing side, for the whole position or at least its size, tightest first.
+        A take profit is not protection. Empty without a position or a stop."""
         position = self.positions.get(coin)
         if not position:
-            return True
+            return []
         closing = "A" if position["side"] == "long" else "B"
+        found = []
         for o in self.orders:
             if (o.get("coin") != coin or not o.get("reduceOnly") or not o.get("isTrigger")
                     or "stop" not in str(o.get("orderType", "")).lower() or o.get("side") != closing):
                 continue
             if o.get("isPositionTpsl") or (hl.num(o.get("sz")) or 0) >= position["size"] * 0.999:
-                return True
-        return False
+                found.append(o)
+        return sorted(found, key=lambda o: hl.num(o.get("triggerPx")) or 0, reverse=position["side"] == "long")
+
+    def stopped(self, coin: str) -> bool:
+        return not self.positions.get(coin) or bool(self.stop_orders(coin))
 
     def leverage(self, coin: str) -> int | None:
         found = self.ctx.api.info({"type": "activeAssetData", "user": self.address, "coin": coin})
@@ -204,9 +210,30 @@ def run_strategy(directory: Path, now: int) -> dict:
             stop = (position["entry"] or price) + sign * rule_set["stop_atr"] * ev["atr"]
             if (position["side"] == "long" and stop >= price) or (position["side"] == "short" and stop <= price):
                 stop = price + sign * rule_set["stop_atr"] * ev["atr"]
+            stop = hs.trailed(position["side"], stop, price, ev["atr"], rule_set)
             out["intents"].append({"id": f"{tag}:protect", "market": market, "effect": "reduce",
                                    "why": f"the {position['side']} has no stop on the venue",
                                    "quote": _quote(strategy, kind="tpsl", coin=market, sl=hs.sig5(stop))})
+        elif position and fresh and ev.get("trail") is not None:
+            # the trailing stop moved: place the tighter stop first, then cancel every stop looser than
+            # it (the one it replaces, and any left from an earlier run whose cancel did not go), so the
+            # position is never without one; the cancels are sent only after the new stop is
+            held = account.stop_orders(market)
+            trigger = hl.num(held[0].get("triggerPx")) if held else None
+            tighter = trigger is not None and (ev["trail"] > trigger if position["side"] == "long"
+                                               else ev["trail"] < trigger)
+            if tighter:
+                out["intents"].append({"id": f"{tag}:trail", "market": market, "effect": "reduce",
+                                       "why": f"trail the {position['side']}'s stop from {hs.sig5(trigger)} to "
+                                              f"{hs.sig5(ev['trail'])} ({rule_set['trail_atr']:g} ATR behind the "
+                                              f"close {hs.sig5(ev['price'])})",
+                                       "quote": _quote(strategy, kind="tpsl", coin=market, sl=hs.sig5(ev["trail"]))})
+                for n, o in enumerate(held):
+                    out["intents"].append({"id": f"{tag}:untrail{n or ''}", "market": market, "effect": "reduce",
+                                           "after": f"{tag}:trail",
+                                           "why": f"cancel the stop at {hs.sig5(hl.num(o.get('triggerPx')) or trigger)} "
+                                                  "the trailed one replaces",
+                                           "quote": _quote(strategy, kind="cancel", oid=o.get("oid"))})
         if ev.get("open") and fresh:
             if not entries:
                 out["notes"].append(f"{market}: the rules open a {ev['open']} ({ev['why']}), but no mandate is in "

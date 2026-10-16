@@ -6,8 +6,9 @@ completed candle for a strategy in force. Because both call ``signal`` on the sa
 what was tested is what runs. Contract: docs/hyperliquid.md "Strategies".
 
 - **Rules** are a ``kind`` and its numbers (``breakout``: a Donchian channel; ``ema_cross``: two
-  EMAs), each with an ATR stop placed with the entry and a risk per trade. ``fingerprint`` names a
-  rule set exactly (with its interval), so a strategy may only run rules a backtest reported.
+  EMAs), each with an ATR stop placed with the entry and a risk per trade, and optionally a
+  trailing stop (``trail_atr``) that follows each completed close and never loosens. ``fingerprint``
+  names a rule set exactly (with its interval), so a strategy may only run rules a backtest reported.
 - **A strategy spec** names the account, network, markets, interval, its validated variants, the
   default stance, the bounds an advisor may choose within, and its limits.
 - **A stance** is an advisor's choice inside those bounds: per market a direction, a variant and a
@@ -56,6 +57,8 @@ PARAMS = {
     "ema_cross": {"fast": (2, 100, True), "slow": (3, 400, True), "atr": (5, 100, True),
                   "stop_atr": (0.5, 10.0, False), "risk_pct": (0.1, 5.0, False)},
 }
+# optional for every kind; 0 (or absent) leaves it out of the rule set, so earlier fingerprints hold
+OPTIONAL = {"trail_atr": (0.5, 10.0, False)}
 COSTS = {"taker_bps": (0.0, 100.0, 4.5), "slippage_bps": (0.0, 100.0, 5.0)}
 
 
@@ -128,12 +131,16 @@ def rules(raw, what: str = "rules") -> dict:
     kind = raw.get("kind")
     if kind not in PARAMS:
         raise StrategyError(f"{what}: kind is one of {', '.join(KINDS)}")
-    extra = set(raw) - set(PARAMS[kind]) - {"kind"}
+    extra = set(raw) - set(PARAMS[kind]) - set(OPTIONAL) - {"kind"}
     if extra:
-        raise StrategyError(f"{what}: {kind} takes {', '.join(PARAMS[kind])}, not {', '.join(sorted(extra))}")
+        raise StrategyError(f"{what}: {kind} takes {', '.join(PARAMS[kind])} and optionally "
+                            f"{', '.join(OPTIONAL)}, not {', '.join(sorted(extra))}")
     out = {"kind": kind}
     for key, (low, high, whole) in PARAMS[kind].items():
         out[key] = _number(raw, key, low, high, whole, what)
+    for key, (low, high, whole) in OPTIONAL.items():
+        if raw.get(key) not in (None, 0, 0.0):
+            out[key] = _number(raw, key, low, high, whole, what)
     if kind == "breakout" and out["exit"] > out["entry"]:
         raise StrategyError(f"{what}: exit must not be longer than entry")
     if kind == "ema_cross" and out["slow"] <= out["fast"]:
@@ -276,6 +283,16 @@ def signal(series: list[dict], ind: dict, i: int, rule_set: dict) -> dict | None
 def stop_price(side: str, close: float, atr: float, rule_set: dict) -> float:
     distance = rule_set["stop_atr"] * atr
     return close - distance if side == "long" else close + distance
+
+
+def trailed(side: str, stop: float, close: float, atr: float | None, rule_set: dict) -> float:
+    """The stop after a completed bar: ``trail_atr`` ATRs behind its close when that is tighter than
+    the stop held, else the stop held. Without ``trail_atr`` (or an ATR) the stop stays."""
+    trail = rule_set.get("trail_atr")
+    if not trail or not atr:
+        return stop
+    level = close - trail * atr if side == "long" else close + trail * atr
+    return max(stop, level) if side == "long" else min(stop, level)
 
 
 def decide(sig: dict | None, holding: str | None, direction: str) -> tuple[bool, str | None]:
@@ -439,6 +456,8 @@ def simulate(series: list[dict], rule_set: dict, interval: str, cost: dict, limi
             # a stop inside the bar: its hour is unknown from OHLC, so the bar's funding is charged whole
             if b["l"] <= pos["stop"] if pos["side"] == "long" else b["h"] >= pos["stop"]:
                 close(i, pos["stop"], "stop")
+        if pos is not None:  # the trailing stop follows this close from the next bar on
+            pos["stop"] = trailed(pos["side"], pos["stop"], b["c"], ind["atr"][i], rule_set)
         mark = cash
         if pos is not None:
             mark += (b["c"] - pos["entry"]) * pos["qty"] * (1 if pos["side"] == "long" else -1)
@@ -520,7 +539,7 @@ def grid(raw, base: dict) -> list[dict]:
         raise StrategyError("walk_forward.grid lists values per parameter, like {\"entry\": [20, 55]}")
     keys = sorted(raw)
     for key in keys:
-        if key not in PARAMS[base["kind"]]:
+        if key not in PARAMS[base["kind"]] and key not in OPTIONAL:
             raise StrategyError(f"walk_forward.grid: {base['kind']} has no {key}")
         if not isinstance(raw[key], list) or not 1 <= len(raw[key]) <= MAX_GRID_VALUES:
             raise StrategyError(f"walk_forward.grid.{key} lists 1 to {MAX_GRID_VALUES} values")
@@ -789,7 +808,8 @@ def _stance(strategy: dict, raw, now_ms: int) -> dict:
 
 def evaluate(series: list[dict], rule_set: dict, choice: dict, holding: str | None) -> dict:
     """What the rules and the stance in force say at the newest completed bar: {"bar", "close"
-    (bool), "open" (side or None), "stop", "atr", "price", "why"}."""
+    (bool), "open" (side or None), "stop", "atr", "price", "why"}, and for a position held under a
+    trailing rule "trail": where its stop should be at least after this bar."""
     if not series:
         return {"bar": None, "close": False, "open": None, "why": "no completed bars"}
     ind = indicators(series, rule_set)
@@ -803,4 +823,7 @@ def evaluate(series: list[dict], rule_set: dict, choice: dict, holding: str | No
            "why": sig["why"]}
     if side:
         out["stop"] = stop_price(side, sig["close"], sig["atr"], rule_set)
+    if holding and not do_close and rule_set.get("trail_atr"):
+        worst = -math.inf if holding == "long" else math.inf
+        out["trail"] = trailed(holding, worst, sig["close"], sig["atr"], rule_set)
     return out

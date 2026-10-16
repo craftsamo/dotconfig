@@ -107,6 +107,31 @@ def test_an_entry_fills_at_the_next_open_and_its_stop_inside_a_bar():
     assert float(trade["exit"]) == pytest.approx(105 - 2 * atr, rel=1e-4)
 
 
+def test_a_trailing_stop_follows_each_close_and_never_loosens():
+    plain, trailing = hs.rules(BREAKOUT), hs.rules({**BREAKOUT, "trail_atr": 1})
+    assert "trail_atr" not in plain and hs.rules({**BREAKOUT, "trail_atr": 0}) == plain  # 0 is none: same fingerprint
+    assert trailing["trail_atr"] == 1.0 and hs.fingerprint(trailing, "4h") != hs.fingerprint(plain, "4h")
+    with pytest.raises(hs.StrategyError, match="trail_atr"):
+        hs.rules({**BREAKOUT, "trail_atr": 20})
+    assert hs.trailed("long", 90.0, 100.0, 2.0, trailing) == 98.0 and hs.trailed("long", 99.0, 100.0, 2.0, trailing) == 99.0
+    assert hs.trailed("short", 110.0, 100.0, 2.0, trailing) == 102.0 and hs.trailed("short", 90.0, 100.0, 2.0, plain) == 90.0
+    # a run-up, then a pullback that reaches the trailed stop but not the one placed at entry
+    series = flat(10) + [bar(10, 100, 106, 100, 105), bar(11, 110, 111, 109, 110), bar(12, 110, 121, 110, 120),
+                         bar(13, 120, 121, 114, 115), bar(14, 115, 116, 114, 115)]
+    cost = hs.costs({"taker_bps": 0, "slippage_bps": 0, "funding": "none"})
+    limits = {"exposure_pct": 100, "max_leverage": 10}
+    kept = hs.simulate(series, plain, "4h", cost, limits)
+    moved = hs.simulate(series, trailing, "4h", cost, limits)
+    assert kept["trades"][0]["reason"] == "end"
+    trade = moved["trades"][0]
+    atr = hs.indicators(series, trailing)["atr"][12]
+    assert trade["reason"] == "stop" and float(trade["exit"]) == pytest.approx(120 - atr, rel=1e-4)
+    # evaluate names the level a held position's stop should reach after the newest bar
+    ev = hs.evaluate(series[:13], trailing, {"direction": "both"}, "long")
+    assert ev["trail"] == pytest.approx(120 - atr, rel=1e-4) and "trail" not in hs.evaluate(series[:13], plain, {"direction": "both"}, "long")
+    assert "trail" not in hs.evaluate(series[:13], trailing, {"direction": "both"}, None)
+
+
 def test_a_bar_that_gaps_through_the_stop_fills_at_its_open_and_costs_are_charged():
     series = flat(10) + [bar(10, 100, 106, 100, 105), bar(11, 106, 107, 105, 106), bar(12, 80, 81, 79, 80)]
     cost = hs.costs({"taker_bps": 10, "slippage_bps": 0, "funding": "none"})
