@@ -155,7 +155,8 @@ def run_strategy(directory: Path, now: int) -> dict:
     except hs.StrategyError as exc:
         out["problems"].append(f"spec.json not used: {exc}")
         return _finish(out, state, state_path, reported)
-    out.update({"name": strategy["name"], "network": strategy["network"], "account": strategy["account"]})
+    out.update({"name": strategy["name"], "network": strategy["network"], "account": strategy["account"],
+                "address": strategy["address"]})  # the reads (state, fills, orders) take the address
     if strategy["name"] != directory.name:
         out["problems"].append(f"spec.json names {strategy['name']!r} but lives in {directory.name!r}; not run")
         return _finish(out, state, state_path, reported)
