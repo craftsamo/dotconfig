@@ -8,6 +8,14 @@
   // re-reads the whole history database on every refresh.
   "quotaProviders": [
     {
+      "id": "anthropic-credit-team",
+      "label": "Anthropic Team Credit",
+      "mode": "remote-api",
+      "format": "quota-v1",
+      "apiKeyEnv": "ANTHROPIC_CREDIT_TEAM_ACCOUNT_KEY",
+      "url": "http://127.0.0.1:47631/anthropic-credit-team",
+    },
+    {
       "id": "anthropic-credit-main",
       "label": "Anthropic Main Credit",
       "mode": "remote-api",
