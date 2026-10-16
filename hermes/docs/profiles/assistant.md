@@ -118,7 +118,7 @@ in the plugin skills; the contract in the linked doc.
 | YouTube                               | `youtube_access`              | Marketer reads only; non-API settings via Studio after a `clarify`                                                      | [youtube-access.md](../youtube-access.md)   |
 | EVM / Solana                          | `evm_access`, `solana_access` | reads shared with Researcher, Searcher, Marketer; wallet actions the Assistant's alone                                  | [web3.md](../web3.md)                       |
 | Hyperliquid                           | `hyperliquid_access`          | reads shared with Researcher, Searcher, Marketer; trading the Assistant's alone, increases on a card                    | [hyperliquid.md](../hyperliquid.md)         |
-| This Mac's audio (Discord app)        | `screen_listen`               | records one allowed app's output for a bounded time and transcribes it; no account, no API, no card                     | [screen-listen.md](../screen-listen.md)     |
+| This Mac's audio (Discord app)        | `screen_listen`               | one allowed app's output: minutes transcribed, or a session kept as a file; no account, no API, no card                 | [screen-listen.md](../screen-listen.md)     |
 
 Marketing work is the Assistant's to execute, with Marketer as its strategy
 advisor ([marketer.md](./marketer.md)): the marketing entries consult Marketer on
