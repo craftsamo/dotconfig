@@ -107,11 +107,11 @@ result's `verdict` and re-capture after anything that changes state.
    the channel state (capture) before listening again; `too_little_sound`
    means only a moment of sound (`active_seconds` — a join chime, a click,
    one short word) and no transcription was attempted. None of these is a
-   tool failure. A transcript that is one stock phrase repeated ("ご視聴ありがとう
-   ございました", "Thank you for watching") with nobody speaking is the model
-   inventing words from near-silence: report it as nothing said, never as
-   something someone said. Transcription runs on this Mac unless the
-   profile's `screen_listen.stt` is `chain`.
+   tool failure. A transcript that is one stock closing or greeting phrase,
+   repeated, with nobody speaking is the model inventing words from
+   near-silence: report it as nothing said, never as something someone said.
+   Transcription runs on this Mac unless the profile's `screen_listen.stt` is
+   `chain`.
 7. **Report** in the user's language: who seems to be there (from the capture),
    what the picture shows (if asked), what was said (from the transcript,
    summarized). Mark uncertainty: a transcript of a noisy call or overlapping
@@ -140,12 +140,15 @@ Two situations, and the microphone rule differs:
   nothing in the recording either way: the tap hears the app's output, never
   the microphone.
 
-1. **Before starting**, confirm in one line what will happen: the Mac stays in
-   the channel, everything the others say is recorded until they say stop or
-   the cap (`minutes`, default 3 hours), and the user's own voice is not in it
-   (only the app's output is recorded). If it is not the user's meeting, ask
-   whether the participants know. Then `screen_listen` `record_start` with a
-   short `title` (the meeting or stream name).
+1. **Say what will happen, then start** — in the same turn, not as a question
+   that waits: the Mac stays in the channel, everything the others say is
+   recorded until they say stop or the cap (`minutes`, default 3 hours), and
+   the user's own voice is not in it (only the app's output is recorded). The
+   user asked for the recording; that sentence is for them to object to, not
+   a gate. The one real question is when it is plainly not the user's own
+   meeting and nothing says the participants know: ask that first, and start
+   only on their answer. Then `screen_listen` `record_start` with a short
+   `title` (the meeting or stream name).
 2. **While it runs**, the Mac must stay in the channel and awake; do nothing
    else with Discord. When the user asks how it is going, `record_status`: if
    `receiving` is false for more than a moment, say so (the channel may have

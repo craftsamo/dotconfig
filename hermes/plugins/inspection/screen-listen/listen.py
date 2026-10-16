@@ -215,12 +215,14 @@ def status(home) -> dict:
         return out
     try:
         out["apps"] = _running(apps, processes())
-    except ListenError as exc:
+    except Exception as exc:  # noqa: BLE001 - status still answers when the helper cannot be asked
         out["apps"] = {name: {"bundle": bundle} for name, bundle in apps.items()}
-        out["error"] = str(exc)
+        out["helper_detail"] = str(exc)
     last = _last(state_dir() / "last.json")
     if last:
-        out["last"] = last
+        # A past failure is history here, not this call's outcome: the runtime reads a literal
+        # "error" key in an answer as the call having failed.
+        out["last"] = {("detail" if k == "error" else k): v for k, v in last.items()}
     return out
 
 
