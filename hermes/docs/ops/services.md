@@ -64,8 +64,9 @@ account also refuse a task worktree; each launcher says which).
 
 ### Engine and access scripts
 
-Not LaunchAgents: they build an engine venv (hash-locked, under the ignored
-`local/`) and report state without printing secrets.
+Not LaunchAgents: they build an engine (a hash-locked venv, or a helper app from
+in-tree sources, under the ignored `local/`) and report state without printing
+secrets.
 
 - `scripts/x-access.sh {install,status}` — the x-access engine venv and the
   state of the sub-account's cookies; see [docs/x-access.md](../x-access.md).
@@ -78,6 +79,10 @@ Not LaunchAgents: they build an engine venv (hash-locked, under the ignored
 - `scripts/web3.sh {install,status,addresses,new-wallet}` — the web3 engine venv,
   stored wallet items and keys by name, and new Hermes wallets; see
   [docs/web3.md](../web3.md).
+- `scripts/screen-listen.sh {install,status,grant}` — the screen-listen helper
+  app (built with the system Swift toolchain, not a venv), which processes are
+  playing audio, and the one-time System Audio Recording consent; see
+  [docs/screen-listen.md](../screen-listen.md).
 - `scripts/brave-agent-sync.sh {sync,check,path,remove}` — the real-profile Brave
   clone ([browser.md](browser.md)). `sync` (default) re-clones when
   `/Applications/Brave Browser.app` changed version or the clone is missing,
