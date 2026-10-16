@@ -13,7 +13,8 @@ it, so nothing is copied by hand.
                                                       keep only value mismatches and mid-line jumps
     review.py ask-draft  <ledger.json> <out.md>       `ID | problem` lines to reword as questions
     review.py ask-import <ledger.json> <asks.md>      store the reworded questions
-    review.py export   <ledger.json> <out.json>       rows, formulas and options for the spreadsheet
+    review.py kinds    <ledger.json>                  give findings imported without a kind one
+    review.py export   <ledger.json> <out.json>       rows, formulas, options and colours for the spreadsheet
     review.py readback <ledger.json> <values.json>    take the spreadsheet's judgments into the ledger
     review.py listen   <ledger.json> [--terms FILE]   add ear-check candidates from each caption file
     review.py sheet    <ledger.json> <out.md> [--listen]   the Markdown review sheet
@@ -50,7 +51,9 @@ every episode under a line beginning with its label.
 
 Spreadsheet: ``export`` writes the findings tab (one row per live finding, the
 time cell a HYPERLINK to the video at that second), the summary tab's
-formulas, the dropdown options and the colours; ``readback`` takes the tab
+formulas, the dropdown options and the ``format`` block (chip colours for
+the judgment and kind columns, alternating row tints per episode); it refuses
+a voice, text or content finding without a kind. ``readback`` takes the tab
 read back from the sheet (``{"values": [[header], [row], ...]}`` or a bare
 list of rows) and maps each judgment label to a status. Column names and
 option labels come from ``SHEET_TEXT``, so the two sides agree by construction.
@@ -138,9 +141,42 @@ SHEET_TEXT = {
         "colon": "：", "gap": "　",
     },
 }
-# Row colours per judgment, for the sheet's conditional formatting.
+# Chip colours on the judgment and kind cells (a dropdown's option colour is a
+# conditional format on that column), and two tints the rows alternate between
+# per episode, so an episode reads as one band.
 JUDGMENT_COLOURS = {"open": "#FFF2CC", "recheck": "#CFE2F3", "keep": "#D9EAD3", "drop": "#EFEFEF",
                     "hold": "#F4CCCC"}
+KIND_COLOURS = {"reading": "#C9DAF8", "delivery": "#D0E0F5", "typo": "#D9D2E9", "overlap": "#E2DAF0",
+                "figure": "#D9EAD3", "fact": "#B6D7A8", "clarity": "#E3F0DD",
+                "thumbnail": "#FCE5CD", "portrait": "#FFE599", "overall": "#E6E6E6"}
+EPISODE_TINTS = ("#FFFFFF", "#F3F6F9")
+
+# Words that place an old finding (one imported before kinds existed) into a
+# kind; the aspect decides which table applies, the first match wins.
+KIND_HINTS = {
+    "voice": (("delivery", re.compile(r"\bdB\b|\bst\b|prosody|pitch|level|音量|高さ|抑揚|緩急|跳|間が|空白|無音", re.I)),
+              ("reading", re.compile(r".*", re.S))),
+    "text": (("overlap", re.compile(r"overlap|hid|cover|かぶ|重な|隠|覆|はみ出|切れ", re.I)),
+             ("typo", re.compile(r".*", re.S))),
+    "content": (("fact", re.compile(r"一次情報|出典|公式|発表|報道|統計|source|official|first-party|年が|年は|数が|refut|言い過ぎ", re.I)),
+                ("figure", re.compile(r"図|絵|動き|コマ|フレーム|カウンタ|波|矢印|アニメ|motion|frame|diagram|counter|figure", re.I)),
+                ("clarity", re.compile(r".*", re.S))),
+}
+
+
+def infer_kind(finding: dict) -> str | None:
+    """A kind for a finding that has none, from its source and wording; None
+    for an aspect that has no kinds."""
+    aspect = finding.get("aspect")
+    if aspect not in KIND_HINTS:
+        return None
+    text = " ".join(str(finding.get(k) or "") for k in ("problem", "evidence", "ask"))
+    if aspect == "content" and finding.get("source") in ("searcher", "researcher"):
+        return "fact"
+    for kind, pattern in KIND_HINTS[aspect]:
+        if pattern.search(text):
+            return kind
+    return None
 
 # How `listen` finds names and numbers per caption language.
 NUMBER = re.compile(r"[0-9][0-9,.]*(?:\s?%)?")
@@ -847,29 +883,71 @@ def summary_rows(data: dict, words: dict) -> list[list[str]]:
     return rows
 
 
+def cmd_kinds(args) -> int:
+    """Give every voice, text and content finding a kind; the sheet's kind
+    column holds kinds only, so a finding without one cannot be exported."""
+    data = load(args.ledger)
+    inferred, unresolved = {}, []
+    for finding in data["findings"]:
+        if finding.get("kind") or finding.get("aspect") not in KIND_HINTS:
+            continue
+        kind = infer_kind(finding)
+        if kind:
+            finding["kind"] = kind
+            inferred[finding["id"]] = kind
+        else:
+            unresolved.append(finding["id"])
+    save(args.ledger, data)
+    print(json.dumps({"ok": not unresolved, "inferred": inferred, "unresolved": unresolved}, ensure_ascii=False))
+    return 0 if not unresolved else 1
+
+
+def episode_bands(rows: list[list[str]], words: dict) -> list[dict]:
+    """Sheet row ranges per episode (header is row 1), tinted alternately."""
+    bands = []
+    for index, row in enumerate(rows, start=2):
+        if bands and bands[-1]["episode"] == row[1]:
+            bands[-1]["last_row"] = index
+        else:
+            bands.append({"episode": row[1], "first_row": index, "last_row": index,
+                          "colour": EPISODE_TINTS[len(bands) % len(EPISODE_TINTS)]})
+    return bands
+
+
 def cmd_export(args) -> int:
     data = load(args.ledger)
     errors = problems(data, final=False)
     if errors:
         fail("; ".join(errors))
+    missing = [f["id"] for f in live(data) if f.get("aspect") in KIND_HINTS and not f.get("kind")]
+    if missing:
+        fail(f"findings without a kind (run `review.py kinds` first): {', '.join(missing)}")
     words = sheet_text(data)
     judgments = [words["judgments"][j] for j in JUDGMENTS]
-    kinds = [words["kinds"][k] for k in KINDS] + [words["aspects"][a] for a in ASPECTS]
+    kinds = [words["kinds"][k] for k in KINDS] + [words["aspects"][a] for a in ("thumbnail", "portrait", "overall")]
+    kind_colours = {words["kinds"][k]: KIND_COLOURS[k] for k in KINDS}
+    kind_colours.update({words["aspects"][a]: KIND_COLOURS[a] for a in ("thumbnail", "portrait", "overall")})
     summary_header = [words["summary_columns"][c] for c in
                       ("episode", "title", "total", "keep", "drop", "hold", "open", "recheck")]
+    rows = export_rows(data, words)
     out = {
         "job": data.get("job", ""),
         "tabs": {
             "findings": {"title": words["tabs"]["findings"],
-                         "header": [words["columns"][c] for c in COLUMNS], "rows": export_rows(data, words)},
+                         "header": [words["columns"][c] for c in COLUMNS], "rows": rows},
             "summary": {"title": words["tabs"]["summary"], "header": summary_header,
                         "rows": summary_rows(data, words)},
         },
         "columns": {name: column_letter(name) for name in COLUMNS},
         "owner": {"user": [column_letter("judgment"), column_letter("note")], "assistant": [column_letter("reply")]},
         "judgments": judgments,
-        "colours": {words["judgments"][j]: JUDGMENT_COLOURS[j] for j in JUDGMENTS},
         "kinds": kinds,
+        "format": {
+            "judgment": {"column": column_letter("judgment"),
+                         "colours": {words["judgments"][j]: JUDGMENT_COLOURS[j] for j in JUDGMENTS}},
+            "kind": {"column": column_letter("kind"), "colours": kind_colours},
+            "episodes": episode_bands(rows, words),
+        },
         "value_input": "USER_ENTERED",
     }
     Path(args.out).write_text(json.dumps(out, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
@@ -1131,6 +1209,9 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("ledger")
     p.add_argument("asks")
     p.set_defaults(func=cmd_ask_import)
+    p = sub.add_parser("kinds")
+    p.add_argument("ledger")
+    p.set_defaults(func=cmd_kinds)
     p = sub.add_parser("export")
     p.add_argument("ledger")
     p.add_argument("out")
