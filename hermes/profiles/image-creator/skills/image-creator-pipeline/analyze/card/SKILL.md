@@ -55,7 +55,11 @@ metadata:
    files from JSON to an actual ordered array. Tiles requires exactly 2 for
    pair or 3/4 for carousel; panorama requires one full-width input. Input
    paths are not permission to fetch/upload/post or inspect an account.
-2. Write a task-local analysis JSON with the form's fields. Run:
+2. Write a task-local analysis JSON with the form's fields, under this
+   task's deliver directory (or a directory made for this task) and with
+   this task's inputs — never a spec left by an earlier task in the same
+   session: a resident session that reuses one measures the previous image
+   and reports it as this one. Run:
 
    ```sh
    python3 ${HERMES_SKILL_DIR}/../../scripts/card.py analyze <absolute-spec.json>
