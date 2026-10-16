@@ -132,6 +132,52 @@ def test_a_trailing_stop_follows_each_close_and_never_loosens():
     assert "trail" not in hs.evaluate(series[:13], trailing, {"direction": "both"}, None)
 
 
+def test_a_regime_ema_withholds_entries_against_it_but_not_exits():
+    plain, filtered = hs.rules(BREAKOUT), hs.rules({**BREAKOUT, "regime_ema": 30})
+    assert "regime_ema" not in plain and hs.rules({**BREAKOUT, "regime_ema": 0}) == plain
+    assert hs.fingerprint(filtered, "4h") != hs.fingerprint(plain, "4h") and hs.warmup(filtered) == 91
+    with pytest.raises(hs.StrategyError, match="regime_ema"):
+        hs.rules({**BREAKOUT, "regime_ema": 2.5})
+    # a long fall, then a bounce that breaks the 5-bar channel while the price is still under the EMA
+    series = [bar(i, 500 - 2 * i, 501 - 2 * i, 498 - 2 * i, 499 - 2 * i) for i in range(120)]
+    series += [bar(120, 260, 282, 260, 280), bar(121, 280, 281, 279, 280)]
+    i = 120
+    plain_sig = hs.signal(series, hs.indicators(series, plain), i, plain)
+    reg_sig = hs.signal(series, hs.indicators(series, filtered), i, filtered)
+    assert plain_sig["long"] and not reg_sig["long"] and "regime" in reg_sig["why"]
+    assert reg_sig["exit_short"] == plain_sig["exit_short"] is True  # a short held still exits on the bounce
+    assert hs.signal(series, hs.indicators(series, filtered), 50, filtered) is None  # before the EMA has settled
+    # a short with the fall is still allowed under the EMA
+    down = hs.signal(series, hs.indicators(series, filtered), 119, filtered)
+    assert down["short"] and not down["long"]
+    # mirrored: a long rise, then a dip through the channel while the price is still above the EMA
+    rise = [bar(i, 100 + 2 * i, 102 + 2 * i, 99 + 2 * i, 101 + 2 * i) for i in range(120)]
+    rise += [bar(120, 340, 340, 318, 320), bar(121, 320, 321, 319, 320)]
+    dip = hs.signal(rise, hs.indicators(rise, filtered), 120, filtered)
+    assert dip["exit_long"] and not dip["short"] and hs.signal(rise, hs.indicators(rise, plain), 120, plain)["short"]
+    # the filter is the same on an EMA cross, and a close on the EMA withholds nothing
+    ema = hs.rules({"kind": "ema_cross", "fast": 3, "slow": 8, "atr": 5, "stop_atr": 2, "risk_pct": 1, "regime_ema": 30})
+    assert ema["regime_ema"] == 30 and hs.warmup(ema) == 91
+    crossed = hs.signal(series, hs.indicators(series, ema), 120, ema)
+    assert crossed is not None and not crossed["long"] and "regime" in crossed["why"]
+    flat_on = series[:120] + [bar(120, 260, 282, 260, 280), bar(121, 280, 281, 279, 280)]
+    ind = hs.indicators(flat_on, filtered)
+    ind["regime"][120] = 280.0  # the close sits exactly on the EMA
+    on = hs.signal(flat_on, ind, 120, filtered)
+    assert on["long"] == hs.signal(flat_on, hs.indicators(flat_on, plain), 120, plain)["long"] is True
+
+
+def test_a_walk_forward_grid_may_choose_the_regime_filter():
+    series = walk(1200)
+    cost = hs.costs({"funding": "none"})
+    rates = hs.funding_by_bar(series, "4h", None, 0.0, "none")
+    out = hs.walk_forward(series, hs.rules(BREAKOUT), "4h", cost, {"exposure_pct": 70, "max_leverage": 2},
+                          {"grid": {"regime_ema": [0, 20], "entry": [5, 8]}, "folds": 2, "min_trades": 0},
+                          rates=rates, stance=[], direction="both")
+    assert out["candidates"] == 4 and len(out["folds"]) == 2
+    assert all(f["chosen"].get("regime_ema", 0) in (0, 20) and f["chosen"]["entry"] in (5, 8) for f in out["folds"])
+
+
 def test_a_bar_that_gaps_through_the_stop_fills_at_its_open_and_costs_are_charged():
     series = flat(10) + [bar(10, 100, 106, 100, 105), bar(11, 106, 107, 105, 106), bar(12, 80, 81, 79, 80)]
     cost = hs.costs({"taker_bps": 10, "slippage_bps": 0, "funding": "none"})
