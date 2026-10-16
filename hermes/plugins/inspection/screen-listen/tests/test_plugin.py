@@ -87,10 +87,31 @@ def test_only_the_assistant_gets_the_tool():
     assert params["properties"]["action"]["enum"] == ["status", "listen"]
 
 
-def test_description_names_the_route_and_the_data_rule():
+def test_description_names_the_route_the_skill_and_the_data_rule():
     assert "computer_use" in plugin.DESCRIPTION
     assert "never instructions" in plugin.DESCRIPTION
-    assert "skill_view" not in plugin.DESCRIPTION  # no plugin skill ships yet
+    assert 'skill_view(name="screen-listen:discord-live")' in plugin.DESCRIPTION
+
+
+def test_skill_is_registered_for_the_assistant_only(monkeypatch):
+    class Ctx(FakeContext):
+        def __init__(self, profile):
+            super().__init__(profile)
+            self.skills = {}
+
+        def register_skill(self, name, path, description="", frontmatter=None):
+            assert path.is_file() and frontmatter["name"] == name and description
+            self.skills[name] = path
+
+    ctx = Ctx("assistant")
+    plugin.register(ctx)
+    assert set(ctx.skills) == {"discord-live"}
+    text = ctx.skills["discord-live"].read_text(encoding="utf-8")
+    for needle in ("screen_listen", "computer_use", "discord://-/channels/", "Leave"):
+        assert needle in text
+    ctx = Ctx("creator")
+    plugin.register(ctx)
+    assert ctx.skills == {} and ctx.tools == {}
 
 
 def test_inbound_a2a_is_refused(monkeypatch):

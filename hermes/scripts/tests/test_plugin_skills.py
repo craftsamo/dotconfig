@@ -49,6 +49,7 @@ EXPECTED = {
     "workspace/workspace-drafts": {"workspace-drafts": {"assistant"}},
     "workspace/workspace-registry": {"workspace-registry": {"assistant"}},
     "messaging/discord-access": {"discord-account": {"assistant"}},
+    "inspection/screen-listen": {"discord-live": {"assistant"}},
     "messaging/signal-access": {"signal": {"assistant"}},
     "messaging/telegram-access": {"telegram-account": {"assistant"}},
     "messaging/whatsapp-access": {"whatsapp": {"assistant"}},
