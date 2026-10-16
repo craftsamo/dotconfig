@@ -203,28 +203,47 @@ The gate's report is a JSON line: per strategy, `intents` (each with an
      report the reason, never retry or work around it.
    - `unknown` or a submit that did not finish: stop that strategy for this
      run, read `orders` and `state`, and report; never quote it again.
+   - A note that a position is gone from the account (the venue closed it:
+     a stop that fired, a liquidation): read `fills` for that market from a
+     day before the time the note gives (the gate first saw the position
+     then; its entry may be earlier), and report the trade's result (step
+     2). No quote follows from it. A close you sent yourself is not noticed
+     again: its result goes in the run that sent it.
 2. Report once per run, one block per strategy, in this order and nothing
-   else (labels, wording and language are yours; a reader skims it on a
-   phone, so keep it to facts; an explanation of the method belongs in a
-   reply, not here):
-   - **A bold header line**: the strategy, the network and the bar's time
+   else. Labels, wording and language are yours; a reader skims it on a
+   phone, so facts only, and an explanation of the method belongs in a
+   reply, not here. Tables render on the platforms a run reports to; keep
+   each to two or three columns, so it does not wrap.
+   - **One plain sentence** of what happened (a long opened on the
+     breakout; the stop fired; the stop moved up; nothing sent, a notice).
+     It is what a notification preview shows.
+   - **A bold title line**: the strategy, the network and the bar's time
      (and the variant, when the strategy runs more than one).
-   - **A table, one row per intent**: what was sent and its outcome (filled
-     with size and average price, resting, waiting for trigger at its price,
-     refused with the reason, skipped with yours). A trailed stop reads as
-     from → to.
-   - **The position after the run**: side, size, entry, the stop in force,
-     and the unrealized profit or loss; or none.
-   - **On a close or a stop's fill, the trade's result**: realized profit or
-     loss and fees from the fills, and the R multiple: that result over the
-     risk at entry (size × the distance from the entry to the stop placed
-     with it; the stop in force at the exit when that one is not known), so
-     a losing streak reads against the rule's expectation rather than in
-     USDC alone.
-   - **The account's value** after the run, from a fresh `state` read.
-   - `new_notices` and problems last, each marked so they stand out.
-   With no intents, report the notices only. The cumulative result is not for
-   a run: `review` gives it weekly ("Review, pause and stop").
+   - **The actions, a table with one row per intent**: what was sent and its
+     outcome, with a mark that reads at a glance (filled with size and
+     average price; resting or waiting for trigger at its price; refused
+     with the reason; skipped with yours). A trailed stop reads as from → to.
+   - **The position, a two-column table** (label, value): side and size with
+     its value, entry → price now with the change, the stop in force with
+     its distance, and the unrealized result in USDC and in R (over the risk
+     at entry: size × the distance from the entry to the stop placed with
+     it; the stop in force now when that one is not known). Several
+     positions are one such table each. None: say so in one line.
+   - **On a close, a stop's fill or a position the gate says is gone, the
+     trade's result instead**: exit price and why, the realized result from
+     the fills in USDC and in R, and the fees, so a losing streak reads
+     against the rule's expectation rather than in USDC alone.
+   - **The footer**: the account's value from a fresh `state` read, with
+     the change since the strategy started (the gate's `start_equity_usd`,
+     its first funded read; deposits and withdrawals since move it too).
+     Under it, folded where the platform folds (a collapsed quote or
+     spoiler), else one short line: order ids, split fills, the gate's
+     reasons (channel and EMA levels), fee breakdown.
+   - `new_notices` and problems last, marked so they stand out, never
+     folded.
+   With no intents, the sentence, the title, the notices and the footer.
+   The cumulative result beyond the change since start is not for a run:
+   `review` gives it weekly ("Review, pause and stop").
 3. Never edit the spec, the stance or the state on a run, and never call any
    action but `quote`, `submit` and reads.
 

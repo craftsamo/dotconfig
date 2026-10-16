@@ -374,9 +374,13 @@ owns the procedure; this section owns what the code holds to.
   the risk per trade and capped by the limits and the mandate (with headroom
   for the worst price the order is valued at). Without a mandate in force no
   entry is listed, only noted; a bar whose entry needed a read that failed
-  is read again on the next run. Its last line is `{"wakeAgent": false}` when
-  nothing is to be done or said, so no model runs; a notice is said once.
-  It never signs, reads a key or posts to `/exchange`.
+  is read again on the next run. It remembers the positions it saw, so one
+  the venue closed on its own (a stop that fired, a liquidation) is noticed
+  once and the run reports the trade's result, and the account's value at
+  its first read, which every report compares the value now with. Its last
+  line is `{"wakeAgent": false}` when nothing is to be done or said, so no
+  model runs; a notice is said once. It never signs, reads a key or posts to
+  `/exchange`.
 - **The run** is the Assistant's cron turn with only `hyperliquid_access`
   and `skills`: it quotes and submits the intents as listed and may only skip
   an increase or lower it. The trader and the mandate decide every submit as

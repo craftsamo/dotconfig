@@ -265,6 +265,70 @@ def test_without_a_mandate_an_entry_is_only_noted_and_said_once(api, tmp_path):
     assert gate(root, api, tmp_path) == {"wakeAgent": False}
 
 
+def test_the_gate_keeps_the_start_equity_and_notices_a_position_the_venue_closed(api, tmp_path):
+    reset()
+    STATE["positions"] = [{"coin": "ETH", "szi": "-1", "entryPx": "50", "positionValue": "50"}]
+    STATE["orders"] = [{"coin": "ETH", "side": "B", "orderType": "Stop Market", "reduceOnly": True, "isTrigger": True,
+                        "sz": "1", "triggerPx": "60"}]
+    root = tmp_path / "hl-strategies"
+    strategy_dir(root)
+    first = gate(root, api, tmp_path)["strategies"][0]
+    assert first["start_equity_usd"] == "1000.00" and first["equity_usd"] == "1000.00"
+    state = json.loads((root / "trend" / "state.json").read_text())
+    assert state["start_equity_usd"] == "1000.00" and state["positions"]["ETH"]["side"] == "short"
+    since = state["positions"]["ETH"]["since"]
+    STATE["equity"] = "990"  # the position stays; the start does not move, nor does since
+    later = gate(root, api, tmp_path, NOW + H4)
+    state = json.loads((root / "trend" / "state.json").read_text())
+    assert state["start_equity_usd"] == "1000.00" and state["positions"]["ETH"]["since"] == since
+    assert not any(i["market"] == "ETH" for s in later.get("strategies", []) for i in s["intents"])
+    STATE["positions"], STATE["orders"] = [], []  # the stop fired on the venue: gone, with no intent
+    gone = gate(root, api, tmp_path, NOW + 2 * H4)["strategies"][0]
+    assert any("ETH: the short of 1 @ 50 seen since" in n and "gone from the account" in n for n in gone["new_notices"])
+    assert "ETH" not in json.loads((root / "trend" / "state.json").read_text())["positions"]
+    assert gate(root, api, tmp_path, NOW + 3 * H4) == {"wakeAgent": False}  # said once
+
+
+def test_a_close_the_gate_listed_is_not_noticed_again_and_an_empty_account_sets_no_start(api, tmp_path):
+    reset()
+    STATE["equity"] = "0"
+    root = tmp_path / "hl-strategies"
+    stance = {"schema": "hermes-hyperliquid-stance/1", "strategy": "trend", "issued": NOW - 24 * HOUR,
+              "expires": NOW + 48 * HOUR, "markets": {"ETH": {"direction": "flat"}},
+              "basis": [{"claim": "risk off", "source": "an advisor", "as_of": NOW - 30 * HOUR}]}
+    strategy_dir(root, stance=stance)
+    first = gate(root, api, tmp_path)
+    state = json.loads((root / "trend" / "state.json").read_text())
+    assert "start_equity_usd" not in state and "start_equity_usd" not in first.get("strategies", [{}])[0]
+    STATE["equity"] = "1000"
+    STATE["positions"] = [{"coin": "ETH", "szi": "-1", "entryPx": "50", "positionValue": "50"}]
+    (root / "trend" / "state.json").unlink()
+    listed = gate(root, api, tmp_path)["strategies"][0]
+    assert [i["quote"]["kind"] for i in listed["intents"] if i["market"] == "ETH"] == ["close"]
+    state = json.loads((root / "trend" / "state.json").read_text())
+    assert state["start_equity_usd"] == "1000.00" and state["positions"]["ETH"]["closing"] is True
+    STATE["positions"] = []  # the Assistant sent the close and reported it: the next run says nothing
+    assert gate(root, api, tmp_path, NOW + H4) == {"wakeAgent": False}
+    assert "ETH" not in json.loads((root / "trend" / "state.json").read_text())["positions"]
+
+
+def test_a_position_that_flipped_side_between_runs_is_noticed(api, tmp_path):
+    reset()
+    STATE["positions"] = [{"coin": "ETH", "szi": "-1", "entryPx": "50", "positionValue": "50"}]
+    STATE["orders"] = [{"coin": "ETH", "side": "B", "orderType": "Stop Market", "reduceOnly": True, "isTrigger": True,
+                        "sz": "1", "triggerPx": "60"}]
+    root = tmp_path / "hl-strategies"
+    strategy_dir(root)
+    gate(root, api, tmp_path)
+    STATE["positions"] = [{"coin": "ETH", "szi": "2", "entryPx": "51", "positionValue": "102"}]
+    STATE["orders"] = [{"coin": "ETH", "side": "A", "orderType": "Stop Market", "reduceOnly": True, "isTrigger": True,
+                        "sz": "2", "triggerPx": "40"}]
+    part = gate(root, api, tmp_path, NOW + H4)["strategies"][0]
+    assert any("ETH: the short of 1 @ 50 seen since" in n for n in part["new_notices"])
+    kept = json.loads((root / "trend" / "state.json").read_text())["positions"]["ETH"]
+    assert kept["side"] == "long" and kept["since"] == NOW + H4
+
+
 def test_a_flat_stance_closes_and_a_position_without_a_stop_is_protected(api, tmp_path):
     reset()
     STATE["positions"] = [{"coin": "BTC", "szi": "0.01", "entryPx": "100", "positionValue": "1.1"},
