@@ -285,8 +285,14 @@ def _age(stamp) -> float | None:
 
 
 def _summary(s: dict) -> dict:
-    return {k: s.get(k) for k in ("id", "app", "title", "started", "seconds", "status", "file", "silent", "error")
-            if s.get(k) is not None}
+    # History, not this call's outcome: the runtime reads a literal "error" key or a "failed" value
+    # in an answer as the call having failed, so a past failure is told in other words.
+    out = {k: s.get(k) for k in ("id", "app", "title", "started", "seconds", "status", "file", "silent")
+           if s.get(k) is not None}
+    if s.get("status") == "failed":
+        out["status"] = "not_kept"
+        out["detail"] = s.get("error")
+    return out
 
 
 def stop(args: dict) -> dict:
