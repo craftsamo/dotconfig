@@ -59,27 +59,36 @@ result's `verdict` and re-capture after anything that changes state.
    `wait` a few seconds, then `capture` with `app: "Discord"`, `mode: "som"`
    and read the result: the channel should be selected in the sidebar. If
    Discord shows a login or a verification screen, stop and tell the user.
-3. **Join.** For a voice channel, the link only selects it; joining is a
-   `click` on the channel's row or its join control. For a stage channel,
-   joining makes the Mac an audience member (no microphone by design), through
-   its join control. Discord labels controls in the app's language ("Join
-   Voice", "ボイスチャンネルに参加", "ステージに参加" or similar): read the label
-   in the capture, pick that `element`, never assume a position. Re-capture
-   after the click and follow the verdict.
+   The app is logged in to whatever account the person uses in it, which may
+   not be the account `discord_account` reads; the Mac joins as the app's
+   account, and that is the name others see.
+3. **Join.** For a voice channel there is no "join" button: the link only
+   selects the channel, and a `click` on the **channel's own row in the
+   sidebar** (the element whose label is the channel name) joins it. For a
+   stage channel, joining makes the Mac an audience member (no microphone by
+   design), through its join control ("ステージに参加" or similar). Click by
+   `element` from the som capture, never by a guessed position: element bounds
+   are in native desktop points, not screenshot pixels, and a coordinate
+   derived from the image is off by the scale factor the capture reports. If
+   the label you need is not in the capped element list, read the saved
+   element JSON the capture names. Re-capture after the click and follow the
+   verdict.
 4. **Confirm you are in, and mute the microphone.** The capture shows the
    voice-connected panel (a disconnect control appears) and `screen_listen`
    `status` reports the app `playing: true` once anyone speaks or streams.
    Joining a voice channel opens the Mac's microphone to it unless Discord was
-   left muted last time, so right after joining read the microphone control in
-   the voice panel ("Mute" / "ミュート"; it reads "Unmute" / "ミュート解除" once
-   muted) and click it if it is not muted. Whatever the user is saying in the
-   room, or on another call, must not reach the channel. If you cannot confirm
-   it is muted, disconnect and tell the user instead of staying in. **Never
-   deafen** ("Deafen" / "スピーカーミュート"): that silences the app's output,
-   which is exactly what `screen_listen` hears, and would make every listen or
-   recording silent. A stage audience member has no microphone to mute. If
-   nobody is in the channel and no stream is live, say so and leave; there is
-   nothing to hear.
+   left muted last time, so right after joining capture again and read the
+   microphone control in the voice panel ("Mute" / "ミュート" means it is live —
+   click it; "Unmute" / "ミュート解除" means it is already muted). Report what
+   you found, not what you intended: "muted (the control read ミュート解除)" or
+   "could not find the microphone control — disconnected". Whatever the user
+   is saying in the room, or on another call, must not reach the channel, so
+   if you cannot confirm the state, disconnect and tell the user instead of
+   staying in. **Never deafen** ("Deafen" / "スピーカーミュート"): that silences
+   the app's output, which is exactly what `screen_listen` hears, and would
+   make every listen or recording silent. A stage audience member has no
+   microphone to mute. If nobody else is in the channel and no stream is live,
+   say so and leave; there is nothing to hear.
 5. **Watch a stream, if there is one.** A live stream shows a watch control on
    the streaming member ("Watch Stream" / "配信を視聴"). Click it. If the user
    wants the picture described, pop the stream out ("Pop Out" / "ポップアウト")
@@ -91,8 +100,14 @@ result's `verdict` and re-capture after anything that changes state.
    for "what are they talking about", up to 300 for a summary of a segment.
    One call at a time; for a longer stretch, call again and summarize the
    pieces together. A `silent` answer means nothing was audible in the app
-   during that window — not that the tool failed; check the channel state
-   before retrying.
+   during that window; `too_little_sound` means only a moment of sound
+   (`active_seconds` — a join chime, a click, one short word) and no
+   transcription was attempted. Neither is a tool failure; check the channel
+   state before retrying. A transcript that is one stock phrase repeated ("ご視聴ありがとう
+   ございました", "Thank you for watching") with nobody speaking is the model
+   inventing words from near-silence: report it as nothing said, never as
+   something someone said. Transcription runs on this Mac unless the
+   profile's `screen_listen.stt` is `chain`.
 7. **Report** in the user's language: who seems to be there (from the capture),
    what the picture shows (if asked), what was said (from the transcript,
    summarized). Mark uncertainty: a transcript of a noisy call or overlapping
