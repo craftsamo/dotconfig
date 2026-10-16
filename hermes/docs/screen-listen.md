@@ -42,7 +42,7 @@ must stay in the hundreds of megabytes), with the app's own audio in the same
 MP4 (`SCRecordingOutput`, H.264 + AAC, macOS 15). It never captures a
 display. The consent for it is **Screen Recording**, asked only when video is
 used (`grant-screen`), and it behaves unlike the audio one: macOS re-confirms
-it periodically, and **a rebuilt helper is refused silently** — the stored
+it periodically, and **a rebuilt ad-hoc helper is refused silently** — the stored
 grant carries the earlier build's code requirement, the new one does not
 match, and Screen Recording does not prompt again while System Settings still
 shows the switch on. `grant-screen` therefore drops the stale grant
@@ -57,11 +57,19 @@ from the gateway the helper would inherit the gateway launcher's identity and th
 dialog would name it; so the plugin launches the helper through
 `open -W -n -g --stdout … -a ScreenListen.app`, which makes the helper its own
 responsible process: the dialog says "Hermes Screen Listen", the grant sticks to
-the helper, and a gateway update does not revoke it. The helper is ad-hoc
-signed, so a **rebuild is a new identity and macOS asks once more**
-(`scripts/screen-listen.sh install` says so; `grant` answers it on purpose
-rather than in the middle of a listen). A real signing identity would make the
-grant survive rebuilds; none is required.
+the helper, and a gateway update does not revoke it. The grant is stored
+against the helper's designated code requirement. Signed ad hoc, that is the
+hash of one build, so **a rebuild is a new identity and macOS asks once more**
+(`install` says so; `grant` answers it on purpose rather than in the middle of
+a listen). `scripts/screen-listen.sh identity` makes a self-signed
+code-signing identity in the login keychain once ("Hermes Local Code
+Signing": the certificate trusted for code signing in the user's trust
+settings, which costs one login-password dialog; only `codesign` may use the
+key unasked), and `install` signs with it when it exists. The requirement is
+then `identifier "local.hermes.screen-listen" and certificate leaf = <that
+certificate>`, which every later build satisfies, so the consents, audio and
+screen, survive rebuilds (verified: a changed binary, no dialog, no switch).
+Nothing is notarized or Apple-issued; the identity exists only on this Mac.
 
 The helper is built with the system Swift toolchain for a minimum OS of 14.2
 (the process tap API's floor). The minimum must stay at or below the host's
@@ -174,6 +182,7 @@ recording is running.
 ## Setup
 
 ```sh
+hermes/scripts/screen-listen.sh identity      # once: a signing identity, so rebuilds keep their consents
 hermes/scripts/screen-listen.sh install       # builds the helper (needs Xcode or its CLT)
 hermes/scripts/screen-listen.sh grant         # records one second; answer the dialog once
 hermes/scripts/screen-listen.sh grant-screen  # only for video: Screen Recording, see above
