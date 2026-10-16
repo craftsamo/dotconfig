@@ -68,9 +68,10 @@ READ_HELP = (
     "losses against the trend — heuristics, not a verdict), export (coin, interval, hours, end_time: candles and "
     "funding as one normalized dataset for backtesting prep, at most 500 candles), backtest (a main-dex perp coin, "
     "interval 15m to 1d, default 4h, and rules = {kind: breakout with entry, exit, atr, stop_atr, risk_pct | "
-    "ema_cross with fast, slow, atr, stop_atr, risk_pct; either optionally trail_atr}: trades them over the venue's "
-    "newest 5000 candles, or with long_history = true also older Binance spot candles of the coin's USDT pair, with "
-    "the taker fee, slippage, funding and an ATR stop, trailed behind each close when trail_atr is set; costs, "
+    "ema_cross with fast, slow, atr, stop_atr, risk_pct; either optionally trail_atr and regime_ema}: trades them "
+    "over the venue's newest 5000 candles, or with long_history = true also older Binance spot candles of the coin's "
+    "USDT pair, with the taker fee, slippage, funding and an ATR stop, trailed behind each close when trail_atr is "
+    "set, and entries only on the side of the regime EMA when regime_ema is set; costs, "
     "limits {exposure_pct, max_leverage}, direction, stance = dated windows of direction and size, hours, "
     "end_time; walk_forward = {grid of values per parameter, folds, objective, "
     "min_trades} chooses rules on past data and trades them on the next unseen window; returns figures, the "
@@ -142,7 +143,7 @@ PROPERTIES = {
     "fills": {"type": "integer", "description": "review: at most this many of the newest fills, default 500"},
     "rules": {"type": "object", "description": "backtest: {kind: breakout, entry, exit, atr, stop_atr, risk_pct} or "
                                               "{kind: ema_cross, fast, slow, atr, stop_atr, risk_pct}, either with an "
-                                              "optional trail_atr"},
+                                              "optional trail_atr and regime_ema"},
     "costs": {"type": "object", "description": "backtest: {taker_bps (default 4.5), slippage_bps (default 5), "
                                               "funding: venue | none}"},
     "limits": {"type": "object", "description": "backtest: {exposure_pct of equity (default 70), max_leverage "
