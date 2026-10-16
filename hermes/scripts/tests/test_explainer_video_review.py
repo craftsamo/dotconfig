@@ -37,7 +37,9 @@ def finding(fid, episode, at, problem, status="keep", certainty="certain", quote
             "source": "video-creator", "status": status}
 
 
-class ReviewScript(unittest.TestCase):
+class LedgerCase(unittest.TestCase):
+    """A two-episode ledger with one caption file; the test classes below share it."""
+
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.dir = Path(self.tmp.name)
@@ -84,9 +86,9 @@ class ReviewScript(unittest.TestCase):
                 code = exc.code
         return code, out.getvalue(), err.getvalue()
 
-    def sheet(self):
+    def sheet(self, *flags):
         out = self.dir / "sheet.md"
-        code, _, _ = self.run_cli("sheet", str(self.ledger), str(out))
+        code, _, _ = self.run_cli("sheet", str(self.ledger), str(out), *flags)
         self.assertEqual(code, 0)
         return out.read_text(encoding="utf-8")
 
@@ -105,6 +107,8 @@ class ReviewScript(unittest.TestCase):
         code, out, _ = self.run_cli("check", str(self.ledger), str(report))
         return code, json.loads(out)
 
+
+class ReviewScript(LedgerCase):
     def test_script_strips_time_prefixes(self):
         out = self.dir / "script.txt"
         code, _, _ = self.run_cli("script", str(self.captions), str(out))
@@ -178,8 +182,47 @@ class ReviewScript(unittest.TestCase):
         self.assertIn("## Overall", sheet)
         self.assertIn("### Certain\n- 1:15  Text: A label hides the unit of the value", sheet)
         self.assertIn("### Needs your eyes or ears\n- [ ] 0:44  Content: May overstate the count", sheet)
-        self.assertIn("- [x] 0:12  Grace Hopper  → heard as Grace Harper", sheet)
+        self.assertNotIn("Grace Hopper", sheet)  # the listen list is opt-in
         self.assertNotIn("A withdrawn finding", sheet)
+        self.assertIn("- [x] 0:12  Grace Hopper  → heard as Grace Harper", self.sheet("--listen"))
+
+    def test_sheet_links_times_to_the_video_and_shows_the_question_without_local_paths(self):
+        data = self.data()
+        data["episodes"][0]["video"] = "https://www.youtube.com/watch?v=abcdefghijk"
+        data["findings"][2].update({"ask": "Is the count overstated?", "kind": "fact",
+                                    "evidence": "/abs/job/01/visual/d0044.png; https://example.org/source"})
+        data["findings"].append(finding("F005", "#1", "", "The title does not say which topic it is",
+                                        certainty="confirm", status="open", aspect="thumbnail"))
+        self.write(data)
+        sheet = self.sheet()
+        self.assertIn("## #1 [One](https://youtu.be/abcdefghijk)", sheet)
+        self.assertIn("- [1:15](https://youtu.be/abcdefghijk?t=73)  Text: A label hides", sheet)
+        self.assertIn("- [ ] [0:44](https://youtu.be/abcdefghijk?t=42)  Content: fact: Is the count overstated? "
+                      "(evidence: https://example.org/source) `F003`", sheet)
+        self.assertIn("- [ ] [Thumbnail](https://i.ytimg.com/vi/abcdefghijk/maxresdefault.jpg)  Thumbnail: "
+                      "The title does not say", sheet)
+        self.assertNotIn("/abs/job", sheet)
+        self.assertIn("- 0:40  Text: The year is wrong", sheet)  # no video known for #11
+
+    def test_validate_knows_the_new_fields(self):
+        data = self.data()
+        data["episodes"][0]["video"] = "not a video"
+        data["findings"][0].update({"kind": "reading", "note": 3})
+        data["findings"][1]["status"] = "recheck"
+        data["findings"][2]["status"] = "hold"
+        self.write(data)
+        code, out, _ = self.run_cli("validate", str(self.ledger))
+        self.assertEqual(code, 1)
+        self.assertIn("episode #1: video must be a YouTube id or URL", out)
+        self.assertIn("F001: kind 'reading' is not a kind of aspect 'text'", out)
+        self.assertIn("F001: note must be a string", out)
+        data["episodes"][0]["video"] = "abcdefghijk"
+        data["findings"][0].update({"kind": "typo", "note": "fine"})
+        self.write(data)
+        code, out, _ = self.run_cli("validate", str(self.ledger), "--final")
+        self.assertEqual(code, 1)
+        self.assertIn("F002: still recheck", out)
+        self.assertNotIn("F003", out)  # hold is settled
 
     def test_sheet_names_unchecked_aspects_instead_of_a_clean_bill(self):
         data = self.data()
@@ -244,6 +287,42 @@ class ReviewScript(unittest.TestCase):
         code, out, _ = self.run_cli("import", str(self.ledger), "#1", str(findings), "--source", "audio-creator")
         self.assertEqual(code, 0, out)
         self.assertEqual(self.data()["findings"][-1]["evidence"], "prosody")
+
+    def test_import_keeps_urls_and_resolves_each_relative_path(self):
+        findings = self.dir / "findings.md"
+        findings.write_text(
+            "1:53 | content | The chip count is half | Vendor note 2024-03-18 https://example.org/a/b | confirm\n"
+            "0:50 | text | Two frames | detail-1/a.png; window-4/w.png | certain\n",
+            encoding="utf-8",
+        )
+        code, out, _ = self.run_cli("import", str(self.ledger), "#1", str(findings), "--source", "searcher")
+        self.assertEqual(code, 0, out)
+        rows = self.data()["findings"][-2:]
+        self.assertEqual(rows[0]["evidence"], "Vendor note 2024-03-18 https://example.org/a/b")
+        self.assertEqual(rows[1]["evidence"],
+                         f"{self.dir.resolve() / 'detail-1/a.png'}; {self.dir.resolve() / 'window-4/w.png'}")
+
+    def test_import_takes_a_kind_in_the_aspect_cell_or_as_a_flag(self):
+        findings = self.dir / "speech.md"
+        findings.write_text(
+            "0:27 | unlabeled(pitch +3st) | numbers jump in level | ASR 27.2s | confirm\n"
+            "1:04 | reading | \"A\" is not heard | ASR 64s | confirm\n",
+            encoding="utf-8",
+        )
+        code, out, _ = self.run_cli("import", str(self.ledger), "#1", str(findings), "--source", "audio-creator")
+        self.assertEqual(code, 1)
+        self.assertEqual(json.loads(out)["added"], ["F005"])
+        self.assertEqual((self.data()["findings"][-1]["aspect"], self.data()["findings"][-1]["kind"]),
+                         ("voice", "reading"))
+        code, out, _ = self.run_cli("import", str(self.ledger), "#1", str(findings), "--source", "audio-creator",
+                                    "--kind", "delivery")
+        self.assertEqual(code, 0, out)
+        row = self.data()["findings"][-1]
+        self.assertEqual((row["at"], row["aspect"], row["kind"]), ("0:27", "voice", "delivery"))
+        code, _, err = self.run_cli("import", str(self.ledger), "#1", str(findings), "--source", "audio-creator",
+                                    "--kind", "typo", "--aspect", "voice")
+        self.assertEqual(code, 2)
+        self.assertIn("belongs to aspect text", err)
 
     def test_import_refuses_an_unknown_episode_or_source(self):
         findings = self.dir / "findings.md"
@@ -311,6 +390,215 @@ class ReviewScript(unittest.TestCase):
         code, _, err = self.run_cli("check", str(self.ledger), str(report))
         self.assertEqual(code, 2)
         self.assertIn("ledger is not final", err)
+
+
+class SpeechTriage(LedgerCase):
+    """Only value mismatches, unheard Latin terms and mid-line jumps survive."""
+
+    def setUp(self):
+        super().setUp()
+        self.captions.write_text(
+            "[0:00] Intro\n[0:16] ACME TV!\n[0:40] Only three stayed\n[0:46] What, only three?\n"
+            "[0:58] Quiz: of the first 52 theorems, how many: 5 or 38?\n[1:06] Five, surely!\n"
+            "[2:03] Today's point. And the forecast was always early.\n[2:12] One a day! Bye!\n",
+            encoding="utf-8",
+        )
+        self.speech = self.dir / "speech"
+        self.speech.mkdir()
+        (self.speech / "findings.md").write_text(
+            "format: aac 44100Hz\n"
+            "0:22 | unlabeled | \"8 items\" heard as \"issue\" | ASR 22s | confirm\n"
+            "0:27 | unlabeled | \"1, 2, 4, 8\" heard as \"12, 1, 2, 4, 8\" | ASR 27s | confirm\n"
+            "0:16 | unlabeled | \"ACME TV\" heard as \"akmi tivi\" | ASR 16s | confirm\n"
+            "1:04 | unlabeled | \"A\" heard as \"\" | ASR 64s | confirm\n"
+            "1:34 | unlabeled | \"decimal\" heard as \"the cymbal\" | ASR 94s | confirm\n"
+            "1:06 | unlabeled | 「五個」→ASR「ここ」 | ASR 66s | confirm\n"
+            "1:32 | unlabeled | 「約2万3千倍」→ASR「2300倍」 | ASR 92s | confirm\n"
+            "2:00 | unlabeled | 「約1040億個」→ASR「1枚に約1400個」 | ASR 120s | confirm\n"
+            "0:18 | unlabeled | 「5G」 appears in the ASR text | ASR 18s | confirm\n"
+            "1:07 | unlabeled | ASR only: 台本「」→ASR「8GBの」 | ASR 67s | confirm\n"
+            "1:42 | unlabeled | 「一周」「約16周」→ASR「一週」「約16週」 | ASR 102s | confirm\n"
+            "1:52 | unlabeled | 台本「千」→ASR「00」 | ASR 112s | confirm\n"
+            "1:53 | unlabeled | extra words 「一つ2倍」: 台本「700億個なら、約140GB」→ASR「700億個一つ2倍約140GB」 | ASR 113s | confirm\n",
+            encoding="utf-8",
+        )
+        (self.speech / "prosody.md").write_text(
+            "reference median pitch 114 Hz\n"
+            "0:16 | high(200Hz) | prosody jump candidate | pitch +15.0 st vs previous (ASR: ACME TV!) | confirm\n"
+            "0:46 | high(225Hz) | prosody jump candidate | pitch +13.3 st vs previous, +11.0 st (vs median) | confirm\n"
+            "0:52 | mid | prosody jump candidate | pitch +8.7 st (vs median) | confirm\n"
+            "1:03 | low(93Hz) | prosody jump candidate | pitch -7.7 st、level -8.0 dB vs 直前 | confirm\n"
+            "1:06 | low(74Hz) | prosody jump candidate | level -22.4 dB vs previous | confirm\n"
+            "2:07 | low(88Hz) | prosody jump candidate | level -12.9 dB vs previous | confirm\n"
+            "2:11 | high(189Hz) | prosody jump candidate | pitch +13.1 st vs previous | confirm\n",
+            encoding="utf-8",
+        )
+
+    def test_numbers_read_digits_and_kanji_with_units(self):
+        self.assertEqual(review.numbers_in("約1040億個"), {1.04e11})
+        self.assertEqual(review.numbers_in("約2万3千倍"), {23000.0})
+        self.assertEqual(review.numbers_in("五十二個の定理、1,400 per die"), {52.0, 1400.0})
+        self.assertEqual(review.latin_terms("ACME TV, ChatGPT, decimal, A, mm"), {"acme", "tv", "chatgpt", "a"})
+
+    def test_triage_keeps_value_mismatches_unheard_terms_and_mid_line_jumps(self):
+        code, out, err = self.run_cli("triage-speech", str(self.ledger), "#1", str(self.speech))
+        self.assertEqual(code, 0, err)
+        result = json.loads(out)
+        self.assertEqual(result["reading"], ["0:16", "1:04", "1:32", "2:00"])
+        self.assertEqual(result["delivery"], ["1:03", "2:07"])
+        self.assertEqual(result["dropped"], 20 - 6)
+        kept = {f["at"]: f for f in self.data()["findings"] if f["source"] == "audio-creator"}
+        self.assertEqual((kept["2:00"]["aspect"], kept["2:00"]["kind"], kept["2:00"]["certainty"],
+                          kept["2:00"]["status"]), ("voice", "reading", "confirm", "open"))
+        self.assertEqual(kept["2:07"]["kind"], "delivery")
+        triage = (self.speech / "triage.md").read_text(encoding="utf-8")
+        self.assertIn("1:03 | delivery | prosody jump candidate", triage)
+        self.assertNotIn("0:46", triage)  # a jump at a caption line start is the next speaker
+        self.assertNotIn("2:11", triage)  # the closing line
+        self.assertNotIn("0:27", triage)  # every script number was heard
+
+    def test_triage_ignore_list_weak_mode_and_jump_cap(self):
+        ignore = self.dir / "ignore.txt"
+        ignore.write_text("ACME\n", encoding="utf-8")
+        code, out, _ = self.run_cli("triage-speech", str(self.ledger), "#1", str(self.speech),
+                                    "--ignore", str(ignore), "--weak", "--max-jumps", "1")
+        self.assertEqual(code, 0)
+        result = json.loads(out)
+        self.assertEqual(result["reading"], ["0:22", "1:04", "1:06", "1:32", "2:00"])
+        self.assertEqual(result["delivery"], ["2:07"])
+
+    def test_triage_without_captions_keeps_jumps_by_size_only(self):
+        data = self.data()
+        del data["episodes"][0]["captions"]
+        self.write(data)
+        code, out, _ = self.run_cli("triage-speech", str(self.ledger), "#1", str(self.speech), "--max-jumps", "2")
+        self.assertEqual(code, 0)
+        self.assertEqual(json.loads(out)["delivery"], ["0:46", "1:06"])
+
+
+class Spreadsheet(LedgerCase):
+    def setUp(self):
+        super().setUp()
+        data = self.data()
+        data["episodes"][0]["video"] = "abcdefghijk"
+        data["findings"][2].update({"kind": "fact", "evidence": "/abs/d.png; https://example.org/src"})
+        data["findings"].append(finding("F005", "#11", "0:12", "=SUM(A1) starts like a formula",
+                                        certainty="confirm", status="open"))
+        self.write(data)
+
+    def export(self):
+        out = self.dir / "export.json"
+        code, text, err = self.run_cli("export", str(self.ledger), str(out))
+        self.assertEqual(code, 0, err)
+        return json.loads(out.read_text(encoding="utf-8"))
+
+    def test_ask_draft_lists_open_questions_and_ask_import_stores_them(self):
+        draft = self.dir / "asks.md"
+        code, out, _ = self.run_cli("ask-draft", str(self.ledger), str(draft))
+        self.assertEqual(code, 0)
+        self.assertEqual(draft.read_text(encoding="utf-8"),
+                         "F003 | May overstate the count\nF005 | =SUM(A1) starts like a formula\n")
+        draft.write_text("F003 | Is the count overstated?\nF999 | nobody\n", encoding="utf-8")
+        code, out, _ = self.run_cli("ask-import", str(self.ledger), str(draft))
+        self.assertEqual(code, 1)
+        self.assertEqual(json.loads(out)["stored"], ["F003"])
+        self.assertEqual(self.data()["findings"][2]["ask"], "Is the count overstated?")
+
+    def test_export_builds_the_findings_tab_with_links_options_and_a_summary(self):
+        data = self.data()
+        data["findings"][2]["ask"] = "Is the count overstated?"
+        data["findings"][2]["note"] = "listen twice"
+        self.write(data)
+        out = self.export()
+        tab = out["tabs"]["findings"]
+        self.assertEqual(tab["title"], "Findings")
+        self.assertEqual(tab["header"], ["ID", "Episode", "Time", "Kind", "What to check", "Evidence", "Judgment",
+                                         "Memo", "Reply"])
+        rows = {row[0]: row for row in tab["rows"]}
+        self.assertEqual([row[0] for row in tab["rows"]], ["F004", "F003", "F001", "F005", "F002"])
+        self.assertEqual(rows["F003"], ["F003", "#1", '=HYPERLINK("https://youtu.be/abcdefghijk?t=42","0:44")',
+                                        "Content: fact", "Is the count overstated?", "https://example.org/src",
+                                        "To check", "listen twice", ""])
+        self.assertEqual(rows["F001"][6], "Report")  # reproduced findings are proposed for the report
+        self.assertEqual(rows["F004"][1:3], ["Overall", ""])
+        self.assertEqual(rows["F005"][2], "0:12")  # no video for #11: plain text, a time stays a time
+        self.assertEqual(rows["F005"][4], "'=SUM(A1) starts like a formula")
+        self.assertEqual(out["judgments"], ["To check", "Recheck", "Report", "Dismiss", "Hold"])
+        self.assertEqual(out["columns"]["judgment"], "G")
+        self.assertEqual(out["owner"], {"user": ["G", "H"], "assistant": ["I"]})
+        self.assertEqual(out["colours"]["To check"], "#FFF2CC")
+        self.assertIn("Voice: reading", out["kinds"])
+        summary = out["tabs"]["summary"]
+        self.assertEqual(summary["header"][:3], ["Episode", "Title", "Findings"])
+        self.assertEqual(summary["rows"][0][:3], ["#1", '=HYPERLINK("https://youtu.be/abcdefghijk","One")',
+                                                  "=COUNTIFS('Findings'!$B:$B,\"=#1\")"])
+        self.assertEqual(summary["rows"][0][3], "=COUNTIFS('Findings'!$B:$B,\"=#1\",'Findings'!$G:$G,\"=Report\")")
+        self.assertEqual(summary["rows"][2][0], "Overall")
+        self.assertEqual(summary["rows"][-1][:3], ["Total", "", "=SUM(C2:C4)"])
+
+    def test_export_speaks_the_sheet_language(self):
+        data = self.data()
+        data["sheet_language"] = "ja"
+        self.write(data)
+        out = self.export()
+        self.assertEqual(out["tabs"]["findings"]["title"], "所見")
+        self.assertEqual(out["tabs"]["findings"]["header"][6], "判定")
+        self.assertEqual(out["judgments"], ["要確認", "再確認", "採用", "不採用", "保留"])
+        self.assertEqual(out["tabs"]["findings"]["rows"][1][3], "中身・事実")
+
+    def test_readback_maps_judgments_to_statuses_and_lists_rechecks(self):
+        values = self.dir / "values.json"
+        values.write_text(json.dumps({"values": [
+            ["ID", "Episode", "Time", "Kind", "What to check", "Evidence", "Judgment", "Memo", "Reply"],
+            ["F001", "#1", "1:15", "Text", "...", "", "Report", "", ""],
+            ["F003", "#1", "0:44", "Content: fact", "...", "", "Recheck", "show me the source", ""],
+            ["F002", "#11", "0:40", "Text", "...", "", "dismiss", "", "answered earlier"],
+            ["F005", "#11", "0:12", "Text", "...", "", "", "", ""],
+            ["F004", "Overall", "", "Voice", "...", "", "保留", "", ""],
+            ["F999", "#1", "", "", "", "", "Report", "", ""],
+            ["F001", "#1", "", "", "", "", "maybe", "", ""],
+        ]}, ensure_ascii=False), encoding="utf-8")
+        code, out, _ = self.run_cli("readback", str(self.ledger), str(values))
+        self.assertEqual(code, 1)
+        result = json.loads(out)
+        self.assertEqual(result["counts"], {"open": 0, "recheck": 1, "keep": 1, "drop": 1, "hold": 1})
+        self.assertEqual(result["blank"], ["F005"])
+        self.assertEqual(result["recheck"], [{"id": "F003", "episode": "#1", "at": "0:44", "note": "show me the source"}])
+        self.assertEqual(result["unknown_ids"], ["F999"])
+        self.assertEqual(result["unknown_judgments"], ["F001: maybe"])
+        by_id = {f["id"]: f for f in self.data()["findings"]}
+        self.assertEqual(by_id["F003"]["status"], "recheck")
+        self.assertEqual(by_id["F002"]["status"], "drop")
+        self.assertEqual(by_id["F002"]["reply"], "answered earlier")
+        self.assertEqual(by_id["F004"]["status"], "hold")
+        self.assertEqual(by_id["F005"]["status"], "open")
+        self.assertEqual(by_id["F001"]["status"], "keep")  # the unknown judgment left the earlier one alone
+
+    def test_readback_never_erases_a_memo_or_reply_with_a_blank_cell(self):
+        data = self.data()
+        data["findings"][0]["reply"] = "written after the export"
+        self.write(data)
+        values = self.dir / "values.json"
+        values.write_text(json.dumps([["ID", "Judgment", "Memo", "Reply"], ["F001", "Report", "", ""]]),
+                          encoding="utf-8")
+        code, _, _ = self.run_cli("readback", str(self.ledger), str(values))
+        self.assertEqual(code, 0)
+        self.assertEqual(self.data()["findings"][0]["reply"], "written after the export")
+
+    def test_public_evidence_keeps_urls_and_measurements_only(self):
+        self.assertEqual(review.public_evidence("/abs/a.png; detail-1/d.png; frames/d0044; a.pdf; ~/x; "
+                                                "https://example.org/p?a=1;b=2; ASR 27.2s level +16.4 dB; 168px"),
+                         "https://example.org/p?a=1;b=2; ASR 27.2s level +16.4 dB; 168px")
+        self.assertEqual(review.criterion('#1 "two" 5*?~'), '=#1 ""two"" 5~*~?~~')
+        self.assertEqual(review.video_id("https://example.org/?dev=abcdefghijk"), None)
+        self.assertEqual(review.video_id("https://www.youtube.com/watch?v=abcdefghijk&t=3"), "abcdefghijk")
+
+    def test_readback_refuses_a_sheet_without_ids(self):
+        values = self.dir / "values.json"
+        values.write_text(json.dumps([["Episode", "Judgment"], ["#1", "Report"]]), encoding="utf-8")
+        code, _, err = self.run_cli("readback", str(self.ledger), str(values))
+        self.assertEqual(code, 2)
+        self.assertIn("no id column", err)
 
 
 if __name__ == "__main__":
