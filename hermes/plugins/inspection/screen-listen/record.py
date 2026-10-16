@@ -215,9 +215,19 @@ def start(args: dict, home) -> dict:
             session["pid"] = progress["pid"]
             session["status"] = "recording"
             _save(session)
-            return {"ok": True, "id": sid, "app": name, "dir": str(folder), "max_minutes": minutes,
-                    "note": "recording in the background; record_status shows progress, record_stop ends and "
-                            "packs it. The app must keep playing on this Mac (stay in the channel; no sleep)."}
+            out = {"ok": True, "id": sid, "app": name, "dir": str(folder), "max_minutes": minutes,
+                   "note": "recording in the background; record_status shows progress, record_stop ends and "
+                           "packs it. The app must keep playing on this Mac (stay in the channel; no sleep)."}
+            try:
+                playing = any(p.get("running_output") for p in listen.processes()
+                              if p.get("bundle") == bundle or str(p.get("bundle") or "").startswith(bundle + "."))
+            except Exception:  # noqa: BLE001 - a courtesy check; the session is already running
+                playing = None
+            if playing is False:
+                out["idle"] = True
+                out["note"] += (" The app is not outputting audio right now (not in a call, nothing playing): the "
+                                "recording fills once it does; join the channel if you have not.")
+            return out
         answer = _answer(session)
         if answer is not None and not answer.get("ok"):
             _fail(session, answer.get("error") or "the helper failed")

@@ -63,26 +63,27 @@ for p in playing:
     ;;
   grant)
     current || die "helper not built or stale (run: $0 install)"
-    listing=$("$BIN" processes || true)
-    pid=$(printf '%s' "$listing" | /usr/bin/python3 -c '
-import json, sys
-try:
-    data = json.load(sys.stdin)
-except ValueError:
-    sys.exit("the helper printed no result")
-if not data.get("ok"):
-    sys.exit("the helper failed: %s" % data.get("error"))
-procs = data.get("data") or []
-procs.sort(key=lambda p: not p["running_output"])
-print(procs[0]["pid"] if procs else "")') || die "$pid"
-    [ -n "$pid" ] || die "Core Audio reports no process to tap; play any sound and retry"
     tmp=$(mktemp -d)
     trap 'rm -rf "$tmp"' EXIT
     out="$tmp/grant.wav"
     log="$tmp/grant.json"
     echo "recording one second through the helper; answer the macOS dialog if it appears..."
-    open -W -n -g --stdout "$log" --stderr "$tmp/grant.err" -a "$APP" --args record --pid "$pid" --seconds 1 --out "$out" \
-      || die "the helper could not be launched: $(cat "$tmp/grant.err" 2>/dev/null)"
+    # A tap delivers nothing from a process that outputs nothing, so the take listens to a
+    # speech synthesizer this script starts. The take that raises the dialog gets no audio even
+    # when the answer is yes; a second take does.
+    for attempt in 1 2; do
+      rm -f "$out" "$log"
+      /usr/bin/say -r 160 "Hermes screen listen consent check, one two three four five six seven" &
+      sleep 0.7
+      pid=$(pgrep -n -x say || true)
+      [ -n "$pid" ] || die "could not start the speech synthesizer for the check"
+      open -W -n -g --stdout "$log" --stderr "$tmp/grant.err" -a "$APP" --args record --pid "$pid" --seconds 1 --out "$out" \
+        || die "the helper could not be launched: $(cat "$tmp/grant.err" 2>/dev/null)"
+      wait
+      /usr/bin/python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); sys.exit(0 if d.get("ok") and d["data"]["frames"] else 1)' "$log" \
+        && break
+      [ "$attempt" = 1 ] && sleep 2
+    done
     /usr/bin/python3 -c '
 import json, sys
 try:
