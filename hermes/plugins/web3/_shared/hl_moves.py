@@ -309,66 +309,74 @@ def build_transfer(ctx, payload, user, mkt_unused, quote_id) -> dict:
 
 # --- cards --------------------------------------------------------------------------------------
 
-def _withdraw_lines(b: dict, whose: str) -> list[str]:
-    return [f"Withdraw: {b['amount']} USDC from the {b.get('balance', 'perp')} balance to {b['chain']}",
-            f"To ({whose}): {b['destination']}",
-            f"Fee: {b['fee']} USDC to Circle's CCTP{_venue_fee(b)} (about {b['arrives']} arrives, usually within a "
-            "minute)"]
+# A move's card lines say what leaves and what arrives, one fact a line; the trader adds the From and To blocks
+# (who sends, who receives) like a wallet transfer's card. Detailed lines that start with "Fee:" are context the
+# compact card leaves out, so each compact form keeps what changes the outcome on its own lines.
+
+def _withdraw_lines(b: dict) -> list[str]:
+    return [f"Amount: {b['amount']} USDC {b['balance']} → {b['chain']} (Circle CCTP)",
+            f"Arrives: about {b['arrives']} USDC within a minute",
+            f"Fee: {b['fee']} Circle (from amount) · ≈{b['venue_fee_about']} venue (beside)"]
 
 
-def _venue_fee(b: dict) -> str:
-    # quotes made before the venue's own fee was known carry no venue_fee_about
-    return f", +≈{b['venue_fee_about']} to the venue from the balance" if b.get("venue_fee_about") else ""
+def _withdraw_short(b: dict) -> list[str]:
+    return [f"{b['amount']} USDC {b['balance']} → {b['chain']}",
+            f"Arrives ≈{b['arrives']} · fees {b['fee']} + ≈{b['venue_fee_about']}"]
 
 
-def _withdraw_short(b: dict, lines: list[str]) -> list[str]:
-    """The compact card's withdrawal keeps what arrives (Circle's fee differs by chain) and the venue's own fee
-    beside it, saying the route briefly."""
-    if not b.get("venue_fee_about"):  # a quote made before the venue's own fee was known keeps its old line
-        return [line + f" ({b['arrives']} arrives)" if line.startswith("Withdraw:") else line for line in lines]
-    brief = (f"Withdraw: {b['amount']} USDC {b.get('balance', 'perp')} → {b['chain']} ({b['arrives']} arrives; "
-             f"+≈{b['venue_fee_about']} fee)")
-    return [brief if line.startswith("Withdraw:") else line for line in lines]
+def _token(b: dict) -> str:
+    """A spot token's name: a deployer's choice, quoted when it is not a plain ticker."""
+    return b["token"] if isinstance(b["token"], str) else f"\"{b['token']['untrusted']}\""
 
 
-def _send_lines(b: dict, whose: str) -> list[str]:
-    token = b["token"] if isinstance(b["token"], str) else f"\"{b['token']['untrusted']}\""
-    fee = []
-    if b.get("fee_from") == "amount":
-        fee = [f"Fee: {b['fee']} USDC from the amount opens their account (about {b['arrives']} arrives)"]
-    elif b.get("fee_from"):
-        fee = [f"Fee: {b['fee']} USDC more, from the {b['fee_from']} balance, opens their account"]
+def _send_what(b: dict) -> str:
     if b.get("balance") == "unified":
-        return [f"Send on Hyperliquid: {b['amount']} {token} ({b['token_id']})",
-                f"From the unified balance to their {b['to_balance']} balance",
-                f"To ({whose}): {b['destination']}", *fee]
-    what = token if b.get("token_id") is None else f"{token} (spot, {b['token_id']})"
-    return [f"Send on Hyperliquid: {b['amount']} {what}", f"To ({whose}): {b['destination']}", *fee]
+        return f"{_token(b)} ({b['token_id']})"
+    return _token(b) if b.get("token_id") is None else f"{_token(b)} (spot, {b['token_id']})"
 
 
-def _send_short(b: dict, lines: list[str]) -> list[str]:
-    """The compact card's send: the unified route said briefly, and an account-opening fee kept, since it
-    changes what arrives or what leaves."""
-    lines = [line.replace("From the unified balance to their ", "Unified → their ").removesuffix(" balance")
-             if line.startswith("From the unified balance") else line for line in lines]
-    if b.get("fee_from"):
-        tail = f" ({b['arrives']} arrives)" if b["fee_from"] == "amount" else f" +{b['fee']} USDC fee"
-        lines = [line + tail if line.startswith("Send on Hyperliquid:") else line for line in lines]
+def _send_lines(b: dict) -> list[str]:
+    lines = [f"Amount: {b['amount']} {_send_what(b)}" + (" from the unified balance" if b.get("balance") == "unified"
+                                                          else "")]
+    if b.get("balance") == "unified":
+        lines.append(f"Credited to: their {b['to_balance']} balance")
+    if b.get("fee_from") == "amount":
+        lines += [f"Arrives: about {b['arrives']} USDC",
+                  f"Fee: {b['fee']} USDC from the amount opens their account"]
+    elif b.get("fee_from"):
+        lines.append(f"Fee: {b['fee']} USDC more, from the {b['fee_from']} balance, opens their account")
     return lines
 
 
-def _transfer_lines(b: dict, whose: str) -> list[str]:
+def _send_short(b: dict) -> list[str]:
+    """The compact card's send keeps an account-opening fee, since it changes what arrives or what leaves."""
+    tail = ""
+    if b.get("fee_from"):
+        tail = f" ({b['arrives']} arrives)" if b["fee_from"] == "amount" else f" +{b['fee']} USDC fee"
+    lines = [f"{b['amount']} {_send_what(b)}{tail}"]
+    if b.get("balance") == "unified":
+        lines.append(f"Unified → their {b['to_balance']}")
+    return lines
+
+
+def _transfer_lines(b: dict) -> list[str]:
     return [f"Move: {b['amount']} USDC {'spot → perp' if b['to_perp'] else 'perp → spot'} (same account)"]
+
+
+def _transfer_short(b: dict) -> list[str]:
+    return [f"{b['amount']} USDC {'spot → perp' if b['to_perp'] else 'perp → spot'} (same account)"]
 
 
 # --- the tables ---------------------------------------------------------------------------------
 
 @dataclass(frozen=True)
 class Kind:
-    """A quote kind that moves funds: how it is built, its card lines, and how the compact card shortens them."""
+    """A quote kind that moves funds: how it is built, what it does on the card, and the same in the
+    compact card's words. ``title`` heads both cards."""
     build: Callable
-    lines: Callable[[dict, str], list[str]]
-    short: Callable[[dict, list[str]], list[str]] | None = None
+    title: str
+    lines: Callable[[dict], list[str]]
+    short: Callable[[dict], list[str]]
 
 
 @dataclass(frozen=True)
@@ -394,9 +402,9 @@ def _recheck_withdrawal_fee(ctx: hl.Ctx, payload: dict, quote: dict) -> None:
 
 
 KINDS = {
-    "withdraw": Kind(build_withdraw, _withdraw_lines, _withdraw_short),
-    "send": Kind(build_send, _send_lines, _send_short),
-    "transfer": Kind(build_transfer, _transfer_lines),
+    "withdraw": Kind(build_withdraw, "Withdraw", _withdraw_lines, _withdraw_short),
+    "send": Kind(build_send, "Send", _send_lines, _send_short),
+    "transfer": Kind(build_transfer, "Move", _transfer_lines, _transfer_short),
 }
 TYPES = {
     "sendToEvmWithData": Type(
@@ -451,14 +459,21 @@ def recheck(quote: dict, ctx: hl.Ctx, payload: dict) -> None:
         check(ctx, payload, quote)
 
 
+def title(quote: dict) -> str:
+    return KINDS[quote["kind"]].title
+
+
 def lines(quote: dict) -> list[str]:
-    whose = "own" if quote.get("effect") == "own" else "external"
-    return KINDS[quote["kind"]].lines(quote["built"], whose)
+    return KINDS[quote["kind"]].lines(quote["built"])
 
 
-def short(quote: dict, lines_: list[str]) -> list[str]:
-    spec = KINDS[quote["kind"]]
-    return spec.short(quote["built"], lines_) if spec.short else lines_
+def short(quote: dict) -> list[str]:
+    return KINDS[quote["kind"]].short(quote["built"])
+
+
+def destination(quote: dict) -> str | None:
+    """The address a move leaves the account for, or None for a move within it."""
+    return quote["built"]["move"].get("destination")
 
 
 def trail(quote: dict) -> dict:

@@ -59,6 +59,7 @@ import ledger  # noqa: E402
 import rpc  # noqa: E402
 import signer  # noqa: E402
 from rpc import ChainError  # noqa: E402
+from eth_utils import to_checksum_address  # noqa: E402
 
 QUOTES = "hl-quotes"
 LEDGER = "hyperliquid.jsonl"
@@ -519,14 +520,41 @@ def _what(quote: dict) -> list[str]:
     return [kind]
 
 
+TITLES = {"order": "Order", "close": "Close", "tpsl": "TP/SL", "modify": "Modify", "cancel": "Cancel",
+          "leverage": "Leverage", "margin": "Margin"}
+# what the user decides on, first under the title: (detailed card, compact card). The marker sets the risky
+# effects apart at a glance on surfaces that show no formatting.
+EFFECTS = {"increase": ("⚠️ Can add exposure", "⚠️ adds exposure"),
+           "reduce": ("✅ Can only lower exposure", "✅ reduce only"),
+           "own": ("✅ Stays in your Hermes wallets", "✅ to own wallet"),
+           "external": ("⚠️ Funds LEAVE your Hermes wallets", "⚠️ funds leave")}
+
+
+def _title(quote: dict) -> str:
+    kind = quote["kind"]
+    return f"Hyperliquid {_net(quote)} · {hl_moves.title(quote) if kind in MOVES else TITLES.get(kind, kind)}"
+
+
+def _to(quote: dict) -> tuple[str, str] | None:
+    """(whose, address in checksum case) of a move's destination; None for a trade or a move within the
+    account. The signed action carries the address in lower case; the card shows it as wallets do."""
+    if quote["kind"] not in MOVES or not hl_moves.destination(quote):
+        return None
+    whose = "own" if quote["effect"] == "own" else ("watch-only" if quote.get("to_party") else "external")
+    return whose, to_checksum_address(hl_moves.destination(quote))
+
+
 def card(quote: dict, drop: tuple = ()) -> str:
+    """The detailed card (Telegram, CLI), shaped like a wallet transfer's: the title and the effect first,
+    one fact a line, then a block per side with the Keychain's project (scope), name, address and memo."""
     expires = datetime.fromtimestamp(quote["expires"]).astimezone().strftime("%H:%M UTC%z")
-    effect_line = {"reduce": "Effect: can only lower exposure", "own": "Effect: stays in the user's Hermes wallets",
-                   "external": "Effect: funds LEAVE the user's Hermes wallets"}.get(quote["effect"],
-                                                                                   "Effect: can add exposure")
-    lines = [f"Hyperliquid {_net(quote)}", *_what(quote), effect_line,
-             f"Quote: {quote['id']} · expires {expires}", "", "--- Account ---",
+    to = _to(quote)
+    lines = [_title(quote), EFFECTS[quote["effect"]][0], *_what(quote), f"Quote: {quote['id']} · expires {expires}",
+             "", "--- From ---" if quote["kind"] in MOVES else "--- Account ---",
              *signer._party_lines(quote["from_party"], quote["from"], drop)]
+    if to:
+        kind = {"own": "Your own", "watch-only": "Watch-only (external)", "external": "External"}[to[0]]
+        lines += ["", "--- To ---", f"Type: {kind}", *signer._party_lines(quote.get("to_party"), to[1], drop)]
     return "\n".join(lines)
 
 
@@ -534,17 +562,24 @@ CONTEXT = ("Value:", "Position now:", "Fee:")  # what the account looks like or 
 
 
 def card_short(quote: dict) -> str:
-    """The compact card (Discord): everything that is signed — every leg included — and only the
-    context dropped; legs share one line to stay inside the budget."""
-    what = [line for line in _what(quote) if not line.startswith(CONTEXT)]
+    """The compact card (Discord): the title with the effect, everything that is signed — every leg
+    included — and only the context dropped; legs share one line to stay inside the budget."""
+    head = f"{_title(quote)} · {EFFECTS[quote['effect']][1]}"
     if quote["kind"] in MOVES:
-        what = hl_moves.short(quote, what)
-    legs = [line for line in what if line.startswith(("TP:", "SL:"))]
-    rest = [line for line in what if line not in legs]
-    compact = " · ".join(line.replace(": trigger ", " ").replace(", worst ", "→") for line in legs)
-    lines = [f"Hyperliquid {_net(quote)}", *rest, *([compact] if compact else []),
-             f"Account {signer.one_line(quote['account'], 40)}: {quote['from']}", f"Quote {quote['id']}"]
-    return "\n".join(lines)
+        to = _to(quote)
+        what, side, after = hl_moves.short(quote), "From", [f"To ({to[0]}): {to[1]}"] if to else []
+    else:
+        signed = [line for line in _what(quote) if not line.startswith(CONTEXT)]
+        legs = [line for line in signed if line.startswith(("TP:", "SL:"))]
+        compact = " · ".join(line.replace(": trigger ", " ").replace(", worst ", "→") for line in legs)
+        what, side, after = [line for line in signed if line not in legs] + ([compact] if compact else []), \
+            "Account", []
+    for clip in (40, 20):  # the account's long name goes before anything signed or any address does
+        text = "\n".join([head, *what, f"{side} {signer.one_line(quote['account'], clip)}: {quote['from']}", *after,
+                          f"Quote {quote['id']}"])
+        if signer.card_units(text) <= signer.SHORT_BUDGET:
+            break
+    return text
 
 
 def cards(quote: dict) -> tuple[str, str]:
@@ -603,6 +638,11 @@ def op_quote(payload: dict) -> dict:
              "market": {k: (str(v) if isinstance(v, Decimal) else v) for k, v in mkt.items()},
              "action": action, "built": built, "from_party": secrets_.party(account)}
     quote["effect"] = move_effect(quote, secrets_) if kind in MOVES else effect(quote)
+    if kind in MOVES and hl_moves.destination(quote):
+        # the card names a destination the Keychain knows, a watch-only wallet too, as a wallet transfer does
+        dest = hl_moves.destination(quote)
+        found = secrets_.addresses("evm", "sign").get(dest) or secrets_.addresses("evm", "watch").get(dest)
+        quote["to_party"] = secrets_.party(found) if found else None
     quote["card"], quote["card_short"] = hl_mandate.cards(quote) if kind == "mandate" else cards(quote)
     quote["mac"] = _mac(secrets_, quote)
     with ledger.locked(state):
