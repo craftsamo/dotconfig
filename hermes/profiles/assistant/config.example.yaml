@@ -727,6 +727,10 @@ telegram:
       - This chat renders rich Markdown — lean into it: tables, headings, bullet/numbered
         lists, and task lists (`- [ ]`) are encouraged whenever they make the answer clearer
         or easier to scan.
+      - Put a blank line above and below every pipe table (never directly under a bold
+        label line), or Telegram shows it as literal pipes.
+      - Start a line or bullet with `#` only for a heading: Telegram reads `#3` as a
+        heading too, so write 第3回 / No.3 for numbered references.
       - Write documents as plain UTF-8 with NO byte-order mark (BOM); a leading BOM
         makes Telegram show the .md as plain text instead of rendering markdown.
       - Deliver the document by putting its bare file path on its own line; the
