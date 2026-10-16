@@ -226,7 +226,8 @@ only an API key can. OpenCode spends the same credits
   real spend is the Console's. OpenCode's `/credits` balance counts it: it
   reads every profile's `session_model_usage` rows billed to `anthropic`
   (read-only) and charges them Sub first, then Main. That order is
-  `hermes.order` in `opencode/lib/credit-lanes/lanes.json`; change it with the
+  `hermes.order` in `opencode/lib/credit-lanes/lanes.json` (a private overlay
+  file; the tracked `lanes.example.json` shows the shape); change it with the
   pool's priorities, or the estimate charges the wrong org.
 - **Keys.** The two env names sit in the shared `hermes` layer and, as a second
   copy of the same value, in OpenCode's `opencode` project. The pool entries

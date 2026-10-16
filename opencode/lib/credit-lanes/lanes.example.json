@@ -4,15 +4,15 @@
       "provider": "anthropic-credit-main",
       "label": "Main",
       "keyEnv": "ANTHROPIC_CREDIT_MAIN_ACCOUNT_KEY",
-      "amount": 200,
-      "renewalDay": 13
+      "amount": 100,
+      "renewalDay": 1
     },
     {
       "provider": "anthropic-credit-sub",
       "label": "Sub",
       "keyEnv": "ANTHROPIC_CREDIT_SUB_ACCOUNT_KEY",
-      "amount": 200,
-      "renewalDay": 29
+      "amount": 100,
+      "renewalDay": 15
     }
   ],
   "hermes": {
