@@ -2,6 +2,7 @@ import importlib.util
 import json
 from pathlib import Path
 import subprocess
+import sys
 import time
 
 import pytest
@@ -65,8 +66,9 @@ def fake_open(answer: dict, *, wav_bytes: bytes = b"RIFF"):
 
 
 def recorded(**extra):
-    data = {"file": "x", "bytes": 1000, "seconds": 5.0, "frames": 240000, "sample_rate": 48000, "channels": 2,
-            "peak": 0.3, "silent": False, "processes": [{"pid": 1, "bundle": "com.hnc.Discord", "running_output": True}]}
+    data = {"file": "x", "bytes": 1000, "seconds": 5.0, "frames": 240000, "sample_rate": 48000, "channels": 1,
+            "peak": 0.3, "active_seconds": 4.2, "silent": False,
+            "processes": [{"pid": 1, "bundle": "com.hnc.Discord", "running_output": True}]}
     data.update(extra)
     return {"ok": True, "data": data}
 
@@ -160,7 +162,7 @@ def test_status_reports_helper_and_apps(monkeypatch):
 def test_listen_records_transcribes_and_cleans_up(monkeypatch, tmp_path):
     run = fake_open(recorded())
     monkeypatch.setattr(listen.subprocess, "run", run)
-    monkeypatch.setattr(listen, "transcribe", lambda wav: {"success": True, "transcript": "hello",
+    monkeypatch.setattr(listen, "transcribe", lambda wav, home, budget=None: {"success": True, "transcript": "hello",
                                                            "provider": "local", "error": None})
     out = call(action="listen", seconds=5)
     assert out["ok"] and out["transcript"] == "hello" and out["provider"] == "local"
@@ -177,7 +179,7 @@ def test_listen_records_transcribes_and_cleans_up(monkeypatch, tmp_path):
 
 def test_listen_keeps_the_file_on_request(monkeypatch):
     monkeypatch.setattr(listen.subprocess, "run", fake_open(recorded()))
-    monkeypatch.setattr(listen, "transcribe", lambda wav: {"success": True, "transcript": "x",
+    monkeypatch.setattr(listen, "transcribe", lambda wav, home, budget=None: {"success": True, "transcript": "x",
                                                            "provider": "local", "error": None})
     out = call(action="listen", keep=True)
     assert out["ok"] and Path(out["file"]).is_file()
@@ -186,12 +188,111 @@ def test_listen_keeps_the_file_on_request(monkeypatch):
 def test_silent_recording_skips_transcription(monkeypatch):
     monkeypatch.setattr(listen.subprocess, "run", fake_open(recorded(peak=0.0, silent=True)))
 
-    def no_stt(wav):
+    def no_stt(wav, home):
         raise AssertionError("STT must not run on silence")
 
     monkeypatch.setattr(listen, "transcribe", no_stt)
     out = call(action="listen")
     assert out["ok"] and out["silent"] and out["transcript"] == "" and out["note"] == listen.SILENCE
+
+
+def test_a_chime_in_silence_is_not_transcribed(monkeypatch):
+    # Loud peak (a join chime), but under two seconds of sound in the whole take.
+    monkeypatch.setattr(listen.subprocess, "run", fake_open(recorded(peak=0.73, active_seconds=0.4, seconds=60.0)))
+
+    def no_stt(wav, home):
+        raise AssertionError("STT must not run on a chime")
+
+    monkeypatch.setattr(listen, "transcribe", no_stt)
+    out = call(action="listen", seconds=60)
+    assert out["ok"] and out["too_little_sound"] and not out["silent"] and out["transcript"] == ""
+    assert "0.4 s of sound" in out["note"] and out["active_seconds"] == 0.4
+
+
+def test_the_sound_gate_boundary_and_an_old_helper(monkeypatch):
+    seen = []
+    monkeypatch.setattr(listen, "transcribe", lambda wav, home, budget=None: (seen.append(budget) or
+                        {"success": True, "transcript": "x", "provider": "local", "error": None}))
+    monkeypatch.setattr(listen.subprocess, "run", fake_open(recorded(active_seconds=1.5)))
+    assert "too_little_sound" not in call(action="listen", seconds=5)
+    old = recorded()
+    del old["data"]["active_seconds"]  # a helper built before the field existed: no gate, STT runs
+    monkeypatch.setattr(listen.subprocess, "run", fake_open(old))
+    assert "too_little_sound" not in call(action="listen", seconds=5)
+    assert seen and all(b == listen.STT_BUDGET - 5 - listen.LAUNCH_GRACE for b in seen)
+
+
+def test_listen_records_mono(monkeypatch):
+    run = fake_open(recorded())
+    monkeypatch.setattr(listen.subprocess, "run", run)
+    monkeypatch.setattr(listen, "transcribe", lambda wav, home, budget=None: {"success": True, "transcript": "x",
+                                                                 "provider": "local", "error": None})
+    call(action="listen")
+    assert "--mono" in run.calls[0]
+
+
+def test_stt_mode_defaults_to_local(tmp_path):
+    assert listen.stt_mode(None) == "local"
+    (tmp_path / "config.yaml").write_text("screen_listen:\n  stt: chain\n")
+    assert listen.stt_mode(tmp_path) == "chain"
+    (tmp_path / "config.yaml").write_text("screen_listen:\n  stt: whatever\n  stt_model: small\nstt:\n  local:\n"
+                                          "    model: large-v3\n    language: ja\n")
+    assert listen.stt_mode(tmp_path) == "local"
+    assert listen.local_stt(tmp_path) == ("small", "ja")
+    (tmp_path / "config.yaml").write_text("stt:\n  local:\n    model: large-v3\n")
+    assert listen.local_stt(tmp_path) == ("large-v3", None)
+
+
+def test_local_transcription_runs_the_job_in_place(monkeypatch, tmp_path):
+    wav = tmp_path / "audio.wav"
+    wav.write_bytes(b"RIFF")
+    calls = []
+
+    def run(command, **kwargs):
+        calls.append(command)
+        out_dir = Path(command[3])
+        (out_dir / "transcript.job.json").write_text(json.dumps({"status": "done", "detected_language": "ja"}))
+        (out_dir / "transcript.txt").write_text("[0:00:01] こんにちは\n")
+        return subprocess.CompletedProcess(command, 0, "", "")
+
+    monkeypatch.setattr(listen.subprocess, "run", run)
+    out = listen.transcribe(wav, None)
+    assert out["success"] and out["transcript"] == "[0:00:01] こんにちは" and out["language"] == "ja"
+    assert out["provider"] == "local (medium)" and calls[0][1].endswith("transcribe_job.py")
+    assert calls[0][2] == str(wav) and calls[0][3] == str(tmp_path)
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["audio.wav"]  # the job's files are gone
+
+
+def test_local_transcription_failures(monkeypatch, tmp_path):
+    wav = tmp_path / "audio.wav"
+    wav.write_bytes(b"RIFF")
+
+    def slow(command, **kwargs):
+        raise subprocess.TimeoutExpired(command, kwargs["timeout"])
+
+    monkeypatch.setattr(listen.subprocess, "run", slow)
+    out = listen.transcribe(wav, None, budget=100)
+    assert out["success"] is False and "timed out" in out["error"]
+
+    def broken(command, **kwargs):
+        Path(command[3], "transcript.job.json").write_text(json.dumps({"status": "failed", "error": "no model"}))
+        return subprocess.CompletedProcess(command, 1, "", "Traceback\nRuntimeError: no model")
+
+    monkeypatch.setattr(listen.subprocess, "run", broken)
+    out = listen.transcribe(wav, None)
+    assert out["success"] is False and out["error"] == "no model"
+    assert not (tmp_path / "transcript.job.json").exists()
+
+
+def test_chain_transcription_uses_the_runtime(monkeypatch, tmp_path):
+    import types
+    (tmp_path / "config.yaml").write_text("screen_listen:\n  stt: chain\n")
+    fake = types.SimpleNamespace(transcribe_audio=lambda path, source=None: {"success": True, "transcript": " hi ",
+                                                                             "provider": "groq"})
+    monkeypatch.setitem(sys.modules, "tools", types.SimpleNamespace(transcription_tools=fake))
+    monkeypatch.setitem(sys.modules, "tools.transcription_tools", fake)
+    out = listen.transcribe(tmp_path / "audio.wav", tmp_path)
+    assert out == {"success": True, "transcript": "hi", "provider": "groq", "error": None}
 
 
 def test_no_frames_points_at_consent_and_leaves_nothing(monkeypatch, tmp_path):
@@ -261,7 +362,7 @@ def test_old_kept_recordings_are_swept(monkeypatch, tmp_path):
 
 def test_failed_transcription_keeps_the_recording(monkeypatch):
     monkeypatch.setattr(listen.subprocess, "run", fake_open(recorded()))
-    monkeypatch.setattr(listen, "transcribe", lambda wav: {"success": False, "transcript": "",
+    monkeypatch.setattr(listen, "transcribe", lambda wav, home, budget=None: {"success": False, "transcript": "",
                                                            "provider": None, "error": "no backend"})
     out = call(action="listen")
     assert out["ok"] is False and "no backend" in out["error"] and Path(out["file"]).is_file()
