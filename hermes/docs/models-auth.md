@@ -199,15 +199,19 @@ only an API key can. OpenCode spends the same credits
 - **Rate limits** are per Console org (Start tier when linked for credits),
   shared with OpenCode's parallel specialists; a higher tier is a request in the
   Console.
-- **Two orgs, one tier.** The `anthropic` credential pool holds both keys as
-  env-sourced entries: `ANTHROPIC_CREDIT_SUB_ACCOUNT_KEY` (priority 0), then
-  `ANTHROPIC_CREDIT_MAIN_ACCOUNT_KEY` (priority 1). Sub (the OpenCode account's
-  org) is first; OpenCode spends the other way round, so the two start on
-  different orgs and one org's rate limit is not hit by both at once.
+- **Three orgs, one tier.** The `anthropic` credential pool holds the keys as
+  env-sourced entries (`source: env:<VAR>`, no secret on disk, re-hydrated on
+  every load; there is no CLI for one, the row is written into the root
+  `auth.json`): `ANTHROPIC_CREDIT_TEAM_ACCOUNT_KEY` (priority 0, a key another
+  org's owner lent, whose grant expires on their schedule), then
+  `ANTHROPIC_CREDIT_SUB_ACCOUNT_KEY` (1) and `ANTHROPIC_CREDIT_MAIN_ACCOUNT_KEY`
+  (2). Among the own orgs Sub (the OpenCode account's) is first; OpenCode
+  spends them the other way round, so the two start on different orgs and one
+  org's rate limit is not hit by both at once.
 - **Failure.** An empty balance is a plain 400 ("credit balance is too low")
   that the classifier treats as billing, so the turn moves on at once: a billing
   400 benches that key for an hour and rotates to the next pool entry, a 429 is
-  retried once and then rotates, a 401 rotates, and with both keys spent the
+  retried once and then rotates, a 401 rotates, and with every key spent the
   turn moves to the next fallback entry. Benches are saved to disk, and while
   more than ten minutes of one remain the walk skips the lane without a request.
   In the last ten minutes of a bench the lane counts as unconfigured and is
@@ -225,11 +229,11 @@ only an API key can. OpenCode spends the same credits
 - **Cost.** A lane turn reports an estimated cost from Hermes' price table; the
   real spend is the Console's. OpenCode's `/credits` balance counts it: it
   reads every profile's `session_model_usage` rows billed to `anthropic`
-  (read-only) and charges them Sub first, then Main. That order is
+  (read-only) and charges them in the pool's order. That order is
   `hermes.order` in `opencode/lib/credit-lanes/lanes.json` (a private overlay
   file; the tracked `lanes.example.json` shows the shape); change it with the
   pool's priorities, or the estimate charges the wrong org.
-- **Keys.** The two env names sit in the shared `hermes` layer and, as a second
+- **Keys.** The env names sit in the shared `hermes` layer and, as a second
   copy of the same value, in OpenCode's `opencode` project. The pool entries
   read the variable by name, so rotate both copies and restart the gateway. A
   profile without its own `anthropic` rows reads the root `auth.json` read-only;
@@ -237,9 +241,10 @@ only an API key can. OpenCode spends the same credits
   root: `hermes auth list` at the root does not show or clear that profile's
   bench, and a rename at the root does not reach it.
 - **Exposure.** Terminal and code-execution children drop secrets by name, and
-  the list holds each registered provider's variables, not these two names, so a
-  child of any profile that holds them can read both keys (in the shared layer,
-  every profile). A leak costs at most the orgs' monthly credits.
+  the list holds each registered provider's variables, not these names, so a
+  child of any profile that holds them can read every lane key (in the shared
+  layer, every profile). A leak costs at most the orgs' monthly credits; for the
+  lent key that is someone else's grant, so it stays only while that lasts.
 
 ### `agent.*` does not inherit from the root profile
 
