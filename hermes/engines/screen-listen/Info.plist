@@ -23,6 +23,6 @@
   <key>LSBackgroundOnly</key>
   <true/>
   <key>NSAudioCaptureUsageDescription</key>
-  <string>Hermes records the audio of one allowed application (for example a Discord stream or voice channel) for a few minutes so it can transcribe it for you. It never records the microphone or the screen.</string>
+  <string>Hermes records the audio of one allowed application (for example a Discord stream or voice channel) so it can transcribe it for you, and one window of that application when you ask for a video. It never records the microphone or the rest of the screen.</string>
 </dict>
 </plist>
