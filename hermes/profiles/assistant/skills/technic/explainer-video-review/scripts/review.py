@@ -11,7 +11,7 @@ it, so nothing is copied by hand.
                                                       add a hands report's `m:ss | aspect | ... ` lines
     review.py triage-speech <ledger.json> <episode> <speech dir> [--ignore FILE] [--max-jumps N]
                                                       keep only value mismatches and mid-line jumps
-    review.py ask-draft  <ledger.json> <out.md>       `ID | problem` lines to reword as questions
+    review.py ask-draft  <ledger.json> <out.md>       `ID | problem` lines to reword as claims
     review.py ask-import <ledger.json> <asks.md>      store the reworded questions
     review.py kinds    <ledger.json>                  give findings imported without a kind one
     review.py export   <ledger.json> <out.json>       rows, formulas, options and colours for the spreadsheet
@@ -33,7 +33,7 @@ Ledger shape::
      "findings": [{"id": "F001", "episode": "#1" | "all", "at": "1:15" | "0:50-0:54" | "",
                    "aspect": "text|voice|content|thumbnail|portrait|overall",
                    "kind": "<optional: reading|delivery|typo|overlap|figure|fact|clarity>",
-                   "problem": "...", "ask": "<the question the sheet shows instead of problem>",
+                   "problem": "...", "ask": "<the claim the sheet shows instead of problem>",
                    "evidence": "...", "certainty": "certain|confirm",
                    "quotes": ["verbatim words the report must keep"],
                    "source": "video-creator|audio-creator|image-creator|searcher|researcher|user|assistant",
@@ -55,8 +55,12 @@ formulas, the dropdown options and the ``format`` block (the row bands per
 episode and their two alternating backgrounds); it refuses
 a voice, text or content finding without a kind. ``readback`` takes the tab
 read back from the sheet (``{"values": [[header], [row], ...]}`` or a bare
-list of rows) and maps each judgment label to a status. Column names and
-option labels come from ``SHEET_TEXT``, so the two sides agree by construction.
+list of rows) and maps each answer to a status: the user answers the claim
+(YES = it is so = keep, NO = drop, can't tell = the assistant's turn), the
+status is derived, never chosen on the sheet. So ``ask`` must state the
+defect as a claim YES confirms, never as a question with two readings.
+Column names and option labels come from ``SHEET_TEXT``, so the two sides
+agree by construction.
 
 Language: ``sheet_language`` picks the sheet's wording from ``SHEET_TEXT``
 (English when absent or unknown). ``language`` (per episode, else the
@@ -84,7 +88,13 @@ KINDS = {"reading": "voice", "delivery": "voice", "typo": "text", "overlap": "te
          "figure": "content", "fact": "content", "clarity": "content"}
 CERTAINTIES = ("certain", "confirm")
 STATUSES = ("open", "recheck", "keep", "drop", "hold")
-JUDGMENTS = ("open", "recheck", "keep", "drop", "hold")  # the sheet's dropdown, in this order
+# The sheet's judgment is the user's answer to the finding's claim, not a
+# status: YES (it is so) keeps, NO drops, "can't tell" hands the finding to
+# the assistant (recheck; hold shows the same answer once the assistant has
+# given up on it), and a blank cell is open. ANSWERS lists the dropdown.
+ANSWERS = ("keep", "drop", "recheck")
+ANSWER_OF = {"open": None, "recheck": "recheck", "keep": "keep", "drop": "drop", "hold": "recheck"}
+SUMMARY_COUNTS = ("total", "keep", "drop", "recheck", "open")
 SOURCES = ("video-creator", "audio-creator", "image-creator", "searcher", "researcher", "user", "assistant")
 ALL = "all"
 
@@ -106,12 +116,12 @@ SHEET_TEXT = {
         "kinds": {"reading": "Voice: reading", "delivery": "Voice: delivery", "typo": "Text: typo",
                   "overlap": "Text: overlap", "figure": "Figure: motion", "fact": "Content: fact",
                   "clarity": "Content: clarity"},
-        "judgments": {"open": "To check", "recheck": "Recheck", "keep": "Report", "drop": "Dismiss",
-                      "hold": "Hold"},
-        "columns": {"id": "ID", "episode": "Episode", "at": "Time", "kind": "Kind", "text": "What to check",
-                    "evidence": "Evidence", "judgment": "Judgment", "note": "Memo", "reply": "Reply"},
-        "summary_columns": {"episode": "Episode", "title": "Title", "total": "Findings", "keep": "Report",
-                            "drop": "Dismiss", "hold": "Hold", "open": "To check", "recheck": "Recheck"},
+        "judgments": {"keep": "YES", "drop": "NO", "recheck": "Can't tell"},
+        "columns": {"id": "ID", "episode": "Episode", "at": "Time", "kind": "Kind",
+                    "text": "Claim (YES = it is so)", "evidence": "Evidence", "judgment": "Answer",
+                    "note": "Memo", "reply": "Reply"},
+        "summary_columns": {"episode": "Episode", "title": "Title", "total": "Findings", "keep": "YES",
+                            "drop": "NO", "recheck": "Can't tell", "open": "Unanswered"},
         "tabs": {"findings": "Findings", "summary": "Summary"}, "total": "Total", "thumb": "Thumbnail",
         "title": "Review sheet", "overall": "Overall",
         "intro": "Certain = reproduced on our side. Tick what needs your eyes or ears and send back the result.",
@@ -126,11 +136,11 @@ SHEET_TEXT = {
                     "portrait": "似顔絵", "overall": "全体"},
         "kinds": {"reading": "声・読み", "delivery": "声・緩急", "typo": "字・誤字", "overlap": "字・かぶり",
                   "figure": "図・動き", "fact": "中身・事実", "clarity": "中身・分かりにくさ"},
-        "judgments": {"open": "要確認", "recheck": "再確認", "keep": "採用", "drop": "不採用", "hold": "保留"},
-        "columns": {"id": "ID", "episode": "回", "at": "時刻", "kind": "項目", "text": "内容（確認すること）",
+        "judgments": {"keep": "YES", "drop": "NO", "recheck": "確認不可"},
+        "columns": {"id": "ID", "episode": "回", "at": "時刻", "kind": "項目", "text": "内容（YES＝その通り）",
                     "evidence": "根拠", "judgment": "判定", "note": "メモ", "reply": "返答"},
-        "summary_columns": {"episode": "回", "title": "題", "total": "所見", "keep": "採用", "drop": "不採用",
-                            "hold": "保留", "open": "要確認 残", "recheck": "再確認 残"},
+        "summary_columns": {"episode": "回", "title": "題", "total": "所見", "keep": "YES", "drop": "NO",
+                            "recheck": "確認不可", "open": "未回答"},
         "tabs": {"findings": "所見", "summary": "まとめ"}, "total": "合計", "thumb": "サムネ",
         "title": "確認用シート", "overall": "全体",
         "intro": "確実＝こちらで確かめ済み。要確認の所は、チェックを付けて結果を返してください。",
@@ -753,12 +763,14 @@ def kind_label(finding: dict, words: dict) -> str:
     return words["kinds"][kind] if kind in words["kinds"] else words["aspects"][finding["aspect"]]
 
 
-def sheet_judgment(finding: dict) -> str:
-    """What the sheet shows: a reproduced finding is proposed for the report."""
+def sheet_answer(finding: dict, words: dict) -> str:
+    """The answer cell: a reproduced finding comes pre-answered YES (the user
+    may still flip it); an unanswered one is blank."""
     status = finding.get("status", "open")
     if status == "open" and finding.get("certainty") == "certain":
-        return "keep"
-    return status
+        status = "keep"
+    answer = ANSWER_OF[status]
+    return words["judgments"][answer] if answer else ""
 
 
 def public_evidence(evidence: str) -> str:
@@ -843,7 +855,7 @@ def export_rows(data: dict, words: dict) -> list[list[str]]:
             kind_label(finding, words),
             cell_text(finding.get("ask") or finding["problem"]),
             cell_text(public_evidence(finding.get("evidence", ""))),
-            words["judgments"][sheet_judgment(finding)],
+            sheet_answer(finding, words),
             cell_text(finding.get("note", "")),
             cell_text(finding.get("reply", "")),
         ])
@@ -866,13 +878,13 @@ def summary_rows(data: dict, words: dict) -> list[list[str]]:
             url = video_url(episode)
             title = hyperlink(url, episode.get("title") or shown) if url else cell_text(episode.get("title", ""))
         row = [cell_text(shown), title, f'=COUNTIFS({episode_col},"{criterion(shown)}")']
-        for status in ("keep", "drop", "hold", "open", "recheck"):
-            option = criterion(words["judgments"][status])
+        for answer in ANSWERS + ("open",):
+            option = criterion(words["judgments"][answer]) if answer != "open" else "="  # "=" matches a blank cell
             row.append(f'=COUNTIFS({episode_col},"{criterion(shown)}",{judgment_col},"{option}")')
         rows.append(row)
     first, last = 2, 1 + len(rows)
     total = [words["total"], ""]
-    for index in range(2, 8):
+    for index in range(2, 2 + len(SUMMARY_COUNTS)):
         letter = chr(ord("A") + index)
         total.append(f"=SUM({letter}{first}:{letter}{last})")
     rows.append(total)
@@ -919,10 +931,9 @@ def cmd_export(args) -> int:
     if missing:
         fail(f"findings without a kind (run `review.py kinds` first): {', '.join(missing)}")
     words = sheet_text(data)
-    judgments = [words["judgments"][j] for j in JUDGMENTS]
+    judgments = [words["judgments"][a] for a in ANSWERS]
     kinds = [words["kinds"][k] for k in KINDS] + [words["aspects"][a] for a in ("thumbnail", "portrait", "overall")]
-    summary_header = [words["summary_columns"][c] for c in
-                      ("episode", "title", "total", "keep", "drop", "hold", "open", "recheck")]
+    summary_header = [words["summary_columns"][c] for c in ("episode", "title") + SUMMARY_COUNTS]
     rows = export_rows(data, words)
     out = {
         "job": data.get("job", ""),
@@ -1005,6 +1016,8 @@ def cmd_readback(args) -> int:
         if status is None:
             unknown_judgments.append(f"{fid}: {judgment}")
             continue
+        if status == "recheck" and finding.get("status") == "hold":
+            status = "hold"  # the assistant already gave up on it; the same answer again changes nothing
         finding["status"] = status
         counts[status] += 1
         if status == "recheck":

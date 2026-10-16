@@ -41,7 +41,7 @@ second commissioning contract.
 | Factual claims, tier A | Searcher `lookup` with `technic: primary-fact-pack` | you judge each claim against the returned first-party facts |
 | Factual claims, tier B | Researcher `fact-check` with `technic: claim-check`, through Creator | verdicts and safe wording come back from Researcher |
 | Written report for the requester | Writer `write-document`, format `report` | one resident session; revisions are `edit-document` there |
-| Judgments, listening, likeness, the final send | the user | the spreadsheet asks; you never decide these |
+| Answers (seen, heard, checked), likeness, the final send | the user | the spreadsheet asks a claim per finding; a finding they cannot answer comes back to you |
 
 The spreadsheet is the channel between you and the user, nobody else: the
 requester gets a report or the user's own message, never the sheet.
@@ -179,14 +179,18 @@ conversation (`plan-assistant-research`).
 7. **Build the review spreadsheet.** The user judges in a Google Sheet, one
    per round, made and read with the `google_sheets` tool under
    `skill_view(name="google-access:google-sheets")` (plan the payload in a
-   script file, one guarded write, read back). First word every `confirm`
-   finding as the question the user must answer with their eyes or ears
-   ("is the ring hiding the card's first letter?", "does 1040 come out as
-   1400?"), without paths or internal notes:
+   script file, one guarded write, read back). The user does not judge on
+   the sheet; they answer each row YES, NO or "can't tell", and the status
+   follows from the answer. So first word every `confirm` finding as a
+   claim of the defect that YES confirms, with the user's eyes or ears
+   ("the countdown ring hides the first letter of card B", "1040 is read
+   as 1400"), never as a question — "is 10 read as one-zero (not ten)?"
+   has two readings and no safe answer — and without paths or internal
+   notes:
 
    ```sh
    python3 ${HERMES_SKILL_DIR}/scripts/review.py ask-draft ledger.json asks.md
-   # edit asks.md: `ID | question`, one line per finding
+   # edit asks.md: `ID | claim`, one line per finding
    python3 ${HERMES_SKILL_DIR}/scripts/review.py ask-import ledger.json asks.md
    python3 ${HERMES_SKILL_DIR}/scripts/review.py kinds ledger.json
    python3 ${HERMES_SKILL_DIR}/scripts/review.py export ledger.json export.json
@@ -201,13 +205,13 @@ conversation (`plan-assistant-research`).
    ordered by episode and time; the time cell is a HYPERLINK that opens the
    video two seconds before the moment, a thumbnail row opens the
    thumbnail; the evidence column keeps URLs and measurements and never a
-   local path; `judgment` proposes the report for every finding you
-   reproduced and "to check" for the rest), a summary tab of formulas (per
-   episode: findings, reported, dismissed, held, and the two remaining
-   counts — the user's and yours), the dropdown options for `kind` and
-   `judgment`, `columns` / `owner`, and `format`. Build it so: native table
+   local path; the answer cell comes pre-filled YES for every finding you
+   reproduced and blank for the rest), a summary tab of formulas (per
+   episode: findings, YES, NO, can't tell, unanswered), the dropdown
+   options for `kind` and the answer, `columns` / `owner`, and `format`.
+   Build it so: native table
    on the findings tab, header frozen, the id, episode and time columns
-   frozen, the text column wide and wrapped, `judgment` and `kind` strict
+   frozen, the text column wide and wrapped, the answer and `kind` strict
    dropdowns of the listed options, the columns not in `owner` protected
    with a warning. The only colour is `format.episodes`: each band's
    `colour` becomes the plain background of its rows, so an episode reads
@@ -215,31 +219,37 @@ conversation (`plan-assistant-research`).
    any cell, and none on the dropdowns: the API cannot colour a chip, and
    a coloured cell behind a grey chip reads as a mistake. Enter values as typed (`USER_ENTERED`): the
    time and title cells are formulas, and `export` already quotes text that
-   starts like one. Read the findings tab back and compare ids, judgments
+   starts like one. Read the findings tab back and compare ids, answers
    and link targets with `export.json` before telling the user the sheet is
    ready; send the sheet's URL, not a file. The Markdown sheet
    (`review.py sheet ledger.json review-sheet.md`) remains the offline form
-   with the same links and questions; `--listen` adds the caption-term list
+   with the same links and claims; `--listen` adds the caption-term list
    from `review.py listen`, which is off by default because it buries the
    findings.
-8. **Settle through the sheet.** The user owns `judgment` and `memo`; you own
-   `reply`. The judgments: to check (theirs to do), recheck (yours: the memo
-   says what — a first-party source, another frame, a rewording), report,
-   dismiss, hold (kept in the ledger, not reported). When the user says they
-   are done, or the summary's "to check" count is zero, save the findings
+8. **Settle through the sheet.** The user owns the answer and `memo`; you
+   own `reply`. YES means the claim holds and the finding is reported; NO
+   means it does not and the finding is dropped; "can't tell" means the
+   user could not see or hear it, or could not check a fact, and hands the
+   finding to you. A blank is not yet looked at. When the user says they
+   are done, or the summary's unanswered count is zero, save the findings
    tab as read (`{"values": [[header], [row], ...]}`) and take it in:
 
    ```sh
    python3 ${HERMES_SKILL_DIR}/scripts/review.py readback ledger.json values.json
    ```
 
-   It maps each judgment to the finding's status, stores memos and replies,
-   and lists the `recheck` rows. Work each of those: do what the memo asks,
-   write the answer in `reply`, update the evidence, and set its judgment
-   back to "to check" — the decision returns to the user, never to you.
-   Rewrite only your columns and the judgment cells you reset, in one
-   guarded write with `expect` on the ids. Repeat until both remaining
-   counts are zero, then `review.py validate ledger.json --final`.
+   It derives each finding's status from the answer, stores memos and
+   replies, and lists the `recheck` rows (the "can't tell" ones). Work
+   each of those: do what the memo asks or what the finding needs — a
+   first-party source, another frame, a crop, a cleaner listen — and then
+   decide it yourself, since the user has said they cannot: `keep` or
+   `drop` in the ledger with the reason in `reply`, or `hold` (kept in the
+   ledger, not reported) when you cannot either, saying so in `reply`.
+   Only when you learned something that lets the user answer after all
+   (a new crop, a quieter take) do you clear the answer cell and hand it
+   back. Rewrite only your columns and the answer cells you clear, in one
+   guarded write with `expect` on the ids. Repeat until the unanswered and
+   "can't tell" counts are zero, then `review.py validate ledger.json --final`.
    Likeness is the user's call: when asked to prepare it, have Searcher
    locate the reference photos (the photographer or source credited in the
    video description), put each portrait frame beside its photo in one local
