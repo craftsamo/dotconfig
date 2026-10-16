@@ -4,8 +4,9 @@ description: >-
   Use when asked to review existing explainer videos (a YouTube link, a batch
   from a colleague or client, the user's own uploads) for on-screen text,
   voice, content accuracy, thumbnail and portrait defects. Orchestrates the
-  hands, Searcher, Researcher and Writer into a findings ledger, a review sheet
-  for the user and, on request, a written report. Independent of the video's
+  hands, Searcher, Researcher and Writer into a findings ledger, a review
+  spreadsheet the user judges in (every row linked to its moment in the
+  video) and, on request, a written report. Independent of the video's
   release state or owner. Findings only: nothing is edited, uploaded or sent.
 version: 1.0.0
 author: CraftSamo
@@ -33,14 +34,17 @@ second commissioning contract.
 
 | Part | Owner | How |
 | --- | --- | --- |
-| Intake, fetch, staging, ledger, cross-episode checks, verification, review sheet, report acceptance | you | this technic and `scripts/review.py` |
+| Intake, fetch, staging, ledger, speech triage, cross-episode checks, verification, the review spreadsheet and its read-back, report acceptance | you | this technic and `scripts/review.py` |
 | On-screen text, caption-vs-picture, overlaps, phone-size text, figure and portrait drawing defects, the claim list | video-creator `analyze-explainer-video` | one `kind="work"` conversation per video |
-| Speech: un-captioned speech, misread names, numbers and foreign-language terms | audio-creator `analyze-speech` | `kind="work"`, at most five videos per conversation |
-| Thumbnail legibility at use size | image-creator `analyze-card` | one thumbnail per `kind="inquiry"`, `destination: youtube-thumb` |
+| Speech: un-captioned speech, misread names, numbers and foreign-language terms, prosody jumps (candidates only) | audio-creator `analyze-speech` | `kind="work"`, at most five videos per conversation |
+| Thumbnail legibility at use size | image-creator `analyze-card` | one thumbnail per `kind="inquiry"`, `destination: youtube-thumb`, a fresh work directory each |
 | Factual claims, tier A | Searcher `lookup` with `technic: primary-fact-pack` | you judge each claim against the returned first-party facts |
 | Factual claims, tier B | Researcher `fact-check` with `technic: claim-check`, through Creator | verdicts and safe wording come back from Researcher |
 | Written report for the requester | Writer `write-document`, format `report` | one resident session; revisions are `edit-document` there |
-| Listening, likeness, the final send | the user | the review sheet asks; you never decide these |
+| Judgments, listening, likeness, the final send | the user | the spreadsheet asks; you never decide these |
+
+The spreadsheet is the channel between you and the user, nobody else: the
+requester gets a report or the user's own message, never the sheet.
 
 Creator is not a reviewer here; it only carries the tier-B Researcher
 conversation (`plan-assistant-research`).
@@ -81,26 +85,32 @@ conversation (`plan-assistant-research`).
    The caption file is what should be on screen; it is itself unchecked, so a
    caption typo is a text finding, not proof the voice is right.
    Create `ledger.json` (shape in `review.py`'s header) with one `episodes`
-   entry per video, its caption path included, `language` set to the
+   entry per video, its caption path and `video` (the YouTube id: every time
+   on the sheet links to the video at that second), `language` set to the
    captions' language and `sheet_language` to the user's. Add an aspect to
    the episode's `checked` list only when that check has actually returned.
 4. **Dispatch in parallel**, then end the turn; results return as new
    messages, never poll.
    - Speech: the [speech](../../assistant-pipeline/execute-assistant-creative/references/speech.md)
      reference's `analyze-speech` with `source` (the audio download),
-     `script`, `language`, `prosody: yes` when voice is in scope, and a note
-     asking for speech absent from the script and for the heard words of
-     every name, number and foreign-language term, findings only. Its
-     prosody candidate lines go into the ledger as `confirm` voice findings
-     (save the returned lines as `<NN>/speech/prosody.md` and import them
-     with `--source audio-creator`), so they reach the user only on the
-     review sheet; a change of speaker also jumps, and the user decides which
-     are real. Fresh ASR on a whole batch outlives one turn, so split a batch
-     into conversations of at most five videos and send them together; every video
-     still gets its check. The leaf takes up to 600 seconds: a longer video's
-     speech stays unchecked and is named so on the sheet. An exit code 1 with
-     `script_match FAIL` still produced findings: read its output before
-     calling the run failed. ASR runs over music, so its output is candidates.
+     `script`, `language`, `prosody: yes` when voice is in scope, `deliver`
+     the video's `<NN>/speech/`, and a note asking, findings only, for the
+     heard words of every name, number and foreign-language term written as
+     `m:ss | voice | 「script words」→「heard words」 | ASR segment | confirm`
+     (`「」` for words not heard; whole phrases, never single characters),
+     plus speech absent from the script. Its prosody lines name each jump
+     against the previous segment (`+7.7 st` / `-12.9 dB vs previous`).
+     ASR runs over music, so nearly every line is noise: never import a
+     speech report as it is. `triage-speech` (step 6) keeps a value the ASR
+     heard as another value, a Latin-script term it did not hear, and the
+     two largest jumps that fall inside one caption line — a jump at a line
+     start is the next speaker; `--ignore` names the terms the series always
+     reads its own way (brand names). Fresh ASR on a whole batch outlives
+     one turn, so split a batch into conversations of at most five videos and
+     send them together; every video still gets its check. The leaf takes up
+     to 600 seconds: a longer video's speech stays unchecked and is named so
+     on the sheet. An exit code 1 with `script_match FAIL` still produced
+     findings: read its output before calling the run failed.
    - Picture: the [explainer-video](../../assistant-pipeline/execute-assistant-creative/references/explainer-video.md)
      reference's `analyze-explainer-video`, one conversation per video, with
      `source`, `captions`, `remote_analysis` (`no` unless consented) and
@@ -113,12 +123,20 @@ conversation (`plan-assistant-research`).
    - Thumbnail: the [card](../../assistant-pipeline/execute-assistant-creative/references/card.md)
      reference's `analyze-card` with `files` (the one thumbnail),
      `input_kind: single`, `destination: youtube-thumb`, `expected_text` when
-     the intended title is known, and a note asking whether the thumbnail
-     alone tells which topic it is at the reduced size.
+     the intended title is known, `deliver` a directory used by no earlier
+     thumbnail (`<NN>/thumb/`; a reused one makes the leaf read the previous
+     thumbnail's settings and measure the wrong image), and a note asking
+     whether the thumbnail alone tells which topic it is at the reduced size,
+     and that a mascot's deliberately wrong line is not a content defect.
 5. **Check the claims.** From each video's `claims.md`, send tier A
    first: one Searcher lookup per batch, `technic: primary-fact-pack`, the
    claims with figures, dates and ranks as the item list ([search
-   plan](../../assistant-pipeline/plan-assistant-search/SKILL.md)). Judge each
+   plan](../../assistant-pipeline/plan-assistant-search/SKILL.md)). Put in
+   the request: open the first-party page directly where its address is
+   known rather than searching for it, append each item's result to the
+   output file as soon as it is in hand, and stop with what was gathered
+   when the same step fails twice (one run that repeats a failing search
+   returns nothing). Judge each
    claim against the returned facts yourself and cite them. Send tier B
    through Creator to Researcher with `technic: claim-check` ([research
    plan](../../assistant-pipeline/plan-assistant-research/SKILL.md)) for a
@@ -133,37 +151,86 @@ conversation (`plan-assistant-research`).
    python3 ${HERMES_SKILL_DIR}/scripts/review.py import ledger.json <label> <NN>/visual/review-<n>/findings.md --source video-creator
    ```
 
-   It resolves evidence paths from the findings file's directory and exits 1
-   with every line it could not read under `not_imported`: enter those by
-   hand or ask the hands to restate them, never leave them out.
-   Enter speech, thumbnail and claim findings the same way when they come as
+   It resolves relative evidence paths from the findings file's directory
+   (URLs and measurements stay as written) and exits 1 with every line it
+   could not read under `not_imported`: enter those by hand or ask the hands
+   to restate them, never leave them out. The second cell may carry one of
+   the finer kinds (`reading`, `delivery`, `typo`, `overlap`, `figure`,
+   `fact`, `clarity`) instead of an aspect; `--kind` sets one for a whole
+   file. Thumbnail and claim findings import the same way when they come as
    `m:ss | aspect | problem | evidence | certain|confirm` lines, otherwise by
-   editing `ledger.json`. Then open each finding's cited frame or crop
-   yourself; drop what you cannot reproduce (`status: drop`), and ask the
-   same hands conversation for a missing piece of evidence rather than
-   re-measuring. For a numbered series, compare across episodes: a "last time"
-   reference must name the right episode, and a figure shown in several
-   episodes (a price, a rank, a same-month value) must read the same in each.
-   Every entry starts `status: open`; lower `certainty` to `confirm` when
-   you could not reproduce it exactly or it rests on taste or listening.
-7. **Build the review sheet** for the user and send it as a file:
+   editing `ledger.json`. Speech goes through the triage instead, once per
+   video, with the `--ignore` list of the series' own readings:
 
    ```sh
-   python3 ${HERMES_SKILL_DIR}/scripts/review.py listen ledger.json
-   python3 ${HERMES_SKILL_DIR}/scripts/review.py sheet ledger.json review-sheet.md
+   python3 ${HERMES_SKILL_DIR}/scripts/review.py triage-speech ledger.json <label> <NN>/speech --ignore <terms file>
    ```
 
-   `listen` adds the names, numbers and foreign-language terms of each
-   caption line at that line's own start time, found by the rules for the
-   captions' `language`; a language without its own rules yields numbers and
-   capitalised words only, so pass its names with `--terms`; prune obvious noise with `--terms` or by
-   editing the `listen` list, never by retyping times. The sheet separates
-   certain findings from those that need the user's eyes or ears. Never write
-   "no problem" for anything not judged: an unchecked aspect is named as
-   unchecked.
-8. **Settle with the user.** Record each answer in the ledger (`source:
-   user`, the listen item's `result`), set every finding `keep` or `drop`,
-   rebuild the sheet, and run `review.py validate ledger.json --final`.
+   It writes the kept lines to `<NN>/speech/triage.md` and imports them as
+   `confirm` voice findings (`reading` / `delivery`); its JSON names what it
+   kept and how many lines it dropped. Then open each finding's cited frame
+   or crop yourself; drop what you cannot reproduce (`status: drop`), and
+   ask the same hands conversation for a missing piece of evidence rather
+   than re-measuring. For a numbered series, compare across episodes: a
+   "last time" reference must name the right episode, and a figure shown in
+   several episodes (a price, a rank, a same-month value) must read the same
+   in each. Every entry starts `status: open`; lower `certainty` to `confirm`
+   when you could not reproduce it exactly or it rests on taste or listening.
+7. **Build the review spreadsheet.** The user judges in a Google Sheet, one
+   per round, made and read with the `google_sheets` tool under
+   `skill_view(name="google-access:google-sheets")` (plan the payload in a
+   script file, one guarded write, read back). First word every `confirm`
+   finding as the question the user must answer with their eyes or ears
+   ("is the ring hiding the card's first letter?", "does 1040 come out as
+   1400?"), without paths or internal notes:
+
+   ```sh
+   python3 ${HERMES_SKILL_DIR}/scripts/review.py ask-draft ledger.json asks.md
+   # edit asks.md: `ID | question`, one line per finding
+   python3 ${HERMES_SKILL_DIR}/scripts/review.py ask-import ledger.json asks.md
+   python3 ${HERMES_SKILL_DIR}/scripts/review.py export ledger.json export.json
+   ```
+
+   `export.json` is the sheet: a findings tab (one row per live finding,
+   ordered by episode and time; the time cell is a HYPERLINK that opens the
+   video two seconds before the moment, a thumbnail row opens the
+   thumbnail; the evidence column keeps URLs and measurements and never a
+   local path; `judgment` proposes the report for every finding you
+   reproduced and "to check" for the rest), a summary tab of formulas (per
+   episode: findings, reported, dismissed, held, and the two remaining
+   counts — the user's and yours), the dropdown options for `kind` and
+   `judgment`, a colour per judgment, and `columns` / `owner`. Build it so:
+   native table on the findings tab, header frozen, the id, episode and time
+   columns frozen, the text column wide and wrapped, `judgment` a strict
+   dropdown of the listed options, `kind` a dropdown too, one conditional
+   colour rule per judgment on the whole row, the columns not in `owner`
+   protected with a warning. Enter values as typed (`USER_ENTERED`): the
+   time and title cells are formulas, and `export` already quotes text that
+   starts like one. Read the findings tab back and compare ids, judgments
+   and link targets with `export.json` before telling the user the sheet is
+   ready; send the sheet's URL, not a file. The Markdown sheet
+   (`review.py sheet ledger.json review-sheet.md`) remains the offline form
+   with the same links and questions; `--listen` adds the caption-term list
+   from `review.py listen`, which is off by default because it buries the
+   findings.
+8. **Settle through the sheet.** The user owns `judgment` and `memo`; you own
+   `reply`. The judgments: to check (theirs to do), recheck (yours: the memo
+   says what — a first-party source, another frame, a rewording), report,
+   dismiss, hold (kept in the ledger, not reported). When the user says they
+   are done, or the summary's "to check" count is zero, save the findings
+   tab as read (`{"values": [[header], [row], ...]}`) and take it in:
+
+   ```sh
+   python3 ${HERMES_SKILL_DIR}/scripts/review.py readback ledger.json values.json
+   ```
+
+   It maps each judgment to the finding's status, stores memos and replies,
+   and lists the `recheck` rows. Work each of those: do what the memo asks,
+   write the answer in `reply`, update the evidence, and set its judgment
+   back to "to check" — the decision returns to the user, never to you.
+   Rewrite only your columns and the judgment cells you reset, in one
+   guarded write with `expect` on the ids. Repeat until both remaining
+   counts are zero, then `review.py validate ledger.json --final`.
    Likeness is the user's call: when asked to prepare it, have Searcher
    locate the reference photos (the photographer or source credited in the
    video description), put each portrait frame beside its photo in one local
@@ -188,9 +255,9 @@ conversation (`plan-assistant-research`).
    Writer in the same session as feedback; never patch the report yourself.
    A finding changed after the report exists changes the ledger first, then
    goes to Writer as an `edit-document`.
-10. **Deliver** the review sheet and, when made, the report as files. Nothing
-    goes to the requester without the user's explicit OK, and the user often
-    sends it themselves.
+10. **Deliver** the report, when made, as a file. Nothing goes to the
+    requester without the user's explicit OK, and the user often sends it
+    themselves; the spreadsheet stays between you and the user.
 
 ## Pitfalls
 
@@ -200,3 +267,11 @@ conversation (`plan-assistant-research`).
 - Vision refuses a fourth load of the same file, crops included: when you
   verify a finding, open the hands' own evidence file once, and for another
   look ask the hands for a new crop rather than re-cropping one frame.
+- A remote video analysis (`remote_analysis: yes`) has returned wrong
+  counts, missing times and truncated drafts on short explainer videos; when
+  a series' notes say it adds nothing, do not ask for consent and do not
+  send one, and never let its reading override the frames.
+- The speech check is the noisiest: a `delegate_task` or a hand-made rule to
+  thin it is the triage done twice. Tune `triage-speech`'s flags (and the
+  series' `--ignore` file) instead, and tell the user how many lines it
+  dropped.
