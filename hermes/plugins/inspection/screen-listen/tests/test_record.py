@@ -204,7 +204,8 @@ def test_a_dead_helper_without_audio_is_failed_and_unblocks(monkeypatch):
     assert out["ok"]
     LIVE.clear()  # it died, leaving no WAV
     status = call(action="record_status")
-    assert "active" not in status and status["recent"][0]["status"] == "failed"
+    assert "active" not in status and status["recent"][0]["status"] == "not_kept"
+    assert "detail" in status["recent"][0] and '"error"' not in json.dumps(status) and '"failed"' not in json.dumps(status)
     assert not Path(out["dir"]).exists() and not helper.progress.exists()
     assert call(action="record_start")["ok"]  # not busy any more
 
