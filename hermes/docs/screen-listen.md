@@ -81,7 +81,10 @@ than the host, silently from the plugin's side (`open` fails with -10825).
   open its deep link in the background, join, watch, listen, report, leave).
   The skill reads the app's controls from the accessibility tree by label in
   the app's own language rather than assuming positions, because Discord's UI
-  changes.
+  changes. A channel the skill joins for the user has its microphone muted
+  (Discord keeps the last mute state, so a join can open the room's audio to
+  the channel); a channel the user is in themselves is left alone; deafening
+  is never used, since it silences the very output the tap records.
 - No approval card: a listen records only an allowed app the user asked to
   hear, for a bounded time, into a private folder. Widening the allowlist is a
   config change by the user, not something the Assistant can do.
