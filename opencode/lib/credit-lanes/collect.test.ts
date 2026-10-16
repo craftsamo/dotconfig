@@ -1,6 +1,10 @@
-import { describe, expect, test } from "bun:test"
+import { afterAll, describe, expect, test } from "bun:test"
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
 import {
   collect,
+  loadConfig,
   paceWindow,
   recordCheckpoint,
   recordGrant,
@@ -107,6 +111,36 @@ const CONSOLE: Record<string, LaneState> = {
     },
   },
 }
+
+describe("loadConfig", () => {
+  const dir = mkdtempSync(join(tmpdir(), "credit-lanes-config-"))
+  afterAll(() => rmSync(dir, { recursive: true, force: true }))
+  test("reads the file, and a missing one is no lanes", () => {
+    const file = join(dir, "lanes.json")
+    writeFileSync(file, JSON.stringify(CONFIG))
+    expect(loadConfig(file)).toEqual(CONFIG)
+    expect(loadConfig(join(dir, "absent.json"))).toEqual({ lanes: [] })
+  })
+  test("no lanes collect to nothing, without a stats run", async () => {
+    const { env, src } = fixture({})
+    expect(await collect(NOW, { lanes: [] }, src)).toEqual([])
+    expect(env.statsCalls).toEqual([])
+    expect(env.saves).toBe(0)
+  })
+  test("the tracked example has the shape", () => {
+    const example = loadConfig(new URL("./lanes.example.json", import.meta.url))
+    expect(example.lanes.length).toBeGreaterThan(0)
+    for (const lane of example.lanes) {
+      expect(typeof lane.provider).toBe("string")
+      expect(typeof lane.keyEnv).toBe("string")
+      expect(lane.amount).toBeGreaterThan(0)
+      expect(lane.renewalDay).toBeGreaterThanOrEqual(1)
+      expect(lane.renewalDay).toBeLessThanOrEqual(31)
+    }
+    for (const id of example.hermes?.order ?? [])
+      expect(example.lanes.some((lane) => lane.provider === id)).toBe(true)
+  })
+})
 
 describe("collect", () => {
   test("counts OpenCode since the checkpoint, and Hermes on Sub first, then Main", async () => {

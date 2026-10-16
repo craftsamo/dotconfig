@@ -32,9 +32,17 @@ export type Config = {
   hermes?: { root: string; order: string[] }
 }
 
-export function loadConfig(): Config {
-  const file = new URL("./lanes.json", import.meta.url)
-  return JSON.parse(readFileSync(file, "utf8")) as Config
+// lanes.json is private (the overlay links it beside this file; lanes.example.json
+// shows the shape). A machine without it has no lanes rather than a failure.
+export const CONFIG_FILE = new URL("./lanes.json", import.meta.url)
+
+export function loadConfig(file: URL | string = CONFIG_FILE): Config {
+  try {
+    return JSON.parse(readFileSync(file, "utf8")) as Config
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return { lanes: [] }
+    throw error
+  }
 }
 
 export function loadLanes(): Lane[] {
