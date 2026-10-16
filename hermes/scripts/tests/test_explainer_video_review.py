@@ -481,9 +481,13 @@ class Spreadsheet(LedgerCase):
         super().setUp()
         data = self.data()
         data["episodes"][0]["video"] = "abcdefghijk"
+        data["findings"][0]["kind"] = "overlap"
+        data["findings"][1]["kind"] = "typo"
         data["findings"][2].update({"kind": "fact", "evidence": "/abs/d.png; https://example.org/src"})
+        data["findings"][3]["kind"] = "delivery"
         data["findings"].append(finding("F005", "#11", "0:12", "=SUM(A1) starts like a formula",
                                         certainty="confirm", status="open"))
+        data["findings"][-1]["kind"] = "typo"
         self.write(data)
 
     def export(self):
@@ -526,8 +530,45 @@ class Spreadsheet(LedgerCase):
         self.assertEqual(out["judgments"], ["To check", "Recheck", "Report", "Dismiss", "Hold"])
         self.assertEqual(out["columns"]["judgment"], "G")
         self.assertEqual(out["owner"], {"user": ["G", "H"], "assistant": ["I"]})
-        self.assertEqual(out["colours"]["To check"], "#FFF2CC")
+        self.assertEqual(out["format"]["judgment"], {"column": "G", "colours": {
+            "To check": "#FFF2CC", "Recheck": "#CFE2F3", "Report": "#D9EAD3", "Dismiss": "#EFEFEF", "Hold": "#F4CCCC"}})
+        self.assertEqual(out["format"]["kind"]["column"], "D")
+        self.assertEqual(out["format"]["kind"]["colours"]["Voice: reading"], "#C9DAF8")
+        self.assertEqual(out["format"]["episodes"], [
+            {"episode": "Overall", "first_row": 2, "last_row": 2, "colour": "#FFFFFF"},
+            {"episode": "#1", "first_row": 3, "last_row": 4, "colour": "#F3F6F9"},
+            {"episode": "#11", "first_row": 5, "last_row": 6, "colour": "#FFFFFF"},
+        ])
         self.assertIn("Voice: reading", out["kinds"])
+        self.assertNotIn("Voice", out["kinds"])  # a bare aspect is not an option
+        self.assertEqual(rows["F004"][3], "Voice: delivery")
+
+    def test_export_refuses_a_finding_without_a_kind_and_kinds_fills_them(self):
+        data = self.data()
+        del data["findings"][0]["kind"]
+        data["findings"][3].pop("kind")
+        data["findings"][3]["evidence"] = "level -12.9 dB vs previous"
+        data["findings"].append(finding("F006", "#1", "0:20", "The ring hides the card's first letter",
+                                        certainty="confirm", status="open"))
+        data["findings"].append(finding("F007", "#1", "0:30", "Two fewer wave heights than the caption says",
+                                        certainty="confirm", status="open", aspect="content"))
+        data["findings"].append(finding("F008", "#1", "0:40", "Heard as something else", certainty="confirm",
+                                        status="open", aspect="voice"))
+        self.write(data)
+        out = self.dir / "export.json"
+        code, _, err = self.run_cli("export", str(self.ledger), str(out))
+        self.assertEqual(code, 2)
+        self.assertIn("without a kind (run `review.py kinds` first): F001, F004, F006, F007, F008", err)
+        code, text, _ = self.run_cli("kinds", str(self.ledger))
+        self.assertEqual(code, 0, text)
+        self.assertEqual(json.loads(text)["inferred"],
+                         {"F001": "overlap", "F004": "delivery", "F006": "overlap", "F007": "figure",
+                          "F008": "reading"})
+        code, _, _ = self.run_cli("export", str(self.ledger), str(out))
+        self.assertEqual(code, 0)
+
+    def test_export_builds_the_summary_tab(self):
+        out = self.export()
         summary = out["tabs"]["summary"]
         self.assertEqual(summary["header"][:3], ["Episode", "Title", "Findings"])
         self.assertEqual(summary["rows"][0][:3], ["#1", '=HYPERLINK("https://youtu.be/abcdefghijk","One")',
