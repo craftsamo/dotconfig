@@ -361,7 +361,8 @@ owns the procedure; this section owns what the code holds to.
   wrapper takes the runtime home from `HERMES_HOME` when that names the
   profile, else `~/.hermes/profiles/<profile>`) reads each
   active spec's account, open orders and newest completed candles through
-  `/info`, and lists intents: the exact `hyperliquid` quote arguments, each
+  `/info`, and lists, under the account and its address (the run's reads
+  take the address: it has no other way to it), intents: the exact `hyperliquid` quote arguments, each
   with its effect and reason. A position the rules or the stance in force
   exclude gets a close on every run; one without a reduce-only stop loss on
   its closing side for all of it (a take profit does not count) gets one,

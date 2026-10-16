@@ -183,9 +183,12 @@ When the gate has nothing to do or say, no model runs at all.
 
 ## Each run
 
-The gate's report is a JSON line: per strategy, `intents` (each with an
-`effect`, a `why` and the exact `quote` arguments), `notes`, `problems` and
-`new_notices`.
+The gate's report is a JSON line: per strategy, its `account` and `address`,
+`intents` (each with an `effect`, a `why` and the exact `quote` arguments),
+`notes`, `problems` and `new_notices`. A run has only the `hyperliquid` and
+`skills` tools: every read it makes (`state`, `fills`, `orders`) takes the
+report's `address` on the report's `network`; the spec and the wallet's
+account list are out of reach there.
 
 1. For each strategy, reduce intents first, then increases, in the order
    listed. For each: call `hyperliquid` with the intent's `quote` arguments

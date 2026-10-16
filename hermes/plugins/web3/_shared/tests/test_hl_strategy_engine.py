@@ -243,7 +243,9 @@ def test_a_breakout_wakes_the_assistant_with_exact_quotes_once_per_bar(api, tmp_
     strategy_dir(root)
     report = gate(root, api, tmp_path)
     assert report["wakeAgent"] is True
-    intents = report["strategies"][0]["intents"]
+    part = report["strategies"][0]
+    assert part["account"] == "hermes/HERMES_MAIN#0" and part["address"] == USER.lower()  # the run's reads take it
+    intents = part["intents"]
     assert [i["id"].split(":")[-1] for i in intents] == ["leverage", "open"]
     lev, entry = intents[0]["quote"], intents[1]["quote"]
     assert lev == {"action": "quote", "account": "hermes/HERMES_MAIN#0", "network": "testnet", "kind": "leverage",
