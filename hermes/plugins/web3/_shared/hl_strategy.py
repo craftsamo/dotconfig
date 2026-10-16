@@ -618,8 +618,22 @@ def walk_forward(series: list[dict], base: dict, interval: str, cost: dict, limi
 
 # --- specs and stances --------------------------------------------------------------------------
 
+def _choice(raw, base: dict, variants: dict, what: str) -> dict:
+    """A default choice {variant, direction, size} over ``base``, each named key validated."""
+    if not isinstance(raw, dict):
+        raise StrategyError(f"{what} is an object with variant, direction and size")
+    out = {"variant": raw.get("variant", base["variant"]), "direction": raw.get("direction", base["direction"]),
+           "size": value_in(raw.get("size", base["size"]), 0, 1, False, f"{what}.size")}
+    if out["variant"] not in variants:
+        raise StrategyError(f"{what}.variant names one of the variants")
+    if out["direction"] not in DIRECTIONS:
+        raise StrategyError(f"{what}.direction is one of {', '.join(DIRECTIONS)}")
+    return out
+
+
 def spec(raw) -> dict:
-    """A strategy spec, validated: what runs, on which account and markets, within which bounds."""
+    """A strategy spec, validated: what runs, on which account and markets, within which bounds. The
+    default choice holds for every market, and ``default.markets`` overrides it per market."""
     if not isinstance(raw, dict) or raw.get("schema") != SPEC_SCHEMA:
         raise StrategyError(f"a strategy spec is a JSON object with schema {SPEC_SCHEMA}")
     name = raw.get("name")
@@ -662,13 +676,14 @@ def spec(raw) -> dict:
                "min_days_between_flips": value_in(advisor_raw.get("min_days_between_flips", 7), 0, 60, True,
                                                   "advisor.min_days_between_flips")}
     default_raw = raw.get("default") if isinstance(raw.get("default"), dict) else {}
-    default = {"variant": default_raw.get("variant", next(iter(variants))),
-               "direction": default_raw.get("direction", "both"),
-               "size": value_in(default_raw.get("size", 1.0), 0, 1, False, "default.size")}
-    if default["variant"] not in variants:
-        raise StrategyError("default.variant names one of the variants")
-    if default["direction"] not in DIRECTIONS:
-        raise StrategyError(f"default.direction is one of {', '.join(DIRECTIONS)}")
+    default = _choice(default_raw, {"variant": next(iter(variants)), "direction": "both", "size": 1.0},
+                      variants, "default")
+    per_market = default_raw.get("markets", {})
+    if not isinstance(per_market, dict) or not set(per_market) <= set(markets):
+        raise StrategyError("default.markets maps some of the strategy's markets to their own variant, direction "
+                            "or size")
+    default["markets"] = {m: _choice(per_market.get(m, {}), default, variants, f"default.markets.{m}")
+                          for m in markets}
     limits_raw = raw.get("limits") if isinstance(raw.get("limits"), dict) else {}
     limits = backtest_limits({k: limits_raw[k] for k in ("exposure_pct", "max_leverage") if k in limits_raw})
     mandate = raw.get("mandate")
@@ -703,8 +718,7 @@ def stance(strategy: dict, raw, now_ms: int, history: dict | None = None) -> tup
     ``history`` (market -> {"bias": long | short, "since"}) is the gate's memory of the last side
     allowed; the updated copy is returned."""
     history = {k: dict(v) for k, v in (history or {}).items()}
-    default = strategy["default"]
-    out = {m: {**default, "source": "default"} for m in strategy["markets"]}
+    out = {m: {**strategy["default"]["markets"][m], "source": "default"} for m in strategy["markets"]}
     notes: list[str] = []
     if raw is not None:
         try:
@@ -763,7 +777,7 @@ def _stance(strategy: dict, raw, now_ms: int) -> dict:
         direction = choice.get("direction")
         if direction not in strategy["advisor"]["directions"]:
             raise StrategyError(f"markets.{market}.direction is one of {', '.join(strategy['advisor']['directions'])}")
-        variant = choice.get("variant", strategy["default"]["variant"])
+        variant = choice.get("variant", strategy["default"]["markets"][market]["variant"])
         if variant not in strategy["variants"]:
             raise StrategyError(f"markets.{market}.variant is one of {', '.join(strategy['variants'])}")
         size = value_in(choice.get("size", 1.0), 0, strategy["advisor"]["max_size"], False, f"markets.{market}.size")

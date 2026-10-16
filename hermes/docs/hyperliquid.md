@@ -345,10 +345,11 @@ owns the procedure; this section owns what the code holds to.
 
 - **The spec** (`hermes-hyperliquid-strategy/1`) names one Hermes account,
   a network, up to 8 main-dex perps, an interval, up to 6 variants each with
-  the fingerprint of the backtest that validated it, the default stance, the
-  advisor's bounds, `limits` (`exposure_pct`, `max_leverage`) and the
-  mandate's id, bounds and end. A variant whose rules no longer match its
-  fingerprint makes the spec invalid.
+  the fingerprint of the backtest that validated it, the default stance (one
+  for the strategy, which `default.markets` overrides per market: variant,
+  direction or size), the advisor's bounds, `limits` (`exposure_pct`,
+  `max_leverage`) and the mandate's id, bounds and end. A variant whose rules
+  no longer match its fingerprint makes the spec invalid.
 - **The gate** (`hl_gate.py`, a cron `script` with an agent; the scheduler
   runs its wrapper by the resolved path inside this repository, so the
   wrapper takes the runtime home from `HERMES_HOME` when that names the
@@ -380,7 +381,7 @@ owns the procedure; this section owns what the code holds to.
   basis whose every item is dated no later than its issue. A turn between
   long and short sooner than `min_days_between_flips` after the last one
   makes the market flat until then. An invalid or expired stance falls back
-  to the default with a note. A stance never widens a limit: the spec's
+  to the market's default with a note. A stance never widens a limit: the spec's
   limits and the mandate bound every order.
 - **What the files cannot stop.** The spec and the stance are files the
   Assistant writes; nothing signs them. The boundary is the mandate the user

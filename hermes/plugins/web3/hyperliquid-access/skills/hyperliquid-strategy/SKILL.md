@@ -81,10 +81,13 @@ default when a stance does not hold, with a note saying why.
   "markets": ["BTC", "ETH"],
   "interval": "4h",
   "variants": {
+    "ema10-200": {"rules": {"kind": "ema_cross", "fast": 10, "slow": 200, "atr": 14, "stop_atr": 2, "risk_pct": 1},
+                  "validated": {"fingerprint": "…", "end_ms": 0, "out_of_sample": {}, "result": {}}},
     "trend40": {"rules": {"kind": "breakout", "entry": 40, "exit": 10, "atr": 14, "stop_atr": 2, "risk_pct": 1},
                 "validated": {"fingerprint": "…", "end_ms": 0, "out_of_sample": {}, "result": {}}}
   },
-  "default": {"variant": "trend40", "direction": "both", "size": 1},
+  "default": {"variant": "ema10-200", "direction": "both", "size": 1,
+              "markets": {"ETH": {"variant": "trend40"}}},
   "advisor": {"directions": ["long", "short", "both", "flat"], "max_size": 1.5, "max_age_days": 7,
               "min_days_between_flips": 7},
   "limits": {"exposure_pct": 70, "max_leverage": 2},
@@ -99,6 +102,10 @@ default when a stance does not hold, with a note saying why.
   `data.end_ms`, `result` and the walk-forward's `out_of_sample`. The gate
   refuses a variant whose rules do not match its fingerprint: a changed
   number is a new backtest.
+- `default`: the variant, direction and size every market runs when no
+  stance is in force. `default.markets` overrides any of the three for a
+  market (above, ETH runs the breakout while BTC runs the EMA cross): the
+  way to give each market the rules its own backtests favoured.
 - `limits.exposure_pct`: what the user said may be at risk, as a share of
   the account's value at each entry (positions and resting entries in the
   markets). `max_leverage`: 2 unless the user asks otherwise.

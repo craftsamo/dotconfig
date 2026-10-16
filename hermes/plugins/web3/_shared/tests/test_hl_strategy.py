@@ -196,6 +196,26 @@ def test_a_spec_runs_only_variants_backtested_as_written():
             hs.spec(spec_raw(**over))
 
 
+def test_a_market_may_have_its_own_default_inside_the_spec():
+    ema = hs.rules({"kind": "ema_cross", "fast": 3, "slow": 8, "atr": 5, "stop_atr": 2, "risk_pct": 1})
+    raw = spec_raw(default={"variant": "fast", "direction": "both", "size": 1,
+                            "markets": {"ETH": {"variant": "slow", "direction": "long", "size": 0.5}}})
+    raw["variants"]["slow"] = {"rules": dict(ema), "validated": {"fingerprint": hs.fingerprint(ema, "4h")}}
+    s = hs.spec(raw)
+    assert s["default"]["markets"]["BTC"] == {"variant": "fast", "direction": "both", "size": 1.0}
+    assert s["default"]["markets"]["ETH"] == {"variant": "slow", "direction": "long", "size": 0.5}
+    choices, notes, _ = hs.stance(s, None, NOW)
+    assert choices["ETH"] == {"variant": "slow", "direction": "long", "size": 0.5, "source": "default"}
+    assert choices["BTC"]["variant"] == "fast" and notes == []
+    # an advisor's choice without a variant keeps the market's own default variant
+    choices, _, _ = hs.stance(s, stance_raw(markets={"ETH": {"direction": "short"}}), NOW)
+    assert choices["ETH"]["variant"] == "slow" and choices["ETH"]["source"] == "advisor"
+    for over, why in (({"markets": {"SOL": {}}}, "default.markets"), ({"markets": {"ETH": {"variant": "x"}}}, "default.markets.ETH.variant"),
+                      ({"markets": {"ETH": {"size": 2}}}, "default.markets.ETH.size"), ({"markets": []}, "default.markets")):
+        with pytest.raises(hs.StrategyError, match=why):
+            hs.spec(spec_raw(default={"variant": "fast", **over}))
+
+
 def stance_raw(**over):
     raw = {"schema": hs.STANCE_SCHEMA, "strategy": "trend", "issued": hs.iso(NOW - hs.DAY_MS),
            "expires": hs.iso(NOW + 3 * hs.DAY_MS),
