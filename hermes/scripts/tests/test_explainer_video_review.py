@@ -516,18 +516,18 @@ class Spreadsheet(LedgerCase):
         out = self.export()
         tab = out["tabs"]["findings"]
         self.assertEqual(tab["title"], "Findings")
-        self.assertEqual(tab["header"], ["ID", "Episode", "Time", "Kind", "What to check", "Evidence", "Judgment",
-                                         "Memo", "Reply"])
+        self.assertEqual(tab["header"], ["ID", "Episode", "Time", "Kind", "Claim (YES = it is so)", "Evidence",
+                                         "Answer", "Memo", "Reply"])
         rows = {row[0]: row for row in tab["rows"]}
         self.assertEqual([row[0] for row in tab["rows"]], ["F004", "F003", "F001", "F005", "F002"])
         self.assertEqual(rows["F003"], ["F003", "#1", '=HYPERLINK("https://youtu.be/abcdefghijk?t=42","0:44")',
                                         "Content: fact", "Is the count overstated?", "https://example.org/src",
-                                        "To check", "listen twice", ""])
-        self.assertEqual(rows["F001"][6], "Report")  # reproduced findings are proposed for the report
+                                        "", "listen twice", ""])  # unanswered: blank
+        self.assertEqual(rows["F001"][6], "YES")  # a reproduced finding comes pre-answered
         self.assertEqual(rows["F004"][1:3], ["Overall", ""])
         self.assertEqual(rows["F005"][2], "0:12")  # no video for #11: plain text, a time stays a time
         self.assertEqual(rows["F005"][4], "'=SUM(A1) starts like a formula")
-        self.assertEqual(out["judgments"], ["To check", "Recheck", "Report", "Dismiss", "Hold"])
+        self.assertEqual(out["judgments"], ["YES", "NO", "Can't tell"])
         self.assertEqual(out["columns"]["judgment"], "G")
         self.assertEqual(out["owner"], {"user": ["G", "H"], "assistant": ["I"]})
         self.assertEqual(out["format"], {"episodes": [
@@ -569,7 +569,9 @@ class Spreadsheet(LedgerCase):
         self.assertEqual(summary["header"][:3], ["Episode", "Title", "Findings"])
         self.assertEqual(summary["rows"][0][:3], ["#1", '=HYPERLINK("https://youtu.be/abcdefghijk","One")',
                                                   "=COUNTIFS('Findings'!$B:$B,\"=#1\")"])
-        self.assertEqual(summary["rows"][0][3], "=COUNTIFS('Findings'!$B:$B,\"=#1\",'Findings'!$G:$G,\"=Report\")")
+        self.assertEqual(summary["rows"][0][3], "=COUNTIFS('Findings'!$B:$B,\"=#1\",'Findings'!$G:$G,\"=YES\")")
+        self.assertEqual(summary["rows"][0][6], "=COUNTIFS('Findings'!$B:$B,\"=#1\",'Findings'!$G:$G,\"=\")")
+        self.assertEqual(summary["header"], ["Episode", "Title", "Findings", "YES", "NO", "Can't tell", "Unanswered"])
         self.assertEqual(summary["rows"][2][0], "Overall")
         self.assertEqual(summary["rows"][-1][:3], ["Total", "", "=SUM(C2:C4)"])
 
@@ -580,19 +582,23 @@ class Spreadsheet(LedgerCase):
         out = self.export()
         self.assertEqual(out["tabs"]["findings"]["title"], "所見")
         self.assertEqual(out["tabs"]["findings"]["header"][6], "判定")
-        self.assertEqual(out["judgments"], ["要確認", "再確認", "採用", "不採用", "保留"])
+        self.assertEqual(out["judgments"], ["YES", "NO", "確認不可"])
+        self.assertEqual(out["tabs"]["findings"]["header"][4], "内容（YES＝その通り）")
         self.assertEqual(out["tabs"]["findings"]["rows"][1][3], "中身・事実")
 
-    def test_readback_maps_judgments_to_statuses_and_lists_rechecks(self):
+    def test_readback_maps_answers_to_statuses_and_lists_rechecks(self):
+        data = self.data()
+        data["findings"][3]["status"] = "hold"  # F004: the assistant already gave up on it
+        self.write(data)
         values = self.dir / "values.json"
         values.write_text(json.dumps({"values": [
-            ["ID", "Episode", "Time", "Kind", "What to check", "Evidence", "Judgment", "Memo", "Reply"],
-            ["F001", "#1", "1:15", "Text", "...", "", "Report", "", ""],
-            ["F003", "#1", "0:44", "Content: fact", "...", "", "Recheck", "show me the source", ""],
-            ["F002", "#11", "0:40", "Text", "...", "", "dismiss", "", "answered earlier"],
+            ["ID", "Episode", "Time", "Kind", "Claim (YES = it is so)", "Evidence", "Answer", "Memo", "Reply"],
+            ["F001", "#1", "1:15", "Text", "...", "", "YES", "", ""],
+            ["F003", "#1", "0:44", "Content: fact", "...", "", "Can't tell", "show me the source", ""],
+            ["F002", "#11", "0:40", "Text", "...", "", "no", "", "answered earlier"],
             ["F005", "#11", "0:12", "Text", "...", "", "", "", ""],
-            ["F004", "Overall", "", "Voice", "...", "", "保留", "", ""],
-            ["F999", "#1", "", "", "", "", "Report", "", ""],
+            ["F004", "Overall", "", "Voice", "...", "", "確認不可", "", ""],
+            ["F999", "#1", "", "", "", "", "YES", "", ""],
             ["F001", "#1", "", "", "", "", "maybe", "", ""],
         ]}, ensure_ascii=False), encoding="utf-8")
         code, out, _ = self.run_cli("readback", str(self.ledger), str(values))
@@ -616,7 +622,7 @@ class Spreadsheet(LedgerCase):
         data["findings"][0]["reply"] = "written after the export"
         self.write(data)
         values = self.dir / "values.json"
-        values.write_text(json.dumps([["ID", "Judgment", "Memo", "Reply"], ["F001", "Report", "", ""]]),
+        values.write_text(json.dumps([["ID", "Answer", "Memo", "Reply"], ["F001", "YES", "", ""]]),
                           encoding="utf-8")
         code, _, _ = self.run_cli("readback", str(self.ledger), str(values))
         self.assertEqual(code, 0)
@@ -632,7 +638,7 @@ class Spreadsheet(LedgerCase):
 
     def test_readback_refuses_a_sheet_without_ids(self):
         values = self.dir / "values.json"
-        values.write_text(json.dumps([["Episode", "Judgment"], ["#1", "Report"]]), encoding="utf-8")
+        values.write_text(json.dumps([["Episode", "Answer"], ["#1", "YES"]]), encoding="utf-8")
         code, _, err = self.run_cli("readback", str(self.ledger), str(values))
         self.assertEqual(code, 2)
         self.assertIn("no id column", err)
