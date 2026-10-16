@@ -731,7 +731,8 @@ def export(ctx, args) -> dict:
 BACKTEST_BARS_MAX = 25_000   # bars one backtest trades over, both sources together
 VENUE_PAGE = 500             # candles asked for per candleSnapshot request
 BACKTEST_FUNDING_PAGES = 8   # the newest 4000 hours of funding are read; older hours take their mean
-LONG_HISTORY = {"label": "Binance spot", "api": "https://data-api.binance.vision", "page": 1000}
+LONG_HISTORY = {"label": "Binance spot", "api": "https://data-api.binance.vision", "page": 1000,
+                "since": 1_500_000_000_000}  # 2017-07-14: nothing is listed before, and a negative start is refused
 _LONG_COIN = re.compile(r"^[A-Z0-9]{2,10}$")
 
 
@@ -816,6 +817,8 @@ def backtest(ctx, args) -> dict:
         start = end - integer(args, "hours", 1, 24, 24 * 365 * 10) * HOUR_MS
     else:
         start = end - (BACKTEST_BARS_MAX if spec["history"] == "long" else CANDLES_MAX) * step
+    if spec["history"] == "long":
+        start = max(start, LONG_HISTORY["since"])  # 25000 daily bars would reach before the Unix epoch
     if (end - start) // step > BACKTEST_BARS_MAX:
         start = end - BACKTEST_BARS_MAX * step
         unread.append(f"at most {BACKTEST_BARS_MAX} bars are traded: the window starts at {iso(start)}")

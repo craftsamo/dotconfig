@@ -316,7 +316,9 @@ tested is what runs.
   equity and a leverage) and the venue's 10 USDC minimum.
 - **Data**: the venue's newest 5000 candles, in pages; `long_history` adds
   the coin's USDT pair from Binance's public market data before them, prices
-  only, for main-dex tickers that map plainly. Funding is read for the newest
+  only, for main-dex tickers that map plainly, from 2017-07 at the earliest
+  (nothing was listed before, and a window reaching before the epoch would
+  be refused). Funding is read for the newest
   4000 hours (the request weight stays inside the per-IP budget); older hours
   take the mean of what was read — a later figure, not a point-in-time one —
   and the result says how many held hours were assumed. At most 25000 bars.
