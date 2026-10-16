@@ -989,6 +989,7 @@ screen_listen:
   apps:
     discord: com.hnc.Discord
   max_seconds: 300
+  record_dir: ~/Workspaces/.inbox/recordings
 plugins:
   enabled:
   - workspace-registry
