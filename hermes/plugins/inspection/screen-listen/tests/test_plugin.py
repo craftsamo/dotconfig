@@ -84,7 +84,8 @@ def test_only_the_assistant_gets_the_tool():
     assert tool["toolset"] == "screen_listen"
     params = tool["schema"]["parameters"]
     assert params["required"] == ["action"] and params["additionalProperties"] is False
-    assert params["properties"]["action"]["enum"] == ["status", "listen"]
+    assert params["properties"]["action"]["enum"] == list(plugin.ACTIONS)
+    assert params["properties"]["action"]["enum"][:2] == ["status", "listen"]
 
 
 def test_description_names_the_route_the_skill_and_the_data_rule():
