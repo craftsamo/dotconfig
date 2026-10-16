@@ -117,6 +117,13 @@ final class Recorder {
     private(set) var writeError: String?
     private(set) var sampleRate: Double = 0
     private(set) var channels: Int = 0
+    // Sound, as distinct from level: 100 ms blocks whose peak clears ``activeThreshold`` are counted,
+    // so a join chime in a minute of silence reads as a fraction of a second, not as a loud take.
+    private(set) var activeBlocks: Int64 = 0
+    private var blockFrames: Int64 = 0
+    private var blockPeak: Float = 0
+    private let activeThreshold: Float = 0.01
+    var activeSeconds: Double { Double(activeBlocks) * 0.1 }
 
     func start(processes: [AudioObjectID], output: URL, mono: Bool) throws {
         let description = mono ? CATapDescription(monoMixdownOfProcesses: processes)
@@ -177,14 +184,30 @@ final class Recorder {
             if let data = buffer.floatChannelData {
                 // ``stride`` is 1 for planar buffers and the channel count for interleaved ones, so
                 // ``data[channel][i * stride]`` is sample ``i`` of that channel in either layout.
+                // Locals inside the loop: a stored property per sample would cost an exclusivity
+                // check each on the realtime thread.
                 let stride = buffer.stride
-                for channel in 0..<Int(buffer.format.channelCount) {
-                    let samples = data[channel]
-                    for i in 0..<Int(buffer.frameLength) {
-                        let magnitude = abs(samples[i * stride])
-                        if magnitude > self.peak { self.peak = magnitude }
+                let channels = Int(buffer.format.channelCount)
+                let block = max(Int64(1), Int64(format.sampleRate / 10))
+                var peak = self.peak, blockPeak = self.blockPeak, blockFrames = self.blockFrames
+                var activeBlocks = self.activeBlocks
+                for i in 0..<Int(buffer.frameLength) {
+                    for channel in 0..<channels {
+                        let magnitude = abs(data[channel][i * stride])
+                        if magnitude > peak { peak = magnitude }
+                        if magnitude > blockPeak { blockPeak = magnitude }
+                    }
+                    blockFrames += 1
+                    if blockFrames >= block {
+                        if blockPeak > self.activeThreshold { activeBlocks += 1 }
+                        blockFrames = 0
+                        blockPeak = 0
                     }
                 }
+                self.peak = peak
+                self.blockPeak = blockPeak
+                self.blockFrames = blockFrames
+                self.activeBlocks = activeBlocks
             }
             do { try file.write(from: buffer) } catch { self.writeError = "\(error)" }
         }
@@ -289,6 +312,7 @@ func commandRecord(_ args: [String]) {
             "pid": Int(getpid()), "seconds": (now.timeIntervalSince(started) * 10).rounded() / 10,
             "frames": frames, "receiving": frames > lastFrames,
             "peak": (Double(recorder.peak) * 10000).rounded() / 10000, "final": final,
+            "active_seconds": (recorder.activeSeconds * 10).rounded() / 10,
             "updated": ISO8601DateFormatter().string(from: now)]
         if let data = try? JSONSerialization.data(withJSONObject: object, options: [.sortedKeys]) {
             // .atomic writes beside and renames over, so a reader never sees a half-written file.
@@ -320,6 +344,7 @@ func commandRecord(_ args: [String]) {
         "sample_rate": recorder.sampleRate,
         "channels": recorder.channels,
         "peak": (Double(recorder.peak) * 10000).rounded() / 10000,
+        "active_seconds": (recorder.activeSeconds * 10).rounded() / 10,
         "silent": recorder.peak < 0.001,
         "processes": processes.map { ["pid": Int($0.pid), "bundle": $0.bundle, "running_output": $0.runningOutput] },
     ]])
