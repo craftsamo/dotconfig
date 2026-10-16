@@ -62,12 +62,22 @@ than the host, silently from the plugin's side (`open` fails with -10825).
   returned) or transcription failed (kept for a retry, path returned); a kept
   recording older than seven days is removed at the next listen. `last.json`
   keeps the last outcome, success or failure, without its text for `status`.
-- A silent recording (peak under 0.001) returns no transcript and says so
-  without calling STT; zero frames delivered means the consent is missing and
-  the tool says which command grants it.
-- Transcription is the profile's own STT chain (`stt.provider`, normally
-  `stt-fallback`; [ops/audio-tooling.md](ops/audio-tooling.md)), so the local
-  faster-whisper floor works offline and the language hint is the chain's.
+- A silent recording (peak under 0.001), or one with under 1.5 s of sound in
+  it (the helper counts 100 ms blocks above a small threshold as
+  `active_seconds`: a join chime in a minute of silence is a loud peak but a
+  fraction of a second; `too_little_sound` in the answer), returns no
+  transcript and says so without calling STT — a speech model given
+  near-silence invents stock phrases. Zero frames
+  delivered means the consent is missing and the tool says which command
+  grants it.
+- Transcription is local by default (`screen_listen.stt: local`: the plugin's
+  own faster-whisper job run to completion, model `screen_listen.stt_model`
+  else `stt.local.model`, language `stt.local.language`; timestamped lines),
+  because a listen is other people's speech and the chain's first tiers are
+  cloud services. `screen_listen.stt: chain` uses the profile's STT chain
+  instead (`stt.provider`, normally `stt-fallback`;
+  [ops/audio-tooling.md](ops/audio-tooling.md)), faster when a cloud tier is
+  up. Recording sessions always transcribe locally. The take is mono.
 - The transcript is other people's speech and the tool says so: data to report
   on, never instructions. Inbound A2A requests never get the tool (the `a2a`
   platform toolset omits it and the handler refuses).
