@@ -530,15 +530,11 @@ class Spreadsheet(LedgerCase):
         self.assertEqual(out["judgments"], ["To check", "Recheck", "Report", "Dismiss", "Hold"])
         self.assertEqual(out["columns"]["judgment"], "G")
         self.assertEqual(out["owner"], {"user": ["G", "H"], "assistant": ["I"]})
-        self.assertEqual(out["format"]["judgment"], {"column": "G", "colours": {
-            "To check": "#FFF2CC", "Recheck": "#CFE2F3", "Report": "#D9EAD3", "Dismiss": "#EFEFEF", "Hold": "#F4CCCC"}})
-        self.assertEqual(out["format"]["kind"]["column"], "D")
-        self.assertEqual(out["format"]["kind"]["colours"]["Voice: reading"], "#C9DAF8")
-        self.assertEqual(out["format"]["episodes"], [
+        self.assertEqual(out["format"], {"episodes": [
             {"episode": "Overall", "first_row": 2, "last_row": 2, "colour": "#FFFFFF"},
-            {"episode": "#1", "first_row": 3, "last_row": 4, "colour": "#F3F6F9"},
+            {"episode": "#1", "first_row": 3, "last_row": 4, "colour": "#E6F4EA"},
             {"episode": "#11", "first_row": 5, "last_row": 6, "colour": "#FFFFFF"},
-        ])
+        ]})
         self.assertIn("Voice: reading", out["kinds"])
         self.assertNotIn("Voice", out["kinds"])  # a bare aspect is not an option
         self.assertEqual(rows["F004"][3], "Voice: delivery")

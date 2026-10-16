@@ -51,8 +51,8 @@ every episode under a line beginning with its label.
 
 Spreadsheet: ``export`` writes the findings tab (one row per live finding, the
 time cell a HYPERLINK to the video at that second), the summary tab's
-formulas, the dropdown options and the ``format`` block (chip colours for
-the judgment and kind columns, alternating row tints per episode); it refuses
+formulas, the dropdown options and the ``format`` block (the row bands per
+episode and their two alternating backgrounds); it refuses
 a voice, text or content finding without a kind. ``readback`` takes the tab
 read back from the sheet (``{"values": [[header], [row], ...]}`` or a bare
 list of rows) and maps each judgment label to a status. Column names and
@@ -141,15 +141,11 @@ SHEET_TEXT = {
         "colon": "：", "gap": "　",
     },
 }
-# Chip colours on the judgment and kind cells (a dropdown's option colour is a
-# conditional format on that column), and two tints the rows alternate between
-# per episode, so an episode reads as one band.
-JUDGMENT_COLOURS = {"open": "#FFF2CC", "recheck": "#CFE2F3", "keep": "#D9EAD3", "drop": "#EFEFEF",
-                    "hold": "#F4CCCC"}
-KIND_COLOURS = {"reading": "#C9DAF8", "delivery": "#D0E0F5", "typo": "#D9D2E9", "overlap": "#E2DAF0",
-                "figure": "#D9EAD3", "fact": "#B6D7A8", "clarity": "#E3F0DD",
-                "thumbnail": "#FCE5CD", "portrait": "#FFE599", "overall": "#E6E6E6"}
-EPISODE_TINTS = ("#FFFFFF", "#F3F6F9")
+# The two backgrounds the rows alternate between per episode, so an episode
+# reads as one band; white and a light green, far enough apart to tell at a
+# glance. The dropdown chips themselves stay uncoloured: the API cannot
+# colour a chip, and a coloured cell behind a grey chip reads as a mistake.
+EPISODE_TINTS = ("#FFFFFF", "#E6F4EA")
 
 # Words that place an old finding (one imported before kinds existed) into a
 # kind; the aspect decides which table applies, the first match wins.
@@ -925,8 +921,6 @@ def cmd_export(args) -> int:
     words = sheet_text(data)
     judgments = [words["judgments"][j] for j in JUDGMENTS]
     kinds = [words["kinds"][k] for k in KINDS] + [words["aspects"][a] for a in ("thumbnail", "portrait", "overall")]
-    kind_colours = {words["kinds"][k]: KIND_COLOURS[k] for k in KINDS}
-    kind_colours.update({words["aspects"][a]: KIND_COLOURS[a] for a in ("thumbnail", "portrait", "overall")})
     summary_header = [words["summary_columns"][c] for c in
                       ("episode", "title", "total", "keep", "drop", "hold", "open", "recheck")]
     rows = export_rows(data, words)
@@ -942,12 +936,7 @@ def cmd_export(args) -> int:
         "owner": {"user": [column_letter("judgment"), column_letter("note")], "assistant": [column_letter("reply")]},
         "judgments": judgments,
         "kinds": kinds,
-        "format": {
-            "judgment": {"column": column_letter("judgment"),
-                         "colours": {words["judgments"][j]: JUDGMENT_COLOURS[j] for j in JUDGMENTS}},
-            "kind": {"column": column_letter("kind"), "colours": kind_colours},
-            "episodes": episode_bands(rows, words),
-        },
+        "format": {"episodes": episode_bands(rows, words)},
         "value_input": "USER_ENTERED",
     }
     Path(args.out).write_text(json.dumps(out, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")

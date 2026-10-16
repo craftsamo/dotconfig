@@ -209,12 +209,11 @@ conversation (`plan-assistant-research`).
    on the findings tab, header frozen, the id, episode and time columns
    frozen, the text column wide and wrapped, `judgment` and `kind` strict
    dropdowns of the listed options, the columns not in `owner` protected
-   with a warning. Colour from `format` only: each `episodes` band gets its
-   `colour` as the plain background of its rows (an episode reads as one
-   stripe, and the user can see where it ends), and the `judgment` and
-   `kind` colours are conditional rules on that one column (text equals the
-   option), which is what a coloured dropdown chip is — never a rule over
-   the whole row, which hides the episode bands. Enter values as typed (`USER_ENTERED`): the
+   with a warning. The only colour is `format.episodes`: each band's
+   `colour` becomes the plain background of its rows, so an episode reads
+   as one stripe and the user sees where it ends. No conditional colour on
+   any cell, and none on the dropdowns: the API cannot colour a chip, and
+   a coloured cell behind a grey chip reads as a mistake. Enter values as typed (`USER_ENTERED`): the
    time and title cells are formulas, and `export` already quotes text that
    starts like one. Read the findings tab back and compare ids, judgments
    and link targets with `export.json` before telling the user the sheet is
