@@ -15,8 +15,10 @@ intent it names was. It prints one
 JSON line; when nothing is to be done or said, that line is ``{"wakeAgent": false}`` and no model
 runs. It never signs, never reads a key and never sends anything: the Assistant quotes and submits
 through the tool, where the trader and the mandate decide. Its own memory is ``state.json`` beside
-the spec: the bar each market was last read on, the side last allowed, and the notices already
-given. A failure it cannot place in a strategy exits nonzero, so Hermes reports it.
+the spec: the bar each market was last read on, the side last allowed, the notices already given,
+the account's value at the first read (the strategy's starting point) and the positions seen on the
+last run, so one the venue closed on its own (a stop that fired) is said once and its result
+reported. A failure it cannot place in a strategy exits nonzero, so Hermes reports it.
 """
 
 from __future__ import annotations
@@ -184,6 +186,28 @@ def run_strategy(directory: Path, now: int) -> dict:
         out["problems"].append(f"the account could not be read: {exc}")
         return _finish(out, state, state_path, reported, transient=True)
     out["equity_usd"] = hs.usd(account.equity)
+    if "start_equity_usd" not in state and account.equity > 0:  # the first funded read is the starting point
+        state["start_equity_usd"] = out["equity_usd"]
+        state["started"] = hs.iso(now)
+    if "start_equity_usd" in state:
+        out["start_equity_usd"] = state["start_equity_usd"]
+    # a position the venue closed on its own (a stop that fired, a liquidation) leaves no intent, so the
+    # gate says it once and the Assistant reads the fills and reports the trade's result; one that left
+    # through a close the gate listed was reported by the run that sent it
+    seen = state.setdefault("positions", {})
+    for market in strategy["markets"]:
+        was, now_pos = seen.get(market), account.positions.get(market)
+        if was and (not now_pos or now_pos["side"] != was["side"]) and not was.get("closing"):
+            entry = f" @ {hs.sig5(was['entry'])}" if was.get("entry") else ""
+            out["notes"].append(f"{market}: the {was['side']} of {was['size']:g}{entry} seen since "
+                                f"{hs.iso(was['since'])} is gone from the account; read its fills from before "
+                                "then and report the trade's result")
+        if now_pos:
+            same = was and was["side"] == now_pos["side"]
+            seen[market] = {"side": now_pos["side"], "size": now_pos["size"], "entry": now_pos["entry"],
+                            "since": was["since"] if same else now}
+        else:
+            seen.pop(market, None)
     held = account.held
     for market in strategy["markets"]:
         choice = choices[market]
@@ -204,6 +228,7 @@ def run_strategy(directory: Path, now: int) -> dict:
                                    "why": f"close the {position['side']}: {ev['why']} "
                                           f"(direction {choice['direction']})",
                                    "quote": _quote(strategy, kind="close", coin=market)})
+            seen[market]["closing"] = True  # the run that sends it reports the result; the next run stays quiet
         elif position and fresh and not account.stopped(market) and ev.get("atr"):
             sign = -1 if position["side"] == "long" else 1
             price = ev["price"]
