@@ -67,9 +67,13 @@ than the host, silently from the plugin's side (`open` fails with -10825).
   `active_seconds`: a join chime in a minute of silence is a loud peak but a
   fraction of a second; `too_little_sound` in the answer), returns no
   transcript and says so without calling STT — a speech model given
-  near-silence invents stock phrases. Zero frames
-  delivered means the consent is missing and the tool says which command
-  grants it.
+  near-silence invents stock phrases. A tap delivers nothing while its
+  processes output nothing (and resumes by itself when they do), so zero
+  frames from an app that was not playing is answered as `silent` + `idle`;
+  only zero frames from an app that was playing points at a missing consent,
+  and the tool says which command grants it. `grant` therefore listens to a
+  speech synthesizer it starts, and takes twice: the take that raises the
+  dialog gets no audio even when the answer is yes.
 - Transcription is local by default (`screen_listen.stt: local`: the plugin's
   own faster-whisper job run to completion, model `screen_listen.stt_model`
   else `stt.local.model`, language `stt.local.language`; timestamped lines),

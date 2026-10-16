@@ -67,11 +67,13 @@ result's `verdict` and re-capture after anything that changes state.
    sidebar** (the element whose label is the channel name) joins it. For a
    stage channel, joining makes the Mac an audience member (no microphone by
    design), through its join control ("ステージに参加" or similar). Click by
-   `element` from the som capture, never by a guessed position: element bounds
-   are in native desktop points, not screenshot pixels, and a coordinate
-   derived from the image is off by the scale factor the capture reports. If
-   the label you need is not in the capped element list, read the saved
-   element JSON the capture names. Re-capture after the click and follow the
+   `element` from the som capture when the row is in it. Discord's channel
+   list is often not exposed as elements at all (the row's label appears only
+   as the window title); then click by `coordinate` **in the screenshot's own
+   pixels** — read the row's position off the som image (its size is in the
+   capture's first line) and pass that point. The capture's note about native
+   desktop points describes element bounds; a native-space coordinate is
+   refused as "outside the window". Re-capture after the click and follow the
    verdict.
 4. **Confirm you are in, and mute the microphone.** The capture shows the
    voice-connected panel (a disconnect control appears) and `screen_listen`
@@ -100,10 +102,12 @@ result's `verdict` and re-capture after anything that changes state.
    for "what are they talking about", up to 300 for a summary of a segment.
    One call at a time; for a longer stretch, call again and summarize the
    pieces together. A `silent` answer means nothing was audible in the app
-   during that window; `too_little_sound` means only a moment of sound
-   (`active_seconds` — a join chime, a click, one short word) and no
-   transcription was attempted. Neither is a tool failure; check the channel
-   state before retrying. A transcript that is one stock phrase repeated ("ご視聴ありがとう
+   during that window; with `idle` it means the app output no audio at all —
+   the Mac is not in the channel any more, or nothing is playing — so check
+   the channel state (capture) before listening again; `too_little_sound`
+   means only a moment of sound (`active_seconds` — a join chime, a click,
+   one short word) and no transcription was attempted. None of these is a
+   tool failure. A transcript that is one stock phrase repeated ("ご視聴ありがとう
    ございました", "Thank you for watching") with nobody speaking is the model
    inventing words from near-silence: report it as nothing said, never as
    something someone said. Transcription runs on this Mac unless the
