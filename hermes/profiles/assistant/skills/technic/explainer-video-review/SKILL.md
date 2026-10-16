@@ -188,9 +188,15 @@ conversation (`plan-assistant-research`).
    python3 ${HERMES_SKILL_DIR}/scripts/review.py ask-draft ledger.json asks.md
    # edit asks.md: `ID | question`, one line per finding
    python3 ${HERMES_SKILL_DIR}/scripts/review.py ask-import ledger.json asks.md
+   python3 ${HERMES_SKILL_DIR}/scripts/review.py kinds ledger.json
    python3 ${HERMES_SKILL_DIR}/scripts/review.py export ledger.json export.json
    ```
 
+   `kinds` gives every voice, text and content finding imported without a
+   kind one (a reading or a delivery, a typo or an overlap, a figure, a fact
+   or a clarity), from its wording; read its `inferred` list and correct a
+   wrong one in the ledger. `export` refuses a finding still without one,
+   because the sheet's kind column offers kinds only, never a bare "voice".
    `export.json` is the sheet: a findings tab (one row per live finding,
    ordered by episode and time; the time cell is a HYPERLINK that opens the
    video two seconds before the moment, a thumbnail row opens the
@@ -199,12 +205,16 @@ conversation (`plan-assistant-research`).
    reproduced and "to check" for the rest), a summary tab of formulas (per
    episode: findings, reported, dismissed, held, and the two remaining
    counts — the user's and yours), the dropdown options for `kind` and
-   `judgment`, a colour per judgment, and `columns` / `owner`. Build it so:
-   native table on the findings tab, header frozen, the id, episode and time
-   columns frozen, the text column wide and wrapped, `judgment` a strict
-   dropdown of the listed options, `kind` a dropdown too, one conditional
-   colour rule per judgment on the whole row, the columns not in `owner`
-   protected with a warning. Enter values as typed (`USER_ENTERED`): the
+   `judgment`, `columns` / `owner`, and `format`. Build it so: native table
+   on the findings tab, header frozen, the id, episode and time columns
+   frozen, the text column wide and wrapped, `judgment` and `kind` strict
+   dropdowns of the listed options, the columns not in `owner` protected
+   with a warning. Colour from `format` only: each `episodes` band gets its
+   `colour` as the plain background of its rows (an episode reads as one
+   stripe, and the user can see where it ends), and the `judgment` and
+   `kind` colours are conditional rules on that one column (text equals the
+   option), which is what a coloured dropdown chip is — never a rule over
+   the whole row, which hides the episode bands. Enter values as typed (`USER_ENTERED`): the
    time and title cells are formulas, and `export` already quotes text that
    starts like one. Read the findings tab back and compare ids, judgments
    and link targets with `export.json` before telling the user the sheet is
