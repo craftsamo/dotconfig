@@ -203,9 +203,28 @@ The gate's report is a JSON line: per strategy, `intents` (each with an
      report the reason, never retry or work around it.
    - `unknown` or a submit that did not finish: stop that strategy for this
      run, read `orders` and `state`, and report; never quote it again.
-2. Report once per run, briefly: per strategy, what was sent and its statuses
-   (filled, resting, waiting for trigger), what was skipped and why, and the
-   `new_notices`. Name the network. With no intents, report the notices only.
+2. Report once per run, one block per strategy, in this order and nothing
+   else (labels, wording and language are yours; a reader skims it on a
+   phone, so keep it to facts; an explanation of the method belongs in a
+   reply, not here):
+   - **A bold header line**: the strategy, the network and the bar's time
+     (and the variant, when the strategy runs more than one).
+   - **A table, one row per intent**: what was sent and its outcome (filled
+     with size and average price, resting, waiting for trigger at its price,
+     refused with the reason, skipped with yours). A trailed stop reads as
+     from → to.
+   - **The position after the run**: side, size, entry, the stop in force,
+     and the unrealized profit or loss; or none.
+   - **On a close or a stop's fill, the trade's result**: realized profit or
+     loss and fees from the fills, and the R multiple: that result over the
+     risk at entry (size × the distance from the entry to the stop placed
+     with it; the stop in force at the exit when that one is not known), so
+     a losing streak reads against the rule's expectation rather than in
+     USDC alone.
+   - **The account's value** after the run, from a fresh `state` read.
+   - `new_notices` and problems last, each marked so they stand out.
+   With no intents, report the notices only. The cumulative result is not for
+   a run: `review` gives it weekly ("Review, pause and stop").
 3. Never edit the spec, the stance or the state on a run, and never call any
    action but `quote`, `submit` and reads.
 
