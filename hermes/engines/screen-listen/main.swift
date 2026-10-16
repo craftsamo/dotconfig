@@ -20,7 +20,7 @@
 //
 // ``capture`` records the app's largest normal window (or the one whose title contains
 // ``--window``) as it is composited for that window alone, so other windows over it do not
-// show; the app's own audio goes into the same file unless ``--no-audio``. ``--fps`` (10) and
+// show; the app's own audio goes into the same file unless ``--no-audio``. ``--fps`` (30) and
 // ``--max-width`` (1280 points) bound the file size of a long take. It ends the same way as
 // ``record``, and also when the window closes.
 //
@@ -471,7 +471,7 @@ func commandCapture(_ args: [String]) {
     if FileManager.default.fileExists(atPath: outPath) { fail("usage", "--out already exists") }
     let progressPath = option("--progress", args)
     if let progressPath, !progressPath.hasPrefix("/") { fail("usage", "--progress must be an absolute path") }
-    let fps = Int(option("--fps", args) ?? "10") ?? 0
+    let fps = Int(option("--fps", args) ?? "30") ?? 0
     guard fps >= 1 && fps <= 60 else { fail("usage", "--fps must be between 1 and 60") }
     let maxWidth = Double(option("--max-width", args) ?? "1280") ?? 0
     guard maxWidth >= 320 else { fail("usage", "--max-width must be at least 320") }

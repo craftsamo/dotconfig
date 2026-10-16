@@ -151,12 +151,16 @@ Two situations, and the microphone rule differs:
    `title` (the meeting or stream name).
    **Video** — "record the stream", "keep the screen share", "画面も": add
    `video: true`. That films Discord's window as shown (the shared screen
-   when a stream is open in it, or in a pop-out: name it with `window`), at a
-   modest frame rate, never the rest of the Mac's screen; say that the window
-   is being recorded as well, and leave Discord showing the stream for the
-   whole session (navigating away films the navigation). Audio only when the
-   user wants the words, not the picture: the file is far smaller. A `video:
-   false` answer with `video_detail` means the window could not be filmed
+   when a stream is open in it, or in a pop-out: name it with `window`),
+   never the rest of the Mac's screen; say that the window is being recorded
+   as well, and leave Discord showing the stream for the whole session
+   (navigating away films the navigation). The frame rate follows the
+   picture: the default (30) for anything that moves — a game, a video, a
+   demo with a cursor; `fps: 10` for slides, a document or a terminal, where
+   it looks the same and the file is a third of the size. If the user says
+   "smooth" or "choppy", that is `fps`. Audio only when the user wants the
+   words, not the picture: the file is far smaller again. A `video: false`
+   answer with `video_detail` means the window could not be filmed
    (Screen Recording not granted, or no window): the audio runs; tell the user
    what the detail says, do not retry on your own.
 2. **While it runs**, the Mac must stay in the channel and awake; do nothing
