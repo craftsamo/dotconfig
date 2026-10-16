@@ -6,11 +6,17 @@ review sheet and the acceptance check of the written report are derived from
 it, so nothing is copied by hand.
 
     review.py script   <captions.txt> <out.txt>       strip "[m:ss] " prefixes
-    review.py validate <ledger.json> [--final]        schema; --final also refuses open findings
-    review.py import   <ledger.json> <episode> <findings.md> --source NAME
+    review.py validate <ledger.json> [--final]        schema; --final also refuses open/recheck findings
+    review.py import   <ledger.json> <episode> <findings.md> --source NAME [--aspect A] [--kind K]
                                                       add a hands report's `m:ss | aspect | ... ` lines
+    review.py triage-speech <ledger.json> <episode> <speech dir> [--ignore FILE] [--max-jumps N]
+                                                      keep only value mismatches and mid-line jumps
+    review.py ask-draft  <ledger.json> <out.md>       `ID | problem` lines to reword as questions
+    review.py ask-import <ledger.json> <asks.md>      store the reworded questions
+    review.py export   <ledger.json> <out.json>       rows, formulas and options for the spreadsheet
+    review.py readback <ledger.json> <values.json>    take the spreadsheet's judgments into the ledger
     review.py listen   <ledger.json> [--terms FILE]   add ear-check candidates from each caption file
-    review.py sheet    <ledger.json> <out.md>         the user's review sheet
+    review.py sheet    <ledger.json> <out.md> [--listen]   the Markdown review sheet
     review.py check    <ledger.json> <report>         does the report carry every kept finding?
 
 ``--terms`` names extra words to listen for: one term per line, or
@@ -20,21 +26,34 @@ Ledger shape::
 
     {"job": "...", "language": "<captions' BCP 47 tag>", "sheet_language": "<the user's tag>",
      "episodes": [{"label": "#1", "title": "...", "captions": "/abs/captions.txt",
+                   "video": "<YouTube id or URL>", "thumbnail": "<optional URL>",
                    "language": "<optional per-episode override>",
                    "checked": ["text", "voice", "content", "thumbnail"]}],
      "findings": [{"id": "F001", "episode": "#1" | "all", "at": "1:15" | "0:50-0:54" | "",
                    "aspect": "text|voice|content|thumbnail|portrait|overall",
-                   "problem": "...", "evidence": "...", "certainty": "certain|confirm",
+                   "kind": "<optional: reading|delivery|typo|overlap|figure|fact|clarity>",
+                   "problem": "...", "ask": "<the question the sheet shows instead of problem>",
+                   "evidence": "...", "certainty": "certain|confirm",
                    "quotes": ["verbatim words the report must keep"],
                    "source": "video-creator|audio-creator|image-creator|searcher|researcher|user|assistant",
-                   "status": "open|keep|drop"}],
+                   "status": "open|recheck|keep|drop|hold",
+                   "note": "<the user's memo>", "reply": "<the assistant's answer>"}],
      "listen": [{"episode": "#1", "at": "0:12", "term": "...", "result": null}]}
 
+Statuses: ``open`` waits for the user, ``recheck`` waits for the assistant,
+``keep`` is reported, ``drop`` is not, ``hold`` stays in the ledger unreported.
 ``checked`` lists the aspects whose check actually finished for that episode;
 the sheet names the rest as unchecked, and ``--final`` requires the list.
 ``check`` finds each episode's section by the first line that starts with its
 label (after an optional Markdown heading or list marker), so the report puts
 every episode under a line beginning with its label.
+
+Spreadsheet: ``export`` writes the findings tab (one row per live finding, the
+time cell a HYPERLINK to the video at that second), the summary tab's
+formulas, the dropdown options and the colours; ``readback`` takes the tab
+read back from the sheet (``{"values": [[header], [row], ...]}`` or a bare
+list of rows) and maps each judgment label to a status. Column names and
+option labels come from ``SHEET_TEXT``, so the two sides agree by construction.
 
 Language: ``sheet_language`` picks the sheet's wording from ``SHEET_TEXT``
 (English when absent or unknown). ``language`` (per episode, else the
@@ -57,8 +76,12 @@ import unicodedata
 from pathlib import Path
 
 ASPECTS = ("text", "voice", "content", "thumbnail", "portrait", "overall")
+# Finer kinds a finding may carry; each belongs to one aspect.
+KINDS = {"reading": "voice", "delivery": "voice", "typo": "text", "overlap": "text",
+         "figure": "content", "fact": "content", "clarity": "content"}
 CERTAINTIES = ("certain", "confirm")
-STATUSES = ("open", "keep", "drop")
+STATUSES = ("open", "recheck", "keep", "drop", "hold")
+JUDGMENTS = ("open", "recheck", "keep", "drop", "hold")  # the sheet's dropdown, in this order
 SOURCES = ("video-creator", "audio-creator", "image-creator", "searcher", "researcher", "user", "assistant")
 ALL = "all"
 
@@ -66,12 +89,27 @@ TIME = re.compile(r"(?<![\d:])(?:(\d{1,2}):)?(\d{1,3}):(\d{2})(?![\d:])")
 CAPTION_LINE = re.compile(r"^\[(\d{1,3}(?::\d{2}){1,2})\]\s?(.*)$")
 LINE_PREFIX = r"^[ \t]*(?:#{1,6}[ \t]+|[-*+][ \t]+|\d+[.)][ \t]+|[^\w\s#][ \t]*)?"
 REVIEWED = ("text", "voice", "content", "thumbnail", "portrait")
+YOUTUBE_ID = re.compile(r"(?:[?&]v=|youtu\.be/|/shorts/|/embed/)([A-Za-z0-9_-]{11})(?![A-Za-z0-9_-])|^([A-Za-z0-9_-]{11})$")
+LINK_LEAD = 2  # seconds before the finding's time a video link starts
+
+# The spreadsheet's columns, in order; the letters are what the summary formulas use.
+COLUMNS = ("id", "episode", "at", "kind", "text", "evidence", "judgment", "note", "reply")
 
 # The review sheet's wording per reader language; English is the fallback.
 SHEET_TEXT = {
     "en": {
         "aspects": {"text": "Text", "voice": "Voice", "content": "Content", "thumbnail": "Thumbnail",
                     "portrait": "Portrait", "overall": "Overall"},
+        "kinds": {"reading": "Voice: reading", "delivery": "Voice: delivery", "typo": "Text: typo",
+                  "overlap": "Text: overlap", "figure": "Figure: motion", "fact": "Content: fact",
+                  "clarity": "Content: clarity"},
+        "judgments": {"open": "To check", "recheck": "Recheck", "keep": "Report", "drop": "Dismiss",
+                      "hold": "Hold"},
+        "columns": {"id": "ID", "episode": "Episode", "at": "Time", "kind": "Kind", "text": "What to check",
+                    "evidence": "Evidence", "judgment": "Judgment", "note": "Memo", "reply": "Reply"},
+        "summary_columns": {"episode": "Episode", "title": "Title", "total": "Findings", "keep": "Report",
+                            "drop": "Dismiss", "hold": "Hold", "open": "To check", "recheck": "Recheck"},
+        "tabs": {"findings": "Findings", "summary": "Summary"}, "total": "Total", "thumb": "Thumbnail",
         "title": "Review sheet", "overall": "Overall",
         "intro": "Certain = reproduced on our side. Tick what needs your eyes or ears and send back the result.",
         "certain": "Certain", "confirm": "Needs your eyes or ears", "listen": "Listen for",
@@ -83,8 +121,16 @@ SHEET_TEXT = {
     "ja": {
         "aspects": {"text": "字", "voice": "声", "content": "中身", "thumbnail": "サムネ",
                     "portrait": "似顔絵", "overall": "全体"},
+        "kinds": {"reading": "声・読み", "delivery": "声・緩急", "typo": "字・誤字", "overlap": "字・かぶり",
+                  "figure": "図・動き", "fact": "中身・事実", "clarity": "中身・分かりにくさ"},
+        "judgments": {"open": "要確認", "recheck": "再確認", "keep": "採用", "drop": "不採用", "hold": "保留"},
+        "columns": {"id": "ID", "episode": "回", "at": "時刻", "kind": "項目", "text": "内容（確認すること）",
+                    "evidence": "根拠", "judgment": "判定", "note": "メモ", "reply": "返答"},
+        "summary_columns": {"episode": "回", "title": "題", "total": "所見", "keep": "採用", "drop": "不採用",
+                            "hold": "保留", "open": "要確認 残", "recheck": "再確認 残"},
+        "tabs": {"findings": "所見", "summary": "まとめ"}, "total": "合計", "thumb": "サムネ",
         "title": "確認用シート", "overall": "全体",
-        "intro": "確実＝こちらで確かめ済み。要確認・耳で聞く所は、チェックを付けて結果を返してください。",
+        "intro": "確実＝こちらで確かめ済み。要確認の所は、チェックを付けて結果を返してください。",
         "certain": "確実", "confirm": "要確認（目か耳で確かめる）", "listen": "耳で聞く所",
         "checked": "確認した観点：{done}　／　未確認：{todo}", "unrecorded": "確認した観点：未記録",
         "none": "なし", "join": "・", "clean_checked": "確認した観点では指摘なし",
@@ -92,6 +138,9 @@ SHEET_TEXT = {
         "colon": "：", "gap": "　",
     },
 }
+# Row colours per judgment, for the sheet's conditional formatting.
+JUDGMENT_COLOURS = {"open": "#FFF2CC", "recheck": "#CFE2F3", "keep": "#D9EAD3", "drop": "#EFEFEF",
+                    "hold": "#F4CCCC"}
 
 # How `listen` finds names and numbers per caption language.
 NUMBER = re.compile(r"[0-9][0-9,.]*(?:\s?%)?")
@@ -147,6 +196,37 @@ def clock(value: int) -> str:
     return f"{hours}:{minutes:02d}:{secs:02d}" if hours else f"{minutes}:{secs:02d}"
 
 
+def video_id(value: str | None) -> str | None:
+    match = YOUTUBE_ID.search(str(value or "").strip())
+    return (match.group(1) or match.group(2)) if match else None
+
+
+def video_url(episode: dict, at: str | None = None) -> str | None:
+    """The video at the finding's first time, LINK_LEAD seconds early; the start without a time."""
+    vid = video_id(episode.get("video"))
+    if not vid:
+        return None
+    stamps = times_in(str(at or ""))
+    if not stamps:
+        return f"https://youtu.be/{vid}"
+    return f"https://youtu.be/{vid}?t={max(0, stamps[0] - LINK_LEAD)}"
+
+
+def thumbnail_url(episode: dict) -> str | None:
+    if episode.get("thumbnail"):
+        return str(episode["thumbnail"])
+    vid = video_id(episode.get("video"))
+    return f"https://i.ytimg.com/vi/{vid}/maxresdefault.jpg" if vid else None
+
+
+def finding_url(finding: dict, episode: dict | None) -> str | None:
+    if not episode:
+        return None
+    if finding.get("aspect") == "thumbnail" and not times_in(str(finding.get("at") or "")):
+        return thumbnail_url(episode)
+    return video_url(episode, finding.get("at"))
+
+
 def load(path: str) -> dict:
     try:
         data = json.loads(Path(path).read_text(encoding="utf-8"))
@@ -192,6 +272,8 @@ def problems(data: dict, final: bool) -> list[str]:
             errors.append(f"episode {label}: checked must list aspects from {', '.join(REVIEWED)}")
         elif final and checked is None:
             errors.append(f"episode {label}: checked is not recorded")
+        if episode.get("video") and not video_id(episode["video"]):
+            errors.append(f"episode {label}: video must be a YouTube id or URL")
     known = set(labels) | {ALL}
     ids = set()
     for index, finding in enumerate(data["findings"]):
@@ -211,6 +293,12 @@ def problems(data: dict, final: bool) -> list[str]:
             errors.append(f"{where}: unknown episode {finding.get('episode')!r}")
         if finding.get("aspect") not in ASPECTS:
             errors.append(f"{where}: aspect must be one of {', '.join(ASPECTS)}")
+        kind = finding.get("kind")
+        if kind is not None and KINDS.get(kind) != finding.get("aspect"):
+            errors.append(f"{where}: kind {kind!r} is not a kind of aspect {finding.get('aspect')!r}")
+        for field in ("ask", "note", "reply"):
+            if finding.get(field) is not None and not isinstance(finding[field], str):
+                errors.append(f"{where}: {field} must be a string")
         if finding.get("certainty") not in CERTAINTIES:
             errors.append(f"{where}: certainty must be certain or confirm")
         if finding.get("status", "open") not in STATUSES:
@@ -225,8 +313,8 @@ def problems(data: dict, final: bool) -> list[str]:
         quotes = finding.get("quotes", [])
         if not isinstance(quotes, list) or not all(isinstance(q, str) and q for q in quotes):
             errors.append(f"{where}: quotes must be a list of nonempty strings")
-        if final and finding.get("status", "open") == "open":
-            errors.append(f"{where}: still open (settle keep or drop before the report)")
+        if final and finding.get("status", "open") in ("open", "recheck"):
+            errors.append(f"{where}: still {finding.get('status', 'open')} (settle keep, drop or hold before the report)")
     for index, item in enumerate(data["listen"]):
         if (not isinstance(item, dict) or item.get("episode") not in known
                 or seconds(str(item.get("at", ""))) is None
@@ -272,11 +360,41 @@ def quotes_in(text: str) -> list[str]:
 HEADER_OR_RULE = re.compile(r"^[\s|:\-]*$|^\|?[^|]*\|\s*aspect\s*\|", re.I)
 
 
-def report_rows(path: str, base: str | None = None) -> tuple[list[dict], list[str]]:
+FILE_NAME = re.compile(r"^\S+\.[A-Za-z][A-Za-z0-9]{0,4}$")
+
+
+def is_url(item: str) -> bool:
+    return "://" in item or item.lower().startswith(("http:", "https:", "www."))
+
+
+def evidence_pieces(evidence: str) -> list[str]:
+    text = str(evidence or "")
+    pieces = re.split(r";\s+", text) if "://" in text else text.split(";")  # a URL may hold ';'
+    return [piece.strip() for piece in pieces if piece.strip()]
+
+
+def resolve_evidence(evidence: str, base: str | None) -> str:
+    """Prefix ``base`` to each ``;``-separated piece that reads as a relative file
+    path. A URL, an absolute path, a measurement or a plain word stays as it is."""
+    if not base:
+        return evidence
+    pieces = []
+    for item in evidence_pieces(evidence):
+        looks_like_path = not is_url(item) and " " not in item and ("/" in item or bool(Path(item).suffix))
+        if looks_like_path and not Path(item).is_absolute():
+            item = str(Path(base) / item)
+        pieces.append(item)
+    return "; ".join(pieces)
+
+
+def report_rows(path: str, base: str | None = None, aspect: str | None = None,
+                kind: str | None = None) -> tuple[list[dict], list[str]]:
     """``m:ss | aspect | problem | evidence | certain|confirm`` lines. Markdown
     table pipes, a header and separator rows are ignored; a stray ``|`` inside
-    the problem is kept in it. Any other line that does not parse is returned
-    so the caller sees what was not imported."""
+    the problem is kept in it. The second cell may name an aspect or a kind;
+    ``aspect`` / ``kind`` override it (a speech report puts a speaker label
+    there). Any other line that does not parse is returned so the caller sees
+    what was not imported."""
     rows, skipped = [], []
     for raw in Path(path).read_text(encoding="utf-8").splitlines():
         line = raw.strip()
@@ -286,18 +404,21 @@ def report_rows(path: str, base: str | None = None) -> tuple[list[dict], list[st
         if len(cells) < 5:
             skipped.append(line)
             continue
-        at, aspect = cells[0], cells[1].lower().strip(" .")
+        at, column = cells[0], cells[1].lower().strip(" .")
         evidence, certainty = cells[-2], cells[-1].lower().strip(" .")
         problem = " | ".join(cells[2:-2]).strip()
         at = "" if at in ("", "-", "—") else at
-        if aspect not in ASPECTS or certainty not in CERTAINTIES or not problem or (at and not times_in(at)):
+        row_kind = kind if kind else (column if column in KINDS else None)
+        row_aspect = aspect if aspect else (KINDS[column] if column in KINDS else column)
+        if (row_aspect not in ASPECTS or certainty not in CERTAINTIES or not problem
+                or (at and not times_in(at)) or (row_kind and KINDS[row_kind] != row_aspect)):
             skipped.append(line)
             continue
-        looks_like_path = "/" in evidence or bool(Path(evidence).suffix)
-        if base and looks_like_path and not Path(evidence).is_absolute():
-            evidence = str(Path(base) / evidence)
-        rows.append({"at": at, "aspect": aspect, "problem": problem, "evidence": evidence,
-                     "certainty": certainty, "quotes": quotes_in(problem)})
+        row = {"at": at, "aspect": row_aspect, "problem": problem,
+               "evidence": resolve_evidence(evidence, base), "certainty": certainty, "quotes": quotes_in(problem)}
+        if row_kind:
+            row["kind"] = row_kind
+        rows.append(row)
     return rows, skipped
 
 
@@ -310,25 +431,207 @@ def cmd_import(args) -> int:
         fail(f"unknown episode {args.episode!r}")
     if args.source not in SOURCES:
         fail(f"source must be one of {', '.join(SOURCES)}")
+    if args.aspect and args.aspect not in ASPECTS:
+        fail(f"aspect must be one of {', '.join(ASPECTS)}")
+    if args.kind and args.kind not in KINDS:
+        fail(f"kind must be one of {', '.join(KINDS)}")
+    if args.kind and args.aspect and KINDS[args.kind] != args.aspect:
+        fail(f"kind {args.kind} belongs to aspect {KINDS[args.kind]}")
     base = args.base if args.base is not None else str(Path(args.findings).resolve().parent)
-    rows, skipped = report_rows(args.findings, base)
+    rows, skipped = report_rows(args.findings, base, args.aspect or (KINDS[args.kind] if args.kind else None),
+                                args.kind)
+    added = add_findings(data, args.episode, rows, args.source)
+    save(args.ledger, data)
+    print(json.dumps({"ok": not skipped, "added": added, "not_imported": skipped}, ensure_ascii=False))
+    return 0 if not skipped else 1
+
+
+def add_findings(data: dict, episode: str, rows: list[dict], source: str) -> list[str]:
+    """Append rows as open findings with fresh ids; a row already in the ledger
+    (same episode, time and problem) is left alone."""
     numbers = [int(m.group(1)) for f in data["findings"] if (m := re.fullmatch(r"F(\d+)", str(f.get("id"))))]
     next_number = max(numbers, default=0) + 1
     seen = {(f["episode"], f.get("at", ""), f["problem"]) for f in data["findings"]}
     added = []
     for row in rows:
-        key = (args.episode, row["at"], row["problem"])
+        key = (episode, row["at"], row["problem"])
         if key in seen:
             continue
         seen.add(key)
         fid = f"F{next_number:03d}"
         next_number += 1
-        data["findings"].append({"id": fid, "episode": args.episode, **row,
-                                 "source": args.source, "status": "open"})
+        data["findings"].append({"id": fid, "episode": episode, **row, "source": source, "status": "open"})
         added.append(fid)
+    return added
+
+
+# --- speech triage ----------------------------------------------------------
+# A speech report is candidates read off ASR over music, so most lines are
+# noise. Two shapes survive: a value the script states that the ASR heard as
+# another value (or a Latin-script term it did not hear at all), and a pitch or
+# level jump inside one caption line (a jump at a line start is usually the
+# next speaker). Everything else is dropped before the user sees it.
+
+KANJI_DIGITS = {"〇": 0, "零": 0, "一": 1, "二": 2, "三": 3, "四": 4, "五": 5, "六": 6, "七": 7, "八": 8, "九": 9}
+KANJI_SMALL = {"十": 10, "百": 100, "千": 1000}
+KANJI_BIG = {"万": 10**4, "億": 10**8, "兆": 10**12}
+NUMBER_TOKEN = re.compile(r"(?:\d+(?:\.\d+)?|[〇零一二三四五六七八九])+(?:[十百千万億兆](?:\d+(?:\.\d+)?|[〇零一二三四五六七八九])*)*|[十百千万億兆]+")
+LATIN_TERM = re.compile(r"[A-Za-z][A-Za-z0-9]*")
+JUMP_ST = re.compile(r"([+-]\d+(?:\.\d+)?)\s*st\b(?=[^;()]*(?:vs|直前|前区間))")
+JUMP_DB = re.compile(r"([+-]\d+(?:\.\d+)?)\s*dB\b(?=[^;()]*(?:vs|直前|前区間))")
+
+
+def number_value(token: str) -> float | None:
+    """``1040億`` → 1.04e11, ``2万3千`` → 23000, ``五十二`` → 52, ``2024`` → 2024."""
+    total = 0.0
+    section = 0.0
+    digits = ""
+    for ch in token:
+        if ch.isdigit() or ch == ".":
+            digits += ch
+        elif ch in KANJI_DIGITS:
+            digits += str(KANJI_DIGITS[ch])
+        elif ch in KANJI_SMALL:
+            section += (float(digits) if digits else 1) * KANJI_SMALL[ch]
+            digits = ""
+        elif ch in KANJI_BIG:
+            total += (section + (float(digits) if digits else 1)) * KANJI_BIG[ch]
+            section, digits = 0.0, ""
+    try:
+        return total + section + (float(digits) if digits else 0.0)
+    except ValueError:
+        return None
+
+
+def numbers_in(text: str) -> set[float]:
+    found = set()
+    for match in NUMBER_TOKEN.finditer(nfkc(text).replace(",", "")):
+        value = number_value(match.group(0))
+        if value is not None:
+            found.add(value)
+    return found
+
+
+def latin_terms(text: str) -> set[str]:
+    """Latin-script terms a non-Latin script spells out: a single capital, an
+    acronym, or a word with an inner capital (``A``, ``TV``, ``ChatGPT``); an
+    ordinary lower-case word is not one."""
+    found = set()
+    for word in LATIN_TERM.findall(nfkc(text)):
+        if len(word) == 1 and word.isupper() or word.isupper() or any(c.isupper() for c in word[1:]):
+            found.add(word.lower())
+    return found
+
+
+QUOTE_OR_EMPTY = re.compile("|".join(
+    f"{re.escape(open_)}([^{re.escape(open_ + close)}\\n]*){re.escape(close)}" for open_, close in QUOTE_PAIRS
+))
+
+
+def script_and_heard(problem: str) -> tuple[str, str] | None:
+    """A reading line quotes the script's words, then what the ASR heard
+    (``「script」→「heard」``; ``「」`` for nothing). Several pairs split in
+    halves; with an odd count the last two quotes are the pair. One quote is
+    no pair, so it is not a reading finding."""
+    quotes = [next((g for g in m.groups() if g is not None), "") for m in QUOTE_OR_EMPTY.finditer(problem)]
+    if len(quotes) < 2:
+        return None
+    if len(quotes) >= 4 and len(quotes) % 2 == 0:
+        half = len(quotes) // 2
+        return " ".join(quotes[:half]), " ".join(quotes[half:])
+    return quotes[-2], quotes[-1]
+
+
+def reading_mismatch(problem: str, ignore: list[str], weak: bool) -> bool:
+    pair = script_and_heard(problem)
+    if pair is None:
+        return False
+    script, heard = pair
+    if any(term.lower() in script.lower() for term in ignore):
+        return False
+    script_numbers, heard_numbers = numbers_in(script), numbers_in(heard)
+    # A one-character script quote is a token fragment, not a value.
+    if len(script.strip()) >= 2 and script_numbers - heard_numbers and (heard_numbers or weak):
+        return True
+    return bool(latin_terms(script) - latin_terms(heard) - {term.lower() for term in ignore})
+
+
+def jump_values(text: str) -> tuple[float, float]:
+    """The largest pitch (semitones) and level (dB) change against the previous segment."""
+    pitch = max((abs(float(m.group(1))) for m in JUMP_ST.finditer(text)), default=0.0)
+    level = max((abs(float(m.group(1))) for m in JUMP_DB.finditer(text)), default=0.0)
+    return pitch, level
+
+
+def mid_line(at: int, starts: list[int]) -> bool | None:
+    """Whether ``at`` falls inside a caption line rather than at one's start;
+    None when the captions are unknown."""
+    if not starts:
+        return None
+    earlier = [s for s in starts if s <= at]
+    later = [s for s in starts if s > at]
+    if not earlier:
+        return False
+    return at - earlier[-1] > 1 and (not later or later[0] - at > 1)
+
+
+def triage_speech(findings: list[dict], prosody: list[dict], starts: list[int], ignore: list[str],
+                  pitch_jump: float, level_jump: float, max_jumps: int, skip_head: int, weak: bool) -> dict:
+    reading = [row for row in findings if reading_mismatch(row["problem"], ignore, weak)]
+    scored = []
+    for row in prosody:
+        at = times_in(row["at"])
+        if not at:
+            continue
+        pitch, level = jump_values(row["problem"] + " " + row["evidence"])
+        score = max(pitch / pitch_jump if pitch_jump else 0, level / level_jump if level_jump else 0)
+        inside = mid_line(at[0], starts)
+        if score < 1 or at[0] < skip_head or (starts and at[0] >= starts[-1]) or inside is False:
+            continue
+        scored.append((score, at[0], row))
+    scored.sort(key=lambda item: (-item[0], item[1]))
+    chosen: list[tuple[float, int, dict]] = []
+    for item in scored:  # one jump and its recovery a second later are one place to listen
+        if len(chosen) < max_jumps and all(abs(item[1] - other[1]) > 2 for other in chosen):
+            chosen.append(item)
+    delivery = [row for _, _, row in sorted(chosen, key=lambda item: item[1])]
+    for row in reading:
+        row.update({"aspect": "voice", "kind": "reading", "certainty": "confirm"})
+    for row in delivery:
+        row.update({"aspect": "voice", "kind": "delivery", "certainty": "confirm"})
+    return {"reading": reading, "delivery": delivery,
+            "dropped": len(findings) + len(prosody) - len(reading) - len(delivery)}
+
+
+def cmd_triage_speech(args) -> int:
+    data = load(args.ledger)
+    errors = problems(data, final=False)
+    if errors:
+        fail("; ".join(errors))
+    episode = next((e for e in data["episodes"] if e["label"] == args.episode), None)
+    if episode is None:
+        fail(f"unknown episode {args.episode!r}")
+    folder = Path(args.speech_dir)
+    findings_path, prosody_path = folder / args.findings, folder / args.prosody
+    findings = report_rows(str(findings_path), None, "voice")[0] if findings_path.exists() else []
+    prosody = report_rows(str(prosody_path), None, "voice")[0] if prosody_path.exists() else []
+    if not findings and not prosody:
+        fail(f"no {args.findings} or {args.prosody} in {folder}")
+    starts = []
+    if episode.get("captions") and Path(episode["captions"]).exists():
+        starts = sorted(s for s in (seconds(at) for at, _ in caption_lines(episode["captions"])) if s is not None)
+    ignore = [term for _, term in read_terms(args.ignore)]
+    result = triage_speech(findings, prosody, starts, ignore, args.pitch_jump, args.level_jump,
+                           args.max_jumps, args.skip_head, args.weak)
+    kept = result["reading"] + result["delivery"]
+    lines = [f"{row['at']} | {row['kind']} | {row['problem']} | {row['evidence']} | confirm" for row in kept]
+    (folder / args.out).write_text("\n".join(lines) + ("\n" if lines else ""), encoding="utf-8")
+    added = add_findings(data, args.episode, kept, "audio-creator")
     save(args.ledger, data)
-    print(json.dumps({"ok": not skipped, "added": added, "not_imported": skipped}, ensure_ascii=False))
-    return 0 if not skipped else 1
+    print(json.dumps({"ok": True, "reading": [r["at"] for r in result["reading"]],
+                      "delivery": [r["at"] for r in result["delivery"]], "dropped": result["dropped"],
+                      "added": added, "out": str(folder / args.out)}, ensure_ascii=False))
+    return 0
 
 
 def caption_lines(path: str) -> list[tuple[str, str]]:
@@ -405,14 +708,264 @@ def first_time(finding: dict) -> int:
     return found[0] if found else -1
 
 
-def finding_line(finding: dict, box: bool, words: dict) -> str:
+def live(data: dict) -> list[dict]:
+    return [f for f in data["findings"] if f.get("status", "open") != "drop"]
+
+
+def episode_of(data: dict, finding: dict) -> dict | None:
+    return next((e for e in data["episodes"] if e["label"] == finding["episode"]), None)
+
+
+def kind_label(finding: dict, words: dict) -> str:
+    kind = finding.get("kind")
+    return words["kinds"][kind] if kind in words["kinds"] else words["aspects"][finding["aspect"]]
+
+
+def sheet_judgment(finding: dict) -> str:
+    """What the sheet shows: a reproduced finding is proposed for the report."""
+    status = finding.get("status", "open")
+    if status == "open" and finding.get("certainty") == "certain":
+        return "keep"
+    return status
+
+
+def public_evidence(evidence: str) -> str:
+    """Evidence fit for the sheet: URLs and measurements stay; anything that
+    reads as a file path or file name goes."""
+    kept = []
+    for item in evidence_pieces(evidence):
+        if is_url(item):
+            kept.append(item)
+        elif not ("/" in item or "\\" in item or item.startswith(("~", ".")) or FILE_NAME.match(item)):
+            kept.append(item)
+    return "; ".join(kept)
+
+
+def cmd_ask_draft(args) -> int:
+    data = load(args.ledger)
+    lines = [f"{f['id']} | {f.get('ask') or f['problem']}" for f in live(data)
+             if f.get("status", "open") in ("open", "recheck") and f.get("certainty") == "confirm"]
+    Path(args.out).write_text("\n".join(lines) + ("\n" if lines else ""), encoding="utf-8")
+    print(json.dumps({"ok": True, "findings": len(lines), "out": args.out}))
+    return 0
+
+
+def cmd_ask_import(args) -> int:
+    data = load(args.ledger)
+    by_id = {f["id"]: f for f in data["findings"]}
+    stored, skipped = [], []
+    for raw in Path(args.asks).read_text(encoding="utf-8").splitlines():
+        line = raw.strip()
+        if not line or "|" not in line:
+            continue
+        fid, _, ask = (cell.strip() for cell in line.partition("|"))
+        if fid in by_id and ask:
+            by_id[fid]["ask"] = ask
+            stored.append(fid)
+        else:
+            skipped.append(line)
+    save(args.ledger, data)
+    print(json.dumps({"ok": not skipped, "stored": stored, "not_imported": skipped}, ensure_ascii=False))
+    return 0 if not skipped else 1
+
+
+def cell_text(value: str) -> str:
+    """Text safe to enter as a user would: a leading formula character is quoted."""
+    text = str(value or "")
+    return "'" + text if text[:1] in ("=", "+", "-", "@") else text
+
+
+def formula_text(value: str) -> str:
+    return str(value).replace('"', '""')
+
+
+def criterion(value: str) -> str:
+    """A COUNTIFS criterion that matches the text exactly: ``=`` forces equality
+    and ``~`` escapes the wildcards and itself."""
+    escaped = re.sub(r"([*?~])", r"~\1", str(value))
+    return formula_text("=" + escaped)
+
+
+def hyperlink(url: str, label: str) -> str:
+    return f'=HYPERLINK("{formula_text(url)}","{formula_text(label)}")'
+
+
+def column_letter(name: str) -> str:
+    return chr(ord("A") + COLUMNS.index(name))
+
+
+def export_rows(data: dict, words: dict) -> list[list[str]]:
+    order = {e["label"]: i for i, e in enumerate(data["episodes"])}
+    rows = []
+    for finding in sorted(live(data), key=lambda f: (order.get(f["episode"], -1), first_time(f), f["id"])):
+        episode = episode_of(data, finding)
+        at = str(finding.get("at") or "").strip()
+        is_thumb = finding["aspect"] == "thumbnail" and not times_in(at)
+        label = at or (words["thumb"] if is_thumb else "")
+        url = finding_url(finding, episode)
+        at_cell = hyperlink(url, label or url) if url else cell_text(label)
+        rows.append([
+            finding["id"],
+            words["overall"] if finding["episode"] == ALL else finding["episode"],
+            at_cell,
+            kind_label(finding, words),
+            cell_text(finding.get("ask") or finding["problem"]),
+            cell_text(public_evidence(finding.get("evidence", ""))),
+            words["judgments"][sheet_judgment(finding)],
+            cell_text(finding.get("note", "")),
+            cell_text(finding.get("reply", "")),
+        ])
+    return rows
+
+
+def summary_rows(data: dict, words: dict) -> list[list[str]]:
+    tab = words["tabs"]["findings"].replace("'", "''")
+    episode_col = f"'{tab}'!${column_letter('episode')}:${column_letter('episode')}"
+    judgment_col = f"'{tab}'!${column_letter('judgment')}:${column_letter('judgment')}"
+    rows = []
+    labels = [(e["label"], e) for e in data["episodes"]] + [(ALL, None)]
+    for label, episode in labels:
+        shown = words["overall"] if label == ALL else label
+        if episode is None:
+            if not any(f["episode"] == ALL for f in live(data)):
+                continue
+            title = ""
+        else:
+            url = video_url(episode)
+            title = hyperlink(url, episode.get("title") or shown) if url else cell_text(episode.get("title", ""))
+        row = [cell_text(shown), title, f'=COUNTIFS({episode_col},"{criterion(shown)}")']
+        for status in ("keep", "drop", "hold", "open", "recheck"):
+            option = criterion(words["judgments"][status])
+            row.append(f'=COUNTIFS({episode_col},"{criterion(shown)}",{judgment_col},"{option}")')
+        rows.append(row)
+    first, last = 2, 1 + len(rows)
+    total = [words["total"], ""]
+    for index in range(2, 8):
+        letter = chr(ord("A") + index)
+        total.append(f"=SUM({letter}{first}:{letter}{last})")
+    rows.append(total)
+    return rows
+
+
+def cmd_export(args) -> int:
+    data = load(args.ledger)
+    errors = problems(data, final=False)
+    if errors:
+        fail("; ".join(errors))
+    words = sheet_text(data)
+    judgments = [words["judgments"][j] for j in JUDGMENTS]
+    kinds = [words["kinds"][k] for k in KINDS] + [words["aspects"][a] for a in ASPECTS]
+    summary_header = [words["summary_columns"][c] for c in
+                      ("episode", "title", "total", "keep", "drop", "hold", "open", "recheck")]
+    out = {
+        "job": data.get("job", ""),
+        "tabs": {
+            "findings": {"title": words["tabs"]["findings"],
+                         "header": [words["columns"][c] for c in COLUMNS], "rows": export_rows(data, words)},
+            "summary": {"title": words["tabs"]["summary"], "header": summary_header,
+                        "rows": summary_rows(data, words)},
+        },
+        "columns": {name: column_letter(name) for name in COLUMNS},
+        "owner": {"user": [column_letter("judgment"), column_letter("note")], "assistant": [column_letter("reply")]},
+        "judgments": judgments,
+        "colours": {words["judgments"][j]: JUDGMENT_COLOURS[j] for j in JUDGMENTS},
+        "kinds": kinds,
+        "value_input": "USER_ENTERED",
+    }
+    Path(args.out).write_text(json.dumps(out, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    print(json.dumps({"ok": True, "findings": len(out["tabs"]["findings"]["rows"]),
+                      "episodes": len(data["episodes"]), "out": args.out}, ensure_ascii=False))
+    return 0
+
+
+def readback_rows(payload) -> list[list[str]]:
+    if isinstance(payload, dict):
+        for key in ("values", "rows", "data"):
+            if isinstance(payload.get(key), list):
+                payload = payload[key]
+                break
+    if not isinstance(payload, list) or not payload or not all(isinstance(row, list) for row in payload):
+        fail("readback needs a list of rows (the first row the header), or an object with a values list")
+    return [[str(cell) if cell is not None else "" for cell in row] for row in payload]
+
+
+def cmd_readback(args) -> int:
+    data = load(args.ledger)
+    words = sheet_text(data)
+    try:
+        payload = json.loads(Path(args.values).read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        fail(f"cannot read {args.values}: {exc}")
+    rows = readback_rows(payload)
+    header = [cell.strip() for cell in rows[0]]
+    names = {}
+    for table in SHEET_TEXT.values():
+        for name, label in table["columns"].items():
+            names.setdefault(label, name)
+    index = {names[label]: i for i, label in enumerate(header) if label in names}
+    for required in ("id", "judgment"):
+        if required not in index:
+            fail(f"header has no {required} column (got {header})")
+    statuses = {}
+    for table in SHEET_TEXT.values():
+        for status, label in table["judgments"].items():
+            statuses.setdefault(label.lower(), status)
+    by_id = {f["id"]: f for f in data["findings"]}
+    counts = {status: 0 for status in STATUSES}
+    unknown_ids, unknown_judgments, blank, recheck = [], [], [], []
+
+    def cell(row, name):
+        pos = index.get(name)
+        return row[pos].strip() if pos is not None and pos < len(row) else ""
+
+    for row in rows[1:]:
+        fid = cell(row, "id")
+        if not fid:
+            continue
+        finding = by_id.get(fid)
+        if finding is None:
+            unknown_ids.append(fid)
+            continue
+        for field in ("note", "reply"):  # a blank cell never erases what the ledger holds
+            value = cell(row, field)
+            if value:
+                finding[field] = value
+        judgment = cell(row, "judgment")
+        if not judgment:
+            blank.append(fid)
+            continue
+        status = statuses.get(judgment.lower())
+        if status is None:
+            unknown_judgments.append(f"{fid}: {judgment}")
+            continue
+        finding["status"] = status
+        counts[status] += 1
+        if status == "recheck":
+            recheck.append({"id": fid, "episode": finding["episode"], "at": finding.get("at", ""),
+                            "note": finding.get("note", "")})
+    save(args.ledger, data)
+    result = {"ok": not (unknown_ids or unknown_judgments), "counts": counts, "blank": blank,
+              "recheck": recheck, "unknown_ids": unknown_ids, "unknown_judgments": unknown_judgments}
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+    return 0 if result["ok"] else 1
+
+
+def finding_line(finding: dict, box: bool, words: dict, episode: dict | None = None) -> str:
     at = str(finding.get("at") or "").strip()
-    head = f"{at}{words['gap']}" if at else ""
-    evidence = str(finding.get("evidence") or "").strip()
+    url = finding_url(finding, episode)
+    if at and url:
+        head = f"[{at}]({url}){words['gap']}"
+    elif at:
+        head = f"{at}{words['gap']}"
+    elif url and finding["aspect"] == "thumbnail":
+        head = f"[{words['thumb']}]({url}){words['gap']}"
+    else:
+        head = ""
+    evidence = public_evidence(finding.get("evidence") or "")
     tail = words["evidence"].format(evidence) if evidence else ""
     prefix = "- [ ] " if box else "- "
-    aspect = words["aspects"][finding["aspect"]]
-    return f"{prefix}{head}{aspect}{words['colon']}{finding['problem']}{tail} `{finding['id']}`"
+    text = finding.get("ask") or finding["problem"]
+    return f"{prefix}{head}{kind_label(finding, words)}{words['colon']}{text}{tail} `{finding['id']}`"
 
 
 def cmd_sheet(args) -> int:
@@ -421,17 +974,18 @@ def cmd_sheet(args) -> int:
     if errors:
         fail("; ".join(errors))
     words = sheet_text(data)
-    live = [f for f in data["findings"] if f.get("status", "open") != "drop"]
+    shown = live(data)
     out = [f"# {words['title']} — {data.get('job', '')}".rstrip(" —"), "", words["intro"], ""]
-    sections = [(ALL, words["overall"], "", None)] + [
-        (e["label"], e["label"], e.get("title", ""), e.get("checked")) for e in data["episodes"]
+    sections = [(ALL, words["overall"], "", None, None)] + [
+        (e["label"], e["label"], e.get("title", ""), e.get("checked"), e) for e in data["episodes"]
     ]
-    for label, heading, title, checked in sections:
-        mine = sorted((f for f in live if f["episode"] == label), key=first_time)
-        listen = [item for item in data["listen"] if item["episode"] == label]
+    for label, heading, title, checked, episode in sections:
+        mine = sorted((f for f in shown if f["episode"] == label), key=first_time)
+        listen = [item for item in data["listen"] if item["episode"] == label] if args.listen else []
         if label == ALL and not mine:
             continue
-        out.append(f"## {heading} {title}".rstrip())
+        url = video_url(episode) if episode else None
+        out.append(f"## {heading} {f'[{title}]({url})' if title and url else title}".rstrip())
         if label != ALL:
             if checked is None:
                 out.append(words["unrecorded"])
@@ -445,10 +999,10 @@ def cmd_sheet(args) -> int:
             out.append("- " + (words["clean_checked"] if checked else words["clean_unrecorded"]))
         if certain:
             out.append(f"### {words['certain']}")
-            out.extend(finding_line(f, False, words) for f in certain)
+            out.extend(finding_line(f, False, words, episode) for f in certain)
         if confirm:
             out.append(f"### {words['confirm']}")
-            out.extend(finding_line(f, True, words) for f in confirm)
+            out.extend(finding_line(f, True, words, episode) for f in confirm)
         if listen:
             out.append(f"### {words['listen']}")
             for item in listen:
@@ -458,7 +1012,7 @@ def cmd_sheet(args) -> int:
                 out.append(f"- [{mark}] {item['at']}{words['gap']}{item['term']}{result}")
         out.append("")
     Path(args.out).write_text("\n".join(out).rstrip() + "\n", encoding="utf-8")
-    print(json.dumps({"ok": True, "findings": len(live), "listen": len(data["listen"]), "out": args.out}, ensure_ascii=False))
+    print(json.dumps({"ok": True, "findings": len(shown), "listen": len(data["listen"]), "out": args.out}, ensure_ascii=False))
     return 0
 
 
@@ -552,7 +1106,39 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("findings")
     p.add_argument("--source", required=True)
     p.add_argument("--base", help="directory relative evidence paths start from (default: the findings file's)")
+    p.add_argument("--aspect", help="aspect for every line, when the report's second cell is not one")
+    p.add_argument("--kind", help="kind for every line (implies its aspect)")
     p.set_defaults(func=cmd_import)
+    p = sub.add_parser("triage-speech")
+    p.add_argument("ledger")
+    p.add_argument("episode")
+    p.add_argument("speech_dir", help="the hands' deliver directory for this episode's speech check")
+    p.add_argument("--findings", default="findings.md")
+    p.add_argument("--prosody", default="prosody.md")
+    p.add_argument("--out", default="triage.md", help="kept lines, written into the speech directory")
+    p.add_argument("--ignore", help="terms file: a script quote holding one of them is not a reading finding")
+    p.add_argument("--max-jumps", type=int, default=2, help="delivery candidates kept per episode")
+    p.add_argument("--pitch-jump", type=float, default=6.0, help="semitones against the previous segment")
+    p.add_argument("--level-jump", type=float, default=8.0, help="dB against the previous segment")
+    p.add_argument("--skip-head", type=int, default=20, help="seconds at the start no jump is taken from")
+    p.add_argument("--weak", action="store_true", help="also keep a script number the ASR did not hear at all")
+    p.set_defaults(func=cmd_triage_speech)
+    p = sub.add_parser("ask-draft")
+    p.add_argument("ledger")
+    p.add_argument("out")
+    p.set_defaults(func=cmd_ask_draft)
+    p = sub.add_parser("ask-import")
+    p.add_argument("ledger")
+    p.add_argument("asks")
+    p.set_defaults(func=cmd_ask_import)
+    p = sub.add_parser("export")
+    p.add_argument("ledger")
+    p.add_argument("out")
+    p.set_defaults(func=cmd_export)
+    p = sub.add_parser("readback")
+    p.add_argument("ledger")
+    p.add_argument("values")
+    p.set_defaults(func=cmd_readback)
     p = sub.add_parser("validate")
     p.add_argument("ledger")
     p.add_argument("--final", action="store_true")
@@ -564,6 +1150,7 @@ def main(argv: list[str] | None = None) -> int:
     p = sub.add_parser("sheet")
     p.add_argument("ledger")
     p.add_argument("out")
+    p.add_argument("--listen", action="store_true", help="also list the caption terms to listen for")
     p.set_defaults(func=cmd_sheet)
     p = sub.add_parser("check")
     p.add_argument("ledger")
