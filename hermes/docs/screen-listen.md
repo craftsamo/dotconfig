@@ -15,9 +15,9 @@ Part of the Hermes design docs — index: [`PROFILES.md`](../PROFILES.md).
 
 | Piece                                                                      | Home                                                                  | Reader    |
 | -------------------------------------------------------------------------- | --------------------------------------------------------------------- | --------- |
-| Helper: the only code that records, a Core Audio process tap in a tiny app | `engines/screen-listen/main.swift`, `Info.plist`                      | people    |
+| Helper: the only code that records — a Core Audio process tap, and ScreenCaptureKit for one window — in a tiny app | `engines/screen-listen/main.swift`, `Info.plist` | people |
 | Built helper (ad-hoc signed, ignored)                                      | `local/screen-listen/ScreenListen.app`                                | plugin    |
-| Engine manager (`install`, `status`, `grant`)                              | `scripts/screen-listen.sh`                                            | people    |
+| Engine manager (`install`, `status`, `grant`, `grant-screen`)              | `scripts/screen-listen.sh`                                            | people    |
 | `screen_listen` tool (toolset `screen_listen`), allowlist, STT handoff     | `plugins/inspection/screen-listen/__init__.py`, `listen.py`           | Assistant |
 | Recording sessions (start, status, stop, the kept files)                   | `plugins/inspection/screen-listen/record.py`                          | Assistant |
 | Transcripts of kept recordings (a detached local-whisper job)              | `plugins/inspection/screen-listen/transcript.py`, `transcribe_job.py` | Assistant |
@@ -29,9 +29,28 @@ The helper taps the audio of specific processes (`CATapDescription` over the
 process objects whose bundle id is the allowed app's or a `.helper` child of it),
 so the recording holds that app's output and nothing else: not the microphone,
 not other apps, not the screen. The consent macOS asks for is therefore only
-**System Audio Recording**, never Screen Recording, and there is no periodic
-re-consent as with screen capture. ScreenCaptureKit would have needed the wider
-grant for no gain: the picture comes from `computer_use` already.
+**System Audio Recording** for everything audio, and there is no periodic
+re-consent as with screen capture. A quick look at the picture comes from
+`computer_use` already.
+
+Video is the one opt-in beyond that. The helper's `capture` records **one
+window of the allowed app** through ScreenCaptureKit (a desktop-independent
+window filter: the window as composited for itself, so other windows over it,
+notifications and the cursor are not in it), at a bounded frame rate and width
+(10 fps, 1280 points by default: a screen share is not a film, and an hour
+must stay in the hundreds of megabytes), with the app's own audio in the same
+MP4 (`SCRecordingOutput`, H.264 + AAC, macOS 15). It never captures a
+display. The consent for it is **Screen Recording**, asked only when video is
+used (`grant-screen`), and it behaves unlike the audio one: macOS re-confirms
+it periodically, and **a rebuilt helper is refused silently** — the stored
+grant carries the earlier build's code requirement, the new one does not
+match, and Screen Recording does not prompt again while System Settings still
+shows the switch on. `grant-screen` therefore drops the stale grant
+(`tccutil reset ScreenCapture <bundle id>`) and asks again; when macOS answers
+with a notification instead of a dialog, the switch is flipped by hand in the
+pane the script opens. Which window: the largest normal window of the app,
+on-screen ones first, or the one whose title contains `--window`; the capture
+ends with the window (`stopped_by` in the answer).
 
 macOS attributes that consent to the _responsible process_. Spawned plainly
 from the gateway the helper would inherit the gateway launcher's identity and the
@@ -155,9 +174,10 @@ recording is running.
 ## Setup
 
 ```sh
-hermes/scripts/screen-listen.sh install   # builds the helper (needs Xcode or its CLT)
-hermes/scripts/screen-listen.sh grant     # records one second; answer the dialog once
-hermes/scripts/screen-listen.sh status    # built? which processes are playing audio
+hermes/scripts/screen-listen.sh install       # builds the helper (needs Xcode or its CLT)
+hermes/scripts/screen-listen.sh grant         # records one second; answer the dialog once
+hermes/scripts/screen-listen.sh grant-screen  # only for video: Screen Recording, see above
+hermes/scripts/screen-listen.sh status        # built? which processes are playing audio
 ```
 
 Then `screen-listen` in `plugins.enabled` and `screen_listen` in the Assistant's
