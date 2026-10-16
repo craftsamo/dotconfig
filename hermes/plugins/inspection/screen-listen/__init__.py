@@ -46,7 +46,7 @@ DESCRIPTION = (
     "built, which allowed apps are running and playing audio, and the last listen's outcome. "
     "Recording sessions, for a whole call or stream the user wants kept: record_start (app, `minutes` up to "
     f"{record.MAX_MINUTES}, optional `title`; `video: true` also records the app's window — a Go Live screen "
-    "share — to video.mp4 beside the audio, at a modest frame rate, never the whole screen) records in the "
+    "share — to video.mp4 beside the audio, `fps` to taste, never the whole screen) records in the "
     "background until record_stop or the cap; record_status shows the running session (seconds, whether "
     "audio is still arriving, the video's frames); record_stop ends it and packs an m4a (and the mp4) plus "
     "recording.json into the recordings directory; recordings lists what is kept, with transcripts when "
@@ -127,6 +127,9 @@ SCHEMA = {
                                                         "as shown) to video.mp4 (default: audio only)"},
             "window": {"type": "string", "description": "record_start with video: part of the title of the window "
                                                         "to record (default: the app's largest window)"},
+            "fps": {"type": "integer", "description": f"record_start with video: frames per second, 1..{record.VIDEO_MAX_FPS} "
+                                                      f"(default {record.VIDEO_FPS}, or the profile's screen_listen.video_fps; "
+                                                      "10 is enough for slides or a terminal and makes a far smaller file)"},
             "id": {"type": "string", "description": "record_stop: the session to stop or pack (default: the "
                                                     "running one); transcribe: the recording to transcribe"},
             "dir": {"type": "string", "description": "transcribe: a recording folder from `recordings` (instead of id)"},

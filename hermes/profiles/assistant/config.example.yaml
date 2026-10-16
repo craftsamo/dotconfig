@@ -991,6 +991,8 @@ screen_listen:
   max_seconds: 300
   record_dir: ~/Workspaces/.inbox/recordings
   stt: local
+  video_fps: 30
+  video_max_width: 1280
 plugins:
   enabled:
   - workspace-registry

@@ -204,7 +204,8 @@ def test_video_records_the_window_beside_the_audio(monkeypatch):
     assert out["ok"] and out["video"] is True and "video.mp4" in out["video_note"]
     capture = [c for c in helper.open_calls if "capture" in c][0]
     assert capture[capture.index("--seconds") + 1] == "300" and capture[capture.index("--window") + 1] == "Weekly"
-    assert capture[capture.index("--fps") + 1] == str(record.VIDEO_FPS) and "--no-audio" not in capture
+    assert capture[capture.index("--fps") + 1] == str(record.VIDEO_FPS) == "30" and "--no-audio" not in capture
+    assert capture[capture.index("--max-width") + 1] == str(record.VIDEO_MAX_WIDTH) and "30 fps" in out["video_note"]
     assert capture[capture.index("--out") + 1] == str(Path(out["dir"]) / "video.mp4")
 
     helper.write_progress(frames=48000 * 5)
@@ -231,6 +232,22 @@ def test_video_records_the_window_beside_the_audio(monkeypatch):
     assert not helper.video["progress"].exists() and not helper.video["log"].exists()
     listed = call(action="recordings")["recordings"][0]
     assert listed["video"] == stopped["video"]["file"]
+
+
+def test_video_frame_rate_comes_from_the_call_then_the_profile(monkeypatch):
+    helper = FakeHelper()
+    monkeypatch.setattr(record.subprocess, "run", helper)
+    monkeypatch.setattr(listen, "profile_config", lambda home: {"video_fps": 15, "video_max_width": 960})
+    assert record.video_settings(None, {}) == (15, 960)
+    assert record.video_settings(None, {"fps": 10}) == (10, 960)
+    with pytest.raises(listen.ListenError):                                 # a call out of range is refused
+        record.video_settings(None, {"fps": 500})
+    monkeypatch.setattr(listen, "profile_config", lambda home: {"video_fps": 500, "video_max_width": True})
+    assert record.video_settings(None, {}) == (60, 1280)                    # config: clamped; junk is the default
+    call(action="record_start", video=True, fps=10)
+    capture = [c for c in helper.open_calls if "capture" in c][0]
+    assert capture[capture.index("--fps") + 1] == "10"
+    assert call(action="record_start", video=True, fps="fast")["kind"] == "usage"
 
 
 def test_video_that_cannot_start_leaves_the_audio_running(monkeypatch):
