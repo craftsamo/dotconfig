@@ -1,6 +1,6 @@
 ---
 name: discord-live
-description: Use when the user asks what is happening in a Discord Go Live stream or voice channel right now — "see what they are streaming", "listen in on the voice channel", "summarize the stream" — or asks to record a call or stream to keep, transcribe, turn into minutes or share, from Telegram or anywhere else. Opens the channel in the Discord app on this Mac (a deep link, then computer_use to join), hears it with screen_listen (a bounded listen, or a recording session with start and stop), looks at it with a capture, reports, and leaves. Not for reading messages (discord_account), for recording without the user asking, or for watching unattended over time.
+description: Use when the user asks what is happening in a Discord Go Live stream or voice channel right now — "see what they are streaming", "listen in on the voice channel", "summarize the stream" — or asks to record a call or stream to keep (its audio, or the screen share on video too), transcribe, turn into minutes or share, from Telegram or anywhere else. Opens the channel in the Discord app on this Mac (a deep link, then computer_use to join), hears it with screen_listen (a bounded listen, or a recording session with start and stop), looks at it with a capture, reports, and leaves. Not for reading messages (discord_account), for recording without the user asking, or for watching unattended over time.
 ---
 
 # Discord live
@@ -149,25 +149,43 @@ Two situations, and the microphone rule differs:
    meeting and nothing says the participants know: ask that first, and start
    only on their answer. Then `screen_listen` `record_start` with a short
    `title` (the meeting or stream name).
+   **Video** — "record the stream", "keep the screen share", "画面も": add
+   `video: true`. That films Discord's window as shown (the shared screen
+   when a stream is open in it, or in a pop-out: name it with `window`), at a
+   modest frame rate, never the rest of the Mac's screen; say that the window
+   is being recorded as well, and leave Discord showing the stream for the
+   whole session (navigating away films the navigation). Audio only when the
+   user wants the words, not the picture: the file is far smaller. A `video:
+   false` answer with `video_detail` means the window could not be filmed
+   (Screen Recording not granted, or no window): the audio runs; tell the user
+   what the detail says, do not retry on your own.
 2. **While it runs**, the Mac must stay in the channel and awake; do nothing
    else with Discord. When the user asks how it is going, `record_status`: if
    `receiving` is false for more than a moment, say so (the channel may have
    gone quiet, or Discord was restarted — a restarted app is not followed, so
-   stop and start again).
+   stop and start again). With video, `active.video` shows its frames; `recording`
+   false means the window closed and only the audio goes on.
 3. **Stop** with `record_stop` when the user says so, or when `record_status`
    shows the channel empty and the user agreed to stop then. The answer names
-   the m4a and its folder. Then leave the channel (step 8 of the look).
+   the m4a (and the mp4) and their folder. Then leave the channel (step 8 of
+   the look).
 4. **Hand over the audio** when they want to listen back: a bare
    `MEDIA:/abs/path/audio.m4a` line delivers it in this chat. For someone else,
    the user chooses the route: a messaging plugin's attachment
    (`discord_account` / `signal` / `telegram_account` / `whatsapp` send with
    files, from under `~/Workspaces`), or Drive through `google_access`; never
-   post a recording anywhere the user did not name.
+   post a recording anywhere the user did not name. A video is the same, but
+   hours of it are hundreds of megabytes: give the path, and attach only when
+   the user asks for the file itself.
 5. **Transcribe** with `transcribe` (`id` from `record_stop`, or `dir` from
-   `recordings`). It runs in the background: an hour of audio takes a good part
-   of an hour. Tell the user it is running and check back with the same call
-   (`percent`); do not poll in a loop inside one turn. Done, it names
-   `transcript.txt` (timestamped lines) — speakers are not labelled, so say so.
+   `recordings`). It runs in the background, at about the recording's own
+   length with the default model: tell the user it is running and check back
+   with the same call — `percent` and `eta_seconds` say when; wait about that
+   long (a `terminal` sleep is fine) rather than guessing, and do not poll in
+   a loop inside one turn. For a recording over 30 minutes, pass `model:
+   "small"` unless the user asked for the most accurate text: it is several
+   times quicker and good enough for minutes. Done, it names `transcript.txt`
+   (timestamped lines) — speakers are not labelled, so say so.
 6. **Minutes** are Writer's: `specialist_call` to `writer` with the
    `transcript.txt` path, the meeting's name, date, who attended (from the
    channel's member list at start and end, if you noted it) and what the user
