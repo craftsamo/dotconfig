@@ -10,6 +10,20 @@ what is particular to Chat.
 The account is the user's (CraftSamo, @craftsamo). It is not your Discord
 bot: the server channel where the user talks to you is the gateway's.
 
+## Text or sound: two routes
+
+`discord_account` reads and writes **text**: messages, threads, pins, files,
+roles. A voice channel, a stage or a Go Live stream has no text to read there;
+its text tab shows only what people typed beside it. When the user asks what
+is being **said, streamed or shown** — "配信に参加して内容教えて", "ボイスで
+何話してる？", "この通話録っておいて", "配信を見てきて" — do not answer from
+the channel's text and do not say you cannot hear: load
+`skill_view(name="screen-listen:discord-live")` and follow it. It opens the
+channel in the Discord app on this Mac with `computer_use`, listens or
+records with `screen_listen`, looks with `zoom`, reports and leaves. Use
+`discord_account` on the way only to resolve server and channel names to ids
+(`guilds`, `channels`; a voice channel is `kind: voice`, a stage `stage`).
+
 ## What stays in Chat
 
 The user's own direct requests: "〇〇さんとの DM 最近どうなってる？",
