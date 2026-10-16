@@ -217,8 +217,8 @@ def test_a_market_buy_is_rounded_to_the_venue_and_needs_the_card(run):
     s = q["summary"]
     assert s["price"] == "101000" and s["tif"] == "Ioc" and s["size"] == "0.00099"  # 100 / 101000, 5 decimals
     assert s["held"] == "0" and s["leverage"] == {"type": "cross", "value": 10}
-    assert "Hyperliquid testnet" in q["card"] and "Buy: 0.00099 BTC perp · market, worst price 101000" in q["card"]
-    assert q["card"].startswith("Hyperliquid testnet · Order\n⚠️ Can add exposure\n") and OPS in q["card"]
+    assert q["card"].startswith("Hyperliquid testnet · Order\n⚠️ Can add exposure\n"
+                                "Buy: 0.00099 BTC perp · market\nPrice: worst 101000\n") and OPS in q["card"]
     assert len(s["cloids"]) == 1 and s["cloids"][0].startswith("0x") and len(s["cloids"][0]) == 34
 
 
@@ -229,7 +229,9 @@ def test_a_limit_order_takes_the_tick_and_tp_sl_legs(run):
     assert [(leg["leg"], leg["trigger"], leg["worst"]) for leg in s["legs"]] == [("tp", "2600", "2340"),
                                                                                ("sl", "2300", "2070")]
     assert len(s["cloids"]) == 3 and q["effect"] == "increase"
-    assert "TP: trigger 2600, worst 2340" in q["card"]
+    # what is signed comes first, the account's context after it
+    assert "Price: 2412.3 Gtc\nTP: trigger 2600 → worst 2340\nSL: trigger 2300 → worst 2070\nValue: ≈" \
+        in q["card"]
 
 
 @pytest.mark.parametrize("fields, needle", [
@@ -284,6 +286,10 @@ def test_close_and_tpsl_work_on_the_position_held(run):
     assert close["price"] == "2525"  # 2500.05 × 1.01, rounded down inside the bound
     tpsl = quote(run, kind="tpsl", coin="ETH", tp="2300", sl="2700")
     assert [(leg["leg"], leg["size"]) for leg in tpsl["summary"]["legs"]] == [("tp", "1.5"), ("sl", "1.5")]
+    assert "TP/SL\n✅ Can only lower exposure\nPosition: -1.5 ETH perp (the legs cover all of it)\n" \
+           "TP: trigger 2300 → worst" in tpsl["card"]
+    short = json.loads((run.state / "hl-quotes" / f"{tpsl['quote']}.json").read_text())["card_short"]
+    assert "\nETH perp position -1.5 (all of it)\nTP 2300→" in short and " · SL 2700→" in short
     done = ok(submit(run, tpsl["quote"], "reduce"))
     assert done["submitted"] is True and done["statuses"] == [{"status": "waiting for trigger"}] * 2
     VENUE["waiting"] = "waitingForFill"
@@ -293,10 +299,13 @@ def test_close_and_tpsl_work_on_the_position_held(run):
 
 def test_cancel_and_modify_read_the_order_first(run):
     cancel = quote(run, kind="cancel", oid=42)
-    assert "Cancel: order 42 · buy 1 ETH at 2400" in cancel["card"]
+    assert "Hyperliquid testnet · Cancel\n✅ Can only lower exposure\nOrder: 42\nWas: buy 1 ETH at 2400" \
+        in cancel["card"]
     modify = quote(run, kind="modify", oid=42, price="2410.04", size="2")
     assert modify["summary"]["price"] == "2410" and modify["summary"]["size"] == "2"
-    assert "Price 2400 → 2410 · size 1 → 2" in modify["card"]
+    assert "Order: 42 · buy ETH\nPrice: 2400 → 2410\nSize: 1 → 2" in modify["card"]
+    short = json.loads((run.state / "hl-quotes" / f"{modify['quote']}.json").read_text())["card_short"]
+    assert "Order 42 · buy ETH\nPrice 2400 → 2410 · size 1 → 2" in short
     by_cloid = quote(run, kind="cancel", oid="0x" + "42" * 16)
     assert by_cloid["effect"] == "reduce"
 
@@ -329,7 +338,8 @@ def test_a_reduce_runs_without_a_card_and_a_leverage_cut_never_does(run):
     assert ok(run("verify", quote=lower["quote"]))["effect"] == "increase"
     reply = submit(run, lower["quote"], "reduce")
     assert not reply["ok"] and "needs the approval card" in reply["error"] and exchanged() == []
-    assert "Leverage: ETH perp 5x isolated → 3x isolated" in lower["card"]
+    # even a cut asks: the card says so before naming the change
+    assert "Leverage\n⚠️ Can add exposure\nMarket: ETH perp\nLeverage: 5x isolated → 3x isolated" in lower["card"]
     close = quote(run, kind="close", coin="ETH")
     assert ok(submit(run, close["quote"], "reduce"))["submitted"] is True
 
@@ -347,7 +357,7 @@ def test_the_compact_card_keeps_every_signed_leg(run):
     q = quote(run, coin="ETH", side="buy", size="0.1", price="2400", tp="2600", sl="2300")
     path = run.state / "hl-quotes" / f"{q['quote']}.json"
     short = json.loads(path.read_text())["card_short"]
-    assert "Buy: 0.1 ETH perp · limit 2400 Gtc" in short and "TP 2600→2340 · SL 2300→2070" in short
+    assert "\nBuy 0.1 ETH perp · limit 2400 Gtc\nTP 2600→2340 · SL 2300→2070\n" in short
     assert "Value:" not in short and OPS in short
 
 
@@ -378,6 +388,8 @@ def test_an_answer_that_cannot_be_read_stays_unknown(run, mode):
 
 def test_leverage_and_margin_report_done_from_the_default_answer(run):
     q = quote(run, kind="margin", coin="ETH", amount="5")
+    assert "Hyperliquid testnet · Margin\n✅ Can only lower exposure\nAdd: 5 USDC isolated margin on ETH perp" \
+        in q["card"]
     done = ok(submit(run, q["quote"], "reduce"))
     assert done["submitted"] is True and done["statuses"] == [{"status": "done"}]
 
@@ -469,10 +481,11 @@ def test_a_mandate_is_made_only_on_its_own_card(run):
     q = quote(run, kind="mandate", **TERMS)
     assert q["effect"] == "increase" and exchanged() == []
     card = q["card"]
-    assert "MANDATE: orders without a card" in card and "Markets: BTC (perps)" in card
-    assert "Per order: up to 200 USDC · held in total: up to 1000 USDC" in card
+    assert card.startswith("Hyperliquid testnet · Mandate\n⚠️ Orders inside it skip the card\n"
+                           "Markets: BTC (perps)\n")
+    assert "Per order: up to 200 USDC\nHeld in total: up to 1000 USDC" in card
     assert "Leverage: up to 10x · at most 5 orders an hour" in card and "(7 days)" in card
-    assert "Purpose: Testnet momentum checks" in card and "Hyperliquid testnet" in card
+    assert "Purpose: Testnet momentum checks" in card
     assert "(1 day)" in quote(run, kind="mandate", **{**TERMS, "days": 1})["card"]
     assert verdict(run, q["quote"]) is None  # a mandate never approves another mandate
     for approval in ("reduce", "mandate"):
@@ -653,7 +666,8 @@ def test_both_mandate_cards_carry_every_bound_within_their_budgets(run):
     mandate(run)
     q = quote(run, kind="mandate", **{**TERMS, "markets": ["BTC", "ETH"]})
     short = json.loads((run.state / "hl-quotes" / f"{q['quote']}.json").read_text())["card_short"]
-    for needle in ("testnet MANDATE", "Perps: BTC,ETH", "Order ≤200 · total ≤1000 USDC · ≤10x · 5/h", "Until ",
+    for needle in ("Hyperliquid testnet · Mandate · ⚠️ orders without a card\n",
+                   "Perps: BTC,ETH", "Order ≤200 · total ≤1000 USDC · ≤10x · 5/h", "Until ",
                    OPS, "Replaces m"):
         assert needle in short, needle
     units = len(short.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").encode("utf-16-le")) // 2

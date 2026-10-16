@@ -114,6 +114,7 @@ class Secrets:
         self.keys: dict[str, tuple[str, object]] = {}
         self.meta: dict[str, dict] = {}
         self.problems: list[dict] = []
+        self._found: dict[tuple[str, str], dict[str, str]] = {}  # addresses() by (family, use); secrets stay put
         fingerprints: dict[bytes, str] = {}
         # the name decides, here as in discovery: a secret stored under both kinds of name is kept as
         # the Hermes one, and anything without HERMES in its name is watch-only
@@ -260,7 +261,10 @@ class Secrets:
 
     def addresses(self, family: str, use: str) -> dict[str, str]:
         """Address → account id for every source of a use ('sign' or 'watch'): each seed's accounts
-        0..100 and every key of the family. EVM addresses are lowercased."""
+        0..100 and every key of the family. EVM addresses are lowercased. Derived once per call and kept, so
+        a caller that asks twice (whose a destination is, then its Keychain name) pays for it once."""
+        if (family, use) in self._found:
+            return dict(self._found[(family, use)])
         found: dict[str, str] = {}
         for source in self.seeds:
             if self.meta[source]["use"] != use:
@@ -274,7 +278,8 @@ class Secrets:
             if self.meta[source]["use"] != use or kind != family:
                 continue
             found.setdefault(self.evm_address(secret).lower() if kind == "evm" else str(secret.pubkey()), source)
-        return found
+        self._found[(family, use)] = found
+        return dict(found)
 
     def own(self, family: str) -> set[str]:
         """Every address the Hermes wallets control; watch-only wallets are not own."""
