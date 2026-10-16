@@ -79,10 +79,11 @@ secrets.
 - `scripts/web3.sh {install,status,addresses,new-wallet}` — the web3 engine venv,
   stored wallet items and keys by name, and new Hermes wallets; see
   [docs/web3.md](../web3.md).
-- `scripts/screen-listen.sh {install,status,grant,grant-screen}` — the
-  screen-listen helper app (built with the system Swift toolchain, not a venv),
-  which processes are playing audio, the one-time System Audio Recording
-  consent, and the Screen Recording one for video; see
+- `scripts/screen-listen.sh {identity,install,status,grant,grant-screen}` — the
+  screen-listen helper app (built with the system Swift toolchain, not a venv,
+  signed with a local identity so rebuilds keep their consents), which
+  processes are playing audio, the one-time System Audio Recording consent,
+  and the Screen Recording one for video; see
   [docs/screen-listen.md](../screen-listen.md).
 - `scripts/brave-agent-sync.sh {sync,check,path,remove}` — the real-profile Brave
   clone ([browser.md](browser.md)). `sync` (default) re-clones when
