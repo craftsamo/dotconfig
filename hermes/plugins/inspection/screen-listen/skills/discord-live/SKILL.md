@@ -28,6 +28,9 @@ as `screen-listen:discord-live`.
 - The desktop is shared with the person. Do not steal focus (`launch_app` keeps
   the app in the background), do not resize or move the user's other windows,
   and restore what you changed (a pop-out you opened is yours to close).
+- The microphone is the person's. When you join a channel for them, mute it
+  and keep it muted; when they are in the channel themselves, leave it alone.
+  Never deafen (it silences what `screen_listen` hears).
 - If `screen_listen` `status` says the helper is not built or reports no audio
   delivered, stop and tell the user which command grants it; do not try to
   record another way.
@@ -45,10 +48,19 @@ as `screen-listen:discord-live`.
    link selects it; **joining** is a click on the channel's row or its join
    control (Discord labels it in the app's language: "Join Voice", "ボイス
    チャンネルに参加" or similar — read the label from the tree, never assume).
-3. **Confirm you are in.** The tree shows the voice-connected panel (a
-   disconnect control appears) and `screen_listen` `status` reports the app
-   `playing: true` once anyone speaks or streams. If nobody is in the channel
-   and no stream is live, say so and leave; there is nothing to hear.
+3. **Confirm you are in, and mute the microphone.** The tree shows the
+   voice-connected panel (a disconnect control appears) and `screen_listen`
+   `status` reports the app `playing: true` once anyone speaks or streams.
+   Joining opens the Mac's microphone to the channel unless Discord was left
+   muted last time, so right after joining read the microphone control in the
+   voice panel ("Mute" / "ミュート"; it reads "Unmute" / "ミュート解除" once muted)
+   and mute it. Whatever the user is saying in the room, or on another call,
+   must not reach the channel. If you cannot confirm it is muted, disconnect
+   and tell the user instead of staying in. **Never deafen** ("Deafen" /
+   "スピーカーミュート"): that silences the app's output, which is exactly what
+   `screen_listen` hears, and would make every listen or recording silent.
+   If nobody is in the channel and no stream is live, say so and leave; there
+   is nothing to hear.
 4. **Watch a stream, if there is one.** A live stream shows a watch control on
    the streaming member ("Watch Stream" / "配信を視聴"). Click it. If the user
    wants the picture described, pop the stream out ("Pop Out" / "ポップアウト")
@@ -73,6 +85,19 @@ as `screen-listen:discord-live`.
 
 For "record this call", "keep the stream", "I want minutes afterwards": the
 same entry (steps 1–4), then a session instead of a listen.
+
+Two situations, and the microphone rule differs:
+
+- **You joined for the user** (they are elsewhere: another call, away from the
+  Mac): steps 1–4 as written, microphone muted, and you leave at the end.
+- **The user is already in the channel on this Mac**, taking part themselves,
+  and asks you to record it: do not open, join, mute or unmute anything —
+  the microphone is theirs and muting it would cut them off mid-sentence.
+  Confirm with `get_window_state` that Discord shows the connected channel,
+  then start the session. At the end, stop the recording and leave the
+  channel state as it is; the user leaves when they are done. Muting changes
+  nothing in the recording either way: the tap hears the app's output, never
+  the microphone.
 
 1. **Before starting**, confirm in one line what will happen: the Mac stays in
    the channel, everything the others say is recorded until they say stop or
