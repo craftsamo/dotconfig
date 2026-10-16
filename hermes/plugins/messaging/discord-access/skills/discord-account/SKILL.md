@@ -25,6 +25,10 @@ still apply.
   terminal and file tools are blocked on them; the browser is a policy, and
   it holds just the same. A tool limit is a reason to tell the user, not to
   switch routes.
+- **Text only.** Voice channels, stages and Go Live streams carry no text to
+  read here. Hearing or watching one is the Assistant's
+  `screen-listen:discord-live` route (the Discord app on this Mac), not a
+  limit to report; resolve the channel's id here and hand over.
 - **Low traffic.** Automating a user account is against Discord's terms; the
   user accepted that risk on the condition that traffic stays low and
   client-like. Read the mirror first, read live only what the request needs,
