@@ -26,6 +26,7 @@ APP = HERMES / "local" / "screen-listen" / "ScreenListen.app"
 BINARY = APP / "Contents" / "MacOS" / "screen-listen"
 INSTALL = "hermes/scripts/screen-listen.sh install"
 GRANT = "hermes/scripts/screen-listen.sh grant"
+GRANT_SCREEN = "hermes/scripts/screen-listen.sh grant-screen"
 
 ACTIONS = ("status", "listen")
 DEFAULT_APPS = {"discord": "com.hnc.Discord"}
