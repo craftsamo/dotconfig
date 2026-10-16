@@ -312,6 +312,8 @@ def test_no_frames_from_a_playing_app_points_at_consent_and_leaves_nothing(monke
     assert not [p for p in state.iterdir() if p.is_dir()]
     last = json.loads((state / "last.json").read_text())
     assert last["ok"] is False and last["kind"] == "no_audio"
+    status = call(action="status")
+    assert status["last"]["detail"] and "error" not in status["last"]  # history is not this call's failure
 
 
 def test_timeout_terminates_the_helper(monkeypatch, tmp_path):
