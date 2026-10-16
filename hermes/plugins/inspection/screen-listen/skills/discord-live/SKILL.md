@@ -1,6 +1,6 @@
 ---
 name: discord-live
-description: Use when the user asks what is happening in a Discord Go Live stream or voice channel right now — "see what they are streaming", "listen in on the voice channel", "summarize the stream" — from Telegram or anywhere else. Opens the channel in the Discord app on this Mac with computer_use, hears it with screen_listen, looks at it with zoom, reports, and leaves. Not for reading messages (discord_account), for recording without the user asking, or for watching unattended over time.
+description: Use when the user asks what is happening in a Discord Go Live stream or voice channel right now — "see what they are streaming", "listen in on the voice channel", "summarize the stream" — or asks to record a call or stream to keep, transcribe, turn into minutes or share, from Telegram or anywhere else. Opens the channel in the Discord app on this Mac with computer_use, hears it with screen_listen (a bounded listen, or a recording session with start and stop), looks at it with zoom, reports, and leaves. Not for reading messages (discord_account), for recording without the user asking, or for watching unattended over time.
 ---
 
 # Discord live
@@ -14,9 +14,11 @@ as `screen-listen:discord-live`.
 
 ## Boundaries
 
-- Only when the user asked, for this stream or channel, now. One bounded look
-  (`screen_listen` records at most five minutes per call); never a standing
-  watch, never a recording the user did not request.
+- Only when the user asked, for this stream or channel, now. A look is bounded
+  (`listen` records at most five minutes per call); a recording session runs
+  only between the user's start and stop (or its cap) and only for a call or
+  stream that is theirs or whose participants know. Never a standing watch,
+  never a recording the user did not request, and say when one is running.
 - The Mac becomes a viewer: joining a voice channel is visible to everyone in it
   and the user's status shows it. Say so when the user may not expect it, and
   leave when done so the Mac is not left sitting in a channel.
@@ -66,6 +68,44 @@ as `screen-listen:discord-live`.
    (the disconnect control in the voice panel), and leave Discord as it was
    (running in the background is fine; do not quit it if it was already open
    when you started).
+
+## Record a session
+
+For "record this call", "keep the stream", "I want minutes afterwards": the
+same entry (steps 1–4), then a session instead of a listen.
+
+1. **Before starting**, confirm in one line what will happen: the Mac stays in
+   the channel, everything the others say is recorded until they say stop or
+   the cap (`minutes`, default 3 hours), and the user's own voice is not in it
+   (only the app's output is recorded). If it is not the user's meeting, ask
+   whether the participants know. Then `screen_listen` `record_start` with a
+   short `title` (the meeting or stream name).
+2. **While it runs**, the Mac must stay in the channel and awake; do nothing
+   else with Discord. When the user asks how it is going, `record_status`: if
+   `receiving` is false for more than a moment, say so (the channel may have
+   gone quiet, or Discord was restarted — a restarted app is not followed, so
+   stop and start again).
+3. **Stop** with `record_stop` when the user says so, or when `record_status`
+   shows the channel empty and the user agreed to stop then. The answer names
+   the m4a and its folder. Then leave the channel (step 7 of the look).
+4. **Hand over the audio** when they want to listen back: a bare
+   `MEDIA:/abs/path/audio.m4a` line delivers it in this chat. For someone else,
+   the user chooses the route: a messaging plugin's attachment
+   (`discord_account` / `signal` / `telegram_account` / `whatsapp` send with
+   files, from under `~/Workspaces`), or Drive through `google_access`; never
+   post a recording anywhere the user did not name.
+5. **Transcribe** with `transcribe` (`id` from `record_stop`, or `dir` from
+   `recordings`). It runs in the background: an hour of audio takes a good part
+   of an hour. Tell the user it is running and check back with the same call
+   (`percent`); do not poll in a loop inside one turn. Done, it names
+   `transcript.txt` (timestamped lines) — speakers are not labelled, so say so.
+6. **Minutes** are Writer's: `specialist_call` to `writer` with the
+   `transcript.txt` path, the meeting's name, date, who attended (from the
+   channel's member list at start and end, if you noted it) and what the user
+   wants (decisions, action items, a summary), and deliver Writer's document.
+   Do not write the minutes yourself unless the user asks for a quick one.
+7. **Later**: `recordings` lists what is kept and which have transcripts; the
+   files stay under the recordings folder until the user removes them.
 
 ## When it cannot work
 
