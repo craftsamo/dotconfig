@@ -127,6 +127,19 @@ describe("loadConfig", () => {
     expect(env.statsCalls).toEqual([])
     expect(env.saves).toBe(0)
   })
+  test("the tracked example has the shape", () => {
+    const example = loadConfig(new URL("./lanes.example.json", import.meta.url))
+    expect(example.lanes.length).toBeGreaterThan(0)
+    for (const lane of example.lanes) {
+      expect(typeof lane.provider).toBe("string")
+      expect(typeof lane.keyEnv).toBe("string")
+      expect(lane.amount).toBeGreaterThan(0)
+      expect(lane.renewalDay).toBeGreaterThanOrEqual(1)
+      expect(lane.renewalDay).toBeLessThanOrEqual(31)
+    }
+    for (const id of example.hermes?.order ?? [])
+      expect(example.lanes.some((lane) => lane.provider === id)).toBe(true)
+  })
 })
 
 describe("collect", () => {

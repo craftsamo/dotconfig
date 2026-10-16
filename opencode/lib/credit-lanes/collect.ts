@@ -32,7 +32,8 @@ export type Config = {
   hermes?: { root: string; order: string[] }
 }
 
-// A machine without the file has no lanes rather than a failure.
+// lanes.json is private (the overlay links it beside this file; lanes.example.json
+// shows the shape). A machine without it has no lanes rather than a failure.
 export const CONFIG_FILE = new URL("./lanes.json", import.meta.url)
 
 export function loadConfig(file: URL | string = CONFIG_FILE): Config {
