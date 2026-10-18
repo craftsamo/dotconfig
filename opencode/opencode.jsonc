@@ -3,7 +3,7 @@
   "plugins": [
     // Claude Pro/Max through OpenCode's own OAuth login (`opencode auth login
     // anthropic --method claude-max`), not Claude Code's Keychain entries, so
-    // Hermes' account and Claude Code are never touched. Anthropic does not
+    // Claude Code's and Hermes' logins are never touched. Anthropic does not
     // permit subscription use outside Claude Code; this is an accepted risk.
     // Pinned: the 2.x line is a prerelease and tracks OpenCode 2's beta
     // plugin API. Bump deliberately and re-test a login and a refresh.
@@ -24,7 +24,7 @@
         // Console credit lanes, in spending order (see the providers below).
         // Specialists try them before the subscription; the primary moves to
         // them when the subscription hits a window limit. [] turns it off.
-        // Team first: a lent grant expires on its own schedule.
+        // A key whose grant expires on someone else's schedule goes first.
         "creditLanes": [
           "anthropic-credit-team",
           "anthropic-credit-main",
@@ -382,14 +382,14 @@
       },
     },
     // Console credit lanes: the monthly API credits that Max plans grant, one
-    // Console org per plan; Team is a key another org's owner lent. They
-    // cannot be used by Claude Code or as extra usage, only through an API
-    // key. Keys come from the Keychain project `opencode` (never named
-    // ANTHROPIC_API_KEY, which would override the OAuth login), and a lane
-    // stays inactive while its variable is unset. No payment method or
-    // auto-reload on the own orgs, so an empty balance fails instead of
-    // billing. canonical inherits the anthropic catalog: models, limits and
-    // list prices.
+    // Console org per plan. The names are opaque labels; which org each one
+    // is lives in the private overlay. They cannot be used by Claude Code or
+    // as extra usage, only through an API key. Keys come from the Keychain
+    // project `opencode` (never named ANTHROPIC_API_KEY, which would override
+    // the OAuth login), and a lane stays inactive while its variable is
+    // unset. An org without a payment method or auto-reload fails on an empty
+    // balance instead of billing. canonical inherits the anthropic catalog:
+    // models, limits and list prices.
     "anthropic-credit-team": {
       "name": "Anthropic Team Credit",
       "canonical": "anthropic",

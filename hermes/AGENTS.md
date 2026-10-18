@@ -38,12 +38,14 @@ skills.
   in [docs/ops/tracking.md "Tracking a profile"](docs/ops/tracking.md).
 - **No secrets, no `.env`.** Keys live in the macOS Keychain and are injected
   by the `bin/hermes` shim (see the `keychain-secrets` skill). Private data —
-  reference voices, the Irodori lexicon, manifest paths, Telegram ids, and the
+  reference voices, the Irodori lexicon, manifest paths, Telegram ids, the
   names of the user's businesses, clients, messaging accounts, spreadsheets
-  and tabs — never enters tracked config, docs, tests, examples or commit and
+  and tabs, and this machine's account layout (which Claude account or
+  Console org a label, a lane or a tool is on, its plan size, whose grant a
+  key is) — never enters tracked config, docs, tests, examples or commit and
   PR text; it lives in the private overlay (`~/.config/private`, the
   `private-dotconfig` repo). Use neutral examples (`work`, `personal`,
-  `Leads`). The overlay installs local commit and push hooks that refuse
+  `Leads`) and opaque labels. The overlay installs local commit and push hooks that refuse
   known names; a refusal is fixed by rewording, never by `--no-verify`. The
   Assistant pipeline is tracked here too: what it must know about a private
   account, business or person goes on the private technic shelf, and the entry
@@ -129,12 +131,13 @@ skills.
   ([docs/web3.md](docs/web3.md)).
 - **Rotating an API key needs a gateway restart** — resident sessions keep the
   environment injected at gateway launch.
-- **OAuth logins from `default` only** (`hermes model`, no `-p`). Running it in
-  a worker writes that profile's `auth.json` and shadows the inherited creds.
-- **Anthropic accounts — do not cross the streams.** The Keychain entry
-  `Claude Code-credentials` always wins Hermes' resolver and must stay the
-  **Hermes** account; OpenCode uses its own login outside the Keychain. A plain
-  `claude /login` therefore silently switches Hermes' account. Verification:
+- **OAuth logins from `default` only** (`hermes model` / `hermes auth add`,
+  no `-p`). Running one in a worker writes that profile's `auth.json`, shadows
+  the inherited creds, and for Anthropic forks a single-use refresh token so
+  one copy dies at the next refresh.
+- **The Claude subscription is the `anthropic-oauth` pool's PKCE rows, never
+  the Keychain.** Keep the seeded `claude_code` row suppressed, or a
+  `claude /login` silently changes which account Hermes bills. Mechanics:
   [docs/models-auth.md "Authentication inheritance"](docs/models-auth.md).
 - **Tracked configs say `provider: anthropic`; the real ones pick the lane.**
   `config.example.yaml` must run on a stock runtime, which knows one Anthropic
