@@ -102,52 +102,61 @@ Two situations, and the microphone rule differs:
   in the recording either way: the tap hears the app's output, never the
   microphone.
 
+### Settle the shape first
+
+A recording is the deliverable from its first second, and most of its shape
+cannot be changed once it runs — every stop and restart cuts the stream into
+pieces. So the decisions are made **before joining**, from the ask where it
+says, by the defaults where it does not:
+
+| Decision | The ask decides it when it says… | Default when open | After start |
+|---|---|---|---|
+| **Audio only, or video too** | "録音", "声だけ", "the call" → audio; "録画", "画面も", "配信を残して", "the stream" → video | a **stream** (stage, Go Live) → video; a **call or voice channel** → audio | fixed |
+| **Framing** (video): `share` — the shared screen alone fills the frame; `full` — the stream as the app shows it, speakers, audience and reactions around it | "共有画面だけ", "the slides" → `share`; "配信の様子", "who is talking too" → `full` | a stream with a screen share → `share` (the share is what the recording is for; the voices are in the audio either way); no share, an intermittent one, faces or reactions the point, or the stage itself (who spoke, who joined) to keep → `full`. Decided after joining, from a capture | fixed |
+| **Chat panel** (`share` only): the channel's text chat beside the share | "コメントも", "チャットも", "with the chat" → on | **off** — it narrows the share and puts participants' messages into the video | fixed |
+| **Frame rate** | "滑らかに" → the default (30); "軽く" → 10 | 30 for anything that moves (a game, a video, a cursor); 10 for slides, a document, a terminal — a third of the file | fixed |
+| **Title** | the meeting's or stream's name | channel and date | free |
+
+What the ask leaves open and the table has a default for is taken from the
+table, not asked. Ask **one** bundled question, before joining, only when a
+fixed decision is open *and* the default is a real guess for this user (a
+first recording of a stream whose purpose you do not know: "音声だけ？ 画面も？
+共有画面だけでいい？ 既定は…"), with the defaults stated so a bare "OK"
+suffices. Never one question per decision, never a question after joining
+(the Mac would sit in the channel waiting), never a question that the ask
+already answered.
+
+### The session
+
 1. **Say what will happen, then start** — in the same turn, not as a question
    that waits: the Mac stays in the channel, everything the others say is
-   recorded until they say stop or the cap (`minutes`, default 3 hours), and
-   the user's own voice is not in it (only the app's output is recorded). The
-   user asked for the recording; that sentence is for them to object to, not
-   a gate. The one real question is when it is plainly not the user's own
-   meeting and nothing says the participants know: ask that first, and start
-   only on their answer. Then `screen_listen` `record_start` with a short
-   `title` (the meeting or stream name).
-2. **Video** — "record the stream", "keep the screen share", "画面も": add
-   `video: true`. That films one window of the app as shown, never the rest
-   of the Mac's screen. **Set the picture up before starting, then start
-   once**: a recording is the deliverable from its first second, and every
-   stop and restart cuts the stream into pieces — never stop a running
+   recorded until they say stop or the cap (`minutes`, default 3 hours), the
+   user's own voice is not in it (only the app's output is recorded), and
+   the shape chosen above (audio or video, the framing, the chat panel) in
+   one clause — "the shared screen alone, without the chat; say so if you
+   want the whole stage". The user asked for the recording; that sentence is
+   for them to object to, not a gate, and an objection is acted on now, not
+   after an hour. The one real question is when it is plainly not the user's
+   own meeting and nothing says the participants know: ask that first, and
+   start only on their answer. Then `screen_listen` `record_start` with a
+   short `title`.
+2. **Video** (when the shape says so): add `video: true`. That films one
+   window of the app as shown, never the rest of the Mac's screen. **Set the
+   picture up before starting, then start once** — never stop a running
    recording to improve its picture. The order:
-   - **Choose the framing.** Two are possible, and the window is set up for
-     one of them: `share` — the shared screen alone fills the window (the
-     slides, the demo, the game); `full` — the stream as the app shows it,
-     with the speakers, the audience and their reactions around it. An
-     explicit wish wins: "共有画面だけ", "the slides" → `share`; "配信の様子",
-     "who is talking too" → `full`. Without one, judge from what is being
-     streamed: a stream with a screen share is `share` by default — the
-     share is what the recording is for, and the voices are in the audio
-     either way; `full` when the share is absent or intermittent, when
-     faces, cameras or reactions are the point, or when the stage itself
-     (who spoke, who joined) is what the user wants kept. Name the framing
-     in the sentence that starts the recording ("the shared screen alone;
-     say so if you want the whole stage") so an objection comes now, not
-     after an hour.
-   - Give the stream a window of its own and frame it, as the app's
-     reference says (in a main window the stream is a small panel among
-     other things; `share` fills that window with the stream).
+   - Give the stream a window of its own and frame it for the framing and
+     the chat panel decided above, as the app's reference says (in a main
+     window the stream is a small panel among other things; `share` fills
+     that window with the stream).
    - `screen_listen` `windows` lists the app's windows with id, title and
      size; the reference says how to tell the stream's window from the main
      one. Pass its `window_id` to `record_start` (a `window` title works too,
      exact before containing).
    - The start answer names `video_window`; if it is the wrong one, stop and
      start again right then, before anything has happened — not later.
-   Say that the window is being recorded as well, and leave the app showing
-   the stream for the whole session (navigating away films the navigation;
-   the recording follows the window, not the stream). The frame rate follows
-   the picture: the default (30) for anything that moves — a game, a video,
-   a demo with a cursor; `fps: 10` for slides, a document or a terminal,
-   where it looks the same and the file is a third of the size. If the user
-   says "smooth" or "choppy", that is `fps`. Audio only when the user wants
-   the words, not the picture: the file is far smaller again. A `video:
+   Leave the app showing the stream for the whole session (navigating away
+   films the navigation; the recording follows the window, not the stream).
+   `fps` as decided above. A `video:
    false` answer with `video_detail` means the window could not be filmed
    (Screen Recording not granted, or no window): the audio runs; tell the
    user what the detail says, do not retry on your own. The mp4 is readable
