@@ -5,7 +5,8 @@
 #
 # The plugin runs the helper app built from engines/screen-listen/ (main.swift + Info.plist)
 # into the ignored hermes/local/screen-listen/. It is launched through `open` so macOS
-# attributes the consents ("System Audio Recording"; "Screen Recording" for video) to the
+# attributes the consents ("System Audio Recording"; "Screen Recording" for video; "Microphone"
+# for the user's own voice) to the
 # helper itself ("Hermes Screen Listen"), not to the gateway.
 #
 #   install       build the helper app with the system Swift toolchain (Xcode or its
@@ -19,6 +20,8 @@
 #                 Recording once (answer the dialog); reports whether audio was delivered
 #   grant-screen  list windows so macOS asks for Screen Recording (only needed for video);
 #                 drops a grant left stale by a rebuild, which macOS refuses silently
+#   grant-mic     record one second of the microphone so macOS asks for it (only needed for
+#                 the user's own voice in a call)
 set -euo pipefail
 
 HERMES_DIR="$(cd "$(dirname "$0")/.." && pwd)"
@@ -184,8 +187,36 @@ data = json.load(open(sys.argv[1]))
 print("consent: Screen Recording allowed; %d windows visible to the helper" % len(data["data"]))
 ' "$log"
     ;;
+  grant-mic)
+    current || die "helper not built or stale (run: $0 install)"
+    tmp=$(mktemp -d)
+    trap 'rm -rf "$tmp"' EXIT
+    out="$tmp/mic.wav"
+    log="$tmp/mic.json"
+    echo "recording one second of the microphone through the helper; answer the macOS dialog if it appears..."
+    # The take that raises the dialog gets nothing even when the answer is yes; a second take does.
+    for attempt in 1 2; do
+      rm -f "$out" "$log"
+      open -W -n -g --stdout "$log" --stderr "$tmp/mic.err" -a "$APP" --args mic --seconds 1 --out "$out" 2>/dev/null \
+        || sleep 2
+      [ -s "$log" ] || die "the helper could not be launched: $(cat "$tmp/mic.err" 2>/dev/null)"
+      /usr/bin/python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); sys.exit(0 if d.get("ok") and d["data"]["frames"] else 1)' "$log" \
+        && break
+      [ "$attempt" = 1 ] && sleep 2
+    done
+    /usr/bin/python3 -c '
+import json, sys
+data = json.load(open(sys.argv[1]))
+if data.get("ok"):
+    d = data["data"]
+    print("consent: microphone delivered %d frames at %s Hz; the helper is allowed" % (d["frames"], d["sample_rate"]) if d["frames"]
+          else "consent: the microphone delivered nothing; check System Settings > Privacy & Security > Microphone")
+else:
+    print("consent: %s: %s" % (data.get("kind"), data.get("error")))
+' "$log"
+    ;;
   *)
-    sed -n '2,21p' "$0" | sed 's/^# \{0,1\}//'
+    sed -n '2,24p' "$0" | sed 's/^# \{0,1\}//'
     exit 2
     ;;
 esac
