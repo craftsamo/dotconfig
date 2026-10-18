@@ -41,9 +41,11 @@ Two kinds of knowledge, kept apart:
   move the user's other windows, and restore what you changed (a window you
   opened is yours to close). Details in `references/computer-use.md`.
 - The microphone is the person's. When you join a channel for them, mute it
-  and keep it muted; when they are in the channel themselves, leave it alone.
-  Never deafen or mute the app's output: that silences what `screen_listen`
-  hears. How each app shows these controls is in its reference.
+  in the app and keep it muted; when they are in the channel themselves,
+  leave it alone. It is recorded only when the user asks for their own voice
+  (`mic`), and they can pause that at any time. Never deafen or mute the
+  app's output: that silences what `screen_listen` hears. How each app shows
+  these controls is in its reference.
 - If `screen_listen` `status` says the helper is not built or reports no audio
   delivered, stop and tell the user which command grants it; do not try to
   record another way. The only route to the helper is `screen_listen`: run
@@ -98,9 +100,10 @@ Two situations, and the microphone rule differs:
   the microphone is theirs and muting it would cut them off mid-sentence.
   Confirm with a `capture` that the app shows the connected channel, then
   start the session. At the end, stop the recording and leave the channel
-  state as it is; the user leaves when they are done. Muting changes nothing
-  in the recording either way: the tap hears the app's output, never the
-  microphone.
+  state as it is; the user leaves when they are done. The app's mute changes
+  nothing in the recording either way: the tap hears the app's output, and
+  the user's own voice is a separate track (`mic`, below) that the app's
+  mute button does not touch.
 
 ### Settle the shape first
 
@@ -112,6 +115,7 @@ says, by the defaults where it does not:
 | Decision | The ask decides it when it says… | Default when open | After start |
 |---|---|---|---|
 | **Audio only, or video too** | "録音", "声だけ", "the call" → audio; "録画", "画面も", "配信を残して", "the stream" → video | a **stream** (stage, Go Live) → video; a **call or voice channel** → audio | fixed |
+| **Own voice** (`mic`): this Mac's microphone mixed into the audio, so the user's side of a call is kept | "会議", "打ち合わせ", "ミーティング", "MTG", "meeting", "自分の声も" → on; "配信", "相手だけ", "the stream" → off | **off**. On only makes sense when the user is in the call from this Mac; when you joined for them (the app's microphone muted), the Mac's microphone hears the room, not a call — leave it off even for a "meeting" and say why | the track is fixed; **pausing it is not**: `record_mic` `mute: true` / `false` at any time |
 | **Framing** (video): `share` — the shared screen alone fills the frame; `full` — the stream as the app shows it, speakers, audience and reactions around it | "共有画面だけ", "the slides" → `share`; "配信の様子", "who is talking too" → `full` | a stream with a screen share → `share` (the share is what the recording is for; the voices are in the audio either way); no share, an intermittent one, faces or reactions the point, or the stage itself (who spoke, who joined) to keep → `full`. Decided after joining, from a capture | fixed |
 | **Chat panel** (`share` only): the channel's text chat beside the share | "コメントも", "チャットも", "with the chat" → on | **off** — it narrows the share and puts participants' messages into the video | fixed |
 | **Frame rate** | "滑らかに" → the default (30); "軽く" → 10 | 30 for anything that moves (a game, a video, a cursor); 10 for slides, a document, a terminal — a third of the file | fixed |
@@ -130,11 +134,13 @@ already answered.
 
 1. **Say what will happen, then start** — in the same turn, not as a question
    that waits: the Mac stays in the channel, everything the others say is
-   recorded until they say stop or the cap (`minutes`, default 3 hours), the
-   user's own voice is not in it (only the app's output is recorded), and
+   recorded until they say stop or the cap (`minutes`, default 3 hours),
+   whether the user's own voice is in it (without `mic` only the app's output
+   is recorded; with it, their microphone too, and they can pause it), and
    the shape chosen above (audio or video, the framing, the chat panel) in
    one clause — "the shared screen alone, without the chat; say so if you
-   want the whole stage". The user asked for the recording; that sentence is
+   want the whole stage" / "your own voice too; say 止めて when you want it
+   off the record". The user asked for the recording; that sentence is
    for them to object to, not a gate, and an objection is acted on now, not
    after an hour. The one real question is when it is plainly not the user's
    own meeting and nothing says the participants know: ask that first, and
@@ -170,9 +176,17 @@ already answered.
    gone quiet, or the app was restarted — a restarted app is not followed, so
    stop and start again). With video, `active.video` shows its frames;
    `recording` false means the window closed and only the audio goes on.
+   With `mic`, `active.mic` shows `muted`. **Pausing the user's voice**:
+   "私の声は止めて", "ここはオフレコで", "mute me" → `record_mic` `mute: true`;
+   "再開", "戻して" → `mute: false`. Confirm in a few words ("your voice is
+   off the record from here"). The other side keeps being recorded, and the
+   stretch is kept as `muted_spans` for the minutes. The app's own mute
+   button does not do this — say so if the user asks why their muted words
+   are in the recording.
 4. **Stop** with `record_stop` when the user says so, or when `record_status`
    shows the channel empty and the user agreed to stop then. The answer names
-   the m4a (and the mp4) and their folder. Then leave as the reference says.
+   the m4a (and the mp4) and their folder; with `mic`, `mic.muted_spans` are
+   the stretches the user paused. Then leave as the reference says.
 5. **Hand over the audio** when they want to listen back: a bare
    `MEDIA:/abs/path/audio.m4a` line delivers it in this chat. For someone else,
    the user chooses the route: a messaging plugin's attachment
@@ -189,11 +203,14 @@ already answered.
    a loop inside one turn. For a recording over 30 minutes, pass `model:
    "small"` unless the user asked for the most accurate text: it is several
    times quicker and good enough for minutes. Done, it names `transcript.txt`
-   (timestamped lines) — speakers are not labelled, so say so.
+   (timestamped lines) — speakers are not labelled, so say so; with `mic`
+   the user's own words are in it too, unlabelled like the rest.
 7. **Minutes** are Writer's: `specialist_call` to `writer` with the
    `transcript.txt` path, the meeting's name, date, who attended (from the
-   channel's member list at start and end, if you noted it) and what the user
-   wants (decisions, action items, a summary), and deliver Writer's document.
+   channel's member list at start and end, if you noted it), whether the
+   user's own voice is in the transcript and the `muted_spans` to leave out
+   of the record, and what the user wants (decisions, action items, a
+   summary), and deliver Writer's document.
    Do not write the minutes yourself unless the user asks for a quick one.
 8. **Later**: `recordings` lists what is kept and which have transcripts; the
    files stay under the recordings folder until the user removes them.
@@ -208,7 +225,9 @@ already answered.
 - `screen_listen` answers `no_audio` or `not_built`: the helper needs
   `hermes/scripts/screen-listen.sh install` / `grant` from the user; say which.
   A refused `windows` or a `video_detail` about Screen Recording needs
-  `grant-screen`.
+  `grant-screen`; a `mic_detail` about the microphone needs `grant-mic`. In
+  both cases the audio of the other side is being recorded; say what is
+  missing and go on.
 - `no_process`: the app has registered no audio process yet — it is not
   running, or it has not played a sound since it started. Join the channel
   first and listen once someone is in it; do not retry in a loop.
