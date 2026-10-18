@@ -187,28 +187,29 @@ credits, one Console org per plan, spent before any purchased balance and lost
 at the end of the billing cycle; Claude Code and extra usage cannot spend them,
 only an API key can. OpenCode spends the same credits
 ([`opencode/README.md`](../../opencode/README.md) "Console credit lanes").
+Which org each lane key belongs to, and which plan each org carries, is this
+machine's account layout and lives in the private overlay, not here.
 
 - **Tier.** assistant carries `anthropic` / Opus 5.5 right after T1, then the
   rest of its chain; a credit Opus draws on no subscription sub-cap, which is
   why it may sit ahead of Fable. **marketer and writer lead on the lane** (Opus
   5.5 and Sonnet 5.5) and fall back to the subscription's tier of the same
-  model: credits expire, and the Sub org's balance needs a steady consumer
-  (about $10 a day to be spent by its renewal), which two low-turn profiles
-  supply. assistant stays subscription-first: its volume would empty Sub in days
-  and a lane 429 would slow the front door. Creator's family stays off the lane:
-  one video job would empty it. While the subscription's reset is ahead, turns
-  stay on the lane: that drains the credits by design.
-- **Rate limits** are per Console org (Start tier when linked for credits),
-  shared with OpenCode's parallel specialists; a higher tier is a request in the
-  Console.
-- **Three orgs, one tier.** The `anthropic` credential pool holds the keys as
+  model: credits expire, and a balance needs a steady consumer to be spent by
+  its renewal, which two low-turn profiles supply. assistant stays
+  subscription-first: its volume would empty a lane in days and a lane 429
+  would slow the front door. Creator's family stays off the lane: one video job
+  would empty it. While the subscription's reset is ahead, turns stay on the
+  lane: that drains the credits by design.
+- **Rate limits** are per Console org, shared with OpenCode's parallel
+  specialists; a higher tier is a request in the Console.
+- **Several orgs, one tier.** The `anthropic` credential pool holds the keys as
   env-sourced entries (`source: env:<VAR>`, no secret on disk, re-hydrated on
   every load; there is no CLI for one, the row is written into the root
-  `auth.json`): `ANTHROPIC_CREDIT_TEAM_ACCOUNT_KEY` (priority 0, a key another
-  org's owner lent, whose grant expires on their schedule), then
+  `auth.json`): `ANTHROPIC_CREDIT_TEAM_ACCOUNT_KEY` (priority 0), then
   `ANTHROPIC_CREDIT_SUB_ACCOUNT_KEY` (1) and `ANTHROPIC_CREDIT_MAIN_ACCOUNT_KEY`
-  (2). Among the own orgs Sub (the OpenCode account's) is first; OpenCode
-  spends them the other way round, so the two start on different orgs and one
+  (2). The names are opaque labels. A key whose grant expires on someone
+  else's schedule goes first, so it is spent while it lasts. OpenCode walks
+  the own orgs the other way round, so the two start on different orgs and one
   org's rate limit is not hit by both at once.
 - **Failure.** An empty balance is a plain 400 ("credit balance is too low")
   that the classifier treats as billing, so the turn moves on at once: a billing
@@ -245,8 +246,8 @@ only an API key can. OpenCode spends the same credits
 - **Exposure.** Terminal and code-execution children drop secrets by name, and
   the list holds each registered provider's variables, not these names, so a
   child of any profile that holds them can read every lane key (in the shared
-  layer, every profile). A leak costs at most the orgs' monthly credits; for the
-  lent key that is someone else's grant, so it stays only while that lasts.
+  layer, every profile). A leak costs at most the orgs' monthly credits; a key
+  that is someone else's grant stays only while that grant lasts.
 
 ### `agent.*` does not inherit from the root profile
 
