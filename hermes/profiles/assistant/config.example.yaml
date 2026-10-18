@@ -199,8 +199,8 @@ terminal:
   persistent_shell: true
 web:
   backend: ''
-  search_backend: ''
-  extract_backend: ''
+  search_backend: cascade
+  extract_backend: cascade
 browser:
   inactivity_timeout: 120
   command_timeout: 30
@@ -1010,6 +1010,19 @@ plugins:
   - media-inspect
   - screen-listen
   - hyperliquid-access
+  - cascade
+  entries:
+    web/cascade:
+      settings:
+        search:
+          - exa
+          - ring
+          - searxng
+          - ddgs
+        extract:
+          - exa
+          - ring
+          - local
 timeouts:
   tools:
     sequential_call: 960

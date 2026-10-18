@@ -140,10 +140,10 @@ terminal:
   persistent_shell: true
 web:
   backend: ""
-  search_backend: parallel
-  extract_backend: parallel
+  search_backend: cascade
+  extract_backend: cascade
   provider_tier:
-    parallel: free
+    exa: free
 browser:
   inactivity_timeout: 120
   command_timeout: 30
@@ -647,3 +647,14 @@ plugins:
     - evm-access
     - solana-access
     - hyperliquid-access
+    - cascade
+  entries:
+    web/cascade:
+      settings:
+        search:
+          - ring
+          - searxng
+          - ddgs
+        extract:
+          - ring
+          - local

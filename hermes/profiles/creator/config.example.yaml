@@ -121,8 +121,8 @@ terminal:
   persistent_shell: true
 web:
   backend: ""
-  search_backend: parallel
-  extract_backend: parallel
+  search_backend: cascade
+  extract_backend: cascade
   provider_tier:
     parallel: free
 browser:
@@ -714,6 +714,16 @@ plugins:
     - skill-topology
     - vision-window
     - media-inspect
+    - cascade
+  entries:
+    web/cascade:
+      settings:
+        search:
+          - searxng
+          - ddgs
+        extract:
+          - local
+          - ring
 timeouts:
   tools:
     sequential_call: 5460
