@@ -129,12 +129,13 @@ skills.
   ([docs/web3.md](docs/web3.md)).
 - **Rotating an API key needs a gateway restart** — resident sessions keep the
   environment injected at gateway launch.
-- **OAuth logins from `default` only** (`hermes model`, no `-p`). Running it in
-  a worker writes that profile's `auth.json` and shadows the inherited creds.
-- **Anthropic accounts — do not cross the streams.** The Keychain entry
-  `Claude Code-credentials` always wins Hermes' resolver and must stay the
-  **Hermes** account; OpenCode uses its own login outside the Keychain. A plain
-  `claude /login` therefore silently switches Hermes' account. Verification:
+- **OAuth logins from `default` only** (`hermes model` / `hermes auth add`,
+  no `-p`). Running one in a worker writes that profile's `auth.json`, shadows
+  the inherited creds, and for Anthropic forks a single-use refresh token so
+  one copy dies at the next refresh.
+- **The Claude subscription is the `anthropic-oauth` pool's PKCE rows, never
+  the Keychain.** Keep the seeded `claude_code` row suppressed, or a
+  `claude /login` silently changes which account Hermes bills. Mechanics:
   [docs/models-auth.md "Authentication inheritance"](docs/models-auth.md).
 - **Tracked configs say `provider: anthropic`; the real ones pick the lane.**
   `config.example.yaml` must run on a stock runtime, which knows one Anthropic
