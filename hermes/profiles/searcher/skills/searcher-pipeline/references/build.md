@@ -27,6 +27,10 @@ entry when switching units.
    to the durable path the brief names, or name the file you wrote, state what
    remains and why as the stop reason, and hand back. Never claim a commit or a
    save that did not happen; a checkpoint here is a saved file, not a Git commit.
+   A `Blocked web_search: ... per-turn limit` result is the runtime's search
+   cap for this turn, not exhaustion of the unit's budget: save the ledger and
+   frontier, hand back with the remaining hops named, and continue them in the
+   next turn the caller gives.
 
 ## Check
 
