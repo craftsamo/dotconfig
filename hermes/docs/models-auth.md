@@ -76,10 +76,11 @@ in its chain.
 
 Provider facts:
 
-- **Anthropic native** — OAuth resolves from the global Claude Code
-  credential/token, not per-profile `auth.json` (see "Authentication
-  inheritance"). **Fable 5.1 is not in the `hermes model` picker**
-  (`/v1/models` lags the alias), so it is written straight into `config.yaml`.
+- **Anthropic native** — the subscription is one or more PKCE rows in the
+  root `anthropic-oauth` credential pool, inherited read-only by every profile
+  (see "Authentication inheritance"). **Fable 5.1 is not in the
+  `hermes model` picker** (`/v1/models` lags the alias), so it is written
+  straight into `config.yaml`.
 - **Codex** — **images, plus one last-resort chat tier**: GPT-6.1 Sol sits ahead
   of the OpenRouter tail on every profile (`default` included), so a spent
   Claude weekly pool degrades to a capable model instead of a cheap one. The
@@ -139,16 +140,17 @@ These facts govern the paired Claude tiers:
    tripped, both are dead and the chain continues to Sonnet 5.5 and then the
    OpenRouter tail. **That is why the second Claude model sits at T2**: the
    sub-cap case is the _long_ failure (until the week rolls over) and in exactly
-   that case the other Claude model is still alive. One Claude account backs
-   every profile, so a busy Creator week can drain the pool for all of them.
-2. **The T2 step depends on the token being resolvable outside the credential
-   pool.** A `usage_limit_reached` 429 marks the _credential_ exhausted with
-   **no model dimension** (`credential_pool.py`), so the pool refuses to hand it
-   out. The same-provider T2 only succeeds because `resolve_anthropic_token()`
-   checks `ANTHROPIC_TOKEN` / `CLAUDE_CODE_OAUTH_TOKEN` / the Claude Code
-   Keychain entry **before** the pool. Park the Claude subscription _only_ in
-   the pool and every later Claude tier is silently skipped — the chain
-   quietly degrades straight to OpenRouter.
+   that case the other Claude model is still alive. The same pool rows back
+   every profile, so a busy Creator week can drain an account for all of them.
+2. **A sub-cap 429 benches a model, a weekly 429 benches the account.** A 429
+   that carries a reset or retry signal becomes a model-scoped cooldown on the
+   row, so the same account's other models stay available and the T2 step
+   works. A `usage_limit_reached` 429 with no such signal is classified as
+   billing and benches the whole row for an hour; the pool then rotates to the
+   next account's row, and only with no other row does the walk skip every
+   later tier on that provider (`_candidate_pool_exhausted`) and degrade to
+   the next provider. The second account in the pool is therefore what keeps
+   the Claude tiers alive once one account's week is spent.
 3. **Hermes has no per-model quota memory.** The "included Fable usage for this
    week" message carries no reset, so a fixed 1-hour credential cooldown applies
    while the agent-level fallback cooldown is only 60 s: once a weekly cap is
@@ -185,28 +187,29 @@ credits, one Console org per plan, spent before any purchased balance and lost
 at the end of the billing cycle; Claude Code and extra usage cannot spend them,
 only an API key can. OpenCode spends the same credits
 ([`opencode/README.md`](../../opencode/README.md) "Console credit lanes").
+Which org each lane key belongs to, and which plan each org carries, is this
+machine's account layout and lives in the private overlay, not here.
 
 - **Tier.** assistant carries `anthropic` / Opus 5.5 right after T1, then the
   rest of its chain; a credit Opus draws on no subscription sub-cap, which is
   why it may sit ahead of Fable. **marketer and writer lead on the lane** (Opus
   5.5 and Sonnet 5.5) and fall back to the subscription's tier of the same
-  model: credits expire, and the Sub org's balance needs a steady consumer
-  (about $10 a day to be spent by its renewal), which two low-turn profiles
-  supply. assistant stays subscription-first: its volume would empty Sub in days
-  and a lane 429 would slow the front door. Creator's family stays off the lane:
-  one video job would empty it. While the subscription's reset is ahead, turns
-  stay on the lane: that drains the credits by design.
-- **Rate limits** are per Console org (Start tier when linked for credits),
-  shared with OpenCode's parallel specialists; a higher tier is a request in the
-  Console.
-- **Three orgs, one tier.** The `anthropic` credential pool holds the keys as
+  model: credits expire, and a balance needs a steady consumer to be spent by
+  its renewal, which two low-turn profiles supply. assistant stays
+  subscription-first: its volume would empty a lane in days and a lane 429
+  would slow the front door. Creator's family stays off the lane: one video job
+  would empty it. While the subscription's reset is ahead, turns stay on the
+  lane: that drains the credits by design.
+- **Rate limits** are per Console org, shared with OpenCode's parallel
+  specialists; a higher tier is a request in the Console.
+- **Several orgs, one tier.** The `anthropic` credential pool holds the keys as
   env-sourced entries (`source: env:<VAR>`, no secret on disk, re-hydrated on
   every load; there is no CLI for one, the row is written into the root
-  `auth.json`): `ANTHROPIC_CREDIT_TEAM_ACCOUNT_KEY` (priority 0, a key another
-  org's owner lent, whose grant expires on their schedule), then
+  `auth.json`): `ANTHROPIC_CREDIT_TEAM_ACCOUNT_KEY` (priority 0), then
   `ANTHROPIC_CREDIT_SUB_ACCOUNT_KEY` (1) and `ANTHROPIC_CREDIT_MAIN_ACCOUNT_KEY`
-  (2). Among the own orgs Sub (the OpenCode account's) is first; OpenCode
-  spends them the other way round, so the two start on different orgs and one
+  (2). The names are opaque labels. A key whose grant expires on someone
+  else's schedule goes first, so it is spent while it lasts. OpenCode walks
+  the own orgs the other way round, so the two start on different orgs and one
   org's rate limit is not hit by both at once.
 - **Failure.** An empty balance is a plain 400 ("credit balance is too low")
   that the classifier treats as billing, so the turn moves on at once: a billing
@@ -243,8 +246,8 @@ only an API key can. OpenCode spends the same credits
 - **Exposure.** Terminal and code-execution children drop secrets by name, and
   the list holds each registered provider's variables, not these names, so a
   child of any profile that holds them can read every lane key (in the shared
-  layer, every profile). A leak costs at most the orgs' monthly credits; for the
-  lent key that is someone else's grant, so it stays only while that lasts.
+  layer, every profile). A leak costs at most the orgs' monthly credits; a key
+  that is someone else's grant stays only while that grant lasts.
 
 ### `agent.*` does not inherit from the root profile
 
@@ -276,21 +279,39 @@ falls back **read-only** to the default profile's `~/.hermes/auth.json`.
   the profile inherits default again. Prefer editing the file over
   `hermes auth logout`, which may revoke upstream and take the shared credential
   down with it.
-- **Anthropic native** is OAuth (a Claude subscription) but its creds live
-  **outside** `auth.json` (`~/.hermes/.anthropic_oauth.json`, else the Claude
-  Code credential / `CLAUDE_CODE_OAUTH_TOKEN`). That source is machine-global, so
-  every profile authenticates with no per-worker login; the read-only fallback
-  does not apply to it.
-- **Anthropic account mapping — Hermes and OpenCode use different accounts.**
-  `resolve_anthropic_token()` ALWAYS prefers the default Keychain entry
-  `Claude Code-credentials` over the credential pool (pool entries and
-  `suppressed_sources` never override it), and that entry must stay logged into
-  the **Hermes** account. OpenCode runs on the **sub account** through its own
-  OAuth login (stored in OpenCode's database), which never reads or writes the
-  Keychain. A plain `claude /login` therefore changes **Hermes'** account, not
-  OpenCode's; after one, verify with
-  `security find-generic-password -s "Claude Code-credentials"` + the OAuth
-  profile endpoint before assuming the split still holds.
+- **Anthropic subscription = PKCE rows in the `anthropic-oauth` pool.** Each
+  `hermes auth add anthropic-oauth --label <name>` (from `default`, in a
+  browser signed into that account) adds one row with its own refresh token;
+  the pool refreshes it before expiry and, on a 429 usage limit, a billing
+  error or a 401, benches it and rotates to the next row. Several Claude
+  accounts therefore sit in one pool and take over from each other inside a
+  turn; a `fallback_providers` tier cannot name an account (same provider +
+  same model counts as the same deployment and is skipped), so the pool is the
+  only place account order lives. **Order is `priority` among the manual rows
+  (`hermes auth priority anthropic-oauth <label> 0` + gateway restart to lead
+  with another one)**; manual rows always sort ahead of the seeded ones
+  (`ANTHROPIC_TOKEN`, `CLAUDE_CODE_OAUTH_TOKEN`, then the Claude Code Keychain
+  entry `claude_code`). Keep the Keychain row suppressed (`hermes auth remove
+  anthropic-oauth claude_code`; `auth add` clears every suppression of the
+  provider, so remove it again after each login) so a `claude /login` can never
+  change which account Hermes bills. Which label is which account, and which
+  one leads, is this machine's layout and lives in the private overlay.
+  A `manual:hermes_pkce` row keeps its secrets in `auth.json`; a row whose
+  tokens are empty is skipped silently (`hermes auth refresh anthropic-oauth
+  <label>` proves a row alive, `hermes auth list` shows a dead one).
+- **Refresh tokens are single-use, so never fork a row.** `-p <profile> auth
+  add`, copying `auth.json` or re-adding a root row while a profile still holds
+  a copy gives two holders of one lineage; the first refresh wins and the other
+  copy dies (`invalid_grant`, status `dead`, pruned after a day). A profile with
+  its own `credential_pool["anthropic-oauth"]` no longer inherits the root
+  rows: `hermes -p <name> auth logout anthropic-oauth` deletes that copy (no
+  upstream revoke) and restores inheritance. The `claude_code` row cannot fork:
+  it is a secret-free reference re-read from the Keychain on every load.
+- **OpenCode's Claude login is separate.** It lives in OpenCode's own
+  database, never reads or writes the Claude Code Keychain entry, and has no
+  rotation of its own ([`opencode/README.md`](../../opencode/README.md)
+  "Accounts"). Hermes and OpenCode may share an account; what they share is
+  that account's weekly pool.
 - **Parallel OAuth refresh.** Several workers refreshing the same rotating
   refresh token at once can race to `invalid_grant`; move high-parallelism
   workers' T1 to an API-key provider if it bites.
