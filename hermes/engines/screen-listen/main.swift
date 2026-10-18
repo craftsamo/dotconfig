@@ -1,6 +1,7 @@
 // screen-listen helper: record the audio output of one running application (matched by bundle
-// id) to a WAV file through a Core Audio process tap, or one window of it to an MP4 through
-// ScreenCaptureKit. Never the microphone, never the whole screen.
+// id) to a WAV file through a Core Audio process tap, one window of it to an MP4 through
+// ScreenCaptureKit, or — only when asked, for the person's own voice in a call — the default
+// microphone. Never the whole screen.
 //
 //   screen-listen processes                         -> {"ok":true,"data":[{pid,bundle,running_output}]}
 //   screen-listen record (--bundle ID [--prefix] | --pid PID) --seconds N --out FILE
@@ -9,6 +10,7 @@
 //   screen-listen windows [--bundle ID]             -> {"ok":true,"data":[{id,pid,bundle,title,width,height,on_screen}]}
 //   screen-listen capture --bundle ID --seconds N --out FILE.mp4
 //                        [--window TITLE | --window-id ID] [--fps N] [--max-width N] [--no-audio] [--progress FILE]
+//   screen-listen mic --seconds N --out FILE [--muted] [--progress FILE]
 //
 // Core Audio registers one process object per process that plays, with that process's own
 // bundle id, so an app's helper processes (``<bundle>.helper`` and the like) are matched with
@@ -25,11 +27,19 @@
 // ``--max-width`` (1280 points) bound the file size of a long take. It ends the same way as
 // ``record``, and also when the window closes.
 //
+// ``mic`` records the default input device to a mono WAV, meant to run beside ``record`` so the
+// person's own side of a call is kept too; SIGUSR1 mutes it (the file keeps growing with
+// silence, so the two line up) and SIGUSR2 unmutes; the answer lists the muted spans and, like
+// ``record``'s, the time its first audio arrived in ms (``first_frame_at``: the file's time zero,
+// which trails the launch by the engine's start-up) so the plugin can align and mix the two.
+// ``--muted`` starts it muted.
+//
 // One JSON object on stdout, nothing else. The first `record` on this machine makes macOS ask
 // for "System Audio Recording" for the app bundle this binary lives in (NSAudioCaptureUsageDescription
 // in the bundle's Info.plist); the first `windows` or `capture` asks for "Screen Recording", a
-// consent macOS re-confirms periodically. The process tap API needs macOS 14.2 or later;
-// `capture` writes through SCRecordingOutput and needs macOS 15.
+// consent macOS re-confirms periodically; the first `mic` asks for "Microphone"
+// (NSMicrophoneUsageDescription). The process tap API needs macOS 14.2 or later; `capture`
+// writes through SCRecordingOutput and needs macOS 15.
 
 import AVFoundation
 import CoreAudio
@@ -41,6 +51,7 @@ import ScreenCaptureKit
 let maxSeconds = 4 * 3600.0
 let progressInterval = 2.0
 nonisolated(unsafe) var stopRequested: Int32 = 0   // set by a signal handler, read by the wait loop
+nonisolated(unsafe) var micMuted: Int32 = 0        // SIGUSR1 sets, SIGUSR2 clears; read on the audio thread
 
 struct Failure: Error {
     let kind: String
@@ -133,6 +144,7 @@ final class Recorder {
     private(set) var writeError: String?
     private(set) var sampleRate: Double = 0
     private(set) var channels: Int = 0
+    private(set) var firstFrameAt: Date?   // when audio first arrived: the file's time zero, for aligning tracks
     // Sound, as distinct from level: 100 ms blocks whose peak clears ``activeThreshold`` are counted,
     // so a join chime in a minute of silence reads as a fraction of a second, not as a loud take.
     private(set) var activeBlocks: Int64 = 0
@@ -196,6 +208,7 @@ final class Recorder {
             guard let self, let file = self.file else { return }
             guard let buffer = AVAudioPCMBuffer(pcmFormat: format, bufferListNoCopy: input, deallocator: nil),
                   buffer.frameLength > 0 else { return }
+            if self.firstFrameAt == nil { self.firstFrameAt = Date() }
             self.frames += Int64(buffer.frameLength)
             if let data = buffer.floatChannelData {
                 // ``stride`` is 1 for planar buffers and the channel count for interleaved ones, so
@@ -355,6 +368,8 @@ func commandRecord(_ args: [String]) {
         "pid": Int(getpid()),
         "bytes": size,
         "seconds": (elapsed * 100).rounded() / 100,
+        "started_at": Int((started.timeIntervalSince1970 * 1000).rounded()),
+        "first_frame_at": recorder.firstFrameAt.map { Int(($0.timeIntervalSince1970 * 1000).rounded()) as Any } ?? NSNull(),
         "stopped_early": stopRequested != 0,
         "frames": recorder.frames,
         "sample_rate": recorder.sampleRate,
@@ -624,6 +639,185 @@ func commandCapture(_ args: [String]) {
     emit(["ok": true, "data": data])
 }
 
+// MARK: - Microphone (the person's own voice)
+
+/// The default input device to a mono 16-bit WAV through AVAudioEngine. While ``micMuted`` is set the
+/// file keeps growing with silence, so its timeline matches the app recording made beside it; the
+/// spans are reported so the minutes can say where the person was off the record.
+final class MicRecorder {
+    private let engine = AVAudioEngine()
+    private var file: AVAudioFile?
+    private(set) var frames: Int64 = 0
+    private(set) var peak: Float = 0
+    private(set) var writeError: String?
+    private(set) var sampleRate: Double = 0
+    private(set) var firstFrameAt: Date?
+    private(set) var activeBlocks: Int64 = 0
+    private var blockFrames: Int64 = 0
+    private var blockPeak: Float = 0
+    private let activeThreshold: Float = 0.01
+    var activeSeconds: Double { Double(activeBlocks) * 0.1 }
+
+    func start(output: URL) throws {
+        let input = engine.inputNode
+        let format = input.inputFormat(forBus: 0)
+        guard format.sampleRate > 0, format.channelCount > 0 else {
+            throw Failure(kind: "no_input", message: "this Mac has no input device to record")
+        }
+        sampleRate = format.sampleRate
+        guard let mono = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: format.sampleRate, channels: 1,
+                                       interleaved: false) else {
+            throw Failure(kind: "coreaudio", message: "no mono format at \(format.sampleRate) Hz")
+        }
+        let settings: [String: Any] = [
+            AVFormatIDKey: kAudioFormatLinearPCM,
+            AVSampleRateKey: format.sampleRate,
+            AVNumberOfChannelsKey: 1,
+            AVLinearPCMBitDepthKey: 16,
+            AVLinearPCMIsFloatKey: false,
+            AVLinearPCMIsBigEndianKey: false,
+            AVLinearPCMIsNonInterleaved: false,
+        ]
+        file = try AVAudioFile(forWriting: output, settings: settings, commonFormat: .pcmFormatFloat32, interleaved: false)
+        let block = max(Int64(1), Int64(format.sampleRate / 10))
+        input.installTap(onBus: 0, bufferSize: 4096, format: format) { [weak self] buffer, _ in
+            guard let self, let file = self.file, buffer.frameLength > 0,
+                  let source = buffer.floatChannelData,
+                  let out = AVAudioPCMBuffer(pcmFormat: mono, frameCapacity: buffer.frameLength),
+                  let target = out.floatChannelData else { return }
+            if self.firstFrameAt == nil { self.firstFrameAt = Date() }
+            out.frameLength = buffer.frameLength
+            let channels = Int(buffer.format.channelCount)
+            let stride = buffer.stride
+            let muted = micMuted != 0
+            var peak = self.peak, blockPeak = self.blockPeak, blockFrames = self.blockFrames
+            var activeBlocks = self.activeBlocks
+            for i in 0..<Int(buffer.frameLength) {
+                var sum: Float = 0
+                for channel in 0..<channels { sum += source[channel][i * stride] }
+                let sample = muted ? 0 : sum / Float(channels)
+                target[0][i] = sample
+                let magnitude = abs(sample)
+                if magnitude > peak { peak = magnitude }
+                if magnitude > blockPeak { blockPeak = magnitude }
+                blockFrames += 1
+                if blockFrames >= block {
+                    if blockPeak > self.activeThreshold { activeBlocks += 1 }
+                    blockFrames = 0
+                    blockPeak = 0
+                }
+            }
+            self.peak = peak
+            self.blockPeak = blockPeak
+            self.blockFrames = blockFrames
+            self.activeBlocks = activeBlocks
+            self.frames += Int64(buffer.frameLength)
+            do { try file.write(from: out) } catch { self.writeError = "\(error)" }
+        }
+        engine.prepare()
+        do {
+            try engine.start()
+        } catch {
+            input.removeTap(onBus: 0)
+            throw Failure(kind: "permission", message: "could not start the input (\(error)); Microphone may be "
+                          + "refused for this helper")
+        }
+    }
+
+    func stop() {
+        engine.inputNode.removeTap(onBus: 0)
+        engine.stop()
+        file = nil
+    }
+}
+
+func commandMic(_ args: [String]) {
+    guard let secondsText = option("--seconds", args), let seconds = Double(secondsText), seconds > 0,
+          seconds <= maxSeconds else { fail("usage", "--seconds must be between 0 and \(Int(maxSeconds))") }
+    guard let outPath = option("--out", args), outPath.hasPrefix("/") else { fail("usage", "--out must be an absolute path") }
+    if FileManager.default.fileExists(atPath: outPath) { fail("usage", "--out already exists") }
+    let progressPath = option("--progress", args)
+    if let progressPath, !progressPath.hasPrefix("/") { fail("usage", "--progress must be an absolute path") }
+    if args.contains("--muted") { micMuted = 1 }
+    let output = URL(fileURLWithPath: outPath)
+
+    let recorder = MicRecorder()
+    let started = Date()
+    do {
+        try recorder.start(output: output)
+    } catch let failure as Failure {
+        recorder.stop()
+        try? FileManager.default.removeItem(at: output)
+        fail(failure.kind, failure.message)
+    } catch {
+        recorder.stop()
+        try? FileManager.default.removeItem(at: output)
+        fail("coreaudio", "\(error)")
+    }
+    signal(SIGINT) { _ in stopRequested = 1 }
+    signal(SIGTERM) { _ in stopRequested = 1 }
+    signal(SIGUSR1) { _ in micMuted = 1 }
+    signal(SIGUSR2) { _ in micMuted = 0 }
+    let deadline = started.addingTimeInterval(seconds)
+    var lastProgress = Date.distantPast
+    var lastFrames: Int64 = 0
+    var spans: [[Double]] = []           // [from, to] seconds since start, closed when unmuted or at the end
+    var mutedSince: Double? = micMuted != 0 ? 0 : nil
+    func tick(_ now: Date) {
+        let at = (now.timeIntervalSince(started) * 10).rounded() / 10
+        if micMuted != 0, mutedSince == nil { mutedSince = at }
+        if micMuted == 0, let from = mutedSince { spans.append([from, at]); mutedSince = nil }
+    }
+    func writeProgress(final: Bool) {
+        guard let progressPath else { return }
+        let now = Date()
+        let frames = recorder.frames
+        let object: [String: Any] = [
+            "pid": Int(getpid()), "seconds": (now.timeIntervalSince(started) * 10).rounded() / 10,
+            "frames": frames, "receiving": frames > lastFrames, "muted": micMuted != 0,
+            "peak": (Double(recorder.peak) * 10000).rounded() / 10000, "final": final,
+            "active_seconds": (recorder.activeSeconds * 10).rounded() / 10,
+            "updated": ISO8601DateFormatter().string(from: now)]
+        if let data = try? JSONSerialization.data(withJSONObject: object, options: [.sortedKeys]) {
+            try? data.write(to: URL(fileURLWithPath: progressPath), options: .atomic)
+        }
+        lastProgress = now
+        lastFrames = frames
+    }
+    writeProgress(final: false)
+    while stopRequested == 0 && Date() < deadline {
+        Thread.sleep(forTimeInterval: min(0.1, max(0, deadline.timeIntervalSinceNow)))
+        tick(Date())
+        if Date().timeIntervalSince(lastProgress) >= progressInterval { writeProgress(final: false) }
+    }
+    recorder.stop()
+    let ended = Date()
+    if let from = mutedSince { spans.append([from, (ended.timeIntervalSince(started) * 10).rounded() / 10]) }
+    let elapsed = ended.timeIntervalSince(started)
+    if let writeError = recorder.writeError {
+        writeProgress(final: true)
+        fail("io", "writing the WAV failed: \(writeError)")
+    }
+    writeProgress(final: true)
+    let size = (try? FileManager.default.attributesOfItem(atPath: outPath)[.size] as? Int) ?? 0
+    emit(["ok": true, "data": [
+        "file": outPath,
+        "pid": Int(getpid()),
+        "bytes": size,
+        "seconds": (elapsed * 100).rounded() / 100,
+        "started_at": Int((started.timeIntervalSince1970 * 1000).rounded()),
+        "first_frame_at": recorder.firstFrameAt.map { Int(($0.timeIntervalSince1970 * 1000).rounded()) as Any } ?? NSNull(),
+        "stopped_early": stopRequested != 0,
+        "frames": recorder.frames,
+        "sample_rate": recorder.sampleRate,
+        "channels": 1,
+        "peak": (Double(recorder.peak) * 10000).rounded() / 10000,
+        "active_seconds": (recorder.activeSeconds * 10).rounded() / 10,
+        "silent": recorder.peak < 0.001,
+        "muted_spans": spans,
+    ]])
+}
+
 let arguments = Array(CommandLine.arguments.dropFirst())
 switch arguments.first {
 case "processes":
@@ -638,6 +832,8 @@ case "capture":
     } else {
         fail("usage", "capture needs macOS 15 or later")
     }
+case "mic":
+    commandMic(Array(arguments.dropFirst()))
 default:
     fail("usage", "commands: processes | record (--bundle ID [--prefix] | --pid PID) --seconds N --out FILE "
                   + "[--mono] [--progress FILE] | windows [--bundle ID] | capture --bundle ID --seconds N "
