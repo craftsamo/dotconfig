@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <!-- searxng-launchctl.sh renders the __PLACEHOLDERS__ before loading. -->
+  <key>Label</key>
+  <string>local.hermes.searxng.engine</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>__HOME__/.config/hermes/launchd/bin/hermes-searxng-engine</string>
+    <string>/bin/sh</string>
+    <string>__HOME__/.config/hermes/scripts/searxng-run.sh</string>
+  </array>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin</string>
+    <key>SEARXNG_PORT</key>
+    <string>__PORT__</string>
+  </dict>
+
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <!-- Docker Desktop may still be starting at login; a failed run retries after this. -->
+  <key>ThrottleInterval</key>
+  <integer>30</integer>
+  <key>ProcessType</key>
+  <string>Background</string>
+
+  <key>StandardOutPath</key>
+  <string>__HOME__/Library/Logs/searxng-engine.log</string>
+  <key>StandardErrorPath</key>
+  <string>__HOME__/Library/Logs/searxng-engine.log</string>
+</dict>
+</plist>
