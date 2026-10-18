@@ -21,15 +21,16 @@ profile ── web.search_backend: cascade ──► plugins/web/cascade
 
 **Why a cascade.** Hermes' own failover is the keyless ring plus one stateless
 rescue of a failed keyed call (`web.keyless_rescue`, default on), and both end at
-the same four vendors. When those free tiers are throttled or a pinned paid key
-is out of credit, every call pays the vendor's error before the rescue answers,
-and a fleet-wide throttle stops `web_search` outright. The cascade walks an
-ordered list of layers until one answers and ends in two that no vendor's
-billing or rate limit reaches: a SearXNG instance this host runs
-([services.md](services.md) "Engines") and the DuckDuckGo scraper. A keyed
-backend still never falls through to another keyed backend — the per-profile
-budget isolation stands — because a cascade layer is either the profile's own
-vendor, the free ring, or the floor.
+the same four vendors, so a fleet-wide throttle or an exhausted pinned key stops
+or slows `web_search` with nothing underneath. The cascade walks an ordered list
+of layers until one answers and ends in two that no vendor's billing or rate
+limit reaches: a SearXNG instance this host runs ([services.md](services.md)
+"Engines") and the DuckDuckGo scraper. A keyed backend still never falls through
+to another keyed backend — the per-profile budget isolation stands — because a
+cascade layer is either the profile's own vendor, the free ring, or the floor.
+The runtime's rescue still sits behind the cascade: when every layer fails, one
+keyless-ring call is made even for a floor-only profile, which is the intended
+last resort rather than a budget leak.
 
 **Allocation.** The Assistant (keyed Exa first), the Searcher and the Researcher
 (ring first) put the vendors ahead of the floor; every other web-enabled profile
@@ -66,10 +67,11 @@ keyed when the profile's secret layer holds the key, else that vendor's keyless
 endpoint. Availability is key presence, never quota — a 402 is what the cascade
 skips, not what auto-detect sees.
 
-**Never configure a backend name that no longer exists.** With a `web:`
-selection present the tool refuses it ("no registered web search provider has
-that name"); `tavily` is such a name (upstream replaced it with `keenable`), so a
-leftover `TAVILY_API_KEY` is unused.
+**A backend name must be a registered provider.** With a `web:` selection
+present the tool refuses an unknown name ("no registered web search provider has
+that name") rather than searching on another vendor; `cascade` is registered
+only while the plugin is in the profile's `plugins.enabled`, so dropping it
+there turns every search of that profile into that error.
 
 ## Floor
 
