@@ -8,7 +8,7 @@
 //                                                   -> {"ok":true,"data":{...}} | {"ok":false,"kind","error"}
 //   screen-listen windows [--bundle ID]             -> {"ok":true,"data":[{id,pid,bundle,title,width,height,on_screen}]}
 //   screen-listen capture --bundle ID --seconds N --out FILE.mp4
-//                        [--window TITLE] [--fps N] [--max-width N] [--no-audio] [--progress FILE]
+//                        [--window TITLE | --window-id ID] [--fps N] [--max-width N] [--no-audio] [--progress FILE]
 //
 // Core Audio registers one process object per process that plays, with that process's own
 // bundle id, so an app's helper processes (``<bundle>.helper`` and the like) are matched with
@@ -18,8 +18,9 @@
 // arrived since the last write) so a long recording can be watched and stopped from outside:
 // SIGTERM ends it cleanly, with the WAV finalized and the final JSON on stdout.
 //
-// ``capture`` records the app's largest normal window (or the one whose title contains
-// ``--window``) as it is composited for that window alone, so other windows over it do not
+// ``capture`` records the app's largest normal window (or the one whose title is, else contains,
+// ``--window``, or the one with ``--window-id`` from ``windows``) as it is composited for that
+// window alone, at the display's pixel density, so other windows over it do not
 // show; the app's own audio goes into the same file unless ``--no-audio``. ``--fps`` (30) and
 // ``--max-width`` (1280 points) bound the file size of a long take. It ends the same way as
 // ``record``, and also when the window closes.
@@ -410,6 +411,15 @@ func windows(of bundle: String?, in content: SCShareableContent) -> [SCWindow] {
     }
 }
 
+/// Pixels per point of the display the window is on (1 or 2); 1 when no display claims it.
+func pixelScale(of window: SCWindow) -> Double {
+    var display = CGDirectDisplayID(0)
+    var count: UInt32 = 0
+    guard CGGetDisplaysWithRect(window.frame, 1, &display, &count) == .success, count > 0,
+          let mode = CGDisplayCopyDisplayMode(display), mode.width > 0 else { return 1 }
+    return max(1, Double(mode.pixelWidth) / Double(mode.width))
+}
+
 @available(macOS 15.0, *)
 final class Capture: NSObject, SCStreamDelegate, SCStreamOutput, SCRecordingOutputDelegate {
     private(set) var frames: Int64 = 0
@@ -476,6 +486,8 @@ func commandCapture(_ args: [String]) {
     let maxWidth = Double(option("--max-width", args) ?? "1280") ?? 0
     guard maxWidth >= 320 else { fail("usage", "--max-width must be at least 320") }
     let titlePart = option("--window", args)
+    let windowID = UInt32(option("--window-id", args) ?? "")
+    if option("--window-id", args) != nil && windowID == nil { fail("usage", "--window-id must be a number") }
     let audio = !args.contains("--no-audio")
     let output = URL(fileURLWithPath: outPath)
     // SCStream asserts a window-server connection (CGS_REQUIRE_INIT) that a background app has
@@ -486,14 +498,22 @@ func commandCapture(_ args: [String]) {
     do {
         let content = try shareableContent()
         let candidates = windows(of: bundle, in: content).filter { window in
+            if let windowID { return window.windowID == windowID }
             guard let titlePart else { return true }
             return (window.title ?? "").localizedCaseInsensitiveContains(titlePart)
         }
-        // On screen before hidden, then the biggest: the app's main window, not a popup.
+        // A title that is exactly the one asked for wins over one that merely contains it (a
+        // stream's pop-out is titled with the channel; the main window's title contains that and
+        // more), then on screen before hidden, then the biggest: the main window, not a popup.
+        func exact(_ w: SCWindow) -> Int {
+            guard let titlePart else { return 0 }
+            return (w.title ?? "").compare(titlePart, options: .caseInsensitive) == .orderedSame ? 1 : 0
+        }
         guard let chosen = candidates.max(by: { a, b in
-            (a.isOnScreen ? 1 : 0, a.frame.width * a.frame.height) < (b.isOnScreen ? 1 : 0, b.frame.width * b.frame.height)
+            (exact(a), a.isOnScreen ? 1 : 0, a.frame.width * a.frame.height)
+                < (exact(b), b.isOnScreen ? 1 : 0, b.frame.width * b.frame.height)
         }) else {
-            let wanted = titlePart.map { "a window titled like \"\($0)\"" } ?? "a window"
+            let wanted = windowID.map { "a window with id \($0)" } ?? titlePart.map { "a window titled like \"\($0)\"" } ?? "a window"
             fail("no_window", "\(bundle) has no \(wanted) to capture (the app is not running, or shows nothing)")
         }
         window = chosen
@@ -503,7 +523,9 @@ func commandCapture(_ args: [String]) {
         fail("screencapture", "\(error)")
     }
 
-    let scale = min(1, maxWidth / max(window.frame.width, 1))
+    // Capture at the display's pixel density (a Retina point is two pixels) so a small pop-out
+    // stays sharp, but never wider than --max-width.
+    let scale = min(pixelScale(of: window), maxWidth / max(window.frame.width, 1))
     // H.264 wants even dimensions.
     let width = max(2, Int((window.frame.width * scale / 2).rounded()) * 2)
     let height = max(2, Int((window.frame.height * scale / 2).rounded()) * 2)
@@ -560,7 +582,8 @@ func commandCapture(_ args: [String]) {
         let object: [String: Any] = [
             "pid": Int(getpid()), "seconds": (now.timeIntervalSince(started) * 10).rounded() / 10,
             "frames": frames, "receiving": frames > lastFrames, "audio_buffers": capture.audioBuffers,
-            "final": final, "updated": ISO8601DateFormatter().string(from: now)]
+            "final": final, "updated": ISO8601DateFormatter().string(from: now),
+            "window": ["id": Int(window.windowID), "title": window.title ?? "", "width": width, "height": height]]
         if let data = try? JSONSerialization.data(withJSONObject: object, options: [.sortedKeys]) {
             try? data.write(to: URL(fileURLWithPath: progressPath), options: .atomic)
         }
@@ -618,5 +641,6 @@ case "capture":
 default:
     fail("usage", "commands: processes | record (--bundle ID [--prefix] | --pid PID) --seconds N --out FILE "
                   + "[--mono] [--progress FILE] | windows [--bundle ID] | capture --bundle ID --seconds N "
-                  + "--out FILE.mp4 [--window TITLE] [--fps N] [--max-width N] [--no-audio] [--progress FILE]")
+                  + "--out FILE.mp4 [--window TITLE | --window-id ID] [--fps N] [--max-width N] [--no-audio] "
+                  + "[--progress FILE]")
 }

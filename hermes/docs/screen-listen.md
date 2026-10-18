@@ -48,8 +48,13 @@ match, and Screen Recording does not prompt again while System Settings still
 shows the switch on. `grant-screen` therefore drops the stale grant
 (`tccutil reset ScreenCapture <bundle id>`) and asks again; when macOS answers
 with a notification instead of a dialog, the switch is flipped by hand in the
-pane the script opens. Which window: the largest normal window of the app,
-on-screen ones first, or the one whose title contains `--window`; the capture
+pane the script opens. Besides that, macOS re-confirms the grant with the
+user now and then (a dialog on the Mac, `TCCAccessLaunchDisclosurePrompt`);
+nothing here can answer it. Which window: `--window-id` from `windows`, else
+the one whose title is `--window` before one that merely contains it (a
+stream's pop-out is titled with the channel, the main window with the channel
+and the server), else the largest normal window, on-screen ones first. It is
+captured at the display's pixel density up to `--max-width`, and the capture
 ends with the window (`stopped_by` in the answer).
 
 macOS attributes that consent to the _responsible process_. Spawned plainly
@@ -163,7 +168,9 @@ turn into minutes, share. It differs from a listen in three ways.
   Microphone consent, mixed into the same m4a.
 - **Video is a second track, not a second recording.** `record_start` with
   `video: true` launches the helper's `capture` beside the audio helper (same
-  cap, the app's window, `window` to pick one by title) writing `video.mp4`
+  cap, one window of the app: `windows` lists them, `window_id` or a `window`
+  title picks one, and the start answer names the `video_window` chosen so a
+  wrong pick is corrected before anything has happened) writing `video.mp4`
   in the same folder at `screen_listen.video_fps` (default 30, what a Discord
   stream arrives at; a per-call `fps` overrides — 10 is enough for slides or
   a terminal and far smaller) and at most `screen_listen.video_max_width`
