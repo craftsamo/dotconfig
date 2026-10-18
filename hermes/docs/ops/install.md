@@ -127,15 +127,17 @@ current with `cua-driver update`; a running daemon of another version is
 stopped with `cua-driver stop` and starts again on the next call.
 
 **`screen-listen` helper** (the Assistant's `screen_listen` toolset — an allowed
-app's audio, transcribed; one window of it on video) is built from in-tree
-Swift with Xcode or its Command Line Tools and needs one GUI consent, two with
-video:
+app's audio, transcribed; one window of it on video; the user's own voice when
+asked) is built from in-tree
+Swift with Xcode or its Command Line Tools and needs one GUI consent, one more
+each for video and for the user's own voice:
 
 ```sh
 hermes/scripts/screen-listen.sh identity      # once; a self-signed identity so rebuilds keep the consents
 hermes/scripts/screen-listen.sh install       # builds local/screen-listen/ScreenListen.app
 hermes/scripts/screen-listen.sh grant         # answer "System Audio Recording" once
 hermes/scripts/screen-listen.sh grant-screen  # video only: "Screen Recording"
+hermes/scripts/screen-listen.sh grant-mic     # own voice only: "Microphone"
 ```
 
 Contract: [docs/screen-listen.md](../screen-listen.md).
