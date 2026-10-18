@@ -1,0 +1,11 @@
+name: cascade
+version: 1.0.0
+description: >-
+  Web search and extract backend that walks an ordered chain of layers until one
+  answers: the keyless vendor ring, a local SearXNG instance, DuckDuckGo, any
+  registered provider by name, and a plain local fetch for extract. Select it
+  with web.search_backend / web.extract_backend: cascade; order the layers per
+  profile in plugins.entries.web/cascade.settings.
+kind: standalone
+provides_web_providers:
+  - cascade

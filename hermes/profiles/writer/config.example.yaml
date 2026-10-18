@@ -139,8 +139,8 @@ terminal:
   persistent_shell: true
 web:
   backend: ""
-  search_backend: firecrawl
-  extract_backend: firecrawl
+  search_backend: cascade
+  extract_backend: cascade
   provider_tier:
     firecrawl: free
 browser:
@@ -702,3 +702,13 @@ plugins:
     - note-access
     - characters
     - skill-topology
+    - cascade
+  entries:
+    web/cascade:
+      settings:
+        search:
+          - searxng
+          - ddgs
+        extract:
+          - local
+          - ring
