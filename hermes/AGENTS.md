@@ -38,12 +38,14 @@ skills.
   in [docs/ops/tracking.md "Tracking a profile"](docs/ops/tracking.md).
 - **No secrets, no `.env`.** Keys live in the macOS Keychain and are injected
   by the `bin/hermes` shim (see the `keychain-secrets` skill). Private data —
-  reference voices, the Irodori lexicon, manifest paths, Telegram ids, and the
+  reference voices, the Irodori lexicon, manifest paths, Telegram ids, the
   names of the user's businesses, clients, messaging accounts, spreadsheets
-  and tabs — never enters tracked config, docs, tests, examples or commit and
+  and tabs, and this machine's account layout (which Claude account or
+  Console org a label, a lane or a tool is on, its plan size, whose grant a
+  key is) — never enters tracked config, docs, tests, examples or commit and
   PR text; it lives in the private overlay (`~/.config/private`, the
   `private-dotconfig` repo). Use neutral examples (`work`, `personal`,
-  `Leads`). The overlay installs local commit and push hooks that refuse
+  `Leads`) and opaque labels. The overlay installs local commit and push hooks that refuse
   known names; a refusal is fixed by rewording, never by `--no-verify`. The
   Assistant pipeline is tracked here too: what it must know about a private
   account, business or person goes on the private technic shelf, and the entry

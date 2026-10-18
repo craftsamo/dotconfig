@@ -408,12 +408,12 @@ personal orgs, so the balance is estimated: a **checkpoint** (a balance known at
 one moment) less the spend since. The spend is OpenCode's own cost accounting
 (`opencode stats`) plus Hermes', which spends the same orgs through its
 `anthropic` pool (see `hermes/docs/models-auth.md` "Console credit lanes");
-leaving Hermes out made both lanes read about $29 high in three days.
+leaving Hermes out makes every lane read high within days.
 
 - **Grants.** An org can hold several grants at once, each with its own expiry
-  (Main held one ending 10-13 and the next cycle's, which arrived three days
-  early). Spend takes the nearest expiry first; what a grant still holds when
-  it expires is lost. A grant expires at local midnight of its date.
+  (the next cycle's can arrive days before the current one ends). Spend takes
+  the nearest expiry first; what a grant still holds when it expires is lost.
+  A grant expires at local midnight of its date.
 - **Checkpoints.** `status.ts checkpoint <lane> <balance>` records the balance
   the Console shows now, the most exact reading: record one whenever the
   Console disagrees. An empty-balance error on a lane (see "In flight") records
@@ -509,30 +509,34 @@ A move to a credit lane (see above) therefore pays one full write.
 
 ## Accounts
 
-- **Anthropic** (Claude Pro/Max, the sub account): OpenCode's own OAuth login
-  through the `@ex-machina/opencode-anthropic-auth` plugin. It never reads or
-  writes Claude Code's Keychain entries, so Hermes' account (the default
-  `Claude Code-credentials` entry) and Claude Code stay untouched. Log in from
-  a browser signed into the sub account:
-  `opencode auth login anthropic --method claude-max`.
+- **Anthropic** (Claude Pro/Max): OpenCode's own OAuth login through the
+  `@ex-machina/opencode-anthropic-auth` plugin, stored in OpenCode's database.
+  It never reads or writes Claude Code's Keychain entries, and Hermes keeps its
+  own PKCE rows (`hermes/docs/models-auth.md` "Authentication inheritance"),
+  so the three logins are independent even where two of them are the same
+  account. Log in from a browser signed into the account OpenCode should use:
+  `opencode auth login anthropic --method claude-max`. Several accounts can be
+  saved; one is active at a time (`opencode auth switch`), there is no
+  rotation. Which account that is lives in the private overlay.
 - **Anthropic Console credit lanes**: the monthly API credits that Max plans
-  grant (Max 5x and 20x, one Console org per plan, spent before any purchased
-  balance and lost at the end of the billing cycle). They work only through an
-  API key, never in Claude Code or as extra usage. Three providers,
-  `anthropic-credit-team` (a key another org's owner lent, spent first because
-  its grant expires on their schedule), `anthropic-credit-main` (the 20x
-  plan's org) and `anthropic-credit-sub` (the 5x plan's), read
+  grant (one Console org per plan, spent before any purchased balance and lost
+  at the end of the billing cycle). They work only through an API key, never
+  in Claude Code or as extra usage. Three providers, `anthropic-credit-team`,
+  `anthropic-credit-main` and `anthropic-credit-sub`, read
   `ANTHROPIC_CREDIT_TEAM_ACCOUNT_KEY`, `ANTHROPIC_CREDIT_MAIN_ACCOUNT_KEY` and
-  `ANTHROPIC_CREDIT_SUB_ACCOUNT_KEY` from the Keychain project `opencode`.
-  Never name a key `ANTHROPIC_API_KEY`: it would take precedence over the OAuth
-  login. A lane stays inactive while its variable is unset, and its models list
-  Opus, Sonnet and Haiku 5.5 explicitly (`canonical` inherits prices, not the
-  model list). Neither own org has a payment method or auto-reload, so an
-  empty balance fails the request instead of billing; whether the lent org
-  bills past its grant is its owner's setting, so keep the key only while the
-  grant lasts. The service reads the environment at start: a new or rotated
-  key needs `opencode service restart`, and `opencode reload` is enough for
-  config only.
+  `ANTHROPIC_CREDIT_SUB_ACCOUNT_KEY` from the Keychain project `opencode`; the
+  names are opaque labels, and which org (and whose grant) each one is lives
+  in the private overlay with `lanes.json`. A key whose grant expires on
+  someone else's schedule goes first in `creditLanes`, so it is spent while it
+  lasts. Never name a key `ANTHROPIC_API_KEY`: it would take precedence over
+  the OAuth login. A lane stays inactive while its variable is unset, and its
+  models list Opus, Sonnet and Haiku 5.5 explicitly (`canonical` inherits
+  prices, not the model list). An org with no payment method or auto-reload
+  fails the request on an empty balance instead of billing; whether another
+  owner's org bills past its grant is their setting, so keep such a key only
+  while the grant lasts. The service reads the environment at start: a new or
+  rotated key needs `opencode service restart`, and `opencode reload` is
+  enough for config only.
 - **OpenAI**: built-in ChatGPT login,
   `opencode auth login openai --method chatgpt-browser`.
 - **xAI** (`x_search`): built-in SuperGrok login,
