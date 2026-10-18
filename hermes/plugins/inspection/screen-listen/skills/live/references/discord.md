@@ -85,9 +85,17 @@ For a **video recording**, give the stream a window of its own first:
      the stream's own full-screen control (bottom right of the stream,
      "全画面" / "Full Screen") or a `double_click` on the stream; the stream
      then fills the window and the speakers and audience are out of frame.
+   - **Chat panel** (`share` with the chat): the stream view has a chat
+     toggle ("チャットを表示" / "Show Chat", top right; also in full screen)
+     that opens the channel's text chat beside the stream. Open it when the
+     shape says so, otherwise make sure it is closed ("チャットを非表示" /
+     "Hide Chat" showing means it is open). If full screen offers no toggle
+     in this build of Discord, record `full` with the chat open instead and
+     say so.
    Capture the pop-out afterwards (`capture` with its `window_id`) and look:
-   it should show what the framing means. Dragging a window edge needs
-   foreground delivery (a separate approval) — prefer the controls above.
+   it should show what the shape means — the share alone, with or without
+   the chat, or the whole stage. Dragging a window edge needs foreground
+   delivery (a separate approval) — prefer the controls above.
 3. **Record that window**: its id from `screen_listen` `windows` as
    `window_id` (or its exact title as `window`; a containing match would pick
    the bigger main window). Check `video_window` in the start answer. A
