@@ -40,9 +40,7 @@ class Provider:
         return self._extract(urls)
 
 
-def provider(settings=None, **patches):
-    for key, value in patches.items():
-        setattr(MODULE, key, value)
+def provider(settings=None):
     settings = settings or {}
     return MODULE.CascadeWebSearchProvider(lambda key, default=None: settings.get(key, default))
 
@@ -187,6 +185,39 @@ def test_extract_pairs_entries_by_source_url_when_counts_differ(monkeypatch):
     monkeypatch.setattr(MODULE, "local_fetch", lambda url: MODULE.document(url, "A", "a"))
     out = run(provider().extract(["https://a", "https://b"]))
     assert [e["content"] for e in out] == ["a", "b"]
+
+
+def test_extract_survives_an_entry_whose_metadata_is_null(monkeypatch):
+    monkeypatch.setattr(MODULE, "ring_extract", lambda urls: [
+        {"url": u, "title": "", "content": "text", "raw_content": "text", "metadata": None} for u in urls])
+    out = run(provider().extract(["https://a"]))
+    assert out[0]["metadata"] == {"served_by": "ring"}
+
+
+def test_local_fetch_dials_through_the_ssrf_guarded_client(monkeypatch):
+    """Every hop of a redirect is checked at connect time, which the tool's own gate
+    (requested URL only) cannot do."""
+    calls = {}
+
+    class Client:
+        def __init__(self, **kwargs):
+            calls["kwargs"] = kwargs
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            calls["closed"] = True
+
+        def stream(self, method, url):
+            calls["request"] = (method, url)
+            return Response(body=b"<title>T</title><p>x</p>")
+
+    import tools.url_safety as url_safety
+    monkeypatch.setattr(url_safety, "create_ssrf_safe_client", lambda **kw: Client(**kw))
+    out = LOCAL_FETCH("https://example.org/")
+    assert out["content"] == "x" and calls["request"] == ("GET", "https://example.org/")
+    assert calls["kwargs"]["follow_redirects"] is True and calls["closed"]
 
 
 def test_extract_without_a_crashing_layer_taking_the_batch_down(monkeypatch):

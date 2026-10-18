@@ -16,7 +16,10 @@ Layers are names in ``plugins.entries.web/cascade.settings``::
 ``ring``   the keyless ring with its own failover; the walk starts at the vendor
            the profile pins ``web.provider_tier.<vendor>: free`` (the existing
            entry-point contract), else at the ring's round-robin cursor.
-``searxng`` the local SearXNG JSON API at ``searxng_url`` (search only).
+``searxng`` the local SearXNG JSON API at ``searxng_url`` (search only). A layer
+           of this plugin, not the runtime's ``searxng`` provider: that one reads
+           ``SEARXNG_URL`` from the profile's secret scope, and the floor's address
+           is configuration, not a secret.
 ``ddgs``, ``exa``, ``xai``, ... any provider registered under that name, called
            on its own path (keyed when the profile holds the key).
 ``local``  a plain HTTP fetch with HTML-to-text (extract only; the last resort).
@@ -33,6 +36,7 @@ url/title/content/error, so extract layers are reported in the log.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import inspect
 import logging
 import re
@@ -96,9 +100,15 @@ def http_get(url: str, **kwargs: Any) -> Any:
     return httpx.get(url, **kwargs)
 
 
-def http_stream(url: str, **kwargs: Any) -> Any:
-    import httpx
-    return httpx.stream("GET", url, **kwargs)
+@contextlib.contextmanager
+def http_stream(url: str, **kwargs: Any):
+    """A streamed GET through the runtime's SSRF-guarded client: every connection, a
+    redirect hop included, is resolved and checked before it is dialed. The tool's own
+    gate checks only the URL it was asked for, so a public page that redirects to a
+    loopback or metadata address must be refused here."""
+    from tools.url_safety import create_ssrf_safe_client
+    with create_ssrf_safe_client(**kwargs) as client, client.stream("GET", url) as response:
+        yield response
 
 
 # --- result shapes (the legacy wire contract; key order reaches the model) ----
@@ -142,10 +152,21 @@ def searxng_search(base_url: str, query: str, limit: int) -> Dict[str, Any]:
         data = resp.json()
     except Exception as exc:  # noqa: BLE001 — every failure is a skip reason
         return search_fail(f"Could not reach SearXNG at {base}: {exc}")
-    raw = data.get("results") or []
-    raw = sorted(raw, key=lambda r: float(r.get("score", 0) or 0), reverse=True)[: max(1, int(limit))]
+    try:
+        raw = [r for r in (data.get("results") or []) if isinstance(r, dict)]
+        raw.sort(key=_score, reverse=True)
+    except Exception as exc:  # noqa: BLE001 — a malformed payload is a skip reason too
+        return search_fail(f"Could not parse the SearXNG response: {exc}")
+    raw = raw[: max(1, int(limit))]
     return search_ok([row(str(r.get("title", "")), str(r.get("url", "")), str(r.get("content", "")), i + 1)
                       for i, r in enumerate(raw)])
+
+
+def _score(result: Dict[str, Any]) -> float:
+    try:
+        return float(result.get("score") or 0)
+    except (TypeError, ValueError):
+        return 0.0
 
 
 class _TextExtractor(HTMLParser):
@@ -349,7 +370,7 @@ class CascadeWebSearchProvider(WebSearchProvider):
                 if entry.get("error") or not (entry.get("content") or "").strip():
                     last[url] = entry if entry.get("error") else page_error(url, f"{layer}: empty content")
                     continue
-                entry.setdefault("metadata", {})["served_by"] = layer
+                entry["metadata"] = {**(entry.get("metadata") or {}), "served_by": layer}
                 done[url] = entry
                 served += 1
             # The tool wrapper drops ``metadata`` from what the model sees, so the log is
