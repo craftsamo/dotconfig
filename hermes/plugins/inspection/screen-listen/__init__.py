@@ -30,7 +30,7 @@ record = _load("hermes_screen_record", Path(__file__).resolve().parent / "record
 transcript = _load("hermes_screen_transcript", Path(__file__).resolve().parent / "transcript.py")
 
 TOOL = "screen_listen"
-ACTIONS = (*listen.ACTIONS, "record_start", "record_status", "record_stop", "recordings", "transcribe")
+ACTIONS = (*listen.ACTIONS, "windows", "record_start", "record_status", "record_stop", "recordings", "transcribe")
 PLUGIN = "screen-listen"
 PROFILES = {"assistant"}
 # Skill -> the profiles it is registered for (read-only to Hermes). The Assistant alone has both
@@ -45,8 +45,9 @@ DESCRIPTION = (
     "profile's STT; a silent recording returns no transcript and says so. status: whether the helper is "
     "built, which allowed apps are running and playing audio, and the last listen's outcome. "
     "Recording sessions, for a whole call or stream the user wants kept: record_start (app, `minutes` up to "
-    f"{record.MAX_MINUTES}, optional `title`; `video: true` also records the app's window — a Go Live screen "
-    "share — to video.mp4 beside the audio, `fps` to taste, never the whole screen) records in the "
+    f"{record.MAX_MINUTES}, optional `title`; `video: true` also records one window of the app — a Go Live "
+    "screen share, chosen with `window_id` from `windows` — to video.mp4 beside the audio, `fps` to taste, "
+    "never the whole screen) records in the "
     "background until record_stop or the cap; record_status shows the running session (seconds, whether "
     "audio is still arriving, the video's frames); record_stop ends it and packs an m4a (and the mp4) plus "
     "recording.json into the recordings directory; recordings lists what is kept, with transcripts when "
@@ -80,6 +81,14 @@ def _home():
 
 def run(args: dict, home) -> dict:
     action = args.get("action")
+    if action == "windows":
+        name, bundle = listen._app(args, listen.allowed_apps(home))
+        found = listen.windows(bundle)
+        return {"ok": True, "app": name, "windows": found,
+                "note": ("the app's windows the video can record (id, title, size in points); a stream's pop-out is "
+                         "titled with the channel alone, the main window's title carries the server too. Pass the "
+                         "one meant as window_id to record_start" if found else
+                         "the app shows no window (not running, or nothing open)")}
     if action == "record_start":
         return record.start(args, home)
     if action == "record_status":
@@ -125,8 +134,10 @@ SCHEMA = {
             "title": {"type": "string", "description": "record_start: a short name for the recording's folder"},
             "video": {"type": "boolean", "description": "record_start: also record the app's window (the stream "
                                                         "as shown) to video.mp4 (default: audio only)"},
-            "window": {"type": "string", "description": "record_start with video: part of the title of the window "
-                                                        "to record (default: the app's largest window)"},
+            "window": {"type": "string", "description": "record_start with video: the title of the window to record "
+                                                        "(exact wins over containing; default: the app's largest window)"},
+            "window_id": {"type": "integer", "description": "record_start with video: the window to record, by id from "
+                                                             "`windows` (beats `window`)"},
             "fps": {"type": "integer", "description": f"record_start with video: frames per second, 1..{record.VIDEO_MAX_FPS} "
                                                       f"(default {record.VIDEO_FPS}, or the profile's screen_listen.video_fps; "
                                                       "10 is enough for slides or a terminal and makes a far smaller file)"},
