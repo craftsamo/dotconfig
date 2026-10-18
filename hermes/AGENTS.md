@@ -315,11 +315,14 @@ Contract: [docs/hands/overview.md](docs/hands/overview.md),
   profile, never shared (Google rotates session cookies and signs out every
   other holder); never edit the cloned bundle (it breaks the signature and
   cookie decryption); never copy IndexedDB between profiles.
-- **Web search:** paid backends are pinned per profile with
-  `web.provider_tier`; editing `search_backend` alone is not enough (a present
-  key makes auto bill the paid path), and an unknown backend name silently
-  resolves to `firecrawl`. How to verify:
-  [docs/ops/web-search.md](docs/ops/web-search.md).
+- **Web search:** every web-enabled profile searches through the `cascade`
+  backend (`plugins/web/cascade`), whose layer order per profile and the
+  floor (SearXNG, then `ddgs`) at its end are pinned by
+  `test_web_search_cascade.py`; `web.provider_tier.<vendor>: free` is what
+  fixes where the keyless ring walk starts, so a profile's one `free` pin
+  names a ring vendor. Never put a keyed vendor in another profile's chain
+  (budget isolation), and keep `default` on no backend. Design and how to
+  verify: [docs/ops/web-search.md](docs/ops/web-search.md).
 
 ## OpenCode integration
 
