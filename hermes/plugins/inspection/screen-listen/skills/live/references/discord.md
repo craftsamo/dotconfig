@@ -75,17 +75,24 @@ For a **video recording**, give the stream a window of its own first:
    Out"). The new window is titled with the channel name alone; the main
    window's title carries the channel and the server ("… | <server> -
    Discord"). `computer_use` `list_windows` and `screen_listen` `windows`
-   both show it.
-2. **Make it large** — the stream fills what the window shows. Use the
-   stream's own full-screen control (bottom right of the pop-out, "全画面" /
-   "Full Screen") or the window's green zoom button; `double_click` on the
-   stream toggles full screen too. Capture the pop-out afterwards (`capture`
-   with its `window_id`) and look: the stream should fill it. Dragging a
-   window edge needs foreground delivery (a separate approval) — prefer the
-   controls above.
+   both show it. As opened, the pop-out shows the stage as the app does:
+   the stream panel on top, the speakers and the audience below.
+2. **Frame it** for the framing chosen in `SKILL.md`:
+   - `full` (the whole stage): leave the pop-out as it is, and make the
+     window large with its green zoom button so the stream panel is not
+     tiny.
+   - `share` (the shared screen alone): put the stream in full screen —
+     the stream's own full-screen control (bottom right of the stream,
+     "全画面" / "Full Screen") or a `double_click` on the stream; the stream
+     then fills the window and the speakers and audience are out of frame.
+   Capture the pop-out afterwards (`capture` with its `window_id`) and look:
+   it should show what the framing means. Dragging a window edge needs
+   foreground delivery (a separate approval) — prefer the controls above.
 3. **Record that window**: its id from `screen_listen` `windows` as
    `window_id` (or its exact title as `window`; a containing match would pick
-   the bigger main window). Check `video_window` in the start answer.
+   the bigger main window). Check `video_window` in the start answer. A
+   stream that ends mid-session leaves the pop-out showing the stage, and
+   the recording follows the window: say so if it happens, do not restart.
 
 Leave the pop-out showing the stream for the whole recording. Do not switch
 channels in the main window either: the audio tap follows the app, so a
