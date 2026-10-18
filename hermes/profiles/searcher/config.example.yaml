@@ -140,8 +140,10 @@ terminal:
   persistent_shell: true
 web:
   backend: ""
-  search_backend: parallel
-  extract_backend: parallel
+  search_backend: cascade
+  extract_backend: cascade
+  provider_tier:
+    exa: free
 browser:
   inactivity_timeout: 120
   command_timeout: 30
@@ -184,6 +186,8 @@ tool_loop_guardrails:
     exact_failure: 5
     same_tool_failure: 8
     idempotent_no_progress: 5
+  loop_caps:
+    max_web_searches: 300
 compression:
   enabled: true
   threshold: 0.5
@@ -643,3 +647,14 @@ plugins:
     - evm-access
     - solana-access
     - hyperliquid-access
+    - cascade
+  entries:
+    web/cascade:
+      settings:
+        search:
+          - ring
+          - searxng
+          - ddgs
+        extract:
+          - ring
+          - local

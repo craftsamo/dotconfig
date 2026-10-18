@@ -46,6 +46,14 @@ service"; rules: [`AGENTS.md`](../../AGENTS.md) "Gateway and A2A".
 - `launchd/irodori-tts-launchctl.sh {install,register,register-lexicon,unregister,restart,voices,status,uninstall,purge}`
   — Irodori-TTS on `:10103`; see [tts-engines.md](tts-engines.md) "Irodori voice
   registration".
+- `launchd/searxng-launchctl.sh {install,restart,status,uninstall}` — SearXNG
+  metasearch on `127.0.0.1:10104` (`SEARXNG_PORT` overrides), the keyless floor
+  of the web search cascade; see [web-search.md](web-search.md) "Floor". It runs
+  the container pinned in `engines/searxng/image.lock` through Docker Desktop
+  (`scripts/searxng-run.sh` in the foreground, so launchd owns its lifetime) and
+  renders `engines/searxng/settings.yml.tmpl` into the ignored `local/searxng/`
+  with a host-generated cookie key. Hermes engine ports run `1010x`; pick the
+  next free one for a new engine, never a common development port.
 
 ### Account sync agents
 

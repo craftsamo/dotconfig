@@ -148,8 +148,8 @@ terminal:
   persistent_shell: true
 web:
   backend: ""
-  search_backend: keenable
-  extract_backend: keenable
+  search_backend: cascade
+  extract_backend: cascade
   provider_tier:
     keenable: free
 browser:
@@ -742,6 +742,16 @@ plugins:
     - evm-access
     - solana-access
     - hyperliquid-access
+    - cascade
+  entries:
+    web/cascade:
+      settings:
+        search:
+          - searxng
+          - ddgs
+        extract:
+          - local
+          - ring
 specialist_call:
   resident_targets:
     - researcher

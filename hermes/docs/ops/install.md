@@ -140,6 +140,17 @@ hermes/scripts/screen-listen.sh grant-screen  # video only: "Screen Recording"
 
 Contract: [docs/screen-listen.md](../screen-listen.md).
 
+**SearXNG** (the web search floor every web-enabled profile falls back to) runs
+as a Docker container; with Docker Desktop installed and running:
+
+```sh
+hermes/launchd/searxng-launchctl.sh install   # pulls the pinned image, loads the LaunchAgent on 127.0.0.1:10104
+hermes/launchd/searxng-launchctl.sh status
+```
+
+Without it the cascade still answers through the vendors and `ddgs`; it only
+loses its most reliable layer. Design: [`web-search.md`](./web-search.md).
+
 **API keys** — stored in the Keychain; the shim injects them. Run these
 yourself (the value is read from a no-echo prompt, never argv):
 
