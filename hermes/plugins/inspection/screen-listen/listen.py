@@ -34,6 +34,7 @@ DEFAULT_SECONDS = 60
 MAX_SECONDS = 300            # the Assistant's tool deadline (960 s) must also cover transcription
 LAUNCH_GRACE = 90            # seconds past the recording for launch, consent dialog and teardown
 PROCESSES_TIMEOUT = 15
+WINDOWS_TIMEOUT = 30         # a consent notification may be in the way
 APP_NAME = re.compile(r"^[a-z0-9][a-z0-9_-]{0,31}$")
 BUNDLE_ID = re.compile(r"^[A-Za-z0-9.-]{3,128}$")
 MIN_ACTIVE_SECONDS = 1.5     # less sound than this in a take is a chime or a click, not speech
@@ -127,6 +128,39 @@ def _parse(text: str) -> dict:
             except json.JSONDecodeError:
                 continue
     return {"ok": False, "kind": "helper", "error": f"the helper printed no result: {(text or '')[-200:].strip()}"}
+
+
+def windows(bundle: str) -> list[dict]:
+    """The app's capturable windows, [{id, title, width, height, on_screen}], through
+    LaunchServices (Screen Recording is attributed to the helper, so never by running the binary
+    directly). The helper's own stdout file is what counts: `open -W` sometimes fails to attach to
+    a helper that already exited."""
+    if not helper_built():
+        raise ListenError("not_built", f"the screen-listen helper is not built; the user runs `{INSTALL}`")
+    with tempfile.TemporaryDirectory(prefix="screen-listen-windows-") as tmp:
+        log, err = Path(tmp, "windows.json"), Path(tmp, "windows.err")
+        command = ["/usr/bin/open", "-W", "-n", "-g", "--stdout", str(log), "--stderr", str(err), "-a", str(APP),
+                   "--args", "windows", "--bundle", bundle]
+        try:
+            proc = subprocess.run(command, capture_output=True, text=True, timeout=WINDOWS_TIMEOUT,
+                                  stdin=subprocess.DEVNULL)
+        except subprocess.TimeoutExpired as exc:
+            raise ListenError("timeout", "the helper did not list windows in time") from exc
+        text = _read(log)
+        if not text.strip():
+            time.sleep(1)
+            text = _read(log)
+        if proc.returncode != 0 and not text.strip():
+            raise ListenError("helper", f"macOS could not launch the helper app: {(_read(err) or proc.stderr or '').strip()[:200]}")
+    answer = _parse(text)
+    if not answer.get("ok"):
+        kind = answer.get("kind") or "helper"
+        detail = answer.get("error") or "the helper failed"
+        if kind == "permission":
+            detail += f"; video needs Screen Recording: the user runs `{GRANT_SCREEN}` once"
+        raise ListenError(kind, detail)
+    return [{k: w.get(k) for k in ("id", "title", "width", "height", "on_screen")}
+            for w in answer.get("data") or [] if isinstance(w, dict)]
 
 
 def record(bundle: str, seconds: int, wav: Path) -> dict:

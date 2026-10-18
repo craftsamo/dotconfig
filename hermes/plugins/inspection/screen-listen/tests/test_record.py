@@ -67,11 +67,14 @@ class FakeHelper:
     """Stands in for `open` (detached helper) and ffmpeg. The helper 'runs' as this test
     process: progress and the final answer are written by the test."""
 
-    def __init__(self, pid=4242, running=True, playing=None, video_pid=4343, video_refused=None):
+    def __init__(self, pid=4242, running=True, playing=None, video_pid=4343, video_refused=None, windows=None,
+                 windows_refused=None):
         self.pid = pid
         self.video_pid = video_pid
         self.video_refused = video_refused   # an error the capture helper answers with instead of starting
         self.video = None
+        self.windows = windows or []
+        self.windows_refused = windows_refused
         if running:
             LIVE.add(pid)
         self.ffmpeg_calls = []
@@ -80,6 +83,12 @@ class FakeHelper:
             {"pid": 1, "bundle": "com.hnc.Discord.helper", "running_output": True}]
 
     def __call__(self, command, **kwargs):
+        if command[0] == "/usr/bin/open" and "windows" in command:
+            self.open_calls.append(command)
+            answer = ({"ok": False, "kind": "permission", "error": self.windows_refused} if self.windows_refused
+                      else {"ok": True, "data": self.windows})
+            Path(command[command.index("--stdout") + 1]).write_text(json.dumps(answer))
+            return subprocess.CompletedProcess(command, 0, "", "")
         if command[0] == "/usr/bin/open" and "capture" in command:
             self.open_calls.append(command)
             self.video = {"progress": Path(command[command.index("--progress") + 1]),
@@ -127,6 +136,7 @@ class FakeHelper:
     def write_video_progress(self, frames, final=False):
         self.video["progress"].write_text(json.dumps({"pid": self.video_pid, "seconds": frames / 10, "frames": frames,
                                                       "receiving": True, "final": final,
+                                                      "window": {"id": 777, "title": "Weekly", "width": 1280, "height": 800},
                                                       "updated": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}))
 
     def finish_video(self, seconds=30.0, frames=None, stopped_by=None):
@@ -143,7 +153,8 @@ def test_actions_and_schema_cover_recording():
     plugin.register(ctx)
     params = ctx.tools["screen_listen"]["schema"]["parameters"]
     assert set(params["properties"]["action"]["enum"]) >= {"record_start", "record_status", "record_stop", "recordings"}
-    assert {"minutes", "title", "id", "video", "window"} <= set(params["properties"])
+    assert {"minutes", "title", "id", "video", "window", "window_id"} <= set(params["properties"])
+    assert "windows" in params["properties"]["action"]["enum"]
     assert "record_start" in plugin.DESCRIPTION and "never the microphone" in plugin.DESCRIPTION
 
 
@@ -202,8 +213,10 @@ def test_video_records_the_window_beside_the_audio(monkeypatch):
 
     out = call(action="record_start", minutes=5, video=True, window="Weekly")
     assert out["ok"] and out["video"] is True and "video.mp4" in out["video_note"]
+    assert out["video_window"] == {"id": 777, "title": "Weekly", "width": 1280, "height": 800}
     capture = [c for c in helper.open_calls if "capture" in c][0]
     assert capture[capture.index("--seconds") + 1] == "300" and capture[capture.index("--window") + 1] == "Weekly"
+    assert "--window-id" not in capture
     assert capture[capture.index("--fps") + 1] == str(record.VIDEO_FPS) == "30" and "--no-audio" not in capture
     assert capture[capture.index("--max-width") + 1] == str(record.VIDEO_MAX_WIDTH) and "30 fps" in out["video_note"]
     assert capture[capture.index("--out") + 1] == str(Path(out["dir"]) / "video.mp4")
@@ -232,6 +245,30 @@ def test_video_records_the_window_beside_the_audio(monkeypatch):
     assert not helper.video["progress"].exists() and not helper.video["log"].exists()
     listed = call(action="recordings")["recordings"][0]
     assert listed["video"] == stopped["video"]["file"]
+
+
+def test_windows_lists_what_the_video_can_record_and_window_id_picks_one(monkeypatch):
+    helper = FakeHelper(windows=[{"id": 41, "title": "general | Server - Discord", "width": 1200, "height": 900,
+                                  "on_screen": True, "pid": 7, "bundle": "com.hnc.Discord"},
+                                 {"id": 42, "title": "general", "width": 880, "height": 500, "on_screen": True}])
+    monkeypatch.setattr(record.subprocess, "run", helper)
+    monkeypatch.setattr(listen.subprocess, "run", helper)
+    out = call(action="windows")
+    assert out["ok"] and [w["id"] for w in out["windows"]] == [41, 42] and "pop-out" in out["note"]
+    assert set(out["windows"][0]) == {"id", "title", "width", "height", "on_screen"}   # no pid, no bundle
+    listing = [c for c in helper.open_calls if "windows" in c][0]
+    assert listing[0] == "/usr/bin/open" and "-W" in listing and listing[listing.index("--bundle") + 1] == "com.hnc.Discord"
+
+    started = call(action="record_start", video=True, window_id=42, window="ignored")
+    capture = [c for c in helper.open_calls if "capture" in c][0]
+    assert started["video"] is True and capture[capture.index("--window-id") + 1] == "42" and "--window" not in capture
+
+
+def test_windows_says_how_to_grant_screen_recording(monkeypatch):
+    helper = FakeHelper(windows_refused="ScreenCaptureKit refused to list windows")
+    monkeypatch.setattr(listen.subprocess, "run", helper)
+    out = call(action="windows")
+    assert out["ok"] is False and out["kind"] == "permission" and "grant-screen" in out["error"]
 
 
 def test_video_frame_rate_comes_from_the_call_then_the_profile(monkeypatch):

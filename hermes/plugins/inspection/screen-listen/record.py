@@ -200,6 +200,7 @@ def start(args: dict, home) -> dict:
     minutes = listen._int(args, "minutes", DEFAULT_MINUTES, 1, MAX_MINUTES)
     video = bool(args.get("video"))
     window = args.get("window").strip() if isinstance(args.get("window"), str) else ""
+    window_id = listen._int(args, "window_id", 0, 0, 2**31) if args.get("window_id") is not None else 0
     fps, max_width = video_settings(home, args)
     raw_title = args.get("title").strip() if isinstance(args.get("title"), str) else ""
     # The slug only names the folder (a Japanese title leaves it empty); the title itself is kept.
@@ -231,7 +232,8 @@ def start(args: dict, home) -> dict:
     if video:
         session["video"] = {"mp4": str(folder / "video.mp4"), "progress": str(state / "video-progress.json"),
                             "log": str(state / "video.json"), "err": str(state / "video.err"),
-                            "window": window or None, "fps": fps, "max_width": max_width, "status": "starting"}
+                            "window": window or None, "window_id": window_id or None, "fps": fps,
+                            "max_width": max_width, "status": "starting"}
     _save(session)
     command = ["/usr/bin/open", "-n", "-g", "--stdout", session["log"], "--stderr", session["err"], "-a",
                str(listen.APP), "--args", "record", "--bundle", bundle, "--prefix", "--seconds", str(minutes * 60),
@@ -304,7 +306,9 @@ def _start_video(session: dict, minutes: int) -> dict:
                str(listen.APP), "--args", "capture", "--bundle", session["bundle"], "--seconds", str(minutes * 60),
                "--out", video["mp4"], "--fps", str(video["fps"]), "--max-width", str(video["max_width"]),
                "--progress", video["progress"]]
-    if video.get("window"):
+    if video.get("window_id"):
+        command += ["--window-id", str(video["window_id"])]
+    elif video.get("window"):
         command += ["--window", video["window"]]
     proc = subprocess.run(command, capture_output=True, text=True, timeout=30, stdin=subprocess.DEVNULL)
     if proc.returncode == 0:
@@ -314,8 +318,14 @@ def _start_video(session: dict, minutes: int) -> dict:
             if progress and progress.get("pid"):
                 video.update({"pid": progress["pid"], "status": "recording"})
                 _save(session)
-                return {"video": True, "video_note": f"the app's window is being recorded to video.mp4 at {video['fps']} "
-                                                     "fps beside the audio; it ends with the window if that closes"}
+                chosen = progress.get("window") if isinstance(progress.get("window"), dict) else None
+                out = {"video": True, "video_note": f"the app's window is being recorded to video.mp4 at {video['fps']} "
+                                                    "fps beside the audio; it ends with the window if that closes. "
+                                                    "Check video_window is the one meant; a wrong one is stopped and "
+                                                    "started again now, never later"}
+                if chosen:
+                    out["video_window"] = chosen
+                return out
             answer = listen._parse(_peek(video["log"])) if _peek(video["log"]).strip() else None
             if answer is not None and not answer.get("ok"):
                 break
