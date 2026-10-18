@@ -117,9 +117,23 @@ Two situations, and the microphone rule differs:
    once**: a recording is the deliverable from its first second, and every
    stop and restart cuts the stream into pieces — never stop a running
    recording to improve its picture. The order:
-   - Give the stream a window of its own and make it large, as the app's
+   - **Choose the framing.** Two are possible, and the window is set up for
+     one of them: `share` — the shared screen alone fills the window (the
+     slides, the demo, the game); `full` — the stream as the app shows it,
+     with the speakers, the audience and their reactions around it. An
+     explicit wish wins: "共有画面だけ", "the slides" → `share`; "配信の様子",
+     "who is talking too" → `full`. Without one, judge from what is being
+     streamed: a stream with a screen share is `share` by default — the
+     share is what the recording is for, and the voices are in the audio
+     either way; `full` when the share is absent or intermittent, when
+     faces, cameras or reactions are the point, or when the stage itself
+     (who spoke, who joined) is what the user wants kept. Name the framing
+     in the sentence that starts the recording ("the shared screen alone;
+     say so if you want the whole stage") so an objection comes now, not
+     after an hour.
+   - Give the stream a window of its own and frame it, as the app's
      reference says (in a main window the stream is a small panel among
-     other things).
+     other things; `share` fills that window with the stream).
    - `screen_listen` `windows` lists the app's windows with id, title and
      size; the reference says how to tell the stream's window from the main
      one. Pass its `window_id` to `record_start` (a `window` title works too,
