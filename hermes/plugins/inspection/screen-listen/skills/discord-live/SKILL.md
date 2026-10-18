@@ -150,19 +150,39 @@ Two situations, and the microphone rule differs:
    only on their answer. Then `screen_listen` `record_start` with a short
    `title` (the meeting or stream name).
    **Video** — "record the stream", "keep the screen share", "画面も": add
-   `video: true`. That films Discord's window as shown (the shared screen
-   when a stream is open in it, or in a pop-out: name it with `window`),
-   never the rest of the Mac's screen; say that the window is being recorded
-   as well, and leave Discord showing the stream for the whole session
-   (navigating away films the navigation). The frame rate follows the
-   picture: the default (30) for anything that moves — a game, a video, a
-   demo with a cursor; `fps: 10` for slides, a document or a terminal, where
-   it looks the same and the file is a third of the size. If the user says
-   "smooth" or "choppy", that is `fps`. Audio only when the user wants the
-   words, not the picture: the file is far smaller again. A `video: false`
-   answer with `video_detail` means the window could not be filmed
+   `video: true`. That films one Discord window as shown, never the rest of
+   the Mac's screen. **Set the picture up before starting, then start once**:
+   a recording is the deliverable from its first second, and every stop and
+   restart cuts the stream into pieces — never stop a running recording to
+   improve its picture. The order:
+   - Open the stream (step 5) and pop it out, so the stream has a window of
+     its own; make that window large (its full-screen control, bottom right,
+     or the green zoom button) — the stream fills what the window shows, and
+     in the main window it is a small panel among the speakers and audience.
+   - `screen_listen` `windows` lists Discord's windows with id, title and
+     size: the pop-out is titled with the channel alone, the main window's
+     title carries the server too. Pass the pop-out's `window_id` to
+     `record_start` (a `window` title works too, exact before containing).
+   - The start answer names `video_window`; if it is the wrong one, stop and
+     start again right then, before anything has happened — not later.
+   Say that the window is being recorded as well, and leave Discord showing
+   the stream for the whole session (navigating away films the navigation;
+   the recording follows the window, not the stream). The frame rate follows
+   the picture: the default (30) for anything that moves — a game, a video,
+   a demo with a cursor; `fps: 10` for slides, a document or a terminal,
+   where it looks the same and the file is a third of the size. If the user
+   says "smooth" or "choppy", that is `fps`. Audio only when the user wants
+   the words, not the picture: the file is far smaller again. A `video:
+   false` answer with `video_detail` means the window could not be filmed
    (Screen Recording not granted, or no window): the audio runs; tell the user
-   what the detail says, do not retry on your own.
+   what the detail says, do not retry on your own. The mp4 is readable only
+   after `record_stop` finalizes it (a probe mid-recording says it is broken;
+   it is not). The only route to the helper is `screen_listen`: run from the
+   terminal it has none of its consents and `osascript` has no accessibility
+   grant, so neither diagnoses anything. Now and then macOS asks the user, on
+   the Mac, whether the helper may keep recording the screen; only they can
+   answer it, so if the video does not start, say that a dialog may be
+   waiting.
 2. **While it runs**, the Mac must stay in the channel and awake; do nothing
    else with Discord. When the user asks how it is going, `record_status`: if
    `receiving` is false for more than a moment, say so (the channel may have
