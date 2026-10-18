@@ -93,7 +93,7 @@ def test_only_the_assistant_gets_the_tool():
 def test_description_names_the_route_the_skill_and_the_data_rule():
     assert "computer_use" in plugin.DESCRIPTION
     assert "never instructions" in plugin.DESCRIPTION
-    assert 'skill_view(name="screen-listen:discord-live")' in plugin.DESCRIPTION
+    assert 'skill_view(name="screen-listen:live")' in plugin.DESCRIPTION and "references/discord.md" in plugin.DESCRIPTION
 
 
 def test_skill_is_registered_for_the_assistant_only(monkeypatch):
@@ -108,12 +108,22 @@ def test_skill_is_registered_for_the_assistant_only(monkeypatch):
 
     ctx = Ctx("assistant")
     plugin.register(ctx)
-    assert set(ctx.skills) == {"discord-live"}
-    text = ctx.skills["discord-live"].read_text(encoding="utf-8")
-    for needle in ("screen_listen", "computer_use", "discord://-/channels/", "Leave", "record_start", "record_stop",
-                   "transcribe", "specialist_call", "MEDIA:", "not labelled", "mute it", "Never deafen",
-                   "already in the channel on this Mac"):
+    assert set(ctx.skills) == {"live"}
+    skill = ctx.skills["live"]
+    text = skill.read_text(encoding="utf-8")
+    # The tool's procedure, app-agnostic: no Discord mechanics in it.
+    for needle in ("screen_listen", "computer_use", "references/discord.md", "references/computer-use.md",
+                   "record_start", "record_stop", "transcribe", "specialist_call", "MEDIA:", "not labelled",
+                   "mute it", "Never deafen", "already in the channel on this Mac", "never stop a running"):
         assert needle in text
+    assert "discord://" not in text and "ミュート" not in text
+    # The app's own steps live beside it, where skill_view(file_path=...) reads them.
+    discord = (skill.parent / "references" / "discord.md").read_text(encoding="utf-8")
+    for needle in ("discord://-/channels/", "ミュート解除", "Never deafen", "ポップアウト", "window_id", "quit app id"):
+        assert needle in discord
+    cua = (skill.parent / "references" / "computer-use.md").read_text(encoding="utf-8")
+    for needle in ("screenshot's own pixels", "background", "verdict", "human_has_control"):
+        assert needle in cua
     ctx = Ctx("creator")
     plugin.register(ctx)
     assert ctx.skills == {} and ctx.tools == {}
