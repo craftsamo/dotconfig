@@ -1,6 +1,7 @@
 import importlib.util
 import json
 from pathlib import Path
+import signal
 import subprocess
 import time
 
@@ -68,11 +69,15 @@ class FakeHelper:
     process: progress and the final answer are written by the test."""
 
     def __init__(self, pid=4242, running=True, playing=None, video_pid=4343, video_refused=None, windows=None,
-                 windows_refused=None):
+                 windows_refused=None, mic_pid=4444, mic_refused=None):
         self.pid = pid
         self.video_pid = video_pid
         self.video_refused = video_refused   # an error the capture helper answers with instead of starting
         self.video = None
+        self.mic_pid = mic_pid
+        self.mic_refused = mic_refused
+        self.mic = None
+        self.mic_muted = False
         self.windows = windows or []
         self.windows_refused = windows_refused
         if running:
@@ -88,6 +93,17 @@ class FakeHelper:
             answer = ({"ok": False, "kind": "permission", "error": self.windows_refused} if self.windows_refused
                       else {"ok": True, "data": self.windows})
             Path(command[command.index("--stdout") + 1]).write_text(json.dumps(answer))
+            return subprocess.CompletedProcess(command, 0, "", "")
+        if command[0] == "/usr/bin/open" and "mic" in command:
+            self.open_calls.append(command)
+            self.mic = {"progress": Path(command[command.index("--progress") + 1]),
+                        "log": Path(command[command.index("--stdout") + 1]),
+                        "wav": Path(command[command.index("--out") + 1])}
+            if self.mic_refused:
+                self.mic["log"].write_text(json.dumps({"ok": False, "kind": "permission", "error": self.mic_refused}))
+            else:
+                LIVE.add(self.mic_pid)
+                self.write_mic_progress(frames=0)
             return subprocess.CompletedProcess(command, 0, "", "")
         if command[0] == "/usr/bin/open" and "capture" in command:
             self.open_calls.append(command)
@@ -111,6 +127,8 @@ class FakeHelper:
             self.ffmpeg_calls.append(command)
             Path(command[-1]).write_bytes(b"m4a")
             return subprocess.CompletedProcess(command, 0, "", "")
+        if command[0] == "/usr/bin/pkill" and "mic" in command[-1]:
+            return subprocess.CompletedProcess(command, 0, "", "")
         if command[0] == "/usr/bin/pkill":
             return subprocess.CompletedProcess(command, 0, "", "")
         if command[-1] == "processes":
@@ -128,10 +146,29 @@ class FakeHelper:
         if answer:
             self.log.write_text(json.dumps({"ok": True, "data": {"seconds": seconds, "peak": 0.0 if silent else 0.2,
                                                                  "silent": silent, "frames": int(seconds * 48000),
+                                                                 "started_at": 1_700_000_000_000,
+                                                                 "first_frame_at": 1_700_000_000_150,
                                                                  "stopped_early": True}}))
         LIVE.discard(self.pid)
         if self.video and self.video_pid in LIVE:
             self.finish_video(seconds)
+        if self.mic and self.mic_pid in LIVE:
+            self.finish_mic(seconds)
+
+    def write_mic_progress(self, frames, final=False):
+        self.mic["progress"].write_text(json.dumps({"pid": self.mic_pid, "seconds": frames / 48000, "frames": frames,
+                                                    "receiving": True, "muted": self.mic_muted, "peak": 0.3,
+                                                    "final": final,
+                                                    "updated": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}))
+
+    def finish_mic(self, seconds=30.0, muted_spans=None, silent=False):
+        self.mic["wav"].write_bytes(b"\0" * 4096)
+        self.write_mic_progress(frames=int(seconds * 48000), final=True)
+        self.mic["log"].write_text(json.dumps({"ok": True, "data": {
+            "seconds": seconds, "started_at": 1_700_000_000_800, "first_frame_at": 1_700_000_001_050,
+            "peak": 0.0 if silent else 0.3, "silent": silent, "frames": int(seconds * 48000),
+            "muted_spans": muted_spans or []}}))
+        LIVE.discard(self.mic_pid)
 
     def write_video_progress(self, frames, final=False):
         self.video["progress"].write_text(json.dumps({"pid": self.video_pid, "seconds": frames / 10, "frames": frames,
@@ -153,8 +190,8 @@ def test_actions_and_schema_cover_recording():
     plugin.register(ctx)
     params = ctx.tools["screen_listen"]["schema"]["parameters"]
     assert set(params["properties"]["action"]["enum"]) >= {"record_start", "record_status", "record_stop", "recordings"}
-    assert {"minutes", "title", "id", "video", "window", "window_id"} <= set(params["properties"])
-    assert "windows" in params["properties"]["action"]["enum"]
+    assert {"minutes", "title", "id", "video", "window", "window_id", "mic", "mute"} <= set(params["properties"])
+    assert {"windows", "record_mic"} <= set(params["properties"]["action"]["enum"])
     assert "record_start" in plugin.DESCRIPTION and "never the microphone" in plugin.DESCRIPTION
 
 
@@ -269,6 +306,89 @@ def test_windows_says_how_to_grant_screen_recording(monkeypatch):
     monkeypatch.setattr(listen.subprocess, "run", helper)
     out = call(action="windows")
     assert out["ok"] is False and out["kind"] == "permission" and "grant-screen" in out["error"]
+
+
+def test_mic_track_is_mixed_in_with_its_muted_spans(monkeypatch):
+    helper = FakeHelper()
+    monkeypatch.setattr(record.subprocess, "run", helper)
+
+    out = call(action="record_start", mic=True)
+    assert out["ok"] and out["mic"] is True and "record_mic" in out["mic_note"]
+    mic_cmd = [c for c in helper.open_calls if "mic" in c][0]
+    assert mic_cmd[mic_cmd.index("--out") + 1] == str(Path(out["dir"]) / "mic.wav") and "--muted" not in mic_cmd
+    helper.write_progress(frames=48000 * 3)
+    helper.write_mic_progress(frames=48000 * 3)
+    status = call(action="record_status")["active"]
+    assert status["mic"] == {"seconds": 3.0, "muted": False, "recording": True}
+
+    # Pausing the user's voice: SIGUSR1 to the mic helper, confirmed from its progress file.
+    def kill(pid, sig):
+        SIGNALS.append((pid, sig))
+        if pid == helper.mic_pid and sig in (signal.SIGUSR1, signal.SIGUSR2):
+            helper.mic_muted = sig == signal.SIGUSR1
+            helper.write_mic_progress(frames=48000 * 4)
+        elif pid == helper.mic_pid:
+            helper.finish_mic(seconds=29.0, muted_spans=[[4.0, 9.5]])
+        else:
+            helper.finish(seconds=30.0)
+
+    monkeypatch.setattr(record.os, "kill", kill)
+    paused = call(action="record_mic", mute=True)
+    assert paused["ok"] and paused["muted"] is True and "paused" in paused["note"]
+    assert call(action="record_status")["active"]["mic"]["muted"] is True
+    resumed = call(action="record_mic", mute=False)
+    assert resumed["muted"] is False
+    assert SIGNALS == [(helper.mic_pid, signal.SIGUSR1), (helper.mic_pid, signal.SIGUSR2)]
+
+    stopped = call(action="record_stop")
+    assert stopped["ok"] and stopped["mic"] == {"mixed": True, "seconds": 29.0, "muted_spans": [[4.0, 9.5]],
+                                                "note": stopped["mic"]["note"]}
+    assert SIGNALS[2:] == [(helper.mic_pid, signal.SIGTERM), (helper.pid, signal.SIGTERM)]
+    mix = helper.ffmpeg_calls[0]
+    assert mix.count("-i") == 2 and mix[mix.index("-i") + 1].endswith("audio.wav") and "mic.wav" in " ".join(mix)
+    graph = mix[mix.index("-filter_complex") + 1]
+    # 1050 - 150: the gap between the two files' first audio, not between the launches (800).
+    assert "adelay=900" in graph and f"volume={record.MIC_GAIN}" in graph and "amix=inputs=2" in graph
+    assert record._track_offset_ms({"started_at": 500}, {"started_at": 200}) == 300          # launches as fallback
+    assert record._track_offset_ms({"first_frame_at": 100}, {"first_frame_at": 400}) == 0    # never negative
+    assert record._track_offset_ms({}, {"started_at": 1}) == 0
+    assert mix[mix.index("-map") + 1] == "[out]"
+    assert not helper.mic["wav"].exists() and not helper.mic["progress"].exists()
+    meta = json.loads((Path(stopped["dir"]) / "recording.json").read_text())
+    assert meta["mic"] == {"muted_spans": [[4.0, 9.5]], "seconds": 29.0}
+    assert [t["kind"] for t in meta["tracks"]] == ["app", "mic"] and meta["tracks"][1]["file"] == "audio.m4a"
+    assert "own voice" in meta["note"]
+    assert call(action="recordings")["recordings"][0]["own_voice"] is True
+
+
+def test_mic_that_cannot_start_leaves_the_recording_running(monkeypatch):
+    helper = FakeHelper(mic_refused="could not start the input")
+    monkeypatch.setattr(record.subprocess, "run", helper)
+    out = call(action="record_start", mic=True)
+    assert out["ok"] and out["mic"] is False and "grant-mic" in out["mic_detail"] and not helper.mic["wav"].exists()
+    assert call(action="record_status")["active"]["mic"]["recording"] is False
+    assert call(action="record_mic", mute=True)["kind"] == "usage"
+
+    def kill(pid, sig):
+        SIGNALS.append((pid, sig))
+        helper.finish(seconds=12.0)
+
+    monkeypatch.setattr(record.os, "kill", kill)
+    stopped = call(action="record_stop")
+    assert stopped["mic"]["mixed"] is False and "could not start" in stopped["mic"]["detail"]
+    assert helper.ffmpeg_calls[0].count("-i") == 1 and "-filter_complex" not in helper.ffmpeg_calls[0]
+    meta = json.loads((Path(stopped["dir"]) / "recording.json").read_text())
+    assert "mic" not in meta and len(meta["tracks"]) == 1
+
+
+def test_record_mic_without_a_mic_track_or_a_session_is_a_usage_error(monkeypatch):
+    helper = FakeHelper()
+    monkeypatch.setattr(record.subprocess, "run", helper)
+    assert call(action="record_mic", mute=True)["kind"] == "usage"
+    call(action="record_start")
+    out = call(action="record_mic", mute=True)
+    assert out["kind"] == "usage" and "no microphone track" in out["error"]
+    assert call(action="record_mic")["kind"] == "usage"
 
 
 def test_video_frame_rate_comes_from_the_call_then_the_profile(monkeypatch):
