@@ -142,6 +142,8 @@ web:
   backend: ""
   search_backend: parallel
   extract_backend: parallel
+  provider_tier:
+    parallel: free
 browser:
   inactivity_timeout: 120
   command_timeout: 30
@@ -184,6 +186,8 @@ tool_loop_guardrails:
     exact_failure: 5
     same_tool_failure: 8
     idempotent_no_progress: 5
+  loop_caps:
+    max_web_searches: 300
 compression:
   enabled: true
   threshold: 0.5

@@ -147,6 +147,8 @@ web:
   backend: ""
   search_backend: firecrawl
   extract_backend: firecrawl
+  provider_tier:
+    firecrawl: free
 browser:
   inactivity_timeout: 120
   command_timeout: 30
@@ -189,6 +191,8 @@ tool_loop_guardrails:
     exact_failure: 5
     same_tool_failure: 8
     idempotent_no_progress: 5
+  loop_caps:
+    max_web_searches: 100
 compression:
   enabled: true
   threshold: 0.5
