@@ -17,7 +17,7 @@ Part of the Hermes design docs — index: [`PROFILES.md`](../PROFILES.md).
 | -------------------------------------------------------------------------- | --------------------------------------------------------------------- | --------- |
 | Helper: the only code that records — a Core Audio process tap, and ScreenCaptureKit for one window — in a tiny app | `engines/screen-listen/main.swift`, `Info.plist` | people |
 | Built helper (ad-hoc signed, ignored)                                      | `local/screen-listen/ScreenListen.app`                                | plugin    |
-| Engine manager (`install`, `status`, `grant`, `grant-screen`)              | `scripts/screen-listen.sh`                                            | people    |
+| Engine manager (`install`, `status`, `grant`, `grant-screen`, `grant-mic`) | `scripts/screen-listen.sh`                                            | people    |
 | `screen_listen` tool (toolset `screen_listen`), allowlist, STT handoff     | `plugins/inspection/screen-listen/__init__.py`, `listen.py`           | Assistant |
 | Recording sessions (start, status, stop, the kept files)                   | `plugins/inspection/screen-listen/record.py`                          | Assistant |
 | Transcripts of kept recordings (a detached local-whisper job)              | `plugins/inspection/screen-listen/transcript.py`, `transcribe_job.py` | Assistant |
@@ -165,10 +165,23 @@ turn into minutes, share. It differs from a listen in three ways.
   when present. A session that hit its cap is packed by the next
   `record_stop`. Session bookkeeping (progress, the helper's stdout, pid) stays
   in the state directory and is removed when packed.
-- **It hears the other side only.** The tap is the app's output, so in a call
-  the user's own voice is absent. `tracks` in `recording.json` is a list on
-  purpose: a microphone track is the planned next entry, behind the
-  Microphone consent, mixed into the same m4a.
+- **It hears the other side; the user's own voice is a track they ask for.**
+  The tap is the app's output, so in a call the user's own voice is absent
+  unless `record_start` has `mic: true`: then the helper's `mic` runs beside
+  the audio helper, recording this Mac's default input to a mono WAV under
+  the same cap, and `record_stop` mixes the two into the one `audio.m4a`
+  (ffmpeg: the microphone delayed by the gap between the two helpers'
+  `started_at` and a little quieter, since on speakers it hears the other
+  side too; the transcript is of the mix). The user can take their voice off
+  the record while it runs: `record_mic` `mute: true` / `false` sends the
+  helper SIGUSR1 / SIGUSR2, it keeps writing silence so the timeline holds,
+  and the stretches come back as `muted_spans` in the answer, `recording.json`
+  (`mic`) and the `mic` track — the app's own mute button does not touch this
+  track. The consent is **Microphone**, asked only when the track is used
+  (`grant-mic`). A track that cannot start (consent refused, no input device)
+  is reported in the start answer and the session goes on without it. Off by
+  default: it is for a call the user takes part in from this Mac; when the
+  Assistant joined for them, the microphone hears the room.
 - **Video is a second track, not a second recording.** `record_start` with
   `video: true` launches the helper's `capture` beside the audio helper (same
   cap, one window of the app: `windows` lists them, `window_id` or a `window`
@@ -212,6 +225,7 @@ hermes/scripts/screen-listen.sh identity      # once: a signing identity, so reb
 hermes/scripts/screen-listen.sh install       # builds the helper (needs Xcode or its CLT)
 hermes/scripts/screen-listen.sh grant         # records one second; answer the dialog once
 hermes/scripts/screen-listen.sh grant-screen  # only for video: Screen Recording, see above
+hermes/scripts/screen-listen.sh grant-mic     # only for the user's own voice: Microphone
 hermes/scripts/screen-listen.sh status        # built? which processes are playing audio
 ```
 
