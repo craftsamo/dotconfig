@@ -272,8 +272,11 @@ third-party source.
 ## Third-party skills
 
 Third-party skills are never committed; they are restored from their source.
-The HyperFrames set is reinstalled with the HyperFrames CLI
-(`npm i -g hyperframes`):
+Desktop apps distribute their own (tldraw Desktop writes `tldraw-offline`
+into `~/.agents/skills`, `~/.codex/skills` and `~/.claude/skills` on launch,
+replacing any link at that name with a real directory); `install.sh` leaves
+those real entries alone. The HyperFrames set is reinstalled with the
+HyperFrames CLI (`npm i -g hyperframes`):
 
 ```sh
 hyperframes skills          # install the full set into every supported CLI
