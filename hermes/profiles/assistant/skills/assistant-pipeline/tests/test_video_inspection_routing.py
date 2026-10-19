@@ -54,6 +54,8 @@ class VideoInspectionRouting(unittest.TestCase):
                       "`analyze-card`", "`destination: youtube-thumb` for a YouTube thumbnail",
                       "`technic: primary-fact-pack`", "`technic: claim-check`, through Creator",
                       "`write-document`, format `report`", "`prosody: yes` when voice is in scope",
+                      "`captions` (the fetched `[m:ss]` transcript) when the language is Japanese",
+                      "passes a line that names its item",
                       "never import a speech report as it is", "inspection.py triage-speech",
                       'skill_view(name="google-access:google-sheets")', "inspection.py export", "inspection.py readback"):
             self.assertIn(owner, text)
