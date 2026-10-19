@@ -243,20 +243,25 @@ goes elsewhere before the export catches up. No independent
 balance/entitlement check is performed. Variants and permissions are
 unchanged; with `pinModels` (below) a project's own model for a role is not.
 
-| Role                     | Alternate model   | Variant |
-| ------------------------ | ----------------- | ------- |
-| explore-max              | gpt-6.1-sol       | xhigh   |
-| explore-high             | gpt-6.1-sol       | high    |
-| explore-medium, reviewer | gpt-6.1-sol       | medium  |
-| worker                   | gpt-6.1-sol       | low     |
-| explore-spark            | gpt-6-luna        | low     |
-| explore-small, verifier  | claude-haiku-5-5  | low     |
-| debugger, reviewer-deep  | claude-opus-5-5   | high    |
-| searcher-deep            | claude-sonnet-5-5 | medium  |
-| searcher                 | claude-sonnet-5-5 | low     |
+| Role                    | Alternate model   | Variant |
+| ----------------------- | ----------------- | ------- |
+| explore-max             | claude-opus-5-5   | xhigh   |
+| explore-high            | claude-sonnet-5-5 | high    |
+| explore-medium          | claude-sonnet-5-5 | medium  |
+| reviewer                | gpt-6.1-sol       | medium  |
+| worker                  | gpt-6.1-sol       | low     |
+| explore-spark           | claude-haiku-5-5  | low     |
+| explore-small, verifier | claude-haiku-5-5  | low     |
+| debugger, reviewer-deep | claude-opus-5-5   | high    |
+| searcher-deep           | claude-sonnet-5-5 | medium  |
+| searcher                | claude-sonnet-5-5 | low     |
 
-Native model IDs are explicit: `gpt-6.1-sol`, `gpt-6-luna`, `claude-opus-5-5`,
-`claude-sonnet-5-5` and `claude-haiku-5-5`. There is no Grok, free-tier, API-key
+Native model IDs are explicit: `gpt-6.1-sol`, `gpt-6.1-sol-fast`, `gpt-6-luna`,
+`gpt-6-luna-fast`, `claude-opus-5-5`, `claude-sonnet-5-5` and `claude-haiku-5-5`.
+The explore tiers lead on the ChatGPT window, medium, high and spark in fast
+mode, which is priority processing of the same model at 2.5x the included
+usage; explore-max stays on standard Sol since its xhigh runs are long and rare.
+There is no Grok, free-tier, API-key
 or environment-variable escalation; both ends must be approved native OAuth
 accounts. The plugin never buys credits, enables auto-purchase, or changes
 account settings or logins.
@@ -379,7 +384,7 @@ through `options.creditLanes`, an ordered list of provider IDs. A missing or
 empty list turns all of this off, in-flight moves included; `enabled: false`
 stops only new lane launches.
 
-- **Specialists** (the six roles with a Claude primary). A new launch takes the
+- **Specialists** (the two roles with a Claude primary). A new launch takes the
   first lane not known empty, with no subscription marker: the OAuth guards
   above do not apply to API-key requests. With every lane empty, the preflight
   above decides as before. The report carries `funding: console-credit` with

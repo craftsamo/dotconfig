@@ -1,7 +1,7 @@
 ---
 description: "Standard read-only codebase exploration: multi-file traces and how-does-X-work questions."
 mode: subagent
-model: anthropic/claude-sonnet-5-5#medium
+model: openai/gpt-6.1-sol-fast#medium
 hidden: false
 permissions:
   - { action: "*", resource: "*", effect: deny }
