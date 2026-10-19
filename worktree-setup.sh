@@ -89,17 +89,19 @@ link() {
 }
 
 echo "[private]"
-live_private=""
-[ -d "$LIVE/private" ] && live_private="$(cd "$LIVE/private" && pwd -P)"
+# The overlay is the sibling ghq checkout (nothing in this tree links to it
+# as a whole); the links to mirror are the few files the overlay places
+# inside public plugins and lib dirs, found by where they point.
+live_private="$(dirname "$LIVE")/private-dotconfig"
+[ -d "$live_private" ] && live_private="$(cd "$live_private" && pwd -P)" || live_private=""
 if [ -n "$private_dir" ]; then
   private_dir="$(cd "$private_dir" && pwd -P)"
 else
   private_dir="$live_private"
 fi
 if [ -z "$live_private" ] || [ -z "$private_dir" ]; then
-  echo "  skipped: no private overlay at $LIVE/private"
+  echo "  skipped: no private overlay beside $LIVE"
 else
-  link "$private_dir" "$WT/private"
   # --directory lists an ignored directory once instead of its contents, so
   # links inside ignored trees (venvs, node_modules) are never visited.
   while IFS= read -r rel; do
@@ -107,7 +109,6 @@ else
     [ -L "$LIVE/$rel" ] || continue
     target="$(readlink "$LIVE/$rel")"
     case "$target" in
-      "$LIVE/private/"*) sub="${target#"$LIVE/private/"}" ;;
       "$live_private/"*) sub="${target#"$live_private/"}" ;;
       *) continue ;;
     esac

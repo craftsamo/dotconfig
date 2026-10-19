@@ -150,6 +150,7 @@ def test_worker_integration(tmp_path, monkeypatch):
     # The learned library is gitignored runtime data; its size varies per machine.
     shutil.copytree(PROFILE, root / "profiles/researcher", ignore=_skip_learned)
     monkeypatch.setattr(VALIDATOR, "HERMES_ROOT", root)
+    monkeypatch.setattr(VALIDATOR, "HERMES_HOME_ROOT", tmp_path / ".hermes")
     # Only Git ownership is outside this synthetic structure test.
     monkeypatch.setattr(VALIDATOR, "validate_git_boundary", lambda *args: None)
     errors = []

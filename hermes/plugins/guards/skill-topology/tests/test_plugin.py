@@ -619,9 +619,12 @@ class PrivateOverlaySkillWriteGuardTest(unittest.TestCase):
         result = self.guard("terminal", command=f"bash -c 'rm {self.technic}'")
         self.assertEqual(result["action"], "block")
 
-    def test_default_private_root_follows_the_checkout(self) -> None:
+    def test_default_private_root_is_the_overlay_checkout(self) -> None:
         fresh = load_plugin()
-        self.assertEqual(fresh.MANAGED_ROOT.parent / "private" / "hermes", fresh.PRIVATE_ROOT)
+        self.assertEqual(
+            Path.home() / "ghq" / "github.com" / "craftsamo" / "private-dotconfig" / "hermes",
+            fresh.PRIVATE_ROOT,
+        )
 
     def test_private_learned_and_non_skill_paths_stay_writable(self) -> None:
         for path in (self.private_skills / "learned/x/SKILL.md",

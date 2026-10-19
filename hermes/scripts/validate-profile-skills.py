@@ -30,6 +30,9 @@ except ImportError:  # `uv run --script` with the inline PyYAML dependency
 
 HERMES_ROOT = Path(__file__).resolve().parents[1]
 REPO_ROOT = HERMES_ROOT.parent
+# Where Hermes runs: real directories holding links into this tree, and the
+# skills it writes itself (learned/) beside them — never inside the repository.
+HERMES_HOME_ROOT = Path.home() / ".hermes"
 ASSISTANT_PIPELINE = (
     HERMES_ROOT / "profiles" / "assistant" / "skills" / "assistant-pipeline"
 )
@@ -472,8 +475,20 @@ def validate_git_boundary(
             errors.append(f"managed skill path must be a real directory, not a symlink: {path}")
         elif path.exists() and is_ignored(path):
             errors.append(f"managed skill path is gitignored: {path}")
-    if not is_ignored(learned / ".gitignore-probe"):
-        errors.append(f"learned skill path must be gitignored: {learned}")
+    if learned.resolve().is_relative_to(REPO_ROOT.resolve()):
+        errors.append(f"learned skill path must be outside the repository: {learned}")
+
+
+def learned_root(profile: str) -> Path:
+    """The skills Hermes writes for a profile: in its home, beside the links to this tree."""
+    home = HERMES_HOME_ROOT if profile == "default" else HERMES_HOME_ROOT / "profiles" / profile
+    return home / "skills" / "learned"
+
+
+def private_config(profile_root: Path) -> Path:
+    """The profile's real config.yaml: in the private overlay, mirrored at the public
+    path (``~/.hermes`` links it from there; nothing lands in this tree)."""
+    return PRIVATE_OVERLAY / "hermes" / profile_root.relative_to(HERMES_ROOT) / "config.yaml"
 
 
 def validate_plugin_source(errors: list[str]) -> None:
@@ -598,7 +613,7 @@ def validate_plugin_enabled(profile: str, config: Path, errors: list[str]) -> No
 def validate_profile_configs(profile: str, profile_root: Path, errors: list[str]) -> None:
     """The tracked ``config.example.yaml`` always; the private ``config.yaml`` when linked."""
     validate_plugin_enabled(profile, profile_root / "config.example.yaml", errors)
-    real = profile_root / "config.yaml"
+    real = private_config(profile_root)
     if real.is_file():
         validate_plugin_enabled(profile, real, errors)
 
@@ -754,7 +769,7 @@ def validate_worker(
     pipeline_dir = skills / pipeline_name
     pipeline = pipeline_dir / "SKILL.md"
     technic_dir = skills / "technic"
-    learned_dir = skills / "learned"
+    learned_dir = learned_root(profile)
 
     if not pipeline.is_file():
         errors.append(f"missing root pipeline: {pipeline}")
@@ -1494,7 +1509,7 @@ def validate_hands(profile: str, errors: list[str]) -> tuple[dict[str, Path], in
     pipeline_name = f"{profile}-pipeline"
     pipeline_dir = skills / pipeline_name
     pipeline = pipeline_dir / "SKILL.md"
-    learned_dir = skills / "learned"
+    learned_dir = learned_root(profile)
 
     if not pipeline.is_file():
         errors.append(f"missing root pipeline: {pipeline}")
@@ -1971,7 +1986,7 @@ def validate_assistant(errors: list[str]) -> tuple[int, int, int]:
     profile_root = HERMES_ROOT / "profiles" / "assistant"
     skills = profile_root / "skills"
     technic_dir = skills / "technic"
-    learned_dir = skills / "learned"
+    learned_dir = learned_root("assistant")
 
     refs = validate_assistant_pipeline(errors)
     if not technic_dir.is_dir():
@@ -1996,9 +2011,9 @@ def validate_assistant(errors: list[str]) -> tuple[int, int, int]:
     allowed.update(learned_roots)
     validate_allowed_skill_roots(skills, allowed, errors)
 
-    config = profile_root / "config.yaml"
+    config = private_config(profile_root)
     private_technics = validate_assistant_private_technics(
-        assistant_private_technic_dir(), config, errors
+        assistant_private_technic_dir(), config, errors, own=(skills, learned_dir)
     )
     validate_assistant_dm_topics(config, errors)
 
@@ -2058,14 +2073,16 @@ def _configured_external_dirs(config: Path) -> list[Path]:
 
 
 def validate_assistant_private_technics(
-    technic_dir: Path, config: Path, errors: list[str]
+    technic_dir: Path, config: Path, errors: list[str], own: tuple[Path, ...] | None = None
 ) -> int:
     """Validate the private technic shelf the Assistant reads via external_dirs.
 
     It mirrors the public ``technic/``: flat ``<name>/SKILL.md`` leaves with
     ``metadata.hermes.category: technic``, real files only, and names unique
     across every skill source the Assistant indexes (a duplicate makes
-    ``skill_view`` refuse an ambiguous name). Returns the leaf count.
+    ``skill_view`` refuse an ambiguous name). ``own`` names the Assistant's own
+    skill sources (the tracked tree and its learned root); by default the
+    ``skills/`` beside ``config``. Returns the leaf count.
     """
     external = _configured_external_dirs(config)
     # Listing an ancestor would index assistant-pipeline a second time.
@@ -2113,7 +2130,9 @@ def validate_assistant_private_technics(
     # Every other source the Assistant indexes: its own skills dir and the
     # remaining external dirs.
     others: dict[str, Path] = {}
-    sources = [config.parent / "skills", *(d for d in external if d != resolved)]
+    if own is None:
+        own = (config.parent / "skills",)
+    sources = [*own, *(d for d in external if d != resolved)]
     for source in sources:
         for name, path in _skill_dir_names(source).items():
             others.setdefault(name, path)
@@ -2130,7 +2149,7 @@ def validate_assistant_private_technics(
 def validate_shared(errors: list[str]) -> tuple[int, int]:
     skills = HERMES_ROOT / "skills"
     default_pipeline = skills / "default-pipeline"
-    learned_dir = skills / "learned"
+    learned_dir = learned_root("default")
 
     managed: dict[str, Path] = {}
     default_skill = default_pipeline / "SKILL.md"
