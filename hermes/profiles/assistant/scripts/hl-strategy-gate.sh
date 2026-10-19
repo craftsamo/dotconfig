@@ -11,16 +11,13 @@
 
 set -u
 
-# The scheduler runs this script by its resolved path, inside the repository, so the runtime profile
-# home is not its parent: it is the scheduler's HERMES_HOME when that names this profile, else the
-# profile of that name under ~/.hermes. The multiplex gateway's process env may name another one.
+# The scheduler runs this script where install.sh copied it, <HERMES_HOME>/scripts (cron resolves
+# real paths, so a link cannot serve), so the profile home is its parent — not $HERMES_HOME, which
+# under the multiplex gateway may name another profile. The repository, where the web3 engine
+# lives, is found through the home's plugins tree: a real directory of links into it.
 here="$(cd "$(dirname "$0")" && pwd -P)"
-profile=$(basename "$(dirname "$here")")
-case "${HERMES_HOME:-}" in
-  */profiles/"$profile") home="$HERMES_HOME" ;;
-  *) home="$HOME/.hermes/profiles/$profile" ;;
-esac
-hermes="$here/../../.."
+home="$(dirname "$here")"
+hermes="$(cd "$home/plugins/web3/_shared" 2>/dev/null && pwd -P)/../../.."
 python="$hermes/local/web3/venv/bin/python"
 
 if [ ! -x "$python" ]; then

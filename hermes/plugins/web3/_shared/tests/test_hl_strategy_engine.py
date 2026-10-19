@@ -6,6 +6,7 @@ from __future__ import annotations
 from http.server import BaseHTTPRequestHandler, HTTPServer
 import json
 from pathlib import Path
+import shutil
 import subprocess
 import threading
 from urllib.parse import parse_qs, urlparse
@@ -433,26 +434,32 @@ def test_no_strategies_is_silent(api, tmp_path):
     assert gate(tmp_path / "missing", api, tmp_path) == {"wakeAgent": False}
 
 
-def test_the_cron_script_reads_the_runtime_profile_home_not_the_repository(api, tmp_path):
-    """The scheduler runs the script by its resolved path, inside the repository: the strategies are
-    found under the runtime home, from HERMES_HOME when it names the profile, else ~/.hermes."""
+def test_the_cron_script_reads_its_own_profile_home_and_finds_the_engine_through_plugins(api, tmp_path):
+    """install.sh copies the script into <HERMES_HOME>/scripts (cron resolves real paths): the
+    strategies are read from that home, whatever HERMES_HOME says, and the engine is found in the
+    repository through the home's plugins tree (a real directory of links into it)."""
     assert SCRIPT.stat().st_mode & 0o111
     home = tmp_path / ".hermes" / "profiles" / "assistant"
-    home.mkdir(parents=True)
-    (home / "scripts").symlink_to(SCRIPT.parent)
+    (home / "scripts").mkdir(parents=True)
+    copied = home / "scripts" / SCRIPT.name
+    shutil.copy2(SCRIPT, copied)
+    (home / "plugins" / "web3").mkdir(parents=True)
+    (home / "plugins" / "web3" / "_shared").symlink_to(SHARED, target_is_directory=True)
     strategy_dir(home / "hl-strategies")
-    resolved = (home / "scripts" / SCRIPT.name).resolve()
-    assert resolved == SCRIPT.resolve()
 
     def run(extra):
-        proc = subprocess.run(["/bin/bash", str(resolved)], capture_output=True, text=True, timeout=60,
-                              env={**env(tmp_path, api), **extra}, cwd=str(resolved.parent))
+        proc = subprocess.run(["/bin/bash", str(copied)], capture_output=True, text=True, timeout=60,
+                              env={**env(tmp_path, api), **extra}, cwd=str(copied.parent))
         assert proc.returncode == 0, proc.stderr
         return json.loads(proc.stdout.strip().splitlines()[-1])
 
-    assert run({})["wakeAgent"] is True  # ~/.hermes/profiles/assistant
+    assert run({})["wakeAgent"] is True
+    (home / "hl-strategies" / "trend" / "state.json").unlink()
     other = tmp_path / "elsewhere" / "profiles" / "assistant"
     other.mkdir(parents=True)
-    assert run({"HERMES_HOME": str(other)}) == {"wakeAgent": False}  # that home has no strategies
-    (home / "hl-strategies" / "trend" / "state.json").unlink()
-    assert run({"HERMES_HOME": str(tmp_path / "x" / "profiles" / "writer")})["wakeAgent"] is True
+    assert run({"HERMES_HOME": str(other)})["wakeAgent"] is True  # the gateway's env names no other home
+
+    (home / "plugins" / "web3" / "_shared").unlink()
+    proc = subprocess.run(["/bin/bash", str(copied)], capture_output=True, text=True, timeout=60,
+                          env=env(tmp_path, api), cwd=str(copied.parent))
+    assert proc.returncode == 1 and "web3 engine is not installed" in proc.stderr
