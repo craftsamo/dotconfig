@@ -1,6 +1,7 @@
 """Video inspections route to one technic that orchestrates, never produces;
 its genre references name the items and the picture leaf."""
 
+import json
 from pathlib import Path
 import unittest
 
@@ -30,7 +31,14 @@ class VideoInspectionRouting(unittest.TestCase):
         for genre in ("explainer",):
             self.assertTrue((TECHNIC / f"references/{genre}.md").is_file(), genre)
             self.assertIn(f"](references/{genre}.md)", body, genre)
+            catalog = json.loads((TECHNIC / f"references/{genre}.json").read_text())
+            self.assertEqual(catalog["genre"], genre)
+            self.assertTrue(catalog["aspects"])
         self.assertIn("Read the genre reference at step 1", body)
+        for step in ("inspection.py aspects <genre>", "inspection.py init ledger.json --genre <genre>",
+                     "inspection.py focus ledger.json focus-video.txt --route video-creator",
+                     "ask that each finding name its item"):
+            self.assertIn(step, body)
 
     def test_entries_load_the_technic(self):
         for entry in ("execute-assistant-creative/SKILL.md", "chat-assistant/SKILL.md"):
@@ -56,7 +64,7 @@ class VideoInspectionRouting(unittest.TestCase):
         text = flat(TECHNIC / "references/explainer.md")
         for rule in ("video-creator's `analyze-explainer-video`", 'one `specialist_call(kind="work")` conversation per video',
                      "at most 600 seconds", "`remote_analysis`: `no` unless the user consented",
-                     "| Aspect | Kind | Items", "| voice | reading |", "| content | figure |",
+                     "`inspection.py aspects explainer`", "| Aspect | Kinds | Who looks |",
                      "likeness itself is the user's call", "never says whether a portrait looks like a real person",
                      'skill_view(name="explainer-series-notes")', "absent on a machine without it",
                      "never written into a learned skill", "`--ignore` file"):
