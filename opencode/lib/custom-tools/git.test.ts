@@ -1099,8 +1099,9 @@ describe("git_stack", () => {
       { re: "^stack link --base main 3 5 6$", out: "linked" },
       { re: "^api ", out: "null" },
     ]
-    const { token } = preview(f, [stack, repoView, { re: "^pr list", out: JSON.stringify([existing]) }]).out
-    const res = publish(f, { action: "submit", token, prs: [{ branch: "x/l2", title: "Layer two", body: "Refs #1" }] }, rules)
+    const prs = [{ branch: "x/l2", title: "Layer two", body: "Refs #1" }]
+    const { token } = runWithFakeGh(f, { module: "git", name: "publish_preview", args: { prs } }, [stack, repoView, { re: "^pr list", out: JSON.stringify([existing]) }]).out
+    const res = publish(f, { action: "submit", token, prs }, rules)
     expect(res.out).toMatchObject({ published: true, link: { ok: true } })
     expect(res.calls.some((c) => /^stack (push|submit|sync)/.test(c))).toBe(false)
     expect(res.calls.some((c) => c.startsWith("pr ready") || c.includes("--draft"))).toBe(false)
@@ -1197,11 +1198,82 @@ describe("git_stack", () => {
         { re: "^pr create --repo o/r --base main --head feat --title Plain change --body-file ", out: "https://github.com/o/r/pull/8\n" },
         { re: "^api ", out: "null" },
       ]
-      const { token } = preview(f, [noStack, repoView, noPRs]).out
-      const res = publish(f, { action: "submit", token, prs: [{ branch: "feat", title: "Plain change", body: "Why" }] }, rules)
+      const prs = [{ branch: "feat", title: "Plain change", body: "Why" }]
+      const { token } = runWithFakeGh(f, { module: "git", name: "publish_preview", args: { prs } }, [noStack, repoView, noPRs]).out
+      const res = publish(f, { action: "submit", token, prs }, rules)
       expect(res.out).toMatchObject({ published: true, nativeStack: null })
       expect(res.out.layers[0]).toMatchObject({ pushed: true, pr: { number: 8, base: "main" } })
       expect(res.calls.some((c) => c.startsWith("stack link"))).toBe(false)
+    })
+
+    describe("text", () => {
+      const withPrs = (f: Fixture, prs: any) => runWithFakeGh(f, { module: "git", name: "publish_preview", args: { prs } }, [noStack, repoView, noPRs]).out
+
+      test("shows the titles and bodies, pins them in the token, and refuses a submit with other words", () => {
+        const f = repo()
+        threeCommits(f)
+        const prs = [{ branch: "feat", title: "Add the thing", body: "## Summary\n\nIt adds the thing." }]
+        const shown = withPrs(f, prs)
+        expect(shown.text).toMatchObject({ pass: true })
+        expect(shown.text.items.map((t: any) => [t.field, t.text])).toEqual([
+          ["title", "Add the thing"],
+          ["body", "## Summary\n\nIt adds the thing."],
+        ])
+        expect(shown.token).not.toBe(preview(f, [noStack, repoView, noPRs]).out.token)
+        const rules = [noStack, repoView, noPRs, { re: "^api repos/o/r/branches/feat --jq", out: sha(f, "feat") }, { re: "^api ", out: "null" }]
+        expect(publish(f, { action: "submit", token: shown.token }, rules).error).toContain("changed since the preview")
+        expect(publish(f, { action: "submit", token: shown.token, prs: [{ ...prs[0], title: "Other" }] }, rules).error).toContain("changed since the preview")
+        expect(publish(f, { action: "push", token: shown.token, prs }, rules).error).toContain("set with submit")
+      })
+
+      test("reads the text for working context the repository's reader cannot resolve", () => {
+        const f = repo()
+        threeCommits(f)
+        const body = [
+          "Layer 2 of Phase 3 (決定 #66). Checked with git_verify_commits; the reviewer agreed.",
+          "The emulator did not run: no Java at /Users/me/sdk, and CI is off since billing was suspended.",
+          "See ~/Workspaces/job/decisions.md for why.",
+        ].join("\n")
+        const shown = withPrs(f, [{ branch: "feat", title: "段 B の 3 層目: add the thing", body }])
+        expect(shown.text.pass).toBe(false)
+        const rules = (field: string) => shown.text.items.find((t: any) => t.field === field).findings.map((x: any) => x.rule)
+        expect(rules("title")).toEqual(["plan-label"])
+        expect(rules("body")).toEqual(["plan-label", "working-record", "tooling", "build-machine", "organisation"])
+        expect(shown.text.items.find((t: any) => t.field === "body").text).toBe(body)
+        expect(shown.warnings.some((w: string) => w.startsWith('feat title: "段 B"'))).toBe(true)
+        expect(shown.refusals).toEqual([])
+      })
+
+      test("reads commit subjects and the branch name too, and passes ordinary text", () => {
+        const f = repo()
+        threeCommits(f)
+        f.git("checkout", "-q", "-b", "task/phase-1-shell")
+        f.commit("feat(admin): Phase 1 shell", { "e.txt": "e\n" })
+        const shown = runWithFakeGh(f, { module: "git", name: "publish_preview", args: {} }, [noStack, repoView, noPRs]).out
+        expect(shown.text.items.map((t: any) => [t.field, t.text.replace(/^[0-9a-f]+ /, "")])).toEqual([
+          ["branch", "task/phase-1-shell"],
+          ["commit", "feat(admin): Phase 1 shell"],
+        ])
+        expect(shown.text.pass).toBe(false)
+
+        const g = repo()
+        threeCommits(g)
+        const clean = withPrs(g, [{ branch: "feat", title: "Show the step 3 of the migration guide", body: "Replaces the 3 段 layout and the billing page; Refs #12." }])
+        expect(clean.text.pass).toBe(true)
+        expect(clean.warnings).toEqual([])
+      })
+
+      test("refuses text for a branch it does not publish, or given twice", () => {
+        const f = repo()
+        threeCommits(f)
+        expect(runWithFakeGh(f, { module: "git", name: "publish_preview", args: { prs: [{ branch: "other", title: "x" }] } }, [noStack, repoView, noPRs]).error).toContain(
+          "not being published here",
+        )
+        expect(
+          runWithFakeGh(f, { module: "git", name: "publish_preview", args: { prs: [{ branch: "feat", title: "x" }, { branch: "feat", body: "y" }] } }, [noStack, repoView, noPRs])
+            .error,
+        ).toContain("twice")
+      })
     })
 
     const metaRules = [
@@ -1413,16 +1485,17 @@ describe("git_stack", () => {
           { re: "^pr create --repo o/r --base main --head feat --title Plain change --body-file ", out: "https://github.com/o/r/pull/8\n", code: createCode },
           { re: "^api ", out: "null" },
         ]
-        const { token } = withArgs(f, { attachments }, [noStack, repoView, noPRs, ghNew]).out
+        const prs = [{ branch: "feat", title: "Plain change", body: "![Login](./shot.png)" }]
+        const { token } = withArgs(f, { attachments, prs }, [noStack, repoView, noPRs, ghNew]).out
         expect(publish(f, { action: "push", token, attachments }, rules(0)).error).toContain("submit")
-        const args = { action: "submit", token, attachments, prs: [{ branch: "feat", title: "Plain change", body: "![Login](./shot.png)" }] }
+        const args = { action: "submit", token, attachments, prs }
         const ok = publish(f, args, rules(0))
         expect(ok.calls.find((c) => c.startsWith("pr create"))).toEndWith(`--attach=${path}#Login screen`)
         expect(ok.out).toMatchObject({ published: true, attachments: { sent: [{ branch: "feat", pr: 8, files: [path] }] } })
         expect(ok.out.attachments.errors).toBeUndefined()
 
         // The first publication pushed feat, so the remote moved: preview again.
-        const again = withArgs(f, { attachments }, [noStack, repoView, noPRs, ghNew]).out.token
+        const again = withArgs(f, { attachments, prs }, [noStack, repoView, noPRs, ghNew]).out.token
         const partial = publish(f, { ...args, token: again }, rules(1))
         expect(partial.out).toMatchObject({ published: true, layers: [{ pr: { number: 8 } }] })
         expect(partial.out.attachments.errors[0]).toContain("#8 was opened")
@@ -1459,7 +1532,8 @@ describe("git_stack", () => {
         const existing = { number: 4, headRefName: "feat", baseRefName: "main", isDraft: false, url: "u4", isCrossRepository: false, autoMergeRequest: null }
         const listed = { re: "^pr list --repo o/r --state open", out: JSON.stringify([existing]) }
         const attachments = [{ branch: "feat", path }]
-        const shown = withArgs(f, { attachments }, [noStack, repoView, listed, ghNew]).out
+        const prs = [{ branch: "feat", title: "New title" }]
+        const shown = withArgs(f, { attachments, prs }, [noStack, repoView, listed, ghNew]).out
         expect(shown.warnings.join("\n")).toContain("already has PR #4")
         const rules = (attachCode: number) => [
           noStack,
@@ -1471,7 +1545,7 @@ describe("git_stack", () => {
           { re: "^pr edit 4 --repo o/r --attach=", out: "u4\n", code: attachCode },
           { re: "^api ", out: "null" },
         ]
-        const args = { action: "submit", token: shown.token, attachments, prs: [{ branch: "feat", title: "New title" }] }
+        const args = { action: "submit", token: shown.token, attachments, prs }
         const res = publish(f, args, rules(0))
         // The title goes alone first, so an upload failure can only be the second call's.
         expect(res.calls.filter((c) => c.startsWith("pr edit 4"))).toEqual(["pr edit 4 --repo o/r --title New title", `pr edit 4 --repo o/r --attach=${path}`])

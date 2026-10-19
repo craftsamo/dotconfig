@@ -185,9 +185,15 @@ configured.
   PR, plain or stacked, arrives as a `git_publish` request (push, submit or
   link). The request carries only a preview token: approve it against the
   `git_publish_preview` the build reported (the base, each layer, its commits,
-  its PR and whether it is force-pushed), and ask for that preview first if it
-  did not; the metadata it judged (labels, assignees, review requests, a
-  milestone) is set with that approval. Metadata on an existing PR is applied
+  its PR, whether it is force-pushed, and under `text` the PR titles and
+  bodies a submit will set, with what they trip), and ask for that preview
+  first if it did not; the metadata it judged (labels, assignees, review
+  requests, a milestone) is set with that approval. The titles and bodies are
+  pinned in the token, so what you read is what is published. The preview
+  only flags what trips a pattern; you read the whole text as someone who
+  has only the repository, and reject the request, with the words to change,
+  when it names a Phase, a decision number, the tools or agents that did the
+  work, a local path or this machine's or account's state. Metadata on an existing PR is applied
   without asking when nothing reacts to it; the rest arrives as a
   `gh_pr_meta_apply` request, to approve against the reasons the build
   reported (a workflow, a merge bot, a webhook, or the people it notifies).

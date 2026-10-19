@@ -76,6 +76,14 @@ REPORT_NOTE = (
 # A write run learns whether Issue writes are granted here rather than by trying one.
 ISSUE_NOTE = {True: "Managing this job in Issues is granted.",
               False: "Issue writes are not granted for this job: leave Issues as they are."}
+# The brief, the decision log and the Phase plan are this run's working context; what
+# reaches the repository is read by people who have none of it.
+PUBLISHED_NOTE = (
+    "The brief, the decision log, the Phase names and this note are working context (the progress file keeps "
+    "them; it is for this run alone): a commit subject, branch name, PR title or body, or Issue text is read "
+    "by someone who has only the repository, so none of them names a Phase, a decision number, the tools or "
+    "agents that did the work, a local path or anything about this machine or account; show the titles and "
+    "bodies in git_publish_preview before publishing.")
 READ_ONLY_NOTE = (
     "This run is read-only. Prefer the read, grep and glob tools to shell commands. Every inline "
     "interpreter (`python3 -c`, `node -e`), pipe, chain or unlisted command waits for Hermes to approve "
@@ -219,7 +227,7 @@ def _instructions(role, output=None, issues=False):
     never consulted to authorize) and the ruleset enforces it, so neither it nor the output
     directory is added to the prompt."""
     read_only = role["policy"] == "read-only"
-    text = DEFAULT_NOTE + " " + SHELL_NOTE + " " + (READ_ONLY_NOTE if read_only else ISSUE_NOTE[bool(issues)])
+    text = DEFAULT_NOTE + " " + SHELL_NOTE + " " + (READ_ONLY_NOTE if read_only else ISSUE_NOTE[bool(issues)] + " " + PUBLISHED_NOTE)
     if output:
         text += " " + OUTPUT_NOTE.format(path=output)
         text += " " + (REPORT_NOTE if read_only else PROGRESS_NOTE.format(path=str(Path(output) / progress.FILE)))
