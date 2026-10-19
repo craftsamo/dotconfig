@@ -29,6 +29,14 @@ def load_module():
 
 
 review = load_module()
+# The explainer catalog is the fixture's aspects; a test that wants other
+# aspects writes its own ``aspects`` list.
+CATALOG = json.loads((SCRIPT.parent.parent / "references" / "explainer.json").read_text(encoding="utf-8"))
+
+
+def aspects(*ids):
+    """A deep copy of the catalog's aspects, all of them or the named ones."""
+    return [json.loads(json.dumps(a)) for a in CATALOG["aspects"] if not ids or a["id"] in ids]
 
 
 def finding(fid, episode, at, problem, status="keep", certainty="certain", quotes=(), aspect="text"):
@@ -71,6 +79,7 @@ class LedgerCase(unittest.TestCase):
         self.tmp.cleanup()
 
     def write(self, data):
+        data.setdefault("aspects", aspects())
         self.ledger.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
 
     def data(self):
@@ -642,6 +651,258 @@ class Spreadsheet(LedgerCase):
         code, _, err = self.run_cli("readback", str(self.ledger), str(values))
         self.assertEqual(code, 2)
         self.assertIn("no id column", err)
+
+
+class Aspects(LedgerCase):
+    """The items a job looks for come from a genre catalog, live in the ledger,
+    and drive import, kinds, focus and the sheet."""
+
+    def test_every_catalog_beside_the_script_is_valid(self):
+        catalogs = sorted((SCRIPT.parent.parent / "references").glob("*.json"))
+        self.assertTrue(catalogs)
+        for path in catalogs:
+            with self.subTest(catalog=path.name):
+                catalog = review.load_catalog(path.stem)
+                self.assertEqual(catalog["genre"], path.stem)
+                self.assertEqual(review.aspect_problems(catalog["aspects"]), [])
+                for aspect in catalog["aspects"]:
+                    self.assertIn("ja", aspect["label"], aspect["id"])
+                    for kind in aspect.get("kinds") or []:
+                        self.assertIn("ja", kind["label"], kind["id"])
+                self.assertNotIn("overall", [a["id"] for a in catalog["aspects"]])
+        code, out, _ = self.run_cli("genres")
+        self.assertEqual(code, 0)
+        self.assertIn("explainer", json.loads(out)["genres"])
+
+    def test_aspect_problems_name_each_shape_error(self):
+        broken = [
+            {"id": "Text", "label": {"en": "x"}, "route": "video-creator", "items": []},
+            {"id": "a", "label": {"ja": "字"}, "route": "nobody", "items": [{"id": "i"}]},
+            {"id": "b", "label": {"en": "b"}, "route": "user",
+             "kinds": [{"id": "k", "label": {"en": "k"}, "default": True, "hint": "(", "items": []},
+                       {"id": "k", "label": {"en": "k"}, "default": True, "sources": ["x"],
+                        "items": [{"id": "i", "look_for": "dup", "certainty": "maybe"}]}]},
+            {"id": "overall", "label": {"en": "o"}, "route": "assistant", "items": []},
+        ]
+        errors = review.aspect_problems(broken)
+        for expected in ("needs a lowercase id", "label needs at least an en wording", "route must be one of",
+                         "look_for is empty", "hint is not a regex", "duplicate kind id k", "duplicate item id i",
+                         "sources must list finding sources", "certainty must be certain or confirm",
+                         "at most one default kind", "overall is built in"):
+            self.assertTrue(any(expected in e for e in errors), (expected, errors))
+
+    def test_validate_wants_aspects_and_checks_findings_against_them(self):
+        data = self.data()
+        del data["aspects"]
+        self.ledger.write_text(json.dumps(data), encoding="utf-8")
+        code, out, _ = self.run_cli("validate", str(self.ledger))
+        self.assertEqual(code, 1)
+        self.assertIn("inspection.py init", out)
+        data["aspects"] = aspects("text", "content")  # no voice: F004 is now an unknown aspect
+        data["findings"][0]["item"] = "hands"  # a content item on a text finding
+        data["findings"][2].update({"kind": "fact", "item": "glitch"})  # a figure item on a fact finding
+        self.write(data)
+        code, out, _ = self.run_cli("validate", str(self.ledger))
+        self.assertEqual(code, 1)
+        self.assertIn("F004: aspect must be one of text, content, overall", out)
+        self.assertIn("F001: item 'hands' is not an item of 'text'/None", out)
+        self.assertIn("F003: item 'glitch' is not an item of 'content'/'fact'", out)
+        self.assertIn("checked must list aspects from text, content", self.sheet_errors(data))
+
+    def sheet_errors(self, data):
+        data["episodes"][0]["checked"] = ["voice"]
+        self.write(data)
+        _, out, _ = self.run_cli("validate", str(self.ledger))
+        return out
+
+    def test_init_copies_the_chosen_aspects_and_never_overwrites(self):
+        fresh = self.dir / "fresh.json"
+        code, out, _ = self.run_cli("init", str(fresh), "--genre", "explainer", "--aspects", "text,thumbnail",
+                                    "--job", "demo", "--language", "ja", "--sheet-language", "ja")
+        self.assertEqual(code, 0, out)
+        self.assertEqual(json.loads(out)["aspects"], ["text", "thumbnail"])
+        data = json.loads(fresh.read_text(encoding="utf-8"))
+        self.assertEqual((data["genre"], data["job"], data["language"], data["sheet_language"]),
+                         ("explainer", "demo", "ja", "ja"))
+        self.assertEqual([a["id"] for a in data["aspects"]], ["text", "thumbnail"])
+        self.assertEqual((data["episodes"], data["findings"], data["listen"]), ([], [], []))
+        code, _, err = self.run_cli("init", str(fresh), "--genre", "explainer")
+        self.assertEqual(code, 2)
+        self.assertIn("never overwrites", err)
+        code, _, err = self.run_cli("init", str(self.dir / "x.json"), "--genre", "explainer", "--aspects", "mood")
+        self.assertEqual(code, 2)
+        self.assertIn("not in the explainer catalog: mood", err)
+        code, _, err = self.run_cli("init", str(self.dir / "y.json"), "--genre", "sitcom")
+        self.assertEqual(code, 2)
+        self.assertIn("no catalog for genre 'sitcom'", err)
+
+    def test_focus_lists_one_routes_items_with_their_path(self):
+        out = self.dir / "focus.txt"
+        code, text, _ = self.run_cli("focus", str(self.ledger), str(out), "--route", "video-creator")
+        self.assertEqual(code, 0, text)
+        lines = out.read_text(encoding="utf-8").splitlines()
+        self.assertIn("content/figure/hands: a drawn hand with the wrong number of fingers or an impossible grip", lines)
+        self.assertTrue(any(line.startswith("portrait/drawing: ") for line in lines))
+        self.assertFalse(any(line.startswith(("voice/", "thumbnail/", "content/fact/")) for line in lines))
+        self.assertFalse(any("likeness" in line for line in lines), "the user's item is not the hands'")
+        code, text, _ = self.run_cli("focus", str(self.ledger), str(out), "--route", "user")
+        self.assertEqual(code, 0, text)
+        self.assertEqual(out.read_text(encoding="utf-8").splitlines(),
+                         ["portrait/likeness: whether the portrait looks like the person; the user's call, "
+                          "prepared with the reference photos beside each frame (confirm: needs the user's eyes or ears)"])
+        code, text, _ = self.run_cli("focus", str(self.ledger), str(out), "--route", "researcher")
+        self.assertEqual((code, json.loads(text)["items"]), (1, 0))
+        code, _, err = self.run_cli("focus", str(self.ledger), str(out), "--route", "nobody")
+        self.assertEqual(code, 2)
+
+    def test_import_places_a_finding_by_its_item(self):
+        findings = self.dir / "findings.md"
+        findings.write_text(
+            "0:10 | content | hands: the mascot's left hand has six fingers | d1.png | certain\n"
+            "0:20 | pseudo-text | the whiteboard carries letter-like marks | d2.png | certain\n"
+            "0:30 | portrait | likeness: looks like the CEO | d3.png | certain\n"
+            "0:40 | text | hands: an item of another aspect | d4.png | certain\n"
+            "0:50 | fact | glitch: an item of another kind | d5.png | certain\n",
+            encoding="utf-8",
+        )
+        code, out, _ = self.run_cli("import", str(self.ledger), "#1", str(findings), "--source", "video-creator")
+        self.assertEqual(code, 1)
+        result = json.loads(out)
+        self.assertEqual(result["added"], ["F005", "F006", "F007"])
+        self.assertEqual(len(result["not_imported"]), 2)
+        rows = {f["id"]: f for f in self.data()["findings"]}
+        self.assertEqual((rows["F005"]["aspect"], rows["F005"]["kind"], rows["F005"]["item"]),
+                         ("content", "figure", "hands"))
+        self.assertEqual(rows["F005"]["problem"], "the mascot's left hand has six fingers")
+        self.assertEqual((rows["F006"]["aspect"], rows["F006"]["kind"], rows["F006"]["item"]),
+                         ("content", "figure", "pseudo-text"))
+        self.assertEqual((rows["F007"]["aspect"], rows["F007"].get("kind"), rows["F007"]["item"],
+                          rows["F007"]["certainty"]), ("portrait", None, "likeness", "confirm"))
+        code, out, _ = self.run_cli("validate", str(self.ledger))
+        self.assertEqual(code, 0, out)
+
+    def test_kinds_follow_the_ledgers_sources_hints_and_default(self):
+        data = self.data()
+        data["findings"] = [
+            finding("F001", "#1", "0:01", "the year is stated nowhere official", status="open", aspect="content"),
+            finding("F002", "#1", "0:02", "the counter shows 3 then 2", status="open", aspect="content"),
+            finding("F003", "#1", "0:03", "hard to follow", status="open", aspect="content"),
+            finding("F004", "#1", "0:04", "anything at all", status="open", aspect="thumbnail"),
+        ]
+        data["findings"][0]["source"] = "researcher"
+        data["findings"][2]["evidence"] = "note"  # the fixture's "frame" would read as a figure
+        self.write(data)
+        code, out, _ = self.run_cli("kinds", str(self.ledger))
+        self.assertEqual(code, 0, out)
+        self.assertEqual(json.loads(out)["inferred"], {"F001": "fact", "F002": "figure", "F003": "clarity"})
+        data = self.data()
+        data["aspects"].append({"id": "music", "label": {"en": "Music"}, "route": "audio-creator",
+                                "kinds": [{"id": "loud", "label": {"en": "Music: loud"}, "hint": "loud",
+                                           "items": []},
+                                          {"id": "quiet", "label": {"en": "Music: quiet"}, "items": []}]})
+        data["findings"].append(finding("F005", "#1", "0:05", "the bed is neither", status="open", aspect="music"))
+        self.write(data)
+        code, out, _ = self.run_cli("kinds", str(self.ledger))
+        self.assertEqual(code, 1)
+        self.assertEqual(json.loads(out)["unresolved"], ["F005"])  # no hint matched and no default
+
+    def test_the_sheet_speaks_the_ledgers_labels(self):
+        data = self.data()
+        data["sheet_language"] = "ja"
+        data["aspects"] = aspects("text", "voice") + [
+            {"id": "music", "label": {"en": "Music", "ja": "音楽"}, "route": "audio-creator",
+             "items": [{"id": "loud", "look_for": "the bed covers the voice"}]}]
+        data["findings"] = [dict(finding("F001", "#1", "0:01", "too loud", aspect="music"), item="loud"),
+                            dict(finding("F002", "#1", "0:02", "x", aspect="text"), kind="typo")]
+        data["episodes"][0]["checked"] = ["text", "music"]
+        self.write(data)
+        out = self.dir / "export.json"
+        code, _, err = self.run_cli("export", str(self.ledger), str(out))
+        self.assertEqual(code, 0, err)
+        export = json.loads(out.read_text(encoding="utf-8"))
+        self.assertEqual(export["kinds"], ["字・不一致", "字・かぶり", "字・誤字", "声・緩急", "声・読み", "音楽", "全体"])
+        self.assertEqual(export["tabs"]["findings"]["rows"][0][3], "音楽")
+        self.assertEqual(export["tabs"]["findings"]["rows"][1][3], "字・誤字")
+        text = self.sheet()
+        self.assertIn("確認した観点：字・音楽　／　未確認：声", text)
+        self.assertIn("音楽：too loud", text)
+
+    def test_upgrade_gives_an_old_ledger_the_catalog(self):
+        data = self.data()
+        del data["aspects"]
+        data["findings"][0]["kind"] = "overlap"
+        self.ledger.write_text(json.dumps(data), encoding="utf-8")
+        code, out, _ = self.run_cli("upgrade", str(self.ledger), "--genre", "explainer")
+        self.assertEqual(code, 0, out)
+        self.assertEqual(json.loads(out)["findings"], 4)
+        data = self.data()
+        self.assertEqual(data["genre"], "explainer")
+        self.assertEqual([a["id"] for a in data["aspects"]], ["text", "voice", "content", "thumbnail", "portrait"])
+        code, _, _ = self.run_cli("validate", str(self.ledger))
+        self.assertEqual(code, 0)
+        code, _, err = self.run_cli("upgrade", str(self.ledger), "--genre", "explainer")
+        self.assertEqual(code, 2)
+        self.assertIn("already has aspects", err)
+        data["findings"][0]["aspect"] = "mood"
+        del data["aspects"]
+        self.ledger.write_text(json.dumps(data), encoding="utf-8")
+        code, _, err = self.run_cli("upgrade", str(self.ledger), "--genre", "explainer")
+        self.assertEqual(code, 2)
+        self.assertIn("do not fit the catalog", err)
+
+    def test_ids_share_one_namespace(self):
+        clash = aspects("text")
+        clash[0]["kinds"][0]["items"].append({"id": "overlap", "look_for": "an item named like a kind"})
+        self.assertTrue(any("duplicate kind id overlap" in e for e in review.aspect_problems(clash)))
+        clash = aspects("text") + [{"id": "typo", "label": {"en": "x"}, "route": "user", "items": []}]
+        self.assertTrue(any("duplicate aspect id typo" in e for e in review.aspect_problems(clash)))
+        clash = aspects("thumbnail", "portrait")
+        clash[1]["items"].append({"id": "topic", "look_for": "an item named like another aspect's item"})
+        self.assertTrue(any("duplicate item id topic" in e for e in review.aspect_problems(clash)))
+
+    def test_kinds_take_the_items_kind_first(self):
+        data = self.data()
+        data["findings"] = [dict(finding("F001", "#1", "0:01", "the counter is official", status="open",
+                                         aspect="content"), item="hands")]
+        data["findings"][0]["source"] = "researcher"  # sources would say fact; the item says figure
+        self.write(data)
+        code, out, _ = self.run_cli("kinds", str(self.ledger))
+        self.assertEqual(code, 0, out)
+        self.assertEqual(json.loads(out)["inferred"], {"F001": "figure"})
+        self.assertEqual(review.problems(self.data(), final=False), [])
+
+    def test_validate_keeps_a_confirm_item_from_being_certain(self):
+        data = self.data()
+        data["findings"].append(dict(finding("F005", "#1", "0:05", "looks like him", aspect="portrait"), item="likeness"))
+        self.write(data)
+        code, out, _ = self.run_cli("validate", str(self.ledger))
+        self.assertEqual(code, 1)
+        self.assertIn("F005: item 'likeness' needs the user's eyes or ears; certainty must be confirm", out)
+
+    def test_triage_drops_an_item_of_the_other_kind(self):
+        data = self.data()
+        data["findings"] = []
+        self.write(data)
+        speech = self.dir / "speech"
+        speech.mkdir()
+        (speech / "findings.md").write_text("0:20 | voice | jump: 「1040億」→「1400億」 | ASR | confirm\n", encoding="utf-8")
+        code, out, _ = self.run_cli("triage-speech", str(self.ledger), "#1", str(speech))
+        self.assertEqual(code, 0, out)
+        row = self.data()["findings"][-1]
+        self.assertEqual((row["kind"], row.get("item")), ("reading", None))
+        self.assertEqual(review.problems(self.data(), final=False), [])
+
+    def test_triage_needs_the_voice_kinds(self):
+        data = self.data()
+        data["aspects"] = aspects("text")
+        data["findings"] = []
+        self.write(data)
+        speech = self.dir / "speech"
+        speech.mkdir()
+        (speech / "findings.md").write_text("0:12 | voice | 「10」→「1」 | ASR | confirm\n", encoding="utf-8")
+        code, _, err = self.run_cli("triage-speech", str(self.ledger), "#1", str(speech))
+        self.assertEqual(code, 2)
+        self.assertIn("no voice aspect with reading and delivery kinds", err)
 
 
 if __name__ == "__main__":

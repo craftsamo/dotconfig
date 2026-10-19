@@ -1,0 +1,167 @@
+{
+  "genre": "explainer",
+  "label": {"en": "Explainer video", "ja": "解説動画"},
+  "aspects": [
+    {
+      "id": "text",
+      "label": {"en": "Text", "ja": "字"},
+      "route": "video-creator",
+      "kinds": [
+        {
+          "id": "mismatch",
+          "label": {"en": "Text: mismatch", "ja": "字・不一致"},
+          "hint": "mismatch|differs|does not match|不一致|違う|ずれ|\\blate\\b|\\bearly\\b|遅れ|早い",
+          "items": [
+            {"id": "caption-voice", "certainty": "confirm",
+             "look_for": "a caption line whose words differ from what the voice says; either side may be wrong, the user decides"},
+            {"id": "caption-picture",
+             "look_for": "a caption that names something the picture does not show, or a picture that shows a value the caption does not carry"},
+            {"id": "timing",
+             "look_for": "a caption that appears more than a second late or early, or stays after the next line is spoken"}
+          ]
+        },
+        {
+          "id": "overlap",
+          "label": {"en": "Text: overlap", "ja": "字・かぶり"},
+          "hint": "overlap|hidden|hides|\\bhid\\b|cover|cut off|\\bsmall\\b|かぶ|重な|隠|覆|はみ出|切れ|小さ",
+          "items": [
+            {"id": "hidden",
+             "look_for": "an element that hides information: a caption over a figure's label, a countdown ring over a card's first letter, a lower third over a chart axis"},
+            {"id": "cut-off",
+             "look_for": "text cut by the frame edge or outside the safe area"},
+            {"id": "phone-size",
+             "look_for": "text too small to read at phone width; the leaf measures its height in pixel rows and names the threshold"}
+          ]
+        },
+        {
+          "id": "typo",
+          "label": {"en": "Text: typo", "ja": "字・誤字"},
+          "default": true,
+          "items": [
+            {"id": "misspelling",
+             "look_for": "a word on screen or in a caption that is misspelt or mistyped"},
+            {"id": "misconversion",
+             "look_for": "a caption word converted to the wrong homophone (誤変換): the kanji does not fit the meaning the voice carries"},
+            {"id": "notation",
+             "look_for": "the same term written two ways across captions or episodes (表記ゆれ); a number or unit format that differs from the rest"}
+          ]
+        }
+      ]
+    },
+    {
+      "id": "voice",
+      "label": {"en": "Voice", "ja": "声"},
+      "route": "audio-creator",
+      "kinds": [
+        {
+          "id": "delivery",
+          "label": {"en": "Voice: delivery", "ja": "声・緩急"},
+          "hint": "\\bdB\\b|\\bst\\b|prosody|pitch|\\blevel\\b|音量|高さ|抑揚|緩急|跳|間が|空白|無音|buried|埋も|\\bfast\\b|速",
+          "items": [
+            {"id": "jump", "certainty": "confirm",
+             "look_for": "a pitch or level jump inside one caption line against the previous segment"},
+            {"id": "uncaptioned",
+             "look_for": "speech the captions do not carry"},
+            {"id": "buried", "certainty": "confirm",
+             "look_for": "a passage the music or an effect covers so the words cannot be made out"},
+            {"id": "pace", "certainty": "confirm",
+             "look_for": "a line read too fast to follow, or a pause that breaks a sentence"}
+          ]
+        },
+        {
+          "id": "reading",
+          "label": {"en": "Voice: reading", "ja": "声・読み"},
+          "default": true,
+          "items": [
+            {"id": "number", "certainty": "confirm",
+             "look_for": "a number, unit or date read as another value (1040 as 1400; 万 and 億 swapped)"},
+            {"id": "name", "certainty": "confirm",
+             "look_for": "a person, company or product name read wrongly or with an accent that changes it"},
+            {"id": "foreign-term", "certainty": "confirm",
+             "look_for": "a Latin-script or loan term read letter by letter or as another word"},
+            {"id": "kanji", "certainty": "confirm",
+             "look_for": "a kanji word read with the wrong reading where the meaning changes"}
+          ]
+        }
+      ]
+    },
+    {
+      "id": "content",
+      "label": {"en": "Content", "ja": "中身"},
+      "route": "video-creator",
+      "kinds": [
+        {
+          "id": "fact",
+          "label": {"en": "Content: fact", "ja": "中身・事実"},
+          "route": "searcher",
+          "sources": ["searcher", "researcher"],
+          "hint": "一次情報|出典|公式|発表|報道|統計|source|official|first-party|年が|年は|数が|refut|言い過ぎ",
+          "items": [
+            {"id": "figure-claim",
+             "look_for": "a figure, date, rank or share a first-party source does not support (tier A)"},
+            {"id": "attribution",
+             "look_for": "a quote, decision or intent attributed to a real person or company that sources do not support (tier B)"},
+            {"id": "overstatement",
+             "look_for": "a claim worded stronger than its source allows"}
+          ]
+        },
+        {
+          "id": "figure",
+          "label": {"en": "Figure", "ja": "図"},
+          "hint": "図|絵|動き|コマ|フレーム|カウンタ|波|矢印|アニメ|指の本数|手の指|融合|貫通|文字化け|\\bmotion\\b|\\bframes?\\b|\\bdiagram\\b|\\bcounter\\b|\\bfigures?\\b|\\bfingers?\\b|\\bhands?\\b|\\blimbs?\\b|\\bmerged?\\b|\\bpseudo|\\bglitch",
+          "items": [
+            {"id": "value",
+             "look_for": "a diagram, counter or animated number whose value, direction or order does not match the caption or the voice"},
+            {"id": "hands",
+             "look_for": "a drawn hand with the wrong number of fingers or an impossible grip"},
+            {"id": "limbs",
+             "look_for": "a figure with a missing, extra or wrongly bent limb, or a face with misplaced parts"},
+            {"id": "merged",
+             "look_for": "objects fused into each other or passing through each other"},
+            {"id": "pseudo-text",
+             "look_for": "letter-like marks in the picture that spell nothing, or a logo or sign with wrong letters"},
+            {"id": "glitch",
+             "look_for": "a broken or skipped frame, a flash, or an element that pops in without motion"}
+          ]
+        },
+        {
+          "id": "clarity",
+          "label": {"en": "Content: clarity", "ja": "中身・分かりにくさ"},
+          "default": true,
+          "items": [
+            {"id": "skipped-step",
+             "look_for": "a step the explanation skips so the next one cannot be followed"},
+            {"id": "undefined-term",
+             "look_for": "a term used before it is defined, or never defined"},
+            {"id": "wrong-reference",
+             "look_for": "a \"last time\" or \"as shown\" reference that names the wrong episode or moment"}
+          ]
+        }
+      ]
+    },
+    {
+      "id": "thumbnail",
+      "label": {"en": "Thumbnail", "ja": "サムネ"},
+      "route": "image-creator",
+      "items": [
+        {"id": "topic",
+         "look_for": "at the reduced size (168 px) the thumbnail does not tell which topic it is"},
+        {"id": "legibility",
+         "look_for": "its text is not legible at the reduced size"},
+        {"id": "title",
+         "look_for": "its text differs from the intended title"}
+      ]
+    },
+    {
+      "id": "portrait",
+      "label": {"en": "Portrait", "ja": "似顔絵"},
+      "route": "video-creator",
+      "items": [
+        {"id": "drawing",
+         "look_for": "a drawn portrait of a real person with a drawing defect: hands, limbs, face parts, merged objects"},
+        {"id": "likeness", "route": "user", "certainty": "confirm",
+         "look_for": "whether the portrait looks like the person; the user's call, prepared with the reference photos beside each frame"}
+      ]
+    }
+  ]
+}
