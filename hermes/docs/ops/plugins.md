@@ -85,7 +85,7 @@ user keys.
   `specialist` in the relevant `platform_toolsets` lists, and configure the
   explicit `specialist_call.resident_targets` allowlist. A profile kept in
   the private overlay is added to the plugin's roster by the overlay's
-  `local_targets.json` link. Behavior:
+  `local_targets.json`, linked into `~/.hermes/plugin-data/specialist-call/`. Behavior:
   [`../profiles/specialist-calls.md`](../profiles/specialist-calls.md).
 - **orchestration/opencode** gives the assistant the OpenCode tools over the
   shared OpenCode service. Enable `opencode` in `plugins.enabled` and the

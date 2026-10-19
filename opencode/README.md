@@ -479,11 +479,12 @@ leaving Hermes out makes every lane read high within days.
   Hermes' since the checkpoint; "Unused" is what that pace would leave on each
   grant at its expiry.
 
-`lib/credit-lanes/lanes.json` holds each lane's `amount`, its `renewalDay` (the
-day of the month the plan renews) and its key variable, plus where Hermes lives
-and its lane order; it changes only with a plan. Those are account details, so
-the file is gitignored and lives in the private overlay, whose `install.sh`
-links it into place; the tracked `lanes.example.json` shows the shape,
+`~/.config/opencode/credit-lanes.json` holds each lane's `amount`, its
+`renewalDay` (the day of the month the plan renews) and its key variable, plus
+where Hermes lives and its lane order; it changes only with a plan. Those are
+account details, so the file lives in the private overlay, whose `install.sh`
+links it there (a real directory beside the links into this repo, never
+inside it); the tracked `lib/credit-lanes/lanes.example.json` shows the shape,
 and a machine without the file has no lanes (`/credits` lists none, and the
 Quota endpoint answers 404 for each). Every provider in `creditLanes` needs a
 lane there, or `/credits` and Quota do not show it and Hermes' spend is never

@@ -1,5 +1,7 @@
 import { execFile } from "node:child_process"
 import { readFileSync } from "node:fs"
+import { homedir } from "node:os"
+import { join } from "node:path"
 import {
   allocateHermes,
   checkpointFor,
@@ -32,11 +34,18 @@ export type Config = {
   hermes?: { root: string; order: string[] }
 }
 
-// lanes.json is private (the overlay links it beside this file; lanes.example.json
-// shows the shape). A machine without it has no lanes rather than a failure.
-export const CONFIG_FILE = new URL("./lanes.json", import.meta.url)
+// The lanes file is private: the overlay links it into the config directory
+// (a real machine-local directory beside the links into the repo), never
+// beside this source; lanes.example.json here shows the shape. A machine
+// without it has no lanes rather than a failure.
+export function configPath(
+  env: NodeJS.ProcessEnv = process.env,
+  home = homedir(),
+): string {
+  return join(env.XDG_CONFIG_HOME || join(home, ".config"), "opencode", "credit-lanes.json")
+}
 
-export function loadConfig(file: URL | string = CONFIG_FILE): Config {
+export function loadConfig(file: URL | string = configPath()): Config {
   try {
     return JSON.parse(readFileSync(file, "utf8")) as Config
   } catch (error) {

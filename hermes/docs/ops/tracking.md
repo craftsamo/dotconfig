@@ -26,11 +26,12 @@ beside the links, outside the repository.
 
 **Ignored** (see [`.gitignore`](../../../.gitignore)): the runtime-state names
 above, as a safety net for a `HERMES_HOME` pointed at this tree by mistake;
-`local/` (engine runtimes beside the tracked lock files); `**/__pycache__/`,
-`*.pyc` (Python writes bytecode beside the real source); and two files inside
-public plugins that the overlay links beside the source they are read from
-(`peer_checks.py`, `local_targets.json`). Never commit secrets, state or
-host-rendered plists (`~/Library/LaunchAgents/…`).
+`local/` (engine runtimes beside the tracked lock files, where the overlay's
+Irodori lexicon is linked too); `**/__pycache__/`, `*.pyc` (Python writes
+bytecode beside the real source). A plugin's private data (the specialist-call
+roster additions, the workspace registry's local integration) is read from
+`~/.hermes/plugin-data/<plugin>/`, never beside the source. Never commit
+secrets, state or host-rendered plists (`~/Library/LaunchAgents/…`).
 
 **Skill ownership follows the directory type.** Shared `default-pipeline/` and
 every worker's `<profile>-pipeline/` and `technic/` are maintainer-owned and

@@ -32,6 +32,10 @@ class PeerChecksTest(unittest.TestCase):
         sys.modules[spec.name] = self.engine
         self.addCleanup(lambda: sys.modules.pop(spec.name, None))
         spec.loader.exec_module(self.engine)
+        # The installed integration lives in the plugin's data directory under the root Hermes
+        # home; this HOME is the fixture's base (the CLI below resolves it the same way).
+        self.peer_checks = self.base / ".hermes" / "plugin-data" / "workspace-registry" / "peer_checks.py"
+        self.engine.PEER_CHECKS = self.peer_checks
         self.root = self.base / "Workspaces"
         self.root.mkdir()
         env_patch = mock.patch.dict(os.environ, {"WSREG_DIR": str(self.root / ".registry"),
@@ -49,7 +53,8 @@ class PeerChecksTest(unittest.TestCase):
         private.mkdir()
         target = private / "checks.py"
         target.write_text(text, encoding="utf-8")
-        (self.plugin / "peer_checks.py").symlink_to(target)
+        self.peer_checks.parent.mkdir(parents=True, exist_ok=True)
+        self.peer_checks.symlink_to(target)
 
     def test_absence_does_not_require_an_overlay(self):
         out = self.run_action(action="validate")
@@ -66,7 +71,8 @@ class PeerChecksTest(unittest.TestCase):
         self.assertTrue(out["ok"])
 
     def test_dangling_installed_link_is_not_absence(self):
-        (self.plugin / "peer_checks.py").symlink_to(self.base / "missing.py")
+        self.peer_checks.parent.mkdir(parents=True)
+        self.peer_checks.symlink_to(self.base / "missing.py")
         out = self.run_action(action="validate")
         self.assertTrue(out["ok"])
         self.assertIn("peer checks configured but unusable", out["warnings"][0])
@@ -83,7 +89,8 @@ class PeerChecksTest(unittest.TestCase):
             VALID_HOOK.replace('return ["synthetic peer warning"]', "raise ValueError('failed check')"),
         ):
             with self.subTest(text=text):
-                (self.plugin / "peer_checks.py").write_text(text, encoding="utf-8")
+                self.peer_checks.parent.mkdir(parents=True, exist_ok=True)
+                self.peer_checks.write_text(text, encoding="utf-8")
                 out = self.run_action(action="validate")
                 self.assertTrue(out["ok"])
                 self.assertEqual(len(out["warnings"]), 1)
@@ -99,7 +106,7 @@ class PeerChecksTest(unittest.TestCase):
 
     def test_cli_and_engine_both_use_the_hook(self):
         self.hook()
-        env = dict(os.environ)
+        env = dict(os.environ, HOME=str(self.base))  # the CLI resolves the hook under this home
         env.pop("WSREG_DIR", None)
         result = subprocess.run([sys.executable, str(self.plugin / "wsreg"), "--root", str(self.root),
                                  "validate", "--json"], env=env, capture_output=True, text=True)

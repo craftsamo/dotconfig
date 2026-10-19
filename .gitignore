@@ -6,12 +6,6 @@ git/credentials
 **/*.env
 .pytest_cache/
 
-# Console credit lanes: the grant amounts, renewal days and labels of each
-# lane are account details, so the real file lives in the private overlay and
-# is linked here by private/install.sh. lanes.example.json is the tracked shape;
-# a missing lanes.json reads as no lanes.
-opencode/lib/credit-lanes/lanes.json
-
 # machine-specific state rewritten by the Codex app (absolute home paths)
 codex/config.toml
 
@@ -46,12 +40,6 @@ hermes/**/local/
 hermes/**/__pycache__/
 agents/**/__pycache__/
 hermes/**/*.pyc
-
-# One file inside a public plugin that the private overlay links beside the
-# plugin's source (the plugin reads its own directory): the workspace
-# registry's local integration and the specialist-call roster's local targets.
-hermes/plugins/workspace/workspace-registry/peer_checks.py
-hermes/plugins/orchestration/specialist-call/local_targets.json
 
 # Machine-local shell environment. config.zsh already sources every
 # ~/.config/zsh/*.zsh; this one is for per-machine settings that belong in no
