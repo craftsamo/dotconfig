@@ -4,6 +4,7 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import {
   collect,
+  configPath,
   loadConfig,
   paceWindow,
   recordCheckpoint,
@@ -126,6 +127,10 @@ describe("loadConfig", () => {
     expect(await collect(NOW, { lanes: [] }, src)).toEqual([])
     expect(env.statsCalls).toEqual([])
     expect(env.saves).toBe(0)
+  })
+  test("the private file lives in the config directory, not beside the source", () => {
+    expect(configPath({}, "/home/x")).toBe("/home/x/.config/opencode/credit-lanes.json")
+    expect(configPath({ XDG_CONFIG_HOME: "/c" }, "/home/x")).toBe("/c/opencode/credit-lanes.json")
   })
   test("the tracked example has the shape", () => {
     const example = loadConfig(new URL("./lanes.example.json", import.meta.url))

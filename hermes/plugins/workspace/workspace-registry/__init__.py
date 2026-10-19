@@ -3,7 +3,8 @@ repos of ~/Workspaces, read and written without a terminal.
 
 The engine is ``registry.py`` beside this file (the ``wsreg`` CLI runs the same
 code); the data is the CSV files under ``~/Workspaces/.registry/`` and is never
-part of the plugin source. An optional ignored peer_checks.py adds local checks.
+part of the plugin source. An optional ``peer_checks.py`` under
+``~/.hermes/plugin-data/workspace-registry/`` adds local checks.
 """
 
 from __future__ import annotations

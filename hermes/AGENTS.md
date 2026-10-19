@@ -171,9 +171,9 @@ skills.
   connection). Never run `hermes -p <role> gateway stop` on a specialist that
   must stay reachable: it parks that profile in the shared gateway.
 - **A profile kept in the private overlay is never named in tracked code.** It
-  joins `specialist-call`'s roster through the gitignored `local_targets.json`
-  the overlay links beside the plugin (read once at load, like `TARGETS`, so
-  a running profile cannot widen it), and serves A2A through
+  joins `specialist-call`'s roster through the `local_targets.json` the
+  overlay links into `~/.hermes/plugin-data/specialist-call/` (read once at
+  load, like `TARGETS`, so a running profile cannot widen it), and serves A2A through
   `profile-secrets.sh`'s grant to every profile but the Assistant and the root
   one; adding its name to `TARGETS` or that case publishes it
   ([docs/profiles/specialist-calls.md](docs/profiles/specialist-calls.md)).
@@ -244,9 +244,11 @@ skills.
   it fails silently.** Engines and tests locate `hermes/` (the `local/` venvs,
   `profiles/`, `scripts/`) with `parents[N]`, and tests mock the calls that would
   notice. After a move, re-count every `parents[N]` in the plugin and its tests;
-  for a plugin that takes a private overlay symlink, also move the overlay's
-  twin in the same paired change and name the link in `.gitignore` (the
-  `hermes/plugins/*/` re-include no longer reaches a link one level down). Never
+  for a private plugin, also move its link in the overlay's `install.sh`
+  (`~/.hermes/plugins/<group>/<name>`) in the same paired change. A plugin's
+  private data never sits beside its source: it reads
+  `~/.hermes/plugin-data/<plugin>/` (specialist-call's roster additions, the
+  workspace registry's local integration). Never
   nest deeper than `<group>/<name>`: Hermes stops reading there. Per-plugin
   settings under `plugins.entries` are keyed `group/name` too (only
   `plugins.enabled` takes the bare name), so a move renames those keys in every

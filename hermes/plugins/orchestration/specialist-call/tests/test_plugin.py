@@ -627,10 +627,10 @@ def test_the_roster_is_read_once_so_a_later_write_widens_nothing(caller, tmp_pat
     assert not calls and p._local_targets() == {"assistant": {"researcher"}}  # only a reload would read it
 
 
-def test_the_local_roster_is_gitignored_beside_the_plugin():
-    assert LOCAL_TARGETS.parent == PLUGIN.parent and LOCAL_TARGETS.name == "local_targets.json"
-    ignore = (PLUGIN.parents[4] / ".gitignore").read_text().splitlines()
-    assert "hermes/plugins/orchestration/specialist-call/local_targets.json" in ignore
+def test_the_local_roster_lives_in_the_root_home_plugin_data():
+    # One roster for every profile, outside the repository: nothing private lands in the tree.
+    assert LOCAL_TARGETS == Path.home() / ".hermes" / "plugin-data" / "specialist-call" / "local_targets.json"
+    assert not LOCAL_TARGETS.is_relative_to(PLUGIN.parents[4])
 
 
 @pytest.mark.parametrize("state,status", [

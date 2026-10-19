@@ -650,7 +650,10 @@ def a_review(reg, a):
             "repos": [f"{r['project_id']}/{r['name']}" for r in reg.t["repos"] if r["review_status"] == "needs_review"]}
 
 
-PEER_CHECKS = Path(__file__).resolve().with_name("peer_checks.py")
+# The optional local integration: a private overlay links it into the plugin's data directory
+# under the root Hermes home (the registry is one for the machine, and wsreg runs outside any
+# profile), so nothing private lands beside the public source.
+PEER_CHECKS = Path.home() / ".hermes" / "plugin-data" / "workspace-registry" / "peer_checks.py"
 
 
 def peer_call(method, *args):

@@ -244,8 +244,9 @@ machine's account layout and lives in the private overlay, not here.
   real spend is the Console's. OpenCode's `/credits` balance counts it: it
   reads every profile's `session_model_usage` rows billed to `anthropic`
   (read-only) and charges them in the pool's order. That order is
-  `hermes.order` in `opencode/lib/credit-lanes/lanes.json` (a private overlay
-  file; the tracked `lanes.example.json` shows the shape); change it with the
+  `hermes.order` in `~/.config/opencode/credit-lanes.json` (a private overlay
+  file; the tracked `opencode/lib/credit-lanes/lanes.example.json` shows the
+  shape); change it with the
   pool's priorities, or the estimate charges the wrong org.
 - **Keys.** The env names sit in the shared `hermes` layer and, as a second
   copy of the same value, in OpenCode's `opencode` project. The pool entries
