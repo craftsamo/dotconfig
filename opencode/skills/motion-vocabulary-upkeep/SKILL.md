@@ -7,8 +7,8 @@ description: >-
   catalogue site or an X post (「この記事の表現を取り込んで」,
   「モーション名を辞書に追加」, 「動きの語彙を深めて」, "add these animation names to
   the vocabulary", "audit the motion vocabulary"). Not hands option
-  references such as styles or themes (hermes-hands-references), not producing
-  a video, and not implementing animation in a project (motion-vocabulary).
+  references such as styles or themes, not producing a video, and not
+  implementing animation in a project (motion-vocabulary).
 license: MIT
 compatibility: OpenCode maintaining this dotconfig repository in a task worktree; the Hermes test interpreter; Node for one-off source extraction.
 ---
