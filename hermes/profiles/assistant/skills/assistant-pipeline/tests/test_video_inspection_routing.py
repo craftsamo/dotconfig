@@ -37,7 +37,7 @@ class VideoInspectionRouting(unittest.TestCase):
         self.assertIn("Read the genre reference at step 1", body)
         for step in ("inspection.py aspects <genre>", "inspection.py init ledger.json --genre <genre>",
                      "inspection.py focus ledger.json focus-video.txt --route video-creator",
-                     "ask that each finding name its item"):
+                     "ask that each finding name its item", "pass it as `--overlay <path>`"):
             self.assertIn(step, body)
 
     def test_entries_load_the_technic(self):
@@ -67,7 +67,7 @@ class VideoInspectionRouting(unittest.TestCase):
                      "`inspection.py aspects explainer`", "| Aspect | Kinds | Who looks |",
                      "likeness itself is the user's call", "never says whether a portrait looks like a real person",
                      'skill_view(name="explainer-series-notes")', "absent on a machine without it",
-                     "never written into a learned skill", "`--ignore` file"):
+                     "never written into a learned skill", "overlay JSON for `init --overlay`"):
             self.assertIn(rule, text)
 
     def test_the_spreadsheet_is_the_users_channel(self):

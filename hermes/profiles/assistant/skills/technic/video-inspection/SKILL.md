@@ -132,10 +132,15 @@ conversation (`plan-assistant-research`).
    python3 ${HERMES_SKILL_DIR}/scripts/inspection.py init ledger.json --genre <genre> --aspects <a,b,c> --job <job> --language <tag> --sheet-language <tag>
    ```
 
-   Then add one `episodes` entry per video (shape in `inspection.py`'s
-   header): its caption path and `video` (the YouTube id: every time on the
-   sheet links to the video at that second). An item the series reference
-   adds or removes goes into the ledger's `aspects` now, by hand. Add an
+   A series ships its notes as an overlay JSON beside its reference
+   (shape in `inspection.py`'s header); pass it as `--overlay <path>` and
+   read the `ignored` list in the output, which names overlay ids that
+   fell outside the chosen aspects. A ledger from before aspects existed
+   takes the catalog with `inspection.py upgrade ledger.json --genre
+   <genre>`. Then add one `episodes` entry per video (shape in
+   `inspection.py`'s header): its caption path and `video` (the YouTube
+   id: every time on the sheet links to the video at that second). An item
+   nobody catalogued goes into the ledger's `aspects` now, by hand. Add an
    aspect to the episode's `checked` list only when that check has actually
    returned.
 4. **Dispatch in parallel**, then end the turn; results return as new
@@ -147,9 +152,12 @@ conversation (`plan-assistant-research`).
    python3 ${HERMES_SKILL_DIR}/scripts/inspection.py focus ledger.json focus-audio.txt --route audio-creator
    ```
 
-   One line per item, `aspect/kind/item: what to look for`; it exits 1
-   with no items for that route, which means that leaf has nothing to do
-   this round. Paste the lines into the leaf's `focus` or note and ask that
+   One line per item, `aspect/kind/item: what to look for`, then the
+   series' `recurring:` defects (a plain entry goes to every route, a
+   routed one to its own) and its `not a defect:` gags; it exits 1 with
+   no items for that route, which means that leaf
+   has nothing to do this round. Paste the lines into the leaf's `focus`
+   or note and ask that
    each finding name its item (`item: problem` in the problem cell, or the
    item in the second cell), so `import` places it without guessing.
    - Speech: the [speech](../../assistant-pipeline/execute-assistant-creative/references/speech.md)
@@ -166,8 +174,9 @@ conversation (`plan-assistant-research`).
      speech report as it is. `triage-speech` (step 6) keeps a value the ASR
      heard as another value, a Latin-script term it did not hear, and the
      two largest jumps that fall inside one caption line — a jump at a line
-     start is the next speaker; `--ignore` names the terms the series always
-     reads its own way (brand names). Fresh ASR on a whole batch outlives
+     start is the next speaker; the ledger's `ignore_terms` name the terms
+     the series always reads its own way (brand names). Fresh ASR on a
+     whole batch outlives
      one turn, so split a batch into conversations of at most five videos and
      send them together; every video still gets its check. The leaf takes up
      to 600 seconds: a longer video's speech stays unchecked and is named so
@@ -224,10 +233,11 @@ conversation (`plan-assistant-research`).
    ears. Thumbnail and claim findings import the same way when they come as
    `m:ss | aspect | problem | evidence | certain|confirm` lines, otherwise by
    editing `ledger.json`. Speech goes through the triage instead, once per
-   video, with the `--ignore` list of the series' own readings:
+   video; the series' own readings come from the ledger's `ignore_terms`
+   (the overlay) and `--ignore` adds a file of this round's:
 
    ```sh
-   python3 ${HERMES_SKILL_DIR}/scripts/inspection.py triage-speech ledger.json <label> <NN>/speech --ignore <terms file>
+   python3 ${HERMES_SKILL_DIR}/scripts/inspection.py triage-speech ledger.json <label> <NN>/speech
    ```
 
    It writes the kept lines to `<NN>/speech/triage.md` and imports them as
@@ -355,7 +365,7 @@ conversation (`plan-assistant-research`).
   look ask the hands for a new crop rather than re-cropping one frame.
 - The speech check is the noisiest: a `delegate_task` or a hand-made rule to
   thin it is the triage done twice. Tune `triage-speech`'s flags (and the
-  series' `--ignore` file) instead, and tell the user how many lines it
+  series' `ignore_terms`) instead, and tell the user how many lines it
   dropped.
 - A finding is an item missed, never an opinion: "the diagram is busy" is
   not a finding unless the genre reference names an item it fails

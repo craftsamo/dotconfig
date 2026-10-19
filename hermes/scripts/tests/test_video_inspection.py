@@ -827,6 +827,91 @@ class Aspects(LedgerCase):
         self.assertIn("確認した観点：字・音楽　／　未確認：声", text)
         self.assertIn("音楽：too loud", text)
 
+    def overlay(self, body):
+        path = self.dir / "overlay.json"
+        path.write_text(json.dumps(body, ensure_ascii=False), encoding="utf-8")
+        return str(path)
+
+    def test_init_folds_a_series_overlay_into_the_chosen_aspects(self):
+        overlay = self.overlay({
+            "series": "work", "sheet_language": "ja",
+            "items": {
+                "add": [{"aspect": "content", "kind": "figure", "id": "wave-count",
+                         "look_for": "the wave diagram shows fewer crests than the caption counts"},
+                        {"aspect": "thumbnail", "id": "episode-number",
+                         "look_for": "the episode number on the thumbnail is the previous one"},
+                        {"aspect": "voice", "kind": "reading", "id": "ignored-add", "look_for": "voice is not chosen"}],
+                "replace": [{"id": "phone-size", "look_for": "text under 24 pixel rows at 1080p", "certainty": "confirm"},
+                            {"id": "jump", "look_for": "voice is not chosen either"}],
+                "remove": ["notation", "number"],
+            },
+            "ignore_terms": ["ChatGPT"],
+            "recurring": ["the countdown ring hides card B", {"route": "image-creator", "text": "the title wraps"}],
+            "gags": ["the mascot says 2+2=5 on purpose"],
+        })
+        fresh = self.dir / "fresh.json"
+        code, out, err = self.run_cli("init", str(fresh), "--genre", "explainer", "--aspects", "text,content,thumbnail",
+                                      "--overlay", overlay)
+        self.assertEqual(code, 0, err)
+        result = json.loads(out)
+        self.assertEqual(result["overlay"], {"removed": ["notation"], "replaced": ["phone-size"],
+                                             "added": ["wave-count", "episode-number"],
+                                             "ignored": ["number", "jump", "ignored-add"]})
+        self.assertEqual(result["series"], "work")
+        data = json.loads(fresh.read_text(encoding="utf-8"))
+        self.assertEqual(data["sheet_language"], "ja")
+        self.assertEqual((data["ignore_terms"], data["gags"]), (["ChatGPT"], ["the mascot says 2+2=5 on purpose"]))
+        items = review.items_of(data)
+        self.assertEqual(items["wave-count"], ("content", "figure"))
+        self.assertEqual(items["episode-number"], ("thumbnail", None))
+        self.assertNotIn("notation", items)
+        phone = review.find_item(data, "phone-size")
+        self.assertEqual((phone["look_for"], phone["certainty"]), ("text under 24 pixel rows at 1080p", "confirm"))
+        self.assertEqual(review.problems(data, final=False), [])
+        focus = self.dir / "focus.txt"
+        code, _, _ = self.run_cli("focus", str(fresh), str(focus), "--route", "video-creator")
+        self.assertEqual(code, 0)
+        lines = focus.read_text(encoding="utf-8").splitlines()
+        self.assertIn("content/figure/wave-count: the wave diagram shows fewer crests than the caption counts", lines)
+        self.assertEqual(lines[-2:], ["recurring: the countdown ring hides card B",
+                                      "not a defect: the mascot says 2+2=5 on purpose"])
+        code, _, _ = self.run_cli("focus", str(fresh), str(focus), "--route", "image-creator")
+        self.assertEqual(code, 0)
+        lines = focus.read_text(encoding="utf-8").splitlines()
+        self.assertIn("recurring: the title wraps", lines)
+        self.assertIn("recurring: the countdown ring hides card B", lines)  # a plain string applies to every route
+
+    def test_init_refuses_a_malformed_overlay(self):
+        fresh = self.dir / "fresh.json"
+        code, _, err = self.run_cli("init", str(fresh), "--genre", "explainer", "--overlay",
+                                    self.overlay({"items": {"add": [{"aspect": "text", "id": "x", "look_for": "y"}]}}))
+        self.assertEqual(code, 2)
+        self.assertIn("aspect text has kinds, name one of mismatch, overlap, typo", err)
+        code, _, err = self.run_cli("init", str(fresh), "--genre", "explainer", "--overlay",
+                                    self.overlay({"items": {"add": [{"aspect": "text", "kind": "typo", "id": "misspelling",
+                                                                     "look_for": "a second one"}]}}))
+        self.assertEqual(code, 2)
+        self.assertIn("duplicate item id misspelling", err)
+        code, _, err = self.run_cli("init", str(fresh), "--genre", "explainer", "--overlay",
+                                    self.overlay({"recurring": [{"route": "nobody", "text": "x"}]}))
+        self.assertEqual(code, 2)
+        self.assertIn("recurring entry", err)
+        self.assertFalse(fresh.exists())
+
+    def test_triage_reads_the_ledgers_ignore_terms(self):
+        data = self.data()
+        data["findings"] = []
+        data["ignore_terms"] = ["ChatGPT"]
+        self.write(data)
+        speech = self.dir / "speech"
+        speech.mkdir()
+        (speech / "findings.md").write_text(
+            "0:12 | voice | 「ChatGPT」→「チャット」 | ASR | confirm\n"
+            "0:20 | voice | 「1040億」→「1400億」 | ASR | confirm\n", encoding="utf-8")
+        code, out, _ = self.run_cli("triage-speech", str(self.ledger), "#1", str(speech))
+        self.assertEqual(code, 0, out)
+        self.assertEqual(json.loads(out)["reading"], ["0:20"])
+
     def test_upgrade_gives_an_old_ledger_the_catalog(self):
         data = self.data()
         del data["aspects"]
@@ -891,6 +976,14 @@ class Aspects(LedgerCase):
         row = self.data()["findings"][-1]
         self.assertEqual((row["kind"], row.get("item")), ("reading", None))
         self.assertEqual(review.problems(self.data(), final=False), [])
+
+    def test_overlay_add_needs_a_kind_exactly_when_the_aspect_has_kinds(self):
+        fresh = self.dir / "fresh.json"
+        code, _, err = self.run_cli("init", str(fresh), "--genre", "explainer", "--overlay",
+                                    self.overlay({"items": {"add": [{"aspect": "thumbnail", "kind": "typo",
+                                                                     "id": "x", "look_for": "y"}]}}))
+        self.assertEqual(code, 2)
+        self.assertIn("aspect thumbnail has no kinds", err)
 
     def test_triage_needs_the_voice_kinds(self):
         data = self.data()
