@@ -40,6 +40,25 @@ service"; rules: [`AGENTS.md`](../../AGENTS.md) "Gateway and A2A".
 
 ### Engines
 
+**Runtime root.** Every engine's machine-local state — venvs, model weights,
+cloned servers and browsers, voice catalogs and bundles, rendered settings —
+lives under one root outside the repository: `HERMES_LOCAL`, by default
+`~/.hermes/local/`, as `<root>/<engine>/`. The engine directory names
+(`web3`, `twscrape`, `qwen3-tts`, …) are fixed: the access guards recognise
+`local/<engine>` in a command. Every launcher, script, plugin and engine
+resolves the root through that one contract, never from its own source
+location, and every artifact an engine writes under its directory names
+other files there relative to it (the Qwen catalog and its manifests, the
+Stable Audio marker and weight links, the Motion Canvas and Three markers) —
+so the root can move, and `HERMES_LOCAL` is the only thing that has to know
+where it is. What the launchers render for launchd (plists, Irodori's `.env`,
+SearXNG's settings) carries absolute paths by nature and is re-rendered by
+`install`. A non-default root is one value for the whole machine: the
+gateway's environment (the plugins read it once at load), every launcher
+`install` and every maintainer command must see the same `HERMES_LOCAL`, and
+its engine directories keep their names, which the access guards recognise
+in either spelling (`local/<engine>`, `$HERMES_LOCAL/<engine>`).
+
 - `launchd/qwen3-tts-launchctl.sh {install,register,unregister,voices,status,uninstall}`
   — Qwen3-TTS on `:10102`; see [tts-engines.md](tts-engines.md) "Qwen3-TTS voice
   catalog".
@@ -51,7 +70,7 @@ service"; rules: [`AGENTS.md`](../../AGENTS.md) "Gateway and A2A".
   of the web search cascade; see [web-search.md](web-search.md) "Floor". It runs
   the container pinned in `engines/searxng/image.lock` through Docker Desktop
   (`scripts/searxng-run.sh` in the foreground, so launchd owns its lifetime) and
-  renders `engines/searxng/settings.yml.tmpl` into the ignored `local/searxng/`
+  renders `engines/searxng/settings.yml.tmpl` into `~/.hermes/local/searxng/`
   with a host-generated cookie key. Hermes engine ports run `1010x`; pick the
   next free one for a new engine, never a common development port.
 
@@ -73,7 +92,7 @@ account also refuse a task worktree; each launcher says which).
 ### Engine and access scripts
 
 Not LaunchAgents: they build an engine (a hash-locked venv, or a helper app from
-in-tree sources, under the ignored `local/`) and report state without printing
+in-tree sources, under the machine-local `~/.hermes/local/`) and report state without printing
 secrets.
 
 - `scripts/x-access.sh {install,status}` — the x-access engine venv and the

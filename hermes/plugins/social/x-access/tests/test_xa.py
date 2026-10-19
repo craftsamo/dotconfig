@@ -844,13 +844,15 @@ def test_status_reports_verify_usage(isolated, home):
 
 @pytest.mark.parametrize("tool,args", [
     ("terminal", {"command": "twscrape search foo"}),
-    ("terminal", {"command": "~/.config/hermes/local/twscrape/venv/bin/python -c 'import twscrape'"}),
+    ("terminal", {"command": "~/.hermes/local/twscrape/venv/bin/python -c 'import twscrape'"}),
+    ("terminal", {"command": "$HERMES_LOCAL/twscrape/venv/bin/python -c 'import twscrape'"}),
+    ("terminal", {"command": "${HERMES_LOCAL}/twscrape/venv/bin/python -c 'import twscrape'"}),
     ("terminal", {"command": "sqlite3 ~/.x-access/accounts.db .dump"}),
     ("terminal", {"command": "python3 plugins/social/x-access/bridge.py"}),
     ("terminal", {"command": "TWS_PROXY=x python3 run.py"}),
     ("terminal", {"command": "secret get X_READER_COOKIES -p hermes --scope x-reader"}),
     ("terminal", {"command": "security find-generic-password -s secret.hermes/x-reader -w"}),
-    ("read_file", {"path": "/Users/u/.config/hermes/local/twscrape/venv/lib/site.py"}),
+    ("read_file", {"path": "/Users/u/.hermes/local/twscrape/venv/lib/site.py"}),
     ("terminal", {"command": "ls", "workdir": "/Users/u/.x-access"}),
     ("read_file", {"path": "/Users/u/.x-access/accounts.db"}),
     ("search_files", {"path": "~/.x-access", "pattern": "ct0"}),

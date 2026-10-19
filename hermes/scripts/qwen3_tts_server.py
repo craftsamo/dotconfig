@@ -615,11 +615,24 @@ def write_voice_catalog(
 
     if not manifest_paths or default_voice_id is None:
         raise ValueError("voice catalog must retain at least one default voice")
+
+    # A manifest inside the catalog's directory is named relative to it, so
+    # the runtime root can move (HERMES_LOCAL) and the catalog stays valid;
+    # the launcher stages the catalog beside its final path. One kept
+    # elsewhere is named absolutely.
+    catalog_dir = output_path.expanduser().resolve().parent
+
+    def spell(path: Path) -> str:
+        try:
+            return str(path.relative_to(catalog_dir))
+        except ValueError:
+            return str(path)
+
     payload = {
         "schema_version": 1,
         "default_voice": default_voice_id,
         "voices": {
-            voice_id: str(manifest_paths[voice_id])
+            voice_id: spell(manifest_paths[voice_id])
             for voice_id in sorted(manifest_paths)
         },
     }

@@ -142,7 +142,7 @@ the links this repo's installer makes — never through this tree (a plugin's
 private data is read from `~/.hermes/plugin-data/<plugin>/`, the opencode
 credit lanes from `~/.config/opencode/credit-lanes.json`). The one exception
 is the Irodori lexicon, which the engine's `register-lexicon` keeps in the
-`hermes/local/` runtime directory. A clone without access simply has no
+`~/.hermes/local/` runtime directory. A clone without access simply has no
 overlay checkout, and everything else works.
 
 What lives there: private Hermes skills (read in place via

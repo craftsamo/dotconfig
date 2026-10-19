@@ -9,7 +9,9 @@
 set -eu
 
 CONFIG_DIR="${HERMES_CONFIG_DIR:-$HOME/.config/hermes}"
-RUNTIME_DIR="${SEARXNG_RUNTIME_DIR:-$CONFIG_DIR/local/searxng}"
+# Engine runtime root: machine-local, outside the repository (HERMES_LOCAL overrides).
+HERMES_LOCAL="${HERMES_LOCAL:-$HOME/.hermes/local}"
+RUNTIME_DIR="${SEARXNG_RUNTIME_DIR:-$HERMES_LOCAL/searxng}"
 LOCK="$CONFIG_DIR/engines/searxng/image.lock"
 NAME="${SEARXNG_CONTAINER:-hermes-searxng}"
 PORT="${SEARXNG_PORT:-10104}"

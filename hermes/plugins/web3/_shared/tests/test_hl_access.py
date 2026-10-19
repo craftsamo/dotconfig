@@ -1,5 +1,6 @@
 import importlib.util
 import json
+import os
 from pathlib import Path
 import subprocess
 
@@ -78,7 +79,8 @@ def test_the_hyperliquid_tool_shares_the_web3_modules():
     assert hl_access.HL.name == "hl.py" and hl_access.HL.parent == Path(access.__file__).parent
 
 
-VENV_PYTHON = ROOT.parents[2] / "local" / "web3" / "venv" / "bin" / "python"
+RUNTIME_ROOT = Path(os.environ.get("HERMES_LOCAL") or Path.home() / ".hermes" / "local")
+VENV_PYTHON = RUNTIME_ROOT / "web3" / "venv" / "bin" / "python"
 
 
 @pytest.mark.skipif(not VENV_PYTHON.exists(), reason="web3 engine venv not installed")
@@ -162,8 +164,10 @@ def test_inbound_a2a_reads_only_on_the_a2a_specialists(monkeypatch, tmp_path):
 
 
 def test_ways_around_the_tools_are_blocked_on_every_reading_profile():
-    blocked = hl_access.check("researcher", tool_name="terminal", args={"command": "ls ~/.config/hermes/local/web3"})
+    blocked = hl_access.check("researcher", tool_name="terminal", args={"command": "ls ~/.hermes/local/web3"})
     assert blocked["action"] == "block"
+    spelled = hl_access.check("researcher", tool_name="terminal", args={"command": "ls $HERMES_LOCAL/web3"})
+    assert spelled["action"] == "block"
     keychain = {"command": "secret get HERMES_MAIN -p wallets"}
     assert hl_access.check("assistant", tool_name="terminal", args=keychain)["action"] == "block"
     assert hl_access.check("researcher", tool_name="terminal", args={"command": "ls"}) is None

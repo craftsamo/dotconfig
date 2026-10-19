@@ -157,11 +157,11 @@ Git history only.
 
 Hermes uses a dedicated Python 3.12 environment. There is no runtime
 auto-install; this is a maintainer-only, one-time step, run from the repo root
-after checking that `hermes/local/writing-inspection/venv/` does not exist:
+after checking that `~/.hermes/local/writing-inspection/venv/` does not exist:
 
 ```sh
-uv venv hermes/local/writing-inspection/venv --python 3.12
-uv pip install --python hermes/local/writing-inspection/venv/bin/python \
+uv venv ~/.hermes/local/writing-inspection/venv --python 3.12
+uv pip install --python ~/.hermes/local/writing-inspection/venv/bin/python \
   -r agents/skills/japanese-writing/scripts/requirements.txt
 ```
 
@@ -178,7 +178,7 @@ reported as unverified and the score is withheld.
   tests under `agents/tests/japanese_writing/`.
 - Tests: `uv run --with pytest python -m pytest agents/tests -q`. To cover
   the Sudachi paths, run
-  `hermes/local/writing-inspection/venv/bin/python -m unittest discover -s agents/tests/japanese_writing -t agents/tests`.
+  `~/.hermes/local/writing-inspection/venv/bin/python -m unittest discover -s agents/tests/japanese_writing -t agents/tests`.
 - Behavioral cases live in `agents/tests/japanese-writing-cases.md`. Tests
   check structure and rule behavior, not writing quality.
 

@@ -14,7 +14,8 @@ import sys
 PIPELINE = Path(__file__).resolve().parents[1]
 HERMES = Path(__file__).resolve().parents[5]
 ENGINE = HERMES / "engines/three-webgl"
-RUNTIME = HERMES / "local/three-webgl"
+# Engine runtime root: machine-local, outside the repository (HERMES_LOCAL overrides).
+RUNTIME = Path(os.environ.get("HERMES_LOCAL") or Path.home() / ".hermes" / "local").expanduser().absolute() / "three-webgl"
 sys.path.insert(0, str(PIPELINE / "create/tour/scripts"))
 from tour import command, digest, load, local, require, write  # noqa: E402
 
@@ -52,7 +53,8 @@ def installed():
 
 def identity():
     data = installed()
-    node, browser, cli = (Path(data[name]) for name in ("node", "browser", "hyperframes"))
+    # The marker names what lives inside the runtime relative to it (see setup.mjs).
+    node, browser, cli = (RUNTIME / data[name] for name in ("node", "browser", "hyperframes"))
     require(all(path.is_file() and path.is_absolute() for path in (node, browser, cli)), "Three runtime executable missing")
     require(command([str(node), "--version"]).strip() == data["nodeVersion"], "Three Node version drift")
     require(command([str(browser), "--version"]).strip() == data["browserVersion"]
@@ -60,7 +62,8 @@ def identity():
     require(command([str(node), str(cli), "--version"]).strip() == data["hyperframesVersion"], "Three HyperFrames version drift")
     require(data.get("hyperframesHashes") == {name: digest(cli.parent.parent / "dist" / name)
             for name in ("cli.js", "hyperframe.runtime.iife.js")}, "Three HyperFrames code drift")
-    return {**data, "controller_sha256": digest(Path(__file__))}
+    return {**data, "node": str(node), "browser": str(browser), "hyperframes": str(cli),
+            "controller_sha256": digest(Path(__file__))}
 
 
 def descriptor(data):

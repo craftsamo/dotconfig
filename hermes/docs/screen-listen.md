@@ -13,15 +13,15 @@ Part of the Hermes design docs — index: [`PROFILES.md`](../PROFILES.md).
 
 ## Shape
 
-| Piece                                                                      | Home                                                                  | Reader    |
-| -------------------------------------------------------------------------- | --------------------------------------------------------------------- | --------- |
-| Helper: the only code that records — a Core Audio process tap, and ScreenCaptureKit for one window — in a tiny app | `engines/screen-listen/main.swift`, `Info.plist` | people |
-| Built helper (ad-hoc signed, ignored)                                      | `local/screen-listen/ScreenListen.app`                                | plugin    |
-| Engine manager (`install`, `status`, `grant`, `grant-screen`, `grant-mic`) | `scripts/screen-listen.sh`                                            | people    |
-| `screen_listen` tool (toolset `screen_listen`), allowlist, STT handoff     | `plugins/inspection/screen-listen/__init__.py`, `listen.py`           | Assistant |
-| Recording sessions (start, status, stop, the kept files)                   | `plugins/inspection/screen-listen/record.py`                          | Assistant |
-| Transcripts of kept recordings (a detached local-whisper job)              | `plugins/inspection/screen-listen/transcript.py`, `transcribe_job.py` | Assistant |
-| When and how the Assistant uses it with `computer_use`: the procedure, and one reference per app for getting the app into the channel and out (`references/discord.md`), plus `computer_use`'s habits (`references/computer-use.md`) | the plugin skill `screen-listen:live` | Assistant |
+| Piece                                                                                                                                                                                                                                | Home                                                                  | Reader    |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------- | --------- |
+| Helper: the only code that records — a Core Audio process tap, and ScreenCaptureKit for one window — in a tiny app                                                                                                                   | `engines/screen-listen/main.swift`, `Info.plist`                      | people    |
+| Built helper (ad-hoc signed, ignored)                                                                                                                                                                                                | `~/.hermes/local/screen-listen/ScreenListen.app`                      | plugin    |
+| Engine manager (`install`, `status`, `grant`, `grant-screen`, `grant-mic`)                                                                                                                                                           | `scripts/screen-listen.sh`                                            | people    |
+| `screen_listen` tool (toolset `screen_listen`), allowlist, STT handoff                                                                                                                                                               | `plugins/inspection/screen-listen/__init__.py`, `listen.py`           | Assistant |
+| Recording sessions (start, status, stop, the kept files)                                                                                                                                                                             | `plugins/inspection/screen-listen/record.py`                          | Assistant |
+| Transcripts of kept recordings (a detached local-whisper job)                                                                                                                                                                        | `plugins/inspection/screen-listen/transcript.py`, `transcribe_job.py` | Assistant |
+| When and how the Assistant uses it with `computer_use`: the procedure, and one reference per app for getting the app into the channel and out (`references/discord.md`), plus `computer_use`'s habits (`references/computer-use.md`) | the plugin skill `screen-listen:live`                                 | Assistant |
 
 ## Why a process tap, and why an app
 

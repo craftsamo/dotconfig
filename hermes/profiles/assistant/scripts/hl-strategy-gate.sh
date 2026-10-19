@@ -13,12 +13,15 @@ set -u
 
 # The scheduler runs this script where install.sh copied it, <HERMES_HOME>/scripts (cron resolves
 # real paths, so a link cannot serve), so the profile home is its parent — not $HERMES_HOME, which
-# under the multiplex gateway may name another profile. The repository, where the web3 engine
-# lives, is found through the home's plugins tree: a real directory of links into it.
+# under the multiplex gateway may name another profile. The repository, where hl_gate.py lives, is
+# found through the home's plugins tree: a real directory of links into it. The web3 engine lives
+# in the machine-local runtime root.
 here="$(cd "$(dirname "$0")" && pwd -P)"
 home="$(dirname "$here")"
 hermes="$(cd "$home/plugins/web3/_shared" 2>/dev/null && pwd -P)/../../.."
-python="$hermes/local/web3/venv/bin/python"
+# Engine runtime root: machine-local, outside the repository (HERMES_LOCAL overrides).
+HERMES_LOCAL="${HERMES_LOCAL:-$HOME/.hermes/local}"
+python="$HERMES_LOCAL/web3/venv/bin/python"
 
 if [ ! -x "$python" ]; then
   echo "hl-strategy-gate: the web3 engine is not installed (scripts/web3.sh install)" >&2

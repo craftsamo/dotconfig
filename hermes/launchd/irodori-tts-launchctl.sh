@@ -5,7 +5,7 @@
 # the Hermes tts-fallback chain picks between them, with irodori-tts declining
 # English-dominant text so it lands on qwen3-tts.
 #
-# Everything mutable lives under hermes/local/irodori-tts/, which is gitignored:
+# Everything mutable lives under ~/.hermes/local/irodori-tts/, outside the repository:
 # the server checkout, its uv venv, the Hugging Face cache and the voice files.
 # Voice audio is private, so it is copied in by `register` and its source path
 # never enters tracked config.
@@ -30,7 +30,7 @@
 #
 # The pronunciation lexicon rewrites Latin proper nouns to katakana before
 # synthesis. It is DATA and tends to accumulate names its owner would rather
-# not publish, so like the voice audio it is copied into the gitignored runtime
+# not publish, so like the voice audio it is copied into the machine-local runtime
 # directory and its source path never enters tracked config. Shape:
 #
 #   { "terms": { "Terraform": "テラフォーム", "Claude Code": "クロードコード" } }
@@ -43,7 +43,9 @@ LEGACY_LABEL=local.irodori-tts.engine
 CONFIG_DIR="$HOME/.config/hermes"
 TMPL="$CONFIG_DIR/launchd/$LABEL.plist.tmpl"
 DEST="$HOME/Library/LaunchAgents/$LABEL.plist"
-RUNTIME_DIR="$CONFIG_DIR/local/irodori-tts"
+# Engine runtime root: machine-local, outside the repository (HERMES_LOCAL overrides).
+HERMES_LOCAL="${HERMES_LOCAL:-$HOME/.hermes/local}"
+RUNTIME_DIR="$HERMES_LOCAL/irodori-tts"
 SERVER_DIR="$RUNTIME_DIR/server"
 VOICES_DIR="$RUNTIME_DIR/voices"
 PINNED="$CONFIG_DIR/engines/irodori-tts/pinned.conf"

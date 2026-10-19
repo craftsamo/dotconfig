@@ -658,6 +658,7 @@ def test_html_text_keeps_structure_and_drops_scripts():
     ("terminal", {"command": "secret get SUBSTACK_COOKIES -p hermes --scope substack-session"}, True),
     ("terminal", {"command": "cat ~/.substack-access/state.json"}, True),
     ("terminal", {"command": "hermes/local/python-substack/venv/bin/python -c 'import substack'"}, True),
+    ("terminal", {"command": "${HERMES_LOCAL}/python-substack/venv/bin/python -c 'import substack'"}, True),
     ("terminal", {"command": "substack drafts list"}, True),
     ("terminal", {"command": "cd x && substack publish 1"}, True),
     ("terminal", {"command": "substack-mcp"}, True),

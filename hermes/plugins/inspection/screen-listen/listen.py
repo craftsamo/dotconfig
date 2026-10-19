@@ -2,7 +2,7 @@
 transcribe the recording — locally by default (``screen_listen.stt: local``), or through the
 profile's STT chain (``chain``).
 
-The helper (``engines/screen-listen``, built into ``local/screen-listen/ScreenListen.app`` by
+The helper (``engines/screen-listen``, built into ``~/.hermes/local/screen-listen/ScreenListen.app`` by
 ``scripts/screen-listen.sh install``) is launched through ``open -W`` so macOS attributes its
 System Audio Recording consent to the helper itself, once, instead of to whatever process hosts
 Hermes. Recordings land in a private state directory and are deleted after transcription unless
@@ -22,7 +22,9 @@ import tempfile
 import time
 
 HERMES = Path(__file__).resolve().parents[3]
-APP = HERMES / "local" / "screen-listen" / "ScreenListen.app"
+# Engine runtime root: machine-local, outside the repository (HERMES_LOCAL overrides).
+RUNTIME_ROOT = Path(os.environ.get("HERMES_LOCAL") or Path.home() / ".hermes" / "local")
+APP = RUNTIME_ROOT / "screen-listen" / "ScreenListen.app"
 BINARY = APP / "Contents" / "MacOS" / "screen-listen"
 INSTALL = "hermes/scripts/screen-listen.sh install"
 GRANT = "hermes/scripts/screen-listen.sh grant"

@@ -2,11 +2,13 @@
 import {copyFileSync, existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync} from 'node:fs';
 import {createHash} from 'node:crypto';
 import {spawnSync} from 'node:child_process';
-import {dirname, resolve} from 'node:path';
+import {homedir} from 'node:os';
+import {dirname, join, relative, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const runtime = resolve(here, '../../local/motion-canvas');
+// Engine runtime root: machine-local, outside the repository (HERMES_LOCAL overrides).
+const runtime = resolve(process.env.HERMES_LOCAL || join(homedir(), '.hermes', 'local'), 'motion-canvas');
 const argv = process.argv.slice(2);
 if (argv.length !== 2 || argv[0] !== '--browser') {
   throw new Error('usage: node setup.mjs --browser <installed Chromium executable>');
@@ -53,8 +55,13 @@ if (process.platform === 'darwin' && sourceBrowser.includes('.app/Contents/MacOS
     throw new Error(`Dedicated browser clone differs at ${destination}; preserve old previews and provision a fresh clone explicitly`);
   }
 }
+// The marker names the browser relative to the runtime when the clone lives
+// inside it, so the runtime root can move (HERMES_LOCAL) and stay provisioned;
+// node is a machine tool outside the root and stays absolute.
+const runtimeReal = realpathSync(runtime);
+const browserRecord = browser.startsWith(runtimeReal + '/') ? relative(runtimeReal, browser) : browser;
 writeFileSync(marker, JSON.stringify({
-  version: 1, browser, browserVersion: version.stdout.trim(),
+  version: 1, browser: browserRecord, browserVersion: version.stdout.trim(),
   node: realpathSync(process.execPath), nodeVersion: process.version, lockHash,
 }, null, 2) + '\n', {flag: previous ? 'w' : 'wx'});
 console.log(JSON.stringify({runtime, browserVersion: version.stdout.trim(), provisioned: true}));

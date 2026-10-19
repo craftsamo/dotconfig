@@ -59,7 +59,9 @@ ROLE_WRITES = {"role_add", "role_remove", "role_bulk_add", "role_create", "role_
 WRITES = {"send"} | MESSAGE_WRITES | ROLE_WRITES
 
 ENGINE = HERE / "engine.py"
-ENGINE_PYTHON = HERE.parents[2] / "local" / "discord-user" / "venv" / "bin" / "python"
+# Engine runtime root: machine-local, outside the repository (HERMES_LOCAL overrides).
+RUNTIME_ROOT = Path(os.environ.get("HERMES_LOCAL") or Path.home() / ".hermes" / "local")
+ENGINE_PYTHON = RUNTIME_ROOT / "discord-user" / "venv" / "bin" / "python"
 ENGINE_PATH = "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
 READ_TIMEOUT = 90           # token + build number + a few paced requests
 SYNC_TIMEOUT = 300
@@ -111,7 +113,7 @@ NOT_SET_UP = ("Discord is not set up: the engine venv is missing. The user runs 
 # Ways around the tool: the engine, its state, its token and launcher, and the raw API.
 _TERMINAL = re.compile(r"hermes-discord|discord-user|DISCORD_USER_TOKEN|discord-access|discord_access"
                        r"|discord(?:app)?\.com/api", re.IGNORECASE)
-_FILES = re.compile(r"hermes-discord|DISCORD_USER_TOKEN|local/discord-user", re.IGNORECASE)
+_FILES = re.compile(r"hermes-discord|DISCORD_USER_TOKEN|(?:local|HERMES_LOCAL\}?)/discord-user", re.IGNORECASE)
 FILE_TOOLS = {"read_file", "write_file", "patch", "search_files"}
 BYPASS_MESSAGE = (
     "The user's Discord account runs only through the discord_account tool, never through the "

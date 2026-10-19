@@ -46,8 +46,8 @@ a headless Brave launched from `/Applications/Brave Browser.app` is alive, the
 everyday Brave cannot open. An APFS clone (`cp -Rc`) at another path has no
 shared identity, and its untouched signature still satisfies the Keychain
 `Brave Safe Storage` ACL (bundle id + team, not path), so cookies decrypt
-without a prompt. The clone lives in the ignored
-`local/brave-agent/Brave Agent.app`; the gateway launcher runs
+without a prompt. The clone lives in the machine-local
+`~/.hermes/local/brave-agent/Brave Agent.app`; the gateway launcher runs
 `scripts/brave-agent-sync.sh sync` before every start to re-clone on version
 drift. **Never edit the clone** — any change breaks the signature and with it
 cookie decryption; re-clone instead. `browser.real_profile_binary` is honored

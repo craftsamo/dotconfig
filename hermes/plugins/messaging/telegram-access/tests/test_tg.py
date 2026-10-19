@@ -617,7 +617,8 @@ def test_config_defaults(state):
     ("read_file", {"path": "~/Library/LaunchAgents/local.telegram-access.sync.plist"}),
     ("read_file", {"path": "~/Library/LaunchAgents/local.hermes.telegram-access.sync.plist"}),
     ("read_file", {"path": "~/Library/Logs/telegram-access-sync.log"}),
-    ("search_files", {"path": "~/.config/hermes/local/telegram-access/venv"}),
+    ("search_files", {"path": "~/.hermes/local/telegram-access/venv"}),
+    ("search_files", {"path": "$HERMES_LOCAL/telegram-access/venv"}),
     ("search_files", {"path": "~/Library/Application Support/Telegram Desktop"}),
 ])
 def test_bypass_is_blocked(tool, args):
