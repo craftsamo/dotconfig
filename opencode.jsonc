@@ -1,0 +1,69 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  // Project config for this repository only. install.sh links top-level
+  // directories into ~/.config, never this file, so the global config in
+  // opencode/opencode.jsonc stays the base and this adds only what work on
+  // this repo needs. Its rules come after the global ones (last match wins):
+  // keep every allow narrow.
+  //
+  // References: repositories edited or read together with this one. Paths
+  // are absolute (~), because a relative one resolves from this file and a
+  // task worktree under ~/Worktrees would point elsewhere. Both local
+  // checkouts are live: ~/.hermes links into them, so an edit there takes
+  // effect at once. Descriptions reach every agent's instructions, and this
+  // repo is public: keep them free of private details.
+  "references": {
+    "hermes-agent": {
+      "path": "~/ghq/github.com/NousResearch/hermes-agent",
+      "description": "Hermes runtime source, live. The working tree is branch `local` = the newest `pin/main-*` (a fixed upstream snapshot) + merged `fix/*` / `feat/*` branches. A new patch branches from that pin and is merged into `local`; re-pinning rebases every patch branch onto the new pin and rebuilds `local`. `origin/main` is newer upstream, not what runs. Process: hermes/README.md \"Runtime dependency: local patches\".",
+    },
+    "private-dotconfig": {
+      "path": "~/ghq/github.com/craftsamo/private-dotconfig",
+      "description": "Private overlay paired with this repo, live. Paired changes land in both; nothing from it is copied into this public repo.",
+    },
+    "agent-skills": {
+      "path": "~/.agents/skills",
+      "description": "Shared skill store. Curated skills are links into agents/skills/ of the live checkout: edit them in this repo instead. The other skills belong to their installers, which overwrite them on update.",
+    },
+    "opencode": {
+      "repository": "anomalyco/opencode",
+      "description": "OpenCode source (default branch dev, which V2 releases are cut from), for V2 behavior and the anomalyco/opencode issues cited in comments. A cached clone: read only.",
+    },
+  },
+  "permissions": [
+    // References grant nothing: reading outside the Location asks unless
+    // external_directory allows it. ~/.agents/skills is already open globally.
+    // Editing the local checkouts keeps the global edit: ask.
+    {
+      "action": "external_directory",
+      "resource": "~/ghq/github.com/NousResearch/hermes-agent",
+      "effect": "allow",
+    },
+    {
+      "action": "external_directory",
+      "resource": "~/ghq/github.com/NousResearch/hermes-agent/*",
+      "effect": "allow",
+    },
+    {
+      "action": "external_directory",
+      "resource": "~/ghq/github.com/craftsamo/private-dotconfig",
+      "effect": "allow",
+    },
+    {
+      "action": "external_directory",
+      "resource": "~/ghq/github.com/craftsamo/private-dotconfig/*",
+      "effect": "allow",
+    },
+    // The opencode clone is shared and reset on each refresh.
+    {
+      "action": "external_directory",
+      "resource": "~/.local/share/opencode/repos/github.com/anomalyco/opencode/*",
+      "effect": "allow",
+    },
+    {
+      "action": "edit",
+      "resource": "~/.local/share/opencode/repos/*",
+      "effect": "deny",
+    },
+  ],
+}
