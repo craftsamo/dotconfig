@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Read-only audit of the shared motion-vocabulary skill.
 
-The skill (agents/curated/motion-vocabulary) keeps names in references/*.md
+The skill (agents/skills/motion-vocabulary) keeps names in references/*.md
 (Name, Feel, For, Looks like, The tell) and how each entry is built per
 medium in references/<medium>/*.md (video, and web when present). SKILL.md
 routes to every file. This audit checks what editing can silently break:
@@ -36,7 +36,7 @@ import re
 import sys
 from pathlib import Path
 
-SKILL_DIR = Path("agents/curated/motion-vocabulary")
+SKILL_DIR = Path("agents/skills/motion-vocabulary")
 CORE = "core.md"
 MEDIA = ("video", "web")
 LIMITS = {"core": 60_000, "names": 45_000, "video": 25_000, "web": 48_000}

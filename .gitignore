@@ -13,12 +13,6 @@ git/credentials
 # entry is a symlink, not a directory.
 /private
 
-# ~/.config/agents/skills is a registered install target of third-party skill
-# installers (`hyperframes skills` mirrors into it as the amp/universal agent
-# dir) — surrendered to tool droppings and ignored wholesale. The repo-curated
-# shared tree lives in agents/curated/ instead; see agents/README.md.
-agents/skills/
-
 # opencode's global skill dir is fixed at ~/.config/opencode/skills — inside
 # this repo — and it also receives installer droppings (hyperframes mirrors
 # its store into every agent dir it recognizes). Allowlist: ignore everything,

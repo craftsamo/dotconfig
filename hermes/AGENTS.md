@@ -209,7 +209,7 @@ skills.
   than reports.
 - **Curated skills a profile pins arrive only through `../install.sh`.**
   video-creator pins `media-craft-*` and `motion-vocabulary` from
-  `~/.agents/skills`, which holds links into `agents/curated/` that the
+  `~/.agents/skills`, which holds links into `agents/skills/` that the
   installer creates. After adding or moving a curated skill, run it on the
   merged checkout before the next Hermes session, or the leaves'
   `skill_view(name="motion-vocabulary")` finds nothing at read time.

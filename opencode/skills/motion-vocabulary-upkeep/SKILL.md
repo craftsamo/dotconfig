@@ -28,7 +28,7 @@ person) owns scope and acceptance; this Skill owns the procedure.
 
 Read these before editing; they are the contract the audit enforces.
 
-- The skill lives in agents/curated/motion-vocabulary. Its SKILL.md routes
+- The skill lives in agents/skills/motion-vocabulary. Its SKILL.md routes
   each authoring decision to a names file (references, one per area), its
   video builds (references/video) and, for web areas, its web builds
   (references/web). Names files hold `| Name | Feel | For | Looks like | The

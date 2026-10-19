@@ -9,7 +9,7 @@ import importlib.util
 from pathlib import Path
 import sys
 
-SCRIPTS = Path(__file__).resolve().parents[2] / "curated" / "japanese-writing" / "scripts"
+SCRIPTS = Path(__file__).resolve().parents[2] / "skills" / "japanese-writing" / "scripts"
 ALIAS = "japanese_writing_inspector"
 
 

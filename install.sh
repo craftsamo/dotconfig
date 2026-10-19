@@ -119,7 +119,7 @@ install_deps() {
 }
 
 # Populate a real, machine-local skill root with one symlink per repo-curated
-# skill (flat: <root>/<name> -> <repo>/agents/curated/<name>). The root is NOT
+# skill (flat: <root>/<name> -> <repo>/agents/skills/<name>). The root is NOT
 # a symlink into the repo: it doubles as the install target of third-party
 # skill installers (`skills` CLI, `hyperframes skills`), whose writes must
 # land machine-local instead of inside the repo. Installer-owned entries are
@@ -270,13 +270,29 @@ fi
 # the state other tools write into ~/.config (gh, gcloud, ...) out of the
 # repository and out of reach of `git clean`. A checkout that IS ~/.config
 # (the pre-ghq layout) is left alone.
+#
+# Not linked: directories nothing reads at ~/.config/<name>. agents/ is the
+# repo-curated shared skill tree, wired below into ~/.agents/skills; the path
+# ~/.config/agents/skills is only an install target of `hyperframes skills`
+# (amp/universal convention), whose relative links would dangle inside a
+# linked directory, so it stays a plain machine-local directory.
+CONFIG_UNLINKED=(agents)
 echo "[config]"
 if [ "$(cd "$XDG_CONFIG" 2>/dev/null && pwd -P)" = "$DOTFILES" ]; then
   echo "  skipped: $DOTFILES is $XDG_CONFIG itself"
 else
   mkdir -p "$XDG_CONFIG"
   while IFS= read -r name; do
-    [ -d "$DOTFILES/$name" ] && link "$DOTFILES/$name" "$XDG_CONFIG/$name"
+    [ -d "$DOTFILES/$name" ] || continue
+    if printf '%s\n' "${CONFIG_UNLINKED[@]}" | grep -qx -- "$name"; then
+      # Drop a link an earlier run made before the name was excluded.
+      if [ -L "$XDG_CONFIG/$name" ] && [ "$(readlink "$XDG_CONFIG/$name")" = "$DOTFILES/$name" ]; then
+        rm "$XDG_CONFIG/$name"
+        echo "  unlinked: $XDG_CONFIG/$name (not a config directory)"
+      fi
+      continue
+    fi
+    link "$DOTFILES/$name" "$XDG_CONFIG/$name"
   done < <(git -C "$DOTFILES" ls-files -z | tr '\0' '\n' | grep / | cut -d/ -f1 | sort -u)
 fi
 
@@ -284,14 +300,11 @@ fi
 # codex, opencode, copilot, grok and gemini (claude reads ~/.claude/skills, so
 # each shared skill is linked into it below). It stays a REAL machine-local
 # directory — third-party installers write into it — and repo-curated skills
-# are linked in one by one from agents/curated/. The curated tree deliberately
-# does NOT live at agents/skills: ~/.config/agents/skills is a registered
-# install target of `hyperframes skills` (amp/universal convention), so that
-# path is surrendered to tool droppings and git-ignored wholesale. The
-# installer's ~/.agents/.skill-lock.json is per-machine update state and
-# stays out of the repo, same split as hermes/.
+# are linked in one by one from agents/skills/. The installer's
+# ~/.agents/.skill-lock.json is per-machine update state and stays out of the
+# repo, same split as hermes/.
 echo "[agents]"
-link_skills_into "$DOTFILES/agents/curated" "$HOME/.agents/skills"
+link_skills_into "$DOTFILES/agents/skills" "$HOME/.agents/skills"
 
 echo "[claude]"
 link "$DOTFILES/claude/CLAUDE.md"        "$HOME/.claude/CLAUDE.md"

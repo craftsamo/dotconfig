@@ -8,15 +8,21 @@ layers with distinct owners:
 | Layer        | Path                           | Owner                    |
 | ------------ | ------------------------------ | ------------------------ |
 | Mutable root | `~/.agents/skills/` (real dir) | third-party installers   |
-| Curated tree | [`agents/curated/`](./curated) | this repo, fully tracked |
+| Curated tree | [`agents/skills/`](./skills)   | this repo, fully tracked |
 
 `install.sh` links each curated skill into the mutable root
-(`~/.agents/skills/<name> -> agents/curated/<name>`) and prunes links whose
+(`~/.agents/skills/<name> -> agents/skills/<name>`) and prunes links whose
 repo target disappeared. Third-party installers (`npx skills`,
 `hyperframes skills`) write real directories into the same root; they sit
 alongside the curated links and never touch the repo. The `skills` CLI keeps
 its update state in `~/.agents/.skill-lock.json`, which is per-machine and
 stays outside the repo.
+
+`agents/` is the one tracked directory `install.sh` does not link into
+`~/.config`: nothing reads `~/.config/agents`, and `hyperframes skills`
+treats `~/.config/agents/skills` as an install target (the amp/"universal"
+convention), writing relative links that would dangle inside a linked
+directory. It stays a plain machine-local directory, like `~/.config/gh`.
 
 Claude Code does not read the shared root natively, so `install.sh` links
 each shared skill into `~/.claude/skills`, which stays a real directory. The
@@ -44,24 +50,14 @@ no way to exclude it yet (anomalyco/opencode#36990), so
 | Gemini CLI     | yes (alias)              | `~/.gemini/skills`                    |
 | Claude Code    | **no**                   | `~/.claude/skills` — linked per skill |
 
-Skill directories must be **flat** — `agents/curated/<name>/SKILL.md`. Codex
+Skill directories must be **flat** — `agents/skills/<name>/SKILL.md`. Codex
 and Claude Code do not descend into nested groups, so a shared skill cannot
 be filed under a category subdirectory the way opencode allows.
 
-## Why the curated tree is not `agents/skills/`
-
-`~/.config/agents/skills` is itself a registered install target of
-`hyperframes skills` (the amp/"universal" agent-dir convention), so any
-content kept there gets mixed with tool droppings. That path is surrendered:
-git-ignored wholesale, owned by the installers. The curated tree lives at
-`agents/curated/`, where no installer writes, and is tracked like any other
-repo content — no `git add -f` opt-in dance.
-
-`hyperframes skills` also mirrors its store into every agent dir it
-recognizes. For dirs that live inside this repo that is handled per dir:
-`opencode/skills/` uses an ignore-allowlist (see `.gitignore`); codex and
-copilot have machine-local skill dirs, so their droppings never reach the
-repo.
+`hyperframes skills` mirrors its store into every agent dir it recognizes.
+`~/.config/opencode/skills` is the one such dir inside this repo, handled with
+an ignore-allowlist (see `.gitignore`); codex and copilot have machine-local
+skill dirs, so their droppings never reach the repo.
 
 ## What lives here
 
@@ -164,7 +160,7 @@ after checking that `hermes/local/writing-inspection/venv/` does not exist:
 ```sh
 uv venv hermes/local/writing-inspection/venv --python 3.12
 uv pip install --python hermes/local/writing-inspection/venv/bin/python \
-  -r agents/curated/japanese-writing/scripts/requirements.txt
+  -r agents/skills/japanese-writing/scripts/requirements.txt
 ```
 
 Other clients may point at their own Python with the pinned packages (see
