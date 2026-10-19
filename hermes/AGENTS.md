@@ -3,8 +3,9 @@
 Rules for whoever edits this subtree: OpenCode, usually started by the person.
 The Assistant may drive it here too (hands-reference upkeep does), but only in a
 task worktree (`opencode_session workspace`): the plugin refuses a write run in
-the live checkout `~/.config`. Hermes reads `~/.hermes/` (symlinks into this
-repo), never `~/.config`, and never loads this file, `README.md` or `docs/`;
+the live checkout (`~/ghq/github.com/craftsamo/dotconfig`, which `~/.config`
+links into). Hermes reads `~/.hermes/` (symlinks into this repo), never
+`~/.config`, and never loads this file, `README.md` or `docs/`;
 a profile sees only its `config.yaml` (`agent.system_prompt`), `SOUL.md` and
 skills.
 
@@ -383,7 +384,8 @@ Contract: [docs/opencode.md](docs/opencode.md). When editing
   snapshots: keep both, or a fallback or `-fast` alias slips past a role that
   refuses ([docs/opencode.md "Models"](docs/opencode.md)).
 - **A write run never edits the live checkout.** `policy.branch` refuses it in
-  `~/.config` (`policy.live_checkout`), because `~/.hermes` links into it; the
+  the checkout `~/.hermes/plugins` links into (`policy.live_checkout`), because
+  every change there is live at once; the
   Assistant plans there read-only and builds in the worktree `workspace`
   creates. Cutover stays a person's decision ("Candidates and cutover").
 - **A session may only work in the repository it was bound to.** An agent can

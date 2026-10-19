@@ -347,8 +347,13 @@ PROTECTED_BRANCHES = ("main", "master")
 
 
 def live_checkout():
-    """The checkout `~/.hermes` links into: a branch there is live for anything Hermes reads."""
-    return str(Path.home() / ".config")
+    """The checkout `~/.hermes` links into: a branch there is live for anything Hermes reads.
+    Read off the plugins link the public install.sh writes (<repo>/hermes/plugins), so the
+    checkout can live anywhere; its ghq path is the fallback when the link is absent."""
+    plugins = Path.home() / ".hermes" / "plugins"
+    if plugins.is_symlink():
+        return str(Path(os.path.realpath(plugins)).parent.parent)
+    return str(Path.home() / "ghq" / "github.com" / "craftsamo" / "dotconfig")
 
 
 def git(directory, *args):
@@ -371,7 +376,7 @@ def branch(directory, writing):
     """(branch name, protected branch names) of the worktree. A write run needs a named
     task branch that is not the default branch, local or remote."""
     if writing and same_dir(directory, live_checkout()):
-        raise ValueError("A write run never edits the live Hermes configuration checkout (~/.config): its links "
+        raise ValueError("A write run never edits the live Hermes configuration checkout: its links "
                          "make every change effective at once; give the session a task worktree with "
                          "opencode_session workspace first")
     protected = set(PROTECTED_BRANCHES)

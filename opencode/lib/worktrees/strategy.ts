@@ -45,7 +45,7 @@ export async function mainCheckout(directory: string): Promise<string> {
   return dirname(common)
 }
 
-/** The repository's name on its origin remote (`dotconfig` for ~/.config), else its checkout's directory name. */
+/** The repository's name on its origin remote (`dotconfig` for the dotconfig checkout), else its checkout's directory name. */
 export async function repositoryName(directory: string): Promise<string> {
   const url = await git(directory, ["remote", "get-url", "origin"])
   const fromUrl = url.ok ? url.stdout.trim().replace(/\/+$/, "").split(/[/:]/).pop()?.replace(/\.git$/, "") : ""
