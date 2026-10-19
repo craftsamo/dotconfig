@@ -31,7 +31,7 @@ the user accepted that risk for low-volume use of their own account
 ([risk acceptance](access-common.md#risk-acceptance)). Endpoints are
 undocumented and may change.
 
-`bridge.py` runs under the hash-locked `hermes/local/python-substack/venv`,
+`bridge.py` runs under the hash-locked `~/.hermes/local/python-substack/venv`,
 never Hermes' own, as a child process with a minimal environment
 ([bridge process](access-common.md#state-directory-and-bridge-process)).
 

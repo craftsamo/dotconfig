@@ -132,9 +132,9 @@ discipline as HyperFrames. All the common final decode/audio checks in
 ## Runtime provisioning
 
 For an explicit runtime upgrade, first wait for owned renders to finish.
-Preserve the existing ignored `hermes/local/motion-canvas` directory in a
+Preserve the existing machine-local `~/.hermes/local/motion-canvas` directory in a
 maintenance backup, then run setup for a fresh runtime. The dedicated macOS
-clone lives at `hermes/local/motion-canvas/browser/Renderer.app`; never patch
+clone lives at `~/.hermes/local/motion-canvas/browser/Renderer.app`; never patch
 or overwrite its signed contents while a job is using it. Changed runtimes
 require fresh preview approval, not edits to old source or approval hashes.
 
@@ -145,8 +145,8 @@ node hermes/engines/motion-canvas/setup.mjs --browser <installed-Chromium-execut
 ```
 
 run from the repository root, with Node >=22.12 and FFmpeg already
-installed. Packages are installed into the gitignored
-`hermes/local/motion-canvas`; no browser is downloaded by this step or by
+installed. Packages are installed into the machine-local
+`~/.hermes/local/motion-canvas`; no browser is downloaded by this step or by
 any job. Jobs never install or upgrade anything — a missing or drifted
 runtime is reported as a maintainer-provisioning gap, never worked around.
 

@@ -24,6 +24,7 @@ from __future__ import annotations
 import hashlib
 import importlib.util
 import json
+import os
 from pathlib import Path
 import re
 import secrets
@@ -34,7 +35,9 @@ import threading
 import time
 
 HERE = Path(__file__).resolve().parent
-VENV_PYTHON = HERE.parents[2] / "local" / "web3" / "venv" / "bin" / "python"
+# Engine runtime root: machine-local, outside the repository (HERMES_LOCAL overrides).
+RUNTIME_ROOT = Path(os.environ.get("HERMES_LOCAL") or Path.home() / ".hermes" / "local")
+VENV_PYTHON = RUNTIME_ROOT / "web3" / "venv" / "bin" / "python"
 READER = HERE / "reader.py"
 SIGNER = HERE / "signer.py"
 STATE = "web3-wallet"

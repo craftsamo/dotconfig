@@ -5,6 +5,7 @@ from __future__ import annotations
 
 from http.server import BaseHTTPRequestHandler, HTTPServer
 import json
+import os
 from pathlib import Path
 import shutil
 import subprocess
@@ -15,7 +16,8 @@ import pytest
 
 HERMES = Path(__file__).resolve().parents[4]
 SHARED = HERMES / "plugins" / "web3" / "_shared"
-PYTHON = HERMES / "local" / "web3" / "venv" / "bin" / "python"
+RUNTIME_ROOT = Path(os.environ.get("HERMES_LOCAL") or Path.home() / ".hermes" / "local")
+PYTHON = RUNTIME_ROOT / "web3" / "venv" / "bin" / "python"
 SCRIPT = HERMES / "profiles" / "assistant" / "scripts" / "hl-strategy-gate.sh"
 
 pytestmark = pytest.mark.skipif(not PYTHON.exists(), reason="web3 engine venv not installed (scripts/web3.sh install)")
@@ -149,7 +151,7 @@ def api():
 
 def env(tmp_path: Path, api: str, now: int = NOW) -> dict:
     return {"HOME": str(tmp_path), "PATH": "/usr/bin:/bin", "LANG": "en_US.UTF-8", "WEB3_ENGINE_TEST": "1",
-            "HL_GATE_API": api, "HL_GATE_NOW": str(now)}
+            "HERMES_LOCAL": str(RUNTIME_ROOT), "HL_GATE_API": api, "HL_GATE_NOW": str(now)}
 
 
 # --- the backtest read --------------------------------------------------------------------------
@@ -436,8 +438,8 @@ def test_no_strategies_is_silent(api, tmp_path):
 
 def test_the_cron_script_reads_its_own_profile_home_and_finds_the_engine_through_plugins(api, tmp_path):
     """install.sh copies the script into <HERMES_HOME>/scripts (cron resolves real paths): the
-    strategies are read from that home, whatever HERMES_HOME says, and the engine is found in the
-    repository through the home's plugins tree (a real directory of links into it)."""
+    strategies are read from that home, whatever HERMES_HOME says; hl_gate.py is found in the
+    repository through the home's plugins tree, the engine under the HERMES_LOCAL runtime root."""
     assert SCRIPT.stat().st_mode & 0o111
     home = tmp_path / ".hermes" / "profiles" / "assistant"
     (home / "scripts").mkdir(parents=True)
@@ -459,7 +461,7 @@ def test_the_cron_script_reads_its_own_profile_home_and_finds_the_engine_through
     other.mkdir(parents=True)
     assert run({"HERMES_HOME": str(other)})["wakeAgent"] is True  # the gateway's env names no other home
 
-    (home / "plugins" / "web3" / "_shared").unlink()
+    # The engine is found through the runtime root, not the plugins tree: an empty root is "not installed".
     proc = subprocess.run(["/bin/bash", str(copied)], capture_output=True, text=True, timeout=60,
-                          env=env(tmp_path, api), cwd=str(copied.parent))
+                          env={**env(tmp_path, api), "HERMES_LOCAL": str(tmp_path / "empty-root")}, cwd=str(copied.parent))
     assert proc.returncode == 1 and "web3 engine is not installed" in proc.stderr

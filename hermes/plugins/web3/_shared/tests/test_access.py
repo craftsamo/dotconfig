@@ -461,9 +461,9 @@ def test_a_profile_that_sends_keeps_the_keychain_and_the_signer_out_of_reach(tmp
 def test_a_reading_profile_blocks_only_the_engine_and_the_rpc_keys():
     blocked = [("terminal", {"command": "secret get ALCHEMY_API_KEY -p hermes --scope web3-rpc"}),
                ("terminal", {"command": "secret get ETHERSCAN_API_KEY -p hermes"}),
-               ("terminal", {"command": "~/.config/hermes/local/web3/venv/bin/python reader.py"}),
+               ("terminal", {"command": "~/.hermes/local/web3/venv/bin/python reader.py"}),
                ("execute_code", {"code": "import os; os.system('secret show HELIUS_API_KEY')"}),
-               ("read_file", {"path": "~/.config/hermes/local/web3/venv/pyvenv.cfg"})]
+               ("read_file", {"path": "~/.hermes/local/web3/venv/pyvenv.cfg"})]
     for name, args in blocked:
         assert gate("evm", "marketer", tool_name=name, args=args)["action"] == "block", (name, args)
     assert gate("evm", "marketer", tool_name="terminal", args={"command": "ls ~/Workspaces"}) is None

@@ -47,7 +47,7 @@ messaging plugins keep their mirror and outbox under
   keys), so the gateway's own Python does not hold the key or import the
   client. Google's and YouTube's API calls are the exception: they use Google's
   client libraries in Hermes' own Python, and keep access tokens in memory (their
-  docs say how). Where there is a venv it is hash-locked under `hermes/local/<name>/venv`
+  docs say how). Where there is a venv it is hash-locked under `~/.hermes/local/<name>/venv`
   and never Hermes' interpreter; note's bridge is stdlib only and runs under
   Hermes' interpreter in isolated mode (`-I`).
 

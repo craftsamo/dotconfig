@@ -134,7 +134,7 @@ each for video and for the user's own voice:
 
 ```sh
 hermes/scripts/screen-listen.sh identity      # once; a self-signed identity so rebuilds keep the consents
-hermes/scripts/screen-listen.sh install       # builds local/screen-listen/ScreenListen.app
+hermes/scripts/screen-listen.sh install       # builds ~/.hermes/local/screen-listen/ScreenListen.app
 hermes/scripts/screen-listen.sh grant         # answer "System Audio Recording" once
 hermes/scripts/screen-listen.sh grant-screen  # video only: "Screen Recording"
 hermes/scripts/screen-listen.sh grant-mic     # own voice only: "Microphone"

@@ -233,6 +233,7 @@ def test_a_dead_engine_is_judged_by_its_ledger(monkeypatch, ledger, phrase):
     ("terminal", {"command": "python ~/.config/hermes/plugins/messaging/discord-access/engine.py send"}),
     ("terminal", {"command": "ls", "workdir": "/Users/x/.local/state/hermes-discord"}),
     ("read_file", {"path": "~/.local/state/hermes-discord/sync.json"}),
+    ("read_file", {"path": "$HERMES_LOCAL/discord-user/venv/pyvenv.cfg"}),
 ])
 def test_ways_around_the_tool_are_blocked(tool, args):
     assert access.bypass(tool, args) == access.BYPASS_MESSAGE

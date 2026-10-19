@@ -13,7 +13,8 @@ from tour import command, digest, image, load, local, number, require, text, wri
 
 HERE = Path(__file__).resolve().parent
 ENGINE = HERE.parents[6] / "engines/motion-canvas"
-RUNTIME = HERE.parents[6] / "local/motion-canvas"
+# Engine runtime root: machine-local, outside the repository (HERMES_LOCAL overrides).
+RUNTIME = Path(os.environ.get("HERMES_LOCAL") or Path.home() / ".hermes" / "local").expanduser().absolute() / "motion-canvas"
 SUFFIXES = {".ts", ".tsx", ".js", ".json", ".meta", ".css", ".png", ".jpg", ".jpeg",
             ".webp", ".svg", ".mp4", ".wav", ".woff2", ".md", ".txt"}
 CONTROL_FILES = {"plan.json", "proposal.md", "approved-proposal.md", "integrity.json"}

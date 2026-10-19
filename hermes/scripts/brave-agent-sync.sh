@@ -31,7 +31,9 @@
 set -e
 
 SRC="/Applications/Brave Browser.app"
-DEST_DIR="$HOME/.config/hermes/local/brave-agent"   # gitignored: hermes/**/local/
+# Engine runtime root: machine-local, outside the repository (HERMES_LOCAL overrides).
+HERMES_LOCAL="${HERMES_LOCAL:-$HOME/.hermes/local}"
+DEST_DIR="$HERMES_LOCAL/brave-agent"
 DEST="$DEST_DIR/Brave Agent.app"
 BIN="$DEST/Contents/MacOS/Brave Browser"
 

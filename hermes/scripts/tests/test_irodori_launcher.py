@@ -37,7 +37,7 @@ def irodori_home(tmp_path):
     config = home / ".config" / "hermes"
     (config / "engines" / "irodori-tts").mkdir(parents=True)
     shutil.copy(HERMES / "engines" / "irodori-tts" / "pinned.conf", config / "engines" / "irodori-tts" / "pinned.conf")
-    runtime = config / "local" / "irodori-tts"
+    runtime = home / ".hermes" / "local" / "irodori-tts"
     (runtime / "server").mkdir(parents=True)
     write_wav(runtime / "voices" / "keep.wav", 1)
     write_wav(runtime / "voices" / "drop.wav", 2)
@@ -47,7 +47,7 @@ def irodori_home(tmp_path):
 
 def launch(home, *args):
     return subprocess.run(["bash", str(HERMES / "launchd" / "irodori-tts-launchctl.sh"), *args],
-                          env={**os.environ, "HOME": str(home)}, capture_output=True, text=True)
+                          env={**{k: v for k, v in os.environ.items() if k != "HERMES_LOCAL"}, "HOME": str(home)}, capture_output=True, text=True)
 
 
 def test_irodori_unregister_removes_a_voice_without_restart(irodori_home):

@@ -20,7 +20,7 @@ own contract is [hyperliquid.md](hyperliquid.md).
 | Tool schemas, per-profile actions, `pre_tool_call` approval hook, bypass guard                  | `plugins/web3/_shared/access.py`, `guard.py` (code, not a plugin: no `plugin.yaml`)                                                       |
 | Read engine: chain table, JSON-RPC, ABI and Solana parsing, prices                              | `_shared/reader.py` with `chains.py`, `rpc.py`, `abi.py`, `evm.py`, `sol.py`, `prices.py`                                                 |
 | Signer: derives accounts, builds, simulates, signs and sends; the only reader of wallet secrets | `_shared/signer.py` with `keychain.py`, `ledger.py`, `seeds.py`                                                                           |
-| Engine dependencies, hash-locked                                                                | `engines/web3/requirements.{in,lock}` → `local/web3/venv`                                                                                 |
+| Engine dependencies, hash-locked                                                                | `engines/web3/requirements.{in,lock}` → `~/.hermes/local/web3/venv`                                                                       |
 | Setup and status launcher                                                                       | `scripts/web3.sh`                                                                                                                         |
 | How a profile reads a chain; how the Assistant lists wallets, makes new ones and sends          | plugin skills `evm-access:evm`, `solana-access:solana`, and for the Assistant only `evm-access:evm-wallet`, `solana-access:solana-wallet` |
 | What the Assistant does inline in Chat; how Researcher and Searcher use chain evidence          | the Assistant's Chat reference `web3.md`; each pipeline's `references/platforms/evm.md`, `solana.md`                                      |
@@ -311,7 +311,7 @@ funds.
 
 ## Setup
 
-1. `scripts/web3.sh install` builds `local/web3/venv` from the lock.
+1. `scripts/web3.sh install` builds `~/.hermes/local/web3/venv` from the lock.
 2. Per wallet Hermes may send from, a seed phrase or key for Hermes alone, never
    one that holds other funds: ask the Assistant for a new wallet, run
    `web3.sh new-wallet` ([New wallets](#new-wallets)), or store your own as in

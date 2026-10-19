@@ -2,7 +2,7 @@
 # Engine manager for the substack-access plugin (Substack through python-substack).
 #
 # The plugin runs plugins/social/substack-access/bridge.py with the interpreter of an isolated venv
-# under the ignored hermes/local/python-substack/, built from the hash-locked
+# under the machine-local ~/.hermes/local/python-substack/, built from the hash-locked
 # engines/python-substack/requirements.lock. The session cookies of the user's own Substack
 # account live only in the Keychain (SUBSTACK_COOKIES, project hermes, scope
 # substack-session), never in a file:
@@ -16,7 +16,9 @@ set -euo pipefail
 
 HERMES_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 LOCK="$HERMES_DIR/engines/python-substack/requirements.lock"
-VENV="$HERMES_DIR/local/python-substack/venv"
+# Engine runtime root: machine-local, outside the repository (HERMES_LOCAL overrides).
+HERMES_LOCAL="${HERMES_LOCAL:-$HOME/.hermes/local}"
+VENV="$HERMES_LOCAL/python-substack/venv"
 PYTHON_VERSION="3.12.11"
 STATE="$HOME/.substack-access/state.json"
 SECRET="$HOME/.config/bin/secret"

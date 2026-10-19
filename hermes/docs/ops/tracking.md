@@ -26,9 +26,9 @@ beside the links, outside the repository.
 
 **Ignored** (see [`.gitignore`](../../../.gitignore)): the runtime-state names
 above, as a safety net for a `HERMES_HOME` pointed at this tree by mistake;
-`local/` (engine runtimes beside the tracked lock files, where the overlay's
-Irodori lexicon is linked too); `**/__pycache__/`, `*.pyc` (Python writes
-bytecode beside the real source). A plugin's private data (the specialist-call
+`**/__pycache__/`, `*.pyc` (Python writes bytecode beside the real source).
+Engine runtimes are not in the tree: `~/.hermes/local/` (`HERMES_LOCAL`)
+holds them, and the overlay's Irodori lexicon is linked there. A plugin's private data (the specialist-call
 roster additions, the workspace registry's local integration) is read from
 `~/.hermes/plugin-data/<plugin>/`, never beside the source. Never commit
 secrets, state or host-rendered plists (`~/Library/LaunchAgents/…`).

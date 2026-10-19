@@ -240,9 +240,16 @@ skills.
   description or the pipeline must name `skill_view(name="<plugin>:<skill>")`.
   `test_plugin_skills.py` is the audience table; a new skill or a wider
   audience is added there on purpose.
+- **Engine runtime state lives under `HERMES_LOCAL` (`~/.hermes/local/`),
+  never beside the source.** Resolve it through that contract alone, and make
+  every artifact an engine writes there name other files relative to its own
+  directory, so the root can move ([docs/ops/services.md "Runtime
+  root"](docs/ops/services.md)). A `parents[N] / "local"`, a path spelled
+  under the checkout, or an absolute path written into a marker, catalog or
+  manifest silently pins the install to one location.
 - **Moving a plugin between groups changes its depth, and the code that counts
-  it fails silently.** Engines and tests locate `hermes/` (the `local/` venvs,
-  `profiles/`, `scripts/`) with `parents[N]`, and tests mock the calls that would
+  it fails silently.** Engines and tests locate `hermes/` (`profiles/`,
+  `scripts/`, `engines/`) with `parents[N]`, and tests mock the calls that would
   notice. After a move, re-count every `parents[N]` in the plugin and its tests;
   for a private plugin, also move its link in the overlay's `install.sh`
   (`~/.hermes/plugins/<group>/<name>`) in the same paired change. A plugin's

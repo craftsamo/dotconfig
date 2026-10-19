@@ -32,7 +32,7 @@ v2 run in Hermes' own Python (the `google` extra) as one of the user's
 channels. The official API cannot read captions of videos the channel does not
 own, so transcripts and downloads of public videos run
 [yt-dlp](https://github.com/yt-dlp/yt-dlp) without cookies: `bridge.py` runs
-under the hash-locked `hermes/local/yt-dlp/venv`, never Hermes' own, as a child
+under the hash-locked `~/.hermes/local/yt-dlp/venv`, never Hermes' own, as a child
 process with a minimal environment ([bridge process](access-common.md#state-directory-and-bridge-process)).
 yt-dlp is unofficial and breaks when YouTube changes; bump the pin when it does.
 

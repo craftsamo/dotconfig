@@ -9,6 +9,7 @@ from __future__ import annotations
 import hashlib
 import importlib.util
 import json
+import os
 import subprocess
 import sys
 import wave
@@ -257,6 +258,36 @@ def test_runtime_link_created_only_when_absent_then_verified(env):
     entry["runtime_path"].symlink_to(wrong_target)
     with pytest.raises(sa3.RenderError, match="unexpected target"):
         sa3.install(root=env["root"], accept_terms=True)
+
+    # A dangling one to the cache file's name (an absolute link left by a moved root): re-pointed.
+    cache_name = Path(entry["runtime_rel_path"]).name
+    entry["runtime_path"].unlink()
+    entry["runtime_path"].symlink_to(env["root"].parent / "gone" / "cache" / "assets" / "rev1" / cache_name)
+    sa3.install(root=env["root"], accept_terms=True)
+    assert entry["runtime_path"].read_bytes() == env["contents"][entry["repo_path"]]
+
+    # A dangling one to anything else is still refused.
+    entry["runtime_path"].unlink()
+    entry["runtime_path"].symlink_to(env["root"].parent / "gone" / "elsewhere.npz")
+    with pytest.raises(sa3.RenderError, match="dangling symlink to an unexpected target"):
+        sa3.install(root=env["root"], accept_terms=True)
+
+
+def test_install_records_paths_relative_to_the_root_and_links_relatively(env, tmp_path):
+    """The marker and the weight links name nothing outside the root by absolute
+    path, so the whole root can move (HERMES_LOCAL) and stay installed."""
+    result = sa3.install(root=env["root"], accept_terms=True)
+    marker = json.loads(Path(result["marker"]).read_text())
+    assert not Path(marker["python"]["venv_python"]).is_absolute()
+    assert (env["root"] / marker["python"]["venv_python"]).exists()
+    layout = sa3._layout(env["root"], env["pins"])
+    for entry in sa3._weight_paths(layout, env["pins"]):
+        assert not Path(os.readlink(entry["runtime_path"])).is_absolute()
+
+    moved = tmp_path / "moved-root"
+    os.rename(env["root"], moved)
+    state = sa3.status(root=moved)
+    assert state["available"] is True, state
 
 
 # ---- 2. live checkout + dependency inspection ------------------------------

@@ -2,7 +2,7 @@
 # Engine manager for the youtube-access plugin (yt-dlp for transcripts and downloads).
 #
 # The plugin runs plugins/social/youtube-access/bridge.py with the interpreter of an isolated venv
-# under the ignored hermes/local/yt-dlp/, built from the hash-locked
+# under the machine-local ~/.hermes/local/yt-dlp/, built from the hash-locked
 # engines/yt-dlp/requirements.lock. YouTube's player challenges are solved by Deno (Brewfile);
 # merged video downloads need ffmpeg. The OAuth tokens of the user's channels are not this
 # script's business: `yaccess` stores them in the Keychain (project hermes, scope youtube-access).
@@ -14,7 +14,9 @@ set -euo pipefail
 
 HERMES_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 LOCK="$HERMES_DIR/engines/yt-dlp/requirements.lock"
-VENV="$HERMES_DIR/local/yt-dlp/venv"
+# Engine runtime root: machine-local, outside the repository (HERMES_LOCAL overrides).
+HERMES_LOCAL="${HERMES_LOCAL:-$HOME/.hermes/local}"
+VENV="$HERMES_LOCAL/yt-dlp/venv"
 PYTHON_VERSION="3.12.11"
 STORE="$HOME/.youtube-access"
 SECRET="$HOME/.config/bin/secret"

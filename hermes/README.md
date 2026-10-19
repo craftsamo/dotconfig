@@ -111,8 +111,8 @@ engines/               hash-locked pins for the local engines (TTS, SFX, scrapin
 scripts/               helpers, validators and tests/ (see "Commands")
 docs/                  design contracts (index: PROFILES.md) and docs/ops/ mechanics
 archive/               retired material no profile reads
-local/                 machine-local installs: engine venvs, weights, the browser clone
-                       (ignored)
+                       (machine-local installs — engine venvs, weights, the browser clone —
+                       live outside the repository at ~/.hermes/local/; HERMES_LOCAL overrides)
 ```
 
 What is tracked and what is ignored, and who owns each kind of skill:

@@ -61,8 +61,8 @@ Motion Canvas and Three WebGL runtimes are maintainer-provisioned from
 ### Local Stable Audio 3 Medium runtime
 
 `scripts/stable_audio3.py` is shared by SFX and music; pins live in
-`engines/stable-audio-3/` and the install under the ignored
-`local/stable-audio-3/`:
+`engines/stable-audio-3/` and the install under the machine-local
+`~/.hermes/local/stable-audio-3/`:
 
 ```sh
 python3 hermes/scripts/stable_audio3.py install --accept-terms   # maintainer-only, once

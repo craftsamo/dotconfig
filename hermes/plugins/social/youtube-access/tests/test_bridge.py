@@ -2,13 +2,15 @@
 
 import importlib.util
 import json
+import os
 from pathlib import Path
 import subprocess
 
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
-VENV_PYTHON = ROOT.parents[2] / "local" / "yt-dlp" / "venv" / "bin" / "python"
+RUNTIME_ROOT = Path(os.environ.get("HERMES_LOCAL") or Path.home() / ".hermes" / "local")
+VENV_PYTHON = RUNTIME_ROOT / "yt-dlp" / "venv" / "bin" / "python"
 
 
 def _load(name, path):

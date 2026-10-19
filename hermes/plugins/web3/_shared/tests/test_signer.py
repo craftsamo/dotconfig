@@ -12,6 +12,7 @@ import hmac
 import html
 from http.server import BaseHTTPRequestHandler, HTTPServer
 import json
+import os
 from pathlib import Path
 import subprocess
 import threading
@@ -19,7 +20,8 @@ import threading
 import pytest
 
 HERMES = Path(__file__).resolve().parents[4]
-PYTHON = HERMES / "local" / "web3" / "venv" / "bin" / "python"
+RUNTIME_ROOT = Path(os.environ.get("HERMES_LOCAL") or Path.home() / ".hermes" / "local")
+PYTHON = RUNTIME_ROOT / "web3" / "venv" / "bin" / "python"
 SIGNER = HERMES / "plugins" / "web3" / "_shared" / "signer.py"
 READER = HERMES / "plugins" / "web3" / "_shared" / "reader.py"
 

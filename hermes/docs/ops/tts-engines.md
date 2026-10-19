@@ -32,8 +32,8 @@ After changing a live config, restart the relevant Hermes process (e.g. the
 gateway).
 
 **Voice data never enters this repo.** Reference audio lives in the private
-character tree and is copied into the ignored `local/<engine>/` by the
-launchers; the Irodori lexicon (`local/irodori-tts/lexicon.json`) is a symlink
+character tree and is copied into the machine-local `~/.hermes/local/<engine>/` by the
+launchers; the Irodori lexicon (`~/.hermes/local/irodori-tts/lexicon.json`) is a symlink
 the private overlay installs. Do not add a local-engine voice (`voice:`) key
 under `tts.*` and do not name a lexicon or manifest path in `config.yaml` — both
 are tracked. Private voice and lexicon paths go through the launchers'
@@ -94,7 +94,7 @@ that local snapshot so processor/tokenizer lookups cannot drift to `main`.
 
 Voice-specific settings live in the private character library, not in this
 public repo: `characters sync` copies a character's reference files into a
-content-addressed bundle under the ignored `local/qwen3-tts/manifests/`,
+content-addressed bundle under the machine-local `~/.hermes/local/qwen3-tts/manifests/`,
 generates the voice manifest there and registers it. A manifest pins the voice
 id, language, model revision, generation seed and both reference SHA-256 digests;
 a manifest location is supplied only during machine-local registration. The
@@ -117,13 +117,13 @@ LaunchAgents: `hermes/launchd/qwen3-tts-launchctl.sh` takes `install` /
 `voices` / `status` / `uninstall`. Validate a new manifest first with
 `python3 hermes/scripts/qwen3_tts_server.py check-manifest <path>`.
 
-`install` creates an isolated venv under the ignored `hermes/local/qwen3-tts/`,
-stores absolute private manifest locations only in the ignored `catalog.json`,
+`install` creates an isolated venv under the machine-local `~/.hermes/local/qwen3-tts/`,
+stores absolute private manifest locations only in the machine-local `catalog.json`,
 synchronizes the hash-locked `engines/qwen3-tts/requirements.lock`, validates
 every manifest, renders the LaunchAgent and atomically activates the catalog. A
 failed registration, service load or identity-bound health check restores the
-previous catalog and service. The tracked plist contains only the stable ignored
-catalog path. `uninstall` keeps the catalog, venv and model cache. Dependencies
+previous catalog and service. The tracked plist template contains only placeholders for the
+catalog and cache paths. `uninstall` keeps the catalog, venv and model cache. Dependencies
 stay hash-locked: `requirements.in` is the top level and
 `tested-constraints.txt` the verified environment; review before recompiling.
 
@@ -152,7 +152,7 @@ re-encoded per request).
 `uninstall` (stop) / `purge` (also deletes the runtime dir).
 
 `install` builds a git checkout of the upstream server plus a uv venv under the
-ignored `local/irodori-tts/`; the launcher's explicit uv `--python` is
+machine-local `~/.hermes/local/irodori-tts/`; the launcher's explicit uv `--python` is
 mandatory, since uv otherwise picks 3.12 and the pinned `sentencepiece` has no
 wheel for it. The pin is 3.11 rather than upstream's 3.10, because the lock's
 3.10 scipy does not load on macOS 27 (reason in `pinned.conf`). The pins file is named `.conf` because `**/*.env` is ignored and

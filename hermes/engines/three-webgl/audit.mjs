@@ -5,16 +5,19 @@ import {createHash} from 'node:crypto';
 import {createServer} from 'node:http';
 import {createRequire} from 'node:module';
 import {readFileSync, realpathSync, statSync, writeFileSync} from 'node:fs';
-import {dirname, extname, resolve, sep} from 'node:path';
+import {homedir} from 'node:os';
+import {dirname, extname, join, resolve, sep} from 'node:path';
 import {fileURLToPath} from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const runtime = resolve(here, '../../local/three-webgl');
+// Engine runtime root: machine-local, outside the repository (HERMES_LOCAL overrides).
+const runtime = resolve(process.env.HERMES_LOCAL || join(homedir(), '.hermes', 'local'), 'three-webgl');
 const [projectArg, timesArg, output] = process.argv.slice(2);
 const project = realpathSync(projectArg);
 const times = JSON.parse(timesArg);
 assert(Array.isArray(times) && times.length > 0 && times.length <= 80 && times.every(Number.isFinite));
 const marker = JSON.parse(readFileSync(resolve(runtime, 'runtime.json')));
+marker.browser = resolve(runtime, marker.browser);  // recorded relative to the runtime (see setup.mjs)
 const require = createRequire(resolve(runtime, 'package.json'));
 const puppeteer = require('puppeteer-core');
 const errors = [];

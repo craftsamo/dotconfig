@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 
 # The lexicon is DATA, not code, and a pronunciation dictionary tends to
 # accumulate names the owner would rather not publish. This repo is public, so
-# the file is read from the gitignored runtime directory instead of shipping
+# the file is read from the machine-local runtime directory instead of shipping
 # beside the plugin -- the same split qwen3-tts uses for its voice catalog.
 # Install it with `launchd/irodori-tts-launchctl.sh register-lexicon --file PATH`.
 # No path is read from config.yaml on purpose: config.yaml is tracked, and a
@@ -39,18 +39,14 @@ _lexicon_cache: Optional[Tuple[Dict[str, str], Optional[re.Pattern]]] = None
 
 
 def _runtime_dir() -> Path:
-    """Locate hermes/local/irodori-tts/ from wherever this plugin was loaded.
+    """Locate irodori-tts/ under the machine-local engine runtime root.
 
-    Hermes reads plugins through ~/.hermes/plugins, which is a symlink into the
-    config repo, so the path is resolved before walking up. The walk looks for
-    the directory that owns config.yaml rather than counting parents, which
-    survives the plugin being nested differently.
+    The root is ``$HERMES_LOCAL``, else ``~/.hermes/local``; it does not depend
+    on where this plugin was loaded from.
     """
-    here = Path(__file__).resolve()
-    for parent in here.parents:
-        if (parent / "config.yaml").exists() and (parent / "plugins").is_dir():
-            return parent / "local" / "irodori-tts"
-    return here.parents[3] / "local" / "irodori-tts"
+    # Engine runtime root: machine-local, outside the repository (HERMES_LOCAL overrides).
+    root = Path(os.environ.get("HERMES_LOCAL") or Path.home() / ".hermes" / "local")
+    return root / "irodori-tts"
 
 
 def lexicon_path() -> Path:

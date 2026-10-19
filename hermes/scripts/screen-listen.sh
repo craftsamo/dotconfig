@@ -4,7 +4,7 @@
 # ScreenCaptureKit when a video is asked for).
 #
 # The plugin runs the helper app built from engines/screen-listen/ (main.swift + Info.plist)
-# into the ignored hermes/local/screen-listen/. It is launched through `open` so macOS
+# into the machine-local ~/.hermes/local/screen-listen/. It is launched through `open` so macOS
 # attributes the consents ("System Audio Recording"; "Screen Recording" for video; "Microphone"
 # for the user's own voice) to the
 # helper itself ("Hermes Screen Listen"), not to the gateway.
@@ -26,7 +26,9 @@ set -euo pipefail
 
 HERMES_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 SRC="$HERMES_DIR/engines/screen-listen"
-APP="$HERMES_DIR/local/screen-listen/ScreenListen.app"
+# Engine runtime root: machine-local, outside the repository (HERMES_LOCAL overrides).
+HERMES_LOCAL="${HERMES_LOCAL:-$HOME/.hermes/local}"
+APP="$HERMES_LOCAL/screen-listen/ScreenListen.app"
 BIN="$APP/Contents/MacOS/screen-listen"
 BUNDLE_ID="local.hermes.screen-listen"   # CFBundleIdentifier in Info.plist; what tccutil keys on
 TARGET="$(uname -m)-apple-macosx14.2"   # LaunchServices refuses a binary whose minimum OS is newer than the host

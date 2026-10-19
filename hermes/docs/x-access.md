@@ -35,7 +35,7 @@ was the alternative. Because the session belongs to the sub-account, the main
 account's bookmarks, notifications, home timeline and DMs are out of reach by
 design.
 
-`bridge.py` runs under the hash-locked `hermes/local/twscrape/venv`, never
+`bridge.py` runs under the hash-locked `~/.hermes/local/twscrape/venv`, never
 Hermes' own, as a child process with a minimal environment
 ([bridge process](access-common.md#state-directory-and-bridge-process)), with
 twscrape telemetry off.

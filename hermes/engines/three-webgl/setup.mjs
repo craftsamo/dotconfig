@@ -3,11 +3,20 @@ import {createHash} from 'node:crypto';
 import {spawnSync} from 'node:child_process';
 import {createRequire} from 'node:module';
 import {copyFileSync, existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync} from 'node:fs';
-import {dirname, resolve} from 'node:path';
+import {homedir} from 'node:os';
+import {dirname, join, relative, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const runtime = resolve(here, '../../local/three-webgl');
+// Engine runtime root: machine-local, outside the repository (HERMES_LOCAL overrides).
+const runtime = resolve(process.env.HERMES_LOCAL || join(homedir(), '.hermes', 'local'), 'three-webgl');
+// The marker names what lives inside the runtime relative to it, so the root
+// can move and stay provisioned; node is a machine tool and stays absolute.
+const rel = path => {
+  const real = existsSync(runtime) ? realpathSync(runtime) : runtime;
+  const inside = [runtime, real].find(root => path.startsWith(root + '/'));
+  return inside ? relative(inside, path) : path;
+};
 const args = process.argv.slice(2);
 const refresh = args.includes('--refresh');
 if (refresh) args.splice(args.indexOf('--refresh'), 1);
@@ -38,7 +47,7 @@ if (previous && !refresh) {
   if (run(process.execPath, [hyperframes, '--version']) !== '0.8.35' ||
       JSON.stringify(previous.hyperframesHashes) !== JSON.stringify(cliHashes()) ||
       previous.browserVersion !== browserVersion || previous.browserHash !== sha(sourceBrowser) ||
-      previous.hyperframes !== hyperframes || previous.node !== realpathSync(process.execPath)) {
+      resolve(runtime, previous.hyperframes) !== hyperframes || previous.node !== realpathSync(process.execPath)) {
     throw new Error('Browser/CLI/Node identity changed; explicit reprovisioning and new preview required');
   }
   console.log(JSON.stringify({provisioned: true, reused: true, runtime}));
@@ -79,7 +88,7 @@ await esbuild.build({stdin: {contents: 'export * from "three";', resolveDir: run
 copyFileSync(resolve(here, 'three-layer.js'), resolve(assets, 'three-layer.js'));
 copyFileSync(resolve(runtime, 'node_modules/three/LICENSE'), resolve(assets, 'THREE-LICENSE.txt'));
 const manifest = {version: 1, three: '0.185.1', esbuild: '0.28.2', hyperframesVersion: cliVersion,
-  browser, browserVersion, browserHash: sha(browser), hyperframes, node: realpathSync(process.execPath),
+  browser: rel(browser), browserVersion, browserHash: sha(browser), hyperframes: rel(hyperframes), node: realpathSync(process.execPath),
   nodeVersion: process.version, gpu: 'software', inputs, hyperframesHashes,
   assets: Object.fromEntries(['three-runtime.js', 'three-layer.js', 'THREE-LICENSE.txt'].map(name => [name, sha(resolve(assets, name))]))};
 writeFileSync(marker, JSON.stringify(manifest, null, 2) + '\n', {flag: previous ? 'w' : 'wx'});

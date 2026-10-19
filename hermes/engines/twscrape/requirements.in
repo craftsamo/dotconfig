@@ -1,5 +1,5 @@
 # x-access engine (plugins/social/x-access/bridge.py). The curl extra gives browser-like
 # TLS fingerprints (TWS_HTTP_BACKEND=curl). Recompile the hashed lock after a bump:
-#   uv pip compile requirements.in --python ../../local/twscrape/venv/bin/python \
+#   uv pip compile requirements.in --python ~/.hermes/local/twscrape/venv/bin/python \
 #     --generate-hashes --no-annotate -o requirements.lock
 twscrape[curl]==0.20.1

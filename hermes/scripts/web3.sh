@@ -2,8 +2,8 @@
 # Engine manager for the web3 plugins (evm-access, solana-access and hyperliquid-access; docs/web3.md,
 # docs/hyperliquid.md).
 #
-# Both plugins run their engine with the interpreter of an isolated venv under the ignored
-# hermes/local/web3/, built from the hash-locked engines/web3/requirements.lock. The wallet uses
+# Both plugins run their engine with the interpreter of an isolated venv under the machine-local
+# ~/.hermes/local/web3/, built from the hash-locked engines/web3/requirements.lock. The wallet uses
 # every Keychain item labelled as a seed phrase or a private key, under any name and project, and
 # the optional RPC provider keys; none of them ever lives in a file:
 #
@@ -29,7 +29,9 @@ set -euo pipefail
 
 HERMES_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 LOCK="$HERMES_DIR/engines/web3/requirements.lock"
-VENV="$HERMES_DIR/local/web3/venv"
+# Engine runtime root: machine-local, outside the repository (HERMES_LOCAL overrides).
+HERMES_LOCAL="${HERMES_LOCAL:-$HOME/.hermes/local}"
+VENV="$HERMES_LOCAL/web3/venv"
 PYTHON_VERSION="3.12.11"
 SECRET="$HOME/.config/bin/secret"
 PACKAGES="eth-account eth-abi mnemonic msgpack solders"
@@ -137,7 +139,7 @@ if data.get("setup"):
     done
     # the signer runs with a minimal environment, as from the plugins; this script's own state
     # directory keeps the new-wallet cap apart from the Assistant's
-    "$VENV/bin/python" - "$HERMES_DIR/plugins/web3/_shared/signer.py" "$HERMES_DIR/local/web3/state" "$YES" \
+    "$VENV/bin/python" - "$HERMES_DIR/plugins/web3/_shared/signer.py" "$HERMES_LOCAL/web3/state" "$YES" \
         "$NAME" "$PURPOSE" "$PROJECT" "$SCOPE" "$WORDS" <<'PY'
 import json, os, subprocess, sys
 signer, state, yes, name, purpose, project, scope, words = sys.argv[1:]

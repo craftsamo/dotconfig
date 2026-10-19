@@ -11,7 +11,9 @@ import time
 
 ROOT = Path(__file__).resolve().parents[4]
 SCRIPT = ROOT / "agents/skills/japanese-writing/scripts/inspect_text.py"
-PYTHON = ROOT / "hermes/local/writing-inspection/venv/bin/python"
+# Engine runtime root: machine-local, outside the repository (HERMES_LOCAL overrides).
+RUNTIME_ROOT = Path(os.environ.get("HERMES_LOCAL") or Path.home() / ".hermes" / "local")
+PYTHON = RUNTIME_ROOT / "writing-inspection" / "venv" / "bin" / "python"
 MODES = ("naturalness", "expression", "notation", "reading-load",
          "outline", "terms", "structure", "revision")
 GENRES = ("default", "tech", "business", "essay")

@@ -8,7 +8,7 @@ The engine behind the plugin's ``youtube`` tool and the setup CLI (``bin/yaccess
     refresh token lives only in the Keychain (``YOUTUBE_OAUTH``, project hermes, scope
     youtube-access, a scope no Hermes profile receives) and access tokens only in memory.
   * Transcripts and downloads of any public video run yt-dlp through ``bridge.py`` in an isolated
-    venv (``hermes/local/yt-dlp``, built by ``scripts/youtube-access.sh install``), without cookies.
+    venv (``~/.hermes/local/yt-dlp``, built by ``scripts/youtube-access.sh install``), without cookies.
 
 ``~/.youtube-access/`` holds no secret: the authorized channels' names (``channels.json``), the
 day's API quota use and the yt-dlp call times (``state.json``). Downloads and transcripts go to
@@ -70,7 +70,9 @@ TOKEN_URI = "https://oauth2.googleapis.com/token"
 
 HERE = Path(__file__).resolve().parent
 BRIDGE = HERE / "bridge.py"
-VENV_PYTHON = HERE.parents[2] / "local" / "yt-dlp" / "venv" / "bin" / "python"
+# Engine runtime root: machine-local, outside the repository (HERMES_LOCAL overrides).
+RUNTIME_ROOT = Path(os.environ.get("HERMES_LOCAL") or Path.home() / ".hermes" / "local")
+VENV_PYTHON = RUNTIME_ROOT / "yt-dlp" / "venv" / "bin" / "python"
 STORE = Path.home() / ".youtube-access"
 SETUP = "hermes/scripts/youtube-access.sh"
 SECRET = Path.home() / ".config" / "bin" / "secret"
@@ -186,7 +188,8 @@ _TERMINAL = re.compile(r"yt-dlp|yt_dlp|youtube-dl|youtube_dl|(?<![\w-])yaccess(?
                        r"|(?<![\w-])youtube-access(?![\w-])|(?<!\w)youtube_access(?!\w)|YOUTUBE_OAUTH"
                        r"|dump-keychain|\bsecret\s+export\b",  # whole-Keychain reads carry the item too
                        re.IGNORECASE)
-_STORE = re.compile(r"\.youtube-access(?![\w-])|YOUTUBE_OAUTH|local/yt-dlp")
+# the engine venv under the runtime root, in either spelling of the root (`local/`, `$HERMES_LOCAL`)
+_STORE = re.compile(r"\.youtube-access(?![\w-])|YOUTUBE_OAUTH|(?:local|HERMES_LOCAL\}?)/yt-dlp")
 FILE_TOOLS = {"read_file", "write_file", "patch", "search_files"}
 BYPASS_MESSAGE = (
     "YouTube runs only through the youtube tool, never through the terminal or file tools; the channels' "

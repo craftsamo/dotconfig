@@ -5,11 +5,13 @@ import {createRequire} from 'node:module';
 import {readFile, writeFile, mkdir, realpath} from 'node:fs/promises';
 import {readFileSync, realpathSync} from 'node:fs';
 import {spawnSync} from 'node:child_process';
+import {homedir} from 'node:os';
 import {dirname, extname, join, resolve, relative, isAbsolute} from 'node:path';
 import {fileURLToPath} from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const runtime = resolve(here, '../../local/motion-canvas');
+// Engine runtime root: machine-local, outside the repository (HERMES_LOCAL overrides).
+const runtime = resolve(process.env.HERMES_LOCAL || join(homedir(), '.hermes', 'local'), 'motion-canvas');
 const require = createRequire(join(runtime, 'package.json'));
 const sha = data => createHash('sha256').update(data).digest('hex');
 const json = async path => JSON.parse(await readFile(path, 'utf8'));
@@ -22,6 +24,8 @@ function identity() {
   assert.equal(sha(readFileSync(join(runtime, 'package-lock.json'))), lock, 'Installed lock differs');
   const [major, minor] = process.versions.node.split('.').map(Number);
   assert(major > 22 || (major === 22 && minor >= 12), 'Node >=22.12 required');
+  // The marker names a browser inside the runtime relative to it (see setup.mjs).
+  config.browser = resolve(runtime, config.browser);
   const browser = spawnSync(config.browser, ['--version'], {encoding: 'utf8', timeout: 15000});
   assert.equal(browser.status, 0, 'Browser unavailable');
   const manifest = JSON.parse(readFileSync(join(here, 'package.json'), 'utf8'));

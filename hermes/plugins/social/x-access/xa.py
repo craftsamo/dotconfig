@@ -1,7 +1,7 @@
 """x-access engine: read-only X (Twitter) for the Assistant and Marketer through twscrape and a sub-account.
 
 ``bridge.py`` runs one twscrape read per call with the interpreter of an isolated venv
-(``hermes/local/twscrape/venv``, built by ``scripts/x-access.sh install`` from the hash-locked
+(``~/.hermes/local/twscrape/venv``, built by ``scripts/x-access.sh install`` from the hash-locked
 ``engines/twscrape/requirements.lock``). It signs in with the session cookies of a separate
 sub-account, which the bridge reads from the Keychain and holds only in memory; the user's main
 account is only ever a search subject (``x_access.main_handle``), never a login. Nothing here posts, likes, follows or sends.
@@ -44,7 +44,9 @@ NETWORK = {"posts", "mentions", "search", "thread", "user", "media", "snapshot"}
 
 HERE = Path(__file__).resolve().parent
 BRIDGE = HERE / "bridge.py"
-VENV_PYTHON = HERE.parents[2] / "local" / "twscrape" / "venv" / "bin" / "python"
+# Engine runtime root: machine-local, outside the repository (HERMES_LOCAL overrides).
+RUNTIME_ROOT = Path(os.environ.get("HERMES_LOCAL") or Path.home() / ".hermes" / "local")
+VENV_PYTHON = RUNTIME_ROOT / "twscrape" / "venv" / "bin" / "python"
 STORE = Path.home() / ".x-access"
 SETUP = "hermes/scripts/x-access.sh"
 COOKIES_SET = "secret set X_READER_COOKIES -p hermes --scope x-reader"
@@ -130,7 +132,8 @@ NO_MAIN = ("x_access.main_handle is not set in this profile's config.yaml; menti
 _TERMINAL = re.compile(r"twscrape|(?<![\w-])x-access(?![\w-])|(?<!\w)x_access(?!\w)|\bTWS_[A-Z_]+"
                        r"|X_READER_COOKIES|(?<![\w-])x-reader(?![\w-])|fxtwitter|fixupx|vxtwitter|fixvx",
                        re.IGNORECASE)
-_STORE = re.compile(r"\.x-access(?![\w-])|X_READER_COOKIES|local/twscrape")
+# the engine venv under the runtime root, in either spelling of the root (`local/`, `$HERMES_LOCAL`)
+_STORE = re.compile(r"\.x-access(?![\w-])|X_READER_COOKIES|(?:local|HERMES_LOCAL\}?)/twscrape")
 FILE_TOOLS = {"read_file", "write_file", "patch", "search_files"}
 BYPASS_MESSAGE = (
     "X runs only through the x tool, never through the terminal or file tools; the sub-account's "

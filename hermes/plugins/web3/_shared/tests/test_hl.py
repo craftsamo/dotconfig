@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from http.server import BaseHTTPRequestHandler, HTTPServer
 import json
+import os
 from pathlib import Path
 import subprocess
 import threading
@@ -12,7 +13,8 @@ import time
 import pytest
 
 HERMES = Path(__file__).resolve().parents[4]
-PYTHON = HERMES / "local" / "web3" / "venv" / "bin" / "python"
+RUNTIME_ROOT = Path(os.environ.get("HERMES_LOCAL") or Path.home() / ".hermes" / "local")
+PYTHON = RUNTIME_ROOT / "web3" / "venv" / "bin" / "python"
 HL = HERMES / "plugins" / "web3" / "_shared" / "hl.py"
 
 pytestmark = pytest.mark.skipif(not PYTHON.exists(), reason="web3 engine venv not installed (scripts/web3.sh install)")
