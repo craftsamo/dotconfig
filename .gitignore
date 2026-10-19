@@ -13,22 +13,6 @@ git/credentials
 # entry is a symlink, not a directory.
 /private
 
-# opencode's global skill dir is fixed at ~/.config/opencode/skills — inside
-# this repo — and it also receives installer droppings (hyperframes mirrors
-# its store into every agent dir it recognizes). Allowlist: ignore everything,
-# re-include curated entries. A NEW curated skill needs its negation line here
-# or it stays silently untracked — check `git status` after adding one.
-# (codex/copilot skill dirs are machine-local real dirs, nothing to ignore.)
-opencode/skills/*
-!opencode/skills/approach/
-!opencode/skills/debug/
-!opencode/skills/git/
-!opencode/skills/hermes/
-!opencode/skills/manage-github-projects/
-!opencode/skills/motion-vocabulary-upkeep/
-!opencode/skills/verify/
-!opencode/skills/web/
-
 # Console credit lanes: the grant amounts, renewal days and labels of each
 # lane are account details, so the real file lives in the private overlay and
 # is linked here by private/install.sh. lanes.example.json is the tracked shape;

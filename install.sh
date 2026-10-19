@@ -271,12 +271,66 @@ fi
 # repository and out of reach of `git clean`. A checkout that IS ~/.config
 # (the pre-ghq layout) is left alone.
 #
+# The invariant: links point from HOME into the repo, never the other way,
+# and a tool that writes its own files does so beside a link, never through
+# one into the repo. Three exceptions to the one-link-per-directory rule
+# follow from it.
+#
 # Not linked: directories nothing reads at ~/.config/<name>. agents/ is the
 # repo-curated shared skill tree, wired below into ~/.agents/skills; the path
 # ~/.config/agents/skills is only an install target of `hyperframes skills`
 # (amp/universal convention), whose relative links would dangle inside a
 # linked directory, so it stays a plain machine-local directory.
 CONFIG_UNLINKED=(agents)
+# Linked per entry: a tool writes its own state into this directory (opencode
+# keeps service.json there; `hyperframes skills` mirrors its store into
+# opencode/skills with relative links). ~/.config/<rel> is a REAL machine-local
+# directory and each tracked entry of <repo>/<rel> is linked into it, so the
+# tool's files land beside the links, outside the repository. A nested path
+# listed here gets the same treatment inside its parent.
+CONFIG_ENTRY_ROOTS=(opencode opencode/skills)
+# Seeded, not linked: the tool rewrites the file by temp file + rename, which
+# would replace a link with a real file on the first change (same as grok's
+# config.toml). Copied from the repo once; the tool owns it after.
+CONFIG_SEEDED=(opencode/cli.json)
+
+in_list() {
+  local needle="$1"
+  shift
+  printf '%s\n' "$@" | grep -qx -- "$needle"
+}
+
+# ~/.config/<rel> as a real directory holding one link per tracked entry of
+# <repo>/<rel>. A link left at <rel> by an earlier run (whole-directory mode)
+# is replaced by the directory.
+link_entries() {
+  local rel="$1" dest="$XDG_CONFIG/$1" child
+  if [ -L "$dest" ]; then
+    case "$(readlink "$dest")" in
+      "$DOTFILES"/*)
+        rm "$dest"
+        echo "  migrated: $dest was a link into the repo — now a real directory"
+        ;;
+    esac
+  fi
+  if [ -e "$dest" ] && [ ! -d "$dest" ]; then
+    echo "WARN: $dest exists and is not a directory — not touching"
+    status=1
+    return
+  fi
+  mkdir -p "$dest"
+  while IFS= read -r child; do
+    [ -n "$child" ] || continue
+    if in_list "$rel/$child" "${CONFIG_ENTRY_ROOTS[@]}"; then
+      link_entries "$rel/$child"
+    elif in_list "$rel/$child" "${CONFIG_SEEDED[@]}"; then
+      [ -e "$dest/$child" ] || { cp "$DOTFILES/$rel/$child" "$dest/$child"; echo "  seeded $dest/$child from the repo (the tool owns it after)"; }
+    else
+      link "$DOTFILES/$rel/$child" "$dest/$child"
+    fi
+  done < <(git -C "$DOTFILES" ls-files -z -- "$rel" | tr '\0' '\n' | sed "s#^$rel/##" | cut -d/ -f1 | sort -u)
+}
+
 echo "[config]"
 if [ "$(cd "$XDG_CONFIG" 2>/dev/null && pwd -P)" = "$DOTFILES" ]; then
   echo "  skipped: $DOTFILES is $XDG_CONFIG itself"
@@ -284,16 +338,23 @@ else
   mkdir -p "$XDG_CONFIG"
   while IFS= read -r name; do
     [ -d "$DOTFILES/$name" ] || continue
-    if printf '%s\n' "${CONFIG_UNLINKED[@]}" | grep -qx -- "$name"; then
+    if in_list "$name" "${CONFIG_UNLINKED[@]}"; then
       # Drop a link an earlier run made before the name was excluded.
       if [ -L "$XDG_CONFIG/$name" ] && [ "$(readlink "$XDG_CONFIG/$name")" = "$DOTFILES/$name" ]; then
         rm "$XDG_CONFIG/$name"
         echo "  unlinked: $XDG_CONFIG/$name (not a config directory)"
       fi
-      continue
+    elif in_list "$name" "${CONFIG_ENTRY_ROOTS[@]}"; then
+      link_entries "$name"
+    else
+      link "$DOTFILES/$name" "$XDG_CONFIG/$name"
     fi
-    link "$DOTFILES/$name" "$XDG_CONFIG/$name"
   done < <(git -C "$DOTFILES" ls-files -z | tr '\0' '\n' | grep / | cut -d/ -f1 | sort -u)
+  # Untracked but repo-produced: `--deps` installs the plugin dependencies
+  # into <repo>/opencode/node_modules (the plugins resolve imports from their
+  # real path, so that copy is the one that counts); mirrored for anything
+  # that looks them up through the config directory.
+  [ -d "$DOTFILES/opencode/node_modules" ] && link "$DOTFILES/opencode/node_modules" "$XDG_CONFIG/opencode/node_modules"
 fi
 
 # Shared skill root: ~/.agents/skills is the cross-agent convention honored by
