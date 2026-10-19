@@ -137,6 +137,8 @@ def test_plan_then_build_switches_agent_model_and_ruleset_on_one_session(fixture
     assert "Client: implement the plan" not in fake.entries[sid]["hermes.note"]
     assert plugin.ISSUE_NOTE[True] in fake.entries[sid]["hermes.note"]
     assert plugin.ISSUE_NOTE[False] in plugin._instructions({"policy": "write"}), "no grant, said plainly"
+    assert plugin.PUBLISHED_NOTE in fake.entries[sid]["hermes.note"], "a write run publishes: it hears who reads the text"
+    assert plugin.PUBLISHED_NOTE not in plugin._instructions({"policy": "read-only"})
     assert "Issue" not in plugin._instructions({"policy": "read-only"})
     assert fake.prompts[0][1] == MESSAGE, "a read-only turn adds no scope text"
     run("plan", session_id=sid)

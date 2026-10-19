@@ -84,7 +84,13 @@ user's chosen control.
    push included, also as
    `git push --force-with-lease origin HEAD:refs/heads/<task branch>` after
    the build rebased the branch onto its base), anything else `reject` with a
-   reason and a question to the user. A technical question goes back as the
+   reason and a question to the user. A `git_publish` request is approved
+   against the preview the build reported, its `text` included: the PR
+   titles and bodies are read by people who have only the repository, so one
+   that names a Phase, a decision number, the tools or agents that did the
+   work, a local path or this machine's or account's state — whether the
+   preview flagged it or you read it as such — goes back as a defect before
+   the push, never through. A technical question goes back as the
    run's own call; take changes to what people can do or see, stored data,
    cost or scope to the user. A model or variant the user prefers goes in the
    run's own arguments; a refused name is reported back, never a reason to
