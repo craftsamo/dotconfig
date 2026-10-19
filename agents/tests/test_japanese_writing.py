@@ -5,7 +5,7 @@ from pathlib import Path
 import re
 
 ROOT = Path(__file__).resolve().parents[1].parent
-SKILL = ROOT / "agents/curated/japanese-writing"
+SKILL = ROOT / "agents/skills/japanese-writing"
 REFERENCES = SKILL / "references"
 ANCHORS = {
     "readability.md": ["A1", "A2", "B1", "B2", "B3", "B4", "B5", "B6", "B7", "C1", "C2", "C3", "C4",

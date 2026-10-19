@@ -13,24 +13,24 @@ never enter the repo.
 Every directory below is linked as `~/.config/<dir>`; "XDG native" means the
 tool reads it from there without further wiring.
 
-| Tool                                      | Config in repo | Wiring                                                                                                                                                               |
-| ----------------------------------------- | -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [Neovim](./nvim/README.md)                | `nvim/`        | XDG native                                                                                                                                                           |
-| [Zsh](./zsh/README.md)                    | `zsh/`         | XDG native + `~/.zshrc -> zsh/config.zsh` symlink                                                                                                                    |
-| [Tmux](./tmux/README.md)                  | `tmux/`        | XDG native (tmux >= 3.1)                                                                                                                                             |
-| Ghostty                                   | `ghostty/`     | XDG native                                                                                                                                                           |
-| lazygit                                   | `lazygit/`     | XDG native                                                                                                                                                           |
-| mise                                      | `mise/`        | XDG native; declares language runtimes + global npm CLIs                                                                                                             |
-| [opencode](./opencode/README.md)          | `opencode/`    | XDG native                                                                                                                                                           |
-| Keychain shims                            | `bin/`         | `~/.config/bin` on PATH (see below)                                                                                                                                  |
-| [Shared agent skills](./agents/README.md) | `agents/`      | curated tree in `agents/curated/`, linked per skill into the machine-local `~/.agents/skills` root (installer-writable); each is also linked into `~/.claude/skills` |
-| Git                                       | `git/`         | XDG fallback (`~/.gitconfig` must not exist); `git/credentials` ignored                                                                                              |
-| [Claude Code](./claude/README.md)         | `claude/`      | 4 symlinks in `~/.claude/` plus per-skill links in `skills/` (`agents/` is machine-local, installer-written)                                                         |
-| [Codex](./codex/README.md)                | `codex/`       | 2 symlinks in `~/.codex/` (`skills/` and `config.toml` are machine-local, app/installer-managed)                                                                     |
-| [Gemini CLI](./gemini/README.md)          | `gemini/`      | 3 symlinks in `~/.gemini/`                                                                                                                                           |
-| [GitHub Copilot](./copilot/README.md)     | `copilot/`     | 3 symlinks in `~/.copilot/` (`skills/` is machine-local; `config.json` is app-managed; auth dir `github-copilot/` git-ignored)                                       |
-| [Grok Build](./grok/README.md)            | `grok/`        | `AGENTS.md` symlinked, `config.toml` seeded (CLI-owned); state/auth stay in `~/.grok/`; installed via official installer, not brew                                   |
-| [Hermes Agent](./hermes/README.md)        | `hermes/`      | symlinks in `~/.hermes/` (+ per profile); skills via `external_dirs`; keys via Keychain shim                                                                         |
+| Tool                                      | Config in repo | Wiring                                                                                                                                                                  |
+| ----------------------------------------- | -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [Neovim](./nvim/README.md)                | `nvim/`        | XDG native                                                                                                                                                              |
+| [Zsh](./zsh/README.md)                    | `zsh/`         | XDG native + `~/.zshrc -> zsh/config.zsh` symlink                                                                                                                       |
+| [Tmux](./tmux/README.md)                  | `tmux/`        | XDG native (tmux >= 3.1)                                                                                                                                                |
+| Ghostty                                   | `ghostty/`     | XDG native                                                                                                                                                              |
+| lazygit                                   | `lazygit/`     | XDG native                                                                                                                                                              |
+| mise                                      | `mise/`        | XDG native; declares language runtimes + global npm CLIs                                                                                                                |
+| [opencode](./opencode/README.md)          | `opencode/`    | XDG native                                                                                                                                                              |
+| Keychain shims                            | `bin/`         | `~/.config/bin` on PATH (see below)                                                                                                                                     |
+| [Shared agent skills](./agents/README.md) | `agents/`      | not linked into `~/.config`; `agents/skills/` is linked per skill into the machine-local `~/.agents/skills` root (installer-writable), and each into `~/.claude/skills` |
+| Git                                       | `git/`         | XDG fallback (`~/.gitconfig` must not exist); `git/credentials` ignored                                                                                                 |
+| [Claude Code](./claude/README.md)         | `claude/`      | 4 symlinks in `~/.claude/` plus per-skill links in `skills/` (`agents/` is machine-local, installer-written)                                                            |
+| [Codex](./codex/README.md)                | `codex/`       | 2 symlinks in `~/.codex/` (`skills/` and `config.toml` are machine-local, app/installer-managed)                                                                        |
+| [Gemini CLI](./gemini/README.md)          | `gemini/`      | 3 symlinks in `~/.gemini/`                                                                                                                                              |
+| [GitHub Copilot](./copilot/README.md)     | `copilot/`     | 3 symlinks in `~/.copilot/` (`skills/` is machine-local; `config.json` is app-managed; auth dir `github-copilot/` git-ignored)                                          |
+| [Grok Build](./grok/README.md)            | `grok/`        | `AGENTS.md` symlinked, `config.toml` seeded (CLI-owned); state/auth stay in `~/.grok/`; installed via official installer, not brew                                      |
+| [Hermes Agent](./hermes/README.md)        | `hermes/`      | symlinks in `~/.hermes/` (+ per profile); skills via `external_dirs`; keys via Keychain shim                                                                            |
 
 State and secrets (`~/.codex/auth.json`, sqlite logs, `~/.claude/history.jsonl`,
 transcripts, ...) stay in the tool directories and are never tracked.
@@ -88,7 +88,9 @@ Installed outside the [Brewfile](./Brewfile):
 
 - `[config]` links every tracked top-level directory of the repo as
   `~/.config/<name>`; the set comes from the Git index, so a new directory
-  needs no line in the script. Nothing else in `~/.config` is touched.
+  needs no line in the script. `CONFIG_UNLINKED` names the exceptions
+  (`agents/`, which nothing reads at that path). Nothing else in `~/.config`
+  is touched.
 - Never overwrites a real file: if a tool replaced a symlink with a regular
   file it prints `WARN` and skips, so re-running it doubles as a drift check.
 - Each `--deps` stage records its own failure and the next one still runs; the
