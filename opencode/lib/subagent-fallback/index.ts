@@ -25,6 +25,7 @@ import {
 } from "./lanes"
 import {
   decideLaunch,
+  freshState,
   modelsEqual,
   routeForLaunch,
   ROUTES,
@@ -300,6 +301,14 @@ export async function setupPreflight(
     deps.now,
   )
   const episodes = new Episodes(EPISODE_TTL_MS, deps.now)
+  // Subscription window limits protected children hit, kept for the wait
+  // asked: the Quota export is rewritten on the TUI's own schedule, so the
+  // parent's relaunch would otherwise bounce back to the same window.
+  const limited = new Lanes(
+    [OAUTH_PROVIDER, "openai"],
+    DEFAULT_COOLDOWN_MS,
+    deps.now,
+  )
   // An empty balance is the one exact reading the balance estimate gets
   // without the Console. Requests in flight report it together, so at most
   // once a minute per lane.
@@ -519,15 +528,24 @@ export async function setupPreflight(
     registrations.push(
       await ctx.session.hook("retry", async (event) => {
         if (!(await protectedChild(event.sessionID))) return
+        if (event.error.message.startsWith("Subagent preflight:")) {
+          event.decision = { retry: false }
+          return
+        }
         if (
           event.error.type === "provider.quota" ||
-          event.error.message.startsWith("Subagent preflight:") ||
           ((event.error.type === "provider.rate-limit" ||
             event.error.status === 429) &&
             event.decision.retry &&
             event.decision.delay > 10_000)
-        )
+        ) {
+          if (event.model)
+            limited.mark(
+              event.model.providerID,
+              event.decision.retry ? event.decision.delay : undefined,
+            )
           event.decision = { retry: false }
+        }
       }),
     )
     // Console credit lanes. An empty balance fails before anything is
@@ -670,37 +688,43 @@ export async function setupPreflight(
                   },
                 }
               : { notices: [], metadata: {} }
-            // Credits first: a lane not known empty takes the launch, with no
-            // subscription marker (its guards are for OAuth requests). When
-            // every lane is empty, the usual preflight below decides.
-            if (lanes.ids.length > 0) {
-              const lane = launchLane(
-                route,
-                lanes,
-                (await ctx.model.list({ location: parent.location })).data,
+            const catalog = (
+              await ctx.model.list({ location: parent.location })
+            ).data
+            // A launch on a lane carries no subscription marker (its guards
+            // are for OAuth requests).
+            const onLane = async (lane: ModelRef, why: string) => {
+              context.signal.throwIfAborted()
+              const result = await original(
+                { ...input, model: selector(lane) },
+                context,
               )
-              if (lane) {
-                context.signal.throwIfAborted()
-                const result = await original(
-                  { ...input, model: selector(lane) },
-                  context,
-                )
-                return withNotices(
-                  result,
-                  [
-                    ...pin.notices,
-                    `[Subagent preflight: ${input.agent} ${selector(route.primary)} → ${selector(lane)}; a Console credit lane is tried before the subscription.]`,
-                  ],
-                  {
-                    ...pin.metadata,
-                    preflight: {
-                      funding: "console-credit",
-                      from: selector(route.primary),
-                      to: selector(lane),
-                    },
+              return withNotices(
+                result,
+                [
+                  ...pin.notices,
+                  `[Subagent preflight: ${input.agent} ${selector(route.primary)} → ${selector(lane)}; ${why}]`,
+                ],
+                {
+                  ...pin.metadata,
+                  preflight: {
+                    funding: "console-credit",
+                    from: selector(route.primary),
+                    to: selector(lane),
                   },
+                },
+              )
+            }
+            // Credits first for a Claude role: a lane not known empty takes
+            // the launch. When every lane is empty, the usual preflight below
+            // decides.
+            if (lanes.ids.length > 0) {
+              const lane = launchLane(route.primary, lanes, catalog)
+              if (lane)
+                return onLane(
+                  lane,
+                  "a Console credit lane is tried before the subscription.",
                 )
-              }
             }
             context.signal.throwIfAborted()
             const snapshot = await loadQuotaExport(deps, quotaPath)
@@ -710,19 +734,38 @@ export async function setupPreflight(
               try {
                 auth = await subscription(ctx, model.providerID)
               } catch {}
-              return {
-                account: auth?.proof,
-                quota: readQuota(snapshot, auth?.proof, deps.now()),
-              }
+              // A window limit a protected child hit is the provider's own
+              // word and outranks an export that has not caught up yet.
+              const quota = limited.blocked(model.providerID)
+                ? {
+                    state: "exhausted" as const,
+                    observedAt: deps.now(),
+                    reason: "window limit observed on a protected child",
+                  }
+                : readQuota(snapshot, auth?.proof, deps.now())
+              return { account: auth?.proof, quota }
             }
             const source = await probe(route.primary)
+            // A ChatGPT role whose window is spent goes to its Claude
+            // alternate the way a Claude role starts: credits before the
+            // subscription. With every lane empty, the usual preflight
+            // launches the alternate on the subscription.
+            if (
+              lanes.ids.length > 0 &&
+              route.primary.providerID !== OAUTH_PROVIDER &&
+              freshState(source.quota, deps.now()) === "exhausted"
+            ) {
+              const lane = launchLane(route.alternate, lanes, catalog)
+              if (lane)
+                return onLane(
+                  lane,
+                  "Quota reports the default's included quota empty; a Console credit lane is tried before the subscription.",
+                )
+            }
             const target =
               source.quota.state === "exhausted"
                 ? await probe(route.alternate)
                 : undefined
-            const catalog = (
-              await ctx.model.list({ location: parent.location })
-            ).data
             const decision = decideLaunch({
               route,
               source,

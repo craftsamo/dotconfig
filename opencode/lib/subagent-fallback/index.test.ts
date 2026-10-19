@@ -1161,4 +1161,68 @@ describe("Console credit lanes", () => {
     expect(env.switches).toEqual([])
     expect(marker(env).model).toEqual(SONNET)
   })
+  test("a ChatGPT role launches on its window and, once that is spent, on the first lane with its Claude alternate", async () => {
+    const { env, inst } = await laned()
+    const input = { agent: "searcher", prompt: "fixture", background: true }
+    await inst.run(input)
+    expect(env.originals[0]).toBe(input)
+    expect(marker(env).model).toEqual(SOL)
+    env.quota.openai = 0
+    const result = await inst.run(input)
+    expect(env.originals[1].model).toBe(sel(on(MAIN)))
+    expect(marker(env)).toBeUndefined()
+    expect(result.content).toBe(
+      `[Subagent preflight: searcher ${sel(SOL)} → ${sel(on(MAIN))}; Quota reports the default's included quota empty; a Console credit lane is tried before the subscription.]\ndone`,
+    )
+    expect(result.metadata.preflight).toEqual({
+      funding: "console-credit",
+      from: sel(SOL),
+      to: sel(on(MAIN)),
+    })
+    expect(env.reads).toBe(2)
+  })
+  test("with every lane empty a spent ChatGPT role takes its alternate on the subscription, marked", async () => {
+    const { env, inst } = await laned()
+    specialist(env)
+    await retry(inst, "ses_lane", on(MAIN), CREDIT)
+    await retry(inst, "ses_lane", on(SUB), CREDIT)
+    env.quota.openai = 0
+    await inst.run({ agent: "searcher", prompt: "fixture", background: true })
+    expect(env.originals[0].model).toBe(sel(SONNET))
+    expect(marker(env).model).toEqual(SONNET)
+    expect(marker(env).fallback).toBe(true)
+  })
+  test("a window limit a protected ChatGPT child hits steers its relaunch to a lane for the wait asked, before the export catches up", async () => {
+    const { env, inst } = await laned()
+    const input = { agent: "searcher", prompt: "fixture", background: true }
+    await inst.run(input)
+    expect(marker(env)).toBeDefined()
+    const e = await retry(inst, "ses_child", SOL, LIMIT, {
+      retry: true,
+      delay: 30_000,
+    })
+    expect(e.decision).toEqual({ retry: false })
+    expect(env.switches).toEqual([])
+    await inst.run(input)
+    expect(env.originals[1].model).toBe(sel(on(MAIN)))
+    env.now += 31_000
+    await inst.run(input)
+    expect(env.originals[2]).toBe(input)
+  })
+  test("a Claude child's observed limit sends the relaunch to the ChatGPT alternate while the export still says room", async () => {
+    const { env, inst } = await laned()
+    specialist(env)
+    await retry(inst, "ses_lane", on(MAIN), CREDIT)
+    await retry(inst, "ses_lane", on(SUB), CREDIT)
+    await inst.run()
+    expect(marker(env).model).toEqual(SONNET)
+    await retry(inst, "ses_child", SONNET, {
+      type: "provider.quota",
+      message: "weekly limit reached",
+    })
+    await inst.run()
+    expect(env.originals[1].model).toBe(sel(SOL))
+    expect(marker(env).model).toEqual(SOL)
+    expect(marker(env).fallback).toBe(true)
+  })
 })
