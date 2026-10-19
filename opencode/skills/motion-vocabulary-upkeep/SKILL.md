@@ -61,8 +61,8 @@ Read these before editing; they are the contract the audit enforces.
 
 <Procedure>
 
-1. Work in a task worktree, never the live `~/.config` checkout (`~/.hermes`
-   and the shared skills root link into it). Read `hermes/AGENTS.md`.
+1. Work in a task worktree, never the live dotconfig checkout (`~/.config`,
+   `~/.hermes` and the shared skills root link into it). Read `hermes/AGENTS.md`.
 2. Capture the source outside the repository, in the session's scratch
    directory: the names (and their Japanese forms), any feel or usage tags,
    and the source's descriptive prose saved as plain text for `--source`.

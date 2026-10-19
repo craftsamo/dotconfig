@@ -459,7 +459,9 @@ def validate_allowed_skill_roots(
             errors.append(f"unexpected skill root: {path}")
 
 
-PRIVATE_OVERLAY = Path.home() / ".config" / "private"
+# The live overlay checkout, the path the real config.yaml files name in
+# skills.external_dirs (a sibling ghq checkout of the public repo).
+PRIVATE_OVERLAY = Path.home() / "ghq" / "github.com" / "craftsamo" / "private-dotconfig"
 
 
 def validate_git_boundary(

@@ -89,7 +89,8 @@ question; you never read or edit target code yourself.
 
 Not OpenCode's: writing, creative work, research and Hermes operations (cron,
 messaging, secrets) go to their own entries. The Hermes configuration repo
-(`~/.config`) is live: plan there read-only, build only in the worktree
+(`~/ghq/github.com/craftsamo/dotconfig`; `~/.config` and `~/.hermes` link into
+it) is live: plan there read-only, build only in the worktree
 `workspace` gives the session (a write run in the live checkout is refused), and
 leave install, gateway restarts and the cutover to the person.
 

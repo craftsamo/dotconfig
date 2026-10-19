@@ -142,7 +142,7 @@ key and any `dm_topics` list without a topic literally named `Inbox`.
   `TELEGRAM_CRON_THREAD_ID` from the topic literally named `Inbox`, so renaming
   it makes every such job fail closed.
 - **Admin** is the inline surface for small administrative work: workspace
-  bookkeeping, edits to the `~/.config` dotconfig repo and its Hermes profiles,
+  bookkeeping, edits to the dotconfig repo and its Hermes profiles,
   and Hermes upkeep (browser relaunch, cron / validator checks, skill
   housekeeping). No resident session or delegation. It is not the only OpenCode
   topic: code work happens in any topic per the engineering entries (see
