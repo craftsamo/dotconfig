@@ -89,6 +89,22 @@ All global instructions live in `AGENTS.md`. Do not reintroduce an
 `instructions` array: OpenCode V2 accepts the key but does not load its files
 (anomalyco/opencode#51341).
 
+## Project config for this repository
+
+The repository root holds its own `opencode.jsonc`, loaded only for sessions in
+this checkout or one of its worktrees (`install.sh` links directories, never
+that file). It adds what work here needs on top of the global config:
+references (`hermes-agent`, `private-dotconfig`, `agent-skills`, `opencode`)
+with their descriptions, `external_directory` allows for the two local
+checkouts and the cached `anomalyco/opencode` clone, and an edit deny on that
+clone (a refresh resets it). Editing the local checkouts keeps the global
+`edit` ask: they are live, since `~/.hermes` links into them. Paths are spelled
+from `~`, because a relative path resolves from the file and a task worktree
+would point elsewhere. Worker resets `external_directory` to ask, so it still
+asks to reach them; a Hermes run's session ruleset does the same (its
+reference clones aside). Descriptions reach every agent's instructions, and
+this repository is public: keep them free of private details.
+
 ## Permissions and policies
 
 Two layers decide what an agent may do:
