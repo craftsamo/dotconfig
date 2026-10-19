@@ -141,17 +141,6 @@ general prompt, agent, command, plugin, or documentation authoring.
 
 </SkillAuthoringSkill>
 
-<HermesHandsReferencesSkill>
-
-For assessing, adding or improving option-backed references in Hermes
-image-creator, video-creator or audio-creator hands leaves, load
-`hermes-hands-references`. The caller (the Hermes Assistant or the person) owns
-scope and acceptance; this Skill owns the maintenance procedure. Exclude
-producing media, new families, option retirement, Writer references, Creator
-broker references and Assistant guides. Assessment alone never authorizes edits.
-
-</HermesHandsReferencesSkill>
-
 <MotionVocabularyUpkeepSkill>
 
 For adding to, deepening or auditing the shared `motion-vocabulary` skill

@@ -11,8 +11,8 @@ known target and evidence, distinguishing assessment-only from requested changes
 and observations from suggestions. If the leaf or field is unknown, OpenCode
 investigates from the purpose or a bounded inventory; do not demand technical
 filenames or fields from the user or invent them. Findings alone never authorize
-repairs or factual-status upgrades. OpenCode's `hermes-hands-references` skill
-owns the maintenance procedure.
+repairs or factual-status upgrades. OpenCode owns the procedure, from the
+repository's own maintainer rules, validator and audit script.
 
 Taking motion names or expressions from a source (an article, a motion
 catalogue, a post) into the shared motion vocabulary is the same kind of
