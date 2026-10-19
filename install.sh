@@ -379,8 +379,10 @@ in_list() {
 # <dest> as a real directory holding one link per tracked entry of
 # <repo>/<rel>. A link left at <dest> by an earlier run (whole-directory
 # mode) is replaced by the directory, with the tool's state moved into it.
+# A link into <repo>/<rel> whose entry is gone (deleted or moved) is pruned;
+# the tool's own files and links elsewhere are left alone.
 link_entries() {
-  local rel="$1" dest="$2" child
+  local rel="$1" dest="$2" child entry
   adopt_dir "$dest"
   if [ -e "$dest" ] && [ ! -d "$dest" ]; then
     echo "WARN: $dest exists and is not a directory — not touching"
@@ -398,6 +400,15 @@ link_entries() {
       link "$DOTFILES/$rel/$child" "$dest/$child"
     fi
   done < <(git -C "$DOTFILES" ls-files -z -- "$rel" | tr '\0' '\n' | sed "s#^$rel/##" | cut -d/ -f1 | sort -u)
+  for entry in "$dest"/* "$dest"/.[!.]*; do
+    [ -L "$entry" ] && [ ! -e "$entry" ] || continue
+    case "$(readlink "$entry")" in
+      "$DOTFILES/$rel"/*)
+        rm "$entry"
+        echo "  pruned dangling: $entry"
+        ;;
+    esac
+  done
 }
 
 echo "[config]"
