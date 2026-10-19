@@ -65,7 +65,13 @@
             {"id": "buried", "certainty": "confirm",
              "look_for": "a passage the music or an effect covers so the words cannot be made out"},
             {"id": "pace", "certainty": "confirm",
-             "look_for": "a line read too fast to follow, or a pause that breaks a sentence"}
+             "look_for": "a line read clearly faster or slower than the same speaker's other lines (morae per second)"},
+            {"id": "pause", "certainty": "confirm",
+             "look_for": "no pause at a 。 inside a line, or a pause inside a line long enough to break the sentence"},
+            {"id": "flat", "certainty": "confirm",
+             "look_for": "a line with far less pitch movement than the same speaker's other lines"},
+            {"id": "tension", "certainty": "confirm",
+             "look_for": "a line that starts suddenly louder or harder than the same speaker's other lines, as if the voice pushes without a reason in the words"}
           ]
         },
         {
@@ -80,7 +86,9 @@
             {"id": "foreign-term", "certainty": "confirm",
              "look_for": "a Latin-script or loan term read letter by letter or as another word"},
             {"id": "kanji", "certainty": "confirm",
-             "look_for": "a kanji word read with the wrong reading where the meaning changes"}
+             "look_for": "a kanji word read with the wrong reading where the meaning changes"},
+            {"id": "accent", "certainty": "confirm",
+             "look_for": "a word whose pitch accent differs from the dictionary's (一番 read level instead of イチ↓バン); the dictionary is unreliable on loanwords and compounds, so this is always for the ear"}
           ]
         }
       ]

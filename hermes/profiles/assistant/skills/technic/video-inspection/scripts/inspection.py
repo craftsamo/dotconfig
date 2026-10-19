@@ -1158,19 +1158,29 @@ def cmd_triage_speech(args) -> int:
     if episode.get("captions") and Path(episode["captions"]).exists():
         starts = sorted(s for s in (seconds(at) for at, _ in caption_lines(episode["captions"])) if s is not None)
     ignore = [term for _, term in read_terms(args.ignore)] + list(data.get("ignore_terms") or [])
+    # a line that names its item was triaged where it was measured (the
+    # per-speaker accent and delivery check); it passes as it is, unless an
+    # ignored term is the word it is about
+    placed = [row for row in findings + prosody if row.get("item")]
+    placed, ignored = ([row for row in placed if not any(term.lower() in row["problem"].lower() for term in ignore)],
+                       [row for row in placed if any(term.lower() in row["problem"].lower() for term in ignore)])
+    findings = [row for row in findings if not row.get("item")]
+    prosody = [row for row in prosody if not row.get("item")]
     result = triage_speech(findings, prosody, starts, ignore, args.pitch_jump, args.level_jump,
                            args.max_jumps, args.skip_head, args.weak)
     kept = result["reading"] + result["delivery"]
-    items = items_of(data)
-    for row in kept:  # the triage's kind wins over an item of the other kind
-        if row.get("item") and items.get(row["item"], (None, None))[1] != row["kind"]:
-            row.pop("item")
-    lines = [f"{row['at']} | {row['kind']} | {row['problem']} | {row['evidence']} | confirm" for row in kept]
+    for row in placed:
+        row["certainty"] = "confirm"
+    kept = kept + placed
+    lines = [f"{row['at']} | {row['kind']} | {row['item'] + ': ' if row.get('item') else ''}{row['problem']} | "
+             f"{row['evidence']} | confirm" for row in kept]
     (folder / args.out).write_text("\n".join(lines) + ("\n" if lines else ""), encoding="utf-8")
     added = add_findings(data, args.episode, kept, "audio-creator")
     save(args.ledger, data)
     print(json.dumps({"ok": True, "reading": [r["at"] for r in result["reading"]],
-                      "delivery": [r["at"] for r in result["delivery"]], "dropped": result["dropped"],
+                      "delivery": [r["at"] for r in result["delivery"]],
+                      "placed": [f"{r['at']} {r['item']}" for r in placed],
+                      "dropped": result["dropped"] + len(ignored),
                       "added": added, "out": str(folder / args.out)}, ensure_ascii=False))
     return 0
 
