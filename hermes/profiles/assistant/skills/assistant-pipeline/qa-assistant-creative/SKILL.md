@@ -34,8 +34,8 @@ Read only applicable detail references below.
 
 Use this entry only for an explicit user inspection request. Normal production uses
 [direct delivery](../execute-assistant-creative/SKILL.md) without this pass.
-Reviewing explainer videos the hands did not produce for this job is
-Execute's `explainer-video-review` technic, not this pass.
+Inspecting videos the hands did not produce for this job is
+Execute's `video-inspection` technic, not this pass.
 Inspect the named artifacts and criteria once, then return findings. Do not
 chain inspections, launch an
 autonomous correction or iterate until acceptable. The common QA procedure's

@@ -1,4 +1,4 @@
-"""Tests for the explainer-video-review technic's review.py (ledger, sheet, report check).
+"""Tests for the video-inspection technic's inspection.py (ledger, sheet, report check).
 
 Fixtures are invented and language-neutral by default (English); Japanese
 appears only where the `ja` sheet wording or caption rules are under test.
@@ -17,12 +17,12 @@ from pathlib import Path
 HERMES_ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = (
     HERMES_ROOT / "profiles" / "assistant" / "skills" / "technic"
-    / "explainer-video-review" / "scripts" / "review.py"
+    / "video-inspection" / "scripts" / "inspection.py"
 )
 
 
 def load_module():
-    spec = importlib.util.spec_from_file_location("explainer_review", SCRIPT)
+    spec = importlib.util.spec_from_file_location("video_inspection", SCRIPT)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
@@ -554,7 +554,7 @@ class Spreadsheet(LedgerCase):
         out = self.dir / "export.json"
         code, _, err = self.run_cli("export", str(self.ledger), str(out))
         self.assertEqual(code, 2)
-        self.assertIn("without a kind (run `review.py kinds` first): F001, F004, F006, F007, F008", err)
+        self.assertIn("without a kind (run `inspection.py kinds` first): F001, F004, F006, F007, F008", err)
         code, text, _ = self.run_cli("kinds", str(self.ledger))
         self.assertEqual(code, 0, text)
         self.assertEqual(json.loads(text)["inferred"],

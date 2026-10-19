@@ -9,8 +9,8 @@ from _pair import PUBLIC_ROOT
 
 
 ROOT = Path(__file__).resolve().parents[1]
-TECHNIC = PUBLIC_ROOT / "hermes/profiles/assistant/skills/technic/explainer-video-review"
-LOAD = 'skill_view(name="explainer-video-review")'
+TECHNIC = PUBLIC_ROOT / "hermes/profiles/assistant/skills/technic/video-inspection"
+LOAD = 'skill_view(name="video-inspection")'
 
 
 def flat(path: Path) -> str:
@@ -21,26 +21,26 @@ class ExplainerVideoReviewRouting(unittest.TestCase):
     def test_technic_is_a_technic_with_its_script(self):
         text = (TECHNIC / "SKILL.md").read_text()
         meta = yaml.safe_load(text.split("---", 2)[1])
-        self.assertEqual(meta["name"], "explainer-video-review")
+        self.assertEqual(meta["name"], "video-inspection")
         self.assertEqual(meta["metadata"]["hermes"]["category"], "technic")
         self.assertIn("Independent of the video's release state", " ".join(meta["description"].split()))
-        self.assertTrue((TECHNIC / "scripts/review.py").is_file())
+        self.assertTrue((TECHNIC / "scripts/inspection.py").is_file())
 
     def test_entries_load_the_technic(self):
         for entry in ("execute-assistant-creative/SKILL.md", "chat-assistant/SKILL.md"):
             self.assertIn(LOAD, flat(ROOT / entry), entry)
-        self.assertIn("`explainer-video-review`", flat(ROOT / "plan-assistant-creative/references/explainer-video.md"))
-        self.assertIn("`explainer-video-review`", flat(ROOT / "qa-assistant-creative/SKILL.md"))
+        self.assertIn("`video-inspection`", flat(ROOT / "plan-assistant-creative/references/explainer-video.md"))
+        self.assertIn("`video-inspection`", flat(ROOT / "qa-assistant-creative/SKILL.md"))
 
     def test_owners_and_transports(self):
         text = flat(TECHNIC / "SKILL.md")
         for owner in ("video-creator `analyze-explainer-video`", "Never do this check yourself or through `delegate_task`",
-                      "review.py import", "`analyze-speech`", '`kind="work"`, at most five videos per conversation',
+                      "inspection.py import", "`analyze-speech`", '`kind="work"`, at most five videos per conversation',
                       "`analyze-card`", "`destination: youtube-thumb`",
                       "`technic: primary-fact-pack`", "`technic: claim-check`, through Creator",
                       "`write-document`, format `report`", "`prosody: yes` when voice is in scope",
-                      "never import a speech report as it is", "review.py triage-speech",
-                      'skill_view(name="google-access:google-sheets")', "review.py export", "review.py readback"):
+                      "never import a speech report as it is", "inspection.py triage-speech",
+                      'skill_view(name="google-access:google-sheets")', "inspection.py export", "inspection.py readback"):
             self.assertIn(owner, text)
         self.assertNotIn('analyze-speech` with `kind="inquiry"', text)
 

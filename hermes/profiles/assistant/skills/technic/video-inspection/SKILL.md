@@ -1,5 +1,5 @@
 ---
-name: explainer-video-review
+name: video-inspection
 description: >-
   Use when asked to review existing explainer videos (a YouTube link, a batch
   from a colleague or client, the user's own uploads) for on-screen text,
@@ -34,7 +34,7 @@ second commissioning contract.
 
 | Part | Owner | How |
 | --- | --- | --- |
-| Intake, fetch, staging, ledger, speech triage, cross-episode checks, verification, the review spreadsheet and its read-back, report acceptance | you | this technic and `scripts/review.py` |
+| Intake, fetch, staging, ledger, speech triage, cross-episode checks, verification, the review spreadsheet and its read-back, report acceptance | you | this technic and `scripts/inspection.py` |
 | On-screen text, caption-vs-picture, overlaps, phone-size text, figure and portrait drawing defects, the claim list | video-creator `analyze-explainer-video` | one `kind="work"` conversation per video |
 | Speech: un-captioned speech, misread names, numbers and foreign-language terms, prosody jumps (candidates only) | audio-creator `analyze-speech` | `kind="work"`, at most five videos per conversation |
 | Thumbnail legibility at use size | image-creator `analyze-card` | one thumbnail per `kind="inquiry"`, `destination: youtube-thumb`, a fresh work directory each |
@@ -79,12 +79,12 @@ conversation (`plan-assistant-research`).
    the download folder. Make the speech script from the captions:
 
    ```sh
-   python3 ${HERMES_SKILL_DIR}/scripts/review.py script <NN>/src/<id>.<lang>.txt <NN>/src/script.txt
+   python3 ${HERMES_SKILL_DIR}/scripts/inspection.py script <NN>/src/<id>.<lang>.txt <NN>/src/script.txt
    ```
 
    The caption file is what should be on screen; it is itself unchecked, so a
    caption typo is a text finding, not proof the voice is right.
-   Create `ledger.json` (shape in `review.py`'s header) with one `episodes`
+   Create `ledger.json` (shape in `inspection.py`'s header) with one `episodes`
    entry per video, its caption path and `video` (the YouTube id: every time
    on the sheet links to the video at that second), `language` set to the
    captions' language and `sheet_language` to the user's. Add an aspect to
@@ -148,7 +148,7 @@ conversation (`plan-assistant-research`).
    instead of retyping them:
 
    ```sh
-   python3 ${HERMES_SKILL_DIR}/scripts/review.py import ledger.json <label> <NN>/visual/review-<n>/findings.md --source video-creator
+   python3 ${HERMES_SKILL_DIR}/scripts/inspection.py import ledger.json <label> <NN>/visual/review-<n>/findings.md --source video-creator
    ```
 
    It resolves relative evidence paths from the findings file's directory
@@ -163,7 +163,7 @@ conversation (`plan-assistant-research`).
    video, with the `--ignore` list of the series' own readings:
 
    ```sh
-   python3 ${HERMES_SKILL_DIR}/scripts/review.py triage-speech ledger.json <label> <NN>/speech --ignore <terms file>
+   python3 ${HERMES_SKILL_DIR}/scripts/inspection.py triage-speech ledger.json <label> <NN>/speech --ignore <terms file>
    ```
 
    It writes the kept lines to `<NN>/speech/triage.md` and imports them as
@@ -189,11 +189,11 @@ conversation (`plan-assistant-research`).
    notes:
 
    ```sh
-   python3 ${HERMES_SKILL_DIR}/scripts/review.py ask-draft ledger.json asks.md
+   python3 ${HERMES_SKILL_DIR}/scripts/inspection.py ask-draft ledger.json asks.md
    # edit asks.md: `ID | claim`, one line per finding
-   python3 ${HERMES_SKILL_DIR}/scripts/review.py ask-import ledger.json asks.md
-   python3 ${HERMES_SKILL_DIR}/scripts/review.py kinds ledger.json
-   python3 ${HERMES_SKILL_DIR}/scripts/review.py export ledger.json export.json
+   python3 ${HERMES_SKILL_DIR}/scripts/inspection.py ask-import ledger.json asks.md
+   python3 ${HERMES_SKILL_DIR}/scripts/inspection.py kinds ledger.json
+   python3 ${HERMES_SKILL_DIR}/scripts/inspection.py export ledger.json export.json
    ```
 
    `kinds` gives every voice, text and content finding imported without a
@@ -222,9 +222,9 @@ conversation (`plan-assistant-research`).
    starts like one. Read the findings tab back and compare ids, answers
    and link targets with `export.json` before telling the user the sheet is
    ready; send the sheet's URL, not a file. The Markdown sheet
-   (`review.py sheet ledger.json review-sheet.md`) remains the offline form
+   (`inspection.py sheet ledger.json review-sheet.md`) remains the offline form
    with the same links and claims; `--listen` adds the caption-term list
-   from `review.py listen`, which is off by default because it buries the
+   from `inspection.py listen`, which is off by default because it buries the
    findings.
 8. **Settle through the sheet.** The user owns the answer and `memo`; you
    own `reply`. YES means the claim holds and the finding is reported; NO
@@ -235,7 +235,7 @@ conversation (`plan-assistant-research`).
    tab as read (`{"values": [[header], [row], ...]}`) and take it in:
 
    ```sh
-   python3 ${HERMES_SKILL_DIR}/scripts/review.py readback ledger.json values.json
+   python3 ${HERMES_SKILL_DIR}/scripts/inspection.py readback ledger.json values.json
    ```
 
    It derives each finding's status from the answer, stores memos and
@@ -249,7 +249,7 @@ conversation (`plan-assistant-research`).
    (a new crop, a quieter take) do you clear the answer cell and hand it
    back. Rewrite only your columns and the answer cells you clear, in one
    guarded write with `expect` on the ids. Repeat until the unanswered and
-   "can't tell" counts are zero, then `review.py validate ledger.json --final`.
+   "can't tell" counts are zero, then `inspection.py validate ledger.json --final`.
    Likeness is the user's call: when asked to prepare it, have Searcher
    locate the reference photos (the photographer or source credited in the
    video description), put each portrait frame beside its photo in one local
@@ -267,7 +267,7 @@ conversation (`plan-assistant-research`).
    format in `template` only when the user told you to use it. Accept with
 
    ```sh
-   python3 ${HERMES_SKILL_DIR}/scripts/review.py check ledger.json <report path>
+   python3 ${HERMES_SKILL_DIR}/scripts/inspection.py check ledger.json <report path>
    ```
 
    plus the writing acceptance gate. Every mismatch it lists goes back to
@@ -281,7 +281,7 @@ conversation (`plan-assistant-research`).
 ## Pitfalls
 
 - The terminal guard rejects shell variables, brace expansion, loops and
-  chained copies: call `review.py` and other scripts with literal absolute
+  chained copies: call `inspection.py` and other scripts with literal absolute
   paths, `mkdir -p` as its own call, and put per-item lists in files.
 - Vision refuses a fourth load of the same file, crops included: when you
   verify a finding, open the hands' own evidence file once, and for another

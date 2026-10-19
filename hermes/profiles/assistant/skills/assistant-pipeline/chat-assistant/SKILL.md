@@ -135,9 +135,9 @@ specialist production — media or other creation, writing a crafted piece,
 deep or sustained research, code changes — or needs rounds of taste feedback
 on a produced artifact, stop and route through Plan → Execute (a resident
 session). Starting inline and promoting is normal; doing a
-specialist's job inline is not. A request to review explainer videos (often
-a received message with links) is such work: promote it to creative
-Execute, which loads `skill_view(name="explainer-video-review")`.
+specialist's job inline is not. A request to inspect or review existing
+videos (often a received message with links) is such work: promote it to
+creative Execute, which loads `skill_view(name="video-inspection")`.
 
 Your own work stays in Chat however many turns or tool calls it takes: the
 workspace registry and ledgers, work reports, message replies, cron, and Admin
