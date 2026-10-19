@@ -57,11 +57,12 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 PINS_SCHEMA_VERSION = 1
-MARKER_SCHEMA_VERSION = 2  # bumped: marker no longer trusts checkout state, adds dependency records
+MARKER_SCHEMA_VERSION = 3  # bumped: marker paths are root-relative, so the install can move with its root
 SELF_PATH = Path(__file__).resolve()
 PINS_PATH = SELF_PATH.parents[1] / "engines" / "stable-audio-3" / "pins.json"
 LOCK_PATH = SELF_PATH.parents[1] / "engines" / "stable-audio-3" / "requirements.lock"
-DEFAULT_ROOT = SELF_PATH.parents[1] / "local" / "stable-audio-3"
+# Engine runtime root: machine-local, outside the repository (HERMES_LOCAL overrides).
+DEFAULT_ROOT = Path(os.environ.get("HERMES_LOCAL") or Path.home() / ".hermes" / "local") / "stable-audio-3"
 MARKER_NAME = "installed.json"
 LOCK_FILE_NAME = ".runtime.lock"
 
@@ -268,6 +269,23 @@ def _collect_dependency_manifest(venv_python: Path) -> dict:
     return {_normalize_name(name): info for name, info in json.loads(out).items()}
 
 
+def _marker_path(root: Path, path: Path) -> str:
+    """How the marker spells a path: relative to the root when inside it, so the
+    install stays valid when the root moves; absolute only for a file outside.
+    The entry itself is not followed (the venv's bin/python is a link to the
+    base interpreter elsewhere; the marker names the venv's path, not its target)."""
+    located = path.parent.resolve() / path.name
+    try:
+        return str(located.relative_to(root.resolve()))
+    except ValueError:
+        return str(path)
+
+
+def _marker_resolve(root: Path, value: str) -> Path:
+    path = Path(value)
+    return path if path.is_absolute() else root / path
+
+
 def _dist_info_stat_target(dist_info: str) -> Path:
     """RECORD lists every installed file's hash; its own mtime/size moves on
     a package reinstall/upgrade even when the dist-info directory's mtime
@@ -325,21 +343,27 @@ def _download_weight(pins: dict, entry: dict, root: Path) -> Path:
 
 
 def _ensure_runtime_link(runtime_path: Path, cache_path: Path, entry: dict) -> None:
-    """Creates the runtime symlink only when absent; an existing symlink or
-    file is verified, never silently replaced."""
+    """Creates the runtime symlink (relative, so the root can move) only when
+    absent or dangling; an existing live symlink or file is verified, never
+    silently replaced. A dangling link is what an older absolute link becomes
+    when the root moves: it names nothing, so it is re-pointed at the cache."""
     runtime_path.parent.mkdir(parents=True, exist_ok=True)
     if runtime_path.is_symlink():
         target = Path(os.readlink(runtime_path))
         if not target.is_absolute():
             target = runtime_path.parent / target
-        if target.resolve() != cache_path.resolve():
-            raise RenderError(f"{runtime_path} is a symlink to an unexpected target")
-        return
-    if runtime_path.exists():
+        if target.exists():
+            if target.resolve() != cache_path.resolve():
+                raise RenderError(f"{runtime_path} is a symlink to an unexpected target")
+            return
+        if target.name != cache_path.name:
+            raise RenderError(f"{runtime_path} is a dangling symlink to an unexpected target")
+        runtime_path.unlink()
+    elif runtime_path.exists():
         if _sha256_file(runtime_path) != entry["sha256"]:
             raise RenderError(f"{runtime_path} exists and does not match pinned sha256; refusing to overwrite")
         return
-    runtime_path.symlink_to(cache_path)
+    runtime_path.symlink_to(os.path.relpath(cache_path.resolve(), runtime_path.parent.resolve()))
 
 
 # ---- runtime lock -------------------------------------------------------------
@@ -445,7 +469,7 @@ def _check_runtime(layout, pins, marker, full):
         recorded = marker_deps.get(name)
         if recorded is None:
             return _unavailable(f"drift: pinned dependency {name} missing from marker")
-        if not _stat_matches(_stat_fingerprint(Path(recorded["path"])), recorded.get("stat")):
+        if not _stat_matches(_stat_fingerprint(_marker_resolve(layout["root"], recorded["path"])), recorded.get("stat")):
             return _unavailable(f"drift: dependency {name} dist-info changed since install")
     if full:
         try:
@@ -536,6 +560,11 @@ def install(root: str | Path | None = None, accept_terms: bool = False) -> dict:
 
         venv_python = layout["venv_python"]
         uv_bin = _find_uv_executable()
+        if venv_python.is_symlink() and not venv_python.exists():
+            # A venv names its base interpreter by absolute path (pyvenv.cfg, bin/python);
+            # one whose interpreter is gone (the root moved and the interpreter lived
+            # under it) is a derived artifact rebuilt from the lock, not repaired.
+            shutil.rmtree(venv_python.parent.parent)
         if not venv_python.exists():
             _run([uv_bin, "venv", "--seed", "--python", pins["python"]["version"],
                  str(venv_python.parent.parent)], timeout=300)
@@ -554,7 +583,8 @@ def install(root: str | Path | None = None, accept_terms: bool = False) -> dict:
         if missing:
             raise RenderError(f"venv is missing pinned packages: {missing}")
         dependency_records = {
-            name: {"version": manifest[name]["version"], "path": str(_dist_info_stat_target(manifest[name]["dist_info"])),
+            name: {"version": manifest[name]["version"],
+                   "path": _marker_path(root, _dist_info_stat_target(manifest[name]["dist_info"])),
                    "stat": _stat_fingerprint(_dist_info_stat_target(manifest[name]["dist_info"]))}
             for name in expected_names
         }
@@ -564,7 +594,7 @@ def install(root: str | Path | None = None, accept_terms: bool = False) -> dict:
             "code_lock_fingerprint": _code_lock_fingerprint(pins_raw),
             "weights": weight_records,
             "dependencies": dependency_records,
-            "python": {"venv_python": str(venv_python)},
+            "python": {"venv_python": _marker_path(root, venv_python)},
         }
         _write_marker_if_changed(layout["marker"], core)
 
@@ -600,7 +630,7 @@ def refresh(root: str | Path | None = None, *, previous_adapter: str | Path) -> 
         if (fingerprint != marker.get("code_lock_fingerprint")
                 and _code_lock_fingerprint(pins_raw, adapter_source=old_source) != marker.get("code_lock_fingerprint")):
             raise RenderError("previous adapter with current pins/lock does not match installed fingerprint")
-        if marker.get("python", {}).get("venv_python") != str(layout["venv_python"]):
+        if marker.get("python", {}).get("venv_python") != _marker_path(root, layout["venv_python"]):
             raise RenderError("drift: installed Python path differs from configured runtime")
         # Fast checks must also pass: full hashing must not silently bless
         # altered weight/RECORD stat evidence left by a different install.
@@ -619,7 +649,7 @@ def refresh(root: str | Path | None = None, *, previous_adapter: str | Path) -> 
             record = Path(info["dist_info"]) / "RECORD"
             recorded = marker["dependencies"][name]
             if (info["version"] != version or recorded["version"] != version
-                    or record != Path(recorded["path"]) or record.is_symlink()
+                    or record.resolve() != _marker_resolve(root, recorded["path"]).resolve() or record.is_symlink()
                     or not record.resolve().is_relative_to(venv)):
                 raise RenderError(f"drift: dependency {name} metadata does not match locked installation")
             checked = 0

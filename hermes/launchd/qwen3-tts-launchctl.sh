@@ -10,7 +10,9 @@ DEST="$HOME/Library/LaunchAgents/$LABEL.plist"
 LEGACY_LABEL=local.qwen3-tts.engine
 LEGACY_DEST="$HOME/Library/LaunchAgents/$LEGACY_LABEL.plist"
 LAUNCHER="$HOME/.config/hermes/launchd/bin/hermes-qwen3-tts-engine"
-RUNTIME_DIR="$HOME/.config/hermes/local/qwen3-tts"
+# Engine runtime root: machine-local, outside the repository (HERMES_LOCAL overrides).
+HERMES_LOCAL="${HERMES_LOCAL:-$HOME/.hermes/local}"
+RUNTIME_DIR="$HERMES_LOCAL/qwen3-tts"
 MUTATION_LOCK="$RUNTIME_DIR/.mutation.lock"
 SERVER="$HOME/.config/hermes/scripts/qwen3_tts_server.py"
 CATALOG="$RUNTIME_DIR/catalog.json"
@@ -177,7 +179,9 @@ deploy_catalog() {
   SERVER_ESCAPED=$(printf '%s\n' "$RELEASE_SERVER" | sed 's/[&|]/\\&/g')
   CATALOG_ESCAPED=$(printf '%s\n' "$CATALOG" | sed 's/[&|]/\\&/g')
   RELEASE_ID_ESCAPED=$(printf '%s\n' "$RELEASE_ID" | sed 's/[&|]/\\&/g')
+  CACHE_ESCAPED=$(printf '%s\n' "$RUNTIME_DIR/cache" | sed 's/[&|]/\\&/g')
   sed \
+    -e "s|__HF_HOME__|$CACHE_ESCAPED|g" \
     -e "s|__HOME__|$HOME_ESCAPED|g" \
     -e "s|__PYTHON__|$PYTHON_ESCAPED|g" \
     -e "s|__SERVER__|$SERVER_ESCAPED|g" \

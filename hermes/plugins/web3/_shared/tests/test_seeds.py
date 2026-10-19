@@ -5,13 +5,15 @@ seed phrase never leaves the signer."""
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 import subprocess
 
 import pytest
 
 HERMES = Path(__file__).resolve().parents[4]
-PYTHON = HERMES / "local" / "web3" / "venv" / "bin" / "python"
+RUNTIME_ROOT = Path(os.environ.get("HERMES_LOCAL") or Path.home() / ".hermes" / "local")
+PYTHON = RUNTIME_ROOT / "web3" / "venv" / "bin" / "python"
 SIGNER = HERMES / "plugins" / "web3" / "_shared" / "signer.py"
 
 pytestmark = pytest.mark.skipif(not PYTHON.exists(), reason="web3 engine venv not installed (scripts/web3.sh install)")

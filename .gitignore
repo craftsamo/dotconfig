@@ -31,10 +31,6 @@ hermes/profiles/*/marketing-browser-lease.guard
 # real-profile browsing snapshots (copied cookies / logins) — must never ship
 hermes/**/browser-profile/
 
-# Engine runtimes: the launchers in hermes/engines install their venvs and
-# models under hermes/local/ beside the tracked lock files.
-hermes/**/local/
-
 # Python bytecode: Hermes loads the plugins through links, and Python writes
 # bytecode beside the real source
 hermes/**/__pycache__/

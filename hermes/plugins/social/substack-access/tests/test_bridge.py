@@ -2,6 +2,7 @@
 with a fake ``secret`` CLI. No request reaches Substack."""
 
 import json
+import os
 from pathlib import Path
 import subprocess
 
@@ -10,7 +11,8 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 BRIDGE = ROOT / "bridge.py"
-PYTHON = ROOT.parents[2] / "local" / "python-substack" / "venv" / "bin" / "python"
+RUNTIME_ROOT = Path(os.environ.get("HERMES_LOCAL") or Path.home() / ".hermes" / "local")
+PYTHON = RUNTIME_ROOT / "python-substack" / "venv" / "bin" / "python"
 SID, LLI = "s%3AsEcReTsEsSiOn0123456789.AbCdEfGhIjKlMn", "lliSECRETvalue9876543210"
 
 needs_venv = pytest.mark.skipif(not PYTHON.exists(),

@@ -1,7 +1,7 @@
 """substack-access engine: the user's own Substack account through python-substack's venv.
 
 ``bridge.py`` runs one Substack call per tool call with the interpreter of an isolated venv
-(``hermes/local/python-substack/venv``, built by ``scripts/substack-access.sh install`` from the
+(``~/.hermes/local/python-substack/venv``, built by ``scripts/substack-access.sh install`` from the
 hash-locked ``engines/python-substack/requirements.lock``). It signs in with the session cookies of
 the user's own account, which the bridge reads from the Keychain and holds only in memory, bound
 to ``.substack.com``. Which actions a profile gets is decided here (``actions_for``): the
@@ -38,7 +38,9 @@ PROFILE_ACTIONS = {"assistant": ACTIONS, "marketer": READS, "searcher": PUBLIC_R
 
 HERE = Path(__file__).resolve().parent
 BRIDGE = HERE / "bridge.py"
-VENV_PYTHON = HERE.parents[2] / "local" / "python-substack" / "venv" / "bin" / "python"
+# Engine runtime root: machine-local, outside the repository (HERMES_LOCAL overrides).
+RUNTIME_ROOT = Path(os.environ.get("HERMES_LOCAL") or Path.home() / ".hermes" / "local")
+VENV_PYTHON = RUNTIME_ROOT / "python-substack" / "venv" / "bin" / "python"
 STORE = Path.home() / ".substack-access"
 SETUP = "hermes/scripts/substack-access.sh"
 COOKIES_SET = "secret set SUBSTACK_COOKIES -p hermes --scope substack-session"
@@ -80,7 +82,8 @@ _TERMINAL = re.compile(r"(?<![\w-])substack-access(?![\w-])|(?<!\w)substack_acce
                        r"|(?<![\w-])substack-session(?![\w-])|python-substack|substack\.sid"
                        r"|substack\.com/api/|(?<![\w-])substack-(?:mcp|publish-\w+|auth-check)(?![\w-])"
                        r"|(?:^|[;&|(`]|\$\()\s*substack(?:\s|$)", re.IGNORECASE)
-_STORE = re.compile(r"\.substack-access(?![\w-])|SUBSTACK_COOKIES|local/python-substack")
+# the engine venv under the runtime root, in either spelling of the root (`local/`, `$HERMES_LOCAL`)
+_STORE = re.compile(r"\.substack-access(?![\w-])|SUBSTACK_COOKIES|(?:local|HERMES_LOCAL\}?)/python-substack")
 FILE_TOOLS = {"read_file", "write_file", "patch", "search_files"}
 BYPASS_MESSAGE = (
     "Substack runs only through the substack tool, never through the terminal or file tools; the "

@@ -13,7 +13,8 @@ from urllib.parse import parse_qs, urlparse
 import pytest
 
 HERMES = Path(__file__).resolve().parents[4]
-PYTHON = HERMES / "local" / "web3" / "venv" / "bin" / "python"
+RUNTIME_ROOT = Path(os.environ.get("HERMES_LOCAL") or Path.home() / ".hermes" / "local")
+PYTHON = RUNTIME_ROOT / "web3" / "venv" / "bin" / "python"
 READER = HERMES / "plugins" / "web3" / "_shared" / "reader.py"
 
 pytestmark = pytest.mark.skipif(not PYTHON.exists(), reason="web3 engine venv not installed (scripts/web3.sh install)")

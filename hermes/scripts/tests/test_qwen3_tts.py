@@ -572,6 +572,29 @@ class ManifestTest(unittest.TestCase):
             self.assertEqual(set(second.voices), {"lethe", "echo"})
             self.assertEqual(set(final.voices), {"lethe"})
 
+    def test_catalog_names_manifests_relative_to_its_own_directory(self) -> None:
+        """So a runtime root holding both can move and the catalog stays valid;
+        a manifest kept elsewhere keeps its absolute path."""
+        with tempfile.TemporaryDirectory() as directory, tempfile.TemporaryDirectory() as elsewhere:
+            root = Path(directory)
+            inside = write_voice_manifest(root / "manifests" / "lethe-abc", "lethe")
+            outside = write_voice_manifest(Path(elsewhere) / "echo", "echo")
+            catalog_path = root / "catalog.json"
+            self.module.write_voice_catalog(catalog_path, register_manifest_path=inside, set_default=True)
+            self.module.write_voice_catalog(
+                root / ".catalog.staged.json", base_catalog_path=catalog_path, register_manifest_path=outside
+            )
+            (root / ".catalog.staged.json").replace(catalog_path)
+            raw = json.loads(catalog_path.read_text(encoding="utf-8"))["voices"]
+            self.assertEqual(raw["lethe"], str(inside.relative_to(root)))
+            self.assertTrue(Path(raw["echo"]).is_absolute())
+
+            moved = root.parent / (root.name + "-moved")
+            root.rename(moved)
+            catalog = self.module.load_voice_catalog(moved / "catalog.json")
+            self.assertEqual(catalog.manifest_paths["lethe"], (moved / inside.relative_to(root)).resolve())
+            moved.rename(root)
+
     def test_catalog_cannot_unregister_default_voice(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -858,7 +881,7 @@ class LaunchctlScriptTest(unittest.TestCase):
     def make_home(self, root: Path) -> tuple[Path, dict[str, str]]:
         home = root / "home"
         hermes = home / ".config" / "hermes"
-        runtime = hermes / "local" / "qwen3-tts"
+        runtime = home / ".hermes" / "local" / "qwen3-tts"
         scripts = hermes / "scripts"
         launchd = hermes / "launchd"
         launch_agents = home / "Library" / "LaunchAgents"
@@ -935,7 +958,7 @@ class LaunchctlScriptTest(unittest.TestCase):
             "#!/bin/sh\n"
             "for arg in \"$@\"; do last=$arg; done\n"
             "case \"$last\" in\n"
-            "  \"$HOME/.config/hermes/local/qwen3-tts/releases/\"*)\n"
+            "  \"$HOME/.hermes/local/qwen3-tts/releases/\"*)\n"
             "    if [ \"${SLOW_PRUNE_SECONDS:-0}\" != 0 ]; then touch \"$HOME/prune.started\"; sleep \"$SLOW_PRUNE_SECONDS\"; fi\n"
             "    ;;\n"
             "esac\n"
@@ -957,7 +980,7 @@ class LaunchctlScriptTest(unittest.TestCase):
         default_voice: str = "lethe",
     ) -> Path:
         catalog = (
-            home / ".config" / "hermes" / "local" / "qwen3-tts" / "catalog.json"
+            home / ".hermes" / "local" / "qwen3-tts" / "catalog.json"
         )
         return write_voice_catalog(catalog, manifests, default_voice)
 
@@ -1078,7 +1101,7 @@ class LaunchctlScriptTest(unittest.TestCase):
             )
             self.assertEqual(first.returncode, 0, first.stderr)
             releases = (
-                home / ".config" / "hermes" / "local" / "qwen3-tts" / "releases"
+                home / ".hermes" / "local" / "qwen3-tts" / "releases"
             )
             active_release = next(releases.iterdir())
             previous_id = "b" * 64
@@ -1113,7 +1136,7 @@ class LaunchctlScriptTest(unittest.TestCase):
 
     def seed_legacy_plist(self, home: Path) -> tuple[Path, Path, Path]:
         """A pre-rename agent: old label, venv python as argument 0."""
-        releases = home / ".config" / "hermes" / "local" / "qwen3-tts" / "releases"
+        releases = home / ".hermes" / "local" / "qwen3-tts" / "releases"
         previous_release = releases / ("b" * 64)
         stale_release = releases / ("c" * 64)
         previous_release.mkdir(parents=True)
@@ -1180,12 +1203,7 @@ class LaunchctlScriptTest(unittest.TestCase):
                 env, "register", "--voice-manifest", str(echo)
             )
             catalog_path = (
-                home
-                / ".config"
-                / "hermes"
-                / "local"
-                / "qwen3-tts"
-                / "catalog.json"
+                home / ".hermes" / "local" / "qwen3-tts" / "catalog.json"
             )
             catalog = json.loads(catalog_path.read_text(encoding="utf-8"))
 
@@ -1205,12 +1223,7 @@ class LaunchctlScriptTest(unittest.TestCase):
             removed = self.run_action(env, "unregister", "--voice", "echo")
             rejected = self.run_action(env, "unregister", "--voice", "lethe")
             catalog_path = (
-                home
-                / ".config"
-                / "hermes"
-                / "local"
-                / "qwen3-tts"
-                / "catalog.json"
+                home / ".hermes" / "local" / "qwen3-tts" / "catalog.json"
             )
             catalog = json.loads(catalog_path.read_text(encoding="utf-8"))
 
@@ -1225,7 +1238,7 @@ class LaunchctlScriptTest(unittest.TestCase):
             home, env = self.make_home(root)
             lethe = write_voice_manifest(root / "lethe", "lethe")
             legacy = (
-                home / ".config" / "hermes" / "local" / "qwen3-tts" / "voice.json"
+                home / ".hermes" / "local" / "qwen3-tts" / "voice.json"
             )
             legacy.symlink_to(lethe)
 
@@ -1275,8 +1288,7 @@ class LaunchctlScriptTest(unittest.TestCase):
             self.assertFalse(
                 (
                     home
-                    / ".config"
-                    / "hermes"
+                    / ".hermes"
                     / "local"
                     / "qwen3-tts"
                     / ".mutation.lock"
@@ -1334,7 +1346,7 @@ class LaunchctlScriptTest(unittest.TestCase):
             )
             self.assertEqual(first.returncode, 0, first.stderr)
             releases = (
-                home / ".config" / "hermes" / "local" / "qwen3-tts" / "releases"
+                home / ".hermes" / "local" / "qwen3-tts" / "releases"
             )
             (releases / ("c" * 64)).mkdir()
 

@@ -2,7 +2,7 @@
 # Engine manager for the x-access plugin (read-only X through twscrape).
 #
 # The plugin runs plugins/social/x-access/bridge.py with the interpreter of an isolated venv
-# under the ignored hermes/local/twscrape/, built from the hash-locked
+# under the machine-local ~/.hermes/local/twscrape/, built from the hash-locked
 # engines/twscrape/requirements.lock. The sub-account's session cookies live only in the
 # Keychain (X_READER_COOKIES, project hermes, scope x-reader), never in a file:
 #
@@ -15,7 +15,9 @@ set -euo pipefail
 
 HERMES_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 LOCK="$HERMES_DIR/engines/twscrape/requirements.lock"
-VENV="$HERMES_DIR/local/twscrape/venv"
+# Engine runtime root: machine-local, outside the repository (HERMES_LOCAL overrides).
+HERMES_LOCAL="${HERMES_LOCAL:-$HOME/.hermes/local}"
+VENV="$HERMES_LOCAL/twscrape/venv"
 PYTHON_VERSION="3.12.11"
 STATE="$HOME/.x-access/state.json"
 SECRET="$HOME/.config/bin/secret"
