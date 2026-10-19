@@ -1,6 +1,7 @@
 # AGENTS
 
-Rules for agents working in this dotconfig repo (`~/.config`). Subtree-specific
+Rules for agents working in this dotconfig repo (the ghq checkout that
+`install.sh` links into `~/.config` per directory). Subtree-specific
 rules live in nested `AGENTS.md` files — read them when your task touches that area.
 
 ## Who reads what

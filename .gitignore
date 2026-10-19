@@ -1,25 +1,17 @@
-gcloud/
-gh/
-github-copilot/
-iterm2/
-configstore/
+# Only tracked top-level directories are linked into ~/.config (install.sh
+# "[config]"), so tools that keep their own state there (gh, gcloud, iterm2,
+# configstore, ...) never touch this repository and need no entry here. What
+# follows is state written INTO a linked directory.
 git/credentials
-stripe/
-yarn/
 **/*.env
+.pytest_cache/
 
 # Private overlay: a symlink to the craftsamo/private-dotconfig checkout, whose
-# tree mirrors this repo's top level (hermes/, opencode/, zsh/, ...). Public
-# files reach it only through this fixed path — never through an env var or a
-# ghq path. No trailing slash: the entry is a symlink, not a directory.
+# tree mirrors this repo's top level (hermes/, opencode/, zsh/, ...). The
+# install and worktree scripts reach it through this link; runtime files that
+# need an absolute path name its ghq checkout directly. No trailing slash: the
+# entry is a symlink, not a directory.
 /private
-
-# fish is unused here; the Grok Build installer/updater drops completions into it
-fish/
-
-# Docker Agent (formerly cagent, bundled with Docker Desktop) writes a first-run
-# marker and a per-machine user UUID here on its first launch
-cagent/
 
 # ~/.config/agents/skills is a registered install target of third-party skill
 # installers (`hyperframes skills` mirrors into it as the amp/universal agent
@@ -159,7 +151,3 @@ hermes/plugins/hermes-achievements/
 # ~/.config/zsh/*.zsh; this one is for per-machine settings that belong in no
 # repo (private-but-durable shell config goes to private/zsh/ instead).
 zsh/local.zsh
-
-# browser_harness runtime state (pid files, daemon logs, screenshots, version
-# cache) written by browser-use when Hermes drives the automation browser
-browser-harness/

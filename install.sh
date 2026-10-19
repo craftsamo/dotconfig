@@ -7,14 +7,18 @@
 #                         GitHub CLI extensions, `mise install` and the
 #                         OpenCode plugin dependencies (opencode/package.json)
 #
-# Symlink policy: real files live in this repo; tool dirs (~/.claude, ~/.codex,
-# ...) only hold symlinks. This script never overwrites a real file — if a
-# tool replaced a link with a regular file it warns and skips instead, so
+# Symlink policy: real files live in this repo (a ghq checkout); ~/.config and
+# the tool dirs (~/.claude, ~/.codex, ...) only hold symlinks. Each tracked
+# top-level directory here becomes ~/.config/<name>, so XDG-native tools find
+# it there while tools that write their own state into ~/.config stay outside
+# the repository. This script never overwrites a real file — if a tool
+# replaced a link with a regular file it warns and skips instead, so
 # re-running it doubles as a drift detector.
 
 set -euo pipefail
 
-DOTFILES="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+DOTFILES="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+XDG_CONFIG="${XDG_CONFIG_HOME:-$HOME/.config}"
 status=0
 
 # GitHub CLI extensions. `gh` has no manifest of its own — the installed set is
@@ -260,6 +264,22 @@ if [ "$deps" = 1 ]; then
   install_deps || status=1
 fi
 
+# ~/.config/<name> -> <repo>/<name> for every tracked top-level directory. The
+# set comes from the index, so a new managed tool needs no line here: commit
+# its directory and re-run. Linking per directory (not the whole repo) keeps
+# the state other tools write into ~/.config (gh, gcloud, ...) out of the
+# repository and out of reach of `git clean`. A checkout that IS ~/.config
+# (the pre-ghq layout) is left alone.
+echo "[config]"
+if [ "$(cd "$XDG_CONFIG" 2>/dev/null && pwd -P)" = "$DOTFILES" ]; then
+  echo "  skipped: $DOTFILES is $XDG_CONFIG itself"
+else
+  mkdir -p "$XDG_CONFIG"
+  while IFS= read -r name; do
+    [ -d "$DOTFILES/$name" ] && link "$DOTFILES/$name" "$XDG_CONFIG/$name"
+  done < <(git -C "$DOTFILES" ls-files -z | tr '\0' '\n' | grep / | cut -d/ -f1 | sort -u)
+fi
+
 # Shared skill root: ~/.agents/skills is the cross-agent convention honored by
 # codex, opencode, copilot, grok and gemini (claude reads ~/.claude/skills, so
 # each shared skill is linked into it below). It stays a REAL machine-local
@@ -360,14 +380,15 @@ echo "[zsh]"
 link "$DOTFILES/zsh/env.zsh"    "$HOME/.zshenv"
 link "$DOTFILES/zsh/config.zsh" "$HOME/.zshrc"
 
-# Private overlay (craftsamo/private-dotconfig), reached only through the
-# gitignored fixed path ./private — a symlink its own install.sh maintains.
-# It overlays private real files (hermes/SOUL.md, per-profile SOUL.md /
-# config.yaml) into this tree and regenerates the hermes cron wrappers.
-# Absent on clones without access; skipping is the supported path.
+# Private overlay (craftsamo/private-dotconfig), reached through the gitignored
+# link ./private — a symlink its own install.sh maintains. It overlays private
+# real files (hermes/SOUL.md, per-profile SOUL.md / config.yaml) into this
+# tree and regenerates the hermes cron wrappers; DOTCONFIG tells it which
+# checkout to overlay. Absent on clones without access; skipping is the
+# supported path.
 if [ -x "$DOTFILES/private/install.sh" ]; then
   echo "[private]"
-  "$DOTFILES/private/install.sh" || status=1
+  DOTCONFIG="$DOTFILES" "$DOTFILES/private/install.sh" || status=1
 fi
 
 exit $status

@@ -1,10 +1,17 @@
 # dotconfig
 
-XDG-first dotconfig — this repository **is** `~/.config`. Most tools read
-their config from here natively; the rest get symlinks created by
-[`install.sh`](./install.sh). Secrets and runtime state never enter the repo.
+XDG-first dotconfig. The repository is a ghq checkout
+(`~/ghq/github.com/craftsamo/dotconfig`); [`install.sh`](./install.sh) links
+each tracked top-level directory into `~/.config/<name>`, so XDG-native tools
+read their config there, while tools that write their own state into
+`~/.config` (gh, gcloud, ...) stay outside the repository. Tools that do not
+read `~/.config` get symlinks in their own dirs. Secrets and runtime state
+never enter the repo.
 
 ## Managed configurations
+
+Every directory below is linked as `~/.config/<dir>`; "XDG native" means the
+tool reads it from there without further wiring.
 
 | Tool                                      | Config in repo | Wiring                                                                                                                                                               |
 | ----------------------------------------- | -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -15,6 +22,7 @@ their config from here natively; the rest get symlinks created by
 | lazygit                                   | `lazygit/`     | XDG native                                                                                                                                                           |
 | mise                                      | `mise/`        | XDG native; declares language runtimes + global npm CLIs                                                                                                             |
 | [opencode](./opencode/README.md)          | `opencode/`    | XDG native                                                                                                                                                           |
+| Keychain shims                            | `bin/`         | `~/.config/bin` on PATH (see below)                                                                                                                                  |
 | [Shared agent skills](./agents/README.md) | `agents/`      | curated tree in `agents/curated/`, linked per skill into the machine-local `~/.agents/skills` root (installer-writable); each is also linked into `~/.claude/skills` |
 | Git                                       | `git/`         | XDG fallback (`~/.gitconfig` must not exist); `git/credentials` ignored                                                                                              |
 | [Claude Code](./claude/README.md)         | `claude/`      | 4 symlinks in `~/.claude/` plus per-skill links in `skills/` (`agents/` is machine-local, installer-written)                                                         |
@@ -37,11 +45,13 @@ files keep priority.
 ## Fresh machine setup
 
 ```sh
-# 1. Clone as ~/.config (back up / merge any existing ~/.config first)
-git clone git@github.com:craftsamo/dotconfig.git ~/.config
+# 1. Clone into the ghq layout (install.sh links it into ~/.config; move any
+#    existing ~/.config/<dir> that a tracked directory would replace out of
+#    the way first — install.sh never overwrites a real directory)
+git clone git@github.com:craftsamo/dotconfig.git ~/ghq/github.com/craftsamo/dotconfig
 
 # 2. Install dependencies (Homebrew bootstrap + brew bundle) and create symlinks
-~/.config/install.sh --deps
+~/ghq/github.com/craftsamo/dotconfig/install.sh --deps
 
 # 3. Restart the shell
 exec zsh
@@ -76,6 +86,9 @@ Installed outside the [Brewfile](./Brewfile):
                       #   gh extensions, mise install
 ```
 
+- `[config]` links every tracked top-level directory of the repo as
+  `~/.config/<name>`; the set comes from the Git index, so a new directory
+  needs no line in the script. Nothing else in `~/.config` is touched.
 - Never overwrites a real file: if a tool replaced a symlink with a regular
   file it prints `WARN` and skips, so re-running it doubles as a drift check.
 - Each `--deps` stage records its own failure and the next one still runs; the
@@ -156,7 +169,11 @@ brew bundle --file=~/.config/Brewfile
 
 ## Adding a new managed config
 
-1. Put the real file under `<tool>/` in this repo (never the secrets).
+1. Put the real file under `<tool>/` in this repo (never the secrets) and
+   `git add` it — `install.sh` links the directory into `~/.config` once it
+   is in the index. If `~/.config/<tool>` already exists as a real directory
+   (the tool wrote it first), move its contents into the repo and remove it
+   before linking.
 2. If the tool does not read `~/.config` natively, add a `link` line to
    `install.sh`.
 3. Run `./install.sh`, verify, commit.
