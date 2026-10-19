@@ -7,14 +7,18 @@
 #                         GitHub CLI extensions, `mise install` and the
 #                         OpenCode plugin dependencies (opencode/package.json)
 #
-# Symlink policy: real files live in this repo; tool dirs (~/.claude, ~/.codex,
-# ...) only hold symlinks. This script never overwrites a real file — if a
-# tool replaced a link with a regular file it warns and skips instead, so
+# Symlink policy: real files live in this repo (a ghq checkout); ~/.config and
+# the tool dirs (~/.claude, ~/.codex, ...) only hold symlinks. Each tracked
+# top-level directory here becomes ~/.config/<name>, so XDG-native tools find
+# it there while tools that write their own state into ~/.config stay outside
+# the repository. This script never overwrites a real file — if a tool
+# replaced a link with a regular file it warns and skips instead, so
 # re-running it doubles as a drift detector.
 
 set -euo pipefail
 
-DOTFILES="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+DOTFILES="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+XDG_CONFIG="${XDG_CONFIG_HOME:-$HOME/.config}"
 status=0
 
 # GitHub CLI extensions. `gh` has no manifest of its own — the installed set is
@@ -115,7 +119,7 @@ install_deps() {
 }
 
 # Populate a real, machine-local skill root with one symlink per repo-curated
-# skill (flat: <root>/<name> -> <repo>/agents/curated/<name>). The root is NOT
+# skill (flat: <root>/<name> -> <repo>/agents/skills/<name>). The root is NOT
 # a symlink into the repo: it doubles as the install target of third-party
 # skill installers (`skills` CLI, `hyperframes skills`), whose writes must
 # land machine-local instead of inside the repo. Installer-owned entries are
@@ -260,18 +264,108 @@ if [ "$deps" = 1 ]; then
   install_deps || status=1
 fi
 
+# ~/.config/<name> -> <repo>/<name> for every tracked top-level directory. The
+# set comes from the index, so a new managed tool needs no line here: commit
+# its directory and re-run. Linking per directory (not the whole repo) keeps
+# the state other tools write into ~/.config (gh, gcloud, ...) out of the
+# repository and out of reach of `git clean`. A checkout that IS ~/.config
+# (the pre-ghq layout) is left alone.
+#
+# The invariant: links point from HOME into the repo, never the other way,
+# and a tool that writes its own files does so beside a link, never through
+# one into the repo. Three exceptions to the one-link-per-directory rule
+# follow from it.
+#
+# Not linked: directories nothing reads at ~/.config/<name>. agents/ is the
+# repo-curated shared skill tree, wired below into ~/.agents/skills; the path
+# ~/.config/agents/skills is only an install target of `hyperframes skills`
+# (amp/universal convention), whose relative links would dangle inside a
+# linked directory, so it stays a plain machine-local directory.
+CONFIG_UNLINKED=(agents)
+# Linked per entry: a tool writes its own state into this directory (opencode
+# keeps service.json there; `hyperframes skills` mirrors its store into
+# opencode/skills with relative links). ~/.config/<rel> is a REAL machine-local
+# directory and each tracked entry of <repo>/<rel> is linked into it, so the
+# tool's files land beside the links, outside the repository. A nested path
+# listed here gets the same treatment inside its parent.
+CONFIG_ENTRY_ROOTS=(opencode opencode/skills)
+# Seeded, not linked: the tool rewrites the file by temp file + rename, which
+# would replace a link with a real file on the first change (same as grok's
+# config.toml). Copied from the repo once; the tool owns it after.
+CONFIG_SEEDED=(opencode/cli.json)
+
+in_list() {
+  local needle="$1"
+  shift
+  printf '%s\n' "$@" | grep -qx -- "$needle"
+}
+
+# ~/.config/<rel> as a real directory holding one link per tracked entry of
+# <repo>/<rel>. A link left at <rel> by an earlier run (whole-directory mode)
+# is replaced by the directory.
+link_entries() {
+  local rel="$1" dest="$XDG_CONFIG/$1" child
+  if [ -L "$dest" ]; then
+    case "$(readlink "$dest")" in
+      "$DOTFILES"/*)
+        rm "$dest"
+        echo "  migrated: $dest was a link into the repo — now a real directory"
+        ;;
+    esac
+  fi
+  if [ -e "$dest" ] && [ ! -d "$dest" ]; then
+    echo "WARN: $dest exists and is not a directory — not touching"
+    status=1
+    return
+  fi
+  mkdir -p "$dest"
+  while IFS= read -r child; do
+    [ -n "$child" ] || continue
+    if in_list "$rel/$child" "${CONFIG_ENTRY_ROOTS[@]}"; then
+      link_entries "$rel/$child"
+    elif in_list "$rel/$child" "${CONFIG_SEEDED[@]}"; then
+      [ -e "$dest/$child" ] || { cp "$DOTFILES/$rel/$child" "$dest/$child"; echo "  seeded $dest/$child from the repo (the tool owns it after)"; }
+    else
+      link "$DOTFILES/$rel/$child" "$dest/$child"
+    fi
+  done < <(git -C "$DOTFILES" ls-files -z -- "$rel" | tr '\0' '\n' | sed "s#^$rel/##" | cut -d/ -f1 | sort -u)
+}
+
+echo "[config]"
+if [ "$(cd "$XDG_CONFIG" 2>/dev/null && pwd -P)" = "$DOTFILES" ]; then
+  echo "  skipped: $DOTFILES is $XDG_CONFIG itself"
+else
+  mkdir -p "$XDG_CONFIG"
+  while IFS= read -r name; do
+    [ -d "$DOTFILES/$name" ] || continue
+    if in_list "$name" "${CONFIG_UNLINKED[@]}"; then
+      # Drop a link an earlier run made before the name was excluded.
+      if [ -L "$XDG_CONFIG/$name" ] && [ "$(readlink "$XDG_CONFIG/$name")" = "$DOTFILES/$name" ]; then
+        rm "$XDG_CONFIG/$name"
+        echo "  unlinked: $XDG_CONFIG/$name (not a config directory)"
+      fi
+    elif in_list "$name" "${CONFIG_ENTRY_ROOTS[@]}"; then
+      link_entries "$name"
+    else
+      link "$DOTFILES/$name" "$XDG_CONFIG/$name"
+    fi
+  done < <(git -C "$DOTFILES" ls-files -z | tr '\0' '\n' | grep / | cut -d/ -f1 | sort -u)
+  # Untracked but repo-produced: `--deps` installs the plugin dependencies
+  # into <repo>/opencode/node_modules (the plugins resolve imports from their
+  # real path, so that copy is the one that counts); mirrored for anything
+  # that looks them up through the config directory.
+  [ -d "$DOTFILES/opencode/node_modules" ] && link "$DOTFILES/opencode/node_modules" "$XDG_CONFIG/opencode/node_modules"
+fi
+
 # Shared skill root: ~/.agents/skills is the cross-agent convention honored by
 # codex, opencode, copilot, grok and gemini (claude reads ~/.claude/skills, so
 # each shared skill is linked into it below). It stays a REAL machine-local
 # directory — third-party installers write into it — and repo-curated skills
-# are linked in one by one from agents/curated/. The curated tree deliberately
-# does NOT live at agents/skills: ~/.config/agents/skills is a registered
-# install target of `hyperframes skills` (amp/universal convention), so that
-# path is surrendered to tool droppings and git-ignored wholesale. The
-# installer's ~/.agents/.skill-lock.json is per-machine update state and
-# stays out of the repo, same split as hermes/.
+# are linked in one by one from agents/skills/. The installer's
+# ~/.agents/.skill-lock.json is per-machine update state and stays out of the
+# repo, same split as hermes/.
 echo "[agents]"
-link_skills_into "$DOTFILES/agents/curated" "$HOME/.agents/skills"
+link_skills_into "$DOTFILES/agents/skills" "$HOME/.agents/skills"
 
 echo "[claude]"
 link "$DOTFILES/claude/CLAUDE.md"        "$HOME/.claude/CLAUDE.md"
@@ -360,14 +454,15 @@ echo "[zsh]"
 link "$DOTFILES/zsh/env.zsh"    "$HOME/.zshenv"
 link "$DOTFILES/zsh/config.zsh" "$HOME/.zshrc"
 
-# Private overlay (craftsamo/private-dotconfig), reached only through the
-# gitignored fixed path ./private — a symlink its own install.sh maintains.
-# It overlays private real files (hermes/SOUL.md, per-profile SOUL.md /
-# config.yaml) into this tree and regenerates the hermes cron wrappers.
-# Absent on clones without access; skipping is the supported path.
+# Private overlay (craftsamo/private-dotconfig), reached through the gitignored
+# link ./private — a symlink its own install.sh maintains. It overlays private
+# real files (hermes/SOUL.md, per-profile SOUL.md / config.yaml) into this
+# tree and regenerates the hermes cron wrappers; DOTCONFIG tells it which
+# checkout to overlay. Absent on clones without access; skipping is the
+# supported path.
 if [ -x "$DOTFILES/private/install.sh" ]; then
   echo "[private]"
-  "$DOTFILES/private/install.sh" || status=1
+  DOTCONFIG="$DOTFILES" "$DOTFILES/private/install.sh" || status=1
 fi
 
 exit $status

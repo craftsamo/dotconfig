@@ -98,8 +98,9 @@ class PreflightFailureTest(unittest.TestCase):
         self.pipeline = hermes / "profiles/assistant/skills/assistant-pipeline"
         self.pipeline.mkdir(parents=True)
         self.home = root / "home"
-        (self.home / ".config").mkdir(parents=True)
-        (self.home / ".config/private").symlink_to(self.private)
+        live_private = self.home / V.LIVE_PRIVATE_ROOT
+        live_private.parent.mkdir(parents=True)
+        live_private.symlink_to(self.private)
         for patcher in (patch.object(V, "HERMES_ROOT", hermes),
                         patch.object(Path, "home", return_value=self.home)):
             patcher.start()

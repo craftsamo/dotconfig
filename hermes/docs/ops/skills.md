@@ -92,7 +92,7 @@ skills=` in its summary) and `skills list` does not show them;
   `skills.external_dirs`.
 - **Private and shared stores.** The data-skill cluster of the private working
   area lives in the private overlay and is read through `skills.external_dirs`
-  as `~/.config/private/hermes/skills`. HyperFrames / `media-use` playbooks and
+  as `~/ghq/github.com/craftsamo/private-dotconfig/hermes/skills`. HyperFrames / `media-use` playbooks and
   the curated `media-craft-*` skills are read from `~/.agents/skills` via
   `external_dirs`, never copied or linked into a profile
   ([`../../AGENTS.md`](../../AGENTS.md) "Skills"). A fresh machine needs

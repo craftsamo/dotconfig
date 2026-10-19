@@ -61,7 +61,7 @@ def branch_name(value, source, policy):
 
 
 def repository_name(source, repo):
-    """The repository's name on its origin remote (dotconfig for ~/.config), else its
+    """The repository's name on its origin remote (dotconfig for the live checkout), else its
     main checkout's directory name. OpenCode's worktree strategy
     (opencode/lib/worktrees/strategy.ts) names it the same way."""
     proc = subprocess.run(["git", *SAFE_GIT, "-C", str(source), "remote", "get-url", "origin"], capture_output=True,

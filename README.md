@@ -1,28 +1,36 @@
 # dotconfig
 
-XDG-first dotconfig — this repository **is** `~/.config`. Most tools read
-their config from here natively; the rest get symlinks created by
-[`install.sh`](./install.sh). Secrets and runtime state never enter the repo.
+XDG-first dotconfig. The repository is a ghq checkout
+(`~/ghq/github.com/craftsamo/dotconfig`); [`install.sh`](./install.sh) links
+each tracked top-level directory into `~/.config/<name>`, so XDG-native tools
+read their config there, while tools that write their own state into
+`~/.config` (gh, gcloud, ...) stay outside the repository. Tools that do not
+read `~/.config` get symlinks in their own dirs. Secrets and runtime state
+never enter the repo.
 
 ## Managed configurations
 
-| Tool                                      | Config in repo | Wiring                                                                                                                                                               |
-| ----------------------------------------- | -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [Neovim](./nvim/README.md)                | `nvim/`        | XDG native                                                                                                                                                           |
-| [Zsh](./zsh/README.md)                    | `zsh/`         | XDG native + `~/.zshrc -> zsh/config.zsh` symlink                                                                                                                    |
-| [Tmux](./tmux/README.md)                  | `tmux/`        | XDG native (tmux >= 3.1)                                                                                                                                             |
-| Ghostty                                   | `ghostty/`     | XDG native                                                                                                                                                           |
-| lazygit                                   | `lazygit/`     | XDG native                                                                                                                                                           |
-| mise                                      | `mise/`        | XDG native; declares language runtimes + global npm CLIs                                                                                                             |
-| [opencode](./opencode/README.md)          | `opencode/`    | XDG native                                                                                                                                                           |
-| [Shared agent skills](./agents/README.md) | `agents/`      | curated tree in `agents/curated/`, linked per skill into the machine-local `~/.agents/skills` root (installer-writable); each is also linked into `~/.claude/skills` |
-| Git                                       | `git/`         | XDG fallback (`~/.gitconfig` must not exist); `git/credentials` ignored                                                                                              |
-| [Claude Code](./claude/README.md)         | `claude/`      | 4 symlinks in `~/.claude/` plus per-skill links in `skills/` (`agents/` is machine-local, installer-written)                                                         |
-| [Codex](./codex/README.md)                | `codex/`       | 2 symlinks in `~/.codex/` (`skills/` and `config.toml` are machine-local, app/installer-managed)                                                                     |
-| [Gemini CLI](./gemini/README.md)          | `gemini/`      | 3 symlinks in `~/.gemini/`                                                                                                                                           |
-| [GitHub Copilot](./copilot/README.md)     | `copilot/`     | 3 symlinks in `~/.copilot/` (`skills/` is machine-local; `config.json` is app-managed; auth dir `github-copilot/` git-ignored)                                       |
-| [Grok Build](./grok/README.md)            | `grok/`        | `AGENTS.md` symlinked, `config.toml` seeded (CLI-owned); state/auth stay in `~/.grok/`; installed via official installer, not brew                                   |
-| [Hermes Agent](./hermes/README.md)        | `hermes/`      | symlinks in `~/.hermes/` (+ per profile); skills via `external_dirs`; keys via Keychain shim                                                                         |
+Every directory below is linked as `~/.config/<dir>`; "XDG native" means the
+tool reads it from there without further wiring.
+
+| Tool                                      | Config in repo | Wiring                                                                                                                                                                  |
+| ----------------------------------------- | -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [Neovim](./nvim/README.md)                | `nvim/`        | XDG native                                                                                                                                                              |
+| [Zsh](./zsh/README.md)                    | `zsh/`         | XDG native + `~/.zshrc -> zsh/config.zsh` symlink                                                                                                                       |
+| [Tmux](./tmux/README.md)                  | `tmux/`        | XDG native (tmux >= 3.1)                                                                                                                                                |
+| Ghostty                                   | `ghostty/`     | XDG native                                                                                                                                                              |
+| lazygit                                   | `lazygit/`     | XDG native                                                                                                                                                              |
+| mise                                      | `mise/`        | XDG native; declares language runtimes + global npm CLIs                                                                                                                |
+| [opencode](./opencode/README.md)          | `opencode/`    | XDG native; `~/.config/opencode` and its `skills/` are real dirs linked per entry (OpenCode and `hyperframes skills` write beside them); `cli.json` seeded, not linked  |
+| Keychain shims                            | `bin/`         | `~/.config/bin` on PATH (see below)                                                                                                                                     |
+| [Shared agent skills](./agents/README.md) | `agents/`      | not linked into `~/.config`; `agents/skills/` is linked per skill into the machine-local `~/.agents/skills` root (installer-writable), and each into `~/.claude/skills` |
+| Git                                       | `git/`         | XDG fallback (`~/.gitconfig` must not exist); `git/credentials` ignored                                                                                                 |
+| [Claude Code](./claude/README.md)         | `claude/`      | 4 symlinks in `~/.claude/` plus per-skill links in `skills/` (`agents/` is machine-local, installer-written)                                                            |
+| [Codex](./codex/README.md)                | `codex/`       | 2 symlinks in `~/.codex/` (`skills/` and `config.toml` are machine-local, app/installer-managed)                                                                        |
+| [Gemini CLI](./gemini/README.md)          | `gemini/`      | 3 symlinks in `~/.gemini/`                                                                                                                                              |
+| [GitHub Copilot](./copilot/README.md)     | `copilot/`     | 3 symlinks in `~/.copilot/` (`skills/` is machine-local; `config.json` is app-managed; auth dir `github-copilot/` git-ignored)                                          |
+| [Grok Build](./grok/README.md)            | `grok/`        | `AGENTS.md` symlinked, `config.toml` seeded (CLI-owned); state/auth stay in `~/.grok/`; installed via official installer, not brew                                      |
+| [Hermes Agent](./hermes/README.md)        | `hermes/`      | symlinks in `~/.hermes/` (+ per profile); skills via `external_dirs`; keys via Keychain shim                                                                            |
 
 State and secrets (`~/.codex/auth.json`, sqlite logs, `~/.claude/history.jsonl`,
 transcripts, ...) stay in the tool directories and are never tracked.
@@ -37,11 +45,13 @@ files keep priority.
 ## Fresh machine setup
 
 ```sh
-# 1. Clone as ~/.config (back up / merge any existing ~/.config first)
-git clone git@github.com:craftsamo/dotconfig.git ~/.config
+# 1. Clone into the ghq layout (install.sh links it into ~/.config; move any
+#    existing ~/.config/<dir> that a tracked directory would replace out of
+#    the way first — install.sh never overwrites a real directory)
+git clone git@github.com:craftsamo/dotconfig.git ~/ghq/github.com/craftsamo/dotconfig
 
 # 2. Install dependencies (Homebrew bootstrap + brew bundle) and create symlinks
-~/.config/install.sh --deps
+~/ghq/github.com/craftsamo/dotconfig/install.sh --deps
 
 # 3. Restart the shell
 exec zsh
@@ -76,6 +86,16 @@ Installed outside the [Brewfile](./Brewfile):
                       #   gh extensions, mise install
 ```
 
+- `[config]` links every tracked top-level directory of the repo as
+  `~/.config/<name>`; the set comes from the Git index, so a new directory
+  needs no line in the script. Three declared exceptions keep one invariant
+  — links point from HOME into the repo, and a tool writes beside a link,
+  never through one: `CONFIG_UNLINKED` (`agents/`, which nothing reads at
+  that path), `CONFIG_ENTRY_ROOTS` (`opencode/` and `opencode/skills/`, real
+  directories holding one link per tracked entry, so OpenCode's own files and
+  installer droppings land outside the repo) and `CONFIG_SEEDED`
+  (`opencode/cli.json`, copied once because OpenCode rewrites it by rename).
+  Nothing else in `~/.config` is touched.
 - Never overwrites a real file: if a tool replaced a symlink with a regular
   file it prints `WARN` and skips, so re-running it doubles as a drift check.
 - Each `--deps` stage records its own failure and the next one still runs; the
@@ -105,14 +125,18 @@ file. If the worktree changes `opencode/package.json`, replace the link with
 ## Private overlay
 
 This repo is public. Its private counterpart is `craftsamo/private-dotconfig`,
-whose tree mirrors this repo's top level (`hermes/`, `opencode/`, `zsh/`, ...)
-and is reached ONLY through the gitignored fixed path **`~/.config/private`**
-(a symlink to the checkout). Nothing here names a private path and no
-environment variable is involved; a clone without access simply has no
-`private` entry and everything else works.
+whose tree mirrors this repo's top level (`hermes/`, `opencode/`, `zsh/`, ...).
+It is a sibling ghq checkout at the fixed path
+**`~/ghq/github.com/craftsamo/private-dotconfig`**: files that need an absolute
+path at runtime (Hermes `skills.external_dirs`, `zsh/config.zsh`,
+`bin/characters`) name that checkout directly. Inside this repo the overlay is
+also reachable as the gitignored symlink `<repo>/private`, which its own
+`install.sh` maintains and which `install.sh` / `worktree-setup.sh` use to
+wire overlay links. A clone without access simply has no `private` entry and
+no overlay checkout, and everything else works.
 
 What lives there: private Hermes skills (read in place via
-`skills.external_dirs` as `~/.config/private/hermes/skills`), the real
+`skills.external_dirs` as `~/ghq/github.com/craftsamo/private-dotconfig/hermes/skills`), the real
 persona/config files this repo only ships `*.example.*` templates for
 (overlaid into this tree as symlinks by the overlay's `install.sh`), the
 assistant's personal procedures (plugin skills and the external private
@@ -122,7 +146,7 @@ config (`private/zsh/*.zsh`, sourced by `config.zsh` when present).
 
 ```sh
 ghq get git@github.com:craftsamo/private-dotconfig.git
-~/ghq/github.com/craftsamo/private-dotconfig/install.sh   # wires ~/.config/private
+~/ghq/github.com/craftsamo/private-dotconfig/install.sh   # wires <repo>/private and the overlay links
 ```
 
 ## Homebrew
@@ -152,7 +176,11 @@ brew bundle --file=~/.config/Brewfile
 
 ## Adding a new managed config
 
-1. Put the real file under `<tool>/` in this repo (never the secrets).
+1. Put the real file under `<tool>/` in this repo (never the secrets) and
+   `git add` it — `install.sh` links the directory into `~/.config` once it
+   is in the index. If `~/.config/<tool>` already exists as a real directory
+   (the tool wrote it first), move its contents into the repo and remove it
+   before linking.
 2. If the tool does not read `~/.config` natively, add a `link` line to
    `install.sh`.
 3. Run `./install.sh`, verify, commit.

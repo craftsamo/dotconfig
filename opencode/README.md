@@ -1,7 +1,15 @@
 # opencode
 
-XDG native: OpenCode 2 reads `~/.config/opencode/` directly — no symlinks
-needed. Installed from the `anomalyco/tap/opencode-v2` formula (see the
+XDG native: OpenCode 2 reads `~/.config/opencode/`. That directory is a real
+machine-local one holding a link per tracked entry of this directory
+(`install.sh` "[config]", `CONFIG_ENTRY_ROOTS`), because OpenCode writes its
+own files beside the config (`service.json`, with the background-service
+password) and `hyperframes skills` mirrors its store into `skills/` — both
+land next to the links, never in this repo. `skills/` is itself such a root:
+`~/.config/opencode/skills/<category>` links here, installer droppings and
+the private overlay's skills sit beside them. `cli.json` is seeded once, not
+linked: OpenCode rewrites it by temp file + rename, which would replace a
+link. Installed from the `anomalyco/tap/opencode-v2` formula (see the
 [`Brewfile`](../Brewfile)).
 
 ## User-managed content
@@ -170,7 +178,7 @@ Empty directories carry a `.gitkeep` so the skeleton survives a fresh clone.
 
 `skills/` holds only the skills that depend on opencode itself — its
 subagents, custom tools, or the Plan/Build handoff. Skills any agent can
-follow live in [`agents/curated/`](../agents/README.md) and are picked up here
+follow live in [`agents/skills/`](../agents/README.md) and are picked up here
 too, since opencode scans `~/.agents/skills` alongside this directory.
 
 ## Parallel and background work

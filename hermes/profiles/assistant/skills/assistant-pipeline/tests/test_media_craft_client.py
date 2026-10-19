@@ -38,7 +38,7 @@ class MediaCraftClientTests(unittest.TestCase):
         self.assertIn("An approved study is not an approved final", execute)
 
     def test_paired_public_skill_is_present(self):
-        root = PUBLIC_ROOT / "agents/curated/media-craft-direction"
+        root = PUBLIC_ROOT / "agents/skills/media-craft-direction"
         self.assertTrue((root / "SKILL.md").is_file())
         for name in ("reference-interpretation", "direction-constraints", "critique-revision"):
             self.assertTrue((root / "references" / f"{name}.md").is_file())

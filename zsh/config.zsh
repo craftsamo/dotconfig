@@ -47,7 +47,7 @@ load_files_in_directory "$HOME/.config/zsh/conf.d" "zsh"
 load_files_in_directory "$HOME/.config/zsh/functions" "zsh"
 load_files_in_directory "$HOME/.config/zsh" "zsh"
 # Private overlay shell config (craftsamo/private-dotconfig); no-op when absent
-load_files_in_directory "$HOME/.config/private/zsh" "zsh"
+load_files_in_directory "$HOME/ghq/github.com/craftsamo/private-dotconfig/zsh" "zsh"
 
 # Keep ~/.config/bin (secret-shim launchers) ahead of mise/brew install dirs.
 # `mise activate` (and `brew shellenv`) prepend their own bin dirs to PATH on

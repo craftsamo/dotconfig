@@ -140,7 +140,7 @@ configured.
   `opencode_history` but not drive it.
 - **One repository for the life of a session.** A session keeps its worktree
   and branch between turns (a write run is refused in the live Hermes
-  configuration checkout `~/.config`: give the session a worktree first), and it
+  configuration checkout `~/ghq/github.com/craftsamo/dotconfig`: give the session a worktree first), and it
   may only ever work in the repository it
   started in: a session that moved elsewhere (it can move itself) is refused at
   its next turn, as is one bound before repositories were recorded.

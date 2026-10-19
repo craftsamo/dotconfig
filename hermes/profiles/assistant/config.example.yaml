@@ -749,14 +749,15 @@ telegram:
       - This topic is the inline surface for small administrative work that does not
         deserve a topic of its own: workspace bookkeeping (project registry, group or repo
         scaffolding, people and ledger records, docs/data touch-ups), edits to
-        the ~/.config dotconfig repo and its Hermes profiles, and Hermes upkeep (browser
-        relaunch, cron and validator checks, skill housekeeping).
+        the dotconfig repo (~/ghq/github.com/craftsamo/dotconfig) and its Hermes profiles,
+        and Hermes upkeep (browser relaunch, cron and validator checks, skill housekeeping).
       - Finish the work here in the Assistant session with the owning workspace skill or
         local tools. Never start a resident session or delegate from
         this topic; when a request grows into implementation, media, or sustained research,
         prepare a compact handoff and ask for a new topic.
-      - Edit Hermes config in ~/.config only, never through ~/.hermes; follow the AGENTS.md
-        of the tree you touch. Commits, pushes, and gateway restarts need explicit approval.
+      - Edit Hermes config in the dotconfig repo only, never through ~/.hermes or ~/.config
+        (both are links into it); follow the AGENTS.md of the tree you touch. Commits,
+        pushes, and gateway restarts need explicit approval.
       - Treat everything under ~/Workspaces/Personal as sensitive; summarize and never
         expose raw financial data, contacts, or PII.
   allowed_chats: ''

@@ -81,7 +81,7 @@ def craft_store(request, tmp_path, monkeypatch):
     store = tmp_path / ".agents/skills"
     for suffix in CRAFT:
         name = f"media-craft-{suffix}"
-        shutil.copytree(ROOT / "agents/curated" / name, store / name)
+        shutil.copytree(ROOT / "agents/skills" / name, store / name)
     source = pipeline(profile)
     extra = [] if profile == "creator" else [source / "references/craft.md"]
     for file in [*source.glob("**/SKILL.md"), *extra]:

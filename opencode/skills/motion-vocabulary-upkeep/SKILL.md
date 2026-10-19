@@ -28,7 +28,7 @@ person) owns scope and acceptance; this Skill owns the procedure.
 
 Read these before editing; they are the contract the audit enforces.
 
-- The skill lives in agents/curated/motion-vocabulary. Its SKILL.md routes
+- The skill lives in agents/skills/motion-vocabulary. Its SKILL.md routes
   each authoring decision to a names file (references, one per area), its
   video builds (references/video) and, for web areas, its web builds
   (references/web). Names files hold `| Name | Feel | For | Looks like | The
@@ -61,8 +61,8 @@ Read these before editing; they are the contract the audit enforces.
 
 <Procedure>
 
-1. Work in a task worktree, never the live `~/.config` checkout (`~/.hermes`
-   and the shared skills root link into it). Read `hermes/AGENTS.md`.
+1. Work in a task worktree, never the live dotconfig checkout (`~/.config`,
+   `~/.hermes` and the shared skills root link into it). Read `hermes/AGENTS.md`.
 2. Capture the source outside the repository, in the session's scratch
    directory: the names (and their Japanese forms), any feel or usage tags,
    and the source's descriptive prose saved as plain text for `--source`.

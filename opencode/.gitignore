@@ -2,5 +2,3 @@
 node_modules
 package-lock.json
 bun.lock
-# OpenCode 2's background-service settings, including its generated password
-service.json
