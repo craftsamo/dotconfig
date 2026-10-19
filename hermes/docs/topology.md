@@ -107,9 +107,9 @@ Top-level `toolsets` mirrors the role.
   `a2a` is also the name of the OUTBOUND toolset (the five default-off `a2a_*`
   tools); assistant, creator and marketer expose only `specialist` for
   outbound requests.
-- **MCP.** Platforms without MCP access carry the `no_mcp` denial sentinel;
-  otherwise each allowed server is listed explicitly (assistant names only
-  `unreal-engine`) so future servers are never inherited.
+- **MCP.** Every platform list carries the `no_mcp` denial sentinel; a profile
+  that needs an MCP server lists it explicitly in place of the sentinel, so
+  future servers are never inherited.
 
 Role split: **the assistant** plans with the user, supervises specialists,
 performs the non-creative quality gate itself (see

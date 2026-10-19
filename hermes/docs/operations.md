@@ -33,7 +33,10 @@ tracked, machine-agnostic files in `hermes/launchd/`:
   means `hermes gateway install/start/update` never regenerates it over the
   Keychain launcher. `KeepAlive` is `SuccessfulExit: false` (a clean exit parks
   the job; exit 75 and crashes relaunch), `ThrottleInterval` 30,
-  `ExitTimeOut` 60. `ProcessType` is `Standard`: under `Background` every child
+  `ExitTimeOut` 60 (the per-user launchd domain clamps it there, so the root
+  config's `agent.restart_drain_timeout` stays at 50: Hermes reserves 10 s of
+  that budget for cleanup and warns at boot when the drain exceeds it).
+  `ProcessType` is `Standard`: under `Background` every child
   inherits the CPU and I/O throttling, and a web3 approval hook that reads the
   Keychain then overruns Hermes' 30 s `pre_tool_call` timeout, which blocks every
   tool of that profile for a while. The message sync agents stay `Background`.

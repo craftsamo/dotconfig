@@ -30,7 +30,7 @@ toolsets:
 agent:
   max_turns: 300
   gateway_timeout: 1800
-  restart_drain_timeout: 180
+  restart_drain_timeout: 50
   api_max_retries: 3
   service_tier: ''
   reasoning_effort: medium

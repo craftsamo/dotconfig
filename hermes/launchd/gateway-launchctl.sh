@@ -26,8 +26,10 @@ LABEL=ai.hermes.multiplex
 LEGACY_LABELS="ai.hermes.keychain-multiplex local.hermes.gateway.multiplex local.hermes.gateway.assistant"
 TMPL="$HOME/.config/hermes/launchd/$LABEL.plist.tmpl"
 DEST="$HOME/Library/LaunchAgents/$LABEL.plist"
-# Covers agent.restart_drain_timeout (180 s) plus the 30 s ThrottleInterval.
-RESTART_WAIT=300
+# Covers agent.restart_drain_timeout (50 s: the per-user launchd domain clamps
+# ExitTimeOut to 60 s and Hermes keeps a 10 s cleanup reserve under it) plus the
+# 30 s ThrottleInterval, with margin.
+RESTART_WAIT=120
 
 remove_legacy() {
   for legacy in $LEGACY_LABELS; do
