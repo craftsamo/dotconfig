@@ -21,19 +21,25 @@ Hermes touches it for image generation and, on every profile except
 OpenRouter tail (see "Codex" below).
 
 - **Opus 5.5 leads the judgment profiles** (`default`, `assistant`, `marketer`,
-  `video-creator`), **Fable 5.1 leads `creator`**, and **Sonnet 5.5 leads**
-  `researcher`, `writer`, `image-creator` and `audio-creator` (`writer` to
-  spare the shared Claude weekly pool). An Opus-led chain takes **Fable 5.1 as
-  T2** (`default` is the exception, below), never another Opus: every Opus model draws on the same Opus weekly sub-cap, so an Opus T2
-  fails exactly when that cap is why T1 failed, while Fable draws on its own
-  50%-of-week ceiling. The Fable-led `creator` takes Opus 5.5 as T2 for the
-  same reason. (An Opus on the Console API lane is a different account,
-  with no shared sub-cap: see "Console credit lanes".) **Sonnet 5.5 is the last
-  Claude tier** of an Opus- or Fable-led chain: Anthropic meters Opus separately from "all
+  `video-creator`), **Fable 5.1 leads `creator` and `researcher`**, and
+  **Sonnet 5.5 leads** `writer`, `image-creator` and `audio-creator` (`writer`
+  to spare the shared Claude weekly pool). An Opus-led chain takes **Fable 5.1
+  as T2** (`default` is the exception, below), never another Opus: every Opus
+  model draws on the same Opus weekly sub-cap, so an Opus T2 fails exactly
+  when that cap is why T1 failed, while Fable draws on its own 50%-of-week
+  ceiling. A Fable-led chain takes Opus 5.5 as T2 for the same reason. (An
+  Opus on the Console API lane is a different account, with no shared
+  sub-cap: see "Console credit lanes".) **Sonnet 5.5 is the last Claude tier**
+  of an Opus- or Fable-led chain: Anthropic meters Opus separately from "all
   other models", so Sonnet stays alive when the Opus cap is the reason T1
   failed. A Sonnet-led chain takes Opus 5.5 as T2, then Fable 5.1 where it has
-  one (`researcher` goes straight to Codex and carries no Fable). The profile
-  configs own the exact chains.
+  one. `researcher` shares Fable's ceiling with `creator` and the Opus-led
+  chains' T2, and its search round trips read a lot: a busy Creator week can
+  spend it for both ([decision](./decisions/researcher-fable-assistant-astra.md)).
+  **`assistant` carries GPT-6 Astra between Fable and Sonnet** (same
+  decision): the one tier of the chain that spends the ChatGPT allowance
+  before the Claude tiers are exhausted. The profile configs own the exact
+  chains.
 - **`default` stays off Fable deliberately** — every `--clone` inherits its
   chain, and a neutral starting point should not lead with the model that has
   the tightest sub-cap.
@@ -85,14 +91,19 @@ Provider facts:
   of the OpenRouter tail on every profile (`default` included), so a spent
   Claude weekly pool degrades to a capable model instead of a cheap one. The
   ChatGPT subscription is sized for OpenCode (its searchers, `debugger`,
-  `reviewer-deep` and cheap subagents, plus the `alternate` of the Assistant's
-  OpenCode roles) and shares one Plus allowance with Hermes. The tier only runs
-  once the Claude tiers above it have failed, but a `video-creator` job reads
-  tens of millions of tokens, so a long spell on it drains the allowance:
-  re-size OpenCode's usage before adding the tier to an aux task. Searcher's
-  aux tasks stay `auto`, so they run on
-  GPT-6.1 Sol. GPT-6.1 Sol rejects `reasoning.effort` `none` / `minimal`, so
-  keep `reasoning_effort` at `low` or above. The Codex OAuth login in `default`
+  `reviewer-deep`, the explore tiers and cheap subagents, plus the `alternate`
+  of the Assistant's OpenCode roles) and shares one Plus allowance with
+  Hermes. The tier only runs once the Claude tiers above it have failed, but a
+  `video-creator` job reads tens of millions of tokens, so a long spell on it
+  drains the allowance: re-size OpenCode's usage before adding the tier to an
+  aux task. `assistant` is the exception with GPT-6 Astra ahead of Sonnet
+  (above). Searcher's aux tasks stay `auto`, so they run on GPT-6.1 Sol.
+  GPT-6.1 Sol and Astra reject `reasoning.effort` `none` / `minimal`, so keep
+  `reasoning_effort` at `low` or above. On the Codex route Astra's window is
+  272k (the runtime's `-900k` opt-in is a picker alias, not a chain tier):
+  the profile's `compression.threshold` applies to that window once the chain
+  is on it, and a turn whose context already exceeds it fails over to the
+  next tier like any rejected request. The Codex OAuth login in `default`
   stays on purpose: the `image-fallback` chains still try `openai-codex`.
 - **xAI** — `xai-oauth` is a flat-rate **xAI subscription**, not the metered
   `XAI_API_KEY` API, so searcher adds no worker to the Claude weekly pool.
@@ -292,15 +303,15 @@ falls back **read-only** to the default profile's `~/.hermes/auth.json`.
   with another one)**; manual rows always sort ahead of the seeded ones
   (`ANTHROPIC_TOKEN`, `CLAUDE_CODE_OAUTH_TOKEN`, then the Claude Code Keychain
   entry `claude_code`). Keep the Keychain row suppressed (`hermes auth remove
-  anthropic-oauth claude_code`; `auth add` clears every suppression of the
+anthropic-oauth claude_code`; `auth add` clears every suppression of the
   provider, so remove it again after each login) so a `claude /login` can never
   change which account Hermes bills. Which label is which account, and which
   one leads, is this machine's layout and lives in the private overlay.
   A `manual:hermes_pkce` row keeps its secrets in `auth.json`; a row whose
   tokens are empty is skipped silently (`hermes auth refresh anthropic-oauth
-  <label>` proves a row alive, `hermes auth list` shows a dead one).
+<label>` proves a row alive, `hermes auth list` shows a dead one).
 - **Refresh tokens are single-use, so never fork a row.** `-p <profile> auth
-  add`, copying `auth.json` or re-adding a root row while a profile still holds
+add`, copying `auth.json` or re-adding a root row while a profile still holds
   a copy gives two holders of one lineage; the first refresh wins and the other
   copy dies (`invalid_grant`, status `dead`, pruned after a day). A profile with
   its own `credential_pool["anthropic-oauth"]` no longer inherits the root
