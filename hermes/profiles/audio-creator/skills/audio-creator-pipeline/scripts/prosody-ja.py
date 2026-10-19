@@ -27,17 +27,20 @@ speaker's lines.
 
 Every candidate is written as one ``m:ss | voice | <item>: … | … | confirm``
 line, the item being one of the inspection catalog's delivery items:
-``pace``, ``pause``, ``flat``, and with ``--tension`` the experimental
-``tension`` (a start brighter and harder than the speaker's other lines by
-TENSION_TILT dB; calibrated on a handful of ear-marked spots, so read its
-hits with that in mind). With ``--accent`` the realized accent nucleus of
-every phrase (the first fall of FALL st that stays down) is compared with the
-dictionary's and a difference becomes a reading ``accent`` line; off by
-default because the dictionary is wrong often enough on loanwords and
-compounds that a round yields a dozen candidates a listener finds natural.
-A word the dictionary spells letter by letter (Latin script) is never
-checked. All measurements stay in the JSON whether or not a candidate came
-of them.
+``pace``, ``pause``, ``flat``, and with ``--tension`` the ``tension`` of a
+line that starts with a pushed voice: its first 0.6 s much brighter than
+the speaker's usual start (TENSION_TILT_ALONE dB of spectral tilt), or
+brighter by TENSION_TILT dB in a line that also moves more than the
+speaker's lines (pitch range TENSION_RANGE times the usual). On four
+rounds of a listened series that named about 2.5 lines per episode and
+four of the six delivery findings the listener had kept. With ``--accent``
+the realized accent nucleus of every phrase (the first fall of FALL st that
+stays down) is compared with the dictionary's and a difference becomes a
+reading ``accent`` line; off by default because on the same four rounds it
+named 720 phrases and only one of the three accent findings the listener
+had kept. A word the dictionary spells letter by letter (Latin script) is
+never checked. All measurements stay in the JSON whether or not a
+candidate came of them.
 
 The alignment model is read from the torch hub cache; ``analyze`` never
 downloads it. ``prepare`` does, once per machine.
@@ -75,7 +78,16 @@ LONG_PAUSE = 1.2      # s, inside a line
 NO_PAUSE = 0.08       # s, at a 。 inside a line
 SPEAKER_MERGE = 3.0   # st: pitch clusters closer than this are one speaker
 ONSET = 0.6           # s: the start of a line whose vocal effort is compared
-TENSION_TILT = 6.0    # dB: spectral tilt of a start above the speaker's median that reads as a sudden push
+# A sudden push, two shapes: a start much brighter than the speaker's usual
+# start (TENSION_TILT_ALONE dB of spectral tilt: the voice comes in loud or
+# hard), or a start brighter by TENSION_TILT dB in a line that also moves more
+# than the speaker's lines (pitch range TENSION_RANGE times the usual: the
+# voice gets excited). On four listened rounds of one series (945 lines, six
+# kept delivery findings) the pair names about 2.5 lines per episode and four
+# of the six; on a fifth episode, two of the three the listener marked.
+TENSION_TILT_ALONE = 8.0
+TENSION_TILT = 6.0
+TENSION_RANGE = 1.1
 
 
 def fail(message: str) -> None:
@@ -344,15 +356,20 @@ def delivery_findings(lines: list[dict], tension: bool = False) -> list[str]:
         med_rate = float(np.median([r["rate"] for r in mine]))
         ranges = [r["pitch_range"] for r in mine if r.get("pitch_range") is not None]
         med_range = float(np.median(ranges)) if ranges else None
-        tilts = [r["tilt_median"] for r in mine if r.get("tilt_median") is not None]
-        med_tilt = float(np.median(tilts)) if tilts else None
+        onsets = [r["onset_tilt"] for r in mine if r.get("onset_tilt") is not None]
+        med_onset = float(np.median(onsets)) if onsets else None
         for r in mine:
             at = clock(r["at"])
-            if tension and med_tilt is not None and r.get("onset_tilt") is not None and r["morae"] >= MIN_MORAE \
-                    and r["onset_tilt"] - med_tilt >= TENSION_TILT:
-                out.append(f"{at} | voice | tension: the start is {r['onset_tilt'] - med_tilt:.1f} dB brighter than "
-                           f"speaker {speaker}'s lines (spectral tilt {r['onset_tilt']} against {med_tilt:.1f}) "
-                           f"| prosody-ja speaker {speaker} | confirm")
+            if tension and med_onset is not None and r.get("onset_tilt") is not None and r["morae"] >= MIN_MORAE:
+                push = r["onset_tilt"] - med_onset
+                moves = (r["pitch_range"] / med_range) if med_range and r.get("pitch_range") is not None else None
+                if push >= TENSION_TILT_ALONE:
+                    out.append(f"{at} | voice | tension: the start is {push:.1f} dB brighter than speaker {speaker}'s "
+                               f"usual start | prosody-ja speaker {speaker} | confirm")
+                elif push >= TENSION_TILT and moves is not None and moves >= TENSION_RANGE:
+                    out.append(f"{at} | voice | tension: the start is {push:.1f} dB brighter than speaker {speaker}'s "
+                               f"usual start and the line moves {moves:.2f}x the speaker's pitch range "
+                               f"| prosody-ja speaker {speaker} | confirm")
             if r["morae"] >= MIN_MORAE and med_rate and abs(r["rate"] - med_rate) / med_rate > RATE_DEVIATION:
                 out.append(f"{at} | voice | pace: {r['rate']} morae/s against speaker {speaker}'s {med_rate:.1f} "
                            f"| prosody-ja speaker {speaker} | confirm")

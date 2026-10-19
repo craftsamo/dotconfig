@@ -152,13 +152,18 @@ class Delivery(unittest.TestCase):
         lines = [line(0, 6.0, 10.0), line(10, 6.0, 10.0), line(20, 15.0, 10.0, morae=4)]
         self.assertEqual(prosody.delivery_findings(lines), [])
 
-    def test_a_pushed_start_is_reported_only_when_asked(self):
-        lines = [line(0, 6.0, 10.0, tilt=-13.0), line(10, 6.0, 10.0, tilt=-12.0),
-                 line(38, 6.0, 10.0, onset_tilt=-5.6, tilt=-10.3), line(50, 6.0, 10.0, onset_tilt=-9.0, tilt=-12.0)]
+    def test_a_pushed_start_is_reported_only_when_asked_in_two_shapes(self):
+        lines = [line(0, 6.0, 10.0), line(10, 6.0, 10.0), line(20, 6.0, 10.0),
+                 line(38, 6.0, 10.0, onset_tilt=-3.0),          # loud: 9 dB brighter, pitch as usual
+                 line(50, 6.0, 13.0, onset_tilt=-5.6),          # excited: 6.4 dB brighter and 1.3x the range
+                 line(60, 6.0, 10.0, onset_tilt=-5.6),          # 6.4 dB brighter but moves as usual: not named
+                 line(70, 6.0, 13.0, onset_tilt=-12.0)]         # moves more but starts as usual: not named
         self.assertEqual(prosody.delivery_findings(lines), [])
         self.assertEqual(prosody.delivery_findings(lines, tension=True), [
-            "0:38 | voice | tension: the start is 6.4 dB brighter than speaker 0's lines (spectral tilt -5.6 "
-            "against -12.0) | prosody-ja speaker 0 | confirm"])
+            "0:38 | voice | tension: the start is 9.0 dB brighter than speaker 0's usual start "
+            "| prosody-ja speaker 0 | confirm",
+            "0:50 | voice | tension: the start is 6.4 dB brighter than speaker 0's usual start and the line moves "
+            "1.30x the speaker's pitch range | prosody-ja speaker 0 | confirm"])
 
     def test_pauses_inside_a_line(self):
         lines = [line(0, 6.0, 10.0, pauses=[0.3, 1.5]), line(10, 6.0, 10.0, pauses=[0.04], at_period=[0.04])]
