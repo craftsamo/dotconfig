@@ -307,6 +307,12 @@ Contract: [docs/hands/overview.md](docs/hands/overview.md),
   [docs/ops/tts-engines.md "Local TTS engines"](docs/ops/tts-engines.md).
 - Engine pins stay hash-locked in `engines/`; private voice/lexicon paths go
   through the launchers' `register*` commands, never into tracked files.
+- **`prosody-ja.py` keeps its inline dependencies pinned with `==`.** It is
+  the one leaf runtime outside `hermes-python` and `engines/` (`uv run
+  --script`, torch and pyopenjtalk cannot enter the Hermes interpreter); a
+  range would let a job resolve a different torch, and its alignment model is
+  fetched only by `prosody-ja.py prepare`, never inside a job
+  ([docs/hands/audio.md](docs/hands/audio.md)).
 
 ## Browser and web search
 

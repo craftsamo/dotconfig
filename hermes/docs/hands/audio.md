@@ -37,6 +37,19 @@ only, never as a speech-asset bypass.
   measured over the ASR word intervals (music and a change of speaker move
   them too), places for a person to listen, never a verdict on delivery. It
   needs the numpy that faster_whisper brings and fails before ASR without it.
+  With `language: ja` and timed `captions` it also runs `prosody-ja.py`: the
+  pitch accent of every accent phrase against the pyopenjtalk dictionary
+  (morae placed by MMS forced alignment, pitch by pyin), and each line's
+  pace, pauses at 。 and pitch range against the other lines of the same
+  speaker (a pitch cluster, not an identity). Its candidates already name
+  their inspection item (`accent`, `pace`, `pause`, `flat`) and land as
+  `prosody.md` under a named `deliver`. The script runs under `uv run` with
+  pinned dependencies (torch, torchaudio, librosa, pyopenjtalk-plus), the one
+  leaf runtime outside `hermes-python` and `engines/`; its alignment model is
+  fetched once by a maintainer with `prosody-ja.py prepare`, never in a job.
+  The dictionary accent is unreliable on loanwords and compounds, so an
+  accent candidate is always for the ear, and a series silences the words it
+  reads its own way through the inspection's `ignore_terms`.
 
 `speech-media.py` never installs an engine or downloads weights inside a job.
 Subtitle times are estimated from ASR, not forced alignment. ASR is evidence,

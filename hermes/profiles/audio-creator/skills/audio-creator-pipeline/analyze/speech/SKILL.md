@@ -2,8 +2,10 @@
 name: analyze-speech
 description: >-
   Inspect an existing spoken-audio file for format, loudness, clipping,
-  silence and optional script readback. Return findings, not a new asset.
-  Not listening-based performance certification, song analysis or repair.
+  silence, optional script readback and, for Japanese with timed captions,
+  pitch accent against the dictionary and per-speaker pace, pauses and
+  pitch range. Return findings, not a new asset. Not listening-based
+  performance certification, song analysis or repair.
 version: 1.0.0
 metadata:
   hermes:
@@ -32,6 +34,10 @@ metadata:
         required: false
         options: ["yes", "no"]
         label: "yes adds per-segment pitch and level with jump candidates (measured, for listening); default no"
+      captions:
+        required: false
+        type: file
+        label: "the words as written with each line's start, `[m:ss] text` lines; with prosody yes and language ja this adds the per-speaker accent, pace, pause and flatness candidates"
       note:
         required: false
         type: text
@@ -67,6 +73,29 @@ metadata:
    and the ASR text flattened to one line, and say that music under the
    voice and a change of speaker also move these numbers.
    `status: unmeasured` is a gap, not a pass.
+5. With `prosody: yes`, `language: ja` and `captions`, also run the accent
+   and delivery check over the captions (a 16 kHz mono WAV of the source,
+   made with `ffmpeg` into the scratch directory, is its input):
+
+   ```sh
+   uv run "${HERMES_SKILL_DIR}/../../scripts/prosody-ja.py" analyze <wav> --captions <captions> --out <scratch>/prosody-ja.json --lines <scratch>/prosody.md
+   ```
+
+   It compares every accent phrase's pitch with the dictionary's accent,
+   groups the lines into speakers by pitch, and compares each speaker's
+   lines with each other for pace (morae per second), pauses at 。 and
+   pitch range. `prosody.md` holds one line per candidate already in the
+   inspection's shape, `m:ss | voice | <item>: … | prosody-ja … | confirm`
+   with the item one of `accent`, `pace`, `pause`, `flat`: quote them as
+   they are, never reworded, and when the commission names a `deliver`
+   directory copy `prosody.md` there (`cp`, literal paths) so the ledger
+   can import it. Say with them that the dictionary accent is unreliable
+   on loanwords and compounds, that a word the dictionary spells letter by
+   letter (Latin script) was not checked (`phrases_skipped`), and that the
+   speakers are pitch clusters, not identities. The skipped segment jumps
+   of step 4 are not needed when this ran: speakers change between lines
+   by design. An `ERROR: the alignment model is not cached` is a gap to
+   report, never a download inside the job.
 
 </Procedure>
 
@@ -83,9 +112,13 @@ metadata:
 - With a script, quote readback, transcript and CPS; without one, no fidelity
   PASS. Listening, emotion, identity and pronunciation are always unverified.
 - Prosody numbers are measurements and its candidates are places to listen;
-  never call a delivery too excited, flat or unnatural from them.
+  never call a delivery too excited, flat or unnatural from them. An accent
+  candidate says the pitch differed from the dictionary, never that the
+  reading is wrong.
 - No finding without named measurements or a disclosed limitation. No new
-  speech, normalization, trim or output file is allowed during analysis.
+  speech, normalization, trim or output file is allowed during analysis,
+  except the analysis WAV in scratch and the `prosody.md` copied under a
+  named `deliver`.
 
 </QA>
 
