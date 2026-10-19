@@ -3,12 +3,21 @@
 
 The findings ledger (``ledger.json``) is the one source of every finding; the
 inspection sheet and the acceptance check of the written report are derived
-from it, so nothing is copied by hand.
+from it, so nothing is copied by hand. The ledger also carries the items the
+job looks for (``aspects``), copied from a genre catalog by ``init``; every
+later command reads only the ledger, so a job may add or drop an item by
+editing that copy.
 
+    inspection.py genres                                  the genre catalogs beside this script
+    inspection.py aspects  <genre> [--json]               one catalog: aspect > kind > item, with routes
+    inspection.py init     <ledger.json> --genre G [--aspects a,b] [--job J] [--language L] [--sheet-language L]
+                                                      a fresh ledger holding the chosen aspects
+    inspection.py upgrade  <ledger.json> --genre G        give a ledger made before aspects existed the catalog's aspects
+    inspection.py focus    <ledger.json> --route R        the items R looks for, as lines for a leaf's focus or note
     inspection.py script   <captions.txt> <out.txt>       strip "[m:ss] " prefixes
     inspection.py validate <ledger.json> [--final]        schema; --final also refuses open/recheck findings
     inspection.py import   <ledger.json> <episode> <findings.md> --source NAME [--aspect A] [--kind K]
-                                                      add a hands report's `m:ss | aspect | ... ` lines
+                                                      add a hands report's `m:ss | aspect|kind|item | ... ` lines
     inspection.py triage-speech <ledger.json> <episode> <speech dir> [--ignore FILE] [--max-jumps N]
                                                       keep only value mismatches and mid-line jumps
     inspection.py ask-draft  <ledger.json> <out.md>       `ID | problem` lines to reword as claims
@@ -25,14 +34,23 @@ from it, so nothing is copied by hand.
 
 Ledger shape::
 
-    {"job": "...", "language": "<captions' BCP 47 tag>", "sheet_language": "<the user's tag>",
+    {"job": "...", "genre": "explainer",
+     "language": "<captions' BCP 47 tag>", "sheet_language": "<the user's tag>",
+     "aspects": [{"id": "text", "label": {"en": "Text", "ja": "字"}, "route": "video-creator",
+                  "kinds": [{"id": "typo", "label": {...}, "default": true,
+                             "hint": "<regex placing an old finding here>",
+                             "sources": ["<finding sources that mean this kind>"],
+                             "items": [{"id": "misspelling", "look_for": "...",
+                                        "route": "<optional override>", "certainty": "<optional default>"}]}],
+                  "items": [...]}],
      "episodes": [{"label": "#1", "title": "...", "captions": "/abs/captions.txt",
                    "video": "<YouTube id or URL>", "thumbnail": "<optional URL>",
                    "language": "<optional per-episode override>",
                    "checked": ["text", "voice", "content", "thumbnail"]}],
      "findings": [{"id": "F001", "episode": "#1" | "all", "at": "1:15" | "0:50-0:54" | "",
-                   "aspect": "text|voice|content|thumbnail|portrait|overall",
-                   "kind": "<optional: reading|delivery|typo|overlap|figure|fact|clarity>",
+                   "aspect": "<an aspect id of the ledger, or overall>",
+                   "kind": "<optional: a kind id of that aspect>",
+                   "item": "<optional: an item id of that aspect or kind>",
                    "problem": "...", "ask": "<the claim the sheet shows instead of problem>",
                    "evidence": "...", "certainty": "certain|confirm",
                    "quotes": ["verbatim words the report must keep"],
@@ -40,6 +58,25 @@ Ledger shape::
                    "status": "open|recheck|keep|drop|hold",
                    "note": "<the user's memo>", "reply": "<the assistant's answer>"}],
      "listen": [{"episode": "#1", "at": "0:12", "term": "...", "result": null}]}
+
+Aspects: a genre catalog is ``references/<genre>.json`` beside this script's
+directory, in the same shape as ``aspects`` plus ``genre`` and ``label``.
+``init`` copies the chosen aspects into the ledger; the ``overall`` aspect
+(cross-episode findings) is always present and never in a catalog. Aspect,
+kind and item ids share one namespace, because a report's second cell may
+name any of them. An aspect either has ``kinds`` (then every finding of it
+needs a kind on the sheet) or bare ``items``. ``kinds`` places a finding
+imported without a kind: its item's kind when it names an item, else a
+kind whose ``sources`` list the finding's source, else the first kind whose
+``hint`` matches its wording, else the kind marked ``default``. An item's
+``route`` names who looks for it (``focus`` groups by route) and a
+``certainty`` of ``confirm`` caps every finding that names it: ``import``
+lowers such a finding to ``confirm`` and ``validate`` refuses one left
+``certain``, because an item that needs the user's eyes or ears is never
+certain, whoever reports it. Two ids carry behaviour of their own: an
+aspect named ``thumbnail`` links its findings to the thumbnail image, and
+``triage-speech`` needs a ``voice`` aspect with ``reading`` and
+``delivery`` kinds; a catalog that offers those checks uses those ids.
 
 Statuses: ``open`` waits for the user, ``recheck`` waits for the assistant,
 ``keep`` is reported, ``drop`` is not, ``hold`` stays in the ledger unreported.
@@ -52,8 +89,8 @@ every episode under a line beginning with its label.
 Spreadsheet: ``export`` writes the findings tab (one row per live finding, the
 time cell a HYPERLINK to the video at that second), the summary tab's
 formulas, the dropdown options and the ``format`` block (the row bands per
-episode and their two alternating backgrounds); it refuses
-a voice, text or content finding without a kind. ``readback`` takes the tab
+episode and their two alternating backgrounds); it refuses a finding of an
+aspect with kinds that has none. ``readback`` takes the tab
 read back from the sheet (``{"values": [[header], [row], ...]}`` or a bare
 list of rows) and maps each answer to a status: the user answers the claim
 (YES = it is so = keep, NO = drop, can't tell = the assistant's turn), the
@@ -62,8 +99,9 @@ defect as a claim YES confirms, never as a question with two readings.
 Column names and option labels come from ``SHEET_TEXT``, so the two sides
 agree by construction.
 
-Language: ``sheet_language`` picks the sheet's wording from ``SHEET_TEXT``
-(English when absent or unknown). ``language`` (per episode, else the
+Language: ``sheet_language`` picks the sheet's wording from ``SHEET_TEXT`` and
+the aspect and kind labels from the ledger's ``label`` maps (English when
+absent or unknown). ``language`` (per episode, else the
 ledger's) picks how ``listen`` finds names and numbers in caption lines from
 ``TERM_PATTERNS``; a language without its own entry gets numbers, acronyms and
 capitalised words only, so add its names with ``--terms``. Adding a language
@@ -82,10 +120,11 @@ import tempfile
 import unicodedata
 from pathlib import Path
 
-ASPECTS = ("text", "voice", "content", "thumbnail", "portrait", "overall")
-# Finer kinds a finding may carry; each belongs to one aspect.
-KINDS = {"reading": "voice", "delivery": "voice", "typo": "text", "overlap": "text",
-         "figure": "content", "fact": "content", "clarity": "content"}
+CATALOGS = Path(__file__).resolve().parent.parent / "references"
+# The one aspect every ledger has and no catalog lists: cross-episode findings.
+OVERALL = {"id": "overall", "label": {"en": "Overall", "ja": "全体"}, "route": "assistant", "items": []}
+ROUTES = ("video-creator", "audio-creator", "image-creator", "searcher", "researcher", "assistant", "user")
+IDENT = re.compile(r"^[a-z][a-z0-9-]*$")
 CERTAINTIES = ("certain", "confirm")
 STATUSES = ("open", "recheck", "keep", "drop", "hold")
 # The sheet's judgment is the user's answer to the finding's claim, not a
@@ -101,7 +140,6 @@ ALL = "all"
 TIME = re.compile(r"(?<![\d:])(?:(\d{1,2}):)?(\d{1,3}):(\d{2})(?![\d:])")
 CAPTION_LINE = re.compile(r"^\[(\d{1,3}(?::\d{2}){1,2})\]\s?(.*)$")
 LINE_PREFIX = r"^[ \t]*(?:#{1,6}[ \t]+|[-*+][ \t]+|\d+[.)][ \t]+|[^\w\s#][ \t]*)?"
-REVIEWED = ("text", "voice", "content", "thumbnail", "portrait")
 YOUTUBE_ID = re.compile(r"(?:[?&]v=|youtu\.be/|/shorts/|/embed/)([A-Za-z0-9_-]{11})(?![A-Za-z0-9_-])|^([A-Za-z0-9_-]{11})$")
 LINK_LEAD = 2  # seconds before the finding's time a video link starts
 
@@ -111,11 +149,6 @@ COLUMNS = ("id", "episode", "at", "kind", "text", "evidence", "judgment", "note"
 # The review sheet's wording per reader language; English is the fallback.
 SHEET_TEXT = {
     "en": {
-        "aspects": {"text": "Text", "voice": "Voice", "content": "Content", "thumbnail": "Thumbnail",
-                    "portrait": "Portrait", "overall": "Overall"},
-        "kinds": {"reading": "Voice: reading", "delivery": "Voice: delivery", "typo": "Text: typo",
-                  "overlap": "Text: overlap", "figure": "Figure: motion", "fact": "Content: fact",
-                  "clarity": "Content: clarity"},
         "judgments": {"keep": "YES", "drop": "NO", "recheck": "Can't tell"},
         "columns": {"id": "ID", "episode": "Episode", "at": "Time", "kind": "Kind",
                     "text": "Claim (YES = it is so)", "evidence": "Evidence", "judgment": "Answer",
@@ -123,7 +156,7 @@ SHEET_TEXT = {
         "summary_columns": {"episode": "Episode", "title": "Title", "total": "Findings", "keep": "YES",
                             "drop": "NO", "recheck": "Can't tell", "open": "Unanswered"},
         "tabs": {"findings": "Findings", "summary": "Summary"}, "total": "Total", "thumb": "Thumbnail",
-        "title": "Review sheet", "overall": "Overall",
+        "title": "Inspection sheet", "overall": "Overall",
         "intro": "Certain = reproduced on our side. Tick what needs your eyes or ears and send back the result.",
         "certain": "Certain", "confirm": "Needs your eyes or ears", "listen": "Listen for",
         "checked": "Checked: {done} / Not checked: {todo}", "unrecorded": "Checked aspects: not recorded",
@@ -132,10 +165,6 @@ SHEET_TEXT = {
         "colon": ": ", "gap": "  ",
     },
     "ja": {
-        "aspects": {"text": "字", "voice": "声", "content": "中身", "thumbnail": "サムネ",
-                    "portrait": "似顔絵", "overall": "全体"},
-        "kinds": {"reading": "声・読み", "delivery": "声・緩急", "typo": "字・誤字", "overlap": "字・かぶり",
-                  "figure": "図・動き", "fact": "中身・事実", "clarity": "中身・分かりにくさ"},
         "judgments": {"keep": "YES", "drop": "NO", "recheck": "確認不可"},
         "columns": {"id": "ID", "episode": "回", "at": "時刻", "kind": "項目", "text": "内容（YES＝その通り）",
                     "evidence": "根拠", "judgment": "判定", "note": "メモ", "reply": "返答"},
@@ -157,32 +186,217 @@ SHEET_TEXT = {
 # colour a chip, and a coloured cell behind a grey chip reads as a mistake.
 EPISODE_TINTS = ("#FFFFFF", "#E6F4EA")
 
-# Words that place an old finding (one imported before kinds existed) into a
-# kind; the aspect decides which table applies, the first match wins.
-KIND_HINTS = {
-    "voice": (("delivery", re.compile(r"\bdB\b|\bst\b|prosody|pitch|level|音量|高さ|抑揚|緩急|跳|間が|空白|無音", re.I)),
-              ("reading", re.compile(r".*", re.S))),
-    "text": (("overlap", re.compile(r"overlap|hid|cover|かぶ|重な|隠|覆|はみ出|切れ", re.I)),
-             ("typo", re.compile(r".*", re.S))),
-    "content": (("fact", re.compile(r"一次情報|出典|公式|発表|報道|統計|source|official|first-party|年が|年は|数が|refut|言い過ぎ", re.I)),
-                ("figure", re.compile(r"図|絵|動き|コマ|フレーム|カウンタ|波|矢印|アニメ|motion|frame|diagram|counter|figure", re.I)),
-                ("clarity", re.compile(r".*", re.S))),
-}
+
+# --- aspects: the items a job looks for -------------------------------------
+# A genre catalog and a ledger's ``aspects`` share one shape (module docstring).
+# Everything below reads the ledger's copy, so a job that edited it is obeyed.
 
 
-def infer_kind(finding: dict) -> str | None:
-    """A kind for a finding that has none, from its source and wording; None
-    for an aspect that has no kinds."""
-    aspect = finding.get("aspect")
-    if aspect not in KIND_HINTS:
-        return None
-    text = " ".join(str(finding.get(k) or "") for k in ("problem", "evidence", "ask"))
-    if aspect == "content" and finding.get("source") in ("searcher", "researcher"):
-        return "fact"
-    for kind, pattern in KIND_HINTS[aspect]:
-        if pattern.search(text):
-            return kind
+def aspect_problems(aspects, where: str = "aspects") -> list[str]:
+    """Shape errors of an aspects list: ids, labels, routes, kinds and items,
+    and the uniqueness of every id across the list."""
+    errors: list[str] = []
+    if not isinstance(aspects, list) or not aspects:
+        return [f"{where} must be a nonempty list"]
+    seen: set[str] = {OVERALL["id"]}  # one namespace: a report's second cell may name any level
+
+    def claim(ident: str, what: str, owner: str) -> None:
+        if ident in seen:
+            errors.append(f"{owner}: duplicate {what} id {ident}")
+        seen.add(ident)
+
+    def check_items(items, owner: str) -> None:
+        if not isinstance(items, list):
+            errors.append(f"{owner}: items must be a list")
+            return
+        for item in items:
+            if not isinstance(item, dict) or not isinstance(item.get("id"), str) or not IDENT.match(item["id"]):
+                errors.append(f"{owner}: every item needs a lowercase id")
+                continue
+            iid = item["id"]
+            claim(iid, "item", owner)
+            if not isinstance(item.get("look_for"), str) or not item["look_for"].strip():
+                errors.append(f"{owner}.{iid}: look_for is empty")
+            if item.get("route") is not None and item["route"] not in ROUTES:
+                errors.append(f"{owner}.{iid}: route must be one of {', '.join(ROUTES)}")
+            if item.get("certainty") is not None and item["certainty"] not in CERTAINTIES:
+                errors.append(f"{owner}.{iid}: certainty must be certain or confirm")
+
+    def check_label(obj: dict, owner: str) -> None:
+        label = obj.get("label")
+        if not isinstance(label, dict) or not isinstance(label.get("en"), str) or not label["en"].strip():
+            errors.append(f"{owner}: label needs at least an en wording")
+        elif not all(isinstance(v, str) and v.strip() for v in label.values()):
+            errors.append(f"{owner}: every label wording must be a nonempty string")
+
+    for index, aspect in enumerate(aspects):
+        owner = f"{where}[{index}]"
+        if not isinstance(aspect, dict) or not isinstance(aspect.get("id"), str) or not IDENT.match(aspect["id"]):
+            errors.append(f"{owner}: needs a lowercase id")
+            continue
+        aid = aspect["id"]
+        owner = aid
+        if aid == OVERALL["id"]:
+            errors.append(f"{owner}: overall is built in, never listed")
+        else:
+            claim(aid, "aspect", where)
+        check_label(aspect, owner)
+        if aspect.get("route") not in ROUTES:
+            errors.append(f"{owner}: route must be one of {', '.join(ROUTES)}")
+        kinds = aspect.get("kinds")
+        if kinds is not None:
+            if not isinstance(kinds, list) or not kinds:
+                errors.append(f"{owner}: kinds must be a nonempty list, or absent")
+                continue
+            if aspect.get("items"):
+                errors.append(f"{owner}: an aspect with kinds keeps its items under the kinds")
+            defaults = 0
+            for kind in kinds:
+                if not isinstance(kind, dict) or not isinstance(kind.get("id"), str) or not IDENT.match(kind["id"]):
+                    errors.append(f"{owner}: every kind needs a lowercase id")
+                    continue
+                kid = kind["id"]
+                claim(kid, "kind", owner)
+                check_label(kind, f"{owner}.{kid}")
+                if kind.get("route") is not None and kind["route"] not in ROUTES:
+                    errors.append(f"{owner}.{kid}: route must be one of {', '.join(ROUTES)}")
+                if kind.get("hint") is not None:
+                    try:
+                        re.compile(str(kind["hint"]))
+                    except re.error as exc:
+                        errors.append(f"{owner}.{kid}: hint is not a regex ({exc})")
+                sources = kind.get("sources")
+                if sources is not None and (not isinstance(sources, list) or not set(sources) <= set(SOURCES)):
+                    errors.append(f"{owner}.{kid}: sources must list finding sources")
+                defaults += 1 if kind.get("default") else 0
+                check_items(kind.get("items", []), f"{owner}.{kid}")
+            if defaults > 1:
+                errors.append(f"{owner}: at most one default kind")
+        else:
+            check_items(aspect.get("items", []), owner)
+    return errors
+
+
+def catalog_path(genre: str) -> Path:
+    return CATALOGS / f"{genre}.json"
+
+
+def genres() -> list[str]:
+    return sorted(p.stem for p in CATALOGS.glob("*.json"))
+
+
+def load_catalog(genre: str) -> dict:
+    if not IDENT.match(genre or ""):
+        fail(f"genre must be a lowercase name, got {genre!r}")
+    path = catalog_path(genre)
+    if not path.is_file():
+        fail(f"no catalog for genre {genre!r}; known: {', '.join(genres()) or 'none'}")
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        fail(f"cannot read catalog {path}: {exc}")
+    errors = [] if isinstance(data, dict) else ["catalog must be a JSON object"]
+    if not errors:
+        if data.get("genre") != genre:
+            errors.append(f"catalog genre must be {genre!r}")
+        label = data.get("label")
+        if not isinstance(label, dict) or not isinstance(label.get("en"), str):
+            errors.append("catalog label needs an en wording")
+        errors += aspect_problems(data.get("aspects"))
+    if errors:
+        fail(f"catalog {path.name}: " + "; ".join(errors))
+    return data
+
+
+def aspects_of(data: dict) -> list[dict]:
+    """The ledger's aspects plus the built-in overall, in sheet order."""
+    return [a for a in data.get("aspects") or [] if isinstance(a, dict)] + [OVERALL]
+
+
+def aspect_ids(data: dict) -> list[str]:
+    return [a["id"] for a in aspects_of(data) if isinstance(a.get("id"), str)]
+
+
+def reviewed(data: dict) -> list[str]:
+    """The aspects an episode's ``checked`` may list: every one but overall."""
+    return [a for a in aspect_ids(data) if a != OVERALL["id"]]
+
+
+def kinds_of(data: dict) -> dict[str, str]:
+    """kind id → aspect id."""
+    return {k["id"]: a["id"] for a in aspects_of(data) for k in a.get("kinds") or []
+            if isinstance(k, dict) and isinstance(k.get("id"), str)}
+
+
+def items_of(data: dict) -> dict[str, tuple[str, str | None]]:
+    """item id → (aspect id, kind id or None)."""
+    found: dict[str, tuple[str, str | None]] = {}
+    for aspect in aspects_of(data):
+        for item in aspect.get("items") or []:
+            if isinstance(item, dict) and isinstance(item.get("id"), str):
+                found[item["id"]] = (aspect["id"], None)
+        for kind in aspect.get("kinds") or []:
+            if not isinstance(kind, dict):
+                continue
+            for item in kind.get("items") or []:
+                if isinstance(item, dict) and isinstance(item.get("id"), str):
+                    found[item["id"]] = (aspect["id"], kind.get("id"))
+    return found
+
+
+def find_aspect(data: dict, aid: str) -> dict | None:
+    return next((a for a in aspects_of(data) if a.get("id") == aid), None)
+
+
+def find_kind(data: dict, kid: str) -> dict | None:
+    for aspect in aspects_of(data):
+        for kind in aspect.get("kinds") or []:
+            if isinstance(kind, dict) and kind.get("id") == kid:
+                return kind
     return None
+
+
+def find_item(data: dict, iid: str) -> dict | None:
+    for aspect in aspects_of(data):
+        for item in aspect.get("items") or []:
+            if isinstance(item, dict) and item.get("id") == iid:
+                return item
+        for kind in aspect.get("kinds") or []:
+            for item in (kind.get("items") or []) if isinstance(kind, dict) else []:
+                if isinstance(item, dict) and item.get("id") == iid:
+                    return item
+    return None
+
+
+def has_kinds(data: dict, aid: str) -> bool:
+    aspect = find_aspect(data, aid)
+    return bool(aspect and aspect.get("kinds"))
+
+
+def wording(obj: dict, language: str | None) -> str:
+    """An aspect's or kind's label in the sheet language, else English."""
+    label = obj.get("label") or {}
+    return str(label.get(primary(language)) or label.get("en") or obj.get("id", ""))
+
+
+def infer_kind(data: dict, finding: dict) -> str | None:
+    """A kind for a finding that has none, from its source and wording; None
+    for an aspect that has no kinds or when nothing places it."""
+    aspect = find_aspect(data, str(finding.get("aspect")))
+    if not aspect or not aspect.get("kinds"):
+        return None
+    placed = items_of(data).get(str(finding.get("item"))) if finding.get("item") else None
+    if placed and placed[0] == aspect["id"] and placed[1]:
+        return placed[1]
+    kinds = [k for k in aspect["kinds"] if isinstance(k, dict)]
+    for kind in kinds:
+        if finding.get("source") in (kind.get("sources") or []):
+            return kind["id"]
+    text = " ".join(str(finding.get(k) or "") for k in ("problem", "evidence", "ask"))
+    for kind in kinds:
+        if kind.get("hint") and re.search(str(kind["hint"]), text, re.I):
+            return kind["id"]
+    return next((k["id"] for k in kinds if k.get("default")), None)
 
 # How `listen` finds names and numbers per caption language.
 NUMBER = re.compile(r"[0-9][0-9,.]*(?:\s?%)?")
@@ -299,7 +513,13 @@ def save(path: str, data: dict) -> None:
 
 
 def problems(data: dict, final: bool) -> list[str]:
-    errors = []
+    if "aspects" not in data:
+        return ["ledger has no aspects: make it with `inspection.py init --genre <genre>`"]
+    errors = aspect_problems(data["aspects"])
+    if errors:
+        return errors
+    aspects, kinds, items = aspect_ids(data), kinds_of(data), items_of(data)
+    checkable = reviewed(data)
     labels = []
     for index, episode in enumerate(data["episodes"]):
         label = episode.get("label") if isinstance(episode, dict) else None
@@ -310,8 +530,8 @@ def problems(data: dict, final: bool) -> list[str]:
             errors.append(f"duplicate episode label {label}")
         labels.append(label)
         checked = episode.get("checked")
-        if checked is not None and (not isinstance(checked, list) or not set(checked) <= set(REVIEWED)):
-            errors.append(f"episode {label}: checked must list aspects from {', '.join(REVIEWED)}")
+        if checked is not None and (not isinstance(checked, list) or not set(checked) <= set(checkable)):
+            errors.append(f"episode {label}: checked must list aspects from {', '.join(checkable)}")
         elif final and checked is None:
             errors.append(f"episode {label}: checked is not recorded")
         if episode.get("video") and not video_id(episode["video"]):
@@ -333,11 +553,19 @@ def problems(data: dict, final: bool) -> list[str]:
             where = fid
         if finding.get("episode") not in known:
             errors.append(f"{where}: unknown episode {finding.get('episode')!r}")
-        if finding.get("aspect") not in ASPECTS:
-            errors.append(f"{where}: aspect must be one of {', '.join(ASPECTS)}")
+        aspect = finding.get("aspect")
+        if aspect not in aspects:
+            errors.append(f"{where}: aspect must be one of {', '.join(aspects)}")
         kind = finding.get("kind")
-        if kind is not None and KINDS.get(kind) != finding.get("aspect"):
-            errors.append(f"{where}: kind {kind!r} is not a kind of aspect {finding.get('aspect')!r}")
+        if kind is not None and kinds.get(kind) != aspect:
+            errors.append(f"{where}: kind {kind!r} is not a kind of aspect {aspect!r}")
+        item = finding.get("item")
+        if item is not None and (item not in items or items[item][0] != aspect
+                                 or (items[item][1] is not None and kind is not None and items[item][1] != kind)):
+            errors.append(f"{where}: item {item!r} is not an item of {aspect!r}/{kind!r}")
+        elif item is not None and (find_item(data, item) or {}).get("certainty") == "confirm" \
+                and finding.get("certainty") == "certain":
+            errors.append(f"{where}: item {item!r} needs the user's eyes or ears; certainty must be confirm")
         for field in ("ask", "note", "reply"):
             if finding.get(field) is not None and not isinstance(finding[field], str):
                 errors.append(f"{where}: {field} must be a string")
@@ -371,6 +599,117 @@ def cmd_validate(args) -> int:
         print(error)
     print(json.dumps({"ok": not errors, "errors": len(errors)}))
     return 0 if not errors else 1
+
+
+def cmd_genres(args) -> int:
+    print(json.dumps({"ok": True, "genres": genres(), "catalogs": str(CATALOGS)}, ensure_ascii=False))
+    return 0
+
+
+def item_route(aspect: dict, kind: dict | None, item: dict) -> str:
+    return str(item.get("route") or (kind or {}).get("route") or aspect.get("route"))
+
+
+def walk_items(data: dict):
+    """(aspect, kind or None, item) for every item of the ledger, in order."""
+    for aspect in aspects_of(data):
+        for item in aspect.get("items") or []:
+            if isinstance(item, dict):
+                yield aspect, None, item
+        for kind in aspect.get("kinds") or []:
+            if not isinstance(kind, dict):
+                continue
+            for item in kind.get("items") or []:
+                if isinstance(item, dict):
+                    yield aspect, kind, item
+
+
+def cmd_aspects(args) -> int:
+    catalog = load_catalog(args.genre)
+    if args.json:
+        print(json.dumps(catalog, ensure_ascii=False, indent=2))
+        return 0
+    print(f"{catalog['genre']} — {wording(catalog, None)}")
+    for aspect in catalog["aspects"]:
+        print(f"  {aspect['id']}  {wording(aspect, None)}  [{aspect['route']}]")
+        for kind in aspect.get("kinds") or []:
+            flags = " (default)" if kind.get("default") else ""
+            print(f"    {kind['id']}  {wording(kind, None)}{flags}")
+            for item in kind.get("items") or []:
+                route = f" [{item['route']}]" if item.get("route") else ""
+                cert = f" ({item['certainty']})" if item.get("certainty") else ""
+                print(f"      {item['id']}{route}{cert}: {item['look_for']}")
+        for item in aspect.get("items") or []:
+            route = f" [{item['route']}]" if item.get("route") else ""
+            cert = f" ({item['certainty']})" if item.get("certainty") else ""
+            print(f"    {item['id']}{route}{cert}: {item['look_for']}")
+    return 0
+
+
+def cmd_init(args) -> int:
+    target = Path(args.ledger)
+    if target.exists():
+        fail(f"{target} exists; init never overwrites a ledger")
+    catalog = load_catalog(args.genre)
+    available = [a["id"] for a in catalog["aspects"]]
+    chosen = [a.strip() for a in (args.aspects or "").split(",") if a.strip()] or available
+    unknown = [a for a in chosen if a not in available]
+    if unknown:
+        fail(f"not in the {args.genre} catalog: {', '.join(unknown)}; it offers {', '.join(available)}")
+    aspects = [json.loads(json.dumps(a)) for a in catalog["aspects"] if a["id"] in chosen]
+    data = {"job": args.job or "", "genre": args.genre}
+    if args.language:
+        data["language"] = args.language
+    if args.sheet_language:
+        data["sheet_language"] = args.sheet_language
+    data.update({"aspects": aspects, "episodes": [], "findings": [], "listen": []})
+    errors = problems(data, final=False)
+    if errors:
+        fail("; ".join(errors))
+    save(str(target), data)
+    print(json.dumps({"ok": True, "genre": args.genre, "aspects": [a["id"] for a in aspects],
+                      "items": sum(1 for _ in walk_items(data)), "out": str(target)}, ensure_ascii=False))
+    return 0
+
+
+def cmd_upgrade(args) -> int:
+    """A ledger made before aspects existed takes the whole catalog; its
+    findings already use the catalog's aspect and kind ids."""
+    data = load(args.ledger)
+    if "aspects" in data:
+        fail("the ledger already has aspects; edit them rather than upgrading")
+    catalog = load_catalog(args.genre)
+    data["genre"] = args.genre
+    data["aspects"] = [json.loads(json.dumps(a)) for a in catalog["aspects"]]
+    errors = problems(data, final=False)
+    if errors:
+        fail("the ledger's findings do not fit the catalog: " + "; ".join(errors))
+    save(args.ledger, data)
+    print(json.dumps({"ok": True, "genre": args.genre, "aspects": [a["id"] for a in data["aspects"]],
+                      "findings": len(data["findings"])}, ensure_ascii=False))
+    return 0
+
+
+def cmd_focus(args) -> int:
+    """The items one route looks for, one line each as
+    ``aspect/kind/item: look_for``, for a leaf's focus or note; a hands report
+    that echoes the item id lets ``import`` place the finding."""
+    data = load(args.ledger)
+    errors = problems(data, final=False)
+    if errors:
+        fail("; ".join(errors))
+    if args.route not in ROUTES:
+        fail(f"route must be one of {', '.join(ROUTES)}")
+    lines = []
+    for aspect, kind, item in walk_items(data):
+        if item_route(aspect, kind, item) != args.route:
+            continue
+        path = "/".join(part for part in (aspect["id"], kind["id"] if kind else None, item["id"]) if part)
+        cert = " (confirm: needs the user's eyes or ears)" if item.get("certainty") == "confirm" else ""
+        lines.append(f"{path}: {item['look_for']}{cert}")
+    Path(args.out).write_text("\n".join(lines) + ("\n" if lines else ""), encoding="utf-8")
+    print(json.dumps({"ok": bool(lines), "route": args.route, "items": len(lines), "out": args.out}, ensure_ascii=False))
+    return 0 if lines else 1
 
 
 def cmd_script(args) -> int:
@@ -429,14 +768,20 @@ def resolve_evidence(evidence: str, base: str | None) -> str:
     return "; ".join(pieces)
 
 
-def report_rows(path: str, base: str | None = None, aspect: str | None = None,
+ITEM_PREFIX = re.compile(r"^([a-z][a-z0-9-]*)\s*[:：]\s*(.+)$", re.S)
+
+
+def report_rows(data: dict, path: str, base: str | None = None, aspect: str | None = None,
                 kind: str | None = None) -> tuple[list[dict], list[str]]:
-    """``m:ss | aspect | problem | evidence | certain|confirm`` lines. Markdown
-    table pipes, a header and separator rows are ignored; a stray ``|`` inside
-    the problem is kept in it. The second cell may name an aspect or a kind;
-    ``aspect`` / ``kind`` override it (a speech report puts a speaker label
-    there). Any other line that does not parse is returned so the caller sees
-    what was not imported."""
+    """``m:ss | aspect|kind|item | problem | evidence | certain|confirm`` lines.
+    Markdown table pipes, a header and separator rows are ignored; a stray
+    ``|`` inside the problem is kept in it. The second cell may name an
+    aspect, a kind or an item of the ledger; ``aspect`` / ``kind`` override it
+    (a speech report puts a speaker label there). A problem that starts with
+    ``<item id>:`` names its item too. Any other line that does not parse is
+    returned so the caller sees what was not imported."""
+    kinds, items = kinds_of(data), items_of(data)
+    aspects = aspect_ids(data)
     rows, skipped = [], []
     for raw in Path(path).read_text(encoding="utf-8").splitlines():
         line = raw.strip()
@@ -450,16 +795,32 @@ def report_rows(path: str, base: str | None = None, aspect: str | None = None,
         evidence, certainty = cells[-2], cells[-1].lower().strip(" .")
         problem = " | ".join(cells[2:-2]).strip()
         at = "" if at in ("", "-", "—") else at
-        row_kind = kind if kind else (column if column in KINDS else None)
-        row_aspect = aspect if aspect else (KINDS[column] if column in KINDS else column)
-        if (row_aspect not in ASPECTS or certainty not in CERTAINTIES or not problem
-                or (at and not times_in(at)) or (row_kind and KINDS[row_kind] != row_aspect)):
+        row_item = None
+        prefixed = ITEM_PREFIX.match(problem)
+        if prefixed and prefixed.group(1) in items:
+            row_item, problem = prefixed.group(1), prefixed.group(2).strip()
+        elif column in items:
+            row_item = column
+        if row_item:
+            item_aspect, item_kind = items[row_item]
+        else:
+            item_aspect, item_kind = None, None
+        row_kind = kind or (column if column in kinds else None) or item_kind
+        row_aspect = aspect or (kinds[column] if column in kinds else column if column in aspects else None) or item_aspect
+        if (row_aspect not in aspects or certainty not in CERTAINTIES or not problem
+                or (at and not times_in(at)) or (row_kind and kinds.get(row_kind) != row_aspect)
+                or (row_item and (item_aspect != row_aspect or (item_kind and item_kind != row_kind)))):
             skipped.append(line)
             continue
         row = {"at": at, "aspect": row_aspect, "problem": problem,
                "evidence": resolve_evidence(evidence, base), "certainty": certainty, "quotes": quotes_in(problem)}
         if row_kind:
             row["kind"] = row_kind
+        if row_item:
+            row["item"] = row_item
+            item = find_item(data, row_item) or {}
+            if item.get("certainty") == "confirm":  # an item that needs the user's eyes or ears
+                row["certainty"] = "confirm"
         rows.append(row)
     return rows, skipped
 
@@ -469,18 +830,19 @@ def cmd_import(args) -> int:
     errors = problems(data, final=False)
     if errors:
         fail("; ".join(errors))
+    aspects, kinds = aspect_ids(data), kinds_of(data)
     if args.episode not in {e["label"] for e in data["episodes"]} | {ALL}:
         fail(f"unknown episode {args.episode!r}")
     if args.source not in SOURCES:
         fail(f"source must be one of {', '.join(SOURCES)}")
-    if args.aspect and args.aspect not in ASPECTS:
-        fail(f"aspect must be one of {', '.join(ASPECTS)}")
-    if args.kind and args.kind not in KINDS:
-        fail(f"kind must be one of {', '.join(KINDS)}")
-    if args.kind and args.aspect and KINDS[args.kind] != args.aspect:
-        fail(f"kind {args.kind} belongs to aspect {KINDS[args.kind]}")
+    if args.aspect and args.aspect not in aspects:
+        fail(f"aspect must be one of {', '.join(aspects)}")
+    if args.kind and args.kind not in kinds:
+        fail(f"kind must be one of {', '.join(kinds)}")
+    if args.kind and args.aspect and kinds[args.kind] != args.aspect:
+        fail(f"kind {args.kind} belongs to aspect {kinds[args.kind]}")
     base = args.base if args.base is not None else str(Path(args.findings).resolve().parent)
-    rows, skipped = report_rows(args.findings, base, args.aspect or (KINDS[args.kind] if args.kind else None),
+    rows, skipped = report_rows(data, args.findings, base, args.aspect or (kinds[args.kind] if args.kind else None),
                                 args.kind)
     added = add_findings(data, args.episode, rows, args.source)
     save(args.ledger, data)
@@ -653,10 +1015,13 @@ def cmd_triage_speech(args) -> int:
     episode = next((e for e in data["episodes"] if e["label"] == args.episode), None)
     if episode is None:
         fail(f"unknown episode {args.episode!r}")
+    kinds = kinds_of(data)
+    if kinds.get("reading") != "voice" or kinds.get("delivery") != "voice":
+        fail("the ledger's aspects have no voice aspect with reading and delivery kinds; the speech triage needs them")
     folder = Path(args.speech_dir)
     findings_path, prosody_path = folder / args.findings, folder / args.prosody
-    findings = report_rows(str(findings_path), None, "voice")[0] if findings_path.exists() else []
-    prosody = report_rows(str(prosody_path), None, "voice")[0] if prosody_path.exists() else []
+    findings = report_rows(data, str(findings_path), None, "voice")[0] if findings_path.exists() else []
+    prosody = report_rows(data, str(prosody_path), None, "voice")[0] if prosody_path.exists() else []
     if not findings and not prosody:
         fail(f"no {args.findings} or {args.prosody} in {folder}")
     starts = []
@@ -666,6 +1031,10 @@ def cmd_triage_speech(args) -> int:
     result = triage_speech(findings, prosody, starts, ignore, args.pitch_jump, args.level_jump,
                            args.max_jumps, args.skip_head, args.weak)
     kept = result["reading"] + result["delivery"]
+    items = items_of(data)
+    for row in kept:  # the triage's kind wins over an item of the other kind
+        if row.get("item") and items.get(row["item"], (None, None))[1] != row["kind"]:
+            row.pop("item")
     lines = [f"{row['at']} | {row['kind']} | {row['problem']} | {row['evidence']} | confirm" for row in kept]
     (folder / args.out).write_text("\n".join(lines) + ("\n" if lines else ""), encoding="utf-8")
     added = add_findings(data, args.episode, kept, "audio-creator")
@@ -758,9 +1127,27 @@ def episode_of(data: dict, finding: dict) -> dict | None:
     return next((e for e in data["episodes"] if e["label"] == finding["episode"]), None)
 
 
-def kind_label(finding: dict, words: dict) -> str:
-    kind = finding.get("kind")
-    return words["kinds"][kind] if kind in words["kinds"] else words["aspects"][finding["aspect"]]
+def kind_label(data: dict, finding: dict) -> str:
+    """The sheet's kind cell: the kind's label, else the aspect's."""
+    language = data.get("sheet_language")
+    kind = find_kind(data, str(finding.get("kind"))) if finding.get("kind") else None
+    if kind:
+        return wording(kind, language)
+    aspect = find_aspect(data, str(finding.get("aspect")))
+    return wording(aspect, language) if aspect else str(finding.get("aspect", ""))
+
+
+def kind_options(data: dict) -> list[str]:
+    """The kind column's dropdown: every kind's label, and the label of each
+    aspect without kinds, in ledger order."""
+    language = data.get("sheet_language")
+    options = []
+    for aspect in aspects_of(data):
+        if aspect.get("kinds"):
+            options.extend(wording(k, language) for k in aspect["kinds"] if isinstance(k, dict))
+        else:
+            options.append(wording(aspect, language))
+    return options
 
 
 def sheet_answer(finding: dict, words: dict) -> str:
@@ -852,7 +1239,7 @@ def export_rows(data: dict, words: dict) -> list[list[str]]:
             finding["id"],
             words["overall"] if finding["episode"] == ALL else finding["episode"],
             at_cell,
-            kind_label(finding, words),
+            kind_label(data, finding),
             cell_text(finding.get("ask") or finding["problem"]),
             cell_text(public_evidence(finding.get("evidence", ""))),
             sheet_answer(finding, words),
@@ -892,19 +1279,25 @@ def summary_rows(data: dict, words: dict) -> list[list[str]]:
 
 
 def cmd_kinds(args) -> int:
-    """Give every voice, text and content finding a kind; the sheet's kind
+    """Give every finding of an aspect with kinds a kind; the sheet's kind
     column holds kinds only, so a finding without one cannot be exported."""
     data = load(args.ledger)
+    errors = problems(data, final=False)
+    if errors:
+        fail("; ".join(errors))
     inferred, unresolved = {}, []
     for finding in data["findings"]:
-        if finding.get("kind") or finding.get("aspect") not in KIND_HINTS:
+        if finding.get("kind") or not has_kinds(data, str(finding.get("aspect"))):
             continue
-        kind = infer_kind(finding)
+        kind = infer_kind(data, finding)
         if kind:
             finding["kind"] = kind
             inferred[finding["id"]] = kind
         else:
             unresolved.append(finding["id"])
+    errors = problems(data, final=False)
+    if errors:
+        fail("; ".join(errors))
     save(args.ledger, data)
     print(json.dumps({"ok": not unresolved, "inferred": inferred, "unresolved": unresolved}, ensure_ascii=False))
     return 0 if not unresolved else 1
@@ -927,12 +1320,12 @@ def cmd_export(args) -> int:
     errors = problems(data, final=False)
     if errors:
         fail("; ".join(errors))
-    missing = [f["id"] for f in live(data) if f.get("aspect") in KIND_HINTS and not f.get("kind")]
+    missing = [f["id"] for f in live(data) if has_kinds(data, str(f.get("aspect"))) and not f.get("kind")]
     if missing:
         fail(f"findings without a kind (run `inspection.py kinds` first): {', '.join(missing)}")
     words = sheet_text(data)
     judgments = [words["judgments"][a] for a in ANSWERS]
-    kinds = [words["kinds"][k] for k in KINDS] + [words["aspects"][a] for a in ("thumbnail", "portrait", "overall")]
+    kinds = kind_options(data)
     summary_header = [words["summary_columns"][c] for c in ("episode", "title") + SUMMARY_COUNTS]
     rows = export_rows(data, words)
     out = {
@@ -1030,7 +1423,7 @@ def cmd_readback(args) -> int:
     return 0 if result["ok"] else 1
 
 
-def finding_line(finding: dict, box: bool, words: dict, episode: dict | None = None) -> str:
+def finding_line(data: dict, finding: dict, box: bool, words: dict, episode: dict | None = None) -> str:
     at = str(finding.get("at") or "").strip()
     url = finding_url(finding, episode)
     if at and url:
@@ -1045,7 +1438,7 @@ def finding_line(finding: dict, box: bool, words: dict, episode: dict | None = N
     tail = words["evidence"].format(evidence) if evidence else ""
     prefix = "- [ ] " if box else "- "
     text = finding.get("ask") or finding["problem"]
-    return f"{prefix}{head}{kind_label(finding, words)}{words['colon']}{text}{tail} `{finding['id']}`"
+    return f"{prefix}{head}{kind_label(data, finding)}{words['colon']}{text}{tail} `{finding['id']}`"
 
 
 def cmd_sheet(args) -> int:
@@ -1070,8 +1463,9 @@ def cmd_sheet(args) -> int:
             if checked is None:
                 out.append(words["unrecorded"])
             else:
-                done = words["join"].join(words["aspects"][a] for a in REVIEWED if a in checked) or words["none"]
-                todo = words["join"].join(words["aspects"][a] for a in REVIEWED if a not in checked) or words["none"]
+                names = {a["id"]: wording(a, data.get("sheet_language")) for a in aspects_of(data)}
+                done = words["join"].join(names[a] for a in reviewed(data) if a in checked) or words["none"]
+                todo = words["join"].join(names[a] for a in reviewed(data) if a not in checked) or words["none"]
                 out.append(words["checked"].format(done=done, todo=todo))
         certain = [f for f in mine if f["certainty"] == "certain"]
         confirm = [f for f in mine if f["certainty"] == "confirm"]
@@ -1079,10 +1473,10 @@ def cmd_sheet(args) -> int:
             out.append("- " + (words["clean_checked"] if checked else words["clean_unrecorded"]))
         if certain:
             out.append(f"### {words['certain']}")
-            out.extend(finding_line(f, False, words, episode) for f in certain)
+            out.extend(finding_line(data, f, False, words, episode) for f in certain)
         if confirm:
             out.append(f"### {words['confirm']}")
-            out.extend(finding_line(f, True, words, episode) for f in confirm)
+            out.extend(finding_line(data, f, True, words, episode) for f in confirm)
         if listen:
             out.append(f"### {words['listen']}")
             for item in listen:
@@ -1176,6 +1570,29 @@ def cmd_check(args) -> int:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = parser.add_subparsers(dest="command", required=True)
+    p = sub.add_parser("genres")
+    p.set_defaults(func=cmd_genres)
+    p = sub.add_parser("aspects")
+    p.add_argument("genre")
+    p.add_argument("--json", action="store_true", help="the catalog itself rather than a readable tree")
+    p.set_defaults(func=cmd_aspects)
+    p = sub.add_parser("init")
+    p.add_argument("ledger")
+    p.add_argument("--genre", required=True)
+    p.add_argument("--aspects", help="comma-separated aspect ids to copy from the catalog (default: all)")
+    p.add_argument("--job")
+    p.add_argument("--language", help="the captions' BCP 47 tag")
+    p.add_argument("--sheet-language", help="the user's BCP 47 tag")
+    p.set_defaults(func=cmd_init)
+    p = sub.add_parser("upgrade")
+    p.add_argument("ledger")
+    p.add_argument("--genre", required=True)
+    p.set_defaults(func=cmd_upgrade)
+    p = sub.add_parser("focus")
+    p.add_argument("ledger")
+    p.add_argument("out")
+    p.add_argument("--route", required=True, help="who looks: " + ", ".join(ROUTES))
+    p.set_defaults(func=cmd_focus)
     p = sub.add_parser("script")
     p.add_argument("captions")
     p.add_argument("out")
