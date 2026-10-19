@@ -12,24 +12,32 @@
 # ///
 """Japanese accent and delivery check of narrated audio against its timed script.
 
-    prosody-ja.py analyze <wav> --captions <captions.txt> --out <result.json> [--lines <prosody.md>]
+    prosody-ja.py analyze <wav> --captions <captions.txt> --out <result.json> [--lines <prosody.md>] [--accent] [--tension]
     prosody-ja.py prepare                      fetch the alignment model once (a maintainer step)
 
 The captions are ``[m:ss] text`` lines: the words as written, each line's
-start. For every line: the expected accent of each accent phrase from the
-pyopenjtalk dictionary (full-context labels), the time of each mora from MMS
-forced alignment, the pitch of each mora (pyin, semitones), and the realized
-accent nucleus (the first fall of FALL st that stays down) against the
-expected one. Lines are grouped into speakers by their median pitch, and each
-speaker's lines are compared with each other: morae per second, the pauses at
-、 and 。, the pitch range.
+start. For every line: the time of each mora from MMS forced alignment (the
+morae and their expected accent from the pyopenjtalk dictionary's
+full-context labels), the pitch of each mora (pyin, semitones) and its
+level. Lines are grouped into speakers by their median pitch, and each
+speaker's lines are compared with each other: morae per second, the pauses
+at 、 and 。, the pitch range, and the vocal effort of the line's start (the
+spectral tilt of its first 0.6 s, 1-4 kHz against 100-1000 Hz) against the
+speaker's lines.
 
 Every candidate is written as one ``m:ss | voice | <item>: … | … | confirm``
-line, the item being one of the inspection catalog's: ``accent`` (reading),
-``pace``, ``pause`` and ``flat`` (delivery). Findings are candidates for a
-person's ear: the dictionary's accent is wrong often enough on loanwords and
-compounds that "differs from the dictionary" is never a verdict, and a word
-the dictionary spells letter by letter (Latin script) is not checked at all.
+line, the item being one of the inspection catalog's delivery items:
+``pace``, ``pause``, ``flat``, and with ``--tension`` the experimental
+``tension`` (a start brighter and harder than the speaker's other lines by
+TENSION_TILT dB; calibrated on a handful of ear-marked spots, so read its
+hits with that in mind). With ``--accent`` the realized accent nucleus of
+every phrase (the first fall of FALL st that stays down) is compared with the
+dictionary's and a difference becomes a reading ``accent`` line; off by
+default because the dictionary is wrong often enough on loanwords and
+compounds that a round yields a dozen candidates a listener finds natural.
+A word the dictionary spells letter by letter (Latin script) is never
+checked. All measurements stay in the JSON whether or not a candidate came
+of them.
 
 The alignment model is read from the torch hub cache; ``analyze`` never
 downloads it. ``prepare`` does, once per machine.
@@ -66,6 +74,8 @@ FLAT_RATIO = 0.5      # of the speaker's median pitch range
 LONG_PAUSE = 1.2      # s, inside a line
 NO_PAUSE = 0.08       # s, at a 。 inside a line
 SPEAKER_MERGE = 3.0   # st: pitch clusters closer than this are one speaker
+ONSET = 0.6           # s: the start of a line whose vocal effort is compared
+TENSION_TILT = 6.0    # dB: spectral tilt of a start above the speaker's median that reads as a sudden push
 
 
 def fail(message: str) -> None:
@@ -262,13 +272,21 @@ class Aligner:
 
 
 def pitch_track(wav):
+    """Per 10 ms frame: pitch in semitones from 100 Hz (NaN unvoiced), level
+    in dB, and spectral tilt in dB (1-4 kHz against 100-1000 Hz: the vocal
+    effort, brighter when the voice pushes)."""
     import librosa
     import numpy as np
 
     f0, voiced, _ = librosa.pyin(wav, fmin=60.0, fmax=500.0, sr=SR, frame_length=1024, hop_length=HOP)
     st = np.where(voiced & np.isfinite(f0), 12 * np.log2(np.maximum(f0, 1e-6) / 100.0), np.nan)
+    power = np.abs(librosa.stft(wav, n_fft=1024, hop_length=HOP)) ** 2
+    freqs = librosa.fft_frequencies(sr=SR, n_fft=1024)
+    low = power[(freqs >= 100) & (freqs < 1000)].sum(axis=0)
+    high = power[(freqs >= 1000) & (freqs < 4000)].sum(axis=0)
+    tilt = 10 * np.log10(high + 1e-9) - 10 * np.log10(low + 1e-9)
     rms = librosa.feature.rms(y=wav, frame_length=1024, hop_length=HOP)[0]
-    return st, 20 * np.log10(np.maximum(rms, 1e-6))
+    return st, 20 * np.log10(np.maximum(rms, 1e-6)), tilt
 
 
 def window_median(track, start: float, end: float) -> float | None:
@@ -315,8 +333,9 @@ def clock(seconds: int) -> str:
     return f"{seconds // 60}:{seconds % 60:02d}"
 
 
-def delivery_findings(lines: list[dict]) -> list[str]:
-    """Pace, pause and flatness candidates, each line against its speaker's others."""
+def delivery_findings(lines: list[dict], tension: bool = False) -> list[str]:
+    """Pace, pause and flatness candidates, each line against its speaker's
+    others; with ``tension`` also a start pushed harder than the speaker's."""
     import numpy as np
 
     out = []
@@ -325,8 +344,15 @@ def delivery_findings(lines: list[dict]) -> list[str]:
         med_rate = float(np.median([r["rate"] for r in mine]))
         ranges = [r["pitch_range"] for r in mine if r.get("pitch_range") is not None]
         med_range = float(np.median(ranges)) if ranges else None
+        tilts = [r["tilt_median"] for r in mine if r.get("tilt_median") is not None]
+        med_tilt = float(np.median(tilts)) if tilts else None
         for r in mine:
             at = clock(r["at"])
+            if tension and med_tilt is not None and r.get("onset_tilt") is not None and r["morae"] >= MIN_MORAE \
+                    and r["onset_tilt"] - med_tilt >= TENSION_TILT:
+                out.append(f"{at} | voice | tension: the start is {r['onset_tilt'] - med_tilt:.1f} dB brighter than "
+                           f"speaker {speaker}'s lines (spectral tilt {r['onset_tilt']} against {med_tilt:.1f}) "
+                           f"| prosody-ja speaker {speaker} | confirm")
             if r["morae"] >= MIN_MORAE and med_rate and abs(r["rate"] - med_rate) / med_rate > RATE_DEVIATION:
                 out.append(f"{at} | voice | pace: {r['rate']} morae/s against speaker {speaker}'s {med_rate:.1f} "
                            f"| prosody-ja speaker {speaker} | confirm")
@@ -358,7 +384,7 @@ def accent_findings(lines: list[dict]) -> list[str]:
 
 # --- commands ----------------------------------------------------------------
 
-def analyze_line(cap: dict, end: float, wav, st_track, level_track, aligner: Aligner) -> dict:
+def analyze_line(cap: dict, end: float, wav, st_track, level_track, tilt_track, aligner: Aligner) -> dict:
     import numpy as np
 
     start = cap["at"]
@@ -394,6 +420,8 @@ def analyze_line(cap: dict, end: float, wav, st_track, level_track, aligner: Ali
                 at_period.append(gap)
     sts = [m["st"] for m in timed if m["st"] is not None]
     levels = [m["level"] for m in timed if m["level"] is not None]
+    first = [m for m in phrases_of(timed)[0]] if timed else []
+    last = [m for m in phrases_of(timed)[-1]] if timed else []
     line.update({
         "speech_start": round(speech_start, 2), "speech_end": round(speech_end, 2),
         "rate": round(len(morae) / max(speech_end - speech_start, 0.1), 2),
@@ -401,8 +429,26 @@ def analyze_line(cap: dict, end: float, wav, st_track, level_track, aligner: Ali
         "pitch_median": round(float(np.median(sts)), 1) if sts else None,
         "pitch_range": round(float(np.percentile(sts, 90) - np.percentile(sts, 10)), 1) if len(sts) > 3 else None,
         "level_median": round(float(np.median(levels)), 1) if levels else None,
+        "level_range": round(float(np.percentile(levels, 90) - np.percentile(levels, 10)), 1) if len(levels) > 3 else None,
+        "onset_level": _median([m["level"] for m in first]),
+        "onset_pitch": _median([m["st"] for m in first]),
+        "tail_level": _median([m["level"] for m in last]),
+        "tail_pitch": _median([m["st"] for m in last]),
+        "onset_tilt": window_median(tilt_track, speech_start, speech_start + ONSET),
+        "tilt_median": window_median(tilt_track, speech_start, speech_end),
+        "first_phones": "".join(timed[0]["phones"]),
     })
+    for key in ("onset_tilt", "tilt_median"):
+        if line[key] is not None:
+            line[key] = round(line[key], 1)
     return line
+
+
+def _median(values) -> float | None:
+    import numpy as np
+
+    known = [v for v in values if v is not None]
+    return round(float(np.median(known)), 1) if known else None
 
 
 def cmd_analyze(args) -> int:
@@ -421,16 +467,18 @@ def cmd_analyze(args) -> int:
     if sr != SR:
         wav = librosa.resample(wav, orig_sr=sr, target_sr=SR)
     duration = len(wav) / SR
-    st_track, level_track = pitch_track(wav)
+    st_track, level_track, tilt_track = pitch_track(wav)
     aligner = Aligner()
     lines = []
     for idx, cap in enumerate(captions):
         end = captions[idx + 1]["at"] if idx + 1 < len(captions) else min(duration, cap["at"] + 15)
-        lines.append(analyze_line(cap, end, wav, st_track, level_track, aligner))
+        lines.append(analyze_line(cap, end, wav, st_track, level_track, tilt_track, aligner))
     with_pitch = [r for r in lines if r.get("pitch_median") is not None]
     for r, speaker in zip(with_pitch, cluster_speakers([r["pitch_median"] for r in with_pitch])):
         r["speaker"] = speaker
-    findings = delivery_findings(lines) + accent_findings(lines)
+    findings = delivery_findings(lines, tension=args.tension)
+    if args.accent:
+        findings += accent_findings(lines)
     phrases = sum(len(r["accent"]) for r in lines)
     skipped = sum(1 for r in lines for c in r["accent"] if c.get("skipped"))
     result = {"source": args.wav, "captions": args.captions, "duration": round(duration, 2),
@@ -463,6 +511,8 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--captions", required=True, help="`[m:ss] text` lines, the words as written")
     p.add_argument("--out", required=True, help="the result JSON")
     p.add_argument("--lines", help="the candidate lines, one `m:ss | voice | item: … | … | confirm` per line")
+    p.add_argument("--accent", action="store_true", help="also report phrases whose accent differs from the dictionary")
+    p.add_argument("--tension", action="store_true", help="also report a start pushed harder than the speaker's lines (experimental)")
     p.set_defaults(func=cmd_analyze)
     p = sub.add_parser("prepare")
     p.set_defaults(func=cmd_prepare)

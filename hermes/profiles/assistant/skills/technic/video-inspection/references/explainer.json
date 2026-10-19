@@ -69,7 +69,9 @@
             {"id": "pause", "certainty": "confirm",
              "look_for": "no pause at a 。 inside a line, or a pause inside a line long enough to break the sentence"},
             {"id": "flat", "certainty": "confirm",
-             "look_for": "a line with far less pitch movement than the same speaker's other lines"}
+             "look_for": "a line with far less pitch movement than the same speaker's other lines"},
+            {"id": "tension", "certainty": "confirm",
+             "look_for": "a line that starts suddenly louder or harder than the same speaker's other lines, as if the voice pushes without a reason in the words"}
           ]
         },
         {
