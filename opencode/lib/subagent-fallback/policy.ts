@@ -55,16 +55,22 @@ const sonnet = (variant: string) => m("anthropic", "claude-sonnet-5-5", variant)
 const haiku = (variant: string) => m("anthropic", "claude-haiku-5-5", variant)
 const sol = (variant: string) => m("openai", "gpt-6.1-sol", variant)
 const luna = (variant: string) => m("openai", "gpt-6-luna", variant)
+// Fast mode: the same model with priority processing, 2.5x the included usage.
+const solFast = (variant: string) => m("openai", "gpt-6.1-sol-fast", variant)
+const lunaFast = (variant: string) => m("openai", "gpt-6-luna-fast", variant)
 
 export const ROUTES: Readonly<Record<string, Route>> = Object.freeze(
   Object.fromEntries(
     Object.entries({
-      "explore-max": { primary: opus("xhigh"), alternate: sol("xhigh") },
-      "explore-high": { primary: sonnet("high"), alternate: sol("high") },
-      "explore-medium": { primary: sonnet("medium"), alternate: sol("medium") },
+      "explore-max": { primary: sol("xhigh"), alternate: opus("xhigh") },
+      "explore-high": { primary: solFast("high"), alternate: sonnet("high") },
+      "explore-medium": {
+        primary: solFast("medium"),
+        alternate: sonnet("medium"),
+      },
       reviewer: { primary: sonnet("medium"), alternate: sol("medium") },
       worker: { primary: sonnet("low"), alternate: sol("low") },
-      "explore-spark": { primary: haiku("low"), alternate: luna("low") },
+      "explore-spark": { primary: lunaFast("low"), alternate: haiku("low") },
       "explore-small": { primary: luna("low"), alternate: haiku("low") },
       verifier: { primary: luna("low"), alternate: haiku("low") },
       debugger: { primary: sol("high"), alternate: opus("high") },

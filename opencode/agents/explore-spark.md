@@ -1,11 +1,10 @@
 ---
 description: "Ultra-fast read-only needle lookups in a pre-identified narrow scope (specific files/dirs/symbols). Small context — not for open-ended exploration."
 mode: subagent
-# Haiku 5.5 has adaptive thinking on by default (effort medium); the #low
-# variant keeps lookups fast. Keep in sync with ROUTES in
-# lib/subagent-fallback/policy.ts. An options block would be ignored by
-# OpenCode 2 (anomalyco/opencode#49550).
-model: anthropic/claude-haiku-5-5#low
+# Luna in fast mode: a short lookup the parent waits for. Keep in sync with
+# ROUTES in lib/subagent-fallback/policy.ts. An options block would be
+# ignored by OpenCode 2 (anomalyco/opencode#49550).
+model: openai/gpt-6-luna-fast#low
 hidden: false
 permissions:
   - { action: "*", resource: "*", effect: deny }

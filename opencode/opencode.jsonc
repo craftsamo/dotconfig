@@ -344,7 +344,50 @@
             }
           ],
         },
+        // Fast mode (priority processing, same model) is a model id of its
+        // own, so the window and the list price are repeated. It draws 2.5x
+        // the included subscription usage of the standard model (2x on paid
+        // credits); the cost below is the standard API list price, which is
+        // what OpenCode's estimate can show.
+        "gpt-6.1-sol-fast": {
+          "limit": {
+            "context": 683000,
+            "input": 555000,
+            "output": 128000
+          },
+          "cost": [
+            {
+              "input": 2,
+              "output": 10,
+              "cache": {
+                "read": 0.1
+              }
+            }
+          ],
+        },
         "gpt-6-luna": {
+          "cost": [
+            {
+              "input": 0.1,
+              "output": 0.5,
+              "cache": {
+                "read": 0.01
+              }
+            },
+            {
+              "tier": {
+                "type": "context",
+                "size": 200000
+              },
+              "input": 0.2,
+              "output": 0.75,
+              "cache": {
+                "read": 0.02
+              },
+            },
+          ],
+        },
+        "gpt-6-luna-fast": {
           "cost": [
             {
               "input": 0.1,

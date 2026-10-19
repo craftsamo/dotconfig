@@ -1,7 +1,7 @@
 ---
 description: "Read-only codebase exploration for hard or ambiguous questions where explore-medium falls short."
 mode: subagent
-model: anthropic/claude-sonnet-5-5#high
+model: openai/gpt-6.1-sol-fast#high
 hidden: false
 permissions:
   - { action: "*", resource: "*", effect: deny }
