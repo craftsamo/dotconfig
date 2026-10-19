@@ -186,19 +186,24 @@ describe("choosing a model", () => {
       })?.providerID,
     ).toBe(OAUTH_PROVIDER)
   })
-  test("a launch needs the role's own variant on the lane", () => {
+  test("a launch needs the model's own variant on the lane", () => {
     const lanes = new Lanes([MAIN, SUB], DEFAULT_COOLDOWN_MS, () => 0)
-    expect(launchLane(ROUTES.worker, lanes, catalog())).toEqual({
+    expect(launchLane(ROUTES.worker.primary, lanes, catalog())).toEqual({
       ...SONNET,
       providerID: MAIN,
     })
     const noLow = [MAIN, SUB].map((p) =>
       entry({ ...SONNET, providerID: p }, ["high"]),
     )
-    expect(launchLane(ROUTES.worker, lanes, noLow)).toBeUndefined()
+    expect(launchLane(ROUTES.worker.primary, lanes, noLow)).toBeUndefined()
   })
-  test("roles whose primary is not the subscription never launch on a lane", () => {
+  test("a model that is not on the subscription never launches on a lane, its Claude alternate can", () => {
     const lanes = new Lanes([MAIN], DEFAULT_COOLDOWN_MS, () => 0)
-    expect(launchLane(ROUTES.verifier, lanes, catalog())).toBeUndefined()
+    expect(launchLane(ROUTES.verifier.primary, lanes, catalog())).toBeUndefined()
+    expect(launchLane(ROUTES.searcher.primary, lanes, catalog())).toBeUndefined()
+    expect(launchLane(ROUTES.searcher.alternate, lanes, catalog())).toEqual({
+      ...ROUTES.searcher.alternate,
+      providerID: MAIN,
+    })
   })
 })
