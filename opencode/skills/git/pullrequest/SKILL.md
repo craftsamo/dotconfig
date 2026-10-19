@@ -185,14 +185,25 @@ stacked alike:
   of an existing plain PR's base, refusals, warnings, and a secret scan of
   every commit. For a plain branch pass `base` only for a base the user chose
   (Step 2); otherwise the open PR's base, else the default branch, is kept.
+  For a `submit`, pass the `prs` (title and body per layer) it will set: the
+  preview shows them under `text`, pins them in the token, and reads them
+  with every commit subject and branch name for what <Audience> keeps out;
+  each finding names the words and the rule they trip.
 - `git_publish` (asks) publishes exactly that, given the `token` and the same
-  `base` (and `meta`, `attachments`): `push` sends the commits and sets the
-  previewed metadata on PRs that already exist; `submit` also opens each missing PR
-  (ready unless asked for drafts), applies `prs` titles and bodies to new and
-  existing PRs, moves a plain PR's base when the preview showed `retarget`,
-  and links a stack's PRs. Existing PRs keep their draft state.
+  `base` and `prs` (and `meta`, `attachments`): `push` sends the commits and
+  sets the previewed metadata on PRs that already exist; `submit` also opens
+  each missing PR (ready unless asked for drafts), applies the `prs` titles
+  and bodies to new and existing PRs, moves a plain PR's base when the
+  preview showed `retarget`, and links a stack's PRs. Existing PRs keep their
+  draft state. Other `prs` than the preview's fail the token: a changed
+  title or body is previewed again, and a changed title or body on an
+  existing PR is a `submit` with `prs`, never a `push`. A `push` preview
+  takes no `prs`.
 
-Show the user the preview's layers, refusals and warnings before publishing.
+Show the user the preview's layers, text, refusals and warnings before
+publishing. A `text` finding is fixed in the words, never argued past:
+rewrite for the <Audience> reader and preview again; the pattern that
+tripped is a sample of the rule, not its edge.
 A refusal is fixed, never worked around: rebase (Step 3), commit or stash,
 remove a secret, or ask. A force push after a rebase is the mechanism here,
 not a violation of the no-force-push rule: the pinned commits leave in one
@@ -423,10 +434,10 @@ and [squash-message settings](https://docs.github.com/en/repositories/configurin
    and reference them in the body.
 6. Publish only a new PR or an authorized branch update, through
    <Publishing>: `git_publish_preview` (with `base` from Step 2 when one was
-   chosen, `meta` per <Metadata> and `attachments` per <Media>), show it,
-   then `git_publish` with its `token` and the same arguments — `push` when every
-   PR already exists, `submit` when one is missing or its title, body or base
-   changes. A rebase (Step 3, or a fixup's fold) that reported
+   chosen, the Step 5 `prs` for a submit, `meta` per <Metadata> and
+   `attachments` per <Media>), show it, then `git_publish` with its `token`
+   and the same arguments — `push` when every PR already exists, `submit`
+   when one is missing or its title, body or base changes. A rebase (Step 3, or a fixup's fold) that reported
    `needsForcePush` is published the same way: the leased push is the force
    push. A request to edit a title or body alone does not authorize
    publishing local commits.
