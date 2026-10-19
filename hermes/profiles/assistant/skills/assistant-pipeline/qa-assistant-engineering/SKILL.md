@@ -64,7 +64,12 @@ in ../index.md still applies.
 5. **PR.** Confirm the PR exists with the intended repository, base, head,
    commits and description, and read its CI state: pending or unavailable is
    not green, a failed required check prevents unqualified acceptance. A
-   local-only exception or a blocked PR is reported as such.
+   local-only exception or a blocked PR is reported as such. Read the title,
+   body, commit subjects and branch name as someone who has only the
+   repository: a Phase or plan label, a decision-log number, the name of a
+   tool, agent or harness, a local path, or the state of this machine, the
+   CI account or billing is a defect to send back, whether or not the
+   preview flagged it.
 6. **Verdict.** Accept, return evidence-anchored defects to the same build
    session, or reopen the agreed scope with the user. Do not turn a changed
    preference into an undisclosed implementation bug.

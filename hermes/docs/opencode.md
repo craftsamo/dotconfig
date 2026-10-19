@@ -212,7 +212,14 @@ layers, and publishes every PR, plain or stacked, through three tools:
 `git_publish` (push, submit, link) asks through
 the person's global rules (a session rule would reopen the deny a read-only
 subagent sets itself) and publishes only the exact state the preview's token
-pinned, metadata it judged included. `gh_pr_meta` sets PR metadata nothing
+pinned, metadata it judged and the PR titles and bodies included: the words
+the caller approved are the words published, and the preview reads them
+(with each commit subject and branch name) for the working context a run
+tends to carry into them — Phase names, decision-log numbers, tool and agent
+names, local paths, account state — which the operating note of a write run
+names as excluded, since the repository's readers have none of it. The
+preview's findings are tripwires for the caller to judge, not a filter: the
+rule lives in the `git-pullrequest` skill. `gh_pr_meta` sets PR metadata nothing
 reacts to without asking and `gh_pr_meta_apply` asks for the rest, the same
 way. In a write run every
 `gh stack` command but `view` asks too, since it rebases and force-pushes
