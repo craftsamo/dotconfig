@@ -509,7 +509,7 @@ goals:
   max_turns: 20
 skills:
   external_dirs:
-    - ~/.config/private/hermes/skills/operations/hermes-browser-relaunch
+    - ~/ghq/github.com/craftsamo/private-dotconfig/hermes/skills/operations/hermes-browser-relaunch
   disabled: []
   create_dir: skills/learned
   template_vars: true

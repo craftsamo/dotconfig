@@ -51,7 +51,7 @@ class LauncherTest(unittest.TestCase):
             result = subprocess.run([str(entry), "persons", "--json"], env=env, capture_output=True, text=True)
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual(json.loads(result.stdout)["data"], {"persons": []})
-            self.assertFalse((home / ".config/private").exists())
+            self.assertFalse((home / ".config").exists())
 
     def test_explicit_engine_override_is_still_honored(self):
         with tempfile.TemporaryDirectory() as tmp:

@@ -43,8 +43,8 @@ skills.
   and tabs, and this machine's account layout (which Claude account or
   Console org a label, a lane or a tool is on, its plan size, whose grant a
   key is) — never enters tracked config, docs, tests, examples or commit and
-  PR text; it lives in the private overlay (`~/.config/private`, the
-  `private-dotconfig` repo). Use neutral examples (`work`, `personal`,
+  PR text; it lives in the private overlay (the `private-dotconfig` repo,
+  linked into this repo as `<repo>/private`). Use neutral examples (`work`, `personal`,
   `Leads`) and opaque labels. The overlay installs local commit and push hooks that refuse
   known names; a refusal is fixed by rewording, never by `--no-verify`. The
   Assistant pipeline is tracked here too: what it must know about a private

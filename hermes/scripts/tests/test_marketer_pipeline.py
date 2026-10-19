@@ -324,7 +324,7 @@ def test_actual_config_is_a_read_only_advisor():
     assert config["browser"]["real_profile_pin"] == "Profile 13"
     # Writer's pipeline is no longer read: the client owns acceptance.
     assert config["skills"]["external_dirs"] == [
-        "~/.config/private/hermes/skills/operations/hermes-browser-relaunch",
+        "~/ghq/github.com/craftsamo/private-dotconfig/hermes/skills/operations/hermes-browser-relaunch",
     ]
     assert config["skills"]["disabled"] == []
     prompt = " ".join(config["agent"]["system_prompt"].split())
