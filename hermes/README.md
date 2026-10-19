@@ -155,6 +155,12 @@ Run from `~/.config/hermes`.
 - `./scripts/validate-profile-skills.py --all` — skill topology, metadata,
   routing registries, hands leaves, references and Git ownership. `--strict-git`
   in a staged or clean tree also fails on managed files that are untracked.
+- `hermes-python --test scripts/audit-hands-references.py --root .. --json`
+  (or `--leaf <repo-relative leaf dir>` for one leaf; needs PyYAML) — the
+  option-backed reference catalogs of the image, video and audio hands: orphan
+  files, empty backing, missing loading links, and the card renderer's
+  destination and style contracts. Exit 0 is structural only; findings still
+  need reading.
 - Full test suite:
 
   ```sh

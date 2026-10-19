@@ -1,7 +1,7 @@
 # hermes/ — maintainer rules
 
 Rules for whoever edits this subtree: OpenCode, usually started by the person.
-The Assistant may drive it here too (hands-reference upkeep does), but only in a
+The Assistant may drive it here too, but only in a
 task worktree (`opencode_session workspace`): the plugin refuses a write run in
 the live checkout (`~/ghq/github.com/craftsamo/dotconfig`, which `~/.config`
 links into). Hermes reads `~/.hermes/` (real directories holding links into
