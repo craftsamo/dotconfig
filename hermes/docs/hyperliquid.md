@@ -357,9 +357,9 @@ owns the procedure; this section owns what the code holds to.
   `max_leverage`) and the mandate's id, bounds and end. A variant whose rules
   no longer match its fingerprint makes the spec invalid.
 - **The gate** (`hl_gate.py`, a cron `script` with an agent; the scheduler
-  runs its wrapper by the resolved path inside this repository, so the
-  wrapper takes the runtime home from `HERMES_HOME` when that names the
-  profile, else `~/.hermes/profiles/<profile>`) reads each
+  runs its wrapper from the copy `install.sh` keeps in the profile's
+  `scripts/`, so the wrapper takes the runtime home from its own parent and
+  finds the engine in the repository through the home's `plugins` tree) reads each
   active spec's account, open orders and newest completed candles through
   `/info`, and lists, under the account and its address (the run's reads
   take the address: it has no other way to it), intents: the exact `hyperliquid` quote arguments, each
