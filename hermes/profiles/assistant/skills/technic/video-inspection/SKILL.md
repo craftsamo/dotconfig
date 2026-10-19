@@ -40,19 +40,25 @@ second commissioning contract.
 | Layer | Where | What it fixes |
 | --- | --- | --- |
 | Procedure | this file | the sequence, the ledger, the spreadsheet, the report; who owns which check |
-| Genre | one reference below | the items to look for (aspect → kind → item), the leaf that looks at the picture, the `focus` it needs, the genre's own pitfalls |
+| Genre | one reference below and its catalog (`references/<genre>.json`) | the items to look for (aspect → kind → item, each with who looks for it), the leaf that looks at the picture, the genre's own pitfalls |
 | Series | a private technic the genre reference names | what one recurring series has taught: where its jobs live, recurring defects, the readings its voice always uses, the requester's format |
 
 | Genre | Reference | Read when |
 | --- | --- | --- |
 | explainer video (a topic explained to an audience, with captions and a narrator; portraits or a mascot optional) | [explainer](references/explainer.md) | the request names an explainer, a lecture, a commentary series, or a "解説動画" |
 
-Read the genre reference at step 1, before anything is fetched. A video no
-reference covers is still inspected with this procedure: speech, thumbnail
-and claims below are genre-independent, and the picture goes to the
-analyze leaf whose subject fits ([execute-assistant-creative](../../assistant-pipeline/execute-assistant-creative/SKILL.md)
-"Choosing the leaf"); tell the user in one line that no genre reference
-exists and which items you therefore could not name.
+Read the genre reference at step 1, before anything is fetched. The items
+themselves are data, not prose: `inspection.py aspects <genre>` prints the
+catalog, `init` copies the aspects this round checks into the ledger, and
+every later command (`focus`, `import`, `kinds`, `export`, `sheet`) reads
+the ledger's copy. So two rounds of the same genre may check different
+aspects, and a round may add an item nobody catalogued by editing its
+ledger's `aspects`. A video no reference covers is still inspected with this
+procedure: speech, thumbnail and claims below are genre-independent, and the
+picture goes to the analyze leaf whose subject fits ([execute-assistant-creative](../../assistant-pipeline/execute-assistant-creative/SKILL.md)
+"Choosing the leaf"); `init` then takes the closest catalog, you drop the
+aspects that do not apply, and you tell the user in one line that no genre
+reference exists and which items you therefore could not name.
 
 ## Who does what
 
@@ -83,8 +89,16 @@ conversation (`plan-assistant-research`).
    Pick the genre reference from the table above and read it; when it names
    a series technic and the request belongs to a listed series, load that
    technic and read the matching series reference and the previous round's
-   job directory. On a first round of a new series, run one video through
-   every step, show the user, then ask before the rest.
+   job directory. Then print the genre's items and settle which aspects
+   this round checks — the request names them, or you ask the user with
+   the aspect names from the catalog, never with the whole item list:
+
+   ```sh
+   python3 ${HERMES_SKILL_DIR}/scripts/inspection.py aspects <genre>
+   ```
+
+   On a first round of a new series, run one video through every step,
+   show the user, then ask before the rest.
    Everything below reads the files locally. Sending a video, its frames or
    its audio to a remote analysis service (`video_analyze`, a hands leaf's
    `remote_analysis: yes`) needs the user's explicit consent for that
@@ -111,19 +125,39 @@ conversation (`plan-assistant-research`).
 
    The caption file is what should be on screen; it is itself unchecked, so a
    caption typo is a caption finding, not proof the voice is right.
-   Create `ledger.json` (shape in `inspection.py`'s header) with one
-   `episodes` entry per video, its caption path and `video` (the YouTube id:
-   every time on the sheet links to the video at that second), `language`
-   set to the captions' language and `sheet_language` to the user's. Add an
+   Make the ledger from the genre's catalog with the aspects settled in
+   step 1, the captions' language and the user's:
+
+   ```sh
+   python3 ${HERMES_SKILL_DIR}/scripts/inspection.py init ledger.json --genre <genre> --aspects <a,b,c> --job <job> --language <tag> --sheet-language <tag>
+   ```
+
+   Then add one `episodes` entry per video (shape in `inspection.py`'s
+   header): its caption path and `video` (the YouTube id: every time on the
+   sheet links to the video at that second). An item the series reference
+   adds or removes goes into the ledger's `aspects` now, by hand. Add an
    aspect to the episode's `checked` list only when that check has actually
    returned.
 4. **Dispatch in parallel**, then end the turn; results return as new
-   messages, never poll.
+   messages, never poll. Each leaf gets the items it is to look for, as
+   the ledger holds them:
+
+   ```sh
+   python3 ${HERMES_SKILL_DIR}/scripts/inspection.py focus ledger.json focus-video.txt --route video-creator
+   python3 ${HERMES_SKILL_DIR}/scripts/inspection.py focus ledger.json focus-audio.txt --route audio-creator
+   ```
+
+   One line per item, `aspect/kind/item: what to look for`; it exits 1
+   with no items for that route, which means that leaf has nothing to do
+   this round. Paste the lines into the leaf's `focus` or note and ask that
+   each finding name its item (`item: problem` in the problem cell, or the
+   item in the second cell), so `import` places it without guessing.
    - Speech: the [speech](../../assistant-pipeline/execute-assistant-creative/references/speech.md)
      reference's `analyze-speech` with `source` (the audio download),
      `script`, `language`, `prosody: yes` when voice is in scope, `deliver`
-     the video's `<NN>/speech/`, and a note asking, findings only, for the
-     heard words of every name, number and foreign-language term written as
+     the video's `<NN>/speech/`, and a note carrying the audio-creator
+     lines and asking, findings only, for the heard words of every name,
+     number and foreign-language term written as
      `m:ss | voice | 「script words」→「heard words」 | ASR segment | confirm`
      (`「」` for words not heard; whole phrases, never single characters),
      plus speech absent from the script. Its prosody lines name each jump
@@ -141,8 +175,8 @@ conversation (`plan-assistant-research`).
      findings: read its output before calling the run failed.
    - Picture: the genre reference's analyze leaf, one conversation per
      video, with `source`, `captions`, `remote_analysis` (`no` unless
-     consented) and `focus` naming the items in scope and the series'
-     recurring defects; `deliver` is the video's `<NN>/visual/`. Never do
+     consented) and `focus` carrying the video-creator lines and the
+     series' recurring defects; `deliver` is the video's `<NN>/visual/`. Never do
      this check yourself or through `delegate_task`: reading every still is
      the hands' work. A video longer than the leaf's limit is outside it:
      its picture stays unchecked and is named so on the sheet unless the
@@ -181,10 +215,13 @@ conversation (`plan-assistant-research`).
    It resolves relative evidence paths from the findings file's directory
    (URLs and measurements stay as written) and exits 1 with every line it
    could not read under `not_imported`: enter those by hand or ask the hands
-   to restate them, never leave them out. The second cell may carry one of
-   the finer kinds (`reading`, `delivery`, `typo`, `overlap`, `figure`,
-   `fact`, `clarity`) instead of an aspect; `--kind` sets one for a whole
-   file. Thumbnail and claim findings import the same way when they come as
+   to restate them, never leave them out. The second cell may carry an
+   aspect, one of its kinds or an item of the ledger, and a problem that
+   starts with `<item>:` names its item; an item of another aspect is a
+   line not imported, never a silent re-filing. `--kind` sets one kind for
+   a whole file. An item whose catalog entry says `confirm` makes its
+   finding `confirm` whatever the hands wrote: it needs the user's eyes or
+   ears. Thumbnail and claim findings import the same way when they come as
    `m:ss | aspect | problem | evidence | certain|confirm` lines, otherwise by
    editing `ledger.json`. Speech goes through the triage instead, once per
    video, with the `--ignore` list of the series' own readings:
@@ -201,7 +238,8 @@ conversation (`plan-assistant-research`).
    than re-measuring. For a numbered series, compare across episodes: a
    "last time" reference must name the right episode, and a figure shown in
    several episodes (a price, a rank, a same-month value) must read the same
-   in each. Every entry starts `status: open`; lower `certainty` to `confirm`
+   in each; a finding that spans episodes gets `episode: all`. Every entry
+   starts `status: open`; lower `certainty` to `confirm`
    when you could not reproduce it exactly or it rests on taste or listening.
 7. **Build the inspection spreadsheet.** The user answers in a Google
    Sheet, one per round, made and read with the `google_sheets` tool under
@@ -223,11 +261,12 @@ conversation (`plan-assistant-research`).
    python3 ${HERMES_SKILL_DIR}/scripts/inspection.py export ledger.json export.json
    ```
 
-   `kinds` gives every voice, text and content finding imported without a
-   kind one (a reading or a delivery, a typo or an overlap, a figure, a fact
-   or a clarity), from its wording; read its `inferred` list and correct a
-   wrong one in the ledger. `export` refuses a finding still without one,
-   because the sheet's kind column offers kinds only, never a bare "voice".
+   `kinds` gives every finding of an aspect that has kinds, imported
+   without one, a kind from its source and wording (the catalog's `sources`,
+   `hint` and `default`); read its `inferred` list and correct a wrong one
+   in the ledger. `export` refuses a finding still without one, because the
+   sheet's kind column offers the ledger's kinds and kind-less aspects only,
+   never a bare "voice".
    `export.json` is the sheet: a findings tab (one row per live finding,
    ordered by episode and time; the time cell is a HYPERLINK that opens the
    video two seconds before the moment, a thumbnail row opens the
