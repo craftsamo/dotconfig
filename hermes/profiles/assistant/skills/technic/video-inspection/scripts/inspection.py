@@ -10,8 +10,8 @@ editing that copy.
 
     inspection.py genres                                  the genre catalogs beside this script
     inspection.py aspects  <genre> [--json]               one catalog: aspect > kind > item, with routes
-    inspection.py init     <ledger.json> --genre G [--aspects a,b] [--job J] [--language L] [--sheet-language L]
-                                                      a fresh ledger holding the chosen aspects
+    inspection.py init     <ledger.json> --genre G [--aspects a,b] [--overlay FILE] [--job J] [--language L] [--sheet-language L]
+                                                      a fresh ledger holding the chosen aspects, a series' overlay folded in
     inspection.py upgrade  <ledger.json> --genre G        give a ledger made before aspects existed the catalog's aspects
     inspection.py focus    <ledger.json> --route R        the items R looks for, as lines for a leaf's focus or note
     inspection.py script   <captions.txt> <out.txt>       strip "[m:ss] " prefixes
@@ -77,6 +77,25 @@ certain, whoever reports it. Two ids carry behaviour of their own: an
 aspect named ``thumbnail`` links its findings to the thumbnail image, and
 ``triage-speech`` needs a ``voice`` aspect with ``reading`` and
 ``delivery`` kinds; a catalog that offers those checks uses those ids.
+
+Overlay: a series' own notes, folded in by ``init --overlay``::
+
+    {"series": "<label>", "sheet_language": "ja",
+     "items": {"add": [{"aspect": "content", "kind": "figure", "id": "...", "look_for": "...",
+                        "route": "<optional>", "certainty": "<optional>"}],
+               "replace": [{"id": "<an existing item>", "look_for": "...", ...}],
+               "remove": ["<item id>"]},
+     "ignore_terms": ["<a term the series reads its own way>"],
+     "recurring": ["<a defect that keeps coming back>", {"route": "video-creator", "text": "..."}],
+     "gags": ["<a deliberate wrong line, listed not flagged>"]}
+
+``add`` needs the aspect (and the kind, exactly when the aspect has kinds)
+the item goes under and fails when they do not fit; an id ``remove`` or
+``replace`` names in an aspect the job did not choose is reported as
+ignored. ``series``, ``ignore_terms``, ``recurring`` and ``gags`` are kept
+in the ledger: ``triage-speech`` reads ``ignore_terms`` beside ``--ignore``,
+and ``focus`` appends the ``recurring`` lines (a plain string goes to every
+route, ``{route, text}`` to one) and every gag to its output.
 
 Statuses: ``open`` waits for the user, ``recheck`` waits for the assistant,
 ``keep`` is reported, ``drop`` is not, ``hold`` stays in the ledger unreported.
@@ -512,10 +531,35 @@ def save(path: str, data: dict) -> None:
         raise
 
 
+def series_problems(data: dict) -> list[str]:
+    """Shape errors of what an overlay left in the ledger."""
+    errors = []
+    if data.get("series") is not None and not isinstance(data["series"], str):
+        errors.append("series must be a string")
+    for key in ("ignore_terms", "gags"):
+        value = data.get(key)
+        if value is not None and (not isinstance(value, list) or not all(isinstance(v, str) and v.strip() for v in value)):
+            errors.append(f"{key} must be a list of nonempty strings")
+    recurring = data.get("recurring")
+    if recurring is not None:
+        if not isinstance(recurring, list):
+            errors.append("recurring must be a list")
+        else:
+            for entry in recurring:
+                if isinstance(entry, str) and entry.strip():
+                    continue
+                if (isinstance(entry, dict) and entry.get("route") in ROUTES
+                        and isinstance(entry.get("text"), str) and entry["text"].strip()):
+                    continue
+                errors.append("every recurring entry is a nonempty string or {route, text}")
+                break
+    return errors
+
+
 def problems(data: dict, final: bool) -> list[str]:
     if "aspects" not in data:
         return ["ledger has no aspects: make it with `inspection.py init --genre <genre>`"]
-    errors = aspect_problems(data["aspects"])
+    errors = aspect_problems(data["aspects"]) + series_problems(data)
     if errors:
         return errors
     aspects, kinds, items = aspect_ids(data), kinds_of(data), items_of(data)
@@ -646,6 +690,78 @@ def cmd_aspects(args) -> int:
     return 0
 
 
+ITEM_FIELDS = ("id", "look_for", "route", "certainty")
+
+
+def read_overlay(path: str) -> dict:
+    try:
+        overlay = json.loads(Path(path).read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        fail(f"cannot read overlay {path}: {exc}")
+    if not isinstance(overlay, dict):
+        fail("overlay must be a JSON object")
+    items = overlay.get("items") or {}
+    if not isinstance(items, dict) or not set(items) <= {"add", "replace", "remove"}:
+        fail("overlay items must be an object with add, replace and/or remove")
+    for key in ("add", "replace", "remove"):
+        if items.get(key) is not None and not isinstance(items[key], list):
+            fail(f"overlay items.{key} must be a list")
+    return overlay
+
+
+def fold_overlay(data: dict, overlay: dict) -> dict:
+    """Apply a series' overlay to a fresh ledger: remove, replace and add
+    items among the chosen aspects, then keep its series fields. Returns
+    what was done, with the ids that named nothing chosen under ignored."""
+    done = {"removed": [], "replaced": [], "added": [], "ignored": []}
+    items = overlay.get("items") or {}
+    for iid in items.get("remove") or []:
+        iid = str(iid)
+        placed = items_of(data).get(iid)
+        if not placed:
+            done["ignored"].append(iid)
+            continue
+        owner = find_kind(data, placed[1]) if placed[1] else find_aspect(data, placed[0])
+        owner["items"] = [i for i in owner.get("items") or [] if i.get("id") != iid]
+        done["removed"].append(iid)
+    for spec in items.get("replace") or []:
+        if not isinstance(spec, dict) or not isinstance(spec.get("id"), str):
+            fail("every overlay replace needs an id")
+        item = find_item(data, spec["id"])
+        if item is None:
+            done["ignored"].append(spec["id"])
+            continue
+        for key in ITEM_FIELDS[1:]:
+            if key in spec:
+                item[key] = spec[key]
+        done["replaced"].append(spec["id"])
+    for spec in items.get("add") or []:
+        if not isinstance(spec, dict) or not isinstance(spec.get("id"), str) or not isinstance(spec.get("aspect"), str):
+            fail("every overlay add needs an id and an aspect")
+        aspect = find_aspect(data, spec["aspect"])
+        if aspect is None or aspect is OVERALL:
+            done["ignored"].append(spec["id"])
+            continue
+        if aspect.get("kinds"):
+            kind = next((k for k in aspect["kinds"] if k.get("id") == spec.get("kind")), None)
+            if kind is None:
+                fail(f"overlay add {spec['id']}: aspect {aspect['id']} has kinds, name one of "
+                     f"{', '.join(k['id'] for k in aspect['kinds'])}")
+            owner = kind
+        elif spec.get("kind"):
+            fail(f"overlay add {spec['id']}: aspect {aspect['id']} has no kinds")
+        else:
+            owner = aspect
+        owner.setdefault("items", []).append({k: spec[k] for k in ITEM_FIELDS if k in spec})
+        done["added"].append(spec["id"])
+    for key in ("series", "ignore_terms", "recurring", "gags"):
+        if overlay.get(key) is not None:
+            data[key] = overlay[key]
+    if overlay.get("sheet_language") and not data.get("sheet_language"):
+        data["sheet_language"] = overlay["sheet_language"]
+    return done
+
+
 def cmd_init(args) -> int:
     target = Path(args.ledger)
     if target.exists():
@@ -663,12 +779,17 @@ def cmd_init(args) -> int:
     if args.sheet_language:
         data["sheet_language"] = args.sheet_language
     data.update({"aspects": aspects, "episodes": [], "findings": [], "listen": []})
+    done = fold_overlay(data, read_overlay(args.overlay)) if args.overlay else None
     errors = problems(data, final=False)
     if errors:
         fail("; ".join(errors))
     save(str(target), data)
-    print(json.dumps({"ok": True, "genre": args.genre, "aspects": [a["id"] for a in aspects],
-                      "items": sum(1 for _ in walk_items(data)), "out": str(target)}, ensure_ascii=False))
+    result = {"ok": True, "genre": args.genre, "aspects": [a["id"] for a in aspects],
+              "items": sum(1 for _ in walk_items(data)), "out": str(target)}
+    if done is not None:
+        result["overlay"] = done
+        result["series"] = data.get("series", "")
+    print(json.dumps(result, ensure_ascii=False))
     return 0
 
 
@@ -707,9 +828,18 @@ def cmd_focus(args) -> int:
         path = "/".join(part for part in (aspect["id"], kind["id"] if kind else None, item["id"]) if part)
         cert = " (confirm: needs the user's eyes or ears)" if item.get("certainty") == "confirm" else ""
         lines.append(f"{path}: {item['look_for']}{cert}")
+    count = len(lines)
+    if lines:  # a series' notes travel with the items, never alone
+        for entry in data.get("recurring") or []:
+            if isinstance(entry, str):
+                lines.append(f"recurring: {entry}")
+            elif entry.get("route") == args.route:
+                lines.append(f"recurring: {entry['text']}")
+        lines.extend(f"not a defect: {gag}" for gag in data.get("gags") or [])
     Path(args.out).write_text("\n".join(lines) + ("\n" if lines else ""), encoding="utf-8")
-    print(json.dumps({"ok": bool(lines), "route": args.route, "items": len(lines), "out": args.out}, ensure_ascii=False))
-    return 0 if lines else 1
+    print(json.dumps({"ok": count > 0, "route": args.route, "items": count, "lines": len(lines), "out": args.out},
+                     ensure_ascii=False))
+    return 0 if count else 1
 
 
 def cmd_script(args) -> int:
@@ -1027,7 +1157,7 @@ def cmd_triage_speech(args) -> int:
     starts = []
     if episode.get("captions") and Path(episode["captions"]).exists():
         starts = sorted(s for s in (seconds(at) for at, _ in caption_lines(episode["captions"])) if s is not None)
-    ignore = [term for _, term in read_terms(args.ignore)]
+    ignore = [term for _, term in read_terms(args.ignore)] + list(data.get("ignore_terms") or [])
     result = triage_speech(findings, prosody, starts, ignore, args.pitch_jump, args.level_jump,
                            args.max_jumps, args.skip_head, args.weak)
     kept = result["reading"] + result["delivery"]
@@ -1580,6 +1710,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("ledger")
     p.add_argument("--genre", required=True)
     p.add_argument("--aspects", help="comma-separated aspect ids to copy from the catalog (default: all)")
+    p.add_argument("--overlay", help="a series' overlay JSON (module docstring) folded into the copied aspects")
     p.add_argument("--job")
     p.add_argument("--language", help="the captions' BCP 47 tag")
     p.add_argument("--sheet-language", help="the user's BCP 47 tag")
