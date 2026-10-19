@@ -299,7 +299,7 @@ text, caption-versus-picture, overlaps that hide information, phone-size text
 measured by pixel rows, figure and portrait drawing defects. Speech stays with
 `analyze-speech`, the thumbnail with `analyze-card`, likeness with the user and
 claim verdicts with Searcher or Researcher; the Assistant's
-`explainer-video-review` technic runs the four together. Its local evidence
+`video-inspection` technic (its `explainer` reference) runs the four together. Its local evidence
 helper (`explainer-evidence.py`) extracts 1 fps stills plus stills around
 detected cuts, so the 60-second cap of `analyze-clip` and `analyze-ad` does not
 apply. Remote analysis stays opt-in and runs only on a source of at most 30 MB

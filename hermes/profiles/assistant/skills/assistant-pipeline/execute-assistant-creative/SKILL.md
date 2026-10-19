@@ -74,10 +74,11 @@ form field to carry an unsupported requirement. A composite is a sequence of
 forms ordered by what feeds what: fill the first now and each dependent form
 only once its input exists.
 
-A review of existing explainer videos (text, voice, content, thumbnail,
-portrait), whoever made them and whatever their release state, is such a
+An inspection of existing videos (picture, captions, voice, content,
+thumbnail), whoever made them and whatever their release state, is such a
 composite of analyze units plus fact-checks and an optional Writer report:
-load `skill_view(name="explainer-video-review")` and follow it.
+load `skill_view(name="video-inspection")` and follow it; its genre
+reference names the picture leaf.
 
 ## Consulting Creator
 
