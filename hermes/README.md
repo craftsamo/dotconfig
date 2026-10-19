@@ -42,16 +42,32 @@ with `hermes update`, not `setup.sh`. Details and the reasons:
 ## Runtime dependency: local patches
 
 This configuration targets a **patched** Hermes, not stock upstream. The
-runtime is the `local` branch of a hermes-agent checkout (remote `fork`): upstream
-plus every local `fix/*` and `feat/*` branch, merged. `setup.sh` clones stock
-upstream only, so on a fresh machine add the `fork` remote and check out `local`
-before relying on this repo. Without the patches the configs still load, but some
-parts fail silently or not at all:
+runtime is the `local` branch of a hermes-agent checkout (remote `fork`): a
+pinned upstream snapshot plus every local `fix/*` and `feat/*` branch, merged.
+`setup.sh` clones stock upstream only, so on a fresh machine add the `fork`
+remote and check out `local` before relying on this repo. Without the patches
+the configs still load, but some parts fail silently or not at all:
 
 - thinking and `tool_choice` handling for newer Claude models
   ([`docs/models-auth.md`](docs/models-auth.md) "Fable and the Claude weekly pool");
 - real-profile browser isolation ([`docs/ops/browser.md`](docs/ops/browser.md));
 - scope-keyed audio handling ([`docs/hands/audio.md`](docs/hands/audio.md)).
+
+The base is a `pin/main-<date>` branch: upstream `main` fixed at one commit,
+the first parent at the root of `local`. `origin/main` moves on past it and is
+not what runs. The branches are kept this way:
+
+- **A new patch** branches from the current pin, never from `local` or
+  `origin/main`, so it rebases onto the next pin alone; it is merged into
+  `local` with a merge commit (`Merge fix/<name> into local`).
+- **Re-pinning** (taking newer upstream) creates the new `pin/main-<date>`,
+  rebases every `fix/*` / `feat/*` branch onto it, rebuilds `local` on a
+  scratch branch by merging them in again, and only then resets `local` to the
+  result. A patch upstream now carries is archived under `archive/<date>/…`
+  instead of merged. A rebuilt `local` needs a force push to `fork/local`.
+
+`local` is what the gateway runs, so it moves only by these two steps: a
+finished patch merged in, or a re-pin's reset to an already rebuilt result.
 
 The branch list in the checkout is the ledger, not a list in these docs:
 `./scripts/check-local-patches.sh` fails on any `fix/*` / `feat/*` branch that

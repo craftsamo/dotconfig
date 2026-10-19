@@ -430,6 +430,10 @@ Rollout contract: [docs/topology.md "Candidate rollout and cutover"](docs/topolo
 
 ## After `hermes update`
 
+Newer upstream enters as a re-pin, never as `origin/main` merged into `local`
+or a patch branched from it: the patches must stay rebasable onto the next pin
+alone ([README "Runtime dependency: local patches"](README.md#runtime-dependency-local-patches)).
+
 1. `./scripts/check-local-patches.sh` — every local `fix/*` branch in the
    hermes-agent checkout must still be merged into `local`, and the
    case-collision twin must keep `skip-worktree` (without it every rebase and
