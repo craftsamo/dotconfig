@@ -138,11 +138,12 @@ It is a sibling ghq checkout at the fixed path
 path at runtime (Hermes `skills.external_dirs`, `zsh/config.zsh`,
 `bin/characters`) name that checkout directly, and its own `install.sh` links
 its files from HOME (`~/.hermes`, `~/.config/opencode`, `~/Workspaces`) beside
-the links this repo's installer makes — never through this tree. The
-exceptions, until the readers change: two files inside public Hermes plugins
-and the opencode credit lanes, which the code reads beside its own source;
-`.gitignore` names each. A clone without access simply has no overlay
-checkout, and everything else works.
+the links this repo's installer makes — never through this tree (a plugin's
+private data is read from `~/.hermes/plugin-data/<plugin>/`, the opencode
+credit lanes from `~/.config/opencode/credit-lanes.json`). The one exception
+is the Irodori lexicon, which the engine's `register-lexicon` keeps in the
+`hermes/local/` runtime directory. A clone without access simply has no
+overlay checkout, and everything else works.
 
 What lives there: private Hermes skills (read in place via
 `skills.external_dirs` as `~/ghq/github.com/craftsamo/private-dotconfig/hermes/skills`), the real

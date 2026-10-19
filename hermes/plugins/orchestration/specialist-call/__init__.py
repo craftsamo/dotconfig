@@ -33,11 +33,13 @@ TARGETS = {
     "creator": {"researcher", "searcher"},
     "marketer": {"researcher", "searcher"},
 }
-# Callers and targets of profiles that exist only in a private overlay, which links this file in
-# (it is gitignored here): {"<caller>": ["<target>", …]}, added to TARGETS, never removing from it.
-# Like TARGETS it is read once, when the plugin loads, so neither a profile's config nor a later
-# write to this file changes what a running process allows: a change takes a gateway restart.
-LOCAL_TARGETS = Path(__file__).resolve().parent / "local_targets.json"
+# Callers and targets of profiles that exist only in a private overlay, which links this file into
+# the plugin's data directory under the root Hermes home (the roster is one for every profile,
+# so not the active profile's home): {"<caller>": ["<target>", …]}, added to TARGETS, never
+# removing from it. Like TARGETS it is read once, when the plugin loads, so neither a profile's
+# config nor a later write to this file changes what a running process allows: a change takes a
+# gateway restart.
+LOCAL_TARGETS = Path.home() / ".hermes" / "plugin-data" / "specialist-call" / "local_targets.json"
 _PROFILE_NAME = re.compile(r"[a-z][a-z0-9-]{0,39}")
 
 
