@@ -56,11 +56,12 @@ portrait looks like a real person, and it never reviews the thumbnail.
 
 ## Speech
 
-Nothing beyond the procedure, except the `--ignore` file for
+Nothing beyond the procedure, except the `ignore_terms` of
 `triage-speech`: an explainer series reads its brand names, product names
 and recurring foreign terms its own way every episode, so list them once in
-the series reference and pass the file every round. Without it the triage
-keeps every episode's "ChatGPT" as a reading finding.
+the series' overlay and `init --overlay` carries them into every round's
+ledger. Without them the triage keeps every episode's "ChatGPT" as a
+reading finding.
 
 ## Series
 
@@ -69,18 +70,13 @@ A recurring series gets a series technic on the private shelf:
 it). Load it at step 1 when the request belongs to a listed series, read
 only the matching series reference, and open the previous round's job
 directory for the readings and gags it recorded. The series reference owns:
-where the series' jobs live, the defects that keep recurring (they go into
-`focus`), the `--ignore` terms, the deliberate gags, and the requester's
-reply format (recorded, applied only on the user's instruction).
+where the series' jobs live and the requester's reply format (recorded,
+applied only on the user's instruction); beside it sits the series' overlay
+JSON for `init --overlay` (shape in `inspection.py`'s header), which is
+where its items, `ignore_terms`, recurring defects and gags live.
 
-Across the episodes of one round, and against earlier rounds: a figure
-shown in several episodes (a price, a rank, a same-month value) must read
-the same in each, and a "last time" reference must name the right episode.
-Those are `content` findings with `episode: all` when they span episodes.
-
-A new series' first round runs one video through every step, shows the
-user, and asks before the rest; what that round taught is proposed to the
-user for the maintainer as a new series reference, never written into a
+What a first round of a new series taught is proposed to the user for the
+maintainer as a new series reference and overlay, never written into a
 learned skill.
 
 ## Pitfalls
