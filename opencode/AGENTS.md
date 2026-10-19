@@ -65,7 +65,9 @@ layer of a native stack when there are several (git-pullrequest), in stack
 order; {m} are the steps inside it, each ending in a verified checkpoint
 commit. Work that ends in no PR keeps Phase = dependency wave, {m} = reference
 id within the phase (no ordering implied). Do not hide a layer's substance in
-one line: a step names what it delivers.
+one line: a step names what it delivers. `Phase{N}.{m}` is the conversation's
+name for the work: it never enters a branch name, commit subject, PR title or
+body (git-pullrequest `<Audience>`).
 
 OpenCode V2 has no native Todo tool. Do not claim to have registered todos or
 create local TODO/plan files to simulate it. Keep the execution queue in the

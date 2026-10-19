@@ -303,6 +303,12 @@ checks alone, for a draft you are not committing yet.
 - Keep out: line numbers; tool, agent, or generator mentions; boilerplate or
   self-evident lines ("update code"); pasted logs or large code blocks; emoji;
   trailers (no `Co-authored-by`, no generated-by) unless the user asks.
+- Write for a reader who has only the repository: no plan labels (`Phase 1`,
+  `段 B`, `step 2.4`), no numbers from a decision log or task record that are
+  not GitHub Issues, no local paths or machine state. A Phase names where the work was
+  planned, not what the commit does; the subject lands in PR titles and
+  history, so it carries the same exclusions as a PR (`git-pullrequest`
+  <Audience>).
 - References: link a commit by bare short SHA, an Issue or PR by `#number`, and
   use `Closes #M` / `Refs: abc1234` footers when appropriate.
 - Lint warnings are advisory: the convention resolved in <ConventionResolution>

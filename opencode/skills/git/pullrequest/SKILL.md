@@ -13,8 +13,10 @@ description: >-
   related issues, link PR, stacked PR, gh stack, スタック, rebase onto main,
   最新の main を取り込む, CI, checks, CI の結果, チェックが落ちた, レビュー
   コメント, review comments). Resolves the PR title/body convention from merged
-  PRs and a template and defaults to ready-for-review. Do NOT use to create
-  commits (use git-commit) or to merge — merging stays gated and explicit.
+  PRs and a template, writes for a reader who has only the repository (no
+  plan labels, decision-log numbers, tool names or local state in the text)
+  and defaults to ready-for-review. Do NOT use to create commits (use
+  git-commit) or to merge — merging stays gated and explicit.
 author: CraftSamo
 license: MIT
 ---
@@ -68,8 +70,51 @@ Resolve the title and body format. Detect, do not assume.
   actual settings when explaining the expected result, never change them here.
 - Title and body language follow the repo's merged-PR habit — infer it, never
   assume English.
+- Habit sets style, structure and language, never content: what <Audience>
+  keeps out stays out even when merged PRs carry it.
 
 </ConventionResolution>
+
+<Audience>
+
+A PR's title and body are read by someone who has the repository and GitHub
+and nothing else: not this conversation, not the plan, not the caller's brief,
+not the machine the work ran on. Write for that reader. Everything the branch
+was planned and built with is working context, and working context stays out
+of the published text unless a tracked file or an Issue of the repository
+defines it: a step of the repository's own migration guide may be named; a
+step of the plan may not.
+
+Keep out of titles, bodies and branch names:
+
+- **Plan labels** — `Phase 1`, `段 B`, `3 層目`, `Step 2.4`, roadmap or
+  milestone names that live only in the plan. A layer's place in a stack is
+  shown by its base and the stack's PR links, not by a label. The next layer is
+  "the layer that uses this" or a `Refs #N`, never "next is Phase 11".
+- **Working records** — numbers and names of a decision log, brief, job,
+  session or task directory (`決定 #66`, `decisions.md`, `progress.md`). A
+  decision the reader must know is restated in its own words; one that lives
+  in a GitHub Issue is linked as `#N`.
+- **Tooling** — the names of agents, tools, skills, subagents or the harness
+  (`reviewer`, `git_verify_commits`, `OpenCode`, `Hermes`). Say what was
+  checked, not what checked it: "each commit passes lint and typecheck",
+  never "`git_verify_commits` ran".
+- **The build machine** — local paths, the user's home, what is or is not
+  installed there ("no Java here"), which model or account did the work.
+- **The organisation's state** — billing, plan or account status, who is on
+  leave, internal deadlines. A CI run that did not happen is "CI did not run
+  on this branch", with no reason that lives outside the repository.
+- **The caller's words** — a brief or a request pasted or paraphrased as the
+  PR's purpose. Give the purpose as the repository's reader would state it.
+
+Commit subjects feed the fallback title and show in the PR, so the same
+exclusions hold there (`git-commit` <MessageHygiene>). When a convention
+resolved in <ConventionResolution> appears to invite one of these — merged
+PRs that carry a plan label, say — it is a habit to break, not to follow:
+write the clean form, and tell the user in your reply (never in the PR) that
+the habit was not followed.
+
+</Audience>
 
 <RelatedScan>
 
@@ -104,7 +149,9 @@ Prefer a native GitHub stack whenever the work splits into reviewable layers;
 one plain PR is the fallback, not the default. Decide before Step 4.
 When the work was planned in Phases, each Phase is one layer, in stack order,
 and its Phase{N}.{m} steps are that layer's commits: a cut the plan already
-agreed needs no second proposal.
+agreed needs no second proposal. The Phase is the plan's name for the layer,
+not the layer's name: it decides where the cut falls and never reaches a
+branch name, title or body (<Audience>).
 
 - **Always stack** when the branch builds on an unmerged PR of the same
   repository: adopt that PR's branch and add a layer (<StackedPRs>), never
@@ -237,8 +284,11 @@ skill still owns the title, body and links.
 - **Layer descriptions.** Derive the title and change summary from the diff
   against the layer immediately below (the trunk for the bottom layer), not
   from the whole stack's diff against the trunk. Describe only changes this
-  PR introduces; put the broader purpose and dependencies in body context or
-  links. Never broaden the top PR's title to serve as a whole-stack merge title.
+  PR introduces; the broader purpose is one sentence in the reader's terms,
+  and the layer's place in the stack is its base and the linked PRs
+  (`Refs #N` for the layer below or the one that uses this), never a plan
+  label such as "layer 2 of Phase 3" (<Audience>). Never broaden the top
+  PR's title to serve as a whole-stack merge title.
 
 `git_stack` (local only, runs without asking: `split`, `add`, `rebase`)
 shapes the stack over the `github/gh-stack` extension (`gh stack`, declared in
@@ -365,8 +415,10 @@ and [squash-message settings](https://docs.github.com/en/repositories/configurin
    context from the changes this layer actually introduces. For metadata-only
    updates, inspect the published PR with `gh pr diff` and
    `gh pr view --json commits` instead of unpublished local HEAD.
-5. Build the title and body per <ConventionResolution> and <StackedPRs>, folding
-   in verified links. Update an existing PR instead of creating a duplicate.
+5. Build the title and body per <ConventionResolution>, <Audience> and
+   <StackedPRs>, folding in verified links; then read them once as the
+   <Audience> reader and strip what only this conversation can explain.
+   Update an existing PR instead of creating a duplicate.
    When the change is visible on screen, settle its attachments per <Media>
    and reference them in the body.
 6. Publish only a new PR or an authorized branch update, through
@@ -399,10 +451,11 @@ and [squash-message settings](https://docs.github.com/en/repositories/configurin
 8. Re-read the published PR's base, title, body and draft state, and the stack
    order when applicable (`git_publish` returns them per layer, with any
    `baseMismatch`, `pushed: false` or `errors`). Confirm the description
-   matches the layer diff; do not assume submission or base retargeting
-   preserved that match. An attached file's local path in the body now reads
-   as its uploaded URL, and unreferenced files sit at the end: that is the
-   expected difference from the body you wrote.
+   matches the layer diff and holds nothing <Audience> keeps out; do not
+   assume submission or base retargeting preserved that match. An attached
+   file's local path in the body now reads as its uploaded URL, and
+   unreferenced files sit at the end: that is the expected difference from
+   the body you wrote.
 9. Report the PR URL and its ready/draft state, including the immediate base
    for a stack, and whether Step 3 rebased (with its `before` sha). Keep any
    later merge-message handoff separate. Do not merge.
@@ -429,7 +482,13 @@ and [squash-message settings](https://docs.github.com/en/repositories/configurin
 - Place the <RelatedScan> links in the body or a footer: `Closes #N` to close
   issues; `Refs #N` / `Follow-up to #M` / `Supersedes #M` for relations.
 - Keep out: secrets; emoji (unless the repo's PRs use them); pasted logs or
-  large code blocks; mechanical file listings.
+  large code blocks; mechanical file listings; and everything <Audience>
+  names — plan labels, working records, tooling, the build machine, the
+  organisation's state, the caller's words.
+- A checks section states what passed and what did not run, in the reader's
+  terms ("unit tests: 239 pass; the emulator suite did not run on this
+  branch"), without the tool that ran it or the reason that lives off the
+  repository.
 
 </BodyStructure>
 
@@ -466,6 +525,9 @@ and [squash-message settings](https://docs.github.com/en/repositories/configurin
 - Do not fabricate an Issue or PR link — leave it out or ask when unsure.
 - Do not invent a title or body convention that contradicts the repo's merged
   PRs.
+- Do not write for this conversation: no plan label, decision-log number,
+  agent or tool name, local path, or account state in a title, body or
+  branch name (<Audience>) — a merged PR that carries one is not a licence.
 - Do not describe lower-layer changes as new work in the current PR, or rename
   a layer to disguise a whole-stack merge-message mismatch.
 - Do not treat a PR title as a guaranteed merge subject or a PR-creation
