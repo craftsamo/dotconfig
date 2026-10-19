@@ -315,7 +315,7 @@ def test_writer_config_effective_toolsets_and_canonical_paths():
         assert not tools.intersection({"terminal", "execute_code", "process_manage", "browser_exec"})
     assert config["skills"]["inline_shell"] is False and config["command_allowlist"] == []
     assert plugin.ROOT == ROOT
-    assert plugin.SCRIPT == ROOT / "agents/curated/japanese-writing/scripts/inspect_text.py"
+    assert plugin.SCRIPT == ROOT / "agents/skills/japanese-writing/scripts/inspect_text.py"
     assert plugin.PYTHON == ROOT / "hermes/local/writing-inspection/venv/bin/python"
     for path in [ROOT / "hermes/config.example.yaml", *(ROOT / "hermes/profiles").glob("*/config.example.yaml")]:
         if path.parent.name != "writer":

@@ -11,7 +11,7 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
-SCRIPT = Path(__file__).resolve().parents[2] / "curated/japanese-writing/scripts/inspect_text.py"
+SCRIPT = Path(__file__).resolve().parents[2] / "skills/japanese-writing/scripts/inspect_text.py"
 SPEC = importlib.util.spec_from_file_location("japanese_writing_entry", SCRIPT)
 entry = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(entry)

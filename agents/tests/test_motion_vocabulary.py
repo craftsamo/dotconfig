@@ -11,7 +11,7 @@ import re
 import unittest
 from pathlib import Path
 
-SKILL = Path(__file__).resolve().parents[1] / "curated" / "motion-vocabulary"
+SKILL = Path(__file__).resolve().parents[1] / "skills" / "motion-vocabulary"
 REFS = SKILL / "references"
 NAMES_HEADER = "| Name | Feel | For | Looks like | The tell |"
 VIDEO_HEADER = "| Name | Built with |"

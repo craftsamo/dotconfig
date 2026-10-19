@@ -3,8 +3,9 @@
 Rules for whoever edits this subtree: OpenCode, usually started by the person.
 The Assistant may drive it here too (hands-reference upkeep does), but only in a
 task worktree (`opencode_session workspace`): the plugin refuses a write run in
-the live checkout `~/.config`. Hermes reads `~/.hermes/` (symlinks into this
-repo), never `~/.config`, and never loads this file, `README.md` or `docs/`;
+the live checkout (`~/ghq/github.com/craftsamo/dotconfig`, which `~/.config`
+links into). Hermes reads `~/.hermes/` (symlinks into this repo), never
+`~/.config`, and never loads this file, `README.md` or `docs/`;
 a profile sees only its `config.yaml` (`agent.system_prompt`), `SOUL.md` and
 skills.
 
@@ -43,8 +44,8 @@ skills.
   and tabs, and this machine's account layout (which Claude account or
   Console org a label, a lane or a tool is on, its plan size, whose grant a
   key is) — never enters tracked config, docs, tests, examples or commit and
-  PR text; it lives in the private overlay (`~/.config/private`, the
-  `private-dotconfig` repo). Use neutral examples (`work`, `personal`,
+  PR text; it lives in the private overlay (the `private-dotconfig` repo,
+  linked into this repo as `<repo>/private`). Use neutral examples (`work`, `personal`,
   `Leads`) and opaque labels. The overlay installs local commit and push hooks that refuse
   known names; a refusal is fixed by rewording, never by `--no-verify`. The
   Assistant pipeline is tracked here too: what it must know about a private
@@ -208,7 +209,7 @@ skills.
   than reports.
 - **Curated skills a profile pins arrive only through `../install.sh`.**
   video-creator pins `media-craft-*` and `motion-vocabulary` from
-  `~/.agents/skills`, which holds links into `agents/curated/` that the
+  `~/.agents/skills`, which holds links into `agents/skills/` that the
   installer creates. After adding or moving a curated skill, run it on the
   merged checkout before the next Hermes session, or the leaves'
   `skill_view(name="motion-vocabulary")` finds nothing at read time.
@@ -383,7 +384,8 @@ Contract: [docs/opencode.md](docs/opencode.md). When editing
   snapshots: keep both, or a fallback or `-fast` alias slips past a role that
   refuses ([docs/opencode.md "Models"](docs/opencode.md)).
 - **A write run never edits the live checkout.** `policy.branch` refuses it in
-  `~/.config` (`policy.live_checkout`), because `~/.hermes` links into it; the
+  the checkout `~/.hermes/plugins` links into (`policy.live_checkout`), because
+  every change there is live at once; the
   Assistant plans there read-only and builds in the worktree `workspace`
   creates. Cutover stays a person's decision ("Candidates and cutover").
 - **A session may only work in the repository it was bound to.** An agent can

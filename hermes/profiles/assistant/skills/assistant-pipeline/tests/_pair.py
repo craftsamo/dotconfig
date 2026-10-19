@@ -4,7 +4,8 @@ The pipeline and these tests live in the public checkout, so the public tree
 under test is always this checkout. The Assistant's config.yaml carries private
 channel IDs and stays in the private overlay: name that checkout explicitly
 with HERMES_PRIVATE_ROOT. An absent variable skips the config checks; an
-invalid one fails. Nothing falls back to ~/.config/private or a live profile.
+invalid one fails. Nothing falls back to the live overlay checkout or a live
+profile.
 """
 
 import os

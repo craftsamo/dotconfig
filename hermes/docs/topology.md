@@ -225,7 +225,7 @@ Three per-profile layers, kept separate:
     of their modes ([research.md](./profiles/research.md) "Technics").
   - writer → external skills only through the curated
     `profiles/writer/external-skills/` symlink dir (`japanese-writing`,
-    single-sourced with the shared `agents/curated/` store) and upstream
+    single-sourced with the shared `agents/skills/` store) and upstream
     `creative/humanizer` (explicit-request only).
   - marketer → its only external skill is the private `hermes-browser-relaunch`;
     Writer's pipeline is not readable there; no xurl/humanizer imports or

@@ -15,13 +15,15 @@
     // New worktree in that dialog.
     "dialog.move_session.new": "ctrl+o"
   },
+  // This file is the baseline install.sh seeds ~/.config/opencode/cli.json
+  // from once; OpenCode then owns the live copy (it rewrites the file by
+  // temp file + rename, so a link here would not survive the first change).
   // Only values that differ from OpenCode's defaults are written here, with
   // one exception below.
   "session": {
     // Keep permission prompts. "autoaccept" approves every `ask` rule in
     // opencode.jsonc (git push, commit --amend, ...) without asking. Pinned
-    // although it is the default, so a switch in the settings dialog shows up
-    // in `git status`.
+    // although it is the default, so the baseline states the choice.
     "permissions": "prompt"
   },
   // A sound when a run finishes or waits for a permission answer, so a

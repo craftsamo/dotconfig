@@ -14,7 +14,7 @@ import hermes_yaml as yaml
 HERMES_ROOT = Path(__file__).resolve().parents[2]
 VIDEO = HERMES_ROOT / "profiles/video-creator/skills/video-creator-pipeline"
 LEAF = VIDEO / "create/promotion"
-VOCABULARY = HERMES_ROOT.parent / "agents/curated/motion-vocabulary/references"
+VOCABULARY = HERMES_ROOT.parent / "agents/skills/motion-vocabulary/references"
 CREATOR = HERMES_ROOT / "profiles/creator"
 ADVISOR = CREATOR / "skills/creator-pipeline/references/video-creator/promotion.md"
 COMMISSION = HERMES_ROOT / "profiles/assistant/skills/assistant-pipeline/execute-assistant-creative/references/promotion.md"

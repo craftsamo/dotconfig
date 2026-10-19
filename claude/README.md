@@ -30,7 +30,7 @@ re-linking the whole directory.
 Skills are not kept here. Claude Code is the only CLI that does not read the
 shared `~/.agents/skills` root — the machine-local mutable dir that
 third-party installers write into, holding per-skill links to the
-repo-curated tree ([`agents/curated/`](../agents/README.md)). So
+repo-curated tree ([`agents/skills/`](../agents/README.md)). So
 `~/.claude/skills` is a real directory with one link per shared skill, each
 pointing at the mutable root, not into the repo. It is not linked whole
 because Claude Code syncs claude.ai skills into `~/.claude/skills/synced/`

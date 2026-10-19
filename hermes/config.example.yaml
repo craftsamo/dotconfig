@@ -485,7 +485,7 @@ goals:
 skills:
   external_dirs:
     - ~/ghq/github.com/NousResearch/hermes-agent/skills
-    - ~/.config/private/hermes/skills
+    - ~/ghq/github.com/craftsamo/private-dotconfig/hermes/skills
   create_dir: skills/learned
   template_vars: true
   inline_shell: false

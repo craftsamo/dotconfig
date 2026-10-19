@@ -245,7 +245,7 @@ def test_hermes_discovers_writer_and_serves_its_references(tmp_path, monkeypatch
     source = SCRIPT.parent.parent / "profiles/writer/skills/writer-pipeline"
     target = local / "writer-pipeline"
     shutil.copytree(source, target)
-    language_source = SCRIPT.parents[2] / "agents/curated/japanese-writing"
+    language_source = SCRIPT.parents[2] / "agents/skills/japanese-writing"
     shutil.copytree(language_source, local / "japanese-writing")
     leaf(target, "analyze/fixture")
     monkeypatch.setattr(skills_tool, "SKILLS_DIR", local)

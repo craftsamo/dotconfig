@@ -8,7 +8,7 @@ from pathlib import Path
 import hermes_yaml as yaml
 
 HERMES_ROOT = Path(__file__).resolve().parents[2]
-VOCABULARY = HERMES_ROOT.parent / "agents/curated/motion-vocabulary/references"
+VOCABULARY = HERMES_ROOT.parent / "agents/skills/motion-vocabulary/references"
 
 
 class VideoCreatorRoutingTest(unittest.TestCase):

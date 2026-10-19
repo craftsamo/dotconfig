@@ -1,47 +1,17 @@
-gcloud/
-gh/
-github-copilot/
-iterm2/
-configstore/
+# Only tracked top-level directories are linked into ~/.config (install.sh
+# "[config]"), so tools that keep their own state there (gh, gcloud, iterm2,
+# configstore, ...) never touch this repository and need no entry here. What
+# follows is state written INTO a linked directory.
 git/credentials
-stripe/
-yarn/
 **/*.env
+.pytest_cache/
 
 # Private overlay: a symlink to the craftsamo/private-dotconfig checkout, whose
-# tree mirrors this repo's top level (hermes/, opencode/, zsh/, ...). Public
-# files reach it only through this fixed path — never through an env var or a
-# ghq path. No trailing slash: the entry is a symlink, not a directory.
+# tree mirrors this repo's top level (hermes/, opencode/, zsh/, ...). The
+# install and worktree scripts reach it through this link; runtime files that
+# need an absolute path name its ghq checkout directly. No trailing slash: the
+# entry is a symlink, not a directory.
 /private
-
-# fish is unused here; the Grok Build installer/updater drops completions into it
-fish/
-
-# Docker Agent (formerly cagent, bundled with Docker Desktop) writes a first-run
-# marker and a per-machine user UUID here on its first launch
-cagent/
-
-# ~/.config/agents/skills is a registered install target of third-party skill
-# installers (`hyperframes skills` mirrors into it as the amp/universal agent
-# dir) — surrendered to tool droppings and ignored wholesale. The repo-curated
-# shared tree lives in agents/curated/ instead; see agents/README.md.
-agents/skills/
-
-# opencode's global skill dir is fixed at ~/.config/opencode/skills — inside
-# this repo — and it also receives installer droppings (hyperframes mirrors
-# its store into every agent dir it recognizes). Allowlist: ignore everything,
-# re-include curated entries. A NEW curated skill needs its negation line here
-# or it stays silently untracked — check `git status` after adding one.
-# (codex/copilot skill dirs are machine-local real dirs, nothing to ignore.)
-opencode/skills/*
-!opencode/skills/approach/
-!opencode/skills/debug/
-!opencode/skills/git/
-!opencode/skills/hermes/
-!opencode/skills/manage-github-projects/
-!opencode/skills/motion-vocabulary-upkeep/
-!opencode/skills/verify/
-!opencode/skills/web/
 
 # Console credit lanes: the grant amounts, renewal days and labels of each
 # lane are account details, so the real file lives in the private overlay and
@@ -88,8 +58,9 @@ hermes/profiles/*/web3-wallet/
 
 # Hermes skills: maintainer-owned topology is tracked; adaptive libraries are not.
 # At the shared root, default-pipeline/ is the only managed surface — the
-# ~/Workspaces data-skill cluster lives in the private overlay
-# (~/.config/private/hermes/skills) and is reached through skills.external_dirs.
+# ~/Workspaces data-skill cluster lives in the private overlay checkout
+# (~/ghq/github.com/craftsamo/private-dotconfig/hermes/skills) and is reached
+# through skills.external_dirs.
 hermes/skills/*
 !hermes/skills/default-pipeline/
 hermes/skills/learned/
@@ -158,7 +129,3 @@ hermes/plugins/hermes-achievements/
 # ~/.config/zsh/*.zsh; this one is for per-machine settings that belong in no
 # repo (private-but-durable shell config goes to private/zsh/ instead).
 zsh/local.zsh
-
-# browser_harness runtime state (pid files, daemon logs, screenshots, version
-# cache) written by browser-use when Hermes drives the automation browser
-browser-harness/

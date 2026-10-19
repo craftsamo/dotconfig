@@ -29,7 +29,7 @@ tree is the maintainer's"); on 2026-09-05 image-creator patched
 ``text-emoji.sh`` in place instead, and the fix it chose was not the one
 the maintainer wanted.
 
-The private overlay (``<repo>/private``, i.e. ``~/.config/private``) owns maintainer skill trees too
+The private overlay (``<repo>/private``, the ``private-dotconfig`` checkout) owns maintainer skill trees too
 — the Assistant's private ``technic/`` shelf — and they resolve outside
 this repo, so its ``hermes/profiles/*/skills/…``
 (outside ``learned/``) is guarded the same way. Its shared

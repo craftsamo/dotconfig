@@ -4,7 +4,7 @@
 **/AGENTS.md
 **/SOUL*.md
 **/SKILL.md
-agents/curated/**/*.md
+agents/skills/**/*.md
 agents/tests/**/*.md
 claude/CLAUDE.md
 copilot/copilot-instructions.md
