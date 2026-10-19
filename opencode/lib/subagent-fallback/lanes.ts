@@ -1,9 +1,4 @@
-import {
-  catalogOk,
-  type CatalogModel,
-  type ModelRef,
-  type Route,
-} from "./policy"
+import { catalogOk, type CatalogModel, type ModelRef } from "./policy"
 
 // Console credit lanes: API-key providers that spend the monthly credits a Max
 // plan grants. They sit beside the subscription (OAuth) provider.
@@ -156,18 +151,20 @@ export function nextModel(input: {
   return undefined
 }
 
-// The first lane that is not known empty, for a new launch. The role's own
-// variant must exist on the lane: a launch never changes it silently.
+// The first lane that is not known empty, for a new launch of a subscription
+// model (a role's primary, or the Claude alternate of a ChatGPT role whose
+// window is spent). The model's own variant must exist on the lane: a launch
+// never changes it silently.
 export function launchLane(
-  route: Route,
+  model: ModelRef,
   lanes: Lanes,
   catalog: CatalogModel[],
 ): ModelRef | undefined {
-  if (route.primary.providerID !== OAUTH_PROVIDER) return undefined
+  if (model.providerID !== OAUTH_PROVIDER) return undefined
   for (const id of lanes.ids) {
     if (lanes.blocked(id)) continue
-    const model = { ...route.primary, providerID: id }
-    if (catalogOk(catalog, model)) return model
+    const target = { ...model, providerID: id }
+    if (catalogOk(catalog, target)) return target
   }
   return undefined
 }

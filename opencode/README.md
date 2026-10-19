@@ -227,14 +227,19 @@ this order:
 1. The route's primary model, unless Quota reports it exhausted.
 2. The role's alternate, when the primary is known exhausted and the alternate
    is not known exhausted. Missing or stale alternate data does not block
-   this, since an exhausted primary is the worse bet.
+   this, since an exhausted primary is the worse bet. A Claude alternate is
+   launched on a Console credit lane first when one is configured and not
+   known empty ("Console credit lanes" below), on the subscription otherwise.
 3. The usual primary with provider-managed credits as a last resort, when both
    are known exhausted and `creditsLastResort` is `true`. This attempts a
    normal provider request; it does not prove a positive credit balance or
    guarantee success.
 
 Missing, stale or unreadable data about the primary keeps the configured
-default, not a quota error or an automatic model switch. No independent
+default, not a quota error or an automatic model switch. One exception: a
+window limit a protected child just hit (the provider's own word) counts as
+exhausted for the wait it asked for, or an hour without one, so the relaunch
+goes elsewhere before the export catches up. No independent
 balance/entitlement check is performed. Variants and permissions are
 unchanged; with `pinModels` (below) a project's own model for a role is not.
 
@@ -380,6 +385,11 @@ stops only new lane launches.
   above decides as before. The report carries `funding: console-credit` with
   `from` / `to`. Agent files keep the subscription model; with `pinModels` a
   lane named there is replaced by the route like any other model.
+- **ChatGPT specialists** (the roles with a GPT primary) use their own window
+  first. Once Quota reports it empty, or a protected child of the role just
+  hit its limit, the Claude alternate launches on the first lane not known
+  empty, unmarked like any lane launch; with every lane empty it launches on
+  the subscription, marked and guarded as a fallback.
 - **In flight.** An empty balance (a plain 400 recognised by its "credit
   balance is too low" text), a bad key (401/403) or a window limit marks the
   lane out (for `creditCooldownMs`, one hour; a window limit only for the wait
@@ -388,7 +398,8 @@ stops only new lane launches.
   model count: compaction and title requests never move it. These
   fail before anything is generated, so nothing is billed twice. A specialist
   goes lane, next lane, subscription; after a long subscription limit it stops,
-  so the parent relaunches it and the preflight can pick the other vendor.
+  so the parent relaunches it and the preflight can pick the other vendor
+  (the limit is remembered, see "Subscription preflight").
 - **Primary sessions** (no parent). On the subscription's window limit
   (`provider.quota`, or a rate limit that asks for more than ten seconds) they
   move to the first lane, and on to the next lane when one is empty; on a
