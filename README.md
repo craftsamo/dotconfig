@@ -21,7 +21,7 @@ tool reads it from there without further wiring.
 | Ghostty                                   | `ghostty/`     | XDG native                                                                                                                                                              |
 | lazygit                                   | `lazygit/`     | XDG native                                                                                                                                                              |
 | mise                                      | `mise/`        | XDG native; declares language runtimes + global npm CLIs                                                                                                                |
-| [opencode](./opencode/README.md)          | `opencode/`    | XDG native                                                                                                                                                              |
+| [opencode](./opencode/README.md)          | `opencode/`    | XDG native; `~/.config/opencode` and its `skills/` are real dirs linked per entry (OpenCode and `hyperframes skills` write beside them); `cli.json` seeded, not linked  |
 | Keychain shims                            | `bin/`         | `~/.config/bin` on PATH (see below)                                                                                                                                     |
 | [Shared agent skills](./agents/README.md) | `agents/`      | not linked into `~/.config`; `agents/skills/` is linked per skill into the machine-local `~/.agents/skills` root (installer-writable), and each into `~/.claude/skills` |
 | Git                                       | `git/`         | XDG fallback (`~/.gitconfig` must not exist); `git/credentials` ignored                                                                                                 |
@@ -88,9 +88,14 @@ Installed outside the [Brewfile](./Brewfile):
 
 - `[config]` links every tracked top-level directory of the repo as
   `~/.config/<name>`; the set comes from the Git index, so a new directory
-  needs no line in the script. `CONFIG_UNLINKED` names the exceptions
-  (`agents/`, which nothing reads at that path). Nothing else in `~/.config`
-  is touched.
+  needs no line in the script. Three declared exceptions keep one invariant
+  — links point from HOME into the repo, and a tool writes beside a link,
+  never through one: `CONFIG_UNLINKED` (`agents/`, which nothing reads at
+  that path), `CONFIG_ENTRY_ROOTS` (`opencode/` and `opencode/skills/`, real
+  directories holding one link per tracked entry, so OpenCode's own files and
+  installer droppings land outside the repo) and `CONFIG_SEEDED`
+  (`opencode/cli.json`, copied once because OpenCode rewrites it by rename).
+  Nothing else in `~/.config` is touched.
 - Never overwrites a real file: if a tool replaced a symlink with a regular
   file it prints `WARN` and skips, so re-running it doubles as a drift check.
 - Each `--deps` stage records its own failure and the next one still runs; the

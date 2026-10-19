@@ -55,9 +55,11 @@ and Claude Code do not descend into nested groups, so a shared skill cannot
 be filed under a category subdirectory the way opencode allows.
 
 `hyperframes skills` mirrors its store into every agent dir it recognizes.
-`~/.config/opencode/skills` is the one such dir inside this repo, handled with
-an ignore-allowlist (see `.gitignore`); codex and copilot have machine-local
-skill dirs, so their droppings never reach the repo.
+Each of those is a real machine-local directory — `~/.config/opencode/skills`
+included, which `install.sh` fills with links to this repo's
+`opencode/skills/<category>` — so its droppings never reach the repo. The
+invariant behind every root here: links point from HOME into the repo, never
+the other way, and a tool writes beside a link, never through one.
 
 ## What lives here
 
