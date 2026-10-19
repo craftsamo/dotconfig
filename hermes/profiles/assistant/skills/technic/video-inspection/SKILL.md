@@ -162,20 +162,26 @@ conversation (`plan-assistant-research`).
    item in the second cell), so `import` places it without guessing.
    - Speech: the [speech](../../assistant-pipeline/execute-assistant-creative/references/speech.md)
      reference's `analyze-speech` with `source` (the audio download),
-     `script`, `language`, `prosody: yes` when voice is in scope, `deliver`
-     the video's `<NN>/speech/`, and a note carrying the audio-creator
-     lines and asking, findings only, for the heard words of every name,
-     number and foreign-language term written as
+     `script`, `language`, `prosody: yes` when voice is in scope, `captions`
+     (the fetched `[m:ss]` transcript) when the language is Japanese,
+     `deliver` the video's `<NN>/speech/`, and a note carrying the
+     audio-creator lines and asking, findings only, for the heard words of
+     every name, number and foreign-language term written as
      `m:ss | voice | 「script words」→「heard words」 | ASR segment | confirm`
      (`「」` for words not heard; whole phrases, never single characters),
-     plus speech absent from the script. Its prosody lines name each jump
-     against the previous segment (`+7.7 st` / `-12.9 dB vs previous`).
+     plus speech absent from the script. With captions the leaf's
+     `prosody.md` carries the pace, pause, flatness and tension candidates,
+     each naming its item and compared within one speaker (the pitch-accent
+     check only when the user asks about accents); without them its
+     prosody lines name each jump against the previous segment
+     (`+7.7 st` / `-12.9 dB vs previous`), which is mostly the next speaker.
      ASR runs over music, so nearly every line is noise: never import a
-     speech report as it is. `triage-speech` (step 6) keeps a value the ASR
-     heard as another value, a Latin-script term it did not hear, and the
-     two largest jumps that fall inside one caption line — a jump at a line
-     start is the next speaker; the ledger's `ignore_terms` name the terms
-     the series always reads its own way (brand names). Fresh ASR on a
+     speech report as it is. `triage-speech` (step 6) passes a line that
+     names its item, keeps a value the ASR heard as another value, a
+     Latin-script term it did not hear, and the two largest jumps that fall
+     inside one caption line; the ledger's `ignore_terms` name the terms
+     the series always reads its own way (brand names, and the words whose
+     accent it has settled). Fresh ASR on a
      whole batch outlives
      one turn, so split a batch into conversations of at most five videos and
      send them together; every video still gets its check. The leaf takes up

@@ -964,17 +964,17 @@ class Aspects(LedgerCase):
         self.assertEqual(code, 1)
         self.assertIn("F005: item 'likeness' needs the user's eyes or ears; certainty must be confirm", out)
 
-    def test_triage_drops_an_item_of_the_other_kind(self):
+    def test_triage_trusts_the_item_a_line_names(self):
         data = self.data()
         data["findings"] = []
         self.write(data)
         speech = self.dir / "speech"
         speech.mkdir()
-        (speech / "findings.md").write_text("0:20 | voice | jump: 「1040億」→「1400億」 | ASR | confirm\n", encoding="utf-8")
+        (speech / "findings.md").write_text("0:20 | voice | jump: 「1040億」→「1400億」 | ASR | certain\n", encoding="utf-8")
         code, out, _ = self.run_cli("triage-speech", str(self.ledger), "#1", str(speech))
         self.assertEqual(code, 0, out)
         row = self.data()["findings"][-1]
-        self.assertEqual((row["kind"], row.get("item")), ("reading", None))
+        self.assertEqual((row["kind"], row.get("item"), row["certainty"]), ("delivery", "jump", "confirm"))
         self.assertEqual(review.problems(self.data(), final=False), [])
 
     def test_overlay_add_needs_a_kind_exactly_when_the_aspect_has_kinds(self):
@@ -984,6 +984,30 @@ class Aspects(LedgerCase):
                                                                      "id": "x", "look_for": "y"}]}}))
         self.assertEqual(code, 2)
         self.assertIn("aspect thumbnail has no kinds", err)
+
+    def test_triage_passes_lines_that_name_their_item_and_drops_ignored_words(self):
+        data = self.data()
+        data["findings"] = []
+        data["ignore_terms"] = ["大家さん"]
+        self.write(data)
+        speech = self.dir / "speech"
+        speech.mkdir()
+        (speech / "prosody.md").write_text(
+            "0:45 | voice | accent: 「一番」イチ↓バン in the dictionary, heard イチバン (st [2.2, 10.0]) | prosody-ja | confirm\n"
+            "0:00 | voice | accent: 「大家さんに」オ↓オヤサンニ in the dictionary, heard オオヤ↓サンニ (st [8.5]) | prosody-ja | confirm\n"
+            "1:00 | voice | flat: pitch range 4.9 st against speaker 1's 10.9 | prosody-ja speaker 1 | confirm\n"
+            "0:41 | voice | pitch +7.0 st vs previous (ASR: a line) | prosody | confirm\n", encoding="utf-8")
+        code, out, _ = self.run_cli("triage-speech", str(self.ledger), "#1", str(speech))
+        self.assertEqual(code, 0, out)
+        result = json.loads(out)
+        self.assertEqual(result["placed"], ["0:45 accent", "1:00 flat"])
+        self.assertEqual((result["dropped"], result["delivery"]), (1, ["0:41"]))  # the ignored word; the jump still triaged
+        rows = {f["at"]: f for f in self.data()["findings"]}
+        self.assertEqual((rows["0:45"]["kind"], rows["0:45"]["item"], rows["0:45"]["certainty"]),
+                         ("reading", "accent", "confirm"))
+        self.assertEqual((rows["1:00"]["kind"], rows["1:00"]["item"]), ("delivery", "flat"))
+        self.assertIn("0:45 | reading | accent: 「一番」", (speech / "triage.md").read_text(encoding="utf-8"))
+        self.assertEqual(review.problems(self.data(), final=False), [])
 
     def test_triage_needs_the_voice_kinds(self):
         data = self.data()

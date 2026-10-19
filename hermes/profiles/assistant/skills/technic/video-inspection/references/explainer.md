@@ -56,12 +56,23 @@ portrait looks like a real person, and it never reviews the thumbnail.
 
 ## Speech
 
-Nothing beyond the procedure, except the `ignore_terms` of
-`triage-speech`: an explainer series reads its brand names, product names
-and recurring foreign terms its own way every episode, so list them once in
-the series' overlay and `init --overlay` carries them into every round's
-ledger. Without them the triage keeps every episode's "ChatGPT" as a
-reading finding.
+An explainer's narration is read from its captions, so the captions are
+also the timed script the delivery check wants: pass the fetched `[m:ss]`
+transcript as the leaf's `captions`. What a listener notices in a
+synthesized explainer is a line that enters too hard or too loud for the
+voice that was just speaking, and a line that surges halfway: the leaf's
+`tension` lines (a start brighter than the speaker's other lines) aim at
+the first, and its measurements per line (`onset_tilt`, `level_range`,
+`onset_level` against `tail_level`) are what you read for the second. Ask
+for the pitch-accent check (`--accent`) only when the user asks about
+accents: the dictionary is unreliable on the loanwords and compounds an
+explainer is full of (ウィンドウズ, 大家さん), and a round of it yielded
+nineteen candidates a listener found natural. The words the series reads
+its own way — brand names, and any accent it has settled — go into the
+series' overlay `ignore_terms`, which `init --overlay` carries into every
+round's ledger: the triage drops a reading or accent line about them.
+Without that list the triage keeps every episode's "ChatGPT" as a reading
+finding.
 
 ## Series
 
