@@ -80,8 +80,8 @@ links `cron/`.
 
 A missing `SOUL.md` is seeded from the tracked `SOUL.example.md`, and a missing
 `config.yaml` (root or profile) from the tracked `config.example.yaml`; seeded
-copies stay untracked. The private overlay (`~/.config/private`, the
-`private-dotconfig` repo), when present, runs its own `install.sh` last and
+copies stay untracked. The private overlay (the `private-dotconfig` repo,
+linked into this repo as `<repo>/private`), when present, runs its own `install.sh` last and
 overlays the real `SOUL.md` and `config.yaml` files. On a machine with the
 overlay, run its `install.sh` before the public one when a branch first drops
 the tracked `config.yaml`: the public installer would otherwise seed a real

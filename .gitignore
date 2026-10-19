@@ -88,8 +88,9 @@ hermes/profiles/*/web3-wallet/
 
 # Hermes skills: maintainer-owned topology is tracked; adaptive libraries are not.
 # At the shared root, default-pipeline/ is the only managed surface — the
-# ~/Workspaces data-skill cluster lives in the private overlay
-# (~/.config/private/hermes/skills) and is reached through skills.external_dirs.
+# ~/Workspaces data-skill cluster lives in the private overlay checkout
+# (~/ghq/github.com/craftsamo/private-dotconfig/hermes/skills) and is reached
+# through skills.external_dirs.
 hermes/skills/*
 !hermes/skills/default-pipeline/
 hermes/skills/learned/

@@ -16,6 +16,9 @@ from pathlib import Path
 
 PUBLIC_ROOT = Path(__file__).resolve().parents[2]
 HERMES_ROOT = PUBLIC_ROOT / "hermes"
+# The fixed path the real config.yaml files name in skills.external_dirs; the
+# overlay is a sibling ghq checkout of the public repo, never a link in HOME.
+LIVE_PRIVATE_ROOT = Path("ghq/github.com/craftsamo/private-dotconfig")
 STAGE_TIMEOUT = 600
 
 PUBLIC_PYTEST_FILES = (
@@ -113,8 +116,8 @@ def check_runtime(runtime: Path) -> Path:
 
 def check_candidate_pairing(private: Path) -> None:
     """The assistant-pipeline must be this checkout's own tracked directory,
-    never a leftover link into an overlay, AND the real
-    Path.home()/.config/private must resolve to the passed --private root,
+    never a leftover link into an overlay, AND the live overlay checkout
+    (Path.home()/LIVE_PRIVATE_ROOT) must resolve to the passed --private root,
     which still owns the Assistant's config and private technics -- never
     soften the validator's own checks, just refuse an unpaired candidate."""
     private = private.resolve()
@@ -122,10 +125,10 @@ def check_candidate_pairing(private: Path) -> None:
     require(not pipeline.is_symlink(), f"{pipeline} must be a tracked directory, not a link")
     require(pipeline.is_dir(), f"missing assistant pipeline directory: {pipeline}")
     require(private.is_dir(), f"missing --private checkout: {private}")
-    home_private = (Path.home() / ".config" / "private").resolve()
+    home_private = (Path.home() / LIVE_PRIVATE_ROOT).resolve()
     require(
         home_private == private,
-        f"Path.home()/.config/private resolves to {home_private}, not the passed --private "
+        f"Path.home()/{LIVE_PRIVATE_ROOT} resolves to {home_private}, not the passed --private "
         f"{private}; unpaired candidate",
     )
 
