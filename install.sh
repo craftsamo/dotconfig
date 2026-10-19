@@ -190,40 +190,114 @@ bridge_claude_skills() {
   done
 }
 
-# Hermes owns its cron directory outright: it mkdir -p's the path and writes
-# jobs.json, output/, executions.db, the tick/jobs locks, ticker_* and
-# catch_up_occurrences into it. Linking it from the repo bought nothing and
-# dragged all of that churn into version control, so the dir is machine-local.
-# Older checkouts linked it — migrate those in place, moving the live state
-# (jobs.json above all: Hermes treats a missing one as ZERO jobs, silently)
-# out of the repo before the link is dropped.
-unlink_cron_dir() {
-  local dest="$1" target
+# Turn a whole-directory link into the repo (<dest> -> <repo>/<rel>) into a
+# real machine-local directory, moving every entry at <repo>/<rel> that Git
+# neither tracks nor ignores — the state the tool wrote through the link —
+# out of the repository into it. Tracked entries stay where they are; the
+# caller links or copies them back. Ignored entries stay too: they are what
+# the repo's own commands produce (node_modules, lock files, engine venvs)
+# and belong beside their source. Dangling links (installer droppings written
+# relative to the repo) are dropped and __pycache__ is left to be
+# regenerated. A dest that is already a directory, or a link elsewhere, is
+# left alone.
+#
+# Hermes' cron directory was the first case: it writes jobs.json, output/,
+# executions.db and the locks into it, and a missing jobs.json reads as ZERO
+# jobs, silently — so the state moves before the link goes, never after.
+adopt_dir() {
+  local dest="$1" target rel e name entries=()
   [ -L "$dest" ] || return 0
   target="$(readlink "$dest")"
   case "$target" in
-    "$DOTFILES"/hermes/*) ;;
-    *) return 0 ;;  # not ours — leave alone
+    "$DOTFILES"/*) ;;
+    *) return 0 ;;
   esac
-  local entries=()
+  rel="${target#"$DOTFILES"/}"
   if [ -d "$target" ]; then
-    # Includes dotfiles (.tick.lock, .jobs.lock); .gitkeep is repo scaffolding
-    # that disappears with the directory, so it is skipped rather than moved.
-    local e
     while IFS= read -r -d '' e; do
-      [ "$(basename "$e")" = ".gitkeep" ] || entries+=("$e")
+      name="$(basename "$e")"
+      [ "$name" = __pycache__ ] && continue
+      if [ -L "$e" ] && [ ! -e "$e" ]; then
+        rm "$e"
+        echo "  dropped dangling: $e"
+        continue
+      fi
+      [ -n "$(git -C "$DOTFILES" ls-files -- "$rel/$name")" ] && continue
+      git -C "$DOTFILES" check-ignore -q -- "$rel/$name" && continue
+      entries+=("$e")
     done < <(find "$target" -mindepth 1 -maxdepth 1 -print0)
   fi
   mkdir -p "$dest.new" || { echo "ERROR: cannot stage $dest.new"; status=1; return; }
   if [ ${#entries[@]} -gt 0 ] && ! mv "${entries[@]}" "$dest.new"/; then
-    echo "ERROR: failed to move cron state out of $target — left untouched"
+    echo "ERROR: failed to move machine-local entries out of $target — left untouched"
     rmdir "$dest.new" 2>/dev/null
     status=1
     return
   fi
   rm "$dest"
   mv "$dest.new" "$dest"
-  echo "  migrated: $dest is now a real directory (cron state left the repo)"
+  echo "  migrated: $dest is now a real directory (${#entries[@]} machine-local entries left the repo)"
+}
+
+# <dest> as a real directory holding a COPY of every tracked file under
+# <repo>/<rel>. For the one place a link cannot serve: Hermes' cron scheduler
+# resolves a job's script and the profile's scripts/ directory to their real
+# paths and refuses a script outside that directory, so a linked script would
+# resolve into the repo while the directory stays in HOME. The repo is the
+# source: a copy that differs is overwritten (edits in HOME are lost; edit
+# here), and the files the tool and the overlay write beside them (adhoc/,
+# generated wrappers) are untouched.
+copy_entries() {
+  local rel="$1" dest="$2" file
+  adopt_dir "$dest"
+  if [ -e "$dest" ] && [ ! -d "$dest" ]; then
+    echo "WARN: $dest exists and is not a directory — not touching"
+    status=1
+    return
+  fi
+  mkdir -p "$dest"
+  while IFS= read -r file; do
+    [ -n "$file" ] || continue
+    if [ -f "$dest/$file" ] && cmp -s "$DOTFILES/$rel/$file" "$dest/$file" \
+       && [ "$(stat -f %p "$DOTFILES/$rel/$file")" = "$(stat -f %p "$dest/$file")" ]; then
+      continue
+    fi
+    mkdir -p "$(dirname "$dest/$file")"
+    cp -p "$DOTFILES/$rel/$file" "$dest/$file"
+    echo "  copied: $dest/$file (from $rel/$file)"
+  done < <(git -C "$DOTFILES" ls-files -z -- "$rel" | tr '\0' '\n' | sed "s#^$rel/##")
+  echo "  ok: $dest = copies of $rel/ (the repo is the source)"
+}
+
+# <dest>: a file the person or the private overlay owns at a HOME path, never
+# a link through this repo. Without the overlay it is seeded once from the
+# tracked <example> (when one exists). An earlier run linked it through the
+# repo (<dest> -> <repo>/<rel> -> overlay, or a seed left at <repo>/<rel>):
+# the link is re-pointed at the file itself and the repo path emptied.
+seed_or_adopt() {
+  local dest="$1" repo_path="$DOTFILES/$2" example="$DOTFILES/$3" real
+  # Earlier runs wrote the link with a doubled slash (<profile dir>//<file>).
+  if [ -L "$dest" ] && [ "$(readlink "$dest" | sed 's#//*#/#g')" = "$repo_path" ]; then
+    if [ -L "$repo_path" ] && real="$(realpath "$repo_path" 2>/dev/null)"; then
+      ln -sfn "$real" "$dest"
+      rm "$repo_path"
+      echo "  migrated: $dest -> $real (no longer through the repo)"
+    elif [ -L "$repo_path" ]; then
+      rm "$dest" "$repo_path"
+      echo "  dropped: $dest and $repo_path (a dangling overlay link)"
+    elif [ -f "$repo_path" ]; then
+      rm "$dest"
+      mv "$repo_path" "$dest"
+      echo "  migrated: $dest is the file itself (left the repo)"
+    else
+      rm "$dest"
+    fi
+  fi
+  if [ ! -e "$dest" ] && [ ! -L "$dest" ] && [ -f "$example" ]; then
+    mkdir -p "$(dirname "$dest")"
+    cp "$example" "$dest"
+    echo "  seeded $dest from $(basename "$example") (yours to edit; an untouched seed yields to the private overlay)"
+  fi
 }
 
 link() {
@@ -273,8 +347,8 @@ fi
 #
 # The invariant: links point from HOME into the repo, never the other way,
 # and a tool that writes its own files does so beside a link, never through
-# one into the repo. Three exceptions to the one-link-per-directory rule
-# follow from it.
+# one into the repo. The exceptions to the one-link-per-directory rule follow
+# from it (here for ~/.config, and again for ~/.hermes below).
 #
 # Not linked: directories nothing reads at ~/.config/<name>. agents/ is the
 # repo-curated shared skill tree, wired below into ~/.agents/skills; the path
@@ -284,15 +358,17 @@ fi
 CONFIG_UNLINKED=(agents)
 # Linked per entry: a tool writes its own state into this directory (opencode
 # keeps service.json there; `hyperframes skills` mirrors its store into
-# opencode/skills with relative links). ~/.config/<rel> is a REAL machine-local
-# directory and each tracked entry of <repo>/<rel> is linked into it, so the
-# tool's files land beside the links, outside the repository. A nested path
-# listed here gets the same treatment inside its parent.
-CONFIG_ENTRY_ROOTS=(opencode opencode/skills)
+# opencode/skills with relative links; Hermes writes learned skills, usage
+# and hub bookkeeping into its skill roots and bytecode beside its plugins).
+# The HOME directory is a REAL machine-local one and each tracked entry of
+# <repo>/<rel> is linked into it, so the tool's files land beside the links,
+# outside the repository. A nested path listed here gets the same treatment
+# inside its parent. The Hermes roots are appended in "[hermes]".
+ENTRY_ROOTS=(opencode opencode/skills)
 # Seeded, not linked: the tool rewrites the file by temp file + rename, which
 # would replace a link with a real file on the first change (same as grok's
 # config.toml). Copied from the repo once; the tool owns it after.
-CONFIG_SEEDED=(opencode/cli.json)
+SEEDED=(opencode/cli.json)
 
 in_list() {
   local needle="$1"
@@ -300,19 +376,12 @@ in_list() {
   printf '%s\n' "$@" | grep -qx -- "$needle"
 }
 
-# ~/.config/<rel> as a real directory holding one link per tracked entry of
-# <repo>/<rel>. A link left at <rel> by an earlier run (whole-directory mode)
-# is replaced by the directory.
+# <dest> as a real directory holding one link per tracked entry of
+# <repo>/<rel>. A link left at <dest> by an earlier run (whole-directory
+# mode) is replaced by the directory, with the tool's state moved into it.
 link_entries() {
-  local rel="$1" dest="$XDG_CONFIG/$1" child
-  if [ -L "$dest" ]; then
-    case "$(readlink "$dest")" in
-      "$DOTFILES"/*)
-        rm "$dest"
-        echo "  migrated: $dest was a link into the repo — now a real directory"
-        ;;
-    esac
-  fi
+  local rel="$1" dest="$2" child
+  adopt_dir "$dest"
   if [ -e "$dest" ] && [ ! -d "$dest" ]; then
     echo "WARN: $dest exists and is not a directory — not touching"
     status=1
@@ -321,9 +390,9 @@ link_entries() {
   mkdir -p "$dest"
   while IFS= read -r child; do
     [ -n "$child" ] || continue
-    if in_list "$rel/$child" "${CONFIG_ENTRY_ROOTS[@]}"; then
-      link_entries "$rel/$child"
-    elif in_list "$rel/$child" "${CONFIG_SEEDED[@]}"; then
+    if in_list "$rel/$child" "${ENTRY_ROOTS[@]}"; then
+      link_entries "$rel/$child" "$dest/$child"
+    elif in_list "$rel/$child" "${SEEDED[@]}"; then
       [ -e "$dest/$child" ] || { cp "$DOTFILES/$rel/$child" "$dest/$child"; echo "  seeded $dest/$child from the repo (the tool owns it after)"; }
     else
       link "$DOTFILES/$rel/$child" "$dest/$child"
@@ -344,8 +413,8 @@ else
         rm "$XDG_CONFIG/$name"
         echo "  unlinked: $XDG_CONFIG/$name (not a config directory)"
       fi
-    elif in_list "$name" "${CONFIG_ENTRY_ROOTS[@]}"; then
-      link_entries "$name"
+    elif in_list "$name" "${ENTRY_ROOTS[@]}"; then
+      link_entries "$name" "$XDG_CONFIG/$name"
     else
       link "$DOTFILES/$name" "$XDG_CONFIG/$name"
     fi
@@ -409,42 +478,61 @@ echo "[grok]"
 link "$DOTFILES/grok/AGENTS.md"   "$HOME/.grok/AGENTS.md"
 
 echo "[hermes]"
-# Like SOUL.md below: the real config.yaml is private (the overlay links it), and
-# a missing one is seeded from the tracked config.example.yaml. Never clobbers.
-[ -f "$DOTFILES/hermes/config.example.yaml" ] && [ ! -f "$DOTFILES/hermes/config.yaml" ] && { cp "$DOTFILES/hermes/config.example.yaml" "$DOTFILES/hermes/config.yaml"; echo "  seeded hermes/config.yaml from template (personalize locally; untracked)"; }
-link "$DOTFILES/hermes/config.yaml" "$HOME/.hermes/config.yaml"
-# Persona is private/local; seed from the tracked SOUL.example.md when the real
-# (gitignored, per-machine) SOUL.md is absent, then symlink it. Never clobbers.
-[ -f "$DOTFILES/hermes/SOUL.example.md" ] && [ ! -f "$DOTFILES/hermes/SOUL.md" ] && { cp "$DOTFILES/hermes/SOUL.example.md" "$DOTFILES/hermes/SOUL.md"; echo "  seeded hermes/SOUL.md from template (personalize locally; untracked)"; }
-link "$DOTFILES/hermes/SOUL.md"     "$HOME/.hermes/SOUL.md"
-link "$DOTFILES/hermes/mcp.json"    "$HOME/.hermes/mcp.json"
-unlink_cron_dir "$HOME/.hermes/cron"
-link "$DOTFILES/hermes/skills"      "$HOME/.hermes/skills"
-# User plugins (e.g. image-gen fallback chains). One shared repo dir, linked
-# into the default home here and into every profile home in the loop below
-# (plugins are profile-scoped under each profile's HERMES_HOME).
-link "$DOTFILES/hermes/plugins"     "$HOME/.hermes/plugins"
-# Disable bundled-skill seeding (else the first `hermes` run seeds ~73 skills
-# into the symlinked skills dir = this repo). Bundled skills are read in place
-# via config.yaml skills.external_dirs instead.
+# ~/.hermes and every profile home are Hermes' own directories: real,
+# machine-local, holding its runtime state (auth, sessions, memories, cron)
+# beside one link per tracked file of hermes/. The same invariant as
+# "[config]", with the same exceptions:
+#
+#   * Entry roots. Hermes writes into its skill roots (learned skills, usage
+#     and hub bookkeeping, seeded categories) and bytecode beside its plugins,
+#     so skills/, plugins/ and each plugin group are real directories of
+#     links. Plugins are addressed as <group>/<name>, so a group is a
+#     directory of links to plugins; a top-level entry that is not a group
+#     (_shared/ code, a flat plugin) is linked whole.
+#   * Copied, not linked: a profile's scripts/ (cron's real-path rule; see
+#     copy_entries). The wrappers the overlay generates and the adhoc/ scripts
+#     a profile writes for itself land beside the copies.
+#   * Owned at HOME, never linked through the repo: config.yaml and SOUL.md
+#     (the private overlay links its own straight into ~/.hermes; without it
+#     they are seeded from the tracked examples). Hermes rewrites config.yaml
+#     on load, so these must never be a path inside the repository.
+#
+# Bundled-skill seeding stays off (.no-bundled-skills): the first `hermes` run
+# would otherwise seed ~73 skills into every skill root. Bundled skills are
+# read in place via config.yaml skills.external_dirs instead.
+ENTRY_ROOTS+=(hermes/skills hermes/plugins)
+while IFS= read -r g; do
+  [ -d "$DOTFILES/hermes/plugins/$g" ] || continue
+  case "$g" in _*) continue ;; esac
+  [ -f "$DOTFILES/hermes/plugins/$g/plugin.yaml" ] || ENTRY_ROOTS+=("hermes/plugins/$g")
+done < <(git -C "$DOTFILES" ls-files -z -- hermes/plugins | tr '\0' '\n' | cut -d/ -f3 | sort -u)
+for p in "$DOTFILES"/hermes/profiles/*/; do
+  [ -d "$p/skills" ] && ENTRY_ROOTS+=("hermes/profiles/$(basename "$p")/skills")
+done
+
+seed_or_adopt "$HOME/.hermes/config.yaml" hermes/config.yaml hermes/config.example.yaml
+seed_or_adopt "$HOME/.hermes/SOUL.md"     hermes/SOUL.md     hermes/SOUL.example.md
+link "$DOTFILES/hermes/mcp.json" "$HOME/.hermes/mcp.json"
+adopt_dir "$HOME/.hermes/cron"
+link_entries hermes/skills  "$HOME/.hermes/skills"
+link_entries hermes/plugins "$HOME/.hermes/plugins"
 link "$DOTFILES/hermes/.no-bundled-skills" "$HOME/.hermes/.no-bundled-skills"
-# Named profiles: link tracked distribution-owned files for each repo profile.
-# (Bundled skills are read from the agent clone via skills.external_dirs.)
+# Named profiles: the same pieces per profile home. Plugin discovery is
+# HERMES_HOME-scoped, so each profile links the one plugin tree above.
 for p in "$DOTFILES"/hermes/profiles/*/; do
   [ -d "$p" ] || continue
+  p="${p%/}"
   n="$(basename "$p")"
-  [ -f "$p/config.example.yaml" ] && [ ! -f "$p/config.yaml" ] && { cp "$p/config.example.yaml" "$p/config.yaml"; echo "  seeded $n/config.yaml from template (personalize locally; untracked)"; }
-  [ -f "$p/config.yaml" ]        && link "$p/config.yaml"        "$HOME/.hermes/profiles/$n/config.yaml"
-  [ -f "$p/profile.yaml" ]       && link "$p/profile.yaml"       "$HOME/.hermes/profiles/$n/profile.yaml"
-  [ -f "$p/SOUL.example.md" ] && [ ! -f "$p/SOUL.md" ] && { cp "$p/SOUL.example.md" "$p/SOUL.md"; echo "  seeded $n/SOUL.md from template (personalize locally; untracked)"; }
-  [ -f "$p/SOUL.md" ]            && link "$p/SOUL.md"            "$HOME/.hermes/profiles/$n/SOUL.md"
-  [ -f "$p/mcp.json" ]          && link "$p/mcp.json"          "$HOME/.hermes/profiles/$n/mcp.json"
-  unlink_cron_dir "$HOME/.hermes/profiles/$n/cron"
-  [ -d "$p/scripts" ]          && link "$p/scripts"          "$HOME/.hermes/profiles/$n/scripts"
-  [ -d "$p/skills" ]            && link "$p/skills"            "$HOME/.hermes/profiles/$n/skills"
-  [ -f "$p/.no-bundled-skills" ] && link "$p/.no-bundled-skills" "$HOME/.hermes/profiles/$n/.no-bundled-skills"
-  # Shared user-plugins dir into each profile home (discovery is HERMES_HOME-scoped).
-  [ -d "$DOTFILES/hermes/plugins" ] && link "$DOTFILES/hermes/plugins" "$HOME/.hermes/profiles/$n/plugins"
+  h="$HOME/.hermes/profiles/$n"
+  seed_or_adopt "$h/config.yaml" "hermes/profiles/$n/config.yaml" "hermes/profiles/$n/config.example.yaml"
+  seed_or_adopt "$h/SOUL.md"     "hermes/profiles/$n/SOUL.md"     "hermes/profiles/$n/SOUL.example.md"
+  [ -f "$p/profile.yaml" ] && link "$p/profile.yaml" "$h/profile.yaml"
+  [ -f "$p/mcp.json" ]     && link "$p/mcp.json"     "$h/mcp.json"
+  adopt_dir "$h/cron"
+  [ -d "$p/scripts" ] && copy_entries "hermes/profiles/$n/scripts" "$h/scripts"
+  [ -d "$p/skills" ]  && link_entries "hermes/profiles/$n/skills" "$h/skills"
+  [ -f "$p/.no-bundled-skills" ] && link "$p/.no-bundled-skills" "$h/.no-bundled-skills"
+  link "$HOME/.hermes/plugins" "$h/plugins"
 done
 
 # (no [workspaces] section: the ~/Workspaces AGENTS.md doctrine is personal
@@ -454,15 +542,19 @@ echo "[zsh]"
 link "$DOTFILES/zsh/env.zsh"    "$HOME/.zshenv"
 link "$DOTFILES/zsh/config.zsh" "$HOME/.zshrc"
 
-# Private overlay (craftsamo/private-dotconfig), reached through the gitignored
-# link ./private — a symlink its own install.sh maintains. It overlays private
-# real files (hermes/SOUL.md, per-profile SOUL.md / config.yaml) into this
-# tree and regenerates the hermes cron wrappers; DOTCONFIG tells it which
-# checkout to overlay. Absent on clones without access; skipping is the
-# supported path.
-if [ -x "$DOTFILES/private/install.sh" ]; then
-  echo "[private]"
-  DOTCONFIG="$DOTFILES" "$DOTFILES/private/install.sh" || status=1
+# Private overlay (craftsamo/private-dotconfig): a sibling ghq checkout with
+# an install.sh of its own that links its files straight into ~/.hermes and
+# ~/.config beside the links above — never into this tree. Run after this
+# one when present; absent on clones without access, and skipping is the
+# supported path. The link ./private earlier layouts kept here is dropped.
+if [ -L "$DOTFILES/private" ]; then
+  rm "$DOTFILES/private"
+  echo "  dropped: $DOTFILES/private (the overlay is no longer reached through this tree)"
+fi
+PRIVATE_DOTCONFIG="${PRIVATE_DOTCONFIG:-$(dirname "$DOTFILES")/private-dotconfig}"
+if [ -x "$PRIVATE_DOTCONFIG/install.sh" ]; then
+  echo "[private overlay]"
+  DOTCONFIG="$DOTFILES" "$PRIVATE_DOTCONFIG/install.sh" || status=1
 fi
 
 exit $status

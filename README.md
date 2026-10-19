@@ -13,24 +13,24 @@ never enter the repo.
 Every directory below is linked as `~/.config/<dir>`; "XDG native" means the
 tool reads it from there without further wiring.
 
-| Tool                                      | Config in repo | Wiring                                                                                                                                                                  |
-| ----------------------------------------- | -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [Neovim](./nvim/README.md)                | `nvim/`        | XDG native                                                                                                                                                              |
-| [Zsh](./zsh/README.md)                    | `zsh/`         | XDG native + `~/.zshrc -> zsh/config.zsh` symlink                                                                                                                       |
-| [Tmux](./tmux/README.md)                  | `tmux/`        | XDG native (tmux >= 3.1)                                                                                                                                                |
-| Ghostty                                   | `ghostty/`     | XDG native                                                                                                                                                              |
-| lazygit                                   | `lazygit/`     | XDG native                                                                                                                                                              |
-| mise                                      | `mise/`        | XDG native; declares language runtimes + global npm CLIs                                                                                                                |
-| [opencode](./opencode/README.md)          | `opencode/`    | XDG native; `~/.config/opencode` and its `skills/` are real dirs linked per entry (OpenCode and `hyperframes skills` write beside them); `cli.json` seeded, not linked  |
-| Keychain shims                            | `bin/`         | `~/.config/bin` on PATH (see below)                                                                                                                                     |
-| [Shared agent skills](./agents/README.md) | `agents/`      | not linked into `~/.config`; `agents/skills/` is linked per skill into the machine-local `~/.agents/skills` root (installer-writable), and each into `~/.claude/skills` |
-| Git                                       | `git/`         | XDG fallback (`~/.gitconfig` must not exist); `git/credentials` ignored                                                                                                 |
-| [Claude Code](./claude/README.md)         | `claude/`      | 4 symlinks in `~/.claude/` plus per-skill links in `skills/` (`agents/` is machine-local, installer-written)                                                            |
-| [Codex](./codex/README.md)                | `codex/`       | 2 symlinks in `~/.codex/` (`skills/` and `config.toml` are machine-local, app/installer-managed)                                                                        |
-| [Gemini CLI](./gemini/README.md)          | `gemini/`      | 3 symlinks in `~/.gemini/`                                                                                                                                              |
-| [GitHub Copilot](./copilot/README.md)     | `copilot/`     | 3 symlinks in `~/.copilot/` (`skills/` is machine-local; `config.json` is app-managed; auth dir `github-copilot/` git-ignored)                                          |
-| [Grok Build](./grok/README.md)            | `grok/`        | `AGENTS.md` symlinked, `config.toml` seeded (CLI-owned); state/auth stay in `~/.grok/`; installed via official installer, not brew                                      |
-| [Hermes Agent](./hermes/README.md)        | `hermes/`      | symlinks in `~/.hermes/` (+ per profile); skills via `external_dirs`; keys via Keychain shim                                                                            |
+| Tool                                      | Config in repo | Wiring                                                                                                                                                                         |
+| ----------------------------------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| [Neovim](./nvim/README.md)                | `nvim/`        | XDG native                                                                                                                                                                     |
+| [Zsh](./zsh/README.md)                    | `zsh/`         | XDG native + `~/.zshrc -> zsh/config.zsh` symlink                                                                                                                              |
+| [Tmux](./tmux/README.md)                  | `tmux/`        | XDG native (tmux >= 3.1)                                                                                                                                                       |
+| Ghostty                                   | `ghostty/`     | XDG native                                                                                                                                                                     |
+| lazygit                                   | `lazygit/`     | XDG native                                                                                                                                                                     |
+| mise                                      | `mise/`        | XDG native; declares language runtimes + global npm CLIs                                                                                                                       |
+| [opencode](./opencode/README.md)          | `opencode/`    | XDG native; `~/.config/opencode` and its `skills/` are real dirs linked per entry (OpenCode and `hyperframes skills` write beside them); `cli.json` seeded, not linked         |
+| Keychain shims                            | `bin/`         | `~/.config/bin` on PATH (see below)                                                                                                                                            |
+| [Shared agent skills](./agents/README.md) | `agents/`      | not linked into `~/.config`; `agents/skills/` is linked per skill into the machine-local `~/.agents/skills` root (installer-writable), and each into `~/.claude/skills`        |
+| Git                                       | `git/`         | XDG fallback (`~/.gitconfig` must not exist); `git/credentials` ignored                                                                                                        |
+| [Claude Code](./claude/README.md)         | `claude/`      | 4 symlinks in `~/.claude/` plus per-skill links in `skills/` (`agents/` is machine-local, installer-written)                                                                   |
+| [Codex](./codex/README.md)                | `codex/`       | 2 symlinks in `~/.codex/` (`skills/` and `config.toml` are machine-local, app/installer-managed)                                                                               |
+| [Gemini CLI](./gemini/README.md)          | `gemini/`      | 3 symlinks in `~/.gemini/`                                                                                                                                                     |
+| [GitHub Copilot](./copilot/README.md)     | `copilot/`     | 3 symlinks in `~/.copilot/` (`skills/` is machine-local; `config.json` is app-managed; auth dir `github-copilot/` git-ignored)                                                 |
+| [Grok Build](./grok/README.md)            | `grok/`        | `AGENTS.md` symlinked, `config.toml` seeded (CLI-owned); state/auth stay in `~/.grok/`; installed via official installer, not brew                                             |
+| [Hermes Agent](./hermes/README.md)        | `hermes/`      | `~/.hermes/` (+ per profile) are real dirs holding links per tracked entry (skill roots, plugin groups); `scripts/` copied; skills via `external_dirs`; keys via Keychain shim |
 
 State and secrets (`~/.codex/auth.json`, sqlite logs, `~/.claude/history.jsonl`,
 transcripts, ...) stay in the tool directories and are never tracked.
@@ -88,14 +88,19 @@ Installed outside the [Brewfile](./Brewfile):
 
 - `[config]` links every tracked top-level directory of the repo as
   `~/.config/<name>`; the set comes from the Git index, so a new directory
-  needs no line in the script. Three declared exceptions keep one invariant
+  needs no line in the script. The declared exceptions keep one invariant
   — links point from HOME into the repo, and a tool writes beside a link,
   never through one: `CONFIG_UNLINKED` (`agents/`, which nothing reads at
-  that path), `CONFIG_ENTRY_ROOTS` (`opencode/` and `opencode/skills/`, real
+  that path), `ENTRY_ROOTS` (`opencode/` and `opencode/skills/`, real
   directories holding one link per tracked entry, so OpenCode's own files and
-  installer droppings land outside the repo) and `CONFIG_SEEDED`
-  (`opencode/cli.json`, copied once because OpenCode rewrites it by rename).
-  Nothing else in `~/.config` is touched.
+  installer droppings land outside the repo) and `SEEDED` (`opencode/cli.json`,
+  copied once because OpenCode rewrites it by rename). Nothing else in
+  `~/.config` is touched.
+- `[hermes]` wires `~/.hermes` the same way (it is not under `~/.config`):
+  the skill roots and plugin groups are entry roots, a profile's `scripts/`
+  is copied (cron resolves real paths), and `config.yaml` / `SOUL.md` are
+  owned at HOME — the private overlay's, or a seed of the example. Details:
+  [hermes/README.md "Symlinks"](./hermes/README.md#symlinks).
 - Never overwrites a real file: if a tool replaced a symlink with a regular
   file it prints `WARN` and skips, so re-running it doubles as a drift check.
 - Each `--deps` stage records its own failure and the next one still runs; the
@@ -109,15 +114,17 @@ Installed outside the [Brewfile](./Brewfile):
   `root`, like a Claude.app installed for all users), run
   `brew install --cask --adopt <name>` once in an interactive terminal so
   sudo can prompt for a password.
-- At the end it runs `./private/install.sh` when present — see below.
+- At the end it runs the private overlay's `install.sh` when the sibling
+  checkout exists (`PRIVATE_DOTCONFIG` overrides the path) — see below.
 
 ## worktree-setup.sh
 
 A task worktree carries only tracked files. `./worktree-setup.sh`, run inside
 one, gives it what tests need from the live checkout: every gitignored symlink
-there that points into the private overlay, and `opencode/node_modules` as a
-link to the live copy. `--private <dir>` links the overlay links to another
-private checkout (a paired candidate) instead. It writes only inside the
+there that points into the private overlay (the few files it places inside
+public plugin and lib directories), and `opencode/node_modules` as a link to
+the live copy. `--private <dir>` links those to another private checkout (a
+paired candidate) instead. It writes only inside the
 worktree, refuses to run in the live checkout, and never overwrites a real
 file. If the worktree changes `opencode/package.json`, replace the link with
 `npm install --prefix opencode`.
@@ -129,24 +136,27 @@ whose tree mirrors this repo's top level (`hermes/`, `opencode/`, `zsh/`, ...).
 It is a sibling ghq checkout at the fixed path
 **`~/ghq/github.com/craftsamo/private-dotconfig`**: files that need an absolute
 path at runtime (Hermes `skills.external_dirs`, `zsh/config.zsh`,
-`bin/characters`) name that checkout directly. Inside this repo the overlay is
-also reachable as the gitignored symlink `<repo>/private`, which its own
-`install.sh` maintains and which `install.sh` / `worktree-setup.sh` use to
-wire overlay links. A clone without access simply has no `private` entry and
-no overlay checkout, and everything else works.
+`bin/characters`) name that checkout directly, and its own `install.sh` links
+its files from HOME (`~/.hermes`, `~/.config/opencode`, `~/Workspaces`) beside
+the links this repo's installer makes — never through this tree. The
+exceptions, until the readers change: two files inside public Hermes plugins
+and the opencode credit lanes, which the code reads beside its own source;
+`.gitignore` names each. A clone without access simply has no overlay
+checkout, and everything else works.
 
 What lives there: private Hermes skills (read in place via
 `skills.external_dirs` as `~/ghq/github.com/craftsamo/private-dotconfig/hermes/skills`), the real
-persona/config files this repo only ships `*.example.*` templates for
-(overlaid into this tree as symlinks by the overlay's `install.sh`), the
-assistant's personal procedures (plugin skills and the external private
-shelf; the assistant pipeline and the public workspace engines live here), the `~/Workspaces` AGENTS.md doctrine
-(linked straight into place), private opencode skills, and private shell
-config (`private/zsh/*.zsh`, sourced by `config.zsh` when present).
+persona/config files this repo only ships `*.example.*` templates for (linked
+into `~/.hermes` by the overlay's `install.sh`), the assistant's personal
+procedures (plugin skills and the external private shelf; the assistant
+pipeline and the public workspace engines live here), private Hermes plugins
+(linked into `~/.hermes/plugins/<group>/`), the `~/Workspaces` AGENTS.md
+doctrine (linked straight into place), private opencode skills, and private
+shell config (`zsh/*.zsh`, sourced by `config.zsh` when present).
 
 ```sh
 ghq get git@github.com:craftsamo/private-dotconfig.git
-~/ghq/github.com/craftsamo/private-dotconfig/install.sh   # wires <repo>/private and the overlay links
+./install.sh   # runs the overlay's install.sh after its own
 ```
 
 ## Homebrew

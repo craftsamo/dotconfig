@@ -348,12 +348,9 @@ PROTECTED_BRANCHES = ("main", "master")
 
 def live_checkout():
     """The checkout `~/.hermes` links into: a branch there is live for anything Hermes reads.
-    Read off the plugins link the public install.sh writes (<repo>/hermes/plugins), so the
-    checkout can live anywhere; its ghq path is the fallback when the link is absent."""
-    plugins = Path.home() / ".hermes" / "plugins"
-    if plugins.is_symlink():
-        return str(Path(os.path.realpath(plugins)).parent.parent)
-    return str(Path.home() / "ghq" / "github.com" / "craftsamo" / "dotconfig")
+    This plugin is loaded through one of those links, so its own real path names the
+    checkout (<repo>/hermes/plugins/orchestration/opencode/policy.py), wherever it lives."""
+    return str(Path(__file__).resolve().parents[4])
 
 
 def git(directory, *args):
