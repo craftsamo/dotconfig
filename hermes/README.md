@@ -7,7 +7,8 @@ plugins they use and the scripts that run them. Start here to find the right
 document; this file keeps only what every reader needs.
 
 Hermes keeps everything under `~/.hermes/` and does **not** read `~/.config`, so
-[`install.sh`](../install.sh) symlinks the files in this directory into place.
+[`install.sh`](../install.sh) links the files in this directory into place
+("Symlinks" below).
 Hermes never loads this file, [`AGENTS.md`](./AGENTS.md) or `docs/` at runtime:
 a profile sees only its `config.yaml`, `SOUL.md` and skills.
 
@@ -30,7 +31,7 @@ a profile sees only its `config.yaml`, `SOUL.md` and skills.
 
 ```sh
 ~/.config/hermes/setup.sh      # the binary (idempotent; ghq + PM do the rest)
-~/.config/install.sh           # the ~/.hermes/ symlinks (re-run after adding files)
+~/ghq/github.com/craftsamo/dotconfig/install.sh   # the ~/.hermes/ links (re-run after adding files)
 hermes --version               # verify
 ```
 
@@ -59,33 +60,36 @@ The branch list in the checkout is the ledger, not a list in these docs:
 
 ## Symlinks
 
-Every link below points back into this repo, so edit the repo copy.
-`install.sh`'s `link()` never overwrites a real file: it prints
-`WARN … not overwriting` and skips.
+`~/.hermes/` and every profile home are real, machine-local directories:
+Hermes' runtime state (auth, sessions, memories, cron, learned skills) lives
+there, beside links into this repo. Links point from HOME into the repo, never
+the other way, and nothing inside this tree is a link — so edit the repo copy,
+and nothing Hermes writes lands here. `install.sh`'s `link()` never overwrites
+a real file: it prints `WARN … not overwriting` and skips.
 
-| Symlink                        | Target                                      |
-| ------------------------------ | ------------------------------------------- |
-| `~/.hermes/config.yaml`        | `hermes/config.yaml` (untracked; see below) |
-| `~/.hermes/SOUL.md`            | `hermes/SOUL.md` (untracked; see below)     |
-| `~/.hermes/mcp.json`           | `hermes/mcp.json`                           |
-| `~/.hermes/skills`             | `hermes/skills/`                            |
-| `~/.hermes/plugins`            | `hermes/plugins/`                           |
-| `~/.hermes/.no-bundled-skills` | `hermes/.no-bundled-skills`                 |
+| `~/.hermes/…`                    | Wired as                                                                                                      |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `config.yaml`, `SOUL.md`         | link to the private overlay; seeded from the examples without it                                              |
+| `mcp.json`, `.no-bundled-skills` | link to `hermes/<file>`                                                                                       |
+| `skills/`                        | real dir: `default-pipeline` → `hermes/skills/default-pipeline`; `learned/` and Hermes' bookkeeping beside it |
+| `plugins/<group>/`               | real dirs: each `<name>` → `hermes/plugins/<group>/<name>`; the overlay's plugins beside them                 |
 
-For every `hermes/profiles/<name>/`, `install.sh` links `config.yaml`,
-`profile.yaml`, `SOUL.md`, `mcp.json`, `scripts/`, `skills/` and
-`.no-bundled-skills` (when present) into `~/.hermes/profiles/<name>/`, plus the
-shared `hermes/plugins/` (plugin discovery is `HERMES_HOME`-scoped). It never
-links `cron/`.
+For every `hermes/profiles/<name>/`, `install.sh` wires the same pieces into
+`~/.hermes/profiles/<name>/`: `config.yaml` and `SOUL.md` as above;
+`profile.yaml`, `mcp.json` and `.no-bundled-skills` as links; `skills/` as a
+real directory holding `<name>-pipeline` and `technic` links (learned skills
+land beside them); `scripts/` as a real directory of **copies** (Hermes' cron
+scheduler resolves a script and the directory to their real paths and refuses
+a script outside the directory, so a link cannot serve; the repo is the
+source, re-run `install.sh` after editing); and `plugins` as a link to the
+one `~/.hermes/plugins` tree (plugin discovery is `HERMES_HOME`-scoped). It
+never links `cron/`.
 
-A missing `SOUL.md` is seeded from the tracked `SOUL.example.md`, and a missing
-`config.yaml` (root or profile) from the tracked `config.example.yaml`; seeded
-copies stay untracked. The private overlay (the `private-dotconfig` repo,
-linked into this repo as `<repo>/private`), when present, runs its own `install.sh` last and
-overlays the real `SOUL.md` and `config.yaml` files. On a machine with the
-overlay, run its `install.sh` before the public one when a branch first drops
-the tracked `config.yaml`: the public installer would otherwise seed a real
-file at that path and the overlay link would skip it.
+The private overlay (the sibling `private-dotconfig` checkout), when present,
+runs its own `install.sh` last and links the real `config.yaml` and `SOUL.md`
+of every profile, and its plugins, straight into `~/.hermes`. A seed the
+public installer left untouched yields to that link; an edited one is kept and
+warned about.
 
 ## Layout
 

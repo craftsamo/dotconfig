@@ -4,8 +4,8 @@ Rules for whoever edits this subtree: OpenCode, usually started by the person.
 The Assistant may drive it here too (hands-reference upkeep does), but only in a
 task worktree (`opencode_session workspace`): the plugin refuses a write run in
 the live checkout (`~/ghq/github.com/craftsamo/dotconfig`, which `~/.config`
-links into). Hermes reads `~/.hermes/` (symlinks into this repo), never
-`~/.config`, and never loads this file, `README.md` or `docs/`;
+links into). Hermes reads `~/.hermes/` (real directories holding links into
+this repo), never `~/.config`, and never loads this file, `README.md` or `docs/`;
 a profile sees only its `config.yaml` (`agent.system_prompt`), `SOUL.md` and
 skills.
 
@@ -33,10 +33,14 @@ skills.
 
 ## Repository and install
 
-- **Edit here, never `~/.hermes/…`** — those are symlinks back to this repo.
-  New files need `../install.sh`; `link()` never overwrites a real file (it
-  prints `WARN … not overwriting` and skips). Adopt real files with the steps
-  in [docs/ops/tracking.md "Tracking a profile"](docs/ops/tracking.md).
+- **Edit here, never `~/.hermes/…`** — the tracked files there are links back
+  to this repo, and a profile's `scripts/` holds copies the next `install.sh`
+  overwrites. New files need `../install.sh`; `link()` never overwrites a real
+  file (it prints `WARN … not overwriting` and skips). Adopt real files with
+  the steps in [docs/ops/tracking.md "Tracking a profile"](docs/ops/tracking.md).
+  Nothing Hermes writes lands in this tree: `~/.hermes` and the profile homes
+  are real directories, and links point from there into the repo, never the
+  other way ([README "Symlinks"](README.md#symlinks)).
 - **No secrets, no `.env`.** Keys live in the macOS Keychain and are injected
   by the `bin/hermes` shim (see the `keychain-secrets` skill). Private data —
   reference voices, the Irodori lexicon, manifest paths, Telegram ids, the
@@ -44,8 +48,9 @@ skills.
   and tabs, and this machine's account layout (which Claude account or
   Console org a label, a lane or a tool is on, its plan size, whose grant a
   key is) — never enters tracked config, docs, tests, examples or commit and
-  PR text; it lives in the private overlay (the `private-dotconfig` repo,
-  linked into this repo as `<repo>/private`). Use neutral examples (`work`, `personal`,
+  PR text; it lives in the private overlay (the sibling `private-dotconfig`
+  checkout, linked from `~/.hermes` beside this repo's links, never through
+  this tree). Use neutral examples (`work`, `personal`,
   `Leads`) and opaque labels. The overlay installs local commit and push hooks that refuse
   known names; a refusal is fixed by rewording, never by `--no-verify`. The
   Assistant pipeline is tracked here too: what it must know about a private
@@ -66,7 +71,7 @@ skills.
 - **Managed skills never get `skip-worktree`**: their changes must stay visible
   in `git status`. Ownership by directory type and the `learned/` → `technic/`
   promotion step: [docs/ops/tracking.md "Tracked vs ignored"](docs/ops/tracking.md).
-- **The live checkout is not an isolated test bed.** `~/.hermes` points into
+- **The live checkout is not an isolated test bed.** `~/.hermes` links into
   it, so a branch here is live for anything Hermes reads. Test behavior changes
   in a task worktree with its own overlay links and isolated `HOME`; never
   repoint live links, run candidate install scripts against the live
@@ -191,18 +196,18 @@ skills.
 ## Skills
 
 - **Upstream skills attach through `skills.external_dirs` only.** Never run
-  `hermes skills install` (it copies into `~/.hermes/skills`, i.e. this repo).
-  Wiring pattern and backlog:
+  `hermes skills install` (it copies into the skill root, an unmanaged copy
+  beside the links). Wiring pattern and backlog:
   [docs/topology.md "Upstream wiring pattern"](docs/topology.md).
 - **External skill stores are never copied or symlinked into a profile.** The
   HyperFrames / `media-use` playbooks live in `~/.agents/skills` (owned by
   `hyperframes skills update`, which a fresh machine needs before creator can
   load them; shared with other harnesses); `video-creator` pins four individual
-  technical dirs from it, never the whole store. An installer run reseeds dead
-  relative links into `profiles/*/skills/` or the shared `hermes/skills/` — the
-  tell is the validator's `local skill root must not contain symlinks` while
-  `skills list` still works. **Delete** those links, never repoint them; check
-  both roots. No skill root is a link: the Assistant's private technics are read
+  technical dirs from it, never the whole store. An installer run drops links
+  into the skill roots (`~/.hermes/skills`, `~/.hermes/profiles/*/skills`);
+  they sit beside the managed links, outside the repo, and `install.sh` drops
+  the dangling ones. **Delete** such links, never repoint them. Inside this
+  tree no skill path is a link: the Assistant's private technics are read
   through one `external_dirs` entry
   ([docs/ops/skills.md "Skill placement"](docs/ops/skills.md)). Verify with
   `hermes -p creator skills list` — a bare `hyperframes skills` installs rather
@@ -384,8 +389,8 @@ Contract: [docs/opencode.md](docs/opencode.md). When editing
   snapshots: keep both, or a fallback or `-fast` alias slips past a role that
   refuses ([docs/opencode.md "Models"](docs/opencode.md)).
 - **A write run never edits the live checkout.** `policy.branch` refuses it in
-  the checkout `~/.hermes/plugins` links into (`policy.live_checkout`), because
-  every change there is live at once; the
+  the checkout the plugin itself is loaded from (`policy.live_checkout`, the
+  plugin's own real path), because every change there is live at once; the
   Assistant plans there read-only and builds in the worktree `workspace`
   creates. Cutover stays a person's decision ("Candidates and cutover").
 - **A session may only work in the repository it was bound to.** An agent can
@@ -422,9 +427,10 @@ Rollout contract: [docs/topology.md "Candidate rollout and cutover"](docs/topolo
    merge refuses to start; `git checkout --` only flips which twin is dirty). A
    missing patch fails silently at runtime, e.g. browser isolation.
 2. `./scripts/validate-profile-skills.py --all`; delete any seeded category
-   directory under `profiles/*/skills/` other than `<profile>-pipeline`,
-   `technic` or `learned` (upstream seeds past `.no-bundled-skills`). A lone
-   seeded `DESCRIPTION.md` is harmless and comes back each launch.
+   directory under `~/.hermes/skills/` and `~/.hermes/profiles/*/skills/`
+   other than the managed links and `learned` (upstream seeds past
+   `.no-bundled-skills`; the validator does not look there). A lone seeded
+   `DESCRIPTION.md` is harmless and comes back each launch.
 3. `scripts/verify-work-continuity.py` (above) and the test suite.
 4. Re-check behavior rather than a branch: a browser attach daemon that
    outlived its clone keeps a dead port (unpatched upstream;

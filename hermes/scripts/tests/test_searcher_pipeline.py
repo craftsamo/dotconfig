@@ -220,6 +220,11 @@ def test_worker_wires_entries_and_detects_learned_collision(tmp_path, monkeypatc
     shutil.copytree(PIPELINE, skills / "searcher-pipeline")
     shutil.copytree(TECHNIC, skills / "technic")
     monkeypatch.setattr(validator, "HERMES_ROOT", tmp_path)
+    # Learned skills live in the profile HOME, beside the links into the tree.
+    home = tmp_path / ".hermes"
+    monkeypatch.setattr(validator, "HERMES_HOME_ROOT", home)
+    # No private overlay for the fixture: only the example config is checked.
+    monkeypatch.setattr(validator, "PRIVATE_OVERLAY", tmp_path / "private")
     # Isolate this structural fixture, while proving the normal ownership/plugin
     # checks are still called by the worker path (the full CLI tests them separately).
     boundary, plugins = Mock(), Mock()
@@ -230,7 +235,7 @@ def test_worker_wires_entries_and_detects_learned_collision(tmp_path, monkeypatc
     assert not errors
     boundary.assert_called_once()
     plugins.assert_called_once()
-    learned = skills / "learned" / name
+    learned = home / "profiles/searcher/skills/learned" / name
     learned.mkdir(parents=True)
     (learned / "SKILL.md").write_text(f"---\nname: {name}\ndescription: Collision\n---\n")
     errors = []

@@ -29,7 +29,7 @@ tree is the maintainer's"); on 2026-09-05 image-creator patched
 ``text-emoji.sh`` in place instead, and the fix it chose was not the one
 the maintainer wanted.
 
-The private overlay (``<repo>/private``, the ``private-dotconfig`` checkout) owns maintainer skill trees too
+The private overlay (the ``private-dotconfig`` checkout) owns maintainer skill trees too
 — the Assistant's private ``technic/`` shelf — and they resolve outside
 this repo, so its ``hermes/profiles/*/skills/…``
 (outside ``learned/``) is guarded the same way. Its shared
@@ -52,9 +52,10 @@ from typing import Any, NamedTuple
 
 LEARNED_CATEGORY = "learned"
 MANAGED_ROOT = Path(__file__).resolve().parents[3]  # <repo>/hermes
-# Private overlay counterpart (the checkout's `private` link, so a task worktree
-# with its own overlay link guards its own pair); only profiles/*/skills count.
-PRIVATE_ROOT = MANAGED_ROOT.parent / "private" / "hermes"
+# Private overlay counterpart: the sibling ghq checkout the real config.yaml files
+# name in skills.external_dirs (nothing links it into this tree); only
+# profiles/*/skills count.
+PRIVATE_ROOT = Path.home() / "ghq" / "github.com" / "craftsamo" / "private-dotconfig" / "hermes"
 _FILE_WRITE_TOOLS = {"write_file", "patch"}
 _MUTATORS = {"cp", "mv", "rm", "chmod", "truncate", "tee", "sed"}
 _SHELL_OPERATOR = re.compile(r"(?:\d*(?:<<<|<<-|<<|>>|>\||>&|<&|<>|>|<)|&>>|&>|&&|\|\||\|&|;;|;&|[;|&\n()])")

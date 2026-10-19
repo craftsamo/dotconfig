@@ -7,16 +7,21 @@ terminal approval lets through. Read it before adding or moving a skill, after
 
 Part of the Hermes mechanics docs — entry: [`README.md`](../../README.md).
 
-`~/.hermes/skills` and each profile's `skills/` are symlinks into this repo.
-`scripts/validate-profile-skills.py` enforces the placement rules below. How an
+`~/.hermes/skills` and each profile's `skills/` are real machine-local
+directories holding one link per tracked entry of this repo
+(`default-pipeline`, `<profile>-pipeline`, `technic`); `learned/` and Hermes'
+bookkeeping sit beside those links, never in the repo. Nothing inside the
+repo's skill trees is a link. `scripts/validate-profile-skills.py` enforces
+the placement rules below. How an
 entry skill is loaded at runtime is in [`../topology.md`](../topology.md)
 "Entry loading contract"; the maintainer rules for plugin-shipped skills are in
 [`../../AGENTS.md`](../../AGENTS.md) "Skills".
 
 ## Skill placement
 
-Shared `skills/` holds only `default-pipeline/` and `learned/`; every other
-skill lives under its profile's `skills/`.
+Shared `skills/` holds only `default-pipeline/` (and, in `~/.hermes/skills`,
+the `learned/` Hermes writes); every other skill lives under its profile's
+`skills/`.
 
 - **One root pipeline skill per worker**, `<profile>-pipeline` (lifecycle +
   capability router, auto-loaded by its operating contract). Entry and leaf
@@ -56,7 +61,9 @@ skills=` in its summary) and `skills list` does not show them;
   groups such a leaf under its own name rather than `technic`; loading by name
   is unchanged. The validator checks its shape, its `external_dirs` entry and
   that each name is unique across every source the Assistant reads.
-- **`learned/` is never a dispatch or Git ownership surface.**
+- **`learned/` is never a dispatch or Git ownership surface.** It lives in the
+  profile home (`~/.hermes/profiles/<name>/skills/learned/`), outside the
+  repository; the validator reads it there.
 
 ## Skills
 

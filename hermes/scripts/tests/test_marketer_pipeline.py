@@ -53,6 +53,8 @@ def candidate(tmp_path, monkeypatch):
     root = tmp_path / "profiles/marketer/skills/marketer-pipeline"
     shutil.copytree(ROOT, root)
     monkeypatch.setattr(VALIDATOR, "HERMES_ROOT", tmp_path)
+    # Learned skills live in the profile HOME, not in the tree.
+    monkeypatch.setattr(VALIDATOR, "HERMES_HOME_ROOT", tmp_path / ".hermes")
     return root
 
 

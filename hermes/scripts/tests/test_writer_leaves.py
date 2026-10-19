@@ -210,18 +210,22 @@ def test_worker_accepts_leaves_and_rejects_duplicate_learned_name(tmp_path, monk
     leaf(root)
     consultation(root)
     monkeypatch.setattr(VALIDATOR, "HERMES_ROOT", tmp_path)
+    # Learned skills live in the profile HOME, beside the links into the tree.
+    home = tmp_path / ".hermes"
+    monkeypatch.setattr(VALIDATOR, "HERMES_HOME_ROOT", home)
     monkeypatch.setattr(VALIDATOR, "validate_git_boundary", lambda *args: None)
     monkeypatch.setattr(VALIDATOR, "validate_plugin_enabled", lambda *args: None)
     found = []
     assert VALIDATOR.validate_worker("writer", found) == (1, 0)
     assert found == []
-    duplicate = skills / "learned/write-article/SKILL.md"
+    learned = home / "profiles/writer/skills/learned"
+    duplicate = learned / "write-article/SKILL.md"
     duplicate.parent.mkdir(parents=True)
     duplicate.write_text("---\nname: write-article\n---\n")
     VALIDATOR.validate_worker("writer", found)
     assert any("duplicate writer skill name" in error for error in found)
     duplicate.unlink()
-    duplicate = skills / "learned/consult-writer/SKILL.md"
+    duplicate = learned / "consult-writer/SKILL.md"
     duplicate.parent.mkdir(parents=True)
     duplicate.write_text("---\nname: consult-writer\n---\n")
     found = []

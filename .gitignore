@@ -6,13 +6,6 @@ git/credentials
 **/*.env
 .pytest_cache/
 
-# Private overlay: a symlink to the craftsamo/private-dotconfig checkout, whose
-# tree mirrors this repo's top level (hermes/, opencode/, zsh/, ...). The
-# install and worktree scripts reach it through this link; runtime files that
-# need an absolute path name its ghq checkout directly. No trailing slash: the
-# entry is a symlink, not a directory.
-/private
-
 # Console credit lanes: the grant amounts, renewal days and labels of each
 # lane are account details, so the real file lives in the private overlay and
 # is linked here by private/install.sh. lanes.example.json is the tracked shape;
@@ -22,7 +15,10 @@ opencode/lib/credit-lanes/lanes.json
 # machine-specific state rewritten by the Codex app (absolute home paths)
 codex/config.toml
 
-# Hermes Agent per-machine state (config/skills/mcp/cron ARE tracked; these are not)
+# Hermes Agent runtime state. ~/.hermes and the profile homes are real
+# directories (install.sh "[hermes]"), so Hermes never writes here; these stay
+# as a safety net for a HERMES_HOME pointed at this tree by mistake, since
+# several hold credentials or private sessions.
 hermes/**/auth.json
 hermes/**/.env.EXAMPLE
 hermes/**/memories/
@@ -32,98 +28,30 @@ hermes/**/logs/
 hermes/**/workspace/
 hermes/**/plans/
 hermes/**/*_cache/
-hermes/**/local/
-# real-profile browsing snapshots (copied cookies / logins) — must never ship
-hermes/**/browser-profile/
-
-# Hermes personas: the real SOUL.md lives in the private overlay and is
-# symlinked here by private/install.sh; the tracked SOUL.example.md is the
-# bootstrap fallback (install.sh seeds SOUL.md from it only when the overlay
-# is absent). Either way the path never ships.
-hermes/SOUL.md
-hermes/**/SOUL.md
-
-# The root and every profile's real config.yaml live in the private overlay
-# and are symlinked here (the Assistant's also holds a private Telegram chat
-# ID in platforms.*.dm_topics). The tracked config.example.yaml is the
-# bootstrap fallback.
-hermes/config.yaml
-hermes/profiles/*/config.yaml
 hermes/profiles/*/specialist-sessions/
 hermes/profiles/*/resident-sessions/
 hermes/profiles/*/opencode-sessions/
-
-# web3 wallet runtime state (quotes and the send ledger) under the profile home.
 hermes/profiles/*/web3-wallet/
-
-# Hermes skills: maintainer-owned topology is tracked; adaptive libraries are not.
-# At the shared root, default-pipeline/ is the only managed surface — the
-# ~/Workspaces data-skill cluster lives in the private overlay checkout
-# (~/ghq/github.com/craftsamo/private-dotconfig/hermes/skills) and is reached
-# through skills.external_dirs.
-hermes/skills/*
-!hermes/skills/default-pipeline/
-hermes/skills/learned/
-
-# Every profile tracks one *-pipeline/ plus technic/ leaves. The skill-topology
-# plugin routes runtime creates to learned/. The *-pipeline/ re-include below
-# has a trailing slash, so it matches only real directories: a stale symlink
-# left at that path stays ignored (and the validator reports it).
-hermes/profiles/*/skills/*
-!hermes/profiles/*/skills/*-pipeline/
-!hermes/profiles/*/skills/technic/
-hermes/profiles/*/skills/learned/
-
-# Cron entry scripts for work that lives outside this repo. Hermes' scheduler
-# only runs a script resolving inside <HERMES_HOME>/scripts, so such a job needs
-# a real wrapper here; private/install.sh generates it and it stays machine-local.
-hermes/profiles/*/scripts/local-*.sh
-
-# Throwaway cron scripts a profile writes for itself (one-off monitors, ad-hoc
-# schedules). They must sit under <HERMES_HOME>/scripts to run, but are not
-# managed config; a job references them as `adhoc/<name>`.
-hermes/profiles/*/scripts/adhoc/
-
-# Runtime-only coordination, even if a caller mistakenly selects the config home.
 hermes/profiles/*/marketing-browser-lease.json
 hermes/profiles/*/marketing-browser-lease.guard
+# real-profile browsing snapshots (copied cookies / logins) — must never ship
+hermes/**/browser-profile/
 
-# Hermes skills bookkeeping: bundled skills (read via skills.external_dirs
-# from the agent clone) + curator/hub/usage bookkeeping are never tracked
-hermes/**/.bundled_manifest
-hermes/**/.usage.json
-hermes/**/.usage.json.lock
-hermes/**/.curator_state
-hermes/**/.curator_suppressed
-hermes/**/.curator_backups/
-hermes/**/.archive/
-hermes/**/.hub/
-hermes/**/index-cache/
-hermes/**/.restore-backups/
+# Engine runtimes: the launchers in hermes/engines install their venvs and
+# models under hermes/local/ beside the tracked lock files.
+hermes/**/local/
 
-# Hermes plugins: source IS tracked; Python bytecode (written into the symlinked
-# plugins dir when Hermes loads a plugin) is not
+# Python bytecode: Hermes loads the plugins through links, and Python writes
+# bytecode beside the real source
 hermes/**/__pycache__/
 agents/**/__pycache__/
 hermes/**/*.pyc
-# Plugins are tracked as real directories only. The private overlay may link its
-# own plugins here as SYMLINKS; the re-include has a trailing slash, so it
-# matches only real directories and every overlay symlink stays ignored.
-hermes/plugins/*
-!hermes/plugins/*/
-# Overlay plugins linked one level down, inside a group directory (the group is a
-# real directory here, so the rule above no longer reaches the link)
-hermes/plugins/tts/characters
-hermes/plugins/workspace/*
-!hermes/plugins/workspace/workspace-drafts/
-!hermes/plugins/workspace/workspace-registry/
-!hermes/plugins/workspace/workspace-repos/
+
+# One file inside a public plugin that the private overlay links beside the
+# plugin's source (the plugin reads its own directory): the workspace
+# registry's local integration and the specialist-call roster's local targets.
 hermes/plugins/workspace/workspace-registry/peer_checks.py
 hermes/plugins/orchestration/specialist-call/local_targets.json
-# Plugin runtime data written back through the symlinked plugins dir (no source
-# here — the hermes-achievements plugin persists badge state + a session-scan
-# cache, incl. session titles/timestamps; per-machine, never committed)
-hermes/plugins/hermes-achievements/
 
 # Machine-local shell environment. config.zsh already sources every
 # ~/.config/zsh/*.zsh; this one is for per-machine settings that belong in no

@@ -15,18 +15,22 @@ Part of the Hermes mechanics docs — entry: [`README.md`](../../README.md).
 `scripts/`; every `SOUL.example.md`; `skills/default-pipeline/`; `plugins/`
 source; `launchd/`; `engines/`; `scripts/`; docs.
 
-**Ignored** (see [`.gitignore`](../../../.gitignore)): every `SOUL.md`, the root
-`config.yaml` and `profiles/*/config.yaml` (private overlay); `auth.json`, `.env*`,
-`memories/`, `sessions/`, `state.db*`, `logs/`, `workspace/`, `plans/`,
-`*_cache/`, `local/`, `browser-profile/` (copied cookies — must never ship);
-`specialist-sessions/`, `resident-sessions/`, `opencode-sessions/`; skill
-bookkeeping (`.bundled_manifest`, `.usage.json*`, `.curator_*`, `.archive/`,
-`.hub/`, `index-cache/`, `.restore-backups/`); every other directory under
-`skills/` (`learned/`, seeded categories); `profiles/*/scripts/local-*.sh`;
-Marketer lease files; `**/__pycache__/`, `*.pyc`; the
-`plugins/hermes-achievements/` runtime data. `cron/` is absent entirely — it is
-not linked, so nothing it writes reaches the repo. Never commit secrets, state
-or host-rendered plists (`~/Library/LaunchAgents/…`).
+**Not here at all:** everything Hermes writes. `~/.hermes` and each profile
+home are real machine-local directories holding links into this tree
+([`README.md`](../README.md) "Symlinks"), so runtime state (`auth.json`,
+`memories/`, `sessions/`, `state.db*`, `cron/`, …), the real `config.yaml` and
+`SOUL.md` (the private overlay's, linked from HOME), `learned/` and the skill
+bookkeeping (`.usage.json*`, `.curator_*`, `.hub/`, seeded categories), a
+profile's `adhoc/` scripts and the overlay's generated cron wrappers all land
+beside the links, outside the repository.
+
+**Ignored** (see [`.gitignore`](../../../.gitignore)): the runtime-state names
+above, as a safety net for a `HERMES_HOME` pointed at this tree by mistake;
+`local/` (engine runtimes beside the tracked lock files); `**/__pycache__/`,
+`*.pyc` (Python writes bytecode beside the real source); and two files inside
+public plugins that the overlay links beside the source they are read from
+(`peer_checks.py`, `local_targets.json`). Never commit secrets, state or
+host-rendered plists (`~/Library/LaunchAgents/…`).
 
 **Skill ownership follows the directory type.** Shared `default-pipeline/` and
 every worker's `<profile>-pipeline/` and `technic/` are maintainer-owned and
@@ -61,8 +65,8 @@ and roles: [`../topology.md`](../topology.md) "Profile roster".
 ### Tracking a profile
 
 Because `hermes profile create` writes **real** files into
-`~/.hermes/profiles/<name>/` and `link()` never replaces a real file, move them
-into the repo (clearing the real files) before linking:
+`~/.hermes/profiles/<name>/` and `link()` never replaces a real file, move the
+tracked ones into the repo (clearing the real files) before linking:
 
 1. `hermes profile create <name> --description "<role>"` — seeds state + the
    `~/.local/bin/<name>` alias. Routing quality depends on the description
@@ -73,18 +77,22 @@ into the repo (clearing the real files) before linking:
    ```
 3. Move the version-controllable files into the repo (skip any that don't exist):
    ```sh
-   mkdir -p ~/.config/hermes/profiles/<name>
-   mv ~/.hermes/profiles/<name>/{config.yaml,profile.yaml,SOUL.md,mcp.json,skills} \
-      ~/.config/hermes/profiles/<name>/
+   mkdir -p ~/ghq/github.com/craftsamo/dotconfig/hermes/profiles/<name>/skills
+   mv ~/.hermes/profiles/<name>/{profile.yaml,mcp.json} \
+      ~/ghq/github.com/craftsamo/dotconfig/hermes/profiles/<name>/
+   mv ~/.hermes/profiles/<name>/skills/<name>-pipeline \
+      ~/ghq/github.com/craftsamo/dotconfig/hermes/profiles/<name>/skills/
    ```
-   Commit a `SOUL.example.md` persona template; `SOUL.md` itself stays
-   untracked (put the real one in the private overlay). Commit the config as
-   `config.example.yaml` and keep the real `config.yaml` in the overlay
-   (`hermes/profiles/<name>/config.yaml` there): tests, the validator and a
-   fresh machine read the example.
+   `skills/` itself stays in HOME (`learned/` lives there); only the managed
+   `<name>-pipeline/` and `technic/` move. Commit a `SOUL.example.md` persona
+   template and move the real `SOUL.md` into the private overlay
+   (`hermes/profiles/<name>/SOUL.md` there). Commit the config as
+   `config.example.yaml` and move the real `config.yaml` into the overlay
+   likewise: tests, the validator and a fresh machine read the example.
 4. In that profile's `config.yaml`, point `skills.external_dirs` at the clone
    (`~/ghq/github.com/NousResearch/hermes-agent/skills`) — same as default.
-5. `./install.sh` — the `[hermes]` loop now symlinks them (no WARN).
+5. `./install.sh` (which runs the overlay's) — the `[hermes]` loop now links
+   them (no WARN).
 
 State (`memories/`, `sessions/`, `state.db*`, `cron/`, …) stays in
 `~/.hermes/profiles/<name>/` — never moved, never tracked. A new bot also needs
@@ -94,11 +102,13 @@ single host gateway serves every profile directory; there is no allowlist) — s
 
 ### Caveats
 
-- **Order matters / "already installed".** The symlink must exist _before_
+- **Order matters / "already installed".** The link must exist _before_
   Hermes writes a real file. If real files already exist (a named profile, or a
   `~/.hermes/` set up before this repo), `install.sh` won't replace them — use
   the move-then-`install.sh` adoption above. Hermes itself runs fine either way;
-  only the symlink tracking is affected.
+  only the link tracking is affected. A profile's `scripts/` is the one
+  directory of copies: edit the repo file and re-run `install.sh`; an edit made
+  in HOME is overwritten by the next run.
 - **Background / launchd processes** may start with a restricted `PATH`. The
   multiplex gateway launcher sets `PATH` explicitly and injects the approved
   Keychain layers before `exec`; other services must follow the same pattern.

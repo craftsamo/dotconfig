@@ -392,10 +392,8 @@ class GitBoundarySymlinkTest(unittest.TestCase):
         self.overlay_link.symlink_to(self.overlay / "skills" / "assistant-pipeline")
         self._original = VALIDATOR.PRIVATE_OVERLAY
         VALIDATOR.PRIVATE_OVERLAY = self.overlay
-        # A real, gitignored path inside the repo keeps the learned probe green.
-        self.learned = (
-            VALIDATOR.HERMES_ROOT / "profiles" / "assistant" / "skills" / "learned"
-        )
+        # A path outside the repository keeps the learned check green.
+        self.learned = root / "home" / "profiles" / "assistant" / "skills" / "learned"
 
     def tearDown(self) -> None:
         VALIDATOR.PRIVATE_OVERLAY = self._original
@@ -809,7 +807,9 @@ class LearnedPlacementTest(unittest.TestCase):
             shutil.copytree(source / "skills" / f"{profile}-pipeline",
                             target / "skills" / f"{profile}-pipeline")
             shutil.copy2(source / "config.example.yaml", target / "config.example.yaml")
-        learned = root / "profiles" / "audio-creator" / "skills" / "learned"
+        # Learned skills live in the profile HOME, beside the links into the tree.
+        home = Path(directory.name) / ".hermes"
+        learned = home / "profiles" / "audio-creator" / "skills" / "learned"
         for rel in ("flat", "audio/nested", "learned/doubled"):
             skill = learned / rel / "SKILL.md"
             skill.parent.mkdir(parents=True)
@@ -818,6 +818,7 @@ class LearnedPlacementTest(unittest.TestCase):
             )
         errors: list[str] = []
         with mock.patch.object(VALIDATOR, "HERMES_ROOT", root), \
+                mock.patch.object(VALIDATOR, "HERMES_HOME_ROOT", home), \
                 mock.patch.object(VALIDATOR, "validate_git_boundary", lambda *args: None):
             _leaves, count = VALIDATOR.validate_hands("audio-creator", errors)
         self.assertEqual([], errors)
