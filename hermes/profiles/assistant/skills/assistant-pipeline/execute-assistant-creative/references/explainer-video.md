@@ -24,9 +24,9 @@ remain outside that scope. Existing exact proposals and previews still apply.
 `analyze-explainer-video` sees the picture and the caption file only. The
 speech of the same video is audio-creator's `analyze-speech`
 ([speech](speech.md)) and its thumbnail image-creator's `analyze-card`
-([card](card.md)); a whole review of one or more videos is run by the
-`explainer-video-review` technic, which sends all three and keeps the
-findings in one ledger. Pass the caption file whenever one exists, put known
+([card](card.md)); a whole inspection of one or more videos is run by the
+`video-inspection` technic (its `explainer` reference), which sends all
+three and keeps the findings in one ledger. Pass the caption file whenever one exists, put known
 recurring defects or a portrait drawing check in `focus`, and set `deliver`
 to the video's own directory inside the review job.
 

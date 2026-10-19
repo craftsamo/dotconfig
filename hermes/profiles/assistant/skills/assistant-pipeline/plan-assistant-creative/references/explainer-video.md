@@ -6,10 +6,11 @@ An explanation of a topic for an audience with a learning goal. A visible
 software task is [tour.md](tour.md); a musical performance is
 [music-video.md](music-video.md).
 
-Reviewing explainer videos that already exist is findings-only work, not a
-new film: Execute runs it with the `explainer-video-review` technic. Settle
-here only which videos, which aspects and who will read the result; a reply
-format the requester wrote is applied only when the user says so.
+Inspecting explainer videos that already exist is findings-only work, not a
+new film: Execute runs it with the `video-inspection` technic and its
+`explainer` reference. Settle here only which videos, which aspects and who
+will read the result; a reply format the requester wrote is applied only
+when the user says so.
 
 ## Client decisions
 

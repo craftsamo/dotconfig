@@ -1,4 +1,5 @@
-"""Explainer-video reviews route to one technic that orchestrates, never produces."""
+"""Video inspections route to one technic that orchestrates, never produces;
+its genre references name the items and the picture leaf."""
 
 from pathlib import Path
 import unittest
@@ -9,40 +10,57 @@ from _pair import PUBLIC_ROOT
 
 
 ROOT = Path(__file__).resolve().parents[1]
-TECHNIC = PUBLIC_ROOT / "hermes/profiles/assistant/skills/technic/explainer-video-review"
-LOAD = 'skill_view(name="explainer-video-review")'
+TECHNIC = PUBLIC_ROOT / "hermes/profiles/assistant/skills/technic/video-inspection"
+LOAD = 'skill_view(name="video-inspection")'
 
 
 def flat(path: Path) -> str:
     return " ".join(path.read_text().split())
 
 
-class ExplainerVideoReviewRouting(unittest.TestCase):
-    def test_technic_is_a_technic_with_its_script(self):
+class VideoInspectionRouting(unittest.TestCase):
+    def test_technic_is_a_technic_with_its_script_and_genre_references(self):
         text = (TECHNIC / "SKILL.md").read_text()
         meta = yaml.safe_load(text.split("---", 2)[1])
-        self.assertEqual(meta["name"], "explainer-video-review")
+        self.assertEqual(meta["name"], "video-inspection")
         self.assertEqual(meta["metadata"]["hermes"]["category"], "technic")
         self.assertIn("Independent of the video's release state", " ".join(meta["description"].split()))
-        self.assertTrue((TECHNIC / "scripts/review.py").is_file())
+        self.assertTrue((TECHNIC / "scripts/inspection.py").is_file())
+        body = flat(TECHNIC / "SKILL.md")
+        for genre in ("explainer",):
+            self.assertTrue((TECHNIC / f"references/{genre}.md").is_file(), genre)
+            self.assertIn(f"](references/{genre}.md)", body, genre)
+        self.assertIn("Read the genre reference at step 1", body)
 
     def test_entries_load_the_technic(self):
         for entry in ("execute-assistant-creative/SKILL.md", "chat-assistant/SKILL.md"):
             self.assertIn(LOAD, flat(ROOT / entry), entry)
-        self.assertIn("`explainer-video-review`", flat(ROOT / "plan-assistant-creative/references/explainer-video.md"))
-        self.assertIn("`explainer-video-review`", flat(ROOT / "qa-assistant-creative/SKILL.md"))
+        self.assertIn("`video-inspection`", flat(ROOT / "plan-assistant-creative/references/explainer-video.md"))
+        self.assertIn("`video-inspection`", flat(ROOT / "qa-assistant-creative/SKILL.md"))
+        self.assertIn("`video-inspection`", flat(ROOT / "execute-assistant-creative/references/explainer-video.md"))
 
     def test_owners_and_transports(self):
         text = flat(TECHNIC / "SKILL.md")
-        for owner in ("video-creator `analyze-explainer-video`", "Never do this check yourself or through `delegate_task`",
-                      "review.py import", "`analyze-speech`", '`kind="work"`, at most five videos per conversation',
-                      "`analyze-card`", "`destination: youtube-thumb`",
+        for owner in ("the genre reference's analyze leaf", "Never do this check yourself or through `delegate_task`",
+                      "inspection.py import", "`analyze-speech`", '`kind="work"`, at most five videos per conversation',
+                      "`analyze-card`", "`destination: youtube-thumb` for a YouTube thumbnail",
                       "`technic: primary-fact-pack`", "`technic: claim-check`, through Creator",
                       "`write-document`, format `report`", "`prosody: yes` when voice is in scope",
-                      "never import a speech report as it is", "review.py triage-speech",
-                      'skill_view(name="google-access:google-sheets")', "review.py export", "review.py readback"):
+                      "never import a speech report as it is", "inspection.py triage-speech",
+                      'skill_view(name="google-access:google-sheets")', "inspection.py export", "inspection.py readback"):
             self.assertIn(owner, text)
         self.assertNotIn('analyze-speech` with `kind="inquiry"', text)
+        self.assertNotIn("analyze-explainer-video", text, "the picture leaf is the genre reference's, not the procedure's")
+
+    def test_the_explainer_reference_names_its_leaf_items_and_series(self):
+        text = flat(TECHNIC / "references/explainer.md")
+        for rule in ("video-creator's `analyze-explainer-video`", 'one `specialist_call(kind="work")` conversation per video',
+                     "at most 600 seconds", "`remote_analysis`: `no` unless the user consented",
+                     "| Aspect | Kind | Items", "| voice | reading |", "| content | figure |",
+                     "likeness itself is the user's call", "never says whether a portrait looks like a real person",
+                     'skill_view(name="explainer-series-notes")', "absent on a machine without it",
+                     "never written into a learned skill", "`--ignore` file"):
+            self.assertIn(rule, text)
 
     def test_the_spreadsheet_is_the_users_channel(self):
         text = flat(TECHNIC / "SKILL.md")
@@ -75,6 +93,7 @@ class ExplainerVideoReviewRouting(unittest.TestCase):
         self.assertIn("| Answers (seen, heard, checked), likeness, the final send | the user |", text)
         self.assertIn("leave the verdict to the user", text)
         self.assertIn("Nothing goes to the requester without the user's explicit OK", text)
+        self.assertIn("Keep taste out of the ledger", text)
 
 
 if __name__ == "__main__":

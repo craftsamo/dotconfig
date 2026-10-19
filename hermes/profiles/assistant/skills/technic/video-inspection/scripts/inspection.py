@@ -1,24 +1,24 @@
 #!/usr/bin/env python3
-"""Helpers for an explainer-video review job (stdlib only).
+"""Helpers for a video inspection job (stdlib only).
 
 The findings ledger (``ledger.json``) is the one source of every finding; the
-review sheet and the acceptance check of the written report are derived from
-it, so nothing is copied by hand.
+inspection sheet and the acceptance check of the written report are derived
+from it, so nothing is copied by hand.
 
-    review.py script   <captions.txt> <out.txt>       strip "[m:ss] " prefixes
-    review.py validate <ledger.json> [--final]        schema; --final also refuses open/recheck findings
-    review.py import   <ledger.json> <episode> <findings.md> --source NAME [--aspect A] [--kind K]
+    inspection.py script   <captions.txt> <out.txt>       strip "[m:ss] " prefixes
+    inspection.py validate <ledger.json> [--final]        schema; --final also refuses open/recheck findings
+    inspection.py import   <ledger.json> <episode> <findings.md> --source NAME [--aspect A] [--kind K]
                                                       add a hands report's `m:ss | aspect | ... ` lines
-    review.py triage-speech <ledger.json> <episode> <speech dir> [--ignore FILE] [--max-jumps N]
+    inspection.py triage-speech <ledger.json> <episode> <speech dir> [--ignore FILE] [--max-jumps N]
                                                       keep only value mismatches and mid-line jumps
-    review.py ask-draft  <ledger.json> <out.md>       `ID | problem` lines to reword as claims
-    review.py ask-import <ledger.json> <asks.md>      store the reworded questions
-    review.py kinds    <ledger.json>                  give findings imported without a kind one
-    review.py export   <ledger.json> <out.json>       rows, formulas, options and colours for the spreadsheet
-    review.py readback <ledger.json> <values.json>    take the spreadsheet's judgments into the ledger
-    review.py listen   <ledger.json> [--terms FILE]   add ear-check candidates from each caption file
-    review.py sheet    <ledger.json> <out.md> [--listen]   the Markdown review sheet
-    review.py check    <ledger.json> <report>         does the report carry every kept finding?
+    inspection.py ask-draft  <ledger.json> <out.md>       `ID | problem` lines to reword as claims
+    inspection.py ask-import <ledger.json> <asks.md>      store the reworded questions
+    inspection.py kinds    <ledger.json>                  give findings imported without a kind one
+    inspection.py export   <ledger.json> <out.json>       rows, formulas, options and colours for the spreadsheet
+    inspection.py readback <ledger.json> <values.json>    take the spreadsheet's judgments into the ledger
+    inspection.py listen   <ledger.json> [--terms FILE]   add ear-check candidates from each caption file
+    inspection.py sheet    <ledger.json> <out.md> [--listen]   the Markdown inspection sheet
+    inspection.py check    <ledger.json> <report>         does the report carry every kept finding?
 
 ``--terms`` names extra words to listen for: one term per line, or
 ``<episode label><TAB><term>`` for one episode only.
@@ -929,7 +929,7 @@ def cmd_export(args) -> int:
         fail("; ".join(errors))
     missing = [f["id"] for f in live(data) if f.get("aspect") in KIND_HINTS and not f.get("kind")]
     if missing:
-        fail(f"findings without a kind (run `review.py kinds` first): {', '.join(missing)}")
+        fail(f"findings without a kind (run `inspection.py kinds` first): {', '.join(missing)}")
     words = sheet_text(data)
     judgments = [words["judgments"][a] for a in ANSWERS]
     kinds = [words["kinds"][k] for k in KINDS] + [words["aspects"][a] for a in ("thumbnail", "portrait", "overall")]
