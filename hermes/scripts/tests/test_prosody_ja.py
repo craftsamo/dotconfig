@@ -130,9 +130,10 @@ class Speakers(unittest.TestCase):
         self.assertEqual(prosody.cluster_speakers([9.0, 2.0]), [1, 0])
 
 
-def line(at, rate, pitch_range, speaker=0, morae=10, pauses=(), at_period=()):
+def line(at, rate, pitch_range, speaker=0, morae=10, pauses=(), at_period=(), onset_tilt=-12.0, tilt=-12.0):
     return {"at": at, "text": "x", "morae": morae, "rate": rate, "pitch_range": pitch_range, "speaker": speaker,
-            "pauses": list(pauses), "pauses_at_period": list(at_period), "accent": []}
+            "pauses": list(pauses), "pauses_at_period": list(at_period), "accent": [],
+            "onset_tilt": onset_tilt, "tilt_median": tilt}
 
 
 @unittest.skipUnless(HAVE_NUMPY, "numpy is not installed")
@@ -150,6 +151,14 @@ class Delivery(unittest.TestCase):
     def test_short_lines_are_not_compared_for_pace(self):
         lines = [line(0, 6.0, 10.0), line(10, 6.0, 10.0), line(20, 15.0, 10.0, morae=4)]
         self.assertEqual(prosody.delivery_findings(lines), [])
+
+    def test_a_pushed_start_is_reported_only_when_asked(self):
+        lines = [line(0, 6.0, 10.0, tilt=-13.0), line(10, 6.0, 10.0, tilt=-12.0),
+                 line(38, 6.0, 10.0, onset_tilt=-5.6, tilt=-10.3), line(50, 6.0, 10.0, onset_tilt=-9.0, tilt=-12.0)]
+        self.assertEqual(prosody.delivery_findings(lines), [])
+        self.assertEqual(prosody.delivery_findings(lines, tension=True), [
+            "0:38 | voice | tension: the start is 6.4 dB brighter than speaker 0's lines (spectral tilt -5.6 "
+            "against -12.0) | prosody-ja speaker 0 | confirm"])
 
     def test_pauses_inside_a_line(self):
         lines = [line(0, 6.0, 10.0, pauses=[0.3, 1.5]), line(10, 6.0, 10.0, pauses=[0.04], at_period=[0.04])]
@@ -203,10 +212,15 @@ class LeafContract(unittest.TestCase):
         meta = yaml.safe_load(text.split("---", 2)[1])
         self.assertEqual(meta["metadata"]["hermes"]["form"]["captions"]["type"], "file")
         flat = " ".join(text.split())
-        for rule in ('uv run "${HERMES_SKILL_DIR}/../../scripts/prosody-ja.py" analyze',
-                     "quote them as they are, never reworded", "the dictionary accent is unreliable",
+        for rule in ('uv run "${HERMES_SKILL_DIR}/../../scripts/prosody-ja.py" analyze', "--tension",
+                     "Add `--accent` only when the note asks for the pitch-accent check",
+                     "quote them as they are, never reworded", "the dictionary is unreliable",
                      "never a download inside the job", "`prosody.md` copied under a named `deliver`"):
             self.assertIn(rule, flat)
+        self.assertEqual(prosody.main.__defaults__, (None,))
+        parser_help = prosody.__doc__
+        self.assertIn("--accent", parser_help)
+        self.assertIn("--tension", parser_help)
         self.assertTrue(SCRIPT.is_file())
         head = SCRIPT.read_text().splitlines()[:12]
         self.assertEqual(head[0], "#!/usr/bin/env -S uv run --script")

@@ -170,8 +170,9 @@ conversation (`plan-assistant-research`).
      `m:ss | voice | 「script words」→「heard words」 | ASR segment | confirm`
      (`「」` for words not heard; whole phrases, never single characters),
      plus speech absent from the script. With captions the leaf's
-     `prosody.md` carries the accent, pace, pause and flatness candidates,
-     each naming its item and compared within one speaker; without them its
+     `prosody.md` carries the pace, pause, flatness and tension candidates,
+     each naming its item and compared within one speaker (the pitch-accent
+     check only when the user asks about accents); without them its
      prosody lines name each jump against the previous segment
      (`+7.7 st` / `-12.9 dB vs previous`), which is mostly the next speaker.
      ASR runs over music, so nearly every line is noise: never import a

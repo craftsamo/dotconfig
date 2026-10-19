@@ -37,7 +37,7 @@ metadata:
       captions:
         required: false
         type: file
-        label: "the words as written with each line's start, `[m:ss] text` lines; with prosody yes and language ja this adds the per-speaker accent, pace, pause and flatness candidates"
+        label: "the words as written with each line's start, `[m:ss] text` lines; with prosody yes and language ja this adds the per-speaker pace, pause, flatness and tension candidates (pitch accent on request)"
       note:
         required: false
         type: text
@@ -78,24 +78,28 @@ metadata:
    made with `ffmpeg` into the scratch directory, is its input):
 
    ```sh
-   uv run "${HERMES_SKILL_DIR}/../../scripts/prosody-ja.py" analyze <wav> --captions <captions> --out <scratch>/prosody-ja.json --lines <scratch>/prosody.md
+   uv run "${HERMES_SKILL_DIR}/../../scripts/prosody-ja.py" analyze <wav> --captions <captions> --out <scratch>/prosody-ja.json --lines <scratch>/prosody.md --tension
    ```
 
-   It compares every accent phrase's pitch with the dictionary's accent,
-   groups the lines into speakers by pitch, and compares each speaker's
-   lines with each other for pace (morae per second), pauses at 。 and
-   pitch range. `prosody.md` holds one line per candidate already in the
+   It places every mora, groups the lines into speakers by pitch, and
+   compares each speaker's lines with each other for pace (morae per
+   second), pauses at 。, pitch range and, with `--tension`, a start pushed
+   harder than the speaker's other lines (spectral tilt; experimental,
+   calibrated on few ear-marked spots). Add `--accent` only when the note
+   asks for the pitch-accent check: it compares every accent phrase with
+   the dictionary, and the dictionary is unreliable enough on loanwords and
+   compounds that a round yields a dozen candidates a listener finds
+   natural. `prosody.md` holds one line per candidate already in the
    inspection's shape, `m:ss | voice | <item>: … | prosody-ja … | confirm`
-   with the item one of `accent`, `pace`, `pause`, `flat`: quote them as
-   they are, never reworded, and when the commission names a `deliver`
-   directory copy `prosody.md` there (`cp`, literal paths) so the ledger
-   can import it. Say with them that the dictionary accent is unreliable
-   on loanwords and compounds, that a word the dictionary spells letter by
-   letter (Latin script) was not checked (`phrases_skipped`), and that the
-   speakers are pitch clusters, not identities. The skipped segment jumps
-   of step 4 are not needed when this ran: speakers change between lines
-   by design. An `ERROR: the alignment model is not cached` is a gap to
-   report, never a download inside the job.
+   with the item one of `pace`, `pause`, `flat`, `tension`, `accent`: quote
+   them as they are, never reworded, and when the commission names a
+   `deliver` directory copy `prosody.md` there (`cp`, literal paths) so the
+   ledger can import it. Say with them that a word the dictionary spells
+   letter by letter (Latin script) was not aligned by accent
+   (`phrases_skipped`) and that the speakers are pitch clusters, not
+   identities. The segment jumps of step 4 are not needed when this ran:
+   speakers change between lines by design. An `ERROR: the alignment model
+   is not cached` is a gap to report, never a download inside the job.
 
 </Procedure>
 
