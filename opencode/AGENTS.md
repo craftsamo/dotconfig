@@ -235,11 +235,10 @@ For read-only codebase exploration, prefer the built-in `subagent` tool with
 - `explore-max` — only for difficult, high-stakes, or previously failed
   exploration.
 
-These agents have their own default models (small on the OpenAI pool, spark
-on Anthropic Haiku for narrow lookups, medium/high/max on the Claude pool) so
-normal exploration does not inherit the primary's model. Use the default `explore`
-subagent only when the primary model is specifically needed for the
-exploration.
+These agents have their own default models (every tier on the ChatGPT
+window, spark/medium/high in fast mode) so normal exploration does not
+inherit the primary's model. Use the default `explore` subagent only when the
+primary model is specifically needed for the exploration.
 
 </ExplorationDelegation>
 
