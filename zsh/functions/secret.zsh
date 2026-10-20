@@ -1,28 +1,31 @@
 # secret.zsh — manage secrets in the macOS Keychain (CLI + fzf wizard)
 #
 #   secret                       interactive wizard (fzf)
-#   secret set NAME [-p proj] [-S|--scope X] [-j comment] [-D kind] [--meta K=V]... [--new] [--stdin]
+#   secret set NAME [-p proj] [-S|--scope X] [--stage S|--no-stage] [-j comment] [-D kind] [--meta K=V]... [--new] [--stdin]
 #   secret update NAME [-p proj] [LAYER] [-j comment] [-D kind] [--meta K=V]... [--value|--stdin]
 #   secret get NAME [-p proj] [LAYER] [-c|--copy]
 #   secret show NAME [-p proj] [LAYER]
-#   secret ls [-p proj] [-l|--long] [--meta KEY[=VALUE]]
+#   secret ls [-p proj] [-l|--long] [--meta KEY[=VALUE]] [--stage S|--no-stage]
 #   secret projects
-#   secret env [-p proj] [--scope X]
+#   secret env [-p proj] [--scope X] [--stage S|--no-stage]
 #   secret rm NAME [-p proj] [LAYER] [-f|--force]
 #   secret link [NAME|--unset]
 #   secret export [-p proj|--all] [-o FILE] [--format age|json|env]
-#   secret import FILE [-p proj] [-S|--scope X] [-y|--yes]
+#   secret import FILE [-p proj] [-S|--scope X] [--stage S|--no-stage] [-y|--yes]
 #   secret migrate [-p proj|--all] [--dry-run]
 #   secret keychain create|ls|info|lock|unlock|remember|register|master|rm ...
 #   secret help
 #
-# LAYER flags: default is scoped-then-shared (DWIM); -S = this repo's scope,
-# --scope X = that scope, --shared = the shared layer. Scoped items override
-# shared ones per repository within one project.
+# LAYER flags: default is most-specific-first (DWIM); -S = this repo's
+# scope, --scope X = that scope, --shared = the shared layer; --stage S /
+# --no-stage pin the stage ($SECRET_STAGE otherwise). Scoped items override
+# shared ones per repository, staged items override stage-less ones per
+# environment, within one project.
 #
 # Data model — native keychain attributes (fully visible in Keychain Access):
-#   service = secret.<project>      account = NAME (the unique lookup key)
-#   label   = NAME inside the project's own keychain, else <project>/NAME
+#   service = secret.<project>[/<scope>][@<stage>]   account = NAME (unique key)
+#   label   = [<scope>/]NAME[@<stage>] inside the project's own keychain,
+#             else prefixed with <project>/
 #   kind    = -D (upper-cased, default "ENV")  comment = -j (free-form description)
 #   type    = -C four-char code: "envn" = never emitted by `secret env`,
 #             "envy" or unset = emitted (the ENV setting)
@@ -182,34 +185,72 @@ _secret_check_name() {
 }
 
 _secret_check_project() {
-  [[ -n $1 && $1 != *[/$'\t'$'\n']* ]] && return 0
-  _secret_err "invalid project name '$1' (must be non-empty, no '/', tabs or newlines)"
+  [[ -n $1 && $1 != *[/@$'\t'$'\n']* ]] && return 0
+  _secret_err "invalid project name '$1' (must be non-empty, no '/', '@', tabs or newlines)"
   return 1
 }
 
 _secret_check_scope() {
-  [[ -n $1 && $1 != *[/$'\t'$'\n']* ]] && return 0
-  _secret_err "invalid scope name '$1' (must be non-empty, no '/', tabs or newlines)"
+  [[ -n $1 && $1 != *[/@$'\t'$'\n']* ]] && return 0
+  _secret_err "invalid scope name '$1' (must be non-empty, no '/', '@', tabs or newlines)"
   return 1
 }
 
-# Scopes: per-repository overrides inside one project.
-#   service "secret.<project>"          shared layer (scope = "")
-#   service "secret.<project>/<scope>"  scoped layer
-_secret_service() {            # $1 project  $2 scope ("" = shared)
-  if [[ -n $2 ]]; then
-    print -r -- "secret.$1/$2"
-  else
-    print -r -- "secret.$1"
-  fi
+_secret_check_stage() {
+  [[ $1 =~ '^[A-Za-z0-9_-]+$' ]] && return 0
+  _secret_err "invalid stage name '$1' (letters, digits, '_' and '-')"
+  return 1
 }
 
+# Layers: a scope (per-repository override) and a stage (per-environment
+# override: prod, test, ...) inside one project. Internally a layer is one
+# string, "<scope>[@<stage>]" — "" is the shared layer, "@prod" the shared
+# layer of stage prod, "api@prod" scope api of stage prod.
+#   service "secret.<project>"                 shared layer
+#   service "secret.<project>/<scope>"         scoped layer
+#   service "secret.<project>@<stage>"         shared layer of a stage
+#   service "secret.<project>/<scope>@<stage>" scoped layer of a stage
+_secret_service() {            # $1 project  $2 layer ("" = shared)
+  local scope=${2%%@*} stage=""
+  [[ $2 == *@* ]] && stage=${2#*@}
+  print -r -- "secret.$1${scope:+/$scope}${stage:+@$stage}"
+}
+
+_secret_layer() {              # $1 scope  $2 stage -> layer string
+  print -r -- "$1${2:+@$2}"
+}
+
+_secret_layer_scope() { print -r -- "${1%%@*}"; }
+_secret_layer_stage() { [[ $1 == *@* ]] && print -r -- "${1#*@}"; return 0; }
+
+# "<project>/<scope>/NAME@<stage>" — how an item is named in messages
+_secret_disp() {               # $1 project  $2 layer  $3 name
+  local scope stage
+  scope=$(_secret_layer_scope "$2"); stage=$(_secret_layer_stage "$2")
+  print -r -- "$1/${scope:+$scope/}$3${stage:+@$stage}"
+}
+
+# The stage every command works in: --stage S > $SECRET_STAGE > none;
+# --no-stage forces the stage-less layers whatever the environment says.
+_secret_resolve_stage() {      # $1 --stage value ("" if absent)  $2 --no-stage flag (0/1)
+  if (( $2 )); then return 0; fi
+  local s=${1:-${SECRET_STAGE:-}}
+  [[ -z $s ]] && return 0
+  _secret_check_stage "$s" || return 1
+  print -r -- "$s"
+}
+
+# The repository basename is only a scope when it is a valid scope name: a
+# directory called "api@prod" would otherwise read as scope api of stage
+# prod. Such a repository has no ambient scope (reads fall through to the
+# shared layer); -S on it is refused below.
 _secret_ambient_scope() {      # $1 project -> repo-derived scope ("" when none)
   local top
   top=$(command git rev-parse --show-toplevel 2>/dev/null)
   [[ -z $top ]] && return 0
   local sc=${top:t}
   [[ $sc == "$1" ]] && return 0     # the repo IS the project: shared
+  _secret_check_scope "$sc" 2>/dev/null || return 0
   print -r -- "$sc"
 }
 
@@ -225,8 +266,13 @@ _secret_resolve_scope() {
     return 0
   fi
   (( scoped )) || return 0
-  if ! command git rev-parse --show-toplevel >/dev/null 2>&1; then
+  local top
+  if ! top=$(command git rev-parse --show-toplevel 2>/dev/null) || [[ -z $top ]]; then
     _secret_err "-S/--scoped needs a git repository (or use --scope NAME)"
+    return 1
+  fi
+  if [[ ${top:t} != "$proj" ]] && ! _secret_check_scope "${top:t}"; then
+    _secret_err "-S/--scoped: the repository name is no scope name (use --scope NAME)"
     return 1
   fi
   _secret_ambient_scope "$proj"
@@ -374,16 +420,17 @@ _secret_meta_matches() {       # $1 generic attribute  $2 KEY or KEY=VALUE filte
   fi
 }
 
-_secret_row_of() {             # $1 name  $2 project  $3 scope -> the item's TSV row ("" when absent)
-  _secret_rows "$2" | awk -F'\t' -v n="$1" -v s="$3" '$2 == n && $7 == s { print; exit }'
+_secret_row_of() {             # $1 name  $2 project  $3 layer -> the item's TSV row ("" when absent)
+  _secret_rows "$2" | awk -F'\t' -v n="$1" -v s="$(_secret_layer_scope "$3")" -v t="$(_secret_layer_stage "$3")" \
+    '$2 == n && $7 == s && $10 == t { print; exit }'
 }
 
 # $6 env: yes|no writes the type code, "keep" / absent leaves an existing
 # item's setting as it is — a value rewrite never re-enables what --no-env
 # turned off. $7 meta: the whole generic attribute to write ("" clears every
 # field), or "keep" / absent to leave it alone.
-_secret_store() {              # $1 name $2 project $3 comment $4 kind $5 scope [$6 env [$7 meta [$8 new]]] ; value on stdin
-  local name=$1 proj=$2 comment=$3 kind=$4 scope=$5 env=${6-keep} meta=${7-keep} create=${8-} value extra err
+_secret_store() {              # $1 name $2 project $3 comment $4 kind $5 layer [$6 env [$7 meta [$8 new]]] ; value on stdin
+  local name=$1 proj=$2 comment=$3 kind=$4 layer=$5 env=${6-keep} meta=${7-keep} create=${8-} value extra err
   IFS= read -r value
   if IFS= read -r extra; then
     _secret_err "$proj/$name: multi-line values are not supported"; return 1
@@ -396,14 +443,15 @@ _secret_store() {              # $1 name $2 project $3 comment $4 kind $5 scope 
   fi
   local kc svc
   kc=$(_secret_kc_for "$proj")
-  svc=$(_secret_service "$proj" "$scope")
+  svc=$(_secret_service "$proj" "$layer")
   _secret_kc_prepare "$proj" "$kc" || return 1
   _secret_kc_ensure "$kc"
-  # label: NAME (shared) / "<scope>/NAME" (scoped) inside the project's own
-  # keychain; prefixed with "<project>/" elsewhere (-k default, cross -k)
-  local label=$name
-  [[ -n $scope ]] && label="$scope/$name"
-  [[ ${${kc:t}%.keychain-db} == "$proj" ]] || label="$proj/$label"
+  # label: NAME (shared) / "<scope>/NAME" (scoped) / "...@<stage>" (staged)
+  # inside the project's own keychain; prefixed with "<project>/" elsewhere
+  # (-k default, cross -k)
+  local label
+  label=$(_secret_disp "$proj" "$layer" "$name")
+  [[ ${${kc:t}%.keychain-db} == "$proj" ]] && label=${label#$proj/}
   # -U updates an existing item in place; a create-only write (--new) leaves it out, so security
   # itself refuses an item that already exists
   local cmd="add-generic-password"
@@ -422,55 +470,59 @@ _secret_store() {              # $1 name $2 project $3 comment $4 kind $5 scope 
   # create-only: any complaint from security (an existing item, in whatever language) is a refusal,
   # even if an item of that name is there now: it may not be this one
   if [[ $create == new && -n $err ]]; then
-    _secret_err "$proj/${scope:+$scope/}$name was not stored as new — ${err//$'\n'/ }"
+    _secret_err "$(_secret_disp "$proj" "$layer" "$name") was not stored as new — ${err//$'\n'/ }"
     return 1
   fi
   if ! security find-generic-password -s "$svc" -a "$name" "$kc" >/dev/null 2>&1; then
-    _secret_err "failed to store $proj/${scope:+$scope/}$name${err:+ — ${err//$'\n'/ }}"
+    _secret_err "failed to store $(_secret_disp "$proj" "$layer" "$name")${err:+ — ${err//$'\n'/ }}"
     return 1
   fi
 }
 
-_secret_get_value() {          # $1 name  $2 project  $3 scope -> value on stdout
+_secret_get_value() {          # $1 name  $2 project  $3 layer -> value on stdout
   local kc
   kc=$(_secret_kc_for "$2")
   _secret_kc_ensure "$kc"
   security find-generic-password -s "$(_secret_service "$2" "$3")" -a "$1" -w "$kc" 2>/dev/null
 }
 
-_secret_exists() {             # $1 name  $2 project  $3 scope (attributes only)
+_secret_exists() {             # $1 name  $2 project  $3 layer (attributes only)
   local kc
   kc=$(_secret_kc_for "$2")
   _secret_kc_ensure "$kc"
   security find-generic-password -s "$(_secret_service "$2" "$3")" -a "$1" "$kc" >/dev/null 2>&1
 }
 
-_secret_delete() {             # $1 name  $2 project  $3 scope
+_secret_delete() {             # $1 name  $2 project  $3 layer
   local kc
   kc=$(_secret_kc_for "$2")
   _secret_kc_ensure "$kc"
   security delete-generic-password -s "$(_secret_service "$2" "$3")" -a "$1" "$kc" >/dev/null 2>&1
 }
 
-# Layer resolution for read/modify commands: scoped first (when an ambient
-# or explicit scope applies), then the shared layer.
-#   $1 name  $2 project  $3 candidate scope
-# Prints the scope of the layer that holds the item; returns 1 if neither.
+# Layer resolution for read/modify commands, most specific first: the
+# stage's scoped layer, the stage's shared layer, the scoped layer, the
+# shared layer (whichever of scope / stage apply).
+#   $1 name  $2 project  $3 candidate scope  $4 candidate stage
+# Prints the layer that holds the item; returns 1 if none.
 _secret_find_layer() {
-  local name=$1 proj=$2 scope=$3
-  if [[ -n $scope ]] && _secret_exists "$name" "$proj" "$scope"; then
-    print -r -- "$scope"
-    return 0
-  fi
-  if _secret_exists "$name" "$proj" ""; then
-    print -r -- ""
-    return 0
-  fi
+  local name=$1 proj=$2 scope=$3 stage=$4 cand
+  local -a cands
+  [[ -n $scope && -n $stage ]] && cands+=("$(_secret_layer "$scope" "$stage")")
+  [[ -n $stage ]] && cands+=("$(_secret_layer "" "$stage")")
+  [[ -n $scope ]] && cands+=("$scope")
+  cands+=("")
+  for cand in "${cands[@]}"; do
+    if _secret_exists "$name" "$proj" "$cand"; then
+      print -r -- "$cand"
+      return 0
+    fi
+  done
   return 1
 }
 
 # All secret.* items in one keychain ($1, defaults to $_kc).
-# TSV rows: project \t name \t label \t kind \t comment \t mdate \t scope \t meta \t type
+# TSV rows: project \t name \t label \t kind \t comment \t mdate \t scope \t meta \t type \t stage
 _secret_dump_items() {
   local kc=${1:-$_kc}
   _secret_kc_ensure "$kc"
@@ -495,13 +547,16 @@ _secret_dump_items() {
       gsub(/^"|"$/, "", s)
       return s
     }
-    function flush(   rest, slash, proj, scope) {
+    function flush(   rest, at, slash, proj, scope, stage) {
       if (item && svce ~ /^secret\./) {
         rest = substr(svce, 8)
+        at = index(rest, "@")
+        if (at > 0) { stage = substr(rest, at + 1); rest = substr(rest, 1, at - 1) }
+        else        { stage = "" }
         slash = index(rest, "/")
         if (slash > 0) { proj = substr(rest, 1, slash - 1); scope = substr(rest, slash + 1) }
         else           { proj = rest; scope = "" }
-        printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n", proj, acct, labl, desc, icmt, mdat, scope, gena, ctyp
+        printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n", proj, acct, labl, desc, icmt, mdat, scope, gena, ctyp, stage
       }
       item = 0
     }
@@ -532,7 +587,13 @@ _secret_rows() {               # $1 project ("" = every registered keychain)
     for kc in ${(f)"$(_secret_kc_customs)"}; do
       [[ -n $kc ]] && _secret_dump_items "$kc"
     done
-  fi | sort -t$'\t' -k1,1 -k7,7 -k2,2
+  fi | sort -t$'\t' -k1,1 -k10,10 -k7,7 -k2,2
+}
+
+_secret_row_layer() {          # $1 TSV row -> its layer string
+  local -a f
+  f=("${(@ps:\t:)1}")
+  _secret_layer "${f[7]}" "${f[10]}"
 }
 
 _secret_clip() {               # copy $1, auto-clear after 45s if still ours
@@ -576,6 +637,7 @@ _secret_plan_attrs() {         # $1 row ("" = new item)  $2 env_opt (yes|no|"") 
 
 _secret_cmd_set() {
   local name="" proj="" comment="" kind="" from_stdin=0 scoped=0 scope_opt="" env_opt="" create=""
+  local stage_opt="" no_stage=0
   local -a meta_opts
   while (( $# )); do
     case $1 in
@@ -584,6 +646,8 @@ _secret_cmd_set() {
       -D) kind=$2; shift 2 ;;
       -S|--scoped) scoped=1; shift ;;
       --scope) scope_opt=$2; shift 2 ;;
+      --stage) stage_opt=$2; shift 2 ;;
+      --no-stage) no_stage=1; shift ;;
       --meta) meta_opts+=("$2"); shift 2 ;;
       --new) create=new; shift ;;
       --stdin) from_stdin=1; shift ;;
@@ -597,47 +661,56 @@ _secret_cmd_set() {
   _secret_check_name "$name" || return 2
   proj=$(_secret_resolve_project "$proj")
   _secret_check_project "$proj" || return 2
-  local scope
+  local scope stage layer
   scope=$(_secret_resolve_scope "$scope_opt" $scoped "$proj") || return 2
-  if [[ $create == new ]] && _secret_exists "$name" "$proj" "$scope"; then
-    _secret_err "set: $proj/${scope:+$scope/}$name already exists; --new never overwrites"
+  stage=$(_secret_resolve_stage "$stage_opt" $no_stage) || return 2
+  layer=$(_secret_layer "$scope" "$stage")
+  local disp
+  disp=$(_secret_disp "$proj" "$layer" "$name")
+  if [[ $create == new ]] && _secret_exists "$name" "$proj" "$layer"; then
+    _secret_err "set: $disp already exists; --new never overwrites"
     return 1
   fi
   # no --env/--no-env/--meta: an existing item keeps its attributes, a new one has none
   local row="" _plan_env _plan_meta
   local -a f
   if [[ -n $env_opt ]] || (( ${#meta_opts} )); then
-    row=$(_secret_row_of "$name" "$proj" "$scope")
+    row=$(_secret_row_of "$name" "$proj" "$layer")
   fi
   _secret_plan_attrs "$row" "$env_opt" "${meta_opts[@]}" || return 2
   f=("${(@ps:\t:)row}")
 
   if (( from_stdin )) || [[ ! -t 0 ]]; then
-    _secret_store "$name" "$proj" "$comment" "$kind" "$scope" "$_plan_env" "$_plan_meta" "$create" || return 1
+    _secret_store "$name" "$proj" "$comment" "$kind" "$layer" "$_plan_env" "$_plan_meta" "$create" || return 1
   else
     local value
-    value=$(_secret_prompt_value "$proj/${scope:+$scope/}$name") || return 1
-    print -r -- "$value" | _secret_store "$name" "$proj" "$comment" "$kind" "$scope" "$_plan_env" "$_plan_meta" "$create" || return 1
+    value=$(_secret_prompt_value "$disp") || return 1
+    print -r -- "$value" | _secret_store "$name" "$proj" "$comment" "$kind" "$layer" "$_plan_env" "$_plan_meta" "$create" || return 1
   fi
   local lbl note=""
   lbl=$(_secret_kc_label "$proj")
   if [[ $_plan_env == no ]]; then
     note=" (env: no)"
   elif [[ $_plan_env == keep ]]; then
-    [[ -n $row ]] || row=$(_secret_row_of "$name" "$proj" "$scope")
+    [[ -n $row ]] || row=$(_secret_row_of "$name" "$proj" "$layer")
     f=("${(@ps:\t:)row}")
     _secret_env_on "${f[9]}" "${f[8]}" || note=" (env: no)"
   fi
-  print -r -- "stored $proj/${scope:+$scope/}$name$note${lbl:+ [keychain: $lbl]}"
+  print -r -- "stored $disp$note${lbl:+ [keychain: $lbl]}"
 }
 
 # Shared layer-targeting flags for get/show/rm/update:
-#   (none)      DWIM — the ambient scope first, then the shared layer
+#   (none)      DWIM — the stage's scoped layer, the stage's shared layer,
+#               the ambient scope, then the shared layer
 #   -S/--scoped the ambient scope only
 #   --scope X   that scope only
 #   --shared    the shared layer only
-# Sets $_layer_scope and $_layer_mode (auto|exact) in the caller's scope.
-_secret_layer_flags() {        # $1 scope_opt  $2 scoped  $3 shared  $4 project
+#   --stage S / --no-stage pin the stage ($SECRET_STAGE otherwise); with a
+#   stage, the exact flags above address that stage's layer
+# Sets $_layer_scope, $_layer_stage and $_layer_mode (auto|exact) in the
+# caller's scope.
+_secret_layer_flags() {        # $1 scope_opt  $2 scoped  $3 shared  $4 project  $5 stage_opt  $6 no_stage
+  _layer_stage=$(_secret_resolve_stage "${5-}" "${6-0}") || return 1
   if [[ -n $1 ]]; then
     _layer_scope=$(_secret_resolve_scope "$1" 0 "$4") || return 1
     _layer_mode=exact
@@ -654,21 +727,28 @@ _secret_layer_flags() {        # $1 scope_opt  $2 scoped  $3 shared  $4 project
   return 0
 }
 
-# Locate an item according to $_layer_mode/$_layer_scope.
-# Prints the owning scope; returns 1 when the item is not found.
+# Locate an item according to $_layer_mode/$_layer_scope/$_layer_stage.
+# Prints the owning layer; returns 1 when the item is not found.
 _secret_locate() {             # $1 name  $2 project
   if [[ $_layer_mode == exact ]]; then
-    _secret_exists "$1" "$2" "$_layer_scope" || return 1
-    print -r -- "$_layer_scope"
+    local layer
+    layer=$(_secret_layer "$_layer_scope" "$_layer_stage")
+    _secret_exists "$1" "$2" "$layer" || return 1
+    print -r -- "$layer"
     return 0
   fi
-  _secret_find_layer "$1" "$2" "$_layer_scope"
+  _secret_find_layer "$1" "$2" "$_layer_scope" "$_layer_stage"
+}
+
+# "not found" wording for the layer flags in effect
+_secret_layer_disp() {         # $1 project  $2 name -> display for $_layer_scope/$_layer_stage
+  _secret_disp "$1" "$(_secret_layer "$_layer_scope" "$_layer_stage")" "$2"
 }
 
 _secret_cmd_update() {
   local name="" proj="" comment="" kind="" env_opt=""
   local comment_set=0 kind_set=0 want_value=0 from_stdin=0
-  local scoped=0 shared=0 scope_opt=""
+  local scoped=0 shared=0 scope_opt="" stage_opt="" no_stage=0
   local -a meta_opts
   while (( $# )); do
     case $1 in
@@ -681,6 +761,8 @@ _secret_cmd_update() {
       -S|--scoped) scoped=1; shift ;;
       --scope) scope_opt=$2; shift 2 ;;
       --shared) shared=1; shift ;;
+      --stage) stage_opt=$2; shift 2 ;;
+      --no-stage) no_stage=1; shift ;;
       --value) want_value=1; shift ;;
       --stdin) from_stdin=1; shift ;;
       -*) _secret_err "update: unknown option '$1'"; return 2 ;;
@@ -689,12 +771,13 @@ _secret_cmd_update() {
   done
   [[ -z $name ]] && { _secret_err "update: NAME required"; return 2 }
   proj=$(_secret_resolve_project "$proj")
-  local _layer_scope _layer_mode layer
-  _secret_layer_flags "$scope_opt" $scoped $shared "$proj" || return 2
+  local _layer_scope _layer_stage _layer_mode layer disp
+  _secret_layer_flags "$scope_opt" $scoped $shared "$proj" "$stage_opt" $no_stage || return 2
   if ! layer=$(_secret_locate "$name" "$proj"); then
-    _secret_err "not found: $proj/${_layer_scope:+$_layer_scope/}$name (use 'secret set' to create it)"
+    _secret_err "not found: $(_secret_layer_disp "$proj" "$name") (use 'secret set' to create it)"
     return 1
   fi
+  disp=$(_secret_disp "$proj" "$layer" "$name")
   if (( ! want_value && ! from_stdin && ! comment_set && ! kind_set && ! ${#meta_opts} )) && [[ -z $env_opt ]]; then
     _secret_err "update: nothing to do (use --value/--stdin, -j COMMENT, -D KIND, --meta K=V, --env/--no-env)"
     return 2
@@ -714,10 +797,10 @@ _secret_cmd_update() {
   else
     local value
     if (( want_value )); then
-      value=$(_secret_prompt_value "$proj/${layer:+$layer/}$name") || return 1
+      value=$(_secret_prompt_value "$disp") || return 1
     else
       value=$(_secret_get_value "$name" "$proj" "$layer") || {
-        _secret_err "cannot read current value of $proj/${layer:+$layer/}$name"; return 1
+        _secret_err "cannot read current value of $disp"; return 1
       }
     fi
     print -r -- "$value" | _secret_store "$name" "$proj" "$comment" "$kind" "$layer" "$_plan_env" "$_plan_meta" || return 1
@@ -731,11 +814,11 @@ _secret_cmd_update() {
   [[ -n $env_opt ]] && parts+=("env: $env_opt")
   local lbl
   lbl=$(_secret_kc_label "$proj")
-  print -r -- "updated $proj/${layer:+$layer/}$name (${(j:, :)parts})${lbl:+ [keychain: $lbl]}"
+  print -r -- "updated $disp (${(j:, :)parts})${lbl:+ [keychain: $lbl]}"
 }
 
 _secret_cmd_get() {
-  local name="" proj="" copy=0 scoped=0 shared=0 scope_opt=""
+  local name="" proj="" copy=0 scoped=0 shared=0 scope_opt="" stage_opt="" no_stage=0
   while (( $# )); do
     case $1 in
       -p) proj=$2; shift 2 ;;
@@ -743,52 +826,57 @@ _secret_cmd_get() {
       -S|--scoped) scoped=1; shift ;;
       --scope) scope_opt=$2; shift 2 ;;
       --shared) shared=1; shift ;;
+      --stage) stage_opt=$2; shift 2 ;;
+      --no-stage) no_stage=1; shift ;;
       -*) _secret_err "get: unknown option '$1'"; return 2 ;;
       *) name=$1; shift ;;
     esac
   done
   [[ -z $name ]] && { _secret_err "get: NAME required"; return 2 }
   proj=$(_secret_resolve_project "$proj")
-  local _layer_scope _layer_mode layer v
-  _secret_layer_flags "$scope_opt" $scoped $shared "$proj" || return 2
+  local _layer_scope _layer_stage _layer_mode layer v disp
+  _secret_layer_flags "$scope_opt" $scoped $shared "$proj" "$stage_opt" $no_stage || return 2
   if ! layer=$(_secret_locate "$name" "$proj"); then
-    _secret_err "not found: $proj/${_layer_scope:+$_layer_scope/}$name"
+    _secret_err "not found: $(_secret_layer_disp "$proj" "$name")"
     return 1
   fi
+  disp=$(_secret_disp "$proj" "$layer" "$name")
   v=$(_secret_get_value "$name" "$proj" "$layer") || {
-    _secret_err "cannot read $proj/${layer:+$layer/}$name"; return 1
+    _secret_err "cannot read $disp"; return 1
   }
   if (( copy )); then
     _secret_clip "$v"
-    print -r -- "copied $proj/${layer:+$layer/}$name to clipboard (clears in 45s)"
+    print -r -- "copied $disp to clipboard (clears in 45s)"
   else
     print -r -- "$v"
   fi
 }
 
 _secret_cmd_show() {
-  local name="" proj="" scoped=0 shared=0 scope_opt=""
+  local name="" proj="" scoped=0 shared=0 scope_opt="" stage_opt="" no_stage=0
   while (( $# )); do
     case $1 in
       -p) proj=$2; shift 2 ;;
       -S|--scoped) scoped=1; shift ;;
       --scope) scope_opt=$2; shift 2 ;;
       --shared) shared=1; shift ;;
+      --stage) stage_opt=$2; shift 2 ;;
+      --no-stage) no_stage=1; shift ;;
       -*) _secret_err "show: unknown option '$1'"; return 2 ;;
       *) name=$1; shift ;;
     esac
   done
   [[ -z $name ]] && { _secret_err "show: NAME required"; return 2 }
   proj=$(_secret_resolve_project "$proj")
-  local _layer_scope _layer_mode layer
-  _secret_layer_flags "$scope_opt" $scoped $shared "$proj" || return 2
+  local _layer_scope _layer_stage _layer_mode layer
+  _secret_layer_flags "$scope_opt" $scoped $shared "$proj" "$stage_opt" $no_stage || return 2
   if ! layer=$(_secret_locate "$name" "$proj"); then
-    _secret_err "not found: $proj/${_layer_scope:+$_layer_scope/}$name"
+    _secret_err "not found: $(_secret_layer_disp "$proj" "$name")"
     return 1
   fi
   local row
   row=$(_secret_row_of "$name" "$proj" "$layer")
-  [[ -z $row ]] && { _secret_err "not found: $proj/${layer:+$layer/}$name"; return 1 }
+  [[ -z $row ]] && { _secret_err "not found: $(_secret_disp "$proj" "$layer" "$name")"; return 1 }
   local -a f fields
   f=("${(@ps:\t:)row}")
   fields=(${(f)"$(_secret_meta_fields "${f[8]}")"})
@@ -796,6 +884,7 @@ _secret_cmd_show() {
     'Name:'     "${f[2]}" \
     'Project:'  "${f[1]}" \
     'Scope:'    "${f[7]:-Shared}" \
+    'Stage:'    "${f[10]:-(none)}" \
     'Label:'    "${f[3]}" \
     'Kind:'     "${f[4]}" \
     'Comment:'  "${f[5]}" \
@@ -811,11 +900,14 @@ _secret_cmd_show() {
 _secret_cmd_ls() {
   local proj="" long=0
   local -a meta_filters
+  local stage_filter="" stage_set=0
   while (( $# )); do
     case $1 in
       -p) proj=$2; shift 2 ;;
       -l|--long) long=1; shift ;;
       --meta) meta_filters+=("$2"); shift 2 ;;
+      --stage) stage_filter=$2; stage_set=1; shift 2 ;;
+      --no-stage) stage_filter=""; stage_set=1; shift ;;
       -*) _secret_err "ls: unknown option '$1'"; return 2 ;;
       *) _secret_err "ls: unexpected argument '$1'"; return 2 ;;
     esac
@@ -824,53 +916,59 @@ _secret_cmd_ls() {
   for flt in "${meta_filters[@]}"; do
     _secret_meta_check_key "${flt%%=*}" || return 2
   done
+  [[ -n $stage_filter ]] && { _secret_check_stage "$stage_filter" || return 2 }
   proj=$(_secret_resolve_project "$proj")
   local rows
   rows=$(_secret_rows "$proj")
   [[ -z $rows ]] && { print -r -- "no secrets in project '$proj'" >&2; return 0 }
-  if (( ${#meta_filters} )); then
-    # every --meta KEY[=VALUE] must match; the item's fields are column 8
+  if (( ${#meta_filters} || stage_set )); then
+    # every --meta KEY[=VALUE] must match (fields are column 8); --stage S
+    # keeps that stage's layers only, --no-stage the stage-less ones
     local row kept=""
     local -a f
     while IFS= read -r row; do
       f=("${(@ps:\t:)row}")
+      (( stage_set )) && [[ ${f[10]} != "$stage_filter" ]] && continue
       for flt in "${meta_filters[@]}"; do
         _secret_meta_matches "${f[8]}" "$flt" || continue 2
       done
       kept+="$row"$'\n'
     done <<< "$rows"
     rows=${kept%$'\n'}
-    [[ -z $rows ]] && { print -r -- "no secrets in project '$proj' match --meta ${(j: :)meta_filters}" >&2; return 0 }
+    [[ -z $rows ]] && { print -r -- "no secrets in project '$proj' match the filters" >&2; return 0 }
   fi
   if (( long )); then
-    local row mod scope meta
-    local -a f names scopes kinds mods envs metas comments
-    local -i wn=4 ws=5 wk=4 wm=8 wt=4      # seed from header label widths
+    local row mod scope stage meta
+    local -a f names scopes stages kinds mods envs metas comments
+    local -i wn=4 ws=5 wg=5 wk=4 wm=8 wt=4     # seed from header label widths
     while IFS= read -r row; do
       f=("${(@ps:\t:)row}")
       scope=${f[7]:-Shared}
+      stage=${f[10]}
       mod=$(_secret_fmt_date "${f[6]}")
       meta=${(j:;:)${(f)"$(_secret_meta_fields "${f[8]}")"}}
-      names+=("${f[2]}"); scopes+=("$scope"); kinds+=("${f[4]}")
+      names+=("${f[2]}"); scopes+=("$scope"); stages+=("$stage"); kinds+=("${f[4]}")
       mods+=("$mod"); metas+=("$meta"); comments+=("${f[5]}")
       if _secret_env_on "${f[9]}" "${f[8]}"; then envs+=(yes); else envs+=(no); fi
       (( ${#f[2]}  > wn )) && wn=${#f[2]}
       (( ${#scope} > ws )) && ws=${#scope}
+      (( ${#stage} > wg )) && wg=${#stage}
       (( ${#f[4]}  > wk )) && wk=${#f[4]}
       (( ${#mod}   > wm )) && wm=${#mod}
       (( ${#meta}  > wt )) && wt=${#meta}
     done <<< "$rows"
-    # auto-size columns to their content (NAME/SCOPE/KIND/MODIFIED/META); ENV
-    # is yes/no, and the trailing COMMENT is left unbounded so long names
+    # auto-size columns to their content (NAME/SCOPE/STAGE/KIND/MODIFIED/META);
+    # ENV is yes/no, and the trailing COMMENT is left unbounded so long names
     # never misalign a row
-    local fmt="%-${wn}s  %-${ws}s  %-${wk}s  %-${wm}s  %-3s  %-${wt}s  %s\n"
-    printf "$fmt" NAME SCOPE KIND MODIFIED ENV META COMMENT
+    local fmt="%-${wn}s  %-${ws}s  %-${wg}s  %-${wk}s  %-${wm}s  %-3s  %-${wt}s  %s\n"
+    printf "$fmt" NAME SCOPE STAGE KIND MODIFIED ENV META COMMENT
     local -i i
     for (( i = 1; i <= ${#names}; i++ )); do
-      printf "$fmt" "${names[i]}" "${scopes[i]}" "${kinds[i]}" "${mods[i]}" "${envs[i]}" "${metas[i]}" "${comments[i]}"
+      printf "$fmt" "${names[i]}" "${scopes[i]}" "${stages[i]}" "${kinds[i]}" "${mods[i]}" "${envs[i]}" "${metas[i]}" "${comments[i]}"
     done
   else
-    print -r -- "$rows" | awk -F'\t' '{ print ($7 == "" ? $2 : $7 "/" $2) }'
+    # "scope/NAME@stage" — the token the fzf pickers hand back to the layer flags
+    print -r -- "$rows" | awk -F'\t' '{ print ($7 == "" ? "" : $7 "/") $2 ($10 == "" ? "" : "@" $10) }'
   fi
 }
 
@@ -888,53 +986,70 @@ _secret_cmd_projects() {
 }
 
 _secret_cmd_env() {
-  local proj="" scope_opt=""
+  local proj="" scope_opt="" stage_opt="" no_stage=0
   while (( $# )); do
     case $1 in
       -p) proj=$2; shift 2 ;;
       --scope) scope_opt=$2; shift 2 ;;
+      --stage) stage_opt=$2; shift 2 ;;
+      --no-stage) no_stage=1; shift ;;
       -*) _secret_err "env: unknown option '$1'"; return 2 ;;
       *) _secret_err "env: unexpected argument '$1'"; return 2 ;;
     esac
   done
   proj=$(_secret_resolve_project "$proj")
-  local scope
+  local scope stage
   if [[ -n $scope_opt ]]; then
     scope=$(_secret_resolve_scope "$scope_opt" 0 "$proj") || return 2
   else
     scope=$(_secret_ambient_scope "$proj")
   fi
-  # overlay: the shared layer, with the active scope winning on collisions.
-  # An item flagged env=no is never emitted, and its name stays out even
-  # when the other layer holds one: the winning layer decides.
+  stage=$(_secret_resolve_stage "$stage_opt" $no_stage) || return 2
+  # overlay, least to most specific: shared < scoped < shared@stage <
+  # scoped@stage — a stage layer always beats a stage-less one, so asking
+  # for prod never hands out a repository's dev value; names a stage does
+  # not hold fall back to the stage-less layers. Items of other stages are
+  # never emitted. An item flagged env=no is never emitted, and its name
+  # stays out even when a lower layer holds one: the winning layer decides.
   local row name
   local -a f
-  local -A layer_of noenv_of
+  local -A rank_of layer_of noenv_of
+  local -i rank
   while IFS= read -r row; do
     [[ -n $row ]] || continue
     f=("${(@ps:\t:)row}")
-    if [[ -z ${f[7]} ]]; then
-      [[ -n ${layer_of[${f[2]}]-} ]] || layer_of[${f[2]}]=shared
-      _secret_env_on "${f[9]}" "${f[8]}" || noenv_of[${f[2]}:shared]=1
-    elif [[ -n $scope && ${f[7]} == "$scope" ]]; then
-      layer_of[${f[2]}]=scoped
-      _secret_env_on "${f[9]}" "${f[8]}" || noenv_of[${f[2]}:scoped]=1
+    if [[ -n ${f[10]} ]]; then
+      [[ -n $stage && ${f[10]} == "$stage" ]] || continue
+      rank=3
+    else
+      rank=1
+    fi
+    if [[ -n ${f[7]} ]]; then
+      [[ -n $scope && ${f[7]} == "$scope" ]] || continue
+      (( rank++ ))
+    fi
+    (( rank > ${rank_of[${f[2]}]:-0} )) || continue
+    rank_of[${f[2]}]=$rank
+    layer_of[${f[2]}]=$(_secret_layer "${f[7]}" "${f[10]}")
+    if _secret_env_on "${f[9]}" "${f[8]}"; then
+      unset "noenv_of[${f[2]}]"
+    else
+      noenv_of[${f[2]}]=1
     fi
   done <<< "$(_secret_rows "$proj")"
   local v lay
   for name in ${(ko)layer_of}; do
-    [[ -n ${noenv_of[$name:${layer_of[$name]}]-} ]] && continue
-    lay=""
-    [[ ${layer_of[$name]} == scoped ]] && lay=$scope
+    [[ -n ${noenv_of[$name]-} ]] && continue
+    lay=${layer_of[$name]}
     if ! v=$(_secret_get_value "$name" "$proj" "$lay"); then
-      _secret_err "skipped $proj/${lay:+$lay/}$name (unreadable)"; continue
+      _secret_err "skipped $(_secret_disp "$proj" "$lay" "$name") (unreadable)"; continue
     fi
     print -r -- "export ${name}=${(qq)v}"
   done
 }
 
 _secret_cmd_rm() {
-  local name="" proj="" force=0 scoped=0 shared=0 scope_opt=""
+  local name="" proj="" force=0 scoped=0 shared=0 scope_opt="" stage_opt="" no_stage=0
   while (( $# )); do
     case $1 in
       -p) proj=$2; shift 2 ;;
@@ -942,29 +1057,32 @@ _secret_cmd_rm() {
       -S|--scoped) scoped=1; shift ;;
       --scope) scope_opt=$2; shift 2 ;;
       --shared) shared=1; shift ;;
+      --stage) stage_opt=$2; shift 2 ;;
+      --no-stage) no_stage=1; shift ;;
       -*) _secret_err "rm: unknown option '$1'"; return 2 ;;
       *) name=$1; shift ;;
     esac
   done
   [[ -z $name ]] && { _secret_err "rm: NAME required"; return 2 }
   proj=$(_secret_resolve_project "$proj")
-  local _layer_scope _layer_mode layer
-  _secret_layer_flags "$scope_opt" $scoped $shared "$proj" || return 2
+  local _layer_scope _layer_stage _layer_mode layer disp
+  _secret_layer_flags "$scope_opt" $scoped $shared "$proj" "$stage_opt" $no_stage || return 2
   if ! layer=$(_secret_locate "$name" "$proj"); then
-    _secret_err "not found: $proj/${_layer_scope:+$_layer_scope/}$name"
+    _secret_err "not found: $(_secret_layer_disp "$proj" "$name")"
     return 1
   fi
+  disp=$(_secret_disp "$proj" "$layer" "$name")
   if (( ! force )) && [[ -t 0 ]]; then
     local reply
-    if ! read -q "reply?delete $proj/${layer:+$layer/}$name? [y/N] "; then print '' >&2; return 1; fi
+    if ! read -q "reply?delete $disp? [y/N] "; then print '' >&2; return 1; fi
     print '' >&2
   fi
   if _secret_delete "$name" "$proj" "$layer"; then
     local lbl
     lbl=$(_secret_kc_label "$proj")
-    print -r -- "deleted $proj/${layer:+$layer/}$name${lbl:+ [keychain: $lbl]}"
+    print -r -- "deleted $disp${lbl:+ [keychain: $lbl]}"
   else
-    _secret_err "failed to delete $proj/${layer:+$layer/}$name"; return 1
+    _secret_err "failed to delete $disp"; return 1
   fi
 }
 
@@ -973,14 +1091,14 @@ _secret_export_json() {        # $1 project ("" = all); JSON document on stdout
   local -a f
   _secret_rows "$1" | while IFS= read -r row; do
     f=("${(@ps:\t:)row}")
-    v=$(_secret_get_value "${f[2]}" "${f[1]}" "${f[7]}") || continue
+    v=$(_secret_get_value "${f[2]}" "${f[1]}" "$(_secret_row_layer "$row")") || continue
     # meta: one KEY=VALUE per line, turned into an object (values never hold ';')
     print -r -- "$v" | jq -Rc \
       --arg project "${f[1]}" --arg name "${f[2]}" --arg kind "${f[4]}" \
-      --arg comment "${f[5]}" --arg scope "${f[7]}" \
+      --arg comment "${f[5]}" --arg scope "${f[7]}" --arg stage "${f[10]}" \
       --arg env "$(_secret_env_on "${f[9]}" "${f[8]}" && print yes || print no)" \
       --arg meta "$(_secret_meta_fields "${f[8]}")" \
-      '{project: $project, scope: $scope, name: $name, kind: $kind, comment: $comment, env: $env,
+      '{project: $project, scope: $scope, stage: $stage, name: $name, kind: $kind, comment: $comment, env: $env,
         meta: ($meta | split("\n") | map(select(length > 0) | capture("^(?<k>[^=]*)=(?<v>.*)$")
                                         | {key: .k, value: .v}) | from_entries),
         value: .}'
@@ -993,10 +1111,10 @@ _secret_export_env() {         # $1 project ("" = all); export lines on stdout
   local -a f
   _secret_rows "$1" | while IFS= read -r row; do
     f=("${(@ps:\t:)row}")
-    v=$(_secret_get_value "${f[2]}" "${f[1]}" "${f[7]}") || continue
-    if [[ "${f[1]}|${f[7]}" != "$last" ]]; then
-      print -r -- "# === project: ${f[1]}${f[7]:+ (scope: ${f[7]})} ==="
-      last="${f[1]}|${f[7]}"
+    v=$(_secret_get_value "${f[2]}" "${f[1]}" "$(_secret_row_layer "$row")") || continue
+    if [[ "${f[1]}|${f[7]}|${f[10]}" != "$last" ]]; then
+      print -r -- "# === project: ${f[1]}${f[7]:+ (scope: ${f[7]})}${f[10]:+ (stage: ${f[10]})} ==="
+      last="${f[1]}|${f[7]}|${f[10]}"
     fi
     # meta rides on a comment line right above the item ("#meta:K=V;..."),
     # so the file still sources; import attaches it to the export that follows.
@@ -1075,13 +1193,15 @@ _secret_cmd_export() {
 }
 
 _secret_cmd_import() {
-  local file="" proj_flag="" yes=0 scoped=0 scope_opt=""
+  local file="" proj_flag="" yes=0 scoped=0 scope_opt="" stage_opt="" no_stage=0
   while (( $# )); do
     case $1 in
       -p) proj_flag=$2; shift 2 ;;
       -y|--yes) yes=1; shift ;;
       -S|--scoped) scoped=1; shift ;;
       --scope) scope_opt=$2; shift 2 ;;
+      --stage) stage_opt=$2; shift 2 ;;
+      --no-stage) no_stage=1; shift ;;
       -*) _secret_err "import: unknown option '$1'"; return 2 ;;
       *) file=$1; shift ;;
     esac
@@ -1104,9 +1224,11 @@ _secret_cmd_import() {
   # fields, one KEY=VALUE per line ("" clears them), or "keep" when the file
   # says nothing (no .meta key / no marker line), or "invalid-key" when a
   # JSON key is no identifier — neither word can be a real field (no '=')
-  local -a names values projs comments kinds scopes envs metas
+  local -a names values projs comments kinds scopes stages envs metas
   local trimmed=${content##[[:space:]]#}
+  local is_json=0
   if [[ $trimmed == \{* || $trimmed == \[* ]]; then
+    is_json=1
     command -v jq >/dev/null 2>&1 || { _secret_err "jq is required (brew install jq)"; return 1 }
     # split with (ps:\t:) — IFS=tab read would collapse empty fields
     # (an empty comment used to swallow the following columns)
@@ -1123,6 +1245,7 @@ _secret_cmd_import() {
       scopes+=("$(_secret_tsv_unescape "${jf[6]}")")
       envs+=("$(_secret_tsv_unescape "${jf[7]}")")
       metas+=("$(_secret_tsv_unescape "${jf[8]}")")
+      stages+=("$(_secret_tsv_unescape "${jf[9]}")")
     done < <(print -r -- "$content" \
       | jq -r '.items[] | [.name, .value, (.project // ""), (.comment // ""), (.kind // ""), (.scope // ""),
                            (if .env == "no" or .env == false then "no" elif .env == "yes" or .env == true then "yes"
@@ -1130,7 +1253,8 @@ _secret_cmd_import() {
                            (if (.meta | type) != "object" then "keep"
                             elif any(.meta | keys[]; test("^[A-Za-z][A-Za-z0-9_-]*$") | not) then "invalid-key"
                             else (.meta | to_entries | sort_by(.key)
-                                  | map("\(.key)=\(.value | tostring)") | join("\n")) end)] | @tsv') || true
+                                  | map("\(.key)=\(.value | tostring)") | join("\n")) end),
+                           (.stage // "")] | @tsv') || true
   else
     local line n v e m="keep"
     while IFS= read -r line; do
@@ -1153,7 +1277,7 @@ _secret_cmd_import() {
       v=${line#*=}
       n=${n%%[[:space:]]#}
       v=${(Q)v}
-      names+=("$n"); values+=("$v"); projs+=(""); comments+=(""); kinds+=(""); scopes+=(""); envs+=("$e")
+      names+=("$n"); values+=("$v"); projs+=(""); comments+=(""); kinds+=(""); scopes+=(""); stages+=(""); envs+=("$e")
       metas+=("$m"); m="keep"
     done <<< "$content"
   fi
@@ -1161,9 +1285,20 @@ _secret_cmd_import() {
 
   local base
   base=$(_secret_resolve_project "$proj_flag")
-  local -a targets tscopes
-  local i tp ts
+  # --stage/--no-stage override every item; otherwise JSON items keep their
+  # recorded stage (none for older exports) and env files land in the
+  # ambient stage ($SECRET_STAGE), like any other write
+  local stage_all="" stage_forced=0
+  if [[ -n $stage_opt ]] || (( no_stage )) || (( ! is_json )); then
+    stage_all=$(_secret_resolve_stage "$stage_opt" $no_stage) || return 2
+    stage_forced=1
+  fi
+  # a recorded scope or stage is validated on its own before the two are
+  # joined into a layer: "api@prod" as a scope must not become stage prod
+  local -a targets tlayers tbad
+  local i tp ts tg bad
   for (( i = 1; i <= ${#names}; i++ )); do
+    bad=0
     if [[ -n $proj_flag ]]; then tp=$base
     elif [[ -n ${projs[i]} ]]; then tp=${projs[i]}
     else tp=$base
@@ -1175,15 +1310,27 @@ _secret_cmd_import() {
     else
       ts=${scopes[i]}
       [[ $ts == "$tp" ]] && ts=""
+      if [[ -n $ts ]] && ! _secret_check_scope "$ts" 2>/dev/null; then
+        _secret_err "${names[i]}: invalid recorded scope '$ts'"; bad=1
+      fi
     fi
-    tscopes+=("$ts")
+    if (( stage_forced )); then
+      tg=$stage_all
+    else
+      tg=${stages[i]}
+      if [[ -n $tg ]] && ! _secret_check_stage "$tg" 2>/dev/null; then
+        _secret_err "${names[i]}: invalid recorded stage '$tg'"; bad=1
+      fi
+    fi
+    tbad+=($bad)
+    tlayers+=("$(_secret_layer "$ts" "$tg")")
   done
 
   local lbl
   print -r -- "importing ${#names} item(s):"
   for (( i = 1; i <= ${#names}; i++ )); do
     lbl=$(_secret_kc_label "${targets[i]}")
-    print -r -- "  ${targets[i]}/${tscopes[i]:+${tscopes[i]}/}${names[i]}${lbl:+ [kc:$lbl]}"
+    print -r -- "  $(_secret_disp "${targets[i]}" "${tlayers[i]}" "${names[i]}")${lbl:+ [kc:$lbl]}"
   done
   if (( ! yes )) && [[ -t 0 && -t 1 ]]; then
     local reply
@@ -1191,36 +1338,32 @@ _secret_cmd_import() {
     print '' >&2
   fi
 
-  local ok=0 fail=0
+  local ok=0 fail=0 env meta
+  local -a edits cf
   for (( i = 1; i <= ${#names}; i++ )); do
-    if ! _secret_check_name "${names[i]}" || ! _secret_check_project "${targets[i]}"; then
-      (( fail++ )); continue
-    fi
-    if [[ -n ${tscopes[i]} ]] && ! _secret_check_scope "${tscopes[i]}"; then
+    if (( tbad[i] )) || ! _secret_check_name "${names[i]}" || ! _secret_check_project "${targets[i]}"; then
       (( fail++ )); continue
     fi
     # the file's meta replaces the item's (validated field by field); an
     # item that keeps its meta but has its ENV in the legacy marker gets the
     # setting pinned into the type so nothing is lost either way
-    local env=${envs[i]:-keep} meta=${metas[i]}
+    env=${envs[i]:-keep} meta=${metas[i]}
     if [[ $meta == invalid-key ]]; then
       _secret_err "${names[i]}: a meta key is not an identifier (letters, digits, '_', '-')"
       (( fail++ )); continue
     fi
     if [[ $meta != keep ]]; then
-      local -a edits
       edits=(${(f)meta})
       meta=$(_secret_meta_merge "" "${edits[@]}") || { (( fail++ )); continue }
       if [[ $env == keep ]]; then
-        local -a cf
-        cf=("${(@ps:\t:)"$(_secret_row_of "${names[i]}" "${targets[i]}" "${tscopes[i]}")"}")
+        cf=("${(@ps:\t:)"$(_secret_row_of "${names[i]}" "${targets[i]}" "${tlayers[i]}")"}")
         if [[ -z ${cf[9]} ]]; then
           _secret_env_on "${cf[9]}" "${cf[8]}" && env=yes || env=no
         fi
       fi
     fi
     if print -r -- "${values[i]}" \
-        | _secret_store "${names[i]}" "${targets[i]}" "${comments[i]}" "${kinds[i]}" "${tscopes[i]}" "$env" "$meta"; then
+        | _secret_store "${names[i]}" "${targets[i]}" "${comments[i]}" "${kinds[i]}" "${tlayers[i]}" "$env" "$meta"; then
       (( ok++ ))
     else
       (( fail++ ))
@@ -1250,14 +1393,15 @@ _secret_cmd_migrate() {
   else
     proj=$(_secret_resolve_project "$proj")
   fi
-  local row v meta env target ok=0 fail=0 seen=0
+  local row v meta env layer target ok=0 fail=0 seen=0
   local -a f
   while IFS= read -r row; do
     [[ -n $row ]] || continue
     f=("${(@ps:\t:)row}")
     [[ ";${f[8]};" == *";env=no;"* ]] || continue
     (( seen++ ))
-    target="${f[1]}/${f[7]:+${f[7]}/}${f[2]}"
+    layer=$(_secret_row_layer "$row")
+    target=$(_secret_disp "${f[1]}" "$layer" "${f[2]}")
     # a type already set (update --env after the marker was written) stays
     # authoritative: only the stale marker goes
     _secret_env_on "${f[9]}" "${f[8]}" && env=yes || env=no
@@ -1266,10 +1410,10 @@ _secret_cmd_migrate() {
       continue
     fi
     meta=$(_secret_meta_merge "${f[8]}") || { (( fail++ )); continue }
-    if ! v=$(_secret_get_value "${f[2]}" "${f[1]}" "${f[7]}"); then
+    if ! v=$(_secret_get_value "${f[2]}" "${f[1]}" "$layer"); then
       _secret_err "skipped $target (unreadable)"; (( fail++ )); continue
     fi
-    if print -r -- "$v" | _secret_store "${f[2]}" "${f[1]}" "${f[5]}" "${f[4]}" "${f[7]}" "$env" "$meta"; then
+    if print -r -- "$v" | _secret_store "${f[2]}" "${f[1]}" "${f[5]}" "${f[4]}" "$layer" "$env" "$meta"; then
       print -r -- "migrated $target"
       (( ok++ ))
     else
@@ -1799,6 +1943,7 @@ _secret_cmd_link() {
   local amb
   amb=$(_secret_ambient_scope "$proj")
   print -r -- "scope (-S): ${amb:-(none — repository name equals the project)}"
+  print -r -- "stage:      ${SECRET_STAGE:-(none — set SECRET_STAGE or pass --stage)}"
   local kc
   kc=$(_secret_kc_for "$proj")
   if [[ -e $kc ]]; then
@@ -1817,14 +1962,15 @@ USAGE
   secret [-k KEYCHAIN] <command> [args]
 
 COMMANDS
-  set NAME [-p proj] [-S|--scope X] [-j comment] [-D kind] [--meta K=V]... [--no-env|--env] [--new] [--stdin]
+  set NAME [-p proj] [-S|--scope X] [--stage S|--no-stage] [-j comment] [-D kind] [--meta K=V]... [--no-env|--env] [--new] [--stdin]
         store a secret; prompts for the value (no echo), or reads one
-        line from stdin with --stdin / when piped. Default layer: shared;
-        -S stores into this repository's scope. --meta adds structured
-        fields (see META). --no-env keeps it out of `secret env` (see
-        ENV); without --env/--no-env an existing item keeps its setting.
-        --new stores only a new item: an existing one in that layer is
-        refused, never overwritten
+        line from stdin with --stdin / when piped. Default layer: shared,
+        in the stage $SECRET_STAGE names (none otherwise); -S stores into
+        this repository's scope, --stage S / --no-stage pin the stage (see
+        STAGES). --meta adds structured fields (see META). --no-env keeps
+        it out of `secret env` (see ENV); without --env/--no-env an
+        existing item keeps its setting. --new stores only a new item: an
+        existing one in that layer is refused, never overwritten
   update NAME [-p proj] [LAYER] [-j comment] [-D kind] [--meta K=V]... [--no-env|--env] [--value|--stdin]
         partially update an existing secret: --value prompts for a new
         value (--stdin reads it from stdin), -j/-D replace comment/kind
@@ -1834,15 +1980,20 @@ COMMANDS
   get NAME [-p proj] [LAYER] [-c|--copy]
         print the value (or copy to clipboard, auto-clears in 45s)
   show NAME [-p proj] [LAYER]  metadata only (never prints the value)
-  ls [-p proj] [-l|--long] [--meta KEY[=VALUE]]...
-        list secrets; short form shows scoped items as "scope/NAME",
-        --long has Scope/Kind/Env/Meta columns; --meta keeps only items
-        whose field KEY exists (or equals VALUE), repeatable (all must match)
+  ls [-p proj] [-l|--long] [--meta KEY[=VALUE]]... [--stage S|--no-stage]
+        list every layer of the project; short form shows items as
+        "[scope/]NAME[@stage]", --long has Scope/Stage/Kind/Env/Meta
+        columns; --meta keeps only items whose field KEY exists (or
+        equals VALUE), repeatable (all must match); --stage S keeps that
+        stage's layers only, --no-stage the stage-less ones
   projects                     list all projects
-  env [-p proj] [--scope X]    emit `export NAME=...` lines: the shared
-        layer overlaid with the repository scope (scoped wins), skipping
+  env [-p proj] [--scope X] [--stage S|--no-stage]
+        emit `export NAME=...` lines: the shared layer overlaid with the
+        repository scope, then with the stage's shared and scoped layers
+        (most specific wins; other stages are never emitted), skipping
         items set --no-env, e.g.:
           eval "$(secret env)"
+          SECRET_STAGE=test npm test        # through the shim
   rm NAME [-p proj] [LAYER] [-f]   delete a secret
   link [NAME|--unset]
         map this repository to project NAME (git config secret.project);
@@ -1852,17 +2003,21 @@ COMMANDS
         or env (plaintext export lines; kind and comment are lost, ENV
         and META survive as markers: `#no-env# export ...` and a
         `#meta:K=V;...` comment line right above the item)
-  import FILE [-p proj] [-S|--scope X] [-y]
+  import FILE [-p proj] [-S|--scope X] [--stage S|--no-stage] [-y]
         load secrets from .json.age / .json / .env files; -p forces all
-        items into one project, -S/--scope forces one layer, otherwise
-        JSON items keep their own project and scope
+        items into one project, -S/--scope forces one scope, --stage /
+        --no-stage one stage; otherwise JSON items keep their own
+        project, scope and stage, and env files land in $SECRET_STAGE
   migrate [-p proj|--all] [-n|--dry-run]
         move the pre-type env=no marker out of the generic attribute into
         the type code (see ENV); items already migrated are untouched
 
-  LAYER (get/show/rm/update): default is DWIM — this repository's scope
-  first, then the shared layer. -S/--scoped = the repo scope only,
-  --scope X = that scope only, --shared = the shared layer only.
+  LAYER (get/show/rm/update): default is DWIM — the stage's layer of this
+  repository's scope, the stage's shared layer, this repository's scope,
+  then the shared layer. -S/--scoped = the repo scope only, --scope X =
+  that scope only, --shared = the shared layer only; --stage S / --no-stage
+  pin the stage ($SECRET_STAGE otherwise), and with one the exact flags
+  address that stage's layer.
   keychain create NAME [--timeout MIN] [--no-autolock]
         create ~/Library/Keychains/NAME.keychain-db (auto-locks on sleep
         and after 30 min by default) and add it to the search list
@@ -1897,6 +2052,20 @@ SCOPES
   (DATABASE_URL, PORT, ...) with -S. The scope name defaults to the
   repository basename, so two linked repos never collide. `secret env`
   emits shared + this repo's scope, scoped values winning.
+
+STAGES
+  A stage is a per-environment layer on top of scopes: prod, test,
+  staging, ... Store the same NAME once per stage (`secret set
+  DATABASE_URL --stage prod`), and `secret env --stage prod` / the shims
+  under SECRET_STAGE=prod emit that value; names a stage does not hold
+  fall back to the stage-less layers, so environment-neutral values are
+  stored once. A stage layer always beats a stage-less one (shared <
+  scoped < shared@stage < scoped@stage) and other stages are never
+  emitted. Without --stage and SECRET_STAGE nothing staged is emitted:
+  prod only ever leaves the keychain when asked for by name. Tool-mode
+  shims (opencode, claude, ...) never receive a stage. Stage names are
+  letters, digits, '_' and '-'; project and scope names may not contain
+  '@' (the service is "secret.<project>[/<scope>]@<stage>").
 
 ENV
   Every item is emitted by `secret env` — and so injected by every shell,
@@ -1971,7 +2140,7 @@ _secret_ui_pick_items() {      # $1 project  $2 header  $3 "multi"|""; names on 
   while IFS= read -r row; do
     f=("${(@ps:\t:)row}")
     lines+="$(printf '%-32s %-14s %-17s %s' \
-      "${f[7]:+${f[7]}/}${f[2]}" "${f[4]}" "$(_secret_fmt_date "${f[6]}")" "${f[5]}")"$'\n'
+      "${f[7]:+${f[7]}/}${f[2]}${f[10]:+@${f[10]}}" "${f[4]}" "$(_secret_fmt_date "${f[6]}")" "${f[5]}")"$'\n'
   done <<< "$rows"
   local -a fzopts
   [[ $3 == multi ]] && fzopts+=(--multi)
@@ -1980,20 +2149,27 @@ _secret_ui_pick_items() {      # $1 project  $2 header  $3 "multi"|""; names on 
     | awk '{print $1}'
 }
 
-# Picker tokens are "NAME" (shared) or "scope/NAME". Split one token into
-# the bare name ($_tok_name) and exact layer flags ($_tok_flags array).
+# Picker tokens are "[scope/]NAME[@stage]". Split one token into the bare
+# name ($_tok_name), exact layer flags ($_tok_flags array) and the layer
+# string ($_tok_layer).
 _secret_ui_split_token() {     # $1 token
-  if [[ $1 == */* ]]; then
-    _tok_name=${1#*/}
-    _tok_flags=(--scope "${1%%/*}")
-  else
-    _tok_name=$1
-    _tok_flags=(--shared)
+  local tok=$1 scope="" stage=""
+  if [[ $tok == *@* ]]; then
+    stage=${tok#*@}
+    tok=${tok%%@*}
   fi
+  if [[ $tok == */* ]]; then
+    scope=${tok%%/*}
+    tok=${tok#*/}
+  fi
+  _tok_name=$tok
+  _tok_layer=$(_secret_layer "$scope" "$stage")
+  if [[ -n $scope ]]; then _tok_flags=(--scope "$scope"); else _tok_flags=(--shared); fi
+  if [[ -n $stage ]]; then _tok_flags+=(--stage "$stage"); else _tok_flags+=(--no-stage); fi
 }
 
 _secret_ui_get() {
-  local proj tok _tok_name
+  local proj tok _tok_name _tok_layer
   local -a _tok_flags
   proj=$(_secret_ui_pick_project 'secret › get › choose project') || return 0
   [[ -z $proj ]] && return 0
@@ -2032,9 +2208,12 @@ _secret_ui_add() {
     read -r "kind?kind: " || return 0
   fi
   read -r "comment?comment (optional): " || return 0
+  local stage
+  read -r "stage?stage (optional, e.g. prod/test; default: ${SECRET_STAGE:-none}): " || return 0
   local -a args
   args=("$name" -p "$proj")
   [[ $layer == scoped ]] && args+=(-S)
+  [[ -n $stage ]] && args+=(--stage "$stage")
   [[ -n $kind ]] && args+=(-D "$kind")
   [[ -n $comment ]] && args+=(-j "$comment")
   local field
@@ -2047,17 +2226,15 @@ _secret_ui_add() {
 }
 
 _secret_ui_update() {
-  local proj tok fields fld c k _tok_name
+  local proj tok fields fld c k _tok_name _tok_layer
   local -a _tok_flags
   proj=$(_secret_ui_pick_project 'secret › update › choose project') || return 0
   [[ -z $proj ]] && return 0
   tok=$(_secret_ui_pick_items "$proj" "secret › $proj$(_secret_kc_suffix "$proj") › update") || return 0
   [[ -z $tok ]] && return 0
   _secret_ui_split_token "$tok"
-  local name=$_tok_name scope=""
-  [[ $tok == */* ]] && scope=${tok%%/*}
-  local row
-  row=$(_secret_row_of "$name" "$proj" "$scope")
+  local name=$_tok_name row
+  row=$(_secret_row_of "$name" "$proj" "$_tok_layer")
   local -a f
   f=("${(@ps:\t:)row}")
   fields=$(printf '%s\n' \
@@ -2115,7 +2292,7 @@ _secret_ui_list() {
 }
 
 _secret_ui_show() {
-  local proj tok _tok_name
+  local proj tok _tok_name _tok_layer
   local -a _tok_flags
   proj=$(_secret_ui_pick_project 'secret › show › choose project') || return 0
   [[ -z $proj ]] && return 0
@@ -2126,7 +2303,7 @@ _secret_ui_show() {
 }
 
 _secret_ui_delete() {
-  local proj names n _tok_name
+  local proj names n _tok_name _tok_layer
   local -a _tok_flags
   proj=$(_secret_ui_pick_project 'secret › delete › choose project') || return 0
   [[ -z $proj ]] && return 0
