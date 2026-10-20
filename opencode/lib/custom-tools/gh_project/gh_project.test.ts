@@ -82,9 +82,9 @@ describe("gh_project_create", () => {
       { re: "^project field-create 5 --owner me --name Start --data-type DATE", out: "" },
       { re: "^project field-create 5 --owner me --name Target --data-type DATE", out: "" },
       projectViews(["Roadmap"]),
-      { re: "^api -H X-GitHub-Api-Version: 2026-03-10 /users/me/projectsV2/5/fields --paginate", out: JSON.stringify([{ id: 1, name: "Title" }, { id: 2, name: "Status" }]) },
-      { re: "^api --method POST -H X-GitHub-Api-Version: 2026-03-10 /users/me/projectsV2/5/views -f name=Kanban -f layout=board -f filter=-status:Done -status:Cancelled -F visible_fields\\[\\]=1$", out: "{}" },
-      { re: "^api --method POST .*/views -f name=Backlog -f layout=table .* -F visible_fields\\[\\]=1 -F visible_fields\\[\\]=2$", out: "{}" },
+      { re: "^api -H X-GitHub-Api-Version: 2026-03-10 /users/me/projectsV2/5/fields --paginate", out: JSON.stringify([{ id: 1, name: "Title" }, { id: 2, name: "Status" }, { id: 3, name: "Assignees" }, { id: 4, name: "Repository" }, { id: 5, name: "Milestone" }, { id: 6, name: "Parent issue" }, { id: 7, name: "Sub-issues progress" }]) },
+      { re: "^api --method POST -H X-GitHub-Api-Version: 2026-03-10 /users/me/projectsV2/5/views -f name=Kanban -f layout=board -f filter=-status:Done -status:Cancelled -F visible_fields\\[\\]=1 -F visible_fields\\[\\]=3 -F visible_fields\\[\\]=4 -F visible_fields\\[\\]=6$", out: "{}" },
+      { re: "^api --method POST .*/views -f name=Backlog -f layout=table .* -F visible_fields\\[\\]=1 -F visible_fields\\[\\]=2 -F visible_fields\\[\\]=4 -F visible_fields\\[\\]=5 -F visible_fields\\[\\]=6 -F visible_fields\\[\\]=7$", out: "{}" },
       currentRepo(REPO),
       ...repoContext(REPO),
       { re: "^project link 5 --owner me --repo me/web", out: "" },
@@ -94,7 +94,7 @@ describe("gh_project_create", () => {
       createdNew: true,
       project: { number: 5, owner: "me" },
       fields: { Status: { addedOptions: ["In Progress", "Cancelled"] }, Start: "created", Target: "created" },
-      views: { Kanban: "created", Backlog: "created", Roadmap: "exists" },
+      views: { Kanban: "created (columns not on the board: Target)", Backlog: "created (columns not on the board: Target)", Roadmap: "exists" },
       linked: REPO,
     })
   })
@@ -150,6 +150,14 @@ describe("gh_project_field_ensure / view_ensure", () => {
     expect(builtin.error).toMatch(/built-in field name/)
   })
 
+  test("refuses a field that exists with another type, and an option name with a comma", () => {
+    const base = [...repoContext(REPO), linkedProjects([BOARD])]
+    const mismatch = call("field_ensure", { name: "Target", dataType: "TEXT", repo: REPO }, [...base, projectFields(STANDARD_FIELDS)])
+    expect(mismatch.error).toMatch(/exists as DATE, not TEXT/)
+    const comma = call("field_ensure", { name: "Area", dataType: "SINGLE_SELECT", options: ["Web, Mobile"], repo: REPO }, [...base, projectFields([])])
+    expect(comma.error).toMatch(/contains a comma/)
+  })
+
   test("creates a missing view and leaves an existing one alone", () => {
     const base = [...repoContext(REPO), linkedProjects([BOARD])]
     const exists = call("view_ensure", { name: "kanban", layout: "board", repo: REPO }, [...base, projectViews(["Kanban"])])
@@ -159,7 +167,21 @@ describe("gh_project_field_ensure / view_ensure", () => {
       projectViews(["Kanban"]),
       { re: "^api --method POST -H X-GitHub-Api-Version: 2026-03-10 /users/me/projectsV2/5/views -f name=Bugs -f layout=table -f filter=label:type:bug$", out: "{}" },
     ])
-    expect(made.out).toMatchObject({ created: true, view: "Bugs" })
+    expect(made.out).toMatchObject({ created: true, view: "Bugs", skippedFields: [] })
+  })
+
+  test("reports columns the board lacks, and retries a user board's views route with the numeric id", () => {
+    const res = call("view_ensure", { name: "Bugs", layout: "table", visibleFields: ["Title", "Nope"], repo: REPO }, [
+      ...repoContext(REPO),
+      linkedProjects([BOARD]),
+      projectViews([]),
+      { re: "^api -H X-GitHub-Api-Version: 2026-03-10 /users/me/projectsV2/5/fields --paginate", out: JSON.stringify([{ id: 1, name: "Title" }]) },
+      { re: "^api --method POST -H X-GitHub-Api-Version: 2026-03-10 /users/me/projectsV2/5/views", code: 1, out: "gh: Not Found (HTTP 404)" },
+      { re: "^api users/me --jq .id", out: "4242\n" },
+      { re: "^api --method POST -H X-GitHub-Api-Version: 2026-03-10 /users/4242/projectsV2/5/views -f name=Bugs -f layout=table -F visible_fields\\[\\]=1$", out: "{}" },
+    ])
+    expect(res.ok).toBe(true)
+    expect(res.out).toMatchObject({ created: true, skippedFields: ["Nope"] })
   })
 })
 
@@ -180,6 +202,10 @@ describe("gh_project_item_list", () => {
     expect(call("item_list", { repo: REPO, contentRepo: "current", includeArchived: true }, base).out.items.map((i: any) => i.id)).toEqual(["PVTI_1", "PVTI_2"])
     expect(call("item_list", { status: "todo", contentType: "draft", project: "me/5" }, [ownerType("me", "User"), { re: "user\\(login:\\$login\\)\\{projectV2\\(number:\\$n\\)", out: gql({ user: { projectV2: projectNode(BOARD) } }) }, items]).out.items.map((i: any) => i.id)).toEqual(["PVTI_3"])
     expect(call("item_list", { repo: REPO, search: "login" }, base).out.items.map((i: any) => i.id)).toEqual(["PVTI_1", "PVTI_3"])
+    expect(all.out.truncated).toBe(false)
+
+    const noRepo = call("item_list", { project: "me/5", contentRepo: "current" }, [{ re: "^repo view", code: 1 }, ownerType("me", "User"), { re: "user\\(login:\\$login\\)\\{projectV2\\(number:\\$n\\)", out: gql({ user: { projectV2: projectNode(BOARD) } }) }])
+    expect(noRepo.error).toMatch(/contentRepo "current" needs a repository/)
   })
 })
 
@@ -214,12 +240,20 @@ describe("gh_project_item_add / item_set / item_promote", () => {
     const builtin = call("item_set", { item: "PVTI_3", fields: { Milestone: "v1" } }, [projectItem(PVT, { id: "PVTI_3", draft: { id: "DI_3", title: "Idea" } }), projectNodeById(BOARD), projectFields(STANDARD_FIELDS)])
     expect(builtin.ok).toBe(false)
     expect(builtin.error).toMatch(/built-in field; set it on the issue/)
+
+    const issueTitle = call("item_set", { item: "PVTI_1", title: "x" }, [projectItem(PVT, { id: "PVTI_1", issue: { repo: REPO, number: 1 } }), projectNodeById(BOARD)])
+    expect(issueTitle.error).toMatch(/drafts only/)
+    const both = call("item_set", { item: "PVTI_3", body: "a", appendBody: "b" }, [projectItem(PVT, { id: "PVTI_3", draft: { id: "DI_3", title: "Idea" } }), projectNodeById(BOARD)])
+    expect(both.error).toMatch(/not both/)
+    const readOnly = call("item_set", { item: "PVTI_3", archived: true }, [projectItem(PVT, { id: "PVTI_3", draft: { id: "DI_3", title: "Idea" } }), projectNodeById({ ...BOARD, canUpdate: false })])
+    expect(readOnly.error).toMatch(/read-only for the viewer/)
   })
 
   test("promotes a draft into an issue with kind and milestone", () => {
     const res = call("item_promote", { item: "PVTI_3", repo: REPO, kind: "feature", milestone: "v1" }, [
       ...repoContext(REPO),
       projectItem(PVT, { id: "PVTI_3", draft: { id: "DI_3", title: "Idea" } }),
+      projectNodeById(BOARD),
       { re: "convertProjectV2DraftIssueItemToIssue\\(input:\\{itemId:\"PVTI_3\",repositoryId:\"R_web\"\\}", out: gql({ convertProjectV2DraftIssueItemToIssue: { item: { id: "PVTI_3", content: { number: 30, url: issueUrl(REPO, 30) } } } }) },
       { re: "^issue view 30 --json labels", out: JSON.stringify({ labels: [] }) },
       { re: "^label list", out: JSON.stringify([{ name: "type:feature" }]) },
@@ -233,5 +267,7 @@ describe("gh_project_item_add / item_set / item_promote", () => {
     const notDraft = call("item_promote", { item: "PVTI_1", repo: REPO }, [...repoContext(REPO), projectItem(PVT, { id: "PVTI_1", issue: { repo: REPO, number: 1 } })])
     expect(notDraft.ok).toBe(false)
     expect(notDraft.error).toMatch(/not a draft/)
+    const noWrite = call("item_promote", { item: "PVTI_3", repo: REPO }, [...repoContext(REPO, { permission: "READ" })])
+    expect(noWrite.error).toMatch(/No write permission/)
   })
 })

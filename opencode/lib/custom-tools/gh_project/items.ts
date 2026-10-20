@@ -12,6 +12,8 @@ import { assertUpdatable, resolveBoard } from "./board"
  */
 
 const CONTENT_TYPES = { issue: "Issue", pr: "PullRequest", draft: "DraftIssue" } as const
+/** Items read per list call; a board past this reports `truncated`. */
+const BOARD_CAP = 2000
 
 export const item_list = tool({
   description:
@@ -31,11 +33,14 @@ export const item_list = tool({
     const cwd = context.worktree
     const { project, route, repo } = await resolveBoard(args, cwd)
     const limit = args.limit ?? 100
-    const all = await listItems(project.id, { limit: Math.max(limit * 4, 500), cwd })
+    if (args.contentRepo === "current" && !repo) throw new Error('contentRepo "current" needs a repository in the working tree or `repo`.')
+    // Filters run after the read, so the whole board is read (up to the cap) and a cut is reported.
+    const all = await listItems(project.id, { limit: BOARD_CAP, cwd })
+    const truncated = all.length >= BOARD_CAP
     const status = args.status?.trim()
     const exclude = status?.startsWith("-") ? status.slice(1) : null
     const want = args.contentType ? CONTENT_TYPES[args.contentType] : null
-    const repoFilter = args.contentRepo === "current" ? repo?.nameWithOwner ?? null : args.contentRepo ?? null
+    const repoFilter = args.contentRepo === "current" ? repo!.nameWithOwner : args.contentRepo ?? null
     const items = all
       .filter((it) => args.includeArchived || !it.archived)
       .filter((it) => !status || (exclude ? !sameName(it.fields.Status, exclude) : sameName(it.fields.Status, status)))
@@ -43,7 +48,7 @@ export const item_list = tool({
       .filter((it) => !repoFilter || (it.content && it.content.type !== "DraftIssue" && sameName(it.content.repo, repoFilter)))
       .filter((it) => !args.search || titleOf(it).toLowerCase().includes(args.search.toLowerCase()))
       .slice(0, limit)
-    return JSON.stringify({ project: `${project.owner.login}/${project.number}`, title: project.title, url: project.url, route, count: items.length, items }, null, 2)
+    return JSON.stringify({ project: `${project.owner.login}/${project.number}`, title: project.title, url: project.url, route, count: items.length, truncated, items }, null, 2)
   },
 })
 
@@ -114,7 +119,10 @@ export const item_set = tool({
       const argv = ["project", "item-edit", "--id", item.content.id]
       if (args.title !== undefined) argv.push("--title", args.title), changed.push("title")
       if (args.body !== undefined) argv.push("--body", args.body), changed.push("body")
-      if (args.appendBody !== undefined) argv.push("--body", `${item.content.body.trimEnd()}\n\n${args.appendBody.trim()}\n`), changed.push("body (appended)")
+      if (args.appendBody !== undefined) {
+        const current = item.content.body.trimEnd()
+        argv.push("--body", `${current ? `${current}\n\n` : ""}${args.appendBody.trim()}\n`), changed.push("body (appended)")
+      }
       await runGh(argv, cwd)
     }
     if (args.archived !== undefined && args.archived !== item.archived) {
@@ -142,8 +150,9 @@ export const item_promote = tool({
     const cwd = context.worktree
     const repo = await resolveRepo(args.repo, cwd)
     if (!repo.canWrite) throw new Error(`No write permission on ${repo.nameWithOwner} (viewer permission: ${repo.permission ?? "none"}).`)
-    const { item } = await getItem(args.item, cwd)
+    const { projectId, item } = await getItem(args.item, cwd)
     if (item.content?.type !== "DraftIssue") throw new Error(`Item ${args.item} is not a draft (${item.content?.type ?? "no content"}).`)
+    assertUpdatable(await projectById(projectId, cwd))
     const mutation = `mutation{convertProjectV2DraftIssueItemToIssue(input:{itemId:${lit(args.item)},repositoryId:${lit(repo.id)}}){item{id content{... on Issue{number url}}}}}`
     const data = await graphql(mutation, {}, cwd)
     const issue = data?.convertProjectV2DraftIssueItemToIssue?.item?.content
