@@ -121,7 +121,9 @@ injects nothing.
 
 ```sh
 secret ls                 # one "[scope/]NAME[@stage]" token per item, no values
-secret ls --long          # + stage, kind, env, meta and comment columns
+secret ls --long          # grouped by layer, with kind, env, meta and comment
+secret ls --long --wide   # nothing cut to the terminal width (piped output never is)
+secret ls --all           # every project, tokens prefixed with the project
 secret show NAME          # one item's metadata, no value
 secret show api/DB@prod   # a token from `ls` names that exact layer
 secret projects           # project names
@@ -152,7 +154,7 @@ that keeps the value out of argv and the transcript. `.env` files are
 gitignored. Project mode reads only their variable names to avoid shadowing the
 app's own loader, never their values.
 
-An item stored with `--no-env` (`ENV no` in `secret ls --long`, type code
+An item stored with `--no-env` (`no` in the ENV column of `secret ls --long`, type code
 `envn` in Keychain Access) is never emitted by `secret env`, so no shim or
 helper injects it; only `get` reads it. That is deliberate — a wallet seed
 phrase, say — so a "missing" variable that shows `ENV no` is not a bug to fix:
@@ -202,7 +204,7 @@ the agent when a per-repo override must take effect.
 5. Does the value exist? `secret env -p <project>` lists it and prompts.
 6. Is the name already in env, causing a collision skip, or present as a `.env`
    name, causing dotenv skip?
-7. Is the value stored under a stage (`secret ls --long` STAGE column, or
+7. Is the value stored under a stage (an `@stage` group in `secret ls --long`, or
    `NAME@stage` in `secret ls`) while `SECRET_STAGE` is unset or names another
    stage? Staged values are injected only for their own stage.
 
