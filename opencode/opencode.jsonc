@@ -1900,6 +1900,11 @@
     },
     {
       "action": "shell",
+      "resource": "secret migrate*",
+      "effect": "deny"
+    },
+    {
+      "action": "shell",
       "resource": "secret keychain rm*",
       "effect": "deny"
     },
@@ -2284,6 +2289,11 @@
       {
         "action": "permission",
         "resource": "shell:secret import*",
+        "effect": "deny"
+      },
+      {
+        "action": "permission",
+        "resource": "shell:secret migrate*",
         "effect": "deny"
       },
       {
