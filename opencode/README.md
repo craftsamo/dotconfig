@@ -70,6 +70,27 @@ and review threads and can wait for CI. `gh_pr_meta`
 milestone, applying at once only what no workflow, merge bot, webhook or
 mandated ruleset reacts to and that notifies nobody else; `gh_pr_meta_apply`
 (asks) applies the rest against its token.
+
+The GitHub tools share `lib/custom-tools/github/` (GraphQL over `gh api
+graphql` with pagination, reference parsers, the repository context, board
+resolution on the explicit → linked → org → user route, one flat shape for
+project items, and an issue's kind as an Issue Type on an organization
+repository or a `type:*` label elsewhere). `gh_issue_*`
+(`lib/custom-tools/gh_issue/`) reads and writes issues: `view` and `list`
+read; `create`, `update`, `comment`, `relate` (parent, sub-issues, blocked
+by) and `develop` (a linked branch) write after checking the viewer's
+permission, report a repository the viewer does not own as foreign, close
+only with a reason and never delete. `gh_project_*`
+(`lib/custom-tools/gh_project/`) does the same for Projects v2 boards:
+`resolve` and `item_list` read; `create`, `link`, `field_ensure`,
+`view_ensure`, `item_add`, `item_set` (archive, never delete) and
+`item_promote` write to a board the viewer can update. The sub-issue, type
+and dependency flags need gh 2.94.0. The `gh-issues`, `gh-projects` and
+`approach-github-planning` skills carry the conventions; the older
+`github_project_*` tools and the `manage-github-projects` /
+`approach-github-projects` skills stay until the new ones have been used in
+anger.
+
 `plugins/worktrees.ts` registers the worktree strategy in
 `lib/worktrees/strategy.ts`, so the TUI, the API and `git_worktree` all place
 worktrees at `~/Worktrees/<repository>/<branch>` on a new branch, the layout
@@ -187,8 +208,11 @@ V2 has no native Todo tool. Keep ephemeral execution steps in the conversation
 as `Phase{N}.{m} - <task> (executor)`, updating pending / in-progress / completed /
 blocked statuses and restating unfinished work at handoffs. Plan asks the user
 to switch to Build before execution. Do not create local TODO files or claim
-that a native list was registered. Durable work still uses GitHub Projects
-when requested; no Todo plugin is installed for this workaround.
+that a native list was registered. Durable work still uses GitHub Issues and
+Projects when requested; no Todo plugin is installed for this workaround. The
+one exception is a Hermes-driven run whose operating note names a
+`progress.md`: it keeps its Phase's steps there, as `AGENTS.md`
+`<PlanHandoff>` says.
 
 Empty directories carry a `.gitkeep` so the skeleton survives a fresh clone.
 

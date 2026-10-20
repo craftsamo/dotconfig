@@ -199,6 +199,8 @@ describe("gh_project_item_list", () => {
     expect(all.out.items[0]).toMatchObject({ id: "PVTI_1", fields: { Status: "Todo" }, content: { type: "Issue", number: 1, repo: REPO } })
 
     expect(call("item_list", { repo: REPO, status: "-Done", includeArchived: true }, base).out.items.map((i: any) => i.id)).toEqual(["PVTI_1", "PVTI_3", "PVTI_4"])
+    expect(call("item_list", { repo: REPO, status: "-Done,-Todo", includeArchived: true }, base).out.items.map((i: any) => i.id)).toEqual([])
+    expect(call("item_list", { repo: REPO, status: "done, todo" }, base).out.items.map((i: any) => i.id)).toEqual(["PVTI_1", "PVTI_2", "PVTI_3"])
     expect(call("item_list", { repo: REPO, contentRepo: "current", includeArchived: true }, base).out.items.map((i: any) => i.id)).toEqual(["PVTI_1", "PVTI_2"])
     expect(call("item_list", { status: "todo", contentType: "draft", project: "me/5" }, [ownerType("me", "User"), { re: "user\\(login:\\$login\\)\\{projectV2\\(number:\\$n\\)", out: gql({ user: { projectV2: projectNode(BOARD) } }) }, items]).out.items.map((i: any) => i.id)).toEqual(["PVTI_3"])
     expect(call("item_list", { repo: REPO, search: "login" }, base).out.items.map((i: any) => i.id)).toEqual(["PVTI_1", "PVTI_3"])

@@ -188,6 +188,9 @@
         { "action": "skill", "resource": "rebuild-migration", "effect": "allow" },
         { "action": "skill", "resource": "performance", "effect": "allow" },
         { "action": "skill", "resource": "github-projects", "effect": "allow" },
+        { "action": "skill", "resource": "github-planning", "effect": "allow" },
+        { "action": "skill", "resource": "gh-issues", "effect": "allow" },
+        { "action": "skill", "resource": "gh-projects", "effect": "allow" },
         { "action": "skill", "resource": "resolve-dependabot-alerts", "effect": "allow" },
         { "action": "skill", "resource": "manage-github-projects", "effect": "allow" },
         { "action": "skill", "resource": "commit", "effect": "allow" },
@@ -212,6 +215,9 @@
         { "action": "skill", "resource": "rebuild-migration", "effect": "allow" },
         { "action": "skill", "resource": "performance", "effect": "allow" },
         { "action": "skill", "resource": "github-projects", "effect": "allow" },
+        { "action": "skill", "resource": "github-planning", "effect": "allow" },
+        { "action": "skill", "resource": "gh-issues", "effect": "allow" },
+        { "action": "skill", "resource": "gh-projects", "effect": "allow" },
         { "action": "skill", "resource": "resolve-dependabot-alerts", "effect": "allow" },
         { "action": "skill", "resource": "manage-github-projects", "effect": "allow" },
         { "action": "skill", "resource": "commit", "effect": "allow" },
@@ -1975,6 +1981,21 @@
     {
       "action": "skill",
       "resource": "github-projects",
+      "effect": "allow"
+    },
+    {
+      "action": "skill",
+      "resource": "github-planning",
+      "effect": "allow"
+    },
+    {
+      "action": "skill",
+      "resource": "gh-issues",
+      "effect": "allow"
+    },
+    {
+      "action": "skill",
+      "resource": "gh-projects",
       "effect": "allow"
     },
     {
