@@ -342,7 +342,7 @@ secret import secret-export-all-YYYYMMDD.json.age
 
 ## Tests
 
-[`zsh/tests/secret-selftest.zsh`](../tests/secret-selftest.zsh) — 251
+[`zsh/tests/secret-selftest.zsh`](../tests/secret-selftest.zsh) — 252
 assertions: round-trips (special characters, json/env/age), partial updates,
 `--no-env` (kept out of `env`, kept across rewrites and export/import, stored
 as the `envn`/`envy` type code), `--meta` fields (validation, sorting,
