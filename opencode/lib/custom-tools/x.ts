@@ -8,12 +8,13 @@ import { tool, type ToolContext } from "./define"
  * citations. Legacy Live Search (search_parameters) is deprecated (410) —
  * this is the current mechanism.
  *
- * Auth: XAI_API_KEY env when present (official, metered: ~$5/1k calls),
- * otherwise the xAI OAuth access token from opencode's credential store
- * (subscription tier — UNOFFICIAL path; may start returning 403 at any
- * time), supplied by the plugin adapter (V1: auth.json, V2: integration
- * store). The token is read fresh per call and never included in output or
- * error messages.
+ * Auth: XAI_API_KEY env when present (official, metered: per post and
+ * profile fetched plus model tokens), otherwise the xAI device-login token
+ * from opencode's credential store (the subscription's weekly pool, the same
+ * login the searchers run on; xAI documents the API key path only, so a 403
+ * here means the subscription path closed), supplied by the plugin adapter
+ * (V1: auth.json, V2: integration store). The token is read fresh per call
+ * and never included in output or error messages.
  */
 
 const API_URL = "https://api.x.ai/v1/responses"
