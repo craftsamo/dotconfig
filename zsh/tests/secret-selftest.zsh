@@ -130,6 +130,23 @@ projarr=(${(f)"$(secret projects)"})
 envout=$(secret env -p $P)
 ( eval "$envout"; [[ "$TEST_ALPHA" == "$V1" && "$TEST_BETA" == 'updated-456' ]] ) \
   && ok "env output is eval-safe" || bad "env output is eval-safe"
+# one invocation unlocks a keychain once, however many values it reads:
+# shadow `security` to count the unlock (-i) and the password lookups
+security() {
+  local tag=$1
+  [[ $1 == find-generic-password && $3 == keychain-password ]] && tag=pw-lookup
+  print -r -- "$tag" >> "$TD/seccalls"
+  command security "$@"
+}
+: > "$TD/seccalls"
+[[ "$(secret env -p $P)" == *TEST_ALPHA*TEST_BETA* ]] \
+  && ok "env still emits both items under the counting shim" || bad "env still emits both items under the counting shim"
+(( $(grep -c '^-i$' "$TD/seccalls") == 1 )) && ok "env unlocks the keychain once" || bad "env unlocks the keychain once ($(grep -c '^-i$' "$TD/seccalls"))"
+(( $(grep -c '^pw-lookup$' "$TD/seccalls") <= 2 )) && ok "env looks the unlock password up once" || bad "env looks the unlock password up once ($(grep -c '^pw-lookup$' "$TD/seccalls"))"
+: > "$TD/seccalls"
+secret export -p $P --format json -o "$TD/cnt.json" >/dev/null 2>&1
+(( $(grep -c '^-i$' "$TD/seccalls") == 1 )) && ok "export unlocks the keychain once" || bad "export unlocks the keychain once ($(grep -c '^-i$' "$TD/seccalls"))"
+unfunction security; rm -f "$TD/cnt.json"
 
 # --- export json / import ---
 secret export -p $P --format json -o "$TD/x.json" >/dev/null 2>&1 \
