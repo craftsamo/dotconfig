@@ -301,6 +301,9 @@ export type FieldSpec = { name: string; dataType: "TEXT" | "NUMBER" | "DATE" | "
 export async function ensureField(project: Project, fields: Field[], spec: FieldSpec, cwd?: string): Promise<{ created: boolean; addedOptions: string[]; field: Field }> {
   const existing = fields.find((f) => sameName(f.name, spec.name))
   if (existing) {
+    if (existing.dataType !== spec.dataType) {
+      throw new Error(`Field "${existing.name}" exists as ${existing.dataType}, not ${spec.dataType}; rename one of them.`)
+    }
     const addedOptions = spec.dataType === "SINGLE_SELECT" && spec.options?.length ? await ensureSelectOptions(existing, spec.options, cwd) : []
     return { created: false, addedOptions, field: existing }
   }
@@ -311,6 +314,8 @@ export async function ensureField(project: Project, fields: Field[], spec: Field
   if (spec.dataType === "SINGLE_SELECT") {
     const opts = spec.options ?? []
     if (!opts.length) throw new Error("SINGLE_SELECT needs at least one option.")
+    const comma = opts.find((o) => o.name.includes(","))
+    if (comma) throw new Error(`Option "${comma.name}" contains a comma, which gh reads as a separator; rename it.`)
     argv.push("--single-select-options", opts.map((o) => o.name).join(","))
   }
   await runGh(argv, cwd)

@@ -157,6 +157,41 @@ export const projectFields = (fields: FieldSeed[]): GhRule => ({
   }),
 })
 
+export const projectNodeById = (p: ProjectSeed): GhRule => ({
+  re: `node\\(id:\\$id\\)\\{\\.\\.\\. on ProjectV2\\{id number title.* -f id=${projectNode(p).id}$`,
+  out: gql({ node: projectNode(p) }),
+})
+
+export const projectViews = (names: string[]): GhRule => ({
+  re: "views\\(first:50\\)\\{nodes\\{name\\}\\}",
+  out: gql({ node: { views: { nodes: names.map((name) => ({ name })) } } }),
+})
+
+export type ItemSeed = { id: string; archived?: boolean; status?: string; draft?: { id: string; title: string; body?: string }; issue?: { repo: string; number: number; title?: string; state?: string } }
+
+const itemNode = (it: ItemSeed) => ({
+  id: it.id,
+  isArchived: it.archived ?? false,
+  fieldValues: { nodes: it.status ? [{ name: it.status, field: { name: "Status" } }] : [] },
+  content: it.draft
+    ? { __typename: "DraftIssue", id: it.draft.id, title: it.draft.title, body: it.draft.body ?? "" }
+    : it.issue
+      ? { __typename: "Issue", id: `I_${it.issue.number}`, number: it.issue.number, title: it.issue.title ?? `Issue ${it.issue.number}`, url: issueUrl(it.issue.repo, it.issue.number), state: it.issue.state ?? "OPEN", repository: { nameWithOwner: it.issue.repo }, labels: { nodes: [] }, assignees: { nodes: [] } }
+      : null,
+})
+
+/** One page of a board's items. */
+export const projectItems = (items: ItemSeed[]): GhRule => ({
+  re: "items\\(first:50,after:\\$after\\)",
+  out: gql({ node: { items: { pageInfo: { hasNextPage: false, endCursor: null }, nodes: items.map(itemNode) } } }),
+})
+
+/** One item read by id, with its project. */
+export const projectItem = (projectId: string, item: ItemSeed): GhRule => ({
+  re: `\\.\\.\\. on ProjectV2Item\\{project\\{id\\}[\\s\\S]* -f id=${item.id}$`,
+  out: gql({ node: { project: { id: projectId }, ...itemNode(item) } }),
+})
+
 export const STANDARD_FIELDS: FieldSeed[] = [
   { name: "Title", dataType: "TITLE" },
   { name: "Status", dataType: "SINGLE_SELECT", options: ["Todo", "In Progress", "Done"] },

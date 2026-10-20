@@ -11,6 +11,7 @@
 const loaders: Record<string, () => Promise<Record<string, any>>> = {
   gh: () => import("../gh"),
   gh_issue: () => import("../gh_issue"),
+  gh_project: () => import("../gh_project"),
   git: () => import("../git"),
 }
 

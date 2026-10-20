@@ -189,6 +189,8 @@ PROJECT_WRITES = (
     # The gh_issue_* tools write issues past the shell rules above (ISSUE_WRITES
     # asks, `gh issue close` is denied); a run reads with gh_issue_view / list.
     "gh_issue_create", "gh_issue_update", "gh_issue_comment", "gh_issue_relate", "gh_issue_develop",
+    "gh_project_create", "gh_project_link", "gh_project_field_ensure", "gh_project_view_ensure",
+    "gh_project_item_add", "gh_project_item_set", "gh_project_item_promote",
 )
 
 
