@@ -36,29 +36,37 @@ export const develop = tool({
     const repo = await resolveRepo(ref.repo ?? args.repo, cwd)
     assertWritable(repo)
     const r = repo.nameWithOwner
+    let branchRepo: { nameWithOwner: string; foreign: boolean } | null = null
+    if (args.branchRepo) {
+      const ctx = await resolveRepo(args.branchRepo, cwd)
+      assertWritable(ctx)
+      branchRepo = { nameWithOwner: ctx.nameWithOwner, foreign: ctx.foreign }
+    }
     const existing = (await getIssue(r, ref.number, { comments: 0, cwd })).linkedBranches
     if (existing.length) {
       return JSON.stringify({
         ok: true,
         created: false,
         repo: r,
+        foreign: repo.foreign,
         issue: ref.number,
         branch: existing[0],
         linkedBranches: existing,
         note: args.checkout ? "branch already linked; not recreated and not checked out" : "branch already linked; not recreated",
       })
     }
-    if (args.base && !(await remoteBranchExists(args.base, args.branchRepo ?? r, cwd))) {
-      throw new Error(`Base branch "${args.base}" not found on ${args.branchRepo ?? r}; gh issue develop would silently fall back to the default branch.`)
+    const target = branchRepo?.nameWithOwner ?? r
+    if (args.base && !(await remoteBranchExists(args.base, target, cwd))) {
+      throw new Error(`Base branch "${args.base}" not found on ${target}; gh issue develop would silently fall back to the default branch.`)
     }
     const argv = ["issue", "develop", String(ref.number), "--repo", r]
     if (args.branch) argv.push("--name", args.branch)
     if (args.base) argv.push("--base", args.base)
     if (args.checkout) argv.push("--checkout")
-    if (args.branchRepo) argv.push("--branch-repo", args.branchRepo)
+    if (branchRepo) argv.push("--branch-repo", branchRepo.nameWithOwner)
     const out = await runGh(argv, cwd)
     const branch = args.branch ?? parseBranchFromOutput(out)
     if (!branch) throw new Error(`gh issue develop succeeded but printed no branch:\n${out}`)
-    return JSON.stringify({ ok: true, created: true, repo: r, foreign: repo.foreign, issue: ref.number, branch, base: args.base ?? null, linkedBranches: [branch] })
+    return JSON.stringify({ ok: true, created: true, repo: r, foreign: repo.foreign, issue: ref.number, branch, base: args.base ?? null, branchRepo, linkedBranches: [branch] })
   },
 })

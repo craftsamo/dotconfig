@@ -58,31 +58,28 @@ async function ownerType(login: string, cwd?: string): Promise<OwnerType | null>
   }
 }
 
-async function projectByNumber(login: string, number: number, cwd?: string): Promise<Project | null> {
+async function rootFor(login: string, cwd?: string): Promise<"organization" | "user"> {
   const type = await ownerType(login, cwd)
-  if (!type) return null
-  const field = type === "Organization" ? "organization" : "user"
-  try {
-    const data = await graphql(`query($login:String!,$n:Int!){${field}(login:$login){projectV2(number:$n){${PROJECT_FIELDS}}}}`, { login, n: number }, cwd)
-    const p = data?.[field]?.projectV2
-    return p ? toProject(p) : null
-  } catch {
-    return null
-  }
+  if (!type) throw new Error(`No user or organization named "${login}".`)
+  return type === "Organization" ? "organization" : "user"
 }
 
-async function projectsByTitle(login: string | "@me", title: string, cwd?: string): Promise<Project[]> {
-  const root = login === "@me" ? "viewer" : (await ownerType(login, cwd)) === "Organization" ? "organization" : "user"
+// Scope and permission errors surface from here; "not found" is only a null.
+async function projectByNumber(login: string, number: number, cwd?: string): Promise<Project | null> {
+  const root = await rootFor(login, cwd)
+  const data = await graphql(`query($login:String!,$n:Int!){${root}(login:$login){projectV2(number:$n){${PROJECT_FIELDS}}}}`, { login, n: number }, cwd)
+  const p = data?.[root]?.projectV2
+  return p ? toProject(p) : null
+}
+
+export async function projectsByTitle(login: string | "@me", title: string, cwd?: string): Promise<Project[]> {
+  const root = login === "@me" ? "viewer" : await rootFor(login, cwd)
   const sel = root === "viewer" ? "viewer" : `${root}(login:$login)`
   const vars = root === "viewer" ? { q: title } : { login, q: title }
   const decl = root === "viewer" ? "$q:String!" : "$login:String!,$q:String!"
-  try {
-    const data = await graphql(`query(${decl}){${sel}{projectsV2(first:20,query:$q){nodes{${PROJECT_FIELDS}}}}}`, vars, cwd)
-    const nodes: any[] = data?.[root]?.projectsV2?.nodes ?? []
-    return nodes.map(toProject).filter((p) => sameName(p.title, title) && !p.closed)
-  } catch {
-    return []
-  }
+  const data = await graphql(`query(${decl}){${sel}{projectsV2(first:20,query:$q){nodes{${PROJECT_FIELDS}}}}}`, vars, cwd)
+  const nodes: any[] = data?.[root]?.projectsV2?.nodes ?? []
+  return nodes.map(toProject).filter((p) => sameName(p.title, title) && !p.closed)
 }
 
 async function linkedProjects(repo: RepoContext, cwd?: string): Promise<Project[]> {
@@ -120,15 +117,12 @@ export async function resolveProject(input: ResolveInput): Promise<Resolved> {
       if (!p) throw new Error(`Project ${login}/${ref.number} not found or not accessible.`)
       return { project: p, route: "explicit", considered: [{ route: "explicit", outcome: `${login}/${ref.number}` }] }
     }
-    if (ref.title !== undefined && ref.owner) {
-      const found = await projectsByTitle(ref.owner, ref.title, cwd)
-      if (!found.length) throw new Error(`No open project titled "${ref.title}" for owner "${ref.owner}".`)
-      return { project: found[0], route: "explicit", considered: [{ route: "explicit", outcome: `${ref.owner}/"${ref.title}"` }] }
-    }
-    if (ref.title === undefined && ref.owner) {
-      const found = await projectsByTitle(ref.owner, title, cwd)
-      if (!found.length) throw new Error(`No open project titled "${title}" for owner "${ref.owner}". Create it with gh_project_create.`)
-      return { project: found[0], route: "explicit", considered: [{ route: "explicit", outcome: `${ref.owner}/"${title}"` }] }
+    if (ref.owner) {
+      const wantedTitle = ref.title ?? title
+      const found = await projectsByTitle(ref.owner, wantedTitle, cwd)
+      if (!found.length) throw new Error(`No open project titled "${wantedTitle}" for owner "${ref.owner}". Create it with gh_project_create.`)
+      if (found.length > 1) throw new Error(`${found.length} open projects titled "${wantedTitle}" for owner "${ref.owner}"; pass \`project\` as a URL or owner/N.`)
+      return { project: found[0], route: "explicit", considered: [{ route: "explicit", outcome: `${ref.owner}/"${wantedTitle}"` }] }
     }
   }
   // Only a title (no owner): search the routes below for that title.
@@ -139,14 +133,17 @@ export async function resolveProject(input: ResolveInput): Promise<Resolved> {
     const linked = await linkedProjects(input.repo, cwd)
     const match = explicitTitle ? linked.filter((p) => sameName(p.title, wanted)) : linked
     const writable = match.filter((p) => p.viewerCanUpdate)
-    if (writable.length === 1 || (writable.length > 1 && !explicitTitle)) {
-      const pick = writable.find((p) => sameName(p.title, wanted)) ?? writable[0]
+    // One writable linked project is the board; among several, only an
+    // unambiguous title match is, never an arbitrary one.
+    const titled = writable.filter((p) => sameName(p.title, wanted))
+    const pick = writable.length === 1 ? writable[0] : titled.length === 1 ? titled[0] : null
+    if (pick) {
       considered.push({ route: "linked", outcome: `${pick.owner.login}/${pick.number} "${pick.title}"` + (writable.length > 1 ? ` (of ${writable.length} linked)` : "") })
       return { project: pick, route: "linked", considered }
     }
     if (writable.length > 1) {
       throw new Error(
-        `${writable.length} linked projects titled "${wanted}" on ${input.repo.nameWithOwner}; pass \`project\` as a URL or owner/N.`,
+        `${writable.length} writable projects are linked to ${input.repo.nameWithOwner} (${writable.map((p) => `${p.owner.login}/${p.number} "${p.title}"`).join(", ")}); pass \`project\` as a URL, owner/N or a title.`,
       )
     }
     considered.push({

@@ -74,10 +74,11 @@ describe("gh_issue_create", () => {
       { title: "New", body: "b", repo: ORG_REPO, kind: "feature", milestone: "v1", createMilestone: true, parent: "3", blockedBy: ["2"], addToProject: true, fields: { Status: "Todo" } },
       [
         ...repoContext(ORG_REPO, { type: "Organization" }),
-        { re: "^api repos/acme/web/milestones\\?state=all", out: "[]" },
+        { re: "^api --paginate --slurp repos/acme/web/milestones\\?state=all", out: "[[]]" },
         { re: "^api repos/acme/web/milestones -f title=v1", out: JSON.stringify({ number: 9, title: "v1" }) },
         { re: "^issue create --title New", out: `${issueUrl(ORG_REPO, 20)}\n` },
         orgIssueTypes(["Feature"]),
+        { re: "^issue view 20 --json labels", out: JSON.stringify({ labels: [] }) },
         { re: "^issue edit 20 --type Feature", out: "" },
         ...issueDetail({ repo: ORG_REPO, number: 20 }),
         { re: "^issue edit 20 --parent", out: "" },
@@ -91,10 +92,11 @@ describe("gh_issue_create", () => {
     expect(res.ok).toBe(true)
     expect(res.out).toMatchObject({
       issue: { number: 20, url: issueUrl(ORG_REPO, 20) },
-      kind: { via: "type", name: "Feature" },
+      kind: { via: "type", name: "Feature", removedLabels: [] },
       milestone: { number: 9, created: true },
-      relations: { parent: { set: `${ORG_REPO}#3` }, blockedBy: { added: [`${ORG_REPO}#2`], unchanged: [] } },
+      relations: { parent: { set: `${ORG_REPO}#3` }, blockedBy: { added: [`${ORG_REPO}#2`], unchanged: [] }, otherRepos: [] },
       board: { project: { number: 4, route: "linked" }, itemId: "PVTI_9", fieldsApplied: ["Status"] },
+      errors: {},
     })
     expect(res.calls.find((c) => c.startsWith("issue create"))).toContain("--milestone v1")
   })
@@ -103,11 +105,24 @@ describe("gh_issue_create", () => {
     const res = call("create", { title: "Bug", repo: REPO, kind: "bug" }, [
       ...repoContext(REPO),
       { re: "^issue create", out: `${issueUrl(REPO, 2)}\n` },
+      { re: "^issue view 2 --json labels", out: JSON.stringify({ labels: [] }) },
       { re: "^label list", out: "[]" },
       { re: "^label create type:bug --color D73A4A", out: "" },
       { re: "^issue edit 2 --add-label type:bug", out: "" },
     ])
-    expect(res.out.kind).toEqual({ kind: "bug", via: "label", name: "type:bug" })
+    expect(res.out.kind).toEqual({ kind: "bug", via: "label", name: "type:bug", removedLabels: [] })
+  })
+
+  test("keeps the issue in the result when a later step fails", () => {
+    const res = call("create", { title: "x", repo: REPO, parent: "99" }, [
+      ...repoContext(REPO),
+      { re: "^issue create", out: `${issueUrl(REPO, 3)}\n` },
+      ...issueDetail({ repo: REPO, number: 3 }),
+      { re: "^issue edit 3 --parent", code: 1, out: "" },
+    ])
+    expect(res.ok).toBe(true)
+    expect(res.out).toMatchObject({ ok: false, issue: { number: 3 }, relations: null })
+    expect(res.out.errors.relations).toMatch(/--parent/)
   })
 
   test("refuses without write permission", () => {
@@ -134,12 +149,35 @@ describe("gh_issue_update", () => {
     expect(noReason.ok).toBe(false)
     expect(noReason.error).toMatch(/Closing needs `reason`/)
   })
+
+  test("switching the kind takes the old type: label off, and falls back to a label when --type is refused", () => {
+    const switched = call("update", { issue: "6", repo: REPO, kind: "bug" }, [
+      ...repoContext(REPO),
+      { re: "^issue view 6 --json labels", out: JSON.stringify({ labels: [{ name: "type:feature" }, { name: "area:web" }] }) },
+      { re: "^label list", out: JSON.stringify([{ name: "type:bug" }]) },
+      { re: "^issue edit 6 --add-label type:bug", out: "" },
+      { re: "^issue edit 6 --remove-label type:feature", out: "" },
+    ])
+    expect(switched.out.kind).toEqual({ kind: "bug", via: "label", name: "type:bug", removedLabels: ["type:feature"] })
+
+    const oldGh = call("update", { issue: "6", repo: ORG_REPO, kind: "bug" }, [
+      ...repoContext(ORG_REPO, { type: "Organization" }),
+      orgIssueTypes(["Bug"]),
+      { re: "^issue view 6 --json labels", out: JSON.stringify({ labels: [] }) },
+      { re: "^issue edit 6 --type Bug", code: 1, out: "unknown flag: --type" },
+      { re: "^label list", out: "[]" },
+      { re: "^label create type:bug", out: "" },
+      { re: "^issue edit 6 --add-label type:bug", out: "" },
+    ])
+    expect(oldGh.out.kind).toMatchObject({ via: "label", name: "type:bug", note: expect.stringContaining("labelled instead") })
+  })
 })
 
 describe("gh_issue_relate", () => {
-  test("skips relations already in place and sends the rest as URLs", () => {
+  test("skips relations already in place, sends the rest as URLs, and checks the other repository", () => {
     const res = call("relate", { issue: "3", repo: REPO, parent: "1", addSubIssues: ["4", "5"], removeSubIssues: ["6", "7"], addBlockedBy: [`${ORG_REPO}#9`] }, [
       ...repoContext(REPO),
+      ...repoContext(ORG_REPO, { type: "Organization", viewer: "me", member: false, permission: "WRITE" }),
       ...issueDetail({ repo: REPO, number: 3, parent: 1, subIssues: [4, 7] }),
       { re: "^issue edit 3 --add-sub-issue " + issueUrl(REPO, 5), out: "" },
       { re: "^issue edit 3 --remove-sub-issue " + issueUrl(REPO, 7), out: "" },
@@ -150,8 +188,26 @@ describe("gh_issue_relate", () => {
       parent: { unchanged: `${REPO}#1` },
       subIssues: { added: [`${REPO}#5`], removed: [`${REPO}#7`], unchanged: [`${REPO}#4`, `${REPO}#6`] },
       blockedBy: { added: [`${ORG_REPO}#9`] },
+      otherRepos: [{ repo: ORG_REPO, foreign: true }],
     })
     expect(res.calls.filter((c) => c.startsWith("issue edit"))).toHaveLength(3)
+  })
+
+  test("folds a duplicate GitHub refuses into unchanged, and refuses dependencies it could not read", () => {
+    const dup = call("relate", { issue: "3", repo: REPO, addSubIssues: ["8"] }, [
+      ...repoContext(REPO),
+      ...issueDetail({ repo: REPO, number: 3 }),
+      { re: "^issue edit 3 --add-sub-issue", code: 1, out: "GraphQL: Issue may not contain duplicate sub-issues" },
+    ])
+    expect(dup.out.subIssues).toEqual({ added: [], removed: [], unchanged: [`${REPO}#8`] })
+
+    const noDeps = call("relate", { issue: "3", repo: REPO, addBlockedBy: ["2"] }, [
+      ...repoContext(REPO),
+      issueDetail({ repo: REPO, number: 3 })[0],
+      { re: "blockedBy\\(first:50\\)", code: 1, out: "" },
+    ])
+    expect(noDeps.ok).toBe(false)
+    expect(noDeps.error).toMatch(/Could not read the issue's dependencies/)
   })
 })
 
@@ -189,6 +245,30 @@ describe("project resolution through gh_issue_create", () => {
     expect(res.out.board).toMatchObject({ project: { owner: "me", number: 2, route: "user" }, itemId: "PVTI_2" })
   })
 
+  test("refuses to pick among several writable linked boards without a title", () => {
+    const res = call("create", { title: "x", repo: REPO, addToProject: true }, [
+      ...repoContext(REPO),
+      { re: "^issue create", out: `${issueUrl(REPO, 1)}\n` },
+      linkedProjects([
+        { owner: "me", number: 1, title: "Alpha" },
+        { owner: "me", number: 2, title: "Beta" },
+      ]),
+    ])
+    expect(res.out.board).toBeNull()
+    expect(res.out.errors.board).toMatch(/2 writable projects are linked to me\/web/)
+
+    const titled = call("create", { title: "x", repo: REPO, addToProject: true, project: "Beta" }, [
+      ...repoContext(REPO),
+      { re: "^issue create", out: `${issueUrl(REPO, 1)}\n` },
+      linkedProjects([
+        { owner: "me", number: 1, title: "Alpha" },
+        { owner: "me", number: 2, title: "Beta" },
+      ]),
+      { re: "^project item-add 2 --owner me --url", out: JSON.stringify({ id: "PVTI_2" }) },
+    ])
+    expect(titled.out.board).toMatchObject({ project: { number: 2, route: "linked" } })
+  })
+
   test("fails with the routes considered when no board resolves", () => {
     const res = call("create", { title: "x", repo: REPO, addToProject: true }, [
       ...repoContext(REPO),
@@ -196,7 +276,7 @@ describe("project resolution through gh_issue_create", () => {
       linkedProjects([]),
       ownerProjects("viewer", []),
     ])
-    expect(res.ok).toBe(false)
-    expect(res.error).toMatch(/linked: no project linked to the repository; org: repository is user-owned; user: no project titled "Roadmap"/)
+    expect(res.out.ok).toBe(false)
+    expect(res.out.errors.board).toMatch(/linked: no project linked to the repository; org: repository is user-owned; user: no project titled "Roadmap"/)
   })
 })

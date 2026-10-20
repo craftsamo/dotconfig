@@ -20,7 +20,7 @@ export const repoContext = (repo: string, options: { type?: "User" | "Organizati
   const type = options.type ?? "User"
   const rules: GhRule[] = [
     {
-      re: "repository\\(owner:\\$owner,name:\\$name\\)\\{id nameWithOwner",
+      re: `repository\\(owner:\\$owner,name:\\$name\\)\\{id nameWithOwner.* -f owner=${owner} -f name=${name}$`,
       out: gql({
         viewer: { login: options.viewer ?? owner },
         repository: {
@@ -117,7 +117,7 @@ export const projectNode = (p: ProjectSeed) => ({
 })
 
 export const ownerType = (login: string, type: "User" | "Organization" | null): GhRule => ({
-  re: `repositoryOwner\\(login:\\$login\\)\\{__typename\\} -f login=${login}`,
+  re: `repositoryOwner\\(login:\\$login\\)\\{__typename\\}\\} -f login=${login}$`,
   out: gql({ repositoryOwner: type ? { __typename: type } : null }),
 })
 

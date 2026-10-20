@@ -12,7 +12,7 @@ import { relateIssue } from "./relate"
 
 /** A milestone by title; created when absent and `create` is set. */
 export async function ensureMilestone(repo: string, title: string, create: boolean, cwd?: string): Promise<{ number: number; title: string; created: boolean }> {
-  const list: any[] = (await runGhJson(["api", `repos/${repo}/milestones?state=all&per_page=100`], cwd)) ?? []
+  const list: any[] = (await runGhJson(["api", "--paginate", "--slurp", `repos/${repo}/milestones?state=all&per_page=100`], cwd))?.flat() ?? []
   const found = list.find((m) => sameName(m.title, title))
   if (found) return { number: found.number, title: found.title, created: false }
   if (!create) throw new Error(`Milestone "${title}" not found in ${repo}. Pass createMilestone:true to create it.`)
@@ -61,14 +61,29 @@ export const create = tool({
     const number = numberFromIssueUrl(out)
     const url = `https://github.com/${repo.nameWithOwner}/issues/${number}`
 
-    const kind = args.kind ? await applyKind(repo, number, args.kind, cwd) : null
+    // The issue exists from here on: a later step that fails is reported
+    // beside it, so the caller fixes that step instead of creating a twin.
+    const errors: Record<string, string> = {}
+    const step = async <T>(name: string, run: () => Promise<T>): Promise<T | null> => {
+      try {
+        return await run()
+      } catch (error) {
+        errors[name] = (error as Error).message
+        return null
+      }
+    }
+    const kind = args.kind ? await step("kind", () => applyKind(repo, number, args.kind!, cwd)) : null
     const relations =
       args.parent || args.blockedBy?.length
-        ? await relateIssue(repo, number, { parent: args.parent, addBlockedBy: args.blockedBy }, cwd)
+        ? await step("relations", () => relateIssue(repo, number, { parent: args.parent, addBlockedBy: args.blockedBy }, cwd))
         : null
-    const board = args.addToProject ? await addIssueToBoard(repo, url, { project: args.project, owner: args.owner, fields: args.fields }, cwd) : null
+    const board = args.addToProject ? await step("board", () => addIssueToBoard(repo, url, { project: args.project, owner: args.owner, fields: args.fields }, cwd)) : null
 
-    return JSON.stringify({ ok: true, repo: repo.nameWithOwner, foreign: repo.foreign, issue: { number, url, title: args.title }, kind, milestone, relations, board }, null, 2)
+    return JSON.stringify(
+      { ok: Object.keys(errors).length === 0, repo: repo.nameWithOwner, foreign: repo.foreign, issue: { number, url, title: args.title }, kind, milestone, relations, board, errors },
+      null,
+      2,
+    )
   },
 })
 

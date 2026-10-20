@@ -34,15 +34,17 @@ export type IssueDetail = {
   closingPullRequests: { number: number; title: string; url: string; state: string; merged: boolean }[]
   projects: { itemId: string; archived: boolean; number: number; title: string; url: string; projectId: string }[]
   comments: { author: string | null; createdAt: string; body: string; url: string }[]
-  commentCount: number
+  commentCount: number | null
   createdAt: string
   updatedAt: string
+  /** Why blockedBy / blocking are empty when the dependencies query failed; null when they were read. */
+  dependenciesError: string | null
 }
 
 const BRIEF = "number title url state repository{nameWithOwner}"
 const brief = (n: any): IssueBrief => ({ number: n.number, title: n.title, url: n.url, state: n.state, repo: n.repository?.nameWithOwner ?? "" })
 
-const DETAIL_QUERY = `query($owner:String!,$name:String!,$n:Int!,$comments:Int!){repository(owner:$owner,name:$name){issue(number:$n){
+const DETAIL_QUERY = `query($owner:String!,$name:String!,$n:Int!,$comments:Int!,$withComments:Boolean!){repository(owner:$owner,name:$name){issue(number:$n){
  id number title url state stateReason body createdAt updatedAt author{login}
  repository{nameWithOwner}
  assignees(first:20){nodes{login}} labels(first:30){nodes{name}}
@@ -52,7 +54,7 @@ const DETAIL_QUERY = `query($owner:String!,$name:String!,$n:Int!,$comments:Int!)
  linkedBranches(first:20){nodes{ref{name}}}
  closedByPullRequestsReferences(first:20,includeClosedPrs:true){nodes{number title url state merged}}
  ${ISSUE_PROJECT_ITEMS}
- comments(last:$comments){totalCount nodes{author{login} createdAt body url}}
+ comments(last:$comments) @include(if:$withComments){totalCount nodes{author{login} createdAt body url}}
 }}}`
 
 const DEPS_QUERY = `query($owner:String!,$name:String!,$n:Int!){repository(owner:$owner,name:$name){issue(number:$n){blockedBy(first:50){nodes{${BRIEF}}} blocking(first:50){nodes{${BRIEF}}}}}}`
@@ -60,17 +62,21 @@ const DEPS_QUERY = `query($owner:String!,$name:String!,$n:Int!){repository(owner
 export async function getIssue(repo: string, number: number, options: { comments?: number; cwd?: string } = {}): Promise<IssueDetail> {
   const [owner, name] = repo.split("/")
   const cwd = options.cwd
-  const data = await graphql(DETAIL_QUERY, { owner, name, n: number, comments: options.comments ?? 5 }, cwd)
+  const comments = options.comments ?? 5
+  const data = await graphql(DETAIL_QUERY, { owner, name, n: number, comments: Math.max(comments, 1), withComments: comments > 0 }, cwd)
   const i = data?.repository?.issue
   if (!i) throw new Error(`Issue ${repo}#${number} not found.`)
   let blockedBy: IssueBrief[] = []
   let blocking: IssueBrief[] = []
+  let dependenciesError: string | null = null
   try {
     const d = await graphql(DEPS_QUERY, { owner, name, n: number }, cwd)
     blockedBy = (d?.repository?.issue?.blockedBy?.nodes ?? []).map(brief)
     blocking = (d?.repository?.issue?.blocking?.nodes ?? []).map(brief)
-  } catch {
-    // Issue dependencies are not in every schema the viewer can reach; the picture stays usable without them.
+  } catch (error) {
+    // Issue dependencies are not in every schema the viewer can reach; the
+    // picture stays usable without them, and a caller that needs them checks.
+    dependenciesError = (error as Error).message
   }
   const labels = (i.labels?.nodes ?? []).map((l: any) => l.name)
   return {
@@ -97,9 +103,10 @@ export async function getIssue(repo: string, number: number, options: { comments
     closingPullRequests: (i.closedByPullRequestsReferences?.nodes ?? []).map((p: any) => ({ number: p.number, title: p.title, url: p.url, state: p.state, merged: Boolean(p.merged) })),
     projects: (i.projectItems?.nodes ?? []).map((p: any) => ({ itemId: p.id, archived: Boolean(p.isArchived), number: p.project?.number, title: p.project?.title, url: p.project?.url, projectId: p.project?.id })),
     comments: (i.comments?.nodes ?? []).map((c: any) => ({ author: c.author?.login ?? null, createdAt: c.createdAt, body: c.body ?? "", url: c.url })),
-    commentCount: i.comments?.totalCount ?? 0,
+    commentCount: i.comments?.totalCount ?? null,
     createdAt: i.createdAt,
     updatedAt: i.updatedAt,
+    dependenciesError,
   }
 }
 
