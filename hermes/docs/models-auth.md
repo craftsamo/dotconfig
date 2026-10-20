@@ -15,10 +15,10 @@ is skipped.
 Models are chosen per role by the capability the role needs, not by the
 strongest model; the budget is each subscription's usage allowance, not
 dollars. **Hermes chat and auxiliary models run on Claude first**, on the
-Hermes Claude account; the ChatGPT subscription belongs to OpenCode, and
-Hermes touches it for image generation and, on every profile except
-`searcher` (which leads on it), as a last-resort chat tier ahead of the
-OpenRouter tail (see "Codex" below).
+Hermes Claude account; `searcher` is the exception and leads on Grok (the
+xAI subscription, "xAI" below). The ChatGPT subscription belongs to OpenCode,
+and Hermes touches it for image generation and, on every profile, as a
+last-resort chat tier ahead of the OpenRouter tail (see "Codex" below).
 
 - **Opus 5.5 leads the judgment profiles** (`default`, `assistant`, `marketer`,
   `video-creator`), **Fable 5.1 leads `creator` and `researcher`**, and
@@ -53,15 +53,18 @@ OpenRouter tail (see "Codex" below).
   hundreds of `vision_analyze` calls, so concurrent Opus video jobs hit a 429
   concurrency limit, not the usage cap. A silent drop to the Sonnet or minimax
   tier degrades Creator and video output: watch the Opus sub-cap.
-- **Searcher leads on GPT-6.1 Sol** (`openai-codex`), then Sonnet 5.5, then
-  `xai-oauth` / grok-4.7, then the OpenRouter tail. xAI stays in the chain
-  because `x_search` and Imagine video draw on it. Searcher is the only profile
-  that leads on the shared ChatGPT allowance, so re-size OpenCode's usage if its
-  retrieval volume grows ("Codex" below). Its window is pinned
-  (`model.context_length: 1000000`, `compression.threshold: 0.5`,
-  `codex_gpt55_autoraise: false`) so compression starts at 500k: the Codex
-  catalog still reports 272k for GPT-6.1 Sol, and the autoraise would pin the
-  trigger to 85 % of the window instead.
+- **Searcher leads on grok-4.7** (`xai-oauth`), then GPT-6.1 Sol, then
+  Sonnet 5.5, then the OpenRouter tail. Retrieval is the one chat workload
+  that fits the xAI weekly pool (`x_search` runs on the same login), and a
+  Grok lead keeps searcher off both the Claude weekly pool and the ChatGPT
+  allowance until Grok fails. Its window is pinned to Grok's
+  (`model.context_length: 500000`, `compression.threshold: 0.5`) so
+  compression starts at 250k; `codex_gpt55_autoraise: false` stays for the
+  Sol tier, whose autoraise would pin the trigger to 85 % of its window.
+- **Every named profile carries `xai-oauth` / grok-4.7 after its last Claude
+  tier and ahead of GPT-6.1 Sol**, so a spent Claude pool spends the xAI
+  subscription before the ChatGPT one. `default` stays off it (neutral chain,
+  below).
 - The coding model inside OpenCode is a separate layer: its roles use OpenCode's
   own per-agent defaults (OpenCode's own Anthropic account, nothing from the
   Hermes weekly pool), optionally overridden by `model` on a role in
@@ -93,11 +96,11 @@ Provider facts:
   ChatGPT subscription is sized for OpenCode (its searchers, `debugger`,
   `reviewer-deep`, the explore tiers and cheap subagents, plus the `alternate`
   of the Assistant's OpenCode roles) and shares one Plus allowance with
-  Hermes. The tier only runs once the Claude tiers above it have failed, but a
+  Hermes. The tier only runs once the Claude and Grok tiers above it have failed, but a
   `video-creator` job reads tens of millions of tokens, so a long spell on it
   drains the allowance: re-size OpenCode's usage before adding the tier to an
   aux task. `assistant` is the exception with GPT-6 Astra ahead of Sonnet
-  (above). Searcher's aux tasks stay `auto`, so they run on GPT-6.1 Sol.
+  (above). Searcher's aux tasks stay `auto`, so they run on its lead, grok-4.7.
   GPT-6.1 Sol and Astra reject `reasoning.effort` `none` / `minimal`, so keep
   `reasoning_effort` at `low` or above. On the Codex route Astra's window is
   272k (the runtime's `-900k` opt-in is a picker alias, not a chain tier):
@@ -105,14 +108,20 @@ Provider facts:
   is on it, and a turn whose context already exceeds it fails over to the
   next tier like any rejected request. The Codex OAuth login in `default`
   stays on purpose: the `image-fallback` chains still try `openai-codex`.
-- **xAI** — `xai-oauth` is a flat-rate **xAI subscription**, not the metered
-  `XAI_API_KEY` API, so searcher adds no worker to the Claude weekly pool.
-  grok-4.7 is not on Hermes' reasoning-capable allowlist
-  (`model_metadata.py`), so Hermes drops `reasoning_effort` for it on purpose:
-  xAI answers an unsupported `reasoningEffort` with 400.
+- **xAI** — `xai-oauth` is the flat-rate **xAI subscription** (the Grok side
+  of The X Subscription), not the metered `XAI_API_KEY` API. Chat, `x_search`,
+  Grok Imagine image and video all draw on its one weekly pool, which also
+  feeds Grok on X, the Grok apps and Cursor; the plan's tier sets the pool
+  size. The pool is what the Grok tiers and the xai-first image chain are for:
+  it refreshes weekly and does not roll over. TTS and STT are the exception:
+  xAI bills `/v1/tts` and `/v1/stt` to the API, so the runtime prefers
+  `XAI_API_KEY` there and the OAuth path can answer 403. grok-4.7 is not on
+  Hermes' reasoning-capable allowlist (`model_metadata.py`), so Hermes drops
+  `reasoning_effort` for it on purpose: xAI answers an unsupported
+  `reasoningEffort` with 400.
 
-  **A lapsed xAI OAuth hides `x_search`.** Chat does not depend on that login
-  (Codex leads searcher), but the credential gate still removes `x_search` from
+  **A lapsed xAI OAuth hides `x_search`** and drops searcher to its Sol tier.
+  The credential gate removes `x_search` from
   the schema, which `hermes doctor` misleadingly reports as
   `x_search (missing XAI_API_KEY)`. Re-authenticate with `hermes model` from
   the **default** profile — never with `-p`, which would write the worker's own

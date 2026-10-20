@@ -9,6 +9,9 @@ fallback_providers:
   - provider: anthropic
     model: claude-fable-5-1
     base_url: https://api.anthropic.com
+  - provider: xai-oauth
+    model: grok-4.7
+    base_url: https://api.x.ai/v1
   - provider: openai-codex
     model: gpt-6.1-sol
     base_url: https://chatgpt.com/backend-api/codex
@@ -702,7 +705,7 @@ platform_toolsets:
     - terminal
     - vision
 image_gen:
-  provider: img-codex-xai-fal
+  provider: img-xai-codex-fal
 plugins:
   enabled:
     - image-fallback

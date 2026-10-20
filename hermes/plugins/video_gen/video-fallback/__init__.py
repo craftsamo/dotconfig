@@ -20,7 +20,7 @@ profile via ``video_gen.provider`` in that profile's ``config.yaml``:
 The real backends (``xai``/``fal``) are bundled and auto-load for every profile,
 so the registry lookups below resolve at call time regardless of
 ``plugins.enabled``. Credentials are inherited per profile (xAI Grok OAuth via
-the default profile's auth.json — SuperGrok / Premium+ — or ``XAI_API_KEY``;
+the default profile's auth.json — the xAI subscription — or ``XAI_API_KEY``;
 ``FAL_KEY`` via the Keychain shim), so no per-profile secret setup is needed.
 
 This mirrors the image-gen fallback plugin (``plugins/image_gen/image-fallback``)
@@ -44,7 +44,7 @@ logger = logging.getLogger(__name__)
 
 
 # Ordered fallback chains. Keys are the values you put in video_gen.provider.
-#   vid-xai-fal : Grok Imagine first (OAuth/SuperGrok), FAL.ai as the safety net.
+#   vid-xai-fal : Grok Imagine first (xAI subscription OAuth), FAL.ai as the safety net.
 #   vid-fal-xai : FAL.ai first (FAL_KEY), Grok Imagine as the fallback.
 _CHAINS: Dict[str, List[str]] = {
     "vid-xai-fal": ["xai", "fal"],
