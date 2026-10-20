@@ -190,6 +190,23 @@ print -r -- 'base-prod' | secret set TB_BASE -p $PB --stage prod --stdin >/dev/n
   && ok "proj: a nested launch in another stage injects again" || bad "proj: a nested launch in another stage injects again"
 [[ -z "$(_SECRET_SHIM_PROJ=$PT@prod SECRET_STAGE=prod penv $R P_ONLY)" ]] \
   && ok "proj: same stage, sentinel skips" || bad "proj: same stage, sentinel skips"
+# a nested launch in another stage swaps the parent's injected values for the
+# new stage's — the environment never mixes two stages; what the user
+# exported by hand (not in _SECRET_SHIM_NAMES) still wins
+[[ "$(penv $R _SECRET_SHIM_NAMES)" == *A_ONLY* && "$(penv $R _SECRET_SHIM_NAMES)" == *D_EXAMPLE* ]] \
+  && ok "proj: the injected names are exported to children" || bad "proj: the injected names are exported to children"
+[[ "$(_SECRET_SHIM_PROJ=$PT@ _SECRET_SHIM_NAMES='A_ONLY D_EXAMPLE' A_ONLY=kc-a D_EXAMPLE=kc-d SECRET_STAGE=prod penv $R A_ONLY)" == 'kc-a-prod' ]] \
+  && ok "proj: another stage replaces a value the parent shim injected" || bad "proj: another stage replaces a value the parent shim injected"
+[[ "$(_SECRET_SHIM_PROJ=$PT@prod _SECRET_SHIM_NAMES='A_ONLY P_ONLY' A_ONLY=kc-a-prod P_ONLY=prod-only penv $R A_ONLY)" == 'kc-a' \
+   && -z "$(_SECRET_SHIM_PROJ=$PT@prod _SECRET_SHIM_NAMES='A_ONLY P_ONLY' A_ONLY=kc-a-prod P_ONLY=prod-only penv $R P_ONLY)" ]] \
+  && ok "proj: leaving prod drops the prod-only values" || bad "proj: leaving prod drops the prod-only values"
+[[ "$(_SECRET_SHIM_PROJ=$PT@ _SECRET_SHIM_NAMES='D_EXAMPLE' A_ONLY=mine D_EXAMPLE=kc-d SECRET_STAGE=prod penv $R A_ONLY)" == 'mine' ]] \
+  && ok "proj: a hand-exported value survives the stage swap" || bad "proj: a hand-exported value survives the stage swap"
+[[ "$(_SECRET_SHIM_PROJ=$PT@ _SECRET_SHIM_NAMES='A_ONLY D_EXAMPLE' A_ONLY=kc-a D_EXAMPLE=kc-d SECRET_STAGE=prod penv $R _SECRET_SHIM_NAMES)" == *P_ONLY* ]] \
+  && ok "proj: the swap records the new stage's names" || bad "proj: the swap records the new stage's names"
+err=$( cd "$R" && path=("$TD/bin" $path) && SECRET_SHIM_MODE=project _SECRET_SHIM_PROJ=$PT@ _SECRET_SHIM_NAMES='A_ONLY' A_ONLY=kc-a SECRET_STAGE=test "$TD/bin/printenv" A_ONLY 2>&1 >/dev/null )
+[[ $err == *"secret-shim: stage $PT@ -> $PT@test"* ]] \
+  && ok "proj: the swap is announced on stderr" || bad "proj: the swap is announced on stderr"
 err=$( cd "$R" && path=("$TD/bin" $path) && SECRET_SHIM_MODE=project SECRET_STAGE=prod "$TD/bin/printenv" P_ONLY 2>&1 >/dev/null )
 [[ $err == *"secret-shim: stage=prod ($PT)"* ]] \
   && ok "proj: a prod launch is announced on stderr" || bad "proj: a prod launch is announced on stderr"

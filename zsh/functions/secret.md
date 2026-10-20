@@ -258,12 +258,18 @@ pruned, depth-limited) — and skips those names. Monorepo package files like
 root; run inside `apps/api` for per-package precision. Templates
 (`.env.example`, ...) are ignored. Nested launches (npm scripts calling npm)
 skip re-injection via the `_SECRET_SHIM_PROJ` (`project@stage`) /
-`_SECRET_SHIM_TOOL` sentinels; a nested launch in another stage injects
-again, but names the outer launch already exported keep their value — the
-inherited-environment rule above — so switch stages at the outermost launch.
-A project launch under `SECRET_STAGE=prod` (or `production`) announces
-itself on stderr (`secret-shim: stage=prod (<project>)`), so a shell left in
-prod is noticed.
+`_SECRET_SHIM_TOOL` sentinels. A nested project launch in another stage (or
+project) first retracts what the outer shim injected — the names travel in
+`_SECRET_SHIM_NAMES` — then injects the new layers, so the environment holds
+one stage's values and never a mix (a prod-only name disappears when the
+stage is dropped, a dev value is replaced when prod is entered); it says so
+on stderr (`secret-shim: stage <project>@ -> <project>@prod (N injected)`;
+`0 injected` means the keychain gave nothing, so the child has no secrets
+of either stage).
+Values the user exported by hand are not in that list and keep winning, as
+the inherited-environment rule above says. A project launch under
+`SECRET_STAGE=prod` (or `production`) announces itself on stderr
+(`secret-shim: stage=prod (<project>)`), so a shell left in prod is noticed.
 
 OpenCode clients run in tool mode. OpenCode 2's shared background service is
 spawned by the first client and inherits its environment, so it sees the same
@@ -389,11 +395,13 @@ master machinery via the `SECRET_MASTER_ACCOUNT` / `SECRET_TEST_ONLY_KC`
 hooks, and cleans up after itself — safe to run on a machine with real data.
 
 [`zsh/tests/secret-shim-selftest.zsh`](../tests/secret-shim-selftest.zsh) —
-47 assertions for the launcher shims: layer injection and override order,
+53 assertions for the launcher shims: layer injection and override order,
 inherited-environment precedence, dotenv name skipping (monorepo union from
 the root vs per-package precision, `.env.example` exclusion, `export NAME=`
 lines), sentinels, stages (`SECRET_STAGE` in project mode, the stage-carrying
-sentinel, the prod announcement, no stage in tool mode), the mise pin under a
+sentinel, the prod announcement, no stage in tool mode, the swap of a nested
+launch in another stage: replaced, dropped and hand-exported values, the
+recorded names, the stderr line), the mise pin under a
 swapped `HOME` and plain mode, exec passthrough (arguments, exit codes,
 missing binaries). Same isolation and cleanup guarantees. It tests the
 `secret.zsh` beside the shim under test (`SECRET_SHIM_UNDER_TEST`).
