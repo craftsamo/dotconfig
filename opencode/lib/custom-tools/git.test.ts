@@ -36,6 +36,13 @@ describe("registry", () => {
   test("registers the same tool ids", async () => {
     const ids = Object.keys((await plugin.server()).tool).sort()
     expect(ids).toEqual([
+      "gh_issue_comment",
+      "gh_issue_create",
+      "gh_issue_develop",
+      "gh_issue_list",
+      "gh_issue_relate",
+      "gh_issue_update",
+      "gh_issue_view",
       "gh_pr_meta",
       "gh_pr_meta_apply",
       "gh_pr_status",

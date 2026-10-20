@@ -2037,6 +2037,46 @@
       "resource": "morning",
       "effect": "deny"
     },
+    // Custom GitHub Issues tools (lib/custom-tools/gh_issue/) — view and list
+    // read; create, update, comment, relate and develop write after checking
+    // the viewer's permission, report a repository the viewer does not own as
+    // foreign, close only with a reason and never delete. Read-only agents
+    // deny the writing ones (agents/*.md, Hermes' run rulesets).
+    {
+      "action": "gh_issue_view",
+      "resource": "*",
+      "effect": "allow"
+    },
+    {
+      "action": "gh_issue_list",
+      "resource": "*",
+      "effect": "allow"
+    },
+    {
+      "action": "gh_issue_create",
+      "resource": "*",
+      "effect": "allow"
+    },
+    {
+      "action": "gh_issue_update",
+      "resource": "*",
+      "effect": "allow"
+    },
+    {
+      "action": "gh_issue_comment",
+      "resource": "*",
+      "effect": "allow"
+    },
+    {
+      "action": "gh_issue_relate",
+      "resource": "*",
+      "effect": "allow"
+    },
+    {
+      "action": "gh_issue_develop",
+      "resource": "*",
+      "effect": "allow"
+    },
     // Custom GitHub Project tools (lib/custom-tools/github_project.ts) — board + issue-lifecycle ops, no delete
     {
       "action": "github_project_create",
