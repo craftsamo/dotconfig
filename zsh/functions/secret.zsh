@@ -2054,9 +2054,10 @@ COMMANDS
   api/DATABASE_URL@prod`).
 
   The wizard's List is a browser: every item with a preview of its
-  metadata, matched on name, meta and comment; enter shows, ^y copies
-  the value, ^f copies one meta field or the comment, ^o opens the url=
-  field in the browser, ^e updates, ^d deletes, esc returns.
+  metadata, matched on name, meta and comment; ^y copies the value, ^f
+  copies one meta field or the comment, ^o opens the url= field in the
+  browser, ^e updates, ^d deletes — each returns to the list; enter
+  prints the item's details and leaves, esc leaves.
   keychain create NAME [--timeout MIN] [--no-autolock]
         create ~/Library/Keychains/NAME.keychain-db (auto-locks on sleep
         and after 30 min by default) and add it to the search list
@@ -2400,15 +2401,16 @@ _secret_ui_open_url() {        # $1 project  $2 token: open the url= field in th
   open "$url" && print -r -- "opened $url"
 }
 
-# List is a browser: the picker with its preview, kept open until Esc, with
-# the item actions on keys so a look at a secret flows straight into the
-# next step without going back through the top menu.
+# List is a browser: the picker with its preview, with the item actions on
+# keys so a look at a secret flows straight into the next step without
+# going back through the top menu. A key action returns to the list; enter
+# settles on an item, prints its details and leaves.
 _secret_ui_list() {
   local proj out key tok reply _tok_name _tok_layer
   local -a _tok_flags
   proj=$(_secret_ui_pick_project 'secret › list › choose project') || return 0
   [[ -z $proj ]] && return 0
-  local header="secret › $proj$(_secret_kc_suffix "$proj") › list    enter: show  ^y: copy  ^f: field  ^o: open url  ^e: update  ^d: delete  esc: back"
+  local header="secret › $proj$(_secret_kc_suffix "$proj") › list    enter: show & leave  ^y: copy  ^f: field  ^o: open url  ^e: update  ^d: delete  esc: back"
   while true; do
     out=$(_secret_ui_pick_items "$proj" "$header" expect --expect=ctrl-y,ctrl-f,ctrl-o,ctrl-e,ctrl-d --height=70%) || return 0
     key=${out%%$'\n'*}
@@ -2438,6 +2440,7 @@ _secret_ui_list() {
         ;;
       *)
         _secret_cmd_show "$_tok_name" -p "$proj" "${_tok_flags[@]}"
+        return
         ;;
     esac
     print ''
