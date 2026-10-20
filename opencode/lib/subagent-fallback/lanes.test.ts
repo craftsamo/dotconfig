@@ -201,8 +201,11 @@ describe("choosing a model", () => {
     const lanes = new Lanes([MAIN], DEFAULT_COOLDOWN_MS, () => 0)
     expect(launchLane(ROUTES.verifier.primary, lanes, catalog())).toBeUndefined()
     expect(launchLane(ROUTES.searcher.primary, lanes, catalog())).toBeUndefined()
-    expect(launchLane(ROUTES.searcher.alternate, lanes, catalog())).toEqual({
-      ...ROUTES.searcher.alternate,
+    expect(launchLane(ROUTES.searcher.alternate, lanes, catalog())).toBeUndefined()
+    expect(
+      launchLane(ROUTES["explore-high"].alternate, lanes, catalog()),
+    ).toEqual({
+      ...ROUTES["explore-high"].alternate,
       providerID: MAIN,
     })
   })

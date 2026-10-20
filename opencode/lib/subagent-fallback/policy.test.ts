@@ -7,6 +7,7 @@ import {
   REASON_TARGET_ACCOUNT,
   decideLaunch,
   freshState,
+  inputCapacity,
   modelsEqual,
   routeForLaunch,
   type AccountProof,
@@ -23,7 +24,8 @@ const quota = (state: QuotaProof["state"]): QuotaProof => ({
 const account = (providerID: string): AccountProof => ({
   providerID,
   connectionID: "fixture",
-  methodID: providerID === "anthropic" ? "claude-max" : "chatgpt-browser",
+  methodID:
+    { anthropic: "claude-max", xai: "device" }[providerID] ?? "chatgpt-browser",
   type: "oauth",
 })
 const entry = (m: ModelRef): CatalogModel => ({
@@ -165,7 +167,7 @@ describe("launch preference", () => {
         { capabilities: { tools: false } },
         { variants: [] },
         { limit: { context: 0, output: 1 } },
-        { limit: { context: 1, output: 1 } },
+        { limit: { context: 1, output: 2 } },
         { limit: { context: 200_000, input: -1, output: 1 } },
       ]) {
         const input = base()
@@ -179,6 +181,28 @@ describe("launch preference", () => {
           reason: REASON_CATALOG,
         })
       }
+  })
+  test("a shared input/output budget, as xAI publishes, is the whole context; a reserved output is subtracted", () => {
+    const shared = { context: 500_000, output: 500_000 }
+    expect(inputCapacity(shared)).toBe(500_000)
+    expect(inputCapacity({ context: 200_000, output: 32_000 })).toBe(168_000)
+    expect(inputCapacity({ ...shared, input: 100_000 })).toBe(100_000)
+    expect(inputCapacity({ context: 1, output: 2 })).toBe(0)
+    const input = base(ROUTES.searcher)
+    input.catalog[0] = { ...input.catalog[0], limit: shared }
+    expect(decideLaunch(input)).toEqual({
+      kind: "default",
+      model: ROUTES.searcher.primary,
+    })
+    // Only xAI publishes that shape; elsewhere it is a broken entry.
+    for (const route of [ROUTES.worker, ROUTES.verifier]) {
+      const other = base(route)
+      other.catalog[0] = { ...other.catalog[0], limit: shared }
+      expect(decideLaunch(other)).toEqual({
+        kind: "stop",
+        reason: REASON_CATALOG,
+      })
+    }
   })
   test("explicit models, continuations, unknown roles and changed defaults bypass selection", () => {
     for (const input of [

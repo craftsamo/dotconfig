@@ -1,4 +1,4 @@
-import type { AccountProof } from "./policy"
+import { METHODS, type AccountProof } from "./policy"
 
 export type Connection = { type: string; id?: string; method?: string }
 export type OAuth = {
@@ -33,7 +33,7 @@ export async function subscription(
   ctx: AccountsContext,
   providerID: string,
 ): Promise<Subscription | undefined> {
-  if (providerID !== "anthropic" && providerID !== "openai") return undefined
+  if (!Object.hasOwn(METHODS, providerID)) return undefined
   const provider = (await ctx.provider.get({ providerID })).data
   if (provider.package !== `@opencode/ai/providers/${providerID}`)
     return undefined
@@ -48,12 +48,7 @@ export async function subscription(
   const credential = await ctx.integration.connection.resolve(connection)
   if (credential?.type !== "oauth" || !credential.access) return undefined
   const methodID = credential.methodID
-  if (
-    providerID === "anthropic"
-      ? methodID !== "claude-max"
-      : !["chatgpt-browser", "chatgpt-headless"].includes(methodID ?? "")
-  )
-    return undefined
+  if (!METHODS[providerID].includes(methodID ?? "")) return undefined
   const accountID = credential.metadata?.accountID
   if (providerID === "openai" && (typeof accountID !== "string" || !accountID))
     return undefined
