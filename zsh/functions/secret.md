@@ -19,9 +19,20 @@ From the [Brewfile](../../Brewfile): `fzf` (interactive UI), `jq`
 secret                          # fzf wizard: Get / Add / Update / List / Show / Delete / Export / Import
 secret set STRIPE_KEY -j "prod key, rotate in dashboard" -D "API KEY"
 secret get STRIPE_KEY           # value on stdout   (-c: clipboard, auto-clears in 45 s)
-secret ls --long                # name + scope + kind + modified + comment
+secret get api/STRIPE_KEY@prod  # the token `ls` prints names one exact layer
+secret ls --long                # name + scope + stage + kind + modified + env + meta + comment
 eval "$(secret env -p global)"  # inject a whole project as environment variables
 ```
+
+The wizard's item pickers show every item with a preview pane of its
+metadata (`secret show`), and match what you type against the name, the
+meta fields and the comment, so a dashboard URL or an account finds its
+key. **List** keeps that picker open as a browser: `^y` copies the item's
+value, `^f` copies one meta field or the comment (plain, no auto-clear —
+metadata is not secret), `^o` opens its `url=` field in the browser, `^e`
+opens the update dialogue, `^d` deletes it (after a confirmation), and
+each returns to the list; `enter` prints the item's details and leaves,
+`esc` leaves — a look at a secret flows straight into the next step.
 
 Project resolution: `-p NAME` > `git config secret.project` > the git
 repository name > `global`. Run `secret link NAME` once per clone of a
@@ -342,7 +353,7 @@ secret import secret-export-all-YYYYMMDD.json.age
 
 ## Tests
 
-[`zsh/tests/secret-selftest.zsh`](../tests/secret-selftest.zsh) — 252
+[`zsh/tests/secret-selftest.zsh`](../tests/secret-selftest.zsh) — 271
 assertions: round-trips (special characters, json/env/age), partial updates,
 `--no-env` (kept out of `env`, kept across rewrites and export/import, stored
 as the `envn`/`envy` type code), `--meta` fields (validation, sorting,
@@ -351,7 +362,9 @@ legacy `env=no` marker, `set --new`, non-ASCII metadata read back as text,
 keychain auto-creation, `secret link` / the `git config secret.project`
 mapping, scope layering (DWIM reads, env overlay, isolation between repos),
 stages (`--stage` / `$SECRET_STAGE` / `--no-stage`, the four-layer env
-overlay, exact-layer rm, export/import round-trips, `ls` tokens),
+overlay, exact-layer rm, export/import round-trips, `ls` tokens), the
+`ls` token accepted as NAME, the fzf picker's lines, preview and expect
+mode (fzf stubbed),
 the unregistered-file write gate, master adoption/rotation, auto-unlock. It
 only uses throwaway `secret-selftest*` projects/keychains, isolates the
 master machinery via the `SECRET_MASTER_ACCOUNT` / `SECRET_TEST_ONLY_KC`
