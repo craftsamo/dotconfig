@@ -929,13 +929,15 @@ _secret_cmd_show() {
 }
 
 _secret_cmd_ls() {
-  local proj="" long=0
+  local proj="" long=0 all=0 wide=0
   local -a meta_filters
   local stage_filter="" stage_set=0
   while (( $# )); do
     case $1 in
       -p) proj=$2; shift 2 ;;
       -l|--long) long=1; shift ;;
+      --all) all=1; shift ;;
+      --wide) wide=1; shift ;;
       --meta) meta_filters+=("$2"); shift 2 ;;
       --stage) stage_filter=$2; stage_set=1; shift 2 ;;
       --no-stage) stage_filter=""; stage_set=1; shift ;;
@@ -948,11 +950,16 @@ _secret_cmd_ls() {
     _secret_meta_check_key "${flt%%=*}" || return 2
   done
   [[ -n $stage_filter ]] && { _secret_check_stage "$stage_filter" || return 2 }
-  proj=$(_secret_resolve_project "$proj")
+  local where
+  if (( all )); then
+    proj=""; where="any project"
+  else
+    proj=$(_secret_resolve_project "$proj"); where="project '$proj'"
+  fi
   local rows row kept=""
   local -a f
   rows=$(_secret_rows "$proj")
-  [[ -z $rows ]] && { print -r -- "no secrets in project '$proj'" >&2; return 0 }
+  [[ -z $rows ]] && { print -r -- "no secrets in $where" >&2; return 0 }
   if (( ${#meta_filters} || stage_set )); then
     # every --meta KEY[=VALUE] must match (fields are column 8); --stage S
     # keeps that stage's layers only, --no-stage the stage-less ones
@@ -965,41 +972,114 @@ _secret_cmd_ls() {
       kept+="$row"$'\n'
     done <<< "$rows"
     rows=${kept%$'\n'}
-    [[ -z $rows ]] && { print -r -- "no secrets in project '$proj' match the filters" >&2; return 0 }
+    [[ -z $rows ]] && { print -r -- "no secrets in $where match the filters" >&2; return 0 }
   fi
   if (( long )); then
-    local mod scope stage meta
-    local -a names scopes stages kinds mods envs metas comments
-    local -i wn=4 ws=5 wg=5 wk=4 wm=8 wt=4     # seed from header label widths
-    while IFS= read -r row; do
-      f=("${(@ps:\t:)row}")
-      scope=${f[7]:-Shared}
-      stage=${f[10]}
-      mod=$(_secret_fmt_date "${f[6]}")
-      meta=${(j:;:)${(f)"$(_secret_meta_fields "${f[8]}")"}}
-      names+=("${f[2]}"); scopes+=("$scope"); stages+=("$stage"); kinds+=("${f[4]}")
-      mods+=("$mod"); metas+=("$meta"); comments+=("${f[5]}")
-      if _secret_env_on "${f[9]}" "${f[8]}"; then envs+=(yes); else envs+=(no); fi
-      (( ${#f[2]}  > wn )) && wn=${#f[2]}
-      (( ${#scope} > ws )) && ws=${#scope}
-      (( ${#stage} > wg )) && wg=${#stage}
-      (( ${#f[4]}  > wk )) && wk=${#f[4]}
-      (( ${#mod}   > wm )) && wm=${#mod}
-      (( ${#meta}  > wt )) && wt=${#meta}
-    done <<< "$rows"
-    # auto-size columns to their content (NAME/SCOPE/STAGE/KIND/MODIFIED/META);
-    # ENV is yes/no, and the trailing COMMENT is left unbounded so long names
-    # never misalign a row
-    local fmt="%-${wn}s  %-${ws}s  %-${wg}s  %-${wk}s  %-${wm}s  %-3s  %-${wt}s  %s\n"
-    printf "$fmt" NAME SCOPE STAGE KIND MODIFIED ENV META COMMENT
-    local -i i
-    for (( i = 1; i <= ${#names}; i++ )); do
-      printf "$fmt" "${names[i]}" "${scopes[i]}" "${stages[i]}" "${kinds[i]}" "${mods[i]}" "${envs[i]}" "${metas[i]}" "${comments[i]}"
-    done
+    local -i width=0
+    if (( ! wide )); then
+      if [[ -n ${COLUMNS:-} ]]; then width=$COLUMNS
+      elif [[ -t 1 ]]; then width=$(tput cols 2>/dev/null || print 0)
+      fi
+    fi
+    _secret_ls_long "$rows" $width
+  elif (( all )); then
+    print -r -- "$rows" | awk -F'\t' '{ print $1 "/" ($7 == "" ? "" : $7 "/") $2 ($10 == "" ? "" : "@" $10) }'
   else
     # "scope/NAME@stage" — the token the fzf pickers hand back to the layer flags
     print -r -- "$rows" | awk -F'\t' '{ print ($7 == "" ? "" : $7 "/") $2 ($10 == "" ? "" : "@" $10) }'
   fi
+}
+
+_secret_fit() {                # $1 text  $2 width -> text cut to width with an ellipsis
+  local s=$1
+  local -i w=$2
+  (( w <= 0 )) && { print -rn -- ""; return 0 }
+  if (( ${#s} > w )); then
+    (( w == 1 )) && s="…" || s="${s[1,w-1]}…"
+  fi
+  print -rn -- "$s"
+}
+
+# The long listing: one block per project, inside it one group per layer
+# (shared, scope/, @stage, scope/ @stage) with NAME, KIND, ENV, MODIFIED,
+# META and COMMENT rows. The four leading columns are sized to the project's
+# content; META and COMMENT share what is left of the width and are cut
+# with an ellipsis (COMMENT keeps at least a third), so a row never wraps.
+# Width 0 means unbounded (--wide, or no terminal). Colour only on a
+# terminal and without NO_COLOR: project bold, stage groups magenta, ENV no
+# yellow.
+_secret_ls_long() {            # $1 TSV rows  $2 width
+  local rows=$1
+  local -i width=$2
+  local bold="" dim="" mag="" yel="" off=""
+  if [[ -t 1 && -z ${NO_COLOR:-} ]]; then
+    bold=$'\e[1m' dim=$'\e[2m' mag=$'\e[35m' yel=$'\e[33m' off=$'\e[0m'
+  fi
+  local row proj="" group="" g mod meta env comment name kind line
+  local -a f
+  # pass 1: per-project column widths (name, kind), longest meta and comment
+  local -A wn wk wt wc
+  local -i i
+  while IFS= read -r row; do
+    f=("${(@ps:\t:)row}")
+    meta=${(j:;:)${(f)"$(_secret_meta_fields "${f[8]}")"}}
+    (( ${#f[2]} > ${wn[${f[1]}]:-4} )) && wn[${f[1]}]=${#f[2]}
+    (( ${#f[4]} > ${wk[${f[1]}]:-4} )) && wk[${f[1]}]=${#f[4]}
+    (( ${#meta} > ${wt[${f[1]}]:-0} )) && wt[${f[1]}]=${#meta}
+    (( ${#f[5]} > ${wc[${f[1]}]:-0} )) && wc[${f[1]}]=${#f[5]}
+  done <<< "$rows"
+  local -i cn ck ct cc avail
+  while IFS= read -r row; do
+    f=("${(@ps:\t:)row}")
+    if [[ ${f[1]} != "$proj" ]]; then
+      proj=${f[1]}; group=""
+      [[ -n $proj ]] && print -r -- "${bold}${proj}${off}"
+      cn=${wn[$proj]:-4}; ck=${wk[$proj]:-4}
+      # 4 indent + name + 2 + kind + 2 + env(3) + 2 + date(10) + 2
+      avail=$(( width - 4 - cn - 2 - ck - 2 - 3 - 2 - 10 - 2 ))
+      ct=${wt[$proj]:-0}; cc=${wc[$proj]:-0}
+      if (( width > 0 )); then
+        (( avail < 0 )) && avail=0
+        if (( ct + (cc > 0 ? cc + 2 : 0) > avail )); then
+          if (( cc > 0 )); then
+            (( cc > avail / 3 )) && cc=$(( avail / 3 ))
+            (( ct > avail - cc - 2 )) && ct=$(( avail - cc - 2 ))
+            (( ct < 0 )) && ct=0
+          else
+            ct=$avail
+          fi
+        fi
+      fi
+      # column header, with META / COMMENT only when the project has any
+      printf -v line "    %-${cn}s  %-${ck}s  %s  %-10s" NAME KIND ENV MODIFIED
+      if (( ${wc[$proj]:-0} > 0 )); then
+        printf -v line "%s  %-${ct}s  %s" "$line" META COMMENT
+      elif (( ${wt[$proj]:-0} > 0 )); then
+        line+="  META"
+      fi
+      print -r -- "${dim}${line%%[[:space:]]#}${off}"
+    fi
+    g="${f[7]:+${f[7]}/}${f[10]:+${f[7]:+ }@${f[10]}}"
+    [[ -z $g ]] && g=shared
+    if [[ $g != "$group" ]]; then
+      group=$g
+      if [[ -n ${f[10]} ]]; then print -r -- "  ${mag}${g}${off}"; else print -r -- "  ${dim}${g}${off}"; fi
+    fi
+    name=${f[2]}; kind=${f[4]}
+    mod=$(_secret_fmt_date "${f[6]}"); mod=${mod[1,10]}
+    meta=${(j:;:)${(f)"$(_secret_meta_fields "${f[8]}")"}}
+    comment=${f[5]}
+    if _secret_env_on "${f[9]}" "${f[8]}"; then env="yes"; else env="${yel}no ${off}"; fi
+    if (( width > 0 )); then
+      meta=$(_secret_fit "$meta" $ct); comment=$(_secret_fit "$comment" $cc)
+    fi
+    if [[ -n $comment ]]; then
+      printf -v line "    %-${cn}s  %-${ck}s  %s  %-10s  %-${ct}s  %s" "$name" "$kind" "$env" "$mod" "$meta" "$comment"
+    else
+      printf -v line "    %-${cn}s  %-${ck}s  %s  %-10s  %s" "$name" "$kind" "$env" "$mod" "$meta"
+    fi
+    print -r -- "${line%%[[:space:]]#}"
+  done <<< "$rows"
 }
 
 _secret_cmd_projects() {
@@ -2012,12 +2092,16 @@ COMMANDS
   get NAME [-p proj] [LAYER] [-c|--copy]
         print the value (or copy to clipboard, auto-clears in 45s)
   show NAME [-p proj] [LAYER]  metadata only (never prints the value)
-  ls [-p proj] [-l|--long] [--meta KEY[=VALUE]]... [--stage S|--no-stage]
-        list every layer of the project; short form shows items as
-        "[scope/]NAME[@stage]", --long has Scope/Stage/Kind/Env/Meta
-        columns; --meta keeps only items whose field KEY exists (or
-        equals VALUE), repeatable (all must match); --stage S keeps that
-        stage's layers only, --no-stage the stage-less ones
+  ls [-p proj|--all] [-l|--long] [--wide] [--meta KEY[=VALUE]]... [--stage S|--no-stage]
+        list every layer of the project; short form prints one
+        "[scope/]NAME[@stage]" token per item (--all: prefixed with the
+        project). --long groups items under their layer (shared, scope/,
+        @stage, scope/ @stage) with kind, env, modified, meta and comment,
+        cut with an ellipsis to fit the terminal width — --wide never
+        cuts. --meta keeps only items whose field KEY exists (or equals
+        VALUE), repeatable (all must match); --stage S keeps that stage's
+        layers only, --no-stage the stage-less ones; --all spans every
+        registered keychain
   projects                     list all projects
   env [-p proj] [--scope X] [--stage S|--no-stage]
         emit `export NAME=...` lines: the shared layer overlaid with the

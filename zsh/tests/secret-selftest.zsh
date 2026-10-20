@@ -107,11 +107,13 @@ lsarr=(${(f)"$(secret ls -p $P)"})
 [[ ${#lsarr} -eq 2 ]] && ok "ls shows 2 items" || bad "ls shows 2 items"
 longout=$(secret ls -p $P --long)
 [[ $longout == *'API KEY'* ]] && ok "ls --long shows normalized kind" || bad "ls --long shows normalized kind"
-[[ $longout =~ 'TEST_BETA[[:space:]]+Shared[[:space:]]+ENV[[:space:]]+[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}' ]] \
-  && ok "ls --long shows Shared scope + aligns columns" || bad "ls --long shows Shared scope + aligns columns"
+[[ $longout == "$P"$'\n''    NAME'*'KIND'*'ENV  MODIFIED'*$'\n''  shared'$'\n'* ]] \
+  && ok "ls --long opens with the project, a column header and the shared group" || bad "ls --long opens with the project, a column header and the shared group"
+[[ $longout =~ $'\n''    TEST_BETA[[:space:]]+ENV[[:space:]]+yes[[:space:]]+[0-9]{4}-[0-9]{2}-[0-9]{2}' ]] \
+  && ok "ls --long rows: name, kind, env, date" || bad "ls --long rows: name, kind, env, date"
 # a name longer than the old fixed width must not misalign its row (auto-size)
 print -r -- 'v' | secret set TEST_LONG_VARIABLE_NAME_FOR_ALIGNMENT -p $P -D token --stdin >/dev/null 2>&1
-[[ "$(secret ls -p $P --long)" =~ 'TEST_LONG_VARIABLE_NAME_FOR_ALIGNMENT[[:space:]]+Shared[[:space:]]+TOKEN' ]] \
+[[ "$(secret ls -p $P --long)" =~ 'TEST_LONG_VARIABLE_NAME_FOR_ALIGNMENT[[:space:]]+TOKEN' ]] \
   && ok "ls --long auto-sizes a long name" || bad "ls --long auto-sizes a long name"
 secret rm TEST_LONG_VARIABLE_NAME_FOR_ALIGNMENT -p $P -f >/dev/null 2>&1
 showout=$(secret show TEST_ALPHA -p $P)
@@ -266,8 +268,8 @@ lsout=$(secret ls -p $PMAP)
 [[ $lsout == *'repo-a/DB_URL'* && $lsout == *'repo-b/DB_URL'* ]] \
   && ok "ls shows scope prefixes" || bad "ls shows scope prefixes"
 lslong=$(secret ls -p $PMAP --long)
-[[ $lslong =~ 'DB_URL[[:space:]]+repo-a[[:space:]]' ]] \
-  && ok "ls --long puts scope in its own column" || bad "ls --long puts scope in its own column"
+[[ $lslong == *$'\n''  repo-a/'$'\n''    DB_URL'*$'\n''  repo-b/'$'\n''    DB_URL'* ]] \
+  && ok "ls --long groups items under their scope" || bad "ls --long groups items under their scope"
 showsc=$(cd "$TD/repo-a" && secret show DB_URL)
 [[ $showsc =~ 'Scope:[[:space:]]+repo-a' ]] && ok "show reports the scope" || bad "show reports the scope"
 [[ "$(print -r -- "$showsc" | awk '/^Label:/ {print $2}')" == 'repo-a/DB_URL' ]] \
@@ -445,7 +447,7 @@ print -r -- "$SEED" | secret set TEST_SEED -p $P -D mnemonic -j 'wallet' --no-en
 neout=$(secret env -p $P)
 [[ $neout != *TEST_SEED* && $neout != *"$SEED"* ]] && ok "env skips a --no-env item" || bad "env skips a --no-env item"
 [[ $neout == *TEST_ALPHA* ]] && ok "env still emits other items" || bad "env still emits other items"
-[[ "$(secret ls -p $P --long)" =~ 'TEST_SEED[[:space:]]+Shared[[:space:]]+MNEMONIC[[:space:]]+[0-9-]+ [0-9:]+[[:space:]]+no[[:space:]]+wallet' ]] \
+[[ "$(secret ls -p $P --long)" =~ 'TEST_SEED[[:space:]]+MNEMONIC[[:space:]]+no[[:space:]]+[0-9-]+[[:space:]]+wallet' ]] \
   && ok "ls --long shows ENV no" || bad "ls --long shows ENV no"
 [[ "$(secret show TEST_SEED -p $P)" =~ 'Env:[[:space:]]+no' ]] && ok "show shows Env no" || bad "show shows Env no"
 print -r -- "$SEED" | secret set TEST_SEED -p $P -D mnemonic --stdin >/dev/null 2>&1
@@ -512,11 +514,32 @@ print -r -- 'v' | secret set TEST_META -p $P --meta 'url=https://example.com/a?b
 metashow=$(secret show TEST_META -p $P)
 [[ $metashow =~ 'Meta:[[:space:]]+account=ops' && $metashow == *'url=https://example.com/a?b=1'* ]] \
   && ok "show lists meta fields" || bad "show lists meta fields"
-[[ "$(secret ls -p $P --long)" =~ 'TEST_META[[:space:]]+Shared[[:space:]]+ENV[[:space:]]+[0-9-]+ [0-9:]+[[:space:]]+yes[[:space:]]+account=ops;url=https://example.com/a\?b=1[[:space:]]+memo' ]] \
+[[ "$(secret ls -p $P --long)" =~ 'TEST_META[[:space:]]+ENV[[:space:]]+yes[[:space:]]+[0-9-]+[[:space:]]+account=ops;url=https://example.com/a\?b=1[[:space:]]+memo' ]] \
   && ok "ls --long has a META column" || bad "ls --long has a META column"
 [[ "$(secret ls -p $P --meta account)" == TEST_META ]] && ok "ls --meta KEY filters" || bad "ls --meta KEY filters"
 [[ "$(secret ls -p $P --meta account=ops --meta url)" == TEST_META ]] && ok "ls --meta stacks filters" || bad "ls --meta stacks filters"
-[[ "$(secret ls -p $P --meta account --long | head -1)" == NAME* ]] \
+# width: META and COMMENT are cut with an ellipsis so no row exceeds COLUMNS; --wide never cuts
+print -r -- 'v' | secret set TEST_WIDE -p $P --meta 'url=https://example.com/a/very/long/path/that/keeps/going/and/going' -j 'a comment that is also rather long for a narrow terminal' --stdin >/dev/null 2>&1
+wideout=$(COLUMNS=72 secret ls -p $P --long)
+widest=0; for wl in ${(f)wideout}; do (( ${#wl} > widest )) && widest=${#wl}; done
+(( widest <= 72 )) && ok "ls --long fits COLUMNS" || bad "ls --long fits COLUMNS (widest $widest)"
+[[ $wideout =~ 'TEST_WIDE[[:space:]]+ENV[[:space:]]+yes[[:space:]]+[0-9-]+[[:space:]]+url=https://[^ ]*…[[:space:]]+a comment[^\n]*…' ]] \
+  && ok "ls --long cuts meta and comment with an ellipsis" || bad "ls --long cuts meta and comment with an ellipsis"
+[[ "$(COLUMNS=72 secret ls -p $P --long --wide)" == *'url=https://example.com/a/very/long/path/that/keeps/going/and/going  a comment that is also rather long for a narrow terminal'* ]] \
+  && ok "ls --long --wide keeps everything" || bad "ls --long --wide keeps everything"
+[[ "$(COLUMNS=72 secret ls -p $P --long)" != *' '$'\n'* ]] && ok "ls --long rows carry no trailing blanks" || bad "ls --long rows carry no trailing blanks"
+[[ "$(COLUMNS=72 secret ls -p $P --long)" =~ $'\n''    NAME[[:space:]]+KIND  ENV  MODIFIED[[:space:]]+META[[:space:]]+COMMENT'$'\n' ]] \
+  && ok "ls --long heads META and COMMENT when present" || bad "ls --long heads META and COMMENT when present"
+secret rm TEST_WIDE -p $P -f >/dev/null 2>&1
+# --all spans every registered keychain, prefixing the project
+allout=$(secret ls --all)
+[[ $allout == *"$P/TEST_META"* && $allout == *"$P2/"* ]] && ok "ls --all prefixes tokens with the project" || bad "ls --all prefixes tokens with the project"
+alllong=$(secret ls --all --long)
+[[ "$(secret ls -p $P2 --long)" != *META* ]] \
+  && ok "ls --long omits META/COMMENT headers when the project has none" || bad "ls --long omits META/COMMENT headers when the project has none"
+[[ $alllong == "$P"$'\n''    NAME'*$'\n''  shared'* && $alllong == *$'\n'"$P2"$'\n''    NAME'*$'\n''  shared'* ]] \
+  && ok "ls --all --long blocks per project" || bad "ls --all --long blocks per project"
+[[ "$(secret ls -p $P --meta account --long | head -1)" == "$P" ]] \
   && ok "ls --meta --long starts with the header" || bad "ls --meta --long starts with the header"
 [[ -z "$(secret ls -p $P --meta account=dev 2>/dev/null)" ]] && ok "ls --meta KEY=VALUE mismatch hides" || bad "ls --meta KEY=VALUE mismatch hides"
 secret ls -p $P --meta env >/dev/null 2>&1 && bad "ls --meta rejects the reserved key" || ok "ls --meta rejects the reserved key"
@@ -637,7 +660,11 @@ lsarr=(${(f)"$(secret ls -p $P --stage prod)"})
   && ok "ls --stage filters to that stage" || bad "ls --stage filters to that stage"
 lsarr=(${(f)"$(secret ls -p $P --no-stage)"})
 (( ${lsarr[(Ie)ST_DB]} && ! ${lsarr[(Ie)ST_DB@prod]} )) && ok "ls --no-stage filters to stage-less layers" || bad "ls --no-stage filters to stage-less layers"
-[[ "$(secret ls -p $P --long)" =~ 'ST_DB[[:space:]]+api[[:space:]]+prod[[:space:]]+ENV' ]] && ok "ls --long has a STAGE column" || bad "ls --long has a STAGE column"
+stlong=$(secret ls -p $P --long)
+[[ $stlong == *$'\n''  @prod'$'\n'*'    ST_DB '* && $stlong == *$'\n''  api/ @prod'$'\n''    ST_DB '* ]] \
+  && ok "ls --long groups stage layers as @stage and scope/ @stage" || bad "ls --long groups stage layers as @stage and scope/ @stage"
+[[ $stlong == *'  shared'*'  api/'*'  @prod'*'  api/ @prod'* ]] \
+  && ok "ls --long orders groups shared, scopes, then stages" || bad "ls --long orders groups shared, scopes, then stages"
 # validation
 print -r -- 'v' | secret set ST_X -p 'a@b' --stdin >/dev/null 2>&1 && bad "rejects '@' in a project name" || ok "rejects '@' in a project name"
 print -r -- 'v' | secret set ST_X -p $P --scope 'a@b' --stdin >/dev/null 2>&1 && bad "rejects '@' in a scope name" || ok "rejects '@' in a scope name"

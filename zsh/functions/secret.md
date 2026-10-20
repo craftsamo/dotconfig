@@ -20,7 +20,8 @@ secret                          # fzf wizard: Get / Add / Update / List / Show /
 secret set STRIPE_KEY -j "prod key, rotate in dashboard" -D "API KEY"
 secret get STRIPE_KEY           # value on stdout   (-c: clipboard, auto-clears in 45 s)
 secret get api/STRIPE_KEY@prod  # the token `ls` prints names one exact layer
-secret ls --long                # name + scope + stage + kind + modified + env + meta + comment
+secret ls --long                # grouped by layer: kind, env, modified, meta, comment (fits the terminal; --wide)
+secret ls --all --long          # every project
 eval "$(secret env -p global)"  # inject a whole project as environment variables
 ```
 
@@ -137,8 +138,19 @@ eval "$(secret env)"                        # shared + this repo's scope (scoped
 The same `secret set DATABASE_URL -S` in `courses` lands in its own scope —
 no collision. Reads/updates/deletes are DWIM (repo scope first, then
 shared); `--shared`, `--scope X` and `-S` pin a specific layer. `ls` shows
-scoped items as `scope/NAME` — `--long` gives scope its own column — and so
-does Keychain Access via the label.
+scoped items as `scope/NAME` — `--long` groups them under a `scope/`
+heading — and so does Keychain Access via the label.
+
+`secret ls --long` prints one block per project — the project, a column
+header, then one group per layer (`shared`, `scope/`, `@stage`,
+`scope/ @stage`) — with NAME, KIND, ENV, MODIFIED, META and COMMENT per
+row (the last two headed only when the project has any). The rows are sized to the terminal
+(`COLUMNS`, else the terminal width; unbounded when piped): META and COMMENT
+share what is left and are cut with an ellipsis, so a row never wraps;
+`--wide` never cuts. On a terminal without `NO_COLOR`, the project is bold,
+stage groups magenta and `ENV no` yellow. `--all` spans every registered
+keychain, one block per project (the short form prefixes its tokens with
+the project).
 
 ### Stages — per-environment overrides
 
@@ -155,7 +167,7 @@ secret set LOG_LEVEL                             # environment-neutral: stored o
 secret env                                       # DATABASE_URL = dev, LOG_LEVEL
 secret env --stage prod                          # DATABASE_URL = prod, LOG_LEVEL
 SECRET_STAGE=test npm test                       # through the shim
-secret ls --long                                 # STAGE column; ls prints [scope/]NAME[@stage]
+secret ls --long                                 # @stage groups; ls prints [scope/]NAME[@stage]
 secret ls --stage prod                           # that stage's layers only
 ```
 
@@ -353,7 +365,7 @@ secret import secret-export-all-YYYYMMDD.json.age
 
 ## Tests
 
-[`zsh/tests/secret-selftest.zsh`](../tests/secret-selftest.zsh) — 271
+[`zsh/tests/secret-selftest.zsh`](../tests/secret-selftest.zsh) — 281
 assertions: round-trips (special characters, json/env/age), partial updates,
 `--no-env` (kept out of `env`, kept across rewrites and export/import, stored
 as the `envn`/`envy` type code), `--meta` fields (validation, sorting,
@@ -364,7 +376,8 @@ mapping, scope layering (DWIM reads, env overlay, isolation between repos),
 stages (`--stage` / `$SECRET_STAGE` / `--no-stage`, the four-layer env
 overlay, exact-layer rm, export/import round-trips, `ls` tokens), the
 `ls` token accepted as NAME, the fzf picker's lines, preview and expect
-mode (fzf stubbed),
+mode (fzf stubbed), the grouped `ls --long` layout (groups, ordering,
+fitting `COLUMNS`, `--wide`, `--all`),
 the unregistered-file write gate, master adoption/rotation, auto-unlock. It
 only uses throwaway `secret-selftest*` projects/keychains, isolates the
 master machinery via the `SECRET_MASTER_ACCOUNT` / `SECRET_TEST_ONLY_KC`
