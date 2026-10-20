@@ -152,6 +152,7 @@ _secret_kc_prepare() {         # $1 project  $2 keychain path
   local proj=$1 kc=$2
   (( _kc_explicit )) && return 0          # -k override: caller's choice
   [[ $kc == "$_kc_default" ]] && return 0
+  _secret_kc_sl_load
   if [[ -e $kc ]]; then
     (( ${_kc_sl[(Ie)$kc]} )) && return 0
     _secret_err "keychain file exists but is not registered: ${kc:t}"
@@ -604,6 +605,7 @@ _secret_rows_ensure() {        # $1 project ("" = every registered keychain)
   elif (( _kc_explicit )); then
     _secret_kc_ensure "$_kc"
   else
+    _secret_kc_sl_load         # here, so the $(...) below and the dump reuse it
     for kc in ${(f)"$(_secret_kc_customs)"}; do
       [[ -n $kc ]] && _secret_kc_ensure "$kc"
     done
@@ -1581,8 +1583,17 @@ _secret_kc_searchlist() {      # user-domain search list, one path per line
     | sed -E 's/^[[:space:]]*"(.*)"[[:space:]]*$/\1/'
 }
 
+# $_kc_sl on first use: only the write gate and the custom-keychain listing
+# need the search list, so a read of one project never pays for it (~40 ms)
+_secret_kc_sl_load() {
+  (( ${_kc_sl_loaded:-0} )) && return 0
+  _kc_sl=(${(@f)$(_secret_kc_searchlist)})
+  _kc_sl_loaded=1
+}
+
 _secret_kc_customs() {         # registered custom keychain paths, one per line
   local f short
+  _secret_kc_sl_load
   for f in "${_kc_sl[@]}"; do
     [[ $f == $HOME/Library/Keychains/*.keychain-db ]] || continue
     [[ $f == "$_kc_default" ]] && continue
@@ -1671,6 +1682,7 @@ _secret_kc_create() {
   if (( ! ${sl[(Ie)$kcpath]} )); then
     security list-keychains -d user -s "${sl[@]}" "$kcpath" \
       || _secret_err "warning: could not add to the keychain search list"
+    _kc_sl_loaded=0            # $_kc_sl is reread on its next use
   fi
   print -r -- "created keychain '$name' ($kcpath)"
   (( used_master )) && print -r -- "password: master (unlocks with the master password)"
@@ -1830,6 +1842,7 @@ _secret_kc_rm() {
     print '' >&2
   fi
   security delete-keychain "$kcpath" || { _secret_err "delete failed"; return 1 }
+  _kc_sl_loaded=0; unset "_kc_unlocked[$kcpath]"
   # drop any stored unlock password for it
   security delete-generic-password -s 'keychain-password' \
     -a "${${kcpath:t}%.keychain-db}" "$_kc_default" >/dev/null 2>&1
@@ -1849,6 +1862,7 @@ _secret_kc_register() {        # add an existing .keychain-db to the search list
   fi
   security list-keychains -d user -s "${sl[@]}" "$kcpath" \
     || { _secret_err "could not update the search list"; return 1 }
+  _kc_sl_loaded=0
   print -r -- "registered ${${kcpath:t}%.keychain-db} in the search list"
 }
 
@@ -2691,10 +2705,10 @@ secret() {
     shift 2
   done
   local _kc _kc_default
-  local -a _kc_sl
+  local -a _kc_sl              # the user search list, read on first use (_secret_kc_sl_load)
+  local _kc_sl_loaded=0
   local -A _kc_unlocked        # keychain -> when _secret_kc_ensure last ran
   _kc_default=$(_secret_default_keychain)
-  _kc_sl=(${(@f)$(_secret_kc_searchlist)})
   if (( _kc_explicit )); then
     _kc=$(_secret_resolve_keychain "$_kc_opt")
   else
