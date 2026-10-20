@@ -4,6 +4,7 @@ import { z } from "zod"
 import { isToolSpec, type OAuthAccess, type ToolContext, type ToolSpec } from "../lib/custom-tools/define"
 import * as gh from "../lib/custom-tools/gh"
 import * as ghIssue from "../lib/custom-tools/gh_issue"
+import * as ghProject from "../lib/custom-tools/gh_project"
 import * as git from "../lib/custom-tools/git"
 import * as githubProject from "../lib/custom-tools/github_project"
 import * as webUi from "../lib/custom-tools/web_ui"
@@ -27,6 +28,7 @@ import * as x from "../lib/custom-tools/x"
 const modules: Record<string, Record<string, unknown>> = {
   gh,
   gh_issue: ghIssue,
+  gh_project: ghProject,
   git,
   github_project: githubProject,
   web_ui: webUi,

@@ -2077,6 +2077,56 @@
       "resource": "*",
       "effect": "allow"
     },
+    // Custom GitHub Projects tools (lib/custom-tools/gh_project/) — resolve and
+    // item_list read; the rest write to a board the viewer can update (create,
+    // link, field_ensure, view_ensure, item_add, item_set, item_promote),
+    // archive instead of delete, and item_promote checks the repository's
+    // permission. Read-only agents deny the writing ones.
+    {
+      "action": "gh_project_resolve",
+      "resource": "*",
+      "effect": "allow"
+    },
+    {
+      "action": "gh_project_item_list",
+      "resource": "*",
+      "effect": "allow"
+    },
+    {
+      "action": "gh_project_create",
+      "resource": "*",
+      "effect": "allow"
+    },
+    {
+      "action": "gh_project_link",
+      "resource": "*",
+      "effect": "allow"
+    },
+    {
+      "action": "gh_project_field_ensure",
+      "resource": "*",
+      "effect": "allow"
+    },
+    {
+      "action": "gh_project_view_ensure",
+      "resource": "*",
+      "effect": "allow"
+    },
+    {
+      "action": "gh_project_item_add",
+      "resource": "*",
+      "effect": "allow"
+    },
+    {
+      "action": "gh_project_item_set",
+      "resource": "*",
+      "effect": "allow"
+    },
+    {
+      "action": "gh_project_item_promote",
+      "resource": "*",
+      "effect": "allow"
+    },
     // Custom GitHub Project tools (lib/custom-tools/github_project.ts) — board + issue-lifecycle ops, no delete
     {
       "action": "github_project_create",
