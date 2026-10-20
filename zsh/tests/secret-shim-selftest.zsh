@@ -9,10 +9,13 @@
 #   - cleans up after itself (trap on EXIT)
 #
 #   zsh -f ~/.config/zsh/tests/secret-shim-selftest.zsh
-#   SECRET_SHIM_UNDER_TEST=<worktree>/bin/secret-shim zsh -f ...   (a candidate shim)
+#   SECRET_SHIM_UNDER_TEST=<worktree>/bin/secret-shim zsh -f ...   (a candidate shim,
+#       together with the secret.zsh beside it; SECRET_SHIM_LIB picks another)
 emulate -L zsh
 setopt pipefail
-source "$HOME/.config/zsh/functions/secret.zsh"
+SHIM=${SECRET_SHIM_UNDER_TEST:-$HOME/.config/bin/secret-shim}
+export SECRET_SHIM_LIB=${SECRET_SHIM_LIB:-${SHIM:A:h}/../zsh/functions/secret.zsh}
+source "$SECRET_SHIM_LIB"
 
 typeset -i fails=0
 ok()  { print -r -- "ok   - $1"; }
@@ -22,8 +25,8 @@ bad() { print -r -- "FAIL - $1"; (( fails++ )); }
 export SECRET_MASTER_ACCOUNT=master-selftest
 export SECRET_TEST_ONLY_KC='secret-selftest*'
 MP='master-pass-shim'
+unset SECRET_STAGE
 
-SHIM=${SECRET_SHIM_UNDER_TEST:-$HOME/.config/bin/secret-shim}
 PT=secret-selftest-shimproj      # project-mode project (via git config)
 PB=secret-selftest-shimbase      # tool-mode base layer (SECRET_SHIM_BASE)
 PTOOL=secret-selftest-shimtool   # tool-mode layer == fake command name
@@ -158,12 +161,44 @@ R=$TD/repo
   && ok "proj: ancestor .env respected inside a package" || bad "proj: ancestor .env respected inside a package"
 [[ "$(A_ONLY=external penv $R A_ONLY)" == 'external' ]] \
   && ok "proj: inherited environment wins" || bad "proj: inherited environment wins"
-[[ -z "$(_SECRET_SHIM_PROJ=$PT penv $R A_ONLY)" ]] \
+[[ -z "$(_SECRET_SHIM_PROJ=$PT@ penv $R A_ONLY)" ]] \
   && ok "proj: sentinel skips re-injection" || bad "proj: sentinel skips re-injection"
-[[ "$(penv $R _SECRET_SHIM_PROJ)" == "$PT" ]] \
+[[ "$(penv $R _SECRET_SHIM_PROJ)" == "$PT@" ]] \
   && ok "proj: sentinel exported to children" || bad "proj: sentinel exported to children"
 [[ -z "$(penv $TD/outside A_ONLY)" ]] \
   && ok "proj: no injection outside a git repository" || bad "proj: no injection outside a git repository"
+
+# --- stages ---------------------------------------------------------------
+print -r -- 'kc-a-prod' | secret set A_ONLY -p $PT --stage prod --stdin >/dev/null 2>&1
+print -r -- 'kc-scoped-prod' | secret set SCOPED_V -p $PT --scope repo --stage prod --stdin >/dev/null 2>&1
+print -r -- 'prod-only' | secret set P_ONLY -p $PT --stage prod --stdin >/dev/null 2>&1
+print -r -- 'tool-prod' | secret set TT_TOOL -p $PTOOL --stage prod --stdin >/dev/null 2>&1
+print -r -- 'base-prod' | secret set TB_BASE -p $PB --stage prod --stdin >/dev/null 2>&1
+[[ "$(penv $R A_ONLY)" == 'kc-a' && -z "$(penv $R P_ONLY)" ]] \
+  && ok "proj: no stage, no staged value" || bad "proj: no stage, no staged value"
+[[ "$(SECRET_STAGE=prod penv $R A_ONLY)" == 'kc-a-prod' ]] \
+  && ok "proj: SECRET_STAGE selects the stage's shared layer" || bad "proj: SECRET_STAGE selects the stage's shared layer"
+[[ "$(SECRET_STAGE=prod penv $R SCOPED_V)" == 'kc-scoped-prod' ]] \
+  && ok "proj: the stage's scoped layer wins" || bad "proj: the stage's scoped layer wins"
+[[ "$(SECRET_STAGE=prod penv $R P_ONLY)" == 'prod-only' && "$(SECRET_STAGE=prod penv $R D_EXAMPLE)" == 'kc-d' ]] \
+  && ok "proj: staged-only and stage-less names both injected" || bad "proj: staged-only and stage-less names both injected"
+[[ "$(SECRET_STAGE=test penv $R A_ONLY)" == 'kc-a' && -z "$(SECRET_STAGE=test penv $R P_ONLY)" ]] \
+  && ok "proj: another stage never sees prod" || bad "proj: another stage never sees prod"
+[[ "$(SECRET_STAGE=prod penv $R _SECRET_SHIM_PROJ)" == "$PT@prod" ]] \
+  && ok "proj: sentinel carries the stage" || bad "proj: sentinel carries the stage"
+[[ "$(_SECRET_SHIM_PROJ=$PT@ SECRET_STAGE=prod penv $R P_ONLY)" == 'prod-only' ]] \
+  && ok "proj: a nested launch in another stage injects again" || bad "proj: a nested launch in another stage injects again"
+[[ -z "$(_SECRET_SHIM_PROJ=$PT@prod SECRET_STAGE=prod penv $R P_ONLY)" ]] \
+  && ok "proj: same stage, sentinel skips" || bad "proj: same stage, sentinel skips"
+err=$( cd "$R" && path=("$TD/bin" $path) && SECRET_SHIM_MODE=project SECRET_STAGE=prod "$TD/bin/printenv" P_ONLY 2>&1 >/dev/null )
+[[ $err == *"secret-shim: stage=prod ($PT)"* ]] \
+  && ok "proj: a prod launch is announced on stderr" || bad "proj: a prod launch is announced on stderr"
+err=$( cd "$R" && path=("$TD/bin" $path) && SECRET_SHIM_MODE=project SECRET_STAGE=test "$TD/bin/printenv" A_ONLY 2>&1 >/dev/null )
+[[ -z $err ]] && ok "proj: other stages launch silently" || bad "proj: other stages launch silently"
+[[ "$(SECRET_STAGE=prod tool_run TT_TOOL)" == 'tool-1' && "$(SECRET_STAGE=prod tool_run TB_BASE)" == 'base-1' ]] \
+  && ok "tool: a stage never reaches a tool" || bad "tool: a stage never reaches a tool"
+[[ "$(SECRET_STAGE=prod tool_run SECRET_STAGE)" == 'prod' ]] \
+  && ok "tool: SECRET_STAGE itself still passes through" || bad "tool: SECRET_STAGE itself still passes through"
 
 # --- mode table -----------------------------------------------------------
 # real command names must select their mode without SECRET_SHIM_MODE

@@ -34,9 +34,9 @@ One keychain item per secret — fully visible and editable in Keychain Access:
 
 | Attribute | Value                                                                                                                      |
 | --------- | -------------------------------------------------------------------------------------------------------------------------- |
-| service   | `secret.<project>` (shared) or `secret.<project>/<scope>` (scoped) — lookup key together with account                      |
+| service   | `secret.<project>[/<scope>][@<stage>]` — shared, scoped, and per-stage layers; lookup key together with account            |
 | account   | the variable name (`TAVILY_API_KEY`) — **unique key, do not repurpose**                                                    |
-| label     | `NAME` / `<scope>/NAME` inside the project's own keychain, prefixed with `<project>/` elsewhere                            |
+| label     | `[<scope>/]NAME[@<stage>]` inside the project's own keychain, prefixed with `<project>/` elsewhere                         |
 | kind      | short type label (`-D`), upper-cased on write; default `ENV` (`API KEY`, `TOKEN`, `SECRET`, ...)                           |
 | comment   | free-form description (`-j`), shown by `show` / `ls --long` / the GUI                                                      |
 | type      | four-character code holding the ENV setting: `envn` = never emitted by `secret env` (`--no-env`), `envy` / unset = emitted |
@@ -129,6 +129,38 @@ shared); `--shared`, `--scope X` and `-S` pin a specific layer. `ls` shows
 scoped items as `scope/NAME` — `--long` gives scope its own column — and so
 does Keychain Access via the label.
 
+### Stages — per-environment overrides
+
+A **stage** (`prod`, `test`, `staging`, ...) is a second layer on top of
+scopes, for the same name holding a different value per environment. The
+stage every command works in is `--stage S`, else `$SECRET_STAGE`, else
+none; `--no-stage` forces the stage-less layers whatever the shell says.
+
+```sh
+secret set DATABASE_URL -S                       # the repo's dev value (no stage)
+secret set DATABASE_URL -S --stage prod          # the same name, prod only
+secret set DATABASE_URL -S --stage test
+secret set LOG_LEVEL                             # environment-neutral: stored once
+secret env                                       # DATABASE_URL = dev, LOG_LEVEL
+secret env --stage prod                          # DATABASE_URL = prod, LOG_LEVEL
+SECRET_STAGE=test npm test                       # through the shim
+secret ls --long                                 # STAGE column; ls prints [scope/]NAME[@stage]
+secret ls --stage prod                           # that stage's layers only
+```
+
+`secret env` overlays the layers least to most specific — shared < scoped
+< shared@stage < scoped@stage — so a stage layer always beats a stage-less
+one (asking for prod never hands out a repository's dev value), names the
+stage does not hold fall back to the stage-less layers, and other stages are
+never emitted. **With no stage nothing staged is emitted**: a prod value only
+leaves the keychain when asked for by name. Reads are DWIM in the same
+order; the exact flags (`-S`, `--scope X`, `--shared`) combined with
+`--stage S` / `--no-stage` address exactly one layer (`secret rm
+DATABASE_URL -S --stage prod` deletes only that item). Stage names are
+letters, digits, `_` and `-`; project and scope names may not contain `@`.
+The service is `secret.<project>[/<scope>]@<stage>` and the label
+`[<scope>/]NAME@<stage>`, both visible in Keychain Access.
+
 ### Master password
 
 All custom keychains share one password, kept in a password manager. A copy
@@ -167,11 +199,11 @@ which injects Keychain secrets and execs the real binary (resolved from
 `PATH`, skipping itself, so e.g. the Claude Code self-updater in
 `~/.local/bin` keeps working). The symlink name selects one of three modes:
 
-| Mode    | Commands                                                                                                   | Injects                                                                                            |
-| ------- | ---------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| tool    | `opencode`, `claude`, `codex`, `copilot`, `grok` — and any name not listed below                           | the shared layers of `global`, then `<command>` (tool wins); never a repository scope              |
-| project | `npm`, `pnpm`, `node`, `bun`, `bunx`, `yarn`, `npx`, `python`, `python3`, `uv`, `docker`, `docker-compose` | `secret env` — the ambient project + repository scope of the CWD; nothing outside a git repository |
-| plain   | `pip`, `pip3`                                                                                              | nothing — wrapped only for the mise pin below                                                      |
+| Mode    | Commands                                                                                                   | Injects                                                                                                                                                  |
+| ------- | ---------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| tool    | `opencode`, `claude`, `codex`, `copilot`, `grok` — and any name not listed below                           | the shared, stage-less layers of `global`, then `<command>` (tool wins); never a repository scope or a stage                                             |
+| project | `npm`, `pnpm`, `node`, `bun`, `bunx`, `yarn`, `npx`, `python`, `python3`, `uv`, `docker`, `docker-compose` | `secret env` — the ambient project + repository scope of the CWD, in the stage `$SECRET_STAGE` names (none by default); nothing outside a git repository |
+| plain   | `pip`, `pip3`                                                                                              | nothing — wrapped only for the mise pin below                                                                                                            |
 
 Both injecting modes go through `secret env`, so items stored `--no-env`
 never reach a wrapped command.
@@ -199,8 +231,13 @@ pruned, depth-limited) — and skips those names. Monorepo package files like
 `apps/web/.env` are therefore respected when launching from the workspace
 root; run inside `apps/api` for per-package precision. Templates
 (`.env.example`, ...) are ignored. Nested launches (npm scripts calling npm)
-skip re-injection via the `_SECRET_SHIM_PROJ` / `_SECRET_SHIM_TOOL`
-sentinels.
+skip re-injection via the `_SECRET_SHIM_PROJ` (`project@stage`) /
+`_SECRET_SHIM_TOOL` sentinels; a nested launch in another stage injects
+again, but names the outer launch already exported keep their value — the
+inherited-environment rule above — so switch stages at the outermost launch.
+A project launch under `SECRET_STAGE=prod` (or `production`) announces
+itself on stderr (`secret-shim: stage=prod (<project>)`), so a shell left in
+prod is noticed.
 
 OpenCode clients run in tool mode. OpenCode 2's shared background service is
 spawned by the first client and inherits its environment, so it sees the same
@@ -211,6 +248,7 @@ The service keeps its own generated password.
 secret set OPENAI_API_KEY -p global        # every AI tool
 secret set CONTEXT7_API_KEY -p opencode    # one tool (overrides global)
 secret set DATABASE_URL -S                 # this repo — `npm run dev` sees it
+secret set DATABASE_URL -S --stage prod    # `SECRET_STAGE=prod npm run migrate` sees this one
 ln -s secret-shim ~/.config/bin/hermes     # wrap another tool
 ```
 
@@ -233,7 +271,8 @@ without injection. `opencode serve` is the fail-closed exception: it exits
 unless `OPENCODE_PASSWORD` or `OPENCODE_SERVER_PASSWORD` was inherited or
 injected. Test hooks:
 `SECRET_SHIM_MODE` forces the mode, `SECRET_SHIM_BASE` replaces `global` as
-the tool-mode base.
+the tool-mode base, `SECRET_SHIM_LIB` points at the `secret.zsh` to source
+(a candidate checkout).
 
 [`bin/secret`](../../bin/secret) is a launcher too, but **not** a shim: it is a
 small wrapper that `source`s `secret.zsh` and dispatches, so the `secret` CLI is
@@ -258,11 +297,15 @@ secret import backup.json.age            # their own project/scope unless -p /
                                          # -S / --scope override them
 ```
 
-JSON exports record each item's scope, `env` setting and `meta` object, so
-layered setups restore exactly; the env format flattens everything (scope,
-kind and comment are lost) except the `--no-env` and `#meta:` markers.
+JSON exports record each item's scope, stage, `env` setting and `meta`
+object, so layered setups restore exactly; the env format flattens
+everything (scope, stage, kind and comment are lost — the stage is only
+named in the section headers) except the `--no-env` and `#meta:` markers.
 Importing an older export that has no `env` field / `meta` object leaves an
 existing item's setting / fields as they are; a present `meta` replaces them.
+`import --stage S` / `--no-stage` force every item into one stage; otherwise
+JSON items keep their recorded stage and env files land in `$SECRET_STAGE`,
+like any other write.
 
 Keychain unlock passwords are **never** part of an export. Encrypted exports
 are the recommended off-machine backup: they restore without the keychain
@@ -299,7 +342,7 @@ secret import secret-export-all-YYYYMMDD.json.age
 
 ## Tests
 
-[`zsh/tests/secret-selftest.zsh`](../tests/secret-selftest.zsh) — 207
+[`zsh/tests/secret-selftest.zsh`](../tests/secret-selftest.zsh) — 251
 assertions: round-trips (special characters, json/env/age), partial updates,
 `--no-env` (kept out of `env`, kept across rewrites and export/import, stored
 as the `envn`/`envy` type code), `--meta` fields (validation, sorting,
@@ -307,18 +350,22 @@ as the `envn`/`envy` type code), `--meta` fields (validation, sorting,
 legacy `env=no` marker, `set --new`, non-ASCII metadata read back as text,
 keychain auto-creation, `secret link` / the `git config secret.project`
 mapping, scope layering (DWIM reads, env overlay, isolation between repos),
+stages (`--stage` / `$SECRET_STAGE` / `--no-stage`, the four-layer env
+overlay, exact-layer rm, export/import round-trips, `ls` tokens),
 the unregistered-file write gate, master adoption/rotation, auto-unlock. It
 only uses throwaway `secret-selftest*` projects/keychains, isolates the
 master machinery via the `SECRET_MASTER_ACCOUNT` / `SECRET_TEST_ONLY_KC`
 hooks, and cleans up after itself — safe to run on a machine with real data.
 
 [`zsh/tests/secret-shim-selftest.zsh`](../tests/secret-shim-selftest.zsh) —
-35 assertions for the launcher shims: layer injection and override order,
+47 assertions for the launcher shims: layer injection and override order,
 inherited-environment precedence, dotenv name skipping (monorepo union from
 the root vs per-package precision, `.env.example` exclusion, `export NAME=`
-lines), sentinels, the mise pin under a swapped `HOME` and plain mode, exec
-passthrough (arguments, exit codes, missing binaries). Same isolation and
-cleanup guarantees.
+lines), sentinels, stages (`SECRET_STAGE` in project mode, the stage-carrying
+sentinel, the prod announcement, no stage in tool mode), the mise pin under a
+swapped `HOME` and plain mode, exec passthrough (arguments, exit codes,
+missing binaries). Same isolation and cleanup guarantees. It tests the
+`secret.zsh` beside the shim under test (`SECRET_SHIM_UNDER_TEST`).
 
 ```sh
 zsh -f ~/.config/zsh/tests/secret-selftest.zsh
