@@ -54,6 +54,10 @@
 
 # ---------------------------------------------------------------- helpers --
 
+# This file's own path: the fzf preview runs `secret show` in a fresh zsh
+# that sources it, so the wizard previews with the CLI it was loaded from.
+typeset -g _SECRET_LIB=${${(%):-%x}:A}
+
 _secret_err() { print -r -- "secret: $*" >&2; }
 
 _secret_default_keychain() {
@@ -745,11 +749,34 @@ _secret_layer_disp() {         # $1 project  $2 name -> display for $_layer_scop
   _secret_disp "$1" "$(_secret_layer "$_layer_scope" "$_layer_stage")" "$2"
 }
 
+# The token `ls` prints, "[scope/]NAME[@stage]", is accepted wherever a NAME
+# is (get/show/update/rm): it names that exact layer, as if the layer flags
+# had been given. A bare NAME passes through untouched. Rewrites argv into
+# $reply; options that take a value are skipped so a comment or meta value
+# holding '/' or '@' is never mistaken for a token.
+_secret_argv_expand() {        # $@ argv -> reply
+  reply=()
+  local a skip=0 _tok_name _tok_layer
+  local -a _tok_flags
+  for a in "$@"; do
+    if (( skip )); then reply+=("$a"); skip=0; continue; fi
+    case $a in
+      -p|-j|-D|--scope|--stage|--meta) reply+=("$a"); skip=1 ;;
+      -*) reply+=("$a") ;;
+      *[/@]*)
+        _secret_ui_split_token "$a"
+        reply+=("$_tok_name" "${_tok_flags[@]}") ;;
+      *) reply+=("$a") ;;
+    esac
+  done
+}
+
 _secret_cmd_update() {
   local name="" proj="" comment="" kind="" env_opt=""
   local comment_set=0 kind_set=0 want_value=0 from_stdin=0
   local scoped=0 shared=0 scope_opt="" stage_opt="" no_stage=0
-  local -a meta_opts
+  local -a meta_opts reply
+  _secret_argv_expand "$@"; set -- "${reply[@]}"
   while (( $# )); do
     case $1 in
       -p) proj=$2; shift 2 ;;
@@ -819,6 +846,8 @@ _secret_cmd_update() {
 
 _secret_cmd_get() {
   local name="" proj="" copy=0 scoped=0 shared=0 scope_opt="" stage_opt="" no_stage=0
+  local -a reply
+  _secret_argv_expand "$@"; set -- "${reply[@]}"
   while (( $# )); do
     case $1 in
       -p) proj=$2; shift 2 ;;
@@ -854,6 +883,8 @@ _secret_cmd_get() {
 
 _secret_cmd_show() {
   local name="" proj="" scoped=0 shared=0 scope_opt="" stage_opt="" no_stage=0
+  local -a reply
+  _secret_argv_expand "$@"; set -- "${reply[@]}"
   while (( $# )); do
     case $1 in
       -p) proj=$2; shift 2 ;;
@@ -1049,6 +1080,8 @@ _secret_cmd_env() {
 
 _secret_cmd_rm() {
   local name="" proj="" force=0 scoped=0 shared=0 scope_opt="" stage_opt="" no_stage=0
+  local -a reply
+  _secret_argv_expand "$@"; set -- "${reply[@]}"
   while (( $# )); do
     case $1 in
       -p) proj=$2; shift 2 ;;
@@ -2016,7 +2049,15 @@ COMMANDS
   then the shared layer. -S/--scoped = the repo scope only, --scope X =
   that scope only, --shared = the shared layer only; --stage S / --no-stage
   pin the stage ($SECRET_STAGE otherwise), and with one the exact flags
-  address that stage's layer.
+  address that stage's layer. NAME may also be the token `ls` prints,
+  "[scope/]NAME[@stage]": it names that exact layer (`secret get
+  api/DATABASE_URL@prod`).
+
+  The wizard's List is a browser: every item with a preview of its
+  metadata, matched on name, meta and comment; ^y copies the value, ^f
+  copies one meta field or the comment, ^o opens the url= field in the
+  browser, ^e updates, ^d deletes — each returns to the list; enter
+  prints the item's details and leaves, esc leaves.
   keychain create NAME [--timeout MIN] [--no-autolock]
         create ~/Library/Keychains/NAME.keychain-db (auto-locks on sleep
         and after 30 min by default) and add it to the search list
@@ -2130,22 +2171,51 @@ _secret_ui_pick_project() {    # $1 header  $2.. extra entries; selection on std
   print -rl -- "${items[@]}" | _secret_fzf --header="$header" --prompt='project> '
 }
 
-_secret_ui_pick_items() {      # $1 project  $2 header  $3 "multi"|""; names on stdout
+# The item picker. Each fzf line is three tab-separated fields: the visible
+# columns (token, kind, env, modified, comment), the token
+# "[scope/]NAME[@stage]", and the item's meta fields — fzf shows the first
+# and matches on all three, so typing a meta value finds the item. The
+# preview pane runs `secret show` on the highlighted token, in a fresh zsh
+# that sources this file, so nothing here ever has to fit the pane width.
+#   $3 mode: "" (one token), "multi" (one per line), "expect" (the key
+#   pressed on the first line, the token on the second); $4.. extra fzf
+#   options (an --expect list for the expect mode).
+_secret_ui_pick_items() {      # $1 project  $2 header  $3 mode  $4.. fzf options; tokens on stdout
+  local proj=$1 header=$2 mode=$3
+  shift 3
   local rows
-  rows=$(_secret_rows "$1")
-  [[ -z $rows ]] && { _secret_err "no secrets in project '$1'"; return 1 }
-  local row lines=""
+  rows=$(_secret_rows "$proj")
+  [[ -z $rows ]] && { _secret_err "no secrets in project '$proj'"; return 1 }
+  local row tok env meta lines=""
   local -a f
+  local -i wt=4
   while IFS= read -r row; do
     f=("${(@ps:\t:)row}")
-    lines+="$(printf '%-32s %-14s %-17s %s' \
-      "${f[7]:+${f[7]}/}${f[2]}${f[10]:+@${f[10]}}" "${f[4]}" "$(_secret_fmt_date "${f[6]}")" "${f[5]}")"$'\n'
+    tok="${f[7]:+${f[7]}/}${f[2]}${f[10]:+@${f[10]}}"
+    (( ${#tok} > wt )) && wt=${#tok}
   done <<< "$rows"
+  while IFS= read -r row; do
+    f=("${(@ps:\t:)row}")
+    tok="${f[7]:+${f[7]}/}${f[2]}${f[10]:+@${f[10]}}"
+    _secret_env_on "${f[9]}" "${f[8]}" && env=yes || env=no
+    meta=${(j: :)${(f)"$(_secret_meta_fields "${f[8]}")"}}
+    lines+="$(printf "%-${wt}s  %-14s %-3s %-16s %s" \
+      "$tok" "${f[4]}" "$env" "$(_secret_fmt_date "${f[6]}")" "${f[5]}")"$'\t'"$tok"$'\t'"$meta"$'\n'
+  done <<< "$rows"
+  local preview
+  preview="zsh -fc 'source \"\$1\"; secret show \"\$2\" -p \"\$3\"' -- ${(q)_SECRET_LIB} {2} ${(q)proj}"
   local -a fzopts
-  [[ $3 == multi ]] && fzopts+=(--multi)
-  print -rn -- "$lines" \
-    | _secret_fzf "${fzopts[@]}" --header="$2" --prompt='secret> ' \
-    | awk '{print $1}'
+  fzopts=(--delimiter=$'\t' --with-nth=1 --preview="$preview" --preview-window='right,50%,wrap')
+  [[ $mode == multi ]] && fzopts+=(--multi)
+  local out
+  out=$(print -rn -- "$lines" \
+    | _secret_fzf "${fzopts[@]}" --header="$header" --prompt='secret> ' "$@") || return $?
+  if [[ $mode == expect ]]; then
+    print -r -- "${out%%$'\n'*}"
+    [[ $out == *$'\n'* ]] || return 0
+    out=${out#*$'\n'}
+  fi
+  print -r -- "$out" | awk -F'\t' 'NF { print $2 }'
 }
 
 # Picker tokens are "[scope/]NAME[@stage]". Split one token into the bare
@@ -2172,7 +2242,7 @@ _secret_ui_get() {
   local -a _tok_flags
   proj=$(_secret_ui_pick_project 'secret › get › choose project') || return 0
   [[ -z $proj ]] && return 0
-  tok=$(_secret_ui_pick_items "$proj" "secret › $proj$(_secret_kc_suffix "$proj") › get (copies to clipboard)") || return 0
+  tok=$(_secret_ui_pick_items "$proj" "secret › $proj$(_secret_kc_suffix "$proj") › get (copies to clipboard)" "") || return 0
   [[ -z $tok ]] && return 0
   _secret_ui_split_token "$tok"
   _secret_cmd_get "$_tok_name" -p "$proj" "${_tok_flags[@]}" --copy
@@ -2225,12 +2295,17 @@ _secret_ui_add() {
 }
 
 _secret_ui_update() {
-  local proj tok fields fld c k _tok_name _tok_layer
-  local -a _tok_flags
+  local proj tok
   proj=$(_secret_ui_pick_project 'secret › update › choose project') || return 0
   [[ -z $proj ]] && return 0
-  tok=$(_secret_ui_pick_items "$proj" "secret › $proj$(_secret_kc_suffix "$proj") › update") || return 0
+  tok=$(_secret_ui_pick_items "$proj" "secret › $proj$(_secret_kc_suffix "$proj") › update" "") || return 0
   [[ -z $tok ]] && return 0
+  _secret_ui_update_token "$proj" "$tok"
+}
+
+_secret_ui_update_token() {    # $1 project  $2 token: the update dialogue for one item
+  local proj=$1 tok=$2 fields fld c k _tok_name _tok_layer
+  local -a _tok_flags
   _secret_ui_split_token "$tok"
   local name=$_tok_name row
   row=$(_secret_row_of "$name" "$proj" "$_tok_layer")
@@ -2282,12 +2357,94 @@ _secret_ui_update() {
   _secret_cmd_update "${args[@]}"
 }
 
+# Metadata is not secret: a field's value goes to the clipboard as it is,
+# without the 45 s clearing a value gets. One field copies at once, several
+# go through a small picker; the comment is offered alongside the fields.
+_secret_ui_copy_field() {      # $1 project  $2 token
+  local proj=$1 tok=$2 _tok_name _tok_layer row pick
+  local -a _tok_flags f choices
+  _secret_ui_split_token "$tok"
+  row=$(_secret_row_of "$_tok_name" "$proj" "$_tok_layer")
+  [[ -z $row ]] && { _secret_err "not found: $tok"; return 1 }
+  f=("${(@ps:\t:)row}")
+  choices=(${(f)"$(_secret_meta_fields "${f[8]}")"})
+  [[ -n ${f[5]} ]] && choices+=("comment=${f[5]}")
+  if (( ${#choices} == 0 )); then
+    print -r -- "$tok has no meta fields or comment"
+    return 0
+  elif (( ${#choices} == 1 )); then
+    pick=${choices[1]}
+  else
+    pick=$(print -rl -- "${choices[@]}" \
+      | _secret_fzf --header="secret › $tok › copy which field" --prompt='field> ') || return 0
+    [[ -z $pick ]] && return 0
+  fi
+  print -rn -- "${pick#*=}" | pbcopy
+  print -r -- "copied ${pick%%=*} of $tok to clipboard"
+}
+
+_secret_ui_open_url() {        # $1 project  $2 token: open the url= field in the browser
+  local proj=$1 tok=$2 _tok_name _tok_layer row url
+  local -a _tok_flags f
+  _secret_ui_split_token "$tok"
+  row=$(_secret_row_of "$_tok_name" "$proj" "$_tok_layer")
+  [[ -z $row ]] && { _secret_err "not found: $tok"; return 1 }
+  f=("${(@ps:\t:)row}")
+  if ! url=$(_secret_meta_get "${f[8]}" url); then
+    print -r -- "$tok has no url= field (add one: secret update $tok -p $proj --meta url=...)"
+    return 0
+  fi
+  if [[ $url != http://* && $url != https://* ]]; then
+    _secret_err "$tok: url= is not an http(s) URL, not opening it"
+    return 1
+  fi
+  open "$url" && print -r -- "opened $url"
+}
+
+# List is a browser: the picker with its preview, with the item actions on
+# keys so a look at a secret flows straight into the next step without
+# going back through the top menu. A key action returns to the list; enter
+# settles on an item, prints its details and leaves.
 _secret_ui_list() {
-  local proj
+  local proj out key tok reply _tok_name _tok_layer
+  local -a _tok_flags
   proj=$(_secret_ui_pick_project 'secret › list › choose project') || return 0
   [[ -z $proj ]] && return 0
-  print -r -- "project: $proj$(_secret_kc_suffix "$proj")"
-  _secret_cmd_ls -p "$proj" --long
+  local header="secret › $proj$(_secret_kc_suffix "$proj") › list    enter: show & leave  ^y: copy  ^f: field  ^o: open url  ^e: update  ^d: delete  esc: back"
+  while true; do
+    out=$(_secret_ui_pick_items "$proj" "$header" expect --expect=ctrl-y,ctrl-f,ctrl-o,ctrl-e,ctrl-d --height=70%) || return 0
+    key=${out%%$'\n'*}
+    tok=${out#*$'\n'}
+    [[ -n $tok && $tok != "$out" ]] || return 0
+    _secret_ui_split_token "$tok"
+    case $key in
+      ctrl-y)
+        _secret_cmd_get "$_tok_name" -p "$proj" "${_tok_flags[@]}" --copy
+        ;;
+      ctrl-f)
+        _secret_ui_copy_field "$proj" "$tok"
+        ;;
+      ctrl-o)
+        _secret_ui_open_url "$proj" "$tok"
+        ;;
+      ctrl-e)
+        _secret_ui_update_token "$proj" "$tok"
+        ;;
+      ctrl-d)
+        if read -q "reply?delete $(_secret_disp "$proj" "$_tok_layer" "$_tok_name")? [y/N] "; then
+          print '' >&2
+          _secret_cmd_rm "$_tok_name" -p "$proj" "${_tok_flags[@]}" -f
+        else
+          print '' >&2
+        fi
+        ;;
+      *)
+        _secret_cmd_show "$_tok_name" -p "$proj" "${_tok_flags[@]}"
+        return
+        ;;
+    esac
+    print ''
+  done
 }
 
 _secret_ui_show() {
@@ -2295,7 +2452,7 @@ _secret_ui_show() {
   local -a _tok_flags
   proj=$(_secret_ui_pick_project 'secret › show › choose project') || return 0
   [[ -z $proj ]] && return 0
-  tok=$(_secret_ui_pick_items "$proj" "secret › $proj$(_secret_kc_suffix "$proj") › show") || return 0
+  tok=$(_secret_ui_pick_items "$proj" "secret › $proj$(_secret_kc_suffix "$proj") › show" "") || return 0
   [[ -z $tok ]] && return 0
   _secret_ui_split_token "$tok"
   _secret_cmd_show "$_tok_name" -p "$proj" "${_tok_flags[@]}"
@@ -2381,7 +2538,7 @@ _secret_ui() {
       'Get      copy a secret to the clipboard' \
       'Add      store a new secret' \
       'Update   change the value or metadata of a secret' \
-      'List     list secrets in a project' \
+      'List     browse a project: preview, then show / copy / update / delete' \
       'Show     inspect metadata (never the value)' \
       'Delete   delete secrets (TAB to multi-select)' \
       'Export   write secrets to a file (age/json/env)' \

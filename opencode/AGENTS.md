@@ -349,8 +349,10 @@ Secrets on this machine are injected from the macOS Keychain by PATH shims
   `./script.sh`) get no project secrets. Route the work through an allowlisted
   command, or wrap the tool.
 - Use the `secret` CLI directly for metadata, for example `secret ls` or
-  `secret show NAME`. A launcher in `~/.config/bin` makes it callable here.
+  `secret show NAME`; the `[scope/]NAME[@stage]` token `ls` prints is
+  accepted as NAME. A launcher in `~/.config/bin` makes it callable here.
   Reads are auto-approved; `get`, `rm`, `export`, and `import` are blocked.
+  A bare `secret` opens an interactive wizard: never run it from here.
   Prefer storing new secrets in the Keychain (`secret set NAME -p <project>`, or
   `-S` for repo scope) over writing plaintext `.env` files. `secret show NAME`
   and `secret ls --meta KEY[=VALUE]` expose an item's `--meta` fields (`url=`,
