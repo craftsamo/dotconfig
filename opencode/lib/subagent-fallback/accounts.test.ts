@@ -32,11 +32,12 @@ function fixture(providerID = "anthropic") {
 }
 
 describe("native subscription identity", () => {
-  test("accepts Claude Max and both ChatGPT login methods", async () => {
+  test("accepts Claude Max, both ChatGPT login methods and the xAI device login", async () => {
     for (const [provider, method] of [
       ["anthropic", "claude-max"],
       ["openai", "chatgpt-browser"],
       ["openai", "chatgpt-headless"],
+      ["xai", "device"],
     ]) {
       const { ctx, state } = fixture(provider)
       state.credential.methodID = method
@@ -83,6 +84,18 @@ describe("native subscription identity", () => {
       const { ctx, state } = fixture()
       Object.assign(state.credential, change)
       expect(await subscription(ctx, "anthropic")).toBeUndefined()
+    }
+  })
+  test("xAI needs no account metadata, but only its device login qualifies", async () => {
+    const { ctx, state } = fixture("xai")
+    state.credential.methodID = "device"
+    state.credential.metadata = undefined
+    const auth = await subscription(ctx, "xai")
+    expect(auth?.proof.methodID).toBe("device")
+    expect(auth?.accountID).toBeUndefined()
+    for (const methodID of ["browser", "api", "claude-max", undefined]) {
+      state.credential.methodID = methodID
+      expect(await subscription(ctx, "xai")).toBeUndefined()
     }
   })
   test("ChatGPT requires a nonempty native account ID", async () => {

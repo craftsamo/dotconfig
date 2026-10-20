@@ -16,6 +16,7 @@ const SUB = "anthropic-credit-sub"
 const SONNET = ROUTES.worker.primary
 const SOL = ROUTES.worker.alternate
 const LUNA = ROUTES.verifier.primary
+const GROK = ROUTES.searcher.primary
 const sel = (m: ModelRef) =>
   `${m.providerID}/${m.id}${m.variant ? `#${m.variant}` : ""}`
 const modelFrom = (s: string): ModelRef => {
@@ -34,7 +35,11 @@ const catalog = (): CatalogModel[] => {
         status: "active",
         capabilities: { tools: true },
         variants: [],
-        limit: { context: 400_000, output: 32_000 },
+        // xAI publishes one budget for input and output.
+        limit:
+          m.providerID === "xai"
+            ? { context: 500_000, output: 500_000 }
+            : { context: 400_000, output: 32_000 },
       }
       if (m.variant && !item.variants.some((v) => v.id === m.variant))
         item.variants.push({ id: m.variant })
@@ -69,14 +74,19 @@ async function fixture() {
     fetchedAt: undefined as number | undefined,
     path: "",
     unavailable: false,
-    quota: { anthropic: 90, openai: 90 } as Record<string, number | undefined>,
+    quota: { anthropic: 90, openai: 90, xai: 90 } as Record<
+      string,
+      number | undefined
+    >,
     connection: {
       anthropic: { type: "credential", id: "fixture-claude", method: "oauth" },
       openai: { type: "credential", id: "fixture-chatgpt", method: "oauth" },
+      xai: { type: "credential", id: "fixture-grok", method: "oauth" },
     } as Record<string, any>,
     access: {
       anthropic: "fixture-anthropic",
       openai: "fixture-openai",
+      xai: "fixture-xai",
     } as Record<string, string>,
     childID: "ses_child",
     childParent: "ses_parent",
@@ -179,12 +189,22 @@ async function fixture() {
         connection: {
           active: async (id) => env.connection[id],
           resolve: async (c) => {
-            const id = c.id === "fixture-claude" ? "anthropic" : "openai"
+            const id =
+              c.id === "fixture-claude"
+                ? "anthropic"
+                : c.id === "fixture-grok"
+                  ? "xai"
+                  : "openai"
             return {
               type: "oauth",
-              methodID: id === "anthropic" ? "claude-max" : "chatgpt-browser",
+              methodID:
+                { anthropic: "claude-max", xai: "device" }[id] ??
+                "chatgpt-browser",
               access: env.access[id],
-              metadata: { accountID: "fixture-account" },
+              // The xAI device login carries no account metadata.
+              ...(id === "xai"
+                ? {}
+                : { metadata: { accountID: "fixture-account" } }),
             }
           },
         },
@@ -236,19 +256,25 @@ async function fixture() {
                 entries:
                   percent === undefined
                     ? []
-                    : ["5h", "Weekly"].map((window) => ({
-                        window,
-                        sourceId:
-                          id === "anthropic"
-                            ? "fixture-claude"
-                            : "fixture-chatgpt",
-                        resultType: id === "openai" ? "rate_limit" : "quota",
-                        authority: "provider_reported",
-                        acquisitionMethod: "remote_api",
-                        renderType: "percent",
-                        percentRemaining: window === "5h" ? percent : 90,
-                        resetAt: env.now / 1000 + 3600,
-                      })),
+                    : // xAI exports its weekly pool alone.
+                      (id === "xai" ? ["Weekly"] : ["5h", "Weekly"]).map(
+                        (window) => ({
+                          window,
+                          sourceId: {
+                            anthropic: "fixture-claude",
+                            openai: "fixture-chatgpt",
+                            xai: "fixture-grok",
+                          }[id],
+                          resultType:
+                            id === "openai" ? "rate_limit" : "quota",
+                          authority: "provider_reported",
+                          acquisitionMethod: "remote_api",
+                          renderType: "percent",
+                          percentRemaining:
+                            window === "5h" || id === "xai" ? percent : 90,
+                          resetAt: env.now / 1000 + 3600,
+                        }),
+                      ),
               },
             ]),
           ),
@@ -310,6 +336,8 @@ const scope = (model = SONNET, kind = "primary", sessionID = "ses_child") => ({
 const A_URL = "https://api.anthropic.com/v1/messages?beta=true"
 const O_URL = "https://chatgpt.com/backend-api/codex/responses"
 const WS_URL = "wss://chatgpt.com/backend-api/codex/responses"
+const X_URL = "https://api.x.ai/v1/responses"
+const X_WS = "wss://api.x.ai/v1/responses"
 const headers = (provider = "anthropic") => ({
   authorization: `Bearer fixture-${provider}`,
   ...(provider === "openai" ? { "chatgpt-account-id": "fixture-account" } : {}),
@@ -386,6 +414,23 @@ describe("launch and persistence", () => {
     env.now += 60 * 60_000
     await inst.run()
     expect(env.originals[0].model).toBe(sel(SOL))
+  })
+  test("a Grok role launches on the xAI weekly pool and, once that is spent, on its ChatGPT alternate", async () => {
+    const { env, inst } = await fixture()
+    const input = { agent: "searcher", prompt: "fixture", background: true }
+    await inst.run(input)
+    expect(env.originals[0]).toBe(input)
+    expect(marker(env).model).toEqual(GROK)
+    expect(marker(env).connectionID).toBe("fixture-grok")
+    env.quota.xai = 0
+    await inst.run(input)
+    expect(env.originals[1].model).toBe(sel(ROUTES.searcher.alternate))
+    expect(marker(env).fallback).toBe(true)
+    // The alternate's own pool spent too: the usual provider, as last resort.
+    env.quota.openai = 0
+    const result = await inst.run(input)
+    expect(env.originals[2].model).toBeUndefined()
+    expect(result.metadata.preflight.funding).toBe("provider")
   })
   test("both 0% tries the default provider without claiming a credit balance", async () => {
     const { env, inst } = await fixture()
@@ -736,6 +781,7 @@ describe("HTTP/WS identity protection without quota rechecks", () => {
         url: WS_URL,
         headers: { ...headers("openai"), authorization: "wrong" },
       },
+      { url: WS_URL, headers: headers("xai") },
       {
         url: WS_URL,
         headers: { ...headers("openai"), "x-api-key": "fixture" },
@@ -754,6 +800,45 @@ describe("HTTP/WS identity protection without quota rechecks", () => {
     await inst.fire("experimental.ws.send", frame)
     expect(env.reads).toBe(1)
     env.access.openai = "rotated"
+    await expect(inst.fire("experimental.ws.send", frame)).rejects.toThrow(
+      /handshake/,
+    )
+  })
+  test("xAI takes the Responses path over HTTP and WebSocket with the bare bearer token", async () => {
+    const { env, inst } = await fixture()
+    await inst.run({ agent: "searcher" })
+    await send(inst, post(X_URL, headers("xai")), GROK)
+    for (const request of [
+      post("https://api.x.ai/v1/chat/completions", headers("xai")),
+      post(`${X_URL}?stream=true`, headers("xai")),
+      post(A_URL, headers("xai")),
+      post(X_URL, { ...headers("xai"), "x-api-key": "fixture" }),
+      post(X_URL, headers("openai")),
+    ])
+      await expect(send(inst, request, GROK)).rejects.toThrow(
+        /Subagent preflight/,
+      )
+    const frame = { ...scope(GROK), frame: "{}" }
+    for (const url of [
+      WS_URL,
+      X_URL,
+      "wss://api.x.ai/v1/chat/completions",
+      "ws://api.x.ai/v1/responses",
+    ])
+      await expect(
+        inst.fire("experimental.ws.handshake", {
+          ...scope(GROK),
+          url,
+          headers: headers("xai"),
+        }),
+      ).rejects.toThrow(/xAI subscription route/)
+    await inst.fire("experimental.ws.handshake", {
+      ...scope(GROK),
+      url: X_WS,
+      headers: headers("xai"),
+    })
+    await inst.fire("experimental.ws.send", frame)
+    env.access.xai = "rotated"
     await expect(inst.fire("experimental.ws.send", frame)).rejects.toThrow(
       /handshake/,
     )
@@ -912,6 +997,9 @@ describe("Console credit lanes", () => {
     message: "usage limit",
   }
   const LONG = { retry: true, delay: 900_000 } as const
+  // A ChatGPT role with a Claude alternate.
+  const SOL_HIGH = ROUTES.debugger.primary
+  const OPUS_HIGH = ROUTES.debugger.alternate
   const specialist = (env: Env, id = "ses_lane", agent = "worker") =>
     env.sessions.set(id, {
       id,
@@ -1163,21 +1251,21 @@ describe("Console credit lanes", () => {
   })
   test("a ChatGPT role launches on its window and, once that is spent, on the first lane with its Claude alternate", async () => {
     const { env, inst } = await laned()
-    const input = { agent: "searcher", prompt: "fixture", background: true }
+    const input = { agent: "debugger", prompt: "fixture", background: true }
     await inst.run(input)
     expect(env.originals[0]).toBe(input)
-    expect(marker(env).model).toEqual(SOL)
+    expect(marker(env).model).toEqual(SOL_HIGH)
     env.quota.openai = 0
     const result = await inst.run(input)
-    expect(env.originals[1].model).toBe(sel(on(MAIN)))
+    expect(env.originals[1].model).toBe(sel(on(MAIN, OPUS_HIGH)))
     expect(marker(env)).toBeUndefined()
     expect(result.content).toBe(
-      `[Subagent preflight: searcher ${sel(SOL)} → ${sel(on(MAIN))}; Quota reports the default's included quota empty; a Console credit lane is tried before the subscription.]\ndone`,
+      `[Subagent preflight: debugger ${sel(SOL_HIGH)} → ${sel(on(MAIN, OPUS_HIGH))}; Quota reports the default's included quota empty; a Console credit lane is tried before the subscription.]\ndone`,
     )
     expect(result.metadata.preflight).toEqual({
       funding: "console-credit",
-      from: sel(SOL),
-      to: sel(on(MAIN)),
+      from: sel(SOL_HIGH),
+      to: sel(on(MAIN, OPUS_HIGH)),
     })
     expect(env.reads).toBe(2)
   })
@@ -1187,24 +1275,46 @@ describe("Console credit lanes", () => {
     await retry(inst, "ses_lane", on(MAIN), CREDIT)
     await retry(inst, "ses_lane", on(SUB), CREDIT)
     env.quota.openai = 0
+    await inst.run({ agent: "debugger", prompt: "fixture", background: true })
+    expect(env.originals[0].model).toBe(sel(OPUS_HIGH))
+    expect(marker(env).model).toEqual(OPUS_HIGH)
+    expect(marker(env).fallback).toBe(true)
+  })
+  test("a Grok role never takes a lane: a spent pool goes to its ChatGPT alternate on the subscription", async () => {
+    const { env, inst } = await laned()
+    env.quota.xai = 0
     await inst.run({ agent: "searcher", prompt: "fixture", background: true })
-    expect(env.originals[0].model).toBe(sel(SONNET))
-    expect(marker(env).model).toEqual(SONNET)
+    expect(env.originals[0].model).toBe(sel(ROUTES.searcher.alternate))
+    expect(marker(env).fallback).toBe(true)
+  })
+  test("a Grok child's observed pool limit sends the relaunch to the ChatGPT alternate while the export still says room", async () => {
+    const { env, inst } = await laned()
+    const input = { agent: "searcher", prompt: "fixture", background: true }
+    await inst.run(input)
+    expect(marker(env).model).toEqual(GROK)
+    const e = await retry(inst, "ses_child", GROK, {
+      type: "provider.quota",
+      message: "weekly limit reached",
+    })
+    expect(e.decision).toEqual({ retry: false })
+    expect(env.switches).toEqual([])
+    await inst.run(input)
+    expect(env.originals[1].model).toBe(sel(ROUTES.searcher.alternate))
     expect(marker(env).fallback).toBe(true)
   })
   test("a window limit a protected ChatGPT child hits steers its relaunch to a lane for the wait asked, before the export catches up", async () => {
     const { env, inst } = await laned()
-    const input = { agent: "searcher", prompt: "fixture", background: true }
+    const input = { agent: "debugger", prompt: "fixture", background: true }
     await inst.run(input)
     expect(marker(env)).toBeDefined()
-    const e = await retry(inst, "ses_child", SOL, LIMIT, {
+    const e = await retry(inst, "ses_child", SOL_HIGH, LIMIT, {
       retry: true,
       delay: 30_000,
     })
     expect(e.decision).toEqual({ retry: false })
     expect(env.switches).toEqual([])
     await inst.run(input)
-    expect(env.originals[1].model).toBe(sel(on(MAIN)))
+    expect(env.originals[1].model).toBe(sel(on(MAIN, OPUS_HIGH)))
     env.now += 31_000
     await inst.run(input)
     expect(env.originals[2]).toBe(input)
