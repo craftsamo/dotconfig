@@ -15,8 +15,9 @@ successful, non-empty transcript — outage fallback, not quality fallback.
 
 - Tiers whose credentials are missing are skipped at runtime, so reorder, add
   or remove tiers by editing `stt.fallback.chain`; credentials come from the
-  Keychain (see [`models-auth.md`](../models-auth.md)). `xai` can also use the
-  SuperGrok OAuth login (`hermes auth add xai-oauth`).
+  Keychain (see [`models-auth.md`](../models-auth.md)). `xai` can also fall
+  back to the xAI subscription login (`hermes auth add xai-oauth`), but STT is
+  API-billed, so `XAI_API_KEY` is preferred there.
 - `local` (faster-whisper; `stt.local.*`) needs no key and is the offline floor;
   an empty `stt.local.language` auto-detects.
 - `mistral` is excluded by default: its SDK was quarantined on PyPI.
