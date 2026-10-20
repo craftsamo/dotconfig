@@ -349,7 +349,9 @@ Secrets on this machine are injected from the macOS Keychain by PATH shims
   `secret show NAME`. A launcher in `~/.config/bin` makes it callable here.
   Reads are auto-approved; `get`, `rm`, `export`, and `import` are blocked.
   Prefer storing new secrets in the Keychain (`secret set NAME -p <project>`, or
-  `-S` for repo scope) over writing plaintext `.env` files.
+  `-S` for repo scope) over writing plaintext `.env` files. `secret show NAME`
+  and `secret ls --meta KEY[=VALUE]` expose an item's `--meta` fields (`url=`,
+  `account=`, ...) without its value.
 
 </Rules>
 
