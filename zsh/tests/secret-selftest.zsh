@@ -474,7 +474,7 @@ print -r -- 'other value' | secret set TEST_SEED -p $P -D mnemonic --new --stdin
   && bad "--new refuses an existing item" || ok "--new refuses an existing item"
 [[ "$(secret get TEST_SEED -p $P)" == "$SEED" ]] && ok "--new leaves the existing value" || bad "--new leaves the existing value"
 # past the pre-check (an item that appeared after it): security itself refuses without -U
-print -r -- 'other value' | _secret_store TEST_SEED $P '' mnemonic '' keep new >/dev/null 2>&1 \
+print -r -- 'other value' | _secret_store TEST_SEED $P '' mnemonic '' keep keep new >/dev/null 2>&1 \
   && bad "a create-only write refuses an existing item" || ok "a create-only write refuses an existing item"
 [[ "$(secret get TEST_SEED -p $P)" == "$SEED" ]] \
   && ok "a create-only write leaves the existing value" || bad "a create-only write leaves the existing value"
@@ -493,6 +493,98 @@ secret import "$TD/noenv.env" -p $P -y >/dev/null 2>&1
 secret update TEST_SEED -p $P --env >/dev/null 2>&1
 [[ "$(secret env -p $P)" == *TEST_SEED* ]] && ok "update --env lifts it" || bad "update --env lifts it"
 secret rm TEST_SEED -p $P -f >/dev/null 2>&1
+
+# --- ENV lives in the type code (envn/envy), never in the generic attribute ---
+kcdump() { security dump-keychain "$HOME/Library/Keychains/$P.keychain-db" 2>/dev/null \
+  | awk -v n="$1" '/^class:/{blk=""} {blk=blk"\n"$0} /"type"|"gena"/{ if (blk ~ "\"acct\"<blob>=\"" n "\"") print $0 }'; }
+print -r -- 'v' | secret set TEST_TYPE -p $P --no-env --stdin >/dev/null 2>&1
+[[ "$(kcdump TEST_TYPE)" == *'"type"<uint32>="envn"'* ]] && ok "--no-env writes type envn" || bad "--no-env writes type envn"
+[[ "$(kcdump TEST_TYPE)" != *'env=no'* ]] && ok "--no-env leaves the generic attribute alone" || bad "--no-env leaves the generic attribute alone"
+secret update TEST_TYPE -p $P --env >/dev/null 2>&1
+[[ "$(kcdump TEST_TYPE)" == *'"type"<uint32>="envy"'* ]] && ok "--env writes type envy" || bad "--env writes type envy"
+secret rm TEST_TYPE -p $P -f >/dev/null 2>&1
+
+# --- meta: structured KEY=VALUE fields in the generic attribute ---
+print -r -- 'v' | secret set TEST_META -p $P --meta 'url=https://example.com/a?b=1' --meta account=ops -j 'memo' --stdin >/dev/null 2>&1 \
+  && ok "set --meta" || bad "set --meta"
+[[ "$(kcdump TEST_META)" == *'"gena"<blob>="account=ops;url=https://example.com/a?b=1"'* ]] \
+  && ok "meta is stored sorted by key" || bad "meta is stored sorted by key"
+metashow=$(secret show TEST_META -p $P)
+[[ $metashow =~ 'Meta:[[:space:]]+account=ops' && $metashow == *'url=https://example.com/a?b=1'* ]] \
+  && ok "show lists meta fields" || bad "show lists meta fields"
+[[ "$(secret ls -p $P --long)" =~ 'TEST_META[[:space:]]+Shared[[:space:]]+ENV[[:space:]]+[0-9-]+ [0-9:]+[[:space:]]+yes[[:space:]]+account=ops;url=https://example.com/a\?b=1[[:space:]]+memo' ]] \
+  && ok "ls --long has a META column" || bad "ls --long has a META column"
+[[ "$(secret ls -p $P --meta account)" == TEST_META ]] && ok "ls --meta KEY filters" || bad "ls --meta KEY filters"
+[[ "$(secret ls -p $P --meta account=ops --meta url)" == TEST_META ]] && ok "ls --meta stacks filters" || bad "ls --meta stacks filters"
+[[ -z "$(secret ls -p $P --meta account=dev 2>/dev/null)" ]] && ok "ls --meta KEY=VALUE mismatch hides" || bad "ls --meta KEY=VALUE mismatch hides"
+secret ls -p $P --meta env >/dev/null 2>&1 && bad "ls --meta rejects the reserved key" || ok "ls --meta rejects the reserved key"
+secret update TEST_META -p $P --meta url= --meta zone=eu >/dev/null 2>&1 && ok "update --meta" || bad "update --meta"
+[[ "$(kcdump TEST_META)" == *'"gena"<blob>="account=ops;zone=eu"'* ]] \
+  && ok "update --meta KEY= removes, KEY=VALUE adds" || bad "update --meta KEY= removes, KEY=VALUE adds"
+print -r -- 'v2' | secret set TEST_META -p $P --stdin >/dev/null 2>&1
+[[ "$(kcdump TEST_META)" == *'account=ops;zone=eu'* ]] && ok "a value rewrite keeps meta" || bad "a value rewrite keeps meta"
+secret update TEST_META -p $P --meta 'bad key=1' >/dev/null 2>&1 && bad "rejects a meta key with spaces" || ok "rejects a meta key with spaces"
+secret update TEST_META -p $P --meta 'x=a;b' >/dev/null 2>&1 && bad "rejects ';' in a meta value" || ok "rejects ';' in a meta value"
+secret update TEST_META -p $P --meta env=no >/dev/null 2>&1 && bad "rejects the reserved meta key env" || ok "rejects the reserved meta key env"
+secret update TEST_META -p $P --meta novalue >/dev/null 2>&1 && bad "rejects --meta without '='" || ok "rejects --meta without '='"
+secret export -p $P --format json -o "$TD/meta.json" >/dev/null 2>&1
+[[ "$(jq -r '.items[] | select(.name == "TEST_META") | .meta.zone' "$TD/meta.json" 2>/dev/null)" == eu ]] \
+  && ok "json export carries meta as an object" || bad "json export carries meta as an object"
+secret export -p $P --format env -o "$TD/meta.env" >/dev/null 2>&1
+grep -q '^#meta:account=ops;zone=eu$' "$TD/meta.env" 2>/dev/null \
+  && ok "env export writes a #meta: line" || bad "env export writes a #meta: line"
+( source "$TD/meta.env"; [[ ${TEST_META-} == v2 ]] ) \
+  && ok "an env export with meta still sources" || bad "an env export with meta still sources"
+secret rm TEST_META -p $P -f >/dev/null 2>&1
+secret import "$TD/meta.json" -y >/dev/null 2>&1
+[[ "$(kcdump TEST_META)" == *'"gena"<blob>="account=ops;zone=eu"'* ]] && ok "json import restores meta" || bad "json import restores meta"
+secret rm TEST_META -p $P -f >/dev/null 2>&1
+secret import "$TD/meta.env" -p $P -y >/dev/null 2>&1
+[[ "$(kcdump TEST_META)" == *'"gena"<blob>="account=ops;zone=eu"'* ]] && ok "env import restores meta from the marker" || bad "env import restores meta from the marker"
+secret rm TEST_META -p $P -f >/dev/null 2>&1
+
+# --- migrate: the pre-type env=no marker moves into the type code ---
+print -r -- "add-generic-password -U -a TEST_LEGACY -s secret.$P -l TEST_LEGACY -D ENV -j \"\" -G \"env=no;url=old\" -w legacy \"$HOME/Library/Keychains/$P.keychain-db\"" \
+  | security -i >/dev/null 2>&1
+[[ "$(secret env -p $P)" != *TEST_LEGACY* ]] && ok "a legacy env=no marker is still honoured" || bad "a legacy env=no marker is still honoured"
+[[ "$(secret show TEST_LEGACY -p $P)" =~ 'Meta:[[:space:]]+url=old' ]] && ok "show hides the legacy marker from meta" || bad "show hides the legacy marker from meta"
+[[ "$(secret migrate -p $P --dry-run)" == *'would migrate'*TEST_LEGACY* ]] && ok "migrate --dry-run lists it" || bad "migrate --dry-run lists it"
+[[ "$(kcdump TEST_LEGACY)" == *'env=no'* ]] && ok "migrate --dry-run changes nothing" || bad "migrate --dry-run changes nothing"
+secret migrate -p $P >/dev/null 2>&1 && ok "migrate" || bad "migrate"
+legacydump=$(kcdump TEST_LEGACY)
+[[ $legacydump == *'"type"<uint32>="envn"'* && $legacydump == *'"gena"<blob>="url=old"'* ]] \
+  && ok "migrate sets envn and strips the marker" || bad "migrate sets envn and strips the marker"
+[[ "$(secret get TEST_LEGACY -p $P)" == legacy ]] && ok "migrate keeps the value" || bad "migrate keeps the value"
+[[ "$(secret env -p $P)" != *TEST_LEGACY* ]] && ok "migrated item is still hidden from env" || bad "migrated item is still hidden from env"
+[[ "$(secret migrate -p $P)" == 'nothing to migrate'* ]] && ok "migrate is idempotent" || bad "migrate is idempotent"
+# touching the meta of a not-yet-migrated item pins ENV into the type first
+print -r -- "add-generic-password -U -a TEST_LEGACY2 -s secret.$P -l TEST_LEGACY2 -D ENV -j \"\" -G \"env=no\" -w legacy \"$HOME/Library/Keychains/$P.keychain-db\"" \
+  | security -i >/dev/null 2>&1
+secret update TEST_LEGACY2 -p $P --meta note=x >/dev/null 2>&1
+legacydump=$(kcdump TEST_LEGACY2)
+[[ $legacydump == *'"type"<uint32>="envn"'* && $legacydump == *'"gena"<blob>="note=x"'* ]] \
+  && ok "a meta edit on a legacy item keeps env=no via the type" || bad "a meta edit on a legacy item keeps env=no via the type"
+# a type set after the marker (update --env) stays authoritative: migrate only drops the marker
+print -r -- "add-generic-password -U -a TEST_LEGACY3 -s secret.$P -l TEST_LEGACY3 -D ENV -j \"\" -G \"env=no\" -C envy -w legacy \"$HOME/Library/Keychains/$P.keychain-db\"" \
+  | security -i >/dev/null 2>&1
+[[ "$(secret env -p $P)" == *TEST_LEGACY3* ]] && ok "type envy beats a stale env=no marker" || bad "type envy beats a stale env=no marker"
+secret migrate -p $P >/dev/null 2>&1
+legacydump=$(kcdump TEST_LEGACY3)
+[[ $legacydump == *'"type"<uint32>="envy"'* && $legacydump != *'env=no'* ]] \
+  && ok "migrate keeps envy and strips the stale marker" || bad "migrate keeps envy and strips the stale marker"
+secret rm TEST_LEGACY -p $P -f >/dev/null 2>&1
+secret rm TEST_LEGACY2 -p $P -f >/dev/null 2>&1
+secret rm TEST_LEGACY3 -p $P -f >/dev/null 2>&1
+
+# --- untrusted JSON meta is validated field by field ---
+print -r -- '{"items":[{"name":"TEST_BADMETA","value":"v","project":"'$P'","meta":{"url":"a;b=c"}}]}' > "$TD/badmeta.json"
+secret import "$TD/badmeta.json" -y >/dev/null 2>&1 && bad "json import rejects ';' inside a meta value" || ok "json import rejects ';' inside a meta value"
+secret show TEST_BADMETA -p $P >/dev/null 2>&1 && bad "a rejected item is not stored" || ok "a rejected item is not stored"
+print -r -- '{"items":[{"name":"TEST_BADMETA","value":"v","project":"'$P'","meta":{"a=b":"c"}}]}' > "$TD/badmeta.json"
+secret import "$TD/badmeta.json" -y >/dev/null 2>&1 && bad "json import rejects a meta key with '='" || ok "json import rejects a meta key with '='"
+print -r -- '{"items":[{"name":"TEST_BADMETA","value":"v","project":"'$P'","meta":{"env":"no"}}]}' > "$TD/badmeta.json"
+secret import "$TD/badmeta.json" -y >/dev/null 2>&1 && bad "json import rejects the reserved meta key env" || ok "json import rejects the reserved meta key env"
+secret rm TEST_BADMETA -p $P -f >/dev/null 2>&1
 
 # --- keychain rm ---
 secret keychain rm $KCN3 -f >/dev/null 2>&1 && ok "keychain rm" || bad "keychain rm"
