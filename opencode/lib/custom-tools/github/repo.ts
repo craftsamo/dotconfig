@@ -88,5 +88,12 @@ export async function issueTypes(ctx: RepoContext, cwd?: string): Promise<IssueT
   }
 }
 
+/** Writes need write permission; the tools report it rather than let gh fail halfway. */
+export function assertWritable(repo: RepoContext): void {
+  if (!repo.canWrite) {
+    throw new Error(`No write permission on ${repo.nameWithOwner} (viewer permission: ${repo.permission ?? "none"}).`)
+  }
+}
+
 /** `--repo owner/repo` appended to a gh argv. */
 export const withRepo = (argv: string[], repo: string): string[] => [...argv, "--repo", repo]
