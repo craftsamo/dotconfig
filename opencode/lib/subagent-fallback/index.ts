@@ -26,6 +26,7 @@ import {
 import {
   decideLaunch,
   freshState,
+  inputCapacity,
   modelsEqual,
   routeForLaunch,
   ROUTES,
@@ -260,7 +261,17 @@ function transportURL(
       !paths.includes(target.pathname)
     )
       fail("not a ChatGPT subscription route")
-  } else {
+  } else if (providerID === "xai") {
+    // The built-in xAI provider defaults to the Responses WebSocket channel
+    // and falls back to HTTP on the same path.
+    if (
+      target.hostname !== "api.x.ai" ||
+      target.protocol !== (websocket ? "wss:" : "https:") ||
+      target.search ||
+      target.pathname !== "/v1/responses"
+    )
+      fail("not an approved xAI subscription route")
+  } else if (providerID === "anthropic") {
     if (
       websocket ||
       target.hostname !== "api.anthropic.com" ||
@@ -271,7 +282,7 @@ function transportURL(
       (target.search !== "" && target.search !== "?beta=true")
     )
       fail("not an approved Anthropic OAuth route")
-  }
+  } else fail("no approved transport for this provider")
 }
 
 export async function setupPreflight(
@@ -305,7 +316,7 @@ export async function setupPreflight(
   // asked: the Quota export is rewritten on the TUI's own schedule, so the
   // parent's relaunch would otherwise bounce back to the same window.
   const limited = new Lanes(
-    [OAUTH_PROVIDER, "openai"],
+    [OAUTH_PROVIDER, "openai", "xai"],
     DEFAULT_COOLDOWN_MS,
     deps.now,
   )
@@ -403,14 +414,7 @@ export async function setupPreflight(
         m.id === child.marker.model.id &&
         m.providerID === child.marker.model.providerID,
     )
-    if (
-      !model ||
-      bytes + 32_768 >
-        Math.min(
-          model.limit.input ?? Infinity,
-          model.limit.context - model.limit.output,
-        )
-    )
+    if (!model || bytes + 32_768 > inputCapacity(model.limit))
       fail("alternate catalog lacks conservative context headroom")
     await ctx.session.update({
       sessionID: child.session.id,
@@ -441,12 +445,7 @@ export async function setupPreflight(
         m.id === child.marker.model.id &&
         m.providerID === child.marker.model.providerID,
     )
-    const capacity = model
-      ? Math.min(
-          model.limit.input ?? Infinity,
-          model.limit.context - model.limit.output,
-        )
-      : NaN
+    const capacity = model ? inputCapacity(model.limit) : NaN
     if (
       !Number.isFinite(capacity) ||
       bytes > MAX_CONTEXT_BYTES ||
@@ -508,7 +507,8 @@ export async function setupPreflight(
         if (
           headers.get("authorization") !== `Bearer ${auth.access}` ||
           headers.has("x-api-key") ||
-          headers.get("chatgpt-account-id") !== auth.accountID
+          (event.model.providerID === "openai" &&
+            headers.get("chatgpt-account-id") !== auth.accountID)
         )
           fail("WebSocket subscription identity mismatch")
         handshakes.set(exchangeKey(event), signature(auth))

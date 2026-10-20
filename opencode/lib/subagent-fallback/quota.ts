@@ -64,14 +64,16 @@ export function readQuota(
     (row) =>
       record(row) &&
       row.sourceId === account.connectionID &&
-      // Claude exports quota; ChatGPT exports the same windows as rate_limit.
+      // Claude and xAI export quota; ChatGPT exports the same windows as
+      // rate_limit.
       ["quota", "rate_limit"].includes(String(row.resultType)) &&
       row.authority === "provider_reported" &&
       row.acquisitionMethod === "remote_api" &&
       row.renderType === "percent" &&
       // Only the 5h and weekly windows decide launch preference. Plans differ
-      // (ChatGPT may lack 5h), and model-specific, monthly credit and
-      // code-review rows aren't shared chat quota.
+      // (ChatGPT may lack 5h; xAI has only the weekly pool), and
+      // model-specific, monthly credit and code-review rows aren't shared
+      // chat quota.
       (row.window === "5h" || row.window === "Weekly"),
   ) as Record<string, unknown>[]
   if (!rows.length) return unknown()

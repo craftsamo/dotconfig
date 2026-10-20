@@ -121,6 +121,20 @@ describe("Quota public JSON", () => {
     }
     expect(readQuota(s, a, NOW).state).toBe("exhausted")
   })
+  test("real xAI shape: one Weekly quota row decides the pool", () => {
+    const a = {
+      ...account,
+      providerID: "xai",
+      connectionID: "fixture-grok",
+      methodID: "device",
+    }
+    const s = (percent: number) => ({
+      version: 2,
+      providers: { xai: provider([row("Weekly", percent, a.connectionID)]) },
+    })
+    expect(readQuota(s(79), a, NOW).state).toBe("available")
+    expect(readQuota(s(0), a, NOW).state).toBe("exhausted")
+  })
   test("never pools another login or accepts unbound rows", () => {
     expect(
       state(
