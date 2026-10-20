@@ -10,7 +10,7 @@ respected); when that key is unset it defaults to:
     groq -> xai -> openai -> elevenlabs -> local
 
   - groq        GROQ_API_KEY (whisper-large-v3-turbo)
-  - xai         SuperGrok OAuth (``hermes auth add xai-oauth``) or XAI_API_KEY
+  - xai         XAI_API_KEY (API-billed) or the xAI subscription OAuth (``hermes auth add xai-oauth``)
   - openai      VOICE_TOOLS_OPENAI_KEY / OPENAI_API_KEY (Whisper API; paid)
   - elevenlabs  ELEVENLABS_API_KEY (Scribe)
   - local       faster-whisper — no key, offline floor (uses stt.local.model)

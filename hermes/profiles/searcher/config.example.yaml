@@ -1,15 +1,15 @@
 model:
-  default: gpt-6.1-sol
-  provider: openai-codex
-  base_url: https://chatgpt.com/backend-api/codex
-  context_length: 1000000
+  default: grok-4.7
+  provider: xai-oauth
+  base_url: https://api.x.ai/v1
+  context_length: 500000
 fallback_providers:
+  - provider: openai-codex
+    model: gpt-6.1-sol
+    base_url: https://chatgpt.com/backend-api/codex
   - provider: anthropic
     model: claude-sonnet-5-5
     base_url: https://api.anthropic.com
-  - provider: xai-oauth
-    model: grok-4.7
-    base_url: https://api.x.ai/v1
   - provider: openrouter
     model: xiaomi/mimo-v2.5
     base_url: https://openrouter.ai/api/v1
