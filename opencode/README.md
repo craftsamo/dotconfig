@@ -585,10 +585,13 @@ A move to a credit lane (see above) therefore pays one full write.
   enough for config only.
 - **OpenAI**: built-in ChatGPT login,
   `opencode auth login openai --method chatgpt-browser`.
-- **xAI** (`x_search`): built-in SuperGrok login,
-  `opencode auth login xai --method device`; `XAI_API_KEY` wins when set. Quota
-  shows its usage in the footer and `/quota` (`enabledProviders` includes
-  `xai`); the launch selector ignores it, as no specialist role uses Grok.
+- **xAI** (the searchers and `x_search`): built-in device login for the xAI
+  subscription (the Grok side of The X Subscription),
+  `opencode auth login xai --method device`. The login's weekly pool is shared
+  with Grok on X, the Grok apps and Cursor. For `x_search`, `XAI_API_KEY` wins
+  when set (metered). Quota shows the pool in the footer and `/quota`
+  (`enabledProviders` includes `xai`), and the launch selector reads its
+  weekly row like the other subscriptions.
 
 `opencode auth list` shows the stored logins; `opencode auth switch` picks
 another one. Credentials live in OpenCode's database, not in `auth.json`.
