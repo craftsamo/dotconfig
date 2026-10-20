@@ -71,7 +71,7 @@ GitHub's own relations carry the structure; nothing is duplicated in text:
 | A goal made of several units | a **parent issue** with sub-issues (100 per parent, 8 levels; a sub-issue may live in another repository of the same owner) | an epic label, a `Parent: #n` line |
 | When / which release | a **milestone** (repository-scoped; set it on the parent and on each sub-issue that has its own date) | a date in the title |
 | Order between siblings | **blocked by** on the later issue (boards show a Blocked marker) | a wave table that goes stale |
-| What sort of work | **kind**: an Issue Type on an organization repository (task / bug / feature by default), a `type:<kind>` label elsewhere — the tools pick | a `Kind` board field |
+| What sort of work | **kind**: an Issue Type on an organization repository that defines it (task / bug / feature by default), a `type:<kind>` label elsewhere — the tools pick per kind, so an organization repository mixes types and labels unless it defines every kind it uses | a `Kind` board field |
 | How far along | the parent's sub-issue progress bar, the issue's `## Implementation outline` checklist, its state | a percentage in the body |
 
 Parent issues track; they have no branch and no stack. A parent is right when

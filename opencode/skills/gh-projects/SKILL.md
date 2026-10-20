@@ -126,26 +126,31 @@ The standard views `gh_project_create` ensures:
 - **Kanban** — board layout by Status, `-status:Done -status:Cancelled`.
 - **Backlog** — table, same filter, with Milestone, Parent issue and
   Sub-issues progress as columns.
-- **Roadmap** — roadmap layout; bars come from Start / Target, milestones
-  show as markers.
+- **Roadmap** — roadmap layout; bars come from Start / Target once the view
+  is bound to them, milestones show as markers.
 
 The API creates a view with its layout, filter and columns only; grouping,
 sort, roadmap zoom and the date fields a roadmap reads are set once in the
-UI. A board copied from a template (`gh_project_create { template }`) keeps
-those settings. `gh_project_view_ensure` adds a view to a board that lacks
-one and reports columns the board does not have.
+UI — a freshly created board draws no bars until Start / Target are bound
+there. A board copied from a template (`gh_project_create { template }`)
+keeps those settings, so keep one configured board per owner to copy from.
+`gh_project_view_ensure` adds a view to a board that lacks one and reports
+columns the board does not have.
 
 </Views>
 
 <Recipes>
 
 - First use in a repository: `gh_project_resolve {}`. No board on any route
-  → `gh_project_create { owner: "<org or @me>", linkRepo: "current" }`.
+  → `gh_project_create { owner: "<org or @me>", linkRepo: "current" }`,
+  with `template` naming a board whose Roadmap view is already bound to
+  Start / Target when one exists; otherwise bind the dates once in the UI.
 - Capture an idea: `gh_project_item_add { title, body, fields: { Status:
   "Todo" } }` (a draft). Note on it later: `gh_project_item_set { item,
   appendBody }`.
 - Decided, repository known: `gh_project_item_promote { item, repo, kind,
-  milestone }` — then write its body per `gh-issues`.
+  milestone, createMilestone: true }` — then write its body per
+  `gh-issues`.
 - An issue created elsewhere: `gh_project_item_add { url: "owner/repo#n",
   fields: { Status: "Todo", Target: "2026-12-01" } }`; or let
   `gh_issue_create { addToProject: true }` do it.
@@ -153,8 +158,8 @@ one and reports columns the board does not have.
   Progress" | "Done" | "Cancelled" } }`. The item id comes from
   `gh_project_item_list` or `gh_issue_view` (`projects[].itemId`).
 - Schedule: `fields: { Start: "2026-11-01", Target: "2026-11-15" }`.
-- What is open: `gh_project_item_list { status: "-Done" }`; what is mine
-  here: `{ contentRepo: "current" }`.
+- What is open: `gh_project_item_list { status: "-Done,-Cancelled" }`; the
+  items of this repository: `{ contentRepo: "current" }`.
 - Tidy: `gh_project_item_set { item, archived: true }` for a dropped draft or
   a long-closed issue; never delete.
 - Re-enter across sessions: `gh_project_item_list { status: "In Progress"

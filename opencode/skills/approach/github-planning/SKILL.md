@@ -11,7 +11,8 @@ description: >-
   track work, parent issue, sub-issues, milestone, stacked PR, gh stack,
   development branch). Layers on any approach-* scenario skill; delegates
   issue mechanics and bodies to gh-issues, boards to gh-projects and PRs to
-  git-pullrequest. Use ONLY to orchestrate planning ↔ GitHub, not for the
+  git-pullrequest (opening or updating a PR, even a stack layer, is
+  git-pullrequest's). Use ONLY to orchestrate planning ↔ GitHub, not for the
   mechanics themselves.
 author: CraftSamo
 license: MIT
@@ -70,9 +71,9 @@ Shape (decompose along the codebase's structural seams):
 - Several unit-sized sub-goals → a **parent issue** with sub-issues.
 - A parent that would decompose straight into ~5+ PR-sized pieces, or spans
   several domains, is missing a tier: insert sub-issues that are goals. A
-  unit is the smallest thing that delivers a meaningful outcome on its own;
-  if picking it up for the week feels heavy, it is still a parent-sized
-  lump — keep decomposing.
+  unit is the smallest thing that delivers a meaningful outcome on its own
+  and fits one branch or one stack of a few PRs; anything larger is still a
+  parent-sized lump — keep decomposing.
 - A feature that must land atomically is one unit (its stack merges
   atomically), never a parent (a parent has no branch or stack).
 
@@ -133,6 +134,23 @@ whose trunk is always the default branch.
 
 </BranchTopology>
 
+<StackLayerPR>
+
+A layer's PR body is the slice's spec (the old work sub-issue's content
+lives here); `git-pullrequest` renders it against the repository's own PR
+convention and template:
+
+- `## Purpose` — one line, with `Refs #<unit>` on an intermediate layer or
+  `Closes #<unit>` on the completing one (never both).
+- `## Scope` — what the layer includes; `## Out of scope` when a reader
+  would otherwise expect more.
+- `## Acceptance` — done checks, including the verification commands.
+- No `## Dependencies` (the layer below is the dependency and the stack
+  encodes it) and no `## Research` (findings stay in the PR discussion;
+  out-of-scope ones escalate to the unit's `## Open decisions`).
+
+</StackLayerPR>
+
 <Steps>
 
 1. **Capture.** A new requirement or idea → a draft on the board
@@ -166,8 +184,8 @@ whose trunk is always the default branch.
 6. **Close the loop.** When every sub-issue lands, run the parent's
    `## Acceptance`, close it (`gh_issue_update { state: "closed", reason:
    "completed" }`), set Status Done, summarize. No orphan local files.
-7. **Re-enter across sessions.** `gh_project_item_list { status: "In
-   Progress" }` → `gh_issue_view` the unit: its header, outline checklist
+7. **Re-enter across sessions.** `gh_project_item_list { status:
+   "-Done,-Cancelled" }` → `gh_issue_view` the unit: its header, outline checklist
    and closing PRs say where it stopped; `gh stack checkout <layer branch
    or PR>` restores the stack and `gh stack view` shows what landed.
 
@@ -206,8 +224,8 @@ is deleted; no parent dangles.
 <Gates>
 
 - [ ] Shape chosen by decomposition: 1 PR → an issue; 1–3 PRs → an issue
-  with the unit body; several units → a parent with sub-issues; no
-  parent → PR lumps.
+  with the unit body; several units → a parent with sub-issues; a parent
+  never decomposes straight into PRs.
 - [ ] Order and time are relations: blocked-by between siblings, milestone
   on the parent; the parent's `## Plan` lists `#n` with no checkboxes.
 - [ ] Every unit body carries its spec status; Draft has Open decisions,
