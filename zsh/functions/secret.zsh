@@ -57,6 +57,10 @@
 # This file's own path: the fzf preview runs `secret show` in a fresh zsh
 # that sources it, so the wizard previews with the CLI it was loaded from.
 typeset -g _SECRET_LIB=${${(%):-%x}:A}
+zmodload -F zsh/datetime p:EPOCHSECONDS
+# _secret_kc_ensure's memo; the dispatcher shadows it per invocation, this
+# one serves helpers called outside it (the wizard, the self-tests)
+typeset -gA _kc_unlocked
 
 _secret_err() { print -r -- "secret: $*" >&2; }
 
@@ -110,11 +114,20 @@ _secret_kc_suffix() {          # $1 project -> " [kc:NAME]" for UI headers, or "
 #   account "master"           shared master (secret keychain master set)
 # Lookup order: per-keychain item > master item > give up (GUI prompt).
 # No-op for the default keychain or when nothing is stored.
+# The lookups and the unlock cost ~60 ms, so one `secret` invocation does
+# them once per keychain ($_kc_unlocked, set by the dispatcher, holds the
+# time) and trusts the result for a minute — long enough for `env` and
+# `export` to read every value, short enough that a keychain re-locked
+# during a wizard session is unlocked again. A command substitution runs
+# in a child, so a loop that fetches values with $(...) ensures in the
+# parent first.
 _secret_master_account() { print -r -- "${SECRET_MASTER_ACCOUNT:-master}"; }
 
 _secret_kc_ensure() {          # $1 keychain path/name
   local kc=$1
   [[ -z $kc || $kc == "$_kc_default" ]] && return 0
+  (( ${_kc_unlocked[$kc]:-0} + 60 > EPOCHSECONDS )) && return 0
+  _kc_unlocked[$kc]=$EPOCHSECONDS
   local pw
   pw=$(security find-generic-password -s 'keychain-password' \
         -a "${${kc:t}%.keychain-db}" -w "$_kc_default" 2>/dev/null)
@@ -139,6 +152,7 @@ _secret_kc_prepare() {         # $1 project  $2 keychain path
   local proj=$1 kc=$2
   (( _kc_explicit )) && return 0          # -k override: caller's choice
   [[ $kc == "$_kc_default" ]] && return 0
+  _secret_kc_sl_load
   if [[ -e $kc ]]; then
     (( ${_kc_sl[(Ie)$kc]} )) && return 0
     _secret_err "keychain file exists but is not registered: ${kc:t}"
@@ -581,7 +595,26 @@ _secret_dump_items() {
   '
 }
 
+# Unlock, in the calling process, every keychain _secret_rows "$1" dumps:
+# the dump itself runs in a pipeline, so this is what lets the memo serve
+# the value reads that follow (env, export).
+_secret_rows_ensure() {        # $1 project ("" = every registered keychain)
+  local kc
+  if [[ -n $1 ]]; then
+    _secret_kc_ensure "$(_secret_kc_for "$1")"
+  elif (( _kc_explicit )); then
+    _secret_kc_ensure "$_kc"
+  else
+    _secret_kc_sl_load         # here, so the $(...) below and the dump reuse it
+    for kc in ${(f)"$(_secret_kc_customs)"}; do
+      [[ -n $kc ]] && _secret_kc_ensure "$kc"
+    done
+  fi
+  return 0
+}
+
 _secret_rows() {               # $1 project ("" = every registered keychain)
+  _secret_rows_ensure "$1"
   if [[ -n $1 ]]; then
     _secret_dump_items "$(_secret_kc_for "$1")" | awk -F'\t' -v p="$1" '$1 == p'
   elif (( _kc_explicit )); then
@@ -1125,6 +1158,7 @@ _secret_cmd_env() {
   local -a f
   local -A rank_of layer_of noenv_of
   local -i rank
+  _secret_rows_ensure "$proj"   # once, here: the dump and every value run in $(...)
   while IFS= read -r row; do
     [[ -n $row ]] || continue
     f=("${(@ps:\t:)row}")
@@ -1259,6 +1293,7 @@ _secret_cmd_export() {
     proj=$(_secret_resolve_project "$proj")
   fi
   local rows
+  _secret_rows_ensure "$proj"   # the dump and the value reads below run in children
   rows=$(_secret_rows "$proj")
   [[ -z $rows ]] && { _secret_err "nothing to export (project: ${proj:-all})"; return 1 }
 
@@ -1548,8 +1583,17 @@ _secret_kc_searchlist() {      # user-domain search list, one path per line
     | sed -E 's/^[[:space:]]*"(.*)"[[:space:]]*$/\1/'
 }
 
+# $_kc_sl on first use: only the write gate and the custom-keychain listing
+# need the search list, so a read of one project never pays for it (~40 ms)
+_secret_kc_sl_load() {
+  (( ${_kc_sl_loaded:-0} )) && return 0
+  _kc_sl=(${(@f)$(_secret_kc_searchlist)})
+  _kc_sl_loaded=1
+}
+
 _secret_kc_customs() {         # registered custom keychain paths, one per line
   local f short
+  _secret_kc_sl_load
   for f in "${_kc_sl[@]}"; do
     [[ $f == $HOME/Library/Keychains/*.keychain-db ]] || continue
     [[ $f == "$_kc_default" ]] && continue
@@ -1566,6 +1610,7 @@ _secret_kc_customs() {         # registered custom keychain paths, one per line
 # actually check it, so this locks first; a WRONG password leaves the
 # keychain locked (callers report that). Exit 0 = password is correct.
 _secret_kc_try_pw() {          # $1 keychain  $2 password
+  unset "_kc_unlocked[$1]"     # the lock below invalidates _secret_kc_ensure's memo
   security lock-keychain "$1" 2>/dev/null
   print -r -- "unlock-keychain -p $(_secret_quote_si "$2") $(_secret_quote_si "$1")" \
     | security -i >/dev/null 2>&1
@@ -1637,6 +1682,7 @@ _secret_kc_create() {
   if (( ! ${sl[(Ie)$kcpath]} )); then
     security list-keychains -d user -s "${sl[@]}" "$kcpath" \
       || _secret_err "warning: could not add to the keychain search list"
+    _kc_sl_loaded=0            # $_kc_sl is reread on its next use
   fi
   print -r -- "created keychain '$name' ($kcpath)"
   (( used_master )) && print -r -- "password: master (unlocks with the master password)"
@@ -1682,6 +1728,7 @@ _secret_kc_info() {
 
 _secret_kc_lock() {
   if [[ $1 == --all || $1 == -a ]]; then
+    _kc_unlocked=()
     security lock-keychain -a && print -r -- "locked all keychains"
     return
   fi
@@ -1689,6 +1736,7 @@ _secret_kc_lock() {
   local kcpath
   kcpath=$(_secret_resolve_keychain "$1")
   [[ -e $kcpath ]] || { _secret_err "no such keychain: $1"; return 1 }
+  unset "_kc_unlocked[$kcpath]"
   security lock-keychain "$kcpath" && print -r -- "locked $1"
 }
 
@@ -1729,6 +1777,7 @@ _secret_kc_remember() {        # NAME [--stdin]: store keychain password in logi
     print '' >&2
   fi
   # verify the password: lock, then unlock with it (argv-free via security -i)
+  unset "_kc_unlocked[$kcpath]"
   security lock-keychain "$kcpath" 2>/dev/null
   if ! print -r -- "unlock-keychain -p $(_secret_quote_si "$pw") $(_secret_quote_si "$kcpath")" \
       | security -i >/dev/null 2>&1; then
@@ -1793,6 +1842,7 @@ _secret_kc_rm() {
     print '' >&2
   fi
   security delete-keychain "$kcpath" || { _secret_err "delete failed"; return 1 }
+  _kc_sl_loaded=0; unset "_kc_unlocked[$kcpath]"
   # drop any stored unlock password for it
   security delete-generic-password -s 'keychain-password' \
     -a "${${kcpath:t}%.keychain-db}" "$_kc_default" >/dev/null 2>&1
@@ -1812,6 +1862,7 @@ _secret_kc_register() {        # add an existing .keychain-db to the search list
   fi
   security list-keychains -d user -s "${sl[@]}" "$kcpath" \
     || { _secret_err "could not update the search list"; return 1 }
+  _kc_sl_loaded=0
   print -r -- "registered ${${kcpath:t}%.keychain-db} in the search list"
 }
 
@@ -2654,9 +2705,10 @@ secret() {
     shift 2
   done
   local _kc _kc_default
-  local -a _kc_sl
+  local -a _kc_sl              # the user search list, read on first use (_secret_kc_sl_load)
+  local _kc_sl_loaded=0
+  local -A _kc_unlocked        # keychain -> when _secret_kc_ensure last ran
   _kc_default=$(_secret_default_keychain)
-  _kc_sl=(${(@f)$(_secret_kc_searchlist)})
   if (( _kc_explicit )); then
     _kc=$(_secret_resolve_keychain "$_kc_opt")
   else
