@@ -27,6 +27,15 @@ permissions:
   - { action: gh_issue_comment, resource: "*", effect: deny }
   - { action: gh_issue_relate, resource: "*", effect: deny }
   - { action: gh_issue_develop, resource: "*", effect: deny }
+  - { action: gh_project_resolve, resource: "*", effect: allow }
+  - { action: gh_project_item_list, resource: "*", effect: allow }
+  - { action: gh_project_create, resource: "*", effect: deny }
+  - { action: gh_project_link, resource: "*", effect: deny }
+  - { action: gh_project_field_ensure, resource: "*", effect: deny }
+  - { action: gh_project_view_ensure, resource: "*", effect: deny }
+  - { action: gh_project_item_add, resource: "*", effect: deny }
+  - { action: gh_project_item_set, resource: "*", effect: deny }
+  - { action: gh_project_item_promote, resource: "*", effect: deny }
   # The repository is read-only; the mocks go to a job's drafts directory
   # (under Hermes, the session ruleset opens exactly the run's output directory).
   - { action: edit, resource: "*", effect: deny }
