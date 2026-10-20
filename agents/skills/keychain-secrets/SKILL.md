@@ -120,10 +120,19 @@ the function for non-interactive shells; it is not a `secret-shim` symlink and
 injects nothing.
 
 ```sh
-secret ls                 # names + metadata, no values
+secret ls                 # one "[scope/]NAME[@stage]" token per item, no values
+secret ls --long          # + stage, kind, env, meta and comment columns
 secret show NAME          # one item's metadata, no value
+secret show api/DB@prod   # a token from `ls` names that exact layer
 secret projects           # project names
 ```
+
+`ls` prints every layer of a project as a token, `[scope/]NAME[@stage]`, and
+`show`, `get`, `update` and `rm` accept that token in place of a NAME: pass it
+through as printed instead of translating it into `--scope` / `--stage` flags.
+A bare NAME reads DWIM (the most specific layer that holds it). Running
+`secret` with no arguments opens an fzf wizard that needs a terminal: never
+start it from an agent; use the subcommands.
 
 The safety model has three tiers: `ls`, `show`, `projects`, `help`, `keychain
 ls`, and `keychain master status` are read-only and safe to run; `get`, `env`,
@@ -152,9 +161,12 @@ moves a pre-type `env=no` marker into the type code; it is a one-off the user
 runs, not something to run unprompted.
 
 Items may carry structured fields (`--meta KEY=VALUE`: `url=`, `account=`,
-`purpose=`, ...). `secret show NAME` lists them and `secret ls --meta KEY[=VALUE]`
-filters by them — both read-only — so check there before asking the user what
-a key is for or where it was issued.
+`purpose=`, `from=` and `index=` for a key derived from a mnemonic, `path=` for
+a derivation path). `secret show NAME` lists them and `secret ls --meta
+KEY[=VALUE]` filters by them — both read-only — so check there before asking
+the user what a key is for or where it was issued. `update --meta KEY=VALUE`
+sets one field and `--meta KEY=` removes one, leaving the others; it rewrites
+the item, so confirm with the user like any `set`.
 
 </SecretCli>
 
