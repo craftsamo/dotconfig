@@ -186,6 +186,9 @@ PROJECT_WRITES = (
     "github_project_create", "github_project_field_ensure", "github_project_item_add",
     "github_project_item_set", "github_project_item_note", "github_project_item_promote",
     "github_project_view_ensure", "github_project_issue_link", "github_project_issue_develop",
+    # The gh_issue_* tools write issues past the shell rules above (ISSUE_WRITES
+    # asks, `gh issue close` is denied); a run reads with gh_issue_view / list.
+    "gh_issue_create", "gh_issue_update", "gh_issue_comment", "gh_issue_relate", "gh_issue_develop",
 )
 
 
