@@ -705,7 +705,7 @@ platform_toolsets:
     - terminal
     - vision
 image_gen:
-  provider: img-codex-xai-fal
+  provider: img-xai-codex-fal
 plugins:
   enabled:
     - image-fallback
