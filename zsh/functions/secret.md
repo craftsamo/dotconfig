@@ -32,14 +32,15 @@ shows how the current directory resolves, `--unset` removes the mapping).
 
 One keychain item per secret — fully visible and editable in Keychain Access:
 
-| Attribute | Value                                                                                                 |
-| --------- | ----------------------------------------------------------------------------------------------------- |
-| service   | `secret.<project>` (shared) or `secret.<project>/<scope>` (scoped) — lookup key together with account |
-| account   | the variable name (`TAVILY_API_KEY`) — **unique key, do not repurpose**                               |
-| label     | `NAME` / `<scope>/NAME` inside the project's own keychain, prefixed with `<project>/` elsewhere       |
-| kind      | short type label (`-D`), upper-cased on write; default `ENV` (`API KEY`, `TOKEN`, `SECRET`, ...)      |
-| comment   | free-form description (`-j`), shown by `show` / `ls --long` / the GUI                                 |
-| generic   | per-item flags as `;`-separated `key=value`; today only `env=no` (`--no-env`, see below)              |
+| Attribute | Value                                                                                                                      |
+| --------- | -------------------------------------------------------------------------------------------------------------------------- |
+| service   | `secret.<project>` (shared) or `secret.<project>/<scope>` (scoped) — lookup key together with account                      |
+| account   | the variable name (`TAVILY_API_KEY`) — **unique key, do not repurpose**                                                    |
+| label     | `NAME` / `<scope>/NAME` inside the project's own keychain, prefixed with `<project>/` elsewhere                            |
+| kind      | short type label (`-D`), upper-cased on write; default `ENV` (`API KEY`, `TOKEN`, `SECRET`, ...)                           |
+| comment   | free-form description (`-j`), shown by `show` / `ls --long` / the GUI                                                      |
+| type      | four-character code holding the ENV setting: `envn` = never emitted by `secret env` (`--no-env`), `envy` / unset = emitted |
+| generic   | structured metadata: `;`-separated `KEY=VALUE` fields (`--meta`, see below), sorted by key                                 |
 
 ### Keeping an item out of every environment (`--no-env`)
 
@@ -58,6 +59,11 @@ secret update OLD_SEED -p work --env                  # injected again
 
 Rewriting the value (`set` without `--env`/`--no-env`, `update --value`)
 keeps the setting, so a later write never re-enables injection by accident.
+The setting is the item's type attribute (`envn` / `envy`); a type can be
+rewritten but never cleared, hence the explicit `envy`. Items written before
+the type code kept `env=no` in the generic attribute — still honoured when no
+type is set — and `secret migrate [-p proj|--all] [--dry-run]` moves it into
+the type so the generic attribute holds nothing but metadata fields.
 
 `set --new` is create-only: an item of that name already in the layer is
 refused rather than overwritten, by a check first and by `security` itself
@@ -65,6 +71,26 @@ refused rather than overwritten, by a check first and by `security` itself
 new wallets — can never replace one that holds something.
 In `secret env`, a `--no-env` item in the winning layer hides the name
 entirely: the shared value is not emitted in its place.
+
+### Structured metadata (`--meta`)
+
+`--meta KEY=VALUE` attaches structured fields to an item — where a key was
+issued, which account it belongs to, what a mnemonic is for — as many as
+needed, on `set` and `update`; `update --meta KEY=` removes one. Keys are
+identifiers (letters, digits, `_`, `-`; `env` is reserved), values are
+single-line and may not contain `;`. They live in the generic attribute as
+`KEY=VALUE;KEY=VALUE`, sorted by key, and are visible in Keychain Access.
+Free-form notes stay in the comment (`-j`).
+
+```sh
+secret set STRIPE_KEY -p shop -D 'api key' --meta url=https://dashboard.stripe.com --meta account=ops@example.com
+secret set WALLET_SEED -p wallet -D mnemonic --no-env --meta purpose=cold-storage --meta chain=eth
+secret update STRIPE_KEY -p shop --meta url= --meta rotated=2026-10-20   # drop url, add rotated
+secret show STRIPE_KEY -p shop         # Meta: lines
+secret ls -p shop --long               # META column
+secret ls -p shop --meta account       # items with that field
+secret ls --meta chain=eth --meta purpose   # every filter must match
+```
 
 ## Keychains
 
@@ -218,11 +244,11 @@ function directly (a defined function outranks the `bin/secret` command on
 
 ## Import / export
 
-| Format          | Metadata                 | Protection                                                                                                                                                                 |
-| --------------- | ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `age` (default) | kept                     | age passphrase encryption (`.json.age`)                                                                                                                                    |
-| `json`          | kept                     | plaintext JSON, `chmod 600`                                                                                                                                                |
-| `env`           | lost (except `--no-env`) | plaintext `export NAME='...'`, `chmod 600`; a `--no-env` item is written as `#no-env# export ...`, so sourcing the file never exports it and `import` restores the setting |
+| Format          | Metadata                             | Protection                                                                                                                                                                                                                                    |
+| --------------- | ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `age` (default) | kept                                 | age passphrase encryption (`.json.age`)                                                                                                                                                                                                       |
+| `json`          | kept                                 | plaintext JSON, `chmod 600`                                                                                                                                                                                                                   |
+| `env`           | kind/comment lost; ENV and meta kept | plaintext `export NAME='...'`, `chmod 600`; a `--no-env` item is written as `#no-env# export ...`, so sourcing the file never exports it, and an item's fields ride on a `#meta:K=V;...` comment line right above it — `import` restores both |
 
 ```sh
 secret export -p global                  # -> secret-export-global-YYYYMMDD.json.age
@@ -232,10 +258,11 @@ secret import backup.json.age            # their own project/scope unless -p /
                                          # -S / --scope override them
 ```
 
-JSON exports record each item's scope and `env` setting, so layered setups
-restore exactly; the env format flattens everything (scope and metadata are
-lost) except the `--no-env` marker. Importing an older JSON export that has no
-`env` field leaves an existing item's setting as it is.
+JSON exports record each item's scope, `env` setting and `meta` object, so
+layered setups restore exactly; the env format flattens everything (scope,
+kind and comment are lost) except the `--no-env` and `#meta:` markers.
+Importing an older export that has no `env` field / `meta` object leaves an
+existing item's setting / fields as they are; a present `meta` replaces them.
 
 Keychain unlock passwords are **never** part of an export. Encrypted exports
 are the recommended off-machine backup: they restore without the keychain
@@ -272,9 +299,12 @@ secret import secret-export-all-YYYYMMDD.json.age
 
 ## Tests
 
-[`zsh/tests/secret-selftest.zsh`](../tests/secret-selftest.zsh) — 168
+[`zsh/tests/secret-selftest.zsh`](../tests/secret-selftest.zsh) — 207
 assertions: round-trips (special characters, json/env/age), partial updates,
-`--no-env` (kept out of `env`, kept across rewrites and export/import), `set --new`, non-ASCII metadata read back as text,
+`--no-env` (kept out of `env`, kept across rewrites and export/import, stored
+as the `envn`/`envy` type code), `--meta` fields (validation, sorting,
+`ls --meta` filters, export/import round-trips), `secret migrate` of the
+legacy `env=no` marker, `set --new`, non-ASCII metadata read back as text,
 keychain auto-creation, `secret link` / the `git config secret.project`
 mapping, scope layering (DWIM reads, env overlay, isolation between repos),
 the unregistered-file write gate, master adoption/rotation, auto-unlock. It

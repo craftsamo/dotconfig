@@ -95,8 +95,9 @@ Options:
    ```
 
    `secret env` with no `-p` resolves the current repo's project + scope. The
-   subshell keeps the values out of later commands. This works for any launcher
-   and prompts once because `secret env` is `ask`.
+   subshell keeps the values out of later commands and out of the transcript.
+   This works for any launcher. opencode denies a bare `secret env` (it would
+   print values); confirm the subshell form with the user before running it.
 2. Invoke the work through an allowlisted command, for example `npm run <script>`.
 3. Permanently wrap the tool.
 
@@ -126,16 +127,24 @@ Need a value injected for a command? Use `( eval "$(secret env)" && ... )`, not
 `secret get`.
 
 Adding a secret writes to the Keychain. Prefer asking the user to run
-`secret set NAME -p <project>` or `secret set NAME -S <scope>` interactively;
+`secret set NAME -p <project>` (add `-S` for this repository's scope, or
+`--scope NAME` for a named one) interactively;
 that keeps the value out of argv and the transcript. `.env` files are
 gitignored. Project mode reads only their variable names to avoid shadowing the
 app's own loader, never their values.
 
-An item stored with `--no-env` (`ENV no` in `secret ls --long`) is never
-emitted by `secret env`, so no shim or helper injects it; only `get` reads it.
-That is deliberate — a wallet seed phrase, say — so a "missing" variable that
-shows `ENV no` is not a bug to fix: never lift it with `update --env` unless
-the user asks.
+An item stored with `--no-env` (`ENV no` in `secret ls --long`, type code
+`envn` in Keychain Access) is never emitted by `secret env`, so no shim or
+helper injects it; only `get` reads it. That is deliberate — a wallet seed
+phrase, say — so a "missing" variable that shows `ENV no` is not a bug to fix:
+never lift it with `update --env` unless the user asks. `secret migrate` only
+moves a pre-type `env=no` marker into the type code; it is a one-off the user
+runs, not something to run unprompted.
+
+Items may carry structured fields (`--meta KEY=VALUE`: `url=`, `account=`,
+`purpose=`, ...). `secret show NAME` lists them and `secret ls --meta KEY[=VALUE]`
+filters by them — both read-only — so check there before asking the user what
+a key is for or where it was issued.
 
 </SecretCli>
 

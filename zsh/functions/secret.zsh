@@ -1,17 +1,18 @@
 # secret.zsh — manage secrets in the macOS Keychain (CLI + fzf wizard)
 #
 #   secret                       interactive wizard (fzf)
-#   secret set NAME [-p proj] [-S|--scope X] [-j comment] [-D kind] [--new] [--stdin]
-#   secret update NAME [-p proj] [LAYER] [-j comment] [-D kind] [--value|--stdin]
+#   secret set NAME [-p proj] [-S|--scope X] [-j comment] [-D kind] [--meta K=V]... [--new] [--stdin]
+#   secret update NAME [-p proj] [LAYER] [-j comment] [-D kind] [--meta K=V]... [--value|--stdin]
 #   secret get NAME [-p proj] [LAYER] [-c|--copy]
 #   secret show NAME [-p proj] [LAYER]
-#   secret ls [-p proj] [-l|--long]
+#   secret ls [-p proj] [-l|--long] [--meta KEY[=VALUE]]
 #   secret projects
 #   secret env [-p proj] [--scope X]
 #   secret rm NAME [-p proj] [LAYER] [-f|--force]
 #   secret link [NAME|--unset]
 #   secret export [-p proj|--all] [-o FILE] [--format age|json|env]
 #   secret import FILE [-p proj] [-S|--scope X] [-y|--yes]
+#   secret migrate [-p proj|--all] [--dry-run]
 #   secret keychain create|ls|info|lock|unlock|remember|register|master|rm ...
 #   secret help
 #
@@ -23,6 +24,10 @@
 #   service = secret.<project>      account = NAME (the unique lookup key)
 #   label   = NAME inside the project's own keychain, else <project>/NAME
 #   kind    = -D (upper-cased, default "ENV")  comment = -j (free-form description)
+#   type    = -C four-char code: "envn" = never emitted by `secret env`,
+#             "envy" or unset = emitted (the ENV setting)
+#   generic = -G structured metadata, ";"-separated KEY=VALUE fields
+#             (--meta url=... account=...); free text stays in the comment
 # Project resolution:
 #   -p flag > `git config secret.project` > git toplevel basename > "global"
 # Keychain model — strict 1:1, one project = one keychain:
@@ -271,34 +276,114 @@ _secret_norm_kind() {          # $1 raw kind -> canonical kind on stdout
   print -r -- "${k:-ENV}"
 }
 
-# Per-item flags live in the keychain's generic attribute ("gena"), which
-# nothing else uses: ';'-separated key=value tokens. Today the only one is
-# env=no — the item never appears in `secret env`, so no shell, shim or
-# helper that injects a layer ever receives it (get still reads it). An
-# item without the token is env=yes, the historical behaviour.
-_secret_env_on() {             # $1 flags -> success when `secret env` may emit the item
-  [[ ";$1;" != *";env=no;"* ]]
+# The ENV setting lives in the item's type attribute, a four-character code
+# ("type", -C): envn — the item never appears in `secret env`, so no shell,
+# shim or helper that injects a layer ever receives it (get still reads it);
+# envy or unset — emitted, the historical behaviour. A type can be rewritten
+# but never cleared, hence the explicit envy. Items written before the type
+# carried env=no in the generic attribute; that marker is still honoured
+# until `secret migrate` moves it, and only when no type is set.
+_secret_env_on() {             # $1 type  $2 generic attribute -> success when `secret env` may emit the item
+  case $1 in
+    envn) return 1 ;;
+    envy) return 0 ;;
+  esac
+  [[ ";$2;" != *";env=no;"* ]]
 }
 
-_secret_flags_with_env() {     # $1 current flags  $2 yes|no -> new flags on stdout
-  local -a kept
+_secret_env_code() {           # $1 yes|no -> four-char type code on stdout
+  [[ $1 == no ]] && print -rn -- envn || print -rn -- envy
+}
+
+# Structured metadata lives in the generic attribute ("gena", -G):
+# ';'-separated KEY=VALUE fields, split at the first '='. Keys are
+# identifiers ([A-Za-z][A-Za-z0-9_-]*; "env" is reserved for the legacy
+# marker above), values hold anything single-line without ';'. Fields are
+# kept sorted by key so equal metadata always serialises the same way.
+_secret_meta_check_key() {     # $1 key
+  if [[ $1 == env ]]; then
+    _secret_err "meta key 'env' is reserved (use --env/--no-env)"; return 1
+  fi
+  [[ $1 =~ '^[A-Za-z][A-Za-z0-9_-]*$' ]] && return 0
+  _secret_err "invalid meta key '$1' (letters, digits, '_' and '-'; must start with a letter)"
+  return 1
+}
+
+_secret_meta_check_value() {   # $1 key  $2 value
+  if [[ $2 == *';'* ]]; then
+    _secret_err "meta $1: ';' is not allowed in a value"; return 1
+  fi
+  if [[ $2 == *[[:cntrl:]]* ]]; then
+    _secret_err "meta $1: control characters are not allowed in a value"; return 1
+  fi
+  return 0
+}
+
+_secret_meta_fields() {        # $1 generic attribute -> one KEY=VALUE per line (legacy env=* dropped)
   local token
   for token in ${(s:;:)1}; do
-    [[ -n $token && $token != env=* ]] && kept+=("$token")
+    [[ -n $token && $token == *=* && $token != env=* ]] && print -r -- "$token"
   done
-  [[ $2 == no ]] && kept+=(env=no)
-  print -r -- "${(j:;:)kept}"
+  return 0
 }
 
-_secret_flags_of() {           # $1 name  $2 project  $3 scope -> current flags ("" if none/absent)
-  _secret_rows "$2" | awk -F'\t' -v n="$1" -v s="$3" '$2 == n && $7 == s { print $8; exit }'
+_secret_meta_get() {           # $1 generic attribute  $2 key -> value on stdout; fails when absent
+  local token
+  for token in ${(s:;:)1}; do
+    [[ ${token%%=*} == "$2" && $token == *=* ]] || continue
+    print -r -- "${token#*=}"
+    return 0
+  done
+  return 1
 }
 
-# $6 flags: the item's whole flag string to write ("" clears every flag), or
-# "keep" / absent to leave an existing item's flags as they are — a value
-# rewrite never re-enables what --no-env turned off.
-_secret_store() {              # $1 name $2 project $3 comment $4 kind $5 scope [$6 flags [$7 new]] ; value on stdin
-  local name=$1 proj=$2 comment=$3 kind=$4 scope=$5 flags=${6-keep} create=${7-} value extra err
+# Apply --meta edits to the current attribute: KEY=VALUE sets a field, KEY=
+# removes it. Validates every edit; prints the new attribute string.
+_secret_meta_merge() {         # $1 current generic attribute  $2.. KEY=VALUE edits
+  local cur=$1 edit key val token
+  shift
+  local -A fields
+  for token in ${(f)"$(_secret_meta_fields "$cur")"}; do
+    fields[${token%%=*}]=${token#*=}
+  done
+  for edit in "$@"; do
+    if [[ $edit != *=* ]]; then
+      _secret_err "meta: expected KEY=VALUE, got '$edit'"; return 1
+    fi
+    key=${edit%%=*} val=${edit#*=}
+    _secret_meta_check_key "$key" || return 1
+    if [[ -z $val ]]; then
+      unset "fields[$key]"
+    else
+      _secret_meta_check_value "$key" "$val" || return 1
+      fields[$key]=$val
+    fi
+  done
+  local -a out
+  for key in ${(ko)fields}; do out+=("$key=${fields[$key]}"); done
+  print -r -- "${(j:;:)out}"
+}
+
+_secret_meta_matches() {       # $1 generic attribute  $2 KEY or KEY=VALUE filter
+  local want
+  if [[ $2 == *=* ]]; then
+    want=$(_secret_meta_get "$1" "${2%%=*}") || return 1
+    [[ $want == "${2#*=}" ]]
+  else
+    _secret_meta_get "$1" "$2" >/dev/null
+  fi
+}
+
+_secret_row_of() {             # $1 name  $2 project  $3 scope -> the item's TSV row ("" when absent)
+  _secret_rows "$2" | awk -F'\t' -v n="$1" -v s="$3" '$2 == n && $7 == s { print; exit }'
+}
+
+# $6 env: yes|no writes the type code, "keep" / absent leaves an existing
+# item's setting as it is — a value rewrite never re-enables what --no-env
+# turned off. $7 meta: the whole generic attribute to write ("" clears every
+# field), or "keep" / absent to leave it alone.
+_secret_store() {              # $1 name $2 project $3 comment $4 kind $5 scope [$6 env [$7 meta [$8 new]]] ; value on stdin
+  local name=$1 proj=$2 comment=$3 kind=$4 scope=$5 env=${6-keep} meta=${7-keep} create=${8-} value extra err
   IFS= read -r value
   if IFS= read -r extra; then
     _secret_err "$proj/$name: multi-line values are not supported"; return 1
@@ -328,8 +413,9 @@ _secret_store() {              # $1 name $2 project $3 comment $4 kind $5 scope 
   cmd+=" -l $(_secret_quote_si "$label")"
   cmd+=" -D $(_secret_quote_si "$(_secret_norm_kind "$kind")")"
   cmd+=" -j $(_secret_quote_si "$comment")"
-  # -U without -G keeps the stored generic attribute; -G '' clears it
-  [[ $flags == keep ]] || cmd+=" -G $(_secret_quote_si "$flags")"
+  # -U without -C / -G keeps the stored type / generic attribute; -G '' clears the fields
+  [[ $env == keep ]] || cmd+=" -C $(_secret_env_code "$env")"
+  [[ $meta == keep ]] || cmd+=" -G $(_secret_quote_si "$meta")"
   cmd+=" -w $(_secret_quote_si "$value")"
   cmd+=" $(_secret_quote_si "$kc")"
   err=$(print -r -- "$cmd" | security -i 2>&1 >/dev/null)
@@ -384,7 +470,7 @@ _secret_find_layer() {
 }
 
 # All secret.* items in one keychain ($1, defaults to $_kc).
-# TSV rows: project \t name \t label \t kind \t comment \t mdate \t scope \t flags
+# TSV rows: project \t name \t label \t kind \t comment \t mdate \t scope \t meta \t type
 _secret_dump_items() {
   local kc=${1:-$_kc}
   _secret_kc_ensure "$kc"
@@ -415,12 +501,12 @@ _secret_dump_items() {
         slash = index(rest, "/")
         if (slash > 0) { proj = substr(rest, 1, slash - 1); scope = substr(rest, slash + 1) }
         else           { proj = rest; scope = "" }
-        printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n", proj, acct, labl, desc, icmt, mdat, scope, gena
+        printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n", proj, acct, labl, desc, icmt, mdat, scope, gena, ctyp
       }
       item = 0
     }
     /^keychain:/            { flush() }
-    /^class: "genp"/        { item = 1; acct = svce = labl = desc = icmt = mdat = gena = ""; next }
+    /^class: "genp"/        { item = 1; acct = svce = labl = desc = icmt = mdat = gena = ctyp = ""; next }
     !item                   { next }
     /^ *"acct"<blob>=/      { acct = val($0) }
     /^ *"svce"<blob>=/      { svce = val($0) }
@@ -428,6 +514,7 @@ _secret_dump_items() {
     /^ *"desc"<blob>=/      { desc = val($0) }
     /^ *"icmt"<blob>=/      { icmt = val($0) }
     /^ *"gena"<blob>=/      { gena = val($0) }
+    /^ *"type"<uint32>=/    { ctyp = val($0) }
     /^ *"mdat"<timedate>=/  {
       if (match($0, /"[0-9]+Z\\000"/)) mdat = substr($0, RSTART + 1, RLENGTH - 6)
     }
@@ -467,8 +554,29 @@ _secret_tsv_unescape() {       # undo jq @tsv escaping
 
 # ------------------------------------------------------------ subcommands --
 
+# Plan the ENV / meta attributes of a write from the item's current row and
+# the caller's --env/--no-env and --meta edits. Sets $_plan_env (yes|no|keep)
+# and $_plan_meta (attribute string|keep) in the caller's scope. Rewriting
+# the meta of an item whose ENV still lives in the legacy marker pins the
+# setting into the type first, so the marker can be dropped without change.
+_secret_plan_attrs() {         # $1 row ("" = new item)  $2 env_opt (yes|no|"")  $3.. meta edits
+  local row=$1 env_opt=$2
+  shift 2
+  local -a f
+  f=("${(@ps:\t:)row}")
+  _plan_env=${env_opt:-keep}
+  _plan_meta=keep
+  (( $# )) || return 0
+  _plan_meta=$(_secret_meta_merge "${f[8]}" "$@") || return 1
+  if [[ $_plan_env == keep && -z ${f[9]} ]]; then
+    _secret_env_on "${f[9]}" "${f[8]}" && _plan_env=yes || _plan_env=no
+  fi
+  return 0
+}
+
 _secret_cmd_set() {
   local name="" proj="" comment="" kind="" from_stdin=0 scoped=0 scope_opt="" env_opt="" create=""
+  local -a meta_opts
   while (( $# )); do
     case $1 in
       -p) proj=$2; shift 2 ;;
@@ -476,6 +584,7 @@ _secret_cmd_set() {
       -D) kind=$2; shift 2 ;;
       -S|--scoped) scoped=1; shift ;;
       --scope) scope_opt=$2; shift 2 ;;
+      --meta) meta_opts+=("$2"); shift 2 ;;
       --new) create=new; shift ;;
       --stdin) from_stdin=1; shift ;;
       --env) env_opt=yes; shift ;;
@@ -494,20 +603,31 @@ _secret_cmd_set() {
     _secret_err "set: $proj/${scope:+$scope/}$name already exists; --new never overwrites"
     return 1
   fi
-  # no --env/--no-env: an existing item keeps its flags, a new one has none
-  local flags=keep
-  [[ -n $env_opt ]] && flags=$(_secret_flags_with_env "$(_secret_flags_of "$name" "$proj" "$scope")" "$env_opt")
+  # no --env/--no-env/--meta: an existing item keeps its attributes, a new one has none
+  local row="" _plan_env _plan_meta
+  local -a f
+  if [[ -n $env_opt ]] || (( ${#meta_opts} )); then
+    row=$(_secret_row_of "$name" "$proj" "$scope")
+  fi
+  _secret_plan_attrs "$row" "$env_opt" "${meta_opts[@]}" || return 2
+  f=("${(@ps:\t:)row}")
 
   if (( from_stdin )) || [[ ! -t 0 ]]; then
-    _secret_store "$name" "$proj" "$comment" "$kind" "$scope" "$flags" "$create" || return 1
+    _secret_store "$name" "$proj" "$comment" "$kind" "$scope" "$_plan_env" "$_plan_meta" "$create" || return 1
   else
     local value
     value=$(_secret_prompt_value "$proj/${scope:+$scope/}$name") || return 1
-    print -r -- "$value" | _secret_store "$name" "$proj" "$comment" "$kind" "$scope" "$flags" "$create" || return 1
+    print -r -- "$value" | _secret_store "$name" "$proj" "$comment" "$kind" "$scope" "$_plan_env" "$_plan_meta" "$create" || return 1
   fi
   local lbl note=""
   lbl=$(_secret_kc_label "$proj")
-  _secret_env_on "$(_secret_flags_of "$name" "$proj" "$scope")" || note=" (env: no)"
+  if [[ $_plan_env == no ]]; then
+    note=" (env: no)"
+  elif [[ $_plan_env == keep ]]; then
+    [[ -n $row ]] || row=$(_secret_row_of "$name" "$proj" "$scope")
+    f=("${(@ps:\t:)row}")
+    _secret_env_on "${f[9]}" "${f[8]}" || note=" (env: no)"
+  fi
   print -r -- "stored $proj/${scope:+$scope/}$name$note${lbl:+ [keychain: $lbl]}"
 }
 
@@ -549,11 +669,13 @@ _secret_cmd_update() {
   local name="" proj="" comment="" kind="" env_opt=""
   local comment_set=0 kind_set=0 want_value=0 from_stdin=0
   local scoped=0 shared=0 scope_opt=""
+  local -a meta_opts
   while (( $# )); do
     case $1 in
       -p) proj=$2; shift 2 ;;
       -j) comment=$2; comment_set=1; shift 2 ;;
       -D) kind=$2; kind_set=1; shift 2 ;;
+      --meta) meta_opts+=("$2"); shift 2 ;;
       --env) env_opt=yes; shift ;;
       --no-env) env_opt=no; shift ;;
       -S|--scoped) scoped=1; shift ;;
@@ -573,24 +695,22 @@ _secret_cmd_update() {
     _secret_err "not found: $proj/${_layer_scope:+$_layer_scope/}$name (use 'secret set' to create it)"
     return 1
   fi
-  if (( ! want_value && ! from_stdin && ! comment_set && ! kind_set )) && [[ -z $env_opt ]]; then
-    _secret_err "update: nothing to do (use --value/--stdin, -j COMMENT, -D KIND, --env/--no-env)"
+  if (( ! want_value && ! from_stdin && ! comment_set && ! kind_set && ! ${#meta_opts} )) && [[ -z $env_opt ]]; then
+    _secret_err "update: nothing to do (use --value/--stdin, -j COMMENT, -D KIND, --meta K=V, --env/--no-env)"
     return 2
   fi
 
   # merge with current metadata
-  local row
-  row=$(_secret_rows "$proj" \
-    | awk -F'\t' -v n="$name" -v s="$layer" '$2 == n && $7 == s { print; exit }')
+  local row _plan_env _plan_meta
+  row=$(_secret_row_of "$name" "$proj" "$layer")
   local -a f
   f=("${(@ps:\t:)row}")
   (( kind_set )) || kind=${f[4]}
   (( comment_set )) || comment=${f[5]}
-  local flags=keep
-  [[ -n $env_opt ]] && flags=$(_secret_flags_with_env "${f[8]}" "$env_opt")
+  _secret_plan_attrs "$row" "$env_opt" "${meta_opts[@]}" || return 2
 
   if (( from_stdin )) || ( (( want_value )) && [[ ! -t 0 ]] ); then
-    _secret_store "$name" "$proj" "$comment" "$kind" "$layer" "$flags" || return 1
+    _secret_store "$name" "$proj" "$comment" "$kind" "$layer" "$_plan_env" "$_plan_meta" || return 1
   else
     local value
     if (( want_value )); then
@@ -600,13 +720,14 @@ _secret_cmd_update() {
         _secret_err "cannot read current value of $proj/${layer:+$layer/}$name"; return 1
       }
     fi
-    print -r -- "$value" | _secret_store "$name" "$proj" "$comment" "$kind" "$layer" "$flags" || return 1
+    print -r -- "$value" | _secret_store "$name" "$proj" "$comment" "$kind" "$layer" "$_plan_env" "$_plan_meta" || return 1
   fi
 
   local -a parts
   (( want_value || from_stdin )) && parts+=(value)
   (( comment_set )) && parts+=(comment)
   (( kind_set )) && parts+=(kind)
+  (( ${#meta_opts} )) && parts+=(meta)
   [[ -n $env_opt ]] && parts+=("env: $env_opt")
   local lbl
   lbl=$(_secret_kc_label "$proj")
@@ -666,11 +787,11 @@ _secret_cmd_show() {
     return 1
   fi
   local row
-  row=$(_secret_rows "$proj" \
-    | awk -F'\t' -v n="$name" -v s="$layer" '$2 == n && $7 == s { print; exit }')
+  row=$(_secret_row_of "$name" "$proj" "$layer")
   [[ -z $row ]] && { _secret_err "not found: $proj/${layer:+$layer/}$name"; return 1 }
-  local -a f
+  local -a f fields
   f=("${(@ps:\t:)row}")
+  fields=(${(f)"$(_secret_meta_fields "${f[8]}")"})
   printf '%-10s %s\n' \
     'Name:'     "${f[2]}" \
     'Project:'  "${f[1]}" \
@@ -678,49 +799,75 @@ _secret_cmd_show() {
     'Label:'    "${f[3]}" \
     'Kind:'     "${f[4]}" \
     'Comment:'  "${f[5]}" \
-    'Env:'      "$(_secret_env_on "${f[8]}" && print yes || print 'no (never emitted by secret env)')" \
+    'Env:'      "$(_secret_env_on "${f[9]}" "${f[8]}" && print yes || print 'no (never emitted by secret env)')" \
+    'Meta:'     "${fields[1]:-(none)}"
+  local fld
+  for fld in "${fields[@]:1}"; do printf '%-10s %s\n' '' "$fld"; done
+  printf '%-10s %s\n' \
     'Modified:' "$(_secret_fmt_date "${f[6]}")" \
     'Keychain:' "$(_secret_kc_for "$proj")"
 }
 
 _secret_cmd_ls() {
   local proj="" long=0
+  local -a meta_filters
   while (( $# )); do
     case $1 in
       -p) proj=$2; shift 2 ;;
       -l|--long) long=1; shift ;;
+      --meta) meta_filters+=("$2"); shift 2 ;;
       -*) _secret_err "ls: unknown option '$1'"; return 2 ;;
       *) _secret_err "ls: unexpected argument '$1'"; return 2 ;;
     esac
+  done
+  local flt
+  for flt in "${meta_filters[@]}"; do
+    _secret_meta_check_key "${flt%%=*}" || return 2
   done
   proj=$(_secret_resolve_project "$proj")
   local rows
   rows=$(_secret_rows "$proj")
   [[ -z $rows ]] && { print -r -- "no secrets in project '$proj'" >&2; return 0 }
+  if (( ${#meta_filters} )); then
+    # every --meta KEY[=VALUE] must match; the item's fields are column 8
+    local row kept=""
+    local -a f
+    while IFS= read -r row; do
+      f=("${(@ps:\t:)row}")
+      for flt in "${meta_filters[@]}"; do
+        _secret_meta_matches "${f[8]}" "$flt" || continue 2
+      done
+      kept+="$row"$'\n'
+    done <<< "$rows"
+    rows=${kept%$'\n'}
+    [[ -z $rows ]] && { print -r -- "no secrets in project '$proj' match --meta ${(j: :)meta_filters}" >&2; return 0 }
+  fi
   if (( long )); then
-    local row mod scope
-    local -a f names scopes kinds mods envs comments
-    local -i wn=4 ws=5 wk=4 wm=8           # seed from header label widths
+    local row mod scope meta
+    local -a f names scopes kinds mods envs metas comments
+    local -i wn=4 ws=5 wk=4 wm=8 wt=4      # seed from header label widths
     while IFS= read -r row; do
       f=("${(@ps:\t:)row}")
       scope=${f[7]:-Shared}
       mod=$(_secret_fmt_date "${f[6]}")
+      meta=${(j:;:)${(f)"$(_secret_meta_fields "${f[8]}")"}}
       names+=("${f[2]}"); scopes+=("$scope"); kinds+=("${f[4]}")
-      mods+=("$mod"); comments+=("${f[5]}")
-      if _secret_env_on "${f[8]}"; then envs+=(yes); else envs+=(no); fi
+      mods+=("$mod"); metas+=("$meta"); comments+=("${f[5]}")
+      if _secret_env_on "${f[9]}" "${f[8]}"; then envs+=(yes); else envs+=(no); fi
       (( ${#f[2]}  > wn )) && wn=${#f[2]}
       (( ${#scope} > ws )) && ws=${#scope}
       (( ${#f[4]}  > wk )) && wk=${#f[4]}
       (( ${#mod}   > wm )) && wm=${#mod}
+      (( ${#meta}  > wt )) && wt=${#meta}
     done <<< "$rows"
-    # auto-size columns to their content (NAME/SCOPE/KIND/MODIFIED); ENV is
-    # yes/no, and the trailing COMMENT is left unbounded so long names never
-    # misalign a row
-    local fmt="%-${wn}s  %-${ws}s  %-${wk}s  %-${wm}s  %-3s  %s\n"
-    printf "$fmt" NAME SCOPE KIND MODIFIED ENV COMMENT
+    # auto-size columns to their content (NAME/SCOPE/KIND/MODIFIED/META); ENV
+    # is yes/no, and the trailing COMMENT is left unbounded so long names
+    # never misalign a row
+    local fmt="%-${wn}s  %-${ws}s  %-${wk}s  %-${wm}s  %-3s  %-${wt}s  %s\n"
+    printf "$fmt" NAME SCOPE KIND MODIFIED ENV META COMMENT
     local -i i
     for (( i = 1; i <= ${#names}; i++ )); do
-      printf "$fmt" "${names[i]}" "${scopes[i]}" "${kinds[i]}" "${mods[i]}" "${envs[i]}" "${comments[i]}"
+      printf "$fmt" "${names[i]}" "${scopes[i]}" "${kinds[i]}" "${mods[i]}" "${envs[i]}" "${metas[i]}" "${comments[i]}"
     done
   else
     print -r -- "$rows" | awk -F'\t' '{ print ($7 == "" ? $2 : $7 "/" $2) }'
@@ -768,10 +915,10 @@ _secret_cmd_env() {
     f=("${(@ps:\t:)row}")
     if [[ -z ${f[7]} ]]; then
       [[ -n ${layer_of[${f[2]}]-} ]] || layer_of[${f[2]}]=shared
-      _secret_env_on "${f[8]}" || noenv_of[${f[2]}:shared]=1
+      _secret_env_on "${f[9]}" "${f[8]}" || noenv_of[${f[2]}:shared]=1
     elif [[ -n $scope && ${f[7]} == "$scope" ]]; then
       layer_of[${f[2]}]=scoped
-      _secret_env_on "${f[8]}" || noenv_of[${f[2]}:scoped]=1
+      _secret_env_on "${f[9]}" "${f[8]}" || noenv_of[${f[2]}:scoped]=1
     fi
   done <<< "$(_secret_rows "$proj")"
   local v lay
@@ -827,17 +974,22 @@ _secret_export_json() {        # $1 project ("" = all); JSON document on stdout
   _secret_rows "$1" | while IFS= read -r row; do
     f=("${(@ps:\t:)row}")
     v=$(_secret_get_value "${f[2]}" "${f[1]}" "${f[7]}") || continue
+    # meta: one KEY=VALUE per line, turned into an object (values never hold ';')
     print -r -- "$v" | jq -Rc \
       --arg project "${f[1]}" --arg name "${f[2]}" --arg kind "${f[4]}" \
       --arg comment "${f[5]}" --arg scope "${f[7]}" \
-      --arg env "$(_secret_env_on "${f[8]}" && print yes || print no)" \
-      '{project: $project, scope: $scope, name: $name, kind: $kind, comment: $comment, env: $env, value: .}'
+      --arg env "$(_secret_env_on "${f[9]}" "${f[8]}" && print yes || print no)" \
+      --arg meta "$(_secret_meta_fields "${f[8]}")" \
+      '{project: $project, scope: $scope, name: $name, kind: $kind, comment: $comment, env: $env,
+        meta: ($meta | split("\n") | map(select(length > 0) | capture("^(?<k>[^=]*)=(?<v>.*)$")
+                                        | {key: .k, value: .v}) | from_entries),
+        value: .}'
   done | jq -s --arg exported "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
     '{version: 1, exported: $exported, items: .}'
 }
 
 _secret_export_env() {         # $1 project ("" = all); export lines on stdout
-  local row v last=""
+  local row v meta last=""
   local -a f
   _secret_rows "$1" | while IFS= read -r row; do
     f=("${(@ps:\t:)row}")
@@ -846,9 +998,13 @@ _secret_export_env() {         # $1 project ("" = all); export lines on stdout
       print -r -- "# === project: ${f[1]}${f[7]:+ (scope: ${f[7]})} ==="
       last="${f[1]}|${f[7]}"
     fi
-    # an env=no item stays commented out, so sourcing the file never exports
+    # meta rides on a comment line right above the item ("#meta:K=V;..."),
+    # so the file still sources; import attaches it to the export that follows.
+    # An env=no item stays commented out, so sourcing the file never exports
     # it; import reads the marker back as env=no
-    _secret_env_on "${f[8]}" || print -rn -- "#no-env# "
+    meta=${(j:;:)${(f)"$(_secret_meta_fields "${f[8]}")"}}
+    [[ -n $meta ]] && print -r -- "#meta:$meta"
+    _secret_env_on "${f[9]}" "${f[8]}" || print -rn -- "#no-env# "
     print -r -- "export ${f[2]}=${(qq)v}"
   done
 }
@@ -944,8 +1100,11 @@ _secret_cmd_import() {
   fi
 
   # envs: yes / no from the file, or "" when it says nothing (older exports):
-  # then an item being overwritten keeps its flags
-  local -a names values projs comments kinds scopes envs
+  # then an item being overwritten keeps its setting. metas: the item's
+  # fields, one KEY=VALUE per line ("" clears them), or "keep" when the file
+  # says nothing (no .meta key / no marker line), or "invalid-key" when a
+  # JSON key is no identifier — neither word can be a real field (no '=')
+  local -a names values projs comments kinds scopes envs metas
   local trimmed=${content##[[:space:]]#}
   if [[ $trimmed == \{* || $trimmed == \[* ]]; then
     command -v jq >/dev/null 2>&1 || { _secret_err "jq is required (brew install jq)"; return 1 }
@@ -963,22 +1122,31 @@ _secret_cmd_import() {
       kinds+=("$(_secret_tsv_unescape "${jf[5]}")")
       scopes+=("$(_secret_tsv_unescape "${jf[6]}")")
       envs+=("$(_secret_tsv_unescape "${jf[7]}")")
+      metas+=("$(_secret_tsv_unescape "${jf[8]}")")
     done < <(print -r -- "$content" \
       | jq -r '.items[] | [.name, .value, (.project // ""), (.comment // ""), (.kind // ""), (.scope // ""),
                            (if .env == "no" or .env == false then "no" elif .env == "yes" or .env == true then "yes"
-                            else "" end)] | @tsv') || true
+                            else "" end),
+                           (if (.meta | type) != "object" then "keep"
+                            elif any(.meta | keys[]; test("^[A-Za-z][A-Za-z0-9_-]*$") | not) then "invalid-key"
+                            else (.meta | to_entries | sort_by(.key)
+                                  | map("\(.key)=\(.value | tostring)") | join("\n")) end)] | @tsv') || true
   else
-    local line n v e
+    local line n v e m="keep"
     while IFS= read -r line; do
       line=${line%$'\r'}
       [[ -z ${line//[[:space:]]/} ]] && continue
       line=${line##[[:space:]]#}
+      if [[ $line == '#meta:'* ]]; then
+        m=${${line#'#meta:'}//;/$'\n'}
+        continue
+      fi
       e=""
       if [[ $line == '#no-env# '* ]]; then
         line=${line#'#no-env# '}
         e=no
       fi
-      [[ $line == \#* ]] && continue
+      [[ $line == \#* ]] && { m="keep"; continue }
       line=${line#export }
       [[ $line == *=* ]] || continue
       n=${line%%=*}
@@ -986,6 +1154,7 @@ _secret_cmd_import() {
       n=${n%%[[:space:]]#}
       v=${(Q)v}
       names+=("$n"); values+=("$v"); projs+=(""); comments+=(""); kinds+=(""); scopes+=(""); envs+=("$e")
+      metas+=("$m"); m="keep"
     done <<< "$content"
   fi
   (( ${#names} )) || { _secret_err "no items found in '$file'"; return 1 }
@@ -1030,17 +1199,89 @@ _secret_cmd_import() {
     if [[ -n ${tscopes[i]} ]] && ! _secret_check_scope "${tscopes[i]}"; then
       (( fail++ )); continue
     fi
-    local flags=keep
-    [[ -n ${envs[i]} ]] && flags=$(_secret_flags_with_env \
-      "$(_secret_flags_of "${names[i]}" "${targets[i]}" "${tscopes[i]}")" "${envs[i]}")
+    # the file's meta replaces the item's (validated field by field); an
+    # item that keeps its meta but has its ENV in the legacy marker gets the
+    # setting pinned into the type so nothing is lost either way
+    local env=${envs[i]:-keep} meta=${metas[i]}
+    if [[ $meta == invalid-key ]]; then
+      _secret_err "${names[i]}: a meta key is not an identifier (letters, digits, '_', '-')"
+      (( fail++ )); continue
+    fi
+    if [[ $meta != keep ]]; then
+      local -a edits
+      edits=(${(f)meta})
+      meta=$(_secret_meta_merge "" "${edits[@]}") || { (( fail++ )); continue }
+      if [[ $env == keep ]]; then
+        local -a cf
+        cf=("${(@ps:\t:)"$(_secret_row_of "${names[i]}" "${targets[i]}" "${tscopes[i]}")"}")
+        if [[ -z ${cf[9]} ]]; then
+          _secret_env_on "${cf[9]}" "${cf[8]}" && env=yes || env=no
+        fi
+      fi
+    fi
     if print -r -- "${values[i]}" \
-        | _secret_store "${names[i]}" "${targets[i]}" "${comments[i]}" "${kinds[i]}" "${tscopes[i]}" "$flags"; then
+        | _secret_store "${names[i]}" "${targets[i]}" "${comments[i]}" "${kinds[i]}" "${tscopes[i]}" "$env" "$meta"; then
       (( ok++ ))
     else
       (( fail++ ))
     fi
   done
   print -r -- "imported $ok item(s)$( (( fail )) && print -rn -- ", $fail failed" )"
+  (( fail == 0 ))
+}
+
+# Move the legacy env=no marker out of the generic attribute into the type
+# code, so the attribute holds nothing but --meta fields. Only items that
+# still carry the marker are rewritten (value re-stored unchanged, type set
+# to envn, marker dropped); everything else is left untouched.
+_secret_cmd_migrate() {
+  local proj="" all=0 dry=0
+  while (( $# )); do
+    case $1 in
+      -p) proj=$2; shift 2 ;;
+      --all) all=1; shift ;;
+      -n|--dry-run) dry=1; shift ;;
+      -*) _secret_err "migrate: unknown option '$1'"; return 2 ;;
+      *) _secret_err "migrate: unexpected argument '$1'"; return 2 ;;
+    esac
+  done
+  if (( all )); then
+    proj=""
+  else
+    proj=$(_secret_resolve_project "$proj")
+  fi
+  local row v meta env target ok=0 fail=0 seen=0
+  local -a f
+  while IFS= read -r row; do
+    [[ -n $row ]] || continue
+    f=("${(@ps:\t:)row}")
+    [[ ";${f[8]};" == *";env=no;"* ]] || continue
+    (( seen++ ))
+    target="${f[1]}/${f[7]:+${f[7]}/}${f[2]}"
+    # a type already set (update --env after the marker was written) stays
+    # authoritative: only the stale marker goes
+    _secret_env_on "${f[9]}" "${f[8]}" && env=yes || env=no
+    if (( dry )); then
+      print -r -- "would migrate $target (env=no marker -> type $(_secret_env_code "$env"))"
+      continue
+    fi
+    meta=$(_secret_meta_merge "${f[8]}") || { (( fail++ )); continue }
+    if ! v=$(_secret_get_value "${f[2]}" "${f[1]}" "${f[7]}"); then
+      _secret_err "skipped $target (unreadable)"; (( fail++ )); continue
+    fi
+    if print -r -- "$v" | _secret_store "${f[2]}" "${f[1]}" "${f[5]}" "${f[4]}" "${f[7]}" "$env" "$meta"; then
+      print -r -- "migrated $target"
+      (( ok++ ))
+    else
+      (( fail++ ))
+    fi
+  done <<< "$(_secret_rows "$proj")"
+  if (( seen == 0 )); then
+    print -r -- "nothing to migrate (project: ${proj:-all})"
+    return 0
+  fi
+  (( dry )) && return 0
+  print -r -- "migrated $ok item(s)$( (( fail )) && print -rn -- ", $fail failed" )"
   (( fail == 0 ))
 }
 
@@ -1576,23 +1817,27 @@ USAGE
   secret [-k KEYCHAIN] <command> [args]
 
 COMMANDS
-  set NAME [-p proj] [-S|--scope X] [-j comment] [-D kind] [--no-env|--env] [--new] [--stdin]
+  set NAME [-p proj] [-S|--scope X] [-j comment] [-D kind] [--meta K=V]... [--no-env|--env] [--new] [--stdin]
         store a secret; prompts for the value (no echo), or reads one
         line from stdin with --stdin / when piped. Default layer: shared;
-        -S stores into this repository's scope. --no-env keeps it out of
-        `secret env` (see ENV); without --env/--no-env an existing item
-        keeps its setting. --new stores only a new item: an existing one
-        in that layer is refused, never overwritten
-  update NAME [-p proj] [LAYER] [-j comment] [-D kind] [--no-env|--env] [--value|--stdin]
+        -S stores into this repository's scope. --meta adds structured
+        fields (see META). --no-env keeps it out of `secret env` (see
+        ENV); without --env/--no-env an existing item keeps its setting.
+        --new stores only a new item: an existing one in that layer is
+        refused, never overwritten
+  update NAME [-p proj] [LAYER] [-j comment] [-D kind] [--meta K=V]... [--no-env|--env] [--value|--stdin]
         partially update an existing secret: --value prompts for a new
         value (--stdin reads it from stdin), -j/-D replace comment/kind
-        (-j '' clears the comment), --no-env/--env change the ENV
-        setting; everything else is kept as-is
+        (-j '' clears the comment), --meta K=V sets one field and
+        --meta K= removes it, --no-env/--env change the ENV setting;
+        everything else is kept as-is
   get NAME [-p proj] [LAYER] [-c|--copy]
         print the value (or copy to clipboard, auto-clears in 45s)
   show NAME [-p proj] [LAYER]  metadata only (never prints the value)
-  ls [-p proj] [-l|--long]     list secrets; short form shows scoped items
-        as "scope/NAME", --long has a dedicated Scope column
+  ls [-p proj] [-l|--long] [--meta KEY[=VALUE]]...
+        list secrets; short form shows scoped items as "scope/NAME",
+        --long has Scope/Kind/Env/Meta columns; --meta keeps only items
+        whose field KEY exists (or equals VALUE), repeatable (all must match)
   projects                     list all projects
   env [-p proj] [--scope X]    emit `export NAME=...` lines: the shared
         layer overlaid with the repository scope (scoped wins), skipping
@@ -1604,12 +1849,16 @@ COMMANDS
         without arguments, show how this directory resolves
   export [-p proj|--all] [-o FILE] [--format age|json|env]
         write secrets to a file; age (encrypted JSON, default), json,
-        or env (plaintext export lines, metadata lost except ENV:
-        --no-env items are written as `#no-env# export ...`)
+        or env (plaintext export lines; kind and comment are lost, ENV
+        and META survive as markers: `#no-env# export ...` and a
+        `#meta:K=V;...` comment line right above the item)
   import FILE [-p proj] [-S|--scope X] [-y]
         load secrets from .json.age / .json / .env files; -p forces all
         items into one project, -S/--scope forces one layer, otherwise
         JSON items keep their own project and scope
+  migrate [-p proj|--all] [-n|--dry-run]
+        move the pre-type env=no marker out of the generic attribute into
+        the type code (see ENV); items already migrated are untouched
 
   LAYER (get/show/rm/update): default is DWIM — this repository's scope
   first, then the shared layer. -S/--scoped = the repo scope only,
@@ -1639,7 +1888,8 @@ PROJECTS
   product so they all share one project.
   Stored as keychain attributes: service "secret.<project>" (shared) or
   "secret.<project>/<scope>" (scoped), account NAME, plus label, kind
-  (-D) and comment (-j) — all visible in Keychain Access.
+  (-D), comment (-j), type (ENV) and generic (META) — all visible in
+  Keychain Access.
 
 SCOPES
   Inside one project, scoped items override shared ones per repository:
@@ -1653,8 +1903,22 @@ ENV
   shim or helper built on it — unless it is set --no-env: then only
   `get` (and export/import, which carry the setting) ever reads it. Use it
   for what no process environment should hold, such as a wallet's seed
-  phrase. Stored in the item's generic attribute as env=no; rewriting the
-  value keeps it, `update --env` lifts it. `ls --long` and `show` display it.
+  phrase. Stored in the item's type attribute as the four-character code
+  envn (envy or no type = emitted); rewriting the value keeps it,
+  `update --env` lifts it. `ls --long` and `show` display it. Items
+  written before the type code kept env=no in the generic attribute;
+  that is still honoured, and `secret migrate` moves it over.
+
+META
+  --meta KEY=VALUE attaches structured fields to an item, as many as you
+  like: where a key was issued (url=https://dashboard.stripe.com), which
+  account it belongs to (account=ops@example.com), what a mnemonic is for
+  (purpose=cold-storage). Keys are identifiers (letters, digits, '_',
+  '-'), values are single-line and may not contain ';'. Fields live in
+  the item's generic attribute as KEY=VALUE;KEY=VALUE, sorted by key.
+  `update --meta KEY=` removes a field; `show` lists them, `ls --long`
+  has a META column, `ls --meta KEY[=VALUE]` filters by them, and
+  export/import carry them. Free-form notes belong in the comment (-j).
 
 KINDS
   -D sets the item's kind, a short type label shown in Keychain Access.
@@ -1773,6 +2037,12 @@ _secret_ui_add() {
   [[ $layer == scoped ]] && args+=(-S)
   [[ -n $kind ]] && args+=(-D "$kind")
   [[ -n $comment ]] && args+=(-j "$comment")
+  local field
+  while true; do
+    read -r "field?meta field KEY=VALUE (optional; empty line to finish): " || return 0
+    [[ -z $field ]] && break
+    args+=(--meta "$field")
+  done
   _secret_cmd_set "${args[@]}"
 }
 
@@ -1787,14 +2057,14 @@ _secret_ui_update() {
   local name=$_tok_name scope=""
   [[ $tok == */* ]] && scope=${tok%%/*}
   local row
-  row=$(_secret_rows "$proj" \
-    | awk -F'\t' -v n="$name" -v s="$scope" '$2 == n && $7 == s { print; exit }')
+  row=$(_secret_row_of "$name" "$proj" "$scope")
   local -a f
   f=("${(@ps:\t:)row}")
   fields=$(printf '%s\n' \
       'value     change the secret value (hidden prompt)' \
       'comment   change the comment' \
       'kind      change the kind' \
+      'meta      set or remove a KEY=VALUE field' \
     | _secret_fzf --multi \
         --header="secret › $proj/$tok › what to update (TAB to multi-select)" \
         --prompt='update> ') || return 0
@@ -1810,6 +2080,16 @@ _secret_ui_update() {
         print -r -- "current comment: ${f[5]:-(none)}"
         read -r "c?new comment (empty clears): " || return 0
         args+=(-j "$c")
+        ;;
+      meta)
+        local cur_meta
+        cur_meta=${(j: :)${(f)"$(_secret_meta_fields "${f[8]}")"}}
+        print -r -- "current meta: ${cur_meta:-(none)}"
+        while true; do
+          read -r "c?field KEY=VALUE (KEY= removes; empty line to finish): " || return 0
+          [[ -z $c ]] && break
+          args+=(--meta "$c")
+        done
         ;;
       kind)
         k=$(_secret_kind_choices \
@@ -1980,6 +2260,7 @@ secret() {
     env)            _secret_cmd_env "$@" ;;
     export)         _secret_cmd_export "$@" ;;
     import)         _secret_cmd_import "$@" ;;
+    migrate)        _secret_cmd_migrate "$@" ;;
     projects)       _secret_cmd_projects ;;
     link)           _secret_cmd_link "$@" ;;
     keychain|kc)    _secret_cmd_keychain "$@" ;;
