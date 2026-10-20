@@ -27,12 +27,12 @@ eval "$(secret env -p global)"  # inject a whole project as environment variable
 The wizard's item pickers show every item with a preview pane of its
 metadata (`secret show`), and match what you type against the name, the
 meta fields and the comment, so a dashboard URL or an account finds its
-key. **List** keeps that picker open as a browser: `enter` shows the item,
-`^y` copies its value, `^f` copies one meta field or the comment (plain,
-no auto-clear — metadata is not secret), `^o` opens its `url=` field in
-the browser, `^e` opens the update dialogue, `^d` deletes it (after a
-confirmation), `esc` returns to the menu — a look at a secret flows
-straight into the next step.
+key. **List** keeps that picker open as a browser: `^y` copies the item's
+value, `^f` copies one meta field or the comment (plain, no auto-clear —
+metadata is not secret), `^o` opens its `url=` field in the browser, `^e`
+opens the update dialogue, `^d` deletes it (after a confirmation), and
+each returns to the list; `enter` prints the item's details and leaves,
+`esc` leaves — a look at a secret flows straight into the next step.
 
 Project resolution: `-p NAME` > `git config secret.project` > the git
 repository name > `global`. Run `secret link NAME` once per clone of a
