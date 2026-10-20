@@ -187,7 +187,10 @@ The service is `secret.<project>[/<scope>]@<stage>` and the label
 ### Master password
 
 All custom keychains share one password, kept in a password manager. A copy
-lives in the login keychain so everything unlocks silently:
+lives in the login keychain so everything unlocks silently. One `secret`
+invocation looks the password up and unlocks each keychain it touches once
+(`env` and `export` read every value on that one unlock), so a tool
+launched through the shim waits about half a second for twenty secrets:
 
 ```
 macOS login password
@@ -365,7 +368,7 @@ secret import secret-export-all-YYYYMMDD.json.age
 
 ## Tests
 
-[`zsh/tests/secret-selftest.zsh`](../tests/secret-selftest.zsh) — 281
+[`zsh/tests/secret-selftest.zsh`](../tests/secret-selftest.zsh) — 285
 assertions: round-trips (special characters, json/env/age), partial updates,
 `--no-env` (kept out of `env`, kept across rewrites and export/import, stored
 as the `envn`/`envy` type code), `--meta` fields (validation, sorting,
@@ -378,7 +381,9 @@ overlay, exact-layer rm, export/import round-trips, `ls` tokens), the
 `ls` token accepted as NAME, the fzf picker's lines, preview and expect
 mode (fzf stubbed), the grouped `ls --long` layout (groups, ordering,
 fitting `COLUMNS`, `--wide`, `--all`),
-the unregistered-file write gate, master adoption/rotation, auto-unlock. It
+the unregistered-file write gate, master adoption/rotation, auto-unlock
+(one unlock per keychain per invocation, counted through a shadowed
+`security`). It
 only uses throwaway `secret-selftest*` projects/keychains, isolates the
 master machinery via the `SECRET_MASTER_ACCOUNT` / `SECRET_TEST_ONLY_KC`
 hooks, and cleans up after itself — safe to run on a machine with real data.
