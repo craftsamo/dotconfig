@@ -516,6 +516,8 @@ metashow=$(secret show TEST_META -p $P)
   && ok "ls --long has a META column" || bad "ls --long has a META column"
 [[ "$(secret ls -p $P --meta account)" == TEST_META ]] && ok "ls --meta KEY filters" || bad "ls --meta KEY filters"
 [[ "$(secret ls -p $P --meta account=ops --meta url)" == TEST_META ]] && ok "ls --meta stacks filters" || bad "ls --meta stacks filters"
+[[ "$(secret ls -p $P --meta account --long | head -1)" == NAME* ]] \
+  && ok "ls --meta --long starts with the header" || bad "ls --meta --long starts with the header"
 [[ -z "$(secret ls -p $P --meta account=dev 2>/dev/null)" ]] && ok "ls --meta KEY=VALUE mismatch hides" || bad "ls --meta KEY=VALUE mismatch hides"
 secret ls -p $P --meta env >/dev/null 2>&1 && bad "ls --meta rejects the reserved key" || ok "ls --meta rejects the reserved key"
 secret update TEST_META -p $P --meta url= --meta zone=eu >/dev/null 2>&1 && ok "update --meta" || bad "update --meta"

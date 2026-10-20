@@ -918,14 +918,13 @@ _secret_cmd_ls() {
   done
   [[ -n $stage_filter ]] && { _secret_check_stage "$stage_filter" || return 2 }
   proj=$(_secret_resolve_project "$proj")
-  local rows
+  local rows row kept=""
+  local -a f
   rows=$(_secret_rows "$proj")
   [[ -z $rows ]] && { print -r -- "no secrets in project '$proj'" >&2; return 0 }
   if (( ${#meta_filters} || stage_set )); then
     # every --meta KEY[=VALUE] must match (fields are column 8); --stage S
     # keeps that stage's layers only, --no-stage the stage-less ones
-    local row kept=""
-    local -a f
     while IFS= read -r row; do
       f=("${(@ps:\t:)row}")
       (( stage_set )) && [[ ${f[10]} != "$stage_filter" ]] && continue
@@ -938,8 +937,8 @@ _secret_cmd_ls() {
     [[ -z $rows ]] && { print -r -- "no secrets in project '$proj' match the filters" >&2; return 0 }
   fi
   if (( long )); then
-    local row mod scope stage meta
-    local -a f names scopes stages kinds mods envs metas comments
+    local mod scope stage meta
+    local -a names scopes stages kinds mods envs metas comments
     local -i wn=4 ws=5 wg=5 wk=4 wm=8 wt=4     # seed from header label widths
     while IFS= read -r row; do
       f=("${(@ps:\t:)row}")
