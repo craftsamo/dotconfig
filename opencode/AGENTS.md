@@ -342,6 +342,9 @@ Secrets on this machine are injected from the macOS Keychain by PATH shims
   `bash`/`sh`, yields empty or leaked values.
 - Project secrets auto-inject only into these commands, inside a git repo:
   `node npm pnpm bun bunx yarn npx python python3 uv docker docker-compose`.
+  Values stored under a stage (`NAME@prod` in `secret ls`) are injected only
+  when `SECRET_STAGE` names that stage; never set `SECRET_STAGE=prod` on your
+  own initiative.
   Other launchers (`cargo`, `go`, `make`, `pytest`, `ruby`, `php`, `deno`,
   `./script.sh`) get no project secrets. Route the work through an allowlisted
   command, or wrap the tool.

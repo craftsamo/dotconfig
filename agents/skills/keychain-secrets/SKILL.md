@@ -34,11 +34,21 @@ The mode is chosen by the command name in `bin/secret-shim:53-58`.
 | Mode | Commands | Injects |
 | --- | --- | --- |
 | tool | `opencode`, `claude`, `codex`, `copilot`, `grok`, and any unlisted name | shared layers only: `global`, then `<command>`; tool layer overrides global; never a repository scope |
-| project | `node npm pnpm bun bunx yarn npx python python3 uv docker docker-compose` | `secret env` for the current git repo's project + scope; only inside a git repo |
+| project | `node npm pnpm bun bunx yarn npx python python3 uv docker docker-compose` | `secret env` for the current git repo's project + scope, in the stage `SECRET_STAGE` names (none by default); only inside a git repo |
 | plain | `pip pip3` | nothing; wrapped only for the mise pin |
 
 Precedence in the injecting modes:
 `exported env > .env files (project mode) > Keychain`.
+
+Stages: an item may exist once per environment (`secret set DATABASE_URL -S
+--stage prod`). Project mode injects the stage named by `SECRET_STAGE` on top
+of the stage-less layers (`SECRET_STAGE=test npm test`); with no stage,
+nothing staged is injected, so a prod value never leaves the keychain unless
+asked for by name. Tool mode never receives a stage: your own environment
+holds stage-less values only. Set `SECRET_STAGE` on the outermost launch — a
+nested launch in another stage keeps the names the outer one exported. A
+launch with `SECRET_STAGE=prod` prints `secret-shim: stage=prod (...)` on
+stderr; that line is expected, not an error.
 
 Every mode also exports `MISE_DATA_DIR`, `MISE_CONFIG_DIR`, `MISE_STATE_DIR`
 and `MISE_CACHE_DIR`, pinned to the account's real home (inherited values
@@ -180,6 +190,9 @@ the agent when a per-repo override must take effect.
 5. Does the value exist? `secret env -p <project>` lists it and prompts.
 6. Is the name already in env, causing a collision skip, or present as a `.env`
    name, causing dotenv skip?
+7. Is the value stored under a stage (`secret ls --long` STAGE column, or
+   `NAME@stage` in `secret ls`) while `SECRET_STAGE` is unset or names another
+   stage? Staged values are injected only for their own stage.
 
 </Debugging>
 
