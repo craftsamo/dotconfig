@@ -115,21 +115,34 @@ async function viewNames(projectId: string, cwd?: string): Promise<string[]> {
 }
 
 /** Creates a saved view through the REST projectsV2 views API when none of that name exists. */
-export async function ensureView(project: Project, spec: ViewSpec, cwd?: string): Promise<{ created: boolean; view: string }> {
+export async function ensureView(project: Project, spec: ViewSpec, cwd?: string): Promise<{ created: boolean; view: string; skippedFields: string[] }> {
   const existing = await viewNames(project.id, cwd)
-  if (existing.some((n) => sameName(n, spec.name))) return { created: false, view: spec.name }
+  if (existing.some((n) => sameName(n, spec.name))) return { created: false, view: spec.name, skippedFields: [] }
   const base = restBase(project)
-  const argv = ["api", "--method", "POST", "-H", REST_API_VERSION, `${base}/projectsV2/${project.number}/views`, "-f", `name=${spec.name}`, "-f", `layout=${spec.layout}`]
-  if (spec.filter) argv.push("-f", `filter=${spec.filter}`)
+  const params = ["-f", `name=${spec.name}`, "-f", `layout=${spec.layout}`]
+  if (spec.filter) params.push("-f", `filter=${spec.filter}`)
+  // A column the board lacks is skipped and reported: a view is created once,
+  // so a caller repairs it in the UI rather than by re-running.
+  const skippedFields: string[] = []
   if (spec.layout !== "roadmap" && spec.visibleFields?.length) {
     const restFields: any[] = (await runGhJson(["api", "-H", REST_API_VERSION, `${base}/projectsV2/${project.number}/fields`, "--paginate"], cwd)) ?? []
     for (const name of spec.visibleFields) {
       const f = restFields.find((x) => sameName(x.name, name))
-      if (f?.id != null) argv.push("-F", `visible_fields[]=${f.id}`)
+      if (f?.id != null) params.push("-F", `visible_fields[]=${f.id}`)
+      else skippedFields.push(name)
     }
   }
-  await runGh(argv, cwd)
-  return { created: true, view: spec.name }
+  const post = (root: string) => exec(["gh", "api", "--method", "POST", "-H", REST_API_VERSION, `${root}/projectsV2/${project.number}/views`, ...params], { cwd })
+  let res = await post(base)
+  // The views route names its user segment `{user_id}` where the field and
+  // project routes take `{username}`; when the login is not found, the
+  // account's numeric id is tried before giving up.
+  if (!res.ok && project.owner.type === "User" && /404|Not Found/i.test(res.stderr + res.stdout)) {
+    const id = (await runGh(["api", `users/${project.owner.login}`, "--jq", ".id"], cwd)).trim()
+    if (id) res = await post(`/users/${id}`)
+  }
+  if (!res.ok) throw new Error(`creating view "${spec.name}" failed (exit ${res.code}):\n${res.stderr.trim() || res.stdout.trim()}`)
+  return { created: true, view: spec.name, skippedFields }
 }
 
 export const create = tool({
@@ -177,13 +190,15 @@ export const create = tool({
     }
     const views: Record<string, string> = {}
     if (args.views !== false) {
-      for (const v of STANDARD_VIEWS) views[v.name] = (await ensureView(project, v, cwd)).created ? "created" : "exists"
+      for (const v of STANDARD_VIEWS) {
+        const r = await ensureView(project, v, cwd)
+        views[v.name] = !r.created ? "exists" : r.skippedFields.length ? `created (columns not on the board: ${r.skippedFields.join(", ")})` : "created"
+      }
     }
     let linked: string | null = null
     if (args.linkRepo) {
       const repo = args.linkRepo === "current" ? (await resolveRepo(undefined, cwd)).nameWithOwner : parseRepoRef(args.linkRepo)
-      const res = await exec(["gh", "project", "link", String(project.number), "--owner", project.owner.login, "--repo", repo], { cwd })
-      if (!res.ok && !/already linked/i.test(res.stderr)) throw new Error(`gh project link failed: ${res.stderr.trim()}`)
+      await runGh(["project", "link", String(project.number), "--owner", project.owner.login, "--repo", repo], cwd)
       linked = repo
     }
     return JSON.stringify(
