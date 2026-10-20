@@ -22,6 +22,13 @@ permissions:
   - { action: git_publish, resource: "*", effect: deny }
   - { action: gh_pr_meta, resource: "*", effect: deny }
   - { action: gh_pr_meta_apply, resource: "*", effect: deny }
+  - { action: gh_issue_view, resource: "*", effect: allow }
+  - { action: gh_issue_list, resource: "*", effect: allow }
+  - { action: gh_issue_create, resource: "*", effect: deny }
+  - { action: gh_issue_update, resource: "*", effect: deny }
+  - { action: gh_issue_comment, resource: "*", effect: deny }
+  - { action: gh_issue_relate, resource: "*", effect: deny }
+  - { action: gh_issue_develop, resource: "*", effect: deny }
   - { action: git_publish_preview, resource: "*", effect: allow }
   - { action: edit, resource: "*", effect: deny }
   - { action: external_directory, resource: "*", effect: allow }
