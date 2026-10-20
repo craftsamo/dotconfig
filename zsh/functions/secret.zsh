@@ -2054,8 +2054,9 @@ COMMANDS
   api/DATABASE_URL@prod`).
 
   The wizard's List is a browser: every item with a preview of its
-  metadata, matched on name, meta and comment; enter shows, ^y copies,
-  ^e updates, ^d deletes, esc returns.
+  metadata, matched on name, meta and comment; enter shows, ^y copies
+  the value, ^f copies one meta field or the comment, ^o opens the url=
+  field in the browser, ^e updates, ^d deletes, esc returns.
   keychain create NAME [--timeout MIN] [--no-autolock]
         create ~/Library/Keychains/NAME.keychain-db (auto-locks on sleep
         and after 30 min by default) and add it to the search list
@@ -2355,6 +2356,50 @@ _secret_ui_update_token() {    # $1 project  $2 token: the update dialogue for o
   _secret_cmd_update "${args[@]}"
 }
 
+# Metadata is not secret: a field's value goes to the clipboard as it is,
+# without the 45 s clearing a value gets. One field copies at once, several
+# go through a small picker; the comment is offered alongside the fields.
+_secret_ui_copy_field() {      # $1 project  $2 token
+  local proj=$1 tok=$2 _tok_name _tok_layer row pick
+  local -a _tok_flags f choices
+  _secret_ui_split_token "$tok"
+  row=$(_secret_row_of "$_tok_name" "$proj" "$_tok_layer")
+  [[ -z $row ]] && { _secret_err "not found: $tok"; return 1 }
+  f=("${(@ps:\t:)row}")
+  choices=(${(f)"$(_secret_meta_fields "${f[8]}")"})
+  [[ -n ${f[5]} ]] && choices+=("comment=${f[5]}")
+  if (( ${#choices} == 0 )); then
+    print -r -- "$tok has no meta fields or comment"
+    return 0
+  elif (( ${#choices} == 1 )); then
+    pick=${choices[1]}
+  else
+    pick=$(print -rl -- "${choices[@]}" \
+      | _secret_fzf --header="secret › $tok › copy which field" --prompt='field> ') || return 0
+    [[ -z $pick ]] && return 0
+  fi
+  print -rn -- "${pick#*=}" | pbcopy
+  print -r -- "copied ${pick%%=*} of $tok to clipboard"
+}
+
+_secret_ui_open_url() {        # $1 project  $2 token: open the url= field in the browser
+  local proj=$1 tok=$2 _tok_name _tok_layer row url
+  local -a _tok_flags f
+  _secret_ui_split_token "$tok"
+  row=$(_secret_row_of "$_tok_name" "$proj" "$_tok_layer")
+  [[ -z $row ]] && { _secret_err "not found: $tok"; return 1 }
+  f=("${(@ps:\t:)row}")
+  if ! url=$(_secret_meta_get "${f[8]}" url); then
+    print -r -- "$tok has no url= field (add one: secret update $tok -p $proj --meta url=...)"
+    return 0
+  fi
+  if [[ $url != http://* && $url != https://* ]]; then
+    _secret_err "$tok: url= is not an http(s) URL, not opening it"
+    return 1
+  fi
+  open "$url" && print -r -- "opened $url"
+}
+
 # List is a browser: the picker with its preview, kept open until Esc, with
 # the item actions on keys so a look at a secret flows straight into the
 # next step without going back through the top menu.
@@ -2363,9 +2408,9 @@ _secret_ui_list() {
   local -a _tok_flags
   proj=$(_secret_ui_pick_project 'secret › list › choose project') || return 0
   [[ -z $proj ]] && return 0
-  local header="secret › $proj$(_secret_kc_suffix "$proj") › list    enter: show  ^y: copy  ^e: update  ^d: delete  esc: back"
+  local header="secret › $proj$(_secret_kc_suffix "$proj") › list    enter: show  ^y: copy  ^f: field  ^o: open url  ^e: update  ^d: delete  esc: back"
   while true; do
-    out=$(_secret_ui_pick_items "$proj" "$header" expect --expect=ctrl-y,ctrl-e,ctrl-d --height=70%) || return 0
+    out=$(_secret_ui_pick_items "$proj" "$header" expect --expect=ctrl-y,ctrl-f,ctrl-o,ctrl-e,ctrl-d --height=70%) || return 0
     key=${out%%$'\n'*}
     tok=${out#*$'\n'}
     [[ -n $tok && $tok != "$out" ]] || return 0
@@ -2373,6 +2418,12 @@ _secret_ui_list() {
     case $key in
       ctrl-y)
         _secret_cmd_get "$_tok_name" -p "$proj" "${_tok_flags[@]}" --copy
+        ;;
+      ctrl-f)
+        _secret_ui_copy_field "$proj" "$tok"
+        ;;
+      ctrl-o)
+        _secret_ui_open_url "$proj" "$tok"
         ;;
       ctrl-e)
         _secret_ui_update_token "$proj" "$tok"

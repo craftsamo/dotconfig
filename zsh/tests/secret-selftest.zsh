@@ -732,6 +732,21 @@ _secret_fzf() { print ctrl-y; }
   && ok "expect mode with nothing picked returns the key alone" || bad "expect mode with nothing picked returns the key alone"
 unfunction _secret_fzf
 _secret_fzf() { fzf --height=40% --reverse --no-sort "$@"; }
+# ^f copies a meta field (or the comment) plainly; ^o opens url=
+pbcopy() { cat > "$TD/clip"; }
+_secret_ui_copy_field $P TK_DB >/dev/null 2>&1
+[[ "$(<"$TD/clip")" == 'https://ex.com' ]] && ok "copy field: a lone field copies at once" || bad "copy field: a lone field copies at once"
+_secret_fzf() { grep '^comment='; }
+_secret_ui_copy_field $P api/TK_DB@prod >/dev/null 2>&1
+[[ "$(<"$TD/clip")" == 'prod memo' ]] && ok "copy field: the comment is offered as a field" || bad "copy field: the comment is offered as a field"
+unfunction _secret_fzf pbcopy
+_secret_fzf() { fzf --height=40% --reverse --no-sort "$@"; }
+open() { print -r -- "OPEN $1"; }
+[[ "$(_secret_ui_open_url $P TK_DB 2>/dev/null)" == *'OPEN https://ex.com'* ]] && ok "open url: opens the url= field" || bad "open url: opens the url= field"
+[[ "$(_secret_ui_open_url $P api/TK_DB@prod 2>/dev/null)" == *'no url= field'* ]] && ok "open url: says when there is none" || bad "open url: says when there is none"
+secret update TK_DB -p $P --meta 'url=file:///etc/passwd' >/dev/null 2>&1
+_secret_ui_open_url $P TK_DB >/dev/null 2>&1 && bad "open url: refuses a non-http url" || ok "open url: refuses a non-http url"
+unfunction open
 secret rm TK_DB -p $P -f >/dev/null 2>&1
 secret rm api/TK_DB@prod -p $P -f >/dev/null 2>&1
 

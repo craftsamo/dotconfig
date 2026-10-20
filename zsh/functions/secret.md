@@ -28,9 +28,11 @@ The wizard's item pickers show every item with a preview pane of its
 metadata (`secret show`), and match what you type against the name, the
 meta fields and the comment, so a dashboard URL or an account finds its
 key. **List** keeps that picker open as a browser: `enter` shows the item,
-`^y` copies its value, `^e` opens the update dialogue, `^d` deletes it
-(after a confirmation), `esc` returns to the menu — a look at a secret
-flows straight into the next step.
+`^y` copies its value, `^f` copies one meta field or the comment (plain,
+no auto-clear — metadata is not secret), `^o` opens its `url=` field in
+the browser, `^e` opens the update dialogue, `^d` deletes it (after a
+confirmation), `esc` returns to the menu — a look at a secret flows
+straight into the next step.
 
 Project resolution: `-p NAME` > `git config secret.project` > the git
 repository name > `global`. Run `secret link NAME` once per clone of a
@@ -351,7 +353,7 @@ secret import secret-export-all-YYYYMMDD.json.age
 
 ## Tests
 
-[`zsh/tests/secret-selftest.zsh`](../tests/secret-selftest.zsh) — 266
+[`zsh/tests/secret-selftest.zsh`](../tests/secret-selftest.zsh) — 271
 assertions: round-trips (special characters, json/env/age), partial updates,
 `--no-env` (kept out of `env`, kept across rewrites and export/import, stored
 as the `envn`/`envy` type code), `--meta` fields (validation, sorting,
