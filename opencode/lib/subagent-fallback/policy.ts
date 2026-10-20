@@ -55,6 +55,8 @@ const sonnet = (variant: string) => m("anthropic", "claude-sonnet-5-5", variant)
 const haiku = (variant: string) => m("anthropic", "claude-haiku-5-5", variant)
 const sol = (variant: string) => m("openai", "gpt-6.1-sol", variant)
 const luna = (variant: string) => m("openai", "gpt-6-luna", variant)
+// The xAI subscription's weekly pool; retrieval is the work that fits it.
+const grok = (variant: string) => m("xai", "grok-4.7", variant)
 // Fast mode: the same model with priority processing, 2.5x the included usage.
 const solFast = (variant: string) => m("openai", "gpt-6.1-sol-fast", variant)
 const lunaFast = (variant: string) => m("openai", "gpt-6-luna-fast", variant)
@@ -75,8 +77,8 @@ export const ROUTES: Readonly<Record<string, Route>> = Object.freeze(
       verifier: { primary: luna("low"), alternate: haiku("low") },
       debugger: { primary: sol("high"), alternate: opus("high") },
       "reviewer-deep": { primary: sol("high"), alternate: opus("high") },
-      "searcher-deep": { primary: sol("medium"), alternate: sonnet("medium") },
-      searcher: { primary: sol("low"), alternate: sonnet("low") },
+      "searcher-deep": { primary: grok("medium"), alternate: sol("medium") },
+      searcher: { primary: grok("low"), alternate: sol("low") },
     }).map(([agent, route]) => [
       agent,
       Object.freeze({
@@ -111,9 +113,12 @@ export function routeForLaunch(
   return route
 }
 
-const METHODS: Record<string, readonly string[]> = {
+// The native subscription logins, by the OAuth method each provider's
+// built-in plugin registers. An API key never qualifies.
+export const METHODS: Readonly<Record<string, readonly string[]>> = {
   anthropic: ["claude-max"],
   openai: ["chatgpt-browser", "chatgpt-headless"],
+  xai: ["device"],
 }
 
 function approved(
@@ -156,6 +161,19 @@ export function freshState(
 const positive = (n: unknown): boolean =>
   typeof n === "number" && Number.isFinite(n) && n > 0
 
+// Providers whose catalog publishes one budget for input and output (the
+// output limit equals the context) instead of reserving the output.
+const SHARED_BUDGET = new Set(["xai"])
+
+// Tokens a first request may carry: the context less the reserved output, or
+// the whole context on a shared budget.
+export function inputCapacity(limit: CatalogModel["limit"]): number {
+  if (limit.output > limit.context) return 0
+  const reserved =
+    limit.output === limit.context ? limit.context : limit.context - limit.output
+  return Math.min(limit.input ?? Infinity, reserved)
+}
+
 export function catalogOk(catalog: CatalogModel[], model: ModelRef): boolean {
   const found = catalog.find(
     (item) => item.id === model.id && item.providerID === model.providerID,
@@ -173,6 +191,7 @@ export function catalogOk(catalog: CatalogModel[], model: ModelRef): boolean {
   if (!limit || !positive(limit.context) || !positive(limit.output))
     return false
   if (limit.input !== undefined && !positive(limit.input)) return false
+  if (limit.context === limit.output) return SHARED_BUDGET.has(model.providerID)
   return limit.context > limit.output
 }
 

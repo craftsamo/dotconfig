@@ -277,17 +277,21 @@ unchanged; with `pinModels` (below) a project's own model for a role is not.
 | explore-spark           | claude-haiku-5-5  | low     |
 | explore-small, verifier | claude-haiku-5-5  | low     |
 | debugger, reviewer-deep | claude-opus-5-5   | high    |
-| searcher-deep           | claude-sonnet-5-5 | medium  |
-| searcher                | claude-sonnet-5-5 | low     |
+| searcher-deep           | gpt-6.1-sol       | medium  |
+| searcher                | gpt-6.1-sol       | low     |
 
 Native model IDs are explicit: `gpt-6.1-sol`, `gpt-6.1-sol-fast`, `gpt-6-luna`,
-`gpt-6-luna-fast`, `claude-opus-5-5`, `claude-sonnet-5-5` and `claude-haiku-5-5`.
+`gpt-6-luna-fast`, `claude-opus-5-5`, `claude-sonnet-5-5`, `claude-haiku-5-5`
+and `grok-4.7`.
 The explore tiers lead on the ChatGPT window, medium, high and spark in fast
 mode, which is priority processing of the same model at 2.5x the included
 usage; explore-max stays on standard Sol since its xhigh runs are long and rare.
-There is no Grok, free-tier, API-key
-or environment-variable escalation; both ends must be approved native OAuth
-accounts. The plugin never buys credits, enables auto-purchase, or changes
+The searchers lead on Grok: retrieval is the work that fits the xAI
+subscription's weekly pool, which `x_search` draws on too, and it keeps the
+ChatGPT window for the explore tiers until the pool is spent. There is no
+free-tier, API-key or environment-variable escalation; both ends must be
+approved native OAuth accounts (Claude Max, a ChatGPT login, or the xAI device
+login). The plugin never buys credits, enables auto-purchase, or changes
 account settings or logins.
 
 **Shared information.** Reads Quota 5.0.1's public v2 JSON export once before
@@ -300,7 +304,8 @@ with the plugin option `quotaExportPath` (absolute path).
 
 Rows are matched to the active OpenCode connection using `sourceId`. Only the
 5h and Weekly rows decide, and at least one must be present: some ChatGPT plans
-have no 5h window, and an exhausted ChatGPT account may export just one row. If
+have no 5h window, xAI exports only its weekly pool, and an exhausted ChatGPT
+account may export just one row. If
 either window is at 0% the provider counts as exhausted, since credits may
 already be spent behind the scenes. Model-specific rows (such as Claude Fable),
 Monthly usage credits and Code Review rows are ignored. Published 0% (or less)
@@ -580,10 +585,13 @@ A move to a credit lane (see above) therefore pays one full write.
   enough for config only.
 - **OpenAI**: built-in ChatGPT login,
   `opencode auth login openai --method chatgpt-browser`.
-- **xAI** (`x_search`): built-in SuperGrok login,
-  `opencode auth login xai --method device`; `XAI_API_KEY` wins when set. Quota
-  shows its usage in the footer and `/quota` (`enabledProviders` includes
-  `xai`); the launch selector ignores it, as no specialist role uses Grok.
+- **xAI** (the searchers and `x_search`): built-in device login for the xAI
+  subscription (the Grok side of The X Subscription),
+  `opencode auth login xai --method device`. The login's weekly pool is shared
+  with Grok on X, the Grok apps and Cursor. For `x_search`, `XAI_API_KEY` wins
+  when set (metered). Quota shows the pool in the footer and `/quota`
+  (`enabledProviders` includes `xai`), and the launch selector reads its
+  weekly row like the other subscriptions.
 
 `opencode auth list` shows the stored logins; `opencode auth switch` picks
 another one. Credentials live in OpenCode's database, not in `auth.json`.
