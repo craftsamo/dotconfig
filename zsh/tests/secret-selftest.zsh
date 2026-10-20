@@ -692,6 +692,49 @@ for tok in ${(f)"$(secret ls -p $P | grep 'ST_')"}; do
 done
 [[ -z "$(secret ls -p $P 2>/dev/null | grep 'ST_')" ]] && ok "ls tokens round-trip into rm layer flags" || bad "ls tokens round-trip into rm layer flags"
 
+# --- "[scope/]NAME[@stage]" is accepted as NAME by get/show/update/rm ---
+print -r -- 'tk-shared' | secret set TK_DB -p $P --meta url=https://ex.com -D 'api key' --stdin >/dev/null 2>&1
+print -r -- 'tk-api-prod' | secret set TK_DB -p $P --scope api --stage prod -j 'prod memo' --no-env --stdin >/dev/null 2>&1
+[[ "$(secret get api/TK_DB@prod -p $P)" == tk-api-prod ]] && ok "get accepts a layer token as NAME" || bad "get accepts a layer token as NAME"
+[[ "$(secret get TK_DB -p $P)" == tk-shared ]] && ok "a bare NAME still reads DWIM" || bad "a bare NAME still reads DWIM"
+[[ "$(secret show api/TK_DB@prod -p $P)" =~ 'Stage:[[:space:]]+prod' ]] && ok "show accepts a layer token" || bad "show accepts a layer token"
+secret update api/TK_DB@prod -p $P --meta 'url=https://x/y@z' -j 'a/b@c' >/dev/null 2>&1 \
+  && ok "update accepts a layer token" || bad "update accepts a layer token"
+tkshow=$(secret show api/TK_DB@prod -p $P)
+[[ $tkshow == *'url=https://x/y@z'* && $tkshow == *'a/b@c'* ]] \
+  && ok "option values holding '/' or '@' are not read as tokens" || bad "option values holding '/' or '@' are not read as tokens"
+secret rm api/TK_DB@prod -p $P -f >/dev/null 2>&1 && ok "rm accepts a layer token" || bad "rm accepts a layer token"
+[[ "$(secret get TK_DB -p $P --stage prod)" == tk-shared ]] && ok "rm by token removed only that layer" || bad "rm by token removed only that layer"
+
+# --- the fzf picker: visible columns, hidden token and meta, preview ---
+print -r -- 'tk-api-prod' | secret set TK_DB -p $P --scope api --stage prod -j 'prod memo' --no-env --stdin >/dev/null 2>&1
+_secret_fzf() { cat; }                  # the picker's lines, unfiltered
+pick=$(_secret_ui_pick_items $P hdr "" 2>/dev/null)
+[[ $pick == $'TK_DB\napi/TK_DB@prod' ]] && ok "picker returns one token per line" || bad "picker returns one token per line"
+_secret_fzf() { tee /dev/stderr >/dev/null; }   # the raw lines, to inspect
+raw=$(_secret_ui_pick_items $P hdr "" 2>&1 >/dev/null)
+[[ $raw == *$'TK_DB '*'API KEY'*'yes'*$'\tTK_DB\turl=https://ex.com'* ]] \
+  && ok "picker lines carry columns, token and meta as tab fields" || bad "picker lines carry columns, token and meta as tab fields"
+[[ $raw == *'api/TK_DB@prod '*'no '*'prod memo'$'\tapi/TK_DB@prod\t'* ]] \
+  && ok "picker shows env no and the comment" || bad "picker shows env no and the comment"
+_secret_fzf() { print -r -- "$*" >&2; cat >/dev/null; }
+args=$(_secret_ui_pick_items $P hdr "" 2>&1 >/dev/null)
+[[ $args == *"--with-nth=1"* && $args == *"--preview=zsh -fc 'source"*"secret show"*" {2} $P"* ]] \
+  && ok "picker previews with secret show on the token" || bad "picker previews with secret show on the token"
+preview=${${args#*--preview=}%% --preview-window*}
+[[ "$(eval "${preview//\{2\}/api/TK_DB@prod}" 2>/dev/null)" =~ 'Comment:[[:space:]]+prod memo' ]] \
+  && ok "the preview command runs against this checkout" || bad "the preview command runs against this checkout"
+_secret_fzf() { print ctrl-y; head -1; }
+[[ "$(_secret_ui_pick_items $P hdr expect --expect=ctrl-y 2>/dev/null)" == $'ctrl-y\nTK_DB' ]] \
+  && ok "expect mode returns the key and the token" || bad "expect mode returns the key and the token"
+_secret_fzf() { print ctrl-y; }
+[[ "$(_secret_ui_pick_items $P hdr expect --expect=ctrl-y 2>/dev/null)" == 'ctrl-y' ]] \
+  && ok "expect mode with nothing picked returns the key alone" || bad "expect mode with nothing picked returns the key alone"
+unfunction _secret_fzf
+_secret_fzf() { fzf --height=40% --reverse --no-sort "$@"; }
+secret rm TK_DB -p $P -f >/dev/null 2>&1
+secret rm api/TK_DB@prod -p $P -f >/dev/null 2>&1
+
 # --- keychain rm ---
 secret keychain rm $KCN3 -f >/dev/null 2>&1 && ok "keychain rm" || bad "keychain rm"
 [[ ! -e $KCP3 ]] && ok "keychain file removed" || bad "keychain file removed"
