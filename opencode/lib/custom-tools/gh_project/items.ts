@@ -19,7 +19,7 @@ export const item_list = tool({
   description:
     "List a board's items, read-only, with every field flattened by name (custom and built-in: Status, Milestone, Repository, Parent issue, Sub-issues progress, ...) and the content's own facts (number, state, kind, parent, sub-issue progress). Filters: status (option name), contentType issue / pr / draft, repo (owner/repo of the content), search (title substring), includeArchived. Paginates up to `limit` (default 100). Board resolved as in gh_project_resolve.",
   args: {
-    status: tool.schema.string().optional().describe('Status option name, e.g. "In Progress"; "-Done" excludes one.'),
+    status: tool.schema.string().optional().describe('Status option names, comma-separated; a leading "-" excludes, e.g. "Todo,In Progress" or "-Done,-Cancelled".'),
     contentType: tool.schema.enum(["issue", "pr", "draft"]).optional(),
     contentRepo: tool.schema.string().optional().describe('Only items whose issue or PR lives in this owner/repo ("current" for the working tree\'s).'),
     search: tool.schema.string().optional().describe("Case-insensitive substring of the title."),
@@ -37,13 +37,15 @@ export const item_list = tool({
     // Filters run after the read, so the whole board is read (up to the cap) and a cut is reported.
     const all = await listItems(project.id, { limit: BOARD_CAP, cwd })
     const truncated = all.length >= BOARD_CAP
-    const status = args.status?.trim()
-    const exclude = status?.startsWith("-") ? status.slice(1) : null
+    const statuses = (args.status ?? "").split(",").map((s) => s.trim()).filter(Boolean)
+    const excluded = statuses.filter((s) => s.startsWith("-")).map((s) => s.slice(1))
+    const included = statuses.filter((s) => !s.startsWith("-"))
     const want = args.contentType ? CONTENT_TYPES[args.contentType] : null
     const repoFilter = args.contentRepo === "current" ? repo!.nameWithOwner : args.contentRepo ?? null
     const items = all
       .filter((it) => args.includeArchived || !it.archived)
-      .filter((it) => !status || (exclude ? !sameName(it.fields.Status, exclude) : sameName(it.fields.Status, status)))
+      .filter((it) => !included.length || included.some((s) => sameName(it.fields.Status, s)))
+      .filter((it) => !excluded.some((s) => sameName(it.fields.Status, s)))
       .filter((it) => !want || it.content?.type === want)
       .filter((it) => !repoFilter || (it.content && it.content.type !== "DraftIssue" && sameName(it.content.repo, repoFilter)))
       .filter((it) => !args.search || titleOf(it).toLowerCase().includes(args.search.toLowerCase()))
