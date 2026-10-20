@@ -35,13 +35,14 @@ Non-trivial work runs through this spine; do not jump straight to edits:
    independently verifiable, reviewable-PR-sized increment) → steps
    (commit-sized edit→verify moves). A sub-goal whose verification cannot be
    stated needs further decomposition. Persist durable or cross-session plans
-   via `approach-github-projects`, not local TODO files.
+   via `approach-github-planning`, not local TODO files.
 5. Hand off to execution: publish the agreed plan as a conversation
-   task list shaped `Phase{N}.{m} - <task> (executor)` — each sub-goal is a
-   Phase, one reviewable PR (one layer of a native stack when there are
-   several, in stack order), and {m} are its commit-sized steps; executor one
-   of Build | worker | reviewer | verifier | debugger (default Build; worker
-   only for mechanical work). For a sub-goal that adds screens or stored data,
+   task list shaped `Phase{N}.{m} - <task> (executor)` — Phase and {m} as
+   the global `<PlanHandoff>` defines them (each sub-goal a reviewable PR
+   layer, one layer of a native stack when there are several, in stack
+   order, and {m} its commit-sized steps); executor one of Build | worker |
+   reviewer | verifier | debugger (default Build; worker only for mechanical
+   work). For a sub-goal that adds screens or stored data,
    agree what people can do, the screens and the data with the user before its
    steps; a mock or diagram beats prose there. V2 has no native Todo tool; do not
    create local TODO/plan files to simulate it. Ask the user to switch to

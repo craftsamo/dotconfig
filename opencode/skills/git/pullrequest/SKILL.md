@@ -168,7 +168,7 @@ branch name, title or body (<Audience>).
   from a fork (stacks cannot span a fork and its upstream), the remote is not
   github.com, or `git_publish` returns `stacksUnavailable`. A plain PR still
   publishes through <Publishing>, and can join a stack later.
-- A purpose in `approach-github-projects` follows its own `<BranchTopology>`,
+- A unit in `approach-github-planning` follows its own `<BranchTopology>`,
   which already decides the stack.
 
 </StackDecision>
