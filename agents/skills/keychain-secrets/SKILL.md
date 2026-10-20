@@ -45,10 +45,12 @@ Stages: an item may exist once per environment (`secret set DATABASE_URL -S
 of the stage-less layers (`SECRET_STAGE=test npm test`); with no stage,
 nothing staged is injected, so a prod value never leaves the keychain unless
 asked for by name. Tool mode never receives a stage: your own environment
-holds stage-less values only. Set `SECRET_STAGE` on the outermost launch — a
-nested launch in another stage keeps the names the outer one exported. A
-launch with `SECRET_STAGE=prod` prints `secret-shim: stage=prod (...)` on
-stderr; that line is expected, not an error.
+holds stage-less values only. A nested launch in another stage swaps the
+values the outer shim injected for the new stage's (never a mix of two
+stages) and prints `secret-shim: stage <project>@ -> <project>@prod
+(N injected)`; values you exported by hand are left alone. A launch with
+`SECRET_STAGE=prod` prints `secret-shim: stage=prod (...)` on stderr; both
+lines are expected, not errors.
 
 Every mode also exports `MISE_DATA_DIR`, `MISE_CONFIG_DIR`, `MISE_STATE_DIR`
 and `MISE_CACHE_DIR`, pinned to the account's real home (inherited values
