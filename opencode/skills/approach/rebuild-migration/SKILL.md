@@ -34,11 +34,12 @@ Non-trivial work runs through this spine; do not jump straight to edits:
    independently verifiable, reviewable-PR-sized increment) → steps
    (commit-sized edit→verify moves). A sub-goal whose verification cannot be
    stated needs further decomposition. Persist durable or cross-session plans
-   via `approach-github-projects`, not local TODO files.
+   via `approach-github-planning`, not local TODO files.
 5. Hand off to execution: publish the agreed plan as a conversation
-   task list shaped `Phase{N}.{m} - <task> (executor)` — Phase is the
-   dependency wave, {m} a reference id within the phase (no ordering implied),
-   executor one of Build | worker | reviewer | verifier | debugger (default
+   task list shaped `Phase{N}.{m} - <task> (executor)` — Phase and {m} as
+   the global `<PlanHandoff>` defines them (a reviewable PR layer and its
+   commit-sized steps when the work ends in PRs; a dependency wave and a
+   reference id otherwise), executor one of Build | worker | reviewer | verifier | debugger (default
    Build; worker only for mechanical work). V2 has no native Todo tool; do not
    create local TODO/plan files to simulate it. Ask the user to switch to
    Build; do not switch automatically or execute until the user switches.
