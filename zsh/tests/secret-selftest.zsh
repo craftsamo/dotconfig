@@ -586,6 +586,110 @@ print -r -- '{"items":[{"name":"TEST_BADMETA","value":"v","project":"'$P'","meta
 secret import "$TD/badmeta.json" -y >/dev/null 2>&1 && bad "json import rejects the reserved meta key env" || ok "json import rejects the reserved meta key env"
 secret rm TEST_BADMETA -p $P -f >/dev/null 2>&1
 
+# --- stages: per-environment layers on top of scopes ---
+unset SECRET_STAGE
+print -r -- 'db-shared' | secret set ST_DB -p $P --stdin >/dev/null 2>&1
+print -r -- 'db-api' | secret set ST_DB -p $P --scope api --stdin >/dev/null 2>&1
+print -r -- 'db-prod' | secret set ST_DB -p $P --stage prod --stdin >/dev/null 2>&1 \
+  && ok "set --stage" || bad "set --stage"
+print -r -- 'db-api-prod' | secret set ST_DB -p $P --scope api --stage prod --stdin >/dev/null 2>&1 \
+  && ok "set --scope --stage" || bad "set --scope --stage"
+print -r -- 'log-shared' | secret set ST_LOG -p $P --stdin >/dev/null 2>&1
+print -r -- 'tok-test' | secret set ST_TOK -p $P --stage test --stdin >/dev/null 2>&1
+print -r -- 'hid-prod' | secret set ST_HID -p $P --stage prod --no-env --stdin >/dev/null 2>&1
+print -r -- 'hid-shared' | secret set ST_HID -p $P --stdin >/dev/null 2>&1
+security find-generic-password -s "secret.$P@prod" -a ST_DB "$HOME/Library/Keychains/$P.keychain-db" >/dev/null 2>&1 \
+  && ok "a staged item lives in service secret.<project>@<stage>" || bad "a staged item lives in service secret.<project>@<stage>"
+security find-generic-password -s "secret.$P/api@prod" -a ST_DB "$HOME/Library/Keychains/$P.keychain-db" >/dev/null 2>&1 \
+  && ok "a scoped staged item lives in secret.<project>/<scope>@<stage>" || bad "a scoped staged item lives in secret.<project>/<scope>@<stage>"
+[[ "$(secret show ST_DB -p $P --scope api --stage prod)" =~ 'Label:[[:space:]]+api/ST_DB@prod' ]] \
+  && ok "label carries scope and stage" || bad "label carries scope and stage"
+# get: DWIM and exact
+[[ "$(secret get ST_DB -p $P)" == db-shared ]] && ok "get without a stage reads the stage-less layer" || bad "get without a stage reads the stage-less layer"
+[[ "$(secret get ST_DB -p $P --stage prod)" == db-prod ]] && ok "get --stage reads the stage's shared layer" || bad "get --stage reads the stage's shared layer"
+[[ "$(secret get ST_DB -p $P --stage prod --scope api)" == db-api-prod ]] && ok "get --stage --scope reads the stage's scoped layer" || bad "get --stage --scope reads the stage's scoped layer"
+[[ "$(secret get ST_DB -p $P --stage test)" == db-shared ]] && ok "get --stage falls back to the stage-less layer" || bad "get --stage falls back to the stage-less layer"
+[[ "$(SECRET_STAGE=prod secret get ST_DB -p $P)" == db-prod ]] && ok "SECRET_STAGE selects the stage" || bad "SECRET_STAGE selects the stage"
+[[ "$(SECRET_STAGE=prod secret get ST_DB -p $P --no-stage)" == db-shared ]] && ok "--no-stage overrides SECRET_STAGE" || bad "--no-stage overrides SECRET_STAGE"
+secret get ST_TOK -p $P >/dev/null 2>&1 && bad "a staged-only item is invisible without its stage" || ok "a staged-only item is invisible without its stage"
+# env overlay: shared < scoped < shared@stage < scoped@stage; other stages never emitted
+stenv=$(secret env -p $P)
+[[ $stenv == *"ST_DB='db-shared'"* && $stenv != *ST_TOK* && $stenv != *db-prod* ]] \
+  && ok "env without a stage emits no staged value" || bad "env without a stage emits no staged value"
+stenv=$(secret env -p $P --stage prod)
+[[ $stenv == *"ST_DB='db-prod'"* && $stenv == *"ST_LOG='log-shared'"* && $stenv != *ST_TOK* ]] \
+  && ok "env --stage overlays the stage and falls back for the rest" || bad "env --stage overlays the stage and falls back for the rest"
+[[ $stenv != *ST_HID* ]] && ok "a --no-env item in the stage hides the shared one" || bad "a --no-env item in the stage hides the shared one"
+[[ "$(secret env -p $P --stage prod --scope api)" == *"ST_DB='db-api-prod'"* ]] \
+  && ok "env --stage --scope: the stage's scoped layer wins" || bad "env --stage --scope: the stage's scoped layer wins"
+[[ "$(secret env -p $P --scope api)" == *"ST_DB='db-api'"* ]] \
+  && ok "env --scope without a stage: the scoped layer wins" || bad "env --scope without a stage: the scoped layer wins"
+[[ "$(SECRET_STAGE=test secret env -p $P)" == *"ST_TOK='tok-test'"* ]] && ok "env honours SECRET_STAGE" || bad "env honours SECRET_STAGE"
+[[ "$(SECRET_STAGE=prod secret env -p $P --no-stage)" == *"ST_DB='db-shared'"* ]] && ok "env --no-stage ignores SECRET_STAGE" || bad "env --no-stage ignores SECRET_STAGE"
+# ls
+lsarr=(${(f)"$(secret ls -p $P)"})
+(( ${lsarr[(Ie)ST_DB@prod]} && ${lsarr[(Ie)api/ST_DB@prod]} && ${lsarr[(Ie)ST_DB]} )) \
+  && ok "ls shows [scope/]NAME[@stage] tokens" || bad "ls shows [scope/]NAME[@stage] tokens"
+lsarr=(${(f)"$(secret ls -p $P --stage prod)"})
+(( ${lsarr[(Ie)ST_DB@prod]} && ! ${lsarr[(Ie)ST_DB]} && ! ${lsarr[(Ie)ST_TOK@test]} )) \
+  && ok "ls --stage filters to that stage" || bad "ls --stage filters to that stage"
+lsarr=(${(f)"$(secret ls -p $P --no-stage)"})
+(( ${lsarr[(Ie)ST_DB]} && ! ${lsarr[(Ie)ST_DB@prod]} )) && ok "ls --no-stage filters to stage-less layers" || bad "ls --no-stage filters to stage-less layers"
+[[ "$(secret ls -p $P --long)" =~ 'ST_DB[[:space:]]+api[[:space:]]+prod[[:space:]]+ENV' ]] && ok "ls --long has a STAGE column" || bad "ls --long has a STAGE column"
+# validation
+print -r -- 'v' | secret set ST_X -p 'a@b' --stdin >/dev/null 2>&1 && bad "rejects '@' in a project name" || ok "rejects '@' in a project name"
+print -r -- 'v' | secret set ST_X -p $P --scope 'a@b' --stdin >/dev/null 2>&1 && bad "rejects '@' in a scope name" || ok "rejects '@' in a scope name"
+print -r -- 'v' | secret set ST_X -p $P --stage 'pr od' --stdin >/dev/null 2>&1 && bad "rejects a stage name with spaces" || ok "rejects a stage name with spaces"
+print -r -- 'v' | SECRET_STAGE='bad@stage' secret set ST_X -p $P --stdin >/dev/null 2>&1 && bad "rejects an invalid SECRET_STAGE" || ok "rejects an invalid SECRET_STAGE"
+# update / rm address the exact layer
+secret update ST_DB -p $P --stage prod -j 'prod memo' >/dev/null 2>&1
+[[ "$(secret show ST_DB -p $P --stage prod)" == *'prod memo'* && "$(secret show ST_DB -p $P --no-stage)" != *'prod memo'* ]] \
+  && ok "update --stage touches the stage's item only" || bad "update --stage touches the stage's item only"
+secret rm ST_DB -p $P --scope api --stage prod -f >/dev/null 2>&1 && ok "rm --scope --stage" || bad "rm --scope --stage"
+secret get ST_DB -p $P --stage prod --scope api >/dev/null 2>&1 && bad "exact layer flags address only that layer" || ok "exact layer flags address only that layer"
+[[ "$(secret get ST_DB -p $P --stage prod)" == db-prod && "$(secret get ST_DB -p $P --scope api)" == db-api ]] \
+  && ok "rm removed only that layer" || bad "rm removed only that layer"
+# export / import round-trip
+secret export -p $P --format json -o "$TD/stage.json" >/dev/null 2>&1
+[[ "$(jq -r '.items[] | select(.name == "ST_TOK") | .stage' "$TD/stage.json" 2>/dev/null)" == test ]] \
+  && ok "json export records the stage" || bad "json export records the stage"
+secret export -p $P --format env -o "$TD/stage.env" >/dev/null 2>&1
+grep -q '(stage: prod)' "$TD/stage.env" 2>/dev/null && ok "env export names the stage in its headers" || bad "env export names the stage in its headers"
+secret rm ST_DB -p $P --stage prod -f >/dev/null 2>&1
+secret rm ST_TOK -p $P --stage test -f >/dev/null 2>&1
+secret import "$TD/stage.json" -y >/dev/null 2>&1
+[[ "$(secret get ST_DB -p $P --stage prod)" == db-prod && "$(secret get ST_TOK -p $P --stage test)" == tok-test ]] \
+  && ok "json import restores stages" || bad "json import restores stages"
+secret import "$TD/stage.env" -p $P --stage qa -y >/dev/null 2>&1
+[[ "$(secret get ST_LOG -p $P --stage qa)" == log-shared && -z "$(secret ls -p $P --stage qa 2>/dev/null | grep -v '@qa$')" ]] \
+  && ok "import --stage forces every item into that stage" || bad "import --stage forces every item into that stage"
+SECRET_STAGE=uat secret import "$TD/stage.env" -p $P -y >/dev/null 2>&1
+[[ "$(secret get ST_LOG -p $P --stage uat)" == log-shared ]] && ok "env import lands in SECRET_STAGE" || bad "env import lands in SECRET_STAGE"
+SECRET_STAGE=uat secret import "$TD/stage.json" -y >/dev/null 2>&1
+[[ "$(secret ls -p $P --stage uat | grep -c ST_DB)" == 1 ]] \
+  && ok "json import keeps recorded stages despite SECRET_STAGE" || bad "json import keeps recorded stages despite SECRET_STAGE"
+# a recorded scope/stage that is no valid name never turns into a staged layer
+print -r -- '{"items":[{"name":"ST_EVIL","value":"v","project":"'$P'","scope":"api@prod","stage":""}]}' > "$TD/evil.json"
+secret import "$TD/evil.json" --no-stage -y >/dev/null 2>&1 && bad "import rejects a recorded scope holding '@'" || ok "import rejects a recorded scope holding '@'"
+security find-generic-password -s "secret.$P/api@prod" -a ST_EVIL "$HOME/Library/Keychains/$P.keychain-db" >/dev/null 2>&1 \
+  && bad "a rejected scope never lands in a stage" || ok "a rejected scope never lands in a stage"
+print -r -- '{"items":[{"name":"ST_EVIL","value":"v","project":"'$P'","stage":"pr od"}]}' > "$TD/evil.json"
+secret import "$TD/evil.json" -y >/dev/null 2>&1 && bad "import rejects an invalid recorded stage" || ok "import rejects an invalid recorded stage"
+# a repository whose name is no scope name has no ambient scope
+git -C "$TD" init -q 'at@repo' && git -C "$TD/at@repo" config secret.project $P
+print -r -- 'v' | ( cd "$TD/at@repo" && secret set ST_AT -S --stdin ) >/dev/null 2>&1 \
+  && bad "-S is refused in a repository named with '@'" || ok "-S is refused in a repository named with '@'"
+[[ "$( cd "$TD/at@repo" && secret get ST_DB )" == db-shared ]] \
+  && ok "such a repository reads the shared layer" || bad "such a repository reads the shared layer"
+[[ "$( cd "$TD/at@repo" && secret env )" == *"ST_DB='db-shared'"* ]] \
+  && ok "such a repository injects the shared layer" || bad "such a repository injects the shared layer"
+# every "[scope/]NAME[@stage]" token ls prints maps back to exact layer flags
+for tok in ${(f)"$(secret ls -p $P | grep 'ST_')"}; do
+  _secret_ui_split_token "$tok"
+  secret rm "$_tok_name" -p $P "${_tok_flags[@]}" -f >/dev/null 2>&1
+done
+[[ -z "$(secret ls -p $P 2>/dev/null | grep 'ST_')" ]] && ok "ls tokens round-trip into rm layer flags" || bad "ls tokens round-trip into rm layer flags"
+
 # --- keychain rm ---
 secret keychain rm $KCN3 -f >/dev/null 2>&1 && ok "keychain rm" || bad "keychain rm"
 [[ ! -e $KCP3 ]] && ok "keychain file removed" || bad "keychain file removed"
