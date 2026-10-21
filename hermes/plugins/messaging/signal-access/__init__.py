@@ -38,6 +38,7 @@ def _load(name, path):
 
 sig = _load("hermes_signal_sig", Path(__file__).resolve().parent / "sig.py")
 human_gate = _load("hermes_human_gate", Path(__file__).resolve().parents[2] / "_shared" / "human_gate.py")
+tool_preview = _load("hermes_tool_preview", Path(__file__).resolve().parents[2] / "_shared" / "tool_preview.py")
 
 DESCRIPTION = (
     "The user's own Signal account, read from a local mirror kept current by a sync service (history "
@@ -197,9 +198,10 @@ def register_skills(ctx, profile):
 def register(ctx):
     if ctx.profile_name not in PROFILES:
         return
+    schema = {"name": TOOL, "description": DESCRIPTION, "parameters": {
+        "type": "object", "properties": PROPERTIES, "required": ["action"], "additionalProperties": False}}
     ctx.register_tool(name=TOOL, toolset=TOOLSET, handler=signal_tool, description=DESCRIPTION,
-                      schema={"name": TOOL, "description": DESCRIPTION, "parameters": {
-                          "type": "object", "properties": PROPERTIES, "required": ["action"],
-                          "additionalProperties": False}})
+                      schema=schema)
+    tool_preview.enums(TOOL, schema, "action")
     ctx.register_hook("pre_tool_call", gate)
     register_skills(ctx, ctx.profile_name)

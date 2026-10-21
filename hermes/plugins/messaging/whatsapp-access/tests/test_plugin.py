@@ -54,6 +54,16 @@ class Ctx:
         self.hooks.append((name, callback))
 
 
+def test_the_progress_line_shows_the_action_only(monkeypatch):
+    display = pytest.importorskip("agent.display")
+    monkeypatch.setattr(display, "_PREVIEW_BUILDERS", {})
+    plugin.register(Ctx("assistant"))
+    line = lambda **args: display.build_tool_preview("whatsapp", args, max_len=0)
+    assert line(action="search", query="someone's name", text="the private message") == "search"
+    assert line(action="chats") == "chats"
+    assert line(action="anything else", text="the private message") is None
+
+
 def test_only_the_assistant_gets_the_tool():
     ctx = Ctx("creator")
     plugin.register(ctx)
