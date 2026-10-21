@@ -34,9 +34,8 @@
       }
     }
   ],
-  // No "instructions" array: OpenCode V2 accepts it but never loads the files
-  // (anomalyco/opencode#51341). All global rules live in AGENTS.md, which both
-  // V1 and V2 read.
+  // No "instructions" array, by choice (V2 loads one since 2.0.30). All global
+  // rules live in AGENTS.md, which both V1 and V2 read.
   // Anthropic's prompt cache lives five minutes, and a miss rewrites the whole
   // conversation (about $1 per rewrite at 380k tokens on Sonnet 5.5). A
   // keep-alive every four minutes holds it through pauses of up to twenty
@@ -80,13 +79,14 @@
     },
   },
   // Caps tool results before they enter the conversation, so past turns
-  // never change and the prompt cache stays intact. On 2.0.23 it reaches
-  // shell (keeps the tail) and webfetch/websearch (keep the head) only;
-  // read pages at its own fixed 50 KiB and grep/glob have their own result
-  // limits. The full text is saved and its path shown to the model. In the
-  // first two days it cut 0.8% of tool calls, the model re-read few of
-  // them, and it saved well under 1% of cache reads, so lowering it further
-  // is not worth it until read honors the cap too.
+  // never change and the prompt cache stays intact. Measured on 2.0.23 (not
+  // re-checked since), it reaches shell (keeps the tail) and
+  // webfetch/websearch (keep the head) only; read pages at its own fixed
+  // 50 KiB and grep/glob have their own result limits. The full text is
+  // saved and its path shown to the model. In the first two days it cut
+  // 0.8% of tool calls, the model re-read few of them, and it saved well
+  // under 1% of cache reads, so lowering it further is not worth it until
+  // read honors the cap too.
   "tool_output": {
     "max_lines": 1000,
     "max_bytes": 36864,
@@ -2529,6 +2529,12 @@
       "effect": "deny"
     },
   ],
+  "experimental": {
+    // The native todowrite tool (2.1.0) stays off: steps live in the
+    // conversation task list (AGENTS.md <PlanHandoff>). Pinned although off
+    // is the default, so the choice holds if the default changes.
+    "todo": false,
+  },
   "mcp": {
     "servers": {
       "blender-mcp": {
