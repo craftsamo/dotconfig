@@ -330,10 +330,11 @@ tested is what runs.
   hour held at the venue's rate (a gap pays none for its bar; a stop inside
   a bar pays the bar's whole, since OHLC does not say its hour). Sizes are capped by `limits` (a share of
   equity and a leverage) and the venue's 10 USDC minimum.
-- **Limit entries** rest through the next bar at their price, or at its
-  open when the market opened past it (a resting order cannot sit through
-  the market). They fill there with `costs.maker_bps` (default 1.5, the
-  lowest tier) and no slippage, only when the bar trades
+- **Limit entries** are placed when the next bar opens, good till
+  canceled. One the open already reached takes the book at once, as a
+  taker: at the open with `slippage_bps`, never past its own price. Else it
+  rests through the bar and fills at its price with `costs.maker_bps`
+  (default 1.5, the lowest tier) and no slippage, only when the bar trades
   `limit_through_bps` (default 2) past the price: a bar that only touches
   it leaves the order in the queue, unfilled. Filled, the entry is the
   market one's in everything else: its stop and size come from the
@@ -342,8 +343,8 @@ tested is what runs.
   signalling at the next close places a new limit there), and
   `limit_then_market` enters at market at the next open, as an entry from
   that close, unless the close no longer holds the side. Figures with a
-  limit entry carry `limit_entries`: placed, filled, its fill rate, at
-  market after, missed. Exits stay market orders. The gate does not place
+  limit entry carry `limit_entries`: placed, filled, its fill rate, filled
+  at once (`crossed`), at market after, missed. Exits stay market orders. The gate does not place
   limit entries: they are tested here only.
 - **Data**: the venue's newest 5000 candles, in pages; `long_history` adds
   the coin's USDT pair from Binance's public market data before them, prices

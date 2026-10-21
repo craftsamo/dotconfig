@@ -55,7 +55,7 @@ TRADES_SHOWN = 20
 CURVE_POINTS = 60
 MC_RUNS = 1000
 MC_MIN_TRADES = 20        # fewer trades say too little about their order to redraw them
-LIMIT_TOTALS = ("limit_orders", "limit_filled", "market_after_limit")  # how limit entries went
+LIMIT_TOTALS = ("limit_orders", "limit_filled", "limit_crossed", "market_after_limit")  # how limit entries went
 BREAKER_PCT = (1.0, 90.0)  # the drawdown a breaker may be set to hold entries at
 BASELINE_FUNDING = 0.0000125  # the venue's interest component, 0.01% per 8 hours, paid by longs
 _NAME = re.compile(r"^[a-z0-9][a-z0-9-]{0,39}$")
@@ -437,18 +437,27 @@ def timeline(raw) -> list[dict]:
     return sorted(out, key=lambda w: w["from"])
 
 
-def limit_fill(side: str, sig: dict, bar: dict, rule_set: dict, through: float) -> float | None:
-    """Where a limit entry listed at a signal's close fills in the next bar, or None when it does not.
-    It rests ``limit_atr`` ATRs better than the close (at the close without it), or at the bar's open
-    when the market opened past it, since a resting order cannot sit through the market. It fills only
-    when the bar trades ``through`` (a share of its price) past it: a bar that only touches it leaves it
-    in the queue, unfilled."""
+def limit_price(side: str, sig: dict, rule_set: dict) -> float:
+    """A limit entry's price: ``limit_atr`` ATRs better than the signal's close, at the close without it."""
     offset = rule_set.get("limit_atr", 0) * sig["atr"]
+    return sig["close"] - offset if side == "long" else sig["close"] + offset
+
+
+def limit_fill(side: str, sig: dict, bar: dict, rule_set: dict, through: float,
+               slip: float) -> tuple[float, bool] | None:
+    """How a limit entry listed at a signal's close fills in the next bar: (price, crossed), or None
+    when it does not. Placed as a good-till-cancel order when the bar opens, one the market already
+    reached takes the book at once, as a taker: at the open with ``slip``, never past its own price
+    (crossed). Otherwise it rests, and fills at its price as a maker only when the bar trades
+    ``through`` (a share of its price) past it: a bar that only touches it leaves it in the queue."""
+    price = limit_price(side, sig, rule_set)
     if side == "long":
-        rest = min(sig["close"] - offset, bar["o"])
-        return rest if bar["l"] <= rest * (1 - through) else None
-    rest = max(sig["close"] + offset, bar["o"])
-    return rest if bar["h"] >= rest * (1 + through) else None
+        if bar["o"] <= price:
+            return min(bar["o"] * (1 + slip), price), True
+        return (price, False) if bar["l"] <= price * (1 - through) else None
+    if bar["o"] >= price:
+        return max(bar["o"] * (1 - slip), price), True
+    return (price, False) if bar["h"] >= price * (1 + through) else None
 
 
 def simulate(series: list[dict], rule_set: dict, interval: str, cost: dict, limits: dict, *,
@@ -460,9 +469,11 @@ def simulate(series: list[dict], rule_set: dict, interval: str, cost: dict, limi
     reaches (at the open when the bar gaps through it); funding (``rates``, from ``funding_by_bar``;
     the venue's baseline when left out) accrues each hour held. Trading starts at bar ``trade_from``
     (earlier bars only warm the indicators). A position still open at the end closes at the last close.
-    A limit entry (``entry_order``) rests through bar ``i+1`` instead and fills at its price with the
-    maker fee, no slippage, only when that bar trades through it (``limit_fill``); the stop and the size
-    are the market entry's, and the bar's stop and funding count whole, as if it filled at the open.
+    A limit entry (``entry_order``) is placed at bar ``i+1``'s open instead (``limit_fill``): one the
+    open already reached fills there at once as a taker, never past its price; else it rests through
+    the bar and fills at its price with the maker fee only when the bar trades through it. The stop
+    and the size are the market entry's, and the bar's stop and funding count whole, as if it filled at
+    the open.
     Unfilled, ``limit`` enters nothing, while ``limit_then_market`` enters at market at the next open,
     as an entry from bar ``i+1``'s close, unless that close no longer holds the side. ``paths`` holds
     each trade's equity path for ``monte_carlo``: (end, low, high, drawdown), the equity at its close,
@@ -523,9 +534,12 @@ def simulate(series: list[dict], rule_set: dict, interval: str, cost: dict, limi
                 if value is not None and not gapped:
                     if how == "limit":
                         totals["limit_orders"] += 1
-                        entry, rate = limit_fill(side, sig, b, rule_set, through), maker
-                        if entry is not None:
+                        filled = limit_fill(side, sig, b, rule_set, through, slip)
+                        if filled is not None:
+                            entry, crossed = filled
+                            rate = fee if crossed else maker
                             totals["limit_filled"] += 1
+                            totals["limit_crossed"] += 1 if crossed else 0
                         elif entry_order == "limit_then_market":
                             owed = side
                     else:
@@ -623,7 +637,8 @@ def metrics(run: dict) -> dict:
     if placed:  # only rules with a limit entry say how it went, so a market entry's figures stay as they were
         filled, after = run["totals"]["limit_filled"], run["totals"]["market_after_limit"]
         out["limit_entries"] = {"placed": placed, "filled": filled, "fill_rate": round(filled / placed, 3),
-                                "market_after": after, "missed": placed - filled - after}
+                                "crossed": run["totals"]["limit_crossed"], "market_after": after,
+                                "missed": placed - filled - after}
     return out
 
 
