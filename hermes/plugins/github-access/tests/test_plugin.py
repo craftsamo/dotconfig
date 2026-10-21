@@ -269,9 +269,25 @@ def test_terminal_gh_writes_are_blocked(command):
 
 
 @pytest.mark.parametrize("command", [
+    "gh secret set API_KEY --body x", "gh secret delete API_KEY -R a/b", "gh variable set NAME --body v",
+    "gh variable delete NAME", "gh gist create notes.md --public", "gh gist edit 1a2b", "gh gist delete 1a2b",
+    "gh repo delete a/b --yes", "gh repo rename new-name", "gh repo fork a/b --clone", "gh repo deploy-key add k.pub",
+    "gh repo autolink create JIRA- https://x/<num>", "gh repo sync me/fork", "gh ssh-key add k.pub",
+    "gh gpg-key delete ABC", "gh release delete v1 --yes", "gh release delete-asset v1 a.zip", "gh run delete 42",
+    "gh cache delete --all", "gh -R a/b repo delete --yes", 'bash -c "gh secret set X --body y"',
+    "echo gh gist create x",  # a mention reads like a call here too
+])
+def test_writes_the_assistant_never_makes_are_blocked_and_say_so(command):
+    assert plugin.gate(tool_name="terminal", args={"command": command}) == {"action": "block",
+                                                                           "message": plugin.guard.NEVER_MESSAGE}
+
+
+@pytest.mark.parametrize("command", [
     "gh issue view 3", "gh issue list --repo a/b", "gh pr create --fill", "gh repo create a/b --private",
     "gh project list --owner me", "gh project item-list 1 --owner me", "ls ~/Worktrees/x/feat-hermes-github-access",
-    "git log", "gh auth status", "bash -c 'gh issue view 3'",
+    "git log", "gh auth status", "bash -c 'gh issue view 3'", "gh secret list -R a/b", "gh variable list",
+    "gh gist view 1a2b", "gh gist list", "gh repo view a/b", "gh repo clone a/b", "gh release view v1",
+    "gh run view 42 --log-failed", "gh cache list", "gh ssh-key list", "gh pr create --repo me/fork --fill",
 ])
 def test_terminal_reads_and_other_work_stay_open(command):
     assert plugin.gate(tool_name="terminal", args={"command": command}) is None

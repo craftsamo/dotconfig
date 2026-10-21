@@ -216,10 +216,19 @@ or defines an alias or an extension (either could hide a write). It reads
 the whole command text, so environment assignments, wrappers, a path to the
 binary, `bash -c "…"`, `eval '…'` and backslash-newlines do not hide one;
 a mere mention (`echo gh issue create`) is blocked too. It is a guard of
-text, not a sandbox: a script file's contents are never seen. Reading
-through `gh` (`gh issue view`, `gh pr …`, `gh auth status`) and `gh repo
-create` stay open. File and terminal calls that name the plugin's state
-directory (`<HERMES_HOME>/github-access/`) are blocked too, in any letter
-case and also when an argument resolves there (`~`, `..`, a symlink): the
-mandates' head is what a revoke changes, and a saved copy written back would
-undo it.
+text, not a sandbox: a script file's contents are never seen.
+
+The same guard blocks, with a message saying the Assistant never does it, the
+writes no tool offers: setting or deleting secrets and variables, writing
+gists, deleting, renaming, forking or syncing a repository and its deploy keys
+and autolinks, adding or deleting the account's SSH and GPG keys, and
+deleting releases, release assets, workflow runs and caches. They hold or
+reveal credentials, publish outside a repository, or destroy or move what
+others rely on, so they stay with the user. Reading through `gh` (`gh issue
+view`, `gh pr …`, `gh secret list`, `gh auth status`) and `gh repo create`
+stay open.
+
+File and terminal calls that name the plugin's state directory
+(`<HERMES_HOME>/github-access/`) are blocked too, in any letter case and also
+when an argument resolves there (`~`, `..`, a symlink): the mandates' head is
+what a revoke changes, and a saved copy written back would undo it.
