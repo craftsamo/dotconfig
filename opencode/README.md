@@ -110,9 +110,9 @@ lib/web-ui-check/web-ui-check.test.mjs`. `node_modules` is gitignored, so in
 a task worktree run `../worktree-setup.sh` first (it links the live checkout's
 copy); without it the suites that need zod, axe-core or Playwright skip.
 
-All global instructions live in `AGENTS.md`. Do not reintroduce an
-`instructions` array: OpenCode V2 accepts the key but does not load its files
-(anomalyco/opencode#51341).
+All global instructions live in `AGENTS.md`, by choice: this config uses no
+`instructions` array, so there is one place that V1 and V2 both read (V2 loads
+such an array since 2.0.30).
 
 ## Project config for this repository
 
@@ -221,8 +221,9 @@ specialists for their role and cheaper default models. Primary sessions retain
 their selected model when switching agents; the agent configuration is not a
 guarantee of the model currently selected in a session.
 
-V2 has no native Todo tool. Keep ephemeral execution steps in the conversation
-as `Phase{N}.{m} - <task> (executor)`, updating pending / in-progress / completed /
+V2's native Todo tool (`todowrite`, behind `experimental.todo`) stays disabled
+here. Keep ephemeral execution steps in the conversation as
+`Phase{N}.{m} - <task> (executor)`, updating pending / in-progress / completed /
 blocked statuses and restating unfinished work at handoffs. Plan asks the user
 to switch to Build before execution. Do not create local TODO files or claim
 that a native list was registered. Durable work still uses GitHub Issues and
@@ -406,10 +407,10 @@ explicitly, keeps the project's prompt and permissions, and prefixes `[Model pin
 <from> → <to>; …]` (metadata `pin: { from, to }`, `from` null when the
 definition has no model). Lanes and the preflight then apply as usual. An
 explicit model, a continuation or an unknown role is never pinned, and the
-agent list still shows the project's model. An agent transform cannot do this
-on 2.0.23: plugin transforms run before Markdown agents are loaded, so those
-overwrite any model a plugin sets. There is no per-project exclusion yet; turn
-the whole thing off with `pinModels: false`.
+agent list still shows the project's model. An agent transform could not do
+this on 2.0.23 (not re-checked since): plugin transforms run before Markdown
+agents are loaded, so those overwrite any model a plugin sets. There is no
+per-project exclusion yet; turn the whole thing off with `pinModels: false`.
 
 **Context limit.** The first alternate's text context may be at most
 160000 UTF-8 bytes plus 32768 headroom, relative to the catalog input or

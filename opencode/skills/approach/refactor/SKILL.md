@@ -42,9 +42,10 @@ Non-trivial work runs through this spine; do not jump straight to edits:
    the global `<PlanHandoff>` defines them (a reviewable PR layer and its
    commit-sized steps when the work ends in PRs; a dependency wave and a
    reference id otherwise), executor one of Build | worker | reviewer | verifier | debugger (default
-   Build; worker only for mechanical work). V2 has no native Todo tool; do not
-   create local TODO/plan files to simulate it. Ask the user to switch to
-   Build; do not switch automatically or execute until the user switches.
+   Build; worker only for mechanical work). The native Todo tool is disabled
+   here; do not create local TODO/plan files to simulate it. Ask the user to
+   switch to Build; do not switch automatically or execute until the user
+   switches.
    Build executes phases in order, delegates according to the tag, and updates
    the conversation task statuses. The conversation list is the session's
    execution queue; the board holds the durable plan.
