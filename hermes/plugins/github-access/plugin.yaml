@@ -1,0 +1,4 @@
+name: github-access
+version: 1.0.0
+description: GitHub Issues and Projects (v2) for the Assistant over the user's own gh login, with writes held for human approval or a mandate the user approved on its own card.
+kind: standalone

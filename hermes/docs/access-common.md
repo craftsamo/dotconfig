@@ -1,7 +1,7 @@
 # Access plugins — common contract
 
 What the access plugins have in common: Discord, Telegram, WhatsApp, Signal,
-Google, X, note, Substack and YouTube. Each `*-access` doc inherits this one
+Google, GitHub, X, note, Substack and YouTube. Each `*-access` doc inherits this one
 and records only its own differences; read it first when changing or adding an
 access plugin. Web3 follows the same approval and bypass-guard rules in its own
 doc ([web3.md](web3.md)). Part of the Hermes design docs — index:
