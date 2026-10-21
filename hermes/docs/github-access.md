@@ -61,7 +61,8 @@ Without one the engine takes a writable board linked to the repository the
 call is about (the only one, or the one titled as asked), then the owning
 organization's `Roadmap`, then the viewer's own `Roadmap`, and reports every
 route it considered. Several writable linked boards and no title is an
-error, never a guess.
+error, never a guess, and so is no board at all; that error names
+`board_create` as the way to make one.
 
 ## Reads
 
@@ -104,8 +105,9 @@ Each change has a class. `routine`: moving an item's fields, a note on a
 draft, a draft's own text, archiving or restoring an item, editing an issue's
 title or body. `create`: anything that makes something new, notifies someone
 or closes it — a draft, an item, an issue, a comment, a relation, a kind,
-labels, assignees, a milestone, a close or a reopen, and an issue edit whose
-new words carry an `@` mention. `admin`: what changes how a repository works
+labels, assignees, a milestone, a close or a reopen, a board, its link to a
+repository, a field, an option or a view, and an issue edit whose new words
+carry an `@` mention. `admin`: what changes how a repository works
 or reaches others at once (its settings or visibility, a merge, a published
 release, a workflow run); it always asks on its card. A board's own
 automations can still act on a routine field change; `own` is about who can
@@ -123,15 +125,45 @@ A kind lands as the organization's Issue Type when it defines one, else as a
 `type:<kind>` label created on first use, and the other `type:*` labels come
 off.
 
+### Setting up a board
+
+`board_create` makes a board for the viewer or for an organization the viewer
+belongs to (a new board is private: `own` for the viewer's, `shared` for an
+organization's), or reuses the one open board of that title the owner
+already has; two of that title is an error. Its target is the owner, by node
+id, until the board exists, so no mandate covers making one. Either way the
+board is brought to the standard shape: Status with Todo, In Progress, Done
+and Cancelled, the Start and Target dates, and the Kanban, Backlog and
+Roadmap views (`views: false` skips them); `template` copies another board
+(its views and fields, never its drafts), shown on the card with its tier
+and bound like a target though nothing is written there, and `link_repo`
+links the repository, which is then a target too. A reused board whose
+Status, Start or Target has another type is refused before the card, and a
+failure part-way reports what the board already has. `field_ensure` makes a field or
+appends the options it lacks, `view_ensure` makes a view the board has none
+of by that name, and `board_link` links or unlinks the list's board and a
+repository. A field name GitHub keeps for its own (`Labels`, `Milestone`, …)
+is refused for a new field, as is a type that differs from an existing one's,
+and a column a view names must exist on the board. When a view is made with
+the standard shape, a column the board lacks is skipped and reported.
+
+These go through GraphQL mutations with typed variables. Appending options
+sends the existing ones with their ids, colors and descriptions, so no item's
+value moves. A view's layout, filter and columns are all the API takes:
+grouping, sort and a roadmap's date fields are set once in GitHub's own page.
+A list resolves its board before anything runs, so changes on a board the
+same list makes go in a later call.
+
 ## Approval
 
-The hook plans the call and shows one card for the whole list: the targets,
-each with its tier (`own, private`, `others can read it`, `⚠️ someone
-else's`), the sites the changes link to (with the numbers of the changes that
-do), how many local paths the text carries and how many code links follow a
-branch rather than a commit, which changes are `admin`, then one line per
-change (an `admin` one marked ⚠️). Names and quoted text
-are collapsed to one line, control, bidi-override and invisible characters are
+The hook plans the call and shows one card for the whole list: the targets
+(the owner of a board not made yet as "New board for", a template as
+"Copied from"), each with its tier (`own, private`, `others can read it`,
+`⚠️ someone else's`), the sites the changes link to (with the numbers of the
+changes that do), how many local paths the text carries and how many code
+links follow a branch rather than a commit, which changes are `admin`, then
+one line per change (an `admin` one marked ⚠️). Names and quoted text are
+collapsed to one line, control, bidi-override and invisible characters are
 spelled out, and a list too long for the card ends with the count of the
 rest; the skill agrees the full wording of text others will read first, as a
 Markdown file delivered with a question before the card. Each card gets a

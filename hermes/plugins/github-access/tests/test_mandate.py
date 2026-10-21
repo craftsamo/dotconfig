@@ -161,6 +161,13 @@ def test_an_admin_change_is_never_covered(home):
     assert got is None and "repo_edit is an admin change: it always asks on a card" in misses[0]
 
 
+def test_a_board_not_made_yet_is_never_inside_a_mandate(home):
+    mandate.create(home, terms())
+    new_board = plan(step("board_create", "create", {"kind": "owner", "id": "U_me", "name": "me", "tier": "own"}))
+    got, misses = mandate.covering(home, new_board)
+    assert got is None and "me is outside the mandate" in misses[0]
+
+
 def test_one_change_outside_makes_the_whole_list_ask(home):
     mandate.create(home, terms())
     mixed = plan(step("item_set", "routine", BOARD),

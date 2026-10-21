@@ -406,7 +406,8 @@ def card(planned: dict) -> str:
     lines = [f"GitHub · {n} change{'s' if n != 1 else ''}"]
     for t in planned["targets"]:
         mark = {"own": "own, private", "shared": "others can read it", "other": "⚠️ someone else's"}[t["tier"]]
-        lines.append(f"{'Repository' if t['kind'] == 'repo' else 'Board'}: {say(t['name'], 80)} ({mark})")
+        kind = {"repo": "Repository", "owner": "New board for", "template": "Copied from"}.get(t["kind"], "Board")
+        lines.append(f"{kind}: {say(t['name'], 80)} ({mark})")
     hosts, paths, branch = _hosts(planned)
     if hosts:
         shown_hosts = [f"{h} ({', '.join(map(str, at))})" for h, at in sorted(hosts.items(), key=lambda kv: kv[1][0])]
