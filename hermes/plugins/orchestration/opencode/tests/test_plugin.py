@@ -1558,6 +1558,49 @@ def test_roles_become_tools(fixture, monkeypatch):
     assert "explicit approval" in context.tools["opencode_run_build"]["description"]
 
 
+@pytest.fixture
+def previews(fixture, monkeypatch):
+    """Register into an empty copy of Hermes' preview table and return its line builder."""
+    display = pytest.importorskip("agent.display")
+    monkeypatch.setattr(display, "_PREVIEW_BUILDERS", {})
+    register(monkeypatch, fixture[0])
+    return lambda tool, **args: display.build_tool_preview(tool, args, max_len=0)
+
+
+@pytest.mark.parametrize("tool, args, line", [
+    ("opencode_request", {"action": "list", "session_id": "ses_a"}, "list"),
+    ("opencode_request", {"action": "reply", "session_id": "ses_a", "request_id": "per_1", "decision": "once"},
+     "reply once"),
+    ("opencode_request", {"action": "reply", "session_id": "ses_a", "request_id": "frm_1",
+                          "answer": {"choice": "Keep the token in the Keychain"}}, "reply answer"),
+    ("opencode_request", {"action": "reply", "session_id": "ses_a", "replies": [
+        {"request_id": "per_1", "decision": "once"}, {"request_id": "per_2", "decision": "once"},
+        {"request_id": "frm_1", "answer": {"q": "yes"}}, {"request_id": "per_3", "decision": "reject",
+                                                           "reason": "outside the approved scope"}]},
+     "reply once×2, answer, reject"),
+    ("opencode_request", {"action": "reply", "session_id": "ses_a", "decision": "always"}, "reply"),
+    ("opencode_run_build", {"message": "Ship the private plan", "directory": "/w"}, "new"),
+    ("opencode_run_plan", {"message": "Next step", "session_id": "ses_a"}, "continue"),
+    ("opencode_run_plan", {"message": "Try again", "session_id": "ses_a", "fork": True}, "fork"),
+    ("opencode_session", {"action": "steer", "session_id": "ses_a", "message": "stop editing docs"}, "steer"),
+    ("opencode_session", {"action": "workspace", "branch": "task/secret-client"}, "workspace"),
+    ("opencode_instructions", {"action": "put", "session_id": "ses_a", "key": "hermes.note", "value": "x"},
+     "put hermes.note"),
+    ("opencode_instructions", {"action": "put", "session_id": "ses_a", "key": "Not A Key", "value": "x"}, "put"),
+    ("opencode_catalog", {"what": "models"}, "models"),
+    ("opencode_preflight", {"directory": "/w"}, "plan"),
+    ("opencode_preflight", {"directory": "/w", "phase": "build"}, "build"),
+    ("opencode_history", {"action": "list", "search": "client name"}, "list"),
+])
+def test_progress_lines_name_the_operation_only(previews, tool, args, line):
+    assert previews(tool, **args) == line
+
+
+def test_a_value_outside_the_declared_choices_never_reaches_the_line(previews):
+    assert previews("opencode_session", action="the private brief") is None
+    assert previews("opencode_catalog", what="/Users/someone/work") is None
+
+
 def test_configured_roles_replace_the_defaults(fixture, monkeypatch):
     home, _, _, _ = fixture
     configure(home, "  roles:\n    audit: {agent: review, policy: read-only, note: 'Check licences too.'}\n")
