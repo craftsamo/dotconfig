@@ -115,6 +115,15 @@ def start(rig, paid=False, **settings):
     return call(rig, **approval, **({"paid_approved": True} if paid else {}))
 
 
+def test_the_progress_line_shows_the_action_only(monkeypatch):
+    display = pytest.importorskip("agent.display")
+    monkeypatch.setattr(display, "_PREVIEW_BUILDERS", {})
+    M.register(SimpleNamespace(profile_name="audio-creator", register_tool=Mock()))
+    line = lambda **args: display.build_tool_preview("music_generate", args, max_len=0)
+    assert line(action="start", job_dir="/Users/someone/job", approved_plan="/Users/someone/plan.md") == "start"
+    assert line(action="anything else", job_dir="/Users/someone/job") is None
+
+
 def test_registration_scope_and_exact_dict_signature():
     for profile in ("default", "creator", "audio-creator", "video-creator"):
         ctx = SimpleNamespace(profile_name=profile, register_tool=Mock())
