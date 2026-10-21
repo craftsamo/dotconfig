@@ -55,6 +55,17 @@ class Ctx:
         self.hooks.append((name, callback))
 
 
+def test_the_progress_line_shows_the_action_only(monkeypatch):
+    display = pytest.importorskip("agent.display")
+    monkeypatch.setattr(display, "_PREVIEW_BUILDERS", {})
+    plugin.register(Ctx("searcher"))
+    plugin.register(Ctx("marketer"))
+    line = lambda **args: display.build_tool_preview("youtube", args, max_len=0)
+    assert line(action="search", query="someone's name", text="the private message") == "search"
+    assert line(action="my_videos", query="someone's name") == "my_videos"
+    assert line(action="anything else", query="someone's name") is None
+
+
 def test_registration_per_profile():
     ctx = Ctx("creator")
     plugin.register(ctx)

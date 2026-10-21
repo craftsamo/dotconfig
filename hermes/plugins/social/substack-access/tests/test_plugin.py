@@ -66,6 +66,17 @@ def registered(profile):
     return ctx
 
 
+def test_the_progress_line_shows_the_action_only(monkeypatch):
+    display = pytest.importorskip("agent.display")
+    monkeypatch.setattr(display, "_PREVIEW_BUILDERS", {})
+    registered("searcher")
+    registered("marketer")
+    line = lambda **args: display.build_tool_preview("substack", args, max_len=0)
+    assert line(action="post", query="someone's name", text="the private message") == "post"
+    assert line(action="inbox", query="someone's name") == "inbox"
+    assert line(action="anything else", query="someone's name") is None
+
+
 def test_only_the_assistant_and_marketer_get_the_tool():
     for profile in ("creator", "engineer", "default"):
         ctx = registered(profile)

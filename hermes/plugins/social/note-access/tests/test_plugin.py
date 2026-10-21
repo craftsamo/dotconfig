@@ -63,6 +63,17 @@ def registered(profile):
     return ctx
 
 
+def test_the_progress_line_shows_the_action_only(monkeypatch):
+    display = pytest.importorskip("agent.display")
+    monkeypatch.setattr(display, "_PREVIEW_BUILDERS", {})
+    registered("writer")
+    registered("marketer")
+    line = lambda **args: display.build_tool_preview("note", args, max_len=0)
+    assert line(action="check", text="the private message") == "check"
+    assert line(action="stats", query="someone's name") == "stats"
+    assert line(action="anything else", query="someone's name") is None
+
+
 def test_assistant_writes_marketer_reads_writer_checks_others_get_nothing():
     for profile in ("creator", "engineer", "default", "researcher"):
         ctx = registered(profile)
