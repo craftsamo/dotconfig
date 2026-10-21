@@ -458,6 +458,26 @@ def abstraction(ctx, user: str) -> str:
     return found
 
 
+def _fees(ctx, user: str) -> dict | None:
+    """The account's own perp fee rates now, as the venue gives them (its volume tier and staking
+    discount in them): taker (crossing the book) and maker (resting on it), in basis points beside the
+    venue's fractions. None when the venue does not say, which leaves the rest of the read standing."""
+    try:
+        found = ctx.api.info({"type": "userFees", "user": user})
+    except ChainError:
+        return None
+    if not isinstance(found, dict):
+        return None
+    taker, maker = num(found.get("userCrossRate")), num(found.get("userAddRate"))
+    if taker is None or maker is None:
+        return None
+    out = {"taker_bps": rounded(taker * 10_000, 4), "maker_bps": rounded(maker * 10_000, 4),
+           "taker_rate": found["userCrossRate"], "maker_rate": found["userAddRate"]}
+    if num(found.get("activeReferralDiscount")):
+        out["referral_discount"] = found["activeReferralDiscount"]
+    return out
+
+
 def state(ctx, args) -> dict:
     user = address(args)
     dex = dex_arg(args)
@@ -486,7 +506,7 @@ def state(ctx, args) -> dict:
             "position_notional": summary.get("totalNtlPos"), "withdrawable": found.get("withdrawable"),
             "cross": {"account_value": cross.get("accountValue"), "margin_used": cross.get("totalMarginUsed"),
                       "maintenance_margin": found.get("crossMaintenanceMarginUsed")},
-            "positions": positions,
+            "positions": positions, "fees": _fees(ctx, user),
             "note": f"positions on this dex; {UNIFIED_NOTE}" if mode in UNIFIED else note}
 
 
