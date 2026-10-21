@@ -95,9 +95,8 @@ on a 5xx", 「ルートの README.md を整備する」. Not a noun, not a bare 
 
 GitHub Markdown; only the sections that apply, never an empty placeholder.
 `##` for a kind's main sections, `###` to split one, `**Label**:` for a
-one-line field. Code references are commit-pinned line-range permalinks
-(`https://github.com/<owner>/<repo>/blob/<sha>/<path>#L16-L37`), code changes
-are `diff` fences, long output goes in `<details>`. `**Refs**:` holds related
+one-line field. References, code, logs and links take the forms in
+`<Notation>`; code changes are `diff` fences. `**Refs**:` holds related
 issues, PRs and docs. Write section names in the repository's language; the
 meaning stays 1:1 with the English below. Never write `Parent: #n` — the
 sub-issue panel is the one source of parentage. Reference siblings as `#n`
@@ -157,6 +156,31 @@ is the implementation. Omit it when Requirements already make the work plain.
 A repository with Issue Forms uses them instead of these skeletons.
 
 </Bodies>
+
+<Notation>
+
+Prefer the forms GitHub renders into links with a title or code; they are
+what a reader on github.com sees, in issues, comments, PR bodies and drafts.
+
+| To point at | Write | Why |
+| --- | --- | --- |
+| An issue or PR in the same repository | `#123` | a short link |
+| One in another repository | `owner/repo#123` | short, and names the repository |
+| Several related issues | a list, one per line: `- owner/repo#12` | in a list GitHub shows each one's title and state |
+| A commit | the short SHA, or `owner/repo@sha` from another repository | a short link |
+| Code | a permalink pinned to a commit with its line range: `https://github.com/<owner>/<repo>/blob/<sha>/<path>#L16-L37` (the `y` key on a file view pins it) | a branch link changes under the reader; never `file:line` |
+| …in an issue, comment or PR of the same repository | the permalink alone on its line | GitHub shows the code inline |
+| …from another repository, or in a draft or a repository file | `[path#L16-L37](permalink)` | it renders as a plain link, so the text must say what it is |
+| A message, a sheet, a page, a doc | `[what it is, when](URL)` | never a bare URL |
+| A long log or output | `<details><summary>what it is</summary>` around a fenced block | the body stays readable |
+| Steps or checks | a task list, `- [ ] …` | progress shows in lists |
+| A warning that must not be missed | one `> [!WARNING]` (or `[!NOTE]`) | used everywhere, it stops standing out |
+| A person or team | `@name` only to notify them | a mention in an issue or PR notifies; one in a draft does not |
+
+A path on this machine (`/Users/<name>/…`, a worktree) never stands for a
+file of the repository: write its repository-relative path or a permalink.
+
+</Notation>
 
 <SpecLifecycle>
 
