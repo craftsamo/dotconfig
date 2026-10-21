@@ -4,6 +4,7 @@ import json
 import os
 from pathlib import Path
 import sqlite3
+import types
 
 import pytest
 
@@ -328,6 +329,18 @@ def test_registration_is_assistant_only(profile):
             raise AssertionError("foreign profile gained /activity")
 
     plugin.register(Context())
+
+
+def test_the_progress_line_shows_the_action_only(monkeypatch):
+    display = pytest.importorskip("agent.display")
+    monkeypatch.setattr(display, "_PREVIEW_BUILDERS", {})
+    plugin = _plugin()
+    plugin.register(types.SimpleNamespace(profile_name="assistant", register_tool=lambda **kw: None,
+                                          register_command=lambda *a, **kw: None))
+    line = lambda **args: display.build_tool_preview("hermes_history", args, max_len=0)
+    assert line(action="list", search="a private title", directory="/Users/someone") == "list"
+    assert line(action="usage", days=7) == "usage"
+    assert line(action="anything else") is None
 
 
 def test_tool_and_command(root, monkeypatch):
