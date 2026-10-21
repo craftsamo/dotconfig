@@ -1074,7 +1074,23 @@ def evaluate(series: list[dict], rule_set: dict, choice: dict, holding: str | No
            "why": sig["why"]}
     if side:
         out["stop"] = stop_price(side, sig["close"], sig["atr"], rule_set)
+        if rule_set.get("entry_order"):
+            out["limit"] = limit_price(side, sig, rule_set)
     if holding and not do_close and rule_set.get("trail_atr"):
         worst = -math.inf if holding == "long" else math.inf
         out["trail"] = trailed(holding, worst, sig["close"], sig["atr"], rule_set)
     return out
+
+
+def market_after_limit(series: list[dict], rule_set: dict, choice: dict, side: str) -> dict | None:
+    """The market entry a ``limit_then_market`` limit that did not fill turns into, as ``simulate`` takes
+    it: an entry on ``side`` from the newest completed bar's close (its stop, and its size from there),
+    when the rules at that close would still hold the side; None when they would close it or cannot say."""
+    if not series:
+        return None
+    ind = indicators(series, rule_set)
+    sig = signal(series, ind, len(series) - 1, rule_set)
+    if sig is None or decide(sig, side, choice["direction"])[0]:
+        return None
+    return {"bar": series[-1]["t"], "open": side, "atr": sig["atr"], "price": sig["close"], "why": sig["why"],
+            "stop": stop_price(side, sig["close"], sig["atr"], rule_set)}
