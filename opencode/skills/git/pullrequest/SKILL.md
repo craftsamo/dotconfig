@@ -492,6 +492,11 @@ and [squash-message settings](https://docs.github.com/en/repositories/configurin
   follow-ups, or "requires restart".
 - Place the <RelatedScan> links in the body or a footer: `Closes #N` to close
   issues; `Refs #N` / `Follow-up to #M` / `Supersedes #M` for relations.
+- References take the forms GitHub renders (`gh-issues` `<Notation>`):
+  `#N` / `owner/repo#N` rather than URLs, related issues as a list (GitHub
+  shows their titles and state), code as a commit-pinned line-range
+  permalink (alone on its line it shows the code inline, in the same
+  repository), and other sources as `[what it is](URL)`.
 - Keep out: secrets; emoji (unless the repo's PRs use them); pasted logs or
   large code blocks; mechanical file listings; and everything <Audience>
   names — plan labels, working records, tooling, the build machine, the
