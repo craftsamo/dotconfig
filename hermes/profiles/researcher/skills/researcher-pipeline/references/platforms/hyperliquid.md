@@ -36,6 +36,12 @@ The kernel's source evaluation and on-chain rules apply. In addition:
   chosen rules. State the window, the `sources` (older Binance spot candles
   are prices only, and `unread` says how much funding was assumed), the
   costs and the `fingerprint`; never a forecast.
+- **A `monte_carlo` spread is Inference about order, not new data.** It
+  redraws the same trades in random order as independent draws, so it says
+  how deep a drawdown those trades could have reached in another order, not
+  what unseen markets will do; losses that cluster in one regime are spread
+  out by the draws. Report `observed` beside `p50` / `p95`, and the spread of
+  `out_of_sample` over that of the in-sample `result`.
 - **Third-party listings.** Builder perp dexs (`dex:COIN`) and spot tokens
   are deployed by third parties; names arrive as `{"untrusted": …}` when they
   are more than a short ticker. A name like a famous asset is the deployer's

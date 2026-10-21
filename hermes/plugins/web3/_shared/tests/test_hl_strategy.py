@@ -213,14 +213,88 @@ def test_metrics_read_drawdown_and_trades():
     assert len(hs.curve_points(run["curve"])["rows"]) <= hs.CURVE_POINTS + 1
 
 
+def test_each_trade_keeps_its_equity_path_and_their_order_rebuilds_the_drawdown():
+    for seed, extra in ((1, {}), (2, {"trail_atr": 2}), (3, {"entry": 40})):
+        run = hs.simulate(walk(3000, seed), hs.rules({**BREAKOUT, "entry": 20, "exit": 10, "atr": 14, **extra}), "4h",
+                          hs.costs({}), hs.backtest_limits({}))
+        m = hs.metrics(run)
+        assert len(run["paths"]) == m["trades"] > hs.MC_MIN_TRADES
+        assert all(low <= min(1.0, end) and high >= max(1.0, end) and 0 <= dd < 1 for end, low, high, dd in run["paths"])
+        dd, end, _ = hs._compose(run["paths"])
+        # the composed marks are the curve's, plus an exit at an open the next entry shares
+        assert dd * 100 >= m["max_drawdown_pct"] - 0.005 and dd * 100 == pytest.approx(m["max_drawdown_pct"], abs=0.1)
+        assert (end - 1) * 100 == pytest.approx(m["return_pct"], abs=0.01)
+
+
+def test_a_drawdown_inside_a_trade_counts_from_the_peak_it_started_under():
+    # +20% then flat; then a trade that dips 15% under its start and ends at -10%; then one that gains 30%
+    # at its high and gives back 20% of it
+    paths = [(1.2, 1.0, 1.2, 0.0), (0.9, 0.85, 1.0, 0.15), (1.04, 1.0, 1.3, 0.2)]
+    dd, end, streak = hs._compose(paths)
+    assert dd == pytest.approx(0.2) and end == pytest.approx(1.2 * 0.9 * 1.04) and streak == 1
+    # the same dip under an earlier, higher peak is deeper than the trade alone
+    dd, _, _ = hs._compose([(1.0, 0.9, 1.5, 0.4), (0.9, 0.85, 1.0, 0.15)])
+    assert dd == pytest.approx(1 - 0.85 / 1.5)
+    assert hs._compose([(0.9, 0.9, 1.0, 0.1)] * 3 + [(1.1, 1.0, 1.1, 0.0)] + [(0.95, 0.95, 1.0, 0.05)])[2] == 3
+
+
+def test_a_trade_stopped_in_its_entry_bar_has_only_its_exit_on_its_path():
+    series = flat(10) + [bar(10, 100, 106, 100, 105), bar(11, 110, 111, 90, 100), bar(12, 100, 101, 99, 100)]
+    cost = hs.costs({"taker_bps": 0, "slippage_bps": 0, "funding": "none"})
+    run = hs.simulate(series, hs.rules(BREAKOUT), "4h", cost, {"exposure_pct": 100, "max_leverage": 10})
+    assert run["trades"][0]["reason"] == "stop" and run["trades"][0]["open"] == run["trades"][0]["close"]
+    (end, low, high, dd), = run["paths"]
+    assert end == low < 1 and high == 1.0 and dd == pytest.approx(1 - end)
+    assert hs._compose(run["paths"])[0] * 100 == pytest.approx(hs.metrics(run)["max_drawdown_pct"], abs=0.005)
+
+
+def test_a_trade_that_leaves_no_equity_ends_the_sequence_as_the_backtest_does():
+    # a short at full exposure, then a gap through its stop to two and a half times the entry
+    series = flat(10) + [bar(10, 100, 100, 94, 95), bar(11, 95, 96, 94, 95), bar(12, 250, 251, 249, 250),
+                         bar(13, 250, 251, 249, 250)]
+    cost = hs.costs({"taker_bps": 0, "slippage_bps": 0, "funding": "none"})
+    run = hs.simulate(series, hs.rules({**BREAKOUT, "risk_pct": 5}), "4h", cost, {"exposure_pct": 100, "max_leverage": 10})
+    m = hs.metrics(run)
+    assert run["end_equity"] < 0 and len(run["trades"]) == 1  # nothing opens after it
+    dd, end, _ = hs._compose(run["paths"])
+    assert dd * 100 == pytest.approx(m["max_drawdown_pct"], abs=0.005) and dd > 1
+    assert (end - 1) * 100 == pytest.approx(m["return_pct"], abs=0.005)
+    # a later trade in a draw is never taken from an account already gone
+    assert hs._compose(run["paths"] + [(1.5, 1.0, 1.5, 0.0)])[1] == pytest.approx(end)
+
+
+def test_percentiles_are_read_by_nearest_rank():
+    values = [float(v) for v in range(1, 101)]
+    assert [hs._rank(values, s) for s in (0.05, 0.5, 0.95, 0.99, 1.0)] == [5.0, 50.0, 95.0, 99.0, 100.0]
+    assert hs._rank([7.0], 0.95) == hs._rank([7.0], 0.05) == 7.0
+    assert hs._rank([1.0, 2.0, 3.0], 0.5) == 2.0
+
+
+def test_a_monte_carlo_redraws_the_trades_the_same_way_for_the_same_request():
+    run = hs.simulate(walk(3000), hs.rules({**BREAKOUT, "entry": 20, "exit": 10, "atr": 14}), "4h", hs.costs({}),
+                      hs.backtest_limits({}))
+    mc = hs.monte_carlo(run, "BTC:abc:1")
+    assert mc == hs.monte_carlo(run, "BTC:abc:1") and mc != hs.monte_carlo(run, "BTC:abc:2")
+    assert mc["runs"] == hs.MC_RUNS and mc["trades"] == len(run["trades"])
+    dd, ret, streak = mc["max_drawdown_pct"], mc["return_pct"], mc["losing_streak"]
+    assert 0 < dd["p50"] <= dd["p95"] <= dd["p99"] < 100 and ret["p5"] <= ret["p50"] and streak["p50"] <= streak["p95"]
+    assert dd["observed"] == pytest.approx(hs.metrics(run)["max_drawdown_pct"], abs=0.1)
+    few = hs.simulate(walk(400), hs.rules(BREAKOUT), "4h", hs.costs({}), hs.backtest_limits({}))
+    few["paths"] = few["paths"][:hs.MC_MIN_TRADES - 1]
+    assert hs.monte_carlo(few, "x") is None
+
+
 def test_walk_forward_only_ever_trades_rules_chosen_on_earlier_data():
     series = walk(3000)
     base = hs.rules({**BREAKOUT, "entry": 20, "exit": 10, "atr": 14})
     rates = hs.funding_by_bar(series, "4h", None, hs.BASELINE_FUNDING, "venue")
     out = hs.walk_forward(series, base, "4h", hs.costs({}), hs.backtest_limits({}),
                           {"grid": {"entry": [20, 40], "exit": [10, 20]}, "folds": 3},
-                          rates=rates, stance=[], direction="both")
+                          rates=rates, stance=[], direction="both", seed="BTC:x:1")
     assert len(out["folds"]) == 3 and out["candidates"] == 4
+    oos = out["out_of_sample"]
+    assert oos["monte_carlo"]["trades"] == oos["trades"]
+    assert oos["monte_carlo"]["max_drawdown_pct"]["observed"] == pytest.approx(oos["max_drawdown_pct"], abs=0.1)
     for fold in out["folds"]:
         assert fold["train"]["end"] < fold["test"]["start"]
         assert fold["chosen_fingerprint"] == hs.fingerprint({"kind": "breakout", **fold["chosen"]}, "4h")

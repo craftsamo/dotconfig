@@ -176,8 +176,13 @@ def test_a_backtest_trades_the_venues_candles_and_names_its_rules(api, tmp_path)
     assert data["result"]["trades"] > 5 and len(data["trades"]["newest"]) <= 20
     assert len(data["fingerprint"]) == 16 and data["costs"]["taker_bps"] == 4.5
     assert data["data"]["funding"]["hours_read"] == 4000 and data["data"]["funding"]["mean_sign"] == "longs pay"
+    mc = data["result"]["monte_carlo"]
+    assert mc["trades"] == data["result"]["trades"] and mc["runs"] == 1000
+    assert mc["max_drawdown_pct"]["p50"] <= mc["max_drawdown_pct"]["p95"] <= mc["max_drawdown_pct"]["p99"]
     again = backtest({}, api, tmp_path)["data"]
-    assert again["result"] == data["result"] and again["fingerprint"] == data["fingerprint"]
+    assert again["result"] == data["result"] and again["fingerprint"] == data["fingerprint"]  # the same spread too
+    other = backtest({"costs": {"slippage_bps": 6}}, api, tmp_path)["data"]["result"]["monte_carlo"]
+    assert other["max_drawdown_pct"] != mc["max_drawdown_pct"]  # another request draws its own
 
 
 def test_long_history_adds_older_binance_prices_and_walk_forward_reports_unseen_windows(api, tmp_path):
@@ -189,6 +194,8 @@ def test_long_history_adds_older_binance_prices_and_walk_forward_reports_unseen_
     assert data["data"]["bars"] > 8000 and any("took the mean rate" in u for u in data["unread"])
     folds = data["walk_forward"]["folds"]
     assert len(folds) == 3 and all(f["train"]["end"] < f["test"]["start"] for f in folds)
+    oos = data["walk_forward"]["out_of_sample"]
+    assert oos["monte_carlo"]["trades"] == oos["trades"] and oos["monte_carlo"] != data["result"]["monte_carlo"]
 
 
 def test_daily_long_history_starts_where_the_exchange_does_not_before_the_epoch(api, tmp_path):

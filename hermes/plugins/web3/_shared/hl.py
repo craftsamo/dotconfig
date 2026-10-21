@@ -846,15 +846,22 @@ def backtest(ctx, args) -> dict:
     mean = sum(funding.values()) / len(funding) if funding else hl_strategy.BASELINE_FUNDING
     rates = hl_strategy.funding_by_bar(series, interval, funding, mean, spec["costs"]["funding"])
     cost, limits, rule_set = spec["costs"], spec["limits"], spec["rules"]
+    fingerprint = hl_strategy.fingerprint(rule_set, interval)
+    # the request names its draws: the same backtest, read again, gives the same spread
+    seed = hl_strategy.canonical({"network": ctx.network, "coin": coin, "fingerprint": fingerprint, "end": end,
+                                  "start": start, "costs": cost, "limits": limits, "direction": spec["direction"],
+                                  "stance": spec["stance"], "history": spec["history"]})
     try:
         run = hl_strategy.simulate(series, rule_set, interval, cost, limits, rates=rates, stance=spec["stance"],
                                    direction=spec["direction"])
         walked = None
         if args.get("walk_forward") is not None:
             walked = hl_strategy.walk_forward(series, rule_set, interval, cost, limits, args["walk_forward"],
-                                              rates=rates, stance=spec["stance"], direction=spec["direction"])
+                                              rates=rates, stance=spec["stance"], direction=spec["direction"],
+                                              seed=seed)
     except hl_strategy.StrategyError as exc:
         raise ChainError(str(exc)) from None
+    monte_carlo = hl_strategy.monte_carlo(run, seed)
     sources = []
     if long_rows:
         sources.append({"source": f"{LONG_HISTORY['label']} {coin}USDT (prices only)", "bars": len(long_rows),
@@ -864,22 +871,27 @@ def backtest(ctx, args) -> dict:
                         "start": iso(venue_rows[0]["t"]), "end": iso(venue_rows[-1]["t"])})
     assumed = run["totals"]["assumed_hours"]
     result = {"schema": hl_strategy.BACKTEST_SCHEMA, "network": ctx.network, "coin": coin, "interval": interval,
-              "rules": rule_set, "fingerprint": hl_strategy.fingerprint(rule_set, interval), "costs": cost,
+              "rules": rule_set, "fingerprint": fingerprint, "costs": cost,
               "limits": limits, "direction": spec["direction"], "stance_windows": len(spec["stance"]),
               "data": {"bars": len(series), "start": iso(series[0]["t"]), "end": iso(series[-1]["t"]),
                        "end_ms": end, "sources": sources,
                        "funding": {"hours_read": len(funding), "mean_hourly": hl_strategy.sig5(abs(mean)) if mean else "0",
                                    "mean_sign": "longs pay" if mean > 0 else "shorts pay" if mean < 0 else "none",
                                    "hours_assumed_while_held": assumed, "mode": cost["funding"]}},
-              "result": hl_strategy.metrics(run),
+              "result": {**hl_strategy.metrics(run), "monte_carlo": monte_carlo},
               "trades": {"count": len(run["trades"]), "newest": run["trades"][-hl_strategy.TRADES_SHOWN:]},
               "equity": hl_strategy.curve_points(run["curve"]),
               "note": ("a simulation on past bars from a notional 1000 USDC (fees_pct and funding_pct are of that "
                        "start): fills at the next bar's open with slippage and the taker fee, stops inside a bar "
-                       "at the stop or a gapped open; neither a forecast nor a fill guarantee. A strategy may run "
-                       "this rule set on this interval only under its fingerprint.")}
+                       "at the stop or a gapped open; neither a forecast nor a fill guarantee. monte_carlo redraws "
+                       f"the trades {hl_strategy.MC_RUNS} times in random order, each with its own path, as "
+                       "independent draws: the spread of drawdowns the same trades could have given. A strategy "
+                       "may run this rule set on this interval only under its fingerprint.")}
     if walked is not None:
         result["walk_forward"] = walked
+    if monte_carlo is None or (walked is not None and walked["out_of_sample"]["monte_carlo"] is None):
+        unread.append(f"monte_carlo needs at least {hl_strategy.MC_MIN_TRADES} trades; it is null where there "
+                      "were fewer")
     if assumed:
         unread.append(f"{assumed} held hours had no venue funding read and took the mean rate")
     if unread:
