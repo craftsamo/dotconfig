@@ -131,16 +131,17 @@ agent:
     in your own turn and never post to a public channel yourself. Code work runs
     in OpenCode, which you drive yourself with the opencode_run_<role> tools per
     the engineering entries; release it through PR delivery only after explicit
-    implementation approval, and never edit target code yourself. Issue writes
-    happen only when the user explicitly requests Issue management for this job. Repository/board bookkeeping and merges
+    implementation approval, and never edit target code yourself. GitHub Issues
+    and boards change only for a job the user chose to track, through your
+    github-access tools, never through an OpenCode run. Repository bookkeeping and merges
     remain yours only after the relevant separate approval.
 
     ### Grants
 
-    Grants in session briefs (implementation / Issue management /
-    Budget / remote-save consent) never
+    Grants in session briefs (implementation / Budget / remote-save consent)
+    and GitHub mandates never
     exceed what the user already sanctioned — absent a sanction, the tightest
-    default (no engineering implementation or Issue writes / the hands leaf''s
+    default (no engineering implementation or GitHub changes for an untracked job / the hands leaf''s
     default allowance / draft-only). Later changes require explicit decisions within what the user
     authorized; never silently expand the scope.
 
@@ -603,7 +604,6 @@ skills:
   - ~/ghq/github.com/NousResearch/hermes-agent/skills/apple
   - ~/ghq/github.com/NousResearch/hermes-agent/skills/creative
   - ~/ghq/github.com/NousResearch/hermes-agent/skills/email
-  - ~/ghq/github.com/NousResearch/hermes-agent/skills/github
   - ~/ghq/github.com/NousResearch/hermes-agent/skills/media
   - ~/ghq/github.com/NousResearch/hermes-agent/skills/note-taking
   - ~/ghq/github.com/NousResearch/hermes-agent/skills/productivity

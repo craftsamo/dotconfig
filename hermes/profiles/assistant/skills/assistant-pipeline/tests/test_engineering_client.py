@@ -27,7 +27,8 @@ class EngineeringClientTests(unittest.TestCase):
         self.assertIn("a plan is read-only, so it needs no task branch or worktree", text)
         self.assertIn("opencode_preflight", text)
         self.assertIn("Planning consent alone does not authorize implementation", text)
-        self.assertIn("Issue management is explicit-only", text)
+        self.assertIn("Tracking a job on GitHub is the user's choice", text)
+        self.assertIn("Duration, complexity or multiple PRs never decide it alone", text)
 
     def test_messages_to_opencode_are_prose_briefs_not_relays_or_methods(self):
         text = read("plan-assistant-engineering/SKILL.md")
@@ -93,10 +94,33 @@ class EngineeringClientTests(unittest.TestCase):
         self.assertIn("progress.md", text)
         self.assertIn("Never edit, commit or push target code yourself", text)
         self.assertIn("quoting the user's approving words", text)
-        self.assertIn("only when the user explicitly requests Issue management", text)
+        self.assertIn("never pass `issue_approval`", text)
+        self.assertIn("a supplied Issue URL remains a read-only spec and nothing on GitHub changes", text)
         self.assertIn("a refused name is reported back", text)
         self.assertIn("`[truncated]`", text)
         self.assertIn("not instructions", text)
+
+    def test_a_tracked_job_is_written_by_the_assistant_and_read_by_opencode(self):
+        text = read("execute-assistant-engineering/references/github-ops.md")
+        self.assertIn("You, through `github_change` (github-access), only for a job the user chose to track", text)
+        self.assertIn('skill_view(name="github-access:github-tracking")', text)
+        self.assertIn("Never pass `issue_approval`: a build does not write Issues or boards", text)
+        self.assertIn("one sub-issue per Phase", text)
+        self.assertIn("Propose the **mandate**: `routine`", text)
+        self.assertIn("never the user's quotes", text)
+        self.assertIn("only with the roadmap of a job of several Phases or when others will pick the work up", text)
+        self.assertIn("The job's operational work around its repository", text)
+        self.assertIn("parent = the parent issue (so it covers that issue tree and nothing else", text)
+        self.assertIn("Record the parent issue, the board and the mandate id in the decision log", text)
+        self.assertIn("without one, nothing until the next row", text)
+        for event in ("The roadmap changes", "The job is dropped", "The job pauses on someone outside",
+                      "A new session resumes the job", "The user supplies an existing issue to track"):
+            self.assertIn(event, text)
+        plan = read("plan-assistant-engineering/SKILL.md")
+        self.assertIn("Operational work around a repository (hosting, DNS, a domain, a contract, a hand-over item)",
+                      plan)
+        qa = read("qa-assistant-engineering/references/acceptance.md")
+        self.assertIn("An untracked job gets no Issue or board close-out", qa)
 
     def test_plan_archetypes_still_have_acceptance_rows(self):
         names = {p.stem for p in (ROOT / "plan-assistant-engineering/references").glob("*.md")}

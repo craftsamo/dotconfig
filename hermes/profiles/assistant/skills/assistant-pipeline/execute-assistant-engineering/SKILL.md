@@ -1,6 +1,6 @@
 ---
 name: execute-assistant-engineering
-description: "Execute engineering: drive each approved Phase through an OpenCode build run to its PR (one PR or stack layer), reporting each step. One approval per Phase; explicit Issue grants; no merge, deployment or edits of your own."
+description: "Execute engineering: drive each approved Phase through an OpenCode build run to its PR (one PR or stack layer), reporting each step. One approval per Phase; a tracked job's issues mirrored by you; no merge, deployment or edits of your own."
 version: 2.0.0
 author: CraftSamo
 license: MIT
@@ -104,10 +104,12 @@ user's chosen control.
    criteria, risks, and resume handles (worktree, branch, session ids). With
    Phases left, add the next Phase's plan for the user's approval.
 
-Issue create/edit/comment runs only when the user explicitly requests Issue
-management for this job, passed as `issue_approval`. A supplied Issue URL
-remains a read-only spec without that request. No automatic epics, board
-updates or bookkeeping.
+For a job the user chose to track on GitHub, you mirror the run to its
+issues with `github_change` as [github-ops.md](references/github-ops.md)
+says: the Phase's sub-issue Fixed at approval, each finished step ticked, its
+Status moved. OpenCode only reads the issue named in the brief; never pass
+`issue_approval`, since a build does not write Issues. Without tracking, a
+supplied Issue URL remains a read-only spec and nothing on GitHub changes.
 
 Unknown completion is not proof that work failed: read `status`, `diff`,
 `messages` and the worktree before another turn; never replay the original
@@ -125,7 +127,7 @@ message is still a brief that points at the log rather than retelling the
 job. A message carrying `[truncated]` or an elided path is a
 defect on your side.
 
-[github-ops.md](references/github-ops.md) defines conditional Issue ownership,
+[github-ops.md](references/github-ops.md) defines tracking on GitHub,
 repository lifecycle and the separate user-gated merge boundary. OpenCode never
 merges, deploys or pushes the default branch. A plan/review-only request ends
 with its answer; do not turn it into implementation because a fix looks easy.

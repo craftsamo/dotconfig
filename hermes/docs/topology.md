@@ -127,9 +127,11 @@ the domain's checks.
 Assistant coordinates cross-specialist outcomes as a Client. OpenCode plan runs
 own code-grounded technical proposals and sequencing, which the Assistant agrees
 with the user ([opencode.md](./opencode.md)); Client approval chooses scope and
-important tradeoffs. The technical plan lives in the agreed
-private job record unless the Client explicitly requests Issue registration.
-Do not infer tracking permission from complexity, project type or duration.
+important tradeoffs. The technical plan lives in the agreed private job
+record unless the Client chooses to track the job on GitHub; then a parent
+issue and its sub-issues hold the plan, the Assistant writes them through
+[github-access](./github-access.md) and OpenCode runs only read them. Do not
+infer tracking permission from complexity, project type or duration.
 OpenCode session IDs are resume handles, not the only durable copy of decisions.
 Researcher and Searcher likewise own their role-specific proposals and unit
 sequencing from Client purpose; they do not inherit cross-role orchestration.
