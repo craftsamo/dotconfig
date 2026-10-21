@@ -771,6 +771,44 @@ platforms:
       # Opt back in to native rich messages for CJK text (local fork patch of
       # upstream PR #56155; upstream gates CJK off by default for #47653).
       allow_cjk_rich_messages: true
+      # The `/` picker shows only this list, in this order (typed commands still
+      # work); keep max_commands equal to its length so no entry is cut.
+      command_menu:
+        priority_mode: replace
+        max_commands: 32
+        priority:
+        - help
+        - new
+        - stop
+        - status
+        - resume
+        - sessions
+        - model
+        - reasoning
+        - restart
+        - commands
+        - approve
+        - deny
+        - queue
+        - steer
+        - btw
+        - usage
+        - activity
+        - drafts
+        - repos
+        - topic
+        - save
+        - retry
+        - title
+        - branch
+        - compress
+        - agents
+        - plan
+        - moa
+        - context
+        - voice
+        - learn
+        - insights
       dm_topics:
       - chat_id: 'YOUR_TELEGRAM_CHAT_ID'
         topics:
