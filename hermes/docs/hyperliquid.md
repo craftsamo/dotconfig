@@ -72,6 +72,11 @@ across them:
 - **`export` is a dataset, not a backtest**: columns and rows with a schema
   name and an exact window, at most 500 candles, inline in the result.
 - **Account reads return the explorer link** for the address on that network.
+- **`state` gives the account's own fee rates** (`fees`: taker and maker,
+  in basis points beside the venue's fractions, its tier and staking
+  discount in them); a backtest for that account takes its taker rate as
+  `costs.taker_bps`. When the venue does not say, `fees` is null and the
+  rest of the read stands.
 - **`state` and `balances` report the account's mode** (`userAbstraction`).
   A unified account (`unifiedAccount`, or `portfolioMargin`) keeps one
   balance per asset for spot and every perp dex, held in the spot state, so
