@@ -178,8 +178,8 @@ def forget() -> None:
         _CACHE.clear()
 
 
-def viewer() -> str:
-    return _cached("viewer", lambda: graphql("query{viewer{login}}")["viewer"]["login"])
+def viewer(fresh: bool = False) -> str:
+    return _cached("viewer", lambda: graphql("query{viewer{login}}")["viewer"]["login"], fresh)
 
 
 def _member(org: str, fresh: bool = False) -> bool:
@@ -195,7 +195,7 @@ def _member(org: str, fresh: bool = False) -> bool:
 def tier(owner: str, owner_type: str, private: bool, fresh: bool = False) -> str:
     """own / shared / other for a target owned by ``owner``; ``private`` means only people the owner
     let in read it. ``fresh`` re-reads membership (a write's own check)."""
-    if owner_type == "User" and same(owner, viewer()):
+    if owner_type == "User" and same(owner, viewer(fresh)):
         return "own" if private else "shared"
     if owner_type == "Organization" and _member(owner, fresh):
         return "shared"

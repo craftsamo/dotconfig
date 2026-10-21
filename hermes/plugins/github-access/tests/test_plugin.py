@@ -48,13 +48,28 @@ def test_the_progress_line_shows_the_action_only(monkeypatch):
         assert line(tool, action="anything else", query="someone's name") is None
 
 
+def test_a_change_list_previews_its_ops_counted_and_nothing_else(monkeypatch):
+    display = pytest.importorskip("agent.display")
+    monkeypatch.setattr(display, "_PREVIEW_BUILDERS", {})
+    plugin.register(Ctx("assistant"))
+    line = lambda **args: display.build_tool_preview("github_change", args, max_len=0)  # noqa: E731
+    listing = [{"op": "item_set", "item": "PVTI_1", "fields": {"Status": "Done"}},
+               {"op": "draft_note", "item": "PVTI_1", "text": "met the lawyer"},
+               {"op": "item_set", "item": "PVTI_2", "fields": {"Status": "Waiting"}},
+               {"op": "steal everything", "title": "x"}, "not a change"]
+    assert line(changes=listing, repo="acme/secret") == "item_set×2, draft_note"
+    assert line(changes=[{"title": "no op"}], repo="acme/secret") is None
+    assert line(changes="item_set") is None
+
+
 def test_only_the_assistant_gets_the_tools():
     ctx = Ctx("creator")
     plugin.register(ctx)
     assert ctx.tools == {} and ctx.hooks == []
     ctx = Ctx("assistant")
     plugin.register(ctx)
-    assert set(ctx.tools) == set(plugin.ENGINES)
+    assert set(ctx.tools) == set(plugin.HANDLERS) == {"github_issue", "github_board", "github_change"}
+    assert ctx.hooks == [("pre_tool_call", plugin.gate)]
     assert {t["toolset"] for t in ctx.tools.values()} == {"github_access"}
     for name, tool in ctx.tools.items():
         params = tool["schema"]["parameters"]
@@ -82,6 +97,121 @@ def test_handlers_return_json_errors_and_refuse_oversized_results(monkeypatch):
     monkeypatch.setitem(plugin.ENGINES, "github_board", lambda args: {"x": "y" * plugin.LIMIT})
     result = json.loads(plugin.github_board({"action": "items"}))
     assert result["ok"] is False and "narrow" in result["error"]
+
+
+CHANGE = {"changes": [{"op": "draft_add", "title": "Capture"}]}
+PLAN = {"steps": [], "targets": [{"kind": "board", "name": "me/1 Roadmap", "tier": "own"}], "tier": "own",
+        "classes": ["create"]}
+
+
+def _fake_engine(monkeypatch, applied, plans=None):
+    monkeypatch.setattr(plugin, "_inbound_peer", lambda: False)
+    monkeypatch.setattr(plugin.human_gate, "no_human", lambda: None)
+    monkeypatch.setattr(plugin.changes, "plan", lambda args: plans.pop(0) if plans else PLAN)
+    monkeypatch.setattr(plugin.changes, "binding", lambda planned: [[t["kind"], t["name"], t["tier"]] for t in planned["targets"]])
+    monkeypatch.setattr(plugin.changes, "card", lambda planned: "GitHub · 1 change")
+    monkeypatch.setattr(plugin.changes, "apply", lambda planned: applied.append(planned) or {"ok": True, "done": []})
+    plugin._DECISIONS.clear()
+
+
+def test_a_change_list_gets_one_card_under_a_fresh_key(monkeypatch):
+    _fake_engine(monkeypatch, [])
+    first = plugin.gate(tool_name="github_change", args=CHANGE)
+    second = plugin.gate(tool_name="github_change", args=CHANGE)
+    assert first["action"] == "approve" and first["message"] == "GitHub · 1 change"
+    assert first["rule_key"].startswith("github-access:change:") and first["rule_key"] != second["rule_key"]
+
+
+def test_the_handler_runs_only_what_the_hook_decided_and_only_once(monkeypatch):
+    applied = []
+    _fake_engine(monkeypatch, applied)
+    refused = json.loads(plugin.github_change(CHANGE))
+    assert refused["ok"] is False and "not decided by the approval hook" in refused["error"] and applied == []
+    plugin.gate(tool_name="github_change", args=CHANGE)
+    assert json.loads(plugin.github_change(CHANGE)) == {"ok": True, "done": []} and len(applied) == 1
+    assert json.loads(plugin.github_change(CHANGE))["ok"] is False and len(applied) == 1
+    other = {"changes": [{"op": "draft_add", "title": "Something else"}]}
+    plugin.gate(tool_name="github_change", args=CHANGE)
+    assert json.loads(plugin.github_change(other))["ok"] is False
+
+
+def test_a_write_whose_targets_changed_since_the_card_is_refused(monkeypatch):
+    applied = []
+    public = {**PLAN, "targets": [{"kind": "board", "name": "me/1 Roadmap", "tier": "shared"}]}
+    _fake_engine(monkeypatch, applied, plans=[PLAN, public])
+    plugin.gate(tool_name="github_change", args=CHANGE)
+    result = json.loads(plugin.github_change(CHANGE))
+    assert result["ok"] is False and "changed since it was decided" in result["error"] and applied == []
+
+
+def test_a_call_the_engine_refuses_is_blocked_without_a_card(monkeypatch):
+    _fake_engine(monkeypatch, [])
+
+    def refuse(args):
+        raise plugin.access.AccessError("no write permission on me/ro")
+    monkeypatch.setattr(plugin.changes, "plan", refuse)
+    directive = plugin.gate(tool_name="github_change", args=CHANGE)
+    assert directive == {"action": "block", "message": "github_change: not done. no write permission on me/ro"}
+    assert plugin._DECISIONS == {}
+
+
+def test_a_write_is_refused_where_nobody_can_answer_its_card(monkeypatch):
+    applied = []
+    _fake_engine(monkeypatch, applied)
+    monkeypatch.setattr(plugin.human_gate, "no_human", lambda: "this is a cron job")
+    directive = plugin.gate(tool_name="github_change", args=CHANGE)
+    assert directive["action"] == "block" and "this is a cron job" in directive["message"]
+    monkeypatch.setattr(plugin.human_gate, "no_human", lambda: None)
+    plugin.gate(tool_name="github_change", args=CHANGE)
+    monkeypatch.setattr(plugin.human_gate, "no_human", lambda: "yolo mode is on")
+    result = json.loads(plugin.github_change(CHANGE))
+    assert result["ok"] is False and "yolo mode is on" in result["error"] and applied == []
+
+
+def test_the_genuine_check_refuses_a_write_in_this_headless_test_run(monkeypatch):
+    genuine = _load("github_access_human_gate_genuine", ROOT.parent / "_shared" / "human_gate.py")
+    _fake_engine(monkeypatch, [])
+    monkeypatch.setattr(plugin.human_gate, "no_human", genuine.no_human)
+    assert plugin.gate(tool_name="github_change", args=CHANGE)["action"] == "block"
+
+
+def test_inbound_a2a_cannot_change_anything(monkeypatch):
+    _fake_engine(monkeypatch, [])
+    monkeypatch.setattr(plugin, "_inbound_peer", lambda: True)
+    assert plugin.gate(tool_name="github_change", args=CHANGE)["action"] == "block"
+    assert json.loads(plugin.github_change(CHANGE))["ok"] is False
+
+
+@pytest.mark.parametrize("command", [
+    "gh issue create --title x", "gh issue comment 3 --body hi", "gh issue close 3", "gh -R a/b issue edit 3",
+    "gh project item-edit --id X", "gh project item-create 1 --owner me", "gh api graphql -f query=x",
+    "gh api repos/a/b/issues", "/opt/homebrew/bin/gh issue reopen 2", "GH_TOKEN=x gh issue delete 1",
+    "cd repo && gh issue create", "echo ok; gh label create bug", "env gh project link 1",
+    "x=$(gh api user)", 'bash -c "gh issue create --title x"', "sh -c 'gh issue close 1'",
+    "eval 'gh issue comment 1 -b x'", "gh issue \\\n create --title x", "curl -H \"Authorization: $(gh auth token)\" u",
+    "gh auth status --show-token", "gh alias set mk 'issue create'", "gh extension install x/y",
+    "echo gh issue create",  # a mention in text reads like a call: blocked, conservatively
+])
+def test_terminal_gh_writes_are_blocked(command):
+    assert plugin.gate(tool_name="terminal", args={"command": command}) == {"action": "block",
+                                                                           "message": plugin.guard.MESSAGE}
+
+
+@pytest.mark.parametrize("command", [
+    "gh issue view 3", "gh issue list --repo a/b", "gh pr create --fill", "gh repo create a/b --private",
+    "gh project list --owner me", "gh project item-list 1 --owner me", "ls ~/Worktrees/x/feat-hermes-github-access",
+    "git log", "gh auth status", "bash -c 'gh issue view 3'",
+])
+def test_terminal_reads_and_other_work_stay_open(command):
+    assert plugin.gate(tool_name="terminal", args={"command": command}) is None
+
+
+def test_the_state_directory_is_closed_to_file_and_terminal_calls():
+    blocked = {"action": "block", "message": plugin.guard.MESSAGE}
+    assert plugin.gate(tool_name="read_file", args={"path": "~/.hermes/profiles/assistant/github-access/mandates/x.json"}) == blocked
+    assert plugin.gate(tool_name="terminal", args={"command": "cat ~/.hermes/profiles/assistant/github-access/head.json"}) == blocked
+    assert plugin.gate(tool_name="read_file", args={"path": "~/.hermes/plugins/github-access/__init__.py"}) is None
+    assert plugin.gate(tool_name="read_file", args={"path": "hermes/docs/github-access.md"}) is None
 
 
 def test_the_skills_reach_only_the_assistant():

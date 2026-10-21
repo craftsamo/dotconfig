@@ -13,19 +13,39 @@ import subprocess
 
 
 class FakeGh:
+    """``rules`` answer GraphQL by query; ``commands`` answer every other ``gh`` call by a regex on
+    its space-joined argv, with stdout text, a callable (argv, stdin) -> text, or an Exception (exit 1)."""
+
     def __init__(self, rules=None):
         self.rules = list(rules or [])
+        self.commands: list[tuple[str, object]] = []
         self.calls: list[dict] = []
         self.argv: list[list[str]] = []
+        self.stdin: list[str | None] = []
 
     def add(self, pattern, answer):
         self.rules.insert(0, (pattern, answer))
         return self
 
+    def cmd(self, pattern, answer=""):
+        self.commands.insert(0, (pattern, answer))
+        return self
+
+    def ran(self, pattern):
+        return [a for a in self.argv if re.search(pattern, " ".join(a))]
+
     def __call__(self, argv, stdin=None, timeout=None):
         self.argv.append(list(argv))
+        self.stdin.append(stdin)
         if argv[:2] != ["api", "graphql"]:
-            return subprocess.CompletedProcess(argv, 1, "", f"fake gh: no rule for {' '.join(argv)}")
+            line = " ".join(argv)
+            for pattern, answer in self.commands:
+                if re.search(pattern, line):
+                    if isinstance(answer, Exception):
+                        return subprocess.CompletedProcess(argv, 1, "", str(answer))
+                    out = answer(argv, stdin) if callable(answer) else answer
+                    return subprocess.CompletedProcess(argv, 0, out if isinstance(out, str) else json.dumps(out), "")
+            return subprocess.CompletedProcess(argv, 1, "", f"fake gh: no rule for {line}")
         body = json.loads(stdin or "{}")
         query, variables = body.get("query", ""), body.get("variables") or {}
         self.calls.append({"query": query, "variables": variables})

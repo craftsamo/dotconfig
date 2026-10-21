@@ -14,7 +14,8 @@ metadata:
 
 Task skills (an engineering job, a hand-over, a release) own what the work
 is. This skill owns how it is read on GitHub, and the model a board and its
-issues follow.
+issues follow. Changing anything on GitHub is
+`skill_view(name="github-access:github-tracking")`.
 
 ## Contract
 
