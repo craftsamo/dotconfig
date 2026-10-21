@@ -138,8 +138,12 @@ Two layers decide what an agent may do:
   allow, ask or deny. Agent rules are appended after the global ones and the
   last match wins, so an agent that starts its shell rules with `"*": ask`
   turns every global shell deny back into a prompt unless it repeats it.
-- **Policies** (`experimental.policies`) are hard denies checked after
-  permissions and saved "Allow always" approvals. They never prompt, never
+- **Policies** (top-level `policies`, `tool.use` statements on
+  `<action>:<resource>`) are hard denies checked after permissions and saved
+  "Allow always" approvals. OpenCode 2.0.25 renamed the action from
+  `permission` and moved the key out of `experimental`; it skips a statement
+  it does not recognize with only a log warning, and a test keeps every
+  statement in the current shape. They never prompt, never
   grant, and project configuration cannot lift the global ones. Keep only
   never-allowed operations there: `sudo`, disk wiping, shutdown, environment
   dumps (`env`, `printenv`), value-exposing or destructive `secret`
@@ -157,8 +161,10 @@ stay open after it. Agent rules come last: the read-only subagents allow
 outside reads in their own rules, while worker and design reset
 `external_directory` to ask and so ask for those directories too.
 
-Keep the matching permission denies as well: Hermes copies the build agent's
-resolved denies into its session rulesets. Custom plugin tools pass through
+Keep the matching permission denies as well (a test checks every shell
+policy has one): Hermes copies the build agent's resolved denies into its
+session rulesets, and they still hold if a policy is skipped. Custom plugin
+tools pass through
 neither layer and enforce their own limits.
 
 Patterns are whole-value wildcards where `*` also matches `/`. A file at the

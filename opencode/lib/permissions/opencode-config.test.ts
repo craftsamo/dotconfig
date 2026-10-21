@@ -129,6 +129,28 @@ describe("global shell rules", () => {
   })
 })
 
+describe("policies", () => {
+  // OpenCode skips a statement whose action it does not recognize, with only a
+  // log warning; 2.0.25 renamed `permission` to `tool.use` that way.
+  const policies = (config as unknown as { policies: Rule[]; experimental?: { policies?: unknown } }).policies
+
+  test("every statement is a top-level tool.use deny on <action>:<resource>", () => {
+    expect((config as { experimental?: { policies?: unknown } }).experimental?.policies).toBeUndefined()
+    expect(policies.length).toBeGreaterThan(0)
+    for (const p of policies) {
+      expect([p.resource, p.action, p.effect]).toEqual([p.resource, "tool.use", "deny"])
+      expect(p.resource).toMatch(/^[a-z_]+:./)
+    }
+  })
+
+  test("each shell policy keeps a matching permission deny", () => {
+    for (const p of policies.filter((p) => p.resource.startsWith("shell:"))) {
+      const command = p.resource.slice("shell:".length).replaceAll("*", "x")
+      expect([command, shell(command)]).toEqual([command, "deny"])
+    }
+  })
+})
+
 describe("global outside-directory rules", () => {
   // The built-in rules allow every action since 2.0.25, outside directories
   // included; the global ask restores the prompt. Resources are the directory
