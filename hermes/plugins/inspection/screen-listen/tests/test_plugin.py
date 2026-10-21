@@ -46,6 +46,15 @@ def call(**args):
     return json.loads(ctx.tools["screen_listen"]["handler"](args))
 
 
+def test_the_progress_line_shows_the_action_only(monkeypatch):
+    display = pytest.importorskip("agent.display")
+    monkeypatch.setattr(display, "_PREVIEW_BUILDERS", {})
+    plugin.register(FakeContext("assistant"))
+    line = lambda **args: display.build_tool_preview("screen_listen", args, max_len=0)
+    assert line(action="listen", app="Discord", title="private call") == "listen"
+    assert line(action="anything else", app="Discord") is None
+
+
 def fake_open(answer: dict, *, wav_bytes: bytes = b"RIFF"):
     """A stand-in for ``open -W``: writes the helper's JSON to the --stdout file and the WAV."""
     calls = []

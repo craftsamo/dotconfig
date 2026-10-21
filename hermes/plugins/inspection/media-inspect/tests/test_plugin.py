@@ -58,6 +58,15 @@ def call(profile, **args):
     return json.loads(ctx.tools["media_inspect"]["handler"](args))
 
 
+def test_the_progress_line_shows_the_action_only(monkeypatch):
+    display = pytest.importorskip("agent.display")
+    monkeypatch.setattr(display, "_PREVIEW_BUILDERS", {})
+    plugin.register(FakeContext("creator"))
+    line = lambda **args: display.build_tool_preview("media_inspect", args, max_len=0)
+    assert line(action="probe", path="/Users/someone/clip.mov") == "probe"
+    assert line(action="anything else", path="/Users/someone/clip.mov") is None
+
+
 def test_only_listed_profiles_get_the_tool():
     for profile in ("creator", "assistant"):
         ctx = FakeContext(profile)

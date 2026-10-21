@@ -16,6 +16,7 @@ import math
 import os
 import re
 import stat
+import sys
 import tempfile
 import wave
 from pathlib import Path
@@ -76,6 +77,18 @@ def _load(script, name):
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
+
+
+def _shared(name, filename):
+    if name not in sys.modules:
+        spec = importlib.util.spec_from_file_location(name, Path(__file__).resolve().parents[2] / "_shared" / filename)
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[name] = module
+        spec.loader.exec_module(module)
+    return sys.modules[name]
+
+
+tool_preview = _shared("hermes_tool_preview", "tool_preview.py")
 
 
 def _runtime():
@@ -580,3 +593,5 @@ def register(ctx):
     for schema, handler in ((CATALOG_SCHEMA, catalog), (GENERATE_SCHEMA, generate)):
         ctx.register_tool(name=schema["name"], toolset="music_gen", schema=schema,
                           handler=handler, description=schema["description"])
+        if schema is GENERATE_SCHEMA:
+            tool_preview.enums(schema["name"], schema, "action")

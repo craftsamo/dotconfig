@@ -28,6 +28,7 @@ def _load(name, path):
 listen = _load("hermes_screen_listen", Path(__file__).resolve().parent / "listen.py")
 record = _load("hermes_screen_record", Path(__file__).resolve().parent / "record.py")
 transcript = _load("hermes_screen_transcript", Path(__file__).resolve().parent / "transcript.py")
+tool_preview = _load("hermes_tool_preview", Path(__file__).resolve().parents[2] / "_shared" / "tool_preview.py")
 
 TOOL = "screen_listen"
 ACTIONS = (*listen.ACTIONS, "windows", "record_start", "record_status", "record_mic", "record_stop", "recordings",
@@ -186,4 +187,5 @@ def register(ctx):
     if ctx.profile_name not in PROFILES:
         return
     ctx.register_tool(name=TOOL, toolset=TOOL, handler=screen_listen, description=DESCRIPTION, schema=SCHEMA)
+    tool_preview.enums(TOOL, SCHEMA, "action")
     register_skills(ctx, ctx.profile_name)

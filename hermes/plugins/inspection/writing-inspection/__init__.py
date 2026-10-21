@@ -1,13 +1,26 @@
 """Terminal-free transport to the canonical shared inspector, not inspection rules."""
 
 import hashlib
+import importlib.util
 import json
 import os
 from pathlib import Path
 import selectors
 import subprocess
+import sys
 import time
 
+
+def _shared(name, filename):
+    if name not in sys.modules:
+        spec = importlib.util.spec_from_file_location(name, Path(__file__).resolve().parents[2] / "_shared" / filename)
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[name] = module
+        spec.loader.exec_module(module)
+    return sys.modules[name]
+
+
+tool_preview = _shared("hermes_tool_preview", "tool_preview.py")
 
 ROOT = Path(__file__).resolve().parents[4]
 SCRIPT = ROOT / "agents/skills/japanese-writing/scripts/inspect_text.py"
@@ -299,3 +312,4 @@ def register(ctx):
             },
         }},
     )
+    tool_preview.fixed("writing_inspect", "inspect")

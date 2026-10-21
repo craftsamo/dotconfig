@@ -48,15 +48,29 @@ registry dispatches every tool (``handler(args, **kwargs)``).
 
 from __future__ import annotations
 
+import importlib.util
 import json
 import logging
 import random
 import re
+import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
+
+
+def _shared(name, filename):
+    if name not in sys.modules:
+        spec = importlib.util.spec_from_file_location(name, Path(__file__).resolve().parents[2] / "_shared" / filename)
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[name] = module
+        spec.loader.exec_module(module)
+    return sys.modules[name]
+
+
+tool_preview = _shared("hermes_tool_preview", "tool_preview.py")
 
 # Engines that can hold a character voice, in listing order, with the caveat
 # the model needs in order to pick one. Deliberately not derived from
@@ -500,3 +514,4 @@ def register(ctx) -> None:
         handler=_character_text_to_speech,
         description=CHARACTER_TTS_SCHEMA["description"],
     )
+    tool_preview.fixed("character_text_to_speech", "speech")
