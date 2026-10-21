@@ -397,7 +397,9 @@ the whole thing off with `pinModels: false`.
 **Context limit.** The first alternate's text context may be at most
 160000 UTF-8 bytes plus 32768 headroom, relative to the catalog input or
 context minus output. The first primary HTTP body or WebSocket frame is also
-measured before transmission, including additions from later context hooks.
+measured before transmission, including additions from later context hooks. A
+zstd or gzip body (`settings.encoding`, zstd by default for ChatGPT sign-in) is
+measured decoded, never past the ceiling; any other encoding rejects.
 Media or unknown sizes reject, and no compaction is
 run to make a launch fit. Later native compaction retains the subscription
 identity and route checks, without a fresh quota requirement.
