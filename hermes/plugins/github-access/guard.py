@@ -10,6 +10,7 @@ state directory are blocked too (mandate.py keeps its records there).
 
 from __future__ import annotations
 
+import os
 import re
 import shlex
 
@@ -20,8 +21,9 @@ LABEL_WRITES = {"create", "edit", "delete", "clone"}
 FILE_TOOLS = {"read_file", "write_file", "patch", "search_files"}
 STATE_NAME = "github-access"
 # The state directory is <HERMES_HOME>/github-access/; the plugin's own source
-# (plugins/github-access/) and names that merely contain the words stay readable.
-_STATE = re.compile(r"(?<!plugins/)(?<![\w.-])github-access(?:/|\s|['\"]|$)")
+# (plugins/github-access/) and names that merely contain the words stay readable. Matched without
+# regard to case (macOS paths are case-insensitive), on the text and on the path it resolves to.
+_STATE = re.compile(r"(?<!plugins/)(?<![\w.-])github-access(?:/|\s|['\"]|$)", re.IGNORECASE)
 _SEPARATOR = re.compile(r"[;&|\n()`]|\$\(")
 
 MESSAGE = ("Blocked: GitHub Issues, boards and labels change only through github_change, where the user "
@@ -99,14 +101,34 @@ def _strings(value):
             yield from _strings(item)
 
 
+def _resolved(text: str) -> str:
+    """The real path a path-like argument names (``~``, ``..`` and symlinks resolved), else ''."""
+    if not text or "\n" in text or len(text) > 4096:
+        return ""
+    try:
+        return os.path.realpath(os.path.expanduser(text.strip()))
+    except (OSError, ValueError):
+        return ""
+
+
+def touches_state(value) -> bool:
+    for text in _strings(value):
+        if _STATE.search(text):
+            return True
+        real = _resolved(text)
+        if real and _STATE.search(real + "/"):
+            return True
+    return False
+
+
 def bypass(tool: str, args) -> str | None:
     args = args if isinstance(args, dict) else {}
     if tool == "terminal":
         command = args.get("command")
         if isinstance(command, str) and writes(command):
             return MESSAGE
-        if any(_STATE.search(text) for text in _strings(args)):
+        if touches_state(args):
             return MESSAGE
-    elif tool in FILE_TOOLS and any(_STATE.search(text) for text in _strings(args)):
+    elif tool in FILE_TOOLS and touches_state(args):
         return MESSAGE
     return None
