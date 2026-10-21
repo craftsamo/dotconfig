@@ -425,6 +425,30 @@ owns the procedure; this section owns what the code holds to.
   read that fails, or that more rows than five pages hold, moves nothing and
   holds that run's entries. Every other report carries `breaker` (the
   drawdown, the limit, since when it counts, the trip).
+- **Execution costs**: from the same fills the breaker reads, the gate
+  prices each order of the strategy's markets against what it expected:
+  an entry or a signal's close against the bar's close it was listed at
+  (where the backtest fills it, at the next open; a reversal keeps both, and
+  one order that closes and reverses is the entry), a stop against its
+  trigger. A stop seen on the venue matches only its own order's fills; a
+  stop listed but not yet seen matches an order whose fill sits at or past
+  it on its side, the tightest such one. Slippage is in basis points of
+  that reference, as the backtest's `slippage_bps` is, positive when it
+  cost; maker share is counted fill by fill. An order matching nothing
+  listed (a trade by hand, a take profit, a liquidation) counts its fees
+  and maker share only. Each expectation is used once, the oldest first;
+  across runs whose fills could not be read they and the stops are kept,
+  so each order is priced against the bar it was listed on. An order
+  priced once keeps its kind and reference for a day, so fills arriving
+  after a read join it and it counts once. Running totals per kind live in `state.json`; a report carries them
+  as `execution` (since when; per kind orders, slippage, fees, maker share)
+  and the orders priced this run as `fills_measured`. Neither wakes the
+  Assistant on its own. A memory of a shape the gate never writes, or a
+  fault while measuring, starts the measure again rather than stopping the
+  gate: it never changes which intents are listed. It is a measure, not a
+  ledger: attempts are taken to fill in the order they were listed, at most
+  six are kept per market and kind, and an order whose direction changes
+  only after a read keeps the kind it was first given.
 - **The run** is the Assistant's cron turn with only `hyperliquid_access`
   and `skills`: it quotes and submits the intents as listed and may only skip
   an increase or lower it. The trader and the mandate decide every submit as

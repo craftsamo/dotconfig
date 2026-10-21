@@ -68,6 +68,9 @@ default when a stance does not hold, with a note saying why.
    `monte_carlo`: the drawdown the same trades reach at `p95` in another
    order, beside the one their order gave. Tell the user that `p95` drawdown
    as what to be ready to sit through, and that it is a floor, not a bound.
+   Give `costs.taker_bps` the account's own taker rate (`state`'s `fees`),
+   and once a strategy has traded, its measured slippage (the gate's
+   `execution`) as `slippage_bps` when it is higher than the default.
    Compare with buy-and-hold for scale, and say what `unread` says (assumed
    funding, older prices from Binance spot). Run the markets one after
    another: a backtest reads many pages, and several at once hit the venue's
@@ -206,7 +209,8 @@ When the gate has nothing to do or say, no model runs at all.
 
 The gate's report is a JSON line: per strategy, its `account` and `address`,
 `intents` (each with an `effect`, a `why` and the exact `quote` arguments),
-`notes`, `problems` and `new_notices`. A run has only the `hyperliquid` and
+`notes`, `problems` and `new_notices`, and for the footer `breaker`,
+`execution` and `fills_measured`. A run has only the `hyperliquid` and
 `skills` tools: every read it makes (`state`, `fills`, `orders`) takes the
 report's `address` on the report's `network`; the spec and the wallet's
 account list are out of reach there.
@@ -264,7 +268,10 @@ account list are out of reach there.
      (like "drawdown 8.2% of 30%"; tripped, say since when). Under it,
      folded where the platform folds (a collapsed quote or
      spoiler), else one short line: order ids, split fills, the gate's
-     reasons (channel and EMA levels), fee breakdown.
+     reasons (channel and EMA levels), fee breakdown, and from the
+     report's `fills_measured` each priced order's slippage and fees in
+     basis points (an entry's against its bar's close, a stop's against
+     its trigger).
    - `new_notices` and problems last, marked so they stand out, never
      folded.
    With no intents, the sentence, the title, the notices and the footer.
@@ -305,7 +312,13 @@ the spec's variants and a `size` up to `advisor.max_size`, for at most
 - **Weekly**, or when asked: `review` over the strategy's window and
   markets, against the variant's `validated` figures: trades, win rate, fees,
   drawdown. A losing streak inside the backtest's drawdown is the strategy
-  working as tested; say so plainly, and say when it is outside.
+  working as tested; say so plainly, and say when it is outside. Compare
+  the gate's `execution` (the latest report's, or `state.json`'s running
+  totals) with what the backtest assumed per side: `slippage_bps` (5 by
+  default) and `taker_bps` (the account's rate). Costs above them shave the
+  tested result on every trade: say by how much, and backtest the variant
+  again with the measured costs when the gap is more than a few basis
+  points.
 - **Breaker tripped:** the gate says so once; from then on it lists closes
   and stops but no entry. Tell the user the drawdown against the tested
   range, and offer a review before anything else. A breaker "holding" with
