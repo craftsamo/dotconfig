@@ -622,6 +622,20 @@ def test_a_trailing_rule_replaces_a_looser_stop_once_per_bar_new_stop_first(api,
     assert [i["id"].split(":")[-1] for i in intents] == ["protect"] and float(intents[0]["quote"]["sl"]) == 52
 
 
+def test_a_trailed_stop_in_one_market_leaves_the_next_markets_entry_sized(api, tmp_path):
+    reset()
+    STATE["bars"] = {"BTC": series([100.0] * 41, NOW), "ETH": series([50.0] * 40 + [55.0], NOW)}
+    STATE["positions"] = [{"coin": "BTC", "szi": "1", "entryPx": "100", "positionValue": "100"}]
+    STATE["orders"] = [{"coin": "BTC", "side": "A", "orderType": "Stop Market", "reduceOnly": True, "isTrigger": True,
+                        "sz": "1", "triggerPx": "90", "oid": 7}]
+    root = tmp_path / "hl-strategies"
+    strategy_dir(root, trail_atr=2)
+    intents = gate(root, api, tmp_path)["strategies"][0]["intents"]
+    assert [(i["market"], i["id"].split(":")[-1]) for i in intents] == [
+        ("BTC", "trail"), ("BTC", "untrail"), ("ETH", "leverage"), ("ETH", "open")]
+    assert 10 <= float(intents[-1]["quote"]["usd"]) <= 300 * 0.98
+
+
 def test_an_entry_whose_leverage_could_not_be_read_is_tried_again_next_run(api, tmp_path):
     STATE["leverage_fails"] = True
     root = tmp_path / "hl-strategies"
