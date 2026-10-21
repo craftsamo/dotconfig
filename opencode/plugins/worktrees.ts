@@ -1,3 +1,4 @@
+import { removeBuiltinWorktreeWrites } from "../lib/worktrees/builtin-tools"
 import { strategy } from "../lib/worktrees/strategy"
 
 /**
@@ -5,8 +6,10 @@ import { strategy } from "../lib/worktrees/strategy"
  * OpenCode V2, so the TUI's new worktree, the server API and the
  * `git_worktree` tool all create task branches under ~/Worktrees the way the
  * Hermes workspace does. Adding a strategy makes it the default; worktrees
- * recorded under another strategy keep their owner. V1 has no worktree
- * strategies, so there is no `server()` entry.
+ * recorded under another strategy keep their owner. It also takes OpenCode's
+ * own worktree create/remove tools out of every agent's catalog
+ * (lib/worktrees/builtin-tools.ts). V1 has no worktree strategies, so there
+ * is no `server()` entry.
  */
 
 // OpenCode offers a forced removal only for its own Worktree.OperationError
@@ -23,7 +26,10 @@ async function operationError(): Promise<(new (input: { message: string; forceRe
 
 export default {
   id: "dotconfig.worktrees",
-  async setup(ctx: { worktree: { transform(cb: (editor: { add(definition: unknown): void }) => void): Promise<unknown> } }) {
+  async setup(ctx: {
+    worktree: { transform(cb: (editor: { add(definition: unknown): void }) => void): Promise<unknown> }
+    tool: { transform(cb: (editor: { remove(id: string): void }) => void): Promise<unknown> }
+  }) {
     const base = strategy()
     const OperationError = await operationError()
     await ctx.worktree.transform((editor) =>
@@ -39,5 +45,6 @@ export default {
         },
       }),
     )
+    await ctx.tool.transform(removeBuiltinWorktreeWrites)
   },
 }
