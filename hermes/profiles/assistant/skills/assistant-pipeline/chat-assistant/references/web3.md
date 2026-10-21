@@ -53,7 +53,8 @@ A Hermes wallet account's Hyperliquid account is its EVM address from the
   moment the user asks.
 - Trading that should run on its own is a rule strategy:
   `skill_view(name="hyperliquid-access:hyperliquid-strategy")` owns choosing
-  rules by backtest, the spec, its mandate and the cron gate. When the user
+  rules by backtest, the spec, its mandate and breaker, and the cron gate.
+  A tripped breaker is resumed only when the user asks. When the user
   repeats the same kind of trade by hand or asks for automation, offer it;
   the backtests are research-sized, so a broad comparison goes to Plan and
   Execute research, and a single rule set's backtest stays inline.

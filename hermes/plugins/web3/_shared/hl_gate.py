@@ -11,14 +11,16 @@ the newest completed candles through the public ``/info`` endpoint, applies the 
 exact ``hyperliquid`` quotes the rules call for: a close, a missing stop or a trailed stop and the
 cancel of the one it replaces (reduce), and on a newly completed bar an entry with its stop
 (increase, inside the mandate the spec records, for a variant whose walk-forward out-of-sample the
-spec records). An intent with ``after`` is sent only once the intent it names was. It prints one
+spec records, while the spec's breaker is set and not tripped). An intent with ``after`` is sent only once
+the intent it names was. The breaker follows the strategy's own result from its markets' fills,
+funding and unrealized result, read each run from where the last one stopped. It prints one
 JSON line; when nothing is to be done or said, that line is ``{"wakeAgent": false}`` and no model
 runs. It never signs, never reads a key and never sends anything: the Assistant quotes and submits
 through the tool, where the trader and the mandate decide. Its own memory is ``state.json`` beside
 the spec: the bar each market was last read on, the side last allowed, the notices already given,
-the account's value at the first read (the strategy's starting point) and the positions seen on the
+the account's value at the first read (the strategy's starting point), the positions seen on the
 last run, so one the venue closed on its own (a stop that fired) is said once and its result
-reported. A failure it cannot place in a strategy exits nonzero, so Hermes reports it.
+reported, and the breaker's index, high, trip and read position. A failure it cannot place in a strategy exits nonzero, so Hermes reports it.
 """
 
 from __future__ import annotations
@@ -26,6 +28,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 import hashlib
 import json
+import math
 import os
 from pathlib import Path
 import sys
@@ -40,6 +43,8 @@ SPEC, STANCE, STATE = "spec.json", "stance.json", "state.json"
 SLIPPAGE = "0.01"
 EXPIRY_WARNING_MS = 3 * hs.DAY_MS
 REPORTED_KEPT = 100
+LEDGER_PAGES = 5          # pages of fills or funding one run reads for the breaker before it calls the window unread
+FUNDING_PAGE = 500        # rows userFunding returns per request
 SILENT = {"wakeAgent": False}
 
 
@@ -80,6 +85,8 @@ class Account:
         found = ctx.api.info({"type": "clearinghouseState", "user": address})
         if not isinstance(found, dict) or not isinstance(found.get("assetPositions"), list):
             raise ChainError(f"{ctx.api.label} returned an unexpected account state")
+        snapshot = found.get("time")  # the venue's own time of this read: the breaker's ledger reads end there
+        self.time = snapshot if isinstance(snapshot, int) and not isinstance(snapshot, bool) else None
         self.positions: dict[str, dict] = {}
         for item in found["assetPositions"]:
             p = item.get("position") or {}
@@ -87,10 +94,13 @@ class Account:
             if p.get("coin") and size:
                 self.positions[p["coin"]] = {"side": "long" if size > 0 else "short", "size": abs(size),
                                              "entry": hl.num(p.get("entryPx")),
-                                             "value": abs(hl.num(p.get("positionValue")) or 0.0)}
+                                             "value": abs(hl.num(p.get("positionValue")) or 0.0),
+                                             "unrealized": hl.num(p.get("unrealizedPnl")) or 0.0}
         self.mode = hl.abstraction(ctx, address)
         equity = hl.num((found.get("marginSummary") or {}).get("accountValue")) or 0.0
         if self.mode in hl.UNIFIED:
+            # read just after the account's time: a loss landing between the two reads can only make the
+            # breaker's next measure deeper (held entries), never shallower
             spot = ctx.api.info({"type": "spotClearinghouseState", "user": address})
             usdc = [b for b in (spot or {}).get("balances", []) if b.get("coin") == "USDC"]
             equity = (hl.num(usdc[0].get("total")) or 0.0) if usdc else 0.0
@@ -132,6 +142,91 @@ class Account:
         return lev.get("value") if isinstance(lev, dict) and isinstance(lev.get("value"), int) else None
 
 
+def _since(ctx: hl.Ctx, kind: str, user: str, start: int, end: int, page_size: int, key) -> list[dict]:
+    """Every row of a time-ranged account read (``userFillsByTime``, ``userFunding``) from ``start`` to
+    ``end``, paged. A page starts at the last one's millisecond, so rows sharing it are kept once by
+    ``key``. A reply of another shape, or more rows than LEDGER_PAGES pages hold, raises: the breaker
+    never counts a window it did not read whole."""
+    rows: list[dict] = []
+    seen: set = set()
+    cursor = start
+    for _ in range(LEDGER_PAGES):
+        page = ctx.api.info({"type": kind, "user": user, "startTime": cursor, "endTime": end})
+        if not isinstance(page, list):
+            raise ChainError(f"{ctx.api.label} returned an unexpected {kind}")
+        for row in page:
+            if isinstance(row, dict) and key(row) not in seen:
+                seen.add(key(row))
+                rows.append(row)
+        if len(page) < page_size:
+            return rows
+        cursor = max(int(r.get("time") or 0) for r in page if isinstance(r, dict))
+    raise ChainError(f"more {kind} rows than {LEDGER_PAGES} reads cover")
+
+
+def _number(value) -> bool:
+    """A finite JSON number; never raises, even for an integer too large for a float."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return False
+    try:
+        return math.isfinite(value)
+    except OverflowError:
+        return False
+
+
+def _memory(raw) -> dict | None:
+    """The breaker's memory from state.json when it has every field the gate wrote and reads, else None."""
+    if not isinstance(raw, dict) or "tripped" not in raw:
+        return None
+    if not all(_number(raw.get(k)) for k in ("index", "peak", "unrealized", "equity", "cursor", "since")):
+        return None
+    tripped = raw["tripped"]
+    if tripped is not None and not (isinstance(tripped, dict) and isinstance(tripped.get("at"), int)
+                                    and not isinstance(tripped.get("at"), bool) and "drawdown_pct" in tripped
+                                    and (tripped["drawdown_pct"] is None or _number(tripped["drawdown_pct"]))):
+        return None
+    return raw if raw["peak"] > 0 and 0 <= raw["index"] <= raw["peak"] else None
+
+
+def _breaker(ctx: hl.Ctx, strategy: dict, account: Account, memory: dict | None, lost: bool) -> tuple[dict, float]:
+    """The breaker after this run: what the strategy's markets earned since the last run (their fills'
+    realized result less fees, their funding, and the change in their positions' unrealized result),
+    applied to its index (hl_strategy.breaker_step). Fills and funding are read up to the account
+    read's own time, the moment its unrealized results and value hold for, so nothing falls between.
+    Without memory the run sets the baseline; when the memory was lost (``lost``: state.json or its
+    breaker could not be read) the baseline starts tripped, so only the user's reset resumes entries.
+    A read that fails raises, and nothing moves."""
+    if account.time is None:
+        raise ChainError(f"{ctx.api.label} gave no time for the account read")
+    markets = set(strategy["markets"])
+    unrealized = sum(p["unrealized"] for c, p in account.positions.items() if c in markets)
+    brake = strategy["breaker"] or {}
+    limit, reset = brake.get("max_drawdown_pct"), brake.get("reset")
+    change, equity_before, end = 0.0, 0.0, account.time
+    if memory is not None:
+        user = strategy["address"]
+        fills = _since(ctx, "userFillsByTime", user, int(memory["cursor"]), end, hl.FILLS_PAGE,
+                       lambda f: (f.get("tid"), f.get("oid"), f.get("time"), f.get("sz"), f.get("px")))
+        funding = _since(ctx, "userFunding", user, int(memory["cursor"]), end, FUNDING_PAGE,
+                         lambda r: (r.get("time"), r.get("hash"), (r.get("delta") or {}).get("coin")))
+        for f in fills:
+            if f.get("coin") in markets:
+                change += hl.num(f.get("closedPnl")) or 0.0
+                if f.get("feeToken") in (None, "USDC"):
+                    change -= hl.num(f.get("fee")) or 0.0
+        for r in funding:
+            delta = r.get("delta") or {}
+            if delta.get("coin") in markets:
+                change += hl.num(delta.get("usdc")) or 0.0
+        change += unrealized - memory["unrealized"]
+        equity_before = memory["equity"]
+    kept = {k: memory[k] for k in ("index", "peak", "tripped", "since")} if memory is not None else None
+    if kept is None and lost:
+        kept = {"tripped": {"at": end, "drawdown_pct": None}}
+    stepped, drawdown = hs.breaker_step(kept, change, equity_before, limit, reset, end)
+    return {**stepped, "cursor": end + 1, "unrealized": unrealized, "equity": account.equity}, drawdown
+
+
 def _candles(ctx: hl.Ctx, coin: str, rule_set: dict, interval: str, now: int) -> list[dict]:
     step = hs.INTERVAL_MS[interval]
     count = min(hs.warmup(rule_set) * 2 + 10, hl.CANDLES_MAX)
@@ -143,9 +238,13 @@ def run_strategy(directory: Path, now: int) -> dict:
     """One strategy's part of the report: {"name", "intents", "notes", "problems", …}."""
     state_path = directory / STATE
     try:
-        state = _read_json(state_path) or {}
+        state = _read_json(state_path)
     except hs.StrategyError:
-        state = {}
+        state = None
+    if not isinstance(state, dict):
+        # none yet is a first run; anything else took the breaker's memory with it, so a marker of a shape
+        # the gate never writes is kept until the breaker starts tripped
+        state = {"breaker": {"lost": now}} if state_path.exists() else {}
     state.setdefault("bars", {})
     state.setdefault("history", {})
     reported = state.setdefault("reported", [])
@@ -214,6 +313,42 @@ def run_strategy(directory: Path, now: int) -> dict:
                             "since": was["since"] if same else now}
         else:
             seen.pop(market, None)
+    # the breaker: entries wait while it is missing, unread or tripped; closes and stops never do
+    brake, hold_entries, breaker_unread = strategy["breaker"], False, False
+    memory = _memory(state.get("breaker"))
+    lost = memory is None and "breaker" in state  # unreadable state, or a breaker of a shape the gate never wrote
+    was_tripped = memory is not None and memory["tripped"] is not None
+    try:
+        state["breaker"], drawdown = _breaker(ctx, strategy, account, memory, lost)
+    except ChainError as exc:
+        out["problems"].append(f"the strategy's fills or funding could not be read ({exc}); its entries wait for "
+                               "the next run")
+        breaker_unread = True
+    else:
+        latest = state["breaker"]
+        tripped = latest["tripped"]
+        out["breaker"] = {"drawdown_pct": round(drawdown, 2),
+                          "max_drawdown_pct": brake["max_drawdown_pct"] if brake else None,
+                          "since": hs.iso(latest["since"]), "tripped": hs.iso(tripped["at"]) if tripped else None}
+        if tripped and tripped["drawdown_pct"] is None:
+            hold_entries = True
+            out["notes"].append(f"breaker holding since {hs.iso(tripped['at'])}: its memory in state.json could "
+                                "not be read, so the strategy's drawdown is unknown; entries are held until the "
+                                "user resumes it; closes and stops go on")
+        elif tripped:
+            hold_entries = True
+            out["notes"].append(f"breaker tripped at {hs.iso(tripped['at'])} with the strategy "
+                                f"{tripped['drawdown_pct']:g}% below its high: entries are held until the user "
+                                "resumes it; closes and stops go on")
+        elif was_tripped:
+            out["notes"].append(f"breaker reset at {hs.iso(latest['since'])}: entries resume, and the drawdown "
+                                "counts from there")
+    if brake is None:
+        hold_entries = True
+        out["notes"].append(f"breaker not used: {strategy['breaker_problem']}; entries are held until it is fixed, "
+                            "closes and stops go on" if strategy["breaker_problem"] else
+                            "no breaker in the spec: entries are held until breaker.max_drawdown_pct is set; "
+                            "closes and stops go on")
     held = account.held
     for market in strategy["markets"]:
         choice = choices[market]
@@ -269,7 +404,9 @@ def run_strategy(directory: Path, now: int) -> dict:
             if not entries:
                 out["notes"].append(f"{market}: the rules open a {ev['open']} ({ev['why']}), but no mandate is in "
                                     "force")
-            elif choice["variant"] not in untested:  # an untested variant is said once above, not per bar
+            elif breaker_unread:
+                retry = True  # the bar is read again once the breaker can be
+            elif choice["variant"] not in untested and not hold_entries:  # each said once above, not per bar
                 value, bound = hs.size_usd(account.equity, ev["price"], ev["stop"], rule_set, choice["size"], held,
                                            limits)
                 if value is None:
