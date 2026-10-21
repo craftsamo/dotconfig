@@ -7,10 +7,11 @@
     // permit subscription use outside Claude Code; this is an accepted risk.
     // Pinned: the 2.x line is a prerelease and tracks OpenCode 2's beta
     // plugin API. Bump deliberately and re-test a login and a refresh.
-    "@ex-machina/opencode-anthropic-auth@2.0.0-next.5",
+    "@ex-machina/opencode-anthropic-auth@2.0.0-next.6",
     // Usage limits in the TUI and /quota. Reads the Anthropic login above;
     // opencode-quota/quota-toast.jsonc keeps it off Claude Code's Keychain.
-    "@slkiser/opencode-quota@5.0.1",
+    // 6.x drops project quota-toast.jsonc and the init/update CLI: stay on 5.
+    "@slkiser/opencode-quota@5.0.3",
     // Outside auto-discovery's plugins/ directory. Keep this entry last, after
     // quota. enabled: false stops new selection but retains in-flight guards.
     {
@@ -33,9 +34,8 @@
       }
     }
   ],
-  // No "instructions" array: OpenCode V2 accepts it but never loads the files
-  // (anomalyco/opencode#51341). All global rules live in AGENTS.md, which both
-  // V1 and V2 read.
+  // No "instructions" array, by choice (V2 loads one since 2.0.30). All global
+  // rules live in AGENTS.md, which both V1 and V2 read.
   // Anthropic's prompt cache lives five minutes, and a miss rewrites the whole
   // conversation (about $1 per rewrite at 380k tokens on Sonnet 5.5). A
   // keep-alive every four minutes holds it through pauses of up to twenty
@@ -79,13 +79,14 @@
     },
   },
   // Caps tool results before they enter the conversation, so past turns
-  // never change and the prompt cache stays intact. On 2.0.23 it reaches
-  // shell (keeps the tail) and webfetch/websearch (keep the head) only;
-  // read pages at its own fixed 50 KiB and grep/glob have their own result
-  // limits. The full text is saved and its path shown to the model. In the
-  // first two days it cut 0.8% of tool calls, the model re-read few of
-  // them, and it saved well under 1% of cache reads, so lowering it further
-  // is not worth it until read honors the cap too.
+  // never change and the prompt cache stays intact. Measured on 2.0.23 (not
+  // re-checked since), it reaches shell (keeps the tail) and
+  // webfetch/websearch (keep the head) only; read pages at its own fixed
+  // 50 KiB and grep/glob have their own result limits. The full text is
+  // saved and its path shown to the model. In the first two days it cut
+  // 0.8% of tool calls, the model re-read few of them, and it saved well
+  // under 1% of cache reads, so lowering it further is not worth it until
+  // read honors the cap too.
   "tool_output": {
     "max_lines": 1000,
     "max_bytes": 36864,
@@ -329,15 +330,15 @@
             },
           ],
         },
-        // Codex raised the default window to 500k (model max 1M), but the
-        // catalog still reports 272k input. Compaction starts at the input
-        // limit minus the default 10% buffer (the old 272k input gave ~245k),
-        // so a 555k input starts it at about 500k. context = input + output
-        // keeps the result the same if it is derived from context - output.
+        // Codex raised the default window to 500k (model max 1M). Since 2.1.0
+        // compaction starts at the input limit minus a 15% reserve (at least
+        // 16k), so a 588235 input starts it at 500000. context = input +
+        // output keeps the result the same if it is derived from context -
+        // output.
         "gpt-6.1-sol": {
           "limit": {
-            "context": 683000,
-            "input": 555000,
+            "context": 716235,
+            "input": 588235,
             "output": 128000
           },
           "cost": [
@@ -357,8 +358,8 @@
         // what OpenCode's estimate can show.
         "gpt-6.1-sol-fast": {
           "limit": {
-            "context": 683000,
-            "input": 555000,
+            "context": 716235,
+            "input": 588235,
             "output": 128000
           },
           "cost": [
@@ -2528,6 +2529,12 @@
       "effect": "deny"
     },
   ],
+  "experimental": {
+    // The native todowrite tool (2.1.0) stays off: steps live in the
+    // conversation task list (AGENTS.md <PlanHandoff>). Pinned although off
+    // is the default, so the choice holds if the default changes.
+    "todo": false,
+  },
   "mcp": {
     "servers": {
       "blender-mcp": {

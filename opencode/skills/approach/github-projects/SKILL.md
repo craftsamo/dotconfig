@@ -32,7 +32,7 @@ branch. Delegate board operations and issue body formats to
 <WhenToUse>
 
 - Durable / multi-session / multi-step work → record and track it on the board.
-- Ephemeral within-session steps → use the conversation task list (V2 has no native Todo tool), not the board.
+- Ephemeral within-session steps → use the conversation task list (the native Todo tool is disabled here), not the board.
 - Cross-cutting companion: layer it on any scenario playbook (new-feature,
   rebuild-migration, …) once the work is worth persisting.
 
