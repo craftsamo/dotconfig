@@ -75,8 +75,10 @@ READ_HELP = (
     "set, and entries only on the side of the regime EMA when regime_ema is set; costs, "
     "limits {exposure_pct, max_leverage}, direction, stance = dated windows of direction and size, hours, "
     "end_time; walk_forward = {grid of values per parameter, folds, objective, "
-    "min_trades} chooses rules on past data and trades them on the next unseen window; returns figures, the "
-    "newest trades and the rule set's fingerprint — a simulation, not a forecast), deposit_info (how USDC enters "
+    "min_trades} chooses rules on past data and trades them on the next unseen window; returns figures, a "
+    "monte_carlo beside result and out_of_sample (the trades redrawn in random order: drawdown, return and losing "
+    "streak at percentiles, beside the observed ones), the newest trades and the rule set's fingerprint — a "
+    "simulation, not a forecast), deposit_info (how USDC enters "
     "the venue: Circle's CCTP from the network's EVM chains, their USDC, and how). Coins: a perp like BTC, a builder "
     "perp like xyz:GOLD, a spot pair like PURR/USDC, HYPE/USDC or its @N name. Times are Unix milliseconds.")
 UNTRUSTED = (

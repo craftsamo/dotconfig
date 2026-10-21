@@ -82,6 +82,13 @@ signed or sent, and any account can be read by its address.
   newest 5000. `fingerprint` names the rule set on its interval exactly.
   Figures start from a notional 1000 USDC. It is a simulation, never a
   forecast; give `end_time` so it can be run again the same way.
+- `monte_carlo` (in `result` and in `out_of_sample`) redraws the same trades
+  1000 times in random order, each with the path it took while held:
+  `max_drawdown_pct`, `return_pct` and `losing_streak` at percentiles beside
+  the `observed` order. It tells how deep the same trades could have gone,
+  not what new markets will do, and the draws are independent, so losses that
+  cluster in one regime are spread out: read `p95` as a floor for planning,
+  not a ceiling. It is null below 20 trades.
 - A pair named `@N` is traded under that name: use it as it is.
 
 ## Limits
