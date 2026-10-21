@@ -468,3 +468,14 @@ def test_a_reading_profile_blocks_only_the_engine_and_the_rpc_keys():
         assert gate("evm", "marketer", tool_name=name, args=args)["action"] == "block", (name, args)
     assert gate("evm", "marketer", tool_name="terminal", args={"command": "ls ~/Workspaces"}) is None
     assert gate("evm", "marketer", tool_name="web_search", args={"query": "web3-rpc"}) is None
+
+
+@pytest.mark.parametrize("family", ["evm", "solana"])
+def test_the_progress_line_shows_the_action_only(monkeypatch, family):
+    display = pytest.importorskip("agent.display")
+    monkeypatch.setattr(display, "_PREVIEW_BUILDERS", {})
+    access.register(Ctx("assistant"), family)
+    line = lambda **args: display.build_tool_preview(family, args, max_len=0)
+    assert line(action="accounts", name="HERMES wallet", address="0xabc") == "accounts"
+    assert line(action="quote", kind="transfer", amount="5", to="0xabc") == "quote transfer"
+    assert line(action="anything else", address="0xabc") is None
