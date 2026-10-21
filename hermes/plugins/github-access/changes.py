@@ -12,10 +12,12 @@ apply()     runs a plan's changes in order and stops at the first failure, repor
             done and what was not.
 
 Each change has a class: ``routine`` (moving an item's fields, a note on a draft, archiving,
-editing an issue's title or body) or ``create`` (anything that makes something new, notifies
+editing an issue's title or body), ``create`` (anything that makes something new, notifies
 someone or closes: a draft, an issue, a comment, a relation, a label, an assignee, a milestone,
-a close or reopen). The plugin hook decides from the plan whether a card is needed; mandates
-(mandate.py) may cover some classes on some tiers.
+a close or reopen) or ``admin`` (what changes how a repository works or what reaches others at
+once: settings, visibility, a merge, a published release, a workflow run). The plugin hook decides
+from the plan whether a card is needed; mandates (mandate.py) may cover routine and create
+changes on some tiers, and never an admin one.
 """
 
 from __future__ import annotations
@@ -46,7 +48,8 @@ AccessError = access.AccessError
 MAX_CHANGES = 50
 LINE = 140
 CARD_LIMIT = 1500
-CLASSES = ("routine", "create")
+CLASSES = ("routine", "create", "admin")
+ADMIN = "admin"  # always asks on a card: no mandate covers it
 
 
 # --- the registry ---------------------------------------------------------------------------------
@@ -412,10 +415,14 @@ def card(planned: dict) -> str:
         lines.append(f"Local paths in the text: {paths}")
     if branch:
         lines.append(f"⚠️ Code links that follow a branch (their content can change): {branch}")
+    admin = [i for i, step in enumerate(planned["steps"], 1) if step["class"] == ADMIN]
+    if admin:
+        lines.append(say(f"⚠️ Admin changes, never covered by a mandate: {', '.join(map(str, admin))}", LINE))
     lines.append("")
     shown = 0
     for i, step in enumerate(planned["steps"], 1):
-        line = f"{i}. {say(OPS[step['change']['op']].describe(step), LINE)}"
+        mark = "⚠️ " if step["class"] == ADMIN else ""
+        line = f"{i}. {mark}{say(OPS[step['change']['op']].describe(step), LINE)}"
         if sum(len(l) + 1 for l in lines) + len(line) > CARD_LIMIT - 40:
             lines.append(f"(+{n - shown} more changes)")
             break

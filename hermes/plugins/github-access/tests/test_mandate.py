@@ -154,6 +154,13 @@ def test_a_routine_only_mandate_never_covers_a_create(home):
     assert got is None and "covers routine" in misses[0]
 
 
+def test_an_admin_change_is_never_covered(home):
+    mandate.create(home, terms())
+    listing = plan(step("item_set", "routine", BOARD), step("repo_edit", "admin", APP, repo={"repo": "me/app"}))
+    got, misses = mandate.covering(home, listing)
+    assert got is None and "repo_edit is an admin change: it always asks on a card" in misses[0]
+
+
 def test_one_change_outside_makes_the_whole_list_ask(home):
     mandate.create(home, terms())
     mixed = plan(step("item_set", "routine", BOARD),
@@ -246,6 +253,8 @@ def test_terms_read_their_targets_and_are_bounded(gh):
                           ({"days": 3, "purpose": "x"}, "at least one board or repository"),
                           ({"repos": ["me/ro"], "days": 3, "purpose": "x"}, "no write permission"),
                           ({"repos": ["me/app"], "classes": ["structure"], "days": 3, "purpose": "x"}, "classes"),
+                          ({"repos": ["me/app"], "classes": ["admin"], "days": 3, "purpose": "x"},
+                           "admin changes always ask"),
                           ({"repos": ["me/app"], "parent": "acme/x#1", "days": 3, "purpose": "x"}, "not in repos")):
         with pytest.raises(access.AccessError, match=message):
             mandate.terms(args)
@@ -274,6 +283,7 @@ def test_the_mandate_card_names_every_bound(home):
     assert lines[:2] == ["GitHub · Mandate", "⚠️ Changes inside it skip the card"]
     assert "Board: me/1 Roadmap (own)" in lines and "Repository: team/web (shared)" in lines
     assert "Only issue me/app#3 and its direct sub-issues" in lines
+    assert any(l.startswith("Never covered: admin changes") for l in lines)
     assert any(l.startswith("Until: ") and "(7 days)" in l for l in lines)
     fixed = terms(expires=1767225600)  # the card prints the end it will store
     assert __import__("time").strftime("%Y-%m-%d %H:%M", __import__("time").localtime(1767225600)) in \

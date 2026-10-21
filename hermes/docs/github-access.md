@@ -105,9 +105,11 @@ draft, a draft's own text, archiving or restoring an item, editing an issue's
 title or body. `create`: anything that makes something new, notifies someone
 or closes it — a draft, an item, an issue, a comment, a relation, a kind,
 labels, assignees, a milestone, a close or a reopen, and an issue edit whose
-new words carry an `@` mention. A board's own automations can still act on a
-routine field change; `own` is about who can read a target, not about
-nothing reacting to it. Putting someone else's
+new words carry an `@` mention. `admin`: what changes how a repository works
+or reaches others at once (its settings or visibility, a merge, a published
+release, a workflow run); it always asks on its card. A board's own
+automations can still act on a routine field change; `own` is about who can
+read a target, not about nothing reacting to it. Putting someone else's
 issue on a board writes only the board; a relation to an issue in another
 repository writes there too, so that repository is a target.
 
@@ -127,7 +129,8 @@ The hook plans the call and shows one card for the whole list: the targets,
 each with its tier (`own, private`, `others can read it`, `⚠️ someone
 else's`), the sites the changes link to (with the numbers of the changes that
 do), how many local paths the text carries and how many code links follow a
-branch rather than a commit, then one line per change. Names and quoted text
+branch rather than a commit, which changes are `admin`, then one line per
+change (an `admin` one marked ⚠️). Names and quoted text
 are collapsed to one line, control, bidi-override and invisible characters are
 spelled out, and a list too long for the card ends with the count of the
 rest; the skill agrees the full wording of text others will read first, as a
@@ -184,6 +187,7 @@ A change list skips its card when every change fits one mandate: its class
 is covered, every target of the change is in the mandate's boards or
 repositories, and the target's tier, read at the write, allows the class —
 `own` takes `routine` and `create`, `shared` only `routine`, `other` nothing.
+An `admin` change never fits, and no mandate can be made for that class.
 The hook records the mandate it matched; the handler re-reads the targets,
 refuses if they changed, and checks the list still fits the mandate in force
 now (revoked or ended between the two refuses). Inside a mandate a list also

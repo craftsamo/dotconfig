@@ -225,6 +225,24 @@ def test_a_long_list_is_cut_on_the_card_with_the_rest_counted(gh):
     assert len(text) <= changes.CARD_LIMIT and "more changes)" in text.splitlines()[-1]
 
 
+@pytest.fixture
+def admin_op():
+    op = changes.Op("test_admin", "admin", "repo: a test", lambda s, p: s.update(repo=p.repo_of(s["change"])),
+                    lambda s: f"Change {s['repo']['repo']}", lambda s, out: {"ran": True}, optional=("repo",))
+    changes.register(op)
+    yield op
+    del changes.OPS[op.name]
+
+
+def test_an_admin_change_is_marked_on_the_card(gh, admin_op):
+    planned = changes.plan({"repo": "me/app", "changes": [{"op": "draft_add", "title": "x"}, {"op": "test_admin"}]})
+    assert planned["classes"] == ["admin", "create"]
+    text = changes.card(planned)
+    assert "⚠️ Admin changes, never covered by a mandate: 2" in text
+    assert "1. Add draft x" in text and "2. ⚠️ Change me/app" in text
+    assert "Admin changes" not in changes.card(changes.plan({"changes": [{"op": "draft_add", "title": "x"}]}))
+
+
 def test_apply_creates_an_issue_and_settles_kind_parent_dependency_and_board(gh):
     gh.add(r"issueTypes", {"organization": {"issueTypes": {"nodes": []}}})
     gh.cmd(r"^api --paginate --slurp repos/me/app/milestones", [[{"title": "v1"}]])
