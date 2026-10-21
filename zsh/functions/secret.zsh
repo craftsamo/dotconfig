@@ -962,13 +962,14 @@ _secret_cmd_show() {
 }
 
 _secret_cmd_ls() {
-  local proj="" long=0 all=0 wide=0
+  local proj="" long=0 all=0 wide=0 json=0
   local -a meta_filters
   local stage_filter="" stage_set=0
   while (( $# )); do
     case $1 in
       -p) proj=$2; shift 2 ;;
       -l|--long) long=1; shift ;;
+      --json) json=1; shift ;;
       --all) all=1; shift ;;
       --wide) wide=1; shift ;;
       --meta) meta_filters+=("$2"); shift 2 ;;
@@ -983,6 +984,7 @@ _secret_cmd_ls() {
     _secret_meta_check_key "${flt%%=*}" || return 2
   done
   [[ -n $stage_filter ]] && { _secret_check_stage "$stage_filter" || return 2 }
+  (( json && long )) && { _secret_err "ls: --json and --long are exclusive"; return 2 }
   local where
   if (( all )); then
     proj=""; where="any project"
@@ -992,7 +994,10 @@ _secret_cmd_ls() {
   local rows row kept=""
   local -a f
   rows=$(_secret_rows "$proj")
-  [[ -z $rows ]] && { print -r -- "no secrets in $where" >&2; return 0 }
+  if [[ -z $rows ]]; then
+    (( json )) && { print -r -- "[]"; return 0 }
+    print -r -- "no secrets in $where" >&2; return 0
+  fi
   if (( ${#meta_filters} || stage_set )); then
     # every --meta KEY[=VALUE] must match (fields are column 8); --stage S
     # keeps that stage's layers only, --no-stage the stage-less ones
@@ -1005,9 +1010,14 @@ _secret_cmd_ls() {
       kept+="$row"$'\n'
     done <<< "$rows"
     rows=${kept%$'\n'}
-    [[ -z $rows ]] && { print -r -- "no secrets in $where match the filters" >&2; return 0 }
+    if [[ -z $rows ]]; then
+      (( json )) && { print -r -- "[]"; return 0 }
+      print -r -- "no secrets in $where match the filters" >&2; return 0
+    fi
   fi
-  if (( long )); then
+  if (( json )); then
+    _secret_ls_json "$rows"
+  elif (( long )); then
     local -i width=0
     if (( ! wide )); then
       if [[ -n ${COLUMNS:-} ]]; then width=$COLUMNS
@@ -1021,6 +1031,41 @@ _secret_cmd_ls() {
     # "scope/NAME@stage" — the token the fzf pickers hand back to the layer flags
     print -r -- "$rows" | awk -F'\t' '{ print ($7 == "" ? "" : $7 "/") $2 ($10 == "" ? "" : "@" $10) }'
   fi
+}
+
+_secret_json_str() {           # $1 text -> a JSON string literal
+  local s=$1
+  s=${s//\\/\\\\}; s=${s//\"/\\\"}
+  s=${s//$'\t'/\\t}; s=${s//$'\n'/\\n}; s=${s//$'\r'/\\r}
+  s=${s//[[:cntrl:]]/ }
+  print -rn -- "\"$s\""
+}
+
+# The listing for programs: a JSON array, one object per item, with the
+# fields (and their spelling) of `export --format json` minus the value —
+# `ls` never reads one. This is the format to parse; the --long table is for
+# people and changes with them. Needs nothing but zsh, so a caller with a bare
+# PATH (/usr/bin:/bin, no jq) can use it.
+_secret_ls_json() {            # $1 TSV rows
+  local row kv out="" sep=""
+  local -a f fields
+  while IFS= read -r row; do
+    [[ -n $row ]] || continue
+    f=("${(@ps:\t:)row}")
+    fields=()
+    for kv in ${(f)"$(_secret_meta_fields "${f[8]}")"}; do
+      [[ -n $kv ]] || continue
+      fields+=("$(_secret_json_str "${kv%%=*}"): $(_secret_json_str "${kv#*=}")")
+    done
+    out+="$sep  {\"project\": $(_secret_json_str "${f[1]}"), \"scope\": $(_secret_json_str "${f[7]}"),"
+    out+=" \"stage\": $(_secret_json_str "${f[10]}"), \"name\": $(_secret_json_str "${f[2]}"),"
+    out+=" \"kind\": $(_secret_json_str "${f[4]}"), \"comment\": $(_secret_json_str "${f[5]}"),"
+    out+=" \"env\": \"$(_secret_env_on "${f[9]}" "${f[8]}" && print -n yes || print -n no)\","
+    out+=" \"meta\": {${(j:, :)fields}}, \"modified\": $(_secret_json_str "$(_secret_fmt_date "${f[6]}")")}"
+    sep=$',\n'
+  done <<< "$1"
+  local nl=$'\n'
+  print -r -- "[${out:+$nl}$out${out:+$nl}]"
 }
 
 _secret_fit() {                # $1 text  $2 width -> text cut to width with an ellipsis
@@ -2143,14 +2188,17 @@ COMMANDS
   get NAME [-p proj] [LAYER] [-c|--copy]
         print the value (or copy to clipboard, auto-clears in 45s)
   show NAME [-p proj] [LAYER]  metadata only (never prints the value)
-  ls [-p proj|--all] [-l|--long] [--wide] [--meta KEY[=VALUE]]... [--stage S|--no-stage]
+  ls [-p proj|--all] [-l|--long|--json] [--wide] [--meta KEY[=VALUE]]... [--stage S|--no-stage]
         list every layer of the project; short form prints one
         "[scope/]NAME[@stage]" token per item (--all: prefixed with the
         project). --long groups items under their layer (shared, scope/,
         @stage, scope/ @stage) with kind, env, modified, meta and comment,
         cut with an ellipsis to fit the terminal width — --wide never
-        cuts. --meta keeps only items whose field KEY exists (or equals
-        VALUE), repeatable (all must match); --stage S keeps that stage's
+        cuts. --json prints the items as a JSON array (the fields of
+        `export --format json`, never a value): the format for programs,
+        while --long is for people and may change. --meta keeps only
+        items whose field KEY exists (or equals VALUE), repeatable (all
+        must match); --stage S keeps that stage's
         layers only, --no-stage the stage-less ones; --all spans every
         registered keychain
   projects                     list all projects

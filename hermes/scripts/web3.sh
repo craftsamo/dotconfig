@@ -75,11 +75,11 @@ case "${1:-}" in
     echo "wallet:"
     found=0
     for project in $("$SECRET" projects 2>/dev/null); do
-      # the wallet's own listing parser (stdlib only): kinds may hold spaces
+      # the wallet's own listing parser (stdlib only), on the listing it reads
       while IFS= read -r line; do
         echo "  $line"
         found=1
-      done < <("$SECRET" ls -p "$project" --long 2>/dev/null | python3 -c '
+      done < <("$SECRET" ls -p "$project" --json 2>/dev/null | python3 -c '
 import importlib.util, sys
 spec = importlib.util.spec_from_file_location("keychain", sys.argv[1])
 keychain = importlib.util.module_from_spec(spec)
