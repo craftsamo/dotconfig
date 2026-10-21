@@ -34,7 +34,7 @@ const record = (v: unknown): v is Record<string, unknown> =>
 const finite = (v: unknown): v is number =>
   typeof v === "number" && Number.isFinite(v)
 
-// Consume Quota 5.0.1's public v2 JSON, not provider responses or human text.
+// Consume Quota 5's public v2 JSON (unchanged through 5.0.3), not provider responses or human text.
 // sourceId is the OpenCode credential connection ID; never combine logins.
 export function readQuota(
   snapshot: unknown,
