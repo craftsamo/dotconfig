@@ -341,6 +341,25 @@ def test_a_spec_runs_only_variants_backtested_as_written():
             hs.spec(spec_raw(**over))
 
 
+OOS = {"return_pct": 40.1, "max_drawdown_pct": 18.5, "mar": 0.9, "trades": 64,
+       "monte_carlo": {"runs": 1000, "trades": 64, "max_drawdown_pct": {"observed": 18.5, "p50": 17.0, "p95": 27.3,
+                                                                          "p99": 33.0}}}
+
+
+def test_a_variant_keeps_its_recorded_out_of_sample_or_none():
+    assert hs.spec(spec_raw())["variants"]["fast"]["out_of_sample"] is None
+    raw = spec_raw()
+    raw["variants"]["fast"]["validated"]["out_of_sample"] = OOS
+    assert hs.spec(raw)["variants"]["fast"]["out_of_sample"] == {
+        "max_drawdown_pct": 18.5, "mar": 0.9, "trades": 64, "monte_carlo_p95_drawdown_pct": 27.3}
+    before_mc = {k: v for k, v in OOS.items() if k != "monte_carlo"}
+    assert hs.out_of_sample({**before_mc, "mar": None})["monte_carlo_p95_drawdown_pct"] is None
+    for bad in (None, {}, {**OOS, "trades": 0}, {**OOS, "max_drawdown_pct": "18"}, {**OOS, "max_drawdown_pct": 120},
+                {**OOS, "trades": True}, {**OOS, "mar": "high"}):
+        assert hs.out_of_sample(bad) is None
+    assert hs.out_of_sample({**OOS, "monte_carlo": None})["monte_carlo_p95_drawdown_pct"] is None
+
+
 def test_a_market_may_have_its_own_default_inside_the_spec():
     ema = hs.rules({"kind": "ema_cross", "fast": 3, "slow": 8, "atr": 5, "stop_atr": 2, "risk_pct": 1})
     raw = spec_raw(default={"variant": "fast", "direction": "both", "size": 1,

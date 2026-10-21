@@ -32,7 +32,9 @@ variant and a size multiplier inside the spec's bounds, dated and expiring.
 
 - Let a run make, widen or renew a mandate, or quote anything the gate did
   not list.
-- Run a variant whose rules differ from the backtest its fingerprint names.
+- Run a variant whose rules differ from the backtest its fingerprint names,
+  or open positions for one whose walk-forward out-of-sample result the spec
+  does not record: the whole-window result is fitted to the past.
 - Let a stance raise a limit or choose outside the spec's advisor bounds.
 - Give the gate a key, a signing path or the venue's `/exchange` endpoint.
 - Give the cron run the file or terminal tools.
