@@ -34,7 +34,7 @@ and PR creation to `git-pullrequest`.
 <WhenToUse>
 
 - Durable, multi-session or multi-step work → record and track it on GitHub.
-- Within-session steps → the conversation task list, never an issue.
+- Within-session steps → the session's todo list (`todowrite`), never an issue.
 - A companion to any scenario playbook (new-feature, rebuild-migration, …)
   once the work is worth persisting.
 
@@ -54,7 +54,7 @@ Parent issue … the requirement; tracking only, no branch
     │           ordered among siblings with blocked-by
     └ Stack layer … one reviewable PR in the sub-issue's native stack;
        │            NOT an issue — its slice spec lives in the PR body
-       │            (Phase N of the conversation task list)
+       │            (Phase N of the session's todo list)
        └ Commit … the steps inside that PR (Phase N.m)
 ```
 

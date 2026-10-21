@@ -57,29 +57,41 @@ and report it.
 
 <PlanHandoff>
 
-When a plan is aligned in Plan mode, publish a conversation task list shaped
+When a plan is aligned in Plan mode, write it in the reply and register its
+steps with `todowrite`, one item per step shaped
 `Phase{N}.{m} - <task> (executor)`, executor = Build | worker | reviewer |
 verifier | debugger (default Build; worker only for mechanical work). When
-the work ends in pull requests, Phase N is one reviewable layer: one PR, or one
-layer of a native stack when there are several (git-pullrequest), in stack
-order; {m} are the steps inside it, each ending in a verified checkpoint
-commit. Work that ends in no PR keeps Phase = dependency wave, {m} = reference
-id within the phase (no ordering implied). Do not hide a layer's substance in
-one line: a step names what it delivers. `Phase{N}.{m}` is the conversation's
-name for the work: it never enters a branch name, commit subject, PR title or
-body (git-pullrequest `<Audience>`).
+the work ends in pull requests, Phase N is one reviewable layer: one PR, or
+one layer of a native stack when there are several (git-pullrequest), in
+stack order; {m} are the steps inside it, each ending in a verified
+checkpoint commit. Work that ends in no PR keeps Phase = dependency wave,
+{m} = reference id within the phase (no ordering implied). Do not hide a
+layer's substance in one line: the reply says what each step delivers, while
+an item's `<task>` stays a few words in the user's language, so it fits the
+sidebar. `Phase{N}.{m}` is the conversation's name for the work: it never
+enters a branch name, commit subject, PR title or body (git-pullrequest
+`<Audience>`).
 
-OpenCode V2's native Todo tool (`todowrite`) is disabled in this config. Do
-not claim to have registered todos or create local TODO/plan files to
-simulate it. Keep the execution queue in the conversation; durable
-cross-session work belongs on GitHub Projects when asked.
-The one exception: a Hermes-driven run whose operating note names a
-`progress.md` keeps the steps there as that note says.
-Ask the user to switch to Build; never switch automatically or start executing
-while still in Plan. Build executes phases in order, delegates per the executor
-tag, and updates the conversation list with pending, in-progress, completed,
-or blocked statuses in the user's language. At phase boundaries and handoffs,
-restate unfinished items, blockers, and the next step.
+The todo list is the session's execution queue, kept by the primary agent; a
+subagent reports back instead of keeping one. After registering it, call
+`todowrite` again only when a status changes: `in_progress` when a step
+starts, `completed` once its checkpoint commit or check is verified,
+`cancelled` when it is dropped. It has no blocked status: keep the step
+`pending`, end it with `— blocked: <reason>`, and say so in the reply. The
+call returns only counts and the in-progress item, and nothing reads the
+list back: after a compaction, rebuild it from the conversation and send it
+whole again. Where `todowrite` is unavailable, keep the same list in the
+conversation instead. Never claim a list was registered without a
+successful call, and never create local TODO/plan files. Durable
+cross-session work belongs on GitHub Projects when asked. A Hermes-driven
+run whose operating note names a `progress.md` keeps its steps there as that
+note says, instead of in `todowrite`: Hermes reads that file, not the list.
+
+Ask the user to switch to Build; never switch automatically or start
+executing while still in Plan. Build executes phases in order, delegates per
+the executor tag, and keeps the list current as above. At phase boundaries
+and handoffs, restate unfinished items, blockers, and the next step in the
+reply, since only the TUI shows the list.
 
 </PlanHandoff>
 
