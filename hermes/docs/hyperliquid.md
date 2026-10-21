@@ -112,7 +112,8 @@ refused here first (below 10 USDC, a TP/SL that would fire at once, a
 position that is not there). The quote is stored single-use for 15 minutes
 under an HMAC keyed from its signing secret, so neither the action nor its
 card can change between approval and submit; every order leg carries a client
-order id derived from the quote.
+order id derived from the quote, except an order's main leg given its own
+`cloid` (a strategy gate names its limit entry, to find it again).
 
 **The effect** decides the approval, and is computed from the stored action,
 never from the model's arguments:
