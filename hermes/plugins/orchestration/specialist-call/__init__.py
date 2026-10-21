@@ -6,6 +6,7 @@ import contextlib
 import contextvars
 import fcntl
 import hashlib
+import importlib.util
 import json
 import os
 from pathlib import Path
@@ -79,6 +80,18 @@ ROSTER = _roster(_local_targets())
 
 def _targets():
     return ROSTER
+
+
+def _shared(name, filename):
+    if name not in sys.modules:
+        spec = importlib.util.spec_from_file_location(name, Path(__file__).resolve().parents[2] / "_shared" / filename)
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[name] = module
+        spec.loader.exec_module(module)
+    return sys.modules[name]
+
+
+tool_preview = _shared("hermes_tool_preview", "tool_preview.py")
 RESIDENT = Path(__file__).resolve().parents[3] / "profiles/assistant/scripts/resident-session.sh"
 TURN_TIMEOUT = 5400
 BUSY = {"accepted", "running", "unknown"}
@@ -1121,6 +1134,17 @@ def specialist_session(args, **kwargs):
         return json.dumps({"error": str(exc)})
 
 
+def _call_preview(args):
+    """`work → <target>` / `continue → <target>`: the kind and, when it is on the roster, the target."""
+    label = tool_preview.allowed("specialist_call", "kind", args.get("kind"))
+    if label is None and args.get("conversation_id"):
+        label = "continue"
+    target = args.get("target")
+    known = set().union(*_targets().values())
+    target = target if isinstance(target, str) and target in known else None
+    return " → ".join(part for part in (label, target) if part) or None
+
+
 def register(ctx):
     if ctx.profile_name not in _targets():
         return
@@ -1158,10 +1182,15 @@ def register(ctx):
           "evidence": {"type": "string", "description": "Reconcile only: observations of outputs, child jobs and external effects; not proof of completion."}},
           ["action"], "Inspect, wait for, cancel or close your own specialist conversations. wait blocks without spending turns and returns early on a new user message, never stopping work. cancel stops a running resident turn and waits until the stop is confirmed (status cancelled; continue with specialist_call and a corrected message) or reports it unconfirmed. Reconcile confirms a stopped resident transport, never completion or safe replay. Close does not cancel work."),
     ]:
+        schema = {"name": name, "description": description,
+                  "parameters": {"type": "object", "properties": properties,
+                                 "required": required, "additionalProperties": False}}
         ctx.register_tool(name=name, toolset="specialist", handler=scoped(handler), description=description,
-                          schema={"name": name, "description": description,
-                                  "parameters": {"type": "object", "properties": properties,
-                                                 "required": required, "additionalProperties": False}})
+                          schema=schema)
+        if name == "specialist_call":
+            tool_preview.install(name, _call_preview, schema, ("kind",))
+        else:
+            tool_preview.enums(name, schema, "action")
 
 
 def _on_stop_signal(*_):

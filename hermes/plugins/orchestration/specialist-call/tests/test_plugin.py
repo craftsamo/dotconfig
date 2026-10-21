@@ -578,6 +578,19 @@ def test_registration_is_role_gated():
             assert tool["schema"]["parameters"]["additionalProperties"] is False
 
 
+def test_progress_lines_show_the_kind_and_a_roster_target_only(monkeypatch):
+    display = pytest.importorskip("agent.display")
+    monkeypatch.setattr(display, "_PREVIEW_BUILDERS", {})
+    p.register(SimpleNamespace(profile_name="assistant", register_tool=lambda **kw: None))
+    line = lambda tool, **args: display.build_tool_preview(tool, args, max_len=0)
+    assert line("specialist_call", target="writer", kind="work", message="the private brief") == "work → writer"
+    assert line("specialist_call", target="writer", conversation_id="c1", message="more") == "continue → writer"
+    assert line("specialist_call", target="someone@example.com", kind="inquiry", message="x") == "inquiry"
+    assert line("specialist_call", target="not a profile", message="x") is None
+    assert line("specialist_session", action="wait", group="client-comparison") == "wait"
+    assert line("specialist_session", action="the private brief") is None
+
+
 def test_a_local_roster_adds_private_callers_and_targets_and_removes_nothing(caller, tmp_path, monkeypatch):
     home, calls = caller
     local = tmp_path / "local_targets.json"
