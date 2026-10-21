@@ -39,6 +39,7 @@ def _load(name, path):
 
 
 sa = _load("hermes_substack_access_engine", Path(__file__).resolve().parent / "sa.py")
+tool_preview = _load("hermes_tool_preview", Path(__file__).resolve().parents[2] / "_shared" / "tool_preview.py")
 
 PROFILES = set(sa.PROFILE_ACTIONS)
 # Skill -> the profiles it is registered for. A skill is read-only to Hermes (not editable through
@@ -296,6 +297,7 @@ def register(ctx):
     schema = schema_for(profile)
     ctx.register_tool(name=TOOL, toolset=TOOLSET, handler=lambda args, **kwargs: handle(profile, args, **kwargs),
                       description=schema["description"], schema=schema)
+    tool_preview.enums(TOOL, schema, "action")
     ctx.register_hook("pre_tool_call", lambda **kwargs: gate(profile, **kwargs))
     if writes_for(profile):
         ctx.register_hook("pre_tool_call", lambda **kwargs: bind(profile, **kwargs))

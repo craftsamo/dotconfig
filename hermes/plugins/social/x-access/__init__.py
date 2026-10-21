@@ -40,6 +40,7 @@ def _load(name, path):
 
 
 xa = _load("hermes_x_access_engine", Path(__file__).resolve().parent / "xa.py")
+tool_preview = _load("hermes_tool_preview", Path(__file__).resolve().parents[2] / "_shared" / "tool_preview.py")
 
 PROFILES = set(xa.PROFILE_ACTIONS)
 # Skill -> the profiles it is registered for. A skill is read-only to Hermes (not editable through
@@ -219,5 +220,6 @@ def register(ctx):
     schema = schema_for(profile)
     ctx.register_tool(name=TOOL, toolset=TOOLSET, handler=handler_for(profile),
                       description=schema["description"], schema=schema)
+    tool_preview.enums(TOOL, schema, "action")
     ctx.register_hook("pre_tool_call", gate_for(profile))
     register_skills(ctx, profile)
