@@ -906,9 +906,10 @@ def backtest(ctx, args) -> dict:
               "equity": hl_strategy.curve_points(run["curve"]),
               "note": ("a simulation on past bars from a notional 1000 USDC (fees_pct and funding_pct are of that "
                        "start): fills at the next bar's open with slippage and the taker fee, stops inside a bar "
-                       "at the stop or a gapped open; a limit entry (entry_order) rests through that bar and fills "
-                       "at its price with the maker fee only when the bar trades limit_through_bps past it; neither "
-                       "a forecast nor a fill guarantee. monte_carlo redraws "
+                       "at the stop or a gapped open; a limit entry (entry_order) is placed at that open, fills "
+                       "there as a taker, never past its price, when the open already reached it, else rests "
+                       "through the bar and fills at its price with the maker fee only when the bar trades "
+                       "limit_through_bps past it; neither a forecast nor a fill guarantee. monte_carlo redraws "
                        f"the trades {hl_strategy.MC_RUNS} times in random order, each with its own path, as "
                        "independent draws: the spread of drawdowns the same trades could have given. A strategy "
                        "may run this rule set on this interval only under its fingerprint.")}
