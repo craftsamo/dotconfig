@@ -88,7 +88,7 @@ The standard shape `gh_project_create` ensures; built-in fields carry the rest:
 
 | Field | Type | Holds |
 | --- | --- | --- |
-| Status | single-select (built-in) | Todo / In Progress / Done / Cancelled |
+| Status | single-select (built-in) | Todo / In Progress / Done / Cancelled; a board may add `Waiting` (on someone outside) with `gh_project_field_ensure` |
 | Start | date | When work begins; drives the Roadmap view |
 | Target | date | When it should land; drives the Roadmap view |
 
@@ -110,12 +110,34 @@ field. Kind is not a board field — it is the issue's type or `type:*` label.
 - **Sub-issues** when their dates or Status matter on their own (a team
   board groups them under `Parent issue`); otherwise the parent's progress
   bar is enough and the board stays readable.
-- **Drafts** for ideas: no repository, no issue, no noise in a tracker.
-  Promote when the work is decided and a repository is known.
+- **Drafts** for work that has no reason to be an issue yet (below).
 - Never PR-sized slices: a PR is tracked by its PR.
+- Never questions put to someone outside: they live where they are asked (a
+  message, a shared sheet). An answer that creates work becomes a draft.
 
 Titles are action phrases (see `gh-issues` `<Titles>`); the detail goes in
-the body, not the board.
+the body, not the board, in the forms of `gh-issues` `<Notation>`. In a
+draft a code permalink stays a plain link and a mention notifies nobody, so
+a code link carries its own text (`[path#L3-L9](permalink)`) and a person
+who must know is told elsewhere.
+
+**Draft or issue.** Keep an item a draft while any of these holds: whether
+it will be done is not decided; it has no repository to live in; its
+repository is not yet one your side works in. A draft holds the title, why
+the work exists, links to where it came from, and dated notes appended as
+things happen; order goes in one line each ("Together with: …", "After: …").
+A draft may end Done without ever becoming an issue when the work never
+touches a repository; its last note records what proves it done.
+
+Turn a draft into an issue (`gh_project_item_promote`) when any of these
+becomes true: its target is a repository your side works in; it needs a PR,
+an assignee who works in GitHub, or discussion there; it has grown steps
+worth tracking as sub-issues. Then rewrite its body in the issue form
+(`gh-issues` `<Bodies>`), move the draft's notes under `## Evidence`, and turn
+its "After:" lines into blocked-by.
+
+Never put a secret value, a key's location or someone's private remarks on a
+board or in an issue: a board can be made public later.
 
 </WhatGoesOnTheBoard>
 
