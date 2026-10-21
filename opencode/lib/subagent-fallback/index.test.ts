@@ -495,7 +495,7 @@ describe("launch and persistence", () => {
     expect(env.originals).toHaveLength(1)
   })
   test("every supported release launches and keeps protecting its children", async () => {
-    expect(SUPPORTED_VERSIONS).toEqual(["2.0.23", "2.1.2"])
+    expect(SUPPORTED_VERSIONS).toEqual(["2.1.2"])
     for (const version of SUPPORTED_VERSIONS) {
       const { env, inst } = await fixture()
       env.version = version
