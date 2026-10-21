@@ -29,7 +29,7 @@ board as drafts until they become issues.
 
 - Work should outlive the session or be seen by others → the board.
 - An idea is worth keeping but not yet worth an issue → a draft on the board.
-- Within-session steps → the conversation task list, never the board.
+- Within-session steps → the session's todo list (`todowrite`), never the board.
 - Writing or changing the issue itself → `gh-issues`.
 - Deciding what the work is and how it splits → `approach-github-planning`.
 
