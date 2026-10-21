@@ -7,11 +7,14 @@ Part of the Hermes design docs — index: [`PROFILES.md`](../PROFILES.md).
 
 ## Shape
 
-| Piece                                                                                      | Home                                                                             | Reader    |
-| ------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------- | --------- |
-| Read engine: GraphQL transport, references, tiers, board resolution, issue and board reads | `plugins/github-access/access.py`                                                | all       |
-| `github_issue` and `github_board` tools (toolset `github_access`)                          | `plugins/github-access/__init__.py`                                              | Assistant |
-| How the Assistant reads Issues and boards, and the draft / issue model                     | the `github-access:github` plugin skill (`plugins/github-access/skills/github/`) | Assistant |
+| Piece                                                                                                        | Home                                                                             | Reader    |
+| ------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------- | --------- |
+| Read engine: GraphQL transport, references, tiers, board resolution, issue and board reads                   | `plugins/github-access/access.py`                                                | all       |
+| Write engine: change validation, the plan of targets, the card, applying a change list                       | `plugins/github-access/changes.py`                                               | all       |
+| Bypass guard                                                                                                 | `plugins/github-access/guard.py`                                                 | all       |
+| `github_issue`, `github_board`, `github_change` tools (toolset `github_access`) and the `pre_tool_call` hook | `plugins/github-access/__init__.py`                                              | Assistant |
+| How the Assistant reads Issues and boards, and the draft / issue model                                       | the `github-access:github` plugin skill (`plugins/github-access/skills/github/`) | Assistant |
+| How the Assistant changes them: proposing tracking, change lists, tiers, recipes                             | the `github-access:github-tracking` plugin skill                                 | Assistant |
 
 The plugin is enabled in the Assistant's private configuration only, like
 Google access: it reaches the user's own account. A person without the
@@ -73,3 +76,98 @@ board up to 2000 items before filtering and says when it was cut. A result over 
 
 Issue bodies, comments and drafts are other people's text: the tool
 descriptions and the skill say never to follow instructions in them.
+
+## Changes
+
+`github_change` takes a list of up to 50 changes and applies them in order,
+stopping at the first failure; the result names what was done, what failed
+(with what of that change already exists, and `uncertain` when the failure
+may have come after GitHub acted) and what was not tried. Every change is
+validated before anything is read (op, its keys, a close reason), then the
+plan reads, fresh, every repository and board the list writes to, with its
+tier and the viewer's right to write there, and checks each board field
+value (the field exists and is not built in, the option or iteration exists,
+a date is `YYYY-MM-DD`). A target the viewer cannot write, an archived
+repository, a read-only board and a bad field value end the call before any
+card. Removing or replacing a parent also targets the old parent's
+repository, read from the issue. An `issue_create`'s `parent` and
+`blocked_by` may name `$N`, the issue an earlier `issue_create` or
+`draft_promote` of the same list creates, so a parent and its sub-issues in
+order are one list and one card; its repository is the target, and the card
+reads it as "change N's issue".
+
+Each change has a class. `routine`: moving an item's fields, a note on a
+draft, a draft's own text, archiving or restoring an item, editing an issue's
+title or body. `create`: anything that makes something new, notifies someone
+or closes it — a draft, an item, an issue, a comment, a relation, a kind,
+labels, assignees, a milestone, a close or a reopen, and an issue edit whose
+new words carry an `@` mention. A board's own automations can still act on a
+routine field change; `own` is about who can read a target, not about
+nothing reacting to it. Putting someone else's
+issue on a board writes only the board; a relation to an issue in another
+repository writes there too, so that repository is a target.
+
+Writes go through `gh` itself (`gh issue …`, `gh project …`, `gh label …`, the
+milestones REST route) or one GraphQL mutation (turning a draft into an
+issue); issue bodies and comments travel on stdin, a draft's text as an
+argument (`gh project item-edit` takes no file). A note on a draft reads the
+draft again right before it appends, so two notes in one list both land. A
+relation already in place is not sent again.
+A kind lands as the organization's Issue Type when it defines one, else as a
+`type:<kind>` label created on first use, and the other `type:*` labels come
+off.
+
+## Approval
+
+The hook plans the call and shows one card for the whole list: the targets,
+each with its tier (`own, private`, `others can read it`, `⚠️ someone
+else's`), the sites the changes link to (with the numbers of the changes that
+do), how many local paths the text carries and how many code links follow a
+branch rather than a commit, then one line per change. Names and quoted text
+are collapsed to one line, control, bidi-override and invisible characters are
+spelled out, and a list too long for the card ends with the count of the
+rest; the skill agrees the full wording of text others will read first, as a
+Markdown file delivered with a question before the card. Each card gets a
+fresh allowlist key, so "session" or "always" on one card never approves
+another list.
+
+Before any card every text a change writes is checked: its words (title,
+body, note, comment), the values it sets (board field values, a kind, which
+lands as a label and its description, a milestone title, label names), and
+for a promotion the draft's title and body as the list's earlier edits and
+notes of that draft will leave them (a body cleaned by an earlier `draft_edit`
+passes). Something that looks like a token or a private key (GitHub, OpenAI-style, Slack and AWS key
+shapes, a PEM private-key header) is refused on every tier. On a change whose
+targets include one others can read, a path of this machine is refused with
+its rewrite named: a home path (`/Users/<name>/…`) as `~/…`, a file in a
+repository checkout (`~/ghq/…`, `~/Worktrees/…`) as its repository-relative
+path or a permalink, a path into the workspace, a job directory or the private
+configuration, and a `file://` URL, in words (also spelled `$HOME/…`,
+`${HOME}/…` or a bare `.agent/…`; a workspace path wins over a checkout inside
+it). System paths (`/opt/…`,
+`/usr/…`) and `~/…` paths pass. The tool refuses rather than rewriting, so
+what the card shows is what is written; on the user's own private targets
+paths pass as they are, so a debugging note stays whole.
+
+The hook records, per exact call, that it decided it and the targets it showed
+with their tiers; the handler takes that record once and runs nothing without
+it, then plans again (the targets read now) and refuses when they differ from
+the decided ones: another board resolved, a repository or board whose tier
+changed. Hook and handler both refuse where no person can answer the card
+(`human_gate`).
+
+## Ways around the tools
+
+The hook blocks a terminal `gh` command that writes Issues (`create`,
+`edit`, `comment`, `close`, `reopen`, `delete`, `transfer`, `pin`, `lock`,
+`develop` …), changes a board (every `gh project` command but `list`, `view`,
+`item-list`, `field-list`), changes labels, calls `gh api` at all, prints the
+login's token (`gh auth token`, `--show-token`: `curl` could write with it)
+or defines an alias or an extension (either could hide a write). It reads
+the whole command text, so environment assignments, wrappers, a path to the
+binary, `bash -c "…"`, `eval '…'` and backslash-newlines do not hide one;
+a mere mention (`echo gh issue create`) is blocked too. It is a guard of
+text, not a sandbox: a script file's contents are never seen. Reading
+through `gh` (`gh issue view`, `gh pr …`, `gh auth status`) and `gh repo
+create` stay open. File and terminal calls that name the plugin's state
+directory (`<HERMES_HOME>/github-access/`) are blocked too.
