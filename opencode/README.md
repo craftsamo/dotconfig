@@ -408,9 +408,13 @@ fallback preference; `funding: provider` means both reported pools were empty
 and the provider decides whether the default can proceed. Neither proves the
 actual charge. Declared structured output is unchanged.
 
-**Setup.** Pinned to OpenCode V2.0.23: on any other release the automatic new
-launch is rejected, but a manual pass still works. Re-validate the mocked tests
-after an upgrade. Run them from the repo root with
+**Setup.** Pinned to the OpenCode releases in `SUPPORTED_VERSIONS`
+(`index.ts`), currently 2.0.23 and 2.1.2, both kept while the binary is
+upgraded: on any other release the automatic new launch is rejected and a
+protected child stops, but a manual pass still works. Add a release only after
+checking the session hooks, the `subagent` tool's pre-launch `progress` and the
+retry error shape against its source, then re-validate the mocked tests. Run
+them from the repo root with
 `bun test opencode/lib/subagent-fallback`; no test-runner script or new
 dependency is installed.
 
