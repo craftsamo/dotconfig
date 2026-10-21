@@ -73,6 +73,14 @@ Rules:
   `MEDIA:` files included. Files never ride in the reply text of a turn that
   asks: they would arrive after the card. A question with nothing on screen
   since the user last spoke and no `context` is refused.
+- **Long text goes as a file.** In a Telegram or Discord chat, a text the
+  user is to read whole and that runs past a phone screen (a plan, a draft, a
+  report, the exact words of something others will read, a wide table) is
+  written to a Markdown file in the job's directory and sent with `MEDIA:`,
+  beside a few lines saying what it is and what to look at first. When a
+  question or an approval card is about it, the file goes in that question's
+  `context`, so the user has read it before the card. The chat carries the
+  gist; the file carries the whole.
 - Put your recommendation in the question text, not as a fifth option.
 - **Max 4 choices.** The auto "Other" covers free-text.
 - Plain chat only when informing, or when no meaningful preset options
