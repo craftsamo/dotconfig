@@ -32,7 +32,7 @@ branch. Delegate board operations and issue body formats to
 <WhenToUse>
 
 - Durable / multi-session / multi-step work → record and track it on the board.
-- Ephemeral within-session steps → use the conversation task list (the native Todo tool is disabled here), not the board.
+- Ephemeral within-session steps → the session's todo list (`todowrite`), not the board.
 - Cross-cutting companion: layer it on any scenario playbook (new-feature,
   rebuild-migration, …) once the work is worth persisting.
 
@@ -50,7 +50,7 @@ Epic (parent issue) … the high-level requirement; tracking only
     │              (Requirements Draft→Fixed) and implementation outline
     └ Stack layer … one reviewable PR in the purpose's native GitHub stack;
        │            NOT an issue — its slice spec lives in the PR body
-       │            (Phase N of the conversation task list)
+       │            (Phase N of the session's todo list)
        └ Commit … the steps inside that PR (Phase N.m)
 ```
 

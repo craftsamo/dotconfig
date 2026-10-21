@@ -2530,10 +2530,10 @@
     },
   ],
   "experimental": {
-    // The native todowrite tool (2.1.0) stays off: steps live in the
-    // conversation task list (AGENTS.md <PlanHandoff>). Pinned although off
-    // is the default, so the choice holds if the default changes.
-    "todo": false,
+    // The native todowrite tool (2.1.0) keeps a session's steps, drawn in the
+    // TUI timeline and sidebar (AGENTS.md <PlanHandoff>). Experimental, so it
+    // may change or go away; the instructions fall back to the conversation.
+    "todo": true,
   },
   "mcp": {
     "servers": {

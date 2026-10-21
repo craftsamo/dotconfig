@@ -37,7 +37,7 @@ done means, and a close that says why.
 - Put an issue on a board, move its Status, or capture an idea that has no
   repository yet → `gh-projects`.
 - Open or update a PR, decide `Refs` vs `Closes` → `git-pullrequest`.
-- Within-session step tracking → the conversation task list, never an issue.
+- Within-session step tracking → the session's todo list (`todowrite`), never an issue.
 
 </WhenToUse>
 
