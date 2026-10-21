@@ -34,7 +34,8 @@ import {
   type ModelRef,
 } from "./policy"
 
-// V2.0.23 structural API, like plugins/custom-tools.ts: no SDK dependency.
+// V2 structural API (see SUPPORTED_VERSIONS), like plugins/custom-tools.ts:
+// no SDK dependency.
 type Registration = { dispose(): Promise<void> }
 type Session = {
   id: string
@@ -133,7 +134,10 @@ export type RuntimeContext = AccountsContext & {
 }
 
 export const METADATA_KEY = "dotconfig.subagent-preflight"
-export const SUPPORTED_VERSION = "2.0.23"
+// Releases whose hook and subagent-tool contracts were checked against the
+// upstream source. Add a release only after re-checking them.
+export const SUPPORTED_VERSIONS: readonly string[] = ["2.0.23", "2.1.2"]
+const supported = (version: string) => SUPPORTED_VERSIONS.includes(version)
 // Conservative text-only ceiling. This is not a cross-provider tokenizer.
 export const MAX_CONTEXT_BYTES = 160_000
 type Marker = {
@@ -340,7 +344,7 @@ export async function setupPreflight(
   const authorize = async (event: Scope) => {
     const child = await protectedChild(event.sessionID)
     if (!child) return undefined
-    if (ctx.app.version !== SUPPORTED_VERSION)
+    if (!supported(ctx.app.version))
       fail("unsupported OpenCode version; protected child stopped")
     const { session, marker } = child
     if (!session.model || !modelsEqual(session.model, marker.model))
@@ -655,7 +659,7 @@ export async function setupPreflight(
               !Object.hasOwn(ROUTES, input.agent)
             )
               return original(input, context)
-            if (ctx.app.version !== SUPPORTED_VERSION)
+            if (!supported(ctx.app.version))
               fail(
                 "unsupported OpenCode version; use an explicit model or disable new selection",
               )

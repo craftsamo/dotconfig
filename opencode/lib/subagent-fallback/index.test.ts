@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test"
 import {
   MAX_CONTEXT_BYTES,
   METADATA_KEY,
-  SUPPORTED_VERSION,
+  SUPPORTED_VERSIONS,
   setupPreflight,
   type RuntimeContext,
 } from "./index"
@@ -68,7 +68,7 @@ type Session = {
 async function fixture() {
   const env = {
     now: NOW,
-    version: SUPPORTED_VERSION,
+    version: SUPPORTED_VERSIONS[0],
     reads: 0,
     emptied: [] as string[],
     fetchedAt: undefined as number | undefined,
@@ -492,6 +492,16 @@ describe("launch and persistence", () => {
     expect(env.originals).toHaveLength(0)
     await inst.run({ agent: "worker", model: sel(SOL) })
     expect(env.originals).toHaveLength(1)
+  })
+  test("every supported release launches and keeps protecting its children", async () => {
+    expect(SUPPORTED_VERSIONS).toEqual(["2.0.23", "2.1.2"])
+    for (const version of SUPPORTED_VERSIONS) {
+      const { env, inst } = await fixture()
+      env.version = version
+      await inst.run()
+      expect(marker(env).model).toEqual(SONNET)
+      await send(inst)
+    }
   })
   test("setup failure disposes all previously registered hooks", async () => {
     const { env, install } = await fixture()
