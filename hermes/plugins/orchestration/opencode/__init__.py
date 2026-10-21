@@ -46,6 +46,7 @@ progress = _load("hermes_opencode_progress", _HERE / "progress.py")
 inventory = _load("hermes_opencode_history", _HERE / "history.py")
 preflight = _load("hermes_opencode_preflight", _HERE / "preflight.py")
 workspace = _load("hermes_opencode_workspace", _HERE / "workspace.py")
+tool_preview = _load("hermes_tool_preview", _HERE.parents[1] / "_shared" / "tool_preview.py")
 
 PROFILES = {"assistant"}
 # The tool mechanics skill reaches only the profiles that will drive OpenCode.
@@ -897,6 +898,55 @@ def _run_properties(role):
     return properties
 
 
+def _run_preview(args):
+    if not args.get("session_id"):
+        return "new"
+    return "fork" if args.get("fork") is True else "continue"
+
+
+def _reply_label(entry):
+    if not isinstance(entry, dict):
+        return None
+    if entry.get("decision") in DECISIONS:
+        return entry["decision"]
+    return "answer" if "answer" in entry else None
+
+
+def _request_preview(args):
+    action = tool_preview.allowed("opencode_request", "action", args.get("action"))
+    if action != "reply":
+        return action
+    entries = args["replies"] if isinstance(args.get("replies"), list) else [args]
+    counts = {}
+    for label in filter(None, map(_reply_label, entries)):
+        counts[label] = counts.get(label, 0) + 1
+    labels = ", ".join(label if n == 1 else f"{label}×{n}" for label, n in counts.items())
+    return f"reply {labels}" if labels else "reply"
+
+
+def _instructions_preview(args):
+    action = tool_preview.allowed("opencode_instructions", "action", args.get("action"))
+    key = args.get("key")
+    if action in ("put", "remove") and isinstance(key, str) and ENTRY_KEY.fullmatch(key):
+        return f"{action} {key}"
+    return action
+
+
+def _install_previews(schemas):
+    """Progress-line previews naming each call's operation, never its brief, ids or answers."""
+    for name, schema in schemas.items():
+        if name.startswith("opencode_run_"):
+            tool_preview.install(name, _run_preview)
+    tool_preview.install("opencode_request", _request_preview, schemas["opencode_request"], ("action",))
+    tool_preview.install("opencode_instructions", _instructions_preview, schemas["opencode_instructions"],
+                         ("action",))
+    tool_preview.install("opencode_preflight", lambda args: tool_preview.allowed(
+        "opencode_preflight", "phase", args.get("phase", "plan")), schemas["opencode_preflight"], ("phase",))
+    tool_preview.enums("opencode_session", schemas["opencode_session"], "action")
+    tool_preview.enums("opencode_catalog", schemas["opencode_catalog"], "what")
+    tool_preview.enums("opencode_history", schemas["opencode_history"], "action")
+
+
 def register_skills(ctx, profile):
     """Register this profile's skills; a skill that cannot be read is logged and never costs the tools."""
     for name, profiles in SKILLS.items():
@@ -933,11 +983,13 @@ def register(ctx):
                 dispatch._REGISTRATION.reset(token)
         return invoke
 
+    schemas = {}
+
     def add(name, handler, properties, required, description):
+        schemas[name] = {"name": name, "description": description, "parameters": {
+            "type": "object", "properties": properties, "required": required, "additionalProperties": False}}
         ctx.register_tool(name=name, toolset="opencode", handler=scoped(handler), description=description,
-                          schema={"name": name, "description": description, "parameters": {
-                              "type": "object", "properties": properties, "required": required,
-                              "additionalProperties": False}})
+                          schema=schemas[name])
 
     ctx.register_hook("post_api_request", models.observe)
     for name, role in config.roles(home).items():
@@ -1034,6 +1086,7 @@ def register(ctx):
         "[from, to) grouped by group_by (default model). Titles and costs only with include_title / "
         "include_cost; message content never. Every result states its source (api or db), status and "
         "diagnostics.")
+    _install_previews(schemas)
 
 
 def _captured_home(home_arg):
