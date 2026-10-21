@@ -226,6 +226,12 @@ skills.
 - **Tool handlers take the model's JSON as one positional dict**
   (`handler(args, **kwargs)`); declaring schema fields as parameters registers
   a tool that fails on every call.
+- **A new plugin tool installs its progress-line preview** through
+  `plugins/_shared/tool_preview.py` right after `register_tool`. Without one,
+  Hermes previews the first argument named `query`, `text`, `path` or `name`,
+  so a message body, a search or a local path lands in the chat as written.
+  A preview shows only schema-declared choices, never free text
+  ([docs/ops/plugins.md](docs/ops/plugins.md) "Progress lines").
 - **A plugin's mechanics skill ships inside the plugin, in a directory named
   `skills/`.** `plugins/<group>/<name>/skills/<skill>/SKILL.md` is registered
   by the plugin's `register_skills` from its `SKILLS` table (skill → profiles)

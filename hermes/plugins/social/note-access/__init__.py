@@ -39,6 +39,7 @@ def _load(name, path):
 
 na = _load("hermes_note_access_engine", Path(__file__).resolve().parent / "na.py")
 human_gate = _load("hermes_human_gate", Path(__file__).resolve().parents[2] / "_shared" / "human_gate.py")
+tool_preview = _load("hermes_tool_preview", Path(__file__).resolve().parents[2] / "_shared" / "tool_preview.py")
 
 # The actions each profile's schema offers (checked again by the gate, the handler and the engine),
 # and the ones an inbound A2A request may run there. The Assistant never serves a peer; Marketer
@@ -355,9 +356,10 @@ def register(ctx):
         return
     description, properties = schema_parts(PROFILES[profile])
     description += f' For anything past a single lookup, first load skill_view(name="note-access:{skills_for(profile)[0]}").'
+    schema = {"name": TOOL, "description": description, "parameters": {
+        "type": "object", "properties": properties, "required": ["action"], "additionalProperties": False}}
     ctx.register_tool(name=TOOL, toolset=TOOLSET, handler=make_handler(profile), description=description,
-                      schema={"name": TOOL, "description": description, "parameters": {
-                          "type": "object", "properties": properties, "required": ["action"],
-                          "additionalProperties": False}})
+                      schema=schema)
+    tool_preview.enums(TOOL, schema, "action")
     ctx.register_hook("pre_tool_call", make_gate(profile))
     register_skills(ctx, profile)

@@ -304,6 +304,15 @@ def test_actual_plugin_context_and_multiplex_toolset_cache(tmp_path, provisioned
             handler({"text": "sample"}, task_id="task")
 
 
+def test_the_progress_line_is_a_fixed_label(monkeypatch):
+    display = pytest.importorskip("agent.display")
+    monkeypatch.setattr(display, "_PREVIEW_BUILDERS", {})
+    plugin.register(type("Ctx", (), {"profile_name": "writer", "register_tool": lambda self, **kw: None})())
+    line = display.build_tool_preview(
+        "writing_inspect", {"text": "the private manuscript", "original": "an earlier draft"}, max_len=0)
+    assert line == "inspect"
+
+
 def test_writer_config_effective_toolsets_and_canonical_paths():
     import toolsets
     config = yaml.safe_load((ROOT / "hermes/profiles/writer/config.example.yaml").read_text())

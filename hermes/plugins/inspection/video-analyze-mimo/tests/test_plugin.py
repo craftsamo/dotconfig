@@ -11,6 +11,8 @@ from types import ModuleType
 from typing import Any
 from unittest.mock import AsyncMock, patch
 
+import pytest
+
 
 def load_plugin() -> ModuleType:
     plugin_path = Path(__file__).resolve().parents[1] / "__init__.py"
@@ -53,6 +55,16 @@ class VideoAnalyzeMimoRegistrationTest(unittest.TestCase):
         self.assertIs(registered["schema"], VIDEO_ANALYZE_SCHEMA)
         self.assertIs(registered["handler"], self.plugin._video_analyze_mimo)
         self.assertTrue(registered["is_async"])
+
+
+def test_the_progress_line_is_a_fixed_label(monkeypatch):
+    display = pytest.importorskip("agent.display")
+    pytest.importorskip("tools.vision_tools")
+    monkeypatch.setattr(display, "_PREVIEW_BUILDERS", {})
+    load_plugin().register(FakeContext())
+    line = display.build_tool_preview("video_analyze", {"video_url": "/Users/someone/clip.mov",
+                                                        "question": "private question"}, max_len=0)
+    assert line == "analyze video"
 
 
 class VideoAnalyzeMimoInvalidInputTest(unittest.IsolatedAsyncioTestCase):

@@ -35,6 +35,22 @@ directories are in [`../../AGENTS.md`](../../AGENTS.md) "Skills".
   `transcription/`. `google-access` and `hermes-achievements` (upstream writes
   its data to a fixed path; per-machine, ignored) stay at the top level. A
   directory with no `plugin.yaml` (`_shared/`) is code, not a plugin.
+- **Progress lines.** For a tool with no preview of its own, Hermes shows the
+  first argument named `query`, `text`, `command`, `path`, `name`, `prompt`,
+  `code` or `goal` in the chat's progress line (a message body or a local path
+  as written), or just `<tool>...`. So each plugin tool installs its own
+  preview through `_shared/tool_preview.py` at registration: `enums` shows the
+  call's `action` (and `kind` where the schema has one), `fixed` a constant
+  label for a tool whose arguments are all content, `install` a builder of the
+  plugin's own (OpenCode's `reply once×2, answer`, `specialist_call`'s
+  `work → <target>` with the target checked against the roster). Only values
+  the schema declares as choices pass, so free text never reaches the line.
+  Hermes has no hook for this: the builders go into `agent.display`'s private
+  table, one for every profile in the gateway. If an update renames it, the
+  plugin logs `tool preview … not installed` and the lines fall back to
+  Hermes' own, while the tools keep working. A change applies at the next
+  gateway restart. `display.tool_progress: verbose` still prints every
+  argument.
 
 ### Media stack
 

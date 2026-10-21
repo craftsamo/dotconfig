@@ -77,6 +77,7 @@ def _load(name, path):
 
 chains = _load("hermes_web3_chains", HERE / "chains.py")
 guard = _load("hermes_web3_guard", HERE / "guard.py")
+tool_preview = _load("hermes_tool_preview", Path(__file__).resolve().parents[2] / "_shared" / "tool_preview.py")
 
 FAMILY = {"evm": {"tool": "evm", "toolset": "evm_access", "chains": list(chains.EVM),
                   "skill": "evm-access:evm", "wallet_skill": "evm-access:evm-wallet"},
@@ -521,4 +522,5 @@ def register(ctx, family: str) -> None:
 
     ctx.register_tool(name=FAMILY[family]["tool"], toolset=FAMILY[family]["toolset"], handler=handler,
                       description=schema["description"], schema=schema)
+    tool_preview.enums(FAMILY[family]["tool"], schema, "action", "kind")
     ctx.register_hook("pre_tool_call", gate)

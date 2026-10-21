@@ -28,14 +28,28 @@ Keychain shim (``OPENROUTER_API_KEY``).
 
 from __future__ import annotations
 
+import importlib.util
 import json
 import logging
 import os
+import sys
 import uuid
 from pathlib import Path
 from typing import Any, Dict
 
 logger = logging.getLogger(__name__)
+
+
+def _shared(name, filename):
+    if name not in sys.modules:
+        spec = importlib.util.spec_from_file_location(name, Path(__file__).resolve().parents[2] / "_shared" / filename)
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[name] = module
+        spec.loader.exec_module(module)
+    return sys.modules[name]
+
+
+tool_preview = _shared("hermes_tool_preview", "tool_preview.py")
 
 _DEFAULT_PROVIDER = "openrouter"
 _DEFAULT_MODEL = "xiaomi/mimo-v2.5"
@@ -188,3 +202,4 @@ def register(ctx) -> None:
         emoji="\U0001f3ac",
         override=True,
     )
+    tool_preview.fixed("video_analyze", "analyze video")

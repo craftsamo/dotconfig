@@ -38,6 +38,7 @@ def _load(name, path):
 
 wa = _load("hermes_whatsapp_access_engine", Path(__file__).resolve().parent / "wa.py")
 human_gate = _load("hermes_human_gate", Path(__file__).resolve().parents[2] / "_shared" / "human_gate.py")
+tool_preview = _load("hermes_tool_preview", Path(__file__).resolve().parents[2] / "_shared" / "tool_preview.py")
 
 DESCRIPTION = (
     "The user's own WhatsApp accounts (named wacli accounts, e.g. 'work'), read from a local "
@@ -211,10 +212,11 @@ def register(ctx):
         wa._prune_outbox()  # file copies of sends that were never approved
     except Exception:
         pass
+    schema = {"name": TOOL, "description": DESCRIPTION, "parameters": {
+        "type": "object", "properties": PROPERTIES, "required": ["action"], "additionalProperties": False}}
     ctx.register_tool(name=TOOL, toolset=TOOLSET, handler=whatsapp, description=DESCRIPTION,
-                      schema={"name": TOOL, "description": DESCRIPTION, "parameters": {
-                          "type": "object", "properties": PROPERTIES, "required": ["action"],
-                          "additionalProperties": False}})
+                      schema=schema)
+    tool_preview.enums(TOOL, schema, "action")
     ctx.register_hook("pre_tool_call", gate)
     ctx.register_hook("pre_tool_call", bind)
     register_skills(ctx, ctx.profile_name)

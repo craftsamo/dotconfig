@@ -26,6 +26,7 @@ def _load(name, path):
 
 
 media = _load("hermes_media_inspect", Path(__file__).resolve().parent / "media.py")
+tool_preview = _load("hermes_tool_preview", Path(__file__).resolve().parents[2] / "_shared" / "tool_preview.py")
 
 TOOL = "media_inspect"
 # The actions each profile's schema offers (checked again by the handler).
@@ -85,7 +86,9 @@ def register(ctx):
         return
     media.cleanup()
     actions = PROFILES[profile]
+    schema = {"name": TOOL, "description": DESCRIPTION, "parameters": {
+        "type": "object", "properties": schema_properties(actions),
+        "required": ["action", "path"], "additionalProperties": False}}
     ctx.register_tool(name=TOOL, toolset=TOOL, handler=make_handler(profile), description=DESCRIPTION,
-                      schema={"name": TOOL, "description": DESCRIPTION, "parameters": {
-                          "type": "object", "properties": schema_properties(actions),
-                          "required": ["action", "path"], "additionalProperties": False}})
+                      schema=schema)
+    tool_preview.enums(TOOL, schema, "action")
