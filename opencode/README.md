@@ -161,8 +161,10 @@ stay open after it. Agent rules come last: the read-only subagents allow
 outside reads in their own rules, while worker and design reset
 `external_directory` to ask and so ask for those directories too.
 
-Keep the matching permission denies as well: Hermes copies the build agent's
-resolved denies into its session rulesets. Custom plugin tools pass through
+Keep the matching permission denies as well (a test checks every shell
+policy has one): Hermes copies the build agent's resolved denies into its
+session rulesets, and they still hold if a policy is skipped. Custom plugin
+tools pass through
 neither layer and enforce their own limits.
 
 Patterns are whole-value wildcards where `*` also matches `/`. A file at the
