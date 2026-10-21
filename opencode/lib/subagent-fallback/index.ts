@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto"
+import { gunzipSync, zstdDecompressSync } from "node:zlib"
 import {
   subscription,
   type AccountsContext,
@@ -236,6 +237,30 @@ function textOnly(messages: unknown[]): boolean {
   )
 }
 
+class WireTooLarge extends Error {}
+
+// The size of the JSON a request carries. Since 2.0.28 provider requests can
+// be zstd or gzip compressed (settings.encoding; zstd by default for ChatGPT
+// sign-in), so the body is decoded first, never past the text ceiling. Any
+// other encoding cannot be measured and stops the launch.
+async function wireBytes(request: Request): Promise<number> {
+  const body = new Uint8Array(await request.clone().arrayBuffer())
+  const encoding = (request.headers.get("content-encoding") ?? "")
+    .trim()
+    .toLowerCase()
+  if (encoding === "" || encoding === "identity") return body.byteLength
+  const options = { maxOutputLength: MAX_CONTEXT_BYTES + 1 }
+  try {
+    if (encoding === "zstd") return zstdDecompressSync(body, options).byteLength
+    if (encoding === "gzip") return gunzipSync(body, options).byteLength
+  } catch (error) {
+    if ((error as { code?: string }).code === "ERR_BUFFER_TOO_LARGE")
+      throw new WireTooLarge()
+    throw error
+  }
+  throw new Error(`unsupported content-encoding ${encoding}`)
+}
+
 function transportURL(
   url: string,
   providerID: string,
@@ -428,7 +453,7 @@ export async function setupPreflight(
       },
     })
   }
-  const guardWireSize = async (event: Scope, read: () => Promise<string>) => {
+  const guardWireSize = async (event: Scope, read: () => Promise<number>) => {
     const child = await protectedChild(event.sessionID)
     if (
       !child?.marker.fallback ||
@@ -438,8 +463,10 @@ export async function setupPreflight(
       return
     let bytes: number
     try {
-      bytes = Buffer.byteLength(await read())
-    } catch {
+      bytes = await read()
+    } catch (error) {
+      if (error instanceof WireTooLarge)
+        return fail("alternate wire context exceeds conservative headroom")
       return fail("alternate wire context cannot be measured")
     }
     const catalog = (await ctx.model.list({ location: child.session.location }))
@@ -499,7 +526,7 @@ export async function setupPreflight(
           headers.get("chatgpt-account-id") !== auth.accountID
         )
           fail("wire subscription account mismatch")
-        await guardWireSize(event, () => event.request.clone().text())
+        await guardWireSize(event, () => wireBytes(event.request))
       }),
     )
     registrations.push(
@@ -524,7 +551,7 @@ export async function setupPreflight(
         if (!auth) return
         if (handshakes.get(exchangeKey(event)) !== signature(auth))
           fail("WebSocket exchange lacks a current approved handshake")
-        await guardWireSize(event, async () => event.frame)
+        await guardWireSize(event, async () => Buffer.byteLength(event.frame))
       }),
     )
     // Do not switch a running child. Override quota's long reset wait only for

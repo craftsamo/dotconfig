@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test"
+import { gzipSync, zstdCompressSync } from "node:zlib"
 import {
   MAX_CONTEXT_BYTES,
   METADATA_KEY,
@@ -930,6 +931,53 @@ describe("alternate context and wire safeguards", () => {
     ).rejects.toThrow(/wire context/)
     await inst.fire("experimental.ws.send", { ...scope(SOL), frame: "{}" })
     expect(marker(env).wireChecked).toBe(true)
+  })
+  test("a compressed HTTP body is measured as the JSON it carries", async () => {
+    // Just over the ceiling decodes and fails the size check; far over it
+    // stops at the decoder's output cap instead of inflating in full.
+    const sizes = [MAX_CONTEXT_BYTES + 1, MAX_CONTEXT_BYTES * 8]
+    const encoded = (encoding: string, body: Uint8Array) =>
+      new Request(O_URL, {
+        method: "POST",
+        headers: { ...headers("openai"), "content-encoding": encoding },
+        body,
+      })
+    for (const [encoding, compress] of [
+      ["zstd", zstdCompressSync],
+      ["gzip", gzipSync],
+    ] as const) {
+      const { env, inst } = await fallback()
+      await inst.fire("context", context())
+      for (const size of sizes) {
+        const big = compress("x".repeat(size))
+        // Compressed, the oversized body is a few kilobytes at most.
+        expect(big.byteLength).toBeLessThan(MAX_CONTEXT_BYTES / 10)
+        await expect(
+          send(inst, encoded(encoding, big), SOL),
+        ).rejects.toThrow(/exceeds conservative headroom/)
+      }
+      expect(marker(env).wireChecked).toBeUndefined()
+      await send(inst, encoded(encoding, compress("{}")), SOL)
+      expect(marker(env).wireChecked).toBe(true)
+    }
+  })
+  test("an HTTP body in an encoding it cannot decode stops the launch", async () => {
+    for (const [encoding, body] of [
+      ["br", new TextEncoder().encode("{}")],
+      ["zstd", new TextEncoder().encode("not zstd")],
+    ] as const) {
+      const { env, inst } = await fallback()
+      await inst.fire("context", context())
+      const request = new Request(O_URL, {
+        method: "POST",
+        headers: { ...headers("openai"), "content-encoding": encoding },
+        body,
+      })
+      await expect(send(inst, request, SOL)).rejects.toThrow(
+        /cannot be measured/,
+      )
+      expect(marker(env).wireChecked).toBeUndefined()
+    }
   })
   test("auxiliary requests skip wire size, and persisted checks survive reload", async () => {
     const { env, inst, install } = await fallback()
