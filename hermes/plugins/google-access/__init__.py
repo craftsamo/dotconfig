@@ -36,6 +36,7 @@ def _load(name, path):
 
 access = _load("hermes_google_access_engine", Path(__file__).resolve().parent / "access.py")
 human_gate = _load("hermes_human_gate", Path(__file__).resolve().parent.parent / "_shared" / "human_gate.py")
+tool_preview = _load("hermes_tool_preview", Path(__file__).resolve().parents[1] / "_shared" / "tool_preview.py")
 
 APPROVAL = ("Calls that change something ({}) wait for the user's approval in chat before they run; "
             "a denial or timeout means it did not happen. Ask in plain words first when the request "
@@ -542,9 +543,12 @@ def register(ctx):
     if ctx.profile_name not in PROFILES:
         return
     for name, (description, properties) in SCHEMAS.items():
+        schema = {"name": name, "description": description, "parameters": {
+            "type": "object", "properties": properties, "required": REQUIRED[name],
+            "additionalProperties": False}}
         ctx.register_tool(name=name, toolset=TOOLSET, handler=HANDLERS[name], description=description,
-                          schema={"name": name, "description": description, "parameters": {
-                              "type": "object", "properties": properties, "required": REQUIRED[name],
-                              "additionalProperties": False}})
+                          schema=schema)
+        if name != "gcloud":
+            tool_preview.enums(name, schema, "action")
     ctx.register_hook("pre_tool_call", gate)
     register_skills(ctx, ctx.profile_name)
