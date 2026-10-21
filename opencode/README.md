@@ -94,7 +94,11 @@ anger.
 `plugins/worktrees.ts` registers the worktree strategy in
 `lib/worktrees/strategy.ts`, so the TUI, the API and `git_worktree` all place
 worktrees at `~/Worktrees/<repository>/<branch>` on a new branch, the layout
-the Hermes workspace uses.
+the Hermes workspace uses. It also removes OpenCode's own Code Mode
+`worktree_create` and `worktree_remove` (2.0.27) from the tool registry, for
+every agent and every Hermes session: the first asks for no permission, the
+second asks under `edit` and can force away dirty files, so no rule here
+reaches them. `worktree_list` stays.
 
 Custom tools run without OpenCode's permission rules, so each enforces its own
 limits. `web_ui_check` (`lib/custom-tools/web_ui.ts`) runs
@@ -145,6 +149,13 @@ Two layers decide what an agent may do:
   Command patterns are best effort, not a sandbox: the shell scanner emits
   no resource for builtins such as `export -p`, so they run unchecked, and
   an interpreter or a script can still reach the same data.
+
+Reading or editing outside the Location asks: since 2.0.25 the built-in rules
+allow it, and the global `external_directory: *` ask restores the prompt. The
+skill directories and OpenCode's own scratch directory (`os.tmpdir()/opencode`)
+stay open after it. Agent rules come last: the read-only subagents allow
+outside reads in their own rules, while worker and design reset
+`external_directory` to ask and so ask for those directories too.
 
 Keep the matching permission denies as well: Hermes copies the build agent's
 resolved denies into its session rulesets. Custom plugin tools pass through

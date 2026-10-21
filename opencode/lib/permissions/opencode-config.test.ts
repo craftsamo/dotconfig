@@ -129,6 +129,41 @@ describe("global shell rules", () => {
   })
 })
 
+describe("global outside-directory rules", () => {
+  // The built-in rules allow every action since 2.0.25, outside directories
+  // included; the global ask restores the prompt. Resources are the directory
+  // with `/*` appended.
+  const outside = (resource: string, own: Rule[] = []) => {
+    let effect = "ask"
+    for (const r of [...rules, ...own])
+      if (matches(r.action, "external_directory", false) && matches(r.resource, resource, false)) effect = r.effect
+    return effect
+  }
+  const home = process.env.HOME ?? "/Users/x"
+
+  test("a directory outside the Location asks", () => {
+    for (const resource of ["/etc/*", `${home}/Documents/*`, `${home}/ghq/github.com/o/other/*`, "/tmp/*"])
+      expect([resource, outside(resource)]).toEqual([resource, "ask"])
+  })
+
+  test("skill directories and OpenCode's scratch directory stay open", () => {
+    for (const resource of [
+      "~/.agents/skills/commit/references/*",
+      "~/.config/opencode/skills/approach/new-feature/*",
+      "/private/var/folders/xy/abc123/T/opencode/*",
+      "/private/var/folders/xy/abc123/T/opencode/oc-diff/v2.1.2/*",
+    ])
+      expect([resource, outside(resource)]).toEqual([resource, "allow"])
+    expect(outside("/private/var/folders/xy/abc123/T/other/*")).toBe("ask")
+  })
+
+  test("read-only subagents that allow outside reads keep that allow", async () => {
+    const text = await Bun.file(join(import.meta.dir, "../../agents/explore-medium.md")).text()
+    const own = (Bun.YAML.parse(text.split("---")[1]) as { permissions: Rule[] }).permissions
+    expect(outside("/etc/*", own)).toBe("allow")
+  })
+})
+
 describe("global skill rules", () => {
   // OpenCode asks for a skill by its id, the directory holding SKILL.md, never
   // by the frontmatter `name`.
