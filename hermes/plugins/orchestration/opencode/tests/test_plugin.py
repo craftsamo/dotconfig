@@ -569,7 +569,7 @@ def test_preflight_answers_one_line_when_healthy(fixture):
     _, directory, _, _ = fixture
     out = preflight(directory)
     assert out["ok"] is True and "issues" not in out
-    assert out["summary"] == "ready: OpenCode 2.0.23, roles build, debug, plan, review, branch topic, plan"
+    assert out["summary"] == "ready: OpenCode 2.1.2, roles build, debug, plan, review, branch topic, plan"
 
 
 def test_preflight_reports_only_the_findings_when_a_role_cannot_run(fixture):
@@ -879,7 +879,7 @@ def test_catalog_reads_agents_skills_vcs_and_refuses_the_rest(fixture):
     assert all("permissions" not in a for a in agents)
     skills = json.loads(plugin.opencode_catalog({"what": "skills", "directory": str(directory)}))["skills"]
     assert skills == [{"id": "git-commit", "name": "git-commit", "description": "d"}]
-    assert json.loads(plugin.opencode_catalog({"what": "info"})) == {"version": "2.0.23"}
+    assert json.loads(plugin.opencode_catalog({"what": "info"})) == {"version": "2.1.2"}
     assert "what must be" in json.loads(plugin.opencode_catalog({"what": "config"}))["error"]
     assert "Unexpected" in json.loads(plugin.opencode_catalog({"what": "info", "x": 1}))["error"]
 

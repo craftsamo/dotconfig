@@ -11,7 +11,7 @@ from __future__ import annotations
 import contextlib
 import subprocess
 
-MEASURED_VERSION = "2.0.23"
+MEASURED_VERSION = "2.1.2"
 PHASES = ("plan", "build")
 
 

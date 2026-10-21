@@ -165,7 +165,7 @@ class Fake:
 
     def _route(self, method, parts, query, data):
         if parts == ["info"]:
-            return {"version": "2.0.23", "paths": {"tmp": "/tmp/fake-opencode"}}
+            return {"version": "2.1.2", "paths": {"tmp": "/tmp/fake-opencode"}}
         if parts == ["model"]:
             return {"data": self.models}
         if parts == ["agent"]:

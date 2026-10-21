@@ -69,9 +69,10 @@ one line: a step names what it delivers. `Phase{N}.{m}` is the conversation's
 name for the work: it never enters a branch name, commit subject, PR title or
 body (git-pullrequest `<Audience>`).
 
-OpenCode V2 has no native Todo tool. Do not claim to have registered todos or
-create local TODO/plan files to simulate it. Keep the execution queue in the
-conversation; durable cross-session work belongs on GitHub Projects when asked.
+OpenCode V2's native Todo tool (`todowrite`) is disabled in this config. Do
+not claim to have registered todos or create local TODO/plan files to
+simulate it. Keep the execution queue in the conversation; durable
+cross-session work belongs on GitHub Projects when asked.
 The one exception: a Hermes-driven run whose operating note names a
 `progress.md` keeps the steps there as that note says.
 Ask the user to switch to Build; never switch automatically or start executing
