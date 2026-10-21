@@ -36,20 +36,20 @@ Non-trivial work runs through this spine; do not jump straight to edits:
    (commit-sized edit→verify moves). A sub-goal whose verification cannot be
    stated needs further decomposition. Persist durable or cross-session plans
    via `approach-github-planning`, not local TODO files.
-5. Hand off to execution: publish the agreed plan as a conversation
-   task list shaped `Phase{N}.{m} - <task> (executor)` — Phase and {m} as
-   the global `<PlanHandoff>` defines them (each sub-goal a reviewable PR
-   layer, one layer of a native stack when there are several, in stack
-   order, and {m} its commit-sized steps); executor one of Build | worker |
+5. Hand off to execution: write the agreed plan in the reply and register
+   its steps with `todowrite`, shaped `Phase{N}.{m} - <task> (executor)` —
+   Phase and {m} as the global `<PlanHandoff>` defines them (each sub-goal a
+   reviewable PR layer, one layer of a native stack when there are several,
+   in stack order, and {m} its commit-sized steps); executor one of Build | worker |
    reviewer | verifier | debugger (default Build; worker only for mechanical
    work). For a sub-goal that adds screens or stored data,
    agree what people can do, the screens and the data with the user before its
-   steps; a mock or diagram beats prose there. The native Todo tool is
-   disabled here; do not create local TODO/plan files to simulate it. Ask the
+   steps; a mock or diagram beats prose there. Without `todowrite`, keep the
+   list in the conversation; never create local TODO/plan files. Ask the
    user to switch to Build; do not switch automatically or execute until the
    user switches.
    Build executes phases in order, delegates according to the tag, and updates
-   the conversation task statuses. The conversation list is the session's
+   the todo statuses as `<PlanHandoff>` says. The todo list is the session's
    execution queue; the board holds the durable plan.
 6. Execute in small reversible verified steps; checkpoint before anything
    irreversible.

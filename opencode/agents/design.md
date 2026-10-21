@@ -45,6 +45,7 @@ permissions:
   - { action: subagent, resource: "*", effect: deny }
   - { action: subagent, resource: "explore*", effect: allow }
   - { action: question, resource: "*", effect: allow }
+  - { action: todowrite, resource: "*", effect: allow }
   - { action: web_ui_check, resource: "*", effect: allow }
   - { action: shell, resource: "*", effect: ask }
   - { action: shell, resource: "ls *", effect: allow }

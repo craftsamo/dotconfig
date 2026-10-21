@@ -221,16 +221,24 @@ specialists for their role and cheaper default models. Primary sessions retain
 their selected model when switching agents; the agent configuration is not a
 guarantee of the model currently selected in a session.
 
-V2's native Todo tool (`todowrite`, behind `experimental.todo`) stays disabled
-here. Keep ephemeral execution steps in the conversation as
-`Phase{N}.{m} - <task> (executor)`, updating pending / in-progress / completed /
-blocked statuses and restating unfinished work at handoffs. Plan asks the user
-to switch to Build before execution. Do not create local TODO files or claim
-that a native list was registered. Durable work still uses GitHub Issues and
-Projects when requested; no Todo plugin is installed for this workaround. The
-one exception is a Hermes-driven run whose operating note names a
-`progress.md`: it keeps its Phase's steps there, as `AGENTS.md`
-`<PlanHandoff>` says.
+`experimental.todo` turns on V2's native `todowrite` tool (2.1.0), which keeps
+a session's execution steps as `Phase{N}.{m} - <task> (executor)` and draws
+them in the TUI timeline and sidebar (the TUI only). Each call replaces the
+whole list and returns only counts and the in-progress item, and there is no
+`todoread`. The sidebar keeps showing the last list after a compaction, but
+the model keeps only what the summary and the recent turns say, so
+`AGENTS.md` `<PlanHandoff>` has it resend the list after one and restate
+unfinished work in its replies at handoffs. Plan and Build reach the tool
+through the default allow; Debug, Review and Design ask for everything else,
+so they allow it by name; every specialist subagent denies `*`, so the list
+stays with the primary. Plan asks the user to switch to Build before
+execution. Do not create local TODO files or claim that a list was
+registered. Durable work still uses GitHub Issues and Projects when
+requested. The flag is experimental: while it is off or the tool is gone, the
+same list is kept in the conversation. A Hermes-driven run whose operating
+note names a `progress.md` keeps its Phase's steps there instead of in
+`todowrite`, as `AGENTS.md` `<PlanHandoff>` says, because Hermes reads only
+that file.
 
 Empty directories carry a `.gitkeep` so the skeleton survives a fresh clone.
 
