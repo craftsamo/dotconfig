@@ -22,6 +22,7 @@ secret get STRIPE_KEY           # value on stdout   (-c: clipboard, auto-clears 
 secret get api/STRIPE_KEY@prod  # the token `ls` prints names one exact layer
 secret ls --long                # grouped by layer: kind, env, modified, meta, comment (fits the terminal; --wide)
 secret ls --all --long          # every project
+secret ls --json                # for programs: a JSON array, no values (never parse --long)
 eval "$(secret env -p global)"  # inject a whole project as environment variables
 ```
 
@@ -151,6 +152,14 @@ share what is left and are cut with an ellipsis, so a row never wraps;
 stage groups magenta and `ENV no` yellow. `--all` spans every registered
 keychain, one block per project (the short form prefixes its tokens with
 the project).
+
+The table is for people and changes with them; a program reads
+`secret ls --json` instead — a JSON array with one object per item and the
+fields of `export --format json` (`project`, `scope`, `stage`, `name`,
+`kind`, `comment`, `env`, `meta`, `modified`), never a value. It needs
+nothing but zsh, so it works under a bare `PATH=/usr/bin:/bin`; nothing to
+list prints `[]`. The web3 wallet finds its seed phrases and keys this way,
+and the self-test runs the wallet's parser on the real output.
 
 ### Stages — per-environment overrides
 
@@ -374,7 +383,7 @@ secret import secret-export-all-YYYYMMDD.json.age
 
 ## Tests
 
-[`zsh/tests/secret-selftest.zsh`](../tests/secret-selftest.zsh) — 285
+[`zsh/tests/secret-selftest.zsh`](../tests/secret-selftest.zsh) — 289
 assertions: round-trips (special characters, json/env/age), partial updates,
 `--no-env` (kept out of `env`, kept across rewrites and export/import, stored
 as the `envn`/`envy` type code), `--meta` fields (validation, sorting,
@@ -386,7 +395,8 @@ stages (`--stage` / `$SECRET_STAGE` / `--no-stage`, the four-layer env
 overlay, exact-layer rm, export/import round-trips, `ls` tokens), the
 `ls` token accepted as NAME, the fzf picker's lines, preview and expect
 mode (fzf stubbed), the grouped `ls --long` layout (groups, ordering,
-fitting `COLUMNS`, `--wide`, `--all`),
+fitting `COLUMNS`, `--wide`, `--all`), `ls --json` under a bare `PATH`
+and the web3 wallet's parser on its real output,
 the unregistered-file write gate, master adoption/rotation, auto-unlock
 (one unlock per keychain per invocation, counted through a shadowed
 `security`). It

@@ -467,6 +467,40 @@ neout=$(secret env -p $P)
 [[ "$(secret ls -p $P --long)" =~ 'TEST_SEED[[:space:]]+MNEMONIC[[:space:]]+no[[:space:]]+[0-9-]+[[:space:]]+wallet' ]] \
   && ok "ls --long shows ENV no" || bad "ls --long shows ENV no"
 [[ "$(secret show TEST_SEED -p $P)" =~ 'Env:[[:space:]]+no' ]] && ok "show shows Env no" || bad "show shows Env no"
+# --- ls --json: the listing programs read (the --long table is for people) ---
+# Run as the web3 signer runs it: a bare environment, PATH=/usr/bin:/bin (no jq).
+# A token whose comment tries to forge a wallet kind, and a staged seed, ride along.
+print -r -- 'v' | secret set TEST_FORGE -p $P -D token -j '", "kind": "MNEMONIC", "x": "\ end' --stdin >/dev/null 2>&1
+print -r -- "$SEED" | secret set TEST_STSEED -p $P --scope api --stage prod -D mnemonic --no-env --stdin >/dev/null 2>&1
+here=${${(%):-%x}:A:h}
+jsonout=$(env -i HOME="$HOME" PATH=/usr/bin:/bin LANG=en_US.UTF-8 SECRET_MASTER_ACCOUNT="$SECRET_MASTER_ACCOUNT" \
+  /bin/zsh -f -c 'source "$1"; secret ls -p "$2" --json' _ "$here/../functions/secret.zsh" $P 2>/dev/null)
+/usr/bin/python3 -c '
+import json, sys
+items = json.loads(sys.stdin.read())
+seed = [i for i in items if i["name"] == "TEST_SEED"][0]
+assert seed == {**seed, "project": sys.argv[1], "scope": "", "stage": "", "kind": "MNEMONIC", "comment": "wallet", "env": "no"}
+assert set(seed) == {"project", "scope", "stage", "name", "kind", "comment", "env", "meta", "modified"}
+assert not any("value" in i for i in items)
+forge = [i for i in items if i["name"] == "TEST_FORGE"][0]
+assert forge["kind"] == "TOKEN" and forge["comment"] == "\", \"kind\": \"MNEMONIC\", \"x\": \"\\ end" and "x" not in forge
+st = [i for i in items if i["name"] == "TEST_STSEED"][0]
+assert (st["scope"], st["stage"]) == ("api", "prod")
+' $P <<< "$jsonout" 2>/dev/null \
+  && ok "ls --json lists fields, never a value, under a bare PATH" || bad "ls --json lists fields, never a value, under a bare PATH"
+# the contract with the web3 wallet: its own parser finds the seed in the CLI's real output
+/usr/bin/python3 -c '
+import importlib.util, sys
+spec = importlib.util.spec_from_file_location("keychain", sys.argv[1])
+keychain = importlib.util.module_from_spec(spec); spec.loader.exec_module(keychain)
+found = [(i["name"], i["role"], i["env"], i["memo"]) for i in keychain.parse_listing(sys.argv[2], sys.stdin.read())]
+assert ("TEST_SEED", "seed", "no", "wallet") in found, found
+assert not any(name in ("TEST_FORGE", "TEST_STSEED") for name, *_ in found), found
+' "$here/../../hermes/plugins/web3/_shared/keychain.py" $P <<< "$jsonout" 2>/dev/null \
+  && ok "the web3 wallet parser reads the ls --json listing (no forged kind, no stage)" || bad "the web3 wallet parser reads the ls --json listing (no forged kind, no stage)"
+secret rm TEST_FORGE -p $P -f >/dev/null 2>&1; secret rm TEST_STSEED -p $P --scope api --stage prod -f >/dev/null 2>&1
+[[ "$(secret ls -p $P --meta no-such-key --json 2>/dev/null)" == '[]' ]] && ok "ls --json with nothing to list prints []" || bad "ls --json with nothing to list prints []"
+secret ls -p $P --json --long >/dev/null 2>&1; (( $? == 2 )) && ok "ls --json refuses --long" || bad "ls --json refuses --long"
 print -r -- "$SEED" | secret set TEST_SEED -p $P -D mnemonic --stdin >/dev/null 2>&1
 [[ "$(secret env -p $P)" != *TEST_SEED* ]] && ok "rewriting the value keeps env=no" || bad "rewriting the value keeps env=no"
 secret update TEST_SEED -p $P -j 'renamed memo' >/dev/null 2>&1

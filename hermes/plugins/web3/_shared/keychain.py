@@ -1,14 +1,18 @@
 """Find the user's wallet secrets in the Keychain by their kind label (docs/web3.md "Accounts").
 
-Run inside the signer only. ``secret projects`` and ``secret ls -p <project> --long`` list names,
+Run inside the signer only. ``secret projects`` and ``secret ls -p <project> --json`` list names,
 scopes and kinds without reading a value; only items whose kind is a seed phrase (``MNEMONIC``) or
 a private key (``PRIVATE_KEY``) are then read with ``secret get``, stdin closed. No other secret's
 value is ever read. Without the ``secret`` CLI the wallet is unavailable.
 
+The listing is read as JSON, never as the ``--long`` table: that one is for people and changes
+with them. Items of a stage are left out — a wallet lives in a stage-less layer, which is where
+``store`` writes and ``read`` reads.
+
 The kind says what an item is; its name says whether Hermes may sign with it: a name with HERMES
 as one of its ``_`` / ``-`` separated words (``HERMES_MAIN``, ``PROJECTX_HERMES``) is a Hermes wallet
 ("sign"), any other name is watch-only ("watch"), so a project's own wallets never sign by accident.
-The listing's ENV column says whether ``secret env`` (and so every injected environment) carries the
+The listing's ``env`` says whether ``secret env`` (and so every injected environment) carries the
 item; a Hermes wallet should be stored ``--no-env``.
 
 ``store`` writes one new item through ``secret set --new --stdin`` (create-only; the value on stdin,
@@ -17,6 +21,7 @@ never in argv), and ``read`` reads one back; both are for a new Hermes wallet on
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 import re
 import subprocess
@@ -25,7 +30,6 @@ SECRET = Path.home() / ".config" / "bin" / "secret"
 TIMEOUT = 20
 KINDS = {"mnemonic": "seed", "mnemonic phrase": "seed", "seed phrase": "seed", "private key": "key",
          "privatekey": "key"}
-COLUMNS = ("NAME", "SCOPE", "KIND", "MODIFIED")
 MARK = "hermes"
 UNAVAILABLE = ("the secret CLI is not available on this machine, so the wallet cannot find seed phrases or "
                "keys; it needs ~/.config/bin/secret")
@@ -53,12 +57,13 @@ def _run(args: list[str], value: str | None = None) -> str:
     if not SECRET.exists():
         raise KeychainError(UNAVAILABLE)
     try:
+        # errors="replace": a stray non-UTF-8 byte in a listed comment must not hide the project
         if value is None:
             proc = subprocess.run([str(SECRET), *args], stdin=subprocess.DEVNULL, capture_output=True, text=True,
-                                  timeout=TIMEOUT)
+                                  errors="replace", timeout=TIMEOUT)
         else:
             proc = subprocess.run([str(SECRET), *args], input=value + "\n", capture_output=True, text=True,
-                                  timeout=TIMEOUT)
+                                  errors="replace", timeout=TIMEOUT)
     except subprocess.TimeoutExpired:
         raise KeychainTimeout("the Keychain did not answer in time") from None
     if proc.returncode != 0:
@@ -67,35 +72,29 @@ def _run(args: list[str], value: str | None = None) -> str:
 
 
 def parse_rows(project: str, text: str) -> list[dict]:
-    """Every item of one ``secret ls --long`` listing, of any kind, values never included (columns
-    are space-padded under a header)."""
-    lines = [line for line in text.splitlines() if line.strip()]
-    if not lines or not lines[0].startswith("NAME"):
+    """Every stage-less item of one ``secret ls --json`` listing, of any kind, values never included.
+    Anything that is not such a listing yields nothing."""
+    try:
+        listing = json.loads(text)
+    except ValueError:
         return []
-    header = lines[0]
-    starts = [header.find(column) for column in COLUMNS]
-    if min(starts) < 0:
+    if not isinstance(listing, list):
         return []
-    comment_at = header.find("COMMENT")
-    env_match = re.search(r"\bENV\b", header)
-    env_at = env_match.start() if env_match else -1
     found = []
-    for row in lines[1:]:
-        name = row[starts[0]:starts[1]].strip()
-        scope = row[starts[1]:starts[2]].strip()
-        label = row[starts[2]:starts[3]].strip()
-        memo = row[comment_at:].strip() if comment_at > 0 else ""
-        env = row[env_at:comment_at if comment_at > env_at else None].strip() if env_at > 0 else ""
+    for item in listing:
+        if not isinstance(item, dict) or item.get("stage"):
+            continue
+        name = item.get("name") or ""
         if name:
-            found.append({"project": project, "scope": None if scope in ("", "Shared") else scope,
-                          "name": name, "label": label, "memo": memo or None,
-                          # "no" when stored --no-env; "yes" or unknown (an older secret) means injectable
-                          "env": "no" if env == "no" else "yes"})
+            found.append({"project": project, "scope": item.get("scope") or None,
+                          "name": name, "label": item.get("kind") or "", "memo": item.get("comment") or None,
+                          # "no" when stored --no-env; "yes" or unknown means injectable
+                          "env": "no" if item.get("env") == "no" else "yes"})
     return found
 
 
 def parse_listing(project: str, text: str) -> list[dict]:
-    """Wallet items of one ``secret ls --long`` listing."""
+    """Wallet items of one ``secret ls --json`` listing."""
     found = []
     for row in parse_rows(project, text):
         role = kind_of(row["label"])
@@ -111,7 +110,7 @@ def projects() -> list[str]:
 
 def rows(project: str) -> list[dict]:
     """Every item of a project, names and metadata only."""
-    return parse_rows(project, _run(["ls", "-p", project, "--long"]))
+    return parse_rows(project, _run(["ls", "-p", project, "--json"]))
 
 
 def _layer(scope: str | None) -> list[str]:
@@ -139,7 +138,7 @@ def discover(sign_only: bool = False) -> list[dict]:
     items = []
     for project in projects():
         try:
-            items += parse_listing(project, _run(["ls", "-p", project, "--long"]))
+            items += parse_listing(project, _run(["ls", "-p", project, "--json"]))
         except KeychainError:
             continue  # one unreadable project does not hide the others
     if sign_only:

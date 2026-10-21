@@ -123,9 +123,10 @@ secret set PROD_MNEMONIC -p <project> -D MNEMONIC                # watch-only: a
   ([secret.md](../../zsh/functions/secret.md)). A Hermes wallet stored without
   it is reported (`warnings` in `accounts`, `web3.sh status`) and still signs.
 - **Kind-based reads:** each call lists every project's items with
-  `secret projects` and `secret ls --long` (names, scopes and kinds, no values)
-  and reads with `secret get` only items whose kind is a seed phrase or a
-  private key. No other secret's value is read, so an API key that happens to
+  `secret projects` and `secret ls --json` (names, scopes and kinds, no values;
+  never the `--long` table, which is for people and changes with them; items of
+  a stage are left out) and reads with `secret get` only items whose kind is a
+  seed phrase or a private key. No other secret's value is read, so an API key that happens to
   look like a private key never becomes a wallet. Items that fail validation
   and duplicate copies are listed as skipped, never used; a secret stored under
   both a Hermes name and another keeps its Hermes copy. Without the `secret`

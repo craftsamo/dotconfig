@@ -37,11 +37,11 @@ elif args[0] == "ls":
     project = opt("-p")
     if mode == "ls-fail" and any(i["name"].startswith("HERMES_T") for i in items):
         sys.exit(1)
-    print("%-24s%-14s%-18s%-18s%-5s%s" % ("NAME", "SCOPE", "KIND", "MODIFIED", "ENV", "COMMENT"))
-    for i in items:
-        if i["project"] == project:
-            print("%-24s%-14s%-18s%-18s%-5s%s" % (i["name"], i["scope"] or "Shared", i["kind"], "2026-10-08 10:00",
-                                                   i["env"], i["comment"]))
+    if "--json" not in args:  # the wallet reads the JSON listing, never the people's table
+        sys.exit(2)
+    print(json.dumps([{{"project": i["project"], "scope": i["scope"] or "", "stage": "", "name": i["name"],
+                        "kind": i["kind"], "comment": i["comment"], "env": i["env"], "meta": {{}},
+                        "modified": "2026-10-08 10:00"}} for i in items if i["project"] == project]))
 elif args[0] == "get":
     scope = opt("--scope")
     for i in items:

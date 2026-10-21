@@ -126,6 +126,7 @@ secret ls                 # one "[scope/]NAME[@stage]" token per item, no values
 secret ls --long          # grouped by layer, with kind, env, meta and comment
 secret ls --long --wide   # nothing cut to the terminal width (piped output never is)
 secret ls --all           # every project, tokens prefixed with the project
+secret ls --json          # for scripts: a JSON array of fields, no values (never parse --long)
 secret show NAME          # one item's metadata, no value
 secret show api/DB@prod   # a token from `ls` names that exact layer
 secret projects           # project names
