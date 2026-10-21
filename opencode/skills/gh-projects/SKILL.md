@@ -116,7 +116,10 @@ field. Kind is not a board field — it is the issue's type or `type:*` label.
   message, a shared sheet). An answer that creates work becomes a draft.
 
 Titles are action phrases (see `gh-issues` `<Titles>`); the detail goes in
-the body, not the board.
+the body, not the board, in the forms of `gh-issues` `<Notation>`. In a
+draft a code permalink stays a plain link and a mention notifies nobody, so
+a code link carries its own text (`[path#L3-L9](permalink)`) and a person
+who must know is told elsewhere.
 
 **Draft or issue.** Keep an item a draft while any of these holds: whether
 it will be done is not decided; it has no repository to live in; its
