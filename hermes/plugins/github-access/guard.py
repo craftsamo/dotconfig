@@ -67,17 +67,43 @@ def _gh_args(tokens: list[str]):
                                tokens[i] in ("command", "exec", "env", "nohup", "time", "sudo", "xargs")):
         i += 1
     if i < len(tokens) and tokens[i].rsplit("/", 1)[-1] == "gh":
-        args = tokens[i + 1:]
-        while args and args[0].startswith("-"):  # global flags before the command
-            args = args[2:] if args[0] in ("-R", "--repo") else args[1:]
-        return args
+        return tokens[i + 1:]
     return None
+
+
+def _words(rest: list[str]) -> list[int]:
+    """Where gh may find its next (sub)command in ``rest``. A flag before it may or may not take the
+    next token as its value (gh strips ``--flag value`` it does not know as a switch), so after a
+    flag without ``=`` both that token and the one after it count."""
+    found, i, valued = [], 0, False
+    while i < len(rest):
+        if rest[i].startswith("-"):
+            valued = "=" not in rest[i]
+        else:
+            found.append(i)
+            if not valued:
+                break
+            valued = False
+        i += 1
+    return found
+
+
+def _commands(args: list[str]):
+    """Every (group, verb) gh may read from its arguments."""
+    for g in _words(args):
+        rest = args[g + 1:]
+        verbs = [rest[v] for v in _words(rest)] or [""]
+        for verb in verbs:
+            yield args[g], verb
 
 
 # The same rule over the whole text, quotes and all, so a write wrapped in `bash -c "…"`, `eval '…'`
 # or split by a backslash-newline is caught too. A guard of text, not a sandbox: a script file's
 # contents are never seen, which is why the token and the aliases are closed as well.
-_GH = r"(?:(?<=/)|(?<![\w./-]))gh\s+(?:(?:-R|--repo)\s+\S+\s+|-\S+\s+)*"
+# Flags may stand before the group and between the group and its verb (`gh -R a/b secret set`,
+# `gh secret --org o set`), each with or without a value after it.
+_FLAGS = r"(?:-\S+\s+(?:[^-\s]\S*\s+)?)*"
+_GH = r"(?:(?<=/)|(?<![\w./-]))gh\s+" + _FLAGS
 
 
 def _verbs(verbs) -> str:
@@ -86,13 +112,13 @@ def _verbs(verbs) -> str:
 
 _ANYWHERE = re.compile(
     _GH + r"(?:api\b"
-    rf"|issue\s+(?:{_verbs(ISSUE_WRITES)})\b"
+    rf"|issue\s+{_FLAGS}(?:{_verbs(ISSUE_WRITES)})\b"
     rf"|project\s+(?!(?:{_verbs(PROJECT_READS)})\b)[\w-]"
-    rf"|label\s+(?:{_verbs(LABEL_WRITES)})\b"
-    r"|auth\s+token\b|auth\s+status\b[^;&|\n]*--show-token"
-    r"|alias\s+(?:set|import)\b|ext(?:ension|ensions)?\b)")
+    rf"|label\s+{_FLAGS}(?:{_verbs(LABEL_WRITES)})\b"
+    rf"|auth\s+{_FLAGS}token\b|auth\s+status\b[^;&|\n]*--show-token"
+    rf"|alias\s+{_FLAGS}(?:set|import)\b|ext(?:ension|ensions)?\b)")
 _NEVER_ANYWHERE = re.compile(_GH + "(?:" + "|".join(
-    rf"{re.escape(group)}\s+(?:{_verbs(verbs)})(?![\w-])" for group, verbs in NEVER.items()) + ")")
+    rf"{re.escape(group)}\s+{_FLAGS}(?:{_verbs(verbs)})(?![\w-])" for group, verbs in NEVER.items()) + ")")
 
 
 def blocked(command: str) -> str | None:
@@ -106,19 +132,19 @@ def blocked(command: str) -> str | None:
         args = _gh_args(tokens)
         if not args:
             continue
-        group, verb = args[0], next((a for a in args[1:] if not a.startswith("-")), "")
-        if verb in NEVER.get(group, ()):
-            return NEVER_MESSAGE
-        if group == "api":
-            return MESSAGE
-        if group == "issue" and verb in ISSUE_WRITES:
-            return MESSAGE
-        if group == "project" and verb not in PROJECT_READS:
-            return MESSAGE
-        if group == "label" and verb in LABEL_WRITES:
-            return MESSAGE
-        if group in ("alias", "extension", "extensions", "ext") or (group == "auth" and verb == "token"):
-            return MESSAGE
+        for group, verb in _commands(args):
+            if verb in NEVER.get(group, ()):
+                return NEVER_MESSAGE
+            if group == "api":
+                return MESSAGE
+            if group == "issue" and verb in ISSUE_WRITES:
+                return MESSAGE
+            if group == "project" and verb not in PROJECT_READS:
+                return MESSAGE
+            if group == "label" and verb in LABEL_WRITES:
+                return MESSAGE
+            if group in ("alias", "extension", "extensions", "ext") or (group == "auth" and verb == "token"):
+                return MESSAGE
     return None
 
 
