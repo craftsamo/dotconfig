@@ -7,7 +7,8 @@ mandate in force (``mandate.py``), else holds it for one approval card and refus
 person can answer. ``github_mandate`` makes a mandate (always on its own card), lists and revokes
 them. The hook records what it decided about a call and the targets it saw; the handler runs only a
 call the hook decided, re-reading every target (and the mandate) before it writes. The hook also
-blocks terminal and file calls that would go around the tools (``guard.py``). Contract:
+blocks terminal and file calls that would go around the tools (``guard.py``). The ops of a change
+list live in ``ops_<domain>.py``, registered into ``changes.py``. Contract:
 docs/github-access.md.
 """
 
@@ -77,17 +78,7 @@ BOARD_DESCRIPTION = (
 CHANGE_DESCRIPTION = (
     "Change GitHub Issues and boards: changes is a list (at most 50) applied in order, stopping at the first "
     "failure; the user approves the whole list on one card that names each target with its tier. Ops: "
-    "draft_add (title, body, fields: a draft on the board), draft_note (item, text: appended to a draft), "
-    "draft_edit (item, title / body), item_add (url of an issue or PR, fields), item_set (item, fields "
-    "{name: value}, clear [names]), item_archive (item, restore), draft_promote (item, repo, kind, labels, "
-    "milestone, create_milestone), issue_create (repo, title, body, kind, labels, assignees, milestone, "
-    "create_milestone, parent, blocked_by (either may be \"$N\": the issue change N of this list creates), "
-    "board_fields: also put it on the board with these fields), "
-    "issue_edit (issue, title, body or append_body, kind, add_/remove_labels, add_/remove_assignees, "
-    "milestone (\"\" removes), create_milestone), issue_comment (issue, body), issue_relate (issue, parent or "
-    "remove_parent, add_/remove_sub_issues, add_/remove_blocked_by), issue_close (issue, reason completed|not "
-    "planned|duplicate, comment), issue_reopen (issue). repo, project and owner at the top apply to every "
-    "change that needs them (the board resolves as in github_board). A list that fits a mandate in force runs "
+    + changes.doc() + ". repo, project and owner at the top apply to every change that needs them (the board resolves as in github_board). A list that fits a mandate in force runs "
     "without a card. A denied or timed-out card means nothing changed; never retry it unchanged. Procedure: "
     "skill_view(name=\"github-access:github-tracking\").")
 
@@ -100,33 +91,7 @@ MANDATE_DESCRIPTION = (
     "mandates in force. revoke (mandate = its id): ends it at once. Propose one only as the tracking skill "
     "says; never to get past a card the user denied.")
 
-CHANGE_OP = {
-    "type": "object", "required": ["op"], "additionalProperties": False,
-    "properties": {
-        "op": {"type": "string", "enum": list(changes.OPS)},
-        "item": {"type": "string", "description": "a board item id (PVTI_…)"},
-        "issue": {"type": "string"},
-        "repo": {"type": "string"},
-        "url": {"type": "string"},
-        "title": {"type": "string"},
-        "body": {"type": "string"},
-        "text": {"type": "string"},
-        "append_body": {"type": "string"},
-        "comment": {"type": "string"},
-        "reason": {"type": "string", "enum": list(changes.REASONS)},
-        "kind": {"type": "string"},
-        "milestone": {"type": "string"},
-        "create_milestone": {"type": "boolean"},
-        "parent": {"type": "string"},
-        "remove_parent": {"type": "boolean"},
-        "restore": {"type": "boolean"},
-        "fields": {"type": "object", "additionalProperties": {"type": "string"}},
-        "board_fields": {"type": "object", "additionalProperties": {"type": "string"}},
-        **{key: {"type": "array", "items": {"type": "string"}} for key in (
-            "labels", "assignees", "blocked_by", "clear", "add_labels", "remove_labels", "add_assignees",
-            "remove_assignees", "add_sub_issues", "remove_sub_issues", "add_blocked_by", "remove_blocked_by")},
-    },
-}
+CHANGE_OP = changes.schema()
 
 SCHEMAS = {
     "github_issue": (ISSUE_DESCRIPTION, {

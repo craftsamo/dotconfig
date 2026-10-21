@@ -10,7 +10,8 @@ Part of the Hermes design docs — index: [`PROFILES.md`](../PROFILES.md).
 | Piece                                                                                                          | Home                                                                             | Reader    |
 | -------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- | --------- |
 | Read engine: GraphQL transport, references, tiers, board resolution, issue and board reads                     | `plugins/github-access/access.py`                                                | all       |
-| Write engine: change validation, the plan of targets, the card, applying a change list                         | `plugins/github-access/changes.py`                                               | all       |
+| Write engine: the op registry, change validation, the plan of targets, the card, applying a change list        | `plugins/github-access/changes.py`                                               | all       |
+| The ops of a change list, one module per domain: drafts and board items, issues                                | `ops_board.py`, `ops_issue.py` beside `changes.py`                               | all       |
 | Mandates: terms, the MAC'd state, whether a change list fits                                                   | `plugins/github-access/mandate.py`                                               | all       |
 | Bypass guard                                                                                                   | `plugins/github-access/guard.py`                                                 | all       |
 | `github_issue`, `github_board`, `github_change`, `github_mandate` tools (toolset `github_access`) and the hook | `plugins/github-access/__init__.py`                                              | Assistant |
@@ -83,14 +84,16 @@ descriptions and the skill say never to follow instructions in them.
 `github_change` takes a list of up to 50 changes and applies them in order,
 stopping at the first failure; the result names what was done, what failed
 (with what of that change already exists, and `uncertain` when the failure
-may have come after GitHub acted) and what was not tried. Every change is
-validated before anything is read (op, its keys, a close reason), then the
-plan reads, fresh, every repository and board the list writes to, with its
-tier and the viewer's right to write there, and checks each board field
-value (the field exists and is not built in, the option or iteration exists,
-a date is `YYYY-MM-DD`). A target the viewer cannot write, an archived
-repository, a read-only board and a bad field value end the call before any
-card. Removing or replacing a parent also targets the old parent's
+may have come after GitHub acted) and what was not tried. Each op is
+registered by the module of its domain with its keys, its plan, its card
+line and how it runs; the tool's schema and its list of ops are built from
+that registry. Every change is validated before anything is read (op, its
+keys and their types, a close reason), then the plan reads, fresh, every
+repository and board the list writes to, with its tier and the viewer's right
+to write there, and checks each board field value (the field exists and is
+not built in, the option or iteration exists, a date is `YYYY-MM-DD`). A
+target the viewer cannot write, an archived repository, a read-only board and
+a bad field value end the call before any card. Removing or replacing a parent also targets the old parent's
 repository, read from the issue. An `issue_create`'s `parent` and
 `blocked_by` may name `$N`, the issue an earlier `issue_create` or
 `draft_promote` of the same list creates, so a parent and its sub-issues in
