@@ -58,6 +58,19 @@ class Ctx:
         self.hooks.append((name, callback))
 
 
+def test_the_progress_line_shows_the_action_only(monkeypatch):
+    display = pytest.importorskip("agent.display")
+    monkeypatch.setattr(display, "_PREVIEW_BUILDERS", {})
+    plugin.register(Ctx("assistant"))
+    line = lambda tool, **args: display.build_tool_preview(tool, args, max_len=0)
+    assert line("google_sheets", action="get", name="secret", query="someone's name") == "get"
+    assert line("google_gmail", action="send", text="the private message") == "send"
+    assert line("google_drive", action="upload", path="/Users/someone/x") == "upload"
+    for tool in ("google_sheets", "google_gmail", "google_drive"):
+        assert line(tool, action="anything else", query="someone's name") is None
+    assert "gcloud" not in display._PREVIEW_BUILDERS
+
+
 def test_only_the_assistant_gets_the_tools():
     ctx = Ctx("creator")
     plugin.register(ctx)

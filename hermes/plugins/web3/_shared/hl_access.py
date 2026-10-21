@@ -40,6 +40,7 @@ def _load(name, path):
 
 
 access = _load("hermes_web3_access", HERE / "access.py")
+tool_preview = _load("hermes_tool_preview", Path(__file__).resolve().parents[2] / "_shared" / "tool_preview.py")
 
 TOOL = "hyperliquid"
 TOOLSET = "hyperliquid_access"
@@ -377,4 +378,5 @@ def register(ctx) -> None:
         return check(profile, **kwargs)
 
     ctx.register_tool(name=TOOL, toolset=TOOLSET, handler=handler, description=schema["description"], schema=schema)
+    tool_preview.enums("hyperliquid", schema, "action", "kind")
     ctx.register_hook("pre_tool_call", gate)

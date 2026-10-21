@@ -392,6 +392,16 @@ def test_a_backtest_is_a_read_that_carries_its_rules_to_the_engine(monkeypatch):
         assert "account" not in payload and "side" not in payload
 
 
+def test_the_progress_line_shows_the_action_only(monkeypatch):
+    display = pytest.importorskip("agent.display")
+    monkeypatch.setattr(display, "_PREVIEW_BUILDERS", {})
+    hl_access.register(Ctx("assistant"))
+    line = lambda **args: display.build_tool_preview("hyperliquid", args, max_len=0)
+    assert line(action="state", address="0xabc") == "state"
+    assert line(action="quote", kind="order", coin="BTC") == "quote order"
+    assert line(action="anything else", address="0xabc") is None
+
+
 def test_a_timed_out_submit_says_it_may_have_reached_the_venue(monkeypatch):
     fake_engine(monkeypatch, {"ok": False, "error": "the web3 engine did not finish within 180s; narrow a read"},
                 verify=REDUCE)

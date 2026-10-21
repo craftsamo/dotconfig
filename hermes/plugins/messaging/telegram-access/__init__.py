@@ -40,6 +40,7 @@ def _load(name, path):
 
 tg = _load("hermes_telegram_tg", Path(__file__).resolve().parent / "tg.py")
 human_gate = _load("hermes_human_gate", Path(__file__).resolve().parents[2] / "_shared" / "human_gate.py")
+tool_preview = _load("hermes_tool_preview", Path(__file__).resolve().parents[2] / "_shared" / "tool_preview.py")
 
 DESCRIPTION = (
     "The user's own Telegram account (their chats, groups and channels — not the Assistant's bot). "
@@ -238,9 +239,10 @@ def register_skills(ctx, profile):
 def register(ctx):
     if ctx.profile_name not in PROFILES:
         return
+    schema = {"name": TOOL, "description": DESCRIPTION, "parameters": {
+        "type": "object", "properties": PROPERTIES, "required": ["action"], "additionalProperties": False}}
     ctx.register_tool(name=TOOL, toolset=TOOLSET, handler=telegram_account, description=DESCRIPTION,
-                      schema={"name": TOOL, "description": DESCRIPTION, "parameters": {
-                          "type": "object", "properties": PROPERTIES, "required": ["action"],
-                          "additionalProperties": False}})
+                      schema=schema)
+    tool_preview.enums(TOOL, schema, "action")
     ctx.register_hook("pre_tool_call", gate)
     register_skills(ctx, ctx.profile_name)

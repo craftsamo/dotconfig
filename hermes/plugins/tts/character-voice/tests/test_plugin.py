@@ -6,6 +6,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+import pytest
+
 
 PLUGIN = Path(__file__).resolve().parents[1] / "__init__.py"
 SPEC = importlib.util.spec_from_file_location("character_voice", PLUGIN)
@@ -243,6 +245,16 @@ class RegistrationTest(unittest.TestCase):
         video_creator = self.FakeContext("video-creator")
         MODULE.register(video_creator)
         self.assertEqual([], video_creator.tools)
+
+
+def test_the_progress_line_is_a_fixed_label(monkeypatch):
+    display = pytest.importorskip("agent.display")
+    monkeypatch.setattr(display, "_PREVIEW_BUILDERS", {})
+    MODULE.register(RegistrationTest.FakeContext("audio-creator"))
+    line = display.build_tool_preview(
+        "character_text_to_speech", {"voice": "irodori-tts:someone", "text": "the private manuscript"}, max_len=0
+    )
+    assert line == "speech"
 
 
 if __name__ == "__main__":
