@@ -397,7 +397,9 @@ the whole thing off with `pinModels: false`.
 **Context limit.** The first alternate's text context may be at most
 160000 UTF-8 bytes plus 32768 headroom, relative to the catalog input or
 context minus output. The first primary HTTP body or WebSocket frame is also
-measured before transmission, including additions from later context hooks.
+measured before transmission, including additions from later context hooks. A
+zstd or gzip body (`settings.encoding`, zstd by default for ChatGPT sign-in) is
+measured decoded, never past the ceiling; any other encoding rejects.
 Media or unknown sizes reject, and no compaction is
 run to make a launch fit. Later native compaction retains the subscription
 identity and route checks, without a fresh quota requirement.
@@ -408,9 +410,13 @@ fallback preference; `funding: provider` means both reported pools were empty
 and the provider decides whether the default can proceed. Neither proves the
 actual charge. Declared structured output is unchanged.
 
-**Setup.** Pinned to OpenCode V2.0.23: on any other release the automatic new
-launch is rejected, but a manual pass still works. Re-validate the mocked tests
-after an upgrade. Run them from the repo root with
+**Setup.** Pinned to the OpenCode releases in `SUPPORTED_VERSIONS`
+(`index.ts`), currently 2.0.23 and 2.1.2, both kept while the binary is
+upgraded: on any other release the automatic new launch is rejected and a
+protected child stops, but a manual pass still works. Add a release only after
+checking the session hooks, the `subagent` tool's pre-launch `progress` and the
+retry error shape against its source, then re-validate the mocked tests. Run
+them from the repo root with
 `bun test opencode/lib/subagent-fallback`; no test-runner script or new
 dependency is installed.
 
