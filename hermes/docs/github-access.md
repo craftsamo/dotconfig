@@ -7,14 +7,15 @@ Part of the Hermes design docs — index: [`PROFILES.md`](../PROFILES.md).
 
 ## Shape
 
-| Piece                                                                                                        | Home                                                                             | Reader    |
-| ------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------- | --------- |
-| Read engine: GraphQL transport, references, tiers, board resolution, issue and board reads                   | `plugins/github-access/access.py`                                                | all       |
-| Write engine: change validation, the plan of targets, the card, applying a change list                       | `plugins/github-access/changes.py`                                               | all       |
-| Bypass guard                                                                                                 | `plugins/github-access/guard.py`                                                 | all       |
-| `github_issue`, `github_board`, `github_change` tools (toolset `github_access`) and the `pre_tool_call` hook | `plugins/github-access/__init__.py`                                              | Assistant |
-| How the Assistant reads Issues and boards, and the draft / issue model                                       | the `github-access:github` plugin skill (`plugins/github-access/skills/github/`) | Assistant |
-| How the Assistant changes them: proposing tracking, change lists, tiers, recipes                             | the `github-access:github-tracking` plugin skill                                 | Assistant |
+| Piece                                                                                                          | Home                                                                             | Reader    |
+| -------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- | --------- |
+| Read engine: GraphQL transport, references, tiers, board resolution, issue and board reads                     | `plugins/github-access/access.py`                                                | all       |
+| Write engine: change validation, the plan of targets, the card, applying a change list                         | `plugins/github-access/changes.py`                                               | all       |
+| Mandates: terms, the MAC'd state, whether a change list fits                                                   | `plugins/github-access/mandate.py`                                               | all       |
+| Bypass guard                                                                                                   | `plugins/github-access/guard.py`                                                 | all       |
+| `github_issue`, `github_board`, `github_change`, `github_mandate` tools (toolset `github_access`) and the hook | `plugins/github-access/__init__.py`                                              | Assistant |
+| How the Assistant reads Issues and boards, and the draft / issue model                                         | the `github-access:github` plugin skill (`plugins/github-access/skills/github/`) | Assistant |
+| How the Assistant changes them: proposing tracking, change lists, tiers, recipes                               | the `github-access:github-tracking` plugin skill                                 | Assistant |
 
 The plugin is enabled in the Assistant's private configuration only, like
 Google access: it reaches the user's own account. A person without the
@@ -156,6 +157,47 @@ the decided ones: another board resolved, a repository or board whose tier
 changed. Hook and handler both refuse where no person can answer the card
 (`human_gate`).
 
+## Mandates
+
+A mandate is the user's standing approval for a bounded kind of change, made
+with `github_mandate` `create` on a card of its own (a fresh key every time;
+a mandate never covers another). Its terms: boards and repositories (read and
+checked writable when it is made, and held by node id, so a repository
+renamed away and another made under the old name is not covered), an
+optional parent issue, the classes it covers, a purpose, and 1 to 30 days.
+The end is fixed when the card is drawn and printed on it; that is the end
+stored, and a card approved after it makes nothing. `list` shows those in
+force; `revoke` ends one at once. Neither asks.
+
+With a parent, every issue a change touches or relates must be that issue or
+one of its direct sub-issues (read at the write), and nothing may leave the
+tree or join it from outside: no removing a parent, no moving under another
+issue, no blocked-by with an issue outside, and only the parent itself adds
+or removes sub-issues, from within the tree. An issue an earlier change of the
+same list creates (`$N`) is inside only when that change creates a direct
+sub-issue of the parent; a `$N` parent makes a grandchild, which is outside.
+
+A change list skips its card when every change fits one mandate: its class
+is covered, every target of the change is in the mandate's boards or
+repositories, and the target's tier, read at the write, allows the class —
+`own` takes `routine` and `create`, `shared` only `routine`, `other` nothing.
+The hook records the mandate it matched; the handler re-reads the targets,
+refuses if they changed, and checks the list still fits the mandate in force
+now (revoked or ended between the two refuses). Inside a mandate a list also
+runs where nobody can answer a card, such as a cron job. A card for a list
+that fits no mandate names the first reason it did not.
+
+State lives in the profile home under `github-access/`: one MAC'd JSON per
+mandate, a MAC'd head naming those in force (only the head decides), and a
+history file kept for the record. The MAC key is a random key in the Keychain
+(`GITHUB_MANDATE_KEY_<PROFILE>`, project `hermes`, scope `github-access`, a
+scope no profile receives), made with the first mandate and read from the
+Keychain at every check, never cached: without a readable key, or with a
+replaced one, nothing is in force. As with Hyperliquid's mandates, the MACs stop an
+edited mandate or head, not an older head copied back; the guard on the
+state directory and the 30-day ceiling bound that
+([decision](decisions/github-mandates.md)).
+
 ## Ways around the tools
 
 The hook blocks a terminal `gh` command that writes Issues (`create`,
@@ -170,4 +212,7 @@ a mere mention (`echo gh issue create`) is blocked too. It is a guard of
 text, not a sandbox: a script file's contents are never seen. Reading
 through `gh` (`gh issue view`, `gh pr …`, `gh auth status`) and `gh repo
 create` stay open. File and terminal calls that name the plugin's state
-directory (`<HERMES_HOME>/github-access/`) are blocked too.
+directory (`<HERMES_HOME>/github-access/`) are blocked too, in any letter
+case and also when an argument resolves there (`~`, `..`, a symlink): the
+mandates' head is what a revoke changes, and a saved copy written back would
+undo it.
