@@ -26,6 +26,7 @@ def _load(name, path):
 HERE = Path(__file__).resolve().parent
 cli = _load("hermes_session_history_cli", HERE / "cli.py")
 reader = cli.hermes
+tool_preview = _load("hermes_tool_preview", HERE.parents[1] / "_shared" / "tool_preview.py")
 PROFILES = {"assistant"}
 PERIODS = {"": 1, "today": 1, "week": 7, "month": 30}
 
@@ -115,11 +116,11 @@ async def activity_command(raw):
 def register(ctx):
     if ctx.profile_name not in PROFILES:
         return
+    schema = {"name": "hermes_history", "description": DESCRIPTION, "parameters": {
+        "type": "object", "properties": PROPERTIES, "required": ["action"], "additionalProperties": False}}
     ctx.register_tool(name="hermes_history", toolset="session_history", handler=hermes_history,
-                      description=DESCRIPTION,
-                      schema={"name": "hermes_history", "description": DESCRIPTION, "parameters": {
-                          "type": "object", "properties": PROPERTIES, "required": ["action"],
-                          "additionalProperties": False}})
+                      description=DESCRIPTION, schema=schema)
+    tool_preview.enums("hermes_history", schema, "action")
     ctx.register_command("activity", activity_command,
                          description="AI activity for OpenCode and Hermes (today, week, month or N days)",
                          args_hint="[today|week|month|N]")
