@@ -44,7 +44,9 @@ def test_the_progress_line_shows_the_action_only(monkeypatch):
     assert line("github_issue", action="list", repo="acme/secret", query="someone's name") == "list"
     assert line("github_issue", action="view", issue="acme/secret#3") == "view"
     assert line("github_board", action="items", project="Private plans", search="layoffs") == "items"
-    for tool in ("github_issue", "github_board"):
+    assert line("github_mandate", action="create", purpose="the merger", repos=["acme/secret"]) == "create"
+    assert line("github_mandate", action="revoke", mandate="m1a2b3c4d") == "revoke"
+    for tool in ("github_issue", "github_board", "github_mandate"):
         assert line(tool, action="anything else", query="someone's name") is None
 
 
@@ -68,7 +70,7 @@ def test_only_the_assistant_gets_the_tools():
     assert ctx.tools == {} and ctx.hooks == []
     ctx = Ctx("assistant")
     plugin.register(ctx)
-    assert set(ctx.tools) == set(plugin.HANDLERS) == {"github_issue", "github_board", "github_change"}
+    assert set(ctx.tools) == set(plugin.HANDLERS) == {"github_issue", "github_board", "github_change", "github_mandate"}
     assert ctx.hooks == [("pre_tool_call", plugin.gate)]
     assert {t["toolset"] for t in ctx.tools.values()} == {"github_access"}
     for name, tool in ctx.tools.items():
@@ -109,6 +111,8 @@ def _fake_engine(monkeypatch, applied, plans=None):
     monkeypatch.setattr(plugin.human_gate, "no_human", lambda: None)
     monkeypatch.setattr(plugin.changes, "plan", lambda args: plans.pop(0) if plans else PLAN)
     monkeypatch.setattr(plugin.changes, "binding", lambda planned: [[t["kind"], t["name"], t["tier"]] for t in planned["targets"]])
+    monkeypatch.setattr(plugin.mandate, "covering", lambda home, planned: (None, []))
+    monkeypatch.setattr(plugin, "_home", lambda: Path("/nonexistent-home"))
     monkeypatch.setattr(plugin.changes, "card", lambda planned: "GitHub · 1 change")
     monkeypatch.setattr(plugin.changes, "apply", lambda planned: applied.append(planned) or {"ok": True, "done": []})
     plugin._DECISIONS.clear()
@@ -142,6 +146,73 @@ def test_a_write_whose_targets_changed_since_the_card_is_refused(monkeypatch):
     plugin.gate(tool_name="github_change", args=CHANGE)
     result = json.loads(plugin.github_change(CHANGE))
     assert result["ok"] is False and "changed since it was decided" in result["error"] and applied == []
+
+
+def test_a_list_inside_a_mandate_runs_without_a_card_even_unattended(monkeypatch):
+    applied = []
+    _fake_engine(monkeypatch, applied)
+    monkeypatch.setattr(plugin.human_gate, "no_human", lambda: "this is a cron job")
+    monkeypatch.setattr(plugin.mandate, "covering", lambda home, planned: ("m1a2b3c4d", []))
+    monkeypatch.setattr(plugin.mandate, "still_fits", lambda home, mid, planned: None)
+    assert plugin.gate(tool_name="github_change", args=CHANGE) is None
+    assert json.loads(plugin.github_change(CHANGE)) == {"ok": True, "done": []} and len(applied) == 1
+
+
+def test_a_list_that_left_its_mandate_before_the_write_is_refused(monkeypatch):
+    applied = []
+    _fake_engine(monkeypatch, applied)
+    monkeypatch.setattr(plugin.mandate, "covering", lambda home, planned: ("m1a2b3c4d", []))
+    monkeypatch.setattr(plugin.mandate, "still_fits", lambda home, mid, planned: "mandate m1a2b3c4d is no longer in force")
+    assert plugin.gate(tool_name="github_change", args=CHANGE) is None
+    result = json.loads(plugin.github_change(CHANGE))
+    assert result["ok"] is False and "no longer fits the mandate" in result["error"] and applied == []
+
+
+def test_outside_every_mandate_the_card_says_why(monkeypatch):
+    _fake_engine(monkeypatch, [])
+    monkeypatch.setattr(plugin.mandate, "covering",
+                        lambda home, planned: (None, ["m1: team/web is shared: a mandate never covers create changes there"]))
+    directive = plugin.gate(tool_name="github_change", args=CHANGE)
+    assert directive["action"] == "approve"
+    assert directive["message"].splitlines()[-1].startswith("Not covered by a mandate: m1: team/web is shared")
+
+
+TERMS = {"boards": [], "repos": [{"id": "R_app", "name": "me/app", "tier": "own"}], "parent": None,
+         "classes": ["routine"], "days": 7, "expires": 4102444800, "purpose": "Track the release"}
+MAKE = {"action": "create", "repos": ["me/app"], "classes": ["routine"], "days": 7, "purpose": "Track the release"}
+
+
+def test_a_mandate_is_made_only_on_its_own_card(monkeypatch):
+    made = []
+    _fake_engine(monkeypatch, [])
+    monkeypatch.setattr(plugin.mandate, "terms", lambda args: TERMS)
+    monkeypatch.setattr(plugin.mandate, "create", lambda home, terms: made.append(terms) or {"id": "m00000001"})
+    refused = json.loads(plugin.github_mandate(MAKE))
+    assert refused["ok"] is False and "only on its own card" in refused["error"] and made == []
+    first = plugin.gate(tool_name="github_mandate", args=MAKE)
+    second = plugin.gate(tool_name="github_mandate", args=MAKE)
+    assert first["action"] == "approve" and first["message"].startswith("GitHub · Mandate")
+    assert first["rule_key"].startswith("github-access:mandate:") and first["rule_key"] != second["rule_key"]
+    assert json.loads(plugin.github_mandate(MAKE)) == {"ok": True, "mandate": {"id": "m00000001"}} and made == [TERMS]
+
+
+def test_a_mandate_is_never_made_unattended_or_from_a_peer(monkeypatch):
+    _fake_engine(monkeypatch, [])
+    monkeypatch.setattr(plugin.mandate, "terms", lambda args: TERMS)
+    monkeypatch.setattr(plugin.human_gate, "no_human", lambda: "this is a cron job")
+    assert plugin.gate(tool_name="github_mandate", args=MAKE)["action"] == "block"
+    monkeypatch.setattr(plugin, "_inbound_peer", lambda: True)
+    assert plugin.gate(tool_name="github_mandate", args={"action": "list"})["action"] == "block"
+
+
+def test_listing_and_revoking_need_no_card(monkeypatch):
+    _fake_engine(monkeypatch, [])
+    monkeypatch.setattr(plugin.mandate, "active", lambda home: [])
+    monkeypatch.setattr(plugin.mandate, "revoke", lambda home, mid: {"revoked": mid})
+    assert plugin.gate(tool_name="github_mandate", args={"action": "list"}) is None
+    assert plugin.gate(tool_name="github_mandate", args={"action": "revoke", "mandate": "m1"}) is None
+    assert json.loads(plugin.github_mandate({"action": "list"})) == {"ok": True, "mandates": []}
+    assert json.loads(plugin.github_mandate({"action": "revoke", "mandate": "m1"})) == {"ok": True, "revoked": "m1"}
 
 
 def test_a_call_the_engine_refuses_is_blocked_without_a_card(monkeypatch):
@@ -206,10 +277,18 @@ def test_terminal_reads_and_other_work_stay_open(command):
     assert plugin.gate(tool_name="terminal", args={"command": command}) is None
 
 
-def test_the_state_directory_is_closed_to_file_and_terminal_calls():
+def test_the_state_directory_is_closed_to_file_and_terminal_calls(tmp_path):
     blocked = {"action": "block", "message": plugin.guard.MESSAGE}
     assert plugin.gate(tool_name="read_file", args={"path": "~/.hermes/profiles/assistant/github-access/mandates/x.json"}) == blocked
     assert plugin.gate(tool_name="terminal", args={"command": "cat ~/.hermes/profiles/assistant/github-access/head.json"}) == blocked
+    assert plugin.gate(tool_name="write_file", args={"path": "~/.hermes/profiles/assistant/GITHUB-ACCESS/head.json",
+                                                     "content": "{}"}) == blocked
+    state = tmp_path / "home" / "github-access"
+    state.mkdir(parents=True)
+    alias = tmp_path / "innocent"
+    alias.symlink_to(state)
+    assert plugin.gate(tool_name="patch", args={"path": str(alias / "head.json")}) == blocked
+    assert plugin.gate(tool_name="read_file", args={"path": str(tmp_path / "home" / "x" / ".." / "github-access")}) == blocked
     assert plugin.gate(tool_name="read_file", args={"path": "~/.hermes/plugins/github-access/__init__.py"}) is None
     assert plugin.gate(tool_name="read_file", args={"path": "hermes/docs/github-access.md"}) is None
 

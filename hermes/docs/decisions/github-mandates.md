@@ -1,0 +1,37 @@
+# GitHub changes without a card only inside a mandate
+
+Status: in force
+Owner doc: docs/github-access.md "Mandates"
+
+## Decision
+
+A `github_change` list runs without its approval card only when every change
+fits one mandate the user approved on a card of its own: named boards and
+repositories (optionally one parent issue whose direct sub-issues alone it
+covers), the classes of change it covers (`routine`, `create`), a purpose,
+and an end at most 30 days out. Whatever a mandate says, each target's tier is
+read at the write: a target someone else owns is never covered, and one others
+can read (`shared`) takes routine changes only. A mandate is never made by
+another mandate, and revoking one ends it at once.
+
+## Why
+
+- A tracked engineering job ticks a step or moves a Status many times a day;
+  a card for each trains the user to approve without reading.
+- A card's "session" or "always" covers only an identical request, so it
+  cannot express "routine updates on this board"; a mandate states that bound
+  on its own card.
+- Tiers bound the harm an injected instruction could do under a mandate to the
+  user's own private tracker (and to field moves and notes where others read),
+  and they are read from GitHub at each write, so a repository made public or
+  a membership lost tightens at once.
+
+## Do not
+
+- Let a mandate cover a target someone else owns, or `create` changes on a
+  shared one, whatever its terms.
+- Decide what is in force from the history file: only the MAC'd head does.
+- Keep the MAC key anywhere a profile receives (it lives under the Keychain
+  scope `github-access`), or open the state directory to file or terminal
+  calls.
+- Remove the 30-day ceiling: a forgotten mandate should lapse on its own.

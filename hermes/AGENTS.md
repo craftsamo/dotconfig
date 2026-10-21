@@ -479,7 +479,11 @@ Commands: [README "Commands"](README.md#commands).
   through `plugins/_shared/human_gate.py` (or web3's `_no_human`), or, for
   substack- and youtube-access, their own `_unattended()` and
   `is_approval_bypass_active()` checks. A new plugin that returns an `approve`
-  directive needs one of these.
+  directive needs one of these. The one exception is a write inside a mandate
+  the user approved on a card of its own (Hyperliquid orders, GitHub change
+  lists): it runs with no card, so the mandate's own bounds, re-checked at the
+  write, are the control — never let anything but such a card widen them
+  ([decision](docs/decisions/github-mandates.md)).
 
 ## Commits
 

@@ -4,7 +4,10 @@ What the access plugins have in common: Discord, Telegram, WhatsApp, Signal,
 Google, GitHub, X, note, Substack and YouTube. Each `*-access` doc inherits this one
 and records only its own differences; read it first when changing or adding an
 access plugin. Web3 follows the same approval and bypass-guard rules in its own
-doc ([web3.md](web3.md)). Part of the Hermes design docs — index:
+doc ([web3.md](web3.md)). Two writes skip their card only inside a mandate the
+user approved on a card of its own: a Hyperliquid order
+([hyperliquid.md](hyperliquid.md)) and a GitHub change list
+([github-access.md](github-access.md)). Part of the Hermes design docs — index:
 [`PROFILES.md`](../PROFILES.md).
 
 ## Risk acceptance
@@ -76,7 +79,10 @@ was changed.
   exists. Discord, Telegram, WhatsApp, Signal, Google and note use the shared
   check `plugins/_shared/human_gate.py` (`no_human`), which fails closed when
   Hermes' approval context cannot be read; Substack and YouTube refuse through
-  their own `_unattended()` and `is_approval_bypass_active()`.
+  their own `_unattended()` and `is_approval_bypass_active()`. A write
+  inside a mandate (Hyperliquid, GitHub) has no card to answer and runs also
+  unattended; the mandate's bounds, checked at the write, take the card's
+  place.
 - **Hook and handler both refuse**, so a write never depends on the hook
   having run; the hook refuses before any card, snapshot or file copy is
   built. The refusal says nothing was sent or changed. Reads are unaffected.

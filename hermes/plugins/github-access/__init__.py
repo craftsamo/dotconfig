@@ -2,9 +2,11 @@
 
 Tools in the ``github_access`` toolset over the user's own ``gh`` login. ``github_issue`` and
 ``github_board`` read (``access.py``). ``github_change`` writes a list of changes (``changes.py``):
-the ``pre_tool_call`` hook reads the targets and their tiers, then holds the call for one approval
-card, and refuses it where no person can answer. The hook records that it decided a call, and the
-handler runs only a call the hook decided, re-reading every target before it writes. The hook also
+the ``pre_tool_call`` hook reads the targets and their tiers, lets the list through when it fits a
+mandate in force (``mandate.py``), else holds it for one approval card and refuses it where no
+person can answer. ``github_mandate`` makes a mandate (always on its own card), lists and revokes
+them. The hook records what it decided about a call and the targets it saw; the handler runs only a
+call the hook decided, re-reading every target (and the mandate) before it writes. The hook also
 blocks terminal and file calls that would go around the tools (``guard.py``). Contract:
 docs/github-access.md.
 """
@@ -44,6 +46,7 @@ def _load(name, path):
 HERE = Path(__file__).resolve().parent
 access = _load("hermes_github_access_engine", HERE / "access.py")
 changes = _load("hermes_github_access_changes", HERE / "changes.py")
+mandate = _load("hermes_github_access_mandate", HERE / "mandate.py")
 guard = _load("hermes_github_access_guard", HERE / "guard.py")
 human_gate = _load("hermes_human_gate", HERE.parent / "_shared" / "human_gate.py")
 tool_preview = _load("hermes_tool_preview", HERE.parent / "_shared" / "tool_preview.py")
@@ -84,8 +87,18 @@ CHANGE_DESCRIPTION = (
     "milestone (\"\" removes), create_milestone), issue_comment (issue, body), issue_relate (issue, parent or "
     "remove_parent, add_/remove_sub_issues, add_/remove_blocked_by), issue_close (issue, reason completed|not "
     "planned|duplicate, comment), issue_reopen (issue). repo, project and owner at the top apply to every "
-    "change that needs them (the board resolves as in github_board). A denied or timed-out card means nothing "
-    "changed; never retry it unchanged. Procedure: skill_view(name=\"github-access:github-tracking\").")
+    "change that needs them (the board resolves as in github_board). A list that fits a mandate in force runs "
+    "without a card. A denied or timed-out card means nothing changed; never retry it unchanged. Procedure: "
+    "skill_view(name=\"github-access:github-tracking\").")
+
+MANDATE_DESCRIPTION = (
+    "The user's standing approval for a bounded kind of GitHub change, so those changes skip their card. "
+    "create (boards = board URLs or owner/N, repos = owner/repo, optional parent = one issue whose direct "
+    "sub-issues alone it covers, classes = [\"routine\"] and/or \"create\", days 1-30, purpose = one line): "
+    "always asks on its own card. Whatever a mandate says, a target someone else owns is never covered and a "
+    "shared one (others can read it) takes routine changes only; the tier is read at each write. list: the "
+    "mandates in force. revoke (mandate = its id): ends it at once. Propose one only as the tracking skill "
+    "says; never to get past a card the user denied.")
 
 CHANGE_OP = {
     "type": "object", "required": ["op"], "additionalProperties": False,
@@ -147,8 +160,19 @@ SCHEMAS = {
         "project": {"type": "string", "description": "the board for draft_add, item_add and board_fields"},
         "owner": {"type": "string", "description": "the board owner's login, or \"@me\""},
     }),
+    "github_mandate": (MANDATE_DESCRIPTION, {
+        "action": {"type": "string", "enum": ["create", "list", "revoke"]},
+        "boards": {"type": "array", "items": {"type": "string"}, "description": "create: board URLs or owner/N"},
+        "repos": {"type": "array", "items": {"type": "string"}, "description": "create: owner/repo"},
+        "parent": {"type": "string", "description": "create: limit issue changes to this issue and its sub-issues"},
+        "classes": {"type": "array", "items": {"type": "string", "enum": list(mandate.CLASSES)}},
+        "days": {"type": "integer", "description": f"create: 1 to {mandate.MAX_DAYS}"},
+        "purpose": {"type": "string", "description": "create: what it is for, one line"},
+        "mandate": {"type": "string", "description": "revoke: the mandate id"},
+    }),
 }
-REQUIRED = {"github_issue": ["action"], "github_board": ["action"], "github_change": ["changes"]}
+REQUIRED = {"github_issue": ["action"], "github_board": ["action"], "github_change": ["changes"],
+            "github_mandate": ["action"]}
 ENGINES = {"github_issue": access.github_issue, "github_board": access.github_board}
 
 
@@ -219,6 +243,11 @@ def github_board(args, **kwargs):
     return _run("github_board", args)
 
 
+def _home():
+    from hermes_constants import get_hermes_home
+    return get_hermes_home()
+
+
 def github_change(args, **kwargs):
     tool = "github_change"
     args = args if isinstance(args, dict) else {}
@@ -239,32 +268,87 @@ def github_change(args, **kwargs):
             raise access.AccessError(f"{tool}: not done. What this list writes to changed since it was decided "
                                      "(another board, or a tier that changed); nothing was changed. Read the "
                                      "targets again and send the list again for a new card.")
+        if decision.startswith("mandate:"):
+            why = mandate.still_fits(_home(), decision.split(":", 1)[1], planned)
+            if why:
+                raise access.AccessError(f"{tool}: not done. It no longer fits the mandate ({why}); nothing was "
+                                         "changed. Send it again: it will ask on a card.")
         return _json(changes.apply(planned))
     except Exception as exc:
         return json.dumps({"ok": False, "error": str(exc)}, ensure_ascii=False)
 
 
-HANDLERS = {"github_issue": github_issue, "github_board": github_board, "github_change": github_change}
+def github_mandate(args, **kwargs):
+    tool = "github_mandate"
+    args = args if isinstance(args, dict) else {}
+    try:
+        if _inbound_peer():
+            raise access.AccessError(f"{tool} is not available to inbound A2A requests")
+        action = args.get("action")
+        if action == "list":
+            return _json({"ok": True, "mandates": [mandate.summary(m) for m in mandate.active(_home())]})
+        if action == "revoke":
+            return _json({"ok": True, **mandate.revoke(_home(), args.get("mandate"))})
+        if action != "create":
+            raise access.AccessError("action is create, list or revoke")
+        taken = _take(args)
+        if taken is None or taken[0] != "card":
+            raise access.AccessError(f"{tool}: not done. A mandate is made only on its own card; nothing was made.")
+        reason = human_gate.no_human()
+        if reason:
+            return json.dumps({"ok": False, "error": human_gate.refusal(tool, reason)}, ensure_ascii=False)
+        shown = taken[1][0]  # the terms on the card, with the end it showed
+        if not mandate.same_terms(mandate.terms(args), shown):
+            raise access.AccessError(f"{tool}: not done. Its boards or repositories changed since the card; nothing "
+                                     "was made.")
+        return _json({"ok": True, "mandate": mandate.create(_home(), shown)})
+    except Exception as exc:
+        return json.dumps({"ok": False, "error": str(exc)}, ensure_ascii=False)
+
+
+HANDLERS = {"github_issue": github_issue, "github_board": github_board, "github_change": github_change,
+            "github_mandate": github_mandate}
 
 
 def gate(**kwargs):
     """pre_tool_call: one card per change list, a block for invalid calls and for ways around the tools."""
     tool = kwargs.get("tool_name")
     args = kwargs.get("args")
+    if tool in ("github_change", "github_mandate") and _inbound_peer():
+        return {"action": "block", "message": f"{tool} is not available to inbound A2A requests"}
     if tool == "github_change":
-        if _inbound_peer():
-            return {"action": "block", "message": f"{tool} is not available to inbound A2A requests"}
         try:
             planned = changes.plan(args if isinstance(args, dict) else {})
+            covered, misses = mandate.covering(_home(), planned)
+        except Exception as exc:
+            return {"action": "block", "message": f"{tool}: not done. {exc}"}
+        if covered:
+            # Inside a mandate the user approved on its own card: no card, also where nobody is present.
+            _decide(args, f"mandate:{covered}", changes.binding(planned))
+            return None
+        reason = human_gate.no_human()
+        if reason:
+            return {"action": "block", "message": human_gate.refusal(tool, reason)}
+        _decide(args, "card", changes.binding(planned))
+        message = changes.card(planned)
+        if misses:
+            message += "\n" + changes.say("Not covered by a mandate: " + misses[0], changes.LINE)
+        # A fresh key: "session" or "always" on one card never approves another change list.
+        return {"action": "approve", "message": message, "rule_key": f"{PLUGIN}:change:{secrets.token_hex(8)}"}
+    if tool == "github_mandate":
+        if not isinstance(args, dict) or args.get("action") != "create":
+            return None  # list reads; revoke only ever narrows what runs without a card
+        try:
+            terms = mandate.terms(args)
         except Exception as exc:
             return {"action": "block", "message": f"{tool}: not done. {exc}"}
         reason = human_gate.no_human()
         if reason:
             return {"action": "block", "message": human_gate.refusal(tool, reason)}
-        _decide(args, "card", changes.binding(planned))
-        # A fresh key: "session" or "always" on one card never approves another change list.
-        return {"action": "approve", "message": changes.card(planned),
-                "rule_key": f"{PLUGIN}:change:{secrets.token_hex(8)}"}
+        _decide(args, "card", [terms])
+        # A mandate is never covered by a mandate, and its key is fresh: every one asks.
+        return {"action": "approve", "message": mandate.card(terms, changes.say),
+                "rule_key": f"{PLUGIN}:mandate:{secrets.token_hex(8)}"}
     message = guard.bypass(tool, args)
     if message:
         return {"action": "block", "message": message}

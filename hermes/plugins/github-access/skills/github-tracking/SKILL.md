@@ -30,7 +30,9 @@ made.
   other work goes on GitHub only when the user asks.
 - **One card per list.** Gather the changes of one step into one
   `github_change` call: the card shows each target with its tier and one line
-  per change. A denial or a timeout means nothing changed: never send the
+  per change. A list that fits a mandate in force runs without one; the
+  wording agreement below still applies, since a mandate skips the card,
+  not the conversation. A denial or a timeout means nothing changed: never send the
   same list again unchanged; ask what to change.
 - **Read before writing.** Read the board or the issue fresh, then build the
   list from what is there now: an item id from `github_board` `items` or
@@ -131,6 +133,25 @@ GitHub renders some forms as links with their title or code; prefer them.
   it, only move the board's Status. Closing an issue does not move Status.
 - **Tidy:** `item_archive` for a dropped draft or a long-closed item; nothing
   is ever deleted.
+
+## Mandates
+
+A mandate lets a bounded kind of change skip its card. Propose one when
+tracking is agreed for work that will update GitHub often (a build ticking
+steps, Status moving through a week): one sentence naming the boards and
+repositories, the classes, and how many days (the work's expected end, at
+most 30). Never propose one to get past a card the user just denied.
+
+- `routine` (fields, notes, archiving, an issue's own words without a new
+  mention) is the usual class. Add `create` only for the user's own private
+  board and repositories, and only when they want new items and comments
+  there to run without a card too.
+- Whatever the terms, a target someone else owns always asks, and one others
+  can read takes routine changes only. A card that still appears names why.
+- `github_mandate` `list` before relying on one; `revoke` it when the work is
+  done or the user asks. A mandate ends on its own at its last day.
+- A list inside a mandate also runs where nobody is present (a cron job), so
+  a scheduled job that updates GitHub needs one, and only for what it does.
 
 ## Replacing issues
 
