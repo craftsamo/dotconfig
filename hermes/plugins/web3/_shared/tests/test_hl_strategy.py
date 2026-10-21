@@ -265,6 +265,19 @@ def test_a_limit_the_market_opened_through_fills_at_once_as_a_taker():
     assert hs.metrics(run)["limit_entries"]["crossed"] == 1
 
 
+def test_the_gate_reads_a_limits_price_and_the_market_entry_after_it_as_the_backtest_does():
+    rules = hs.rules({**BREAKOUT, "entry_order": "limit_then_market", "limit_atr": 0.5})
+    ev = hs.evaluate(TOUCHED[:11], rules, {"direction": "both"}, None)
+    atr = hs.indicators(TOUCHED[:11], rules)["atr"][10]
+    assert ev["open"] == "long" and ev["limit"] == pytest.approx(105 - 0.5 * atr)
+    assert "limit" not in hs.evaluate(TOUCHED[:11], hs.rules(BREAKOUT), {"direction": "both"}, None)
+    # the close after the missed limit still holds the long: an entry from that close, its stop from there
+    after = hs.market_after_limit(TOUCHED[:12], rules, {"direction": "both"}, "long")
+    assert after["open"] == "long" and after["price"] == 107 and after["stop"] < 107
+    assert hs.market_after_limit(TOUCHED[:12], rules, {"direction": "flat"}, "long") is None
+    assert hs.market_after_limit(mirrored(TOUCHED)[:12], rules, {"direction": "both"}, "long") is None
+
+
 def test_a_limit_filled_in_a_bar_that_reaches_the_stop_is_stopped_in_it():
     series = flat(10) + [bar(10, 100, 106, 100, 105), bar(11, 105, 106, 80, 85)]
     cost = hs.costs({"taker_bps": 0, "slippage_bps": 0, "maker_bps": 0, "funding": "none"})

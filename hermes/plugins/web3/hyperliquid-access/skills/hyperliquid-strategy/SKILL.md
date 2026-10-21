@@ -71,9 +71,12 @@ default when a stance does not hold, with a note saying why.
    Give `costs.taker_bps` the account's own taker rate (`state`'s `fees`),
    and once a strategy has traded, its measured slippage (the gate's
    `execution`) as `slippage_bps` when it is higher than the default.
-   A limit entry (`entry_order`) is a backtest question only: the gate
-   sends entries at market and opens nothing for a variant that enters
-   with a limit, so never put one in a spec.
+   `entry_order: limit_then_market` (a limit at the signal's close, at
+   market a bar later when it did not fill) is a variant like any other:
+   backtest it beside the market entry, with the account's own maker rate
+   as `costs.maker_bps`, and keep it only when its `out_of_sample` is
+   better; the gate places it. A plain `limit` is a backtest question only:
+   the gate opens nothing for a variant with one, so never put it in a spec.
    Compare with buy-and-hold for scale, and say what `unread` says (assumed
    funding, older prices from Binance spot). Run the markets one after
    another: a backtest reads many pages, and several at once hit the venue's
@@ -227,9 +230,18 @@ account list are out of reach there.
      disagrees with the intent. Say why.
    - A `leverage` intent comes before its entry: if it is refused, skip the
      entry.
-   - An intent with `after` (the cancel of a stop a trailed one replaces) is
+   - An intent with `after` (the cancel of a stop a trailed one replaces,
+     or an entry listed beside the close of the market's other side) is
      sent only once the intent it names was `sent`; if that one was refused
-     or `unknown`, skip it, so the position keeps the stop it has.
+     or `unknown`, skip it, so the position keeps the stop it has, or the
+     entry does not net against a position still held.
+   - An entry with `type: limit` rests until its bar closes: its `resting`
+     (or `filled`, when the market had already reached it) is its success.
+     Report it resting at its price; the gate follows it from there, by the
+     `cloid` it carries. Later runs protect a part that filled, cancel what
+     still rests when the bar closes, and, once the venue shows it over with
+     nothing filled, list the market entry after it; a notice says when it
+     filled, and the run reports that fill like an entry's.
    - Refused, `not submitted`, or outside the mandate: nothing was sent;
      report the reason, never retry or work around it.
    - `unknown` or a submit that did not finish: stop that strategy for this
@@ -333,7 +345,9 @@ the spec's variants and a `size` up to `advisor.max_size`, for at most
   so. A reset written earlier than the trip does nothing. Raising
   `max_drawdown_pct` instead is the user's decision too, said in plain words.
 - **Pause:** `"active": false` in the spec. The gate then ignores it entirely:
-  positions stay, with their stops on the venue.
+  positions stay, with their stops on the venue. A limit entry still resting
+  (`orders`: an open limit in its markets that is not reduce-only) would no
+  longer be followed: cancel it (`quote` `kind: cancel`, its `oid`).
 - **Stop:** pause, `revoke_mandate` at once, and close its positions only if
   the user asks (closes run without a card). Delete the cron job when no
   strategy remains, and the directory when the user wants it gone.
