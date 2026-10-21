@@ -1,6 +1,6 @@
 ---
 name: qa-assistant-engineering
-description: "QA engineering: accept outcomes against PR and worktree evidence, with an independent OpenCode review for risky changes and baseline comparison for rendered UI. Acceptance grants no merge, deployment or automatic Issue updates."
+description: "QA engineering: accept outcomes against PR and worktree evidence, with an independent OpenCode review for risky changes and baseline comparison for rendered UI. Acceptance grants no merge or deployment, and touches Issues only to close out a job the user chose to track."
 version: 2.0.0
 author: CraftSamo
 license: MIT
@@ -80,6 +80,7 @@ acceptance; repairs go back to the build session with expected behavior and
 evidence. An unresolved required check is not a pass. A plan, diagnosis or
 review is accepted for the requested answer, without demanding a PR.
 
-[acceptance.md](references/acceptance.md) covers PR completion and separately
-requested merge/Issue close-out. Passing this QA does not authorize merge or
-deployment, and it does not automatically update Issues or a project board.
+[acceptance.md](references/acceptance.md) covers PR completion, separately
+requested merge and a tracked job's close-out. Passing this QA does not
+authorize merge or deployment, and it updates Issues or a board only for a
+job the user chose to track.

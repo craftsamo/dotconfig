@@ -1,6 +1,6 @@
 ---
 name: plan-assistant-engineering
-description: "Plan engineering: brief OpenCode on the user's intent and bring its proposals back, in Phases the user approves one at a time. New products agree capabilities, screens and data (HTML mocks) before a roadmap. Grounded in OpenCode plan, design, debug and review runs; no technical decomposition of your own, no automatic Issue management."
+description: "Plan engineering: brief OpenCode on the user's intent and bring its proposals back, in Phases the user approves one at a time. New products agree capabilities, screens and data (HTML mocks) before a roadmap. Grounded in OpenCode plan, design, debug and review runs; no technical decomposition of your own; tracking on GitHub only when the user chooses it."
 version: 2.0.0
 author: CraftSamo
 license: MIT
@@ -86,6 +86,7 @@ question; you never read or edit target code yourself.
 | Typo, one config value | a short `plan` turn, `workspace`, then `build`; the user's one-line go is the approval |
 | New repository | [bootstrap.md](references/bootstrap.md), then plan on the clone |
 | Script or small automation | a repository job like any other; you register the cron job or other Hermes-side wiring afterwards |
+| Operational work around a repository (hosting, DNS, a domain, a contract, a hand-over item) | no run unless the repository's code or config changes: the steps happen in the services and with the people involved; part of that repository's job, and a draft on its board when the job is tracked ([GitHub boundaries](../execute-assistant-engineering/references/github-ops.md)) |
 
 Not OpenCode's: writing, creative work, research and Hermes operations (cron,
 messaging, secrets) go to their own entries. The Hermes configuration repo
@@ -163,11 +164,15 @@ During a build, report as the plugin skill's "Progress" section says: each
 finished Phase step in one line, at once when one is blocked or the run needs
 the user, and the Phase's PR with how to try it.
 
-Issue management is explicit-only: Issue writes happen only when the user
-requested tracking this job that way. A supplied Issue URL is a specification,
-not permission to edit it. Duration, complexity or multiple PRs never create an
-automatic Issue/epic/Projects requirement. Existing session ids can be handed
-over as context, but old grants need reconciliation, not adoption.
+Tracking a job on GitHub is the user's choice: propose it once, and only with
+the roadmap of a job of several Phases or when others will pick the work up,
+and record the answer in the log. Duration, complexity or multiple PRs never
+decide it alone. For a tracked job the plan lives in a parent issue and its
+sub-issues, which you write and OpenCode reads
+([GitHub boundaries](../execute-assistant-engineering/references/github-ops.md)).
+A supplied Issue URL is a specification, not permission to edit it. Existing
+session ids can be handed over as context, but old grants need
+reconciliation, not adoption.
 
 ## Client guides
 

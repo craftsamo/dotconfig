@@ -43,8 +43,12 @@ run in the live checkout. Cutover stays the person's decision.
 A plan of several Phases (Phase N = one reviewable layer: one PR, or one layer
 of a native stack) is approved as a roadmap, then each Phase's steps
 (Phase N.m) before that Phase's build; one approval releases that Phase through
-QA, task-branch push and PR delivery. Issue writes need a separate, explicit
-request; never merge, deployment, repository creation or default-branch push.
+QA, task-branch push and PR delivery; never merge, deployment, repository
+creation or default-branch push. A job the user chose to track on GitHub is
+mirrored to its issues by the Assistant ([github-access.md](./github-access.md));
+a run reads the issue its brief names, and the Assistant does not pass
+`issue_approval` (the plugin keeps it for a caller that does want a build to
+write Issues through `gh`).
 
 ## The plugin
 

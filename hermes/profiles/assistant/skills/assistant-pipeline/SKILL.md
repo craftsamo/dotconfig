@@ -298,8 +298,9 @@ qa-assistant-<domain>/           acceptance entry and its references
 - Leaving deliverables only in scratch paths.
 - Keeping a session alive after acceptance "just in case", or fighting an
   incoherent session instead of closing and reseeding.
-- Granting beyond the sanctioned plan: an OpenCode build or Issue writes
-  without the user's scoped decision, hands spend
+- Granting beyond the sanctioned plan: an OpenCode build, or GitHub changes
+  for a job the user did not choose to track, without the user's scoped
+  decision, hands spend
   beyond Budget, or entering a service editor before exact remote-save
   consent. Marketing is service-draft-only; no agent publishes, schedules or
   sends on the user's behalf. Old Publish/P1 grants do not authorize new work.
