@@ -335,7 +335,7 @@ approved native OAuth accounts (Claude Max, a ChatGPT login, or the xAI device
 login). The plugin never buys credits, enables auto-purchase, or changes
 account settings or logins.
 
-**Shared information.** Reads Quota 5.0.1's public v2 JSON export once before
+**Shared information.** Reads Quota 5's public v2 JSON export once before
 each eligible launch: `$XDG_CACHE_HOME/opencode/quota-export.json`, or
 `~/.cache/opencode/quota-export.json`. Quota's existing `export.enabled` setting
 is enabled in `opencode-quota/quota-toast.jsonc`. Its home footer writes the file

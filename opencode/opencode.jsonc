@@ -7,10 +7,11 @@
     // permit subscription use outside Claude Code; this is an accepted risk.
     // Pinned: the 2.x line is a prerelease and tracks OpenCode 2's beta
     // plugin API. Bump deliberately and re-test a login and a refresh.
-    "@ex-machina/opencode-anthropic-auth@2.0.0-next.5",
+    "@ex-machina/opencode-anthropic-auth@2.0.0-next.6",
     // Usage limits in the TUI and /quota. Reads the Anthropic login above;
     // opencode-quota/quota-toast.jsonc keeps it off Claude Code's Keychain.
-    "@slkiser/opencode-quota@5.0.1",
+    // 6.x drops project quota-toast.jsonc and the init/update CLI: stay on 5.
+    "@slkiser/opencode-quota@5.0.3",
     // Outside auto-discovery's plugins/ directory. Keep this entry last, after
     // quota. enabled: false stops new selection but retains in-flight guards.
     {
