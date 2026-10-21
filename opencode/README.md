@@ -94,7 +94,11 @@ anger.
 `plugins/worktrees.ts` registers the worktree strategy in
 `lib/worktrees/strategy.ts`, so the TUI, the API and `git_worktree` all place
 worktrees at `~/Worktrees/<repository>/<branch>` on a new branch, the layout
-the Hermes workspace uses.
+the Hermes workspace uses. It also removes OpenCode's own Code Mode
+`worktree_create` and `worktree_remove` (2.0.27) from the tool registry, for
+every agent and every Hermes session: the first asks for no permission, the
+second asks under `edit` and can force away dirty files, so no rule here
+reaches them. `worktree_list` stays.
 
 Custom tools run without OpenCode's permission rules, so each enforces its own
 limits. `web_ui_check` (`lib/custom-tools/web_ui.ts`) runs
