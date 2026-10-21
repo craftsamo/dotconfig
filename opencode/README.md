@@ -138,8 +138,12 @@ Two layers decide what an agent may do:
   allow, ask or deny. Agent rules are appended after the global ones and the
   last match wins, so an agent that starts its shell rules with `"*": ask`
   turns every global shell deny back into a prompt unless it repeats it.
-- **Policies** (`experimental.policies`) are hard denies checked after
-  permissions and saved "Allow always" approvals. They never prompt, never
+- **Policies** (top-level `policies`, `tool.use` statements on
+  `<action>:<resource>`) are hard denies checked after permissions and saved
+  "Allow always" approvals. OpenCode 2.0.25 renamed the action from
+  `permission` and moved the key out of `experimental`; it skips a statement
+  it does not recognize with only a log warning, and a test keeps every
+  statement in the current shape. They never prompt, never
   grant, and project configuration cannot lift the global ones. Keep only
   never-allowed operations there: `sudo`, disk wiping, shutdown, environment
   dumps (`env`, `printenv`), value-exposing or destructive `secret`
