@@ -46,6 +46,7 @@ EXPECTED = {
         "substack-drafts": {"assistant"},
     },
     "google-access": {"google-sheets": {"assistant"}},
+    "github-access": {"github": {"assistant"}},
     "workspace/workspace-drafts": {"workspace-drafts": {"assistant"}},
     "workspace/workspace-registry": {"workspace-registry": {"assistant"}},
     "messaging/discord-access": {"discord-account": {"assistant"}},
