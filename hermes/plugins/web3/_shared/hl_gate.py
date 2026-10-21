@@ -384,8 +384,8 @@ def run_strategy(directory: Path, now: int) -> dict:
             # the trailing stop moved: place the tighter stop first, then cancel every stop looser than
             # it (the one it replaces, and any left from an earlier run whose cancel did not go), so the
             # position is never without one; the cancels are sent only after the new stop is
-            held = account.stop_orders(market)
-            trigger = hl.num(held[0].get("triggerPx")) if held else None
+            in_force = account.stop_orders(market)
+            trigger = hl.num(in_force[0].get("triggerPx")) if in_force else None
             tighter = trigger is not None and (ev["trail"] > trigger if position["side"] == "long"
                                                else ev["trail"] < trigger)
             if tighter:
@@ -394,7 +394,7 @@ def run_strategy(directory: Path, now: int) -> dict:
                                               f"{hs.sig5(ev['trail'])} ({rule_set['trail_atr']:g} ATR behind the "
                                               f"close {hs.sig5(ev['price'])})",
                                        "quote": _quote(strategy, kind="tpsl", coin=market, sl=hs.sig5(ev["trail"]))})
-                for n, o in enumerate(held):
+                for n, o in enumerate(in_force):
                     out["intents"].append({"id": f"{tag}:untrail{n or ''}", "market": market, "effect": "reduce",
                                            "after": f"{tag}:trail",
                                            "why": f"cancel the stop at {hs.sig5(hl.num(o.get('triggerPx')) or trigger)} "
