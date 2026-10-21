@@ -142,6 +142,13 @@ describe("policies", () => {
       expect(p.resource).toMatch(/^[a-z_]+:./)
     }
   })
+
+  test("each shell policy keeps a matching permission deny", () => {
+    for (const p of policies.filter((p) => p.resource.startsWith("shell:"))) {
+      const command = p.resource.slice("shell:".length).replaceAll("*", "x")
+      expect([command, shell(command)]).toEqual([command, "deny"])
+    }
+  })
 })
 
 describe("global outside-directory rules", () => {

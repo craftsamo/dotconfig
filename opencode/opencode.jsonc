@@ -1892,6 +1892,44 @@
       "resource": "cat *.env.*",
       "effect": "deny"
     },
+    // Environment dumps (the service environment holds API keys), irreversible
+    // GitHub deletion and token disclosure: the same as the policies below,
+    // which Hermes does not copy.
+    {
+      "action": "shell",
+      "resource": "printenv*",
+      "effect": "deny"
+    },
+    {
+      "action": "shell",
+      "resource": "env",
+      "effect": "deny"
+    },
+    {
+      "action": "shell",
+      "resource": "env -0*",
+      "effect": "deny"
+    },
+    {
+      "action": "shell",
+      "resource": "gh repo delete*",
+      "effect": "deny"
+    },
+    {
+      "action": "shell",
+      "resource": "gh auth token*",
+      "effect": "deny"
+    },
+    {
+      "action": "shell",
+      "resource": "gh auth status*--show-token*",
+      "effect": "deny"
+    },
+    {
+      "action": "shell",
+      "resource": "gh auth status* -t*",
+      "effect": "deny"
+    },
     // Secret: destructive / value-exposing
     {
       "action": "shell",
