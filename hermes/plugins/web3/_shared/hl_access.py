@@ -94,7 +94,8 @@ TRADE_HELP = (
     "to the venue's tick, size step and 10 USDC minimum, and returns a quote id, its effect and its card. kinds: "
     "order (coin, side buy | sell, size in the coin or usd = its value, type market (worst price slippage beyond "
     "the mid, default 0.01, at most 0.05) or limit (price, tif Gtc | Alo | Ioc), reduce_only, and on an opening "
-    "perp order tp / sl trigger prices), close (coin: a market reduce-only close of the perp position, size for "
+    "perp order tp / sl trigger prices; cloid only as a strategy gate's intent gives it), close (coin: a market "
+    "reduce-only close of the perp position, size for "
     "part of it), tpsl (coin, tp and / or sl for the whole position held), modify (oid of a resting limit order, "
     "new price and / or size), cancel (oid or cloid), leverage (coin, leverage, margin_mode cross | isolated), "
     "margin (coin, amount in USDC, remove = true to take it out; isolated positions only). submit (quote) signs "
@@ -186,6 +187,8 @@ TRADE_PROPERTIES = {
     "reduce_only": {"type": "boolean", "description": "quote kind order: only reduce a perp position"},
     "tp": {"type": "string", "description": "quote: a take-profit trigger price"},
     "sl": {"type": "string", "description": "quote: a stop-loss trigger price"},
+    "cloid": {"type": "string", "description": "quote kind order: the order's own client id (0x and 32 hex digits), "
+                                              "as a strategy gate's intent gives it, so the gate finds it again"},
     "leverage": {"type": "integer", "description": "quote kind leverage: the new leverage"},
     "margin_mode": {"type": "string", "enum": ["cross", "isolated"], "description": "quote kind leverage: default the "
                                                                                     "current mode"},
