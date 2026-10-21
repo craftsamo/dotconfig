@@ -311,7 +311,7 @@ class FakeClient:
         path, _, query = route.partition("?")
         params = dict(urllib.parse.parse_qsl(query))
         if path == "/api/info":
-            return {"version": "2.0.23"}
+            return {"version": "2.1.2"}
         if path == "/api/session":
             if self.mode == "badshape":
                 return {"data": "nope"}
@@ -336,7 +336,7 @@ def test_api_list_follows_the_cursor_and_stops_before_the_window():
     result = history.run({"action": "list", "from": history._iso(FROM), "to": history._iso(TO),
                           "include_title": True}, client=client,
                          path_factory=lambda: pytest.fail("database used"))
-    assert result["source"] == "api" and result["opencode_version"] == "2.0.23"
+    assert result["source"] == "api" and result["opencode_version"] == "2.1.2"
     assert ids(result) == ["ses_new"]
     session = result["sessions"][0]
     assert session["directory"] == "/w/a" and session["version"] is None and session["changes"] is None
