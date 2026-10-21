@@ -137,7 +137,7 @@ export type RuntimeContext = AccountsContext & {
 export const METADATA_KEY = "dotconfig.subagent-preflight"
 // Releases whose hook and subagent-tool contracts were checked against the
 // upstream source. Add a release only after re-checking them.
-export const SUPPORTED_VERSIONS: readonly string[] = ["2.0.23", "2.1.2"]
+export const SUPPORTED_VERSIONS: readonly string[] = ["2.1.2"]
 const supported = (version: string) => SUPPORTED_VERSIONS.includes(version)
 // Conservative text-only ceiling. This is not a cross-provider tokenizer.
 export const MAX_CONTEXT_BYTES = 160_000
