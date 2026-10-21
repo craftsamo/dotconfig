@@ -747,9 +747,30 @@ def _choice(raw, base: dict, variants: dict, what: str) -> dict:
     return out
 
 
+def out_of_sample(raw) -> dict | None:
+    """A variant's recorded walk-forward ``out_of_sample`` (its maximum drawdown, MAR and trades, and
+    the Monte Carlo's 95th percentile drawdown when it ran), or None when none is recorded or it is
+    not one: such a variant opens nothing."""
+    if not isinstance(raw, dict):
+        return None
+    dd, trades, mar = raw.get("max_drawdown_pct"), raw.get("trades"), raw.get("mar")
+    if isinstance(dd, bool) or not isinstance(dd, (int, float)) or not 0 <= dd <= 100:
+        return None
+    if isinstance(trades, bool) or not isinstance(trades, int) or trades < 1:
+        return None
+    if mar is not None and (isinstance(mar, bool) or not isinstance(mar, (int, float)) or not math.isfinite(mar)):
+        return None
+    mc = raw.get("monte_carlo")
+    spread = mc.get("max_drawdown_pct") if isinstance(mc, dict) else None
+    p95 = spread.get("p95") if isinstance(spread, dict) else None
+    p95 = p95 if isinstance(p95, (int, float)) and not isinstance(p95, bool) and 0 <= p95 <= 100 else None
+    return {"max_drawdown_pct": float(dd), "mar": mar, "trades": trades, "monte_carlo_p95_drawdown_pct": p95}
+
+
 def spec(raw) -> dict:
     """A strategy spec, validated: what runs, on which account and markets, within which bounds. The
-    default choice holds for every market, and ``default.markets`` overrides it per market."""
+    default choice holds for every market, and ``default.markets`` overrides it per market. A variant
+    keeps its walk-forward ``out_of_sample`` as ``out_of_sample`` (None when not recorded)."""
     if not isinstance(raw, dict) or raw.get("schema") != SPEC_SCHEMA:
         raise StrategyError(f"a strategy spec is a JSON object with schema {SPEC_SCHEMA}")
     name = raw.get("name")
@@ -781,7 +802,8 @@ def spec(raw) -> dict:
         if validated.get("fingerprint") != fingerprint(rule_set, interval):
             raise StrategyError(f"variant {vid} was not backtested as written: its validated.fingerprint must be the "
                                 f"one the backtest of exactly these rules on {interval} reported")
-        variants[vid] = {"rules": rule_set, "validated": validated}
+        variants[vid] = {"rules": rule_set, "validated": validated,
+                         "out_of_sample": out_of_sample(validated.get("out_of_sample"))}
     advisor_raw = raw.get("advisor") if isinstance(raw.get("advisor"), dict) else {}
     directions = advisor_raw.get("directions", list(DIRECTIONS))
     if not isinstance(directions, list) or not directions or not set(directions) <= set(DIRECTIONS):

@@ -96,9 +96,11 @@ default when a stance does not hold, with a note saying why.
   "interval": "4h",
   "variants": {
     "ema10-200": {"rules": {"kind": "ema_cross", "fast": 10, "slow": 200, "atr": 14, "stop_atr": 2, "risk_pct": 1},
-                  "validated": {"fingerprint": "…", "end_ms": 0, "out_of_sample": {}, "result": {}}},
+                  "validated": {"fingerprint": "…", "end_ms": 0, "result": {…},
+                                "out_of_sample": {"max_drawdown_pct": 21.4, "mar": 1.1, "trades": 88, …,
+                                                  "monte_carlo": {…}}}},
     "trend40": {"rules": {"kind": "breakout", "entry": 40, "exit": 10, "atr": 14, "stop_atr": 2, "risk_pct": 1},
-                "validated": {"fingerprint": "…", "end_ms": 0, "out_of_sample": {}, "result": {}}}
+                "validated": {"fingerprint": "…", "end_ms": 0, "result": {…}, "out_of_sample": {…}}}
   },
   "default": {"variant": "ema10-200", "direction": "both", "size": 1,
               "markets": {"ETH": {"variant": "trend40"}}},
@@ -113,9 +115,12 @@ default when a stance does not hold, with a note saying why.
 - `account` / `address`: a Hermes wallet account from the `evm` tool's
   `accounts` (`use: sign`) and its EVM address.
 - `variants.*.validated`: copy the plain backtest's `fingerprint`,
-  `data.end_ms`, `result` and the walk-forward's `out_of_sample`. The gate
-  refuses a variant whose rules do not match its fingerprint: a changed
-  number is a new backtest.
+  `data.end_ms` and `result`, and the walk-forward's `out_of_sample` whole,
+  its `monte_carlo` included. The gate refuses a variant whose rules do not
+  match its fingerprint: a changed number is a new backtest. A variant
+  without `out_of_sample` (its `max_drawdown_pct` and at least one trade)
+  opens nothing: its markets get only closes and stops, and the gate says so
+  once.
 - `default`: the variant, direction and size every market runs when no
   stance is in force. `default.markets` overrides any of the three for a
   market (above, ETH runs the breakout while BTC runs the EMA cross): the

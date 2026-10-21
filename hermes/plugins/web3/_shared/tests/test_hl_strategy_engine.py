@@ -219,16 +219,20 @@ def test_a_backtest_refuses_what_it_cannot_trade(api, tmp_path):
 
 # --- the gate -----------------------------------------------------------------------------------
 
-def strategy_dir(root: Path, mandate: bool = True, stance: dict | None = None, **rule_over) -> Path:
+OOS = {"return_pct": 40.1, "max_drawdown_pct": 18.5, "mar": 0.9, "trades": 64}
+
+
+def strategy_dir(root: Path, mandate: bool = True, stance: dict | None = None, oos: bool = True, **rule_over) -> Path:
     import importlib.util
 
     spec_mod = importlib.util.spec_from_file_location("hs_for_engine_test", SHARED / "hl_strategy.py")
     hs = importlib.util.module_from_spec(spec_mod)
     spec_mod.loader.exec_module(hs)
     rules = {"kind": "breakout", "entry": 20, "exit": 10, "atr": 14, "stop_atr": 2, "risk_pct": 1, **rule_over}
+    validated = {"fingerprint": hs.fingerprint(hs.rules(rules), "4h"), **({"out_of_sample": OOS} if oos else {})}
     spec = {"schema": hs.SPEC_SCHEMA, "name": "trend", "network": "testnet", "account": "hermes/HERMES_MAIN#0",
             "address": USER, "markets": ["BTC", "ETH"], "interval": "4h",
-            "variants": {"t20": {"rules": rules, "validated": {"fingerprint": hs.fingerprint(hs.rules(rules), "4h")}}},
+            "variants": {"t20": {"rules": rules, "validated": validated}},
             "limits": {"exposure_pct": 70, "max_leverage": 2},
             "mandate": ({"id": "m1", "max_order_usd": "300", "max_exposure_usd": "600", "max_leverage": 2,
                          "expires": NOW + 20 * 24 * HOUR} if mandate else None)}
@@ -275,6 +279,25 @@ def test_without_a_mandate_an_entry_is_only_noted_and_said_once(api, tmp_path):
     assert part["intents"] == [] and any("no mandate in force" in n for n in part["new_notices"])
     assert any("the rules open a long" in n for n in part["notes"])
     assert gate(root, api, tmp_path) == {"wakeAgent": False}
+
+
+def test_a_variant_without_an_out_of_sample_record_opens_nothing_but_still_protects(api, tmp_path):
+    reset()
+    STATE["positions"] = [{"coin": "ETH", "szi": "-1", "entryPx": "50", "positionValue": "50"}]
+    root = tmp_path / "hl-strategies"
+    strategy_dir(root, oos=False)
+    part = gate(root, api, tmp_path)["strategies"][0]
+    assert [(i["market"], i["quote"]["kind"]) for i in part["intents"]] == [("ETH", "tpsl")]
+    assert [n for n in part["new_notices"] if "t20" in n or "BTC" in n] == [
+        "variant t20 has no walk-forward out_of_sample recorded in the spec: its markets open nothing until it is; "
+        "closes and stops go on"]
+    STATE["orders"] = [{"coin": "ETH", "side": "B", "orderType": "Stop Market", "reduceOnly": True, "isTrigger": True,
+                        "sz": "1", "triggerPx": "60"}]
+    assert gate(root, api, tmp_path) == {"wakeAgent": False}  # said once
+    # the next bar breaks out again: still nothing to say, so no model wakes
+    STATE["bars"]["BTC"] = series([100.0] * 40 + [110.0, 112.0], NOW + H4)
+    STATE["bars"]["ETH"] = series([50.0] * 42, NOW + H4)
+    assert gate(root, api, tmp_path, NOW + H4) == {"wakeAgent": False}
 
 
 def test_the_gate_keeps_the_start_equity_and_notices_a_position_the_venue_closed(api, tmp_path):

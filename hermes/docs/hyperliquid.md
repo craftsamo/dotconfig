@@ -367,7 +367,10 @@ owns the procedure; this section owns what the code holds to.
   for the strategy, which `default.markets` overrides per market: variant,
   direction or size), the advisor's bounds, `limits` (`exposure_pct`,
   `max_leverage`) and the mandate's id, bounds and end. A variant whose rules
-  no longer match its fingerprint makes the spec invalid.
+  no longer match its fingerprint makes the spec invalid. A variant also
+  records its walk-forward `out_of_sample` (at least its maximum drawdown and
+  trades, one or more); without it the variant's markets open nothing, while
+  their closes and stops go on.
 - **The gate** (`hl_gate.py`, a cron `script` with an agent; the scheduler
   runs its wrapper from the copy `install.sh` keeps in the profile's
   `scripts/`, so the wrapper takes the runtime home from its own parent and
@@ -386,7 +389,9 @@ owns the procedure; this section owns what the code holds to.
   market's is above the bound, then a market order with its stop, sized from
   the risk per trade and capped by the limits and the mandate (with headroom
   for the worst price the order is valued at). Without a mandate in force no
-  entry is listed, only noted; a bar whose entry needed a read that failed
+  entry is listed, only noted; for a variant with no `out_of_sample`
+  recorded none is listed either, and the gate says so once rather than per
+  bar; a bar whose entry needed a read that failed
   is read again on the next run. It remembers the positions it saw, so one
   the venue closed on its own (a stop that fired, a liquidation) is noticed
   once and the run reports the trade's result, and the account's value at
