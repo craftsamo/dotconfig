@@ -488,6 +488,25 @@
       "resource": "*",
       "effect": "ask"
     },
+    // Outside the Location, ask. OpenCode 2.0.25 dropped this from the default
+    // rules, so reads and edits anywhere on disk ran without a prompt; the
+    // narrow allows below come after it. OpenCode's own scratch directory
+    // (os.tmpdir()/opencode, which its instructions call approved) stays open.
+    {
+      "action": "external_directory",
+      "resource": "*",
+      "effect": "ask"
+    },
+    {
+      "action": "external_directory",
+      "resource": "/private/var/folders/*/T/opencode",
+      "effect": "allow"
+    },
+    {
+      "action": "external_directory",
+      "resource": "/private/var/folders/*/T/opencode/*",
+      "effect": "allow"
+    },
     // Skill supporting files (references/, assets/, scripts/). OpenCode 1
     // allowed every skill directory on its own; OpenCode 2 asks for each one.
     {
