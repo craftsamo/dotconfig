@@ -170,15 +170,33 @@ These facts govern the paired Claude tiers:
    next account's row, and only with no other row does the walk skip every
    later tier on that provider (`_candidate_pool_exhausted`) and degrade to
    the next provider. The second account in the pool is therefore what keeps
-   the Claude tiers alive once one account's week is spent.
-3. **Hermes has no per-model quota memory.** The "included Fable usage for this
-   week" message carries no reset, so a fixed 1-hour credential cooldown applies
-   while the agent-level fallback cooldown is only 60 s: once a weekly cap is
-   hit, that costs **one wasted request per turn until the week rolls over**.
+   the Claude tiers alive once one account's week is spent. The first 429 on a
+   row is retried once after its Retry-After (capped at 600 s) before the pool
+   rotates, so a turn can stall up to ten minutes even with a healthy second
+   row. A model-scoped cooldown lasts until the reset time the 429 carried,
+   uncapped, which can be days ahead even when the account recovers sooner;
+   nothing probes it early. `hermes auth reset anthropic-oauth` clears it on
+   disk, but a running gateway honours a reset only for rows whose status is
+   exhausted or dead, so a row still `ok` keeps its model cooldown in every
+   cached session until `launchd/gateway-launchctl.sh restart`.
+3. **A cap that carries no reset is retried every hour.** The "included Fable
+   usage for this week" message carries no reset, so a fixed 1-hour cooldown
+   applies while the agent-level fallback cooldown is only 60 s: once such a
+   weekly cap is hit, that costs **one wasted request per turn until the week
+   rolls over**.
    Low-turn profiles absorb that. The **assistant** is the latency-sensitive
-   front door: when its T1's weekly cap is reached, switch its live sessions
-   with **`/model`**; that manual escape is what makes a capped Claude T1
-   acceptable there.
+   front door: when its T1's weekly cap is reached, switch the topic with
+   **`/model <model> --provider <provider> --session`**; that manual escape is
+   what makes a capped Claude T1 acceptable there. **The switch sticks.** It
+   is stored as the route's `model_override` (root `state.db`,
+   `gateway_routing`), outranks `config.yaml` on every later turn and across
+   gateway restarts, and becomes the session's primary, so fallback restores
+   to it, never to T1. Undo it the same way, naming the profile's T1
+   (`/model claude-opus-5-5 --provider anthropic-oauth --session`), or start
+   the topic over with `/new`. The override pins the provider id too, so one
+   that names `anthropic` bills the Console lane. Clearing every route's
+   override at once needs the gateway stopped (`uninstall`, edit, `install`):
+   a running gateway keeps its routes in memory and can write them back.
 4. **Adaptive thinking, not manual budgets.** Modern Claude gets
    `thinking: {type: adaptive}` + `output_config: {effort: …}`; the legacy
    `budget_tokens` table does not apply. Prefer `high` over `xhigh` for long
