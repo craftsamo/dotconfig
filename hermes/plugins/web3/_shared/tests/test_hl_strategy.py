@@ -178,6 +178,107 @@ def test_a_walk_forward_grid_may_choose_the_regime_filter():
     assert all(f["chosen"].get("regime_ema", 0) in (0, 20) and f["chosen"]["entry"] in (5, 8) for f in out["folds"])
 
 
+def test_an_entry_order_is_part_of_the_rules_and_market_keeps_the_fingerprint():
+    plain = hs.rules(BREAKOUT)
+    assert hs.rules({**BREAKOUT, "entry_order": "market"}) == plain == hs.rules({**BREAKOUT, "entry_order": None})
+    limit = hs.rules({**BREAKOUT, "entry_order": "limit", "limit_atr": 0.5})
+    assert limit == {**plain, "entry_order": "limit", "limit_atr": 0.5}
+    assert hs.fingerprint(limit, "4h") != hs.fingerprint(hs.rules({**BREAKOUT, "entry_order": "limit"}), "4h")
+    for bad, why in (({**BREAKOUT, "entry_order": "stop"}, "entry_order is one of"),
+                     ({**BREAKOUT, "limit_atr": 0.5}, "takes entry_order limit"),
+                     ({**BREAKOUT, "entry_order": "limit", "limit_atr": 2}, "less than stop_atr")):
+        with pytest.raises(hs.StrategyError, match=why):
+            hs.rules(bad)
+
+
+def test_a_limit_rests_better_than_the_close_or_at_an_open_past_it_and_fills_only_when_traded_through():
+    sig, rules = {"close": 100.0, "atr": 2.0}, hs.rules({**BREAKOUT, "entry_order": "limit", "limit_atr": 0.5})
+    assert hs.limit_fill("long", sig, bar(0, 100.2, 101, 98.99, 100), rules, 0.0002) is None  # 99 only touched
+    assert hs.limit_fill("long", sig, bar(0, 100.2, 101, 98.9, 100), rules, 0.0002) == 99.0
+    assert hs.limit_fill("long", sig, bar(0, 98.0, 99, 97.9, 98), rules, 0.0002) == 98.0  # opened under it
+    assert hs.limit_fill("short", sig, bar(0, 99.0, 101.01, 98, 100), rules, 0.0002) is None
+    assert hs.limit_fill("short", sig, bar(0, 99.0, 101.1, 98, 100), rules, 0.0002) == 101.0
+    assert hs.limit_fill("long", sig, bar(0, 100.2, 101, 99.0, 100), rules, 0.0) == 99.0  # through 0: a touch fills
+
+
+# a breakout closes at 105; the next bar only touches 105, closes at 107 and still holds the breakout
+TOUCHED = flat(10) + [bar(10, 100, 106, 100, 105), bar(11, 106, 108, 105, 107), bar(12, 107, 109, 106.5, 108),
+                      bar(13, 108, 109, 107.5, 108)]
+
+
+def mirrored(series):
+    """The same bars upside down around 100: a long's path becomes a short's."""
+    return [{"t": b["t"], "o": 200 - b["o"], "h": 200 - b["l"], "l": 200 - b["h"], "c": 200 - b["c"]} for b in series]
+
+
+@pytest.mark.parametrize("side", ["long", "short"])
+def test_an_unfilled_limit_enters_nothing_or_at_market_after_it_as_its_rules_say(side):
+    series = TOUCHED if side == "long" else mirrored(TOUCHED)
+    price = (lambda p: str(p)) if side == "long" else (lambda p: str(200 - p))
+    cost = hs.costs({"taker_bps": 0, "slippage_bps": 0, "maker_bps": 10, "funding": "none"})
+    limits = {"exposure_pct": 100, "max_leverage": 10}
+    plain = hs.simulate(series, hs.rules(BREAKOUT), "4h", cost, limits)
+    assert plain["trades"][0]["entry"] == price(106) and "limit_entries" not in hs.metrics(plain)
+    # a limit only: missed at 105, then placed again at the next close, 107, and filled there as a maker
+    limit = hs.simulate(series, hs.rules({**BREAKOUT, "entry_order": "limit"}), "4h", cost, limits)
+    assert [(t["side"], t["entry"]) for t in limit["trades"]] == [(side, price(107))] and limit["totals"]["fees"] > 0
+    assert hs.metrics(limit)["limit_entries"] == {"placed": 2, "filled": 1, "fill_rate": 0.5, "market_after": 0,
+                                                  "missed": 1}
+    # then market: the missed limit enters at the next open, as a taker
+    after = hs.simulate(series, hs.rules({**BREAKOUT, "entry_order": "limit_then_market"}), "4h", cost, limits)
+    assert [t["entry"] for t in after["trades"]] == [price(107)] and after["totals"]["fees"] == 0
+    assert hs.metrics(after)["limit_entries"] == {"placed": 1, "filled": 0, "fill_rate": 0.0, "market_after": 1,
+                                                  "missed": 0}
+    # ... unless the close after it no longer holds the side
+    flat_from_12 = hs.timeline([{"from": series[12]["t"], "to": series[13]["t"] + H4, "direction": "flat"}])
+    held = hs.simulate(series, hs.rules({**BREAKOUT, "entry_order": "limit_then_market"}), "4h", cost, limits,
+                       stance=flat_from_12)
+    assert held["trades"] == [] and hs.metrics(held)["limit_entries"]["missed"] == 1
+    # with no trade-through asked for, the touch fills
+    touch = hs.simulate(series, hs.rules({**BREAKOUT, "entry_order": "limit"}), "4h",
+                        {**cost, "limit_through_bps": 0}, limits)
+    assert [t["entry"] for t in touch["trades"]] == [price(105)]
+
+
+def test_a_maker_rebate_never_turns_a_stopped_trade_into_a_positive_r():
+    # ranges of a cent, so the stop sits closer below the limit than the rebate is worth
+    series = [bar(i, 100, 100.005, 99.995, 100) for i in range(10)]
+    series += [bar(10, 100, 100.02, 99.995, 100.015), bar(11, 100.0, 100.0, 99.9, 99.9)]
+    rules = hs.rules({**BREAKOUT, "entry_order": "limit", "limit_atr": 1.5})
+    cost = hs.costs({"slippage_bps": 0, "maker_bps": -1, "funding": "none"})
+    trade = hs.simulate(series, rules, "4h", cost, {"exposure_pct": 100, "max_leverage": 10})["trades"][0]
+    assert trade["reason"] == "stop" and trade["pnl"] < 0 and trade["r"] < 0
+
+
+def test_a_limit_filled_in_a_bar_that_reaches_the_stop_is_stopped_in_it():
+    series = flat(10) + [bar(10, 100, 106, 100, 105), bar(11, 105, 106, 80, 85)]
+    cost = hs.costs({"taker_bps": 0, "slippage_bps": 0, "maker_bps": 0, "funding": "none"})
+    run = hs.simulate(series, hs.rules({**BREAKOUT, "entry_order": "limit"}), "4h", cost,
+                      {"exposure_pct": 100, "max_leverage": 10})
+    trade = run["trades"][0]
+    atr = hs.indicators(series, hs.rules(BREAKOUT))["atr"][10]
+    assert trade["entry"] == "105" and trade["reason"] == "stop"
+    assert float(trade["exit"]) == pytest.approx(105 - 2 * atr, rel=1e-4)
+
+
+def test_a_walk_forward_grid_may_choose_the_entry_order():
+    series = walk(1200)
+    cost = hs.costs({"funding": "none"})
+    rates = hs.funding_by_bar(series, "4h", None, 0.0, "none")
+    out = hs.walk_forward(series, hs.rules(BREAKOUT), "4h", cost, {"exposure_pct": 70, "max_leverage": 2},
+                          {"grid": {"entry_order": ["market", "limit"], "limit_atr": [0, 0.5]}, "folds": 2,
+                           "min_trades": 0}, rates=rates, stance=[], direction="both")
+    assert out["candidates"] == 3  # a limit_atr with a market entry is no rule set
+    chose_limit = any(f["chosen"].get("entry_order") == "limit" for f in out["folds"])
+    assert ("limit_entries" in out["out_of_sample"]) == chose_limit
+    if chose_limit:  # the unseen windows' counts add up to the stitched one
+        for key in ("placed", "filled", "missed"):
+            assert out["out_of_sample"]["limit_entries"][key] == sum(
+                f["test"].get("limit_entries", {}).get(key, 0) for f in out["folds"])
+    for f in out["folds"]:
+        assert f["chosen_fingerprint"] == hs.fingerprint(hs.rules({"kind": "breakout", **f["chosen"]}), "4h")
+
+
 def test_a_bar_that_gaps_through_the_stop_fills_at_its_open_and_costs_are_charged():
     series = flat(10) + [bar(10, 100, 106, 100, 105), bar(11, 106, 107, 105, 106), bar(12, 80, 81, 79, 80)]
     cost = hs.costs({"taker_bps": 10, "slippage_bps": 0, "funding": "none"})
