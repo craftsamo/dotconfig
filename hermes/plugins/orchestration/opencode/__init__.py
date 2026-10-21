@@ -97,7 +97,7 @@ SHELL_NOTE = (
     "no status wrapper (`…; exit \"$status\"`, `result=$?`), and no launcher around a command already on PATH "
     "(`npx`, `mise exec`). Run the project's own scripts for checks rather than inline code.")
 # Only Hermes-driven write runs with an output directory keep a progress file there; a
-# person's own sessions keep their plan in the conversation.
+# person's own sessions keep their plan in the session's todo list.
 PROGRESS_NOTE = (
     "When this turn implements a Phase (one reviewable layer: one PR, or one layer of a stack), keep its steps "
     "in `{path}`, one line per step in the order you will take them: `- [ ] PhaseN.m - <what the step delivers>`. "
