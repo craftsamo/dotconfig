@@ -214,7 +214,8 @@ The hook blocks a terminal `gh` command that writes Issues (`create`,
 login's token (`gh auth token`, `--show-token`: `curl` could write with it)
 or defines an alias or an extension (either could hide a write). It reads
 the whole command text, so environment assignments, wrappers, a path to the
-binary, `bash -c "…"`, `eval '…'` and backslash-newlines do not hide one;
+binary, flags before a subcommand (`gh issue -R a/b create`, with or without a
+value), `bash -c "…"`, `eval '…'` and backslash-newlines do not hide one;
 a mere mention (`echo gh issue create`) is blocked too. It is a guard of
 text, not a sandbox: a script file's contents are never seen.
 
