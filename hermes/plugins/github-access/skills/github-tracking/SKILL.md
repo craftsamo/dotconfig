@@ -1,6 +1,6 @@
 ---
 name: github-tracking
-description: "Use to change GitHub Issues and Projects boards for the user: capturing work as drafts, noting progress, moving Status, turning a draft into an issue, creating and relating issues (parent, sub-issues, blocked-by, milestone), commenting and closing. Covers proposing to track work on GitHub, batching changes onto one approval card, and what each tier (own / shared / other) needs before a write."
+description: "Use to change GitHub Issues and Projects boards for the user: setting up a board (standard fields and views, a repository link, a Waiting status), capturing work as drafts, noting progress, moving Status, turning a draft into an issue, creating and relating issues (parent, sub-issues, blocked-by, milestone), commenting and closing. Covers proposing to track work on GitHub, batching changes onto one approval card, and what each tier (own / shared / other) needs before a write."
 version: 1.0.0
 author: CraftSamo
 license: MIT
@@ -100,6 +100,36 @@ GitHub renders some forms as links with their title or code; prefer them.
 | A warning that must not be missed | one `> [!WARNING]` (or `[!NOTE]`) | used everywhere, it stops standing out |
 | A person or team | `@name` only to notify them | a mention in an issue notifies; one in a draft does not |
 
+## Setting up a board
+
+When `github_board` `resolve` finds no board on any route, the tracking you
+propose includes making one: name its owner and title in the same sentence
+(the organization for a repository the team shares, else the user's own,
+titled `Roadmap`), and make it only after the user agrees.
+
+- **Make it:** `board_create` with `owner` (`"@me"` or the organization),
+  `title` (default `Roadmap`) and `link_repo` (the repository, so its board
+  resolves first). It brings Status (Todo / In Progress / Done / Cancelled),
+  Start and Target, and the Kanban, Backlog and Roadmap views. A board of
+  that title the owner already has is reused and topped up, never made
+  twice. `template` copies a board the user keeps configured, views and all.
+- **Tell the user once** that a new board's Roadmap view draws no bars until
+  Start and Target are bound to it in GitHub's own page, and that grouping
+  and sort are set there too: the API does not take them.
+- **A board without `Waiting`:** `field_ensure` with `name: "Status"`,
+  `data_type: "SINGLE_SELECT"`, `options: ["Waiting:ORANGE"]`; existing
+  options and every item's value stay as they are.
+- **Another field or view:** `field_ensure` (an `Area` or `Priority`
+  single-select, a date) and `view_ensure` (a layout, a filter such as
+  `-status:Done`, the columns by field name). Kind is never a board field: it
+  is the issue's type or `type:*` label.
+- **Link an existing board** to a repository: `board_link` with `repo`
+  (`unlink: true` undoes it).
+
+Changes on a board made in the same list cannot follow its creation: the
+list resolves its board before anything runs. Make the board in one call and
+put items on it in the next.
+
 ## Recipes
 
 - **Capture** (an idea, a hand-over item, work with no repository yet):
@@ -109,7 +139,8 @@ GitHub renders some forms as links with their title or code; prefer them.
   Several at once go in one list.
 - **Progress on a draft:** `draft_note` with a dated line ("2026-10-21:
   confirmed the address; waiting on the signer"). Waiting on someone outside:
-  `item_set` `Status` to `Waiting` when the board has it.
+  `item_set` `Status` to `Waiting` when the board has it (else add it as
+  "Setting up a board" says).
 - **Done without an issue:** `draft_note` with what proves it done, then
   `item_set` `Status` `Done`.
 - **Becomes an issue** (the conditions are in the read skill):
