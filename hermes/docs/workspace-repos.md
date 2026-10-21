@@ -55,8 +55,9 @@ launcher and cron run the same code.
   and the result is `partial`; a remote GitHub cannot find is a finding, not a
   failed read. Every result carries `source`, `status` and `diagnostics`.
 
-Discussions stay a count: there are too few to list. GitHub Projects are not
-read here; the board has its own tools (`github_project_*`).
+Discussions stay a count: there are too few to list. GitHub Projects boards
+and an issue's relations are not read here; the Assistant reads them with
+`github_board` and `github_issue` ([github-access.md](./github-access.md)).
 
 ## Everyday use
 
