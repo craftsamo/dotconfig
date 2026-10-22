@@ -513,14 +513,28 @@ _secret_store() {              # $1 name $2 project $3 comment $4 kind $5 layer 
   cmd+=" -w $(_secret_quote_si "$value")"
   cmd+=" $(_secret_quote_si "$kc")"
   err=$(print -r -- "$cmd" | security -i 2>&1 >/dev/null)
-  # create-only: any complaint from security (an existing item, in whatever language) is a refusal,
-  # even if an item of that name is there now: it may not be this one
-  if [[ $create == new && -n $err ]]; then
-    _secret_err "$(_secret_disp "$proj" "$layer" "$name") was not stored as new — ${err//$'\n'/ }"
+  # security -i reports a refusal on stderr and says nothing on success, so any
+  # complaint (a locked keychain, a denied ACL, an existing item under --new,
+  # in whatever language) is a failure — an item of that name being there
+  # afterwards proves nothing, it may be the one from before the write
+  local disp
+  disp=$(_secret_disp "$proj" "$layer" "$name")
+  if [[ -n $err ]]; then
+    if [[ $create == new ]]; then
+      _secret_err "$disp was not stored as new — ${err//$'\n'/ }"
+    else
+      _secret_err "failed to store $disp — ${err//$'\n'/ }"
+    fi
     return 1
   fi
-  if ! security find-generic-password -s "$svc" -a "$name" "$kc" >/dev/null 2>&1; then
-    _secret_err "failed to store $(_secret_disp "$proj" "$layer" "$name")${err:+ — ${err//$'\n'/ }}"
+  # and the value must read back as written: a silent no-op is a failure too
+  local back
+  if ! back=$(security find-generic-password -s "$svc" -a "$name" -w "$kc" 2>/dev/null); then
+    _secret_err "failed to store $disp (not found after the write)"
+    return 1
+  fi
+  if [[ $back != "$value" ]]; then
+    _secret_err "failed to store $disp (the value did not read back; not stored)"
     return 1
   fi
 }
