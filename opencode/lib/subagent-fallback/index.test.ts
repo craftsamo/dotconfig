@@ -187,9 +187,31 @@ async function fixture() {
         }),
       },
       integration: {
+        get: async ({ integrationID }) => ({
+          data: {
+            connections:
+              integrationID === "anthropic"
+                ? [
+                    { ...env.connection.anthropic, label: "Main OAuth" },
+                    {
+                      type: "credential",
+                      id: "fixture-second-login",
+                      label: "Sub OAuth",
+                      method: "oauth",
+                    },
+                  ]
+                : [],
+          },
+        }),
         connection: {
           active: async (id) => env.connection[id],
           resolve: async (c) => {
+            if (c.id === "fixture-second-login")
+              return {
+                type: "oauth",
+                methodID: "claude-max",
+                access: "fixture-anthropic-sub",
+              }
             const id =
               c.id === "fixture-claude"
                 ? "anthropic"
@@ -1392,5 +1414,78 @@ describe("Console credit lanes", () => {
     expect(env.originals[1].model).toBe(sel(SOL))
     expect(marker(env).model).toEqual(SOL)
     expect(marker(env).fallback).toBe(true)
+  })
+})
+
+describe("Claude accounts", () => {
+  const SONNET_SUB = { ...SONNET, id: `${SONNET.id}-sub` }
+  const accounts = (extra: Record<string, unknown> = {}) => ({
+    enabled: true,
+    creditsLastResort: true,
+    quotaExportPath: "/fixture/quota-export.json",
+    claudeAccounts: { sub: "Sub OAuth" },
+    ...extra,
+  })
+  // As the Claude login plugin leaves it.
+  const prepared = () =>
+    post(A_URL, { ...headers(), "anthropic-beta": "oauth-2025-04-20" })
+  test("an alias request leaves with the named login's token, even with new selection off", async () => {
+    for (const enabled of [true, false]) {
+      const { install } = await fixture()
+      const inst = await install(accounts({ enabled }))
+      const request = prepared()
+      const event = await inst.fire("http.request", {
+        ...scope(SONNET_SUB, "primary", "ses_parent"),
+        request,
+      })
+      expect(event.request).toBe(request)
+      expect(request.headers.get("authorization")).toBe(
+        "Bearer fixture-anthropic-sub",
+      )
+    }
+  })
+  test("the active login's requests and protected children are unchanged", async () => {
+    const { env, install } = await fixture()
+    const inst = await install(accounts())
+    const main = await inst.fire("http.request", {
+      ...scope(SONNET, "primary", "ses_parent"),
+      request: post(),
+    })
+    expect(main.request.headers.get("authorization")).toBe(
+      "Bearer fixture-anthropic",
+    )
+    await inst.run()
+    expect(marker(env).model).toEqual(SONNET)
+    const child = await send(inst, post(), SONNET, "compaction")
+    expect(child.request.headers.get("authorization")).toBe(
+      "Bearer fixture-anthropic",
+    )
+  })
+  test("without the option no hook is added", async () => {
+    const { env, install } = await fixture()
+    const before = env.registered
+    await install()
+    const plain = env.registered - before
+    await install(accounts())
+    expect(env.registered - before - plain).toBe(plain + 1)
+  })
+  test("an option that is not a map stops every Claude subscription request and keeps the guards", async () => {
+    const { install } = await fixture()
+    const inst = await install(accounts({ claudeAccounts: "sub" }))
+    for (const model of [SONNET, SONNET_SUB])
+      await expect(
+        inst.fire("http.request", {
+          ...scope(model, "primary", "ses_parent"),
+          request: prepared(),
+        }),
+      ).rejects.toThrow("Claude account: claudeAccounts must map")
+    await inst.fire("http.request", {
+      ...scope(LUNA, "primary", "ses_parent"),
+      request: post(O_URL, headers("openai")),
+    })
+    await inst.run({ agent: "verifier" })
+    await expect(
+      send(inst, post("https://evil.example", headers("openai")), LUNA),
+    ).rejects.toThrow(/Subagent preflight/)
   })
 })
