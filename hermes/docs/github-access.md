@@ -385,20 +385,40 @@ state directory and the 30-day ceiling bound that
 
 ## Ways around the tools
 
-The hook blocks a terminal `gh` command that writes Issues (`create`,
-`edit`, `comment`, `close`, `reopen`, `delete`, `transfer`, `pin`, `lock`,
-`develop` …), changes a board (every `gh project` command but `list`, `view`,
-`item-list`, `field-list`), changes labels, creates, edits, archives or
-unarchives a repository, opens, edits, comments on, readies, closes, reopens
-or merges a pull request, creates or edits a release, re-runs a run or
-starts a workflow, calls `gh api` at all, prints the
-login's token (`gh auth token`, `--show-token`: `curl` could write with it)
-or defines an alias or an extension (either could hide a write). It reads
-the whole command text, so environment assignments, wrappers, a path to the
-binary, flags before a subcommand (`gh issue -R a/b create`, with or without a
-value), `bash -c "…"`, `eval '…'` and backslash-newlines do not hide one;
-a mere mention (`echo gh issue create`) is blocked too. It is a guard of
-text, not a sandbox: a script file's contents are never seen.
+The hook lets a terminal `gh` command run only when it is a read it knows:
+`view`, `list` and `status` of issues and pull requests, a pull request's
+`checks`, `diff` and `checkout`, a repository's `view`, `list`, `clone`,
+`set-default`, `license` and `gitignore`, the board reads (`list`, `view`,
+`item-list`, `field-list`), the listings of labels, releases, runs,
+workflows, caches, secrets, variables, gists, organizations, rulesets and
+keys, release and run downloads, `run watch`, `search`, `status`, `browse`,
+`auth status`, `config get` and `list`, attestation checks, and help. Every
+other one is blocked: a subcommand gh gains later, an extension run as `gh
+<name>`, `auth login` or `refresh`, `config set`, codespaces and agent tasks
+are not the Assistant's to run, with a message that says so. Within that,
+the messages name what the command was: one that writes what
+`github_change` offers (an issue, a board, a label, a repository, a pull
+request, a release, a re-run or a started workflow), calls `gh api` at all,
+prints the login's token (`gh auth token`, `auth status --show-token` or
+`-t`: `curl` could write with it) or defines an alias or an extension (either
+could hide a write) points at the tools.
+
+It reads every simple command of the line and a path to the binary. An
+environment assignment's value is read as a command too (a pager or an
+editor gh starts); after a wrapper (`env`, `sudo -u x`, `timeout 10`,
+`xargs -I {}`, …) every token that may be the command it runs is followed,
+since its flags may or may not take a value, and after `find` what follows
+each `-exec`. It follows `sh -c '…'` (any shell, any `-…c` flag, past its
+options; else a here-string `<<<` the shell reads) and `eval '…'` into the
+script they run. A line nested deeper, or with more readings, than it
+follows is blocked rather than passed. Flags before a subcommand (`gh issue -R
+a/b create`) count both ways: with a value and without, and the command
+passes only when every reading is a read (`-R` and `--repo` always take a
+value). The writes are also matched over the whole text, so backslash-newlines
+do not hide one and a mere mention (`echo gh issue create`) is blocked too.
+It is a guard of text, not a sandbox: a script file's contents, a script
+piped into a shell, and a binary reached through a variable or
+`$(which gh)` are never seen.
 
 The same guard blocks, with a message saying the Assistant never does it, the
 writes no tool offers: setting or deleting secrets and variables, writing
@@ -409,9 +429,7 @@ release assets, cancelling runs, enabling or disabling workflows, and reviewing,
 reverting, locking or updating a pull request's branch. They hold or reveal
 credentials, publish outside a repository, destroy or move what others rely
 on, or (a review) speak for the user's own judgement, so they stay with the
-user. Reading through `gh` (`gh issue
-view`, `gh repo view`, `gh pr …`, `gh secret list`, `gh auth status`) stays
-open.
+user.
 
 File and terminal calls that name the plugin's state directory
 (`<HERMES_HOME>/github-access/`) are blocked too, in any letter case and also
