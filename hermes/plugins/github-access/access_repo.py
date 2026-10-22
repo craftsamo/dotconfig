@@ -28,7 +28,7 @@ def _load(name, path):
 access = _load("hermes_github_access_engine", Path(__file__).resolve().parent / "access.py")
 AccessError = access.AccessError
 
-REPO_ACTIONS = ("view", "labels", "milestones", "releases", "workflows", "runs", "run")
+REPO_ACTIONS = ("view", "labels", "milestones", "releases", "workflows", "runs", "run", "rules")
 LABEL_CAP = 500
 MILESTONE_CAP = 300
 LOG_LINES = 120
@@ -190,6 +190,35 @@ def run(repo: str, run_id: int, log: bool = True) -> dict:
     return out
 
 
+PROTECTION_QUERY = ("query($owner:String!,$name:String!){repository(owner:$owner,name:$name){branchProtectionRules("
+                    "first:50){nodes{pattern requiresApprovingReviews requiredApprovingReviewCount requiresStatusChecks "
+                    "requiredStatusCheckContexts allowsForcePushes allowsDeletions requiresLinearHistory isAdminEnforced}}}}")
+
+
+def ruleset(repo: str, ruleset_id: int) -> dict:
+    r = _gh_json(["api", f"repos/{repo}/rulesets/{ruleset_id}"]) or {}
+    ref = ((r.get("conditions") or {}).get("ref_name") or {})
+    return {"id": r.get("id"), "name": r.get("name"), "target": r.get("target"), "enforcement": r.get("enforcement"),
+            "source": r.get("source_type"), "include": ref.get("include") or [], "exclude": ref.get("exclude") or [],
+            "bypass": [f"{b.get('actor_type')}:{b.get('actor_id')}:{b.get('bypass_mode')}" for b in r.get("bypass_actors") or []],
+            "rules": [{"type": x.get("type"), "parameters": x.get("parameters")} for x in r.get("rules") or []],
+            "updated": r.get("updated_at")}
+
+
+def rules(repo: str) -> dict:
+    """The repository's rulesets in full (an organization's that reach it included, marked by their
+    source) and its classic branch protection rules."""
+    listed = _gh_json(["api", f"repos/{repo}/rulesets?includes_parents=true&per_page=50"]) or []
+    found = [ruleset(repo, r["id"]) for r in listed[:20]]
+    data = access.graphql(PROTECTION_QUERY, _split(repo))
+    classic = [{"pattern": n["pattern"], "approvals": n["requiredApprovingReviewCount"] if n["requiresApprovingReviews"] else 0,
+                "checks": n["requiredStatusCheckContexts"] if n["requiresStatusChecks"] else [],
+                "force_push": n["allowsForcePushes"], "deletion": n["allowsDeletions"],
+                "linear_history": n["requiresLinearHistory"], "admins_too": n["isAdminEnforced"]}
+               for n in ((data.get("repository") or {}).get("branchProtectionRules") or {}).get("nodes") or [] if n]
+    return {"rulesets": found, "classic": classic, "more": len(listed) > 20}
+
+
 ANSI = re.compile(r"\x1b\[[0-9;?]*[ -/]*[@-~]")
 CONTROL = re.compile(r"[\x00-\x08\x0b-\x1f\x7f-\x9f\u200b-\u200f\u202a-\u202e\u2060-\u206f\ufeff]")
 
@@ -228,4 +257,6 @@ def github_repo(args: dict) -> dict:
     if action == "runs":
         found = runs(repo, args)
         return {**head, "count": len(found), "runs": found}
+    if action == "rules":
+        return {**head, **rules(repo)}
     return {**head, "run": run(repo, _run_id(args, repo), log=args.get("log", True) is not False)}
