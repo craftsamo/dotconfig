@@ -1,4 +1,4 @@
-import { OAUTH_PROVIDER } from "./lanes"
+import { longestSuffix, OAUTH_PROVIDER } from "./lanes"
 import { METHODS, type ModelRef } from "./policy"
 
 // Saved Claude subscription logins beside the active one. OpenCode resolves
@@ -66,15 +66,11 @@ export function accountOf(
   accounts: readonly ClaudeAccount[],
 ): ClaudeAccount | undefined {
   if (model?.providerID !== OAUTH_PROVIDER) return undefined
-  let found: ClaudeAccount | undefined
-  for (const account of accounts)
-    if (
-      model.id.length > account.suffix.length + 1 &&
-      model.id.endsWith(`-${account.suffix}`) &&
-      (!found || account.suffix.length > found.suffix.length)
-    )
-      found = account
-  return found
+  const suffix = longestSuffix(
+    model.id,
+    accounts.map((account) => account.suffix),
+  )
+  return accounts.find((account) => account.suffix === suffix)
 }
 
 // The saved login an account names, resolved (and refreshed when close to

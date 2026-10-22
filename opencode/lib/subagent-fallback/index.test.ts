@@ -1415,6 +1415,75 @@ describe("Console credit lanes", () => {
     expect(marker(env).model).toEqual(SOL)
     expect(marker(env).fallback).toBe(true)
   })
+  describe("with another Claude login", () => {
+    const SONNET_SUB = { ...SONNET, id: `${SONNET.id}-sub` }
+    const ACCOUNTS = { claudeAccounts: { sub: "Sub OAuth" } }
+    // The alias models config defines for that login.
+    const loggedIn = async (extra: Record<string, unknown> = ACCOUNTS) => {
+      const f = await laned(extra)
+      for (const item of [...f.env.catalog])
+        if (item.providerID === OAUTH_PROVIDER)
+          f.env.catalog.push({
+            ...item,
+            id: `${item.id}-sub`,
+            variants: [...item.variants],
+          })
+      return f
+    }
+    test("the primary walks the subscription, the lanes, then that login", async () => {
+      const { env, inst } = await loggedIn()
+      let e = await retry(inst, "ses_parent", SONNET, LIMIT, LONG)
+      expect(e.decision).toEqual({ retry: true, delay: 0 })
+      await retry(inst, "ses_parent", on(MAIN), CREDIT)
+      e = await retry(inst, "ses_parent", on(SUB), CREDIT)
+      expect(e.decision).toEqual({ retry: true, delay: 0 })
+      e = await retry(inst, "ses_parent", SONNET_SUB, LIMIT, LONG)
+      expect(e.decision).toEqual(LONG)
+      expect(env.switches.map((s) => s.model)).toEqual([
+        on(MAIN),
+        on(SUB),
+        SONNET_SUB,
+      ])
+    })
+    test("a specialist ends on that login before it stops", async () => {
+      const { env, inst } = await loggedIn()
+      specialist(env)
+      await retry(inst, "ses_lane", on(MAIN), CREDIT)
+      await retry(inst, "ses_lane", on(SUB), AUTH)
+      let e = await retry(inst, "ses_lane", SONNET, LIMIT, LONG)
+      expect(e.decision).toEqual({ retry: true, delay: 0 })
+      e = await retry(inst, "ses_lane", SONNET_SUB, LIMIT, LONG)
+      expect(e.decision).toEqual({ retry: false })
+      expect(env.switches.map((s) => s.model)).toEqual([
+        on(SUB),
+        SONNET,
+        SONNET_SUB,
+      ])
+    })
+    test("a session on that login goes to the lanes, then the active login", async () => {
+      const { env, inst } = await loggedIn()
+      await retry(inst, "ses_parent", SONNET_SUB, LIMIT, LONG)
+      await retry(inst, "ses_parent", on(MAIN), CREDIT)
+      await retry(inst, "ses_parent", on(SUB), CREDIT)
+      expect(env.switches.map((s) => s.model)).toEqual([
+        on(MAIN),
+        on(SUB),
+        SONNET,
+      ])
+    })
+    test("it is a stop without lanes too, and an unlabelled one is none", async () => {
+      const bare = await loggedIn({ ...ACCOUNTS, creditLanes: [] })
+      await retry(bare.inst, "ses_parent", SONNET, LIMIT, LONG)
+      expect(bare.env.switches.map((s) => s.model)).toEqual([SONNET_SUB])
+      const unlabelled = await loggedIn({
+        creditLanes: [],
+        claudeAccounts: { sub: 7 },
+      })
+      const e = await retry(unlabelled.inst, "ses_parent", SONNET, LIMIT, LONG)
+      expect(e.decision).toEqual(LONG)
+      expect(unlabelled.env.switches).toEqual([])
+    })
+  })
 })
 
 describe("Claude accounts", () => {
