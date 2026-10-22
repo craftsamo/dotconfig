@@ -84,7 +84,8 @@ def test_gate_asks_for_sends_only():
     directive = plugin.gate(tool_name="whatsapp", args={
         "action": "send", "account": "work", "chat": DM, "text": "hi"})
     assert directive["action"] == "approve"
-    assert directive["message"] == "Account: work\nChat: Yamada Taro (+819012345678)\n\nhi"
+    assert directive["message"] == ("WhatsApp · Send message\n⚠️ They see it at once\nAccount: work\n"
+                                    "Chat: Yamada Taro (+819012345678)\n\n--- Text ---\nhi")
     assert directive["rule_key"].startswith("whatsapp-access:send:")
 
 

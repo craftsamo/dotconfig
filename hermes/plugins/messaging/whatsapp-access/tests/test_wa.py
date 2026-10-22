@@ -199,44 +199,45 @@ def test_send_checks_text_and_reply():
 
 def test_card_for_a_person():
     text = wa.card(plan())
-    assert text.split("\n") == ["Account: work", "Chat: Yamada Taro (+819012345678)", "",
-                                "こんにちは", "了解です。"]
+    assert text.split("\n") == ["WhatsApp · Send message", "⚠️ They see it at once", "Account: work",
+                                "Chat: Yamada Taro (+819012345678)", "", "--- Text ---", "こんにちは", "了解です。"]
     assert "more characters" not in text
 
 
 def test_card_for_a_group_with_a_reply():
     lines = wa.card(plan(chat=GROUP, reply_to="3EB0ABCDEF")).split("\n")
-    assert lines[0] == "Account: work"
-    assert lines[1] == f"Chat: Project X (group {GROUP})"  # two groups can share a name
-    assert lines[2].startswith("Reply to: Yamada Taro: 明日の打ち合わせ") and lines[2].endswith("…")
-    assert len(lines[2]) <= len("Reply to: Yamada Taro: ") + wa.QUOTE_CLIP
-    assert lines[3] == ""
+    assert lines[1] == "⚠️ Everyone in the group sees it at once"
+    assert lines[2] == "Account: work"
+    assert lines[3] == f"Chat: Project X (group {GROUP})"  # two groups can share a name
+    assert lines[4].startswith("Reply to: Yamada Taro: 明日の打ち合わせ") and lines[4].endswith("…")
+    assert len(lines[4]) <= len("Reply to: Yamada Taro: ") + wa.QUOTE_CLIP
+    assert lines[5:7] == ["", "--- Text ---"]
 
 
 def test_card_names_a_hidden_number_contact_by_jid():
     lid = "123456789012345@lid"
-    assert wa.card(plan(chat=lid)).split("\n")[1] == f"Chat: Yamada Taro ({lid})"
+    assert wa.card(plan(chat=lid)).split("\n")[3] == f"Chat: Yamada Taro ({lid})"
 
 
 def test_card_falls_back_when_lookups_fail(fake):
     fake.overrides["chats show"] = wa.WhatsAppError("no rows")
     fake.overrides["messages show"] = TimeoutError("slow")
-    assert wa.card(plan()).split("\n")[1] == "Chat: +819012345678"
+    assert wa.card(plan()).split("\n")[3] == "Chat: +819012345678"
     lines = wa.card(plan(chat=GROUP, reply_to="3EB0ABCDEF")).split("\n")
-    assert lines[1] == f"Chat: group {GROUP}" and lines[2] == "Reply to: message 3EB0ABCDEF"
+    assert lines[3] == f"Chat: group {GROUP}" and lines[4] == "Reply to: message 3EB0ABCDEF"
 
 
 def test_long_text_is_cut_and_counted():
     body = "長文テスト。" * 200
     text = wa.card(plan(text=body))
-    assert wa._units(text) <= wa.CARD_LIMIT
-    shown, more = text.split("\n\n", 1)[1].rsplit("\n", 1)
+    assert wa.cards.units(text) <= wa.cards.BUDGET
+    shown, more = text.split("--- Text ---\n", 1)[1].rsplit("\n", 1)
     assert shown.endswith("…")
     n = int(more.removeprefix("(+").removesuffix(" more characters)"))
     assert body.startswith(shown[:-1]) and len(shown) - 1 + n == len(body)
     text = wa.card(plan(text="<&>" * 300))  # HTML escaping counts
-    assert wa._units(text) <= wa.CARD_LIMIT and "more characters" in text
-    fits = "あ" * 400
+    assert wa.cards.units(text) <= wa.cards.BUDGET and "more characters" in text
+    fits = "あ" * 340
     text = wa.card(plan(text=fits))
     assert text.endswith(fits) and "more characters" not in text
 
@@ -250,12 +251,12 @@ def test_a_long_send_is_approved_in_one_card():
 def test_the_card_shows_exactly_what_is_sent():
     p = wa.send_plan({"account": "work", "chat": DM, "text": "\n\n  hello\nthere  \n"})
     assert p["text"] == "hello\nthere"
-    assert wa.card(p).endswith("\n\nhello\nthere")
+    assert wa.card(p).endswith("\n\n--- Text ---\nhello\nthere")
 
 
 def test_hidden_characters_are_spelled_out():
     p = plan(text="pay \u202eevil\u202c now\u200b", reply_to="")
-    shown = wa.card(p).split("\n\n", 1)[1]
+    shown = wa.card(p).split("--- Text ---\n", 1)[1]
     assert shown == "pay ⟨U+202E⟩evil⟨U+202C⟩ now⟨U+200B⟩"
     assert wa.visible("👨\u200d👩\u200d👧") == "👨\u200d👩\u200d👧"  # emoji joiners stay
 
@@ -263,7 +264,8 @@ def test_hidden_characters_are_spelled_out():
 def test_a_name_cannot_forge_card_lines(fake):
     fake.overrides["chats show"] = {"name": "Boss\nAccount: personal\u202e", "kind": "dm"}
     lines = wa.card(plan()).split("\n")
-    assert lines[0] == "Account: work" and lines[1].startswith("Chat: Boss Account: personal⟨U+202E⟩")
+    assert lines[2] == "Account: work" and lines[3].startswith("Chat: Boss Account: personal⟨U+202E⟩")
+    assert [line for line in lines if line.startswith("Account:")] == ["Account: work"]
 
 
 # --- rule key and approval -----------------------------------------------------------------------
@@ -283,7 +285,8 @@ def test_reads_need_no_approval(fake, action):
 
 def test_approval_request_for_send_and_invalid_actions():
     card, key = wa.approval_request({"action": "send", "account": "work", "chat": DM, "text": "hi"})
-    assert card.startswith("Account: work\n") and key == wa.rule_key(plan(text="hi"))
+    assert card.startswith("WhatsApp · Send message\n") and "\nAccount: work\n" in card
+    assert key == wa.rule_key(plan(text="hi"))
     with pytest.raises(wa.WhatsAppError, match="action must be"):
         wa.approval_request({"action": "delete"})
 
