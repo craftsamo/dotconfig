@@ -100,13 +100,16 @@ resident-session.sh prune [--older-than <days>] [--yes]
   session has gone incoherent (context rot), close it and start a fresh
   one seeded with the surviving artifacts — never fight a rotten session.
   Read the exit code first: **75** the key is busy (wait for the in-flight
-  notification), **124** the turn was killed at `TURN_TIMEOUT` — the log
-  now holds its partial output and stderr tail; **143** means INT/TERM
-  interruption with `status: interrupted` and retained partial logs/session
-  identity, not confirmed completion. Anything else is the
-  CLI's own status. A plugin conversation you cancelled is different: its
-  `cancelled` status already carries the runner's confirmation and may be
-  continued as described in "Parallel conversations, waiting and cancelling".
+  notification), **124** the turn was stopped at `TURN_TIMEOUT` and the
+  gateway confirmed the stop — the log holds what it had; **143** means
+  INT/TERM interruption confirmed by the gateway, `status: interrupted`,
+  partial logs and session identity retained, not confirmed completion;
+  **125** the turn was admitted but its outcome is unknown (the stop was not
+  confirmed, or the gateway went away) — inspect before anything else.
+  Anything else is the turn's own failure. A plugin conversation you cancelled
+  is different: its `cancelled` status already carries the gateway's
+  confirmation and may be continued as described in "Parallel conversations,
+  waiting and cancelling".
 - **Turn budget is 90 minutes and the handoff says so.** Every resident turn
   carries a "Turn budget" line; the specialist is expected to checkpoint
   before it. Your side of that contract is turn sizing: release one
@@ -143,7 +146,7 @@ resident-session.sh prune [--older-than <days>] [--yes]
 - **A new user message during a wait** releases the wait (`released_by`); the
   specialists keep running. Answer the message; do not cancel unless asked.
 - **"Stop it" / "stop B and change X"** means `specialist_session(action=
-  "cancel", conversation_id=<B>)`. It waits up to 25 s for the stop. If it
+  "cancel", conversation_id=<B>)`. It waits up to 40 s for the stop. If it
   returns `cancelled`, send the correction in the SAME turn with
   `specialist_call(target, conversation_id=<B>, message=<correction>)`, so the
   user gets one reply (the correction is a new released turn: same scope and
@@ -153,7 +156,7 @@ resident-session.sh prune [--older-than <days>] [--yes]
   not resend; check `status` before acting. A `completed` reply with
   `cancel_too_late` means the turn had already finished: show that result and
   ask whether the change still applies. `cancelled` confirms only the
-  specialist's own process. The hands'
+  specialist's own turn (the gateway's receipt says it ended). The hands'
   conversations are stopped by their own runners when it exits, possibly a few
   seconds later, and end as `unknown` on their side, so the resumed turn first
   inspects and reconciles them. Spend already incurred is not refunded.

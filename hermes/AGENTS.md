@@ -397,11 +397,15 @@ Contract: [docs/opencode.md](docs/opencode.md). When editing
   key; dropping a field merges topics or senders, adding the session id loses
   runs on `/new`.
 - **`cancelled` is the only early stop a specialist conversation resumes
-  from**, and only because the owning runner confirmed its group gone; never
-  make `unknown`/`interrupted` resumable or let anything but that runner signal
-  the group ([docs/profiles/specialist-calls.md](docs/profiles/specialist-calls.md)).
-  Where the CLI is a gateway client the group is only the client, so that proof
-  does not exist: a dispatched turn's cancel stays `unknown` there.
+  from**, and only because the owning runner saw its turn client exit 143 — the
+  gateway's receipt confirmed the stop — and its group gone; never make
+  `unknown`/`interrupted` resumable, let anything but that runner signal the
+  group, or treat a dead group alone as a stopped turn (the turn runs inside the
+  gateway, the group is only its client)
+  ([docs/profiles/specialist-calls.md](docs/profiles/specialist-calls.md)).
+  `resident-turn.py` is that client: it runs on `hermes-python` and speaks the
+  gateway's wire contract, which an upstream re-pin can change — the
+  continuity check runs its test and the runtime's gateway-client tests.
 - **Per-turn resident values come from `plugins/_shared/turn_env.py` only.** It
   answers from the process environment only where the turn runs in the CLI
   process; reading `RESIDENT_*` from `os.environ` directly inside a gateway reads
