@@ -415,7 +415,8 @@ def card(planned: dict) -> str:
     for t in planned["targets"]:
         mark = {"own": "own, private", "shared": "others can read it", "other": "⚠️ someone else's"}[t["tier"]]
         kind = {"repo": "Repository", "owner": "New board for", "new_repo": "New repository",
-                "template": "Copied from", "file": "Upload", "head": "Merging"}.get(t["kind"], "Board")
+                "template": "Copied from", "file": "Upload", "head": "Merging", "run": "Re-running",
+                "workflow": "Starting", "release": "Release"}.get(t["kind"], "Board")
         # An upload's whole path: two files that differ only in a folder must not read alike.
         lines.append(f"{kind}: {say(t['name'], 600 if t['kind'] == 'file' else 80)} ({mark})")
     hosts, paths, branch = _hosts(planned)
@@ -490,5 +491,5 @@ def apply(planned: dict) -> dict:
 NAME = "hermes_github_access_changes"
 if __name__ != NAME:
     raise ImportError(f"load changes.py as {NAME}: the op modules register into that module")
-for _domain in ("board", "issue", "repo", "pr"):
+for _domain in ("board", "issue", "repo", "pr", "release", "actions"):
     _load(f"hermes_github_access_ops_{_domain}", HERE / f"ops_{_domain}.py")

@@ -1,13 +1,17 @@
-"""github-access: repository reads — a repository's settings, labels and milestones.
+"""github-access: repository reads — a repository's settings, labels and milestones, its releases,
+and its GitHub Actions workflows and runs.
 
-The engine behind ``github_repo``, and what the repository ops of ``github_change`` read before a
-card (the settings a change would move from, the labels and milestones it names). Read through
-the user's own ``gh`` login like every other read; nothing is stored.
+The engine behind ``github_repo``, and what the repository, release and Actions ops of
+``github_change`` read before a card (the settings a change would move from, the labels,
+milestones, releases, workflows and runs it names). Read through the user's own ``gh`` login like
+every other read; nothing is stored.
 """
 
 from __future__ import annotations
 
 import importlib.util
+import json
+import re
 import sys
 from pathlib import Path
 
@@ -24,9 +28,13 @@ def _load(name, path):
 access = _load("hermes_github_access_engine", Path(__file__).resolve().parent / "access.py")
 AccessError = access.AccessError
 
-REPO_ACTIONS = ("view", "labels", "milestones")
+REPO_ACTIONS = ("view", "labels", "milestones", "releases", "workflows", "runs", "run")
 LABEL_CAP = 500
 MILESTONE_CAP = 300
+LOG_LINES = 120
+LOG_CHARS = 8000
+RUN_STATUSES = ("queued", "in_progress", "completed", "success", "failure", "cancelled", "action_required",
+                "waiting", "pending", "requested", "skipped", "stale", "startup_failure", "timed_out", "neutral")
 
 VIEW_QUERY = (
     "query($owner:String!,$name:String!){repository(owner:$owner,name:$name){id nameWithOwner description "
@@ -94,14 +102,130 @@ def milestones(repo: str, state: str = "open") -> list[dict]:
              "closed_issues": (n.get("closed") or {}).get("totalCount")} for n in nodes if n]
 
 
+RELEASE_FIELDS = ("tagName name isDraft isPrerelease isLatest createdAt publishedAt url tagCommit{oid} "
+                  "releaseAssets(first:20){nodes{name size downloadCount}}")
+RELEASES_QUERY = ("query($owner:String!,$name:String!,$n:Int!){repository(owner:$owner,name:$name){releases(first:$n,"
+                  f"orderBy:{{field:CREATED_AT,direction:DESC}}){{nodes{{{RELEASE_FIELDS} description}}}}}}}}")
+RELEASE_QUERY = ("query($owner:String!,$name:String!,$tag:String!){repository(owner:$owner,name:$name){"
+                 f"release(tagName:$tag){{{RELEASE_FIELDS} description}}}}}}")
+
+
+def _release(n: dict) -> dict:
+    return {"tag": n["tagName"], "title": n.get("name") or "", "draft": bool(n.get("isDraft")),
+            "prerelease": bool(n.get("isPrerelease")), "latest": bool(n.get("isLatest")), "created": n.get("createdAt"),
+            "published": n.get("publishedAt"), "url": n.get("url"), "commit": (n.get("tagCommit") or {}).get("oid"),
+            "notes": n.get("description") or "",
+            "assets": [{"name": a["name"], "size": a.get("size"), "downloads": a.get("downloadCount")}
+                       for a in (n.get("releaseAssets") or {}).get("nodes") or []]}
+
+
+def releases(repo: str, limit: int = 20) -> list[dict]:
+    data = access.graphql(RELEASES_QUERY, {**_split(repo), "n": limit})
+    return [_release(n) for n in ((data.get("repository") or {}).get("releases") or {}).get("nodes") or [] if n]
+
+
+def release(repo: str, tag: str) -> dict | None:
+    """The release of ``tag``, or None. Looked for among the latest 100 releases, which hold drafts
+    for a viewer who can push (a draft's tag does not exist until it is published, so a lookup by
+    tag alone could miss it)."""
+    found = next((r for r in releases(repo, 100) if r["tag"] == tag), None)
+    if found:
+        return found
+    hit = (access.graphql(RELEASE_QUERY, {**_split(repo), "tag": tag}).get("repository") or {}).get("release")
+    return _release(hit) if hit else None
+
+
+def _gh_json(argv: list[str]):
+    done = access.run_gh(argv)
+    if done.returncode != 0:
+        detail = (done.stderr or done.stdout or "").strip().splitlines()
+        raise AccessError(f"gh {' '.join(argv[:2])} failed: {detail[-1] if detail else f'exit {done.returncode}'}"[:400])
+    try:
+        return json.loads(done.stdout or "null")
+    except json.JSONDecodeError as exc:
+        raise AccessError(f"gh {' '.join(argv[:2])} printed no JSON") from exc
+
+
+def workflows(repo: str) -> list[dict]:
+    rows = _gh_json(["workflow", "list", "--repo", repo, "--all", "--limit", "100", "--json", "id,name,path,state"]) or []
+    return [{"id": w["id"], "name": w["name"], "path": w["path"], "state": w["state"]} for w in rows]
+
+
+RUN_FIELDS = "databaseId,name,displayTitle,status,conclusion,event,headBranch,headSha,createdAt,url,workflowName,attempt"
+
+
+def _run_row(r: dict) -> dict:
+    return {"id": r["databaseId"], "workflow": r.get("workflowName") or r.get("name"), "title": r.get("displayTitle"),
+            "status": r.get("status"), "conclusion": r.get("conclusion") or None, "event": r.get("event"),
+            "branch": r.get("headBranch"), "sha": r.get("headSha"), "attempt": r.get("attempt"),
+            "created": r.get("createdAt"), "url": r.get("url")}
+
+
+def runs(repo: str, args: dict) -> list[dict]:
+    argv = ["run", "list", "--repo", repo, "--limit", str(access._count(args, "limit", 20, access.LIST_LIMIT)),
+            "--json", RUN_FIELDS]
+    for key, flag in (("branch", "--branch"), ("workflow", "--workflow")):
+        if args.get(key):
+            argv += [flag, access._text(args, key)]
+    if args.get("status"):
+        if args["status"] not in RUN_STATUSES:
+            raise AccessError(f"status is one of {', '.join(RUN_STATUSES)}")
+        argv += ["--status", args["status"]]
+    return [_run_row(r) for r in _gh_json(argv) or []]
+
+
+def run(repo: str, run_id: int, log: bool = True) -> dict:
+    """One run with its jobs, and the end of its failed steps' log (other people's text, capped)."""
+    found = _gh_json(["run", "view", str(run_id), "--repo", repo, "--json", f"{RUN_FIELDS},updatedAt,jobs"])
+    out = {**_run_row(found), "updated": found.get("updatedAt"),
+           "jobs": [{"id": j.get("databaseId"), "name": j.get("name"), "status": j.get("status"),
+                     "conclusion": j.get("conclusion") or None,
+                     "failed_steps": [s.get("name") for s in j.get("steps") or []
+                                      if (s.get("conclusion") or "") in ("failure", "timed_out", "cancelled")]}
+                    for j in found.get("jobs") or []]}
+    if log and out["conclusion"] in ("failure", "timed_out", "startup_failure"):
+        done = access.run_gh(["run", "view", str(run_id), "--repo", repo, "--log-failed"])
+        text = CONTROL.sub("", ANSI.sub("", done.stdout or "")) if done.returncode == 0 else ""
+        out["failed_log"] = "\n".join(text.splitlines()[-LOG_LINES:])[-LOG_CHARS:] or None
+    return out
+
+
+ANSI = re.compile(r"\x1b\[[0-9;?]*[ -/]*[@-~]")
+CONTROL = re.compile(r"[\x00-\x08\x0b-\x1f\x7f-\x9f\u200b-\u200f\u202a-\u202e\u2060-\u206f\ufeff]")
+
+
+def _run_id(args: dict, repo: str | None = None) -> int:
+    """A run id from an id or a run URL; a URL of another repository than ``repo`` is refused."""
+    value = args.get("run")
+    text = str(value).strip() if isinstance(value, (int, str)) and not isinstance(value, bool) else ""
+    match = re.fullmatch(r"(?:https?://github\.com/([^/]+/[^/]+)/actions/runs/)?(\d+)(?:/.*)?", text)
+    if not match:
+        raise AccessError("run is a run id or its URL")
+    if match.group(1) and repo and not access.same(match.group(1), repo):
+        raise AccessError(f"run {text} is a run of {match.group(1)}, not of {repo}")
+    return int(match.group(2))
+
+
 def github_repo(args: dict) -> dict:
     action = access._action(args, REPO_ACTIONS)
     repo = access.parse_repo(access._text(args, "repo"))
     if action == "view":
         return {"ok": True, "repository": settings(repo)}
     tier = access.repo_context(repo)["tier"]
+    head = {"ok": True, "repo": repo, "tier": tier}
     if action == "labels":
         found = labels(repo)
-        return {"ok": True, "repo": repo, "tier": tier, "count": len(found), "labels": found}
-    found = milestones(repo, args.get("state") or "open")
-    return {"ok": True, "repo": repo, "tier": tier, "count": len(found), "milestones": found}
+        return {**head, "count": len(found), "labels": found}
+    if action == "milestones":
+        found = milestones(repo, args.get("state") or "open")
+        return {**head, "count": len(found), "milestones": found}
+    if action == "releases":
+        found = releases(repo, access._count(args, "limit", 20, access.LIST_LIMIT))
+        return {**head, "count": len(found), "releases": found}
+    if action == "workflows":
+        found = workflows(repo)
+        return {**head, "count": len(found), "workflows": found}
+    if action == "runs":
+        found = runs(repo, args)
+        return {**head, "count": len(found), "runs": found}
+    return {**head, "run": run(repo, _run_id(args, repo), log=args.get("log", True) is not False)}
