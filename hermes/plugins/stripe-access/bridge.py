@@ -13,6 +13,8 @@ api.stripe.com is contacted, never through a redirect, and the API version is pi
 Contract: docs/stripe-access.md.
 
     {"op": "keys"}   the stored labels, modes and key kinds; never a value, never a request to Stripe
+    {"op": "key", "account": label | null, "mode": "live" | "test"}
+                     the label a call would run on and its key's kind and fingerprint; no request to Stripe
     {"op": "call", "account": label | null, "mode": "live" | "test", "method": "GET" | "POST" | "DELETE",
      "path": "/v1/...", "params": [[key, value], ...], "idempotency_key": str | null,
      "refused": {"<label>/<mode>": fingerprint}, "paused": {"<label>/<mode>": epoch seconds},
@@ -84,6 +86,29 @@ ROUTES = (
     ("GET", "/v1/coupons/{id}"),
     ("GET", "/v1/promotion_codes"),
     ("GET", "/v1/promotion_codes/{id}"),
+    ("GET", "/v1/charges/{id}"),
+    # writes: each runs only after its approval card, with an idempotency key
+    ("POST", "/v1/customers"),
+    ("POST", "/v1/customers/{id}"),
+    ("POST", "/v1/products"),
+    ("POST", "/v1/products/{id}"),
+    ("POST", "/v1/prices"),
+    ("POST", "/v1/prices/{id}"),
+    ("POST", "/v1/coupons"),
+    ("POST", "/v1/coupons/{id}"),
+    ("DELETE", "/v1/coupons/{id}"),
+    ("POST", "/v1/promotion_codes"),
+    ("POST", "/v1/promotion_codes/{id}"),
+    ("POST", "/v1/invoices"),
+    ("POST", "/v1/invoiceitems"),
+    ("POST", "/v1/invoices/{id}/finalize"),
+    ("POST", "/v1/invoices/{id}/send"),
+    ("POST", "/v1/invoices/{id}/void"),
+    ("POST", "/v1/payment_links"),
+    ("POST", "/v1/payment_links/{id}"),
+    ("POST", "/v1/refunds"),
+    ("POST", "/v1/subscriptions/{id}"),
+    ("DELETE", "/v1/subscriptions/{id}"),
 )
 _ROUTES = tuple((method, re.compile("^" + re.escape(path).replace(r"\{id\}", SEGMENT) + "$")) for method, path in ROUTES)
 
@@ -332,11 +357,23 @@ def call(req: dict) -> dict:
             **{k: v for k, v in facts.items() if v not in (None, "", False)}}
 
 
+def key(req: dict) -> dict:
+    mode = req.get("mode")
+    if mode not in MODES:
+        raise Setup("mode must be live or test")
+    label = resolve(req.get("account"), mode)
+    value, kind = read_key(label, mode)
+    return {"ok": True, "account": label, "mode": mode, "fingerprint": fingerprint(value), "key_kind": kind,
+            "requests": 0}
+
+
 def main(req: dict) -> dict:
     op = req.get("op")
     try:
         if op == "keys":
             return {"ok": True, "data": keys(), "requests": 0}
+        if op == "key":
+            return key(req)
         if op == "call":
             return call(req)
         return {"ok": False, "kind": "error", "error": f"unknown op {op!r}", "requests": 0}
