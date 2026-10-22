@@ -55,6 +55,7 @@ TRADES_SHOWN = 20
 CURVE_POINTS = 60
 MC_RUNS = 1000
 MC_MIN_TRADES = 20        # fewer trades say too little about their order to redraw them
+LIMIT_TOTALS = ("limit_orders", "limit_filled", "market_after_limit")  # how limit entries went
 BREAKER_PCT = (1.0, 90.0)  # the drawdown a breaker may be set to hold entries at
 BASELINE_FUNDING = 0.0000125  # the venue's interest component, 0.01% per 8 hours, paid by longs
 _NAME = re.compile(r"^[a-z0-9][a-z0-9-]{0,39}$")
@@ -70,9 +71,14 @@ PARAMS = {
                   "stop_atr": (0.5, 10.0, False), "risk_pct": (0.1, 5.0, False)},
 }
 # optional for every kind; 0 (or absent) leaves it out of the rule set, so earlier fingerprints hold:
-# trail_atr trails the stop; regime_ema allows entries only on the side of that EMA (longs above it)
-OPTIONAL = {"trail_atr": (0.5, 10.0, False), "regime_ema": (10, 1500, True)}
-COSTS = {"taker_bps": (0.0, 100.0, 4.5), "slippage_bps": (0.0, 100.0, 5.0)}
+# trail_atr trails the stop; regime_ema allows entries only on the side of that EMA (longs above it);
+# limit_atr places a limit entry that many ATRs better than the signal's close
+OPTIONAL = {"trail_atr": (0.5, 10.0, False), "regime_ema": (10, 1500, True), "limit_atr": (0.05, 2.0, False)}
+# how an entry is sent; market (or absent) leaves it out of the rule set, so earlier fingerprints hold
+ENTRY_ORDERS = ("market", "limit", "limit_then_market")
+COSTS = {"taker_bps": (0.0, 100.0, 4.5), "slippage_bps": (0.0, 100.0, 5.0), "maker_bps": (-1.0, 100.0, 1.5),
+         "limit_through_bps": (0.0, 100.0, 2.0)}
+LIMIT_COSTS = ("maker_bps", "limit_through_bps")  # what only a limit entry pays or needs
 
 
 class StrategyError(ValueError):
@@ -144,16 +150,26 @@ def rules(raw, what: str = "rules") -> dict:
     kind = raw.get("kind")
     if kind not in PARAMS:
         raise StrategyError(f"{what}: kind is one of {', '.join(KINDS)}")
-    extra = set(raw) - set(PARAMS[kind]) - set(OPTIONAL) - {"kind"}
+    extra = set(raw) - set(PARAMS[kind]) - set(OPTIONAL) - {"kind", "entry_order"}
     if extra:
         raise StrategyError(f"{what}: {kind} takes {', '.join(PARAMS[kind])} and optionally "
-                            f"{', '.join(OPTIONAL)}, not {', '.join(sorted(extra))}")
+                            f"{', '.join(OPTIONAL)} and entry_order, not {', '.join(sorted(extra))}")
     out = {"kind": kind}
     for key, (low, high, whole) in PARAMS[kind].items():
         out[key] = _number(raw, key, low, high, whole, what)
     for key, (low, high, whole) in OPTIONAL.items():
         if raw.get(key) not in (None, 0, 0.0):
             out[key] = _number(raw, key, low, high, whole, what)
+    order = raw.get("entry_order") or "market"
+    if order not in ENTRY_ORDERS:
+        raise StrategyError(f"{what}: entry_order is one of {', '.join(ENTRY_ORDERS)}")
+    if order != "market":
+        out["entry_order"] = order
+    if "limit_atr" in out and "entry_order" not in out:
+        raise StrategyError(f"{what}: limit_atr is how far a limit entry rests from the signal's close; it takes "
+                            "entry_order limit or limit_then_market")
+    if out.get("limit_atr", 0) >= out["stop_atr"]:
+        raise StrategyError(f"{what}: limit_atr must be less than stop_atr, or the limit rests past the stop")
     if kind == "breakout" and out["exit"] > out["entry"]:
         raise StrategyError(f"{what}: exit must not be longer than entry")
     if kind == "ema_cross" and out["slow"] <= out["fast"]:
@@ -421,6 +437,20 @@ def timeline(raw) -> list[dict]:
     return sorted(out, key=lambda w: w["from"])
 
 
+def limit_fill(side: str, sig: dict, bar: dict, rule_set: dict, through: float) -> float | None:
+    """Where a limit entry listed at a signal's close fills in the next bar, or None when it does not.
+    It rests ``limit_atr`` ATRs better than the close (at the close without it), or at the bar's open
+    when the market opened past it, since a resting order cannot sit through the market. It fills only
+    when the bar trades ``through`` (a share of its price) past it: a bar that only touches it leaves it
+    in the queue, unfilled."""
+    offset = rule_set.get("limit_atr", 0) * sig["atr"]
+    if side == "long":
+        rest = min(sig["close"] - offset, bar["o"])
+        return rest if bar["l"] <= rest * (1 - through) else None
+    rest = max(sig["close"] + offset, bar["o"])
+    return rest if bar["h"] >= rest * (1 + through) else None
+
+
 def simulate(series: list[dict], rule_set: dict, interval: str, cost: dict, limits: dict, *,
              rates: list[tuple[float, int]] | None = None, stance: list[dict] | None = None,
              direction: str = "both", start_equity: float = 1000.0, trade_from: int = 0,
@@ -430,12 +460,19 @@ def simulate(series: list[dict], rule_set: dict, interval: str, cost: dict, limi
     reaches (at the open when the bar gaps through it); funding (``rates``, from ``funding_by_bar``;
     the venue's baseline when left out) accrues each hour held. Trading starts at bar ``trade_from``
     (earlier bars only warm the indicators). A position still open at the end closes at the last close.
-    ``paths`` holds each trade's equity path for ``monte_carlo``: (end, low, high, drawdown), the
-    equity at its close, lowest and highest marks as multiples of the equity before it, and the
-    deepest fall from its own highest mark."""
+    A limit entry (``entry_order``) rests through bar ``i+1`` instead and fills at its price with the
+    maker fee, no slippage, only when that bar trades through it (``limit_fill``); the stop and the size
+    are the market entry's, and the bar's stop and funding count whole, as if it filled at the open.
+    Unfilled, ``limit`` enters nothing, while ``limit_then_market`` enters at market at the next open,
+    as an entry from bar ``i+1``'s close, unless that close no longer holds the side. ``paths`` holds
+    each trade's equity path for ``monte_carlo``: (end, low, high, drawdown), the equity at its close,
+    lowest and highest marks as multiples of the equity before it, and the deepest fall from its own
+    highest mark."""
     ind = ind or indicators(series, rule_set)
     rates = rates or funding_by_bar(series, interval, None, BASELINE_FUNDING, cost["funding"])
     fee, slip = cost["taker_bps"] / 10_000, cost["slippage_bps"] / 10_000
+    maker, through = cost["maker_bps"] / 10_000, cost["limit_through_bps"] / 10_000
+    entry_order = rule_set.get("entry_order", "market")
     default = {"direction": direction, "size": 1.0}
     stance = stance or []
     cash = start_equity
@@ -443,8 +480,10 @@ def simulate(series: list[dict], rule_set: dict, interval: str, cost: dict, limi
     trades: list[dict] = []
     paths: list[tuple[float, float, float, float]] = []
     curve: list[tuple[int, float]] = []
-    totals = {"fees": 0.0, "funding": 0.0, "assumed_hours": 0, "bars_held": 0}
-    pending: tuple[bool, str | None, dict | None] | None = None
+    totals = {"fees": 0.0, "funding": 0.0, "assumed_hours": 0, "bars_held": 0, **dict.fromkeys(LIMIT_TOTALS, 0)}
+    # (close what is held?, side to open, its signal, how the entry is sent: market | limit)
+    pending: tuple[bool, str | None, dict | None, str] | None = None
+    owed: str | None = None  # the side of a limit_then_market entry that did not fill
 
     def mark_path(value: float):
         m = value / pos["base"]
@@ -470,7 +509,7 @@ def simulate(series: list[dict], rule_set: dict, interval: str, cost: dict, limi
     for i in range(start, len(series)):
         b = series[i]
         if pending is not None:
-            do_close, side, sig = pending
+            do_close, side, sig, how = pending
             pending = None
             if do_close and pos is not None:
                 close(i, b["o"], "signal")
@@ -480,12 +519,25 @@ def simulate(series: list[dict], rule_set: dict, interval: str, cost: dict, limi
                 gapped = b["o"] <= stop if side == "long" else b["o"] >= stop
                 equity = cash
                 value, _ = size_usd(equity, sig["close"], stop, rule_set, stance_now["size"], 0.0, limits)
+                entry, rate = None, fee
                 if value is not None and not gapped:
-                    entry = b["o"] * (1 + slip) if side == "long" else b["o"] * (1 - slip)
+                    if how == "limit":
+                        totals["limit_orders"] += 1
+                        entry, rate = limit_fill(side, sig, b, rule_set, through), maker
+                        if entry is not None:
+                            totals["limit_filled"] += 1
+                        elif entry_order == "limit_then_market":
+                            owed = side
+                    else:
+                        entry = b["o"] * (1 + slip) if side == "long" else b["o"] * (1 - slip)
+                        if how == "after_limit":
+                            totals["market_after_limit"] += 1
+                if entry is not None:
                     qty = value / sig["close"]
-                    fee_in = entry * qty * fee
+                    fee_in = entry * qty * rate
+                    # a maker rebate is not risk taken off: R stays the loss at the stop, never below it
                     pos = {"side": side, "qty": qty, "entry": entry, "stop": stop, "t": b["t"], "fee_in": fee_in,
-                           "funding": 0.0, "risk": abs(entry - stop) * qty + fee_in,
+                           "funding": 0.0, "risk": abs(entry - stop) * qty + max(fee_in, 0.0),
                            "base": cash, "low": 1.0, "high": 1.0, "dd": 0.0}
                     cash -= fee_in
                     totals["fees"] += fee_in
@@ -513,8 +565,15 @@ def simulate(series: list[dict], rule_set: dict, interval: str, cost: dict, limi
             stance_now = _stance_at(stance, series[i + 1]["t"], default)
             sig = signal(series, ind, i, rule_set)
             do_close, side = decide(sig, pos["side"] if pos else None, stance_now["direction"])
+            how = "market" if entry_order == "market" else "limit"
+            if owed is not None and pos is None and sig is not None:
+                # the limit that did not fill enters at market from this close, if the rules would still hold it
+                leave, _ = decide(sig, owed, stance_now["direction"])
+                if not leave:
+                    do_close, side, how = False, owed, "after_limit"
+            owed = None
             if do_close or side:
-                pending = (do_close, side, sig)
+                pending = (do_close, side, sig, how)
     if pos is not None and series:
         close(len(series) - 1, series[-1]["c"], "end")
         curve[-1] = (curve[-1][0], cash)
@@ -527,7 +586,8 @@ def simulate(series: list[dict], rule_set: dict, interval: str, cost: dict, limi
 
 def metrics(run: dict) -> dict:
     """The figures a decision reads: return, CAGR, maximum drawdown, MAR, Sharpe, trades, win rate,
-    mean R, profit factor, time in the market, fees and funding paid, and buy-and-hold for scale."""
+    mean R, profit factor, time in the market, fees and funding paid, and buy-and-hold for scale; for
+    rules with a limit entry, also how its orders went (placed, filled, at market after, missed)."""
     curve = [v for _, v in run["curve"]]
     start, end = run["start_equity"], run["end_equity"]
     trades = run["trades"]
@@ -548,7 +608,7 @@ def metrics(run: dict) -> dict:
     wins = [t["pnl"] for t in trades if t["pnl"] > 0]
     losses = [-t["pnl"] for t in trades if t["pnl"] <= 0]
     rs = [t["r"] for t in trades if t["r"] is not None]
-    return {"return_pct": round((end / start - 1) * 100, 2), "cagr_pct": None if cagr is None else round(cagr, 2),
+    out = {"return_pct": round((end / start - 1) * 100, 2), "cagr_pct": None if cagr is None else round(cagr, 2),
             "max_drawdown_pct": round(max_dd * 100, 2),
             "mar": None if cagr is None or max_dd == 0 else round(cagr / (max_dd * 100), 3),
             "sharpe": None if sharpe is None else round(sharpe, 3), "trades": len(trades),
@@ -559,6 +619,12 @@ def metrics(run: dict) -> dict:
             "fees_pct": round(run["totals"]["fees"] / start * 100, 2),
             "funding_pct": round(run["totals"]["funding"] / start * 100, 2),
             "buy_hold_pct": None if run["buy_hold_pct"] is None else round(run["buy_hold_pct"], 2)}
+    placed = run["totals"].get("limit_orders", 0)
+    if placed:  # only rules with a limit entry say how it went, so a market entry's figures stay as they were
+        filled, after = run["totals"]["limit_filled"], run["totals"]["market_after_limit"]
+        out["limit_entries"] = {"placed": placed, "filled": filled, "fill_rate": round(filled / placed, 3),
+                                "market_after": after, "missed": placed - filled - after}
+    return out
 
 
 def _compose(paths) -> tuple[float, float, int]:
@@ -633,12 +699,13 @@ def backtest_limits(raw) -> dict:
 
 
 def grid(raw, base: dict) -> list[dict]:
-    """Every rule set a walk-forward may choose from: the base rules with each listed parameter varied."""
+    """Every rule set a walk-forward may choose from: the base rules with each listed parameter varied
+    (``entry_order`` too, by its names)."""
     if not isinstance(raw, dict) or not raw:
         raise StrategyError("walk_forward.grid lists values per parameter, like {\"entry\": [20, 55]}")
     keys = sorted(raw)
     for key in keys:
-        if key not in PARAMS[base["kind"]] and key not in OPTIONAL:
+        if key not in PARAMS[base["kind"]] and key not in OPTIONAL and key != "entry_order":
             raise StrategyError(f"walk_forward.grid: {base['kind']} has no {key}")
         if not isinstance(raw[key], list) or not 1 <= len(raw[key]) <= MAX_GRID_VALUES:
             raise StrategyError(f"walk_forward.grid.{key} lists 1 to {MAX_GRID_VALUES} values")
@@ -702,7 +769,7 @@ def walk_forward(series: list[dict], base: dict, interval: str, cost: dict, limi
     stitched_curve: list[tuple[int, float]] = []
     stitched_trades: list[dict] = []
     stitched_paths: list[tuple[float, float, float, float]] = []
-    totals = {"fees": 0.0, "funding": 0.0, "assumed_hours": 0, "bars_held": 0}
+    totals = {"fees": 0.0, "funding": 0.0, "assumed_hours": 0, "bars_held": 0, **dict.fromkeys(LIMIT_TOTALS, 0)}
     rows = []
     for k in range(1, folds + 1):
         train_lo = lead if anchored else lead + (k - 1) * chunk

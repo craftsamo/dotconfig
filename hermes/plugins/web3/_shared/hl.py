@@ -867,9 +867,12 @@ def backtest(ctx, args) -> dict:
     rates = hl_strategy.funding_by_bar(series, interval, funding, mean, spec["costs"]["funding"])
     cost, limits, rule_set = spec["costs"], spec["limits"], spec["rules"]
     fingerprint = hl_strategy.fingerprint(rule_set, interval)
-    # the request names its draws: the same backtest, read again, gives the same spread
+    # the request names its draws: the same backtest, read again, gives the same spread. Limit costs at their
+    # defaults stay out, so a backtest asked before they existed still draws the same
+    drawn = {k: v for k, v in cost.items()
+             if k not in hl_strategy.LIMIT_COSTS or v != hl_strategy.COSTS[k][2]}
     seed = hl_strategy.canonical({"network": ctx.network, "coin": coin, "fingerprint": fingerprint, "end": end,
-                                  "start": start, "costs": cost, "limits": limits, "direction": spec["direction"],
+                                  "start": start, "costs": drawn, "limits": limits, "direction": spec["direction"],
                                   "stance": spec["stance"], "history": spec["history"]})
     try:
         run = hl_strategy.simulate(series, rule_set, interval, cost, limits, rates=rates, stance=spec["stance"],
@@ -903,7 +906,9 @@ def backtest(ctx, args) -> dict:
               "equity": hl_strategy.curve_points(run["curve"]),
               "note": ("a simulation on past bars from a notional 1000 USDC (fees_pct and funding_pct are of that "
                        "start): fills at the next bar's open with slippage and the taker fee, stops inside a bar "
-                       "at the stop or a gapped open; neither a forecast nor a fill guarantee. monte_carlo redraws "
+                       "at the stop or a gapped open; a limit entry (entry_order) rests through that bar and fills "
+                       "at its price with the maker fee only when the bar trades limit_through_bps past it; neither "
+                       "a forecast nor a fill guarantee. monte_carlo redraws "
                        f"the trades {hl_strategy.MC_RUNS} times in random order, each with its own path, as "
                        "independent draws: the spread of drawdowns the same trades could have given. A strategy "
                        "may run this rule set on this interval only under its fingerprint.")}

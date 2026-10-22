@@ -193,6 +193,13 @@ def test_a_backtest_trades_the_venues_candles_and_names_its_rules(api, tmp_path)
     assert again["result"] == data["result"] and again["fingerprint"] == data["fingerprint"]  # the same spread too
     other = backtest({"costs": {"slippage_bps": 6}}, api, tmp_path)["data"]["result"]["monte_carlo"]
     assert other["max_drawdown_pct"] != mc["max_drawdown_pct"]  # another request draws its own
+    # limit costs at their defaults leave a market backtest drawing as it did before they existed
+    named = backtest({"costs": {"maker_bps": 1.5, "limit_through_bps": 2}}, api, tmp_path)["data"]
+    assert named["result"] == data["result"] and data["costs"]["maker_bps"] == 1.5
+    limit = backtest({"rules": {**RULES, "entry_order": "limit_then_market"}}, api, tmp_path)["data"]
+    entries = limit["result"]["limit_entries"]
+    assert entries["placed"] == entries["filled"] + entries["market_after"] + entries["missed"] > 0
+    assert "limit_entries" not in data["result"] and "maker fee" in limit["note"]
 
 
 def test_long_history_adds_older_binance_prices_and_walk_forward_reports_unseen_windows(api, tmp_path):
@@ -314,6 +321,17 @@ def test_a_variant_without_an_out_of_sample_record_opens_nothing_but_still_prote
     STATE["bars"]["BTC"] = series([100.0] * 40 + [110.0, 112.0], NOW + H4)
     STATE["bars"]["ETH"] = series([50.0] * 42, NOW + H4)
     assert gate(root, api, tmp_path, NOW + H4) == {"wakeAgent": False}
+
+
+def test_a_variant_tested_with_limit_entries_opens_nothing_but_still_protects(api, tmp_path):
+    reset()  # BTC breaks out; ETH is held short with no stop
+    STATE["positions"] = [{"coin": "ETH", "szi": "-1", "entryPx": "50", "positionValue": "50"}]
+    root = tmp_path / "hl-strategies"
+    strategy_dir(root, entry_order="limit_then_market", limit_atr=0.25)
+    part = gate(root, api, tmp_path)["strategies"][0]
+    assert [(i["market"], i["quote"]["kind"]) for i in part["intents"]] == [("ETH", "tpsl")]
+    assert "variant t20 enters with a limit order, which the gate does not place: its markets open nothing; " \
+           "closes and stops go on" in part["new_notices"]
 
 
 def kinds(report: dict) -> list[str]:
