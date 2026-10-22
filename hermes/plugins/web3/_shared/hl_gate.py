@@ -10,8 +10,8 @@ the newest completed candles through the public ``/info`` endpoint, applies the 
 (``stance.json``, an advisor's, when valid; else the spec's default) and the rules, and lists the
 exact ``hyperliquid`` quotes the rules call for: a close, a missing stop or a trailed stop and the
 cancel of the one it replaces (reduce), and on a newly completed bar an entry with its stop
-(increase, inside the mandate the spec records). An intent with ``after`` is sent only once the
-intent it names was. It prints one
+(increase, inside the mandate the spec records, for a variant whose walk-forward out-of-sample the
+spec records). An intent with ``after`` is sent only once the intent it names was. It prints one
 JSON line; when nothing is to be done or said, that line is ``{"wakeAgent": false}`` and no model
 runs. It never signs, never reads a key and never sends anything: the Assistant quotes and submits
 through the tool, where the trader and the mandate decide. Its own memory is ``state.json`` beside
@@ -177,6 +177,11 @@ def run_strategy(directory: Path, now: int) -> dict:
     choices, stance_notes, state["history"] = hs.stance(strategy, stance_raw, now, state["history"])
     out["notes"] += stance_notes
     out["stance"] = {m: {k: v for k, v in c.items()} for m, c in choices.items()}
+    untested = sorted({c["variant"] for c in choices.values()
+                       if strategy["variants"][c["variant"]]["out_of_sample"] is None})
+    if untested:
+        out["notes"].append(f"variant {', '.join(untested)} has no walk-forward out_of_sample recorded in the spec: "
+                            "its markets open nothing until it is; closes and stops go on")
     ctx = hl.Ctx(strategy["network"], {"_api": _api_override()})
     limits = dict(strategy["limits"])
     if mandate:
@@ -264,7 +269,7 @@ def run_strategy(directory: Path, now: int) -> dict:
             if not entries:
                 out["notes"].append(f"{market}: the rules open a {ev['open']} ({ev['why']}), but no mandate is in "
                                     "force")
-            else:
+            elif choice["variant"] not in untested:  # an untested variant is said once above, not per bar
                 value, bound = hs.size_usd(account.equity, ev["price"], ev["stop"], rule_set, choice["size"], held,
                                            limits)
                 if value is None:
