@@ -14,7 +14,6 @@ from __future__ import annotations
 from contextlib import closing
 from datetime import datetime, timedelta, timezone
 import hashlib
-import html
 import importlib.util
 import json
 import os
@@ -47,6 +46,7 @@ store = _load("hermes_discord_access_store", HERE / "store.py")
 perms = _load("hermes_discord_access_perms", HERE / "perms.py")
 archives = _load("hermes_archive_check", HERE.parent / "_shared" / "archive_check.py")
 human_gate = _load("hermes_human_gate", HERE.parents[1] / "_shared" / "human_gate.py")
+cards = _load("hermes_card", HERE.parents[1] / "_shared" / "card.py")
 
 ACTIONS = ("status", "guilds", "channels", "dms", "messages", "search", "context", "backfill", "media",
            "threads", "pins", "mentions", "pending", "stats", "export", "friends", "roles", "member",
@@ -90,10 +90,6 @@ MESSAGE_CLIP = 2000
 NAME_CLIP = 40
 QUOTE_CLIP = 40
 FILES_CLIP = 160
-CARD_LIMIT = 480            # as whatsapp-access: Telegram shows about 500 escaped characters
-MORE = "(+{n} more characters)"
-SUSPICIOUS = re.compile("[\u0000-\u0008\u000b-\u001f\u007f-\u009f\u061c\u200b\u200c\u200e\u200f"
-                        "\u202a-\u202e\u2060-\u2064\u2066-\u2069\ufeff\ufff9-\ufffb]")
 PINGS = re.compile(r"@everyone|@here|<@&\d+>")
 WHEN = re.compile(r"^\d{4}-\d{2}-\d{2}(?:[T ]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})?)?$")
 TYPE_NAMES = {0: "text", 2: "voice", 4: "category", 5: "announcement", 10: "thread", 11: "thread",
@@ -2333,77 +2329,74 @@ def send(args: dict, home: Path | None = None) -> dict:
 
 # --- approval -----------------------------------------------------------------------------------
 
-def _units(text: str) -> int:
-    return len(html.escape(text).encode("utf-16-le")) // 2
+visible = cards.visible
+_one_line = cards.line
 
 
-def visible(text: str) -> str:
-    return SUSPICIOUS.sub(lambda m: f"⟨U+{ord(m.group()):04X}⟩", text)
-
-
-def _one_line(value, limit: int) -> str:
-    return visible(_clip(re.sub(r"\s+", " ", "" if value is None else str(value)).strip(), limit))
-
-
-def _files_line(staged: list[dict]) -> str:
-    """Every file by its path under the attach root and size, clipped to FILES_CLIP with the rest
-    counted, so a card with ten files still leaves room for the text."""
+def _file_lines(staged: list[dict]) -> list[str]:
+    """Every file by its path under the attach root and size, FILES_CLIP characters in all (half of
+    it where the chat shows less of a card) with the rest counted, so a card with ten files still
+    leaves room for the text."""
+    limit = FILES_CLIP if cards.budget() == cards.BUDGET else FILES_CLIP // 2
     shown, used = [], 0
     for i, f in enumerate(staged):
         inside = f", {f['archive']['entries']} files inside" if f.get("archive") else ""
-        item = f"{_one_line(f['shown'], NAME_CLIP * 2)} ({_human(f['size'])}{inside})"
-        if shown and used + len(item) > FILES_CLIP:
+        item = f"- {_one_line(f['shown'], NAME_CLIP * 2)} ({_human(f['size'])}{inside})"
+        if shown and used + len(item) > limit:
             shown.append(f"(+{len(staged) - i} more)")
             break
         shown.append(item)
-        used += len(item) + 2
-    return f"Files ({len(staged)}): " + ", ".join(shown)
+        used += len(item)
+    return shown
+
+
+def _account(me: dict) -> str:
+    who = me.get("name") or me.get("username") or "(account)"
+    return _one_line(who, NAME_CLIP) + (f" (@{me['username']})" if me.get("username") else "")
+
+
+def _reach(label: str, text: str) -> tuple[str, str]:
+    """The card's effect for a text posted in a chat: who sees it, and whom it pings."""
+    loud = sorted(set(PINGS.findall(text)) & {"@everyone", "@here"})
+    if loud:
+        return cards.DANGER, f"Pings {' and '.join(loud)} at once"
+    return cards.CAUTION, "They see it at once" if label.startswith("DM with ") else "Everyone in the chat sees it at once"
 
 
 def card(plan: dict, staged: list[dict] | None = None) -> str:
-    """Plain English, one fact per line, as the WhatsApp and Sheets cards:
+    """The shared card shape (plugins/_shared/card.py):
 
-        Discord: <my name> (@me)
+        Discord · Send message
+        ⚠️ Everyone in the chat sees it at once      (🚨 when it pings @everyone or @here)
+        Account: <my name> (@me)
         To: DM with <name> (@handle)  |  #channel in <server>  |  group DM ...
-        Channel id: <id>
         Reply to: <sender>: <quoted text>
-        Files (2): Projects/x/report.pdf (1.2 MB), photo.png (340.0 KB)
         Pings: @everyone
+        Note: the thread is archived; sending reopens it
+        Channel id: <id>                             (context: left out first when short of room)
 
+        --- Files (2) ---
+        - Projects/x/report.pdf (1.2 MB)
+
+        --- Text ---
         <message text>
     """
-    me = plan.get("me") or {}
-    who = me.get("name") or me.get("username") or "(account)"
-    head = [f"Discord: {_one_line(who, NAME_CLIP)}" + (f" (@{me['username']})" if me.get("username") else ""),
-            f"To: {_one_line(plan['label'], NAME_CLIP * 2)}", f"Channel id: {plan['channel']}"]
+    reply = None
     if plan.get("quoted"):
         q = plan["quoted"]
         sender = "me" if q["from_me"] else (q["author_name"] or "")
         quoted = _one_line(q["content"] or "(attachment)", QUOTE_CLIP)
-        head.append(f"Reply to: {_one_line(sender, NAME_CLIP)}: {quoted}" if sender else f"Reply to: {quoted}")
-    if staged:
-        head.append(_files_line(staged))
+        reply = f"{_one_line(sender, NAME_CLIP)}: {quoted}" if sender else quoted
     pings = sorted(set(PINGS.findall(plan["text"])))
-    if pings:
-        head.append("Pings: " + ", ".join(pings))
-    if plan.get("note"):
-        head.append(f"Note: {plan['note']}")
-    head.append("")
-    return _fit("\n".join(head) + "\n", plan["text"] or "(no text: files only)")
-
-
-def _fit(prefix: str, text: str) -> str:
-    """The card's head plus as much of ``text`` as fits CARD_LIMIT, the rest counted."""
-    if _units(prefix + visible(text)) <= CARD_LIMIT:
-        return prefix + visible(text)
-    lo, hi = 0, len(text)
-    while lo < hi:
-        mid = (lo + hi + 1) // 2
-        if _units(prefix + visible(text[:mid].rstrip()) + "…\n" + MORE.format(n=len(text) - mid)) <= CARD_LIMIT:
-            lo = mid
-        else:
-            hi = mid - 1
-    return prefix + visible(text[:lo].rstrip()) + "…\n" + MORE.format(n=len(text) - lo)
+    facts = [("Account", _account(plan.get("me") or {})), ("To", _one_line(plan["label"], NAME_CLIP * 2)),
+             ("Reply to", reply), ("Pings", ", ".join(pings) or None), ("Note", plan.get("note"))]
+    sections = [(f"Files ({len(staged)})", _file_lines(staged))] if staged else []
+    try:
+        return cards.compose("Discord", "Send message", _reach(plan["label"], plan["text"]), facts,
+                             context=[("Channel id", plan["channel"])], sections=sections, text=plan["text"] or None)
+    except cards.CardError:
+        raise DiscordError("this send does not fit on one approval card here; send fewer files, or the reply "
+                           "without its quote") from None
 
 
 def rule_key(plan: dict, staged: list[dict] | None = None) -> str:
@@ -2426,11 +2419,6 @@ KEYCAP = re.compile("^[0-9#*]\ufe0f?\u20e3$")
 COLOR = re.compile(r"^#?([0-9a-fA-F]{6})$")
 ADMIN_REFUSED = ("the Administrator permission is never given from here (it hands over the whole server): the user "
                  "does that in the Discord app")
-
-
-def _account(me: dict) -> str:
-    who = me.get("name") or me.get("username") or "(account)"
-    return f"Discord: {_one_line(who, NAME_CLIP)}" + (f" (@{me['username']})" if me.get("username") else "")
 
 
 def _message_target(conn, args: dict, *, own: bool) -> tuple[str, str, dict, str]:
@@ -2466,7 +2454,7 @@ def _emoji(args: dict, message: dict) -> str:
         return present[0]
     if KEYCAP.match(raw):
         return raw
-    if len(raw) > 16 or SUSPICIOUS.search(raw) or any(ord(ch) < 128 or ch.isspace() for ch in raw):
+    if len(raw) > 16 or cards.SUSPICIOUS.search(raw) or any(ord(ch) < 128 or ch.isspace() for ch in raw):
         raise DiscordError("emoji must be one Unicode emoji character, or a custom emoji already on that message")
     return raw
 
@@ -2476,19 +2464,26 @@ def _message_plan(conn, args: dict, action: str) -> dict:
     cid, mid, m, label = _message_target(conn, args, own=own)
     for clip in (QUOTE_CLIP * 3 if own else QUOTE_CLIP, QUOTE_CLIP, QUOTE_CLIP // 2, 8):
         plan = _message_card(conn, args, action, cid, mid, m, label, clip)
-        if plan["card"] is not None and _units(plan["card"]) <= CARD_LIMIT:
+        if plan["card"] is not None:
             return plan
     raise DiscordError("the card for this request does not fit; nothing was asked")
 
 
 def _message_card(conn, args: dict, action: str, cid: str, mid: str, m: dict, label: str, clip: int) -> dict:
+    """The card for a write on one message, with its quote clipped to ``clip``; ``card`` is None when
+    it does not fit, so the caller tries a shorter quote."""
     own = action in ("edit", "delete")
     sender = "me" if m["from_me"] else (m["author_name"] or "")
     quoted = _one_line(m["content"] or "(attachment)", clip)
-    head = [_account(store.get_meta(conn, "me") or {}), f"In: {_one_line(label, NAME_CLIP * 2)}",
-            f"Channel id: {cid}"]
+    message = f"{_one_line(sender, NAME_CLIP)}: {quoted}" if sender else quoted
+    facts = [("Account", _account(store.get_meta(conn, "me") or {})), ("In", _one_line(label, NAME_CLIP * 2))]
+    # Two chats can share a name: the id stays on the card of a write that cannot be taken back.
+    context = [("Channel id", cid)]
+    if own:
+        facts, context = facts + context, []
     engine = {"channel": cid, "id": mid}
     check = "read the message with messages live=true"
+    text, text_label, text_min = None, None, cards.TEXT_MIN
     if action in ("react", "unreact"):
         emoji = _emoji(args, m)
         if action == "unreact":
@@ -2496,17 +2491,19 @@ def _message_card(conn, args: dict, action: str, cid: str, mid: str, m: dict, la
             if known is not None and not any(r.get("emoji") == emoji and r.get("me") for r in known):
                 raise DiscordError("you have not reacted with that emoji on that message (as last read)")
         engine["emoji"] = emoji
-        head += [f"Message: {_one_line(sender, NAME_CLIP)}: {quoted}" if sender else f"Message: {quoted}",
-                 f"React with: {visible(emoji)}" if action == "react" else f"Remove my reaction: {visible(emoji)}"]
-        card, done = "\n".join(head), "reaction added" if action == "react" else "reaction removed"
+        title, effect = (("React", (cards.CAUTION, "Everyone in the chat sees your reaction")) if action == "react"
+                         else ("Remove my reaction", (cards.SAFE, "Takes back your reaction")))
+        facts += [("Message", message), ("Emoji", visible(emoji))]
+        done = "reaction added" if action == "react" else "reaction removed"
     elif action in ("pin", "unpin"):
         if m["type"] not in (None, 0, 19):
             raise DiscordError("only a plain message or a reply can be pinned")
-        head += [f"Message: {_one_line(sender, NAME_CLIP)}: {quoted}" if sender else f"Message: {quoted}",
-                 "Pin this message" if action == "pin" else "Unpin this message"]
+        title, effect = (("Pin message", (cards.CAUTION, f"Everyone in the chat sees \"{PIN_NOTICE}\""))
+                         if action == "pin" else ("Unpin message", (cards.SAFE, "It can be pinned again")))
+        facts.append(("Message", message))
         if action == "pin":
-            head.append(f"Everyone in the chat sees \"{PIN_NOTICE}\". A chat holds at most 250 pins.")
-        card, done = "\n".join(head), "pinned" if action == "pin" else "unpinned"
+            context.append(("Pins", "a chat holds at most 250"))
+        done = "pinned" if action == "pin" else "unpinned"
         check = "read the message with messages live=true, or list the pins with action=pins"
     elif action == "edit":
         text = _str(args, "text", required=True)
@@ -2515,17 +2512,22 @@ def _message_card(conn, args: dict, action: str, cid: str, mid: str, m: dict, la
         if text == m["content"]:
             raise DiscordError("the new text is the same as the message's current text")
         engine["text"] = text
-        head += ["Edit my message", f"Before: {quoted}"]
+        title, effect = "Edit my message", _reach(label, text)
+        if effect[0] != cards.DANGER:
+            effect = (cards.CAUTION, "Everyone in the chat sees the new text")
         pings = sorted(set(PINGS.findall(text)))
-        if pings:
-            head.append("Pings: " + ", ".join(pings))
-        prefix = "\n".join(head + ["", ""])
-        # The new text needs room on the card: a head this long does not fit.
-        card = _fit(prefix, text) if _units(prefix) <= CARD_LIMIT - 80 else None
+        facts += [("Before", quoted), ("Pings", ", ".join(pings) or None)]
+        text_label, text_min = "New text", 80   # the new text needs room on the card
         done = "edited"
     else:
-        head += [f"Delete my message: {quoted}", "This cannot be undone."]
-        card, done = "\n".join(head), "deleted"
+        title, effect = "Delete my message", (cards.DANGER, "Cannot be undone")
+        facts.append(("Message", quoted))
+        done = "deleted"
+    try:
+        card = cards.compose("Discord", title, effect, facts, context=context, text=text, text_label=text_label,
+                             text_min=text_min)
+    except cards.CardError:
+        card = None
     # An edit, deletion or pin acts on the message as the card quoted it: a change meanwhile voids the card.
     bound = [m["content"], m["edited"], _attachment_identity(m)] if own or action in ("pin", "unpin") else None
     return {"action": action, "command": action, "engine": engine, "card": card, "done": done, "check": check,
@@ -2649,15 +2651,21 @@ def _role_plan(conn, args: dict, action: str, fresh: bool) -> dict:
         if action == "role_bulk_add":
             people = _users(conn, gid, args)
             engine["users"] = [uid for uid, _ in people]
-            lines += [f"Action: add role {label} to {len(people)} member(s)",
-                      "Members: " + _names_line([_one_line(n, NAME_CLIP) for _, n in people]), f"Role id: {role['id']}"]
+            title = f"Add a role to {len(people)} member(s)"
+            effect = (cards.CAUTION, "They get the role's permissions at once")
+            lines += [("Role", label), ("Role id", role["id"]),
+                      ("Members", _names_line([_one_line(n, NAME_CLIP) for _, n in people]))]
             done = "role added"
         else:
             uid = _id(args, "user", required=True, what="a user id")
             name = _known_user(conn, gid, uid)
             engine["user"] = uid
-            verb = f"add role {label} to" if action == "role_add" else f"remove role {label} from"
-            lines += [f"Action: {verb} {_one_line(name, NAME_CLIP)}", f"Role id: {role['id']}", f"User id: {uid}"]
+            if action == "role_add":
+                title, effect = "Add a role", (cards.CAUTION, "They get the role's permissions at once")
+            else:
+                title, effect = "Remove a role", (cards.CAUTION, "They lose the role's permissions at once")
+            lines += [("Role", label), ("Role id", role["id"]), ("Member", _one_line(name, NAME_CLIP)),
+                      ("User id", uid)]
             done = "role added" if action == "role_add" else "role removed"
             check = "look the member up with action=member"
     elif action == "role_create":
@@ -2672,29 +2680,31 @@ def _role_plan(conn, args: dict, action: str, fresh: bool) -> dict:
         if color is not None:
             spec["color"] = color
         engine["spec"], warn = spec, perms.strong(bits)
-        lines += [f"Action: create role {_one_line(name, NAME_CLIP)!r}", "Permissions: " + _names_line(perms.names(bits)),
-                  f"Color: {_hex(color) or 'default'}, shown separately: {_yes(spec['hoist'])}, "
-                  f"anyone can mention it: {_yes(spec['mentionable'])}"]
+        title, effect = "Create a role", (cards.SAFE, "No one holds it yet")
+        lines += [("Name", repr(_one_line(name, NAME_CLIP))), ("Permissions", _names_line(perms.names(bits))),
+                  ("Color", f"{_hex(color) or 'default'}, shown separately: {_yes(spec['hoist'])}, "
+                            f"anyone can mention it: {_yes(spec['mentionable'])}")]
         done = "role created"
     elif action == "role_edit":
         role = _target_role(ctx, args, everyone_ok=True)
         engine["role"], label, spec = str(role["id"]), _role_label(ctx, role), {}
-        lines += [f"Action: edit role {label}", f"Role id: {role['id']}"]
+        title, effect = "Edit a role", (cards.CAUTION, "Everyone who holds it is affected at once")
+        lines += [("Role", label), ("Role id", role["id"])]
         name = _str(args, "name")
         if name and name != role["name"]:
             if len(name) > 100:
                 raise DiscordError("name is at most 100 characters")
             spec["name"] = name
-            lines.append(f"Name: {_one_line(role['name'], NAME_CLIP)} → {_one_line(name, NAME_CLIP)}")
+            lines.append(("Name", f"{_one_line(role['name'], NAME_CLIP)} → {_one_line(name, NAME_CLIP)}"))
         color = _color(args)
         if color is not None and color != (role["color"] or 0):
             spec["color"] = color
-            lines.append(f"Color: {_hex(role['color']) or 'default'} → {_hex(color) or 'default'}")
+            lines.append(("Color", f"{_hex(role['color']) or 'default'} → {_hex(color) or 'default'}"))
         for key, shown in (("hoist", "Shown separately"), ("mentionable", "Anyone can mention it")):
             value = _bool(args, key)
             if value is not None and value != bool(role[key]):
                 spec[key] = value
-                lines.append(f"{shown}: {_yes(role[key])} → {_yes(value)}")
+                lines.append((shown, f"{_yes(role[key])} → {_yes(value)}"))
         grant, revoke = _permissions(args, "grant"), _permissions(args, "revoke")
         if grant & revoke:
             raise DiscordError("a permission cannot be in both grant and revoke: " + ", ".join(perms.names(grant & revoke)))
@@ -2704,9 +2714,9 @@ def _role_plan(conn, args: dict, action: str, fresh: bool) -> dict:
         if new != old:
             spec["permissions"] = str(new)
             if new & ~old:
-                lines.append("Adds: " + _names_line(perms.names(new & ~old)))
+                lines.append(("Adds", _names_line(perms.names(new & ~old))))
             if old & ~new:
-                lines.append("Removes: " + _names_line(perms.names(old & ~new)))
+                lines.append(("Removes", _names_line(perms.names(old & ~new))))
         if not spec:
             raise DiscordError("nothing would change: give name, color, hoist, mentionable, grant or revoke")
         warn = perms.strong(new & ~old)
@@ -2716,20 +2726,23 @@ def _role_plan(conn, args: dict, action: str, fresh: bool) -> dict:
     else:
         role = _target_role(ctx, args)
         engine["role"], bound = str(role["id"]), role["permissions"]
-        members_count = f" ({role['members']} member(s))" if isinstance(role["members"], int) else ""
-        lines += [f"Action: delete role {_role_label(ctx, role)}{members_count}", f"Role id: {role['id']}",
-                  "This cannot be undone."]
+        held = f"; {role['members']} member(s) lose it" if isinstance(role["members"], int) else ""
+        title, effect = "Delete a role", (cards.DANGER, f"Cannot be undone{held}")
+        lines += [("Role", _role_label(ctx, role)), ("Role id", role["id"])]
         done = "role deleted"
     if reason:
         engine["reason"] = reason
-        lines.append(f"Reason (audit log): {_one_line(reason, QUOTE_CLIP * 3)}")
-    head = ([f"⚠ Strong permissions: {_names_line(warn)}"] if warn else []) + [
-        _account(ctx["me"]), f"Server: {_one_line(ctx['guild'], NAME_CLIP * 2)}"]
-    card = "\n".join(head + lines)
-    if _units(card) > CARD_LIMIT:
+        lines.append(("Reason (audit log)", _one_line(reason, QUOTE_CLIP * 3)))
+    if warn:   # strong permissions outrank whatever else the change does
+        effect = (cards.DANGER, f"Strong permissions: {_names_line(warn)}")
+    try:
         # Every line of a role card is part of what is approved, so it is never cut.
+        card = cards.compose("Discord", title, effect,
+                             [("Account", _account(ctx["me"])), ("Server", _one_line(ctx["guild"], NAME_CLIP * 2)),
+                              *lines])
+    except cards.CardError:
         raise DiscordError("this change does not fit on one approval card: split it (for example permissions "
-                           "apart from the name and color, or a shorter reason)")
+                           "apart from the name and color, or a shorter reason)") from None
     return {"action": action, "command": action, "engine": engine, "card": card, "done": done,
             "check": check, "bound": bound}
 
