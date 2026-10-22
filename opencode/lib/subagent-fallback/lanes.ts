@@ -5,6 +5,7 @@ import { catalogOk, type CatalogModel, type ModelRef } from "./policy"
 //   subagents: lanes first, then the subscription (then the usual preflight)
 //   primary:   the subscription first, then lanes; on a lane, the other lanes
 //              first and the subscription last
+// Other saved Claude logins (claude-accounts.ts) come after all of these.
 export const OAUTH_PROVIDER = "anthropic"
 export const DEFAULT_COOLDOWN_MS = 60 * 60_000
 // Moves of one session within this window never revisit a provider.
@@ -113,18 +114,66 @@ export class Episodes {
   }
 }
 
-// The same model on another provider. A variant the target lacks (the
-// "default" label, for one) is dropped rather than refusing the move.
+// A place a session can move to: a provider (a credit lane, or the active
+// Claude login), or another saved Claude login, reached through the alias
+// models its suffix names (claude-accounts.ts).
+export type Stop = { key: string; providerID: string; suffix?: string }
+export const providerStop = (providerID: string): Stop => ({
+  key: providerID,
+  providerID,
+})
+export const loginStop = (suffix: string): Stop => ({
+  key: `${OAUTH_PROVIDER}#${suffix}`,
+  providerID: OAUTH_PROVIDER,
+  suffix,
+})
+
+// The login suffix a model ID ends in; the longest one wins. The request
+// router picks a login by this same rule.
+export function longestSuffix(
+  id: string,
+  suffixes: readonly string[],
+): string | undefined {
+  let found: string | undefined
+  for (const suffix of suffixes)
+    if (
+      id.length > suffix.length + 1 &&
+      id.endsWith(`-${suffix}`) &&
+      (found === undefined || suffix.length > found.length)
+    )
+      found = suffix
+  return found
+}
+
+// The stop a model runs on, given every configured login suffix.
+export function stopFor(model: ModelRef, suffixes: readonly string[]): Stop {
+  const suffix =
+    model.providerID === OAUTH_PROVIDER
+      ? longestSuffix(model.id, suffixes)
+      : undefined
+  return suffix === undefined
+    ? providerStop(model.providerID)
+    : loginStop(suffix)
+}
+
+// The same model at another stop. A variant the target lacks (the "default"
+// label, for one) is dropped rather than refusing the move.
 export function retarget(
   model: ModelRef,
-  providerID: string,
+  to: Stop,
   catalog: CatalogModel[],
+  from: Stop = providerStop(model.providerID),
 ): ModelRef | undefined {
+  const base = from.suffix
+    ? model.id.slice(0, -(from.suffix.length + 1))
+    : model.id
+  const id = to.suffix ? `${base}-${to.suffix}` : base
+  const providerID = to.providerID
   if (model.variant !== undefined) {
-    const same = { id: model.id, providerID, variant: model.variant }
+    const same = { id, providerID, variant: model.variant }
     if (catalogOk(catalog, same)) return same
   }
-  const bare = { id: model.id, providerID }
+  const bare = { id, providerID }
   return catalogOk(catalog, bare) ? bare : undefined
 }
 
@@ -132,21 +181,34 @@ export function nextModel(input: {
   current: ModelRef
   role: Role
   lanes: Lanes
+  // The other saved Claude logins a session may move to, in order.
+  logins?: readonly string[]
+  // Every configured login suffix, usable or not, to tell which login a
+  // model runs on (the logins by default).
+  suffixes?: readonly string[]
   tried: ReadonlySet<string>
   catalog: CatalogModel[]
 }): ModelRef | undefined {
   const { current, role, lanes, tried, catalog } = input
-  // Credits stay ahead of the subscription for a specialist, and for any
-  // session already on a lane: the subscription is then the last stop. Only a
-  // primary still on the subscription goes to the lanes after it.
+  const suffixes = input.suffixes ?? input.logins ?? []
+  const from = stopFor(current, suffixes)
+  const active = providerStop(OAUTH_PROVIDER)
+  const credits = lanes.ids.map(providerStop)
+  const logins = (input.logins ?? []).map(loginStop)
+  // Credits stay ahead of the active login for a specialist, and for any
+  // session already off it: that login is then the last subscription stop.
+  // Only a primary still on it goes to the lanes after it. The other saved
+  // logins come last either way.
   const chain =
-    role === "subagent" || lanes.has(current.providerID)
-      ? [...lanes.ids, OAUTH_PROVIDER]
-      : [OAUTH_PROVIDER, ...lanes.ids]
-  for (const id of chain) {
-    if (tried.has(id) || lanes.blocked(id)) continue
-    const target = retarget(current, id, catalog)
-    if (target) return target
+    role === "primary" && from.key === active.key
+      ? [active, ...credits, ...logins]
+      : [...credits, active, ...logins]
+  for (const stop of chain) {
+    if (tried.has(stop.key) || lanes.blocked(stop.key)) continue
+    const target = retarget(current, stop, catalog, from)
+    // A catalog entry is not proof of the login: with overlapping suffixes
+    // (`sub`, `fast-sub`) an ID built for one can name another.
+    if (target && stopFor(target, suffixes).key === stop.key) return target
   }
   return undefined
 }

@@ -5,9 +5,13 @@ import {
   Episodes,
   Lanes,
   launchLane,
+  loginStop,
+  longestSuffix,
   nextModel,
   OAUTH_PROVIDER,
+  providerStop,
   retarget,
+  stopFor,
   type Decision,
 } from "./lanes"
 import { ROUTES, type CatalogModel, type ModelRef } from "./policy"
@@ -15,6 +19,7 @@ import { ROUTES, type CatalogModel, type ModelRef } from "./policy"
 const MAIN = "anthropic-credit-main"
 const SUB = "anthropic-credit-sub"
 const SONNET = ROUTES.worker.primary
+const SONNET_SUB = { ...SONNET, id: `${SONNET.id}-sub` }
 const entry = (m: ModelRef, variants: string[]): CatalogModel => ({
   id: m.id,
   providerID: m.providerID,
@@ -114,17 +119,140 @@ describe("Lanes and Episodes", () => {
 
 describe("choosing a model", () => {
   test("retarget keeps the variant when the target has it and drops it otherwise", () => {
-    expect(retarget(SONNET, MAIN, catalog())).toEqual({
+    expect(retarget(SONNET, providerStop(MAIN), catalog())).toEqual({
       ...SONNET,
       providerID: MAIN,
     })
     expect(
-      retarget({ ...SONNET, variant: "default" }, MAIN, catalog()),
+      retarget(
+        { ...SONNET, variant: "default" },
+        providerStop(MAIN),
+        catalog(),
+      ),
     ).toEqual({
       id: SONNET.id,
       providerID: MAIN,
     })
-    expect(retarget(SONNET, "elsewhere", catalog())).toBeUndefined()
+    expect(
+      retarget(SONNET, providerStop("elsewhere"), catalog()),
+    ).toBeUndefined()
+  })
+  test("retarget moves between a provider and another login's alias models", () => {
+    const withLogin = [...catalog(), entry(SONNET_SUB, ["low"])]
+    expect(retarget(SONNET, loginStop("sub"), withLogin)).toEqual(SONNET_SUB)
+    expect(
+      retarget(SONNET_SUB, providerStop(MAIN), withLogin, loginStop("sub")),
+    ).toEqual({ ...SONNET, providerID: MAIN })
+    expect(
+      retarget(
+        { ...SONNET, providerID: MAIN },
+        providerStop(OAUTH_PROVIDER),
+        withLogin,
+      ),
+    ).toEqual(SONNET)
+    expect(retarget(SONNET, loginStop("sub"), catalog())).toBeUndefined()
+  })
+  test("other saved logins come after the lanes and the active login", () => {
+    const lanes = new Lanes([MAIN, SUB], DEFAULT_COOLDOWN_MS, () => 0)
+    const withLogin = [...catalog(), entry(SONNET_SUB, ["low"])]
+    const base = { lanes, catalog: withLogin, logins: ["sub"] }
+    expect(
+      nextModel({
+        ...base,
+        current: SONNET,
+        role: "primary",
+        tried: new Set([OAUTH_PROVIDER, MAIN, SUB]),
+      }),
+    ).toEqual(SONNET_SUB)
+    expect(
+      nextModel({
+        ...base,
+        current: SONNET,
+        role: "primary",
+        tried: new Set([OAUTH_PROVIDER]),
+      })?.providerID,
+    ).toBe(MAIN)
+    expect(
+      nextModel({
+        ...base,
+        current: { ...SONNET, providerID: SUB },
+        role: "subagent",
+        tried: new Set([MAIN, SUB, OAUTH_PROVIDER]),
+      }),
+    ).toEqual(SONNET_SUB)
+    // A session on that login goes to the lanes, then the active login.
+    const fromLogin = {
+      ...base,
+      current: SONNET_SUB,
+      role: "primary" as const,
+    }
+    expect(
+      nextModel({ ...fromLogin, tried: new Set([loginStop("sub").key]) }),
+    ).toEqual({ ...SONNET, providerID: MAIN })
+    expect(
+      nextModel({
+        ...fromLogin,
+        tried: new Set([loginStop("sub").key, MAIN, SUB]),
+      }),
+    ).toEqual(SONNET)
+    expect(
+      nextModel({
+        ...fromLogin,
+        tried: new Set([loginStop("sub").key, MAIN, SUB, OAUTH_PROVIDER]),
+      }),
+    ).toBeUndefined()
+  })
+  test("a model runs on the login of its longest suffix", () => {
+    const suffixes = ["sub", "fast-sub"]
+    expect(longestSuffix("claude-opus-5-5-fast-sub", suffixes)).toBe(
+      "fast-sub",
+    )
+    expect(longestSuffix("claude-opus-5-5-sub", suffixes)).toBe("sub")
+    expect(longestSuffix("-sub", suffixes)).toBeUndefined()
+    expect(stopFor(SONNET_SUB, suffixes)).toEqual(loginStop("sub"))
+    expect(stopFor(SONNET, suffixes)).toEqual(providerStop(OAUTH_PROVIDER))
+    expect(stopFor({ ...SONNET_SUB, providerID: MAIN }, suffixes)).toEqual(
+      providerStop(MAIN),
+    )
+  })
+  test("a move never lands on a model another login's suffix claims", () => {
+    const lanes = new Lanes([], DEFAULT_COOLDOWN_MS, () => 0)
+    const FAST = { ...SONNET, id: `${SONNET.id}-fast` }
+    const FAST_SUB = { ...SONNET, id: `${SONNET.id}-fast-sub` }
+    const SUB_ONLY = { ...SONNET, id: `${SONNET.id}-sub` }
+    const models = [FAST, FAST_SUB, SUB_ONLY].map((m) => entry(m, ["low"]))
+    // Only `sub` is usable; `fast-sub` is configured but has no label.
+    const base = {
+      lanes,
+      role: "primary" as const,
+      catalog: models,
+      logins: ["sub"],
+      suffixes: ["sub", "fast-sub"],
+    }
+    expect(
+      nextModel({ ...base, current: FAST, tried: new Set([OAUTH_PROVIDER]) }),
+    ).toBeUndefined()
+    // An active-login candidate a suffix claims is no active-login stop.
+    expect(
+      nextModel({
+        ...base,
+        current: { ...SUB_ONLY, providerID: MAIN },
+        catalog: [entry(SUB_ONLY, ["low"])],
+        logins: [],
+        suffixes: ["sub"],
+        tried: new Set([MAIN]),
+      }),
+    ).toBeUndefined()
+    expect(
+      nextModel({
+        ...base,
+        current: { ...SUB_ONLY, providerID: MAIN },
+        catalog: [entry(SUB_ONLY, ["low"])],
+        logins: [],
+        suffixes: [],
+        tried: new Set([MAIN]),
+      }),
+    ).toEqual(SUB_ONLY)
   })
   test("subagents prefer lanes and primaries prefer the subscription", () => {
     const lanes = new Lanes([MAIN, SUB], DEFAULT_COOLDOWN_MS, () => 0)
