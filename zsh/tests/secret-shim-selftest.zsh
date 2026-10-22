@@ -236,27 +236,45 @@ printf 'P_ONLY=fromprod\n' > "$R/.env.production"
   && ok "dotenv: .env and the stage's file are skipped under a stage" || bad "dotenv: .env and the stage's file are skipped under a stage"
 rm -f "$R/.env.test" "$R/.env.production"
 
-# --- mode table -----------------------------------------------------------
-# real command names must select their mode without SECRET_SHIM_MODE
+# --- mode by link target ----------------------------------------------------
+# the launcher a command is linked to declares its mode, without
+# SECRET_SHIM_MODE and without a name table: secret-shim-project for
+# project mode, secret-shim-plain for none, secret-shim itself for tool mode
+ln -s "${SHIM:h}/secret-shim-project" "$TD/bin/anytool"
 ln -s "$SHIM" "$TD/bin/docker"
-cat > "$TD/real/docker" <<'EOF'
+for c in anytool docker; do
+  cat > "$TD/real/$c" <<'EOF'
 #!/bin/sh
 exec /usr/bin/printenv "$@"
 EOF
-chmod +x "$TD/real/docker"
-dockenv() {                    # like penv, but no SECRET_SHIM_MODE forcing
+  chmod +x "$TD/real/$c"
+done
+linkenv() {                    # $1 command; like penv, but no SECRET_SHIM_MODE forcing
+  local c=$1; shift
   ( cd "$TD/repo" || exit 9
     path=("$TD/bin" "$TD/real" $path)
-    "$TD/bin/docker" "$@" 2>/dev/null )
+    SECRET_SHIM_BASE=$PB "$TD/bin/$c" "$@" 2>/dev/null )
 }
-[[ "$(dockenv A_ONLY)" == 'kc-a' ]] \
-  && ok "mode table: docker maps to project mode" || bad "mode table: docker maps to project mode"
-[[ -z "$(dockenv B_DOTENV)" ]] \
-  && ok "mode table: docker respects dotenv skip" || bad "mode table: docker respects dotenv skip"
+[[ "$(linkenv anytool A_ONLY)" == 'kc-a' ]] \
+  && ok "mode: a link to secret-shim-project is project mode" || bad "mode: a link to secret-shim-project is project mode"
+[[ -z "$(linkenv anytool B_DOTENV)" ]] \
+  && ok "mode: ... and respects the dotenv skip" || bad "mode: ... and respects the dotenv skip"
+[[ -z "$(linkenv docker A_ONLY)" && "$(linkenv docker TB_BASE)" == 'base-1' ]] \
+  && ok "mode: a link to secret-shim is tool mode, whatever the name" || bad "mode: a link to secret-shim is tool mode, whatever the name"
+[[ -L ${SHIM:h}/secret-shim-project && ${SHIM:h}/secret-shim-project -ef $SHIM && -L ${SHIM:h}/secret-shim-plain && ${SHIM:h}/secret-shim-plain -ef $SHIM ]] \
+  && ok "mode: secret-shim-project and -plain are links to secret-shim" || bad "mode: secret-shim-project and -plain are links to secret-shim"
+# a link to a link (a bin elsewhere pointing at ~/.config/bin/node) still finds its mode
+mkdir -p "$TD/bin2"; ln -s "$TD/bin/anytool" "$TD/bin2/anytool"
+[[ "$( cd "$TD/repo" && path=("$TD/bin2" "$TD/real" $path) && SECRET_SHIM_BASE=$PB "$TD/bin2/anytool" A_ONLY 2>/dev/null )" == 'kc-a' ]] \
+  && ok "mode: a link to a link follows the chain" || bad "mode: a link to a link follows the chain"
+# the mode does not depend on a readlink found through PATH
+mkdir -p "$TD/broken"; printf '#!/bin/sh\nexit 1\n' > "$TD/broken/readlink"; chmod +x "$TD/broken/readlink"
+[[ "$( cd "$TD/repo" && path=("$TD/broken" "$TD/bin" "$TD/real" $path) && SECRET_SHIM_BASE=$PB "$TD/bin/anytool" A_ONLY 2>/dev/null )" == 'kc-a' ]] \
+  && ok "mode: chosen without readlink on PATH" || bad "mode: chosen without readlink on PATH"
 
 # --- mise pin ---------------------------------------------------------------
 # a caller that swaps HOME (and drops MISE_*) still gets the real home's dirs
-ln -s "$SHIM" "$TD/bin/pip"
+ln -s "${SHIM:h}/secret-shim-plain" "$TD/bin/pip"
 cat > "$TD/real/pip" <<'EOF'
 #!/bin/sh
 exec /usr/bin/printenv "$@"

@@ -239,13 +239,19 @@ comes first in `PATH` ([`config.zsh`](../config.zsh)), so every launch —
 interactive shell or the tmux `prefix o` popup — goes through the shim,
 which injects Keychain secrets and execs the real binary (resolved from
 `PATH`, skipping itself, so e.g. the Claude Code self-updater in
-`~/.local/bin` keeps working). The symlink name selects one of three modes:
+`~/.local/bin` keeps working). The launcher a symlink points at selects
+one of three modes — there is no name table, `ls -l ~/.config/bin` is the
+truth:
 
-| Mode    | Commands                                                                                                   | Injects                                                                                                                                                  |
-| ------- | ---------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| tool    | `opencode`, `claude`, `codex`, `copilot`, `grok` — and any name not listed below                           | the shared, stage-less layers of `global`, then `<command>` (tool wins); never a repository scope or a stage                                             |
-| project | `npm`, `pnpm`, `node`, `bun`, `bunx`, `yarn`, `npx`, `python`, `python3`, `uv`, `docker`, `docker-compose` | `secret env` — the ambient project + repository scope of the CWD, in the stage `$SECRET_STAGE` names (none by default); nothing outside a git repository |
-| plain   | `pip`, `pip3`                                                                                              | nothing — wrapped only for the mise pin below                                                                                                            |
+| Mode    | Link target           | Commands (today)                                                                                           | Injects                                                                                                                                                  |
+| ------- | --------------------- | ---------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| tool    | `secret-shim`         | `opencode`, `claude`, `codex`, `copilot`, `grok`, `hermes`                                                 | the shared, stage-less layers of `global`, then `<command>` (tool wins); never a repository scope or a stage                                             |
+| project | `secret-shim-project` | `npm`, `pnpm`, `node`, `bun`, `bunx`, `yarn`, `npx`, `python`, `python3`, `uv`, `docker`, `docker-compose` | `secret env` — the ambient project + repository scope of the CWD, in the stage `$SECRET_STAGE` names (none by default); nothing outside a git repository |
+| plain   | `secret-shim-plain`   | `pip`, `pip3`                                                                                              | nothing — wrapped only for the mise pin below                                                                                                            |
+
+`secret-shim-project` and `secret-shim-plain` are themselves links to
+`secret-shim`; a command links to one of the three (a link to such a link
+is followed too).
 
 Both injecting modes go through `secret env`, so items stored `--no-env`
 never reach a wrapped command.
@@ -303,7 +309,8 @@ secret set OPENAI_API_KEY -p global        # every AI tool
 secret set CONTEXT7_API_KEY -p opencode    # one tool (overrides global)
 secret set DATABASE_URL -S                 # this repo — `npm run dev` sees it
 secret set DATABASE_URL -S --stage prod    # `SECRET_STAGE=prod npm run migrate` sees this one
-ln -s secret-shim ~/.config/bin/hermes     # wrap another tool
+ln -s secret-shim ~/.config/bin/gemini     # wrap another tool (tool mode)
+ln -s secret-shim-project ~/.config/bin/deno   # a runtime that reads the repo's secrets
 ```
 
 Containers: `docker` / `docker compose` run through the shim too. Declare
@@ -429,7 +436,10 @@ master machinery via the `SECRET_MASTER_ACCOUNT` / `SECRET_TEST_ONLY_KC`
 hooks, and cleans up after itself — safe to run on a machine with real data.
 
 [`zsh/tests/secret-shim-selftest.zsh`](../tests/secret-shim-selftest.zsh) —
-59 assertions for the launcher shims: layer injection and override order,
+63 assertions for the launcher shims: the mode from the link target
+(`secret-shim-project` for any name, `secret-shim` for tool mode whatever
+the name, the two launchers as links, a link to a link, no readlink on
+PATH), layer injection and override order,
 inherited-environment precedence, dotenv name skipping (monorepo union from
 the root vs per-package precision, `.env.example` exclusion, `export NAME=`
 lines, the stage's own file vs another stage's under `SECRET_STAGE`, the

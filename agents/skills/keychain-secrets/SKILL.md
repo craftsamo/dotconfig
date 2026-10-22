@@ -29,13 +29,14 @@ resolved further down `PATH`, skipping the shim itself.
 
 <InjectionModes>
 
-The mode is chosen by the command name in `bin/secret-shim:53-58`.
+The mode is chosen by the launcher a command's symlink points at — read it
+with `ls -l ~/.config/bin`; there is no name table.
 
-| Mode | Commands | Injects |
-| --- | --- | --- |
-| tool | `opencode`, `claude`, `codex`, `copilot`, `grok`, and any unlisted name | shared layers only: `global`, then `<command>`; tool layer overrides global; never a repository scope |
-| project | `node npm pnpm bun bunx yarn npx python python3 uv docker docker-compose` | `secret env` for the current git repo's project + scope, in the stage `SECRET_STAGE` names (none by default); only inside a git repo |
-| plain | `pip pip3` | nothing; wrapped only for the mise pin |
+| Mode | Link target | Commands (today) | Injects |
+| --- | --- | --- | --- |
+| tool | `secret-shim` | `opencode`, `claude`, `codex`, `copilot`, `grok`, `hermes` | shared layers only: `global`, then `<command>`; tool layer overrides global; never a repository scope |
+| project | `secret-shim-project` | `node npm pnpm bun bunx yarn npx python python3 uv docker docker-compose` | `secret env` for the current git repo's project + scope, in the stage `SECRET_STAGE` names (none by default); only inside a git repo |
+| plain | `secret-shim-plain` | `pip pip3` | nothing; wrapped only for the mise pin |
 
 Precedence in the injecting modes:
 `exported env > .env files (project mode) > Keychain`.
@@ -182,11 +183,13 @@ the item, so confirm with the user like any `set`.
 <WrappingTools>
 
 ```sh
-ln -s secret-shim ~/.config/bin/<command>     # route it through the shim
+ln -s secret-shim ~/.config/bin/<command>           # tool mode (global + <command> layers)
+ln -s secret-shim-project ~/.config/bin/<command>   # project mode (the repo's secrets)
+ln -s secret-shim-plain ~/.config/bin/<command>     # no secrets, mise pin only
 ```
 
-If the tool should receive project/repo secrets instead of tool-layer secrets,
-also add its name to the `project` case in `~/.config/bin/secret-shim:46`.
+The link target is the whole declaration; nothing in `secret-shim` lists
+command names; a link to such a link is followed too.
 
 </WrappingTools>
 
