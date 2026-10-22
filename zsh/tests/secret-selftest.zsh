@@ -282,6 +282,11 @@ err=$(print -r -- 'never-stored' | secret update TEST_ALPHA -p $P --stdin 2>&1 >
   && ok "update fails when the value does not read back" || bad "update fails when the value does not read back ($rc: $err)"
 unfunction security
 [[ "$(secret get TEST_ALPHA -p $P)" == 'rotated-789' ]] && ok "the value is untouched after the refused writes" || bad "the value is untouched after the refused writes"
+# the read-back compares bytes: a UTF-8 value with leading/trailing spaces survives it
+print -r -- '  パスワード🔑 café  ' | secret update TEST_ALPHA -p $P --stdin >/dev/null 2>&1 \
+  && [[ "$(secret get TEST_ALPHA -p $P)" == '  パスワード🔑 café  ' ]] \
+  && ok "a UTF-8 value with surrounding spaces reads back as written" || bad "a UTF-8 value with surrounding spaces reads back as written"
+print -r -- 'rotated-789' | secret update TEST_ALPHA -p $P --stdin >/dev/null 2>&1
 [[ "$(secret show TEST_ALPHA -p $P)" != *'never stored'* ]] && ok "the comment is untouched after the refused writes" || bad "the comment is untouched after the refused writes"
 upshow=$(secret show TEST_ALPHA -p $P)
 [[ $upshow =~ 'Kind:[[:space:]]+TOKEN' ]] && ok "kind updated" || bad "kind updated"
