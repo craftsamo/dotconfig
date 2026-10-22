@@ -276,10 +276,10 @@ skills.
   keeps restarting a file that is gone.
 - **`plugins/_shared/`, `plugins/messaging/_shared/` and
   `plugins/web3/_shared/` are code, not plugins.** Sibling plugins load their
-  modules by path (`human_gate.py`; `archive_check.py`; web3's `access.py`,
-  reader and signer, with paths that `scripts/web3.sh` names), so moving or
-  renaming one breaks them at import, and a `plugin.yaml` there would make
-  Hermes load it as a plugin — never add one. web3's evm-access and
+  modules by path (`human_gate.py`, `card.py`; `archive_check.py`; web3's
+  `access.py`, reader and signer, with paths that `scripts/web3.sh` names), so
+  moving or renaming one breaks them at import, and a `plugin.yaml` there would
+  make Hermes load it as a plugin — never add one. web3's evm-access and
   solana-access are thin entry points over `access.py` and share its one
   in-memory record of approval decisions; hyperliquid-access reaches it
   through `hl_access.py`, which must load it under the same module name
@@ -497,11 +497,14 @@ Commands: [README "Commands"](README.md#commands).
   through `plugins/_shared/human_gate.py` (or web3's `_no_human`), or, for
   substack- and youtube-access, their own `_unattended()` and
   `is_approval_bypass_active()` checks. A new plugin that returns an `approve`
-  directive needs one of these. The one exception is a write inside a mandate
-  the user approved on a card of its own (Hyperliquid orders, GitHub change
-  lists): it runs with no card, so the mandate's own bounds, re-checked at the
-  write, are the control — never let anything but such a card widen them
-  ([decision](docs/decisions/github-mandates.md)).
+  directive needs one of these, and builds its card with
+  `plugins/_shared/card.py`: a card of its own shape reads unlike every other
+  one and is cut by the chat rather than fitted
+  ([card shape](docs/access-common.md#card-shape)). The one exception is a
+  write inside a mandate the user approved on a card of its own (Hyperliquid
+  orders, GitHub change lists): it runs with no card, so the mandate's own
+  bounds, re-checked at the write, are the control — never let anything but
+  such a card widen them ([decision](docs/decisions/github-mandates.md)).
 
 ## Commits
 
