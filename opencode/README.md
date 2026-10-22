@@ -467,8 +467,9 @@ they do not probe providers or establish real billing/entitlement behavior.
 
 The same plugin spends the Max plans' monthly API credits (see "Accounts")
 through `options.creditLanes`, an ordered list of provider IDs. A missing or
-empty list turns all of this off, in-flight moves included; `enabled: false`
-stops only new lane launches.
+empty list turns all of this off, in-flight moves included, except moves to
+another Claude login ("Claude accounts" below); `enabled: false` stops only
+new lane launches.
 
 - **Specialists** (the two roles with a Claude primary). A new launch takes the
   first lane not known empty, with no subscription marker: the OAuth guards
@@ -488,20 +489,24 @@ stops only new lane launches.
   and variant, repeating the same step. Only requests on the session's own
   model count: compaction and title requests never move it. These
   fail before anything is generated, so nothing is billed twice. A specialist
-  goes lane, next lane, subscription; after a long subscription limit it stops,
-  so the parent relaunches it and the preflight can pick the other vendor
-  (the limit is remembered, see "Subscription preflight").
+  goes lane, next lane, subscription, then another Claude login; after a long
+  limit there it stops, so the parent relaunches it and the preflight can pick
+  the other vendor (the limit is remembered, see "Subscription preflight").
 - **Primary sessions** (no parent). On the subscription's window limit
   (`provider.quota`, or a rate limit that asks for more than ten seconds) they
   move to the first lane, and on to the next lane when one is empty; on a
-  lane, the subscription is the last stop. Nothing moves a primary back while
-  its lane works: return with `/models`. `primaryFallback: false` keeps the
-  primary on the subscription.
+  lane, the subscription is the last stop before another Claude login. Nothing
+  moves a primary back while its lane works: return with `/models`.
+  `primaryFallback: false` keeps the primary on the subscription.
+- **Another Claude login** ("Claude accounts" below) comes after all of these:
+  a session moves to its alias of the same model, and leaves it only on a
+  window limit, for the lanes and then the active login. Each login is a stop
+  of its own.
 - **Probing.** There is no balance API: a lane is probed by use. After its
   cooldown the next request fails fast if it is still empty, which costs one
   rejected request an hour. Each empty-balance error also records a $0
   checkpoint for the balance estimate below (at most once a minute per lane).
-- A session never revisits a provider within five minutes, so the chain cannot
+- A session never revisits a stop within five minutes, so the chain cannot
   loop. Children launched under the subscription preflight keep their own
   guards and are never moved.
 
@@ -622,8 +627,9 @@ same plugin (`lib/subagent-fallback`) reaches it through alias models instead:
   `SUPPORTED_VERSIONS`. An option that is not a map stops every Claude
   subscription request until it is fixed: no alias can be told apart then.
   None of this depends on `enabled`.
-- Choosing is manual: pick the alias model in `/models`. Protected children
-  keep the active login.
+- A session reaches the login either by picking the alias model in `/models`
+  or by moving there on a limit, after the subscription and the credit lanes
+  ("Console credit lanes" above). Protected children keep the active login.
 
 To add a login, run `opencode auth login anthropic --method claude-max` from a
 browser signed into that account. A new login becomes the active one: switch
@@ -641,8 +647,6 @@ Limits:
   request: it records the connection before the swap.
 - The swap relies on how the login plugin tracks requests: after bumping it,
   run a tool call on an alias model end to end.
-- A window limit on an alias model does not move the session to a credit
-  lane: the lanes carry only the plain models.
 - Stateless generation (`ctx.generate`) runs no session hooks, so an alias
   there gets neither the login plugin's rewrite nor the swap.
 - Moving a session between logins starts a new prompt cache ("Prompt cache"
@@ -682,8 +686,8 @@ A move to a credit lane (see above) therefore pays one full write.
   `opencode auth login anthropic --method claude-max`. Several accounts can be
   saved; one is active at a time (`opencode auth switch`, label `Main OAuth`),
   and another is reached through alias models (label `Sub OAuth`, see "Claude
-  accounts"); there is no rotation. Which account each is lives in the private
-  overlay.
+  accounts"), picked by hand or as the last stop after the credit lanes. Which
+  account each is lives in the private overlay.
 - **Anthropic Console credit lanes**: the monthly API credits that Max plans
   grant (one Console org per plan, spent before any purchased balance and lost
   at the end of the billing cycle). They work only through an API key, never
