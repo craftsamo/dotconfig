@@ -46,6 +46,7 @@ def _load(name, path):
 
 
 access = _load("hermes_github_access_engine", Path(__file__).resolve().parent / "access.py")
+cards = _load("hermes_card", Path(__file__).resolve().parents[1] / "_shared" / "card.py")
 AccessError = access.AccessError
 
 STATE = "github-access"
@@ -204,21 +205,31 @@ def _what(classes) -> str:
                         for c in classes)
 
 
+NAME_CLIPS = ((80, 120), (40, 60), (20, 30))   # (board name, purpose): shortened before a bound is left out
+
+
 def card(t: dict, say) -> str:
+    """The shared card shape (plugins/_shared/card.py) with every bound of the mandate on it: the
+    rules every mandate shares go first, then the names and the purpose shrink until it fits, and a
+    mandate whose card still does not fit is refused."""
     end = time.strftime("%Y-%m-%d %H:%M", time.localtime(t["expires"]))
-    lines = ["GitHub · Mandate", "⚠️ Changes inside it skip the card"]
-    for b in t["boards"]:
-        lines.append(f"Board: {say(b['name'], 80)} ({b['tier']})")
-    for r in t["repos"]:
-        lines.append(f"Repository: {r['name']} ({r['tier']})")
-    if t["parent"]:
-        lines.append(f"Only issue {t['parent']} and its direct sub-issues")
-    lines.append(f"Covers: {_what(t['classes'])}")
-    lines.append("Never covered: admin changes (settings, visibility, merges, releases, workflow runs); a target "
-                 "someone else owns; on a shared one, routine updates only")
-    lines.append(f"Until: {end} ({t['days']} day{'s' if t['days'] != 1 else ''})")
-    lines.append(f"Purpose: {say(t['purpose'], 120)}")
-    return "\n".join(lines)
+    for name_clip, purpose_clip in NAME_CLIPS:
+        facts = [("Board", f"{say(b['name'], name_clip)} ({b['tier']})") for b in t["boards"]]
+        facts += [("Repository", f"{r['name']} ({r['tier']})") for r in t["repos"]]
+        facts += [("Only", f"issue {t['parent']} and its direct sub-issues" if t["parent"] else None),
+                  ("Covers", _what(t["classes"])),
+                  ("Until", f"{end} ({t['days']} day{'s' if t['days'] != 1 else ''})"),
+                  ("Purpose", say(t["purpose"], purpose_clip))]
+        # The same for every mandate, so it gives way before any bound the user chose.
+        never = [("Never covered", "admin changes, a target someone else owns, and on a shared one anything "
+                                   "but routine updates")]
+        try:
+            return cards.compose("GitHub", "Mandate", (cards.DANGER, "Changes inside it skip the card"), facts,
+                                 context=never)
+        except cards.CardError:
+            continue
+    raise AccessError("the mandate's card cannot show all its bounds; name fewer boards or repositories (a Discord "
+                      "chat shows a shorter card than Telegram)")
 
 
 # --- what is in force -----------------------------------------------------------------------------

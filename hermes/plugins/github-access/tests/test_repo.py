@@ -102,7 +102,8 @@ def test_a_new_repository_is_private_unless_asked_and_always_on_a_card(gh):
     assert planned["targets"] == [{"kind": "new_repo", "name": "me/new (private)", "tier": "own", "id": "U_me/me/new"}]
     assert planned["classes"] == ["admin"]
     text = changes.card(planned)
-    assert "New repository: me/new (private) (own, private)" in text and "⚠️ Admin changes" in text
+    assert "New repository: me/new (private) (own, private)" in text
+    assert "\n🚨 1 admin change, never covered by a mandate\n" in text
     assert "1. ⚠️ Create private repository me/new (license mit; gitignore Python; with a README; description: Notes)" in text
     assert changes.apply(planned)["done"][0] == {"op": "repo_create", "repo": "me/new", "url": "https://github.com/me/new"}
     public = changes.plan({"changes": [{"op": "repo_create", "repo": "team/site", "visibility": "public"}]})

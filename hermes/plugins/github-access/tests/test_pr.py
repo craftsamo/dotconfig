@@ -394,8 +394,10 @@ def test_a_stack_merge_deletes_the_landed_branches_it_showed_on_the_card(gh):
     assert ["branch", f"fix/login@{SHA}", "own"] in changes.binding(planned)
     assert ["branch", f"layer-2@{LOW}", "own"] in changes.binding(planned)
     text = changes.card(planned)
-    assert "Branch deleted after: fix/login at a1b2c3d (#12) (own, private)" in text
-    assert "Branch deleted after: layer-2 at bbbbbbb (#11) (own, private)" in text
+    # Five targets of one tier: the card says the tier once rather than leave anything off.
+    assert "\nAll targets: own, private\n" in text and changes.cards.units(text) <= changes.cards.BUDGET
+    assert "\nBranch deleted after: fix/login at a1b2c3d (#12)\n" in text
+    assert "\nBranch deleted after: layer-2 at bbbbbbb (#11)\n" in text
     assert "then deletes 2 branches that landed" in text
     merged_on_put(gh)
     based_on(gh, {})
