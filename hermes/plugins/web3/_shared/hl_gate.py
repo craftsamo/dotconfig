@@ -11,8 +11,11 @@ the newest completed candles through the public ``/info`` endpoint, applies the 
 exact ``hyperliquid`` quotes the rules call for: a close, a missing stop or a trailed stop and the
 cancel of the one it replaces (reduce), and on a newly completed bar an entry with its stop
 (increase, inside the mandate the spec records, for a variant whose walk-forward out-of-sample the
-spec records, while the spec's breaker is set and not tripped). An intent with ``after`` is sent only once
-the intent it names was. The breaker follows the strategy's own result from its markets' fills,
+spec records, while the spec's breaker is set and not tripped); for ``limit_then_market`` rules the
+entry is a limit under a client id of the gate's, followed by that id until the venue shows it over:
+what filled protected, canceled once its bar closes, and entered at market on a later run when the
+venue shows nothing filled; while it may still fill, its market opens nothing new. An intent with
+``after`` is sent only once the intent it names was. The breaker follows the strategy's own result from its markets' fills,
 funding and unrealized result, read each run from where the last one stopped. It prints one
 JSON line; when nothing is to be done or said, that line is ``{"wakeAgent": false}`` and no model
 runs. It never signs, never reads a key and never sends anything: the Assistant quotes and submits
@@ -20,8 +23,10 @@ through the tool, where the trader and the mandate decide. Its own memory is ``s
 the spec: the bar each market was last read on, the side last allowed, the notices already given,
 the account's value at the first read (the strategy's starting point), the positions seen on the
 last run, so one the venue closed on its own (a stop that fired) is said once and its result
-reported, the breaker's index, high, trip and read position, and what the strategy's orders cost
-against what it expected (the price an entry or a signal's close was listed at, a stop's trigger). A failure it cannot place in a strategy exits nonzero, so Hermes reports it.
+reported, the breaker's index, high, trip and read position, what the strategy's orders cost
+against what it expected (the price an entry or a signal's close was listed at, a stop's trigger),
+and the limit entries it follows. A failure it cannot place in a strategy exits nonzero, so Hermes
+reports it.
 """
 
 from __future__ import annotations
@@ -32,6 +37,7 @@ import json
 import math
 import os
 from pathlib import Path
+import re
 import sys
 
 import hl
@@ -141,6 +147,32 @@ class Account:
         found = self.ctx.api.info({"type": "activeAssetData", "user": self.address, "coin": coin})
         lev = (found or {}).get("leverage") if isinstance(found, dict) else None
         return lev.get("value") if isinstance(lev, dict) and isinstance(lev.get("value"), int) else None
+
+    def entry_order(self, cloid: str) -> dict | None:
+        """A limit entry the gate listed, found by its client id: {"status" (open, filled, canceled, a
+        rejection), "size", "left" (what still rests), "side", "price"} as the venue keeps it, or None
+        when the venue never had it (its submit was refused or never made)."""
+        found = self.ctx.api.info({"type": "orderStatus", "user": self.address, "oid": cloid})
+        if isinstance(found, dict) and found.get("status") == "unknownOid":
+            return None
+        entry = found.get("order") if isinstance(found, dict) and found.get("status") == "order" else None
+        order = entry.get("order") if isinstance(entry, dict) else None
+        try:  # any other shape is an unread order, never a fault that stops the gate
+            size, left, price = (hl.num(order.get(k)) for k in ("origSz", "sz", "limitPx"))
+            side = order.get("side")
+        except (AttributeError, TypeError, ValueError):
+            size = left = price = side = None
+        if (not _number(size) or not _number(left) or size < 0 or left < 0
+                or not isinstance(entry.get("status") if isinstance(entry, dict) else None, str)):
+            raise ChainError(f"{self.ctx.api.label} returned an unexpected order status")
+        return {"status": entry["status"], "size": size, "left": left,
+                "side": {"B": "long", "A": "short"}.get(side) if isinstance(side, str) else None,
+                "price": price if _number(price) and price > 0 else None}
+
+
+def _entry_cloid(name: str, market: str, bar: int) -> str:
+    """The client id of a strategy's limit entry on a bar: any later run finds that order by it."""
+    return "0x" + hashlib.sha256(f"hermes-hl-gate-entry\x00{name}\x00{market}\x00{bar}".encode()).digest()[:16].hex()
 
 
 def _since(ctx: hl.Ctx, kind: str, user: str, start: int, end: int, page_size: int, key) -> list[dict]:
@@ -434,6 +466,152 @@ def _costs(totals: dict) -> dict:
     return out
 
 
+def _entry_limits(raw, name: str) -> dict | None:
+    """The limit entries the gate follows, per market, from state.json: {"cloid", "bar" (the signal's),
+    "side", "price", "stop", "listed", "cancel"}. Each must carry the client id the gate gives that
+    market and bar, so the gate never cancels an order it did not name. One found after the gate lost
+    track of it (``cancel``) may lack its side, price and stop. None for a shape the gate never writes."""
+    if not isinstance(raw, dict):
+        return None
+    for market, p in raw.items():
+        if not (isinstance(p, dict) and isinstance(p.get("bar"), int) and _when(p["bar"])
+                and p.get("cloid") == _entry_cloid(name, market, p["bar"]) and _when(p.get("listed"))
+                and all(isinstance(p.get(k, False), bool) for k in ("cancel", "said", "rechecked"))
+                and (p.get("side") in hs.SIDES or (p.get("cancel") and p.get("side") is None))
+                and all(p.get(k) is None or _ref(p[k]) for k in ("price", "stop"))
+                and (p.get("cancel") or (p.get("price") is not None and p.get("stop") is not None))):
+            return None
+    return raw
+
+
+def _lookups(raw) -> dict | None:
+    """The bars per market whose limit entry the gate still has to look up after losing track, or None."""
+    if not isinstance(raw, dict) or not all(isinstance(b, list) and all(isinstance(t, int) and _when(t) for t in b)
+                                            for b in raw.values()):
+        return None
+    return raw
+
+
+def _guard(strategy: dict, market: str, pending: dict, position: dict | None, stopped: bool, out: dict) -> bool:
+    """A stop for the whole position at the limit entry's stop, when a position on its side has none on
+    the venue: the venue places the stop sent with a limit only once all of it fills, and cancels it
+    with a partly filled one. Whether one was listed."""
+    if not (position and pending.get("stop") and position["side"] == pending["side"] and not stopped):
+        return False
+    verb = "buy" if pending["side"] == "long" else "sell"
+    out["intents"].append({"id": f"{strategy['name']}:{market}:{pending['bar']}:protect", "market": market,
+                           "effect": "reduce",
+                           "why": f"the limit {verb} at {hs.sig5(pending['price'])} filled without the stop the "
+                                  "venue places only once all of it fills: protect the position at the entry's stop",
+                           "quote": _quote(strategy, kind="tpsl", coin=market, sl=hs.sig5(pending["stop"]))})
+    return True
+
+
+def _limit_entries(strategy: dict, market: str, account: Account, held: str | None, allowed: tuple,
+                   waiting: dict, following: dict, unlooked: dict, lookups: dict, now: int, step: int,
+                   out: dict) -> dict:
+    """One market's limit entries on this run: it looks up the ones the gate lost track of
+    (``lookups``), follows the one it knows (``waiting`` → ``following``), and says what that leaves
+    the run: {"blocked": no new entry, since a limit may still fill or something about one could not
+    be read or settled; "owed": the record of a limit over with nothing filled after its bar closed;
+    "guarded": a stop was listed for what filled; "unguarded": a position from a limit with no stop of
+    its own, so the rules' stop is due}. ``held`` names why entries are held, ``allowed`` the sides the
+    stance in force allows."""
+    result = {"blocked": False, "owed": None, "guarded": False, "unguarded": False}
+    position, stopped = account.positions.get(market), account.stopped(market)
+    for when in lookups.get(market, []):
+        cloid = _entry_cloid(strategy["name"], market, when)
+        if market in waiting and waiting[market]["cloid"] == cloid:
+            continue
+        try:
+            found = account.entry_order(cloid)
+        except ChainError as exc:
+            out["problems"].append(f"{market}: a limit entry the gate may have listed could not be looked up ({exc}); "
+                                   "the market opens nothing until it can be")
+            unlooked.setdefault(market, []).append(when)
+            result["blocked"] = True
+            continue
+        if found is not None and found["status"] == "open":
+            if market in waiting:  # one at a time: the other is looked up again next run
+                unlooked.setdefault(market, []).append(when)
+                result["blocked"] = True
+            else:
+                waiting[market] = {"cloid": cloid, "bar": when, "side": found["side"], "price": found["price"],
+                                   "stop": None, "listed": now, "cancel": True}
+    pending = waiting.pop(market, None)
+    if pending is None:
+        return result
+    side = pending["side"]
+    result["unguarded"] = pending.get("stop") is None and bool(position) and not stopped
+    try:
+        order = account.entry_order(pending["cloid"])
+    except ChainError as exc:
+        out["problems"].append(f"{market}: its limit entry could not be read ({exc}); it is read again next run, "
+                               "and the market opens nothing until then")
+        following[market] = pending
+        result["blocked"] = True
+        result["guarded"] = _guard(strategy, market, pending, position, stopped, out)
+        return result
+    withdrawn = ("it was listed before the gate lost track of it" if pending.get("cancel") else held
+                 or (f"the stance in force no longer allows a {side}" if side not in allowed else None))
+    keep, outcome, result["guarded"] = _follow_limit(strategy, market, pending, order, position, stopped,
+                                                     now >= pending["bar"] + 2 * step, withdrawn, out)
+    if keep:
+        following[market] = pending
+    if outcome == "working" or (outcome == "filled" and keep and not (position and position["side"] == side)):
+        result["blocked"] = True  # a fill the account read did not show yet: decide from the next one
+    elif outcome == "unfilled":
+        result["owed"] = pending
+    return result
+
+
+def _follow_limit(strategy: dict, market: str, pending: dict, order: dict | None, position: dict | None,
+                  stopped: bool, ended: bool, withdrawn: str | None, out: dict) -> tuple[bool, str, bool]:
+    """One run's look at a limit entry listed earlier (``pending``; ``order``: the venue's state of it,
+    None when the venue never had it). What of it filled is protected on every run until the venue
+    shows a stop, at the entry's stop: the venue places the stop sent with a limit only once all of it
+    fills, and cancels it with a partly filled one. A limit still resting is canceled once its bar has
+    closed (``ended``) or it is ``withdrawn`` (the reason entries are held, the stance excludes its
+    side, or it was found after the gate lost track of it), on every run until the venue shows it
+    over. Returns (keep following it; "working" while it may still fill or its fate is not settled,
+    "filled", "unfilled" (its bar closed with nothing filled: a market entry may follow), "dropped";
+    whether a stop was listed)."""
+    tag = f"{strategy['name']}:{market}:{pending['bar']}"
+    side, verb = pending["side"], {"long": "buy", "short": "sell"}.get(pending["side"], "entry")
+    price = f" at {hs.sig5(pending['price'])}" if pending.get("price") else ""
+    filled = 0.0 if order is None else max(order["size"] - order["left"], 0.0)
+    resting = order is not None and order["status"] == "open"
+    protected = _guard(strategy, market, pending, position, stopped, out) if resting or filled > 0 else False
+    if resting:
+        if ended or withdrawn:
+            out["intents"].append({"id": f"{tag}:unlimit", "market": market, "effect": "reduce",
+                                   "why": f"cancel the limit {verb}{price}: "
+                                          + (withdrawn or "its bar has closed"),
+                                   "quote": _quote(strategy, kind="cancel", oid=pending["cloid"])})
+        return True, "working", protected
+    if filled > 0:  # filled whole, or in part and then canceled: the position is the entry
+        if not pending.get("said"):
+            how = "all of it" if order["status"] == "filled" else f"{filled:g} of {order['size']:g}"
+            gone = "" if position and position["side"] == side else \
+                "; the position is no longer held (its stop may have fired): read its fills and report the trade"
+            out["notes"].append(f"{market}: the limit {verb}{price} listed {hs.iso(pending['listed'])} filled "
+                                f"{how}{gone}")
+            pending["said"] = True
+        # followed on while what filled has no stop on the venue, so the stop is listed again until it shows;
+        # a fill this run's account read did not show yet is looked at once more, on the next read
+        if position and position["side"] == side:
+            return not stopped, "filled", protected
+        if not pending.get("rechecked"):
+            pending["rechecked"] = True
+            return True, "filled", protected
+        return False, "filled", protected
+    if withdrawn:
+        return False, "dropped", protected
+    if not ended:  # never placed, or gone unfilled before its bar closed: what the backtest takes at the close
+        return True, "working", protected
+    return False, "unfilled", protected
+
+
 def _candles(ctx: hl.Ctx, coin: str, rule_set: dict, interval: str, now: int) -> list[dict]:
     step = hs.INTERVAL_MS[interval]
     count = min(hs.warmup(rule_set) * 2 + 10, hl.CANDLES_MAX)
@@ -448,10 +626,11 @@ def run_strategy(directory: Path, now: int) -> dict:
         state = _read_json(state_path)
     except hs.StrategyError:
         state = None
+    lost_state = not isinstance(state, dict) and state_path.exists()
     if not isinstance(state, dict):
         # none yet is a first run; anything else took the breaker's memory with it, so a marker of a shape
         # the gate never writes is kept until the breaker starts tripped
-        state = {"breaker": {"lost": now}} if state_path.exists() else {}
+        state = {"breaker": {"lost": now}} if lost_state else {}
     state.setdefault("bars", {})
     state.setdefault("history", {})
     reported = state.setdefault("reported", [])
@@ -488,12 +667,13 @@ def run_strategy(directory: Path, now: int) -> dict:
     if untested:
         out["notes"].append(f"variant {', '.join(untested)} has no walk-forward out_of_sample recorded in the spec: "
                             "its markets open nothing until it is; closes and stops go on")
-    # a limit entry is tested in backtests only: the gate sends entries at market, which is not what was tested
+    # the gate places limit_then_market entries; a plain limit is tested in backtests only
     unplaced = sorted({c["variant"] for c in choices.values()
-                       if "entry_order" in strategy["variants"][c["variant"]]["rules"]} - set(untested))
+                       if strategy["variants"][c["variant"]]["rules"].get("entry_order") == "limit"} - set(untested))
     if unplaced:
-        out["notes"].append(f"variant {', '.join(unplaced)} enters with a limit order, which the gate does not place: "
-                            "its markets open nothing; closes and stops go on")
+        out["notes"].append(f"variant {', '.join(unplaced)} enters with a plain limit (entry_order limit), which the "
+                            "gate does not place (limit_then_market it does): its markets open nothing; closes and "
+                            "stops go on")
     ctx = hl.Ctx(strategy["network"], {"_api": _api_override()})
     limits = dict(strategy["limits"])
     if mandate:
@@ -592,28 +772,66 @@ def run_strategy(directory: Path, now: int) -> dict:
                 seen_stops.setdefault(market, []).append({
                     "side": closing, "ref": trigger, "oid": oid if isinstance(oid, int) and not isinstance(oid, bool)
                     else None})
+    # the limit entries the gate follows. Without that memory (state.json unreadable or new, or a record
+    # of a shape it never writes) it looks up the ids it would have given the newest two bars' limits,
+    # again on each run until every lookup could be read, and cancels any still resting
+    step = hs.INTERVAL_MS[strategy["interval"]]
+    waiting = _entry_limits(state.get("entry_limits"), strategy["name"])
+    lookups = _lookups(state.get("entry_lookups", {}))
+    if waiting is None or lookups is None or lost_state:
+        newest = now - now % step - step
+        lookups = {**(lookups or {}), **{m: [newest, newest - step] for m in strategy["markets"]}}
+    waiting = dict(waiting or {})
+    following: dict = {}
+    unlooked: dict = {}
     for market in strategy["markets"]:
         choice = choices[market]
         rule_set = strategy["variants"][choice["variant"]]["rules"]
         position = account.positions.get(market)
+        held_back = not entries or hold_entries or choice["variant"] in untested + unplaced
+        allowed = hs.SIDES if choice["direction"] == "both" else () if choice["direction"] == "flat" \
+            else (choice["direction"],)
+        # a market whose limit may still fill, or whose limit's state is unknown, opens nothing new this run
+        known = waiting.get(market)
+        try:
+            part = _limit_entries(strategy, market, account, "entries are held" if held_back else None, allowed,
+                                  waiting, following, unlooked, lookups, now, step, out)
+        except Exception as exc:  # noqa: BLE001 - never a fault that stops the gate's closes and stops
+            out["problems"].append(f"{market}: its limit entries could not be followed ({type(exc).__name__}); the "
+                                   "market opens nothing until they can be")
+            if known is not None:
+                following[market] = known
+            unlooked[market] = list(lookups.get(market, []))
+            part = {"blocked": True, "owed": None, "guarded": False, "unguarded": False}
+        blocked, owed, guarded, unguarded = part["blocked"], part["owed"], part["guarded"], part["unguarded"]
+        if guarded:
+            entering_stop = following.get(market) or known
+            stops.setdefault(market, []).append({"side": "sell" if entering_stop["side"] == "long" else "buy",
+                                                 "ref": entering_stop["stop"], "oid": None})
+        if owed and blocked:  # its market entry waits until nothing about the market's limits is unsettled
+            following[market], owed = owed, None
         try:
             series = _candles(ctx, market, rule_set, strategy["interval"], now)
             ev = hs.evaluate(series, rule_set, choice, position["side"] if position else None)
         except (ChainError, hs.StrategyError) as exc:
             out["problems"].append(f"{market}: not read this run ({exc})")
+            if owed:  # the market entry it owes waits for the rules to be read
+                following[market] = owed
             continue
         bar = ev.get("bar")
         fresh = bar is not None and bar > int(state["bars"].get(market, 0))
-        retry = False
+        retry = blocked  # its bar is read again once the limit is settled
         tag = f"{strategy['name']}:{market}:{bar}"
+        closing_id = None
         if position and ev["close"]:
+            closing_id = f"{tag}:close"
             out["intents"].append({"id": f"{tag}:close", "market": market, "effect": "reduce",
                                    "why": f"close the {position['side']}: {ev['why']} "
                                           f"(direction {choice['direction']})",
                                    "quote": _quote(strategy, kind="close", coin=market)})
             seen[market]["closing"] = True  # the run that sends it reports the result; the next run stays quiet
             _expected(expect, market, "close", "sell" if position["side"] == "long" else "buy", ev["price"])
-        elif position and fresh and not account.stopped(market) and ev.get("atr"):
+        elif position and (fresh or unguarded) and not guarded and not account.stopped(market) and ev.get("atr"):
             sign = -1 if position["side"] == "long" else 1
             price = ev["price"]
             stop = (position["entry"] or price) + sign * rule_set["stop_atr"] * ev["atr"]
@@ -647,17 +865,33 @@ def run_strategy(directory: Path, now: int) -> dict:
                                            "why": f"cancel the stop at {hs.sig5(hl.num(o.get('triggerPx')) or trigger)} "
                                                   "the trailed one replaces",
                                            "quote": _quote(strategy, kind="cancel", oid=o.get("oid"))})
-        if ev.get("open") and fresh:
+        # the entry: a limit its bar's close found unfilled, once the venue shows it over, enters at market
+        # from the newest close if the rules there still hold its side (the backtest's next open); else the
+        # rules' own on a new bar, as a limit for limit_then_market. Beside a close, it waits for the close
+        opening = None
+        if owed:
+            opening = hs.market_after_limit(series, rule_set, choice, owed["side"])
+            if opening:
+                opening.update(how="market", why=f"the limit did not fill by its bar's close, so at market: "
+                                                 f"{opening['why']}")
+        if opening is None and ev.get("open") and fresh and not blocked:
+            opening = {**{k: ev[k] for k in ("open", "price", "stop", "why")},
+                       "how": "limit" if rule_set.get("entry_order") == "limit_then_market" else "market"}
+            if opening["how"] == "limit":
+                opening["limit"] = ev["limit"]
+        if opening:
+            opening["after"] = closing_id
+        if opening:
             if not entries:
-                out["notes"].append(f"{market}: the rules open a {ev['open']} ({ev['why']}), but no mandate is in "
-                                    "force")
+                out["notes"].append(f"{market}: the rules open a {opening['open']} ({opening['why']}), but no mandate "
+                                    "is in force")
             elif breaker_unread:
                 retry = True  # the bar is read again once the breaker can be
             elif choice["variant"] not in untested + unplaced and not hold_entries:  # each said once above
-                value, bound = hs.size_usd(account.equity, ev["price"], ev["stop"], rule_set, choice["size"], held,
-                                           limits)
+                value, bound = hs.size_usd(account.equity, opening["price"], opening["stop"], rule_set,
+                                           choice["size"], held, limits)
                 if value is None:
-                    out["notes"].append(f"{market}: no {ev['open']} opened: {bound}")
+                    out["notes"].append(f"{market}: no {opening['open']} opened: {bound}")
                 else:
                     try:
                         leverage = account.leverage(market)
@@ -673,21 +907,54 @@ def run_strategy(directory: Path, now: int) -> dict:
                                        "the mandate", "quote": _quote(strategy, kind="leverage", coin=market,
                                                                      leverage=limits["max_leverage"],
                                                                      margin_mode="cross")})
-                        out["intents"].append({
-                            "id": f"{tag}:open", "market": market, "effect": "increase",
-                            "why": f"open a {ev['open']}: {ev['why']}; stop {hs.sig5(ev['stop'])} "
-                                   f"({rule_set['stop_atr']:g} ATR), {hs.usd(value)} USDC, bound by {bound}, "
-                                   f"size ×{choice['size']:g} ({choice['source']})",
-                            "quote": _quote(strategy, kind="order", coin=market,
-                                            side="buy" if ev["open"] == "long" else "sell", usd=hs.usd(value),
-                                            type="market", slippage=SLIPPAGE, sl=hs.sig5(ev["stop"]))})
+                        entering = "buy" if opening["open"] == "long" else "sell"
+                        sized = (f"stop {hs.sig5(opening['stop'])} ({rule_set['stop_atr']:g} ATR), {hs.usd(value)} "
+                                 f"USDC, bound by {bound}, size ×{choice['size']:g} ({choice['source']})")
+                        if opening["how"] == "limit":
+                            # the size the market entry would take, so usd is valued at the limit's price
+                            cloid, price = _entry_cloid(strategy["name"], market, bar), opening["limit"]
+                            intent = {"why": f"rest a limit {entering} at {hs.sig5(price)} until "
+                                             f"{hs.iso(bar + 2 * step)}, then at market if the rules still hold it: "
+                                             f"{opening['why']}; {sized}",
+                                      "quote": _quote(strategy, kind="order", coin=market, side=entering,
+                                                      usd=hs.usd(value * price / opening["price"]), type="limit",
+                                                      price=hs.sig5(price), tif="Gtc", sl=hs.sig5(opening["stop"]),
+                                                      cloid=cloid)}
+                            following[market] = {"cloid": cloid, "bar": bar, "side": opening["open"],
+                                                 "price": price, "stop": opening["stop"], "listed": now}
+                        else:
+                            intent = {"why": f"open a {opening['open']}: {opening['why']}; {sized}",
+                                      "quote": _quote(strategy, kind="order", coin=market, side=entering,
+                                                      usd=hs.usd(value), type="market", slippage=SLIPPAGE,
+                                                      sl=hs.sig5(opening["stop"]))}
+                        out["intents"].append({"id": f"{tag}:open", "market": market, "effect": "increase",
+                                               **({"after": opening["after"]} if opening["after"] else {}),
+                                               **intent})
                         held += value
-                        entering = "buy" if ev["open"] == "long" else "sell"
-                        _expected(expect, market, "entry", entering, ev["price"])
+                        _expected(expect, market, "entry", entering, opening["price"])
                         stops.setdefault(market, []).append({"side": "sell" if entering == "buy" else "buy",
-                                                             "ref": ev["stop"], "oid": None})
+                                                             "ref": opening["stop"], "oid": None})
+        if owed and retry:  # the market entry it owes is decided again next run
+            following[market] = owed
         if fresh and not retry:  # a bar whose entry could not be decided is read again next run
             state["bars"][market] = bar
+    # a market the spec no longer names: its limits, known or still to be looked up, are canceled
+    for market in sorted((set(waiting) | set(lookups)) - set(strategy["markets"])):
+        known = waiting.get(market)
+        try:
+            part = _limit_entries(strategy, market, account, "the spec no longer trades this market", hs.SIDES,
+                                  waiting, following, unlooked, lookups, now, step, out)
+            if part["unguarded"]:  # no rules here to set a stop by: the user is told, once, and decides
+                out["problems"].append(f"{market}: a position from a limit entry the gate lost track of has no "
+                                       "stop, and the spec no longer trades this market: protect or close it by "
+                                       "hand")
+        except Exception as exc:  # noqa: BLE001
+            out["problems"].append(f"{market}: its limit entries could not be followed ({type(exc).__name__})")
+            if known is not None:
+                following[market] = known
+            unlooked[market] = list(lookups.get(market, []))
+    state["entry_limits"] = following
+    state["entry_lookups"] = unlooked
     held_markets = {m for m in account.positions if m in strategy["markets"]}
     try:  # measuring only: whatever goes wrong here starts the measure again, never the intents
         state["execution"] = {**execution, "expect": expect,

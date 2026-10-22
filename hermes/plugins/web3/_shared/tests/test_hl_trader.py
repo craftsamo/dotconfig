@@ -234,6 +234,12 @@ def test_a_limit_order_takes_the_tick_and_tp_sl_legs(run):
     # what is signed comes first, the account's context after it
     assert "Price: 2412.3 Gtc\nTP: trigger 2600 → worst 2340\nSL: trigger 2300 → worst 2070\nValue: ≈" \
         in q["card"]
+    # a caller that must find the order again names it; its legs keep their own ids
+    named = quote(run, coin="ETH", side="long", size="0.1", price="2412", sl="2300", cloid="0x" + "AB" * 16)
+    assert named["summary"]["cloids"][0] == "0x" + "ab" * 16 and named["summary"]["cloids"][1] != "0x" + "ab" * 16
+    bad = run("quote", account=f"{MAIN}#0", network="testnet", coin="ETH", side="long", size="0.1", price="2412",
+              cloid="0x12")
+    assert not bad["ok"] and "32 hex digits" in bad["error"]
 
 
 @pytest.mark.parametrize("fields, needle", [

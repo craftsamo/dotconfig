@@ -3,6 +3,7 @@ server and a fake Binance klines endpoint (no network)."""
 
 from __future__ import annotations
 
+import hashlib
 from http.server import BaseHTTPRequestHandler, HTTPServer
 import json
 import os
@@ -74,6 +75,8 @@ def handle(body: dict):
             since = NOW - NOW % step - (5000 * H4) // step * step
             first = max(start - start % step, since)
             return [candle(t, step) for t in range(first, end + 1, step) if t >= start][:5000]
+        if STATE.get("candles_broken"):
+            return {"error": "unexpected"}
         rows = STATE["bars"].get(req["coin"], [])
         return [{k: (str(v) if k != "t" else v) for k, v in r.items()} for r in rows if start <= r["t"] <= end]
     if kind == "fundingHistory":
@@ -94,6 +97,11 @@ def handle(body: dict):
         return STATE["orders"]
     if kind == "activeAssetData":
         return {"leverage": {"type": "cross", "value": STATE["leverage"]}}
+    if kind == "orderStatus":
+        broken = STATE.get("status_broken")  # every read, or only the listed ids'
+        if broken is True or (isinstance(broken, list) and body["oid"] in broken):
+            return {"error": "unexpected"}
+        return STATE.get("order_status", {}).get(body["oid"]) or {"status": "unknownOid"}
     if kind in ("userFillsByTime", "userFunding"):  # oldest first, capped like the venue's pages
         if STATE.get("ledger_broken"):
             return {"error": "not a list"}
@@ -323,15 +331,304 @@ def test_a_variant_without_an_out_of_sample_record_opens_nothing_but_still_prote
     assert gate(root, api, tmp_path, NOW + H4) == {"wakeAgent": False}
 
 
-def test_a_variant_tested_with_limit_entries_opens_nothing_but_still_protects(api, tmp_path):
+def test_a_variant_tested_with_plain_limit_entries_opens_nothing_but_still_protects(api, tmp_path):
     reset()  # BTC breaks out; ETH is held short with no stop
     STATE["positions"] = [{"coin": "ETH", "szi": "-1", "entryPx": "50", "positionValue": "50"}]
     root = tmp_path / "hl-strategies"
-    strategy_dir(root, entry_order="limit_then_market", limit_atr=0.25)
+    strategy_dir(root, entry_order="limit", limit_atr=0.25)
     part = gate(root, api, tmp_path)["strategies"][0]
     assert [(i["market"], i["quote"]["kind"]) for i in part["intents"]] == [("ETH", "tpsl")]
-    assert "variant t20 enters with a limit order, which the gate does not place: its markets open nothing; " \
-           "closes and stops go on" in part["new_notices"]
+    assert "variant t20 enters with a plain limit (entry_order limit), which the gate does not place " \
+           "(limit_then_market it does): its markets open nothing; closes and stops go on" in part["new_notices"]
+
+
+def order_status(cloid: str, size: float, left: float, status: str = "open") -> None:
+    STATE.setdefault("order_status", {})[cloid] = {
+        "status": "order", "order": {"order": {"coin": "BTC", "side": "B", "limitPx": "110", "origSz": str(size),
+                                               "sz": str(left)}, "status": status}}
+
+
+def next_bar(btc_close: float) -> None:
+    """The limit's bar closes at ``btc_close``."""
+    STATE["bars"]["BTC"] = series([100.0] * 40 + [110.0, btc_close], NOW + H4)
+    STATE["bars"]["ETH"] = series([50.0] * 42, NOW + H4)
+
+
+def listed_limit(root: Path, api: str, tmp_path: Path) -> dict:
+    """A limit_then_market strategy whose BTC breakout (a close at 110) lists its limit entry."""
+    strategy_dir(root, entry_order="limit_then_market")
+    intents = gate(root, api, tmp_path)["strategies"][0]["intents"]
+    assert [i["id"].split(":")[-1] for i in intents] == ["leverage", "open"]
+    return intents[-1]
+
+
+def test_a_limit_then_market_entry_rests_at_the_close_under_its_own_id_and_waits_its_bar(api, tmp_path):
+    reset()
+    root = tmp_path / "hl-strategies"
+    entry = listed_limit(root, api, tmp_path)
+    q = entry["quote"]
+    assert (q["type"], q["price"], q["tif"], q["side"]) == ("limit", "110", "Gtc", "buy") and float(q["sl"]) < 110
+    assert len(q["cloid"]) == 34 and 10 <= float(q["usd"]) <= 300 * 0.98 and "then at market" in entry["why"]
+    memory = json.loads((root / "trend" / "state.json").read_text())["entry_limits"]
+    assert memory["BTC"]["cloid"] == q["cloid"] and memory["BTC"]["side"] == "long"
+    # resting through its bar, nothing to do or say
+    order_status(q["cloid"], 1, 1)
+    assert gate(root, api, tmp_path, NOW + 15 * 60_000) == {"wakeAgent": False}
+    # a part filled: the stop that came with the order waits for all of it, so the part is protected now, once
+    order_status(q["cloid"], 1, 0.6)
+    STATE["positions"] = [{"coin": "BTC", "szi": "0.4", "entryPx": "110", "positionValue": "44"}]
+    intents = gate(root, api, tmp_path, NOW + 30 * 60_000)["strategies"][0]["intents"]
+    assert [(i["id"].split(":")[-1], i["quote"]["kind"], i["quote"]["sl"]) for i in intents] == [
+        ("protect", "tpsl", q["sl"])]
+    STATE["orders"] = [{"coin": "BTC", "side": "A", "orderType": "Stop Market", "reduceOnly": True, "isTrigger": True,
+                        "isPositionTpsl": True, "sz": "0", "triggerPx": q["sl"], "oid": 9}]
+    assert gate(root, api, tmp_path, NOW + 45 * 60_000) == {"wakeAgent": False}
+    # its bar closes with the rest unfilled: the rest is canceled, and once the venue shows it over, what
+    # filled is the entry
+    next_bar(111.0)
+    part = gate(root, api, tmp_path, NOW + H4)["strategies"][0]
+    assert [(i["id"].split(":")[-1], i["quote"].get("oid")) for i in part["intents"]] == [("unlimit", q["cloid"])]
+    order_status(q["cloid"], 1, 0.6, "canceled")
+    part = gate(root, api, tmp_path, NOW + H4 + 15 * 60_000)["strategies"][0]
+    assert part["intents"] == [] and any("filled 0.4 of 1" in n for n in part["new_notices"])
+    assert json.loads((root / "trend" / "state.json").read_text())["entry_limits"] == {}
+
+
+def test_a_stop_for_what_filled_is_listed_again_until_the_venue_shows_one(api, tmp_path):
+    reset()
+    root = tmp_path / "hl-strategies"
+    q = listed_limit(root, api, tmp_path)["quote"]
+    order_status(q["cloid"], 1, 0.6)
+    STATE["positions"] = [{"coin": "BTC", "szi": "0.4", "entryPx": "110", "positionValue": "44"}]
+    for minutes in (15, 30):  # the first one was never placed, or its stop fired and the limit filled again
+        intents = gate(root, api, tmp_path, NOW + minutes * 60_000)["strategies"][0]["intents"]
+        assert [i["id"].split(":")[-1] for i in intents] == ["protect"]
+
+
+def test_a_limit_unfilled_by_its_bars_close_is_entered_at_market_once_the_venue_shows_it_over(api, tmp_path):
+    reset()
+    root = tmp_path / "hl-strategies"
+    q = listed_limit(root, api, tmp_path)["quote"]
+    order_status(q["cloid"], 1, 1)
+    next_bar(111.0)  # still above the channel
+    # the cancel first, and nothing else: until the venue shows the limit over, it may still fill
+    assert [i["id"].split(":")[-1] for i in gate(root, api, tmp_path, NOW + H4)["strategies"][0]["intents"]] == [
+        "unlimit"]
+    order_status(q["cloid"], 1, 1, "canceled")
+    intents = gate(root, api, tmp_path, NOW + H4 + 15 * 60_000)["strategies"][0]["intents"]
+    assert [i["id"].split(":")[-1] for i in intents] == ["leverage", "open"]
+    entry = intents[-1]
+    assert entry["quote"]["type"] == "market" and "cloid" not in entry["quote"] and "after" not in entry
+    assert "did not fill by its bar's close" in entry["why"]
+    assert json.loads((root / "trend" / "state.json").read_text())["entry_limits"] == {}
+
+
+def test_a_limit_whose_side_the_next_close_no_longer_holds_is_only_canceled(api, tmp_path):
+    reset()
+    root = tmp_path / "hl-strategies"
+    q = listed_limit(root, api, tmp_path)["quote"]
+    order_status(q["cloid"], 1, 1)
+    next_bar(95.0)  # back through the exit channel, and a short breakout
+    assert [i["id"].split(":")[-1] for i in gate(root, api, tmp_path, NOW + H4)["strategies"][0]["intents"]] == [
+        "unlimit"]
+    order_status(q["cloid"], 1, 1, "canceled")
+    intents = gate(root, api, tmp_path, NOW + H4 + 15 * 60_000)["strategies"][0]["intents"]
+    assert [(i["id"].split(":")[-1], i["quote"].get("side")) for i in intents] == [("leverage", None), ("open", "sell")]
+    assert intents[-1]["quote"]["type"] == "limit"
+
+
+def test_a_limit_the_stance_no_longer_allows_is_canceled_at_once(api, tmp_path):
+    reset()
+    root = tmp_path / "hl-strategies"
+    q = listed_limit(root, api, tmp_path)["quote"]
+    order_status(q["cloid"], 1, 1)
+    spec = json.loads((root / "trend" / "spec.json").read_text())
+    (root / "trend" / "spec.json").write_text(json.dumps({**spec, "default": {"direction": "short"}}))
+    intents = gate(root, api, tmp_path, NOW + 15 * 60_000)["strategies"][0]["intents"]
+    assert [(i["id"].split(":")[-1], i["why"]) for i in intents] == [
+        ("unlimit", "cancel the limit buy at 110: the stance in force no longer allows a long")]
+    order_status(q["cloid"], 1, 1, "canceled")
+    next_bar(111.0)  # nothing is owed for a limit withdrawn before its bar closed
+    assert "open" not in kinds(gate(root, api, tmp_path, NOW + H4))
+
+
+def test_a_limit_that_filled_whole_is_said_once_even_when_its_stop_already_fired(api, tmp_path):
+    reset()
+    root = tmp_path / "hl-strategies"
+    q = listed_limit(root, api, tmp_path)["quote"]
+    order_status(q["cloid"], 1, 0, "filled")
+    part = gate(root, api, tmp_path, NOW + 15 * 60_000)["strategies"][0]
+    assert part["intents"] == [] and any("filled all of it; the position is no longer held" in n
+                                         for n in part["new_notices"])
+    assert gate(root, api, tmp_path, NOW + 30 * 60_000) == {"wakeAgent": False}
+
+
+def test_a_resting_limit_is_canceled_without_a_market_entry_once_entries_are_held(api, tmp_path):
+    reset()
+    root = tmp_path / "hl-strategies"
+    q = listed_limit(root, api, tmp_path)["quote"]
+    order_status(q["cloid"], 1, 1)
+    spec = json.loads((root / "trend" / "spec.json").read_text())
+    (root / "trend" / "spec.json").write_text(json.dumps({**spec, "mandate": {**spec["mandate"], "expires": NOW}}))
+    STATE["candles_broken"] = True  # the candles are not needed to withdraw it
+    part = gate(root, api, tmp_path, NOW + 15 * 60_000)["strategies"][0]
+    assert [(i["id"].split(":")[-1], i["why"]) for i in part["intents"]] == [
+        ("unlimit", "cancel the limit buy at 110: entries are held")]
+    # a cancel the venue does not show done is listed again, until it is
+    assert kinds(gate(root, api, tmp_path, NOW + 30 * 60_000)) == ["unlimit"]
+    order_status(q["cloid"], 1, 1, "canceled")
+    assert json.loads((root / "trend" / "state.json").read_text())["entry_limits"] != {}
+    gate(root, api, tmp_path, NOW + 45 * 60_000)
+    assert json.loads((root / "trend" / "state.json").read_text())["entry_limits"] == {}
+
+
+@pytest.mark.parametrize("lost", ["unreadable", "deleted"])
+def test_a_limit_whose_memory_was_lost_is_found_by_its_id_and_canceled(api, tmp_path, lost):
+    reset()
+    root = tmp_path / "hl-strategies"
+    q = listed_limit(root, api, tmp_path)["quote"]
+    order_status(q["cloid"], 1, 0.6)
+    STATE["positions"] = [{"coin": "BTC", "szi": "0.4", "entryPx": "110", "positionValue": "44"}]
+    if lost == "unreadable":
+        (root / "trend" / "state.json").write_text("not json")
+    else:
+        (root / "trend" / "state.json").unlink()
+        STATE["status_broken"] = True  # and the first lookup fails: the market opens nothing until it can be read
+        part = gate(root, api, tmp_path, NOW + 15 * 60_000)["strategies"][0]
+        assert "open" not in kinds({"strategies": [part]}) and any("could not be looked up" in p
+                                                                  for p in part["problems"])
+        STATE["status_broken"] = False
+    intents = gate(root, api, tmp_path, NOW + 30 * 60_000)["strategies"][0]["intents"]
+    assert [(i["id"].split(":")[-1], i["quote"]["kind"]) for i in intents][:1] == [("unlimit", "cancel")]
+    assert intents[0]["quote"]["oid"] == q["cloid"] and "protect" in [i["id"].split(":")[-1] for i in intents]
+
+
+def test_a_limit_that_cannot_be_read_is_followed_on_the_next_run(api, tmp_path):
+    reset()
+    root = tmp_path / "hl-strategies"
+    q = listed_limit(root, api, tmp_path)["quote"]
+    STATE["status_broken"] = True
+    next_bar(111.0)
+    part = gate(root, api, tmp_path, NOW + H4)["strategies"][0]  # the breakout still holds: no new entry either
+    assert part["intents"] == [] and any("its limit entry could not be read" in p for p in part["problems"])
+    STATE["status_broken"] = False
+    order_status(q["cloid"], 1, 1)
+    assert kinds(gate(root, api, tmp_path, NOW + H4 + 15 * 60_000)) == ["unlimit"]
+    order_status(q["cloid"], 1, 1, "canceled")
+    assert kinds(gate(root, api, tmp_path, NOW + H4 + 30 * 60_000)) == ["leverage", "open"]
+
+
+def gate_cloid(market: str, bar: int, name: str = "trend") -> str:
+    return "0x" + hashlib.sha256(f"hermes-hl-gate-entry\x00{name}\x00{market}\x00{bar}".encode()).digest()[:16].hex()
+
+
+def test_a_fill_the_account_read_did_not_show_holds_the_next_entry_for_a_run(api, tmp_path):
+    reset()
+    root = tmp_path / "hl-strategies"
+    q = listed_limit(root, api, tmp_path)["quote"]
+    next_bar(111.0)  # the breakout still holds, and the limit filled after the account was read
+    order_status(q["cloid"], 1, 0, "filled")
+    part = gate(root, api, tmp_path, NOW + H4)["strategies"][0]
+    assert "open" not in kinds({"strategies": [part]}) and any("filled all of it" in n for n in part["new_notices"])
+    # a run later the account says what holds: here it is gone (its stop fired), and the rules may enter again
+    assert "open" in kinds(gate(root, api, tmp_path, NOW + H4 + 15 * 60_000))
+
+
+def test_a_part_filled_and_canceled_before_the_account_showed_it_still_gets_its_stop(api, tmp_path):
+    reset()
+    root = tmp_path / "hl-strategies"
+    q = listed_limit(root, api, tmp_path)["quote"]
+    order_status(q["cloid"], 1, 0.6, "canceled")  # the account read came before the fill
+    part = gate(root, api, tmp_path, NOW + 15 * 60_000)["strategies"][0]
+    assert part["intents"] == [] and any("filled 0.4 of 1" in n for n in part["new_notices"])
+    STATE["positions"] = [{"coin": "BTC", "szi": "0.4", "entryPx": "110", "positionValue": "44"}]
+    assert kinds(gate(root, api, tmp_path, NOW + 30 * 60_000)) == ["protect"]
+
+
+def test_what_filled_gets_its_stop_even_when_the_limit_cannot_be_read_and_until_one_shows(api, tmp_path):
+    reset()
+    root = tmp_path / "hl-strategies"
+    q = listed_limit(root, api, tmp_path)["quote"]
+    STATE["positions"] = [{"coin": "BTC", "szi": "0.4", "entryPx": "110", "positionValue": "44"}]
+    STATE["status_broken"] = True
+    assert kinds(gate(root, api, tmp_path, NOW + 15 * 60_000)) == ["protect"]
+    STATE["status_broken"] = False
+    order_status(q["cloid"], 1, 0.6, "canceled")  # the rest was canceled: the record stays until a stop shows
+    first = gate(root, api, tmp_path, NOW + 30 * 60_000)["strategies"][0]
+    assert kinds({"strategies": [first]}) == ["protect"] and any("filled 0.4 of 1" in n for n in first["new_notices"])
+    again = gate(root, api, tmp_path, NOW + 45 * 60_000)["strategies"][0]
+    assert kinds({"strategies": [again]}) == ["protect"] and not any("filled" in n for n in again["new_notices"])
+    STATE["orders"] = [{"coin": "BTC", "side": "A", "orderType": "Stop Market", "reduceOnly": True, "isTrigger": True,
+                        "isPositionTpsl": True, "sz": "0", "triggerPx": q["sl"], "oid": 9}]
+    assert gate(root, api, tmp_path, NOW + 60 * 60_000) == {"wakeAgent": False}
+    assert json.loads((root / "trend" / "state.json").read_text())["entry_limits"] == {}
+
+
+def test_a_market_entry_owed_after_a_limit_waits_for_every_lookup_of_the_market(api, tmp_path):
+    reset()
+    root = tmp_path / "hl-strategies"
+    q = listed_limit(root, api, tmp_path)["quote"]
+    next_bar(111.0)
+    order_status(q["cloid"], 1, 1, "canceled")
+    state = json.loads((root / "trend" / "state.json").read_text())
+    (root / "trend" / "state.json").write_text(json.dumps({**state, "entry_lookups": "not a record"}))
+    window_bar = STATE["bars"]["BTC"][-1]["t"]
+    STATE["status_broken"] = [gate_cloid("BTC", window_bar)]  # the other lookup cannot be read
+    part = gate(root, api, tmp_path, NOW + H4)["strategies"][0]
+    assert part["intents"] == [] and any("could not be looked up" in p for p in part["problems"])
+    STATE["status_broken"] = False
+    assert kinds(gate(root, api, tmp_path, NOW + H4 + 15 * 60_000)) == ["leverage", "open"]
+
+
+def test_a_market_the_spec_dropped_keeps_its_lookups_and_its_limit_is_canceled(api, tmp_path):
+    reset()
+    root = tmp_path / "hl-strategies"
+    strategy_dir(root)
+    gate(root, api, tmp_path)
+    lost_bar = STATE["bars"]["BTC"][-1]["t"]
+    state = json.loads((root / "trend" / "state.json").read_text())
+    (root / "trend" / "state.json").write_text(json.dumps({**state, "entry_lookups": {"SOL": [lost_bar]}}))
+    STATE["status_broken"] = [gate_cloid("SOL", lost_bar)]
+    part = gate(root, api, tmp_path, NOW + 15 * 60_000)["strategies"][0]
+    assert any("SOL: a limit entry" in p for p in part["problems"])
+    STATE["status_broken"] = False
+    # an answer of a shape the venue does not give is an unread order, never a fault that stops the gate
+    STATE["order_status"] = {gate_cloid("SOL", lost_bar): {"status": "order", "order": {
+        "order": {"coin": "SOL", "side": [], "limitPx": "Infinity", "origSz": "1", "sz": "1"}, "status": "open"}}}
+    intents = gate(root, api, tmp_path, NOW + 30 * 60_000)["strategies"][0]["intents"]
+    assert [(i["market"], i["id"].split(":")[-1], i["quote"]["oid"]) for i in intents] == [
+        ("SOL", "unlimit", gate_cloid("SOL", lost_bar))]
+    STATE["order_status"][gate_cloid("SOL", lost_bar)]["order"]["order"]["origSz"] = "NaN"
+    part = gate(root, api, tmp_path, NOW + 45 * 60_000)["strategies"][0]
+    assert any("SOL: its limit entry could not be read" in p for p in part["problems"])
+
+
+def test_a_part_filled_in_a_market_the_spec_dropped_is_canceled_and_left_to_the_user(api, tmp_path):
+    reset()
+    root = tmp_path / "hl-strategies"
+    strategy_dir(root)
+    gate(root, api, tmp_path)
+    lost_bar = STATE["bars"]["BTC"][-1]["t"]
+    state = json.loads((root / "trend" / "state.json").read_text())
+    (root / "trend" / "state.json").write_text(json.dumps({**state, "entry_lookups": {"SOL": [lost_bar]}}))
+    STATE["order_status"] = {gate_cloid("SOL", lost_bar): {"status": "order", "order": {
+        "order": {"coin": "SOL", "side": "B", "limitPx": "20", "origSz": "1", "sz": "0.6"}, "status": "open"}}}
+    STATE["positions"] = [{"coin": "SOL", "szi": "0.4", "entryPx": "20", "positionValue": "8"}]
+    part = gate(root, api, tmp_path, NOW + 15 * 60_000)["strategies"][0]
+    assert [(i["market"], i["id"].split(":")[-1]) for i in part["intents"]] == [("SOL", "unlimit")]
+    assert any("SOL: a position from a limit entry the gate lost track of has no stop" in p for p in part["problems"])
+
+
+def test_an_entry_beside_a_close_waits_for_the_close(api, tmp_path):
+    reset()  # held short while BTC breaks out long: close it, then the long
+    STATE["positions"] = [{"coin": "BTC", "szi": "-1", "entryPx": "100", "positionValue": "110"}]
+    STATE["orders"] = [{"coin": "BTC", "side": "B", "orderType": "Stop Market", "reduceOnly": True, "isTrigger": True,
+                        "sz": "1", "triggerPx": "120", "oid": 7}]
+    root = tmp_path / "hl-strategies"
+    strategy_dir(root, entry_order="limit_then_market")
+    intents = gate(root, api, tmp_path)["strategies"][0]["intents"]
+    assert [i["id"].split(":")[-1] for i in intents] == ["close", "leverage", "open"]
+    assert intents[-1]["after"] == intents[0]["id"]
 
 
 def kinds(report: dict) -> list[str]:
