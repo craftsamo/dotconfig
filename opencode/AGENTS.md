@@ -319,7 +319,8 @@ requested override that cannot be used instead of silently substituting one.
 
 An approved subscription preflight plugin may choose a model only before a new
 specialist launch, in this order: the configured primary when its included quota
-is available; the role's allowlisted alternate when its included quota is
+is available (a Claude model on another saved Claude login when the active one
+is spent); the role's allowlisted alternate when its included quota is
 available; provider-managed existing credits only as a last resort, when
 OpenCode Quota reports both included quotas at 0%. Missing or stale Quota data
 keeps the configured default. It never buys credits or changes the active
