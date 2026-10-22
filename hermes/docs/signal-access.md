@@ -144,10 +144,13 @@ check; `reply_to` quotes a message of that chat. Surrounding blank space is
 trimmed before the card is built, so the card and the message carry the same
 text.
 
-- **Every send asks first** ([approval gate](access-common.md#approval-gate)).
-  The card names the account, the chat (a person shows
-  their number or account id, a group its name and the start of its id, Note to
-  Self as such), the reply target and each file. Every file is always on the
+- **Every send asks first** ([approval gate](access-common.md#approval-gate)),
+  on a card of the [shared shape](access-common.md#card-shape) titled
+  `Signal · Send message`, then who sees it (⚠️ the person or everyone in the
+  group, ✅ only the user for Note to Self). The card names the account, the
+  chat (a person shows their number or account id, a group its name and the
+  start of its id, Note to Self as such), the reply target, each file in a
+  `Files` block and the text in a `Text` block. Every file is always on the
   card: a send whose files do not fit is refused (send fewer at once).
 - **Files** come only from `~/Workspaces`, judged by real path, so a link that
   leads out counts as outside. Refused always: paths through key or settings

@@ -80,7 +80,8 @@ def test_gate_asks_for_sends_only():
     assert plugin.gate(tool_name="signal", args={"action": "chats"}) is None
     directive = plugin.gate(tool_name="signal", args={"action": "send", "chat": fakes.ALICE, "text": "hi"})
     assert directive["action"] == "approve"
-    assert directive["message"] == f"Account: {fakes.NUMBER}\nChat: Alice (+819011111111)\n\nhi"
+    assert directive["message"] == (f"Signal · Send message\n⚠️ They see it at once\nAccount: {fakes.NUMBER}\n"
+                                    "Chat: Alice (+819011111111)\n\n--- Text ---\nhi")
     assert directive["rule_key"].startswith("signal-access:send:")
 
 
