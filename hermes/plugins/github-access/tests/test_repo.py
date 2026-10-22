@@ -50,7 +50,7 @@ def settings_node(name, **over):
 
 def by_name(v, shape):
     name = f"{v.get('owner')}/{v.get('name')}"
-    return {"repository": shape(name) if name in REPOS else None}
+    return {"repository": shape(name)} if name in REPOS else F.NotFound("repository", name=name)
 
 
 def context(name):

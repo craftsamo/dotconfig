@@ -37,6 +37,15 @@ with prompts and update checks off. Boards need the login's `project` scope
 (`gh auth refresh -s project`); without it a board read fails with GitHub's
 scope error. References are github.com only.
 
+GitHub answers a query that names something that does not exist (a
+repository, an issue, a pull request, a board, an item) with null at that
+path and an error of type `NOT_FOUND` together. A read treats only that
+answer as "missing" and says so in its own words (`repository x/y not found
+…`); any other error is GitHub's refusal, with its message. A mutation never
+reads `NOT_FOUND` as missing: a target gone after the card fails rather than
+reading as done. The `repo_create` check that a name is still free depends
+on this reading.
+
 Nothing is stored. The viewer's login, organization memberships, Issue Types
 and repository facts are cached in memory for five minutes; an answer that
 came from an error (a membership or the Issue Types that could not be read)
