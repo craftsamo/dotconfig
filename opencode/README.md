@@ -298,7 +298,12 @@ The local plugin `lib/subagent-fallback` (listed last under `plugins` in
 `opencode.jsonc`) checks quota before a new specialist launch and chooses in
 this order:
 
-1. The route's primary model, unless Quota reports it exhausted.
+1. The route's primary model, unless Quota reports it exhausted. A Claude
+   model whose active login is known exhausted first takes the other saved
+   Claude logins in order ("Claude accounts" below): the first one not known
+   exhausted, through its alias. A Claude alternate (step 2) walks the
+   logins the same way. Only with every login known exhausted does the
+   choice go on.
 2. The role's alternate, when the primary is known exhausted and the alternate
    is not known exhausted. Missing or stale alternate data does not block
    this, since an exhausted primary is the worse bet. A Claude alternate is
@@ -352,7 +357,9 @@ on normal refresh; the selector does not fetch usage, run the Quota CLI, start
 timers, read internal caches or patch Quota. A custom export path can be matched
 with the plugin option `quotaExportPath` (absolute path).
 
-Rows are matched to the active OpenCode connection using `sourceId`. Only the
+Rows are matched to the OpenCode connection being weighed using `sourceId`:
+the active one, or a saved Claude login, whose rows Quota exports under the
+same provider. Only the
 5h and Weekly rows decide, and at least one must be present: some ChatGPT plans
 have no 5h window, xAI exports only its weekly pool, and an exhausted ChatGPT
 account may export just one row. If
@@ -387,7 +394,11 @@ requests. Actual charging and credit availability remain provider-managed.
 prompt, which closes the registration race and survives a background launch or a
 reload. The selector writes no quota cache or credentials; the connectionID
 stays in the internal marker, never in its notices. Quota's own public export
-contains connection IDs and display labels, but no access tokens.
+contains connection IDs and display labels, but no access tokens. A child
+launched on another saved Claude login also carries that login's suffix: it
+runs the alias, and the transport check expects that login's token and
+connection on its Claude requests, side requests included. A window limit
+such a child hits is remembered for that login only.
 
 **Passthrough.** An explicit model, an existing sessionID, unknown roles and
 (without `pinModels`) roles whose configured models changed keep the normal
@@ -627,9 +638,11 @@ same plugin (`lib/subagent-fallback`) reaches it through alias models instead:
   `SUPPORTED_VERSIONS`. An option that is not a map stops every Claude
   subscription request until it is fixed: no alias can be told apart then.
   None of this depends on `enabled`.
-- A session reaches the login either by picking the alias model in `/models`
-  or by moving there on a limit, after the subscription and the credit lanes
-  ("Console credit lanes" above). Protected children keep the active login.
+- A session reaches the login by picking the alias model in `/models`, by
+  moving there on a limit after the subscription and the credit lanes
+  ("Console credit lanes" above), or, for a new specialist, when Quota
+  reports the active login exhausted ("Subscription preflight" above). A
+  protected child launched there stays bound to that login.
 
 To add a login, run `opencode auth login anthropic --method claude-max` from a
 browser signed into that account. A new login becomes the active one: switch
