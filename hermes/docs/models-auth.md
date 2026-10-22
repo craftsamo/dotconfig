@@ -346,11 +346,13 @@ add`, copying `auth.json` or re-adding a root row while a profile still holds
   rows: `hermes -p <name> auth logout anthropic-oauth` deletes that copy (no
   upstream revoke) and restores inheritance. The `claude_code` row cannot fork:
   it is a secret-free reference re-read from the Keychain on every load.
-- **OpenCode's Claude login is separate.** It lives in OpenCode's own
-  database, never reads or writes the Claude Code Keychain entry, and has no
-  rotation of its own ([`opencode/README.md`](../../opencode/README.md)
-  "Accounts"). Hermes and OpenCode may share an account; what they share is
-  that account's weekly pool.
+- **OpenCode's Claude logins are separate.** They live in OpenCode's own
+  database and never read or write the Claude Code Keychain entry. One is
+  active; a second is reached through alias models and is a session's last
+  stop after the credit lanes, not a pool that rotates
+  ([`opencode/README.md`](../../opencode/README.md) "Claude accounts").
+  Hermes and OpenCode may share an account; what they share is that account's
+  weekly pool.
 - **Parallel OAuth refresh.** Several workers refreshing the same rotating
   refresh token at once can race to `invalid_grant`; move high-parallelism
   workers' T1 to an API-key provider if it bites.
