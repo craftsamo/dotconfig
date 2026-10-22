@@ -275,6 +275,8 @@ def test_inbound_a2a_cannot_change_anything(monkeypatch):
     "gh repo archive a/b --yes", "gh -R a/b repo unarchive --yes",
     "gh pr create --fill", "gh pr create --repo me/fork --fill", "gh pr merge 3 --squash --admin",
     "gh pr edit 3 --add-reviewer bob", "gh pr comment 3 -b hi", "gh pr ready 3", "gh pr close 3", "gh pr -R a/b reopen 3",
+    "gh release create v1 --notes x", "gh release edit v1 --draft=false", "gh run rerun 42 --failed",
+    "gh workflow run deploy.yml -f env=prod", "gh -R a/b workflow run 9",
 ])
 def test_terminal_gh_writes_are_blocked(command):
     assert plugin.gate(tool_name="terminal", args={"command": command}) == {"action": "block",
@@ -290,6 +292,7 @@ def test_terminal_gh_writes_are_blocked(command):
     "gh cache delete --all", "gh -R a/b repo delete --yes", 'bash -c "gh secret set X --body y"',
     "echo gh gist create x",  # a mention reads like a call here too
     "gh pr review 3 --approve", "gh pr revert 3", "gh pr update-branch 3", "gh pr lock 3",
+    "gh release upload v1 a.zip", "gh run cancel 42", "gh workflow disable deploy.yml", "gh workflow enable 9",
     "gh secret -R a/b set X --body y", "gh release --repo a/b delete v1", "gh run --repo=a/b delete 1",
     "gh cache -R a/b delete --all", 'sh -c "gh variable -R a/b set X"', "gh secret --org team set X",
     "gh --foo bar secret set X", "gh secret -o team delete X",
@@ -305,7 +308,8 @@ def test_writes_the_assistant_never_makes_are_blocked_and_say_so(command):
     "git log", "gh auth status", "bash -c 'gh issue view 3'", "gh secret list -R a/b", "gh variable list",
     "gh gist view 1a2b", "gh gist list", "gh repo view a/b", "gh repo clone a/b", "gh release view v1",
     "gh run view 42 --log-failed", "gh cache list", "gh ssh-key list", "gh pr checks 3 --repo me/app",
-    "gh pr diff 3", "gh pr list --author @me", "gh pr status",
+    "gh pr diff 3", "gh pr list --author @me", "gh pr status", "gh release list", "gh release download v1",
+    "gh run list --limit 5", "gh run watch 42", "gh workflow list", "gh workflow view deploy.yml",
     "gh issue -R a/b view 3", "gh secret -R a/b list", "gh release --repo a/b view v1",
     "gh repo list me", "gh repo set-default a/b", "gh repo license list", "gh repo gitignore view Python",
     "gh release view delete", "gh issue list --label create", "gh issue list --search 'create login'",

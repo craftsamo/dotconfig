@@ -1,7 +1,7 @@
 """github-access: block the Assistant's ways around the tools.
 
 A terminal ``gh`` command that makes a change ``github_change`` offers (``TOOL_WRITES``: issues,
-boards, labels, repositories, pull requests), reaches the API directly, prints the login's token (which ``curl``
+boards, labels, repositories, pull requests, releases, Actions runs), reaches the API directly, prints the login's token (which ``curl``
 could then use) or defines an alias or extension (which could hide any of those) would skip the
 card and the tiers, so the hook blocks it, also when it is wrapped in quotes. So is a write the
 Assistant never makes at all (``NEVER``: secrets and variables, gists, deleting, renaming or
@@ -25,7 +25,8 @@ REPO_WRITES = {"create", "new", "edit", "archive", "unarchive"}
 PR_WRITES = {"create", "new", "edit", "comment", "close", "reopen", "ready", "merge"}
 # gh group -> the subcommands github_change makes on a card (a gh project command is a write unless
 # it is one of PROJECT_READS).
-TOOL_WRITES = {"issue": ISSUE_WRITES, "label": LABEL_WRITES, "repo": REPO_WRITES, "pr": PR_WRITES}
+TOOL_WRITES = {"issue": ISSUE_WRITES, "label": LABEL_WRITES, "repo": REPO_WRITES, "pr": PR_WRITES,
+               "release": {"create", "new", "edit"}, "run": {"rerun"}, "workflow": {"run"}}
 # gh group -> the subcommands no tool offers and the Assistant never runs: they hold or reveal
 # credentials, publish outside a repository, or destroy or move what others rely on.
 NEVER = {
@@ -35,8 +36,9 @@ NEVER = {
     "repo": {"delete", "rename", "fork", "deploy-key", "autolink", "sync"},
     "ssh-key": {"add", "delete"},
     "gpg-key": {"add", "delete"},
-    "release": {"delete", "delete-asset"},
-    "run": {"delete"},
+    "release": {"delete", "delete-asset", "upload"},
+    "run": {"delete", "cancel"},
+    "workflow": {"enable", "disable"},
     "cache": {"delete"},
     # A review is the user's own judgement under their name; the rest no tool offers.
     "pr": {"review", "revert", "lock", "unlock", "update-branch"},
@@ -49,13 +51,14 @@ STATE_NAME = "github-access"
 _STATE = re.compile(r"(?<!plugins/)(?<![\w.-])github-access(?:/|\s|['\"]|$)", re.IGNORECASE)
 _SEPARATOR = re.compile(r"[;&|\n()`]|\$\(")
 
-MESSAGE = ("Blocked: GitHub changes (issues, boards, labels, repositories, pull requests) go only through "
-           "github_change, where the user approves on a card; read them with github_issue, github_board, "
-           "github_repo and github_pr. Nothing was run.")
+MESSAGE = ("Blocked: GitHub changes (issues, boards, labels, repositories, pull requests, releases, Actions "
+           "runs) go only through github_change, where the user approves on a card; read them with github_issue, "
+           "github_board, github_repo and github_pr. Nothing was run.")
 NEVER_MESSAGE = ("Blocked: the Assistant never does this on GitHub (secrets and variables, gists, deleting, "
                  "renaming or forking a repository, deploy, SSH or GPG keys, deleting releases, runs or caches, "
-                 "reviewing, reverting, locking or updating a pull request). Tell the user what to do, and they do "
-                 "it themselves. Nothing was run.")
+                 "uploading release assets, cancelling runs, enabling or disabling workflows, reviewing, reverting, "
+                 "locking or updating a pull request). Tell the user what to do, and they do it themselves. Nothing "
+                 "was run.")
 
 
 def _segments(command: str):
