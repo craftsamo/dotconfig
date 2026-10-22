@@ -1,14 +1,17 @@
 """github-access: block the Assistant's ways around the tools.
 
-A terminal ``gh`` command that makes a change ``github_change`` offers (``TOOL_WRITES``: issues,
-boards, labels, repositories, pull requests, releases, Actions runs), reaches the API directly, prints the login's token (which ``curl``
-could then use) or defines an alias or extension (which could hide any of those) would skip the
-card and the tiers, so the hook blocks it, also when it is wrapped in quotes. So is a write the
-Assistant never makes at all (``NEVER``: secrets and variables, gists, deleting, renaming or
-forking a repository, deploy, SSH and GPG keys, deleting releases, runs and caches, reviewing a
-pull request), with a message that says so. Reading through ``gh`` (``gh issue view``, ``gh
-project list``, ``gh repo view``, ``gh pr view``, ``gh pr checks``) stays open. File and terminal calls that touch the plugin's state directory are
-blocked too (mandate.py keeps its records there).
+A terminal ``gh`` command runs only when it is one of the reads in ``READS`` (``gh issue view``,
+``gh pr checks``, ``gh run view``, ``gh search``, …); every other one is blocked, a subcommand gh
+gains later or an extension included, with the message that fits it. A change ``github_change``
+offers (``TOOL_WRITES``: issues, boards, labels, repositories, pull requests, releases, Actions
+runs), the API reached directly, the login's token printed (which ``curl`` could then use) or an
+alias or extension defined (which could hide any of those) would skip the card and the tiers; a
+write the Assistant never makes at all (``NEVER``: secrets and variables, gists, deleting, renaming
+or forking a repository, deploy, SSH and GPG keys, deleting releases, runs and caches, reviewing a
+pull request) says so; anything else is not the Assistant's to run. Commands are found inside
+``sh -c '…'`` and ``eval '…'`` too, and the changes also when they are only mentioned. File and
+terminal calls that touch the plugin's state directory are blocked too (mandate.py keeps its
+records there).
 """
 
 from __future__ import annotations
@@ -43,6 +46,36 @@ NEVER = {
     # A review is the user's own judgement under their name; the rest no tool offers.
     "pr": {"review", "revert", "lock", "unlock", "update-branch"},
 }
+ANY = frozenset({"*"})  # every subcommand of the group reads
+# gh group -> the subcommands that only read (or act on a local checkout); a bare group prints its
+# help. A group or subcommand missing here is blocked.
+READS = {
+    "issue": {"list", "ls", "view", "status"},
+    "pr": {"list", "ls", "view", "status", "checks", "diff", "checkout", "co"},
+    "repo": {"view", "list", "ls", "clone", "set-default", "license", "gitignore"},
+    "project": PROJECT_READS,
+    "label": {"list", "ls"},
+    "release": {"list", "ls", "view", "download", "verify", "verify-asset"},
+    "run": {"list", "ls", "view", "watch", "download"},
+    "workflow": {"list", "ls", "view"},
+    "cache": {"list", "ls"},
+    "secret": {"list", "ls"},
+    "variable": {"list", "ls", "get"},
+    "gist": {"list", "ls", "view", "clone"},
+    "auth": {"status"},
+    "config": {"get", "list", "ls"},
+    "org": {"list", "ls"},
+    "ruleset": {"list", "ls", "view", "check"},
+    "ssh-key": {"list", "ls"},
+    "gpg-key": {"list", "ls"},
+    "attestation": {"verify", "download", "trusted-root"},
+    **{group: ANY for group in ("search", "status", "browse", "help", "version", "completion")},
+}
+ALIAS_GROUPS = {"alias", "extension", "extensions", "ext"}
+WRAPPERS = {"command", "exec", "env", "nohup", "time", "sudo", "doas", "xargs", "nice", "timeout", "stdbuf",
+            "caffeinate", "find", "parallel", "watch"}
+SHELLS = {"sh", "bash", "zsh", "dash", "ksh", "fish"}
+FIND_EXEC = {"-exec", "-execdir", "-ok", "-okdir"}
 FILE_TOOLS = {"read_file", "write_file", "patch", "search_files"}
 STATE_NAME = "github-access"
 # The state directory is <HERMES_HOME>/github-access/; the plugin's own source
@@ -59,36 +92,104 @@ NEVER_MESSAGE = ("Blocked: the Assistant never does this on GitHub (secrets and 
                  "uploading release assets, cancelling runs, enabling or disabling workflows, reviewing, reverting, "
                  "locking or updating a pull request). Tell the user what to do, and they do it themselves. Nothing "
                  "was run.")
+UNKNOWN_MESSAGE = ("Blocked: the Assistant runs only gh's reads from the terminal (view, list, status, checks, "
+                   "diff, search, …), and this is not one. Read GitHub with github_issue, github_board, github_repo "
+                   "and github_pr, change it through github_change; anything else is the user's to do. Nothing was "
+                   "run.")
+
+_ASSIGN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
+_NUMBER = re.compile(r"^\d+(?:\.\d+)?[smhd]?$")  # a wrapper's duration or count (timeout 10)
+_SHELL_C = re.compile(r"^-[A-Za-z]*c[A-Za-z]*$")
+_SHOW_TOKEN = re.compile(r"^(?:--show-token(?:=.*)?|-[A-Za-z]*t[A-Za-z]*)$")
 
 
 def _segments(command: str):
-    """Each simple command in a shell line, as tokens (best effort; quotes kept together)."""
+    """Each simple command in a shell line, as tokens (best effort; quotes kept together, and stray
+    quotes dropped from a part a separator cut through)."""
     for part in _SEPARATOR.split(command):
         try:
             tokens = shlex.split(part, posix=True)
         except ValueError:
-            tokens = part.split()
+            tokens = [t.strip("'\"") for t in part.split()]
         if tokens:
             yield tokens
 
 
-def _gh_args(tokens: list[str]):
-    """The arguments after ``gh`` in a simple command, past env assignments and wrappers."""
-    i = 0
-    while i < len(tokens) and (re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", tokens[i]) or
-                               tokens[i] in ("command", "exec", "env", "nohup", "time", "sudo", "xargs")):
-        i += 1
-    if i < len(tokens) and tokens[i].rsplit("/", 1)[-1] == "gh":
-        return tokens[i + 1:]
+def _name(token: str) -> str:
+    return token.rsplit("/", 1)[-1]
+
+
+def _script(rest: list[str]) -> str | None:
+    """The script a shell runs from a string: after ``-c`` (past its options, ``-o name`` and
+    ``--``), else a here-string ``<<<`` it reads as its input. A script file or a pipe into the
+    shell is not seen."""
+    at = next((j for j, t in enumerate(rest[1:], 1) if _SHELL_C.match(t)), None)
+    if at is not None:
+        j = at + 1
+        while j < len(rest) and rest[j][:1] in ("-", "+"):
+            j += 2 if rest[j] in ("-o", "+o", "-O", "+O") else 1
+        return rest[j] if j < len(rest) else None
+    if "<<<" in rest[:-1]:
+        return rest[rest.index("<<<") + 1]
     return None
+
+
+DEPTH = 8
+BUDGET = 400
+TOO_DEEP = ["\0too-deep"]  # read as an unknown command: a line nested past the limits is blocked
+
+
+def _simple(tokens: list[str], depth: int, budget: list, wrapped: bool = False):
+    """The arguments of each ``gh`` one simple command may run. An environment assignment's value
+    is read as a command too (a pager or an editor gh starts). A wrapper's own flags may or may not
+    take a value, so every token that may be the command it runs is followed (``sudo -u x gh``,
+    ``xargs -I {} gh``, ``timeout -s KILL 10 gh``); for ``find``, what follows each ``-exec``.
+    Nesting or readings past the limits fail closed."""
+    budget[0] -= 1
+    if depth > DEPTH or budget[0] < 0:
+        yield TOO_DEEP
+        return
+    i = 0
+    while i < len(tokens) and (_ASSIGN.match(tokens[i]) or (wrapped and _NUMBER.match(tokens[i]))):
+        if _ASSIGN.match(tokens[i]):
+            yield from _invocations(tokens[i].split("=", 1)[1], depth + 1, budget)
+        i += 1
+    rest = tokens[i:]
+    name = _name(rest[0]) if rest else ""
+    if name == "gh":
+        yield rest[1:]
+    elif name in SHELLS:
+        script = _script(rest)
+        if script is not None:
+            yield from _invocations(script, depth + 1, budget)
+    elif name == "eval":
+        yield from _invocations(" ".join(rest[1:]), depth + 1, budget)
+    elif name == "find":
+        for j, token in enumerate(rest):
+            if token in FIND_EXEC:
+                yield from _simple(rest[j + 1:], depth + 1, budget)
+    elif name in WRAPPERS:
+        for j in _words(rest[1:]):
+            yield from _simple(rest[j + 1:], depth + 1, budget, wrapped=True)
+
+
+def _invocations(command: str, depth: int = 0, budget: list | None = None):
+    """The arguments of each ``gh`` a shell line runs, inside ``sh -c '…'`` and ``eval '…'`` too."""
+    budget = [BUDGET] if budget is None else budget
+    for tokens in _segments(command):
+        yield from _simple(tokens, depth, budget)
 
 
 def _words(rest: list[str]) -> list[int]:
     """Where gh may find its next (sub)command in ``rest``. A flag before it may or may not take the
     next token as its value (gh strips ``--flag value`` it does not know as a switch), so after a
-    flag without ``=`` both that token and the one after it count."""
+    flag without ``=`` both that token and the one after it count. ``-R`` / ``--repo`` always take
+    one."""
     found, i, valued = [], 0, False
     while i < len(rest):
+        if rest[i] in ("-R", "--repo"):
+            i, valued = i + 2, False
+            continue
         if rest[i].startswith("-"):
             valued = "=" not in rest[i]
         else:
@@ -126,33 +227,40 @@ _ANYWHERE = re.compile(
     _GH + r"(?:api\b"
     + "".join(rf"|{re.escape(group)}\s+{_FLAGS}(?:{_verbs(verbs)})(?![\w-])" for group, verbs in TOOL_WRITES.items())
     + rf"|project\s+(?!(?:{_verbs(PROJECT_READS)})\b)[\w-]"
-    rf"|auth\s+{_FLAGS}token\b|auth\s+status\b[^;&|\n]*--show-token"
+    rf"|auth\s+{_FLAGS}token\b|auth\s+{_FLAGS}status\b[^;&|\n]*(?:--show-token|\s-[A-Za-z]*t[A-Za-z]*\b)"
     rf"|alias\s+{_FLAGS}(?:set|import)\b|ext(?:ension|ensions)?\b)")
 _NEVER_ANYWHERE = re.compile(_GH + "(?:" + "|".join(
     rf"{re.escape(group)}\s+{_FLAGS}(?:{_verbs(verbs)})(?![\w-])" for group, verbs in NEVER.items()) + ")")
 
 
+def _verdict(group: str, verb: str) -> str | None:
+    """The message for one reading of a gh command, or None for a read."""
+    if verb in NEVER.get(group, ()):
+        return NEVER_MESSAGE
+    if group == "api" or group in ALIAS_GROUPS or (group == "auth" and verb == "token") or \
+            verb in TOOL_WRITES.get(group, ()):
+        return MESSAGE
+    allowed = READS.get(group)
+    if allowed is not None and (allowed is ANY or verb == "" or verb in allowed):
+        return None
+    return MESSAGE if group == "project" else UNKNOWN_MESSAGE
+
+
 def blocked(command: str) -> str | None:
-    """The message for a terminal command that goes around the tools, or None."""
+    """The message for a terminal command that goes around the tools, or None. A gh command passes
+    only when every way gh may read its arguments is a read."""
     command = command.replace("\\\n", " ")
     if _NEVER_ANYWHERE.search(command):
         return NEVER_MESSAGE
     if _ANYWHERE.search(command):
         return MESSAGE
-    for tokens in _segments(command):
-        args = _gh_args(tokens)
-        if not args:
-            continue
+    found = set()
+    for args in _invocations(command):
         for group, verb in _commands(args):
-            if verb in NEVER.get(group, ()):
-                return NEVER_MESSAGE
-            if group == "api" or verb in TOOL_WRITES.get(group, ()):
-                return MESSAGE
-            if group == "project" and verb not in PROJECT_READS:
-                return MESSAGE
-            if group in ("alias", "extension", "extensions", "ext") or (group == "auth" and verb == "token"):
-                return MESSAGE
-    return None
+            found.add(_verdict(group, verb))
+            if group == "auth" and any(_SHOW_TOKEN.match(a) for a in args):
+                found.add(MESSAGE)  # `auth status -t` prints the token
+    return next((m for m in (NEVER_MESSAGE, MESSAGE, UNKNOWN_MESSAGE) if m in found), None)
 
 
 def writes(command: str) -> bool:

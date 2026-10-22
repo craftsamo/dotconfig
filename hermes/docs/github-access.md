@@ -8,20 +8,20 @@ Part of the Hermes design docs — index: [`PROFILES.md`](../PROFILES.md).
 
 ## Shape
 
-| Piece                                                                                                                                           | Home                                                                                                               | Reader    |
-| ----------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ | --------- |
-| Read engine: GraphQL transport, references, tiers, board resolution, issue and board reads                                                      | `plugins/github-access/access.py`                                                                                  | all       |
-| Repository reads: settings, labels, milestones, releases, Actions workflows and runs                                                            | `access_repo.py` beside `access.py`                                                                                | all       |
-| Pull request reads: one in full with its checks and reviews, a repository's list                                                                | `access_pr.py` beside `access.py`                                                                                  | all       |
-| Write engine: the op registry, change validation, the plan of targets, the card, applying a change list                                         | `plugins/github-access/changes.py`                                                                                 | all       |
-| The ops of a change list, one module per domain: boards and their items, issues, repositories, pull requests and attachments, releases, Actions | `ops_board.py`, `ops_issue.py`, `ops_repo.py`, `ops_pr.py`, `ops_release.py`, `ops_actions.py` beside `changes.py` | all       |
-| Mandates: terms, the MAC'd state, whether a change list fits                                                                                    | `plugins/github-access/mandate.py`                                                                                 | all       |
-| Bypass guard                                                                                                                                    | `plugins/github-access/guard.py`                                                                                   | all       |
-| `github_issue`, `github_board`, `github_repo`, `github_pr`, `github_change`, `github_mandate` tools (toolset `github_access`) and the hook      | `plugins/github-access/__init__.py`                                                                                | Assistant |
-| How the Assistant reads Issues and boards, and the draft / issue model                                                                          | the `github-access:github` plugin skill (`plugins/github-access/skills/github/`)                                   | Assistant |
-| How the Assistant changes them: proposing tracking, change lists, tiers, recipes                                                                | the `github-access:github-tracking` plugin skill                                                                   | Assistant |
-| How the Assistant reads and changes a repository, its labels, milestones, releases and Actions runs                                             | the `github-access:github-repo` plugin skill                                                                       | Assistant |
-| How the Assistant reads, opens, edits, attaches files to and merges a pull request                                                              | the `github-access:github-pr` plugin skill                                                                         | Assistant |
+| Piece                                                                                                                                                              | Home                                                                                                                               | Reader    |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------- | --------- |
+| Read engine: GraphQL transport, references, tiers, board resolution, issue and board reads                                                                         | `plugins/github-access/access.py`                                                                                                  | all       |
+| Repository reads: settings, labels, milestones, releases, Actions workflows and runs, rulesets                                                                     | `access_repo.py` beside `access.py`                                                                                                | all       |
+| Pull request reads: one in full with its checks and reviews, a repository's list                                                                                   | `access_pr.py` beside `access.py`                                                                                                  | all       |
+| Write engine: the op registry, change validation, the plan of targets, the card, applying a change list                                                            | `plugins/github-access/changes.py`                                                                                                 | all       |
+| The ops of a change list, one module per domain: boards and their items, issues, repositories, pull requests and attachments, releases, Actions, branch protection | `ops_board.py`, `ops_issue.py`, `ops_repo.py`, `ops_pr.py`, `ops_release.py`, `ops_actions.py`, `ops_rules.py` beside `changes.py` | all       |
+| Mandates: terms, the MAC'd state, whether a change list fits                                                                                                       | `plugins/github-access/mandate.py`                                                                                                 | all       |
+| Bypass guard                                                                                                                                                       | `plugins/github-access/guard.py`                                                                                                   | all       |
+| `github_issue`, `github_board`, `github_repo`, `github_pr`, `github_change`, `github_mandate` tools (toolset `github_access`) and the hook                         | `plugins/github-access/__init__.py`                                                                                                | Assistant |
+| How the Assistant reads Issues and boards, and the draft / issue model                                                                                             | the `github-access:github` plugin skill (`plugins/github-access/skills/github/`)                                                   | Assistant |
+| How the Assistant changes them: proposing tracking, change lists, tiers, recipes                                                                                   | the `github-access:github-tracking` plugin skill                                                                                   | Assistant |
+| How the Assistant reads and changes a repository, its labels, milestones, releases, Actions runs and branch protection                                             | the `github-access:github-repo` plugin skill                                                                                       | Assistant |
+| How the Assistant reads, opens, edits, attaches files to and merges a pull request                                                                                 | the `github-access:github-pr` plugin skill                                                                                         | Assistant |
 
 The plugin is enabled in the Assistant's private configuration only, like
 Google access: it reaches the user's own account. A person without the
@@ -86,10 +86,13 @@ flags, default branch, description, homepage, topics, license, features and
 merge settings with the viewer's permission and the tier; `labels` and
 `milestones` (open, closed or all, with due date and progress) list the
 rest, `releases` the latest releases (drafts too, for a viewer who can push),
-`workflows` and `runs` the Actions workflows and recent runs, and `run` one
+`workflows` and `runs` the Actions workflows and recent runs, `run` one
 run's jobs and failed steps with the last 120 lines (at most 8,000
-characters) of their log, terminal colors and control characters removed. `github_pr` `view` reads a pull request's state, draft flag, base and
-head with the head commit, GitHub's mergeable and merge state, the review
+characters) of their log, terminal colors and control characters removed,
+and `rules` every ruleset that reaches the repository (its branches, rules,
+bypass and enforcement; an organization's marked by its source) and the
+classic branch protection rules. `github_pr` `view` reads a pull request's
+state, draft flag, base and head with the head commit, GitHub's mergeable and merge state, the review
 decision, latest reviews and requests, the head commit's checks (failing and
 pending ones named, required ones counted), the issues a merge closes and
 the latest comments; `list` turns its filters into one search of one
@@ -271,8 +274,31 @@ path, or by a file name or name that names exactly one, a branch or tag (the
 default branch unless named) and inputs; its file at that commit must name
 `workflow_dispatch` outside a comment, the commit is bound as a target
 ("Starting"), so a push after the card is a different change (one between the
-handler's read and GitHub's dispatch is not caught), and the inputs travel as JSON on stdin
-(never `-F`, which reads a value starting with `@` as a file).
+handler's read and GitHub's dispatch is not caught), and the inputs travel as
+JSON on stdin (never `-F`, which reads a value starting with `@` as a file).
+
+### Branch protection
+
+`branch_rule` is `admin` and needs admin on the repository. It writes one
+ruleset per branch, named `Managed protection: <branch>` (or `default
+branch`), and never another: a ruleset someone made in GitHub's page or an
+organization's is read with `rules`, never changed, and GitHub applies every
+ruleset that reaches a branch together. A change names only what it moves —
+`require_pr` with `approvals` (0 to 10), `required_checks`,
+`block_force_push`, `block_deletion`, `linear_history`, `admin_bypass` (the
+repository admin role bypasses) and `disable` — and the rest keeps what the
+ruleset says now; a new one blocks force pushes and deletion and lets admins
+bypass, so the user is not locked out of their own branch. Rule types the
+ruleset holds besides these, the review settings it has, other bypass actors
+and the admin entry's own mode (bypassing in pull requests only stays so)
+are kept as they are. Check names are text others read and pass its checks.
+One branch per rule (no patterns), and the branch must exist. The card
+shows the whole rule for a new ruleset and what moves for an existing one,
+whether it is enforced and who bypasses first and check names last; a
+change that moves nothing, or leaves the ruleset no rule, is refused before
+it. The ruleset's id and last update are
+bound as a target ("Ruleset") and read again right before the write, so one
+edited in GitHub's page after the card is not overwritten.
 
 ## Approval
 
@@ -359,20 +385,40 @@ state directory and the 30-day ceiling bound that
 
 ## Ways around the tools
 
-The hook blocks a terminal `gh` command that writes Issues (`create`,
-`edit`, `comment`, `close`, `reopen`, `delete`, `transfer`, `pin`, `lock`,
-`develop` …), changes a board (every `gh project` command but `list`, `view`,
-`item-list`, `field-list`), changes labels, creates, edits, archives or
-unarchives a repository, opens, edits, comments on, readies, closes, reopens
-or merges a pull request, creates or edits a release, re-runs a run or
-starts a workflow, calls `gh api` at all, prints the
-login's token (`gh auth token`, `--show-token`: `curl` could write with it)
-or defines an alias or an extension (either could hide a write). It reads
-the whole command text, so environment assignments, wrappers, a path to the
-binary, flags before a subcommand (`gh issue -R a/b create`, with or without a
-value), `bash -c "…"`, `eval '…'` and backslash-newlines do not hide one;
-a mere mention (`echo gh issue create`) is blocked too. It is a guard of
-text, not a sandbox: a script file's contents are never seen.
+The hook lets a terminal `gh` command run only when it is a read it knows:
+`view`, `list` and `status` of issues and pull requests, a pull request's
+`checks`, `diff` and `checkout`, a repository's `view`, `list`, `clone`,
+`set-default`, `license` and `gitignore`, the board reads (`list`, `view`,
+`item-list`, `field-list`), the listings of labels, releases, runs,
+workflows, caches, secrets, variables, gists, organizations, rulesets and
+keys, release and run downloads, `run watch`, `search`, `status`, `browse`,
+`auth status`, `config get` and `list`, attestation checks, and help. Every
+other one is blocked: a subcommand gh gains later, an extension run as `gh
+<name>`, `auth login` or `refresh`, `config set`, codespaces and agent tasks
+are not the Assistant's to run, with a message that says so. Within that,
+the messages name what the command was: one that writes what
+`github_change` offers (an issue, a board, a label, a repository, a pull
+request, a release, a re-run or a started workflow), calls `gh api` at all,
+prints the login's token (`gh auth token`, `auth status --show-token` or
+`-t`: `curl` could write with it) or defines an alias or an extension (either
+could hide a write) points at the tools.
+
+It reads every simple command of the line and a path to the binary. An
+environment assignment's value is read as a command too (a pager or an
+editor gh starts); after a wrapper (`env`, `sudo -u x`, `timeout 10`,
+`xargs -I {}`, …) every token that may be the command it runs is followed,
+since its flags may or may not take a value, and after `find` what follows
+each `-exec`. It follows `sh -c '…'` (any shell, any `-…c` flag, past its
+options; else a here-string `<<<` the shell reads) and `eval '…'` into the
+script they run. A line nested deeper, or with more readings, than it
+follows is blocked rather than passed. Flags before a subcommand (`gh issue -R
+a/b create`) count both ways: with a value and without, and the command
+passes only when every reading is a read (`-R` and `--repo` always take a
+value). The writes are also matched over the whole text, so backslash-newlines
+do not hide one and a mere mention (`echo gh issue create`) is blocked too.
+It is a guard of text, not a sandbox: a script file's contents, a script
+piped into a shell, and a binary reached through a variable or
+`$(which gh)` are never seen.
 
 The same guard blocks, with a message saying the Assistant never does it, the
 writes no tool offers: setting or deleting secrets and variables, writing
@@ -383,9 +429,7 @@ release assets, cancelling runs, enabling or disabling workflows, and reviewing,
 reverting, locking or updating a pull request's branch. They hold or reveal
 credentials, publish outside a repository, destroy or move what others rely
 on, or (a review) speak for the user's own judgement, so they stay with the
-user. Reading through `gh` (`gh issue
-view`, `gh repo view`, `gh pr …`, `gh secret list`, `gh auth status`) stays
-open.
+user.
 
 File and terminal calls that name the plugin's state directory
 (`<HERMES_HOME>/github-access/`) are blocked too, in any letter case and also

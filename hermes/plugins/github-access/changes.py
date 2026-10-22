@@ -59,7 +59,7 @@ ADMIN = "admin"  # always asks on a card: no mandate covers it
 
 @dataclass(frozen=True)
 class Key:
-    type: str  # str | bool | list | map
+    type: str  # str | bool | int | list | map
     text: bool = False
     schema: dict = field(default_factory=dict)  # more JSON schema: an enum, a description
 
@@ -82,7 +82,7 @@ class Op:
 
 KEYS: dict[str, Key] = {}
 OPS: dict[str, Op] = {}
-_TYPES = {"str": {"type": "string"}, "bool": {"type": "boolean"},
+_TYPES = {"str": {"type": "string"}, "bool": {"type": "boolean"}, "int": {"type": "integer"},
           "list": {"type": "array", "items": {"type": "string"}},
           "map": {"type": "object", "additionalProperties": {"type": "string"}}}
 
@@ -138,6 +138,9 @@ def _check_value(op: str, name: str, value) -> None:
     elif kind == "bool":
         if not isinstance(value, bool):
             raise AccessError(f"{op}: {name} is true or false")
+    elif kind == "int":
+        if not isinstance(value, int) or isinstance(value, bool):
+            raise AccessError(f"{op}: {name} is a whole number")
     elif kind == "list":
         if not isinstance(value, list) or not all(isinstance(v, str) and v.strip() and "\x00" not in v for v in value):
             raise AccessError(f"{op}: {name} must be a list of text")
@@ -416,7 +419,7 @@ def card(planned: dict) -> str:
         mark = {"own": "own, private", "shared": "others can read it", "other": "⚠️ someone else's"}[t["tier"]]
         kind = {"repo": "Repository", "owner": "New board for", "new_repo": "New repository",
                 "template": "Copied from", "file": "Upload", "head": "Merging", "run": "Re-running",
-                "workflow": "Starting", "release": "Release"}.get(t["kind"], "Board")
+                "workflow": "Starting", "release": "Release", "ruleset": "Ruleset"}.get(t["kind"], "Board")
         # An upload's whole path: two files that differ only in a folder must not read alike.
         lines.append(f"{kind}: {say(t['name'], 600 if t['kind'] == 'file' else 80)} ({mark})")
     hosts, paths, branch = _hosts(planned)
@@ -491,5 +494,5 @@ def apply(planned: dict) -> dict:
 NAME = "hermes_github_access_changes"
 if __name__ != NAME:
     raise ImportError(f"load changes.py as {NAME}: the op modules register into that module")
-for _domain in ("board", "issue", "repo", "pr", "release", "actions"):
+for _domain in ("board", "issue", "repo", "pr", "release", "actions", "rules"):
     _load(f"hermes_github_access_ops_{_domain}", HERE / f"ops_{_domain}.py")

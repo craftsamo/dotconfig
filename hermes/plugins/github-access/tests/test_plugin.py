@@ -314,9 +314,49 @@ def test_writes_the_assistant_never_makes_are_blocked_and_say_so(command):
     "gh repo list me", "gh repo set-default a/b", "gh repo license list", "gh repo gitignore view Python",
     "gh release view delete", "gh issue list --label create", "gh issue list --search 'create login'",
     "gh pr list --json title --jq '.[] | .title'",
+    "gh", "gh --version", "gh help pr", "gh pr --help", "gh status", "gh search issues login --repo a/b",
+    "gh ruleset view 1 --repo a/b", "gh config get editor", "gh -R a/b issue view 3", "gh variable get X",
+    "gh attestation verify f.tgz --owner o", "timeout 30 gh run watch 42", "gh pr checkout 12",
+    "sh -lc 'gh pr view 3'", "eval 'gh issue list'", "echo use gh auth login",  # a mention of a non-write runs nothing
+    "find ~/.config/gh -type f", "rg gh src/", "ls ~/.config/gh", "git log --grep gh", "watch -n 5 gh run list",
+    "gh auth status --hostname github.com", "GH_PAGER=cat gh issue view 1", "xargs rg gh src/",
+    "sudo ls /opt/gh /opt/bin", "xargs -0 grep -l gh", "nice -n 5 gh pr view 3", "timeout -s KILL 10 gh run view 4",
 ])
 def test_terminal_reads_and_other_work_stay_open(command):
     assert plugin.gate(tool_name="terminal", args={"command": command}) is None
+
+
+@pytest.mark.parametrize("command", [
+    "gh auth login", "gh auth refresh -s delete_repo", "gh auth logout", "gh config set editor vim",
+    "gh codespace create", "gh agent-task create 'fix it'", "gh copilot suggest x", "gh my-extension run",
+    "bash -c 'gh auth login'", "sh -lc \"gh config set prompt disabled\"", "eval 'gh auth logout'",
+    "timeout 10 gh auth setup-git", "xargs -0 gh auth login", "env -i GH_HOST=x gh auth login",
+    "bash -c 'true; \"gh\" auth login'",  # a quote cut by the separator
+    "gh auth --hostname status login",  # read as `auth login --hostname status` by gh
+    "gh pr --foo view create-later",
+    "sudo -u x gh auth login", "xargs -I {} gh auth login", "bash <<< 'gh auth login'", "bash -c -- 'gh auth login'",
+    "bash -o pipefail -c 'gh auth login'", "bash -c -o pipefail 'gh auth login'",
+    "GH_PAGER='sh -c \"gh auth login\"' gh issue view 1",  # a pager gh starts is a command too
+    "env GH_PAGER='gh auth login' GH_FORCE_TTY=1 gh issue view 1", "sudo nice -n 5 gh auth login",
+    "timeout -s KILL 10 gh auth login",
+    "command " * 12 + "\"gh\" issue view 3",  # nesting past the limit fails closed
+    "nice " + "-x nice " * 30 + "gh pr view 3",  # so do readings past the budget, quickly
+])
+def test_any_other_gh_command_is_blocked_by_default(command):
+    assert plugin.gate(tool_name="terminal", args={"command": command}) == {"action": "block",
+                                                                           "message": plugin.guard.UNKNOWN_MESSAGE}
+
+
+def test_a_nested_write_is_blocked_with_its_own_message():
+    for command, message in (("bash -c 'gh label -R a/b create x'", plugin.guard.MESSAGE),
+                             ("eval \"gh pr -R a/b review 3 --approve\"", plugin.guard.NEVER_MESSAGE),
+                             ("gh auth login; gh repo -R a/b fork", plugin.guard.NEVER_MESSAGE),
+                             ("find . -prune -exec \"gh\" issue create -R me/app -t x -b y \\;", plugin.guard.MESSAGE),
+                             ("gh auth --hostname=github.com status --show-token", plugin.guard.MESSAGE),
+                             ("gh auth status -t", plugin.guard.MESSAGE), ("gh auth status -ht", plugin.guard.MESSAGE),
+                             # -c runs its script; the here-string is only its input
+                             ("bash -c '\"gh\" issue create -R me/app -t x -b y' <<< ignored", plugin.guard.MESSAGE)):
+        assert plugin.gate(tool_name="terminal", args={"command": command}) == {"action": "block", "message": message}
 
 
 def test_the_state_directory_is_closed_to_file_and_terminal_calls(tmp_path):
