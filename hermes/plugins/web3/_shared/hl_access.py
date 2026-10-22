@@ -82,7 +82,8 @@ READ_HELP = (
     "min_trades} chooses rules on past data and trades them on the next unseen window; returns figures, a "
     "monte_carlo beside result and out_of_sample (the trades redrawn in random order: drawdown, return and losing "
     "streak at percentiles, beside the observed ones), the newest trades and the rule set's fingerprint — a "
-    "simulation, not a forecast), deposit_info (how USDC enters "
+    "simulation, not a forecast; coins = [\"BTC\", \"ETH\"] instead of coin trades the markets together on one "
+    "account and adds portfolio, the account's own figures), deposit_info (how USDC enters "
     "the venue: Circle's CCTP from the network's EVM chains, their USDC, and how). Coins: a perp like BTC, a builder "
     "perp like xyz:GOLD, a spot pair like PURR/USDC, HYPE/USDC or its @N name. Times are Unix milliseconds.")
 UNTRUSTED = (
@@ -128,6 +129,10 @@ PROPERTIES = {
                 "description": "mainnet or testnet (separate markets, accounts and balances); always named"},
     "coin": {"type": "string", "description": "candles / funding / book / export / backtest: the market; markets / "
                                              "spots: one market's detail; review: only this coin"},
+    "coins": {"type": "array", "items": {"type": "string"}, "maxItems": 8,
+              "description": "backtest: 2 to 8 main-dex perps traded together on one account instead of coin; "
+                             "returns each market's own backtest and the account's (portfolio), whose drawdown and "
+                             "monte_carlo size a strategy's breaker"},
     "address": {"type": "string", "description": "state / balances / fills / orders / review: the account's 0x address"},
     "dex": {"type": "string", "description": "markets / state / orders: a builder perp dex name from dexs; left out "
                                             "for the main dex"},
