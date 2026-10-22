@@ -46,7 +46,8 @@ def test_the_progress_line_shows_the_action_only(monkeypatch):
     assert line("github_board", action="items", project="Private plans", search="layoffs") == "items"
     assert line("github_mandate", action="create", purpose="the merger", repos=["acme/secret"]) == "create"
     assert line("github_mandate", action="revoke", mandate="m1a2b3c4d") == "revoke"
-    for tool in ("github_issue", "github_board", "github_mandate"):
+    assert line("github_repo", action="milestones", repo="acme/secret") == "milestones"
+    for tool in ("github_issue", "github_board", "github_repo", "github_mandate"):
         assert line(tool, action="anything else", query="someone's name") is None
 
 
@@ -70,7 +71,8 @@ def test_only_the_assistant_gets_the_tools():
     assert ctx.tools == {} and ctx.hooks == []
     ctx = Ctx("assistant")
     plugin.register(ctx)
-    assert set(ctx.tools) == set(plugin.HANDLERS) == {"github_issue", "github_board", "github_change", "github_mandate"}
+    assert set(ctx.tools) == set(plugin.HANDLERS) == {"github_issue", "github_board", "github_repo", "github_change",
+                                                      "github_mandate"}
     assert ctx.hooks == [("pre_tool_call", plugin.gate)]
     assert {t["toolset"] for t in ctx.tools.values()} == {"github_access"}
     for name, tool in ctx.tools.items():
@@ -84,6 +86,9 @@ def test_action_enums_match_the_engine():
     props = {name: tool["schema"]["parameters"]["properties"] for name, tool in ctx.tools.items()}
     assert props["github_issue"]["action"]["enum"] == list(plugin.access.ISSUE_ACTIONS)
     assert props["github_board"]["action"]["enum"] == list(plugin.access.BOARD_ACTIONS)
+    assert props["github_repo"]["action"]["enum"] == list(plugin.repo_reads.REPO_ACTIONS)
+    ops = props["github_change"]["changes"]["items"]["properties"]["op"]["enum"]
+    assert ops == list(plugin.changes.OPS) and all(op in plugin.CHANGE_DESCRIPTION for op in ops)
 
 
 def test_inbound_a2a_is_refused(monkeypatch):
@@ -264,6 +269,8 @@ def test_inbound_a2a_cannot_change_anything(monkeypatch):
     "echo gh issue create",  # a mention in text reads like a call: blocked, conservatively
     "gh issue -R a/b create --title x", "gh issue --repo=a/b close 3", "gh label -R a/b delete bug",
     "gh auth --hostname=github.com token", "gh issue --org team create",
+    "gh repo create a/b --private", "gh repo new a/b --public", "gh repo edit a/b --visibility public",
+    "gh repo archive a/b --yes", "gh -R a/b repo unarchive --yes",
 ])
 def test_terminal_gh_writes_are_blocked(command):
     assert plugin.gate(tool_name="terminal", args={"command": command}) == {"action": "block",
@@ -288,12 +295,13 @@ def test_writes_the_assistant_never_makes_are_blocked_and_say_so(command):
 
 
 @pytest.mark.parametrize("command", [
-    "gh issue view 3", "gh issue list --repo a/b", "gh pr create --fill", "gh repo create a/b --private",
+    "gh issue view 3", "gh issue list --repo a/b", "gh pr create --fill", "gh repo view a/b --json visibility",
     "gh project list --owner me", "gh project item-list 1 --owner me", "ls ~/Worktrees/x/feat-hermes-github-access",
     "git log", "gh auth status", "bash -c 'gh issue view 3'", "gh secret list -R a/b", "gh variable list",
     "gh gist view 1a2b", "gh gist list", "gh repo view a/b", "gh repo clone a/b", "gh release view v1",
     "gh run view 42 --log-failed", "gh cache list", "gh ssh-key list", "gh pr create --repo me/fork --fill",
     "gh issue -R a/b view 3", "gh secret -R a/b list", "gh release --repo a/b view v1",
+    "gh repo list me", "gh repo set-default a/b", "gh repo license list", "gh repo gitignore view Python",
     "gh release view delete", "gh issue list --label create", "gh issue list --search 'create login'",
     "gh pr list --json title --jq '.[] | .title'",
 ])

@@ -207,25 +207,25 @@ class Plan:
         if target not in self.touched:
             self.touched.append(target)
 
-    def repo(self, name: str) -> dict:
+    def repo(self, name: str, archived_ok: bool = False) -> dict:
         """A repository the change writes to, read fresh once per list; refused when the viewer
-        cannot write there."""
+        cannot write there, or when it is archived (unless the change is the one that unarchives)."""
         name = access.parse_repo(name)
         if name.lower() not in self._repos:
             self._repos[name.lower()] = access.repo_context(name, fresh=True)
         ctx = self._repos[name.lower()]
-        if ctx["archived"]:
+        if ctx["archived"] and not archived_ok:
             raise AccessError(f"{ctx['repo']} is archived")
         if not ctx["can_write"]:
             raise AccessError(f"no write permission on {ctx['repo']} (viewer permission: {ctx['permission'] or 'none'})")
         self.note(f"repo:{ctx['repo'].lower()}", {"kind": "repo", "name": ctx["repo"], "tier": ctx["tier"], "id": ctx["id"]})
         return ctx
 
-    def repo_of(self, change: dict) -> dict:
+    def repo_of(self, change: dict, archived_ok: bool = False) -> dict:
         """The repository a change names, else the list's."""
         if not (change.get("repo") or self.default_repo):
             raise AccessError(f"{change['op']}: repo is required (on the change or at the top)")
-        return self.repo(change.get("repo") or self.default_repo)
+        return self.repo(change.get("repo") or self.default_repo, archived_ok)
 
     def add_board(self, b: dict) -> dict:
         if not b["can_update"]:
@@ -406,7 +406,8 @@ def card(planned: dict) -> str:
     lines = [f"GitHub · {n} change{'s' if n != 1 else ''}"]
     for t in planned["targets"]:
         mark = {"own": "own, private", "shared": "others can read it", "other": "⚠️ someone else's"}[t["tier"]]
-        kind = {"repo": "Repository", "owner": "New board for", "template": "Copied from"}.get(t["kind"], "Board")
+        kind = {"repo": "Repository", "owner": "New board for", "new_repo": "New repository",
+                "template": "Copied from"}.get(t["kind"], "Board")
         lines.append(f"{kind}: {say(t['name'], 80)} ({mark})")
     hosts, paths, branch = _hosts(planned)
     if hosts:
@@ -480,5 +481,5 @@ def apply(planned: dict) -> dict:
 NAME = "hermes_github_access_changes"
 if __name__ != NAME:
     raise ImportError(f"load changes.py as {NAME}: the op modules register into that module")
-for _domain in ("board", "issue"):
+for _domain in ("board", "issue", "repo"):
     _load(f"hermes_github_access_ops_{_domain}", HERE / f"ops_{_domain}.py")

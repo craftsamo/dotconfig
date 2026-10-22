@@ -390,19 +390,20 @@ def _linked(board_id: str, repo: str) -> bool:
     return any(b["id"] == board_id for b in access.linked_boards(repo))
 
 
-def _owner(login: str) -> dict:
-    """Who a new board would belong to: the viewer, or an organization the viewer belongs to."""
+def _owner(login: str, what: str = "board") -> dict:
+    """Who a new board (or repository) would belong to: the viewer, or an organization the viewer
+    belongs to."""
     login = access.viewer(fresh=True) if login.strip() in ("", "@me") else login.strip()
     found = access.graphql(OWNER_QUERY, {"login": login}).get("repositoryOwner")
     if not found:
         raise AccessError(f"no user or organization named {login!r}")
     if found["__typename"] == "User":
         if not access.same(found["login"], access.viewer(fresh=True)):
-            raise AccessError(f"a board is made for yourself (@me) or an organization you belong to, not for {login}")
+            raise AccessError(f"a {what} is made for yourself (@me) or an organization you belong to, not for {login}")
         tier = "own"  # a new board is private
     else:
         if access.tier(found["login"], "Organization", True, fresh=True) == "other":
-            raise AccessError(f"you are not a member of {found['login']}; a board is made only where you work")
+            raise AccessError(f"you are not a member of {found['login']}; a {what} is made only where you work")
         tier = "shared"
     return {"id": found["id"], "login": found["login"], "type": found["__typename"], "tier": tier}
 
