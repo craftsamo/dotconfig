@@ -3,7 +3,12 @@
 Every request to Stripe runs through ``bridge.py``, a short-lived child process that alone reads an
 API key from the Keychain; this module validates the arguments, builds the request from a fixed
 table, remembers what Stripe made of each key and shapes the reply. Amounts come back both as
-Stripe's integer minor units and formatted with their currency. Contract: docs/stripe-access.md.
+Stripe's integer minor units and formatted with their currency.
+
+A write (the Assistant's alone) runs only after Hermes' approval card for that exact call (see
+``approval_request``): the card names the account, the mode and what changes, read fresh from
+Stripe; execution plans it again and refuses on any difference, sends every step under the key the
+card was made with and with an idempotency key, and never retries. Contract: docs/stripe-access.md.
 """
 
 from __future__ import annotations
@@ -12,21 +17,32 @@ from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 import fcntl
+import hashlib
+import html
 import json
 import os
 from pathlib import Path
 import re
+import secrets
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 
 HERE = Path(__file__).resolve().parent
 
 READS = ("status", "account", "balance", "balance_transactions", "payments", "customers", "subscriptions",
          "invoices", "products", "prices", "payment_links", "refunds", "coupons", "promotion_codes")
-WRITES: tuple = ()
+WRITES = ("customer_create", "customer_update", "product_create", "product_update", "price_create", "price_update",
+          "coupon_create", "coupon_update", "coupon_delete", "promotion_code_create", "promotion_code_update",
+          "invoice_create", "invoice_finalize", "invoice_send", "invoice_void", "payment_link_create",
+          "payment_link_update", "refund_create", "subscription_update", "subscription_cancel")
 ACTIONS = READS + WRITES
+# Cards an "always" or "session" answer never covers: money moves, a customer is e-mailed, or it cannot be
+# undone. Each gets a fresh rule key, so every one is asked.
+ONCE = {"refund_create", "invoice_finalize", "invoice_send", "invoice_void", "subscription_update",
+        "subscription_cancel", "coupon_delete"}
 MODES = ("live", "test")
 
 BRIDGE = HERE / "bridge.py"
@@ -732,6 +748,1001 @@ def status(can_write: bool) -> dict:
     return result
 
 
+# --- write arguments ----------------------------------------------------------------------------
+
+CARD_LIMIT = 480             # what Telegram shows of an approval reason (as for the other *-access tools)
+CARD_MORE_RESERVE = 24
+APPROVAL_TTL = 900
+SUSPICIOUS = re.compile(r"[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f\u200b-\u200f\u202a-\u202e\u2066-\u2069\ufeff]")
+EMAIL = re.compile(r"[^@\s]+@[^@\s]+\.[^@\s]+")
+METADATA_KEY = re.compile(r"[A-Za-z0-9_.:-]{1,40}")
+CODE = re.compile(r"[A-Za-z0-9_-]{3,64}")
+CURRENCY = re.compile(r"[a-z]{3}")
+INTERVALS = ("day", "week", "month", "year")
+ITEMS_MAX = {"invoice_create": 10, "payment_link_create": 20}
+COMMON_ARGS = {"action", "mode", "account", "preview"}
+WRITE_ARGS = {
+    "customer_create": {"name", "email", "phone", "description", "metadata"},
+    "customer_update": {"id", "name", "email", "phone", "description", "metadata"},
+    "product_create": {"name", "description", "amount", "currency", "interval", "interval_count", "metadata"},
+    "product_update": {"id", "name", "description", "active", "metadata"},
+    "price_create": {"product", "amount", "currency", "interval", "interval_count", "nickname", "lookup_key",
+                     "metadata"},
+    "price_update": {"id", "active", "nickname", "lookup_key", "metadata"},
+    "coupon_create": {"id", "name", "percent_off", "amount", "currency", "duration", "duration_in_months",
+                      "max_redemptions", "redeem_by", "metadata"},
+    "coupon_update": {"id", "name", "metadata"},
+    "coupon_delete": {"id"},
+    "promotion_code_create": {"coupon", "code", "customer", "max_redemptions", "expires_at", "first_time",
+                              "minimum_amount", "currency", "metadata"},
+    "promotion_code_update": {"id", "active", "metadata"},
+    "invoice_create": {"customer", "items", "collection_method", "days_until_due", "description", "coupon",
+                       "promotion_code", "metadata"},
+    "invoice_finalize": {"id"},
+    "invoice_send": {"id"},
+    "invoice_void": {"id"},
+    "payment_link_create": {"items", "allow_promotion_codes", "metadata"},
+    "payment_link_update": {"id", "active", "allow_promotion_codes", "metadata"},
+    "refund_create": {"payment", "charge", "amount", "reason", "metadata"},
+    "subscription_update": {"id", "item", "price", "quantity", "proration", "cancel_at_period_end", "coupon",
+                            "promotion_code", "metadata"},
+    "subscription_cancel": {"id", "invoice_now", "prorate"},
+}
+
+
+def visible(text: str) -> str:
+    return SUSPICIOUS.sub(lambda m: f"⟨U+{ord(m.group()):04X}⟩", text)
+
+
+def _units(text: str) -> int:
+    """Length as Telegram counts an approval reason after escaping it."""
+    return len(html.escape(text).encode("utf-16-le")) // 2
+
+
+def _short(text, limit: int = 60) -> str:
+    """One line of someone's text for a card: control and invisible characters spelled out, cut to `limit`."""
+    text = visible(" ".join(str(text if text is not None else "").split()))
+    return text if len(text) <= limit else text[:limit - 1].rstrip() + "…"
+
+
+def _number(args: dict, key: str, low: int, high: int) -> int | None:
+    value = args.get(key)
+    if value is None:
+        return None
+    if isinstance(value, bool) or not isinstance(value, int) or not low <= value <= high:
+        raise StripeError(f"{key} must be an integer from {low} to {high}")
+    return value
+
+
+def _amount(args: dict, key: str = "amount", negative: bool = False) -> int | None:
+    """An amount in the currency's minor units (JPY 500 is 500, USD 5.00 is 500)."""
+    value = args.get(key)
+    if value is None:
+        return None
+    if isinstance(value, bool) or not isinstance(value, int) or value == 0 or abs(value) > 10 ** 11 \
+            or (value < 0 and not negative):
+        raise StripeError(f"{key} must be a {'non-zero' if negative else 'positive'} integer in the currency's "
+                          "minor units (JPY 500 is 500, USD 5.00 is 500)")
+    return value
+
+
+def _currency(args: dict, key: str = "currency") -> str:
+    value = args.get(key)
+    if not isinstance(value, str) or not CURRENCY.fullmatch(value.strip().lower()):
+        raise StripeError(f"{key} is required: a three-letter currency code such as jpy or usd")
+    return value.strip().lower()
+
+
+def _option(args: dict, key: str, options: tuple, default=None):
+    value = args.get(key)
+    if value is None:
+        return default
+    if value not in options:
+        raise StripeError(f"{key} must be one of " + ", ".join(options))
+    return value
+
+
+def _future(args: dict, key: str) -> int | None:
+    """A date (the whole local day included), ISO time or epoch, as epoch seconds in the next five years."""
+    if args.get(key) is None:
+        return None
+    _, epoch = _instant(args[key], key, end=True)
+    if not time.time() < epoch <= time.time() + 5 * 366 * 86400:
+        raise StripeError(f"{key} must be in the future, at most five years ahead")
+    return epoch
+
+
+def _metadata(args: dict) -> tuple[list, str | None]:
+    """(params, card line) for metadata: key -> value, '' removes the key."""
+    value = args.get("metadata")
+    if value is None:
+        return [], None
+    if not isinstance(value, dict) or not value or len(value) > 50:
+        raise StripeError("metadata must be an object of 1 to 50 keys")
+    params, shown = [], []
+    for key, item in value.items():
+        if not isinstance(key, str) or not METADATA_KEY.fullmatch(key):
+            raise StripeError("metadata keys are 1 to 40 letters, digits and _ . : -")
+        if not isinstance(item, str) or len(item) > 500:
+            raise StripeError(f"metadata[{key}] must be text of at most 500 characters ('' removes it)")
+        params.append([f"metadata[{key}]", item])
+        shown.append(f"{key}={_short(item, 24)}" if item else f"{key} removed")
+    return params, "Metadata: " + ", ".join(shown)
+
+
+def _recurring(args: dict, prefix: str) -> tuple[list, str]:
+    """(params, ' / 1 month') for interval and interval_count; ([], '') for a one-time price."""
+    interval = _option(args, "interval", INTERVALS)
+    count = _number(args, "interval_count", 1, 365)
+    if interval is None:
+        if count is not None:
+            raise StripeError("interval_count needs interval (day | week | month | year)")
+        return [], ""
+    params = [[f"{prefix}[interval]", interval]] + ([[f"{prefix}[interval_count]", str(count)]] if count else [])
+    return params, f" / {count or 1} {interval}"
+
+
+def _check_args(action: str, args: dict) -> None:
+    extra = sorted(k for k, v in args.items() if v is not None and k not in WRITE_ARGS[action] | COMMON_ARGS)
+    if extra:
+        raise StripeError(f"{action} does not take " + ", ".join(extra) + "; it takes "
+                          + ", ".join(sorted(WRITE_ARGS[action])))
+
+
+def is_preview(args) -> bool:
+    if not isinstance(args, dict) or args.get("preview") in (None, False):
+        return False
+    if args.get("preview") is not True:
+        raise StripeError("preview must be true or false")
+    return True
+
+
+# --- write plans --------------------------------------------------------------------------------
+#
+# A plan names the key it runs on (label, mode, fingerprint), the card's lines (`lines` always shown,
+# `details` while they fit), the requests to send (`steps`), how the result is shaped and, for an
+# invoice built from several requests, the object read back at the end. Planning reads what the card
+# shows from Stripe; nothing is changed.
+
+def _start(args: dict) -> dict:
+    action, mode = action_of(args), mode_of(args)
+    _check_args(action, args)
+    reply = bridge("key", account=account_of(args), mode=mode)
+    if not reply.get("ok"):
+        raise StripeError(_failure(reply, "the key"))
+    return {"action": action, "mode": mode, "account": reply["account"], "fingerprint": reply["fingerprint"],
+            "lines": [], "details": [], "steps": [], "shape": None, "final": None}
+
+
+def _read(plan: dict, path: str, what: str, params=()) -> dict:
+    """A read for the card, on the plan's account and key."""
+    data, reply = get(path, [list(p) for p in params], account=plan["account"], mode=plan["mode"], what=what)
+    if reply.get("fingerprint") and reply["fingerprint"] != plan["fingerprint"]:
+        raise StripeError("the stored key changed while the card was being made; try again")
+    return data
+
+
+def _step(plan: dict, method: str, path: str, params: list, what: str) -> None:
+    plan["steps"].append({"method": method, "path": path, "params": params, "what": what})
+
+
+def _who(customer) -> str:
+    if isinstance(customer, dict):
+        parts = [_short(customer["name"], 40)] if customer.get("name") else []
+        if customer.get("email"):
+            parts.append(f"<{_short(customer['email'], 50)}>")
+        return " ".join(parts + [f"({customer.get('id')})"]) if parts else str(customer.get("id"))
+    return str(customer or "no customer")
+
+
+def _price_text(price: dict) -> str:
+    amount = money(price.get("unit_amount"), price.get("currency")) or "a custom amount"
+    recurring = price.get("recurring") or {}
+    per = f" / {recurring.get('interval_count') or 1} {recurring['interval']}" if recurring.get("interval") else ""
+    nickname = f" '{_short(price['nickname'], 24)}'" if price.get("nickname") else ""
+    return f"{price.get('id')}{nickname} {amount}{per}"
+
+
+def _change(label: str, old, new, limit: int = 40) -> str:
+    def show(value):
+        if value is None or value == "":
+            return "(none)"
+        return str(value).lower() if isinstance(value, bool) else _short(value, limit)
+    return f"{label}: {show(old)} → {show(new)}"
+
+
+def _fields(args: dict, specs: tuple) -> list:
+    """[(key, value)] of the given text fields."""
+    found = []
+    for key, most in specs:
+        value = _text(args, key, most)
+        if value is None:
+            continue
+        if key == "email" and not EMAIL.fullmatch(value):
+            raise StripeError("email must be an e-mail address")
+        found.append((key, value))
+    return found
+
+
+CUSTOMER_FIELDS = (("name", 256), ("email", 512), ("phone", 20), ("description", 350))
+
+
+def _plan_customer_create(args: dict, plan: dict) -> None:
+    fields = _fields(args, CUSTOMER_FIELDS)
+    if not any(key in ("name", "email") for key, _ in fields):
+        raise StripeError("customer_create needs a name or an email")
+    meta, meta_line = _metadata(args)
+    plan["lines"].append("Create a customer")
+    plan["lines"] += [f"{key.capitalize()}: {_short(value, 80)}" for key, value in fields]
+    plan["details"] += [meta_line] if meta_line else []
+    _step(plan, "POST", "/v1/customers", [[k, v] for k, v in fields] + meta, "creating the customer")
+    plan["shape"] = shape_customer
+
+
+def _plan_customer_update(args: dict, plan: dict) -> None:
+    cid = stripe_id(args.get("id"), ("cus_",), "id")
+    current = _read(plan, f"/v1/customers/{cid}", f"customer {cid}")
+    if current.get("deleted"):
+        raise StripeError(f"customer {cid} is deleted")
+    fields = _fields(args, CUSTOMER_FIELDS)
+    meta, meta_line = _metadata(args)
+    if not fields and not meta:
+        raise StripeError("customer_update needs a change: name, email, phone, description or metadata")
+    plan["lines"].append(f"Update customer {_who(current)}")
+    plan["lines"] += [_change(key.capitalize(), current.get(key), value) for key, value in fields]
+    plan["details"] += [meta_line] if meta_line else []
+    _step(plan, "POST", f"/v1/customers/{cid}", [[k, v] for k, v in fields] + meta, f"updating customer {cid}")
+    plan["shape"] = shape_customer
+
+
+def _plan_product_create(args: dict, plan: dict) -> None:
+    name = _text(args, "name", 250)
+    if not name:
+        raise StripeError("name is required")
+    params = [["name", name]]
+    plan["lines"].append(f"Create product: {_short(name, 80)}")
+    description = _text(args, "description", 500)
+    if description:
+        params.append(["description", description])
+        plan["details"].append(f"Description: {_short(description, 120)}")
+    amount = _amount(args)
+    if amount is not None:
+        currency = _currency(args)
+        recurring, per = _recurring(args, "default_price_data[recurring]")
+        params += [["default_price_data[currency]", currency], ["default_price_data[unit_amount]", str(amount)]]
+        params += recurring
+        plan["lines"].append(f"Default price: {money(amount, currency)}{per}")
+    elif any(args.get(k) is not None for k in ("currency", "interval", "interval_count")):
+        raise StripeError("currency and interval set the default price, which needs amount")
+    meta, meta_line = _metadata(args)
+    plan["details"] += [meta_line] if meta_line else []
+    _step(plan, "POST", "/v1/products", params + meta, "creating the product")
+    plan["shape"] = shape_product
+
+
+def _plan_product_update(args: dict, plan: dict) -> None:
+    pid = stripe_id(args.get("id"), (), "id")
+    current = _read(plan, f"/v1/products/{pid}", f"product {pid}")
+    fields = _fields(args, (("name", 250), ("description", 500)))
+    active = _bool(args, "active")
+    meta, meta_line = _metadata(args)
+    if not fields and active is None and not meta:
+        raise StripeError("product_update needs a change: name, description, active or metadata")
+    plan["lines"].append(f"Update product {_short(current.get('name'), 50)} ({pid})")
+    plan["lines"] += [_change(key.capitalize(), current.get(key), value) for key, value in fields]
+    params = [[k, v] for k, v in fields]
+    if active is not None:
+        params.append(["active", "true" if active else "false"])
+        plan["lines"].append(_change("Active (on sale)", current.get("active"), active))
+    plan["details"] += [meta_line] if meta_line else []
+    _step(plan, "POST", f"/v1/products/{pid}", params + meta, f"updating product {pid}")
+    plan["shape"] = shape_product
+
+
+def _plan_price_create(args: dict, plan: dict) -> None:
+    pid = stripe_id(args.get("product"), (), "product")
+    product = _read(plan, f"/v1/products/{pid}", f"product {pid}")
+    amount = _amount(args)
+    if amount is None:
+        raise StripeError("amount is required, in the currency's minor units")
+    currency = _currency(args)
+    recurring, per = _recurring(args, "recurring")
+    params = [["product", pid], ["currency", currency], ["unit_amount", str(amount)]] + recurring
+    plan["lines"].append(f"Create price for product {_short(product.get('name'), 50)} ({pid}): "
+                         f"{money(amount, currency)}{per}")
+    for key, most in (("nickname", 100), ("lookup_key", 200)):
+        value = _text(args, key, most)
+        if value:
+            params.append([key, value])
+            plan["details"].append(f"{key.replace('_', ' ').capitalize()}: {_short(value, 60)}")
+    meta, meta_line = _metadata(args)
+    plan["details"] += [meta_line] if meta_line else []
+    _step(plan, "POST", "/v1/prices", params + meta, "creating the price")
+    plan["shape"] = shape_price
+
+
+def _plan_price_update(args: dict, plan: dict) -> None:
+    pid = stripe_id(args.get("id"), ("price_",), "id")
+    current = _read(plan, f"/v1/prices/{pid}", f"price {pid}")
+    fields = _fields(args, (("nickname", 100), ("lookup_key", 200)))
+    active = _bool(args, "active")
+    meta, meta_line = _metadata(args)
+    if not fields and active is None and not meta:
+        raise StripeError("price_update needs a change: active, nickname, lookup_key or metadata (a price's "
+                          "amount never changes: create a new price and archive this one)")
+    plan["lines"].append(f"Update price {_price_text(current)}")
+    plan["lines"] += [_change(key.replace("_", " ").capitalize(), current.get(key), value) for key, value in fields]
+    params = [[k, v] for k, v in fields]
+    if active is not None:
+        params.append(["active", "true" if active else "false"])
+        plan["lines"].append(_change("Active (can be bought)", current.get("active"), active))
+    plan["details"] += [meta_line] if meta_line else []
+    _step(plan, "POST", f"/v1/prices/{pid}", params + meta, f"updating price {pid}")
+    plan["shape"] = shape_price
+
+
+def _plan_coupon_create(args: dict, plan: dict) -> None:
+    percent, amount = args.get("percent_off"), _amount(args)
+    if (percent is None) == (amount is None):
+        raise StripeError("coupon_create needs percent_off, or amount with currency: one of them")
+    coupon, params = {}, []
+    if percent is not None:
+        if isinstance(percent, bool) or not isinstance(percent, (int, float)) or not 0 < percent <= 100:
+            raise StripeError("percent_off must be a number above 0, at most 100")
+        coupon["percent_off"] = float(percent)
+        params.append(["percent_off", f"{float(percent):g}"])
+    else:
+        currency = _currency(args)
+        coupon.update(amount_off=amount, currency=currency)
+        params += [["amount_off", str(amount)], ["currency", currency]]
+    duration = _option(args, "duration", ("once", "repeating", "forever"))
+    if duration is None:
+        raise StripeError("duration is required: once, repeating (with duration_in_months) or forever")
+    months = _number(args, "duration_in_months", 1, 36)
+    if (duration == "repeating") != (months is not None):
+        raise StripeError("duration_in_months goes with duration repeating, and only with it")
+    coupon.update(duration=duration, duration_in_months=months)
+    params.append(["duration", duration])
+    if months:
+        params.append(["duration_in_months", str(months)])
+    custom = args.get("id")
+    if custom is not None:
+        if not isinstance(custom, str) or not CODE.fullmatch(custom):
+            raise StripeError("id (the coupon's own id) must be 3 to 64 letters, digits, _ or -")
+        params.append(["id", custom])
+    plan["lines"].append(f"Create coupon {custom or '(id chosen by Stripe)'}: {coupon_terms(coupon)}")
+    name = _text(args, "name", 40)
+    if name:
+        params.append(["name", name])
+        plan["lines"].append(f"Name (shown to customers): {_short(name, 40)}")
+    most = _number(args, "max_redemptions", 1, 10 ** 9)
+    if most:
+        params.append(["max_redemptions", str(most)])
+        plan["lines"].append(f"Redeemable {most} times at most")
+    until = _future(args, "redeem_by")
+    if until:
+        params.append(["redeem_by", str(until)])
+        plan["lines"].append(f"Redeemable until {when(until)}")
+    meta, meta_line = _metadata(args)
+    plan["details"] += [meta_line] if meta_line else []
+    _step(plan, "POST", "/v1/coupons", params + meta, "creating the coupon")
+    plan["shape"] = shape_coupon
+
+
+def _coupon(plan: dict, value, key: str = "coupon") -> dict:
+    cid = stripe_id(value, (), key)
+    return _read(plan, f"/v1/coupons/{cid}", f"coupon {cid}")
+
+
+def _plan_coupon_update(args: dict, plan: dict) -> None:
+    current = _coupon(plan, args.get("id"), "id")
+    name = _text(args, "name", 40)
+    meta, meta_line = _metadata(args)
+    if name is None and not meta:
+        raise StripeError("coupon_update changes only name and metadata; its terms never change (create a new "
+                          "coupon and delete this one)")
+    plan["lines"].append(f"Update coupon {current.get('id')}: {coupon_terms(current)}")
+    params = []
+    if name is not None:
+        params.append(["name", name])
+        plan["lines"].append(_change("Name", current.get("name"), name))
+    plan["details"] += [meta_line] if meta_line else []
+    _step(plan, "POST", f"/v1/coupons/{current.get('id')}", params + meta, f"updating coupon {current.get('id')}")
+    plan["shape"] = shape_coupon
+
+
+def _plan_coupon_delete(args: dict, plan: dict) -> None:
+    current = _coupon(plan, args.get("id"), "id")
+    name = f" '{_short(current['name'], 30)}'" if current.get("name") else ""
+    plan["lines"].append(f"Delete coupon {current.get('id')}{name}: {coupon_terms(current)}, redeemed "
+                         f"{current.get('times_redeemed') or 0} times")
+    plan["lines"].append("New redemptions stop, through its promotion codes too; discounts already applied stay.")
+    _step(plan, "DELETE", f"/v1/coupons/{current.get('id')}", [], f"deleting coupon {current.get('id')}")
+    plan["shape"] = lambda data: _compact({"id": data.get("id"), "deleted": data.get("deleted")})
+
+
+def _plan_promotion_code_create(args: dict, plan: dict) -> None:
+    coupon = _coupon(plan, args.get("coupon"))
+    if coupon.get("valid") is False:
+        raise StripeError(f"coupon {coupon.get('id')} can no longer be redeemed")
+    params = [["promotion[type]", "coupon"], ["promotion[coupon]", coupon["id"]]]
+    code = args.get("code")
+    if code is not None:
+        if not isinstance(code, str) or not CODE.fullmatch(code):
+            raise StripeError("code must be 3 to 64 letters, digits, _ or -")
+        params.append(["code", code])
+    plan["lines"].append(f"Create promotion code {code or '(code chosen by Stripe)'} for coupon {coupon['id']}: "
+                         f"{coupon_terms(coupon)}")
+    if args.get("customer") is not None:
+        cid = stripe_id(args.get("customer"), ("cus_",), "customer")
+        customer = _read(plan, f"/v1/customers/{cid}", f"customer {cid}")
+        params.append(["customer", cid])
+        plan["lines"].append(f"Only for {_who(customer)}")
+    if _bool(args, "first_time"):
+        params.append(["restrictions[first_time_transaction]", "true"])
+        plan["lines"].append("Only for a customer's first purchase")
+    minimum = _amount(args, "minimum_amount")
+    if minimum is not None:
+        currency = _currency(args)
+        params += [["restrictions[minimum_amount]", str(minimum)], ["restrictions[minimum_amount_currency]", currency]]
+        plan["lines"].append(f"Minimum order: {money(minimum, currency)}")
+    elif args.get("currency") is not None:
+        raise StripeError("currency here is minimum_amount's; give minimum_amount too")
+    most = _number(args, "max_redemptions", 1, 10 ** 9)
+    if most:
+        params.append(["max_redemptions", str(most)])
+        plan["lines"].append(f"Usable {most} times at most")
+    until = _future(args, "expires_at")
+    if until:
+        params.append(["expires_at", str(until)])
+        plan["lines"].append(f"Usable until {when(until)}")
+    meta, meta_line = _metadata(args)
+    plan["details"] += [meta_line] if meta_line else []
+    _step(plan, "POST", "/v1/promotion_codes", params + meta, "creating the promotion code")
+    plan["shape"] = shape_promotion_code
+
+
+def _plan_promotion_code_update(args: dict, plan: dict) -> None:
+    pid = stripe_id(args.get("id"), ("promo_",), "id")
+    current = _read(plan, f"/v1/promotion_codes/{pid}", f"promotion code {pid}")
+    active = _bool(args, "active")
+    meta, meta_line = _metadata(args)
+    if active is None and not meta:
+        raise StripeError("promotion_code_update needs active or metadata")
+    coupon = _ref((current.get("promotion") or {}).get("coupon")) or _ref(current.get("coupon"))
+    verb = "Update" if active is None else "Reactivate" if active else "Deactivate"
+    plan["lines"].append(f"{verb} promotion code {_short(current.get('code'), 40)} ({pid}, coupon {coupon})")
+    params = []
+    if active is not None:
+        params.append(["active", "true" if active else "false"])
+        plan["lines"].append(_change("Usable", current.get("active"), active))
+    plan["details"] += [meta_line] if meta_line else []
+    _step(plan, "POST", f"/v1/promotion_codes/{pid}", params + meta, f"updating promotion code {pid}")
+    plan["shape"] = shape_promotion_code
+
+
+def _discount(args: dict, plan: dict) -> tuple[list, str | None]:
+    """(params, card text) for a coupon or a promotion code put on an invoice or a subscription."""
+    coupon, promo = args.get("coupon"), args.get("promotion_code")
+    if coupon is not None and promo is not None:
+        raise StripeError("give coupon or promotion_code, not both")
+    if coupon is not None:
+        found = _coupon(plan, coupon)
+        if found.get("valid") is False:
+            raise StripeError(f"coupon {found.get('id')} can no longer be redeemed")
+        return [["discounts[0][coupon]", found["id"]]], f"coupon {found['id']} ({coupon_terms(found)})"
+    if promo is not None:
+        pid = stripe_id(promo, ("promo_",), "promotion_code")
+        found = _read(plan, f"/v1/promotion_codes/{pid}", f"promotion code {pid}")
+        if found.get("active") is False:
+            raise StripeError(f"promotion code {pid} is not active")
+        cid = _ref((found.get("promotion") or {}).get("coupon")) or _ref(found.get("coupon"))
+        terms = coupon_terms(_coupon(plan, cid)) if cid else "?"
+        return [["discounts[0][promotion_code]", pid]], f"promotion code {_short(found.get('code'), 30)} ({terms})"
+    return [], None
+
+
+def _items(args: dict, action: str) -> list:
+    items = args.get("items")
+    most = ITEMS_MAX[action]
+    if not isinstance(items, list) or not 1 <= len(items) <= most or not all(isinstance(i, dict) for i in items):
+        raise StripeError(f"items must be a list of 1 to {most} lines")
+    return items
+
+
+def _plan_invoice_create(args: dict, plan: dict) -> None:
+    cid = stripe_id(args.get("customer"), ("cus_",), "customer")
+    customer = _read(plan, f"/v1/customers/{cid}", f"customer {cid}")
+    if customer.get("deleted"):
+        raise StripeError(f"customer {cid} is deleted")
+    method = _option(args, "collection_method", ("send_invoice", "charge_automatically"), "send_invoice")
+    days = _number(args, "days_until_due", 1, 365)
+    if method == "charge_automatically" and days is not None:
+        raise StripeError("days_until_due goes with collection_method send_invoice")
+    days = days or (30 if method == "send_invoice" else None)
+    params = [["customer", cid], ["collection_method", method], ["auto_advance", "false"],
+              ["pending_invoice_items_behavior", "exclude"]]
+    if days:
+        params.append(["days_until_due", str(days)])
+    description = _text(args, "description", 1500)
+    if description:
+        params.append(["description", description])
+    discount, discount_text = _discount(args, plan)
+    meta, meta_line = _metadata(args)
+    lines, currencies, total = [], set(), 0
+    for n, item in enumerate(_items(args, "invoice_create"), 1):
+        unknown = set(item) - {"price", "quantity", "amount", "currency", "description"}
+        if unknown:
+            raise StripeError(f"items[{n}] does not take " + ", ".join(sorted(unknown)))
+        if item.get("price") is not None:
+            if any(item.get(k) is not None for k in ("amount", "currency", "description")):
+                raise StripeError(f"items[{n}]: a line is a price with quantity, or amount + currency + description")
+            pid = stripe_id(item.get("price"), ("price_",), f"items[{n}].price")
+            price = _read(plan, f"/v1/prices/{pid}", f"price {pid}")
+            if price.get("type") != "one_time" or price.get("active") is False:
+                raise StripeError(f"items[{n}]: price {pid} must be an active one-time price (a recurring one belongs "
+                                  "to a subscription)")
+            quantity = _number(item, "quantity", 1, 10000) or 1
+            currencies.add(price.get("currency"))
+            unit = price.get("unit_amount")
+            total = None if total is None or not isinstance(unit, int) else total + unit * quantity
+            lines.append(f"- {quantity} × {_price_text(price)}")
+            step = [["customer", cid], ["invoice", None], ["pricing[price]", pid], ["quantity", str(quantity)]]
+        else:
+            if item.get("quantity") is not None:
+                raise StripeError(f"items[{n}]: a custom line has no quantity; amount is the line's total")
+            amount = _amount(item, "amount", negative=True)
+            if amount is None:
+                raise StripeError(f"items[{n}] needs price, or amount + currency + description")
+            currency = _currency(item)
+            text = _text(item, "description", 500)
+            if not text:
+                raise StripeError(f"items[{n}]: a custom line needs a description")
+            currencies.add(currency)
+            total = None if total is None else total + amount
+            lines.append(f"- {_short(text, 50)}: {money(amount, currency)}")
+            step = [["customer", cid], ["invoice", None], ["amount", str(amount)], ["currency", currency],
+                    ["description", text]]
+        plan.setdefault("item_steps", []).append(step)
+    if len(currencies) > 1:
+        raise StripeError("an invoice has one currency; these lines use " + ", ".join(sorted(currencies)))
+    currency = currencies.pop()
+    params.append(["currency", currency])   # the lines' currency, not the customer's default
+    plan["lines"].append(f"Draft invoice for {_who(customer)}")
+    count = len(plan["item_steps"])
+    subtotal = f": {money(total, currency)} before discounts and tax" if total is not None else ""
+    plan["lines"].append(f"{count} line{'s' if count > 1 else ''}{subtotal}")
+    plan["lines"].append(f"Paid by: an e-mailed invoice due {days} days after it is finalized" if days
+                         else "Paid by: charging the customer's saved payment method")
+    if discount_text:
+        plan["lines"].append(f"Discount: {discount_text}")
+    plan["lines"].append("A draft only: nothing is sent or charged before invoice_finalize and invoice_send.")
+    plan["details"] += lines + ([f"Description: {_short(description, 100)}"] if description else []) \
+        + ([meta_line] if meta_line else [])
+    _step(plan, "POST", "/v1/invoices", params + discount + meta, "creating the draft invoice")
+    for n, step in enumerate(plan.pop("item_steps"), 1):
+        _step(plan, "POST", "/v1/invoiceitems", step, f"adding line {n} to the draft invoice")
+        plan["steps"][-1]["link"] = ["invoice", 0]   # `invoice` takes the id step 0 created
+    plan["shape"], plan["final"] = shape_invoice, "/v1/invoices/{0}"
+
+
+def _invoice(plan: dict, args: dict, states: tuple) -> dict:
+    iid = stripe_id(args.get("id"), ("in_",), "id")
+    current = _read(plan, f"/v1/invoices/{iid}", f"invoice {iid}")
+    if current.get("status") not in states:
+        raise StripeError(f"invoice {iid} is {current.get('status')}; this needs it " + " or ".join(states))
+    return current
+
+
+def _invoice_line(current: dict) -> str:
+    name = current.get("number") or current.get("id")
+    who = _who({"id": _ref(current.get("customer")), "name": current.get("customer_name"),
+                "email": current.get("customer_email")})
+    total = money(current.get("total"), current.get("currency"))
+    return f"invoice {name} for {who}: {total}"
+
+
+def _plan_invoice_finalize(args: dict, plan: dict) -> None:
+    current = _invoice(plan, args, ("draft",))
+    plan["lines"].append(f"Finalize {_invoice_line(current)}")
+    plan["lines"].append("It gets a number, becomes payable and can no longer be edited.")
+    if current.get("collection_method") == "send_invoice":
+        plan["lines"].append("Nothing is e-mailed before invoice_send.")
+    else:
+        plan["lines"].append("Automatic collection stays off: Stripe does not charge it by itself.")
+    _step(plan, "POST", f"/v1/invoices/{current['id']}/finalize", [["auto_advance", "false"]],
+          f"finalizing invoice {current['id']}")
+    plan["shape"] = shape_invoice
+
+
+def _plan_invoice_send(args: dict, plan: dict) -> None:
+    current = _invoice(plan, args, ("open", "paid"))
+    if not current.get("customer_email"):
+        raise StripeError(f"invoice {current['id']}'s customer has no e-mail address")
+    due = when(current.get("due_date"))
+    plan["lines"].append(f"E-mail {_invoice_line(current)}")
+    plan["lines"].append(f"To: {_short(current.get('customer_email'), 60)}; {current.get('status')}"
+                         + (f", due {due}" if due else ""))
+    if plan["mode"] == "test":
+        plan["lines"].append("Test mode: Stripe sends no e-mail.")
+    _step(plan, "POST", f"/v1/invoices/{current['id']}/send", [], f"sending invoice {current['id']}")
+    plan["shape"] = shape_invoice
+
+
+def _plan_invoice_void(args: dict, plan: dict) -> None:
+    current = _invoice(plan, args, ("open", "uncollectible"))
+    plan["lines"].append(f"Void {_invoice_line(current)}")
+    plan["lines"].append("It cannot be undone: the invoice stays on record as void and can no longer be paid.")
+    _step(plan, "POST", f"/v1/invoices/{current['id']}/void", [], f"voiding invoice {current['id']}")
+    plan["shape"] = shape_invoice
+
+
+def _plan_payment_link_create(args: dict, plan: dict) -> None:
+    params, lines, recurring, currencies, total = [], [], [], set(), 0
+    for n, item in enumerate(_items(args, "payment_link_create"), 1):
+        unknown = set(item) - {"price", "quantity"}
+        if unknown:
+            raise StripeError(f"items[{n}]: a payment link line is a price with quantity, not " + ", ".join(sorted(unknown)))
+        pid = stripe_id(item.get("price"), ("price_",), f"items[{n}].price")
+        price = _read(plan, f"/v1/prices/{pid}", f"price {pid}")
+        if price.get("active") is False:
+            raise StripeError(f"items[{n}]: price {pid} is archived")
+        quantity = _number(item, "quantity", 1, 10000) or 1
+        currencies.add(price.get("currency"))
+        unit = price.get("unit_amount")
+        total = None if total is None or not isinstance(unit, int) else total + unit * quantity
+        params += [[f"line_items[{n - 1}][price]", pid], [f"line_items[{n - 1}][quantity]", str(quantity)]]
+        line = f"- {quantity} × {_price_text(price)}"
+        (recurring if (price.get("recurring") or {}).get("interval") else lines).append(line)
+    if len(currencies) > 1:
+        raise StripeError("a payment link has one currency; these prices use " + ", ".join(sorted(currencies)))
+    count = len(lines) + len(recurring)
+    amount = f", {money(total, currencies.pop())} at checkout" if total is not None else ""
+    plan["lines"].append(f"Create a payment link: {count} item{'s' if count > 1 else ''}{amount}")
+    if recurring:   # what keeps billing is always on the card
+        plan["lines"].append("Checkout starts a subscription that bills again:")
+        plan["lines"] += recurring
+    plan["lines"].append("Anyone with the link can pay.")
+    promo = _bool(args, "allow_promotion_codes")
+    if promo is not None:
+        params.append(["allow_promotion_codes", "true" if promo else "false"])
+        plan["lines"].append(f"Promotion codes: {'accepted' if promo else 'not accepted'}")
+    meta, meta_line = _metadata(args)
+    plan["details"] += lines + ([meta_line] if meta_line else [])
+    _step(plan, "POST", "/v1/payment_links", params + meta, "creating the payment link")
+    plan["shape"] = shape_payment_link
+
+
+def _plan_payment_link_update(args: dict, plan: dict) -> None:
+    lid = stripe_id(args.get("id"), ("plink_",), "id")
+    current = _read(plan, f"/v1/payment_links/{lid}", f"payment link {lid}")
+    active, promo = _bool(args, "active"), _bool(args, "allow_promotion_codes")
+    meta, meta_line = _metadata(args)
+    if active is None and promo is None and not meta:
+        raise StripeError("payment_link_update needs active, allow_promotion_codes or metadata")
+    verb = "Update" if active is None else "Reactivate" if active else "Deactivate"
+    plan["lines"].append(f"{verb} payment link {lid} ({_short(current.get('url'), 60)})")
+    params = []
+    if active is not None:
+        params.append(["active", "true" if active else "false"])
+        plan["lines"].append(_change("Accepts payments", current.get("active"), active))
+    if promo is not None:
+        params.append(["allow_promotion_codes", "true" if promo else "false"])
+        plan["lines"].append(_change("Promotion codes", current.get("allow_promotion_codes"), promo))
+    plan["details"] += [meta_line] if meta_line else []
+    _step(plan, "POST", f"/v1/payment_links/{lid}", params + meta, f"updating payment link {lid}")
+    plan["shape"] = shape_payment_link
+
+
+def _plan_refund_create(args: dict, plan: dict) -> None:
+    payment, charge_id = args.get("payment"), args.get("charge")
+    if (payment is None) == (charge_id is None):
+        raise StripeError("refund_create needs payment (pi_…) or charge (ch_… / py_…): one of them")
+    if payment is not None:
+        pid = stripe_id(payment, ("pi_",), "payment")
+        intent = _read(plan, f"/v1/payment_intents/{pid}", f"payment {pid}", [["expand[]", "latest_charge"]])
+        charge = intent.get("latest_charge")
+        if not isinstance(charge, dict):
+            raise StripeError(f"payment {pid} has no charge to refund")
+        target, name = ["payment_intent", pid], f"payment {pid}"
+    else:
+        cid = stripe_id(charge_id, ("ch_", "py_"), "charge")
+        charge = _read(plan, f"/v1/charges/{cid}", f"charge {cid}")
+        target, name = ["charge", cid], f"charge {cid}"
+    if charge.get("status") != "succeeded":
+        raise StripeError(f"{name} is {charge.get('status')}; only a succeeded payment can be refunded")
+    currency = charge.get("currency")
+    paid = charge.get("amount_captured") if isinstance(charge.get("amount_captured"), int) else charge.get("amount")
+    refunded = charge.get("amount_refunded") or 0
+    if not isinstance(paid, int) or paid - refunded <= 0:
+        raise StripeError(f"{name} is already refunded in full")
+    left = paid - refunded
+    amount = _amount(args)
+    if amount is not None and amount > left:
+        raise StripeError(f"amount is more than the {money(left, currency)} left to refund on {name}")
+    amount = amount or left
+    reason = _option(args, "reason", ("duplicate", "fraudulent", "requested_by_customer"))
+    billing = charge.get("billing_details") or {}
+    who = _who({"id": _ref(charge.get("customer")) or "no customer", "name": billing.get("name"),
+                "email": billing.get("email") or charge.get("receipt_email")})
+    whole = "all that is left" if amount == left else "part"
+    plan["lines"].append(f"Refund {money(amount, currency)} ({whole}) of {name}")
+    plan["lines"].append(f"Paid {money(paid, currency)}, refunded before {money(refunded, currency)}, by {who}")
+    plan["lines"].append("The money goes back to the customer's payment method.")
+    params = [target, ["amount", str(amount)]]
+    if reason:
+        params.append(["reason", reason])
+        plan["lines"].append(f"Reason: {reason}")
+    meta, meta_line = _metadata(args)
+    plan["details"] += [meta_line] if meta_line else []
+    _step(plan, "POST", "/v1/refunds", params + meta, f"refunding {name}")
+    plan["shape"] = shape_refund
+
+
+def _subscription(plan: dict, args: dict) -> dict:
+    sid = stripe_id(args.get("id"), ("sub_",), "id")
+    current = _read(plan, f"/v1/subscriptions/{sid}", f"subscription {sid}", [["expand[]", "customer"]])
+    if current.get("status") in ("canceled", "incomplete_expired"):
+        raise StripeError(f"subscription {sid} is {current.get('status')}")
+    return current
+
+
+PRORATION = {"create_prorations": "credit or charge the difference on the next invoice",
+             "always_invoice": "invoice the difference now",
+             "none": "no proration"}
+
+
+def _plan_subscription_update(args: dict, plan: dict) -> None:
+    current = _subscription(plan, args)
+    sid, items = current["id"], ((current.get("items") or {}).get("data") or [])
+    plan["lines"].append(f"Change subscription {sid} of {_who(current.get('customer'))} ({current.get('status')})")
+    params = []
+    quantity = _number(args, "quantity", 1, 10000)
+    if args.get("price") is not None or quantity is not None:
+        if args.get("item") is not None:
+            item_id = stripe_id(args.get("item"), ("si_",), "item")
+            item = next((i for i in items if i.get("id") == item_id), None)
+            if item is None:
+                raise StripeError(f"item {item_id} is not on subscription {sid}")
+        elif len(items) == 1:
+            item = items[0]
+        else:
+            raise StripeError(f"subscription {sid} has {len(items)} items (" + ", ".join(i.get("id") for i in items)
+                              + "); name the one to change with item")
+        params.append(["items[0][id]", item["id"]])
+        old_price = item.get("price") or {}
+        old_quantity = item.get("quantity") if isinstance(item.get("quantity"), int) else 1
+        new_price = old_price
+        if args.get("price") is not None:
+            pid = stripe_id(args.get("price"), ("price_",), "price")
+            new_price = _read(plan, f"/v1/prices/{pid}", f"price {pid}")
+            if not (new_price.get("recurring") or {}).get("interval") or new_price.get("active") is False:
+                raise StripeError(f"price {pid} must be an active recurring price")
+            params.append(["items[0][price]", pid])
+        # The quantity is always sent: a price change without it would let Stripe reset it.
+        new_quantity = quantity if quantity is not None else old_quantity
+        params.append(["items[0][quantity]", str(new_quantity)])
+        plan["lines"].append(f"Item {item['id']}: {old_quantity} × {_price_text(old_price)}")
+        plan["lines"].append(f"Becomes: {new_quantity} × {_price_text(new_price)}")
+        proration = _option(args, "proration", tuple(PRORATION), "create_prorations")
+        params.append(["proration_behavior", proration])
+        plan["lines"].append(f"Prorations: {proration} ({PRORATION[proration]})")
+    elif args.get("proration") is not None or args.get("item") is not None:
+        raise StripeError("item and proration go with a price or quantity change")
+    at_end = _bool(args, "cancel_at_period_end")
+    if at_end is not None:
+        params.append(["cancel_at_period_end", "true" if at_end else "false"])
+        end = when(max((i.get("current_period_end") or 0 for i in items), default=None) or None)
+        plan["lines"].append(f"Ends when the current period ends ({end})" if at_end
+                             else "No longer ends at the period's end: it renews")
+    discount, discount_text = _discount(args, plan)
+    if discount_text:
+        had = len(current.get("discounts") or [])
+        plan["lines"].append(f"Discount: {discount_text}" + (f", replacing {had} current" if had else ""))
+    meta, meta_line = _metadata(args)
+    if not params and not discount and not meta:
+        raise StripeError("subscription_update needs a change: price, quantity, cancel_at_period_end, coupon or "
+                          "promotion_code, or metadata")
+    plan["details"] += [meta_line] if meta_line else []
+    _step(plan, "POST", f"/v1/subscriptions/{sid}", params + discount + meta, f"updating subscription {sid}")
+    plan["shape"] = shape_subscription
+
+
+def _plan_subscription_cancel(args: dict, plan: dict) -> None:
+    current = _subscription(plan, args)
+    sid = current["id"]
+    invoice_now, prorate = _bool(args, "invoice_now"), _bool(args, "prorate")
+    plan["lines"].append(f"Cancel subscription {sid} of {_who(current.get('customer'))} now")
+    plan["lines"].append("Billing stops at once and it cannot be resumed (to end at the period's end, use "
+                         "subscription_update with cancel_at_period_end).")
+    plan["lines"].append(f"Final invoice now: {'yes' if invoice_now else 'no'}; prorated credit: "
+                         f"{'yes' if prorate else 'no'}")
+    plan["details"] += [f"- {i.get('quantity') or 1} × {_price_text(i.get('price') or {})}"
+                        for i in ((current.get("items") or {}).get("data") or [])]
+    params = ([["invoice_now", "true"]] if invoice_now else []) + ([["prorate", "true"]] if prorate else [])
+    _step(plan, "DELETE", f"/v1/subscriptions/{sid}", params, f"canceling subscription {sid}")
+    plan["shape"] = shape_subscription
+
+
+PLANS = {
+    "customer_create": _plan_customer_create, "customer_update": _plan_customer_update,
+    "product_create": _plan_product_create, "product_update": _plan_product_update,
+    "price_create": _plan_price_create, "price_update": _plan_price_update,
+    "coupon_create": _plan_coupon_create, "coupon_update": _plan_coupon_update, "coupon_delete": _plan_coupon_delete,
+    "promotion_code_create": _plan_promotion_code_create, "promotion_code_update": _plan_promotion_code_update,
+    "invoice_create": _plan_invoice_create, "invoice_finalize": _plan_invoice_finalize,
+    "invoice_send": _plan_invoice_send, "invoice_void": _plan_invoice_void,
+    "payment_link_create": _plan_payment_link_create, "payment_link_update": _plan_payment_link_update,
+    "refund_create": _plan_refund_create,
+    "subscription_update": _plan_subscription_update, "subscription_cancel": _plan_subscription_cancel,
+}
+
+
+def write_plan(args: dict) -> dict:
+    """What a write would do, read fresh from Stripe; raises StripeError for one that would fail."""
+    plan = _start(args)
+    PLANS[plan["action"]](args, plan)
+    return plan
+
+
+def card(plan: dict) -> str:
+    """Plain lines, one fact each: the account and mode, then what changes. Lines that do not fit are counted."""
+    known = known_account(plan["account"], plan["mode"]) or {}
+    name = f" ({_short(known['name'], 30)})" if known.get("name") else ""
+    mode = "LIVE, real money" if plan["mode"] == "live" else "test mode"
+    text = "\n".join([f"Stripe · {mode} · account {plan['account']}{name}"] + plan["lines"])
+    if _units(text) > CARD_LIMIT:
+        raise StripeError("the approval card cannot show this change in full; use shorter text")
+    details = plan["details"]
+    shown = 0
+    for line in details:
+        if _units(text + "\n" + line) > CARD_LIMIT - (CARD_MORE_RESERVE if shown < len(details) - 1 else 0):
+            break
+        text += "\n" + line
+        shown += 1
+    if shown < len(details):
+        text += f"\n(+{len(details) - shown} more lines)"
+    return text
+
+
+def digest(plan: dict) -> str:
+    """What the card showed and what would be sent, under which key."""
+    return hashlib.sha256(json.dumps([plan["action"], plan["account"], plan["mode"], plan["fingerprint"],
+                                      plan["lines"], plan["details"], plan["steps"]],
+                                     sort_keys=True, ensure_ascii=False).encode("utf-8")).hexdigest()
+
+
+def rule_key(plan: dict, plan_digest: str) -> str:
+    """Hermes' allowlist key: the exact change, or a fresh one for a change an "always" must never cover."""
+    tail = secrets.token_hex(8) if plan["action"] in ONCE else plan_digest[:16]
+    return f"stripe-access:{plan['action']}:{tail}"
+
+
+# The gate's view of each write, per tool call, so execution sends exactly what the card showed:
+# (when, the plan's digest, a nonce of this approval that the idempotency keys derive from).
+_approved: dict[str, tuple[float, str, str]] = {}
+_approved_lock = threading.Lock()
+
+
+def _call_key(args: dict, call_id: str) -> str:
+    return hashlib.sha256(json.dumps([call_id or "", args], sort_keys=True, ensure_ascii=False,
+                                     default=str).encode("utf-8")).hexdigest()
+
+
+def approval_request(args: dict, call_id: str = "", can_write: bool = False) -> tuple[str, str] | None:
+    """(card, allowlist rule key) for a write, None for a read or a preview; raises for a call that
+    would fail anyway, so it is blocked without asking."""
+    args = args if isinstance(args, dict) else {}
+    if action_of(args) not in WRITES or is_preview(args):
+        return None
+    if not can_write:
+        raise StripeError(READ_ONLY)
+    plan = write_plan(args)
+    text, plan_digest = card(plan), digest(plan)
+    with _approved_lock:
+        now = time.monotonic()
+        for old in [k for k, (at, _, _) in _approved.items() if now - at > APPROVAL_TTL]:
+            _approved.pop(old, None)
+        _approved[_call_key(args, call_id)] = (now, plan_digest, secrets.token_hex(16))
+    return text, rule_key(plan, plan_digest)
+
+
+def _approved_write(args: dict, call_id: str) -> tuple[str, str] | None:
+    """(digest, nonce) of the approval this call passed, consumed; None without one."""
+    with _approved_lock:
+        entry = _approved.pop(_call_key(args, call_id), None)
+    if not entry or time.monotonic() - entry[0] > APPROVAL_TTL:
+        return None
+    return entry[1], entry[2]
+
+
+def preview(args: dict) -> dict:
+    """Everything a write would check and the card it would show, without changing or asking."""
+    plan = write_plan(args)
+    return {"ok": True, "action": plan["action"], "preview": True, "account": plan["account"], "mode": plan["mode"],
+            "card": card(plan), "requests": len(plan["steps"]),
+            "note": "nothing was sent; the write itself needs the same arguments without preview, and its card"}
+
+
+def write(args: dict, call_id: str = "") -> dict:
+    approved = _approved_write(args, call_id)
+    if approved is None:
+        return {"ok": False, "error": "not done: this write did not pass its approval card; nothing was sent"}
+    approved_digest, nonce = approved
+    try:
+        plan = write_plan(args)
+    except StripeError as exc:
+        return {"ok": False, "error": f"not done: {exc}"}
+    if digest(plan) != approved_digest:
+        return {"ok": False, "error": "not done: what the card showed changed before the write ran (in Stripe, or "
+                                      "the stored key); nothing was sent. Read it again, then ask anew"}
+    return run(plan, nonce)
+
+
+def _idempotency_key(nonce: str, n: int) -> str:
+    """One key per step of one approval: unique across sessions, the same if that step were sent twice."""
+    return "hermes-" + hashlib.sha256(f"{nonce}|{n}".encode()).hexdigest()[:40]
+
+
+def _linked(step: dict, ids: list) -> list:
+    """The step's params with its link filled in: `invoice` takes the id an earlier step created."""
+    params = [list(pair) for pair in step["params"]]
+    if step.get("link"):
+        key, index = step["link"]
+        for pair in params:
+            if pair[0] == key:
+                pair[1] = ids[index] if index < len(ids) else None
+    return params
+
+
+def run(plan: dict, nonce: str) -> dict:
+    """Send the plan's steps in order under the approved key, never retrying. A step Stripe answered with
+    a 4xx (other than 409) did not apply; any other failure after sending leaves the outcome unknown."""
+    done, ids, last = [], [], {}
+    for n, step in enumerate(plan["steps"]):
+        params = _linked(step, ids)
+        state = _read_state()
+        try:
+            reply = bridge("call", account=plan["account"], mode=plan["mode"], method=step["method"],
+                           path=step["path"], params=params, expect=plan["fingerprint"],
+                           idempotency_key=_idempotency_key(nonce, n) if step["method"] == "POST" else None,
+                           refused=_slot_map(state, "refused", "fingerprint"), paused=_slot_map(state, "paused"))
+        except StripeError as exc:   # no reply from the bridge: the request may have gone out
+            return _uncertain(plan, done, step, str(exc))
+        _record(reply)
+        if reply.get("ok"):
+            last = reply.get("data") or {}
+            ids.append(last.get("id"))
+            done.append(step["what"] + (f" ({last.get('id')})" if last.get("id") else ""))
+            continue
+        status = reply.get("status")
+        if not reply.get("requests") or (isinstance(status, int) and 400 <= status < 500 and status != 409):
+            failure = _failure(reply, step["what"])
+            if not done:
+                return {"ok": False, "error": f"not done: {failure}; nothing was changed"}
+            return {"ok": False, "error": f"stopped part way: {failure}. Done before it: " + "; ".join(done),
+                    "done": done}
+        return _uncertain(plan, done, step, reply.get("error") or reply.get("kind") or "no readable answer")
+    result = {"ok": True, "action": plan["action"], "account": plan["account"], "mode": plan["mode"], "done": done}
+    if plan["final"] and ids and ids[0]:
+        try:
+            last, _ = get(plan["final"].replace("{0}", ids[0]), [], account=plan["account"], mode=plan["mode"],
+                          what="reading the result back")
+        except StripeError:
+            pass
+    result["result"] = plan["shape"](last) if plan["shape"] else last
+    if plan["action"] == "invoice_create":
+        result["next"] = "a draft: invoice_finalize makes it payable, invoice_send e-mails it (each on its own card)"
+    return result
+
+
+def _uncertain(plan: dict, done: list, step: dict, error: str) -> dict:
+    return {"ok": False, "uncertain": True, "done": done,
+            "error": f"UNCERTAIN: {step['what']} was sent and Stripe's answer does not show whether it applied "
+                     f"({error}). Read the object in {plan['mode']} mode before anything else; never repeat the "
+                     "write without checking"}
+
+
 # --- dispatch -----------------------------------------------------------------------------------
 
 def execute(args: dict, home: Path | None = None, call_id: str = "", can_write: bool = False,
@@ -740,6 +1751,12 @@ def execute(args: dict, home: Path | None = None, call_id: str = "", can_write: 
     action = action_of(args)
     if allowed is not None and action not in allowed:
         raise StripeError(not_allowed(action, allowed))
+    if action in WRITES:
+        if not can_write:
+            raise StripeError(READ_ONLY)
+        if is_preview(args):
+            return preview(args)
+        return write(args, call_id)
     if action == "status":
         return status(can_write)
     if action == "account":
