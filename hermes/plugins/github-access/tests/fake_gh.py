@@ -34,8 +34,9 @@ class FakeGh:
     def ran(self, pattern):
         return [a for a in self.argv if re.search(pattern, " ".join(a))]
 
-    def __call__(self, argv, stdin=None, timeout=None):
+    def __call__(self, argv, stdin=None, timeout=None, cwd=None):
         self.argv.append(list(argv))
+        self.cwd = cwd
         self.stdin.append(stdin)
         if argv[:2] != ["api", "graphql"]:
             line = " ".join(argv)

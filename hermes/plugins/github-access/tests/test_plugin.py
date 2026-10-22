@@ -47,7 +47,8 @@ def test_the_progress_line_shows_the_action_only(monkeypatch):
     assert line("github_mandate", action="create", purpose="the merger", repos=["acme/secret"]) == "create"
     assert line("github_mandate", action="revoke", mandate="m1a2b3c4d") == "revoke"
     assert line("github_repo", action="milestones", repo="acme/secret") == "milestones"
-    for tool in ("github_issue", "github_board", "github_repo", "github_mandate"):
+    assert line("github_pr", action="view", pr="acme/secret#4", query="someone's name") == "view"
+    for tool in ("github_issue", "github_board", "github_repo", "github_pr", "github_mandate"):
         assert line(tool, action="anything else", query="someone's name") is None
 
 
@@ -71,8 +72,8 @@ def test_only_the_assistant_gets_the_tools():
     assert ctx.tools == {} and ctx.hooks == []
     ctx = Ctx("assistant")
     plugin.register(ctx)
-    assert set(ctx.tools) == set(plugin.HANDLERS) == {"github_issue", "github_board", "github_repo", "github_change",
-                                                      "github_mandate"}
+    assert set(ctx.tools) == set(plugin.HANDLERS) == {"github_issue", "github_board", "github_repo", "github_pr",
+                                                      "github_change", "github_mandate"}
     assert ctx.hooks == [("pre_tool_call", plugin.gate)]
     assert {t["toolset"] for t in ctx.tools.values()} == {"github_access"}
     for name, tool in ctx.tools.items():
@@ -87,6 +88,7 @@ def test_action_enums_match_the_engine():
     assert props["github_issue"]["action"]["enum"] == list(plugin.access.ISSUE_ACTIONS)
     assert props["github_board"]["action"]["enum"] == list(plugin.access.BOARD_ACTIONS)
     assert props["github_repo"]["action"]["enum"] == list(plugin.repo_reads.REPO_ACTIONS)
+    assert props["github_pr"]["action"]["enum"] == list(plugin.pr_reads.PR_ACTIONS)
     ops = props["github_change"]["changes"]["items"]["properties"]["op"]["enum"]
     assert ops == list(plugin.changes.OPS) and all(op in plugin.CHANGE_DESCRIPTION for op in ops)
 
