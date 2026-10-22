@@ -242,8 +242,10 @@ skills.
   skill describes, so a read-only profile never sees write procedures: split a
   skill by capability (`x-twitter` / `x-twitter-drafts`), never by
   `references/` (a loaded skill's references are readable by anyone who loads
-  it). Plugin skills are absent from the available-skills index, so the tool
-  description or the pipeline must name `skill_view(name="<plugin>:<skill>")`.
+  it). A registered plugin skill is also listed in the profile's available-skills
+  index, so its description is read every turn: keep it as narrow as the skill.
+  The tool description or the pipeline still names
+  `skill_view(name="<plugin>:<skill>")` where the skill must be read.
   `test_plugin_skills.py` is the audience table; a new skill or a wider
   audience is added there on purpose.
 - **Engine runtime state lives under `HERMES_LOCAL` (`~/.hermes/local/`),
