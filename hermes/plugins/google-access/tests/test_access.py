@@ -413,8 +413,8 @@ def test_gmail_send_shows_recipients_and_body():
     assert access.approval_request("google_gmail", {"action": "search"}) is None
     reason, _ = access.approval_request("google_gmail", {
         "action": "send", "to": ["a@example.com"], "bcc": "b@example.com", "subject": "Hi", "body": "Hello"})
-    assert "to: a@example.com" in reason and "bcc: b@example.com" in reason
-    assert "subject: Hi" in reason and "body: Hello" in reason
+    assert reason == ("Gmail · Send an email\n⚠️ Delivered to 2 recipients at once; it cannot be unsent\n"
+                      "To: a@example.com\nBcc: b@example.com\nSubject: Hi\n\n--- Body ---\nHello")
     with pytest.raises(access.AccessError):
         access.approval_request("google_gmail", {"action": "send", "to": ["not-an-address"], "body": "x"})
     with pytest.raises(access.AccessError):
@@ -426,7 +426,10 @@ def test_drive_upload_asks_and_refuses_credentials(tmp_path):
     report = tmp_path / "report.pdf"
     report.write_bytes(b"%PDF")
     reason, _ = access.approval_request("google_drive", {"action": "upload", "path": str(report)})
-    assert str(report) in reason and "4 bytes" in reason and "My Drive" in reason
+    assert reason.startswith("Google Drive · Upload a file\n✅ Into My Drive, private to you\n")
+    assert f"File: {report} (4 B)" in reason and "Into: My Drive" in reason
+    shared, _ = access.approval_request("google_drive", {"action": "upload", "path": str(report), "parent": "fld"})
+    assert shared.split("\n")[1] == "⚠️ Into a folder others may share" and "Into: fld" in shared
     with pytest.raises(access.AccessError, match="not a file"):
         access.approval_request("google_drive", {"action": "upload", "path": str(tmp_path / "missing")})
     state = access.gcloud_config_dir(tmp_path) / "credentials.db"
@@ -450,10 +453,18 @@ def test_noncanonical_actions_are_blocked_by_the_gate_and_the_engine(tool, args,
         engine(tmp_path, args)
 
 
-def test_long_reasons_are_capped():
+def test_long_reasons_fit_what_the_chat_shows():
     reason, _ = access.approval_request("google_gmail", {"action": "send", "to": ["a@example.com"],
-                                                         "subject": "s" * 5000, "body": "b"})
-    assert len(reason) <= access.REASON_LIMIT + 1
+                                                         "subject": "s" * 5000, "body": "本文" * 2000})
+    assert access.cards.units(reason) <= access.cards.BUDGET and reason.endswith("more characters)")
+    command, _ = access.approval_request("gcloud", {"command": ["run", "deploy"], "args": ["svc", "--image", "x"]})
+    assert command == ("gcloud · Run a command\n🚨 May change cloud resources\n\n--- Command ---\n"
+                       "gcloud run deploy --quiet svc --image x")
+    with pytest.raises(access.AccessError, match="split the command"):     # never shown cut
+        access.approval_request("gcloud", {"command": ["run", "deploy"], "args": ["svc", "--image", "x" * 900]})
+    with pytest.raises(access.AccessError, match="fewer people"):
+        access.approval_request("google_gmail", {"action": "send", "body": "b",
+                                                 "to": [f"person{i}@example.com" for i in range(40)]})
 
 
 # --- bypass guard ---------------------------------------------------------------------------------

@@ -53,6 +53,20 @@ from pathlib import Path
 
 _THREAD_LOCK = threading.Lock()
 
+
+def _load_card():
+    if "hermes_card" not in sys.modules:
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("hermes_card",
+                                                      Path(__file__).resolve().parents[1] / "_shared" / "card.py")
+        module = importlib.util.module_from_spec(spec)
+        sys.modules["hermes_card"] = module
+        spec.loader.exec_module(module)
+    return sys.modules["hermes_card"]
+
+
+cards = _load_card()
+
 SHEETS = "https://www.googleapis.com/auth/spreadsheets"
 GMAIL_READ = "https://www.googleapis.com/auth/gmail.readonly"
 GMAIL_SEND = "https://www.googleapis.com/auth/gmail.send"
@@ -65,7 +79,6 @@ SPREADSHEET_MIME = "application/vnd.google-apps.spreadsheet"
 TEXT_LIMIT = 20000
 STDOUT_LIMIT = 40000
 STDERR_LIMIT = 8000
-REASON_LIMIT = 1500
 GCLOUD_TIMEOUT = 300
 GCLOUD_TIMEOUT_MAX = 1800
 
@@ -4052,33 +4065,44 @@ def approval_request(tool: str, args: dict, home=None) -> tuple[str, str] | None
     if tool == "google_gmail":
         if _action(args, GMAIL_ACTIONS) not in GMAIL_WRITES:
             return None
-        lines = ["Send an email from the user's Gmail",
-                 f"to: {', '.join(_addresses(args, 'to', required=True))}"]
-        for key in ("cc", "bcc"):
-            if args.get(key):
-                lines.append(f"{key}: {', '.join(_addresses(args, key))}")
-        if args.get("reply_to"):
-            lines.append(f"reply to message {args['reply_to']}")
-        lines.append(f"subject: {args.get('subject') or '(Re: original)'}")
-        lines.append(f"body: {_preview(args.get('body') or '', 800)}")
+        to = _addresses(args, "to", required=True)
+        cc, bcc = (_addresses(args, key) if args.get(key) else [] for key in ("cc", "bcc"))
+        n = len(to) + len(cc) + len(bcc)
+        reason = _fitted("Gmail", "Send an email", (cards.CAUTION, f"Delivered to {n} recipient{'s' if n != 1 else ''} "
+                                                                  "at once; it cannot be unsent"),
+                         [("To", ", ".join(to)), ("Cc", ", ".join(cc) or None), ("Bcc", ", ".join(bcc) or None),
+                          ("Reply to", f"message {args['reply_to']}" if args.get("reply_to") else None),
+                          ("Subject", cards.line(args.get("subject") or "(Re: original)", 200))],
+                         text=args.get("body") or None, text_label="Body")
     elif tool == "google_drive":
         if _action(args, DRIVE_ACTIONS) not in DRIVE_WRITES:
             return None
         path = _upload_path(args)
-        lines = [f"Upload local file {path} ({path.stat().st_size} bytes) to Google Drive",
-                 f"as: {args.get('name') or path.name}",
-                 f"into: {args.get('parent') or 'My Drive'}"]
+        effect = ((cards.CAUTION, "Into a folder others may share") if args.get("parent")
+                  else (cards.SAFE, "Into My Drive, private to you"))
+        reason = _fitted("Google Drive", "Upload a file", effect,
+                         [("File", f"{path} ({cards.human(path.stat().st_size)})"),
+                          ("As", cards.line(args.get("name") or path.name, 200)),
+                          ("Into", cards.line(args.get("parent") or "My Drive", 200))])
     elif tool == "gcloud":
         argv, read_only = gcloud_plan(args)
         if read_only:
             return None
-        lines = ["Run a gcloud command that may change cloud resources", "gcloud " + shlex.join(argv)]
+        # The whole command or no card: a flag cut off the end would change what was approved.
+        reason = _fitted("gcloud", "Run a command", (cards.DANGER, "May change cloud resources"), [],
+                         sections=[("Command", ["gcloud " + shlex.join(argv)])])
     else:
         return None
-    reason = "\n".join(lines)
-    if len(reason) > REASON_LIMIT:
-        reason = reason[:REASON_LIMIT] + "…"
     return reason, _rule_key(tool, args)
+
+
+def _fitted(service: str, action: str, effect, facts, **kw) -> str:
+    """The shared card shape; AccessError (the call is blocked) when its facts cannot fit."""
+    try:
+        return cards.compose(service, action, effect, facts, **kw)
+    except cards.CardError:
+        raise AccessError(f"the approval card cannot show this {service} request in full; send it to fewer "
+                          "people, name a shorter file, or split the command") from None
 
 
 def _strings(value):
