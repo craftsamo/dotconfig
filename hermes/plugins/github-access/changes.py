@@ -342,9 +342,17 @@ def _rewrite(path: str) -> str | None:
     return "" if path.startswith("~/") else f"`~/{rest}`"
 
 
-def local_paths(text: str) -> list[str]:
+def _attached(step: dict, name: str):
+    """The attached files' paths a text may carry: only a body, where gh swaps a reference to one for
+    the uploaded file's URL. A title or an alt text keeps whatever path it holds."""
+    return step.get("attached") or () if name == "body" else ()
+
+
+def local_paths(text: str, attached=()) -> list[str]:
+    """This machine's paths in a text, but for files the same change uploads (``attached``): gh
+    swaps a reference to one for the uploaded file's URL, so it is never published."""
     return [m.group() for pattern in (HOME_PATH, TILDE_PATH, HOME_VAR_PATH, AGENT_PATH, FILE_URL)
-            for m in pattern.finditer(text)]
+            for m in pattern.finditer(text) if m.group() not in attached]
 
 
 def check_text(step: dict) -> None:
@@ -358,7 +366,7 @@ def check_text(step: dict) -> None:
                               "(never write a secret anywhere on GitHub)")
         if not shared:
             continue
-        for path in local_paths(text):
+        for path in local_paths(text, _attached(step, name)):
             if path.startswith("file://"):
                 problems.append(f"{name}: {say(path, 80)} → link the file in its repository, or say in words what it is")
                 continue
@@ -378,13 +386,13 @@ def _hosts(planned: dict) -> tuple[dict, int, int]:
     hosts: dict[str, list[int]] = {}
     paths = branch = 0
     for i, step in enumerate(planned["steps"], 1):
-        for _, text in _texts(step):
+        for name, text in _texts(step):
             for url in URL.findall(text):
                 host = re.sub(r"^www\.", "", url.split("/")[2].split("@")[-1].split(":")[0].lower())
                 if i not in hosts.setdefault(host, []):
                     hosts[host].append(i)
                 branch += bool(BRANCH_BLOB.match(url))
-            paths += len(local_paths(text))
+            paths += len(local_paths(text, _attached(step, name)))
     return hosts, paths, branch
 
 
@@ -407,8 +415,9 @@ def card(planned: dict) -> str:
     for t in planned["targets"]:
         mark = {"own": "own, private", "shared": "others can read it", "other": "⚠️ someone else's"}[t["tier"]]
         kind = {"repo": "Repository", "owner": "New board for", "new_repo": "New repository",
-                "template": "Copied from"}.get(t["kind"], "Board")
-        lines.append(f"{kind}: {say(t['name'], 80)} ({mark})")
+                "template": "Copied from", "file": "Upload", "head": "Merging"}.get(t["kind"], "Board")
+        # An upload's whole path: two files that differ only in a folder must not read alike.
+        lines.append(f"{kind}: {say(t['name'], 600 if t['kind'] == 'file' else 80)} ({mark})")
     hosts, paths, branch = _hosts(planned)
     if hosts:
         shown_hosts = [f"{h} ({', '.join(map(str, at))})" for h, at in sorted(hosts.items(), key=lambda kv: kv[1][0])]
@@ -435,8 +444,8 @@ def card(planned: dict) -> str:
 
 # --- apply ----------------------------------------------------------------------------------------
 
-def gh(argv, stdin=None) -> str:
-    done = access.run_gh(argv, stdin=stdin)
+def gh(argv, stdin=None, cwd=None) -> str:
+    done = access.run_gh(argv, stdin=stdin, cwd=cwd)
     if done.returncode != 0:
         detail = (done.stderr or done.stdout or "").strip().splitlines()
         raise AccessError(f"gh {' '.join(argv[:3])} failed: {detail[-1] if detail else f'exit {done.returncode}'}"[:400])
@@ -481,5 +490,5 @@ def apply(planned: dict) -> dict:
 NAME = "hermes_github_access_changes"
 if __name__ != NAME:
     raise ImportError(f"load changes.py as {NAME}: the op modules register into that module")
-for _domain in ("board", "issue", "repo"):
+for _domain in ("board", "issue", "repo", "pr"):
     _load(f"hermes_github_access_ops_{_domain}", HERE / f"ops_{_domain}.py")
