@@ -186,6 +186,8 @@ print -r -- 'base-prod' | secret set TB_BASE -p $PB --stage prod --stdin >/dev/n
   && ok "proj: another stage never sees prod" || bad "proj: another stage never sees prod"
 [[ "$(SECRET_STAGE=prod penv $R _SECRET_SHIM_PROJ)" == "$PT@prod" ]] \
   && ok "proj: sentinel carries the stage" || bad "proj: sentinel carries the stage"
+[[ "$(SECRET_STAGE=production penv $R _SECRET_SHIM_PROJ)" == "$PT@prod" && "$(SECRET_STAGE=production penv $R A_ONLY)" == 'kc-a-prod' ]] \
+  && ok "proj: SECRET_STAGE=production is the prod layer and sentinel" || bad "proj: SECRET_STAGE=production is the prod layer and sentinel"
 [[ "$(_SECRET_SHIM_PROJ=$PT@ SECRET_STAGE=prod penv $R P_ONLY)" == 'prod-only' ]] \
   && ok "proj: a nested launch in another stage injects again" || bad "proj: a nested launch in another stage injects again"
 [[ -z "$(_SECRET_SHIM_PROJ=$PT@prod SECRET_STAGE=prod penv $R P_ONLY)" ]] \
@@ -228,8 +230,8 @@ printf 'P_ONLY=fromprod\n' > "$R/.env.production"
   && ok "dotenv: another stage's file does not keep the stage's value out" || bad "dotenv: another stage's file does not keep the stage's value out"
 [[ -z "$(SECRET_STAGE=prod penv $R P_ONLY)" ]] \
   && ok "dotenv: the stage's own file is still respected" || bad "dotenv: the stage's own file is still respected"
-[[ -z "$(SECRET_STAGE=production penv $R P_ONLY)" && "$(SECRET_STAGE=production penv $R A_ONLY)" == 'kc-a' ]] \
-  && ok "dotenv: 'production' reads .env.production too" || bad "dotenv: 'production' reads .env.production too"
+[[ -z "$(SECRET_STAGE=production penv $R P_ONLY)" && "$(SECRET_STAGE=production penv $R A_ONLY)" == 'kc-a-prod' ]] \
+  && ok "dotenv: 'production' reads .env.production and the prod layer" || bad "dotenv: 'production' reads .env.production and the prod layer"
 [[ -z "$(SECRET_STAGE=test penv $R A_ONLY)" && -z "$(SECRET_STAGE=prod penv $R B_DOTENV)" ]] \
   && ok "dotenv: .env and the stage's file are skipped under a stage" || bad "dotenv: .env and the stage's file are skipped under a stage"
 rm -f "$R/.env.test" "$R/.env.production"
