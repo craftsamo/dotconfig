@@ -14,12 +14,14 @@ from __future__ import annotations
 import contextlib
 import hashlib
 import importlib.util
+import json
 import os
 import re
 import shutil
 import stat
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 
@@ -450,12 +452,43 @@ def _pr_merge_plan(step, planned):
     elif method not in allowed:
         raise AccessError(f"pr_merge: {repo['repo']} does not allow {method} merges; it allows {', '.join(allowed)}")
     step["method"] = method
-    # What lands where, bound like a target: a push, a retargeted base or another method after the
-    # card is a different merge. (gh pins the head at the write; the base has no such pin, so the
-    # handler's re-read just before it is the check.)
+    below = _below(pr)
+    if pr["stack"]:
+        if c.get("delete_branch"):
+            raise AccessError(f"pr_merge: {_ref(step)} is in a stack, whose merge deletes no branch itself; the "
+                              "repository's setting for deleting a branch on merge decides")
+        if len(pr["stack"]["layers"]) < pr["stack"]["size"]:
+            raise AccessError(f"pr_merge: stack {pr['stack']['number']} has {pr['stack']['size']} layers and only "
+                              f"{len(pr['stack']['layers'])} could be read; it is not merged unseen")
+        for layer in below:
+            if layer["repo"] and not access.same(layer["repo"], repo["repo"]):
+                raise AccessError(f"pr_merge: #{layer['number']} below it in the stack is in {layer['repo']}, "
+                                  f"not {repo['repo']}")
+            if layer["draft"]:
+                raise AccessError(f"pr_merge: #{layer['number']} below it in the stack is a draft; mark it ready first")
+            if layer["mergeable"] == "conflicting":
+                raise AccessError(f"pr_merge: #{layer['number']} below it in the stack has conflicts")
+    step["below"] = below
+    # What lands where, bound like a target: a push, a retargeted base, another method or a layer below
+    # that moved, after the card, is a different merge. (The head is pinned at the write; the base has
+    # no such pin, so the re-read just before the write is the check.)
     planned.note(f"head:{repo['repo'].lower()}#{step['pr_number']}",
                  {"kind": "head", "name": f"{_ref(step)} at {pr['head_sha'][:7]} into {pr['base']} by {method}",
                   "tier": repo["tier"], "id": f"{pr['head_sha']}:{pr['base']}:{method}"})
+    # Each layer the merge also lands is a target of its own, on a line of its own: never cut from the card.
+    for layer in below:
+        planned.note(f"layer:{repo['repo'].lower()}#{layer['number']}",
+                     {"kind": "layer", "name": f"#{layer['number']} at {(layer['head_sha'] or '')[:7]} "
+                                               f"{layer['title']}", "tier": repo["tier"],
+                      "id": f"{layer['number']}@{layer['head_sha']}"})
+
+
+def _below(pr: dict) -> list[dict]:
+    """The open layers under a pull request in its stack: a stack merge lands them with it."""
+    if not pr["stack"]:
+        return []
+    return [layer for layer in pr["stack"]["layers"]
+            if layer["position"] < pr["stack"]["position"] and layer["state"] == "open"]
 
 
 def _merge_warnings(pr: dict) -> list[str]:
@@ -478,10 +511,13 @@ def _merge_warnings(pr: dict) -> list[str]:
 
 def _pr_merge_describe(step):
     c, pr = step["change"], step["pr"]
+    below = step.get("below") or []
+    # The layers that merge with it come first: a long line is cut at its end.
+    with_ = f" and the {len(below)} open layer{'s' if len(below) > 1 else ''} below it" if below else ""
     extra = [f"closes {', '.join(i['issue'] for i in pr['closes'])}" if pr["closes"] else "",
              "deletes its branch" if c.get("delete_branch") else ""]
     warn = _merge_warnings(pr)
-    return (f"Merge {_ref(step)} into {pr['base']} by {step['method']} (head {pr['head_sha'][:7]})"
+    return (f"Merge {_ref(step)}{with_} into {pr['base']} by {step['method']} (head {pr['head_sha'][:7]})"
             + "".join(f"; {e}" for e in extra if e) + (f"; ⚠️ {', '.join(warn)}" if warn else ""))
 
 
@@ -494,9 +530,15 @@ def _pr_merge_run(step, out):
     moved = [what for what, before, after in (("head", pr["head_sha"], now["head_sha"]), ("base", pr["base"], now["base"]),
                                              ("state", "open", now["state"]), ("draft", False, now["draft"]))
              if before != after]
+    if bool(pr["stack"]) != bool(now["stack"]) or \
+            [(x["number"], x["head_sha"]) for x in step.get("below") or []] != \
+            [(x["number"], x["head_sha"]) for x in (_below(now) if now["stack"] else [])]:
+        moved.append("the stack below it")
     if moved:
         raise AccessError(f"{_ref(step)} changed since the card ({', '.join(moved)}); it was not merged. Read it again "
                           "and send the merge again for a new card")
+    if pr["stack"]:
+        return _merge_stack(step, out)
     argv = ["pr", "merge", str(step["pr_number"]), "--repo", step["repo"]["repo"], f"--{step['method']}",
             "--match-head-commit", pr["head_sha"]]
     if c.get("delete_branch"):
@@ -519,6 +561,79 @@ def _pr_merge_run(step, out):
     if state != "merged":
         out["note"] = "gh accepted the merge but the pull request is not merged yet (a merge queue, or GitHub " \
                       "still working); read it again before reporting it merged"
+    return out
+
+
+# GitHub merges a pull request in a native stack only through its asynchronous merge route (gh's
+# own merge refuses one): it lands the open layers below in the same request.
+API_VERSION = "2026-03-10"
+POLL_EVERY = 3
+POLL_FOR = 120
+
+
+def _async(argv: list[str], stdin: str | None = None) -> dict:
+    """One call of the asynchronous merge route. A 409 means a merge of this pull request is already
+    running (a request sent earlier, perhaps one whose answer never came): its answer names that
+    request, which is then followed instead of failing or sending another."""
+    done = access.run_gh(["api", *argv, "-H", f"X-GitHub-Api-Version: {API_VERSION}"], stdin=stdin)
+    try:
+        answer = json.loads(done.stdout or "{}")
+    except json.JSONDecodeError:
+        answer = {}
+    if done.returncode == 0:
+        return answer
+    detail = (done.stderr or "").strip().splitlines()
+    detail = detail[-1] if detail else f"exit {done.returncode}"
+    if "409" in detail and ((answer.get("details") or {}).get("uuid") or answer.get("uuid")):
+        return {"status": "pending", "details": answer.get("details") or answer, "already": True}
+    raise AccessError(f"gh api {argv[-1] if argv[0] != '--method' else argv[2]} failed: {detail}"[:400])
+
+
+def _merge_stack(step, out):
+    c, pr = step["change"], step["pr"]
+    repo, number = step["repo"]["repo"], step["pr_number"]
+    route = f"repos/{repo}/pulls/{number}/merge-async"
+    body = {"merge_method": step["method"], "sha": pr["head_sha"]}
+    if c.get("subject"):
+        body["commit_title"] = c["subject"]
+    if c.get("body") is not None:
+        body["commit_message"] = c["body"]
+    below = [layer["number"] for layer in step.get("below") or []]
+    out.update({"pr": _ref(step), "head": pr["head_sha"], "method": step["method"], "with": [f"#{n}" for n in below]})
+    answer = _async(["--method", "PUT", route, "--input", "-"], json.dumps(body))
+    status, details = answer.get("status"), answer.get("details") or {}
+    out["request"] = details.get("uuid")
+    if answer.get("already"):
+        out["already_running"] = True  # followed, not sent again
+    deadline = time.monotonic() + POLL_FOR
+    while status == "pending" and details.get("uuid") and time.monotonic() < deadline:
+        time.sleep(POLL_EVERY)
+        try:
+            answer = _async([f"{route}/{details['uuid']}"])
+        except AccessError as exc:
+            if "404" in str(exc) or "Not Found" in str(exc):
+                break  # a finished request can be gone at once: the read-back below says what landed
+            raise
+        status, details = answer.get("status"), answer.get("details") or details
+    out["async"] = status
+    # Read every layer back: a stack merge that fails part-way can leave the lower layers merged.
+    states = {}
+    for n in [*below, number]:
+        try:
+            states[n] = reads.pull_request(repo, n, comments=0)["state"]
+        except AccessError:
+            states[n] = "unknown"
+    out["states"] = {f"#{n}": s for n, s in states.items()}
+    out["state"] = states[number]
+    if status == "failed":
+        landed = [f"#{n}" for n, s in states.items() if s == "merged"]
+        raise AccessError(f"GitHub did not merge {_ref(step)}: {details.get('message') or 'no reason given'}"
+                          + (f" (already merged: {', '.join(landed)})" if landed else ""))
+    if states[number] != "merged":
+        out["note"] = {"enqueued": "the stack went into the merge queue; it is not merged yet",
+                       "pending": "GitHub is still merging; read it again before reporting it merged"}.get(
+            status, "GitHub accepted the merge but the pull request is not merged yet; read it again before "
+                    "reporting it merged")
     return out
 
 

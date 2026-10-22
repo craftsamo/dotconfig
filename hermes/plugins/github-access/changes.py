@@ -419,7 +419,8 @@ def card(planned: dict) -> str:
         mark = {"own": "own, private", "shared": "others can read it", "other": "⚠️ someone else's"}[t["tier"]]
         kind = {"repo": "Repository", "owner": "New board for", "new_repo": "New repository",
                 "template": "Copied from", "file": "Upload", "head": "Merging", "run": "Re-running",
-                "workflow": "Starting", "release": "Release", "ruleset": "Ruleset"}.get(t["kind"], "Board")
+                "workflow": "Starting", "release": "Release", "ruleset": "Ruleset",
+                "layer": "⚠️ Layer merged with it"}.get(t["kind"], "Board")
         # An upload's whole path: two files that differ only in a folder must not read alike.
         lines.append(f"{kind}: {say(t['name'], 600 if t['kind'] == 'file' else 80)} ({mark})")
     hosts, paths, branch = _hosts(planned)

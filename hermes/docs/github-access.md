@@ -92,10 +92,11 @@ characters) of their log, terminal colors and control characters removed,
 and `rules` every ruleset that reaches the repository (its branches, rules,
 bypass and enforcement; an organization's marked by its source) and the
 classic branch protection rules. `github_pr` `view` reads a pull request's
-state, draft flag, base and head with the head commit, GitHub's mergeable and merge state, the review
-decision, latest reviews and requests, the head commit's checks (failing and
-pending ones named, required ones counted), the issues a merge closes and
-the latest comments; `list` turns its filters into one search of one
+state, draft flag, base and head with the head commit, GitHub's mergeable
+and merge state, the review decision, latest reviews and requests, the head
+commit's checks (failing and pending ones named, required ones counted), the
+issues a merge closes, the native stack it is in (its position and every
+layer with its state and head) and the latest comments; `list` turns its filters into one search of one
 repository. A result over 60,000 characters is refused with a hint to narrow
 it.
 
@@ -227,11 +228,28 @@ retargets it, or a push since the plan, stops the merge; what remains is the
 moment between that read and GitHub's merge, where `--match-head-commit`
 pins the head and nothing pins the base. The merge never sends `--admin`, so
 GitHub's own rules still decide, and the result reads the pull request back:
-one a merge queue took is reported as not merged yet. The card names the issues the merge closes and warns of
-failing or pending checks, a review decision that is not an approval, and a
-merge state GitHub reports as blocked, behind, unstable or unknown. gh runs it
-from a temporary directory, so `--delete-branch` never touches a local
-checkout.
+one a merge queue took is reported as not merged yet. The card names the
+issues the merge closes and warns of failing or pending checks, a review
+decision that is not an approval, and a merge state GitHub reports as
+blocked, behind, unstable or unknown. gh runs it from a temporary directory,
+so `--delete-branch` never touches a local checkout.
+
+A pull request in a native stack merges through GitHub's asynchronous merge
+route instead (`PUT …/pulls/{n}/merge-async`, with the head as `sha`; gh's
+own merge refuses one). That request lands the open layers below it too, so
+the change line says how many, and each layer is a target of its own on the
+card ("Layer merged with it", with its head), bound like the others. A
+stack that cannot be read whole, a layer in another repository, a draft or a
+conflict below are refused before the card, as is `delete_branch` (the
+route deletes no branch; the repository's own setting decides). The read
+just before the write covers the layers below as well; what remains is the
+moment after it, where `sha` pins only the named pull request's head. A
+request already running (GitHub answers 409, as after a send whose answer
+never came) is followed rather than sent again. The result waits about two
+minutes while GitHub merges (`pending`), then reads every layer back: a merge
+that failed part-way names the layers that already landed, and one still
+running or taken into a merge queue is reported as not merged yet. Where the
+base has a merge queue, the queue picks the method and the commit message.
 
 `pr_create`, `pr_edit` and `pr_comment` take `attachments`: absolute paths of
 images (PNG, JPEG, GIF, WebP, SVG, up to 10 MiB) and videos (MP4, MOV, WebM,
