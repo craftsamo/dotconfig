@@ -23,6 +23,7 @@ import {
   nextModel,
   OAUTH_PROVIDER,
   SIDE_AGENTS,
+  stopFor,
   type Role,
 } from "./lanes"
 import {
@@ -593,13 +594,18 @@ export async function setupPreflight(
         }
       }),
     )
-    // Console credit lanes. An empty balance fails before anything is
-    // generated, and so does a bad key or a window limit, so moving the session
-    // to the next provider and repeating the same step has no side effects.
-    // Protected children keep their own guards above.
+    // Console credit lanes and other Claude logins. An empty balance fails
+    // before anything is generated, and so does a bad key or a window limit,
+    // so moving the session to the next stop and repeating the same step has
+    // no side effects. Protected children keep their own guards above.
+    const suffixes = claudeAccounts.accounts.map((account) => account.suffix)
+    const logins = claudeAccounts.accounts
+      .filter((account) => account.label !== "")
+      .map((account) => account.suffix)
     registrations.push(
       await ctx.session.hook("retry", async (event) => {
-        if (lanes.ids.length === 0 || !event.model) return
+        if ((lanes.ids.length === 0 && logins.length === 0) || !event.model)
+          return
         const provider = event.model.providerID
         const onLane = lanes.has(provider)
         if (!onLane && provider !== OAUTH_PROVIDER) return
@@ -640,13 +646,18 @@ export async function setupPreflight(
           // in: Claude specialists, and the primary when primaryFallback is on.
           if (!onLane && (role === "primary" ? !primaryFallback : !eligible))
             return
-          const tried = episodes.record(event.sessionID, provider)
+          const tried = episodes.record(
+            event.sessionID,
+            stopFor(event.model, suffixes).key,
+          )
           const catalog = (await ctx.model.list({ location: session.location }))
             .data
           const target = nextModel({
             current: event.model,
             role,
             lanes,
+            logins,
+            suffixes,
             tried,
             catalog,
           })
