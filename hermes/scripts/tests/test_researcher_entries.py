@@ -611,6 +611,8 @@ def runtime_child(sandbox, source, configured_external):
         stack.enter_context(patch.object(su, "get_project_skills_dirs", return_value=[]))
         from agent import prompt_builder as pb
         from tools import skills_tool as st, skills_tool_plugin as sp, skill_usage
+
+        find_all_skills = getattr(st, "find_all_skills", None) or st._find_all_skills  # renamed in newer runtimes
         from tools.registry import registry
 
         for name in ("bump_use", "bump_view"):
@@ -618,7 +620,7 @@ def runtime_child(sandbox, source, configured_external):
         for module in (st, sp):
             stack.enter_context(patch.object(module, "_mark_background_review_read", return_value=None))
         names = ENTRIES | set(TECHNICS) | {"researcher-pipeline"}
-        assert {s["name"] for s in st._find_all_skills()} == names
+        assert {s["name"] for s in find_all_skills()} == names
         prompt = pb.build_skills_system_prompt(
             available_tools={"skill_view", "skills_list", "read_file"}, available_toolsets={"skills", "file"}
         )

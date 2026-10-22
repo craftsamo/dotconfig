@@ -153,6 +153,8 @@ def _child(case, sandbox, candidate, source):
         from agent import prompt_builder as pb
         from tools import skills_tool as st
         from tools import skills_tool_plugin as sp
+
+        find_all_skills = getattr(st, "find_all_skills", None) or st._find_all_skills  # renamed in newer runtimes
         from tools import skill_usage
         from tools.registry import registry
 
@@ -229,7 +231,7 @@ def _child(case, sandbox, candidate, source):
                          for p in su.iter_skill_index_files(root, "SKILL.md")]
                 assert len(files) == len(expected)
                 assert not any("references" in p.parts for p in files)
-                found = st._find_all_skills()
+                found = find_all_skills()
                 assert len(found) == len(expected) and {s["name"] for s in found} == expected
                 prompt = pb.build_skills_system_prompt(
                     available_tools=ALLOW, available_toolsets={"skills", "file"},
@@ -294,7 +296,7 @@ def _child(case, sandbox, candidate, source):
                 root = trees[owner]
                 task = "own-hands-job"
                 assert not external
-                found = {s["name"] for s in st._find_all_skills()}
+                found = {s["name"] for s in find_all_skills()}
                 assert "video-creator-pipeline" in found and not found.intersection(CREATOR_NAMES)
                 body_matches(view("video-creator-pipeline", task=task), root / "SKILL.md")
                 leaf = root / "generate/music-video"

@@ -800,6 +800,8 @@ def test_skill_frontmatter_and_real_hermes_discovery(monkeypatch):
     from agent import skill_utils
     from tools import skills_tool
 
+    from .skill_roots import find_all_skills
+
     text = (LEAF / "SKILL.md").read_text(encoding="utf-8")
     assert text.index("\n---\n", 3) + len("\n---\n") <= 3800
     full, _ = skill_utils.parse_frontmatter(text)
@@ -810,7 +812,7 @@ def test_skill_frontmatter_and_real_hermes_discovery(monkeypatch):
     monkeypatch.setattr(skills_tool, "_SKILLS_CACHE", {})
     monkeypatch.setattr(skill_utils, "get_external_skills_dirs", lambda: [])
     monkeypatch.setattr(skill_utils, "get_project_skills_dirs", lambda: [])
-    names = [item["name"] for item in skills_tool._find_all_skills(skip_disabled=True)]
+    names = [item["name"] for item in find_all_skills(skip_disabled=True)]
     assert names.count("create-explainer-video") == 1
     assert "explainer-video" not in names
 

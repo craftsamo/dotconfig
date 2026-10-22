@@ -219,8 +219,8 @@ These facts govern the paired Claude tiers:
 
 On the patched runtime, Anthropic is two providers on one backend that bill
 different accounts: `anthropic-oauth` bills the Claude subscription, `anthropic`
-bills a Console API key (a stock runtime has the one `anthropic`). Each lane refuses the other's token shape (a Console key is `sk-ant-api…`
-or `sk-ant-usr…`), so one never bills the other. Max plans grant monthly API
+bills a Console API key (a stock runtime has the one `anthropic`). Each lane refuses the other's token shape (a Console key is `sk-ant-api…`,
+`sk-ant-usr…`, `sk-ant-svc…` or `sk-ant-admin…`), so one never bills the other. Max plans grant monthly API
 credits, one Console org per plan, spent before any purchased balance and lost
 at the end of the billing cycle; Claude Code and extra usage cannot spend them,
 only an API key can. OpenCode spends the same credits

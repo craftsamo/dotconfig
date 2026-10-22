@@ -9,10 +9,11 @@
 # isolation). The branch list is the ledger: this script checks it against
 # HEAD instead of a hand-kept list in the docs.
 #
-# Also checks the upstream case-collision workaround: on case-insensitive APFS
-# the two `contributors/emails/agent@[Aa]gents-Mac-mini.local` files are one
-# file, and without skip-worktree on the lowercase twin the checkout is
-# permanently dirty and every rebase/merge refuses to start.
+# Also checks the upstream case-collision workaround, while a pin still tracks
+# both `contributors/emails/agent@[Aa]gents-Mac-mini.local` files: on
+# case-insensitive APFS they are one file, and without skip-worktree on the
+# lowercase twin the checkout is permanently dirty and every rebase/merge
+# refuses to start.
 #
 # Usage: scripts/check-local-patches.sh [hermes-agent-dir]
 # Exit: 0 all present, 1 something missing, 2 checkout not found.
@@ -46,7 +47,9 @@ while IFS= read -r b; do
 done <<<"$branches"
 
 twin="contributors/emails/agent@agents-Mac-mini.local"
-if git -C "$dir" ls-files --error-unmatch -- "$twin" >/dev/null 2>&1; then
+upper="contributors/emails/agent@Agents-Mac-mini.local"
+# Only a pin that still tracks both spellings collides; once upstream drops one, nothing to guard.
+if [ "$(git -C "$dir" ls-files -- "$twin" "$upper" | wc -l)" -eq 2 ]; then
   if git -C "$dir" ls-files -v -- "$twin" | grep -q '^S '; then
     echo "ok    skip-worktree on $twin"
   else

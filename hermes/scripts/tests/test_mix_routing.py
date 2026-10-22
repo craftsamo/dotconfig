@@ -57,18 +57,18 @@ class MixRoutingTest(unittest.TestCase):
             self.assertEqual("free", metadata["cost"])
 
     def test_find_all_skills_discovers_every_leaf_including_mix_once_each(self) -> None:
-        """tools.skills_tool._find_all_skills, scoped to only this profile's skill root,
+        """The runtime's skill scanner (find_all_skills), scoped to only this profile's skill root,
         must discover the pipeline root plus all 14 leaves (3 speech + 4 sfx + 4 music +
         3 mix) with their real distinct names - no generic 'mix' fallback, no dropped
         duplicate."""
         import tools.skills_tool as skills_tool
 
-        from .skill_roots import search_dirs_result
+        from .skill_roots import find_all_skills, search_dirs_name, search_dirs_result
 
-        with patch.object(skills_tool, "_skill_search_dirs", return_value=search_dirs_result(PIPELINE)), \
+        with patch.object(skills_tool, search_dirs_name(), return_value=search_dirs_result(PIPELINE)), \
              patch.object(skills_tool, "_get_disabled_skill_names", return_value=set()), \
              patch.object(skills_tool, "_SKILLS_CACHE", {}):
-            skills = skills_tool._find_all_skills()
+            skills = find_all_skills()
 
         names = [s["name"] for s in skills]
         self.assertEqual(15, len(names))

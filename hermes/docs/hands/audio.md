@@ -213,7 +213,7 @@ Finished music reaches video through `create-ad`'s WAV cues or Mix.
 
 Front matter: music leaves are the tightest fit for the 4,000-character
 discovery prefix ([`overview.md`](./overview.md) "The form"); test the actual
-`_find_all_skills` names, not just the topology validator. Runtime write
+names the runtime's skill scanner (`find_all_skills`) returns, not just the topology validator. Runtime write
 protection checks literal operations/targets, not `mv` inside a job path; keep
 the music proposal CLI's guard-plus-proposal regression for that case.
 

@@ -196,6 +196,8 @@ def _child(case, sandbox, candidate_tree, technic_tree, source):
         from agent import prompt_builder as pb
         from tools import skills_tool as st
         from tools import skills_tool_plugin as sp
+
+        find_all_skills = getattr(st, "find_all_skills", None) or st._find_all_skills  # renamed in newer runtimes
         from tools import skill_usage
         from tools.registry import registry
 
@@ -231,7 +233,7 @@ def _child(case, sandbox, candidate_tree, technic_tree, source):
             files = list(su.iter_skill_index_files(skills, "SKILL.md"))
             assert len(files) == count
             assert {su.parse_frontmatter(p.read_text(encoding="utf-8"))[0]["name"] for p in files} == EXPECTED
-            found = st._find_all_skills()
+            found = find_all_skills()
             assert len(found) == count and {s["name"] for s in found} == EXPECTED
             prompt = index()
             visible = rows(prompt)
@@ -391,7 +393,7 @@ def _child(case, sandbox, candidate_tree, technic_tree, source):
                 token = set_hermes_home_override(str(moved_home))
                 try:
                     assert set(rows(index())) == EXPECTED
-                    assert {s["name"] for s in st._find_all_skills()} == EXPECTED
+                    assert {s["name"] for s in find_all_skills()} == EXPECTED
                     for name in CHILDREN:
                         target = moved_home / "skills/searcher-pipeline" / name / "SKILL.md"
                         result = view(name, task="moved-namespace-only")

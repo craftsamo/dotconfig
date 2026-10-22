@@ -25,6 +25,12 @@ def _load(name, filename):
     return sys.modules[name]
 
 
+if "hermes_turn_env" not in sys.modules:
+    _spec = importlib.util.spec_from_file_location(
+        "hermes_turn_env", Path(__file__).resolve().parents[2] / "_shared" / "turn_env.py")
+    sys.modules["hermes_turn_env"] = importlib.util.module_from_spec(_spec)
+    _spec.loader.exec_module(sys.modules["hermes_turn_env"])
+turn_env = sys.modules["hermes_turn_env"]
 api = _load("hermes_opencode_api", "api.py")
 config = _load("hermes_opencode_config", "config.py")
 progress = _load("hermes_opencode_progress", "progress.py")
@@ -337,7 +343,7 @@ def wait_limit(home, settings, requested=None):
     if tool > 0:
         limits.append(tool - 30)
     with contextlib.suppress(ValueError, TypeError):
-        limits.append(float(os.environ.get("RESIDENT_DEADLINE", "inf")) - time.time() - 5)
+        limits.append(float(turn_env.value("RESIDENT_DEADLINE") or "inf") - time.time() - 5)
     return max(1.0, min(limits))
 
 
