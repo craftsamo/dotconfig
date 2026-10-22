@@ -328,7 +328,9 @@ def stacked(gh, low_state="OPEN", low_draft=False, low_head=LOW):
     """PR 12 at position 3 of stack 5: #10 merged at the bottom, #11 open between them."""
     def entry(position, number, state, draft=False, head=SHA, mergeable="MERGEABLE"):
         return {"position": position, "pullRequest": {"number": number, "title": f"Layer {position}", "state": state,
-                                                      "isDraft": draft, "headRefOid": head, "mergeable": mergeable}}
+                                                      "isDraft": draft, "headRefOid": head, "mergeable": mergeable,
+                                                      "headRefName": f"layer-{position}",
+                                                      "headRepository": {"nameWithOwner": "me/app"}}}
     stack = {"number": 5, "size": 3, "baseRefName": "main", "entries": {"nodes": [
         entry(1, 10, "MERGED"), entry(2, 11, low_state, low_draft, low_head), entry(3, 12, "OPEN")]}}
     gh.state["pr"] = pr_node(stack=stack, stackEntry={"position": 3})
@@ -365,14 +367,121 @@ def test_a_stacked_pull_request_merges_through_the_async_route_with_the_layers_b
     assert not gh.ran(r"^pr merge")  # gh's own merge refuses a stacked pull request
 
 
-@pytest.mark.parametrize("over,change,message", [
-    ({"low_draft": True}, {}, "#11 below it in the stack is a draft"),
-    ({}, {"delete_branch": True}, "deletes no branch itself"),
+def test_a_stack_merge_is_refused_before_the_card_when_a_layer_below_cannot_land(gh):
+    stacked(gh, low_draft=True)
+    with pytest.raises(access.AccessError, match="#11 below it in the stack is a draft"):
+        changes.plan({"repo": "me/app", "changes": [{"op": "pr_merge", "pr": "12"}]})
+
+
+def merged_on_put(gh):
+    def put(argv, stdin):
+        gh.state["pr"] = {**gh.state["pr"], "state": "MERGED"}
+        gh.state["layers"][11] = {**gh.state["layers"][11], "state": "MERGED"}
+        return {"status": "merged", "details": {"uuid": "u1"}}
+    gh.cmd(r"^api --method PUT repos/me/app/pulls/12/merge-async", put)
+
+
+def based_on(gh, open_on):
+    """Open pull requests whose base is each branch: {branch: [numbers]}."""
+    gh.add(r"pullRequests\(baseRefName:\$base", lambda v: {"repository": {"pullRequests": {
+        "totalCount": len(open_on.get(v["base"], [])),
+        "nodes": [{"number": n} for n in open_on.get(v["base"], [])[:5]]}}})  # first:5
+
+
+def test_a_stack_merge_deletes_the_landed_branches_it_showed_on_the_card(gh):
+    stacked(gh)
+    planned = changes.plan({"repo": "me/app", "changes": [{"op": "pr_merge", "pr": "12", "delete_branch": True}]})
+    assert ["branch", f"fix/login@{SHA}", "own"] in changes.binding(planned)
+    assert ["branch", f"layer-2@{LOW}", "own"] in changes.binding(planned)
+    text = changes.card(planned)
+    assert "Branch deleted after: fix/login at a1b2c3d (#12) (own, private)" in text
+    assert "Branch deleted after: layer-2 at bbbbbbb (#11) (own, private)" in text
+    assert "then deletes 2 branches that landed" in text
+    merged_on_put(gh)
+    based_on(gh, {})
+    gh.cmd(r"^api repos/me/app/git/ref/heads/fix/login$", {"object": {"sha": SHA}})
+    gh.cmd(r"^api repos/me/app/git/ref/heads/layer-2$", {"object": {"sha": LOW}})
+    gh.cmd(r"^api --method DELETE repos/me/app/git/refs/heads/(fix/login|layer-2)$", "")
+    done = changes.apply(planned)["done"][0]
+    assert done["state"] == "merged" and done["branches"] == {"fix/login": "deleted", "layer-2": "deleted"}
+    assert len(gh.ran(r"--method DELETE")) == 2
+
+
+def test_a_branch_is_kept_when_something_still_rests_on_it_or_it_moved(gh):
+    stacked(gh)
+    planned = changes.plan({"repo": "me/app", "changes": [{"op": "pr_merge", "pr": "12", "delete_branch": True}]})
+    merged_on_put(gh)
+    based_on(gh, {"fix/login": [13]})  # a layer above, not yet retargeted
+    gh.cmd(r"^api repos/me/app/git/ref/heads/layer-2$", {"object": {"sha": "c" * 40}})
+    done = changes.apply(planned)["done"][0]
+    assert done["state"] == "merged"
+    assert done["branches"] == {"fix/login": "kept: 1 open pull request is based on it (#13)",
+                                "layer-2": "kept: it moved to ccccccc after the card"}
+    assert not gh.ran(r"--method DELETE")
+
+
+def test_a_branch_already_gone_or_not_deletable_leaves_the_merge_done(gh):
+    stacked(gh)
+    planned = changes.plan({"repo": "me/app", "changes": [{"op": "pr_merge", "pr": "12", "delete_branch": True}]})
+    merged_on_put(gh)
+    based_on(gh, {})
+    gh.cmd(r"^api repos/me/app/git/ref/heads/fix/login$", RuntimeError("gh: Not Found (HTTP 404)"))
+    gh.cmd(r"^api repos/me/app/git/ref/heads/layer-2$", {"object": {"sha": LOW}})
+    gh.cmd(r"^api --method DELETE repos/me/app/git/refs/heads/layer-2$",
+           RuntimeError("gh: Cannot delete this branch: protected by a ruleset (HTTP 422)"))
+    result = changes.apply(planned)
+    assert result["ok"] is True
+    assert result["done"][0]["branches"] == {
+        "fix/login": "already gone",
+        "layer-2": "not deleted: gh: Cannot delete this branch: protected by a ruleset (HTTP 422)"}
+
+
+def test_a_branch_call_that_times_out_leaves_the_merge_and_the_next_branch_alone(gh, monkeypatch):
+    stacked(gh)
+    planned = changes.plan({"repo": "me/app", "changes": [{"op": "pr_merge", "pr": "12", "delete_branch": True}]})
+    merged_on_put(gh)
+    based_on(gh, {"layer-2": list(range(20, 27))})  # more open pull requests than the five read
+    gh.cmd(r"^api repos/me/app/git/ref/heads/fix/login$", {"object": {"sha": SHA}})
+    real = access.run_gh
+
+    def run(argv, **kw):
+        if "DELETE" in argv:
+            raise access.AccessError("gh timed out after 40s")
+        return real(argv, **kw)
+    monkeypatch.setattr(access, "run_gh", run)
+    result = changes.apply(planned)
+    assert result["ok"] is True and result["done"][0]["state"] == "merged"
+    assert result["done"][0]["branches"] == {
+        "fix/login": "uncertain: the delete got no answer; read the branch before saying it is gone",
+        "layer-2": "kept: 7 open pull requests are based on it (#20, #21, #22, #23, #24 and 2 more)"}
+
+
+def test_a_stack_merge_not_landed_deletes_nothing(gh):
+    stacked(gh)
+    planned = changes.plan({"repo": "me/app", "changes": [{"op": "pr_merge", "pr": "12", "delete_branch": True}]})
+    gh.cmd(r"^api --method PUT repos/me/app/pulls/12/merge-async", {"status": "enqueued", "details": {}})
+    done = changes.apply(planned)["done"][0]
+    assert done["branches"] == {"fix/login": "kept: #12 is not merged", "layer-2": "kept: #11 is not merged"}
+    assert not gh.ran(r"git/ref") and not gh.queries(r"pullRequests\(baseRefName")
+
+
+def test_the_model_reads_how_delete_branch_works_in_a_stack():
+    doc = " ".join(changes.OPS["pr_merge"].doc.split())
+    assert "delete_branch (in a stack: each landed layer's branch, kept when an open pull request is based on it)" in doc
+    skill = " ".join((ROOT / "skills/github-pr/SKILL.md").read_text().split())
+    assert "In a stack, `delete_branch` removes the branch of every layer that lands" in skill
+    assert "a kept branch is not a failed merge" in skill
+
+
+@pytest.mark.parametrize("head,message", [
+    ({"headRepository": {"nameWithOwner": "fork/app"}}, "#11's branch is in fork/app"),
+    ({"headRefName": "main"}, "#11's branch is main, the default branch"),
 ])
-def test_a_stack_merge_is_refused_before_the_card_when_a_layer_below_cannot_land(gh, over, change, message):
-    stacked(gh, **over)
+def test_delete_branch_in_a_stack_never_reaches_a_fork_or_the_default_branch(gh, head, message):
+    stacked(gh)
+    gh.state["pr"]["stack"]["entries"]["nodes"][1]["pullRequest"].update(head)
     with pytest.raises(access.AccessError, match=message):
-        changes.plan({"repo": "me/app", "changes": [{"op": "pr_merge", "pr": "12", **change}]})
+        changes.plan({"repo": "me/app", "changes": [{"op": "pr_merge", "pr": "12", "delete_branch": True}]})
 
 
 def test_a_layer_below_that_moved_after_the_card_stops_the_stack_merge(gh):
