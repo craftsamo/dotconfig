@@ -4,7 +4,7 @@
 | --- | --- |
 | Code, commits, task-branch push, PR creation | An OpenCode build run you drive, within explicit implementation approval |
 | Issues and boards | You, through `github_change` (github-access), only for a job the user chose to track (below); never an OpenCode run |
-| Repo creation, clone, workspace registry | Assistant, when separately requested/approved |
+| Repo creation and settings, labels, milestones, clone, workspace registry | Assistant, when separately requested/approved; GitHub changes through `github_change` |
 | Merge | Assistant, only on the user's explicit go after readiness checks |
 | Deploy/publish | Outside the implementation grant; separately scoped work |
 
@@ -94,10 +94,12 @@ Use the decisions from [bootstrap](../../plan-assistant-engineering/references/b
 Before any registry call, read `skill_view(name="workspace-registry:workspace-registry")`.
 Create a missing Group with the `workspace_registry` `group_create` action only when approved;
 pass an organization only when it names a real approved registry record.
-Establish GitHub repositories with approved owner, visibility and history:
-`gh repo create <owner>/<repo> --private --template <starter>` for a template,
-or an approved scratch/history-preserving path. Clone through `ghq`, not an
-unregistered local `git init`; preserve `upstream` when lineage is requested.
+Establish GitHub repositories with approved owner, visibility and history
+through `github_change` `repo_create` (`skill_view(name="github-access:github-repo")`,
+always on its own card): `template` for a starter, or an empty repository for
+an approved scratch or history-preserving path (the history is pushed into
+it). Clone through `ghq`, not an unregistered local `git init`; preserve
+`upstream` when lineage is requested.
 Register/link with the `workspace_registry` actions `repo_set` then `link_repo` using
 the approved Group.
 
