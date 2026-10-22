@@ -41,7 +41,7 @@ signed or sent, and any account can be read by its address.
 | Price history | `candles` (`coin`, `interval`, `hours`, `limit`; `end_time` for a fixed window) |
 | Funding history and its average | `funding` (a perp, `hours`) |
 | Liquidity now, the cost of a large order | `book` (`levels`, up to 20 a side) |
-| How an account is positioned, how much is withdrawable | `state` (`address`; `dex` for a builder dex) |
+| How an account is positioned, how much is withdrawable, what it pays to trade | `state` (`address`; `dex` for a builder dex); `fees` gives its own taker and maker rates in basis points |
 | What an account holds on spot | `balances` |
 | Recent trades of an account | `fills` (`hours`, `limit`, `aggregate` to merge partial fills) |
 | Open orders and their triggers; one order's status | `orders`; `history=true` for recent past orders; `oid` for one order |
@@ -73,7 +73,8 @@ signed or sent, and any account can be read by its address.
   way, and keep the `schema` and `window` with the data.
 - `backtest` trades `rules` over completed bars: a signal at a bar's close
   fills at the next bar's open with `slippage_bps` and `taker_bps` (defaults
-  5 and 4.5), the ATR stop placed with the entry fills inside a bar that
+  5 and 4.5, the venue's lowest tier; for an account that will trade it,
+  `taker_bps` is its own from `state`'s `fees`), the ATR stop placed with the entry fills inside a bar that
   reaches it, and funding is the venue's hourly rate (its mean where none was
   read). `result` is the whole window, in-sample; `walk_forward` chooses from
   a grid on past data and trades the choice on the next unseen window, and

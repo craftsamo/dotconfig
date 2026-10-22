@@ -20,7 +20,8 @@ through the tool, where the trader and the mandate decide. Its own memory is ``s
 the spec: the bar each market was last read on, the side last allowed, the notices already given,
 the account's value at the first read (the strategy's starting point), the positions seen on the
 last run, so one the venue closed on its own (a stop that fired) is said once and its result
-reported, and the breaker's index, high, trip and read position. A failure it cannot place in a strategy exits nonzero, so Hermes reports it.
+reported, the breaker's index, high, trip and read position, and what the strategy's orders cost
+against what it expected (the price an entry or a signal's close was listed at, a stop's trigger). A failure it cannot place in a strategy exits nonzero, so Hermes reports it.
 """
 
 from __future__ import annotations
@@ -188,21 +189,23 @@ def _memory(raw) -> dict | None:
     return raw if raw["peak"] > 0 and 0 <= raw["index"] <= raw["peak"] else None
 
 
-def _breaker(ctx: hl.Ctx, strategy: dict, account: Account, memory: dict | None, lost: bool) -> tuple[dict, float]:
+def _breaker(ctx: hl.Ctx, strategy: dict, account: Account, memory: dict | None,
+             lost: bool) -> tuple[dict, float, list[dict] | None]:
     """The breaker after this run: what the strategy's markets earned since the last run (their fills'
     realized result less fees, their funding, and the change in their positions' unrealized result),
-    applied to its index (hl_strategy.breaker_step). Fills and funding are read up to the account
-    read's own time, the moment its unrealized results and value hold for, so nothing falls between.
-    Without memory the run sets the baseline; when the memory was lost (``lost``: state.json or its
-    breaker could not be read) the baseline starts tripped, so only the user's reset resumes entries.
-    A read that fails raises, and nothing moves."""
+    applied to its index (hl_strategy.breaker_step), with the fills read (None when the run only set
+    the baseline). Fills and funding are read up to the account read's own time, the moment its
+    unrealized results and value hold for, so nothing falls between. Without memory the run sets the
+    baseline; when the memory was lost (``lost``: state.json or its breaker could not be read) the
+    baseline starts tripped, so only the user's reset resumes entries. A read that fails raises, and
+    nothing moves."""
     if account.time is None:
         raise ChainError(f"{ctx.api.label} gave no time for the account read")
     markets = set(strategy["markets"])
     unrealized = sum(p["unrealized"] for c, p in account.positions.items() if c in markets)
     brake = strategy["breaker"] or {}
     limit, reset = brake.get("max_drawdown_pct"), brake.get("reset")
-    change, equity_before, end = 0.0, 0.0, account.time
+    change, equity_before, end, fills = 0.0, 0.0, account.time, None
     if memory is not None:
         user = strategy["address"]
         fills = _since(ctx, "userFillsByTime", user, int(memory["cursor"]), end, hl.FILLS_PAGE,
@@ -224,7 +227,211 @@ def _breaker(ctx: hl.Ctx, strategy: dict, account: Account, memory: dict | None,
     if kept is None and lost:
         kept = {"tripped": {"at": end, "drawdown_pct": None}}
     stepped, drawdown = hs.breaker_step(kept, change, equity_before, limit, reset, end)
-    return {**stepped, "cursor": end + 1, "unrealized": unrealized, "equity": account.equity}, drawdown
+    return {**stepped, "cursor": end + 1, "unrealized": unrealized, "equity": account.equity}, drawdown, fills
+
+
+def _orders(fills: list[dict], markets: set) -> list[dict]:
+    """The strategy markets' fills of one read, one row per order: its id, market, side (buy / sell),
+    direction as the venue names it, size, average price, USDC fees, the notional that rested on the
+    book (maker fills), whether it was a liquidation, and the time of its last fill."""
+    rows: dict = {}
+    for f in fills:
+        sz, px = hl.num(f.get("sz")), hl.num(f.get("px"))
+        if f.get("coin") not in markets or not sz or not px or sz <= 0 or px <= 0:
+            continue
+        row = rows.setdefault(f.get("oid"), {"oid": f.get("oid"), "market": f["coin"],
+                                            "side": "buy" if f.get("side") == "B" else "sell",
+                                            "dir": str(f.get("dir") or ""), "size": 0.0, "notional": 0.0,
+                                            "fees": 0.0, "maker": 0.0, "liquidation": False, "at": 0})
+        direction = str(f.get("dir") or "")
+        if direction != row["dir"] and ">" not in row["dir"]:  # one order that closed one side and opened the other
+            row["dir"] = "Close > Open"
+        row["size"] += sz
+        row["notional"] += sz * px
+        if f.get("feeToken") in (None, "USDC"):
+            row["fees"] += hl.num(f.get("fee")) or 0.0
+        if not f.get("crossed"):
+            row["maker"] += sz * px
+        row["liquidation"] = row["liquidation"] or bool(f.get("liquidation"))
+        row["at"] = max(row["at"], int(f.get("time") or 0))
+    return list(rows.values())
+
+
+TALLY = ("orders", "notional_usd", "fees_usd", "maker_notional_usd", "reference_notional_usd", "slippage_usd")
+KINDS = ("entry", "close", "stop", "other", "liquidation")
+SIDE = ("buy", "sell")
+STOPS_KEPT = 6            # stop levels remembered per market: the tightest one at or through a fill priced it
+EXPECT_KEPT = 6           # listed entries or closes remembered per market and kind while fills go unread
+STOP_BAND = 0.001         # a stop's fill sits at or past its trigger, give or take this share
+MATCH_KEPT_MS = hs.DAY_MS  # an order priced once keeps its kind and reference for fills that come later
+LATEST_MS = 10**14        # times past this (year 5138) are not times the gate wrote
+
+
+def _ref(value) -> bool:
+    return _number(value) and value > 0
+
+
+def _when(value) -> bool:
+    return _number(value) and 0 <= value < LATEST_MS
+
+
+def _execution_memory(raw) -> dict:
+    """The execution memory from state.json, or a fresh one when any part has a shape the gate never
+    writes: it only measures, so starting again costs a history, never a decision."""
+    if not isinstance(raw, dict) or not _when(raw.get("since", 0)):
+        return {}
+    expect, stops, matched, totals = (raw.get(k, {}) for k in ("expect", "stops", "matched", "totals"))
+    if not all(isinstance(p, dict) for p in (expect, stops, matched, totals)) or (totals and "since" not in raw):
+        return {}
+    for kinds in expect.values():
+        if not (isinstance(kinds, dict) and set(kinds) <= {"entry", "close"} and all(
+                isinstance(listed, list) and all(isinstance(e, dict) and e.get("side") in SIDE and _ref(e.get("ref"))
+                                                 for e in listed) for listed in kinds.values())):
+            return {}
+    for levels in stops.values():
+        if not (isinstance(levels, list) and all(
+                isinstance(s, dict) and s.get("side") in SIDE and _ref(s.get("ref"))
+                and (s.get("oid") is None or isinstance(s["oid"], int)) for s in levels)):
+            return {}
+    for m in matched.values():
+        if not (isinstance(m, dict) and m.get("kind") in KINDS and (m.get("ref") is None or _ref(m["ref"]))
+                and _when(m.get("at"))):
+            return {}
+    for kind, tally in totals.items():
+        if not (kind in KINDS and isinstance(tally, dict) and all(_number(tally.get(f)) for f in TALLY)):
+            return {}
+    return raw
+
+
+def _stop_for(order: dict, px: float, levels: list[dict]) -> float | None:
+    """The stop an order closing a position executed, or None. A stop seen on the venue has an order id,
+    and only a fill of that id is its execution. A level listed but not yet seen has none: an order
+    whose fill sits at or past it on its side (a stop sells at or under its trigger, buys at or over
+    it), at most 10% past as the venue fills a triggered stop, is taken for it, the tightest first."""
+    same = [s for s in levels if s["side"] == order["side"]]
+    for s in same:
+        if s.get("oid") is not None and s["oid"] == order["oid"]:
+            return s["ref"]
+    unseen = [s["ref"] for s in same if s.get("oid") is None]
+    if order["side"] == "sell":
+        hit = [ref for ref in unseen if ref * 0.9 <= px <= ref * (1 + STOP_BAND)]
+        return max(hit) if hit else None
+    hit = [ref for ref in unseen if ref * (1 - STOP_BAND) <= px <= ref * 1.1]
+    return min(hit) if hit else None
+
+
+def _expect_copy(memory: dict) -> dict:
+    return {m: {k: list(listed) for k, listed in kinds.items()} for m, kinds in (memory.get("expect") or {}).items()}
+
+
+def _expected(expect: dict, market: str, kind: str, side: str, ref: float) -> None:
+    """Add what an order listed now should fill at, the oldest kept first while fills go unread."""
+    listed = expect.setdefault(market, {}).setdefault(kind, [])
+    listed.append({"side": side, "ref": ref})
+    del listed[:-EXPECT_KEPT]
+
+
+def _take(wanted: dict, kind: str, side: str) -> float | None:
+    """The reference of the oldest listed ``kind`` on ``side``, used up, or None."""
+    for n, e in enumerate(wanted.get(kind, [])):
+        if e["side"] == side:
+            return wanted[kind].pop(n)["ref"]
+    return None
+
+
+def _classify(order: dict, px: float, expect: dict, levels: list[dict]) -> tuple[str, float | None]:
+    """An order's kind and reference: a stop by its id first, then what the strategy listed for the
+    market (an entry for an opening order or a flip, a close for a closing one, the oldest first), then
+    a stop listed but not yet seen, by price; anything else is another trade. A match is used up."""
+    wanted, side, direction = expect.setdefault(order["market"], {}), order["side"], order["dir"]
+    flip, closing = ">" in direction, direction.startswith("Close")
+    if order["liquidation"]:
+        return "liquidation", None
+    if closing and any(s.get("oid") is not None and s["oid"] == order["oid"] for s in levels):
+        return "stop", _stop_for(order, px, levels)
+    if direction.startswith("Open") or flip:
+        ref = _take(wanted, "entry", side)
+        if ref is not None:
+            if flip:
+                _take(wanted, "close", side)  # the one order closed the old side and opened the new one
+            return "entry", ref
+    if closing or flip:
+        ref = _take(wanted, "close", side)
+        if ref is not None:
+            return "close", ref
+    if closing:
+        ref = _stop_for(order, px, levels)
+        if ref is not None:
+            return "stop", ref
+    return "other", None
+
+
+def _execution(memory: dict, fills: list[dict], markets: set, now: int) -> tuple[dict, list[dict]]:
+    """What the orders of one read cost against what the strategy expected, and the running totals per
+    kind: (memory, this read's orders). References: an entry or a signal's close at the bar's close it
+    was listed at (where the backtest fills it, at the next open); a stop at its trigger. Slippage is
+    the price paid past the reference, positive when it cost, in basis points of the reference as the
+    backtest's ``slippage_bps`` is. An order priced once keeps its kind and reference for its later
+    fills and is counted once; one matching nothing listed counts its fees and maker share only."""
+    expect = _expect_copy(memory)
+    stops, totals = memory.get("stops") or {}, memory.get("totals") or {}
+    matched = dict(memory.get("matched") or {})
+    measured = []
+    for order in _orders(fills, markets):
+        px = order["notional"] / order["size"]
+        key = str(order["oid"])
+        prior = matched.get(key)
+        if prior:
+            kind, ref = prior["kind"], prior["ref"]
+        else:
+            kind, ref = _classify(order, px, expect, stops.get(order["market"], []))
+        matched[key] = {"kind": kind, "ref": ref, "at": max(order["at"], int(prior["at"]) if prior else 0)}
+        cost = None if ref is None else (px - ref) * order["size"] * (1 if order["side"] == "buy" else -1)
+        tally = totals.setdefault(kind, dict.fromkeys(TALLY, 0.0))
+        tally["orders"] += 0 if prior else 1
+        tally["notional_usd"] += order["notional"]
+        tally["fees_usd"] += order["fees"]
+        tally["maker_notional_usd"] += order["maker"]
+        if cost is not None:
+            tally["reference_notional_usd"] += ref * order["size"]
+            tally["slippage_usd"] += cost
+        measured.append({"market": order["market"], "kind": kind, "side": order["side"],
+                         "size": hs.sig5(order["size"]), "price": hs.sig5(px),
+                         "reference": None if ref is None else hs.sig5(ref),
+                         "slippage_bps": None if cost is None else round(cost / (ref * order["size"]) * 10_000, 2),
+                         "fee_bps": round(order["fees"] / order["notional"] * 10_000, 2),
+                         "maker_pct": round(order["maker"] / order["notional"] * 100, 1)})
+    matched = {k: m for k, m in matched.items() if m["at"] >= now - MATCH_KEPT_MS}
+    return {**memory, "expect": expect, "totals": totals, "matched": matched,
+            "since": memory.get("since", now)}, measured
+
+
+def _remember_stops(old: dict, seen: dict, listed: dict, held: set, read: bool) -> dict:
+    """The stop levels to price the next read's fills by, newest last. After a read: the stops seen in
+    force at it and those listed now, and for a market held with no stop seen (one may have fired just
+    after the read) the levels it had. After a failed read: everything, since its fills are still to be
+    priced."""
+    out: dict = {}
+    for market in set(old) | set(seen) | set(listed):
+        kept = list(old.get(market, [])) if (not read or (market in held and not seen.get(market))) else []
+        for level in seen.get(market, []) + listed.get(market, []):
+            kept = [s for s in kept if (s["ref"], s.get("oid")) != (level["ref"], level.get("oid"))] + [level]
+        if kept:
+            out[market] = kept[-STOPS_KEPT:]
+    return out
+
+
+def _costs(totals: dict) -> dict:
+    """The running totals as basis points: per kind, orders, slippage on the orders with a reference, fees,
+    and the share of notional that rested on the book (maker)."""
+    out = {}
+    for kind, t in sorted(totals.items()):
+        notional, measured = t["notional_usd"], t["reference_notional_usd"]
+        out[kind] = {"orders": int(t["orders"]),
+                     "slippage_bps": round(t["slippage_usd"] / measured * 10_000, 2) if measured else None,
+                     "fee_bps": round(t["fees_usd"] / notional * 10_000, 2) if notional else None,
+                     "maker_pct": round(t["maker_notional_usd"] / notional * 100, 1) if notional else None}
+    return out
 
 
 def _candles(ctx: hl.Ctx, coin: str, rule_set: dict, interval: str, now: int) -> list[dict]:
@@ -318,13 +525,28 @@ def run_strategy(directory: Path, now: int) -> dict:
     memory = _memory(state.get("breaker"))
     lost = memory is None and "breaker" in state  # unreadable state, or a breaker of a shape the gate never wrote
     was_tripped = memory is not None and memory["tripped"] is not None
+    try:  # measuring only: no memory it kept can stop the gate
+        execution = _execution_memory(state.get("execution"))
+    except Exception:  # noqa: BLE001
+        execution = {}
     try:
-        state["breaker"], drawdown = _breaker(ctx, strategy, account, memory, lost)
+        state["breaker"], drawdown, fills = _breaker(ctx, strategy, account, memory, lost)
     except ChainError as exc:
         out["problems"].append(f"the strategy's fills or funding could not be read ({exc}); its entries wait for "
                                "the next run")
         breaker_unread = True
     else:
+        if fills is not None:  # what the orders since the last run cost; what it expected is used up
+            try:
+                execution, measured = _execution(execution, fills, set(strategy["markets"]), now)
+            except Exception as exc:  # noqa: BLE001
+                # it only measures: a fault here starts its history again and never stops the gate
+                out["problems"].append(f"execution costs could not be measured ({type(exc).__name__}); "
+                                       "they count again from this run")
+                execution, measured = {"since": now}, []
+            execution["expect"] = {}
+            if measured:
+                out["fills_measured"] = measured
         latest = state["breaker"]
         tripped = latest["tripped"]
         out["breaker"] = {"drawdown_pct": round(drawdown, 2),
@@ -350,6 +572,20 @@ def run_strategy(directory: Path, now: int) -> dict:
                             "no breaker in the spec: entries are held until breaker.max_drawdown_pct is set; "
                             "closes and stops go on")
     held = account.held
+    # what the orders this run lists should fill at: kept with what an unread window still owes
+    expect = _expect_copy(execution)
+    seen_stops: dict = {}  # in force at this read; ``stops`` gathers the levels this run lists
+    stops: dict = {}
+    for market, position in account.positions.items():
+        if market not in strategy["markets"]:
+            continue
+        closing = "sell" if position["side"] == "long" else "buy"
+        for o in reversed(account.stop_orders(market)):  # the tightest last, as the newest
+            trigger, oid = hl.num(o.get("triggerPx")), o.get("oid")
+            if trigger and trigger > 0:
+                seen_stops.setdefault(market, []).append({
+                    "side": closing, "ref": trigger, "oid": oid if isinstance(oid, int) and not isinstance(oid, bool)
+                    else None})
     for market in strategy["markets"]:
         choice = choices[market]
         rule_set = strategy["variants"][choice["variant"]]["rules"]
@@ -370,6 +606,7 @@ def run_strategy(directory: Path, now: int) -> dict:
                                           f"(direction {choice['direction']})",
                                    "quote": _quote(strategy, kind="close", coin=market)})
             seen[market]["closing"] = True  # the run that sends it reports the result; the next run stays quiet
+            _expected(expect, market, "close", "sell" if position["side"] == "long" else "buy", ev["price"])
         elif position and fresh and not account.stopped(market) and ev.get("atr"):
             sign = -1 if position["side"] == "long" else 1
             price = ev["price"]
@@ -380,12 +617,14 @@ def run_strategy(directory: Path, now: int) -> dict:
             out["intents"].append({"id": f"{tag}:protect", "market": market, "effect": "reduce",
                                    "why": f"the {position['side']} has no stop on the venue",
                                    "quote": _quote(strategy, kind="tpsl", coin=market, sl=hs.sig5(stop))})
+            stops.setdefault(market, []).append({"side": "sell" if position["side"] == "long" else "buy",
+                                                 "ref": stop, "oid": None})
         elif position and fresh and ev.get("trail") is not None:
             # the trailing stop moved: place the tighter stop first, then cancel every stop looser than
             # it (the one it replaces, and any left from an earlier run whose cancel did not go), so the
             # position is never without one; the cancels are sent only after the new stop is
-            held = account.stop_orders(market)
-            trigger = hl.num(held[0].get("triggerPx")) if held else None
+            in_force = account.stop_orders(market)
+            trigger = hl.num(in_force[0].get("triggerPx")) if in_force else None
             tighter = trigger is not None and (ev["trail"] > trigger if position["side"] == "long"
                                                else ev["trail"] < trigger)
             if tighter:
@@ -394,7 +633,9 @@ def run_strategy(directory: Path, now: int) -> dict:
                                               f"{hs.sig5(ev['trail'])} ({rule_set['trail_atr']:g} ATR behind the "
                                               f"close {hs.sig5(ev['price'])})",
                                        "quote": _quote(strategy, kind="tpsl", coin=market, sl=hs.sig5(ev["trail"]))})
-                for n, o in enumerate(held):
+                stops.setdefault(market, []).append({"side": "sell" if position["side"] == "long" else "buy",
+                                                     "ref": ev["trail"], "oid": None})
+                for n, o in enumerate(in_force):
                     out["intents"].append({"id": f"{tag}:untrail{n or ''}", "market": market, "effect": "reduce",
                                            "after": f"{tag}:trail",
                                            "why": f"cancel the stop at {hs.sig5(hl.num(o.get('triggerPx')) or trigger)} "
@@ -435,8 +676,24 @@ def run_strategy(directory: Path, now: int) -> dict:
                                             side="buy" if ev["open"] == "long" else "sell", usd=hs.usd(value),
                                             type="market", slippage=SLIPPAGE, sl=hs.sig5(ev["stop"]))})
                         held += value
+                        entering = "buy" if ev["open"] == "long" else "sell"
+                        _expected(expect, market, "entry", entering, ev["price"])
+                        stops.setdefault(market, []).append({"side": "sell" if entering == "buy" else "buy",
+                                                             "ref": ev["stop"], "oid": None})
         if fresh and not retry:  # a bar whose entry could not be decided is read again next run
             state["bars"][market] = bar
+    held_markets = {m for m in account.positions if m in strategy["markets"]}
+    try:  # measuring only: whatever goes wrong here starts the measure again, never the intents
+        state["execution"] = {**execution, "expect": expect,
+                              "stops": _remember_stops(execution.get("stops") or {}, seen_stops, stops, held_markets,
+                                                       read=not breaker_unread)}
+        if execution.get("totals"):
+            out["execution"] = {"since": hs.iso(execution["since"]), "costs": _costs(execution["totals"])}
+    except Exception as exc:  # noqa: BLE001
+        state["execution"] = {"since": now}
+        out.pop("execution", None)
+        out["problems"].append(f"execution costs could not be kept ({type(exc).__name__}); they count again from "
+                               "this run")
     return _finish(out, state, state_path, reported)
 
 
