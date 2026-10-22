@@ -18,6 +18,10 @@ what was tested is what runs. Contract: docs/hyperliquid.md "Strategies".
 - **A stance** is an advisor's choice inside those bounds: per market a direction, a variant and a
   size multiplier, with an expiry and a dated basis. It never widens a limit: the mandate and the
   spec's limits still bound every order.
+- **A breaker** holds a strategy's entries once its own result has fallen a set share below its
+  high, measured as an index of what its markets earned against the account's value, so deposits,
+  withdrawals and other markets move nothing. Only the user's reset, written after it tripped,
+  resumes them.
 """
 
 from __future__ import annotations
@@ -51,6 +55,7 @@ TRADES_SHOWN = 20
 CURVE_POINTS = 60
 MC_RUNS = 1000
 MC_MIN_TRADES = 20        # fewer trades say too little about their order to redraw them
+BREAKER_PCT = (1.0, 90.0)  # the drawdown a breaker may be set to hold entries at
 BASELINE_FUNDING = 0.0000125  # the venue's interest component, 0.01% per 8 hours, paid by longs
 _NAME = re.compile(r"^[a-z0-9][a-z0-9-]{0,39}$")
 _COIN = re.compile(r"^[A-Za-z0-9]{1,12}$")
@@ -840,10 +845,55 @@ def spec(raw) -> dict:
                    "max_exposure_usd": float(mandate["max_exposure_usd"]), "max_leverage": mandate["max_leverage"],
                    "expires": parse_time(mandate.get("expires"), "mandate.expires")}
         limits["max_leverage"] = min(limits["max_leverage"], mandate["max_leverage"])
+    # a breaker that cannot be read holds entries like a missing one, but never stops the closes and stops
+    try:
+        brake, problem = breaker(raw.get("breaker")), None
+    except StrategyError as exc:
+        brake, problem = None, str(exc)
     return {"schema": SPEC_SCHEMA, "name": name, "network": raw["network"], "account": account,
             "address": address.lower(), "markets": markets, "interval": interval, "variants": variants,
             "advisor": advisor, "default": default, "limits": limits, "mandate": mandate,
+            "breaker": brake, "breaker_problem": problem,
             "active": raw.get("active", True) is not False, "purpose": str(raw.get("purpose", ""))[:200]}
+
+
+def breaker(raw) -> dict | None:
+    """The spec's drawdown breaker, {"max_drawdown_pct", "reset" (Unix ms or None)}, or None when the spec
+    has none. ``reset`` is the user's resume: it counts only once it is later than the trip."""
+    if raw is None:
+        return None
+    if not isinstance(raw, dict):
+        raise StrategyError("breaker is {max_drawdown_pct, reset}")
+    extra = set(raw) - {"max_drawdown_pct", "reset"}
+    if extra:
+        raise StrategyError(f"breaker takes max_drawdown_pct and reset, not {', '.join(sorted(extra))}")
+    low, high = BREAKER_PCT
+    limit = value_in(raw.get("max_drawdown_pct"), low, high, False, "breaker.max_drawdown_pct")
+    reset = raw.get("reset")
+    return {"max_drawdown_pct": limit, "reset": None if reset in (None, "") else parse_time(reset, "breaker.reset")}
+
+
+def breaker_step(memory: dict | None, change_usd: float, equity_before: float, limit_pct: float | None,
+                 reset_ms: int | None, now_ms: int) -> tuple[dict, float]:
+    """The breaker after one gate run: (its memory, the drawdown in percent). The index moves by what the
+    strategy's markets earned since the last run (``change_usd``: realized result less fees, funding,
+    and the change in unrealized result) as a share of the account's value then (``equity_before``),
+    so a deposit or a withdrawal moves it not at all and later results count against the new size. The
+    drawdown is its fall below its highest value. It trips at ``limit_pct`` and stays tripped until a
+    reset later than the trip and not in the future, which starts the index and its high again at 1,
+    so even an account the strategy emptied can resume once refunded. No limit (``None``) keeps the
+    index without ever tripping."""
+    m = {"index": 1.0, "peak": 1.0, "tripped": None, "since": now_ms, **(memory or {})}
+    if equity_before > 0 and change_usd:
+        m["index"] = max(0.0, m["index"] * (1 + change_usd / equity_before))
+    tripped = m["tripped"]
+    if tripped and reset_ms is not None and tripped["at"] < reset_ms <= now_ms:
+        m.update(tripped=None, index=1.0, peak=1.0, since=reset_ms)
+    m["peak"] = max(m["peak"], m["index"])
+    drawdown = round((m["peak"] - m["index"]) / m["peak"] * 100, 9) if m["peak"] > 0 else 100.0
+    if m["tripped"] is None and limit_pct is not None and drawdown >= limit_pct:
+        m["tripped"] = {"at": now_ms, "drawdown_pct": round(drawdown, 2)}
+    return m, drawdown
 
 
 def stance(strategy: dict, raw, now_ms: int, history: dict | None = None) -> tuple[dict, list[str], dict]:

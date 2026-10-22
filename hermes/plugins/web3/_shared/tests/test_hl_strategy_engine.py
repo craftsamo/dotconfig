@@ -55,7 +55,7 @@ def reset():
     STATE.clear()
     STATE.update({
         "bars": {"BTC": series([100.0] * 40 + [110.0], NOW), "ETH": series([50.0] * 41, NOW)},
-        "positions": [], "orders": [], "leverage": 20, "equity": "1000"})
+        "positions": [], "orders": [], "leverage": 20, "equity": "1000", "fills": [], "funding": []})
 
 
 def candle(t: int, step: int = H4) -> dict:
@@ -82,15 +82,25 @@ def handle(body: dict):
         return [{"coin": body["coin"], "fundingRate": "0.00001", "premium": "0", "time": t}
                 for t in range(first, end + 1, HOUR)][:500]
     if kind == "clearinghouseState":
+        if STATE.get("account_broken"):
+            return {"error": "unexpected"}
         return {"assetPositions": [{"position": p, "type": "oneWay"} for p in STATE["positions"]],
                 "marginSummary": {"accountValue": STATE["equity"], "totalMarginUsed": "0", "totalNtlPos": "0"},
-                "crossMarginSummary": {"accountValue": STATE["equity"]}, "withdrawable": STATE["equity"], "time": NOW}
+                "crossMarginSummary": {"accountValue": STATE["equity"]}, "withdrawable": STATE["equity"],
+                "time": STATE.get("time", NOW)}
     if kind == "userAbstraction":
         return "default"
     if kind == "frontendOpenOrders":
         return STATE["orders"]
     if kind == "activeAssetData":
         return {"leverage": {"type": "cross", "value": STATE["leverage"]}}
+    if kind in ("userFillsByTime", "userFunding"):  # oldest first, capped like the venue's pages
+        if STATE.get("ledger_broken"):
+            return {"error": "not a list"}
+        rows = STATE["fills" if kind == "userFillsByTime" else "funding"]
+        found = sorted((r for r in rows if body["startTime"] <= r["time"] <= body.get("endTime", NOW)),
+                       key=lambda r: r["time"])
+        return found[:2000 if kind == "userFillsByTime" else 500]
     return None
 
 
@@ -222,7 +232,11 @@ def test_a_backtest_refuses_what_it_cannot_trade(api, tmp_path):
 OOS = {"return_pct": 40.1, "max_drawdown_pct": 18.5, "mar": 0.9, "trades": 64}
 
 
-def strategy_dir(root: Path, mandate: bool = True, stance: dict | None = None, oos: bool = True, **rule_over) -> Path:
+BREAKER = {"max_drawdown_pct": 25}
+
+
+def strategy_dir(root: Path, mandate: bool = True, stance: dict | None = None, oos: bool = True,
+                 breaker: dict | None = BREAKER, **rule_over) -> Path:
     import importlib.util
 
     spec_mod = importlib.util.spec_from_file_location("hs_for_engine_test", SHARED / "hl_strategy.py")
@@ -235,7 +249,8 @@ def strategy_dir(root: Path, mandate: bool = True, stance: dict | None = None, o
             "variants": {"t20": {"rules": rules, "validated": validated}},
             "limits": {"exposure_pct": 70, "max_leverage": 2},
             "mandate": ({"id": "m1", "max_order_usd": "300", "max_exposure_usd": "600", "max_leverage": 2,
-                         "expires": NOW + 20 * 24 * HOUR} if mandate else None)}
+                         "expires": NOW + 20 * 24 * HOUR} if mandate else None),
+            **({"breaker": breaker} if breaker is not None else {})}
     directory = root / "trend"
     directory.mkdir(parents=True, exist_ok=True)
     (directory / "spec.json").write_text(json.dumps(spec))
@@ -244,7 +259,8 @@ def strategy_dir(root: Path, mandate: bool = True, stance: dict | None = None, o
     return directory
 
 
-def gate(root: Path, api: str, tmp_path: Path, now: int = NOW) -> dict:
+def gate(root: Path, api: str, tmp_path: Path, now: int = NOW, snapshot: int | None = None) -> dict:
+    STATE["time"] = snapshot or now  # the venue's time of the account read, a little after the run starts
     proc = subprocess.run([str(PYTHON), str(SHARED / "hl_gate.py"), str(root)], capture_output=True, text=True,
                           timeout=60, env=env(tmp_path, api, now))
     assert proc.returncode == 0, proc.stderr
@@ -298,6 +314,161 @@ def test_a_variant_without_an_out_of_sample_record_opens_nothing_but_still_prote
     STATE["bars"]["BTC"] = series([100.0] * 40 + [110.0, 112.0], NOW + H4)
     STATE["bars"]["ETH"] = series([50.0] * 42, NOW + H4)
     assert gate(root, api, tmp_path, NOW + H4) == {"wakeAgent": False}
+
+
+def kinds(report: dict) -> list[str]:
+    return [i["id"].split(":")[-1] for s in report.get("strategies", []) for i in s["intents"]]
+
+
+def test_without_a_usable_breaker_entries_are_held_and_said_once_while_stops_go_on(api, tmp_path):
+    reset()
+    STATE["positions"] = [{"coin": "ETH", "szi": "-1", "entryPx": "50", "positionValue": "50"}]
+    root = tmp_path / "hl-strategies"
+    directory = strategy_dir(root, breaker=None)
+    part = gate(root, api, tmp_path)["strategies"][0]
+    assert kinds({"strategies": [part]}) == ["protect"]
+    assert any(n.startswith("no breaker in the spec") for n in part["new_notices"]) and part["breaker"]["tripped"] is None
+    STATE["orders"] = [{"coin": "ETH", "side": "B", "orderType": "Stop Market", "reduceOnly": True, "isTrigger": True,
+                        "sz": "1", "triggerPx": "60"}]
+    assert gate(root, api, tmp_path) == {"wakeAgent": False}
+    spec = json.loads((directory / "spec.json").read_text())
+    (directory / "spec.json").write_text(json.dumps({**spec, "breaker": {"max_drawdown_pct": 200}}))
+    part = gate(root, api, tmp_path)["strategies"][0]
+    assert part["intents"] == [] and any(n.startswith("breaker not used: breaker.max_drawdown_pct") for n in part["new_notices"])
+
+
+def test_the_breaker_trips_on_the_strategys_own_losses_and_only_a_later_reset_resumes(api, tmp_path):
+    reset()
+    root = tmp_path / "hl-strategies"
+    directory = strategy_dir(root)
+    first = gate(root, api, tmp_path)["strategies"][0]
+    assert kinds({"strategies": [first]}) == ["leverage", "open"]  # the first run only sets the baseline
+    assert first["breaker"]["drawdown_pct"] == 0 and first["breaker"]["max_drawdown_pct"] == 25
+    # another market loses, and an ETH short is 10 down against the 1000 the account held then: only the
+    # short counts; a deposit that doubles the account moves nothing
+    STATE["fills"] = [{"coin": "SOL", "time": NOW + HOUR, "closedPnl": "-500", "fee": "1", "feeToken": "USDC",
+                       "tid": 1, "oid": 1, "sz": "1", "px": "1"}]
+    STATE["positions"] = [{"coin": "ETH", "szi": "-1", "entryPx": "50", "positionValue": "60", "unrealizedPnl": "-10"}]
+    STATE["orders"] = [{"coin": "ETH", "side": "B", "orderType": "Stop Market", "reduceOnly": True, "isTrigger": True,
+                        "sz": "1", "triggerPx": "75"}]
+    STATE["equity"] = "2000"
+    STATE["bars"]["BTC"] = series([100.0] * 40 + [110.0, 112.0], NOW + H4)
+    second = gate(root, api, tmp_path, NOW + H4)["strategies"][0]
+    assert second["breaker"]["drawdown_pct"] == 1.0 and kinds({"strategies": [second]}) == ["leverage", "open"]
+    # the short closes at that loss (its fill's result replaces its unrealized one, nothing twice); BTC
+    # loses 590 with 5 in fees and pays 5 in funding: 600 of the 2000 the account held, a 30% fall from
+    # the 1% already down
+    STATE["positions"], STATE["orders"] = [], []
+    STATE["fills"] += [{"coin": "ETH", "time": NOW + H4 + HOUR, "closedPnl": "-10", "fee": "0", "feeToken": "USDC",
+                        "tid": 2, "oid": 2, "sz": "1", "px": "60"},
+                       {"coin": "BTC", "time": NOW + H4 + HOUR, "closedPnl": "-590", "fee": "5", "feeToken": "USDC",
+                        "tid": 3, "oid": 3, "sz": "1", "px": "100"}]
+    STATE["funding"] = [{"time": NOW + H4 + 2 * HOUR, "hash": "0x01",
+                         "delta": {"type": "funding", "coin": "BTC", "usdc": "-5", "szi": "1", "fundingRate": "0.0001"}}]
+    STATE["bars"]["BTC"] = series([100.0] * 40 + [110.0, 112.0, 114.0], NOW + 2 * H4)
+    third = gate(root, api, tmp_path, NOW + 2 * H4)["strategies"][0]
+    assert third["breaker"]["drawdown_pct"] == pytest.approx(30.7)
+    assert third["breaker"]["tripped"] is not None and kinds({"strategies": [third]}) == []
+    assert any(n.startswith("breaker tripped at") and "30.7% below its high" in n for n in third["new_notices"])
+    STATE["bars"]["BTC"] = series([100.0] * 40 + [110.0, 112.0, 114.0, 116.0], NOW + 3 * H4)
+    assert gate(root, api, tmp_path, NOW + 3 * H4) == {"wakeAgent": False}  # still held, said once
+    # a reset written before the trip resumes nothing; one after it does, from the index now
+    spec = json.loads((directory / "spec.json").read_text())
+    tripped_at = NOW + 2 * H4
+    (directory / "spec.json").write_text(json.dumps({**spec, "breaker": {"max_drawdown_pct": 25, "reset": tripped_at - 1}}))
+    STATE["bars"]["BTC"] = series([100.0] * 40 + [110.0, 112.0, 114.0, 116.0, 118.0], NOW + 4 * H4)
+    assert gate(root, api, tmp_path, NOW + 4 * H4) == {"wakeAgent": False}
+    (directory / "spec.json").write_text(json.dumps({**spec, "breaker": {"max_drawdown_pct": 25, "reset": NOW + 4 * H4}}))
+    STATE["bars"]["BTC"] = series([100.0] * 40 + [110.0, 112.0, 114.0, 116.0, 118.0, 120.0], NOW + 5 * H4)
+    resumed = gate(root, api, tmp_path, NOW + 5 * H4)["strategies"][0]
+    assert kinds({"strategies": [resumed]}) == ["leverage", "open"] and resumed["breaker"]["drawdown_pct"] == 0
+    assert any(n.startswith("breaker reset at") for n in resumed["new_notices"])
+
+
+def test_an_entry_waits_for_a_run_that_can_read_the_breaker(api, tmp_path):
+    reset()
+    root = tmp_path / "hl-strategies"
+    strategy_dir(root)
+    gate(root, api, tmp_path)
+    STATE["ledger_broken"] = True
+    STATE["bars"]["BTC"] = series([100.0] * 40 + [110.0, 112.0], NOW + H4)
+    part = gate(root, api, tmp_path, NOW + H4)["strategies"][0]
+    assert part["intents"] == [] and "fills or funding could not be read" in part["problems"][0]
+    assert "breaker" not in part
+    STATE["ledger_broken"] = False
+    assert kinds(gate(root, api, tmp_path, NOW + H4)) == ["leverage", "open"]  # the same bar, read again
+
+
+def test_the_breaker_reads_up_to_the_account_read_so_nothing_falls_between(api, tmp_path):
+    reset()
+    root = tmp_path / "hl-strategies"
+    strategy_dir(root)
+    gate(root, api, tmp_path)
+    # a BTC position closes at a 300 loss after the run starts but before its account read: the fill is
+    # counted with the read that no longer shows the position
+    STATE["fills"] = [{"coin": "BTC", "time": NOW + H4 + 2000, "closedPnl": "-300", "fee": "0", "feeToken": "USDC",
+                       "tid": 1, "oid": 1, "sz": "1", "px": "100"}]
+    STATE["bars"]["BTC"] = series([100.0] * 40 + [110.0, 112.0], NOW + H4)
+    part = gate(root, api, tmp_path, NOW + H4, snapshot=NOW + H4 + 5000)["strategies"][0]
+    assert part["breaker"]["drawdown_pct"] == 30.0 and part["breaker"]["tripped"] is not None and part["intents"] == []
+
+
+def test_fills_are_paged_without_counting_a_shared_millisecond_twice_and_a_held_position_is_the_baseline(api, tmp_path):
+    reset()
+    STATE["positions"] = [{"coin": "ETH", "szi": "-1", "entryPx": "50", "positionValue": "100", "unrealizedPnl": "-50"}]
+    STATE["orders"] = [{"coin": "ETH", "side": "B", "orderType": "Stop Market", "reduceOnly": True, "isTrigger": True,
+                        "sz": "1", "triggerPx": "120"}]
+    root = tmp_path / "hl-strategies"
+    strategy_dir(root, breaker={"max_drawdown_pct": 60})
+    assert gate(root, api, tmp_path)["strategies"][0]["breaker"]["drawdown_pct"] == 0  # the open loss is the start
+
+    def at(i):  # ten fills share the millisecond the first page ends on
+        return NOW + 1000 + i if i < 1995 else NOW + 2995 if i < 2005 else NOW + 3000 + i
+    STATE["fills"] = [{"coin": "BTC", "time": at(i), "closedPnl": "-0.2", "fee": "0", "feeToken": "USDC",
+                       "tid": i, "oid": i, "sz": "1", "px": "100"} for i in range(2500)]
+    assert gate(root, api, tmp_path, NOW + H4) == {"wakeAgent": False}  # nothing to do or say
+    memory = json.loads((root / "trend" / "state.json").read_text())["breaker"]
+    assert memory["index"] == pytest.approx(0.5) and memory["tripped"] is None  # 500 of 1000, every fill once
+    STATE["funding"] = [{"time": NOW + H4 + 10 + i, "hash": f"0x{i:04x}",
+                         "delta": {"type": "funding", "coin": "BTC", "usdc": "-0.01"}} for i in range(2600)]
+    part = gate(root, api, tmp_path, NOW + 2 * H4)["strategies"][0]
+    assert "more userFunding rows than 5 reads cover" in part["problems"][0] and "breaker" not in part
+
+
+def test_a_breaker_whose_memory_was_lost_holds_entries_until_the_user_resumes_it(api, tmp_path):
+    reset()
+    root = tmp_path / "hl-strategies"
+    directory = strategy_dir(root)
+    gate(root, api, tmp_path)
+    (directory / "state.json").write_text("{")
+    STATE["account_broken"] = True  # the run that finds it cannot read the account either: the loss is kept
+    assert "could not be read" in gate(root, api, tmp_path, NOW + H4)["strategies"][0]["problems"][0]
+    STATE["account_broken"] = False
+    STATE["positions"] = [{"coin": "ETH", "szi": "-1", "entryPx": "50", "positionValue": "50"}]  # with no stop
+    STATE["bars"]["BTC"] = series([100.0] * 40 + [110.0, 112.0], NOW + H4)
+    part = gate(root, api, tmp_path, NOW + H4)["strategies"][0]
+    assert kinds({"strategies": [part]}) == ["protect"] and part["breaker"]["tripped"] is not None  # no entry
+    assert any(n.startswith("breaker holding since") and "drawdown is unknown" in n for n in part["new_notices"])
+    STATE["orders"] = [{"coin": "ETH", "side": "B", "orderType": "Stop Market", "reduceOnly": True, "isTrigger": True,
+                        "sz": "1", "triggerPx": "60"}]
+    STATE["bars"]["BTC"] = series([100.0] * 40 + [110.0, 112.0, 114.0], NOW + 2 * H4)
+    assert gate(root, api, tmp_path, NOW + 2 * H4) == {"wakeAgent": False}
+    spec = json.loads((directory / "spec.json").read_text())
+    (directory / "spec.json").write_text(json.dumps({**spec, "breaker": {**BREAKER, "reset": NOW + 2 * H4}}))
+    STATE["bars"]["BTC"] = series([100.0] * 40 + [110.0, 112.0, 114.0, 116.0], NOW + 3 * H4)
+    assert kinds(gate(root, api, tmp_path, NOW + 3 * H4)) == ["leverage", "open"]
+    # a state that is not an object, or a breaker missing a field the gate reads, is lost the same way
+    good = json.loads((directory / "state.json").read_text())
+    memory = good["breaker"]
+    for n, broken in enumerate(("null", "[]", json.dumps({**good, "breaker": {**memory, "index": "high"}}),
+                                json.dumps({**good, "breaker": {k: v for k, v in memory.items() if k != "tripped"}}),
+                                json.dumps({**good, "breaker": {**memory, "tripped": {"at": NOW}}}),
+                                json.dumps({**good, "breaker": {**memory, "equity": 10 ** 400}}))):
+        (directory / "state.json").write_text(broken)
+        later = NOW + (4 + n) * H4
+        STATE["bars"]["BTC"] = series([100.0] * 40 + [110.0] + [112.0 + 2 * k for k in range(5 + n)], later)
+        part = gate(root, api, tmp_path, later)["strategies"][0]
+        assert part["intents"] == [] and part["breaker"]["tripped"] is not None, broken
 
 
 def test_the_gate_keeps_the_start_equity_and_notices_a_position_the_venue_closed(api, tmp_path):
