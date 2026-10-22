@@ -332,6 +332,18 @@ tested is what runs.
   default; each fold chooses by `mar`, `sharpe` or `return_pct` on the data
   before it and trades the choice on the next window; the stitched unseen
   windows are `out_of_sample`. A position open at a fold's end closes there.
+- **Monte Carlo**: `result` and `out_of_sample` each carry `monte_carlo`, the
+  trades redrawn 1000 times with replacement in random order. Each trade
+  keeps its own path while held (its lowest and highest marks and its fall
+  from its own high, relative to the equity before it), which is enough to
+  rebuild the bar-by-bar drawdown of any order exactly, so a drawdown inside
+  a trade counts. It reports drawdown, return and the longest losing streak
+  at percentiles beside the observed order, and is null below 20 trades. A
+  draw that loses the whole account stops there, as the backtest opens
+  nothing after it. The draws are seeded from the request, so a backtest
+  read again with the same `end_time` gives the same spread. They are
+  independent, which spreads out losses that cluster in one regime: a
+  planning floor, not a bound.
 - **Stance windows** override the direction and scale the risk over dated
   windows, so a judgment written as a rule over point-in-time data can be
   tested the same way. A model judging past markets is not a test: it knows
@@ -355,7 +367,10 @@ owns the procedure; this section owns what the code holds to.
   for the strategy, which `default.markets` overrides per market: variant,
   direction or size), the advisor's bounds, `limits` (`exposure_pct`,
   `max_leverage`) and the mandate's id, bounds and end. A variant whose rules
-  no longer match its fingerprint makes the spec invalid.
+  no longer match its fingerprint makes the spec invalid. A variant also
+  records its walk-forward `out_of_sample` (at least its maximum drawdown and
+  trades, one or more); without it the variant's markets open nothing, while
+  their closes and stops go on.
 - **The gate** (`hl_gate.py`, a cron `script` with an agent; the scheduler
   runs its wrapper from the copy `install.sh` keeps in the profile's
   `scripts/`, so the wrapper takes the runtime home from its own parent and
@@ -374,7 +389,9 @@ owns the procedure; this section owns what the code holds to.
   market's is above the bound, then a market order with its stop, sized from
   the risk per trade and capped by the limits and the mandate (with headroom
   for the worst price the order is valued at). Without a mandate in force no
-  entry is listed, only noted; a bar whose entry needed a read that failed
+  entry is listed, only noted; for a variant with no `out_of_sample`
+  recorded none is listed either, and the gate says so once rather than per
+  bar; a bar whose entry needed a read that failed
   is read again on the next run. It remembers the positions it saw, so one
   the venue closed on its own (a stop that fired, a liquidation) is noticed
   once and the run reports the trade's result, and the account's value at

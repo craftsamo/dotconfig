@@ -10,6 +10,9 @@ what was tested is what runs. Contract: docs/hyperliquid.md "Strategies".
   trailing stop (``trail_atr``) that follows each completed close and never loosens, and a regime
   filter (``regime_ema``) that takes longs only above that EMA and shorts only below. ``fingerprint``
   names a rule set exactly (with its interval), so a strategy may only run rules a backtest reported.
+- **A Monte Carlo** redraws a backtest's trades in random order, each with the path its equity took
+  while it was held, so the spread of drawdowns the same trades could have produced sits beside the
+  one their actual order did. Seeded from the request, so the same backtest gives the same spread.
 - **A strategy spec** names the account, network, markets, interval, its validated variants, the
   default stance, the bounds an advisor may choose within, and its limits.
 - **A stance** is an advisor's choice inside those bounds: per market a direction, a variant and a
@@ -24,6 +27,7 @@ from datetime import datetime, timezone
 import hashlib
 import json
 import math
+import random
 import re
 
 SPEC_SCHEMA = "hermes-hyperliquid-strategy/1"
@@ -45,6 +49,8 @@ MAX_GRID_VALUES = 6
 MAX_FOLDS = 6
 TRADES_SHOWN = 20
 CURVE_POINTS = 60
+MC_RUNS = 1000
+MC_MIN_TRADES = 20        # fewer trades say too little about their order to redraw them
 BASELINE_FUNDING = 0.0000125  # the venue's interest component, 0.01% per 8 hours, paid by longs
 _NAME = re.compile(r"^[a-z0-9][a-z0-9-]{0,39}$")
 _COIN = re.compile(r"^[A-Za-z0-9]{1,12}$")
@@ -418,7 +424,10 @@ def simulate(series: list[dict], rule_set: dict, interval: str, cost: dict, limi
     slippage and the taker fee both ways; the stop placed with the entry fills inside a bar its range
     reaches (at the open when the bar gaps through it); funding (``rates``, from ``funding_by_bar``;
     the venue's baseline when left out) accrues each hour held. Trading starts at bar ``trade_from``
-    (earlier bars only warm the indicators). A position still open at the end closes at the last close."""
+    (earlier bars only warm the indicators). A position still open at the end closes at the last close.
+    ``paths`` holds each trade's equity path for ``monte_carlo``: (end, low, high, drawdown), the
+    equity at its close, lowest and highest marks as multiples of the equity before it, and the
+    deepest fall from its own highest mark."""
     ind = ind or indicators(series, rule_set)
     rates = rates or funding_by_bar(series, interval, None, BASELINE_FUNDING, cost["funding"])
     fee, slip = cost["taker_bps"] / 10_000, cost["slippage_bps"] / 10_000
@@ -427,9 +436,15 @@ def simulate(series: list[dict], rule_set: dict, interval: str, cost: dict, limi
     cash = start_equity
     pos = None
     trades: list[dict] = []
+    paths: list[tuple[float, float, float, float]] = []
     curve: list[tuple[int, float]] = []
     totals = {"fees": 0.0, "funding": 0.0, "assumed_hours": 0, "bars_held": 0}
     pending: tuple[bool, str | None, dict | None] | None = None
+
+    def mark_path(value: float):
+        m = value / pos["base"]
+        pos["high"], pos["low"] = max(pos["high"], m), min(pos["low"], m)
+        pos["dd"] = max(pos["dd"], 1 - m / pos["high"])
 
     def close(i: int, price: float, reason: str):
         nonlocal cash, pos
@@ -442,6 +457,8 @@ def simulate(series: list[dict], rule_set: dict, interval: str, cost: dict, limi
         trades.append({"side": pos["side"], "open": iso(pos["t"]), "close": iso(series[i]["t"]), "entry": sig5(pos["entry"]),
                        "exit": sig5(exit_px), "pnl": round(pnl, 2), "r": round(pnl / pos["risk"], 2) if pos["risk"] else None,
                        "reason": reason})
+        mark_path(cash)
+        paths.append((cash / pos["base"], pos["low"], pos["high"], pos["dd"]))
         pos = None
 
     start = max(trade_from, 0)
@@ -462,10 +479,11 @@ def simulate(series: list[dict], rule_set: dict, interval: str, cost: dict, limi
                     entry = b["o"] * (1 + slip) if side == "long" else b["o"] * (1 - slip)
                     qty = value / sig["close"]
                     fee_in = entry * qty * fee
+                    pos = {"side": side, "qty": qty, "entry": entry, "stop": stop, "t": b["t"], "fee_in": fee_in,
+                           "funding": 0.0, "risk": abs(entry - stop) * qty + fee_in,
+                           "base": cash, "low": 1.0, "high": 1.0, "dd": 0.0}
                     cash -= fee_in
                     totals["fees"] += fee_in
-                    pos = {"side": side, "qty": qty, "entry": entry, "stop": stop, "t": b["t"], "fee_in": fee_in,
-                           "funding": 0.0, "risk": abs(entry - stop) * qty + fee_in}
         if pos is not None and (b["o"] <= pos["stop"] if pos["side"] == "long" else b["o"] >= pos["stop"]):
             close(i, b["o"], "stop")  # gapped through at the open: no funding for this bar
         if pos is not None:
@@ -484,6 +502,7 @@ def simulate(series: list[dict], rule_set: dict, interval: str, cost: dict, limi
         mark = cash
         if pos is not None:
             mark += (b["c"] - pos["entry"]) * pos["qty"] * (1 if pos["side"] == "long" else -1)
+            mark_path(mark)
         curve.append((b["t"], mark))
         if i + 1 < len(series):
             stance_now = _stance_at(stance, series[i + 1]["t"], default)
@@ -494,8 +513,8 @@ def simulate(series: list[dict], rule_set: dict, interval: str, cost: dict, limi
     if pos is not None and series:
         close(len(series) - 1, series[-1]["c"], "end")
         curve[-1] = (curve[-1][0], cash)
-    return {"trades": trades, "curve": curve, "totals": totals, "start_equity": start_equity, "end_equity": cash,
-            "bars": len(series) - start, "interval": interval,
+    return {"trades": trades, "paths": paths, "curve": curve, "totals": totals, "start_equity": start_equity,
+            "end_equity": cash, "bars": len(series) - start, "interval": interval,
             "first": series[start]["t"] if len(series) > start else None,
             "last": series[-1]["t"] if series else None,
             "buy_hold_pct": (series[-1]["c"] / series[start]["o"] - 1) * 100 if len(series) > start else None}
@@ -535,6 +554,58 @@ def metrics(run: dict) -> dict:
             "fees_pct": round(run["totals"]["fees"] / start * 100, 2),
             "funding_pct": round(run["totals"]["funding"] / start * 100, 2),
             "buy_hold_pct": None if run["buy_hold_pct"] is None else round(run["buy_hold_pct"], 2)}
+
+
+def _compose(paths) -> tuple[float, float, int]:
+    """(deepest drawdown, final equity as a multiple of the start, longest run of losing trades) of
+    trades taken one after another. Inside a trade the drawdown is the deeper of its lowest mark under
+    the peak it started from and its fall from its own highest mark, which is exactly the deepest
+    fall its bar-by-bar marks would show. A trade that leaves no equity (a gap through the stop) ends
+    the sequence there, as the backtest opens nothing after it."""
+    equity = peak = 1.0
+    worst, streak, longest = 0.0, 0, 0
+    for end, low, high, dd in paths:
+        worst = max(worst, 1 - low * equity / peak, dd)
+        peak = max(peak, equity * high)
+        equity *= end
+        streak = streak + 1 if end <= 1 else 0
+        longest = max(longest, streak)
+        if equity <= 0:
+            break
+    return worst, equity, longest
+
+
+def _rank(values: list[float], share: float) -> float:
+    """The value at ``share`` of a sorted list, by nearest rank."""
+    return values[max(0, math.ceil(share * len(values)) - 1)]
+
+
+def monte_carlo(run: dict, seed: str, runs: int = MC_RUNS) -> dict | None:
+    """The spread of what the same trades could have done in another order: ``runs`` draws, with
+    replacement, of as many trades as the run made, each with its own equity path, so a drawdown
+    inside a trade counts as it did. Draws are independent: losses that cluster in one market regime
+    are spread out, so the actual order (``observed``) is shown beside the spread. A draw that loses
+    the whole account stops there, like the backtest. None below MC_MIN_TRADES trades."""
+    paths = run["paths"]
+    if len(paths) < MC_MIN_TRADES:
+        return None
+    rng = random.Random(f"hermes-hl-monte-carlo\x00{seed}")
+    drawdowns, returns, streaks = [], [], []
+    for _ in range(runs):
+        dd, end, streak = _compose(rng.choices(paths, k=len(paths)))
+        drawdowns.append(dd * 100)
+        returns.append((end - 1) * 100)
+        streaks.append(streak)
+    drawdowns.sort()
+    returns.sort()
+    streaks.sort()
+    dd, end, streak = _compose(paths)
+    return {"runs": runs, "trades": len(paths),
+            "max_drawdown_pct": {"observed": round(dd * 100, 2), "p50": round(_rank(drawdowns, 0.5), 2),
+                                 "p95": round(_rank(drawdowns, 0.95), 2), "p99": round(_rank(drawdowns, 0.99), 2)},
+            "return_pct": {"observed": round((end - 1) * 100, 2), "p5": round(_rank(returns, 0.05), 2),
+                           "p50": round(_rank(returns, 0.5), 2)},
+            "losing_streak": {"observed": streak, "p50": _rank(streaks, 0.5), "p95": _rank(streaks, 0.95)}}
 
 
 def curve_points(curve: list[tuple[int, float]], points: int = CURVE_POINTS) -> dict:
@@ -592,11 +663,11 @@ def _score(m: dict, objective: str, min_trades: int) -> float:
 
 
 def walk_forward(series: list[dict], base: dict, interval: str, cost: dict, limits: dict, raw: dict, *,
-                 rates: list[tuple[float, int]], stance: list[dict], direction: str) -> dict:
+                 rates: list[tuple[float, int]], stance: list[dict], direction: str, seed: str = "") -> dict:
     """Choose rules on past data, trade them on the next unseen window, and stitch the unseen windows:
-    the out-of-sample result is what choosing this way would have earned. ``raw``: grid, folds (2-8),
-    objective (mar | sharpe | return_pct), min_trades, anchored (train on everything before, default
-    true, else only the window before)."""
+    the out-of-sample result is what choosing this way would have earned, with the Monte Carlo of its
+    trades (``seed``). ``raw``: grid, folds (2-6), objective (mar | sharpe | return_pct), min_trades,
+    anchored (train on everything before, default true, else only the window before)."""
     if not isinstance(raw, dict):
         raise StrategyError("walk_forward is an object with grid and folds")
     candidates = grid(raw.get("grid"), base)
@@ -625,6 +696,7 @@ def walk_forward(series: list[dict], base: dict, interval: str, cost: dict, limi
     equity = 1000.0
     stitched_curve: list[tuple[int, float]] = []
     stitched_trades: list[dict] = []
+    stitched_paths: list[tuple[float, float, float, float]] = []
     totals = {"fees": 0.0, "funding": 0.0, "assumed_hours": 0, "bars_held": 0}
     rows = []
     for k in range(1, folds + 1):
@@ -641,6 +713,7 @@ def walk_forward(series: list[dict], base: dict, interval: str, cost: dict, limi
         equity = test["end_equity"]
         stitched_curve += test["curve"]
         stitched_trades += test["trades"]
+        stitched_paths += test["paths"]
         for key in totals:
             totals[key] += test["totals"][key]
         rows.append({"train": {"start": iso(series[train_lo]["t"]), "end": iso(series[train_hi - 1]["t"]),
@@ -650,11 +723,12 @@ def walk_forward(series: list[dict], base: dict, interval: str, cost: dict, limi
                      "chosen_fingerprint": fingerprint(chosen, interval),
                      "nothing_qualified": best_score == -math.inf})
     first = lead + chunk
-    stitched = {"trades": stitched_trades, "curve": stitched_curve, "totals": totals, "start_equity": 1000.0,
-                "end_equity": equity, "bars": len(series) - first, "interval": interval,
+    stitched = {"trades": stitched_trades, "paths": stitched_paths, "curve": stitched_curve, "totals": totals,
+                "start_equity": 1000.0, "end_equity": equity, "bars": len(series) - first, "interval": interval,
                 "buy_hold_pct": (series[-1]["c"] / series[first]["o"] - 1) * 100}
     return {"objective": objective, "anchored": anchored, "folds": rows, "candidates": len(candidates),
-            "out_of_sample": metrics(stitched), "equity": curve_points(stitched_curve),
+            "out_of_sample": {**metrics(stitched), "monte_carlo": monte_carlo(stitched, f"{seed}\x00out_of_sample")},
+            "equity": curve_points(stitched_curve),
             "window": {"start": iso(series[first]["t"]), "end": iso(series[-1]["t"])}}
 
 
@@ -673,9 +747,30 @@ def _choice(raw, base: dict, variants: dict, what: str) -> dict:
     return out
 
 
+def out_of_sample(raw) -> dict | None:
+    """A variant's recorded walk-forward ``out_of_sample`` (its maximum drawdown, MAR and trades, and
+    the Monte Carlo's 95th percentile drawdown when it ran), or None when none is recorded or it is
+    not one: such a variant opens nothing."""
+    if not isinstance(raw, dict):
+        return None
+    dd, trades, mar = raw.get("max_drawdown_pct"), raw.get("trades"), raw.get("mar")
+    if isinstance(dd, bool) or not isinstance(dd, (int, float)) or not 0 <= dd <= 100:
+        return None
+    if isinstance(trades, bool) or not isinstance(trades, int) or trades < 1:
+        return None
+    if mar is not None and (isinstance(mar, bool) or not isinstance(mar, (int, float)) or not math.isfinite(mar)):
+        return None
+    mc = raw.get("monte_carlo")
+    spread = mc.get("max_drawdown_pct") if isinstance(mc, dict) else None
+    p95 = spread.get("p95") if isinstance(spread, dict) else None
+    p95 = p95 if isinstance(p95, (int, float)) and not isinstance(p95, bool) and 0 <= p95 <= 100 else None
+    return {"max_drawdown_pct": float(dd), "mar": mar, "trades": trades, "monte_carlo_p95_drawdown_pct": p95}
+
+
 def spec(raw) -> dict:
     """A strategy spec, validated: what runs, on which account and markets, within which bounds. The
-    default choice holds for every market, and ``default.markets`` overrides it per market."""
+    default choice holds for every market, and ``default.markets`` overrides it per market. A variant
+    keeps its walk-forward ``out_of_sample`` as ``out_of_sample`` (None when not recorded)."""
     if not isinstance(raw, dict) or raw.get("schema") != SPEC_SCHEMA:
         raise StrategyError(f"a strategy spec is a JSON object with schema {SPEC_SCHEMA}")
     name = raw.get("name")
@@ -707,7 +802,8 @@ def spec(raw) -> dict:
         if validated.get("fingerprint") != fingerprint(rule_set, interval):
             raise StrategyError(f"variant {vid} was not backtested as written: its validated.fingerprint must be the "
                                 f"one the backtest of exactly these rules on {interval} reported")
-        variants[vid] = {"rules": rule_set, "validated": validated}
+        variants[vid] = {"rules": rule_set, "validated": validated,
+                         "out_of_sample": out_of_sample(validated.get("out_of_sample"))}
     advisor_raw = raw.get("advisor") if isinstance(raw.get("advisor"), dict) else {}
     directions = advisor_raw.get("directions", list(DIRECTIONS))
     if not isinstance(directions, list) or not directions or not set(directions) <= set(DIRECTIONS):
