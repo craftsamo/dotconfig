@@ -398,6 +398,8 @@ Contract: [docs/opencode.md](docs/opencode.md). When editing
   from**, and only because the owning runner confirmed its group gone; never
   make `unknown`/`interrupted` resumable or let anything but that runner signal
   the group ([docs/profiles/specialist-calls.md](docs/profiles/specialist-calls.md)).
+  Where the CLI is a gateway client the group is only the client, so that proof
+  does not exist: a dispatched turn's cancel stays `unknown` there.
 - **Per-turn resident values come from `plugins/_shared/turn_env.py` only.** It
   answers from the process environment only where the turn runs in the CLI
   process; reading `RESIDENT_*` from `os.environ` directly inside a gateway reads

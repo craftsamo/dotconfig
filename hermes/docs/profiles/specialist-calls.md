@@ -83,6 +83,11 @@ cap dispatches nothing. An optional `group` label ties a batch together for
   Creator's Researcher call) are not part of the confirmed group: their own
   runners stop them on parent death, as `unknown` on the nested side. A cancelled
   reconcile turn returns to `interrupted`, so cancelling never reopens work.
+- **Where the CLI is a gateway client** (the turn runs inside the multiplex
+  gateway, not in the CLI process), the group is only the client: its being gone
+  says nothing about the gateway's turn, so a cancel after dispatch ends
+  `unknown` and goes through `reconcile`. Only a cancel before dispatch is
+  `cancelled` there, and no conversation continues from a stopped turn.
 
 ### Completion and deadlines
 
@@ -161,7 +166,9 @@ attribution and request hashes are not human-approval authentication.
 - `specialist_session(reconcile, evidence=...)` records only a confirmed stopped
   resident process group, as `interrupted` — never `completed` or resumable.
   Missing handles, live groups and foreign locks stay blocked. A2A has no local
-  liveness proof.
+  liveness proof. Where the CLI is a gateway client the record says
+  `client_stopped` instead of `transport_stopped`: the gateway's turn is not known
+  to have ended.
 - Caller observations remain unverified external effects even after the
   bookkeeping closes.
 
