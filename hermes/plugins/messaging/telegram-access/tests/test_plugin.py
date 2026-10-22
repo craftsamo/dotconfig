@@ -78,7 +78,8 @@ def test_gate_asks_for_sends_only():
     directive = plugin.gate(tool_name="telegram_account",
                             args={"action": "send", "chat": str(fakes.ALICE), "text": "hi"})
     assert directive["action"] == "approve"
-    assert directive["message"] == "Telegram: Rui (@rui)\nChat: Alice (@alice)\n\nhi"
+    assert directive["message"] == ("Telegram · Send message\n⚠️ They see it at once\nAccount: Rui (@rui)\n"
+                                    "Chat: Alice (@alice)\n\n--- Text ---\nhi")
     assert directive["rule_key"].startswith("telegram-access:send:")
 
 
