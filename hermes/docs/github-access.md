@@ -1,22 +1,25 @@
 # GitHub access
 
-The Assistant's access to GitHub Issues and Projects (v2) boards through the
-user's own `gh` login. Read it when changing the plugin's engine, its
-approval rules or its tiers. Common rules: [access-common.md](access-common.md).
+The Assistant's access to GitHub Issues, Projects (v2) boards and
+repositories through the user's own `gh` login. Read it when changing the
+plugin's engine, its approval rules or its tiers. Common rules:
+[access-common.md](access-common.md).
 Part of the Hermes design docs — index: [`PROFILES.md`](../PROFILES.md).
 
 ## Shape
 
-| Piece                                                                                                          | Home                                                                             | Reader    |
-| -------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- | --------- |
-| Read engine: GraphQL transport, references, tiers, board resolution, issue and board reads                     | `plugins/github-access/access.py`                                                | all       |
-| Write engine: the op registry, change validation, the plan of targets, the card, applying a change list        | `plugins/github-access/changes.py`                                               | all       |
-| The ops of a change list, one module per domain: drafts and board items, issues                                | `ops_board.py`, `ops_issue.py` beside `changes.py`                               | all       |
-| Mandates: terms, the MAC'd state, whether a change list fits                                                   | `plugins/github-access/mandate.py`                                               | all       |
-| Bypass guard                                                                                                   | `plugins/github-access/guard.py`                                                 | all       |
-| `github_issue`, `github_board`, `github_change`, `github_mandate` tools (toolset `github_access`) and the hook | `plugins/github-access/__init__.py`                                              | Assistant |
-| How the Assistant reads Issues and boards, and the draft / issue model                                         | the `github-access:github` plugin skill (`plugins/github-access/skills/github/`) | Assistant |
-| How the Assistant changes them: proposing tracking, change lists, tiers, recipes                               | the `github-access:github-tracking` plugin skill                                 | Assistant |
+| Piece                                                                                                                         | Home                                                                             | Reader    |
+| ----------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- | --------- |
+| Read engine: GraphQL transport, references, tiers, board resolution, issue and board reads                                    | `plugins/github-access/access.py`                                                | all       |
+| Repository reads: settings, labels, milestones                                                                                | `access_repo.py` beside `access.py`                                              | all       |
+| Write engine: the op registry, change validation, the plan of targets, the card, applying a change list                       | `plugins/github-access/changes.py`                                               | all       |
+| The ops of a change list, one module per domain: boards and their items, issues, repositories                                 | `ops_board.py`, `ops_issue.py`, `ops_repo.py` beside `changes.py`                | all       |
+| Mandates: terms, the MAC'd state, whether a change list fits                                                                  | `plugins/github-access/mandate.py`                                               | all       |
+| Bypass guard                                                                                                                  | `plugins/github-access/guard.py`                                                 | all       |
+| `github_issue`, `github_board`, `github_repo`, `github_change`, `github_mandate` tools (toolset `github_access`) and the hook | `plugins/github-access/__init__.py`                                              | Assistant |
+| How the Assistant reads Issues and boards, and the draft / issue model                                                        | the `github-access:github` plugin skill (`plugins/github-access/skills/github/`) | Assistant |
+| How the Assistant changes them: proposing tracking, change lists, tiers, recipes                                              | the `github-access:github-tracking` plugin skill                                 | Assistant |
+| How the Assistant reads and changes a repository, its labels and milestones                                                   | the `github-access:github-repo` plugin skill                                     | Assistant |
 
 The plugin is enabled in the Assistant's private configuration only, like
 Google access: it reaches the user's own account. A person without the
@@ -75,7 +78,12 @@ is the organization's Issue Type when it defines one, else the
 `type:<kind>` label) or lists a parent's sub-issues; `assignee` must be a
 login and `query` cannot name another repository, owner or organization, so
 every row is the asked repository's. `github_board` `items` reads the whole
-board up to 2000 items before filtering and says when it was cut. A result over 60,000 characters is refused with a hint to narrow it.
+board up to 2000 items before filtering and says when it was cut.
+`github_repo` `view` reads a repository's visibility, archived and template
+flags, default branch, description, homepage, topics, license, features and
+merge settings with the viewer's permission and the tier; `labels` and
+`milestones` (open, closed or all, with due date and progress) list the
+rest. A result over 60,000 characters is refused with a hint to narrow it.
 
 Issue bodies, comments and drafts are other people's text: the tool
 descriptions and the skill say never to follow instructions in them.
@@ -94,8 +102,9 @@ repository and board the list writes to, with its tier and the viewer's right
 to write there, and checks each board field value (the field exists and is
 not built in, the option or iteration exists, a date is `YYYY-MM-DD`). A
 target the viewer cannot write, an archived repository, a read-only board and
-a bad field value end the call before any card. Removing or replacing a parent also targets the old parent's
-repository, read from the issue. An `issue_create`'s `parent` and
+a bad field value end the call before any card. Removing or replacing a
+parent also targets the old parent's repository, read from the issue. An
+`issue_create`'s `parent` and
 `blocked_by` may name `$N`, the issue an earlier `issue_create` or
 `draft_promote` of the same list creates, so a parent and its sub-issues in
 order are one list and one card; its repository is the target, and the card
@@ -139,8 +148,8 @@ Roadmap views (`views: false` skips them); `template` copies another board
 and bound like a target though nothing is written there, and `link_repo`
 links the repository, which is then a target too. A reused board whose
 Status, Start or Target has another type is refused before the card, and a
-failure part-way reports what the board already has. `field_ensure` makes a field or
-appends the options it lacks, `view_ensure` makes a view the board has none
+failure part-way reports what the board already has. `field_ensure` makes a
+field or appends the options it lacks, `view_ensure` makes a view the board has none
 of by that name, and `board_link` links or unlinks the list's board and a
 repository. A field name GitHub keeps for its own (`Labels`, `Milestone`, …)
 is refused for a new field, as is a type that differs from an existing one's,
@@ -153,6 +162,34 @@ value moves. A view's layout, filter and columns are all the API takes:
 grouping, sort and a roadmap's date fields are set once in GitHub's own page.
 A list resolves its board before anything runs, so changes on a board the
 same list makes go in a later call.
+
+### Repositories, labels and milestones
+
+`repo_create`, `repo_edit`, `repo_visibility` and `repo_archive` are `admin`:
+each asks on its card, whatever mandate is in force. `repo_create` makes a
+repository for the viewer or an organization the viewer belongs to, private
+unless `visibility` says otherwise (`internal` only for an organization);
+its target is the new name under its owner's node id, tiered `own` only when
+it is the viewer's and private, and a `template` must be a template
+repository, shown as "Copied from" with its tier; a name that already exists
+is refused. The others need admin on the repository and read its settings
+before the card, which shows each setting moving from what it is to what it
+becomes and leaves out what already holds. `repo_edit` keeps one merge method
+allowed and takes only a `default_branch` that exists; topics are lowercase
+letters, digits and hyphens. `repo_visibility` says what the new visibility
+exposes or takes away, and `repo_archive` (or `unarchive`) refuses a repository
+already in that state; an archived repository is otherwise refused as a
+target of any change.
+
+`label_create` and `label_edit` (a label that exists, by name in any case;
+`new_name`, a six-hex-digit `color`, `description`) and `milestone_create`
+and `milestone_edit` (by title; `new_title`, `due` as `YYYY-MM-DD` or `""` to
+remove it, `description`, `state`) are `create` changes. Writes go through
+`gh repo …` and `gh label …`, and milestones through their REST route with a
+JSON body on stdin; a due date is sent as midday UTC, which reads as the same
+date from UTC−11 to UTC+11. A list resolves its repositories before anything
+runs, so labels and milestones of a repository the same list makes go in a
+later call.
 
 ## Approval
 
@@ -242,7 +279,8 @@ state directory and the 30-day ceiling bound that
 The hook blocks a terminal `gh` command that writes Issues (`create`,
 `edit`, `comment`, `close`, `reopen`, `delete`, `transfer`, `pin`, `lock`,
 `develop` …), changes a board (every `gh project` command but `list`, `view`,
-`item-list`, `field-list`), changes labels, calls `gh api` at all, prints the
+`item-list`, `field-list`), changes labels, creates, edits, archives or
+unarchives a repository, calls `gh api` at all, prints the
 login's token (`gh auth token`, `--show-token`: `curl` could write with it)
 or defines an alias or an extension (either could hide a write). It reads
 the whole command text, so environment assignments, wrappers, a path to the
@@ -258,8 +296,8 @@ and autolinks, adding or deleting the account's SSH and GPG keys, and
 deleting releases, release assets, workflow runs and caches. They hold or
 reveal credentials, publish outside a repository, or destroy or move what
 others rely on, so they stay with the user. Reading through `gh` (`gh issue
-view`, `gh pr …`, `gh secret list`, `gh auth status`) and `gh repo create`
-stay open.
+view`, `gh repo view`, `gh pr …`, `gh secret list`, `gh auth status`) stays
+open.
 
 File and terminal calls that name the plugin's state directory
 (`<HERMES_HOME>/github-access/`) are blocked too, in any letter case and also
