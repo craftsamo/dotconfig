@@ -194,10 +194,16 @@ one the card notes that sending reopens it.
 - **Uploads come first.** The engine PUTs each copy to the signed storage URL
   Discord returns, without the token; a URL on any other host is refused.
   Nothing here creates a message, so a failed upload reads `not sent`.
-- **Every send asks first** ([approval gate](access-common.md#approval-gate)).
-  The card is built from the mirror without a request and names the account,
-  the chat with its id, the reply target, each file, and `Pings:` when the text
-  holds `@everyone`, `@here` or a role mention.
+- **Every send asks first** ([approval gate](access-common.md#approval-gate)),
+  on a card of the [shared shape](access-common.md#card-shape) titled
+  `Discord · Send message`. Its effect line says who sees it (⚠️ the person in
+  a DM, everyone in the chat elsewhere), or 🚨 when the text pings `@everyone`
+  or `@here`. The card is built from the mirror without a request and names the
+  account, the chat, the reply target, `Pings:` when the text holds
+  `@everyone`, `@here` or a role mention, each file in a `Files` block (half as
+  many characters of them on Discord, the rest counted) and the chat's id,
+  which a card short of room leaves out first. A send that still does not fit
+  is refused: fewer files, or no quoted reply.
 - **One POST, idempotent.** The plugin draws a fresh nonce per send; the
   engine records it in the `sends` ledger as `pending`, then `dispatching`, and
   POSTs once with `enforce_nonce`, so Discord returns the original message
@@ -232,9 +238,15 @@ same approval gate.
   (not their URLs, which Discord re-signs), or the role's permissions. A
   caller-supplied `_approved` is blocked, and a call without an id never gets
   one, so it cannot run.
+- **Each card names its write** in its title (`Discord · React`, `Delete my
+message`, `Add a role`, …) and its stakes on the effect line: 🚨 for a
+  delete, a role deletion and strong permissions, ✅ for taking back a
+  reaction, unpinning and creating a role no one holds yet, ⚠️ otherwise.
 - **Cards fit or are refused.** A message card shortens its quote until it
-  fits; every line of a role card is part of the approval, so a role card that
-  does not fit is refused and the request has to be split.
+  fits, and keeps the chat's id on an edit or delete (two chats can share a
+  name); every line of a role card is part of the approval, so a role card that
+  does not fit is refused and the request has to be split. On Discord a card
+  has about 60% of Telegram's room, so more requests need splitting there.
 - **Pins.** The plugin does not guess the user's right to pin (channel
   overrides are not in the mirror), so Discord decides and its refusal is
   `not done`. The mirror stores no pin state. A pin changes what everyone in the
@@ -270,8 +282,9 @@ against the mirror before the card, in code:
 - Nothing grants permissions the user lacks — creating, granting, or assigning
   a role that holds them.
 - Permissions are given by name (`perms.py`); unknown names are refused.
-- A role write that gives strong permissions puts `⚠ Strong permissions: …` at
-  the top of the card; removals, revocations and deletions carry no warning.
+- A role write that gives strong permissions says `🚨 Strong permissions: …`
+  on the card's effect line, in place of its usual one; removals and
+  revocations carry no warning.
 
 Managing roles from a user account is among the riskiest self-bot actions, and
 the audit log names the user. Discord enforces the same rules again; these
