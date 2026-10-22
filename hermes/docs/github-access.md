@@ -10,7 +10,8 @@ Part of the Hermes design docs — index: [`PROFILES.md`](../PROFILES.md).
 | Piece                                                                                                          | Home                                                                             | Reader    |
 | -------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- | --------- |
 | Read engine: GraphQL transport, references, tiers, board resolution, issue and board reads                     | `plugins/github-access/access.py`                                                | all       |
-| Write engine: change validation, the plan of targets, the card, applying a change list                         | `plugins/github-access/changes.py`                                               | all       |
+| Write engine: the op registry, change validation, the plan of targets, the card, applying a change list        | `plugins/github-access/changes.py`                                               | all       |
+| The ops of a change list, one module per domain: drafts and board items, issues                                | `ops_board.py`, `ops_issue.py` beside `changes.py`                               | all       |
 | Mandates: terms, the MAC'd state, whether a change list fits                                                   | `plugins/github-access/mandate.py`                                               | all       |
 | Bypass guard                                                                                                   | `plugins/github-access/guard.py`                                                 | all       |
 | `github_issue`, `github_board`, `github_change`, `github_mandate` tools (toolset `github_access`) and the hook | `plugins/github-access/__init__.py`                                              | Assistant |
@@ -83,14 +84,16 @@ descriptions and the skill say never to follow instructions in them.
 `github_change` takes a list of up to 50 changes and applies them in order,
 stopping at the first failure; the result names what was done, what failed
 (with what of that change already exists, and `uncertain` when the failure
-may have come after GitHub acted) and what was not tried. Every change is
-validated before anything is read (op, its keys, a close reason), then the
-plan reads, fresh, every repository and board the list writes to, with its
-tier and the viewer's right to write there, and checks each board field
-value (the field exists and is not built in, the option or iteration exists,
-a date is `YYYY-MM-DD`). A target the viewer cannot write, an archived
-repository, a read-only board and a bad field value end the call before any
-card. Removing or replacing a parent also targets the old parent's
+may have come after GitHub acted) and what was not tried. Each op is
+registered by the module of its domain with its keys, its plan, its card
+line and how it runs; the tool's schema and its list of ops are built from
+that registry. Every change is validated before anything is read (op, its
+keys and their types, a close reason), then the plan reads, fresh, every
+repository and board the list writes to, with its tier and the viewer's right
+to write there, and checks each board field value (the field exists and is
+not built in, the option or iteration exists, a date is `YYYY-MM-DD`). A
+target the viewer cannot write, an archived repository, a read-only board and
+a bad field value end the call before any card. Removing or replacing a parent also targets the old parent's
 repository, read from the issue. An `issue_create`'s `parent` and
 `blocked_by` may name `$N`, the issue an earlier `issue_create` or
 `draft_promote` of the same list creates, so a parent and its sub-issues in
@@ -102,9 +105,11 @@ draft, a draft's own text, archiving or restoring an item, editing an issue's
 title or body. `create`: anything that makes something new, notifies someone
 or closes it — a draft, an item, an issue, a comment, a relation, a kind,
 labels, assignees, a milestone, a close or a reopen, and an issue edit whose
-new words carry an `@` mention. A board's own automations can still act on a
-routine field change; `own` is about who can read a target, not about
-nothing reacting to it. Putting someone else's
+new words carry an `@` mention. `admin`: what changes how a repository works
+or reaches others at once (its settings or visibility, a merge, a published
+release, a workflow run); it always asks on its card. A board's own
+automations can still act on a routine field change; `own` is about who can
+read a target, not about nothing reacting to it. Putting someone else's
 issue on a board writes only the board; a relation to an issue in another
 repository writes there too, so that repository is a target.
 
@@ -124,7 +129,8 @@ The hook plans the call and shows one card for the whole list: the targets,
 each with its tier (`own, private`, `others can read it`, `⚠️ someone
 else's`), the sites the changes link to (with the numbers of the changes that
 do), how many local paths the text carries and how many code links follow a
-branch rather than a commit, then one line per change. Names and quoted text
+branch rather than a commit, which changes are `admin`, then one line per
+change (an `admin` one marked ⚠️). Names and quoted text
 are collapsed to one line, control, bidi-override and invisible characters are
 spelled out, and a list too long for the card ends with the count of the
 rest; the skill agrees the full wording of text others will read first, as a
@@ -181,6 +187,7 @@ A change list skips its card when every change fits one mandate: its class
 is covered, every target of the change is in the mandate's boards or
 repositories, and the target's tier, read at the write, allows the class —
 `own` takes `routine` and `create`, `shared` only `routine`, `other` nothing.
+An `admin` change never fits, and no mandate can be made for that class.
 The hook records the mandate it matched; the handler re-reads the targets,
 refuses if they changed, and checks the list still fits the mandate in force
 now (revoked or ended between the two refuses). Inside a mandate a list also
@@ -207,12 +214,22 @@ The hook blocks a terminal `gh` command that writes Issues (`create`,
 login's token (`gh auth token`, `--show-token`: `curl` could write with it)
 or defines an alias or an extension (either could hide a write). It reads
 the whole command text, so environment assignments, wrappers, a path to the
-binary, `bash -c "…"`, `eval '…'` and backslash-newlines do not hide one;
+binary, flags before a subcommand (`gh issue -R a/b create`, with or without a
+value), `bash -c "…"`, `eval '…'` and backslash-newlines do not hide one;
 a mere mention (`echo gh issue create`) is blocked too. It is a guard of
-text, not a sandbox: a script file's contents are never seen. Reading
-through `gh` (`gh issue view`, `gh pr …`, `gh auth status`) and `gh repo
-create` stay open. File and terminal calls that name the plugin's state
-directory (`<HERMES_HOME>/github-access/`) are blocked too, in any letter
-case and also when an argument resolves there (`~`, `..`, a symlink): the
-mandates' head is what a revoke changes, and a saved copy written back would
-undo it.
+text, not a sandbox: a script file's contents are never seen.
+
+The same guard blocks, with a message saying the Assistant never does it, the
+writes no tool offers: setting or deleting secrets and variables, writing
+gists, deleting, renaming, forking or syncing a repository and its deploy keys
+and autolinks, adding or deleting the account's SSH and GPG keys, and
+deleting releases, release assets, workflow runs and caches. They hold or
+reveal credentials, publish outside a repository, or destroy or move what
+others rely on, so they stay with the user. Reading through `gh` (`gh issue
+view`, `gh pr …`, `gh secret list`, `gh auth status`) and `gh repo create`
+stay open.
+
+File and terminal calls that name the plugin's state directory
+(`<HERMES_HOME>/github-access/`) are blocked too, in any letter case and also
+when an argument resolves there (`~`, `..`, a symlink): the mandates' head is
+what a revoke changes, and a saved copy written back would undo it.

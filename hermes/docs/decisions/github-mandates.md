@@ -11,8 +11,10 @@ repositories (optionally one parent issue whose direct sub-issues alone it
 covers), the classes of change it covers (`routine`, `create`), a purpose,
 and an end at most 30 days out. Whatever a mandate says, each target's tier is
 read at the write: a target someone else owns is never covered, and one others
-can read (`shared`) takes routine changes only. A mandate is never made by
-another mandate, and revoking one ends it at once.
+can read (`shared`) takes routine changes only. An `admin` change (a
+repository's settings or visibility, a merge, a published release, a workflow
+run) is never covered, on any tier. A mandate is never made by another
+mandate, and revoking one ends it at once.
 
 ## Why
 
@@ -25,11 +27,14 @@ another mandate, and revoking one ends it at once.
   user's own private tracker (and to field moves and notes where others read),
   and they are read from GitHub at each write, so a repository made public or
   a membership lost tightens at once.
+- An admin change acts on others at once and cannot be taken back by the next
+  change (a merge lands on the default branch, a public repository is seen, a
+  run deploys), so each one is read on its own card, however often it recurs.
 
 ## Do not
 
-- Let a mandate cover a target someone else owns, or `create` changes on a
-  shared one, whatever its terms.
+- Let a mandate cover a target someone else owns, `create` changes on a
+  shared one, or an `admin` change anywhere, whatever its terms.
 - Decide what is in force from the history file: only the MAC'd head does.
 - Keep the MAC key anywhere a profile receives (it lives under the Keychain
   scope `github-access`), or open the state directory to file or terminal

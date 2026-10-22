@@ -3,9 +3,12 @@
 A terminal ``gh`` command that writes Issues, boards or labels, reaches the API directly, prints
 the login's token (which ``curl`` could then use) or defines an alias or extension (which could
 hide any of those) would skip the card and the tiers, so the hook blocks it, also when it is
-wrapped in quotes. Reading through ``gh`` (``gh issue view``, ``gh project list``, ``gh pr``,
-``gh repo create`` the pipeline uses) stays open. File and terminal calls that touch the plugin's
-state directory are blocked too (mandate.py keeps its records there).
+wrapped in quotes. So is a write the Assistant never makes at all (``NEVER``: secrets and
+variables, gists, deleting, renaming or forking a repository, deploy, SSH and GPG keys, deleting
+releases, runs and caches), with a message that says so. Reading through ``gh`` (``gh issue
+view``, ``gh project list``, ``gh pr``, ``gh repo create`` the pipeline uses) stays open. File and
+terminal calls that touch the plugin's state directory are blocked too (mandate.py keeps its
+records there).
 """
 
 from __future__ import annotations
@@ -18,6 +21,19 @@ ISSUE_WRITES = {"create", "new", "edit", "comment", "close", "reopen", "delete",
                 "lock", "unlock", "develop"}
 PROJECT_READS = {"list", "ls", "view", "item-list", "field-list"}
 LABEL_WRITES = {"create", "edit", "delete", "clone"}
+# gh group -> the subcommands no tool offers and the Assistant never runs: they hold or reveal
+# credentials, publish outside a repository, or destroy or move what others rely on.
+NEVER = {
+    "secret": {"set", "delete", "remove"},
+    "variable": {"set", "delete", "remove"},
+    "gist": {"create", "new", "edit", "delete", "rename"},
+    "repo": {"delete", "rename", "fork", "deploy-key", "autolink", "sync"},
+    "ssh-key": {"add", "delete"},
+    "gpg-key": {"add", "delete"},
+    "release": {"delete", "delete-asset"},
+    "run": {"delete"},
+    "cache": {"delete"},
+}
 FILE_TOOLS = {"read_file", "write_file", "patch", "search_files"}
 STATE_NAME = "github-access"
 # The state directory is <HERMES_HOME>/github-access/; the plugin's own source
@@ -28,6 +44,9 @@ _SEPARATOR = re.compile(r"[;&|\n()`]|\$\(")
 
 MESSAGE = ("Blocked: GitHub Issues, boards and labels change only through github_change, where the user "
            "approves on a card; read them with github_issue and github_board. Nothing was run.")
+NEVER_MESSAGE = ("Blocked: the Assistant never does this on GitHub (secrets and variables, gists, deleting, "
+                 "renaming or forking a repository, deploy, SSH or GPG keys, deleting releases, runs or caches). "
+                 "Tell the user what to do, and they do it themselves. Nothing was run.")
 
 
 def _segments(command: str):
@@ -48,46 +67,89 @@ def _gh_args(tokens: list[str]):
                                tokens[i] in ("command", "exec", "env", "nohup", "time", "sudo", "xargs")):
         i += 1
     if i < len(tokens) and tokens[i].rsplit("/", 1)[-1] == "gh":
-        args = tokens[i + 1:]
-        while args and args[0].startswith("-"):  # global flags before the command
-            args = args[2:] if args[0] in ("-R", "--repo") else args[1:]
-        return args
+        return tokens[i + 1:]
     return None
+
+
+def _words(rest: list[str]) -> list[int]:
+    """Where gh may find its next (sub)command in ``rest``. A flag before it may or may not take the
+    next token as its value (gh strips ``--flag value`` it does not know as a switch), so after a
+    flag without ``=`` both that token and the one after it count."""
+    found, i, valued = [], 0, False
+    while i < len(rest):
+        if rest[i].startswith("-"):
+            valued = "=" not in rest[i]
+        else:
+            found.append(i)
+            if not valued:
+                break
+            valued = False
+        i += 1
+    return found
+
+
+def _commands(args: list[str]):
+    """Every (group, verb) gh may read from its arguments."""
+    for g in _words(args):
+        rest = args[g + 1:]
+        verbs = [rest[v] for v in _words(rest)] or [""]
+        for verb in verbs:
+            yield args[g], verb
 
 
 # The same rule over the whole text, quotes and all, so a write wrapped in `bash -c "…"`, `eval '…'`
 # or split by a backslash-newline is caught too. A guard of text, not a sandbox: a script file's
 # contents are never seen, which is why the token and the aliases are closed as well.
+# Flags may stand before the group and between the group and its verb (`gh -R a/b secret set`,
+# `gh secret --org o set`), each with or without a value after it.
+_FLAGS = r"(?:-\S+\s+(?:[^-\s]\S*\s+)?)*"
+_GH = r"(?:(?<=/)|(?<![\w./-]))gh\s+" + _FLAGS
+
+
+def _verbs(verbs) -> str:
+    return "|".join(re.escape(v) for v in sorted(verbs, key=len, reverse=True))
+
+
 _ANYWHERE = re.compile(
-    r"(?:(?<=/)|(?<![\w./-]))gh\s+(?:(?:-R|--repo)\s+\S+\s+|-\S+\s+)*"
-    r"(?:api\b"
-    rf"|issue\s+(?:{'|'.join(sorted(ISSUE_WRITES))})\b"
-    rf"|project\s+(?!(?:{'|'.join(sorted(PROJECT_READS))})\b)[\w-]"
-    rf"|label\s+(?:{'|'.join(sorted(LABEL_WRITES))})\b"
-    r"|auth\s+token\b|auth\s+status\b[^;&|\n]*--show-token"
-    r"|alias\s+(?:set|import)\b|ext(?:ension|ensions)?\b)")
+    _GH + r"(?:api\b"
+    rf"|issue\s+{_FLAGS}(?:{_verbs(ISSUE_WRITES)})\b"
+    rf"|project\s+(?!(?:{_verbs(PROJECT_READS)})\b)[\w-]"
+    rf"|label\s+{_FLAGS}(?:{_verbs(LABEL_WRITES)})\b"
+    rf"|auth\s+{_FLAGS}token\b|auth\s+status\b[^;&|\n]*--show-token"
+    rf"|alias\s+{_FLAGS}(?:set|import)\b|ext(?:ension|ensions)?\b)")
+_NEVER_ANYWHERE = re.compile(_GH + "(?:" + "|".join(
+    rf"{re.escape(group)}\s+{_FLAGS}(?:{_verbs(verbs)})(?![\w-])" for group, verbs in NEVER.items()) + ")")
 
 
-def writes(command: str) -> bool:
+def blocked(command: str) -> str | None:
+    """The message for a terminal command that goes around the tools, or None."""
     command = command.replace("\\\n", " ")
+    if _NEVER_ANYWHERE.search(command):
+        return NEVER_MESSAGE
     if _ANYWHERE.search(command):
-        return True
+        return MESSAGE
     for tokens in _segments(command):
         args = _gh_args(tokens)
         if not args:
             continue
-        group, verb = args[0], next((a for a in args[1:] if not a.startswith("-")), "")
-        if group == "api":
-            return True
-        if group == "issue" and verb in ISSUE_WRITES:
-            return True
-        if group == "project" and verb not in PROJECT_READS:
-            return True
-        if group == "label" and verb in LABEL_WRITES:
-            return True
-        if group in ("alias", "extension", "extensions", "ext") or (group == "auth" and verb == "token"):
-            return True
-    return False
+        for group, verb in _commands(args):
+            if verb in NEVER.get(group, ()):
+                return NEVER_MESSAGE
+            if group == "api":
+                return MESSAGE
+            if group == "issue" and verb in ISSUE_WRITES:
+                return MESSAGE
+            if group == "project" and verb not in PROJECT_READS:
+                return MESSAGE
+            if group == "label" and verb in LABEL_WRITES:
+                return MESSAGE
+            if group in ("alias", "extension", "extensions", "ext") or (group == "auth" and verb == "token"):
+                return MESSAGE
+    return None
+
+
+def writes(command: str) -> bool:
+    return blocked(command) is not None
 
 
 def _strings(value):
@@ -125,8 +187,9 @@ def bypass(tool: str, args) -> str | None:
     args = args if isinstance(args, dict) else {}
     if tool == "terminal":
         command = args.get("command")
-        if isinstance(command, str) and writes(command):
-            return MESSAGE
+        message = blocked(command) if isinstance(command, str) else None
+        if message:
+            return message
         if touches_state(args):
             return MESSAGE
     elif tool in FILE_TOOLS and touches_state(args):
