@@ -99,8 +99,9 @@ def test_the_card_names_targets_with_tiers_and_spells_out_hidden_characters(gh):
         {"op": "issue_comment", "issue": "acme/web#1", "body": "safe\u202etxt.exe"},
         {"op": "draft_add", "title": "Move the domain", "fields": {"Status": "Todo"}}]})
     text = changes.card(planned)
-    assert text.splitlines()[0] == "GitHub · 2 changes"
+    assert text.splitlines()[:2] == ["GitHub · 2 changes", "⚠️ Lands on something someone else owns"]
     assert "Repository: acme/web (⚠️ someone else's)" in text and "Board: me/1 Roadmap (own, private)" in text
+    assert "\n\n--- Changes ---\n1. " in text
     assert "1. Comment on acme/web#1: safe⟨U+202E⟩txt.exe" in text
     assert "2. Add draft Move the domain (Status=Todo)" in text
 
@@ -222,7 +223,10 @@ def test_a_reference_to_an_earlier_change_must_name_one_that_creates_an_issue(gh
 def test_a_long_list_is_cut_on_the_card_with_the_rest_counted(gh):
     planned = changes.plan({"changes": [{"op": "draft_add", "title": f"Item {i} " + "x" * 100} for i in range(30)]})
     text = changes.card(planned)
-    assert len(text) <= changes.CARD_LIMIT and "more changes)" in text.splitlines()[-1]
+    assert changes.cards.units(text) <= changes.cards.BUDGET and "more changes)" in text.splitlines()[-1]
+    shown = [line for line in text.splitlines() if line[:1].isdigit()]
+    assert text.splitlines()[-1] == f"(+{30 - len(shown)} more changes)" and shown[0].startswith("1. Add draft")
+    assert "\n✅ Only your own private repositories and boards\n" in text
 
 
 @pytest.fixture
@@ -238,9 +242,16 @@ def test_an_admin_change_is_marked_on_the_card(gh, admin_op):
     planned = changes.plan({"repo": "me/app", "changes": [{"op": "draft_add", "title": "x"}, {"op": "test_admin"}]})
     assert planned["classes"] == ["admin", "create"]
     text = changes.card(planned)
-    assert "⚠️ Admin changes, never covered by a mandate: 2" in text
+    assert text.splitlines()[1] == "🚨 1 admin change, never covered by a mandate"
     assert "1. Add draft x" in text and "2. ⚠️ Change me/app" in text
-    assert "Admin changes" not in changes.card(changes.plan({"changes": [{"op": "draft_add", "title": "x"}]}))
+    assert "admin change" not in changes.card(changes.plan({"changes": [{"op": "draft_add", "title": "x"}]}))
+    noted = changes.card(planned, "m1: an admin change is never covered")
+    assert "\nNot covered by a mandate: m1: an admin change is never covered\n\n--- Changes ---\n" in noted
+    crowded = changes.plan({"repo": "me/app", "changes": [{"op": "draft_add", "title": f"Item {i} " + "x" * 100}
+                                                          for i in range(20)] + [{"op": "test_admin"}]})
+    text = changes.card(crowded)
+    assert "\n21. ⚠️ Change me/app" in text and changes.cards.units(text) <= changes.cards.BUDGET
+    assert text.endswith("more changes)") and "\n1. Add draft Item 0" in text   # the admin one is never the hidden one
 
 
 def test_apply_creates_an_issue_and_settles_kind_parent_dependency_and_board(gh):
