@@ -176,7 +176,9 @@ configured.
   `issue_approval` separately quotes an explicit request to manage this job in
   Issues. Both are records of the operating contract, not authentication, and
   neither is shown to the run: the ruleset holds the grant, so the message
-  never opens by reporting the approval.
+  never opens by reporting the approval. The Assistant's engineering pipeline
+  never passes `issue_approval`: it changes Issues, boards, pull requests and
+  merges itself through its GitHub tools, and a build only reads Issues.
 - **What a build may do:** edit files in its worktree and run routine commands.
   It rebases its task branch onto the latest base before each push and may
   amend or fix up its own commits; its tools refuse the default branch, shared

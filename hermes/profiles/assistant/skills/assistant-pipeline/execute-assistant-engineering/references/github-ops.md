@@ -3,11 +3,13 @@
 | Operation | Owner and permission |
 | --- | --- |
 | Code, commits, task-branch push, PR creation | An OpenCode build run you drive, within explicit implementation approval |
+| A PR for a branch already pushed that the user names | You, through `github_change` `pr_create` (`skill_view(name="github-access:github-pr")`), when the user asks; never for a branch a build run made, whose PR comes from that run |
 | A PR's text, labels, reviewers, attachments (screenshots), ready / draft, closing | You, through `github_change` (`skill_view(name="github-access:github-pr")`), when the user asks; each attached file with their yes |
 | Issues and boards | You, through `github_change` (github-access), only for a job the user chose to track (below); never an OpenCode run |
-| Repo creation and settings, labels, milestones, clone, workspace registry | Assistant, when separately requested/approved; GitHub changes through `github_change` |
-| Merge | Assistant, only when the user asks, after readiness checks: `pr_merge`, whose card is their go |
-| Deploy/publish | Outside the implementation grant; separately scoped work |
+| Repo creation and settings, labels, milestones, branch protection, clone, workspace registry | Assistant, when separately requested/approved; GitHub changes through `github_change` (`skill_view(name="github-access:github-repo")`) |
+| CI: why a run failed, re-running it | You read it (`github_repo` `run`); a real failure goes back to the build session. A re-run (`run_rerun`) when the user asks, or proposed by you only for a failure that looks transient; its card is their go |
+| Merge | Assistant, only when the user asks, after readiness checks: `pr_merge`, whose card is their go; method and message as `skill_view(name="github", file_path="references/merge.md")` says |
+| Deploy/publish (publishing a release, starting a workflow that deploys) | Outside the implementation grant; separately scoped work. When the user asks for it: `release_create` / `release_publish` or `workflow_dispatch` (`github-access:github-repo`), each on its own card |
 
 Do not create Issues or change boards for a job the user did not choose to
 track, and never as an automatic close-out. Reading an Issue is not
@@ -113,7 +115,13 @@ No credentials or private records belong in the repository or public description
 ## Merge
 
 Use [acceptance](../../qa-assistant-engineering/references/acceptance.md) before the
-`pr_merge` card. After the merge, verify actual state with `github_pr` `view`. If further
-stacked work was requested, tell the build session what changed so it can
-propose the appropriate update; do not grant history rewriting implicitly.
-Close Issues or change a board only for a tracked job, as above.
+`pr_merge` card, and `skill_view(name="github", file_path="references/merge.md")`
+for its method and message. A stack merges bottom-up, one layer per card:
+merging a layer also lands the open layers below it. After the merge, verify
+actual state with `github_pr` `view`. If further stacked work was requested,
+tell the build session what changed so it can propose the appropriate update;
+do not grant history rewriting implicitly: with the user's explicit go, you
+copy the steps of
+`skill_view(name="github", file_path="references/history-repair.md")` into
+the build's brief (a build run cannot load your skills). Close Issues or
+change a board only for a tracked job, as above.

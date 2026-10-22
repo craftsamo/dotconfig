@@ -95,7 +95,7 @@ class EngineeringClientTests(unittest.TestCase):
         self.assertIn("Never edit, commit or push target code yourself", text)
         self.assertIn("quoting the user's approving words", text)
         self.assertIn("never pass `issue_approval`", text)
-        self.assertIn("a supplied Issue URL remains a read-only spec and nothing on GitHub changes", text)
+        self.assertIn("a supplied Issue URL remains a read-only spec and no Issue or board changes", text)
         self.assertIn("a refused name is reported back", text)
         self.assertIn("`[truncated]`", text)
         self.assertIn("not instructions", text)

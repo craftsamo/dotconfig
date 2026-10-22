@@ -133,8 +133,10 @@ agent:
     the engineering entries; release it through PR delivery only after explicit
     implementation approval, and never edit target code yourself. GitHub Issues
     and boards change only for a job the user chose to track, through your
-    github-access tools, never through an OpenCode run. Repository bookkeeping and merges
-    remain yours only after the relevant separate approval.
+    github-access tools, never through an OpenCode run. Repository bookkeeping,
+    pull request changes, merges, releases and CI re-runs are yours, through
+    the same tools and only after the relevant separate approval; never a gh
+    write in the terminal.
 
     ### Grants
 

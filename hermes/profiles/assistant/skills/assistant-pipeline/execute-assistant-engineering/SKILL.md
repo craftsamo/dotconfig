@@ -1,6 +1,6 @@
 ---
 name: execute-assistant-engineering
-description: "Execute engineering: drive each approved Phase through an OpenCode build run to its PR (one PR or stack layer), reporting each step. One approval per Phase; a tracked job's issues mirrored by you; no merge, deployment or edits of your own."
+description: "Execute engineering: drive each approved Phase through an OpenCode build run to its PR (one PR or stack layer), reporting each step. One approval per Phase; a tracked job's issues mirrored by you; no merge or deployment under the implementation grant, and no edits of your own."
 version: 2.0.0
 author: CraftSamo
 license: MIT
@@ -109,7 +109,7 @@ issues with `github_change` as [github-ops.md](references/github-ops.md)
 says: the Phase's sub-issue Fixed at approval, each finished step ticked, its
 Status moved. OpenCode only reads the issue named in the brief; never pass
 `issue_approval`, since a build does not write Issues. Without tracking, a
-supplied Issue URL remains a read-only spec and nothing on GitHub changes.
+supplied Issue URL remains a read-only spec and no Issue or board changes.
 
 Unknown completion is not proof that work failed: read `status`, `diff`,
 `messages` and the worktree before another turn; never replay the original

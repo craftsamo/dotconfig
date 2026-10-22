@@ -79,7 +79,7 @@ ASSISTANT_ENTRIES = {
 REQUIRED_MODE_FILES = {
     "chat": {"workspace-ops.md", "message-reply.md", "cron.md", "lookups.md", "whatsapp.md",
              "signal.md", "discord.md", "telegram.md", "x.md", "note.md", "substack.md",
-             "youtube.md", "google.md", "web3.md"},
+             "youtube.md", "google.md", "web3.md", "github.md"},
     "execute": {"resident-sessions.md"},
 }
 # Kernel-root references beside the mode directories (shared workspace rules).
