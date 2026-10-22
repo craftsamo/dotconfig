@@ -60,7 +60,7 @@ def _split(repo: str) -> dict:
 
 def settings(repo: str) -> dict:
     """A repository's settings, read now."""
-    r = access.graphql(VIEW_QUERY, _split(repo)).get("repository")
+    r = access.lookup(VIEW_QUERY, _split(repo)).get("repository")
     if not r:
         raise AccessError(f"repository {access.parse_repo(repo)} not found or not visible to the viewer")
     owner = r["owner"]["login"]

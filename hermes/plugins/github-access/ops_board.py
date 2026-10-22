@@ -41,7 +41,7 @@ EDITABLE = ("SINGLE_SELECT", "TEXT", "NUMBER", "DATE", "ITERATION")
 
 
 def read_item(item_id: str) -> dict:
-    node = access.graphql(ITEM_QUERY, {"id": item_id}).get("node") or {}
+    node = access.lookup(ITEM_QUERY, {"id": item_id}).get("node") or {}
     if not node.get("id"):
         raise AccessError(f"board item {item_id} not found")
     content = node.get("content") or {}
@@ -394,7 +394,7 @@ def _owner(login: str, what: str = "board") -> dict:
     """Who a new board (or repository) would belong to: the viewer, or an organization the viewer
     belongs to."""
     login = access.viewer(fresh=True) if login.strip() in ("", "@me") else login.strip()
-    found = access.graphql(OWNER_QUERY, {"login": login}).get("repositoryOwner")
+    found = access.lookup(OWNER_QUERY, {"login": login}).get("repositoryOwner")
     if not found:
         raise AccessError(f"no user or organization named {login!r}")
     if found["__typename"] == "User":

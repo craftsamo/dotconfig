@@ -1,8 +1,9 @@
 """A fake ``gh`` for the github-access tests: answers ``gh api graphql`` by matching the query text.
 
 ``rules`` is a list of (pattern, answer) where ``pattern`` is a regex searched in the query and
-``answer`` is the ``data`` dict, a callable (variables -> data), or an Exception to raise as GraphQL
-errors. Every call is recorded with its query and variables.
+``answer`` is the ``data`` dict, a callable (variables -> data), an Exception to raise as GraphQL
+errors, or a ``NotFound`` (what GitHub answers for something that does not exist: null at the path
+*and* a ``NOT_FOUND`` error, exit 1). Every call is recorded with its query and variables.
 """
 
 from __future__ import annotations
@@ -10,6 +11,24 @@ from __future__ import annotations
 import json
 import re
 import subprocess
+
+
+class NotFound:
+    """GitHub's answer when a query names something that does not exist: ``data`` holds null at
+    ``path`` (every parent an empty object) and ``errors`` one entry of type NOT_FOUND."""
+
+    def __init__(self, *path: str, what: str = "Repository", name: str = "x/y", also: list | None = None):
+        self.path, self.what, self.name, self.also = list(path), what, name, list(also or [])
+
+    def body(self) -> str:
+        data = current = {}
+        for key in self.path[:-1]:
+            current[key] = {}
+            current = current[key]
+        current[self.path[-1]] = None
+        return json.dumps({"data": data, "errors": [{
+            "type": "NOT_FOUND", "path": self.path, "locations": [{"line": 1, "column": 7}],
+            "message": f"Could not resolve to a {self.what} with the name '{self.name}'."}, *self.also]})
 
 
 class FakeGh:
@@ -57,6 +76,8 @@ class FakeGh:
                 if isinstance(answer, Exception):
                     return subprocess.CompletedProcess(argv, 1, json.dumps({"errors": [{"message": str(answer)}]}), "")
                 data = answer(variables) if callable(answer) else answer
+                if isinstance(data, NotFound):
+                    return subprocess.CompletedProcess(argv, 1, data.body(), "gh: Could not resolve (HTTP 200)")
                 return subprocess.CompletedProcess(argv, 0, json.dumps({"data": data}), "")
         return subprocess.CompletedProcess(argv, 1, "", f"fake gh: no rule for query {query[:80]}")
 
@@ -73,7 +94,7 @@ def repo(name, owner_type="User", private=True, permission="ADMIN"):
 
     def answer(v):
         if v.get("owner") != owner or v.get("name") != short:
-            return {"repository": None}
+            return NotFound("repository", name=f"{v.get('owner')}/{v.get('name')}")
         return {"repository": {"id": f"R_{short}", "nameWithOwner": name, "isPrivate": private, "isArchived": False,
                                "viewerPermission": permission, "owner": {"__typename": owner_type, "login": owner}}}
     return answer
@@ -81,11 +102,14 @@ def repo(name, owner_type="User", private=True, permission="ADMIN"):
 
 def repos(*answers):
     def answer(v):
+        missing = None
         for a in answers:
             got = a(v)
-            if got["repository"]:
-                return got
-        return {"repository": None}
+            if isinstance(got, NotFound):
+                missing = got
+                continue
+            return got
+        return missing or NotFound("repository", name=f"{v.get('owner')}/{v.get('name')}")
     return (r"viewerPermission owner\{__typename login\}", answer)
 
 

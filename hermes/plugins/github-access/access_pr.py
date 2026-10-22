@@ -94,7 +94,7 @@ def stack(pr: dict) -> dict | None:
 
 def pull_request(repo: str, number: int, comments: int = COMMENTS) -> dict:
     owner, name = access.parse_repo(repo).split("/", 1)
-    pr = (access.graphql(PR_QUERY, {"owner": owner, "name": name, "n": number, "comments": comments})
+    pr = (access.lookup(PR_QUERY, {"owner": owner, "name": name, "n": number, "comments": comments})
           .get("repository") or {}).get("pullRequest")
     if not pr:
         raise AccessError(f"pull request {repo}#{number} not found or not visible to the viewer")
