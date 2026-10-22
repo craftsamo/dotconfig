@@ -92,6 +92,7 @@ def _shared(name, filename):
 
 
 tool_preview = _shared("hermes_tool_preview", "tool_preview.py")
+turn_env = _shared("hermes_turn_env", "turn_env.py")
 RESIDENT = Path(__file__).resolve().parents[3] / "profiles/assistant/scripts/resident-session.sh"
 TURN_TIMEOUT = 5400
 BUSY = {"accepted", "running", "unknown"}
@@ -226,7 +227,7 @@ def _wait_limit(home, requested=None):
     limits = [_positive((config.get("specialist_call") or {}).get("wait_timeout")), _positive(requested)]
     if tool > 0:
         limits.append(tool - 30)
-    inherited = os.environ.get("RESIDENT_DEADLINE")
+    inherited = turn_env.value("RESIDENT_DEADLINE")
     if inherited:
         with contextlib.suppress(ValueError):
             limits.append(float(inherited) - time.time() - 5)
@@ -882,7 +883,7 @@ def specialist_call(args, **kwargs):
                 if len(active) >= limit:
                     raise ValueError(f"{len(active)} specialist conversations are already running for this session "
                                      f"(limit {limit}); wait for or cancel one first. Nothing was dispatched.")
-            deadline = min(time.time() + TURN_TIMEOUT, float(os.environ.get("RESIDENT_DEADLINE", "inf")))
+            deadline = min(time.time() + TURN_TIMEOUT, float(turn_env.value("RESIDENT_DEADLINE") or "inf"))
             if deadline <= time.time():
                 raise ValueError("Inherited resident deadline has expired; no dispatch")
             request = dict(home=str(home), owner=owner, conversation_id=cid, job_id=job, message=message,

@@ -41,6 +41,12 @@ def expected_backend(target, kind):
     return "a2a" if kind == "inquiry" and target in PEERS else "resident"
 
 
+# A real runner judges a stop on the runtime it runs on. Where the CLI is a gateway client the
+# turn runs inside the gateway, so a cancel is never confirmed (see the gateway-client tests).
+cli_process_runtime = pytest.mark.skipif(
+    p.turn_env.gateway_client_runtime(), reason="this runtime runs CLI turns inside the gateway")
+
+
 @pytest.fixture(autouse=True)
 def no_local_targets(tmp_path, monkeypatch):
     """A private overlay may link local_targets.json in; the tests run on the public roster."""
@@ -1083,6 +1089,7 @@ def test_real_framework_dispatch_fresh_cached_and_reset_gateway(tmp_path, monkey
     contextvars.Context().run(check)
 
 
+@cli_process_runtime
 @pytest.mark.parametrize("end", ["deadline", "parent_killed"])
 def test_nested_resident_cleanup_after_outer_exit(tmp_path, end):
     home = tmp_path / "profiles" / "creator"
@@ -1970,7 +1977,12 @@ def test_wait_limit_stays_below_the_callers_tool_deadline(tmp_path, monkeypatch)
     assert limit({"timeouts": {"tools": {"concurrent_batch": 600}}}) == 570
     monkeypatch.delenv("HERMES_CONCURRENT_TOOL_TIMEOUT_S")
     monkeypatch.setenv("RESIDENT_DEADLINE", str(time.time() + 100))
+    monkeypatch.setattr(p.turn_env, "gateway_client_runtime", lambda: False)
     assert 90 <= limit({"timeouts": {"tools": {"sequential_call": 5460}}}) <= 95
+    # Where the CLI is a gateway client the shell's deadline never arrives; the gateway's own
+    # environment is not the turn's, so only the configured bounds apply.
+    monkeypatch.setattr(p.turn_env, "gateway_client_runtime", lambda: True)
+    assert limit({"timeouts": {"tools": {"sequential_call": 5460}}}) == 5430
 
 
 def test_handoff_after_cancel_names_the_uncertain_step():

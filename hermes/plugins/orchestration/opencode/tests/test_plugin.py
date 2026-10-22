@@ -786,6 +786,7 @@ def test_the_live_configuration_checkout_is_planned_in_but_only_built_in_a_workt
 
 def test_workspace_is_refused_in_a_reconcile_turn_and_a_concurrent_start(fixture, tmp_path, monkeypatch):
     home, directory, _, fake = fixture
+    monkeypatch.setattr(plugin.turn_env, "gateway_client_runtime", lambda: False)  # the CLI runs the turn
     with_root(home, tmp_path / "wt")
     sid = run("plan", directory)["session_id"]
     with plugin._starting(home, str(directory)):
@@ -940,6 +941,7 @@ def test_instructions_are_listed_set_and_removed(fixture):
 
 def test_reconcile_only_turns_refuse_execution_but_not_inspection(fixture, monkeypatch):
     _, directory, _, _ = fixture
+    monkeypatch.setattr(plugin.turn_env, "gateway_client_runtime", lambda: False)  # the CLI runs the turn
     sid = run("plan", directory)["session_id"]
     monkeypatch.setenv("RESIDENT_TURN_KIND", "reconcile")
     assert "reconcile-only" in run("plan", session_id=sid)["error"]
@@ -1267,7 +1269,11 @@ def test_wait_limit_stays_below_the_tool_deadline(fixture, monkeypatch):
     (home / "config.yaml").write_text(CONFIG + "timeouts:\n  tools:\n    sequential_call: 420\n")
     assert REAL_WAIT_LIMIT(home, settings) == 390
     monkeypatch.setenv("RESIDENT_DEADLINE", str(turn.time.time() + 100))
+    monkeypatch.setattr(plugin.turn_env, "gateway_client_runtime", lambda: False)
     assert 90 < REAL_WAIT_LIMIT(home, settings) <= 95
+    # Where the CLI is a gateway client the gateway's environment is not the turn's.
+    monkeypatch.setattr(plugin.turn_env, "gateway_client_runtime", lambda: True)
+    assert REAL_WAIT_LIMIT(home, settings) == 390
 
 
 # ---------------------------------------------------------------- ruleset
@@ -1727,3 +1733,17 @@ def test_api_client_reads_files_not_pipes_and_maps_errors(tmp_path):
     assert real.path("/api/session/{sid}/x", {"from": "msg_1", "skip": None}, sid="ses/../a") == \
         "/api/session/ses%2F..%2Fa/x?from=msg_1"
     assert re.fullmatch(r"location%5Bdirectory%5D=%2Fa\+b", urllib.parse.urlencode(real.location("/a b")))
+
+
+def test_a_specialist_target_gets_no_opencode_where_a_reconcile_turn_cannot_be_told(monkeypatch, tmp_path):
+    """A runtime whose CLI is a gateway client never delivers the reconcile-only marker, so an
+    OpenCode profile that is also a specialist target is refused there; the shipped roster has none."""
+    assert not any(plugin.PROFILES & set(targets) for targets in plugin.dispatch.ROSTER.values())
+    home = tmp_path / "profiles" / "assistant"
+    owner = {"profile": "assistant", "session_id": "client-a", "routing_digest": "a"}
+    monkeypatch.setattr(plugin.dispatch, "_scope", lambda: (home, owner, False, False))
+    monkeypatch.setattr(plugin.turn_env, "gateway_client_runtime", lambda: True)
+    assert plugin._scope() == (home, owner, False)
+    monkeypatch.setattr(plugin.dispatch, "ROSTER", {"creator": {"researcher", "assistant"}})
+    with pytest.raises(ValueError, match="reconcile"):
+        plugin._scope()
