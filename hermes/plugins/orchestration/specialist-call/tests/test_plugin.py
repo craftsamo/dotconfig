@@ -446,6 +446,8 @@ def test_launch_exception_retains_queryable_identity(caller, monkeypatch):
     ("assistant", "telegram", "cli", True, None),
     ("assistant", "telegram", "", False, None),
     ("creator", "", "cli", True, False),
+    ("creator", "local", "", True, False),  # a CLI that is a gateway client binds platform `local`
+    ("assistant", "local", "telegram", True, None),
     ("creator", "a2a", "", True, False),
     ("writer", "telegram", "", True, None),
 ])
