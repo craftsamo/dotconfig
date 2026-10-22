@@ -324,11 +324,18 @@ function directly (a defined function outranks the `bin/secret` command on
 
 ## Import / export
 
-| Format          | Metadata                             | Protection                                                                                                                                                                                                                                    |
-| --------------- | ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `age` (default) | kept                                 | age passphrase encryption (`.json.age`)                                                                                                                                                                                                       |
-| `json`          | kept                                 | plaintext JSON, `chmod 600`                                                                                                                                                                                                                   |
-| `env`           | kind/comment lost; ENV and meta kept | plaintext `export NAME='...'`, `chmod 600`; a `--no-env` item is written as `#no-env# export ...`, so sourcing the file never exports it, and an item's fields ride on a `#meta:K=V;...` comment line right above it — `import` restores both |
+| Format          | Metadata                             | Protection                                                                                                                                                                                                                             |
+| --------------- | ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `age` (default) | kept                                 | age passphrase encryption (`.json.age`)                                                                                                                                                                                                |
+| `json`          | kept                                 | plaintext JSON, 0600                                                                                                                                                                                                                   |
+| `env`           | kind/comment lost; ENV and meta kept | plaintext `export NAME='...'`, 0600; a `--no-env` item is written as `#no-env# export ...`, so sourcing the file never exports it, and an item's fields ride on a `#meta:K=V;...` comment line right above it — `import` restores both |
+
+Every format is written under `umask 077` into a temporary file beside the
+destination and renamed over it when the write succeeds, so the file is
+0600 from its first byte (an existing file's wider mode is not kept) and a
+write that fails midway leaves neither a partial file nor the temporary one.
+A destination that is a symlink is replaced by a regular file, not written
+through; a directory is refused.
 
 ```sh
 secret export -p global                  # -> secret-export-global-YYYYMMDD.json.age
@@ -383,8 +390,10 @@ secret import secret-export-all-YYYYMMDD.json.age
 
 ## Tests
 
-[`zsh/tests/secret-selftest.zsh`](../tests/secret-selftest.zsh) — 289
-assertions: round-trips (special characters, json/env/age), partial updates,
+[`zsh/tests/secret-selftest.zsh`](../tests/secret-selftest.zsh) — 297
+assertions: round-trips (special characters, json/env/age), the export
+file's mode from the first byte, its absence after a failed write, the
+refused directory and the restored umask, partial updates,
 `--no-env` (kept out of `env`, kept across rewrites and export/import, stored
 as the `envn`/`envy` type code), `--meta` fields (validation, sorting,
 `ls --meta` filters, export/import round-trips), `secret migrate` of the

@@ -206,6 +206,45 @@ secret export -p $P -o "$TD/infer.env" >/dev/null 2>&1
 grep -q 'export TEST_ALPHA=' "$TD/infer.env" 2>/dev/null \
   && ok "format inferred from .env suffix" || bad "format inferred from .env suffix"
 
+# --- the export file is private from the first byte, whole or absent ---
+mkdir -p "$TD/exp"
+# a file that already exists with wide permissions ends up 0600, and no file
+# holding plaintext is ever wider than that: once jq (the last writer of the
+# json pipeline) has written, every non-empty file in the directory is
+# looked at before the command returns to secret
+touch "$TD/exp/old.json"; chmod 644 "$TD/exp/old.json"
+jq() {
+  command jq "$@"
+  local rc=$? f
+  for f in "$TD"/exp/*(N.L+0); do stat -f '%Lp %N' "$f" >> "$TD/modes"; done
+  return $rc
+}
+: > "$TD/modes"
+secret export -p $P --format json -o "$TD/exp/old.json" >/dev/null 2>&1
+unfunction jq
+[[ "$(stat -f %Lp "$TD/exp/old.json")" == 600 ]] && ok "export replaces a wide-open file with a 0600 one" || bad "export replaces a wide-open file with a 0600 one"
+[[ -z "$(grep -v '^600 ' "$TD/modes")" ]] \
+  && ok "export never writes plaintext through a wide-open mode" || bad "export never writes plaintext through a wide-open mode ($(grep -v '^600 ' "$TD/modes" | sort -u | tr '\n' ' '))"
+# a write that fails midway leaves neither a partial file nor a temp file
+jq() { print -r -- '{"partial":' ; return 1; }
+secret export -p $P --format json -o "$TD/exp/broken.json" >/dev/null 2>&1
+rc=$?
+unfunction jq
+(( rc != 0 )) && ok "export reports a failed write" || bad "export reports a failed write"
+[[ ! -e "$TD/exp/broken.json" ]] && ok "a failed export leaves no partial file" || bad "a failed export leaves no partial file"
+[[ "$(ls -A "$TD/exp")" == old.json ]] && ok "a failed export leaves no temp file" || bad "a failed export leaves no temp file ($(ls -A "$TD/exp" | tr '\n' ' '))"
+secret export -p $P --format env -o "$TD/exp/fine.env" >/dev/null 2>&1
+[[ "$(ls -A "$TD/exp" | sort | tr '\n' ' ')" == 'fine.env old.json ' ]] && ok "a clean export leaves no temp file" || bad "a clean export leaves no temp file ($(ls -A "$TD/exp" | tr '\n' ' '))"
+# -o naming a directory is refused (the rename would drop a hidden file into it)
+secret export -p $P --format env -o "$TD/exp" >/dev/null 2>&1
+(( $? != 0 )) && [[ "$(ls -A "$TD/exp" | sort | tr '\n' ' ')" == 'fine.env old.json ' ]] \
+  && ok "export refuses a directory as -o" || bad "export refuses a directory as -o ($(ls -A "$TD/exp" | tr '\n' ' '))"
+# the caller's umask is restored, even when the write fails
+jq() { return 1; }
+um_before=$(umask); secret export -p $P --format json -o "$TD/exp/um.json" >/dev/null 2>&1; um_after=$(umask)
+unfunction jq
+[[ $um_before == "$um_after" ]] && ok "export restores the caller's umask" || bad "export restores the caller's umask ($um_before -> $um_after)"
+
 # --- update (partial) ---
 print -r -- 'rotated-789' | secret update TEST_ALPHA -p $P --stdin >/dev/null \
   && ok "update value via stdin" || bad "update value via stdin"
