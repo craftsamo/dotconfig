@@ -225,6 +225,24 @@ def test_a_long_list_is_cut_on_the_card_with_the_rest_counted(gh):
     assert len(text) <= changes.CARD_LIMIT and "more changes)" in text.splitlines()[-1]
 
 
+@pytest.fixture
+def admin_op():
+    op = changes.Op("test_admin", "admin", "repo: a test", lambda s, p: s.update(repo=p.repo_of(s["change"])),
+                    lambda s: f"Change {s['repo']['repo']}", lambda s, out: {"ran": True}, optional=("repo",))
+    changes.register(op)
+    yield op
+    del changes.OPS[op.name]
+
+
+def test_an_admin_change_is_marked_on_the_card(gh, admin_op):
+    planned = changes.plan({"repo": "me/app", "changes": [{"op": "draft_add", "title": "x"}, {"op": "test_admin"}]})
+    assert planned["classes"] == ["admin", "create"]
+    text = changes.card(planned)
+    assert "⚠️ Admin changes, never covered by a mandate: 2" in text
+    assert "1. Add draft x" in text and "2. ⚠️ Change me/app" in text
+    assert "Admin changes" not in changes.card(changes.plan({"changes": [{"op": "draft_add", "title": "x"}]}))
+
+
 def test_apply_creates_an_issue_and_settles_kind_parent_dependency_and_board(gh):
     gh.add(r"issueTypes", {"organization": {"issueTypes": {"nodes": []}}})
     gh.cmd(r"^api --paginate --slurp repos/me/app/milestones", [[{"title": "v1"}]])
@@ -337,6 +355,35 @@ def test_each_step_names_its_own_targets_and_the_binding_carries_tiers(gh):
                                         {"op": "issue_comment", "issue": "team/web#4", "body": "b"}]})
     assert [[t["name"] for t in s["targets"]] for s in planned["steps"]] == [["me/1 Roadmap"], ["team/web"]]
     assert changes.binding(planned) == [["board", "PVT_me_1", "own"], ["repo", "R_web", "shared"]]
+
+
+def test_an_op_registers_once_with_a_known_class_and_declared_keys():
+    run = lambda s, out: out  # noqa: E731
+    for op, message in ((changes.Op("draft_add", "create", "", run, run, run), "registered twice"),
+                        (changes.Op("x_op", "structure", "", run, run, run), "bad class"),
+                        (changes.Op("x_op", "create", "", run, run, run, optional=("nope",)), "undeclared keys")):
+        with pytest.raises(ValueError, match=message):
+            changes.register(op)
+    with pytest.raises(ValueError, match="declared twice"):
+        changes.key("title", "list")
+    assert "x_op" not in changes.OPS
+
+
+def test_the_texts_a_change_writes_are_read_words_first_then_lists_then_maps():
+    step = {"change": {"op": "issue_create", "board_fields": {"Notes": "n"}, "labels": ["l"], "milestone": "m",
+                       "title": "t", "body": "b", "kind": "k"}, "carried": [("draft body", "c")]}
+    assert [name for name, _ in changes._texts(step)] == ["title", "body", "kind", "milestone", "labels",
+                                                           "board_fields.Notes", "draft body"]
+
+
+def test_values_of_the_wrong_type_are_refused_before_anything_is_read(gh):
+    for change, message in (({"op": "draft_add", "title": 3}, "title must be text"),
+                            ({"op": "item_archive", "item": "PVTI_1", "restore": "yes"}, "true or false"),
+                            ({"op": "issue_edit", "issue": "me/app#1", "add_labels": ["ok", ""]}, "list of text"),
+                            ({"op": "item_set", "item": "PVTI_1", "fields": {"Status": 1}}, "maps field names")):
+        with pytest.raises(access.AccessError, match=message):
+            changes.plan({"changes": [change]})
+    assert gh.calls == []
 
 
 def test_a_relation_already_in_place_is_not_sent_again(gh):

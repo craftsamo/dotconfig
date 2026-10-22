@@ -2,8 +2,8 @@
 
 A mandate is made only on its own approval card and names: the boards and repositories it covers
 (and optionally one parent issue whose direct sub-issues alone it covers), the classes of change
-(routine, create), a purpose, and an end at most MAX_DAYS out. A change list runs without a card
-only when every change fits one mandate, each target is in its scope, and each target's tier,
+(routine, create; an admin change is never covered), a purpose, and an end at most MAX_DAYS out.
+A change list runs without a card only when every change fits one mandate, each target is in its scope, and each target's tier,
 read at the moment of the write, allows the change's class (TIER_CAP): a shared target never takes
 more than routine changes and someone else's never takes any, whatever the mandate says.
 
@@ -178,7 +178,7 @@ def terms(args: dict) -> dict:
         parent = f"{repo}#{number}"
     classes = args.get("classes") or ["routine"]
     if not isinstance(classes, list) or not classes or any(c not in CLASSES for c in classes):
-        raise AccessError(f"classes is a list of: {', '.join(CLASSES)}")
+        raise AccessError(f"classes is a list of: {', '.join(CLASSES)} (admin changes always ask on a card)")
     days = args.get("days")
     if not isinstance(days, int) or isinstance(days, bool) or not 1 <= days <= MAX_DAYS:
         raise AccessError(f"days is a whole number from 1 to {MAX_DAYS}")
@@ -214,7 +214,8 @@ def card(t: dict, say) -> str:
     if t["parent"]:
         lines.append(f"Only issue {t['parent']} and its direct sub-issues")
     lines.append(f"Covers: {_what(t['classes'])}")
-    lines.append("Never covered: a target someone else owns; on a shared one, routine updates only")
+    lines.append("Never covered: admin changes (settings, visibility, merges, releases, workflow runs); a target "
+                 "someone else owns; on a shared one, routine updates only")
     lines.append(f"Until: {end} ({t['days']} day{'s' if t['days'] != 1 else ''})")
     lines.append(f"Purpose: {say(t['purpose'], 120)}")
     return "\n".join(lines)
@@ -370,6 +371,8 @@ def fits(m: dict, planned: dict) -> str | None:
     """Why the change list does not fit mandate ``m``, or None when it does."""
     for step in planned["steps"]:
         cls = step["class"]
+        if cls not in CLASSES:
+            return f"{step['change']['op']} is an {cls} change: it always asks on a card"
         if cls not in m["classes"]:
             return f"{step['change']['op']} is a {cls} change; the mandate covers {', '.join(m['classes'])}"
         for target in step["targets"]:
