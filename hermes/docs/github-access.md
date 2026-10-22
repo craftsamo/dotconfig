@@ -364,7 +364,8 @@ The hook blocks a terminal `gh` command that writes Issues (`create`,
 `develop` …), changes a board (every `gh project` command but `list`, `view`,
 `item-list`, `field-list`), changes labels, creates, edits, archives or
 unarchives a repository, opens, edits, comments on, readies, closes, reopens
-or merges a pull request, calls `gh api` at all, prints the
+or merges a pull request, creates or edits a release, re-runs a run or
+starts a workflow, calls `gh api` at all, prints the
 login's token (`gh auth token`, `--show-token`: `curl` could write with it)
 or defines an alias or an extension (either could hide a write). It reads
 the whole command text, so environment assignments, wrappers, a path to the
@@ -377,7 +378,8 @@ The same guard blocks, with a message saying the Assistant never does it, the
 writes no tool offers: setting or deleting secrets and variables, writing
 gists, deleting, renaming, forking or syncing a repository and its deploy keys
 and autolinks, adding or deleting the account's SSH and GPG keys,
-deleting releases, release assets, workflow runs and caches, and reviewing,
+deleting releases, release assets, workflow runs and caches, uploading
+release assets, cancelling runs, enabling or disabling workflows, and reviewing,
 reverting, locking or updating a pull request's branch. They hold or reveal
 credentials, publish outside a repository, destroy or move what others rely
 on, or (a review) speak for the user's own judgement, so they stay with the
