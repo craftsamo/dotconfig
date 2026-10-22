@@ -513,29 +513,35 @@ def test_reset_context_sentinel_cannot_fall_back_to_inherited_route(tmp_path, mo
     contextvars.Context().run(check)
 
 
+def fake_turn_client(home, body):
+    """A ``~/.config/bin/hermes-python`` under ``home`` that runs ``body`` instead of resident-turn.py:
+    resident-session.sh resolves that path first, before PATH (the Hermes bootstrap puts its own
+    launcher ahead of everything else there). Returns the HOME to run the shell under."""
+    bindir = home / ".config" / "bin"
+    bindir.mkdir(parents=True, exist_ok=True)
+    (bindir / "hermes-python").write_text(f"#!{sys.executable}\n" + body)
+    (bindir / "hermes-python").chmod(0o755)
+    return home
+
+
 @pytest.mark.parametrize("exit_code", [0, 3])
 def test_runner_real_subprocess_scrubs_injected_scope(caller, monkeypatch, tmp_path, exit_code):
     commands = background(caller, monkeypatch)
     result = call(kind="work")
-    # resident-session.sh prefers the Keychain shim at $HOME/.config/bin/hermes over
-    # PATH, so the child is resolved from an isolated HOME (never the real shim and
-    # Keychain); a PATH decoy proves the shim path wins.
+    # resident-session.sh runs the turn client on ~/.config/bin/hermes-python, resolved from an
+    # isolated HOME before PATH (never the real resolver); a PATH decoy proves that path wins.
     user_home = tmp_path / "home"
-    bindir = user_home / ".config" / "bin"
-    bindir.mkdir(parents=True)
     decoy = tmp_path / "path-bin"
     decoy.mkdir()
-    (decoy / "hermes").write_text("#!/bin/sh\necho 'PATH hermes used' >&2\nexit 97\n")
-    (decoy / "hermes").chmod(0o755)
-    binary = bindir / "hermes"
-    binary.write_text(f"#!{sys.executable}\n" + "import json, os, sys\n"
-                      "print(json.dumps({'args': sys.argv[1:], 'env': {k:v for k,v in os.environ.items() "
-                      "if k.startswith(('HERMES_', 'RESIDENT_')) or k == 'TURN_TIMEOUT'}}))\n"
-                      "print('session_id: child-session', file=sys.stderr)\n"
-                      f"sys.exit({exit_code})\n")
-    binary.chmod(0o755)
+    (decoy / "hermes-python").write_text("#!/bin/sh\necho 'PATH hermes-python used' >&2\nexit 97\n")
+    (decoy / "hermes-python").chmod(0o755)
+    fake_turn_client(user_home, "import json, os, sys\n"
+                     "print(json.dumps({'args': sys.argv[2:], 'env': {k:v for k,v in os.environ.items() "
+                     "if k.startswith(('HERMES_', 'RESIDENT_')) or k == 'TURN_TIMEOUT'}}))\n"
+                     "print('session_id: child-session', file=sys.stderr)\n"
+                     f"sys.exit({exit_code})\n")
     env = {k: v for k, v in os.environ.items() if k != "PYTHONPATH"}
-    env = {**env, "HOME": str(user_home), "PATH": f"{decoy}:/usr/bin:/bin", "HERMES": "/not/a/binary",
+    env = {**env, "HOME": str(user_home), "PATH": f"{decoy}:/usr/bin:/bin", "HERMES_PYTHON": "/not/a/binary",
            "HERMES_HOME": "/spoof/profiles/writer", "HERMES_SESSION_PROFILE": "writer",
            "HERMES_SESSION_PLATFORM": "telegram", "HERMES_SESSION_ID": "stale-owner",
            "HERMES_SESSION_SOURCE": "telegram", "HERMES_KANBAN_TASK": "spoofed",
@@ -551,8 +557,10 @@ def test_runner_real_subprocess_scrubs_injected_scope(caller, monkeypatch, tmp_p
         return
     assert data["resident_id"] == "child-session"
     child = json.loads(data["result"])
-    assert child["args"][:2] == ["-p", "creator"]
-    assert not any(k.startswith("HERMES_") for k in child["env"])
+    assert child["args"][:2] == ["--profile", "creator"]
+    # The client gets the target profile's home and nothing else of the caller's.
+    assert child["env"]["HERMES_HOME"] == str(user_home / ".hermes" / "profiles" / "creator")
+    assert not any(k.startswith("HERMES_") and k != "HERMES_HOME" for k in child["env"])
     assert child["env"]["RESIDENT_SESSION_DIR"] == str(caller[0] / "resident-sessions")
     assert child["env"]["TURN_TIMEOUT"] == "5400"
     registry = caller[0] / "resident-sessions" / (result["conversation_id"] + ".json")
@@ -1272,23 +1280,14 @@ def test_a2a_outbound_handoff_is_redacted(caller, monkeypatch):
 
 
 def test_resident_prompt_preamble_is_handoff_text(caller, monkeypatch, tmp_path):
-    # resident-session.sh reads -f <file> itself and re-launches hermes with
-    # the content as a single -q "<prompt>" argument; the fake CLI here mimics
-    # that real handoff shape, matching the pattern of the existing fake-CLI
-    # test rather than the plugin's own (already-consumed) -f flag.
+    # resident-session.sh reads -f <file> itself and hands the turn client the content
+    # through its own --prompt-file; the fake client here echoes what it was given.
     commands = background(caller, monkeypatch)
     call(kind="work")
-    # The runner runs under Hermes' bootstrap, which puts Hermes' own launcher first on
-    # PATH; resident-session.sh therefore takes the shim path under HOME, so fake that.
-    bindir = tmp_path / "home" / ".config" / "bin"
-    bindir.mkdir(parents=True)
-    binary = bindir / "hermes"
-    binary.write_text(f"#!{sys.executable}\n" + "import sys\n"
-                      "prompt = sys.argv[sys.argv.index('-q') + 1]\n"
-                      "sys.stdout.write(prompt)\n"
-                      "print('session_id: child-session', file=sys.stderr)\n")
-    binary.chmod(0o755)
-    env = {**os.environ, "HOME": str(tmp_path / "home"), "PATH": f"{bindir}:/usr/bin:/bin"}
+    home = fake_turn_client(tmp_path / "home", "import sys\n"
+                            "sys.stdout.write(open(sys.argv[sys.argv.index('--prompt-file') + 1]).read())\n"
+                            "print('session_id: child-session', file=sys.stderr)\n")
+    env = {**os.environ, "HOME": str(home), "PATH": "/usr/bin:/bin"}
     run = subprocess.run(shlex.split(commands[0]["command"]), env=env, capture_output=True, text=True, timeout=15)
     assert run.stdout, run.stderr
     data = json.loads(run.stdout)
@@ -1306,14 +1305,9 @@ def test_resident_log_preview_shows_raw_current_title_within_400_chars(caller, m
     title = "DISTINCTIVE-CURRENT-TITLE-VISIBLE-IN-THE-400-CHAR-LOG-PREVIEW"
     result = call(kind="work", message=title)
     request = Path(shlex.split(commands[0]["command"])[-1])
-    bindir = tmp_path / "bin"
-    bindir.mkdir()
-    binary = bindir / "hermes"
-    binary.write_text(f"#!{sys.executable}\n" + "import sys\n"
-                      "print('session_id: child-session', file=sys.stderr)\n")
-    binary.chmod(0o755)
+    fake_turn_client(tmp_path / "home", "import sys\nprint('session_id: child-session', file=sys.stderr)\n")
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
-    monkeypatch.setenv("PATH", f"{bindir}:/usr/bin:/bin")
+    monkeypatch.setenv("PATH", "/usr/bin:/bin")
     outcome = p._run(request)
     assert outcome["status"] == "completed"
     log_text = Path(outcome["log"]).read_text()
@@ -1333,15 +1327,10 @@ def test_resident_persists_pgid_before_wait(caller, monkeypatch, tmp_path):
     # The caller fixture stubs _resident() itself; restore the real
     # implementation so a genuine subprocess (and its pgid) is spawned.
     monkeypatch.setattr(p, "_resident", RESIDENT_IMPL)
-    bindir = tmp_path / "bin"
-    bindir.mkdir()
-    binary = bindir / "hermes"
-    binary.write_text(f"#!{sys.executable}\n" + "import time, sys\n"
-                      "time.sleep(1)\n"
-                      "print('session_id: child-session', file=sys.stderr)\n")
-    binary.chmod(0o755)
+    fake_turn_client(tmp_path / "home", "import time, sys\ntime.sleep(1)\n"
+                     "print('session_id: child-session', file=sys.stderr)\n")
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
-    monkeypatch.setenv("PATH", f"{bindir}:/usr/bin:/bin")
+    monkeypatch.setenv("PATH", "/usr/bin:/bin")
     record = caller[0] / "specialist-sessions" / (cid + ".json")
     thread = threading.Thread(target=p._run, args=(request,))
     thread.start()
@@ -1683,38 +1672,49 @@ def test_a_handoff_without_a_target_never_asks_for_a_commit():
 
 # -- parallel launch, wait and cancel ------------------------------------------
 
-FAKE_HERMES = r'''
+FAKE_RESIDENT_TURN = r'''
 import json, os, signal, sys, time
 argv = sys.argv[1:]
-prompt = argv[argv.index("-q") + 1]
+prompt = open(argv[argv.index("--prompt-file") + 1]).read()
 resume = argv[argv.index("--resume") + 1] if "--resume" in argv else None
+deadline = float(argv[argv.index("--deadline") + 1]) if "--deadline" in argv else None
 sid = resume or "sid-%d" % os.getpid()
 current = prompt.split("Current agent request:\n")[1].split("\n")[0]
+# Like the real client: the session is reported as soon as it is known, the turn once admitted.
+print("session_id: " + sid, file=sys.stderr, flush=True)
+print("admission_id: adm-%d" % os.getpid(), file=sys.stderr, flush=True)
 with open(os.path.join(os.environ["FAKE_ROOT"], "calls.jsonl"), "a") as log:
-    log.write(json.dumps({"resume": resume, "prompt": prompt, "start": time.time()}) + "\n")
+    log.write(json.dumps({"resume": resume, "prompt": prompt, "start": time.time(),
+                          "profile": argv[argv.index("--profile") + 1]}) + "\n")
 
 def term(*_):
-    # Like the real CLI: the session id is only reported on the way out.
-    print("session_id: " + sid, file=sys.stderr, flush=True)
-    sys.exit(130)
+    # The real client stops the turn and exits 143 once the receipt confirms the stop; FAKE_STOP_RC
+    # makes it report an unconfirmed stop (125) or a turn that finished first (0, with its reply).
+    rc = int(os.environ.get("FAKE_STOP_RC", "143"))
+    if rc == 0:
+        print("reply to " + current, flush=True)
+    sys.exit(rc)
 
 signal.signal(signal.SIGTERM, term)
-time.sleep(60 if "SLOW" in current else float(os.environ.get("FAKE_DELAY", "0")))
+delay = 60 if "SLOW" in current else float(os.environ.get("FAKE_DELAY", "0"))
+if deadline is not None and time.time() + delay > deadline:
+    time.sleep(max(deadline - time.time(), 0))
+    sys.exit(124)
+time.sleep(delay)
 print("reply to " + current)
-print("session_id: " + sid, file=sys.stderr)
 '''
 
 
 @pytest.fixture
 def real_cli(caller, monkeypatch, tmp_path):
-    """A CLI caller driving real runners and resident-session.sh against a fake Hermes CLI."""
+    """A CLI caller driving real runners and resident-session.sh against a fake turn client."""
     home, _ = caller
     monkeypatch.setattr(p, "_execute_sync", EXECUTE_SYNC)
     monkeypatch.setattr(p, "_resident", RESIDENT_IMPL)
-    bindir = tmp_path / "home" / ".config" / "bin"
-    bindir.mkdir(parents=True)
-    (bindir / "hermes").write_text(f"#!{sys.executable}\n" + FAKE_HERMES)
-    (bindir / "hermes").chmod(0o755)
+    # resident-session.sh runs each turn as `~/.config/bin/hermes-python resident-turn.py ...`;
+    # the runners are separate processes, so the fake client is the interpreter itself, which
+    # runs the fake in place of whatever script it is handed.
+    fake_turn_client(tmp_path / "home", "import sys\ndel sys.argv[1]\n" + FAKE_RESIDENT_TURN)
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
     # No version-manager shims: with a fresh HOME they resolve tools over the network.
     monkeypatch.setenv("PATH", "/usr/bin:/bin")
@@ -1766,7 +1766,6 @@ def test_parallel_detached_calls_settle_together_under_wait(real_cli, monkeypatc
     assert progress == dict(group="tagline", settled=3, total=3, pending=[])
 
 
-@cli_process_runtime
 def test_cancel_confirms_stop_and_resumes_the_same_session(real_cli):
     home, tmp_path = real_cli
     started = call("writer", kind="work", wait=False, message="SLOW first draft")
@@ -1792,20 +1791,20 @@ def test_cancel_confirms_stop_and_resumes_the_same_session(real_cli):
     assert session("close", cid)["status"] == "closed"
 
 
-def test_stubborn_cli_is_killed_and_the_cancel_still_confirmed(real_cli, monkeypatch):
+def test_a_client_that_confirms_the_stop_makes_the_cancel_cancelled(real_cli, monkeypatch):
+    """143 from the shell is the client's word that the gateway's receipt confirmed the stop."""
     home, tmp_path = real_cli
-    proc = subprocess.Popen(["/bin/sh", "-c", "trap '' TERM; echo ready; sleep 30"], start_new_session=True,
-                            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    proc = subprocess.Popen(["/bin/sh", "-c", "trap 'exit 143' TERM; echo ready; sleep 30 >/dev/null 2>&1 & wait"],
+                            start_new_session=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     assert proc.stdout.readline() == "ready\n"
     cid = "c" * 32
     lock = home / "resident-sessions" / (cid + ".lock")
     lock.mkdir(parents=True)
     (lock / "pid").write_text(f"{proc.pid}\n")
-    monkeypatch.setattr(p, "STOP_GRACE", 0.5)
-    monkeypatch.setattr(p.turn_env, "gateway_client_runtime", lambda: False)
+    monkeypatch.setattr(p, "STOP_GRACE", 5)
     data = {"conversation_id": cid}
     p._stop_resident(home, proc, data, "signal")
-    assert data["status"] == "cancelled" and not data["cancel"]["graceful"]
+    assert data["status"] == "cancelled" and data["cancel"]["graceful"] and data["exit_code"] == 143
     assert not p._group_alive(proc.pid)
     assert not lock.exists(), "the runner's own dead shell lock blocks a resend"
     # A lock that names another process is never touched.
@@ -1817,11 +1816,13 @@ def test_stubborn_cli_is_killed_and_the_cancel_still_confirmed(real_cli, monkeyp
     assert lock.exists()
 
 
-def test_gateway_client_cancel_stays_unknown(real_cli, monkeypatch):
-    """Where the CLI is only the gateway's client, its group being gone says nothing about the
-    turn the gateway runs: the cancel stays unknown and the shell's lock remains as evidence."""
+@pytest.mark.parametrize("shell", ["trap '' TERM; echo ready; sleep 30", "trap 'exit 125' TERM; echo ready; sleep 30 >/dev/null 2>&1 & wait"],
+                         ids=["killed", "unconfirmed"])
+def test_a_stop_the_gateway_did_not_confirm_stays_unknown(real_cli, monkeypatch, shell):
+    """The group being gone proves only the client stopped; without its 143 the turn inside the
+    gateway is not known to have ended, so the cancel stays unknown and the lock remains as evidence."""
     home, _ = real_cli
-    proc = subprocess.Popen(["/bin/sh", "-c", "echo ready; sleep 30"], start_new_session=True,
+    proc = subprocess.Popen(["/bin/sh", "-c", shell], start_new_session=True,
                             stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     assert proc.stdout.readline() == "ready\n"
     cid = "d" * 32
@@ -1829,13 +1830,34 @@ def test_gateway_client_cancel_stays_unknown(real_cli, monkeypatch):
     lock.mkdir(parents=True)
     (lock / "pid").write_text(f"{proc.pid}\n")
     monkeypatch.setattr(p, "STOP_GRACE", 0.5)
-    monkeypatch.setattr(p.turn_env, "gateway_client_runtime", lambda: True)
     data = {"conversation_id": cid}
     p._stop_resident(home, proc, data, "request")
-    assert data["status"] == "unknown" and "gateway" in data["error"]
+    assert data["status"] == "unknown" and "did not confirm" in data["error"]
     assert "cancel" not in data
     assert not p._group_alive(proc.pid)
     assert lock.exists()
+
+
+def test_resident_shell_keeps_a_reply_that_beat_the_stop(real_cli, monkeypatch, tmp_path):
+    """TERM reaches the shell while the turn is ending: the client answers 0 with the reply, and the
+    shell passes that on (registry idle, reply on stdout) instead of recording an interruption."""
+    home, _ = real_cli
+    monkeypatch.setenv("FAKE_DELAY", "1")
+    monkeypatch.setenv("FAKE_STOP_RC", "0")
+    reg = tmp_path / "reg"
+    prompt = tmp_path / "prompt.txt"
+    prompt.write_text("Specialist handoff (runtime record)\nCurrent agent request:\nslow-ish\nEnd current agent request.\n")
+    env = {**os.environ, "RESIDENT_SESSION_DIR": str(reg), "TURN_TIMEOUT": "30", "KILL_GRACE": "5"}
+    shell = subprocess.Popen(["/bin/sh", str(p.RESIDENT), "start", "late", "--profile", "writer", "-f", str(prompt)],
+                             env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, start_new_session=True)
+    assert wait_for(lambda: len(fake_calls(tmp_path)) == 1)  # the client is up and has the turn
+    shell.send_signal(signal.SIGTERM)
+    out, err = shell.communicate(timeout=20)
+    assert shell.returncode == 0, err
+    assert out.strip() == "reply to slow-ish"
+    record = json.loads((reg / "late.json").read_text())
+    assert record["status"] == "idle" and record["turns"] == 1 and record["session_id"].startswith("sid-")
+    assert "after a stop that came too late" in (reg / "late.log").read_text()
 
 
 def test_cancel_finished_before_the_stop_keeps_the_result(tmp_path):
@@ -1847,7 +1869,6 @@ def test_cancel_finished_before_the_stop_keeps_the_result(tmp_path):
     assert data["status"] == "completed" and data["cancel_too_late"] and "done" in data["result"]
 
 
-@cli_process_runtime
 def test_runner_signal_is_an_orderly_cancel(real_cli):
     # Gateway /stop reaping and shutdown signal the runner itself.
     home, tmp_path = real_cli
@@ -1865,7 +1886,6 @@ def test_runner_signal_is_an_orderly_cancel(real_cli):
     assert not p._group_alive(data["pgid"])
 
 
-@cli_process_runtime
 def test_blocking_cli_call_cancels_on_interrupt_and_detaches_on_yield(real_cli, monkeypatch):
     home, tmp_path = real_cli
     began = time.monotonic()

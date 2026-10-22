@@ -70,24 +70,28 @@ cap dispatches nothing. An optional `group` label ties a batch together for
   return as extra turns (best effort).
 - **`cancel`** stops a resident turn. Not yet picked up: cancelled in place,
   nothing ran. Otherwise it leaves a stop request for the runner that owns the
-  turn; only that runner signals its group (TERM the shell once, `KILL_GRACE` for
-  the CLI to flush its transcript and session id, then kill the rest). Gateway
-  `/stop` reaping may SIGKILL the runner before it records the stop: such a
-  conversation stays `running`/`unknown` and goes through `reconcile`.
-- **`cancelled`** requires the group confirmed gone (else `unknown`); the runner
-  then removes only its own dead shell's lock. It is the one stopped state a
-  conversation may continue from: the next `specialist_call` with a corrected
-  message resumes the same Hermes session, and the handoff says the step in
-  flight has unknown effects. A turn that finished before the stop reached it
-  stays `completed`. A2A inquiries cannot be cancelled. Nested children (a
-  Creator's Researcher call) are not part of the confirmed group: their own
-  runners stop them on parent death, as `unknown` on the nested side. A cancelled
-  reconcile turn returns to `interrupted`, so cancelling never reopens work.
-- **Where the CLI is a gateway client** (the turn runs inside the multiplex
-  gateway, not in the CLI process), the group is only the client: its being gone
-  says nothing about the gateway's turn, so a cancel after dispatch ends
-  `unknown` and goes through `reconcile`. Only a cancel before dispatch is
-  `cancelled` there, and no conversation continues from a stopped turn.
+  turn; only that runner signals its group: TERM the shell once, which forwards
+  it to the turn client (`resident-turn.py`), and `KILL_GRACE` for the client to
+  interrupt the turn inside the gateway and come back with the receipt's
+  verdict, then kill the rest. Gateway `/stop` reaping may SIGKILL the runner
+  before it records the stop: such a conversation stays `running`/`unknown` and
+  goes through `reconcile`.
+- **`cancelled`** requires the client's 143 — the gateway's receipt for that
+  turn went terminal after the interrupt — and the group confirmed gone (else
+  `unknown`); the runner then removes only its own dead shell's lock. It is the
+  one stopped state a conversation may continue from: the next `specialist_call`
+  with a corrected message resumes the same Hermes session, and the handoff says
+  the step in flight has unknown effects. A turn that finished before the stop
+  reached it stays `completed`. A2A inquiries cannot be cancelled. Nested
+  children (a Creator's Researcher call) are not part of the confirmed group:
+  their own runners stop them on parent death, as `unknown` on the nested side.
+  A cancelled reconcile turn returns to `interrupted`, so cancelling never
+  reopens work.
+- **The turn runs inside the multiplex gateway**, not in a CLI process: the
+  resident script submits it through the gateway's own client protocol and
+  keeps the admission's receipt, which is what the stop proof rests on. A
+  client killed before it could report (the group is gone, the exit is not 143) proves nothing about the turn, so that cancel ends `unknown` and goes
+  through `reconcile`.
 
 ### Completion and deadlines
 
@@ -99,18 +103,21 @@ restored session is the case that breaks, a fresh topic hides it.
 
 CLI callers — including creator nested under the assistant's resident child —
 wait for a short-lived runner with a maximum 5400-second deadline (the
-`TURN_TIMEOUT` shared by `resident-session.sh` and the plugin). Nested calls
-inherit the outer wall-clock deadline rather than resetting it — through the
-resident's environment, so only where the turn runs in the CLI process. Where
-the CLI is a gateway client, the shell's values never reach plugin code (the
-gateway's own environment is never read for them): a nested call gets its own
-`TURN_TIMEOUT`, bounded by the caller's tool deadline and `wait_timeout`; the
-OpenCode reconcile-only guard cannot see the turn kind either, so OpenCode is
-refused to any profile that is also a specialist target. If the caller
-dies, the runner terminates its resident process group, preserves an `unknown`
-result and exits; where the CLI is a gateway client the parent is the gateway,
-so a nested runner outlives its outer turn until its own deadline. Resident exit `143` (INT/TERM, `status: interrupted`) and
-`124` (deadline) are never proof of completion.
+`TURN_TIMEOUT` shared by `resident-session.sh` and the plugin). The resident
+script's turn client enforces that deadline itself: it interrupts the turn
+inside the gateway and exits `124` once the receipt confirms the stop, so an
+outer turn that reaches its deadline stops, and the interrupt reaches the
+nested calls its tools were waiting on. Nested calls do not inherit the outer
+wall-clock deadline as a value: the shell's environment never reaches plugin
+code inside the gateway (the gateway's own environment is never read for it),
+so a nested call gets its own `TURN_TIMEOUT`, bounded by the caller's tool
+deadline and `wait_timeout`; the OpenCode reconcile-only guard cannot see the
+turn kind either, so OpenCode is refused to any profile that is also a
+specialist target. If the caller dies, the runner terminates its resident
+process group, preserves an `unknown` result and exits; a nested runner's
+parent is the gateway, so it outlives its outer turn until its own deadline.
+Resident exit `143` (INT/TERM, `status: interrupted`) and `124` (deadline) are
+never proof of completion, only of the stop.
 
 `specialist_call` is a blocking tool for those CLI callers, so the caller's
 generic tool deadline (`timeouts.tools.sequential_call`, default 420 s) would cut
@@ -166,9 +173,9 @@ attribution and request hashes are not human-approval authentication.
 - `specialist_session(reconcile, evidence=...)` records only a confirmed stopped
   resident process group, as `interrupted` — never `completed` or resumable.
   Missing handles, live groups and foreign locks stay blocked. A2A has no local
-  liveness proof. Where the CLI is a gateway client the record says
-  `client_stopped` instead of `transport_stopped`: the gateway's turn is not known
-  to have ended.
+  liveness proof. The record says `client_stopped`, not `transport_stopped`:
+  the dead group is the runner's shell and its turn client, and the turn inside
+  the gateway is not known to have ended (only a confirmed cancel knows that).
 - Caller observations remain unverified external effects even after the
   bookkeeping closes.
 
