@@ -70,7 +70,7 @@ RUNTIME_PYTEST_FILES = (
     "tests/tools/test_browser_real_profile_user_agent.py",
     "tests/tools/test_browser_real_profile_session_restore.py",
     "tests/tools/test_browser_real_profile_stall.py",
-    "tests/tools/test_browser_use_target_scope.py",
+    "tests/tools/test_browser_use_task_daemons.py",
     "tests/agent/test_anthropic_thinking_disable.py",
     "tests/agent/test_anthropic_oauth_invoke_recovery.py",
     "tests/agent/test_anthropic_oauth_billing_header.py",

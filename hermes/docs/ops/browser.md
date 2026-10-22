@@ -61,11 +61,14 @@ clash returns.
 **Clone lifetime.** The clone starts with `--remote-debugging-port=0` and lives
 until the Hermes process that launched it exits (only the atexit hook reaps it),
 so one headless Brave stays resident per profile that has browsed.
-Each Hermes home gets its own attach daemon (`hermes-real-profile-<profile>`),
-and CDP calls use an owned daemon runtime scoped by profile + logical
-session/task, with the private-URL sidecar browser in a runtime of its own, whose
-binding and browser UUID are verified before code runs (local patches).
-Owned-daemon idle cleanup is opportunistic and never refreshes cookies.
+Each Hermes home gets its own attach daemon (`hermes-real-profile-<profile>`,
+local patch). `browser_exec` drives the clone through Browser Use harness
+daemons, which upstream keeps per Hermes home; a call without `session` gets a
+daemon of its own task, with its own tab and its own private-URL sidecar, so
+concurrent conversations of one profile never drive the same tab (local
+patch). A task daemon stops, closing its tab, once that profile's next call
+finds it idle for ten minutes (or the browser inactivity timeout, if longer);
+the clone stays, and stopping a daemon never refreshes cookies.
 
 **Cookies mirror only on a cold launch.** `_mirror_profile_auth` runs only on the
 cold path of `_real_profile_cdp`; a gateway restart re-attaches to the surviving
