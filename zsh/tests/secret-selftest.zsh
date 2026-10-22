@@ -794,6 +794,38 @@ security find-generic-password -s "secret.$P/api@prod" -a ST_EVIL "$HOME/Library
   && bad "a rejected scope never lands in a stage" || ok "a rejected scope never lands in a stage"
 print -r -- '{"items":[{"name":"ST_EVIL","value":"v","project":"'$P'","stage":"pr od"}]}' > "$TD/evil.json"
 secret import "$TD/evil.json" -y >/dev/null 2>&1 && bad "import rejects an invalid recorded stage" || ok "import rejects an invalid recorded stage"
+# --- stage spellings: production/development name the prod/dev layers ---
+print -r -- 'db-production' | secret set ST_SPELL -p $P --stage production --stdin >/dev/null 2>&1
+[[ "$(secret ls -p $P | grep '^ST_SPELL')" == 'ST_SPELL@prod' ]] && ok "set --stage production stores in @prod" || bad "set --stage production stores in @prod ($(secret ls -p $P | grep ST_SPELL))"
+[[ "$(secret get ST_SPELL -p $P --stage prod)" == db-production && "$(SECRET_STAGE=production secret get ST_SPELL -p $P)" == db-production ]] \
+  && ok "prod and production read the same layer" || bad "prod and production read the same layer"
+[[ "$(secret ls -p $P --stage production)" == *ST_SPELL@prod* ]] && ok "ls --stage production filters @prod" || bad "ls --stage production filters @prod"
+[[ "$(SECRET_STAGE=production secret env -p $P)" == *"ST_SPELL='db-production'"* ]] && ok "env under SECRET_STAGE=production injects @prod" || bad "env under SECRET_STAGE=production injects @prod"
+print -r -- 'v' | secret set ST_SPELL2 -p $P --stage development --stdin >/dev/null 2>&1
+[[ "$(secret ls -p $P | grep '^ST_SPELL2')" == 'ST_SPELL2@dev' ]] && ok "development stores in @dev" || bad "development stores in @dev"
+secret rm ST_SPELL -p $P --stage prod -f >/dev/null 2>&1; secret rm ST_SPELL2 -p $P --stage dev -f >/dev/null 2>&1
+# a stage the project has no item in yet is announced, with the ones in use
+note=$(print -r -- 'v' | secret set ST_NEW -p $P --stage prd --stdin 2>&1 >/dev/null)
+[[ $note == *"'prd' is a new stage for project '$P'"* && $note == *'in use:'*prod* ]] \
+  && ok "set --stage announces a stage not yet in use" || bad "set --stage announces a stage not yet in use ($note)"
+note=$(print -r -- 'v' | secret set ST_NEW2 -p $P --stage prod --stdin 2>&1 >/dev/null)
+[[ $note != *'new stage'* ]] && ok "set --stage is silent for a stage in use" || bad "set --stage is silent for a stage in use ($note)"
+secret rm ST_NEW -p $P --stage prd -f >/dev/null 2>&1; secret rm ST_NEW2 -p $P --stage prod -f >/dev/null 2>&1
+# the wizard's stage picker: SECRET_STAGE first, then (none), the stages in use, (new)
+_secret_fzf() { tee /dev/stderr >/dev/null; }   # the raw lines, to inspect
+picklines=$(_secret_ui_pick_stage $P hdr 2>&1 >/dev/null)
+[[ ${${(f)picklines}[1]} == '(none)'* && $picklines == *$'\n''prod '*'in use'* && ${${(f)picklines}[-1]} == '(new)'* ]] \
+  && ok "stage picker lists none, the stages in use, new" || bad "stage picker lists none, the stages in use, new ($picklines)"
+picklines=$(SECRET_STAGE=production _secret_ui_pick_stage $P hdr 2>&1 >/dev/null)
+[[ ${${(f)picklines}[1]} == 'prod '*'SECRET_STAGE, in use'* ]] \
+  && ok "stage picker leads with SECRET_STAGE, canonical" || bad "stage picker leads with SECRET_STAGE, canonical ($picklines)"
+_secret_fzf() { grep '^prod '; }
+[[ "$(_secret_ui_pick_stage $P hdr)" == prod ]] && ok "stage picker returns the chosen stage" || bad "stage picker returns the chosen stage"
+_secret_fzf() { grep '^(none)'; }
+[[ -z "$(_secret_ui_pick_stage $P hdr)" ]] && ok "stage picker returns empty for (none)" || bad "stage picker returns empty for (none)"
+_secret_fzf() { grep '^(new)'; }
+[[ "$(print -r -- ' development ' | _secret_ui_pick_stage $P hdr)" == dev ]] && ok "stage picker (new) reads a name and canonicalizes it" || bad "stage picker (new) reads a name and canonicalizes it"
+unfunction _secret_fzf
 # a repository whose name is no scope name has no ambient scope
 git -C "$TD" init -q 'at@repo' && git -C "$TD/at@repo" config secret.project $P
 print -r -- 'v' | ( cd "$TD/at@repo" && secret set ST_AT -S --stdin ) >/dev/null 2>&1 \

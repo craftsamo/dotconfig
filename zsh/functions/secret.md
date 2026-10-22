@@ -190,8 +190,15 @@ order; the exact flags (`-S`, `--scope X`, `--shared`) combined with
 `--stage S` / `--no-stage` address exactly one layer (`secret rm
 DATABASE_URL -S --stage prod` deletes only that item). Stage names are
 letters, digits, `_` and `-`; project and scope names may not contain `@`.
-The service is `secret.<project>[/<scope>]@<stage>` and the label
-`[<scope>/]NAME@<stage>`, both visible in Keychain Access.
+`production` and `development` are spellings of `prod` and `dev` — the
+frameworks' words (`NODE_ENV`, `.env.production`) and the shell's name one
+layer each, `@prod` / `@dev`, whichever a command or `SECRET_STAGE` says.
+Other stages are stored as typed. A `set` or `import --stage` into a stage
+the project has no item in yet says so on stderr (`note: 'prd' is a new
+stage for project 'x' (in use: prod, test)`), so a typo is noticed without
+being refused; the wizard's Add offers the stages in use instead of a
+free-text prompt. The service is `secret.<project>[/<scope>]@<stage>` and
+the label `[<scope>/]NAME@<stage>`, both visible in Keychain Access.
 
 ### Master password
 
@@ -396,7 +403,7 @@ secret import secret-export-all-YYYYMMDD.json.age
 
 ## Tests
 
-[`zsh/tests/secret-selftest.zsh`](../tests/secret-selftest.zsh) — 297
+[`zsh/tests/secret-selftest.zsh`](../tests/secret-selftest.zsh) — 309
 assertions: round-trips (special characters, json/env/age), the export
 file's mode from the first byte, its absence after a failed write, the
 refused directory and the restored umask, partial updates,
@@ -406,7 +413,9 @@ as the `envn`/`envy` type code), `--meta` fields (validation, sorting,
 legacy `env=no` marker, `set --new`, non-ASCII metadata read back as text,
 keychain auto-creation, `secret link` / the `git config secret.project`
 mapping, scope layering (DWIM reads, env overlay, isolation between repos),
-stages (`--stage` / `$SECRET_STAGE` / `--no-stage`, the four-layer env
+stages (`--stage` / `$SECRET_STAGE` / `--no-stage`, `production` /
+`development` as `prod` / `dev`, the new-stage note, the wizard's stage
+picker, the four-layer env
 overlay, exact-layer rm, export/import round-trips, `ls` tokens), the
 `ls` token accepted as NAME, the fzf picker's lines, preview and expect
 mode (fzf stubbed), the grouped `ls --long` layout (groups, ordering,
@@ -420,7 +429,7 @@ master machinery via the `SECRET_MASTER_ACCOUNT` / `SECRET_TEST_ONLY_KC`
 hooks, and cleans up after itself — safe to run on a machine with real data.
 
 [`zsh/tests/secret-shim-selftest.zsh`](../tests/secret-shim-selftest.zsh) —
-58 assertions for the launcher shims: layer injection and override order,
+59 assertions for the launcher shims: layer injection and override order,
 inherited-environment precedence, dotenv name skipping (monorepo union from
 the root vs per-package precision, `.env.example` exclusion, `export NAME=`
 lines, the stage's own file vs another stage's under `SECRET_STAGE`, the

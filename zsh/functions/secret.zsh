@@ -18,9 +18,9 @@
 #
 # LAYER flags: default is most-specific-first (DWIM); -S = this repo's
 # scope, --scope X = that scope, --shared = the shared layer; --stage S /
-# --no-stage pin the stage ($SECRET_STAGE otherwise). Scoped items override
-# shared ones per repository, staged items override stage-less ones per
-# environment, within one project.
+# --no-stage pin the stage ($SECRET_STAGE otherwise; production = prod,
+# development = dev). Scoped items override shared ones per repository,
+# staged items override stage-less ones per environment, within one project.
 #
 # Data model — native keychain attributes (fully visible in Keychain Access):
 #   service = secret.<project>[/<scope>][@<stage>]   account = NAME (unique key)
@@ -220,6 +220,34 @@ _secret_check_stage() {
   return 1
 }
 
+# One layer per stage whatever the spelling: the frameworks say production
+# and development (NODE_ENV, .env.production), the shell says prod and dev.
+# The short form names the layer; every command and the shim go through
+# here, so `--stage production` and `SECRET_STAGE=prod` meet in @prod.
+_secret_canon_stage() {        # $1 stage -> its canonical spelling on stdout
+  case $1 in
+    production)  print -r -- prod ;;
+    development) print -r -- dev ;;
+    *)           print -r -- "$1" ;;
+  esac
+}
+
+# The stages a project holds items in, one per line, sorted.
+_secret_stages_of() {          # $1 project
+  _secret_rows "$1" | cut -f10 | grep -v '^$' | sort -u
+}
+
+# A stage the project has no item in yet is a first use or a typo (prd);
+# say which stages are in use, without refusing.
+_secret_stage_note() {         # $1 project  $2 stage
+  [[ -n $2 ]] || return 0
+  local -a have
+  have=(${(f)"$(_secret_stages_of "$1")"})
+  (( ${have[(Ie)$2]} )) && return 0
+  print -r -- "note: '$2' is a new stage for project '$1'${have:+ (in use: ${(j:, :)have})}" >&2
+  return 0
+}
+
 # Layers: a scope (per-repository override) and a stage (per-environment
 # override: prod, test, ...) inside one project. Internally a layer is one
 # string, "<scope>[@<stage>]" — "" is the shared layer, "@prod" the shared
@@ -255,7 +283,7 @@ _secret_resolve_stage() {      # $1 --stage value ("" if absent)  $2 --no-stage 
   local s=${1:-${SECRET_STAGE:-}}
   [[ -z $s ]] && return 0
   _secret_check_stage "$s" || return 1
-  print -r -- "$s"
+  _secret_canon_stage "$s"
 }
 
 # The repository basename is only a scope when it is a valid scope name: a
@@ -702,6 +730,7 @@ _secret_cmd_set() {
   scope=$(_secret_resolve_scope "$scope_opt" $scoped "$proj") || return 2
   stage=$(_secret_resolve_stage "$stage_opt" $no_stage) || return 2
   layer=$(_secret_layer "$scope" "$stage")
+  _secret_stage_note "$proj" "$stage"
   local disp
   disp=$(_secret_disp "$proj" "$layer" "$name")
   if [[ $create == new ]] && _secret_exists "$name" "$proj" "$layer"; then
@@ -983,7 +1012,7 @@ _secret_cmd_ls() {
   for flt in "${meta_filters[@]}"; do
     _secret_meta_check_key "${flt%%=*}" || return 2
   done
-  [[ -n $stage_filter ]] && { _secret_check_stage "$stage_filter" || return 2 }
+  [[ -n $stage_filter ]] && { _secret_check_stage "$stage_filter" || return 2; stage_filter=$(_secret_canon_stage "$stage_filter") }
   (( json && long )) && { _secret_err "ls: --json and --long are exclusive"; return 2 }
   local where
   if (( all )); then
@@ -1527,10 +1556,14 @@ _secret_cmd_import() {
       if [[ -n $tg ]] && ! _secret_check_stage "$tg" 2>/dev/null; then
         _secret_err "${names[i]}: invalid recorded stage '$tg'"; bad=1
       fi
+      tg=$(_secret_canon_stage "$tg")
     fi
     tbad+=($bad)
     tlayers+=("$(_secret_layer "$ts" "$tg")")
   done
+  if (( stage_forced )) && [[ -n $stage_all ]]; then
+    for tp in ${(u)targets}; do _secret_stage_note "$tp" "$stage_all"; done
+  fi
 
   local lbl
   print -r -- "importing ${#names} item(s):"
@@ -2301,8 +2334,12 @@ STAGES
   emitted. Without --stage and SECRET_STAGE nothing staged is emitted:
   prod only ever leaves the keychain when asked for by name. Tool-mode
   shims (opencode, claude, ...) never receive a stage. Stage names are
-  letters, digits, '_' and '-'; project and scope names may not contain
-  '@' (the service is "secret.<project>[/<scope>]@<stage>").
+  letters, digits, '_' and '-'; production and development are spellings
+  of prod and dev (one layer each, @prod / @dev), other stages are stored
+  as typed. A set or import into a stage the project has no item in yet
+  is noted on stderr with the stages in use, so a typo (prd) is noticed.
+  Project and scope names may not contain '@' (the service is
+  "secret.<project>[/<scope>]@<stage>").
 
 ENV
   Every item is emitted by `secret env` — and so injected by every shell,
@@ -2366,6 +2403,41 @@ _secret_ui_pick_project() {    # $1 header  $2.. extra entries; selection on std
   items=(${extras:#} $existing)
   (( ${#items} )) || { _secret_err "no projects yet — use 'secret set' or the Add action first"; return 1 }
   print -rl -- "${items[@]}" | _secret_fzf --header="$header" --prompt='project> '
+}
+
+# The stage picker for a new item: the stages the project already holds
+# items in, so an existing one is chosen rather than retyped (prd ≠ prod),
+# `(none)` for the stage-less layer and `(new)` to type one. $SECRET_STAGE,
+# when set, leads the list as the default. Prints the stage ("" for none);
+# returns 1 when the user backs out.
+_secret_ui_pick_stage() {      # $1 project  $2 header -> stage on stdout
+  local proj=$1 header=$2 cur=${SECRET_STAGE:-} s mark
+  [[ -n $cur ]] && cur=$(_secret_canon_stage "$cur")
+  local -a have lines
+  have=(${(f)"$(_secret_stages_of "$proj")"})
+  if [[ -n $cur ]]; then
+    mark="SECRET_STAGE"; (( ${have[(Ie)$cur]} )) && mark+=", in use"
+    lines+=("$(printf '%-10s %s' "$cur" "$mark")")
+  fi
+  lines+=("$(printf '%-10s %s' '(none)' 'the stage-less layer')")
+  for s in "${have[@]}"; do
+    [[ $s == "$cur" ]] && continue
+    lines+=("$(printf '%-10s %s' "$s" 'in use')")
+  done
+  lines+=("$(printf '%-10s %s' '(new)' 'type a stage name')")
+  s=$(print -rl -- "${lines[@]}" | _secret_fzf --header="$header" --prompt='stage> ') || return 1
+  [[ -z $s ]] && return 1
+  s=${${s%%$'\n'*}%% *}
+  case $s in
+    '(none)') print -r -- ""; return 0 ;;
+    '(new)')
+      read -r "s?stage name: " || return 1
+      s=${${s##[[:space:]]#}%%[[:space:]]#}
+      [[ -n $s ]] || { print -r -- ""; return 0 }
+      _secret_check_stage "$s" || return 1
+      ;;
+  esac
+  _secret_canon_stage "$s"
 }
 
 # The item picker. Each fzf line is three tab-separated fields: the visible
@@ -2475,11 +2547,11 @@ _secret_ui_add() {
   fi
   read -r "comment?comment (optional): " || return 0
   local stage
-  read -r "stage?stage (optional, e.g. prod/test; default: ${SECRET_STAGE:-none}): " || return 0
+  stage=$(_secret_ui_pick_stage "$proj" "secret › $proj/$name › stage") || return 0
   local -a args
   args=("$name" -p "$proj")
   [[ $layer == scoped ]] && args+=(-S)
-  [[ -n $stage ]] && args+=(--stage "$stage")
+  if [[ -n $stage ]]; then args+=(--stage "$stage"); else args+=(--no-stage); fi
   [[ -n $kind ]] && args+=(-D "$kind")
   [[ -n $comment ]] && args+=(-j "$comment")
   local field
