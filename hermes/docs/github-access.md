@@ -279,7 +279,8 @@ state directory and the 30-day ceiling bound that
 The hook blocks a terminal `gh` command that writes Issues (`create`,
 `edit`, `comment`, `close`, `reopen`, `delete`, `transfer`, `pin`, `lock`,
 `develop` …), changes a board (every `gh project` command but `list`, `view`,
-`item-list`, `field-list`), changes labels, calls `gh api` at all, prints the
+`item-list`, `field-list`), changes labels, creates, edits, archives or
+unarchives a repository, calls `gh api` at all, prints the
 login's token (`gh auth token`, `--show-token`: `curl` could write with it)
 or defines an alias or an extension (either could hide a write). It reads
 the whole command text, so environment assignments, wrappers, a path to the
@@ -295,8 +296,8 @@ and autolinks, adding or deleting the account's SSH and GPG keys, and
 deleting releases, release assets, workflow runs and caches. They hold or
 reveal credentials, publish outside a repository, or destroy or move what
 others rely on, so they stay with the user. Reading through `gh` (`gh issue
-view`, `gh pr …`, `gh secret list`, `gh auth status`) and `gh repo create`
-stay open.
+view`, `gh repo view`, `gh pr …`, `gh secret list`, `gh auth status`) stays
+open.
 
 File and terminal calls that name the plugin's state directory
 (`<HERMES_HOME>/github-access/`) are blocked too, in any letter case and also

@@ -1,14 +1,14 @@
 """github-access: block the Assistant's ways around the tools.
 
-A terminal ``gh`` command that writes Issues, boards or labels, reaches the API directly, prints
-the login's token (which ``curl`` could then use) or defines an alias or extension (which could
-hide any of those) would skip the card and the tiers, so the hook blocks it, also when it is
-wrapped in quotes. So is a write the Assistant never makes at all (``NEVER``: secrets and
-variables, gists, deleting, renaming or forking a repository, deploy, SSH and GPG keys, deleting
-releases, runs and caches), with a message that says so. Reading through ``gh`` (``gh issue
-view``, ``gh project list``, ``gh pr``, ``gh repo create`` the pipeline uses) stays open. File and
-terminal calls that touch the plugin's state directory are blocked too (mandate.py keeps its
-records there).
+A terminal ``gh`` command that makes a change ``github_change`` offers (``TOOL_WRITES``: issues,
+boards, labels, repositories), reaches the API directly, prints the login's token (which ``curl``
+could then use) or defines an alias or extension (which could hide any of those) would skip the
+card and the tiers, so the hook blocks it, also when it is wrapped in quotes. So is a write the
+Assistant never makes at all (``NEVER``: secrets and variables, gists, deleting, renaming or
+forking a repository, deploy, SSH and GPG keys, deleting releases, runs and caches), with a
+message that says so. Reading through ``gh`` (``gh issue view``, ``gh project list``, ``gh repo
+view``, ``gh pr``) stays open. File and terminal calls that touch the plugin's state directory are
+blocked too (mandate.py keeps its records there).
 """
 
 from __future__ import annotations
@@ -21,6 +21,10 @@ ISSUE_WRITES = {"create", "new", "edit", "comment", "close", "reopen", "delete",
                 "lock", "unlock", "develop"}
 PROJECT_READS = {"list", "ls", "view", "item-list", "field-list"}
 LABEL_WRITES = {"create", "edit", "delete", "clone"}
+REPO_WRITES = {"create", "new", "edit", "archive", "unarchive"}
+# gh group -> the subcommands github_change makes on a card (a gh project command is a write unless
+# it is one of PROJECT_READS).
+TOOL_WRITES = {"issue": ISSUE_WRITES, "label": LABEL_WRITES, "repo": REPO_WRITES}
 # gh group -> the subcommands no tool offers and the Assistant never runs: they hold or reveal
 # credentials, publish outside a repository, or destroy or move what others rely on.
 NEVER = {
@@ -42,8 +46,9 @@ STATE_NAME = "github-access"
 _STATE = re.compile(r"(?<!plugins/)(?<![\w.-])github-access(?:/|\s|['\"]|$)", re.IGNORECASE)
 _SEPARATOR = re.compile(r"[;&|\n()`]|\$\(")
 
-MESSAGE = ("Blocked: GitHub Issues, boards and labels change only through github_change, where the user "
-           "approves on a card; read them with github_issue and github_board. Nothing was run.")
+MESSAGE = ("Blocked: GitHub changes (issues, boards, labels, repositories) go only through github_change, "
+           "where the user approves on a card; read them with github_issue, github_board and github_repo. "
+           "Nothing was run.")
 NEVER_MESSAGE = ("Blocked: the Assistant never does this on GitHub (secrets and variables, gists, deleting, "
                  "renaming or forking a repository, deploy, SSH or GPG keys, deleting releases, runs or caches). "
                  "Tell the user what to do, and they do it themselves. Nothing was run.")
@@ -112,9 +117,8 @@ def _verbs(verbs) -> str:
 
 _ANYWHERE = re.compile(
     _GH + r"(?:api\b"
-    rf"|issue\s+{_FLAGS}(?:{_verbs(ISSUE_WRITES)})\b"
-    rf"|project\s+(?!(?:{_verbs(PROJECT_READS)})\b)[\w-]"
-    rf"|label\s+{_FLAGS}(?:{_verbs(LABEL_WRITES)})\b"
+    + "".join(rf"|{re.escape(group)}\s+{_FLAGS}(?:{_verbs(verbs)})(?![\w-])" for group, verbs in TOOL_WRITES.items())
+    + rf"|project\s+(?!(?:{_verbs(PROJECT_READS)})\b)[\w-]"
     rf"|auth\s+{_FLAGS}token\b|auth\s+status\b[^;&|\n]*--show-token"
     rf"|alias\s+{_FLAGS}(?:set|import)\b|ext(?:ension|ensions)?\b)")
 _NEVER_ANYWHERE = re.compile(_GH + "(?:" + "|".join(
@@ -135,13 +139,9 @@ def blocked(command: str) -> str | None:
         for group, verb in _commands(args):
             if verb in NEVER.get(group, ()):
                 return NEVER_MESSAGE
-            if group == "api":
-                return MESSAGE
-            if group == "issue" and verb in ISSUE_WRITES:
+            if group == "api" or verb in TOOL_WRITES.get(group, ()):
                 return MESSAGE
             if group == "project" and verb not in PROJECT_READS:
-                return MESSAGE
-            if group == "label" and verb in LABEL_WRITES:
                 return MESSAGE
             if group in ("alias", "extension", "extensions", "ext") or (group == "auth" and verb == "token"):
                 return MESSAGE
