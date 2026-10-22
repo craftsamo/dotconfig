@@ -461,16 +461,16 @@ def test_measurement_does_not_turn_missing_data_into_success():
 def test_real_skill_discovery_and_shared_reference_loading(monkeypatch):
     from tools import skills_tool, skills_tool_plugin
 
-    from .skill_roots import search_dirs_result
+    from .skill_roots import find_all_skills, search_dirs_name, search_dirs_result
 
     skills = ROOT.parent
     roots = search_dirs_result(skills)
-    monkeypatch.setattr(skills_tool, "_skill_search_dirs", lambda: roots)
+    monkeypatch.setattr(skills_tool, search_dirs_name(), lambda: roots)
     monkeypatch.setattr(skills_tool, "_is_skill_disabled", lambda *args, **kwargs: False)
     monkeypatch.setattr(skills_tool, "_get_disabled_skill_names", lambda: set())
     monkeypatch.setattr(skills_tool, "_SKILLS_CACHE", {})
     monkeypatch.setattr(skills_tool_plugin, "_mark_background_review_read", lambda *args: None)
-    names = [s["name"] for s in skills_tool._find_all_skills()]
+    names = [s["name"] for s in find_all_skills()]
     for name in ("marketer-pipeline", *ENTRIES):
         assert names.count(name) == 1
     for retired in ("build-marketer", "qa-marketer", "writer-pipeline"):

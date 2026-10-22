@@ -242,8 +242,10 @@ skills.
   skill describes, so a read-only profile never sees write procedures: split a
   skill by capability (`x-twitter` / `x-twitter-drafts`), never by
   `references/` (a loaded skill's references are readable by anyone who loads
-  it). Plugin skills are absent from the available-skills index, so the tool
-  description or the pipeline must name `skill_view(name="<plugin>:<skill>")`.
+  it). A registered plugin skill is also listed in the profile's available-skills
+  index, so its description is read every turn: keep it as narrow as the skill.
+  The tool description or the pipeline still names
+  `skill_view(name="<plugin>:<skill>")` where the skill must be read.
   `test_plugin_skills.py` is the audience table; a new skill or a wider
   audience is added there on purpose.
 - **Engine runtime state lives under `HERMES_LOCAL` (`~/.hermes/local/`),
@@ -398,6 +400,12 @@ Contract: [docs/opencode.md](docs/opencode.md). When editing
   from**, and only because the owning runner confirmed its group gone; never
   make `unknown`/`interrupted` resumable or let anything but that runner signal
   the group ([docs/profiles/specialist-calls.md](docs/profiles/specialist-calls.md)).
+  Where the CLI is a gateway client the group is only the client, so that proof
+  does not exist: a dispatched turn's cancel stays `unknown` there.
+- **Per-turn resident values come from `plugins/_shared/turn_env.py` only.** It
+  answers from the process environment only where the turn runs in the CLI
+  process; reading `RESIDENT_*` from `os.environ` directly inside a gateway reads
+  the gateway's own, possibly stale, values.
 - **The caller's own model is refused unless the role allows it
   (`caller_model: allow`).** The `post_api_request` hook records the model the
   caller last answered with, and `models.model_key` folds speed tiers and
@@ -441,10 +449,12 @@ or a patch branched from it: the patches must stay rebasable onto the next pin
 alone ([README "Runtime dependency: local patches"](README.md#runtime-dependency-local-patches)).
 
 1. `./scripts/check-local-patches.sh` — every local `fix/*` branch in the
-   hermes-agent checkout must still be merged into `local`, and the
-   case-collision twin must keep `skip-worktree` (without it every rebase and
-   merge refuses to start; `git checkout --` only flips which twin is dirty). A
-   missing patch fails silently at runtime, e.g. browser isolation.
+   hermes-agent checkout must still be merged into `local`, and while a pin
+   tracks both case-collision twins the lowercase one must keep `skip-worktree`
+   (without it every rebase and merge refuses to start; `git checkout --` only
+   flips which twin is dirty). A pin that tracks one twin needs the flag cleared
+   instead, or upstream changes to that file stay hidden. A missing patch fails
+   silently at runtime, e.g. browser isolation.
 2. `./scripts/validate-profile-skills.py --all`; delete any seeded category
    directory under `~/.hermes/skills/` and `~/.hermes/profiles/*/skills/`
    other than the managed links and `learned` (upstream seeds past
@@ -466,9 +476,10 @@ Commands: [README "Commands"](README.md#commands).
   hyphenated, non-importable dirs). Private overlay tests likewise run with
   `hermes-python --test -m unittest …`.
 - A test that scopes the runtime's skill discovery builds its stub with
-  `scripts/tests/skill_roots.py`, not a literal tuple: `_skill_search_dirs` is
-  private and its return shape changes between runtimes, which breaks every
-  test that hard-codes one.
+  `scripts/tests/skill_roots.py`, not a literal tuple: the runtime's skill
+  scanner (`skill_search_dirs` / `find_all_skills`) changes its names and return
+  shape between runtimes, which breaks every test that hard-codes one; tests
+  reach it only through that module.
 - `../install.sh` after adding files; `hermes update` to update (not
   `setup.sh`); `hermes doctor` for providers and model tiers.
 - **`hermes -z` is YOLO.** It sets `HERMES_YOLO_MODE=1` before the agent

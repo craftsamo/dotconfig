@@ -168,7 +168,7 @@ class AudioCreatorRoutingTest(unittest.TestCase):
 
     def test_parse_frontmatter_music_leaf_names(self) -> None:
         """agent.skill_utils.parse_frontmatter must recover each music leaf's real ``name``
-        from within the first 4000 chars tools.skills_tool._find_all_skills reads — the
+        from within the first 4000 chars the runtime's skill scanner (find_all_skills) reads — the
         closing ``---`` fence must land before that cutoff or the frontmatter parses empty
         and the skill falls back to its parent directory name ('music') for all four leaves."""
         from agent.skill_utils import parse_frontmatter
@@ -186,18 +186,18 @@ class AudioCreatorRoutingTest(unittest.TestCase):
             self.assertEqual(expected_name, frontmatter.get("name"))
 
     def test_find_all_skills_discovers_music_leaves_once_each(self) -> None:
-        """tools.skills_tool._find_all_skills, scoped to only this profile's skill root, must
+        """The runtime's skill scanner (find_all_skills), scoped to only this profile's skill root, must
         discover the pipeline root plus all 14 leaves (3 speech + 4 sfx + 4 music + 3 mix) with their
         real distinct names — no generic 'music' fallback, no first-wins duplicate dropped."""
         import tools.skills_tool as skills_tool
 
-        from .skill_roots import search_dirs_result
+        from .skill_roots import find_all_skills, search_dirs_name, search_dirs_result
 
         pipeline = HERMES_ROOT / "profiles" / "audio-creator" / "skills" / "audio-creator-pipeline"
-        with patch.object(skills_tool, "_skill_search_dirs", return_value=search_dirs_result(pipeline)), \
+        with patch.object(skills_tool, search_dirs_name(), return_value=search_dirs_result(pipeline)), \
              patch.object(skills_tool, "_get_disabled_skill_names", return_value=set()), \
              patch.object(skills_tool, "_SKILLS_CACHE", {}):
-            skills = skills_tool._find_all_skills()
+            skills = find_all_skills()
 
         names = [s["name"] for s in skills]
         self.assertEqual(15, len(names))

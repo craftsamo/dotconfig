@@ -83,6 +83,11 @@ cap dispatches nothing. An optional `group` label ties a batch together for
   Creator's Researcher call) are not part of the confirmed group: their own
   runners stop them on parent death, as `unknown` on the nested side. A cancelled
   reconcile turn returns to `interrupted`, so cancelling never reopens work.
+- **Where the CLI is a gateway client** (the turn runs inside the multiplex
+  gateway, not in the CLI process), the group is only the client: its being gone
+  says nothing about the gateway's turn, so a cancel after dispatch ends
+  `unknown` and goes through `reconcile`. Only a cancel before dispatch is
+  `cancelled` there, and no conversation continues from a stopped turn.
 
 ### Completion and deadlines
 
@@ -95,9 +100,16 @@ restored session is the case that breaks, a fresh topic hides it.
 CLI callers — including creator nested under the assistant's resident child —
 wait for a short-lived runner with a maximum 5400-second deadline (the
 `TURN_TIMEOUT` shared by `resident-session.sh` and the plugin). Nested calls
-inherit the outer wall-clock deadline rather than resetting it. If the caller
+inherit the outer wall-clock deadline rather than resetting it — through the
+resident's environment, so only where the turn runs in the CLI process. Where
+the CLI is a gateway client, the shell's values never reach plugin code (the
+gateway's own environment is never read for them): a nested call gets its own
+`TURN_TIMEOUT`, bounded by the caller's tool deadline and `wait_timeout`; the
+OpenCode reconcile-only guard cannot see the turn kind either, so OpenCode is
+refused to any profile that is also a specialist target. If the caller
 dies, the runner terminates its resident process group, preserves an `unknown`
-result and exits. Resident exit `143` (INT/TERM, `status: interrupted`) and
+result and exits; where the CLI is a gateway client the parent is the gateway,
+so a nested runner outlives its outer turn until its own deadline. Resident exit `143` (INT/TERM, `status: interrupted`) and
 `124` (deadline) are never proof of completion.
 
 `specialist_call` is a blocking tool for those CLI callers, so the caller's
@@ -154,7 +166,9 @@ attribution and request hashes are not human-approval authentication.
 - `specialist_session(reconcile, evidence=...)` records only a confirmed stopped
   resident process group, as `interrupted` — never `completed` or resumable.
   Missing handles, live groups and foreign locks stay blocked. A2A has no local
-  liveness proof.
+  liveness proof. Where the CLI is a gateway client the record says
+  `client_stopped` instead of `transport_stopped`: the gateway's turn is not known
+  to have ended.
 - Caller observations remain unverified external effects even after the
   bookkeeping closes.
 

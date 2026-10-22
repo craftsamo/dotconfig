@@ -41,6 +41,12 @@ def expected_backend(target, kind):
     return "a2a" if kind == "inquiry" and target in PEERS else "resident"
 
 
+# A real runner judges a stop on the runtime it runs on. Where the CLI is a gateway client the
+# turn runs inside the gateway, so a cancel is never confirmed (see the gateway-client tests).
+cli_process_runtime = pytest.mark.skipif(
+    p.turn_env.gateway_client_runtime(), reason="this runtime runs CLI turns inside the gateway")
+
+
 @pytest.fixture(autouse=True)
 def no_local_targets(tmp_path, monkeypatch):
     """A private overlay may link local_targets.json in; the tests run on the public roster."""
@@ -446,6 +452,8 @@ def test_launch_exception_retains_queryable_identity(caller, monkeypatch):
     ("assistant", "telegram", "cli", True, None),
     ("assistant", "telegram", "", False, None),
     ("creator", "", "cli", True, False),
+    ("creator", "local", "", True, False),  # a CLI that is a gateway client binds platform `local`
+    ("assistant", "local", "telegram", True, None),
     ("creator", "a2a", "", True, False),
     ("writer", "telegram", "", True, None),
 ])
@@ -1081,6 +1089,7 @@ def test_real_framework_dispatch_fresh_cached_and_reset_gateway(tmp_path, monkey
     contextvars.Context().run(check)
 
 
+@cli_process_runtime
 @pytest.mark.parametrize("end", ["deadline", "parent_killed"])
 def test_nested_resident_cleanup_after_outer_exit(tmp_path, end):
     home = tmp_path / "profiles" / "creator"
@@ -1372,8 +1381,10 @@ def test_reconcile_schema_rejects_evidence_outside_reconcile_and_bad_evidence(ca
         assert "error" in json.loads(p.specialist_session(args))
 
 
-def test_reconcile_positive_marks_interrupted_and_retains_history(caller, monkeypatch):
+@pytest.mark.parametrize("in_gateway", [False, True], ids=["cli-process", "gateway-client"])
+def test_reconcile_positive_marks_interrupted_and_retains_history(caller, monkeypatch, in_gateway):
     home, calls = caller
+    monkeypatch.setattr(p.turn_env, "gateway_client_runtime", lambda: in_gateway)
     result = call(kind="work")
     cid = result["conversation_id"]
     root = home / "specialist-sessions"
@@ -1399,7 +1410,9 @@ def test_reconcile_positive_marks_interrupted_and_retains_history(caller, monkey
     reconciled = reconcile(cid, "Inspected logs and outputs; no new files; peer process absent.")
     assert reconciled["status"] == "interrupted"
     assert reconciled["reconciliation"]["previous_status"] == "running"
-    assert reconciled["reconciliation"]["transport_stopped"] is True
+    # Where the CLI is a gateway client only the client is known to be gone.
+    assert reconciled["reconciliation"]["transport_stopped"] is not in_gateway
+    assert reconciled["reconciliation"].get("client_stopped", False) is in_gateway
     assert reconciled["reconciliation"]["effects"] == "unknown"
     assert reconciled["reconciliation"]["resume_permitted"] is False
     assert reconciled["reconciliation"]["evidence"].startswith("Inspected logs")
@@ -1642,9 +1655,9 @@ def test_handoff_states_the_turn_budget():
     plain = p._handoff(dict(base), "hello")
     assert "Turn budget" not in plain
     timed = p._handoff({**base, "deadline": time.time() + 90 * 60}, "hello")
-    assert "Turn budget: this turn is killed at" in timed
+    assert "Turn budget: this turn ends at" in timed
     assert "(~89 min from now)" in timed or "(~90 min from now)" in timed
-    assert "unsaved work is lost" in timed
+    assert "not finished and reported by then is lost" in timed
     assert "(~1 min from now)" in p._handoff({**base, "deadline": time.time() + 65}, "hello")
     assert "RECONCILE-ONLY" not in timed
     limited = p._handoff({**base, "deadline": time.time() + 65, "turn_kind": "reconcile"}, "hello")
@@ -1753,6 +1766,7 @@ def test_parallel_detached_calls_settle_together_under_wait(real_cli, monkeypatc
     assert progress == dict(group="tagline", settled=3, total=3, pending=[])
 
 
+@cli_process_runtime
 def test_cancel_confirms_stop_and_resumes_the_same_session(real_cli):
     home, tmp_path = real_cli
     started = call("writer", kind="work", wait=False, message="SLOW first draft")
@@ -1788,6 +1802,7 @@ def test_stubborn_cli_is_killed_and_the_cancel_still_confirmed(real_cli, monkeyp
     lock.mkdir(parents=True)
     (lock / "pid").write_text(f"{proc.pid}\n")
     monkeypatch.setattr(p, "STOP_GRACE", 0.5)
+    monkeypatch.setattr(p.turn_env, "gateway_client_runtime", lambda: False)
     data = {"conversation_id": cid}
     p._stop_resident(home, proc, data, "signal")
     assert data["status"] == "cancelled" and not data["cancel"]["graceful"]
@@ -1802,6 +1817,27 @@ def test_stubborn_cli_is_killed_and_the_cancel_still_confirmed(real_cli, monkeyp
     assert lock.exists()
 
 
+def test_gateway_client_cancel_stays_unknown(real_cli, monkeypatch):
+    """Where the CLI is only the gateway's client, its group being gone says nothing about the
+    turn the gateway runs: the cancel stays unknown and the shell's lock remains as evidence."""
+    home, _ = real_cli
+    proc = subprocess.Popen(["/bin/sh", "-c", "echo ready; sleep 30"], start_new_session=True,
+                            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    assert proc.stdout.readline() == "ready\n"
+    cid = "d" * 32
+    lock = home / "resident-sessions" / (cid + ".lock")
+    lock.mkdir(parents=True)
+    (lock / "pid").write_text(f"{proc.pid}\n")
+    monkeypatch.setattr(p, "STOP_GRACE", 0.5)
+    monkeypatch.setattr(p.turn_env, "gateway_client_runtime", lambda: True)
+    data = {"conversation_id": cid}
+    p._stop_resident(home, proc, data, "request")
+    assert data["status"] == "unknown" and "gateway" in data["error"]
+    assert "cancel" not in data
+    assert not p._group_alive(proc.pid)
+    assert lock.exists()
+
+
 def test_cancel_finished_before_the_stop_keeps_the_result(tmp_path):
     proc = subprocess.Popen(["/bin/sh", "-c", "echo done"], start_new_session=True,
                             stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
@@ -1811,6 +1847,7 @@ def test_cancel_finished_before_the_stop_keeps_the_result(tmp_path):
     assert data["status"] == "completed" and data["cancel_too_late"] and "done" in data["result"]
 
 
+@cli_process_runtime
 def test_runner_signal_is_an_orderly_cancel(real_cli):
     # Gateway /stop reaping and shutdown signal the runner itself.
     home, tmp_path = real_cli
@@ -1828,6 +1865,7 @@ def test_runner_signal_is_an_orderly_cancel(real_cli):
     assert not p._group_alive(data["pgid"])
 
 
+@cli_process_runtime
 def test_blocking_cli_call_cancels_on_interrupt_and_detaches_on_yield(real_cli, monkeypatch):
     home, tmp_path = real_cli
     began = time.monotonic()
@@ -1968,7 +2006,12 @@ def test_wait_limit_stays_below_the_callers_tool_deadline(tmp_path, monkeypatch)
     assert limit({"timeouts": {"tools": {"concurrent_batch": 600}}}) == 570
     monkeypatch.delenv("HERMES_CONCURRENT_TOOL_TIMEOUT_S")
     monkeypatch.setenv("RESIDENT_DEADLINE", str(time.time() + 100))
+    monkeypatch.setattr(p.turn_env, "gateway_client_runtime", lambda: False)
     assert 90 <= limit({"timeouts": {"tools": {"sequential_call": 5460}}}) <= 95
+    # Where the CLI is a gateway client the shell's deadline never arrives; the gateway's own
+    # environment is not the turn's, so only the configured bounds apply.
+    monkeypatch.setattr(p.turn_env, "gateway_client_runtime", lambda: True)
+    assert limit({"timeouts": {"tools": {"sequential_call": 5460}}}) == 5430
 
 
 def test_handoff_after_cancel_names_the_uncertain_step():

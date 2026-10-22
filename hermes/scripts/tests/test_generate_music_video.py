@@ -18,6 +18,8 @@ import hermes_yaml as yaml
 from agent import skill_utils
 from tools import skills_tool
 
+from .skill_roots import find_all_skills
+
 
 SCRIPT = Path(__file__).resolve().parents[1] / "validate-profile-skills.py"
 SPEC = importlib.util.spec_from_file_location("validate_profile_skills", SCRIPT)
@@ -117,7 +119,7 @@ class GenerateMusicVideoLeafTest(unittest.TestCase):
             patch.object(skill_utils, "get_external_skills_dirs", return_value=[]),
             patch.object(skill_utils, "get_project_skills_dirs", return_value=[]),
         ):
-            skills = skills_tool._find_all_skills(skip_disabled=True)
+            skills = find_all_skills(skip_disabled=True)
         names = [skill["name"] for skill in skills]
         self.assertEqual(1, names.count("generate-music-video"), names)
         self.assertNotIn("mv", names)

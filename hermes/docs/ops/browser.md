@@ -38,8 +38,12 @@ headful login step.
 - **The owner must not browse in a pinned profile** — the owner is one more
   client of the same rotation. Log in, close, work elsewhere; "log in again" in
   the everyday Brave just supersedes the clone's session and moves the sign-out.
-- **Preconditions fail closed:** the macOS default browser must be Brave, the
-  pinned profile directory must exist, and the clone binary must be executable.
+- **Preconditions never switch accounts:** the macOS default browser must be
+  Brave, the pinned profile directory must exist, and the clone binary must be
+  executable. When one fails, the call does not fall back to another profile:
+  it runs on a fresh, signed-out browser and its result carries a
+  `real_profile_unavailable` note naming the cause. A signed-out page in a
+  pinned profile's work therefore means a failed precondition, not a lost login.
 
 **Why a cloned bundle.** macOS treats one app bundle as one running app, so while
 a headless Brave launched from `/Applications/Brave Browser.app` is alive, the
@@ -59,15 +63,18 @@ until the Hermes process that launched it exits (only the atexit hook reaps it),
 so one headless Brave stays resident per profile that has browsed.
 Each Hermes home gets its own attach daemon (`hermes-real-profile-<profile>`),
 and CDP calls use an owned daemon runtime scoped by profile + logical
-session/task whose binding and browser UUID are verified before code runs (local
-patches). Owned-daemon idle cleanup is opportunistic and never refreshes cookies.
+session/task, with the private-URL sidecar browser in a runtime of its own, whose
+binding and browser UUID are verified before code runs (local patches).
+Owned-daemon idle cleanup is opportunistic and never refreshes cookies.
 
 **Cookies mirror only on a cold launch.** `_mirror_profile_auth` runs only on the
 cold path of `_real_profile_cdp`; a gateway restart re-attaches to the surviving
 clone and mirrors nothing. To pick up a fresh login, **relaunch the clone, not
 the gateway**. The cookie store is merged row by row, newest `last_update_utc`
 wins, so a relaunch keeps the clone's freshly rotated tokens (local patch;
-schema drift falls back to overwrite). Deletions do not
+schema drift falls back to overwrite). Only a completed copy of the same source
+profile is merged into; a first copy or a switch to another pinned profile
+overwrites the store, so another account's cookies never stay. Deletions do not
 propagate: a sign-out in the everyday Brave leaves the clone signed in.
 
 **The launching process must be allowed to read the everyday profile.** A cold

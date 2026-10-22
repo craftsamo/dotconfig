@@ -47,6 +47,7 @@ inventory = _load("hermes_opencode_history", _HERE / "history.py")
 preflight = _load("hermes_opencode_preflight", _HERE / "preflight.py")
 workspace = _load("hermes_opencode_workspace", _HERE / "workspace.py")
 tool_preview = _load("hermes_tool_preview", _HERE.parents[1] / "_shared" / "tool_preview.py")
+turn_env = _load("hermes_turn_env", _HERE.parents[1] / "_shared" / "turn_env.py")
 
 PROFILES = {"assistant"}
 # The tool mechanics skill reaches only the profiles that will drive OpenCode.
@@ -157,6 +158,10 @@ def _scope():
     home, owner, live, inbound = dispatch._scope()
     if home.name not in PROFILES or inbound:
         raise ValueError("OpenCode execution requires an Assistant CLI/resident or live conversation")
+    if turn_env.gateway_client_runtime() and any(home.name in targets for targets in dispatch.ROSTER.values()):
+        # Its resident turns run inside the gateway, where the reconcile-only marker never arrives.
+        raise ValueError("This profile is a specialist target, and this runtime cannot tell a reconcile "
+                         "turn apart; OpenCode is refused")
     # A CLI/resident caller has no route that outlives its session, so it stays
     # bound to the session id that specialist-call derives.
     return home, (_topic_owner(home) if live else owner), live
@@ -509,7 +514,7 @@ def opencode_run(role_name, args, **kwargs):
         allowed = RUN_ARGS | (WRITE_ARGS if role["policy"] == "write" else set())
         if set(args) - allowed:
             raise ValueError("Unexpected arguments; identity, executable and permissions are runtime-owned")
-        if os.environ.get("RESIDENT_TURN_KIND") == "reconcile":
+        if turn_env.value("RESIDENT_TURN_KIND") == "reconcile":
             raise ValueError("This resident turn is reconcile-only; inspect and stop, never execute OpenCode")
         message = args.get("message")
         if not isinstance(message, str) or not message.strip() or len(message) > MESSAGE_LIMIT:
@@ -668,7 +673,7 @@ def opencode_session(args, **kwargs):
                       sid=new)
             return json.dumps({"session_id": new, "forked_from": sid, "role": meta.get("role")})
         if action == "workspace":
-            if os.environ.get("RESIDENT_TURN_KIND") == "reconcile":
+            if turn_env.value("RESIDENT_TURN_KIND") == "reconcile":
                 raise ValueError("This resident turn is reconcile-only; inspect and stop, never change a session")
             with _starting(home, policy.worktree(turn.directory_of(info))):
                 return json.dumps(workspace.create(sid=sid, info=info, meta=meta, args=args,
