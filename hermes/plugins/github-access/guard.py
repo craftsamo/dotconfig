@@ -1,13 +1,13 @@
 """github-access: block the Assistant's ways around the tools.
 
 A terminal ``gh`` command that makes a change ``github_change`` offers (``TOOL_WRITES``: issues,
-boards, labels, repositories), reaches the API directly, prints the login's token (which ``curl``
+boards, labels, repositories, pull requests), reaches the API directly, prints the login's token (which ``curl``
 could then use) or defines an alias or extension (which could hide any of those) would skip the
 card and the tiers, so the hook blocks it, also when it is wrapped in quotes. So is a write the
 Assistant never makes at all (``NEVER``: secrets and variables, gists, deleting, renaming or
-forking a repository, deploy, SSH and GPG keys, deleting releases, runs and caches), with a
-message that says so. Reading through ``gh`` (``gh issue view``, ``gh project list``, ``gh repo
-view``, ``gh pr``) stays open. File and terminal calls that touch the plugin's state directory are
+forking a repository, deploy, SSH and GPG keys, deleting releases, runs and caches, reviewing a
+pull request), with a message that says so. Reading through ``gh`` (``gh issue view``, ``gh
+project list``, ``gh repo view``, ``gh pr view``, ``gh pr checks``) stays open. File and terminal calls that touch the plugin's state directory are
 blocked too (mandate.py keeps its records there).
 """
 
@@ -22,9 +22,10 @@ ISSUE_WRITES = {"create", "new", "edit", "comment", "close", "reopen", "delete",
 PROJECT_READS = {"list", "ls", "view", "item-list", "field-list"}
 LABEL_WRITES = {"create", "edit", "delete", "clone"}
 REPO_WRITES = {"create", "new", "edit", "archive", "unarchive"}
+PR_WRITES = {"create", "new", "edit", "comment", "close", "reopen", "ready", "merge"}
 # gh group -> the subcommands github_change makes on a card (a gh project command is a write unless
 # it is one of PROJECT_READS).
-TOOL_WRITES = {"issue": ISSUE_WRITES, "label": LABEL_WRITES, "repo": REPO_WRITES}
+TOOL_WRITES = {"issue": ISSUE_WRITES, "label": LABEL_WRITES, "repo": REPO_WRITES, "pr": PR_WRITES}
 # gh group -> the subcommands no tool offers and the Assistant never runs: they hold or reveal
 # credentials, publish outside a repository, or destroy or move what others rely on.
 NEVER = {
@@ -37,6 +38,8 @@ NEVER = {
     "release": {"delete", "delete-asset"},
     "run": {"delete"},
     "cache": {"delete"},
+    # A review is the user's own judgement under their name; the rest no tool offers.
+    "pr": {"review", "revert", "lock", "unlock", "update-branch"},
 }
 FILE_TOOLS = {"read_file", "write_file", "patch", "search_files"}
 STATE_NAME = "github-access"
@@ -46,12 +49,13 @@ STATE_NAME = "github-access"
 _STATE = re.compile(r"(?<!plugins/)(?<![\w.-])github-access(?:/|\s|['\"]|$)", re.IGNORECASE)
 _SEPARATOR = re.compile(r"[;&|\n()`]|\$\(")
 
-MESSAGE = ("Blocked: GitHub changes (issues, boards, labels, repositories) go only through github_change, "
-           "where the user approves on a card; read them with github_issue, github_board and github_repo. "
-           "Nothing was run.")
+MESSAGE = ("Blocked: GitHub changes (issues, boards, labels, repositories, pull requests) go only through "
+           "github_change, where the user approves on a card; read them with github_issue, github_board, "
+           "github_repo and github_pr. Nothing was run.")
 NEVER_MESSAGE = ("Blocked: the Assistant never does this on GitHub (secrets and variables, gists, deleting, "
-                 "renaming or forking a repository, deploy, SSH or GPG keys, deleting releases, runs or caches). "
-                 "Tell the user what to do, and they do it themselves. Nothing was run.")
+                 "renaming or forking a repository, deploy, SSH or GPG keys, deleting releases, runs or caches, "
+                 "reviewing, reverting, locking or updating a pull request). Tell the user what to do, and they do "
+                 "it themselves. Nothing was run.")
 
 
 def _segments(command: str):

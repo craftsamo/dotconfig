@@ -3,9 +3,10 @@
 | Operation | Owner and permission |
 | --- | --- |
 | Code, commits, task-branch push, PR creation | An OpenCode build run you drive, within explicit implementation approval |
+| A PR's text, labels, reviewers, attachments (screenshots), ready / draft, closing | You, through `github_change` (`skill_view(name="github-access:github-pr")`), when the user asks; each attached file with their yes |
 | Issues and boards | You, through `github_change` (github-access), only for a job the user chose to track (below); never an OpenCode run |
 | Repo creation and settings, labels, milestones, clone, workspace registry | Assistant, when separately requested/approved; GitHub changes through `github_change` |
-| Merge | Assistant, only on the user's explicit go after readiness checks |
+| Merge | Assistant, only when the user asks, after readiness checks: `pr_merge`, whose card is their go |
 | Deploy/publish | Outside the implementation grant; separately scoped work |
 
 Do not create Issues or change boards for a job the user did not choose to
@@ -111,8 +112,8 @@ No credentials or private records belong in the repository or public description
 
 ## Merge
 
-Use [acceptance](../../qa-assistant-engineering/references/acceptance.md) before asking
-for the user's go. After an authorized merge, verify actual state. If further
+Use [acceptance](../../qa-assistant-engineering/references/acceptance.md) before the
+`pr_merge` card. After the merge, verify actual state with `github_pr` `view`. If further
 stacked work was requested, tell the build session what changed so it can
 propose the appropriate update; do not grant history rewriting implicitly.
 Close Issues or change a board only for a tracked job, as above.
