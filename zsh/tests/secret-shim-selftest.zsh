@@ -216,6 +216,23 @@ err=$( cd "$R" && path=("$TD/bin" $path) && SECRET_SHIM_MODE=project SECRET_STAG
   && ok "tool: a stage never reaches a tool" || bad "tool: a stage never reaches a tool"
 [[ "$(SECRET_STAGE=prod tool_run SECRET_STAGE)" == 'prod' ]] \
   && ok "tool: SECRET_STAGE itself still passes through" || bad "tool: SECRET_STAGE itself still passes through"
+# dotenv skipping follows the stage: with none, every .env* counts (the
+# application may read any of them); with SECRET_STAGE=S only .env,
+# .env.local and .env.S{,.local} do — another stage's file never keeps the
+# asked-for stage's value out
+printf 'A_ONLY=fromtest\n' > "$R/.env.test"
+printf 'P_ONLY=fromprod\n' > "$R/.env.production"
+[[ -z "$(penv $R A_ONLY)" && -z "$(penv $R P_ONLY)" ]] \
+  && ok "dotenv: no stage, every stage file's names are skipped" || bad "dotenv: no stage, every stage file's names are skipped"
+[[ "$(SECRET_STAGE=prod penv $R A_ONLY)" == 'kc-a-prod' ]] \
+  && ok "dotenv: another stage's file does not keep the stage's value out" || bad "dotenv: another stage's file does not keep the stage's value out"
+[[ -z "$(SECRET_STAGE=prod penv $R P_ONLY)" ]] \
+  && ok "dotenv: the stage's own file is still respected" || bad "dotenv: the stage's own file is still respected"
+[[ -z "$(SECRET_STAGE=production penv $R P_ONLY)" && "$(SECRET_STAGE=production penv $R A_ONLY)" == 'kc-a' ]] \
+  && ok "dotenv: 'production' reads .env.production too" || bad "dotenv: 'production' reads .env.production too"
+[[ -z "$(SECRET_STAGE=test penv $R A_ONLY)" && -z "$(SECRET_STAGE=prod penv $R B_DOTENV)" ]] \
+  && ok "dotenv: .env and the stage's file are skipped under a stage" || bad "dotenv: .env and the stage's file are skipped under a stage"
+rm -f "$R/.env.test" "$R/.env.production"
 
 # --- mode table -----------------------------------------------------------
 # real command names must select their mode without SECRET_SHIM_MODE

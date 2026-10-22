@@ -206,7 +206,10 @@ the agent when a per-repo override must take effect.
 4. Is the Keychain unlocked? `secret keychain master status`.
 5. Does the value exist? `secret env -p <project>` lists it and prompts.
 6. Is the name already in env, causing a collision skip, or present as a `.env`
-   name, causing dotenv skip?
+   name, causing dotenv skip? Under `SECRET_STAGE=S` only `.env`, `.env.local`
+   and `.env.S{,.local}` cause that skip (`prod` reads `.env.production`,
+   `dev` `.env.development`);
+   with no stage, every `.env.{development,production,test}{,.local}` does.
 7. Is the value stored under a stage (an `@stage` group in `secret ls --long`, or
    `NAME@stage` in `secret ls`) while `SECRET_STAGE` is unset or names another
    stage? Staged values are injected only for their own stage.
