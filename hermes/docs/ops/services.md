@@ -26,8 +26,11 @@ name instead of "Python".
 `launchd/gateway-launchctl.sh {install,restart,status,uninstall}` manages the
 multiplex gateway (`ai.hermes.multiplex`), **one host only** (one bot token = one
 live connection). **Restart = `restart`** (or `/restart` in chat): SIGUSR1, the
-gateway's planned restart — it drains, marks interrupted turns to resume, exits
-75 and launchd relaunches it. `install` re-renders the plist and takes the same
+gateway's planned restart — it lets running turns finish (up to
+`agent.restart_after_turn_timeout`), drains the rest, marks interrupted turns to
+resume, exits 75 and launchd relaunches it. The launcher waits that whole window
+and never forces the stop (the budget: [operations.md](../operations.md)
+"Gateway as a persistent service"). `install` re-renders the plist and takes the same
 path when nothing changed; only a changed plist is reloaded, which SIGTERMs the
 gateway as an unplanned stop. **Stop = `uninstall`**. **Never** run `hermes gateway run`
 or `restart` in a terminal while it is loaded — a second poller causes Telegram
