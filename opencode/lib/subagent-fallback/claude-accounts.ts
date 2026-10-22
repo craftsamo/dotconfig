@@ -1,3 +1,4 @@
+import type { Subscription } from "./accounts"
 import { longestSuffix, OAUTH_PROVIDER } from "./lanes"
 import { METHODS, type ModelRef } from "./policy"
 
@@ -78,7 +79,7 @@ export function accountOf(
 export async function login(
   ctx: ClaudeAccountsContext,
   account: ClaudeAccount,
-): Promise<{ connectionID: string; access: string }> {
+): Promise<{ connectionID: string; access: string; methodID: string }> {
   if (account.label === "")
     throw new AccountError(
       `claudeAccounts gives the "${account.suffix}" models no login label`,
@@ -110,7 +111,29 @@ export async function login(
     throw new AccountError(
       `the login labelled "${account.label}" is not a Claude Pro/Max login`,
     )
-  return { connectionID: matches[0].id!, access: credential.access }
+  return {
+    connectionID: matches[0].id!,
+    access: credential.access,
+    methodID: credential.methodID!,
+  }
+}
+
+// A saved login as the subscription the launch selector and the transport
+// guards check, like accounts.ts gives the active one.
+export async function loginSubscription(
+  ctx: ClaudeAccountsContext,
+  account: ClaudeAccount,
+): Promise<Subscription> {
+  const { connectionID, access, methodID } = await login(ctx, account)
+  return {
+    proof: {
+      connectionID,
+      providerID: OAUTH_PROVIDER,
+      methodID,
+      type: "oauth",
+    },
+    access,
+  }
 }
 
 // The beta flag the Claude login plugin adds to every request it rewrites;
