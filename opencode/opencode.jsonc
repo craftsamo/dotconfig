@@ -37,6 +37,8 @@
         // (`opencode auth list`). An alias model of the anthropic provider
         // (see providers below) runs on the login its suffix names; the plain
         // models run on the active login. Applies with enabled: false too.
+        // On a limit a session reaches these last, after the subscription
+        // and the credit lanes, in the order listed.
         "claudeAccounts": {
           "sub": "Sub OAuth"
         }
