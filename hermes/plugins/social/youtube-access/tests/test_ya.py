@@ -716,10 +716,16 @@ def test_video_edits_share_one_key_per_video(tmp_path):
     thumb = ya.approval_request({"action": "thumbnail", "video": VID, "path": str(image)}, profile="assistant",
                                 lookup=False)
     assert one[1] == two[1] == thumb[1] == f"youtube-access:edit:{CID}:{VID}"
-    assert "title → A" in one[0] and "YouTube: Chan 0" in one[0]
+    assert one[0] == ("YouTube · Edit a video\n⚠️ Viewers see the changes at once\nChannel: Chan 0\n"
+                      f"Video: {VID}\n\n--- Changes ---\ntitle → A")
+    assert thumb[0].startswith("YouTube · Set a thumbnail\n⚠️ Viewers see it at once\n") and "\nImage: " in thumb[0]
     public = ya.approval_request({"action": "update", "video": VID, "privacy": "public"}, profile="assistant",
                                  lookup=False)
     assert public[1].startswith("youtube-access:update:") and "privacy → PUBLIC" in public[0]
+    assert public[0].split("\n")[1] == "⚠️ Public at once"
+    private = ya.approval_request({"action": "update", "video": VID, "privacy": "private"}, profile="assistant",
+                                  lookup=False)
+    assert private[0].split("\n")[1] == "✅ Private: only you see it"
 
 
 def test_other_writes_key_the_exact_call(tmp_path):
@@ -734,13 +740,18 @@ def test_other_writes_key_the_exact_call(tmp_path):
     keys = set()
     for args in calls:
         reason, key = ya.approval_request(args, profile="assistant", lookup=False)
-        assert key.startswith(f"youtube-access:{args['action']}:") and ya._units(reason) <= ya.CARD_LIMIT
+        assert key.startswith(f"youtube-access:{args['action']}:") and ya.cards.units(reason) <= ya.cards.BUDGET
+        assert reason.startswith("YouTube · ") and "\nChannel: Chan 0" in reason
         keys.add(key)
     assert len(keys) == len(calls)
     first = ya.approval_request(calls[1], profile="assistant", lookup=False)
     movie.write_bytes(b"y" * 200)
     second = ya.approval_request(calls[1], profile="assistant", lookup=False)
-    assert first[1] != second[1] and "PRIVATE" in second[0]
+    assert first[1] != second[1] and second[0].split("\n")[1] == "✅ Private: only you see it"
+    reply = ya.approval_request(calls[0], profile="assistant", lookup=False)[0]
+    assert reply.split("\n")[1] == "⚠️ Public at once" and reply.endswith("\n--- Reply ---\nthanks!")
+    removed = ya.approval_request(calls[4], profile="assistant", lookup=False)[0]
+    assert removed.split("\n")[1] == "✅ The video itself is not deleted"
 
 
 def test_new_writes_key_the_exact_call(tmp_path, monkeypatch):
@@ -763,12 +774,18 @@ def test_new_writes_key_the_exact_call(tmp_path, monkeypatch):
     keys = set()
     for args in calls:
         reason, key = ya.approval_request(args, profile="assistant", lookup=False)
-        assert key.startswith(f"youtube-access:{args['action']}:") and ya._units(reason) <= ya.CARD_LIMIT
+        assert key.startswith(f"youtube-access:{args['action']}:") and ya.cards.units(reason) <= ya.cards.BUDGET
         keys.add(key)
     assert len(keys) == len(calls)
     card = ya.approval_request(calls[0], profile="assistant", lookup=False)[0]
-    assert "Edit channel settings" in card and "made for kids → YES" in card and "…and 3 more" in card
-    assert "BAN" in ya.approval_request(calls[5], profile="assistant", lookup=False)[0]
+    assert card.startswith("YouTube · Edit channel settings\n🚨 Marks the whole channel made for kids\n")
+    assert "made for kids → YES" in card and "…and 3 more" in card
+    ban = ya.approval_request(calls[5], profile="assistant", lookup=False)[0]
+    assert ban.startswith("YouTube · Reject (hide) 1 comment\n🚨 BANS the author from the channel's comments; "
+                          "hidden for good, replies too\n")
+    hold = ya.approval_request({**calls[5], "moderation": "hold", "ban_author": False}, profile="assistant",
+                               lookup=False)[0]
+    assert hold.split("\n")[1] == "✅ Held until you review it"
     first = ya.approval_request(calls[6], profile="assistant", lookup=False)[1]
     srt.write_text("1\n00:00:00,000 --> 00:00:01,000\nchanged\n")
     assert ya.approval_request(calls[6], profile="assistant", lookup=False)[1] != first
@@ -803,7 +820,21 @@ def test_cards_stay_short():
     authorize(CID)
     reason, _ = ya.approval_request({"action": "update", "video": VID, "title": "T" * 100, "description": "D" * 5000,
                                      "tags": ["tag"] * 50}, profile="assistant", lookup=False)
-    assert ya._units(reason) <= ya.CARD_LIMIT
+    assert ya.cards.units(reason) <= ya.cards.BUDGET and "title → " in reason and "tags → " in reason
+
+
+def test_cards_fit_discord_or_are_refused(monkeypatch):
+    authorize(CID)
+    monkeypatch.setattr(ya.cards, "platform", lambda: "discord")
+    reason, _ = ya.approval_request({"action": "update", "video": VID, "title": "T" * 100, "description": "D" * 5000,
+                                     "tags": ["tag"] * 50}, profile="assistant", lookup=False)
+    assert ya.cards.units(reason) <= ya.cards.COMPACT_BUDGET and "tags → " in reason
+    with pytest.raises(ya.YouTubeError, match="change fewer things"):
+        ya.approval_request({"action": "channel_update", "description": "D" * 1000, "keywords": ["k"] * 200,
+                             "localizations": {lang: {"title": "T" * 100, "description": "x" * 900}
+                                               for lang in ("en", "fr", "de", "es", "it", "pt")},
+                             "made_for_kids": True, "country": "JP", "language": "ja"},
+                            profile="assistant", lookup=False)
 
 
 def test_files_only_from_the_attach_roots(tmp_path):
