@@ -458,7 +458,8 @@ last, after quota, and trust no other later request mutator.
 Options: `enabled: true`, `creditsLastResort: true`, `pinModels: true` (default
 off), and for the credit lanes
 below `creditLanes` (ordered provider IDs), `creditCooldownMs` (default one
-hour) and `primaryFallback` (default on). The independent usage reader, billing parser and usage-diagnostic RPCs have been
+hour) and `primaryFallback` (default on); for a second Claude login,
+`claudeAccounts` ("Claude accounts" below). The independent usage reader, billing parser and usage-diagnostic RPCs have been
 removed. Tests use synthetic public exports and mocked OpenCode transports;
 they do not probe providers or establish real billing/entitlement behavior.
 
@@ -586,6 +587,67 @@ Quota's own `local-estimate` mode was tried and dropped: it re-reads the whole
 25 GB history database on every refresh (about a minute), which stalled the
 service into a restart loop.
 
+## Claude accounts
+
+OpenCode sends an integration's requests with its one active login
+(`opencode auth switch` changes it for every session at once), and the Claude
+login plugin rewrites requests of provider `anthropic` only, so a second Claude
+Pro/Max login cannot be a provider of its own the way a credit lane is. The
+same plugin (`lib/subagent-fallback`) reaches it through alias models instead:
+
+- `providers.anthropic.models` in `opencode.jsonc` defines
+  `claude-<model>-sub` for Fable, Opus, Sonnet and Haiku, each with `modelID`
+  set to the real model: it sends the real model ID and inherits its variants,
+  limits and prices. `/models` lists them as "Claude Opus 5.5 (Sub OAuth)" and
+  so on.
+- The option `claudeAccounts` maps a model-ID suffix to the label of a saved
+  login (`{ "sub": "Sub OAuth" }`). A request on an alias model leaves with
+  that login's token in place of the active one's; the plain models keep the
+  active login. The side requests of a session on an alias model (compaction
+  on the compaction agent's Haiku, a title on a Claude model) follow the
+  session's model, so it never draws on the active login's window; warming
+  sends the session's own model. A session with no stored model (on the
+  default model) follows its last own request instead, so an alias is not
+  meant as the default `model`.
+- The token is swapped after the login plugin rewrote the request (this
+  plugin is the last config entry, and hooks run in load order), and only the
+  `authorization` header changes, in place: the login plugin restores tool
+  names in the response by the identity of that request. The body it builds
+  does not depend on the account.
+- Anything unexpected stops the request rather than sending it on the active
+  login: an entry with no label, no saved login with that label or two, a
+  login that is not Claude Pro/Max, a host other than `api.anthropic.com`, a
+  request the login plugin did not rewrite (no bearer token or no
+  `oauth-2025-04-20` beta flag), or a release missing from
+  `SUPPORTED_VERSIONS`. An option that is not a map stops every Claude
+  subscription request until it is fixed: no alias can be told apart then.
+  None of this depends on `enabled`.
+- Choosing is manual: pick the alias model in `/models`. Protected children
+  keep the active login.
+
+To add a login, run `opencode auth login anthropic --method claude-max` from a
+browser signed into that account. A new login becomes the active one: switch
+back right away (`opencode auth switch anthropic "Main OAuth"`), then give the
+new login the label the option names, from the TUI's account list or with
+`opencode api patch /api/credential/<credential id> --data
+'{"label":"Sub OAuth"}'` (`opencode auth list --format json` shows the ID). The
+labels are opaque; which account each one is lives in the private overlay.
+Quota shows every saved login, as `[Claude Main OAuth] (active)` and
+`[Claude Sub OAuth]`; it has no setting to rename the `Claude` prefix.
+
+Limits:
+
+- The login plugin's 429 diagnostics name the active login for an alias
+  request: it records the connection before the swap.
+- The swap relies on how the login plugin tracks requests: after bumping it,
+  run a tool call on an alias model end to end.
+- A window limit on an alias model does not move the session to a credit
+  lane: the lanes carry only the plain models.
+- Stateless generation (`ctx.generate`) runs no session hooks, so an alias
+  there gets neither the login plugin's rewrite nor the swap.
+- Moving a session between logins starts a new prompt cache ("Prompt cache"
+  below).
+
 ## Prompt cache
 
 Anthropic's cache lives five minutes from its last use, per workspace, and a
@@ -618,8 +680,10 @@ A move to a credit lane (see above) therefore pays one full write.
   so the three logins are independent even where two of them are the same
   account. Log in from a browser signed into the account OpenCode should use:
   `opencode auth login anthropic --method claude-max`. Several accounts can be
-  saved; one is active at a time (`opencode auth switch`), there is no
-  rotation. Which account that is lives in the private overlay.
+  saved; one is active at a time (`opencode auth switch`, label `Main OAuth`),
+  and another is reached through alias models (label `Sub OAuth`, see "Claude
+  accounts"); there is no rotation. Which account each is lives in the private
+  overlay.
 - **Anthropic Console credit lanes**: the monthly API credits that Max plans
   grant (one Console org per plan, spent before any purchased balance and lost
   at the end of the billing cycle). They work only through an API key, never
