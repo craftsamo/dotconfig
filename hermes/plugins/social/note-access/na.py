@@ -19,7 +19,6 @@ from contextlib import contextmanager
 from datetime import datetime, timezone
 import fcntl
 import hashlib
-import html
 import http.client
 import json
 import os
@@ -52,6 +51,7 @@ def _load_sibling(name: str, filename: str):
 
 
 fmt = _load_sibling("hermes_note_access_format", "notefmt.py")
+cards = _load_sibling("hermes_card", HERE.parents[1] / "_shared" / "card.py")
 
 READS = ("status", "search", "articles", "article", "creator", "comments", "hashtag", "drafts", "draft", "stats")
 OFFLINE = ("check",)          # never contacts note
@@ -101,9 +101,7 @@ EXT = {"image/jpeg": "jpg", "image/png": "png", "image/gif": "gif", "image/webp"
 ASSET = re.compile(r"^https://assets\.st-note\.com/img/[A-Za-z0-9._-]+$")
 S3_HOST = re.compile(r"^[a-z0-9][a-z0-9.-]*\.s3[.-](?:[a-z0-9-]+\.)?amazonaws\.com$")
 
-CARD_LIMIT = 480             # what Telegram shows of an approval reason (as for the other *-access tools)
-CARD_TEXT_MIN = 60
-MORE = "(+{n} more characters)"
+CARD_TEXT_MIN = 60           # room the Markdown keeps on the approval card
 APPROVAL_TTL = 900
 SUSPICIOUS = re.compile(r"[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f\u200b-\u200f\u202a-\u202e\u2066-\u2069\ufeff]")
 
@@ -1076,10 +1074,6 @@ def rule_key(plan: dict) -> str:
     return f"note-access:{plan['action']}:{digest}"
 
 
-def _units(text: str) -> int:
-    return len(html.escape(text).encode("utf-16-le")) // 2
-
-
 def _short(text, limit: int) -> str:
     text = visible(" ".join(str(text or "").split()))
     return text if len(text) <= limit else text[:limit - 1].rstrip() + "…"
@@ -1091,17 +1085,17 @@ def _file_line(f: dict) -> str:
     return f"- {_short(f['name'], 32)} {f['width']}×{f['height']} {_human(f['size'])}{where}, sha256 {f['sha256'][:12]}"
 
 
-def _card_head(plan: dict, title_limit: int, now_limits: tuple[int, int], list_files: bool) -> str:
-    account = f" as @{plan['account']}" if plan.get("account") else ""
-    if plan["action"] == "create_draft":
-        head = [f"note: new draft{account}"]
-    else:
-        head = [f"note: replace draft {plan['key']}{account}"]
-        now = plan["now"] or {}
-        head.append(f"Now: {_short(now.get('title') or '(untitled)', now_limits[0])} — "
-                    f"{_short(now.get('text'), now_limits[1]) or '(empty)'}")
-    head.append(f"Title: {_short(plan['title'], title_limit)}")
+def _card_at(plan: dict, title_limit: int, now_limits: tuple[int, int], list_files: bool) -> str:
+    """The card with its title and the draft's current text clipped to these limits, and the new
+    images listed one a line or counted under one combined fingerprint; CardError when it does not fit."""
     files = plan["files"]
+    if plan["action"] == "create_draft":
+        action, now = "Save a new draft", None
+    else:
+        action = f"Replace draft {plan['key']}"
+        current = plan["now"] or {}
+        now = (f"{_short(current.get('title') or '(untitled)', now_limits[0])} — "
+               f"{_short(current.get('text'), now_limits[1]) or '(empty)'}")
     parts = [f"{len(plan['markdown'])} characters"]
     if files:
         parts.append(f"{len(files)} new image{'s' if len(files) > 1 else ''} ({_human(sum(f['size'] for f in files))})")
@@ -1110,58 +1104,53 @@ def _card_head(plan: dict, title_limit: int, now_limits: tuple[int, int], list_f
         kept = [f"{kept_images} image{'s' if kept_images != 1 else ''}"] if kept_images else []
         kept += [f"{kept_blocks} embed/file block{'s' if kept_blocks != 1 else ''}"] if kept_blocks else []
         parts.append("keeps " + " and ".join(kept))
-    head.append("Body: " + ", ".join(parts))
+    cover = plan["cover"]
+    facts = [("Account", f"@{plan['account']}" if plan.get("account") else None), ("Now", now),
+             ("Title", _short(plan["title"], title_limit)), ("Body", ", ".join(parts)),
+             ("Cover", f"{_short(cover['name'], 32)} {cover['width']}×{cover['height']} {_human(cover['size'])} "
+                       f"(fitted to 1280:670), sha256 {cover['sha256'][:12]}" if cover else None)]
     if files and list_files:
-        head += [_file_line(f) for f in files]
+        images = [_file_line(f) for f in files]
     elif files:
         combined = hashlib.sha256("".join(f["sha256"] for f in files).encode()).hexdigest()[:12]
-        head.append(f"- images named in the body; combined sha256 {combined}")
-    cover = plan["cover"]
-    if cover:
-        head.append(f"Cover: {_short(cover['name'], 32)} {cover['width']}×{cover['height']} {_human(cover['size'])} "
-                    f"(fitted to 1280:670), sha256 {cover['sha256'][:12]}")
-    return "\n".join(head + [""]) + "\n"
+        images = [f"- named in the body; combined sha256 {combined}"]
+    else:
+        images = []
+    effect = ((cards.SAFE, "Draft only; nothing is published") if plan["action"] == "create_draft"
+              else (cards.CAUTION, "Replaces the whole draft; nothing is published"))
+    return cards.compose("note", action, effect, facts, sections=[("New images", images)],
+                         text=plan["markdown"].strip() or None, text_label="Body", text_min=CARD_TEXT_MIN)
 
 
 def card(plan: dict) -> str:
-    """Plain lines, then the start of the Markdown:
+    """The shared card shape (plugins/_shared/card.py), then the start of the Markdown:
 
-        note: new draft as @name                 |  note: replace draft n… as @name
+        note · Save a new draft                  |  note · Replace draft n…
+        ✅ Draft only; nothing is published      |  ⚠️ Replaces the whole draft; nothing is published
+        Account: @name
                                                  |  Now: <current title> — <current text>
         Title: <title>
-        Body: 1,234 characters, 2 new images (1.3 MB), keeps 1 image and 1 embed
-        - photo.jpg 1200×800 1.0 MB in trip, sha256 1a2b3c4d5e6f
+        Body: 1234 characters, 2 new images (1.3 MB), keeps 1 image and 1 embed/file block
         Cover: cover.png 1280×670 300.0 KB (fitted to 1280:670), sha256 …
 
+        --- New images ---
+        - photo.jpg 1200×800 1.0 MB in trip, sha256 1a2b3c4d5e6f
+
+        --- Body ---
         <markdown…>
         (+N more characters)
 
-    Everything above the text always fits within CARD_LIMIT (measured as Telegram escapes it):
-    long titles and the current text are shortened first, then the images are counted with one
-    combined fingerprint; a save whose card still cannot fit is refused."""
-    prefix = None
+    Everything above the text always fits: long titles and the current text are shortened first,
+    then the images are counted with one combined fingerprint; a save whose card still cannot fit
+    is refused."""
     for list_files in (True, False):
         for title_limit, now_limits in ((80, (40, 50)), (40, (24, 24)), (20, (12, 12))):
-            candidate = _card_head(plan, title_limit, now_limits, list_files)
-            if _units(candidate) <= CARD_LIMIT - CARD_TEXT_MIN:
-                prefix = candidate
-                break
-        if prefix:
-            break
-    if prefix is None:
-        raise NoteError("the approval card cannot show this save in full; use a shorter title or file names, or "
-                        "fewer new images per save")
-    text = visible(plan["markdown"].strip())
-    if _units(prefix + text) <= CARD_LIMIT:
-        return prefix + text
-    lo, hi = 0, len(text)
-    while lo < hi:
-        mid = (lo + hi + 1) // 2
-        if _units(prefix + text[:mid].rstrip() + "…\n" + MORE.format(n=len(text) - mid)) <= CARD_LIMIT:
-            lo = mid
-        else:
-            hi = mid - 1
-    return prefix + text[:lo].rstrip() + "…\n" + MORE.format(n=len(text) - lo)
+            try:
+                return _card_at(plan, title_limit, now_limits, list_files)
+            except cards.CardError:
+                continue
+    raise NoteError("the approval card cannot show this save in full; use a shorter title or file names, or "
+                    "fewer new images per save")
 
 
 # The gate's view of each write, per tool call, so execution writes exactly what the card showed.
