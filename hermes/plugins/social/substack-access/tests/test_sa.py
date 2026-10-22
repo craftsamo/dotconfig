@@ -409,7 +409,7 @@ def test_snapshot_is_shared_by_both_hooks_and_consumed_once(isolated, images):
     args = {"action": "create_draft", "title": "Hello", "markdown": f"![a]({src})"}
     ids = {"tool_call_id": "c1"}
     card, key = sa.approval_request(args, ids=ids, profile="assistant")
-    assert "Images (1): pics/a.png (8 B)" in card and "Nothing is published or emailed." in card
+    assert "--- Images (1) ---\n- pics/a.png (8 B)" in card and "nothing is published or emailed" in card
     token = sa.binding(args, ids=ids, profile="assistant")["_prepared"]
     assert [c["op"] for c in isolated.calls] == ["prepare"]
     (images / "pics" / "a.png").write_bytes(b"changed after approval")  # the copy is what goes out
@@ -481,27 +481,32 @@ def test_rule_keys_bind_the_draft_and_the_image_bytes():
 def test_cards_say_what_happens():
     publish = sa.card(sa.write_plan({"draft": "5", "send_email": True}, "publish"), draft_prepared(), [])
     assert publish.splitlines() == [
-        "Substack: PUBLISH draft 5 in CraftSamo (craftsamo.substack.com) now; this cannot be undone",
-        "Title: Old title", "Audience: everyone", "Email: sent to 12 email subscribers", "Words: 300"]
+        "Substack · Publish draft 5", "🚨 Public at once · emails 12 subscribers · cannot be undone",
+        "Publication: CraftSamo", "Title: Old title", "Audience: everyone",
+        "Email: sent to 12 email subscribers", "Words: 300", "Address: craftsamo.substack.com"]
     web = sa.card(sa.write_plan({"draft": "5", "send_email": False}, "publish"), draft_prepared(), [])
-    assert "Email: none (web only)" in web
+    assert "Email: none (web only)" in web and "\n🚨 Public at once · no email · cannot be undone\n" in web
     from datetime import datetime, timedelta, timezone
     at = (datetime.now(timezone.utc) + timedelta(days=1)).isoformat()
     sched = sa.card(sa.write_plan({"draft": "5", "at": at, "send_email": True}, "schedule"), draft_prepared(), [])
-    assert "SCHEDULE draft 5" in sched and "Email: sent at release to 12" in sched
+    assert sched.startswith("Substack · Schedule draft 5\n⚠️ Public at release · emails 12 subscribers")
+    assert "\nAt: " in sched and "Email: sent to 12 email subscribers at release" in sched
     update = sa.card(sa.write_plan({"draft": "5", "title": "New", "markdown": "body",
                                     "replace_unsupported": True}, "update_draft"),
                      draft_prepared(unsupported=2), [])
-    assert "Draft now: Old title" in update and "New title: New" in update and "Drops 2 block(s)" in update
+    assert update.startswith("Substack · Change draft 5\n⚠️ New body; nothing is published or emailed\n")
+    assert "Draft now: Old title" in update and "New title: New" in update and "Drops: 2 block(s)" in update
+    retitle = sa.card(sa.write_plan({"draft": "5", "title": "New"}, "update_draft"), draft_prepared(), [])
+    assert retitle.split("\n")[1] == "✅ Nothing is published or emailed"
     unschedule = sa.card(sa.write_plan({"draft": "5"}, "unschedule"),
                          draft_prepared(draft={"title": "", "scheduled": ["2026-10-06T00:00:00Z"]}), [])
-    assert "Title: (untitled)" in unschedule and "stays an unpublished draft" in unschedule
+    assert "Title: (untitled)" in unschedule and "\n✅ It stays an unpublished draft\n" in unschedule
 
 
 def test_long_bodies_are_clipped_to_what_telegram_shows_and_hidden_characters_shown():
     plan = sa.write_plan({"title": "T", "markdown": "word " * 500}, "create_draft")
     text = sa.card(plan, {"publication": PUB}, [])
-    assert sa._units(text) <= sa.CARD_LIMIT and "more characters)" in text
+    assert sa.cards.units(text) <= sa.cards.BUDGET and "more characters)" in text
     note = sa.card(sa.write_plan({"text": "pay here\u202e"}, "note"), {"account": {"handle": "me"}}, [])
     assert "⟨U+202E⟩" in note
 
@@ -511,19 +516,52 @@ def test_every_fact_fits_or_the_card_is_refused():
     plan = sa.write_plan({"draft": "5", "title": long, "subtitle": long, "audience": "only_paid", "markdown": "b",
                           "replace_unsupported": True}, "update_draft")
     text = sa.card(plan, draft_prepared(unsupported=1), [])
-    assert sa._units(text) <= sa.CARD_LIMIT
-    for fact in ("New audience: only_paid", "Drops 1 block(s)", "Nothing is published or emailed."):
+    assert sa.cards.units(text) <= sa.cards.BUDGET
+    for fact in ("New audience: only_paid", "Drops: 1 block(s)", "nothing is published or emailed"):
         assert fact in text
     staged = [{"shown": f"very/long/folder/name/image-{i}.png", "size": 10, "name": "x", "sha256": "s"}
               for i in range(20)]
     crowded = sa.card(sa.write_plan({"draft": "5", "title": long, "subtitle": long, "audience": "only_paid",
                                      "markdown": "word " * 400, "replace_unsupported": True}, "update_draft"),
-                      draft_prepared(unsupported=1, publication={**PUB, "name": "<&>" * 40}),
+                      draft_prepared(unsupported=1, publication={**PUB, "name": "x" * 120}),
                       staged * 3 + [{"shown": "<" * 200, "size": 1, "name": "y", "sha256": "t"}])
-    # never refused: the facts stay, the body is cut and its rest counted
-    assert sa._units(crowded) <= sa.CARD_LIMIT and "Images (61)" in crowded and "more characters)" in crowded
-    for fact in ("New audience: only_paid", "Drops 1 block(s)", "Nothing is published or emailed."):
+    # the facts stay, the body is cut and its rest counted
+    assert sa.cards.units(crowded) <= sa.cards.BUDGET and "--- Images (61) ---" in crowded and "more)" in crowded
+    assert "more characters)" in crowded
+    for fact in ("New audience: only_paid", "Drops: 1 block(s)", "nothing is published or emailed"):
         assert fact in crowded
+
+
+def test_on_discord_an_ordinary_change_still_fits(monkeypatch):
+    monkeypatch.setattr(sa.cards, "platform", lambda: "discord")
+    plan = sa.write_plan({"draft": "5", "title": "春のリリースノート：新機能のまとめ", "markdown": "本文。" * 600},
+                         "update_draft")
+    text = sa.card(plan, draft_prepared(), [])
+    assert sa.cards.units(text) <= sa.cards.COMPACT_BUDGET and "more characters)" in text
+    assert "Publication: CraftSamo" in text
+    long = sa.write_plan({"draft": "5", "title": "春のリリースノート：新機能のまとめ" * 3, "subtitle": "今月の変更点" * 5,
+                          "markdown": "本文。" * 600}, "update_draft")
+    crowded = sa.card(long, draft_prepared(), [])
+    assert "Address:" not in crowded and sa.cards.units(crowded) <= sa.cards.COMPACT_BUDGET   # the address went first
+    monkeypatch.setattr(sa.cards, "platform", lambda: "telegram")
+    full = sa.card(plan, draft_prepared(), [])
+    assert "Address: craftsamo.substack.com" in full and "Body: replaced (1800 characters)" in full
+    publish = sa.card(sa.write_plan({"draft": "5", "send_email": True}, "publish"), draft_prepared(), [])
+    assert sa.cards.units(publish) <= sa.cards.COMPACT_BUDGET and "Email: sent to 12 email subscribers" in publish
+
+
+def test_a_card_whose_facts_cannot_fit_is_refused_not_cut(monkeypatch):
+    monkeypatch.setattr(sa.cards, "platform", lambda: "discord")
+    long = "ä" * 200
+    plan = sa.write_plan({"draft": "5", "title": long, "subtitle": long, "audience": "only_paid",
+                          "markdown": "word " * 400, "replace_unsupported": True}, "update_draft")
+    prepared = draft_prepared(unsupported=1, publication={**PUB, "name": "<&>" * 40})
+    many = [{"shown": "<" * 200, "size": 1, "name": "y", "sha256": "t"}] * 61
+    with pytest.raises(sa.SubstackError, match="Discord chat shows a shorter card"):
+        sa.card(plan, prepared, many)
+    monkeypatch.setattr(sa.cards, "platform", lambda: "telegram")
+    text = sa.card(plan, prepared, many)          # Telegram's longer card holds it, the address left out
+    assert sa.cards.units(text) <= sa.cards.BUDGET and "Address:" not in text and "Drops: 1 block(s)" in text
 
 
 def test_a_card_that_cannot_be_shown_leaves_nothing_to_bind(isolated, monkeypatch):
