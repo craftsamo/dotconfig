@@ -54,6 +54,7 @@ PUBLIC_PYTEST_FILES = (
     "hermes/scripts/tests/test_searcher_reliability.py",
     "hermes/scripts/tests/test_validate_profile_skills.py",
     "hermes/scripts/tests/test_work_continuity.py",
+    "hermes/scripts/tests/test_resident_turn.py",
     "hermes/scripts/tests/test_researcher_entries.py",
     "hermes/scripts/tests/test_audio_creator_routing.py",
     "hermes/plugins/image_gen/image-fallback/tests/test_plugin.py",
@@ -77,6 +78,10 @@ RUNTIME_PYTEST_FILES = (
     "tests/gateway/test_dm_topics.py",
     "tests/gateway/test_auto_voice_reply_format.py",
     "tests/pm/test_runtime_journal_safety.py",
+    # The gateway's client wire contract resident-turn.py speaks (prompt.submit / receipt / interrupt).
+    "tests/gateway/test_canonical_wire_contract.py",
+    "tests/gateway/test_session_authority_cancel_settlement.py",
+    "tests/hermes_cli/test_gateway_agent.py",
 )
 
 ASSISTANT_PIPELINE = "hermes/profiles/assistant/skills/assistant-pipeline"

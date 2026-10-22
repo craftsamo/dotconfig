@@ -98,10 +98,12 @@ TURN_TIMEOUT = 5400
 BUSY = {"accepted", "running", "unknown"}
 # Work a runner may still be executing; everything else is settled for waiting.
 ACTIVE = {"accepted", "running"}
-# Runner: the shell gets KILL_GRACE (10 s) to let the CLI flush and report its
-# session id, then the whole group is killed. Cancel waits a little longer than that.
-STOP_GRACE = 15
-CANCEL_WAIT = 25
+# Runner: on a stop the shell gives its turn client KILL_GRACE (20 s) to interrupt the
+# turn inside the gateway and come back with the receipt's verdict, then kills the group.
+# The stop waits past that, and cancel a little longer still.
+KILL_GRACE = 20
+STOP_GRACE = 30
+CANCEL_WAIT = 40
 WAIT_POLL = 1.0
 MAX_ACTIVE = 4
 DEFAULT_TOOL_TIMEOUT = 420
@@ -398,9 +400,10 @@ def _group_alive(pgid):
 def _child_env(home, deadline=None, turn_kind=None):
     # Keep provider credentials, but NEVER inherit the multiplex caller or script tunables.
     env = {k: v for k, v in os.environ.items() if not k.startswith(("HERMES_", "RESIDENT_"))
-           and k not in {"HERMES", "TURN_TIMEOUT", "POLL_INTERVAL", "KILL_GRACE", "LOCK_STALE_AFTER"}}
+           and k not in {"HERMES", "HERMES_PYTHON", "RESIDENT_TURN", "TURN_TIMEOUT", "POLL_INTERVAL",
+                         "KILL_GRACE", "LOCK_STALE_AFTER"}}
     env.update(RESIDENT_SESSION_DIR=str(home / "resident-sessions"),
-               TURN_TIMEOUT=str(TURN_TIMEOUT), POLL_INTERVAL="1", KILL_GRACE="10")
+               TURN_TIMEOUT=str(TURN_TIMEOUT), POLL_INTERVAL="1", KILL_GRACE=str(KILL_GRACE))
     if deadline is not None:
         env["RESIDENT_DEADLINE"] = str(deadline)
     if turn_kind == "reconcile":
@@ -410,10 +413,11 @@ def _child_env(home, deadline=None, turn_kind=None):
 
 
 def _stop_resident(home, proc, data, source):
-    """Cancel this runner's own turn. Only the shell is signalled: it TERMs the CLI once,
-    gives it KILL_GRACE to flush its transcript and report the session id, and records
-    both. Whatever is left of the group is then killed. `cancelled` needs that group
-    confirmed gone; anything less stays `unknown`."""
+    """Cancel this runner's own turn. Only the shell is signalled: it TERMs its turn client,
+    which interrupts the turn inside the gateway and exits 143 only once the gateway's
+    receipt confirms the stop; the shell passes that verdict on. Whatever is left of the
+    group is then killed. `cancelled` needs that 143 and the group confirmed gone; anything
+    less stays `unknown`."""
     requested = time.time()
     with contextlib.suppress(ProcessLookupError):
         os.kill(proc.pid, signal.SIGTERM)
@@ -439,12 +443,12 @@ def _stop_resident(home, proc, data, source):
                     error="Cancel requested but the resident process group was not confirmed stopped; "
                           "inspect and reconcile, never resend")
         return
-    if turn_env.gateway_client_runtime():
-        # The CLI was only the gateway's client: the turn runs inside the gateway, and the
-        # group being gone says nothing about it. The shell's lock stays as reconcile evidence.
+    if proc.returncode != 143:
+        # The group is gone, but the turn runs inside the gateway: only the client's 143 says
+        # the gateway confirmed the stop. The shell's lock stays as reconcile evidence.
         data.update(status="unknown", result=out, exit_code=proc.returncode,
-                    error="Cancel stopped the resident client, but its turn runs inside the gateway and "
-                          "is not confirmed stopped; inspect and reconcile, never resend")
+                    error="Cancel stopped the resident client, but the gateway did not confirm the turn "
+                          "stopped; inspect and reconcile, never resend")
         return
     _drop_own_lock(home, data["conversation_id"], proc.pid)
     data.update(status="cancelled", result=out, exit_code=proc.returncode,
@@ -494,7 +498,8 @@ def _resident(home, data, message):
         while True:
             if data.get("parent_pid") and os.getppid() != data["parent_pid"]:
                 interrupted = "Originating caller exited during resident work"
-            elif time.time() >= deadline + 12:
+            elif time.time() >= deadline + KILL_GRACE + 10:
+                # Past the client's own deadline stop and the shell's backstop on it.
                 interrupted = "Resident deadline and cleanup allowance expired"
             if interrupted:
                 # This runner outlives the synchronous caller just long enough to
@@ -519,7 +524,9 @@ def _resident(home, data, message):
             except subprocess.TimeoutExpired:
                 continue
             status = "completed" if proc.returncode == 0 else "failed"
-            if proc.returncode < 0 or proc.returncode in {124, 137, 143}:
+            if proc.returncode < 0 or proc.returncode in {124, 125, 137, 143}:
+                # 124: the client stopped the turn at the deadline and the gateway confirmed it;
+                # the work in flight still has unknown effects. 125: admitted, never confirmed.
                 status = "unknown"
             data.update(status=status, result=out, error=err, exit_code=proc.returncode)
             break
