@@ -5,7 +5,11 @@ import {
   type AccountsContext,
   type Subscription,
 } from "./accounts"
-import { AccountRouter, type ClaudeAccountsContext } from "./claude-accounts"
+import {
+  AccountRouter,
+  loginSubscription,
+  type ClaudeAccountsContext,
+} from "./claude-accounts"
 import {
   dependencies,
   exportPath,
@@ -20,6 +24,7 @@ import {
   EPISODE_TTL_MS,
   Lanes,
   launchLane,
+  loginStop,
   nextModel,
   OAUTH_PROVIDER,
   SIDE_AGENTS,
@@ -152,9 +157,15 @@ type Marker = {
   model: ModelRef
   connectionID: string
   fallback: boolean
+  // The suffix of the saved Claude login the child runs on, through the
+  // alias of its model; absent on the active login.
+  login?: string
   launchChecked?: boolean
   wireChecked?: boolean
 }
+// A route model on a saved login: its alias.
+const aliasOf = (model: ModelRef, login: string | undefined): ModelRef =>
+  login === undefined ? model : { ...model, id: `${model.id}-${login}` }
 const selector = (m: ModelRef) =>
   `${m.providerID}/${m.id}${m.variant ? `#${m.variant}` : ""}`
 const fail = (reason: string): never => {
@@ -208,6 +219,8 @@ function parseMarker(session: Session): Marker | undefined {
     (raw.launchChecked !== undefined &&
       typeof raw.launchChecked !== "boolean") ||
     (raw.wireChecked !== undefined && typeof raw.wireChecked !== "boolean") ||
+    (raw.login !== undefined &&
+      (typeof raw.login !== "string" || !raw.login)) ||
     !record(raw.model) ||
     typeof raw.model.id !== "string" ||
     typeof raw.model.providerID !== "string" ||
@@ -218,11 +231,10 @@ function parseMarker(session: Session): Marker | undefined {
     fail("unapproved child role")
   const marker = raw as unknown as Marker
   const route = ROUTES[marker.agent]
+  const expected = marker.fallback ? route.alternate : route.primary
   if (
-    !modelsEqual(
-      marker.model,
-      marker.fallback ? route.alternate : route.primary,
-    )
+    (marker.login !== undefined && expected.providerID !== OAUTH_PROVIDER) ||
+    !modelsEqual(marker.model, aliasOf(expected, marker.login))
   )
     fail("invalid persisted model selection")
   return marker
@@ -344,11 +356,31 @@ export async function setupPreflight(
     deps.now,
   )
   const episodes = new Episodes(EPISODE_TTL_MS, deps.now)
+  // Other saved Claude logins, reached by alias model (claude-accounts.ts).
+  // Independent of `enabled`: an alias must never fall back to the active
+  // login. Every configured suffix decides which login a model runs on; only
+  // the labelled ones are places to move or launch.
+  const claudeAccounts = AccountRouter.fromOption(ctx.options.claudeAccounts)
+  const suffixes = claudeAccounts.accounts.map((account) => account.suffix)
+  const logins = claudeAccounts.accounts
+    .filter((account) => account.label !== "")
+    .map((account) => account.suffix)
+  const loginOf = (suffix: string) => {
+    const account = claudeAccounts.accounts.find((a) => a.suffix === suffix)
+    if (!account) throw new Error("no such Claude login")
+    return loginSubscription(ctx, account)
+  }
   // Subscription window limits protected children hit, kept for the wait
   // asked: the Quota export is rewritten on the TUI's own schedule, so the
-  // parent's relaunch would otherwise bounce back to the same window.
+  // parent's relaunch would otherwise bounce back to the same window. Each
+  // Claude login is its own window.
   const limited = new Lanes(
-    [OAUTH_PROVIDER, "openai", "xai"],
+    [
+      OAUTH_PROVIDER,
+      ...logins.map((login) => loginStop(login).key),
+      "openai",
+      "xai",
+    ],
     DEFAULT_COOLDOWN_MS,
     deps.now,
   )
@@ -364,10 +396,6 @@ export async function setupPreflight(
   }
   const primaryFallback = ctx.options.primaryFallback !== false
   const pinModels = ctx.options.pinModels === true
-  // Other saved Claude logins, reached by alias model (claude-accounts.ts).
-  // Independent of `enabled`: an alias must never fall back to the active
-  // login.
-  const claudeAccounts = AccountRouter.fromOption(ctx.options.claudeAccounts)
   const protectedChild = async (sessionID: string) => {
     const session = await ctx.session.get({ sessionID })
     const marker = parseMarker(session)
@@ -389,16 +417,25 @@ export async function setupPreflight(
       marker.launchChecked !== true
     )
       fail("alternate launch context was not checked")
+    // A child on a saved login runs its route model's alias, and its Claude
+    // side requests leave on that login too (claude-accounts.ts).
+    const bound =
+      marker.login !== undefined && event.model.providerID === OAUTH_PROVIDER
     const approvedModel = Object.values(ROUTES).some((r) =>
-      [r.primary, r.alternate].some(
-        (m) =>
-          m.id === event.model.id && m.providerID === event.model.providerID,
+      [r.primary, r.alternate].some((m) =>
+        [m, ...(bound ? [aliasOf(m, marker.login)] : [])].some(
+          (allowed) =>
+            allowed.id === event.model.id &&
+            allowed.providerID === event.model.providerID,
+        ),
       ),
     )
     if (!approvedModel) fail("unapproved auxiliary model")
     let auth: Subscription | undefined
     try {
-      auth = await subscription(ctx, event.model.providerID)
+      auth = bound
+        ? await loginOf(marker.login!)
+        : await subscription(ctx, event.model.providerID)
     } catch {
       return fail("subscription credentials unavailable")
     }
@@ -573,7 +610,8 @@ export async function setupPreflight(
     // children admitted by this plugin; root and ordinary sessions are untouched.
     registrations.push(
       await ctx.session.hook("retry", async (event) => {
-        if (!(await protectedChild(event.sessionID))) return
+        const child = await protectedChild(event.sessionID)
+        if (!child) return
         if (event.error.message.startsWith("Subagent preflight:")) {
           event.decision = { retry: false }
           return
@@ -585,9 +623,14 @@ export async function setupPreflight(
             event.decision.retry &&
             event.decision.delay > 10_000)
         ) {
+          // A bound child's Claude requests all leave on its login, a side
+          // request on a plain model too, so the limit is that login's.
           if (event.model)
             limited.mark(
-              event.model.providerID,
+              child.marker.login !== undefined &&
+                event.model.providerID === OAUTH_PROVIDER
+                ? loginStop(child.marker.login).key
+                : stopFor(event.model, suffixes).key,
               event.decision.retry ? event.decision.delay : undefined,
             )
           event.decision = { retry: false }
@@ -598,10 +641,6 @@ export async function setupPreflight(
     // before anything is generated, and so does a bad key or a window limit,
     // so moving the session to the next stop and repeating the same step has
     // no side effects. Protected children keep their own guards above.
-    const suffixes = claudeAccounts.accounts.map((account) => account.suffix)
-    const logins = claudeAccounts.accounts
-      .filter((account) => account.label !== "")
-      .map((account) => account.suffix)
     registrations.push(
       await ctx.session.hook("retry", async (event) => {
         if ((lanes.ids.length === 0 && logins.length === 0) || !event.model)
