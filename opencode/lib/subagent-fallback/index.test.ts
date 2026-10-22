@@ -79,6 +79,10 @@ async function fixture() {
       string,
       number | undefined
     >,
+    // The saved login labelled "Sub OAuth", and its 5h window in the export
+    // (no rows when undefined).
+    secondLogin: "fixture-second-login",
+    secondQuota: undefined as number | undefined,
     connection: {
       anthropic: { type: "credential", id: "fixture-claude", method: "oauth" },
       openai: { type: "credential", id: "fixture-chatgpt", method: "oauth" },
@@ -195,7 +199,7 @@ async function fixture() {
                     { ...env.connection.anthropic, label: "Main OAuth" },
                     {
                       type: "credential",
-                      id: "fixture-second-login",
+                      id: env.secondLogin,
                       label: "Sub OAuth",
                       method: "oauth",
                     },
@@ -206,7 +210,7 @@ async function fixture() {
         connection: {
           active: async (id) => env.connection[id],
           resolve: async (c) => {
-            if (c.id === "fixture-second-login")
+            if (c.id === env.secondLogin)
               return {
                 type: "oauth",
                 methodID: "claude-max",
@@ -268,7 +272,7 @@ async function fixture() {
         env.reads++
         env.path = path
         if (env.unavailable) throw new Error("fixture export unavailable")
-        return JSON.stringify({
+        const snapshot = {
           version: 2,
           providers: Object.fromEntries(
             Object.entries(env.quota).map(([id, percent]) => [
@@ -301,7 +305,22 @@ async function fixture() {
               },
             ]),
           ),
-        })
+        }
+        // Quota exports every saved Claude login under one provider.
+        if (env.secondQuota !== undefined)
+          snapshot.providers.anthropic?.entries.push(
+            ...["5h", "Weekly"].map((window) => ({
+              window,
+              sourceId: env.secondLogin,
+              resultType: "quota",
+              authority: "provider_reported",
+              acquisitionMethod: "remote_api",
+              renderType: "percent",
+              percentRemaining: window === "5h" ? env.secondQuota! : 90,
+              resetAt: env.now / 1000 + 3600,
+            })),
+          )
+        return JSON.stringify(snapshot)
       },
       creditEmpty: async (provider) => {
         env.emptied.push(provider)
@@ -1556,5 +1575,75 @@ describe("Claude accounts", () => {
     await expect(
       send(inst, post("https://evil.example", headers("openai")), LUNA),
     ).rejects.toThrow(/Subagent preflight/)
+  })
+  describe("a protected child on the second login", () => {
+    const HAIKU = ROUTES.verifier.alternate
+    // A worker child whose marker binds it to the login labelled Sub OAuth.
+    const bound = async (policy: Record<string, unknown> = {}) => {
+      const { env, install } = await fixture()
+      const inst = await install(accounts())
+      await inst.run()
+      const child = env.sessions.get("ses_child")!
+      child.model = SONNET_SUB
+      child.metadata = {
+        ...child.metadata,
+        [METADATA_KEY]: {
+          ...marker(env),
+          model: SONNET_SUB,
+          login: "sub",
+          connectionID: "fixture-second-login",
+          ...policy,
+        },
+      }
+      return { env, inst }
+    }
+    test("its requests are checked against that login's token", async () => {
+      const { inst } = await bound()
+      for (const [model, kind] of [
+        [SONNET_SUB, "primary"],
+        [HAIKU, "compaction"],
+      ] as const) {
+        const e = await send(inst, prepared(), model, kind)
+        expect(e.request.headers.get("authorization")).toBe(
+          "Bearer fixture-anthropic-sub",
+        )
+      }
+      await expect(
+        send(inst, prepared(), { ...SONNET_SUB, id: "unapproved-sub" }, "title"),
+      ).rejects.toThrow(/unapproved auxiliary model/)
+    })
+    test("a limit its side request hits leaves the active login free", async () => {
+      const { env, inst } = await bound()
+      await inst.fire("retry", {
+        sessionID: "ses_child",
+        model: HAIKU,
+        attempt: 2,
+        error: { type: "provider.quota", message: "weekly limit reached" },
+        decision: { retry: true, delay: 30_000 },
+      })
+      const input = { agent: "worker", prompt: "fixture", background: true }
+      await inst.run(input)
+      expect(env.originals[1]).toBe(input)
+    })
+    test("a label moved to another login stops it", async () => {
+      const { env, inst } = await bound()
+      env.secondLogin = "another-login"
+      await expect(send(inst, prepared(), SONNET_SUB)).rejects.toThrow(
+        /account changed|unavailable/,
+      )
+    })
+    test("a marker whose login does not match its model is refused", async () => {
+      for (const policy of [
+        { model: SONNET },
+        { login: "other" },
+        { login: 7 },
+        { fallback: true, model: { ...SOL, id: `${SOL.id}-sub` } },
+      ]) {
+        const { inst } = await bound(policy)
+        await expect(send(inst, prepared(), SONNET_SUB)).rejects.toThrow(
+          /Subagent preflight/,
+        )
+      }
+    })
   })
 })
