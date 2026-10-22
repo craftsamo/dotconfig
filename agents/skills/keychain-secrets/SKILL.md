@@ -39,7 +39,8 @@ with `ls -l ~/.config/bin`; there is no name table.
 | plain | `secret-shim-plain` | `pip pip3` | nothing; wrapped only for the mise pin |
 
 Precedence in the injecting modes:
-`exported env > .env files (project mode) > Keychain`.
+`exported env > .env files (project mode) > Keychain` — where "exported"
+means by the user, not by a shim (see NameCollisionRule).
 
 Stages: an item may exist once per environment (`secret set DATABASE_URL -S
 --stage prod`). Project mode injects the stage named by `SECRET_STAGE` on top
@@ -193,16 +194,20 @@ command names; a link to such a link is followed too.
 
 </WrappingTools>
 
-<NameCollisionPitfall>
+<NameCollisionRule>
 
-Project mode never overrides a name already exported (`secret-shim:60`, the
-`_had` set). Because your own process already exports global-layer names, a
-project secret with the same name as a global one is skipped in the children
-you launch, and the global value wins. This differs from a human running the
-command in a fresh shell. Use distinct names, or have the command run outside
-the agent when a per-repo override must take effect.
+Project mode never overrides a name the user exported by hand. What your own
+tool shim injected (the `global` and `<command>` layers, listed in
+`_SECRET_SHIM_TOOL_NAMES`) is not that: a project-mode command you launch in
+a repository replaces those values with the repository's own where both hold
+a name, keeps a tool value the repository has no counterpart for, and adds
+the repository's other names. So a child `node`/`npm` sees the same secrets
+a human would in a fresh shell of that repository. A name you exported
+yourself that the tool never injected still wins over both; re-exporting a
+name the tool did inject does not (the shim cannot tell it from the
+injection), so use another name for such an override.
 
-</NameCollisionPitfall>
+</NameCollisionRule>
 
 <Debugging>
 

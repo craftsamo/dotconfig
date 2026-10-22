@@ -271,6 +271,23 @@ Effective precedence in both modes:
 explicitly exported environment  >  .env files (project mode)  >  Keychain
 ```
 
+What a shim injected does not count as "explicitly exported". A project
+launch under a tool — opencode running `npm run dev` in a repository —
+replaces the tool's values with the repository's own where both hold a
+name (the tool shim lists what it injected in `_SECRET_SHIM_TOOL_NAMES`):
+the more specific layer wins, as between shared and scoped. A tool value
+the repository has no counterpart for stays, and a value exported by hand
+— one the tool never injected, or one set before the tool started — wins
+as always (a name the tool injected and the user re-exports inside the
+tool cannot be told from the injection, so the repository's value takes
+it). A tool under a tool adds its names to the list, so an outer tool's
+values stay replaceable. A stage swap under a tool retracts the names the
+first project launch injected, including one that had replaced a tool
+value: if the new stage's layers do not hold it, the name is gone rather
+than the tool's. So a `BOT_TOKEN` stored for the `hermes` tool and another
+for a bot repository's scope gives that bot its own token when Hermes runs
+it, not Hermes's.
+
 Project mode never shadows an application's own dotenv loading: it collects
 variable _names_ (values are never read) from `.env`, `.env.local` and
 `.env.{development,production,test}{,.local}` — in every directory from the
@@ -444,10 +461,12 @@ master machinery via the `SECRET_MASTER_ACCOUNT` / `SECRET_TEST_ONLY_KC`
 hooks, and cleans up after itself — safe to run on a machine with real data.
 
 [`zsh/tests/secret-shim-selftest.zsh`](../tests/secret-shim-selftest.zsh) —
-63 assertions for the launcher shims: the mode from the link target
+69 assertions for the launcher shims: the mode from the link target
 (`secret-shim-project` for any name, `secret-shim` for tool mode whatever
 the name, the two launchers as links, a link to a link, no readlink on
-PATH), layer injection and override order,
+PATH), layer injection and override order, a project launch under a tool
+(the repository's value replaces the tool's, a tool leftover stays, a
+hand-exported value wins, the real tool → project chain),
 inherited-environment precedence, dotenv name skipping (monorepo union from
 the root vs per-package precision, `.env.example` exclusion, `export NAME=`
 lines, the stage's own file vs another stage's under `SECRET_STAGE`, the
