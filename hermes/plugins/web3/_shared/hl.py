@@ -823,14 +823,32 @@ def _backtest_args(args: dict) -> dict:
     return {**out, "direction": direction, "history": history, "interval": interval}
 
 
-def backtest(ctx, args) -> dict:
-    """Trade a rule set over past candles with fees, slippage and funding, optionally walking forward:
-    the same signal the cron gate reads (hl_strategy.py). A result, not a forecast."""
-    coin = coin_arg(args)
+BACKTEST_NOTE = ("a simulation on past bars from a notional 1000 USDC (fees_pct and funding_pct are of that "
+                 "start): fills at the next bar's open with slippage and the taker fee, stops inside a bar "
+                 "at the stop or a gapped open; a limit entry (entry_order) is placed at that open, fills "
+                 "there as a taker, never past its price, when the open already reached it, else rests "
+                 "through the bar and fills at its price with the maker fee only when the bar trades "
+                 "limit_through_bps past it; neither a forecast nor a fill guarantee. monte_carlo redraws "
+                 f"the trades {hl_strategy.MC_RUNS} times in random order, each with its own path, as "
+                 "independent draws: the spread of drawdowns the same trades could have given. A strategy "
+                 "may run this rule set on this interval only under its fingerprint.")
+PORTFOLIO_NOTE = ("the markets traded together on one account, bar by bar: an entry is sized as the gate sizes it, "
+                  "from the account's value less what the other markets hold (positions, and a limit resting "
+                  "through the bar), at prices known at that open; the result is the account's, and its "
+                  "max_drawdown_pct and monte_carlo are what a breaker for a strategy on these markets is set "
+                  "from. monte_carlo draws the trades one after another, overlapped or not: a spread of their "
+                  "results, not of the account's bar-by-bar curve.")
+
+
+def _perp_ticker(coin: str) -> str:
     if is_spot(coin) or ":" in coin or not hl_strategy._COIN.match(coin):
         raise ChainError("a backtest takes a main-dex perp by its ticker, like BTC")
-    spec = _backtest_args(args)
-    interval, step = spec["interval"], hl_strategy.INTERVAL_MS[spec["interval"]]
+    return coin
+
+
+def _backtest_window(args: dict, spec: dict) -> tuple[int, int, list[str]]:
+    """(start, end, what the window could not cover) of a backtest request."""
+    step = hl_strategy.INTERVAL_MS[spec["interval"]]
     end = window({"end_time": args.get("end_time")}, 1, 1)[1]
     unread: list[str] = []
     if args.get("hours") is not None:
@@ -842,9 +860,17 @@ def backtest(ctx, args) -> dict:
     if (end - start) // step > BACKTEST_BARS_MAX:
         start = end - BACKTEST_BARS_MAX * step
         unread.append(f"at most {BACKTEST_BARS_MAX} bars are traded: the window starts at {iso(start)}")
-    venue_rows = hl_strategy.bars(_venue_candles(ctx, coin, interval, start, end), interval, end)
     if spec["history"] == "venue" and start < end - CANDLES_MAX * step:
         unread.append(UNREAD_CANDLES + ", or long_history")
+    return start, end, unread
+
+
+def _history(ctx, args: dict, coin: str, spec: dict, start: int, end: int) -> dict:
+    """One coin's bars and funding over a backtest's window: {"series", "rates", "sources", "funding"
+    (hours read, mean), "unread"}."""
+    interval = spec["interval"]
+    unread: list[str] = []
+    venue_rows = hl_strategy.bars(_venue_candles(ctx, coin, interval, start, end), interval, end)
     long_rows: list[dict] = []
     first_venue = venue_rows[0]["t"] if venue_rows else end
     if spec["history"] == "long" and start < first_venue:
@@ -864,16 +890,52 @@ def backtest(ctx, args) -> dict:
         if rate is not None and isinstance(t, int):
             funding[t - t % HOUR_MS] = rate
     mean = sum(funding.values()) / len(funding) if funding else hl_strategy.BASELINE_FUNDING
-    rates = hl_strategy.funding_by_bar(series, interval, funding, mean, spec["costs"]["funding"])
-    cost, limits, rule_set = spec["costs"], spec["limits"], spec["rules"]
-    fingerprint = hl_strategy.fingerprint(rule_set, interval)
-    # the request names its draws: the same backtest, read again, gives the same spread. Limit costs at their
-    # defaults stay out, so a backtest asked before they existed still draws the same
-    drawn = {k: v for k, v in cost.items()
+    sources = []
+    if long_rows:
+        sources.append({"source": f"{LONG_HISTORY['label']} {coin}USDT (prices only)", "bars": len(long_rows),
+                        "start": iso(long_rows[0]["t"]), "end": iso(long_rows[-1]["t"])})
+    if venue_rows:
+        sources.append({"source": f"{ctx.api.label} {coin}", "bars": len(venue_rows),
+                        "start": iso(venue_rows[0]["t"]), "end": iso(venue_rows[-1]["t"])})
+    return {"series": series, "sources": sources, "unread": unread,
+            "rates": hl_strategy.funding_by_bar(series, interval, funding, mean, spec["costs"]["funding"]),
+            "funding": {"hours_read": len(funding), "mean_hourly": hl_strategy.sig5(abs(mean)) if mean else "0",
+                        "mean_sign": "longs pay" if mean > 0 else "shorts pay" if mean < 0 else "none",
+                        "mode": spec["costs"]["funding"]}}
+
+
+def _seed(ctx, spec: dict, coin, fingerprint: str, start: int, end: int) -> str:
+    """The request names its draws: the same backtest, read again, gives the same spread. Limit costs at
+    their defaults stay out, so a backtest asked before they existed still draws the same."""
+    drawn = {k: v for k, v in spec["costs"].items()
              if k not in hl_strategy.LIMIT_COSTS or v != hl_strategy.COSTS[k][2]}
-    seed = hl_strategy.canonical({"network": ctx.network, "coin": coin, "fingerprint": fingerprint, "end": end,
-                                  "start": start, "costs": drawn, "limits": limits, "direction": spec["direction"],
-                                  "stance": spec["stance"], "history": spec["history"]})
+    return hl_strategy.canonical({"network": ctx.network, "coin": coin, "fingerprint": fingerprint, "end": end,
+                                  "start": start, "costs": drawn, "limits": spec["limits"],
+                                  "direction": spec["direction"], "stance": spec["stance"],
+                                  "history": spec["history"]})
+
+
+def _reported(run: dict, seed: str, walked: dict | None, unread: list[str]) -> dict:
+    """What a backtest reports of one run: figures with its Monte Carlo, the newest trades, the curve."""
+    monte_carlo = hl_strategy.monte_carlo(run, seed)
+    out = {"result": {**hl_strategy.metrics(run), "monte_carlo": monte_carlo},
+           "trades": {"count": len(run["trades"]), "newest": run["trades"][-hl_strategy.TRADES_SHOWN:]},
+           "equity": hl_strategy.curve_points(run["curve"])}
+    if walked is not None:
+        out["walk_forward"] = walked
+    if monte_carlo is None or (walked is not None and walked["out_of_sample"]["monte_carlo"] is None):
+        unread.append(f"monte_carlo needs at least {hl_strategy.MC_MIN_TRADES} trades; it is null where there "
+                      "were fewer")
+    if run["totals"]["assumed_hours"]:
+        unread.append(f"{run['totals']['assumed_hours']} held hours had no venue funding read and took the mean rate")
+    return out
+
+
+def _backtest_one(ctx, args: dict, coin: str, spec: dict, start: int, end: int, history: dict) -> dict:
+    """One coin's backtest over its history, with the walk-forward when asked for."""
+    interval, cost, limits, rule_set = spec["interval"], spec["costs"], spec["limits"], spec["rules"]
+    series, rates = history["series"], history["rates"]
+    seed = _seed(ctx, spec, coin, hl_strategy.fingerprint(rule_set, interval), start, end)
     try:
         run = hl_strategy.simulate(series, rule_set, interval, cost, limits, rates=rates, stance=spec["stance"],
                                    direction=spec["direction"])
@@ -884,42 +946,81 @@ def backtest(ctx, args) -> dict:
                                               seed=seed)
     except hl_strategy.StrategyError as exc:
         raise ChainError(str(exc)) from None
-    monte_carlo = hl_strategy.monte_carlo(run, seed)
-    sources = []
-    if long_rows:
-        sources.append({"source": f"{LONG_HISTORY['label']} {coin}USDT (prices only)", "bars": len(long_rows),
-                        "start": iso(long_rows[0]["t"]), "end": iso(long_rows[-1]["t"])})
-    if venue_rows:
-        sources.append({"source": f"{ctx.api.label} {coin}", "bars": len(venue_rows),
-                        "start": iso(venue_rows[0]["t"]), "end": iso(venue_rows[-1]["t"])})
-    assumed = run["totals"]["assumed_hours"]
-    result = {"schema": hl_strategy.BACKTEST_SCHEMA, "network": ctx.network, "coin": coin, "interval": interval,
-              "rules": rule_set, "fingerprint": fingerprint, "costs": cost,
-              "limits": limits, "direction": spec["direction"], "stance_windows": len(spec["stance"]),
-              "data": {"bars": len(series), "start": iso(series[0]["t"]), "end": iso(series[-1]["t"]),
-                       "end_ms": end, "sources": sources,
-                       "funding": {"hours_read": len(funding), "mean_hourly": hl_strategy.sig5(abs(mean)) if mean else "0",
-                                   "mean_sign": "longs pay" if mean > 0 else "shorts pay" if mean < 0 else "none",
-                                   "hours_assumed_while_held": assumed, "mode": cost["funding"]}},
-              "result": {**hl_strategy.metrics(run), "monte_carlo": monte_carlo},
-              "trades": {"count": len(run["trades"]), "newest": run["trades"][-hl_strategy.TRADES_SHOWN:]},
-              "equity": hl_strategy.curve_points(run["curve"]),
-              "note": ("a simulation on past bars from a notional 1000 USDC (fees_pct and funding_pct are of that "
-                       "start): fills at the next bar's open with slippage and the taker fee, stops inside a bar "
-                       "at the stop or a gapped open; a limit entry (entry_order) is placed at that open, fills "
-                       "there as a taker, never past its price, when the open already reached it, else rests "
-                       "through the bar and fills at its price with the maker fee only when the bar trades "
-                       "limit_through_bps past it; neither a forecast nor a fill guarantee. monte_carlo redraws "
-                       f"the trades {hl_strategy.MC_RUNS} times in random order, each with its own path, as "
-                       "independent draws: the spread of drawdowns the same trades could have given. A strategy "
-                       "may run this rule set on this interval only under its fingerprint.")}
-    if walked is not None:
-        result["walk_forward"] = walked
-    if monte_carlo is None or (walked is not None and walked["out_of_sample"]["monte_carlo"] is None):
-        unread.append(f"monte_carlo needs at least {hl_strategy.MC_MIN_TRADES} trades; it is null where there "
-                      "were fewer")
-    if assumed:
-        unread.append(f"{assumed} held hours had no venue funding read and took the mean rate")
+    unread = list(history["unread"])
+    out = {"data": {"bars": len(series), "start": iso(series[0]["t"]), "end": iso(series[-1]["t"]), "end_ms": end,
+                    "sources": history["sources"],
+                    "funding": {**history["funding"], "hours_assumed_while_held": run["totals"]["assumed_hours"]}},
+           **_reported(run, seed, walked, unread)}
+    if unread:
+        out["unread"] = unread
+    return out
+
+
+def backtest(ctx, args) -> dict:
+    """Trade a rule set over past candles with fees, slippage and funding, optionally walking forward:
+    the same signal the cron gate reads (hl_strategy.py). A result, not a forecast. With ``coins``, the
+    markets are traded together on one account too (hl_strategy.simulate_many)."""
+    if args.get("coins") is not None:
+        return _backtest_many(ctx, args)
+    coin = _perp_ticker(coin_arg(args))
+    spec = _backtest_args(args)
+    start, end, unread = _backtest_window(args, spec)
+    one = _backtest_one(ctx, args, coin, spec, start, end, _history(ctx, args, coin, spec, start, end))
+    result = {"schema": hl_strategy.BACKTEST_SCHEMA, "network": ctx.network, "coin": coin, "interval": spec["interval"],
+              "rules": spec["rules"], "fingerprint": hl_strategy.fingerprint(spec["rules"], spec["interval"]),
+              "costs": spec["costs"], "limits": spec["limits"], "direction": spec["direction"],
+              "stance_windows": len(spec["stance"]), "data": one["data"], "result": one["result"],
+              "trades": one["trades"], "equity": one["equity"], "note": BACKTEST_NOTE}
+    if "walk_forward" in one:
+        result["walk_forward"] = one["walk_forward"]
+    unread += one.get("unread", [])
+    if unread:
+        result["unread"] = unread
+    return result
+
+
+def _backtest_many(ctx, args: dict) -> dict:
+    """The rules on several markets at once: each market's own backtest, and the account's."""
+    coins = args.get("coins")
+    if args.get("coin") is not None:
+        raise ChainError("give coin for one market or coins for several, not both")
+    if (not isinstance(coins, list) or not 2 <= len(coins) <= hl_strategy.MAX_MARKETS
+            or not all(isinstance(c, str) for c in coins)):
+        raise ChainError(f"coins lists 2 to {hl_strategy.MAX_MARKETS} main-dex perps by ticker, like [\"BTC\", \"ETH\"]")
+    coins = [_perp_ticker(coin_arg({"coin": c})) for c in coins]
+    if len(set(coins)) != len(coins):
+        raise ChainError("coins names each market once")
+    spec = _backtest_args(args)
+    interval, cost, limits, rule_set = spec["interval"], spec["costs"], spec["limits"], spec["rules"]
+    start, end, unread = _backtest_window(args, spec)
+    markets, series_by, rates_by = {}, {}, {}
+    for coin in coins:  # one after another: each reads many pages
+        history = _history(ctx, args, coin, spec, start, end)
+        markets[coin] = _backtest_one(ctx, args, coin, spec, start, end, history)
+        series_by[coin], rates_by[coin] = history["series"], history["rates"]
+    fingerprint = hl_strategy.fingerprint(rule_set, interval)
+    seed = _seed(ctx, spec, coins, fingerprint, start, end)
+    rules_by = {c: rule_set for c in coins}
+    try:
+        run = hl_strategy.simulate_many(series_by, rules_by, interval, cost, limits, rates_by=rates_by,
+                                        stance_by={c: spec["stance"] for c in coins},
+                                        direction_by={c: spec["direction"] for c in coins})
+        walked = None
+        if args.get("walk_forward") is not None:
+            walked = hl_strategy.walk_forward_many(series_by, rule_set, interval, cost, limits, args["walk_forward"],
+                                                   rates_by=rates_by, stance=spec["stance"],
+                                                   direction=spec["direction"], seed=seed)
+    except hl_strategy.StrategyError as exc:
+        raise ChainError(str(exc)) from None
+    portfolio_unread: list[str] = []
+    portfolio = {"data": {"bars": run["bars"], "start": iso(run["first"]), "end": iso(run["last"]), "end_ms": end},
+                 **_reported(run, seed, walked, portfolio_unread)}
+    if portfolio_unread:
+        portfolio["unread"] = portfolio_unread
+    result = {"schema": hl_strategy.BACKTEST_SCHEMA, "network": ctx.network, "coins": coins, "interval": interval,
+              "rules": rule_set, "fingerprint": fingerprint, "costs": cost, "limits": limits,
+              "direction": spec["direction"], "stance_windows": len(spec["stance"]), "markets": markets,
+              "portfolio": portfolio, "note": BACKTEST_NOTE + " portfolio: " + PORTFOLIO_NOTE}
     if unread:
         result["unread"] = unread
     return result

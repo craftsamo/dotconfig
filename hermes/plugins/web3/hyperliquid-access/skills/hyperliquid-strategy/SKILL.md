@@ -80,7 +80,12 @@ default when a stance does not hold, with a note saying why.
    Compare with buy-and-hold for scale, and say what `unread` says (assumed
    funding, older prices from Binance spot). Run the markets one after
    another: a backtest reads many pages, and several at once hit the venue's
-   rate limit.
+   rate limit. For a strategy on more than one market, run them together
+   once (`coins` instead of `coin`, with the `walk_forward`): `portfolio`
+   is the account the strategy will actually hold, and its
+   `out_of_sample.max_drawdown_pct` and `monte_carlo.max_drawdown_pct.p95`
+   are what the breaker is set from — the deeper of the two, rounded up —
+   since the markets' own drawdowns do not add up to the account's.
 3. Propose one or two variants per the folds' choices; the user picks. Then
    run a plain `backtest` (no `walk_forward`) of each chosen rule set exactly
    as it will run: its `fingerprint` is what the spec records. A judgment the
@@ -144,8 +149,10 @@ default when a stance does not hold, with a note saying why.
   multiplies the risk per trade; every limit and the mandate still apply.
 - `breaker.max_drawdown_pct` (1 to 90): how far the strategy's own result
   may fall below its high before it opens nothing more. Propose the deeper of
-  the variants' `out_of_sample.max_drawdown_pct` and their
-  `out_of_sample.monte_carlo.max_drawdown_pct.p95`, rounded up, and say it in
+  `out_of_sample.max_drawdown_pct` and
+  `out_of_sample.monte_carlo.max_drawdown_pct.p95`, rounded up — the
+  `portfolio`'s when the strategy trades more than one market, else the
+  variant's — and say it in
   plain words ("it holds new trades once the strategy is 30% below its best;
   about one in twenty reshuffles of the tested trades fell further"); the
   user decides. Without
