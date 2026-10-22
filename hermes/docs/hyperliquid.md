@@ -379,6 +379,32 @@ tested is what runs.
   windows, so a judgment written as a rule over point-in-time data can be
   tested the same way. A model judging past markets is not a test: it knows
   what came after.
+- **Markets together** (`coins` instead of `coin`, 2 to 8): each market's
+  own backtest as above under `markets`, and under `portfolio` the same
+  rules traded on one account, bar by bar along the markets' shared
+  timeline (a market with no bar at a time sits it out), the cash shared.
+  Each time runs in two steps, so nothing decided at an open sees the bar
+  it opens: first every market's open (its signal's close, its entry, in
+  the markets' order), then every market's bar. An entry is sized as the
+  gate sizes it: from the account's value (the cash and the other markets'
+  unrealized results) less what the other markets hold (their positions,
+  and a limit of theirs resting through the bar, as the gate counts a
+  resting order), at prices known at that open (their open of the same
+  time, else their newest close); a limit the bar trades through fills in
+  the bar step, so an entry at the same open does not see it. The
+  portfolio's walk-forward chooses each market's rules on its own past
+  bars, by that market's own result, and trades the choices together on
+  the next unseen window; `chosen` and `chosen_fingerprint` are per
+  market. Its `out_of_sample` drawdown and `monte_carlo` are what a
+  strategy on those markets is set a breaker from, since a single market's
+  figures say nothing about the two held at once. The portfolio's Monte
+  Carlo draws the trades one after another whether or not they overlapped
+  (each trade keeps its own path: the equity before it, moved by that trade
+  alone), so it spreads the trades' results, not the account's bar-by-bar
+  curve; the observed drawdown is the account's. `bars_held` counts times
+  with any position, and `buy_hold_pct` is the markets' mean. One rule set
+  and one stance for all the markets: a per-market variant is the
+  walk-forward's choice, or separate requests.
 - **`fingerprint`** hashes the rules with their interval. A strategy runs a
   variant only under the fingerprint its backtest reported.
 
