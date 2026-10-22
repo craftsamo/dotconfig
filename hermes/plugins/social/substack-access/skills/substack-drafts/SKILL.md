@@ -25,7 +25,7 @@ the user.
 
 1. Read first: `drafts` for the id, `draft` for the current body before you
    change it.
-2. The card shows the facts and about the first 350 characters of the body
+2. The card shows the facts and about the first 250 characters of the body
    (the rest is counted). For anything longer, show the full final text in
    chat and get the user's agreement first, then send exactly that text in one
    call.
