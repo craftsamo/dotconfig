@@ -340,8 +340,8 @@ def _handoff(data, message):
     if isinstance(deadline, (int, float)) and deadline > 0:
         remaining = max(0, int((deadline - time.time()) // 60))
         ends = time.strftime("%Y-%m-%d %H:%M %Z", time.localtime(deadline))
-        budget = (f"Turn budget: this turn is killed at {ends} (~{remaining} min from now); the whole "
-                  "process group dies with it and unsaved work is lost. Size each blocking tool "
+        budget = (f"Turn budget: this turn ends at {ends} (~{remaining} min from now); whatever it has "
+                  "not finished and reported by then is lost. Size each blocking tool "
                   "call to fit, and stop with a checkpoint report rather than starting work that "
                   "cannot finish.\n")
     reconcile = ""
@@ -438,6 +438,13 @@ def _stop_resident(home, proc, data, source):
         data.update(status="unknown", result=out, exit_code=proc.returncode,
                     error="Cancel requested but the resident process group was not confirmed stopped; "
                           "inspect and reconcile, never resend")
+        return
+    if turn_env.gateway_client_runtime():
+        # The CLI was only the gateway's client: the turn runs inside the gateway, and the
+        # group being gone says nothing about it. The shell's lock stays as reconcile evidence.
+        data.update(status="unknown", result=out, exit_code=proc.returncode,
+                    error="Cancel stopped the resident client, but its turn runs inside the gateway and "
+                          "is not confirmed stopped; inspect and reconcile, never resend")
         return
     _drop_own_lock(home, data["conversation_id"], proc.pid)
     data.update(status="cancelled", result=out, exit_code=proc.returncode,
@@ -1112,8 +1119,12 @@ def specialist_session(args, **kwargs):
                         raise ValueError("Resident lock belongs to another or unknown process")
                     lock_observation = "retained_owned_dead"
                 previous = data["status"]
+                # Where the CLI is a gateway client, only the client is confirmed gone; the gateway
+                # may still be running the turn, so the record never claims the transport stopped.
+                in_gateway = turn_env.gateway_client_runtime()
                 data.update(status="interrupted", updated_at=time.time(), reconciliation={
-                    "previous_status": previous, "transport_stopped": True, "lock": lock_observation,
+                    "previous_status": previous, "transport_stopped": not in_gateway,
+                    **({"client_stopped": True} if in_gateway else {}), "lock": lock_observation,
                     "effects": "unknown", "evidence": evidence, "evidence_source": "caller-report",
                     "resume_permitted": False,
                 })
