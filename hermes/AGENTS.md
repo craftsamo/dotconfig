@@ -398,6 +398,10 @@ Contract: [docs/opencode.md](docs/opencode.md). When editing
   from**, and only because the owning runner confirmed its group gone; never
   make `unknown`/`interrupted` resumable or let anything but that runner signal
   the group ([docs/profiles/specialist-calls.md](docs/profiles/specialist-calls.md)).
+- **Per-turn resident values come from `plugins/_shared/turn_env.py` only.** It
+  answers from the process environment only where the turn runs in the CLI
+  process; reading `RESIDENT_*` from `os.environ` directly inside a gateway reads
+  the gateway's own, possibly stale, values.
 - **The caller's own model is refused unless the role allows it
   (`caller_model: allow`).** The `post_api_request` hook records the model the
   caller last answered with, and `models.model_key` folds speed tiers and

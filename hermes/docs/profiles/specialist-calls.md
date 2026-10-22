@@ -95,9 +95,16 @@ restored session is the case that breaks, a fresh topic hides it.
 CLI callers — including creator nested under the assistant's resident child —
 wait for a short-lived runner with a maximum 5400-second deadline (the
 `TURN_TIMEOUT` shared by `resident-session.sh` and the plugin). Nested calls
-inherit the outer wall-clock deadline rather than resetting it. If the caller
+inherit the outer wall-clock deadline rather than resetting it — through the
+resident's environment, so only where the turn runs in the CLI process. Where
+the CLI is a gateway client, the shell's values never reach plugin code (the
+gateway's own environment is never read for them): a nested call gets its own
+`TURN_TIMEOUT`, bounded by the caller's tool deadline and `wait_timeout`; the
+OpenCode reconcile-only guard cannot see the turn kind either, so OpenCode is
+refused to any profile that is also a specialist target. If the caller
 dies, the runner terminates its resident process group, preserves an `unknown`
-result and exits. Resident exit `143` (INT/TERM, `status: interrupted`) and
+result and exits; where the CLI is a gateway client the parent is the gateway,
+so a nested runner outlives its outer turn until its own deadline. Resident exit `143` (INT/TERM, `status: interrupted`) and
 `124` (deadline) are never proof of completion.
 
 `specialist_call` is a blocking tool for those CLI callers, so the caller's
