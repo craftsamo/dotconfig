@@ -1,9 +1,11 @@
 """Behaviour tests for profiles/assistant/scripts/resident-session.sh.
 
-The wrapper is exercised end to end against a fake `hermes` CLI, so the tests
-cover the parts that actually stranded live sessions: dead keys that no
-command could revive, locks left behind by a killed holder, timeouts that
-recorded nothing, and a `list` that walked the registry one process per key.
+The wrapper is exercised end to end against a fake turn client (what the shell
+runs as `hermes-python resident-turn.py ...`; never the real one, which would
+reach the live gateway), so the tests cover the parts that actually stranded
+live sessions: dead keys that no command could revive, locks left behind by a
+killed holder, timeouts that recorded nothing, and a `list` that walked the
+registry one process per key.
 """
 
 from __future__ import annotations
@@ -25,11 +27,14 @@ from pathlib import Path
 HERMES_ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = HERMES_ROOT / "profiles" / "assistant" / "scripts" / "resident-session.sh"
 
+# The fakes stand in for the interpreter: the shell runs `$HERMES_PYTHON <resident-turn.py> <args>`,
+# so each drops the script path and acts on the client's own arguments.
+
 # Replies on stdout, reports a session id on stderr — the shape the wrapper
 # scrapes. `--resume <id>` echoes that id back, like a resumed conversation.
 FAKE_OK = """#!/usr/bin/env python3
 import sys
-args = sys.argv[1:]
+args = sys.argv[2:]
 sid = "20260824_000000_aaaaaa"
 for i, a in enumerate(args):
     if a == "--resume":
@@ -38,26 +43,29 @@ print("REPLY-OK")
 print("session_id: %s" % sid, file=sys.stderr)
 """
 
-# Dies before the CLI ever reports a session id.
+# Dies before the client ever reports a session id (the gateway refused the turn).
 FAKE_FAIL = """#!/usr/bin/env python3
 import sys
 print("boom: provider unavailable", file=sys.stderr)
 sys.exit(3)
 """
 
-# Announces its session id, emits partial output, then hangs until killed.
-# If FAKE_READY_PATH is set, it drops a marker there once its announcement is
-# flushed, so a coordinating fake `date` can hold the clock until the
-# announcement is guaranteed to have landed before advancing past deadline.
+# Announces its session id, emits partial output, then runs on. Like the real
+# client it keeps the gateway's verdict for a stop: TERM ends it with 143 (or
+# FAKE_STOP_RC: 125 is a stop the gateway did not confirm), and its `--deadline`
+# with 124, once "confirmed". FAKE_IGNORE_DEADLINE=1 makes it a client that never
+# comes back on its own, which only the shell's backstop ends.
 FAKE_HANG = """#!/usr/bin/env python3
-import os, sys, time
+import os, signal, sys, time
+args = sys.argv[2:]
+deadline = float(args[args.index("--deadline") + 1]) if "--deadline" in args else None
 print("partial output line", flush=True)
 print("session_id: 20260824_111111_hanged", file=sys.stderr, flush=True)
 print("still thinking", file=sys.stderr, flush=True)
-ready = os.environ.get("FAKE_READY_PATH")
-if ready:
-    with open(ready, "w") as f:
-        f.write("ready\\n")
+signal.signal(signal.SIGTERM, lambda *_: sys.exit(int(os.environ.get("FAKE_STOP_RC", "143"))))
+if deadline is not None and os.environ.get("FAKE_IGNORE_DEADLINE") != "1":
+    time.sleep(max(deadline - time.time(), 0))
+    sys.exit(124)
 time.sleep(300)
 """
 
@@ -90,39 +98,20 @@ class ResidentSessionTest(unittest.TestCase):
 
     def environment(self, hermes: str = "ok", **env: str) -> dict:
         binary = {
-            "ok": lambda: self.fake("hermes-ok", FAKE_OK),
-            "fail": lambda: self.fake("hermes-fail", FAKE_FAIL),
-            "hang": lambda: self.fake("hermes-hang", FAKE_HANG),
-            "slow": lambda: self.fake("hermes-slow", FAKE_SLOW),
+            "ok": lambda: self.fake("client-ok", FAKE_OK),
+            "fail": lambda: self.fake("client-fail", FAKE_FAIL),
+            "hang": lambda: self.fake("client-hang", FAKE_HANG),
+            "slow": lambda: self.fake("client-slow", FAKE_SLOW),
         }[hermes]()
         return {
             **os.environ,
             "RESIDENT_SESSION_DIR": str(self.reg),
-            "HERMES": str(binary),
+            "HERMES_PYTHON": str(binary),
             "POLL_INTERVAL": "1",
             "KILL_GRACE": "1",
             "LOCK_STALE_AFTER": "2",
             **env,
         }
-
-    def timeout_after_announcement_environment(self, key: str) -> dict:
-        # A TURN_TIMEOUT=1 race against real wall-clock lets the deadline
-        # check fire before FAKE_HANG's announcement is even flushed. Pin the
-        # clock instead: `date +%s` reports a fixed start until FAKE_HANG's
-        # readiness marker exists (i.e. the announcement is guaranteed
-        # flushed), then jumps past the deadline.
-        ready = self.root / f"{key}.ready"
-        self.fake("date", f'''#!/usr/bin/env python3
-import pathlib, subprocess, sys
-ready = pathlib.Path({str(ready)!r})
-if sys.argv[1:] == ["+%s"]:
-    print(1010 if ready.exists() else 1000)
-else:
-    sys.exit(subprocess.call(["/bin/date", *sys.argv[1:]]))
-''')
-        env = self.environment("hang", TURN_TIMEOUT="1", FAKE_READY_PATH=str(ready))
-        env["PATH"] = f"{self.bin}:" + env["PATH"]
-        return env
 
     def run_script(self, *args: str, hermes: str = "ok", **env: str):
         return subprocess.run(
@@ -338,7 +327,36 @@ else:
                         os.killpg(proc.pid, signal.SIGKILL)
                     proc.communicate()
 
-    def test_timeout_uses_wallclock_not_accumulated_poll_intervals(self) -> None:
+    def test_a_stop_the_client_did_not_confirm_is_unknown_not_interrupted(self) -> None:
+        # 143 from the shell is the client's word that the gateway confirmed the
+        # stop; a client that answers 125 (or had to be KILLed) gives no such word.
+        key = "unconfirmed"
+        env = self.environment("hang", TURN_TIMEOUT="60", FAKE_STOP_RC="125")
+        env["PATH"] = f"{Path(sys.executable).parent}:" + env["PATH"]
+        proc = subprocess.Popen([str(SCRIPT), "start", key, "--profile", "creator", "-q", "brief"],
+                                env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+                                start_new_session=True)
+        try:
+            ready = self.reg / (key + ".lock") / "err"
+            until = time.monotonic() + 5
+            while time.monotonic() < until and not (ready.exists() and "still thinking" in ready.read_text()):
+                time.sleep(0.02)
+            proc.send_signal(signal.SIGTERM)
+            _, err = proc.communicate(timeout=5)
+            self.assertEqual(125, proc.returncode, err)
+            self.assertEqual("unknown", self.registry(key)["status"])
+            self.assertEqual("20260824_111111_hanged", self.registry(key)["session_id"])
+            self.assertIn("INTERRUPTED (unknown; client rc=125)", self.log(key))
+            self.assertFalse((self.reg / (key + ".lock")).exists())
+        finally:
+            with contextlib.suppress(ProcessLookupError):
+                os.killpg(proc.pid, signal.SIGKILL)
+            proc.communicate()
+
+    def test_a_client_that_never_comes_back_is_killed_past_the_deadline_as_unknown(self) -> None:
+        # The client stops its own turn at the deadline; the shell steps in only
+        # KILL_GRACE later, and a client it had to KILL confirmed nothing. The
+        # wall clock decides, not accumulated poll intervals.
         clock = self.root / "clock"
         sleeps = self.root / "sleeps"
         self.fake("date", f'''#!/usr/bin/env python3
@@ -355,17 +373,19 @@ from pathlib import Path
 with Path({str(sleeps)!r}).open("a") as stream:
     stream.write("sleep\\n")
 ''')
-        env = self.environment("hang", TURN_TIMEOUT="5", POLL_INTERVAL="1")
+        env = self.environment("hang", TURN_TIMEOUT="5", POLL_INTERVAL="1", FAKE_IGNORE_DEADLINE="1")
         env["PATH"] = f"{self.bin}:{Path(sys.executable).parent}:" + env["PATH"]
         proc = subprocess.Popen([str(SCRIPT), "start", "wallclock", "--profile", "creator", "-q", "brief"],
                                 env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
                                 start_new_session=True)
         try:
-            proc.communicate(timeout=8)
-            self.assertEqual(124, proc.returncode)
-            # Clock advanced past the deadline immediately: only KILL_GRACE slept.
-            self.assertEqual(["sleep"], sleeps.read_text().splitlines())
-            self.assertEqual("timeout", self.registry("wallclock")["status"])
+            _, err = proc.communicate(timeout=8)
+            self.assertEqual(125, proc.returncode, err)
+            self.assertIn("not confirmed", err)
+            # The clock jumped past deadline + KILL_GRACE at the first look: nothing slept.
+            self.assertFalse(sleeps.exists(), sleeps.exists() and sleeps.read_text())
+            self.assertEqual("unknown", self.registry("wallclock")["status"])
+            self.assertIn("did not confirm the stop", self.log("wallclock"))
         finally:
             with contextlib.suppress(ProcessLookupError):
                 os.killpg(proc.pid, signal.SIGKILL)
@@ -375,18 +395,18 @@ with Path({str(sleeps)!r}).open("a") as stream:
         self.assertIn('POLL_INTERVAL="${POLL_INTERVAL:-1}"', SCRIPT.read_text())
 
     def test_timeout_preserves_diagnostics_and_exits_124(self) -> None:
-        env = self.timeout_after_announcement_environment("slow")
-        result = subprocess.run(
-            [str(SCRIPT), "start", "slow", "--profile", "creator", "-q", "brief"],
-            env=env, capture_output=True, text=True,
-        )
-        self.assertEqual(124, result.returncode)
+        # The client gets the deadline (`--deadline`), stops its turn there and
+        # exits 124 once the stop is confirmed; the shell records that verdict.
+        result = self.run_script("start", "slow", "--profile", "creator", "-q", "brief",
+                                 hermes="hang", TURN_TIMEOUT="1")
+        self.assertEqual(124, result.returncode, result.stderr)
         self.assertIn("timed out", result.stderr)
+        self.assertIn("partial output line", result.stdout, "what the turn had by then is the reply")
 
         entry = self.registry("slow")
         self.assertEqual("timeout", entry["status"])
         self.assertEqual("20260824_111111_hanged", entry["session_id"],
-                         "an id announced before the kill is worth keeping")
+                         "an id announced before the stop is worth keeping")
 
         log = self.log("slow")
         self.assertIn("TIMEOUT after 1s", log)
@@ -394,14 +414,11 @@ with Path({str(sleeps)!r}).open("a") as stream:
         self.assertIn("still thinking", log)
 
     def test_a_timed_out_start_can_be_resumed_when_it_announced_an_id(self) -> None:
-        env = self.timeout_after_announcement_environment("slow")
-        started = subprocess.run(
-            [str(SCRIPT), "start", "slow", "--profile", "creator", "-q", "brief"],
-            env=env, capture_output=True, text=True,
-        )
+        started = self.run_script("start", "slow", "--profile", "creator", "-q", "brief",
+                                  hermes="hang", TURN_TIMEOUT="1")
         self.assertEqual(124, started.returncode, started.stderr)
         self.assertEqual("20260824_111111_hanged", self.registry("slow")["session_id"],
-                         "an id announced before the kill must survive so resume can use it")
+                         "an id announced before the stop must survive so resume can use it")
 
         result = self.run_script("send", "slow", "-q", "still there?")
         self.assertEqual(0, result.returncode, result.stderr)

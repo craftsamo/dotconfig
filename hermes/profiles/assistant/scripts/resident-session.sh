@@ -35,33 +35,38 @@
 #     restart it in place (the attempt is counted in `restarts`). Only a
 #     key that HAS a session id is protected from `start`.
 #   - Long turns are expected: ALWAYS invoke via terminal
-#     background=true + notify_on_complete. TURN_TIMEOUT (default 5400s)
-#     hard-kills a runaway turn and exits 124, copying the partial output
-#     into the turn log before the lock (and with it out/err) is dropped.
+#     background=true + notify_on_complete. Each turn runs inside the gateway
+#     through resident-turn.py, which keeps the gateway's receipt for it: at
+#     TURN_TIMEOUT (default 5400s), or on INT/TERM, it interrupts the turn and
+#     exits 124 / 143 only once the receipt confirms the stop, with whatever
+#     reply the turn had on stdout; 125 means the stop was not confirmed.
 #   - `close` marks the registry entry closed after delivery is
 #     accepted. Resident sessions are per-deliverable, not immortal:
 #     close on acceptance so context rot never accumulates. `prune`
 #     archives long-closed entries into <reg>/archive/ (logs gzipped);
 #     it lists and does nothing until given --yes.
 #
-# Exit codes: 75 a turn is in flight · 124 turn timed out · 143 interrupted
-# by INT/TERM (partial logs retained; not confirmed completion) · otherwise the
-# CLI's own status (1 for usage errors).
+# Exit codes: 75 a turn is in flight · 124 turn timed out and the stop was
+# confirmed · 143 interrupted by INT/TERM and the stop was confirmed · 125 the
+# turn's outcome is unknown (the stop was not confirmed, or the gateway went
+# away) · otherwise the client's own status (1 for a refused or failed turn).
 #
 # Registry: ~/.hermes/profiles/assistant/resident-sessions/<key>.json
 # (runtime state, never tracked in git). Turn log: <key>.log.
 #
 # Tunables (env): TURN_TIMEOUT, POLL_INTERVAL, KILL_GRACE,
-# LOCK_STALE_AFTER, RESIDENT_SESSION_DIR, HERMES.
+# LOCK_STALE_AFTER, RESIDENT_SESSION_DIR, HERMES_PYTHON, RESIDENT_TURN.
 
 set -u
 
-# The Keychain shim (~/.config/bin/hermes) first, by path: inside a Hermes process PM puts the
-# checkout's own launcher ahead of it on PATH, and a bare `hermes` would skip the shim's
-# global/hermes Keychain layers and its dispatcher-worker guard.
-_hermes_default="$HOME/.config/bin/hermes"
-[ -x "$_hermes_default" ] || _hermes_default="$(command -v hermes || echo "$HOME/.local/bin/hermes")"
-HERMES="${HERMES:-$_hermes_default}"
+# Each turn is run by resident-turn.py, a client of the gateway that runs the target
+# profile's turns, on the runtime's own interpreter (the ~/.config/bin/hermes-python
+# resolver: PM owns the interpreter, nothing may hardcode a python path).
+_script_dir="$(cd "$(dirname "$0")" && pwd)"
+RESIDENT_TURN="${RESIDENT_TURN:-$_script_dir/resident-turn.py}"
+_hermes_python_default="$HOME/.config/bin/hermes-python"
+[ -x "$_hermes_python_default" ] || _hermes_python_default="$(command -v hermes-python || echo "$HOME/.local/bin/hermes-python")"
+HERMES_PYTHON="${HERMES_PYTHON:-$_hermes_python_default}"
 # Registry = the calling profile's home. Must be read BEFORE HERMES_HOME is
 # unset below; a caller outside ~/.hermes/profiles/<name> (default profile,
 # bare shell) keeps the historical assistant registry.
@@ -76,7 +81,9 @@ REG_DIR="${RESIDENT_SESSION_DIR:-$HOME/.hermes/profiles/$(_caller_profile)/resid
 TURN_TIMEOUT="${TURN_TIMEOUT:-5400}"
 POLL_INTERVAL="${POLL_INTERVAL:-1}"
 LOCK_STALE_AFTER="${LOCK_STALE_AFTER:-60}"
-KILL_GRACE="${KILL_GRACE:-10}"
+# Above the client's own settle wait (15 s): a TERMed client answers with its
+# verdict before the shell gives up on it.
+KILL_GRACE="${KILL_GRACE:-20}"
 
 # The assistant may run inside a gateway process; the child CLI must
 # resolve its own profile HOME, and must not inherit a dispatcher task marker.
@@ -221,29 +228,46 @@ run_turn() {
   fi
   trap 'rm -rf "$lock" 2>/dev/null' EXIT
   pid=""
+  # Forward the stop to the turn client and keep ITS verdict: it stops the turn inside
+  # the gateway and exits 143 only once the gateway's receipt confirms the stop, or 0
+  # with the reply when the turn had finished first. A client that had to be KILLed,
+  # or that reported 125, confirmed nothing.
   interrupt_turn() {
     trap '' INT TERM
+    it_rc=125
     if [ -n "${pid:-}" ]; then
-      # Let the CLI unwind before reading its stderr: on TERM it flushes the
-      # transcript and prints `session_id:` on the way out, which is what lets a
-      # cancelled first turn be resumed instead of restarted blind.
       kill -TERM "$pid" 2>/dev/null
       it_waited=0
       while kill -0 "$pid" 2>/dev/null && [ "$it_waited" -lt "$KILL_GRACE" ]; do
         sleep 1; it_waited=$((it_waited + 1))
       done
-      kill -KILL "$pid" 2>/dev/null
-      wait "$pid" 2>/dev/null
+      if kill -0 "$pid" 2>/dev/null; then
+        kill -KILL "$pid" 2>/dev/null
+        wait "$pid" 2>/dev/null
+      else
+        wait "$pid" 2>/dev/null; it_rc=$?
+      fi
     fi
+    interrupt_sid="$(extract_sid "$lock/err")"
+    if [ "$it_rc" -eq 0 ]; then
+      {
+        printf -- '--- reply (rc=0 after a stop that came too late, session=%s) ---\n' "${interrupt_sid:-unknown}"
+        cat "$lock/out" 2>/dev/null
+      } >>"$log"
+      json_update "$reg" "session_id=${interrupt_sid:-$rt_resume}" "status=idle" \
+        "last_turn_at=$(now_iso)" "turns+=1"
+      cat "$lock/out" 2>/dev/null
+      exit 0
+    fi
+    case "$it_rc" in 124|143) it_status=interrupted; it_rc=143;; *) it_status=unknown; it_rc=125;; esac
     {
-      printf 'INTERRUPTED before confirmed completion\n'
+      printf 'INTERRUPTED (%s; client rc=%s)\n' "$it_status" "$it_rc"
       tail -20 "$lock/out" 2>/dev/null
       tail -20 "$lock/err" 2>/dev/null
     } >>"$log"
-    interrupt_sid="$(extract_sid "$lock/err")"
-    json_update "$reg" "status=interrupted" "last_turn_at=$(now_iso)" \
+    json_update "$reg" "status=$it_status" "last_turn_at=$(now_iso)" \
       "session_id=${interrupt_sid:-$rt_resume}"
-    exit 143
+    exit "$it_rc"
   }
   trap interrupt_turn INT TERM
   printf '%s\n' "$$" >"$lock/pid"
@@ -257,38 +281,40 @@ run_turn() {
     [ "$inherited" -lt "$deadline" ] && deadline="$inherited"
   fi
   export RESIDENT_DEADLINE="$deadline"
-  set -- -p "$rt_profile" --cli chat -Q -q "$PROMPT"
+  set -- "$HERMES_PYTHON" "$RESIDENT_TURN" --profile "$rt_profile" --prompt-file "$lock/prompt" \
+    --deadline "$deadline"
   [ -n "$rt_resume" ] && set -- "$@" --resume "$rt_resume"
   [ -n "${IMAGE:-}" ] && set -- "$@" --image "$IMAGE"
+  printf '%s' "$PROMPT" >"$lock/prompt"
 
   {
     printf '\n=== turn %s (%s) ===\n' "$(now_iso)" "${rt_resume:-new}"
     printf 'prompt: %.400s\n' "$PROMPT"
   } >>"$log"
 
-  "$HERMES" "$@" >"$out" 2>"$err" &
+  # The client runs the turn through the gateway under the target profile's home.
+  HERMES_HOME="$HOME/.hermes/profiles/$rt_profile" "$@" >"$out" 2>"$err" &
   pid=$!
+  # The client stops its own turn at the deadline and exits 124 once the stop is
+  # confirmed; the shell only steps in when it has not come back KILL_GRACE later.
   while kill -0 "$pid" 2>/dev/null; do
-    if [ "$(date +%s)" -ge "$deadline" ]; then
-      kill -TERM "$pid" 2>/dev/null; sleep "$KILL_GRACE"
+    if [ "$(date +%s)" -ge $((deadline + KILL_GRACE)) ]; then
       kill -KILL "$pid" 2>/dev/null
-      # out/err are inside the lock and die with it, so everything the killed
-      # turn produced has to be copied into the log right here — a bare
-      # TIMEOUT line is all the four observed timeouts ever left behind.
+      wait "$pid" 2>/dev/null
       sid="$(extract_sid "$err")"
       {
-        printf 'TIMEOUT after %ss (session=%s)\n' \
+        printf 'TIMEOUT after %ss (session=%s): the client did not confirm the stop\n' \
           "$TURN_TIMEOUT" "${sid:-${rt_resume:-unknown}}"
         printf -- '--- partial stdout tail ---\n'
         tail -20 "$out" 2>/dev/null
         printf -- '--- stderr tail ---\n'
         tail -20 "$err" 2>/dev/null
       } >>"$log"
-      json_update "$reg" "status=timeout" "last_turn_at=$(now_iso)" \
+      json_update "$reg" "status=unknown" "last_turn_at=$(now_iso)" \
         "session_id=${sid:-$rt_resume}"
-      printf 'resident-session: turn timed out after %ss (key %s); see %s\n' \
+      printf 'resident-session: turn timed out after %ss and the stop was not confirmed (key %s); see %s\n' \
         "$TURN_TIMEOUT" "$rt_key" "$log" >&2
-      exit 124
+      exit 125
     fi
     sleep "$POLL_INTERVAL"
   done
@@ -303,6 +329,34 @@ run_turn() {
     tail -5 "$err"
   } >>"$log"
 
+  case "$rc" in
+    124)
+      # The client stopped the turn at the deadline and the gateway confirmed it;
+      # what it got back by then is the reply.
+      printf 'TIMEOUT after %ss (session=%s): the stop was confirmed\n' \
+        "$TURN_TIMEOUT" "${sid:-${rt_resume:-unknown}}" >>"$log"
+      json_update "$reg" "status=timeout" "last_turn_at=$(now_iso)" "session_id=${sid:-$rt_resume}"
+      printf 'resident-session: turn timed out after %ss and the stop was confirmed (key %s); see %s\n' \
+        "$TURN_TIMEOUT" "$rt_key" "$log" >&2
+      cat "$out"
+      exit 124
+      ;;
+    143)
+      # A signal the client took before the shell's trap; the gateway confirmed the stop.
+      printf 'INTERRUPTED (interrupted; client rc=143)\n' >>"$log"
+      json_update "$reg" "status=interrupted" "last_turn_at=$(now_iso)" "session_id=${sid:-$rt_resume}"
+      printf 'resident-session: turn interrupted and the stop was confirmed (key %s); see %s\n' \
+        "$rt_key" "$log" >&2
+      cat "$out"
+      exit 143
+      ;;
+    125)
+      json_update "$reg" "status=unknown" "last_turn_at=$(now_iso)" "session_id=${sid:-$rt_resume}"
+      printf 'resident-session: turn outcome unknown (key %s); stderr tail:\n' "$rt_key" >&2
+      tail -10 "$err" >&2
+      exit 125
+      ;;
+  esac
   if [ "$rc" -ne 0 ]; then
     json_update "$reg" "status=error" "last_turn_at=$(now_iso)"
     printf 'resident-session: turn failed (rc=%s); stderr tail:\n' "$rc" >&2
