@@ -265,6 +265,24 @@ upshow=$(secret show TEST_ALPHA -p $P)
   && ok "comment update keeps kind" || bad "comment update keeps kind"
 secret update TEST_ALPHA -p $P -D 'token' >/dev/null \
   && ok "update kind only" || bad "update kind only"
+# a write security refuses is a failure, even when the item already exists:
+# shadow `security -i` to fail (anything else runs for real)
+security() { if [[ $1 == -i ]]; then cat >/dev/null; print -r -- 'security: SecKeychainItemModifyContent: User interaction is not allowed.' >&2; return 1; fi; command security "$@"; }
+err=$(print -r -- 'never-stored' | secret update TEST_ALPHA -p $P --stdin 2>&1 >/dev/null); rc=$?
+(( rc != 0 )) && ok "update fails when security refuses the write" || bad "update fails when security refuses the write"
+[[ $err == *'User interaction is not allowed'* ]] && ok "... and relays security's message" || bad "... and relays security's message ($err)"
+err=$(secret update TEST_ALPHA -p $P -j 'never stored' 2>&1 >/dev/null); rc=$?
+(( rc != 0 )) && ok "a metadata-only update fails when security refuses" || bad "a metadata-only update fails when security refuses"
+err=$(print -r -- 'never-stored' | secret set TEST_ALPHA -p $P --stdin 2>&1 >/dev/null); rc=$?
+(( rc != 0 )) && ok "set over an existing item fails when security refuses" || bad "set over an existing item fails when security refuses"
+# a write security accepts silently but does not apply is a failure too
+security() { if [[ $1 == -i ]]; then cat >/dev/null; return 0; fi; command security "$@"; }
+err=$(print -r -- 'never-stored' | secret update TEST_ALPHA -p $P --stdin 2>&1 >/dev/null); rc=$?
+(( rc != 0 )) && [[ $err == *'not stored'* || $err == *'failed'* ]] \
+  && ok "update fails when the value does not read back" || bad "update fails when the value does not read back ($rc: $err)"
+unfunction security
+[[ "$(secret get TEST_ALPHA -p $P)" == 'rotated-789' ]] && ok "the value is untouched after the refused writes" || bad "the value is untouched after the refused writes"
+[[ "$(secret show TEST_ALPHA -p $P)" != *'never stored'* ]] && ok "the comment is untouched after the refused writes" || bad "the comment is untouched after the refused writes"
 upshow=$(secret show TEST_ALPHA -p $P)
 [[ $upshow =~ 'Kind:[[:space:]]+TOKEN' ]] && ok "kind updated" || bad "kind updated"
 [[ $upshow == *'fresh comment'* ]] && ok "kind update keeps comment" || bad "kind update keeps comment"
