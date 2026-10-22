@@ -6,6 +6,7 @@ yarn = "latest"
 python = "latest"
 ruby = "latest"
 rust = "latest"
+java = "temurin-21"
 
 # global npm CLIs (previously installed via nodebrew's npm)
 "npm:agent-browser" = "latest"
