@@ -74,8 +74,9 @@ READ_HELP = (
     "limit | limit_then_market with limit_atr}: trades them "
     "over the venue's newest 5000 candles, or with long_history = true also older Binance spot candles of the coin's "
     "USDT pair, with the taker fee, slippage, funding and an ATR stop, trailed behind each close when trail_atr is "
-    "set, and entries only on the side of the regime EMA when regime_ema is set; a limit entry fills as a maker only "
-    "when the next bar trades through it, and limit_then_market enters at market a bar later when it did not; costs, "
+    "set, and entries only on the side of the regime EMA when regime_ema is set; a limit entry fills at once as a "
+    "taker, never past its price, when the next open reached it, else as a maker only when that bar trades through "
+    "it, and limit_then_market enters at market a bar later when it did not; costs, "
     "limits {exposure_pct, max_leverage}, direction, stance = dated windows of direction and size, hours, "
     "end_time; walk_forward = {grid of values per parameter, folds, objective, "
     "min_trades} chooses rules on past data and trades them on the next unseen window; returns figures, a "
@@ -93,7 +94,8 @@ TRADE_HELP = (
     "to the venue's tick, size step and 10 USDC minimum, and returns a quote id, its effect and its card. kinds: "
     "order (coin, side buy | sell, size in the coin or usd = its value, type market (worst price slippage beyond "
     "the mid, default 0.01, at most 0.05) or limit (price, tif Gtc | Alo | Ioc), reduce_only, and on an opening "
-    "perp order tp / sl trigger prices), close (coin: a market reduce-only close of the perp position, size for "
+    "perp order tp / sl trigger prices; cloid only as a strategy gate's intent gives it), close (coin: a market "
+    "reduce-only close of the perp position, size for "
     "part of it), tpsl (coin, tp and / or sl for the whole position held), modify (oid of a resting limit order, "
     "new price and / or size), cancel (oid or cloid), leverage (coin, leverage, margin_mode cross | isolated), "
     "margin (coin, amount in USDC, remove = true to take it out; isolated positions only). submit (quote) signs "
@@ -185,6 +187,8 @@ TRADE_PROPERTIES = {
     "reduce_only": {"type": "boolean", "description": "quote kind order: only reduce a perp position"},
     "tp": {"type": "string", "description": "quote: a take-profit trigger price"},
     "sl": {"type": "string", "description": "quote: a stop-loss trigger price"},
+    "cloid": {"type": "string", "description": "quote kind order: the order's own client id (0x and 32 hex digits), "
+                                              "as a strategy gate's intent gives it, so the gate finds it again"},
     "leverage": {"type": "integer", "description": "quote kind leverage: the new leverage"},
     "margin_mode": {"type": "string", "enum": ["cross", "isolated"], "description": "quote kind leverage: default the "
                                                                                     "current mode"},

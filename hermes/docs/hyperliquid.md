@@ -112,7 +112,8 @@ refused here first (below 10 USDC, a TP/SL that would fire at once, a
 position that is not there). The quote is stored single-use for 15 minutes
 under an HMAC keyed from its signing secret, so neither the action nor its
 card can change between approval and submit; every order leg carries a client
-order id derived from the quote.
+order id derived from the quote, except an order's main leg given its own
+`cloid` (a strategy gate names its limit entry, to find it again).
 
 **The effect** decides the approval, and is computed from the stored action,
 never from the model's arguments:
@@ -330,10 +331,11 @@ tested is what runs.
   hour held at the venue's rate (a gap pays none for its bar; a stop inside
   a bar pays the bar's whole, since OHLC does not say its hour). Sizes are capped by `limits` (a share of
   equity and a leverage) and the venue's 10 USDC minimum.
-- **Limit entries** rest through the next bar at their price, or at its
-  open when the market opened past it (a resting order cannot sit through
-  the market). They fill there with `costs.maker_bps` (default 1.5, the
-  lowest tier) and no slippage, only when the bar trades
+- **Limit entries** are placed when the next bar opens, good till
+  canceled. One the open already reached takes the book at once, as a
+  taker: at the open with `slippage_bps`, never past its own price. Else it
+  rests through the bar and fills at its price with `costs.maker_bps`
+  (default 1.5, the lowest tier) and no slippage, only when the bar trades
   `limit_through_bps` (default 2) past the price: a bar that only touches
   it leaves the order in the queue, unfilled. Filled, the entry is the
   market one's in everything else: its stop and size come from the
@@ -342,9 +344,10 @@ tested is what runs.
   signalling at the next close places a new limit there), and
   `limit_then_market` enters at market at the next open, as an entry from
   that close, unless the close no longer holds the side. Figures with a
-  limit entry carry `limit_entries`: placed, filled, its fill rate, at
-  market after, missed. Exits stay market orders. The gate does not place
-  limit entries: they are tested here only.
+  limit entry carry `limit_entries`: placed, filled, its fill rate, filled
+  at once (`crossed`), at market after, missed. Exits stay market orders.
+  The gate places `limit_then_market` entries the same way (Strategies); a
+  plain `limit` is tested here only.
 - **Data**: the venue's newest 5000 candles, in pages; `long_history` adds
   the coin's USDT pair from Binance's public market data before them, prices
   only, for main-dex tickers that map plainly, from 2017-07 at the earliest
@@ -398,9 +401,9 @@ owns the procedure; this section owns what the code holds to.
   no longer match its fingerprint makes the spec invalid. A variant also
   records its walk-forward `out_of_sample` (at least its maximum drawdown and
   trades, one or more); without it the variant's markets open nothing, while
-  their closes and stops go on. A variant whose rules enter with a limit
-  (`entry_order`) opens nothing either: the gate sends entries at market,
-  which is not what was tested. `breaker` (`max_drawdown_pct`, 1 to 90, and
+  their closes and stops go on. A variant whose rules enter with a plain
+  limit (`entry_order: limit`) opens nothing either: the gate places only
+  `limit_then_market`. `breaker` (`max_drawdown_pct`, 1 to 90, and
   `reset`) sets the breaker below; a spec without one, or with one that does
   not read, opens nothing either, and still closes and protects.
 - **The gate** (`hl_gate.py`, a cron `script` with an agent; the scheduler
@@ -432,6 +435,49 @@ owns the procedure; this section owns what the code holds to.
   line is `{"wakeAgent": false}` when nothing is to be done or said, so no
   model runs; a notice is said once. It never signs, reads a key or posts to
   `/exchange`.
+- **Limit entries** (`entry_order: limit_then_market`) are listed as a
+  good-till-cancel limit at the backtest's price with the stop attached,
+  under a client id (`cloid`) derived from the strategy, the market and the
+  signal's bar, valued so its size is the market entry's. A post-only order
+  would be rejected whenever the market is already past the price, so one
+  the market has reached fills at once as a taker, as the backtest takes it.
+  `state.json` follows each until the venue shows it over, reading it by
+  that id on every run (`orderStatus`), and the gate cancels only orders
+  whose id it derives itself. While a limit may still fill, or its state or
+  a lookup of it cannot be read, its market opens nothing new and its bar
+  is read again, so an entry never doubles one that might still fill; a fill
+  the account read did not show yet holds the market's next entry for a run
+  too. The venue places a stop sent with a limit only once all of it fills,
+  and cancels it with a partly filled one, so a position on the limit's
+  side with no stop on the venue gets a stop for the whole position at the
+  entry's stop on every run until one shows, even while the limit's state
+  cannot be read and after it is over. A limit still resting is
+  canceled, on every run until the venue shows it over, once its bar has
+  closed or it is withdrawn: entries held (no mandate, the breaker, a
+  variant without its `out_of_sample`), or the stance in force no longer
+  allowing its side. Over with nothing filled after its bar closed, the next
+  run lists the market entry the backtest takes from that close, from the
+  newest close (its stop and size, the canceled limit no longer counted as
+  exposure), unless that close no longer holds the side: a quarter of an
+  hour after the bar's close rather than at its open, since only then can a
+  fill between the gate's read and the cancel be seen. A part filled is the
+  entry, and the rest is not bought. A fill is said once, and one whose
+  position is already gone (its stop fired) asks the run to report the
+  trade. An entry listed beside a close of the market's other side names
+  that close in `after`. When `state.json` is missing or unreadable, or its
+  record of the limits has a shape the gate never writes, the gate looks up
+  the ids it would have given the newest two bars' limits, on every run
+  until each lookup could be read, and cancels any still resting, with the
+  rules' stop for what of it filled; a market the spec no longer names gets
+  its limits, known or still to be looked up, canceled too, and having no
+  rules there, the gate tells the user once when what filled has no stop.
+  An answer of a
+  shape the venue does not give, or a fault while following a limit, is an
+  unread limit: its market opens nothing, and the gate goes on. A breaker
+  whose fills cannot be read holds the
+  market entry after a limit, not the resting limit. A strategy turned
+  inactive is not read at all: pausing one cancels its resting limit by
+  hand (the strategy skill).
 - **The breaker** ([decision](decisions/hyperliquid-breaker.md)) measures
   the strategy's own result, never the account's value: each run the gate
   reads its markets' fills (realized result less USDC fees) and funding from

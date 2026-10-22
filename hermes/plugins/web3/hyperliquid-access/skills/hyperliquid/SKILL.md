@@ -76,11 +76,12 @@ signed or sent, and any account can be read by its address.
   5 and 4.5, the venue's lowest tier; for an account that will trade it,
   `taker_bps` is its own from `state`'s `fees`), the ATR stop placed with the entry fills inside a bar that
   reaches it, and funding is the venue's hourly rate (its mean where none was
-  read). A rule set with `entry_order` `limit` instead rests a limit at the
-  close (or `limit_atr` ATRs better) through the next bar, filled with
-  `maker_bps` only when that bar trades `limit_through_bps` past it;
+  read). A rule set with `entry_order` `limit` instead places a limit at
+  the close (or `limit_atr` ATRs better) at the next open: filled there at
+  once as a taker, never past its price, when the open reached it, else
+  with `maker_bps` only when that bar trades `limit_through_bps` past it;
   `limit_then_market` enters at market a bar later when it did not, and
-  `limit_entries` says how many filled. `result` is the whole window, in-sample; `walk_forward` chooses from
+  `limit_entries` says how many filled and how many at once (`crossed`). `result` is the whole window, in-sample; `walk_forward` chooses from
   a grid on past data and trades the choice on the next unseen window, and
   its `out_of_sample` is the figure to judge by. `long_history` adds Binance
   spot candles of the coin's USDT pair (prices only) before the venue's own

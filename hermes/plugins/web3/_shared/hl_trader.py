@@ -289,9 +289,13 @@ def build_order(ctx, payload, user, mkt, quote_id) -> dict:
     if not reduce_only and notional < MIN_NOTIONAL:
         raise ChainError(f"the order's value is {plain(notional.quantize(Decimal('0.01')))} USDC; the venue's "
                          f"minimum is {MIN_NOTIONAL}")
+    # a caller that must find the order again later (a strategy gate) names it; else it is the quote's own
+    named = payload.get("cloid")
+    if named is not None and not (isinstance(named, str) and re.match(r"^0x[0-9a-fA-F]{32}$", named)):
+        raise ChainError("cloid is the order's client id: 0x and 32 hex digits")
     try:
         main = hl_sign.order_wire(mkt["asset"], is_buy, limit, size, reduce_only, hl_sign.limit(tif),
-                                  _cloid(quote_id, 0))
+                                  named.lower() if named else _cloid(quote_id, 0))
     except hl_sign.SignError as exc:
         raise ChainError(str(exc)) from None
     legs = []
