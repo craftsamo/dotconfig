@@ -340,7 +340,8 @@ def resolve_board(project=None, owner=None, repo=None) -> dict:
         considered.append({"route": "user", "outcome": f"{own[0]['owner']}/{own[0]['number']}"})
         return {"board": own[0], "route": "user", "considered": considered}
     considered.append({"route": "user", "outcome": f"no board titled {wanted!r} owned by the viewer"})
-    raise AccessError("no board resolved: " + "; ".join(f"{c['route']}: {c['outcome']}" for c in considered))
+    raise AccessError("no board resolved: " + "; ".join(f"{c['route']}: {c['outcome']}" for c in considered) +
+                      ". To make one: github_change board_create (owner, title, link_repo), after the user agrees")
 
 
 # --- issue reads ----------------------------------------------------------------------------------

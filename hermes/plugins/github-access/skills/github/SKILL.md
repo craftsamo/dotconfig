@@ -43,7 +43,8 @@ writable boards linked to one repository is an error until `project` names
 one. Read `route` before
 acting on a board for the first time in a conversation: `user` for work in an
 organization's repository means the organization has no board the user can
-write to.
+write to. When no route finds one, the error says so; making one is
+"Setting up a board" in `github-access:github-tracking`.
 
 ## The model
 

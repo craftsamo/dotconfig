@@ -1,4 +1,5 @@
-"""github-access: board changes — drafts and the items of a Projects (v2) board.
+"""github-access: board changes — drafts and the items of a Projects (v2) board, and the board
+itself: making one in the standard shape, linking it to a repository, its fields and views.
 
 Registered into ``changes.py``. Also the board helpers the issue ops share: reading an item, and
 checking and setting its field values.
@@ -260,6 +261,327 @@ def _item_archive_run(step, out):
     return {"item": c["item"], "archived": not c.get("restore")}
 
 
+# --- the board itself -----------------------------------------------------------------------------
+# The standard shape is small on purpose: Milestone, Repository, Parent issue, Sub-issues progress
+# and Type are built-in fields GitHub fills from the issues.
+
+COLORS = ("GRAY", "BLUE", "GREEN", "YELLOW", "ORANGE", "RED", "PINK", "PURPLE")
+DATA_TYPES = ("TEXT", "SINGLE_SELECT", "DATE", "NUMBER")
+LAYOUTS = {"table": "TABLE_LAYOUT", "board": "BOARD_LAYOUT", "roadmap": "ROADMAP_LAYOUT"}
+STANDARD_FIELDS = (
+    ("Status", "SINGLE_SELECT", (("Todo", "GRAY"), ("In Progress", "YELLOW"), ("Done", "GREEN"), ("Cancelled", "RED"))),
+    ("Start", "DATE", ()),
+    ("Target", "DATE", ()),
+)
+STANDARD_VIEWS = (
+    ("Kanban", "board", "-status:Done -status:Cancelled", ("Title", "Assignees", "Repository", "Parent issue", "Target")),
+    ("Backlog", "table", "-status:Done -status:Cancelled",
+     ("Title", "Status", "Repository", "Milestone", "Parent issue", "Sub-issues progress", "Target")),
+    ("Roadmap", "roadmap", "-status:Cancelled", ()),
+)
+# Names GitHub keeps for its own fields: a custom field cannot take one.
+BUILT_IN_NAMES = {"title", "assignees", "labels", "milestone", "repository", "reviewers", "linked pull requests",
+                  "parent issue", "sub-issues progress", "type", "status", "tracks", "tracked by"}
+
+changes.key("owner", "str", description="board_create: the owner's login, or \"@me\"")
+changes.key("template", "str")
+changes.key("link_repo", "str")
+changes.key("views", "bool")
+changes.key("unlink", "bool")
+changes.key("name", "str", text=True)
+changes.key("data_type", "str", enum=list(DATA_TYPES))
+changes.key("options", "list", text=True)
+changes.key("layout", "str", enum=list(LAYOUTS))
+changes.key("filter", "str", text=True)
+changes.key("visible_fields", "list")
+
+OWNER_QUERY = "query($login:String!){repositoryOwner(login:$login){__typename id login}}"
+FIELD_DETAIL_QUERY = ("query($id:ID!){node(id:$id){... on ProjectV2{fields(first:50){nodes{"
+                      "... on ProjectV2FieldCommon{id name dataType} "
+                      "... on ProjectV2SingleSelectField{options{id name color description}}}}}}}")
+VIEWS_QUERY = "query($id:ID!){node(id:$id){... on ProjectV2{views(first:50){nodes{id name}}}}}"
+CREATE_BOARD = ("mutation($owner:ID!,$title:String!){createProjectV2(input:{ownerId:$owner,title:$title})"
+                "{projectV2{id}}}")
+COPY_BOARD = ("mutation($project:ID!,$owner:ID!,$title:String!){copyProjectV2(input:{projectId:$project,ownerId:$owner,"
+              "title:$title,includeDraftIssues:false}){projectV2{id}}}")
+LINK = ("mutation($project:ID!,$repo:ID!){%s(input:{projectId:$project,repositoryId:$repo}){repository{id}}}")
+CREATE_FIELD = ("mutation($project:ID!,$type:ProjectV2CustomFieldType!,$name:String!,"
+                "$options:[ProjectV2SingleSelectFieldOptionInput!]){createProjectV2Field(input:{projectId:$project,"
+                "dataType:$type,name:$name,singleSelectOptions:$options}){projectV2Field{... on ProjectV2FieldCommon{id}}}}")
+UPDATE_OPTIONS = ("mutation($field:ID!,$options:[ProjectV2SingleSelectFieldOptionInput!]){updateProjectV2Field("
+                  "input:{fieldId:$field,singleSelectOptions:$options}){projectV2Field{... on ProjectV2FieldCommon{id}}}}")
+CREATE_VIEW = ("mutation($project:ID!,$name:String!,$layout:ProjectV2ViewLayout!,$fields:[ID!]){createProjectV2View("
+               "input:{projectId:$project,name:$name,layout:$layout,configuration:{visibleFieldIds:$fields}})"
+               "{projectV2View{id}}}")
+FILTER_VIEW = ("mutation($view:ID!,$filter:String!){updateProjectV2View(input:{viewId:$view,filter:$filter})"
+               "{projectV2View{id}}}")
+
+
+def _options(change: dict) -> list[tuple[str, str]]:
+    """``Name`` or ``Name:COLOR`` options as (name, color), GRAY when no color is given. Only one of
+    GitHub's colors counts as a suffix, in any case, so ``Release:V2`` stays a name."""
+    out = []
+    for text in change.get("options") or []:
+        name, color = text.strip(), "GRAY"
+        head, sep, tail = name.rpartition(":")
+        if sep and tail.strip().upper() in COLORS:
+            name, color = head.strip(), tail.strip().upper()
+        if not name:
+            raise AccessError(f"{change['op']}: an option needs a name")
+        if any(access.same(name, n) for n, _ in out):
+            raise AccessError(f"{change['op']}: option {name!r} is named twice")
+        out.append((name, color))
+    return out
+
+
+def field_details(board_id: str) -> list[dict]:
+    data = access.graphql(FIELD_DETAIL_QUERY, {"id": board_id})
+    return [f for f in ((data.get("node") or {}).get("fields") or {}).get("nodes") or [] if f and f.get("id")]
+
+
+def view_names(board_id: str) -> dict[str, str]:
+    data = access.graphql(VIEWS_QUERY, {"id": board_id})
+    return {v["name"]: v["id"] for v in ((data.get("node") or {}).get("views") or {}).get("nodes") or [] if v}
+
+
+def ensure_field(board: dict, name: str, data_type: str, options: list[tuple[str, str]]) -> dict:
+    """Create the field when the board lacks it, else append the options it lacks. Existing options
+    keep their ids, colors and descriptions, so no item's value moves."""
+    found = next((f for f in field_details(board["id"]) if access.same(f["name"], name)), None)
+    if found is None:
+        made = access.graphql(CREATE_FIELD, {
+            "project": board["id"], "type": data_type, "name": name,
+            "options": [{"name": n, "color": c, "description": ""} for n, c in options] if data_type == "SINGLE_SELECT"
+            else None})
+        if not ((made.get("createProjectV2Field") or {}).get("projectV2Field") or {}).get("id"):
+            raise AccessError(f"field {name!r} was not created")
+        return {"field": name, "created": True, "added": [n for n, _ in options]}
+    if found["dataType"] != data_type:
+        raise AccessError(f"field {found['name']!r} is a {found['dataType']} field, not {data_type}")
+    have = found.get("options") or []
+    missing = [(n, c) for n, c in options if not any(access.same(o["name"], n) for o in have)]
+    if missing:
+        access.graphql(UPDATE_OPTIONS, {"field": found["id"], "options": [
+            *({"id": o["id"], "name": o["name"], "color": o["color"], "description": o.get("description") or ""}
+              for o in have),
+            *({"name": n, "color": c, "description": ""} for n, c in missing)]})
+    return {"field": found["name"], "created": False, "added": [n for n, _ in missing]}
+
+
+def ensure_view(board: dict, name: str, layout: str, filter_: str, columns) -> dict:
+    """Make the view when the board has none of that name. Grouping, sort and a roadmap's date fields
+    are set once in GitHub's own page: the API does not take them."""
+    if any(access.same(v, name) for v in view_names(board["id"])):
+        return {"view": name, "created": False}
+    fields = {f["name"].lower(): f["id"] for f in field_details(board["id"])}
+    ids = [fields[c.lower()] for c in columns if c.lower() in fields] if layout != "roadmap" else []
+    skipped = [c for c in columns if c.lower() not in fields] if layout != "roadmap" else []
+    made = access.graphql(CREATE_VIEW, {"project": board["id"], "name": name, "layout": LAYOUTS[layout],
+                                        "fields": ids or None})
+    view_id = ((made.get("createProjectV2View") or {}).get("projectV2View") or {}).get("id")
+    if not view_id:
+        raise AccessError(f"view {name!r} was not created")
+    if filter_:
+        access.graphql(FILTER_VIEW, {"view": view_id, "filter": filter_})
+    return {"view": name, "created": True, **({"columns_missing": skipped} if skipped else {})}
+
+
+def _linked(board_id: str, repo: str) -> bool:
+    return any(b["id"] == board_id for b in access.linked_boards(repo))
+
+
+def _owner(login: str) -> dict:
+    """Who a new board would belong to: the viewer, or an organization the viewer belongs to."""
+    login = access.viewer(fresh=True) if login.strip() in ("", "@me") else login.strip()
+    found = access.graphql(OWNER_QUERY, {"login": login}).get("repositoryOwner")
+    if not found:
+        raise AccessError(f"no user or organization named {login!r}")
+    if found["__typename"] == "User":
+        if not access.same(found["login"], access.viewer(fresh=True)):
+            raise AccessError(f"a board is made for yourself (@me) or an organization you belong to, not for {login}")
+        tier = "own"  # a new board is private
+    else:
+        if access.tier(found["login"], "Organization", True, fresh=True) == "other":
+            raise AccessError(f"you are not a member of {found['login']}; a board is made only where you work")
+        tier = "shared"
+    return {"id": found["id"], "login": found["login"], "type": found["__typename"], "tier": tier}
+
+
+def _board_create_check(change):
+    if change.get("title") is not None and not change["title"].strip():
+        raise AccessError("board_create: title, when given, is not empty")
+
+
+def _board_create_plan(step, planned):
+    c = step["change"]
+    owner = _owner(c.get("owner") or "@me")
+    title = (c.get("title") or access.DEFAULT_BOARD).strip()
+    found = access.boards_titled(owner["login"], title)
+    if len(found) > 1:
+        raise AccessError(f"{owner['login']} has {len(found)} open boards titled {title!r}; close or rename the extra ones")
+    step["owner"], step["title"] = owner, title
+    if found:
+        step["existing"] = planned.add_board(found[0])  # reused, brought to the standard shape
+        have = planned.fields(found[0]["id"])
+        for name, kind, _ in STANDARD_FIELDS:
+            f = next((f for f in have if access.same(f["name"], name)), None)
+            if f and f["type"] != kind:
+                raise AccessError(f"board_create: {f['name']!r} on {found[0]['owner']}/{found[0]['number']} is a "
+                                  f"{f['type']} field, not {kind}; rename it on the board first")
+    else:
+        planned.note(f"owner:{owner['id']}", {"kind": "owner", "name": owner["login"], "tier": owner["tier"],
+                                               "id": owner["id"]})
+        if c.get("template"):
+            # Read, never written: shown with its tier, and bound like a target, so another board
+            # resolving at the write is a different change.
+            t = access.resolve_board(project=c["template"])["board"]
+            planned.note(f"template:{t['id']}", {"kind": "template", "name": f"{t['owner']}/{t['number']} {t['title']}",
+                                                 "tier": access.tier(t["owner"], t["owner_type"], not t["public"], fresh=True),
+                                                 "id": t["id"]})
+            step["template"] = t
+    if c.get("link_repo"):
+        step["repo"] = planned.repo(c["link_repo"])
+
+
+def _board_create_describe(step):
+    c = step["change"]
+    shape = "Status, Start, Target" + ("" if c.get("views") is False else "; Kanban, Backlog, Roadmap views")
+    extra = [f"copied from {step['template']['owner']}/{step['template']['number']}" if step.get("template") else "",
+             f"linked to {step['repo']['repo']}" if step.get("repo") else ""]
+    extra = "; ".join(e for e in extra if e)
+    if step.get("existing"):
+        b = step["existing"]
+        return f"Bring board {b['owner']}/{b['number']} {say(b['title'], 40)} to the standard shape ({shape}" + (
+            f"; {extra})" if extra else ")")
+    return f"Create board {say(step['title'], 40)} for {step['owner']['login']} ({shape}" + (f"; {extra})" if extra else ")")
+
+
+def _board_create_run(step, out):
+    c = step["change"]
+    if step.get("existing"):
+        b = step["existing"]
+        out.update({"board": f"{b['owner']}/{b['number']}", "url": b["url"], "created": False})
+    else:
+        if step.get("template"):
+            made = access.graphql(COPY_BOARD, {"project": step["template"]["id"], "owner": step["owner"]["id"],
+                                               "title": step["title"]})
+            made = (made.get("copyProjectV2") or {}).get("projectV2") or {}
+        else:
+            made = (access.graphql(CREATE_BOARD, {"owner": step["owner"]["id"], "title": step["title"]})
+                    .get("createProjectV2") or {}).get("projectV2") or {}
+        if not made.get("id"):
+            raise AccessError("the board was not created")
+        out.update({"board_id": made["id"], "created": True})
+        b = access.board_context(made["id"], fresh=True)
+        out.update({"board": f"{b['owner']}/{b['number']}", "url": b["url"]})
+    # Each piece is recorded as it lands, so a failure part-way says what the board already has.
+    out["fields"] = []
+    for name, kind, options in STANDARD_FIELDS:
+        out["fields"].append(ensure_field(b, name, kind, list(options)))
+    if c.get("views") is not False:
+        out["views"] = []
+        for view in STANDARD_VIEWS:
+            out["views"].append(ensure_view(b, *view))
+    if step.get("repo"):
+        out["linked"] = _link(b, step["repo"], link=True)
+    return out
+
+
+def _link(board: dict, repo: dict, link: bool) -> str:
+    if _linked(board["id"], repo["repo"]) == link:
+        return f"{repo['repo']} (already {'linked' if link else 'unlinked'})"
+    access.graphql(LINK % ("linkProjectV2ToRepository" if link else "unlinkProjectV2FromRepository"),
+                   {"project": board["id"], "repo": repo["id"]})
+    return repo["repo"]
+
+
+def _board_link_plan(step, planned):
+    step["board"] = planned.list_board()
+    step["repo"] = planned.repo_of(step["change"])
+
+
+def _board_link_describe(step):
+    b = step["board"]
+    verb = "Unlink" if step["change"].get("unlink") else "Link"
+    return f"{verb} board {b['owner']}/{b['number']} {say(b['title'], 40)} {'from' if verb == 'Unlink' else 'to'} {step['repo']['repo']}"
+
+
+def _board_link_run(step, out):
+    out["board"] = f"{step['board']['owner']}/{step['board']['number']}"
+    out["linked" if not step["change"].get("unlink") else "unlinked"] = _link(step["board"], step["repo"],
+                                                                              link=not step["change"].get("unlink"))
+    return out
+
+
+def _field_ensure_check(change):
+    _options(change)
+    if change["data_type"] != "SINGLE_SELECT" and change.get("options"):
+        raise AccessError("field_ensure: options are for a SINGLE_SELECT field")
+
+
+def _field_ensure_plan(step, planned):
+    c = step["change"]
+    step["board"] = planned.list_board()
+    name, options = c["name"].strip(), _options(c)
+    found = next((f for f in planned.fields(step["board"]["id"]) if access.same(f["name"], name)), None)
+    if found is None:
+        if name.lower() in BUILT_IN_NAMES:
+            raise AccessError(f"field_ensure: {name!r} is a name GitHub keeps for its own field; pick another")
+        if c["data_type"] == "SINGLE_SELECT" and not options:
+            raise AccessError("field_ensure: a new SINGLE_SELECT field needs its options")
+        step["adds"] = [n for n, _ in options]
+    else:
+        if found["type"] != c["data_type"]:
+            raise AccessError(f"field_ensure: {found['name']!r} is a {found['type']} field, not {c['data_type']}")
+        step["field"] = found["name"]
+        step["adds"] = [n for n, _ in options if not any(access.same(o["name"], n) for o in found["options"] or [])]
+
+
+def _field_ensure_describe(step):
+    c = step["change"]
+    if step.get("field"):
+        if not step["adds"]:
+            return f"Field {say(step['field'], 40)}: already in place"
+        return f"Field {say(step['field'], 40)}: add options {say(', '.join(step['adds']), 80)}"
+    kind = c["data_type"] + (f": {', '.join(step['adds'])}" if step["adds"] else "")
+    return f"Create field {say(c['name'], 40)} ({say(kind, 80)})"
+
+
+def _field_ensure_run(step, out):
+    c = step["change"]
+    return {**out, **ensure_field(step["board"], c["name"].strip(), c["data_type"], _options(c))}
+
+
+def _view_ensure_check(change):
+    if change["layout"] == "roadmap" and change.get("visible_fields"):
+        raise AccessError("view_ensure: visible_fields are for a table or board view; a roadmap takes none")
+
+
+def _view_ensure_plan(step, planned):
+    c = step["change"]
+    step["board"] = planned.list_board()
+    if c.get("visible_fields") and c["layout"] != "roadmap":
+        names = {f["name"].lower() for f in planned.fields(step["board"]["id"])}
+        unknown = [n for n in c["visible_fields"] if n.lower() not in names]
+        if unknown:
+            raise AccessError(f"view_ensure: the board has no field {', '.join(map(repr, unknown))}")
+    step["exists"] = any(access.same(v, c["name"]) for v in view_names(step["board"]["id"]))
+
+
+def _view_ensure_describe(step):
+    c = step["change"]
+    if step["exists"]:
+        return f"View {say(c['name'], 40)}: already in place"
+    filt = f", filter {say(c['filter'], 50)}" if c.get("filter") else ""
+    return f"Add view {say(c['name'], 40)} ({c['layout']}{filt})"
+
+
+def _view_ensure_run(step, out):
+    c = step["change"]
+    return {**out, **ensure_view(step["board"], c["name"].strip(), c["layout"], c.get("filter") or "",
+                                 c.get("visible_fields") or [])}
+
+
 for _op in (
         Op("draft_add", "create", "title, body, fields: a draft on the board", _draft_add_plan, _draft_add_describe,
            _draft_add_run, required=("title",), optional=("body", "fields"), needs_board=lambda c: True),
@@ -274,5 +596,22 @@ for _op in (
            _item_set_run, required=("item",), optional=("fields", "clear"), check=_item_set_check),
         Op("item_archive", "routine", "item, restore", plan_item,
            lambda s: f"{'Restore' if s['change'].get('restore') else 'Archive'} {_named(s, 60)}", _item_archive_run,
-           required=("item",), optional=("restore",))):
+           required=("item",), optional=("restore",)),
+        Op("board_create", "create",
+           "owner (a login or \"@me\", default @me), title (default Roadmap), template (a board to copy), link_repo, "
+           "views (default true): a board with Status Todo / In Progress / Done / Cancelled, Start and Target dates "
+           "and the Kanban, Backlog and Roadmap views; an open board of that title is reused and brought to that shape",
+           _board_create_plan, _board_create_describe, _board_create_run,
+           optional=("owner", "title", "template", "link_repo", "views"), check=_board_create_check),
+        Op("board_link", "create", "repo, unlink: the board linked to (or unlinked from) a repository, so it resolves "
+           "first for that repository", _board_link_plan, _board_link_describe, _board_link_run,
+           optional=("repo", "unlink"), needs_board=lambda c: True),
+        Op("field_ensure", "create", "name, data_type TEXT|SINGLE_SELECT|DATE|NUMBER, options [\"Name\" or "
+           "\"Name:COLOR\"]: a field made, or the options it lacks appended (e.g. Status + Waiting)",
+           _field_ensure_plan, _field_ensure_describe, _field_ensure_run, required=("name", "data_type"),
+           optional=("options",), check=_field_ensure_check, needs_board=lambda c: True),
+        Op("view_ensure", "create", "name, layout table|board|roadmap, filter, visible_fields [names]: a saved view "
+           "made when the board has none of that name", _view_ensure_plan, _view_ensure_describe, _view_ensure_run,
+           required=("name", "layout"), optional=("filter", "visible_fields"), check=_view_ensure_check,
+           needs_board=lambda c: True)):
     changes.register(_op)
