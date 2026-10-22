@@ -4,7 +4,9 @@
     // Claude Pro/Max through OpenCode's own OAuth login (`opencode auth login
     // anthropic --method claude-max`), not Claude Code's Keychain entries, so
     // Claude Code's and Hermes' logins are never touched. Anthropic does not
-    // permit subscription use outside Claude Code; this is an accepted risk.
+    // permit subscription use outside Claude Code; this is an accepted risk,
+    // and so is using a second login through the alias models below, which
+    // Anthropic may read as spreading work across accounts to avoid limits.
     // Pinned: the 2.x line is a prerelease and tracks OpenCode 2's beta
     // plugin API. Bump deliberately and re-test a login and a refresh.
     "@ex-machina/opencode-anthropic-auth@2.0.0-next.6",
@@ -30,7 +32,14 @@
           "anthropic-credit-team",
           "anthropic-credit-main",
           "anthropic-credit-sub"
-        ]
+        ],
+        // Other saved Claude Pro/Max logins: model-ID suffix → login label
+        // (`opencode auth list`). An alias model of the anthropic provider
+        // (see providers below) runs on the login its suffix names; the plain
+        // models run on the active login. Applies with enabled: false too.
+        "claudeAccounts": {
+          "sub": "Sub OAuth"
+        }
       }
     }
   ],
@@ -428,6 +437,30 @@
               }
             }
           ],
+        },
+      },
+    },
+    // The second Claude login (claudeAccounts above). The login plugin
+    // rewrites requests of provider anthropic only, so another login cannot
+    // be a provider of its own: these aliases sit under anthropic, send the
+    // real model (modelID) and inherit its variants, limits and prices.
+    "anthropic": {
+      "models": {
+        "claude-fable-5-1-sub": {
+          "modelID": "claude-fable-5-1",
+          "name": "Claude Fable 5.1 (Sub OAuth)",
+        },
+        "claude-opus-5-5-sub": {
+          "modelID": "claude-opus-5-5",
+          "name": "Claude Opus 5.5 (Sub OAuth)",
+        },
+        "claude-sonnet-5-5-sub": {
+          "modelID": "claude-sonnet-5-5",
+          "name": "Claude Sonnet 5.5 (Sub OAuth)",
+        },
+        "claude-haiku-5-5-sub": {
+          "modelID": "claude-haiku-5-5",
+          "name": "Claude Haiku 5.5 (Sub OAuth)",
         },
       },
     },
