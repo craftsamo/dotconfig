@@ -1361,23 +1361,37 @@ _secret_cmd_export() {
   fi
 
   command -v jq >/dev/null 2>&1 || { _secret_err "jq is required (brew install jq)"; return 1 }
-  case $fmt in
-    age)
-      command -v age >/dev/null 2>&1 || { _secret_err "age is required (brew install age)"; return 1 }
-      _secret_export_json "$proj" | age ${=SECRET_AGE_ARGS:--p} -o "$out" || {
-        _secret_err "age encryption failed"; return 1
-      }
-      ;;
-    json)
-      print -r -- "warning: '$out' will contain plaintext secrets" >&2
-      _secret_export_json "$proj" > "$out" || return 1
-      ;;
-    env)
-      print -r -- "warning: '$out' will contain plaintext secrets" >&2
-      _secret_export_env "$proj" > "$out" || return 1
-      ;;
-  esac
-  chmod 600 "$out"
+  [[ $fmt == age ]] && { command -v age >/dev/null 2>&1 || { _secret_err "age is required (brew install age)"; return 1 } }
+  [[ $fmt == age ]] || print -r -- "warning: '$out' will contain plaintext secrets" >&2
+  # The file is private from its first byte and either whole or absent: it is
+  # written under umask 077 into a temporary file beside the destination and
+  # renamed over it on success — the rename brings its own 0600, so a wider
+  # mode an existing file had is not kept — and removed on failure.
+  [[ -d $out ]] && { _secret_err "'$out' is a directory"; return 1 }
+  local tmp="" rc=0 oldmask
+  oldmask=$(umask)
+  {
+    umask 077
+    tmp=$(mktemp "${out:h}/.${out:t}.XXXXXX" 2>/dev/null) || {
+      _secret_err "cannot create a file in '${out:h}'"; rc=1
+    }
+    if (( ! rc )); then
+      case $fmt in
+        age)  _secret_export_json "$proj" | age ${=SECRET_AGE_ARGS:--p} -o "$tmp" || { rc=1; _secret_err "age encryption failed" } ;;
+        json) _secret_export_json "$proj" > "$tmp" || rc=1 ;;
+        env)  _secret_export_env "$proj" > "$tmp" || rc=1 ;;
+      esac
+    fi
+  } always {
+    umask "$oldmask"                        # also on an interrupt
+    (( rc )) && [[ -n $tmp ]] && rm -f -- "$tmp"
+  }
+  if (( rc )); then
+    _secret_err "export failed; '$out' left untouched"
+    return 1
+  fi
+  chmod 600 "$tmp"
+  mv -f -- "$tmp" "$out" || { rm -f -- "$tmp"; _secret_err "could not write '$out'"; return 1 }
   local count lbl=""
   [[ -n $proj ]] && lbl=$(_secret_kc_label "$proj")
   count=$(print -r -- "$rows" | wc -l | tr -d ' ')
