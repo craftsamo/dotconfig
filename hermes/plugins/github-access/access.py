@@ -49,11 +49,13 @@ def _gh_env() -> dict:
     return {**os.environ, "GH_PROMPT_DISABLED": "1", "GH_NO_UPDATE_NOTIFIER": "1"}
 
 
-def run_gh(argv: list[str], stdin: str | None = None, timeout: int = GH_TIMEOUT) -> subprocess.CompletedProcess:
-    """``gh`` with no prompts; tests replace this one function."""
+def run_gh(argv: list[str], stdin: str | None = None, timeout: int = GH_TIMEOUT,
+           cwd: str | None = None) -> subprocess.CompletedProcess:
+    """``gh`` with no prompts; tests replace this one function. ``cwd`` keeps a command that also
+    acts on a local checkout (a merge deleting its branch) away from any."""
     try:
         return subprocess.run(["gh", *argv], input=stdin, capture_output=True, text=True, timeout=timeout,
-                              env=_gh_env())
+                              env=_gh_env(), cwd=cwd)
     except FileNotFoundError as exc:
         raise AccessError("gh is not installed") from exc
     except subprocess.TimeoutExpired as exc:

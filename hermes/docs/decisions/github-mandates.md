@@ -34,7 +34,9 @@ mandate, and revoking one ends it at once.
 ## Do not
 
 - Let a mandate cover a target someone else owns, `create` changes on a
-  shared one, or an `admin` change anywhere, whatever its terms.
+  shared one, an `admin` change anywhere, or an upload (a file a change
+  attaches is permanent and public on a public repository), whatever its
+  terms.
 - Decide what is in force from the history file: only the MAC'd head does.
 - Keep the MAC key anywhere a profile receives (it lives under the Keychain
   scope `github-access`), or open the state directory to file or terminal
