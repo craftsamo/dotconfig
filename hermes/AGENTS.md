@@ -441,10 +441,12 @@ or a patch branched from it: the patches must stay rebasable onto the next pin
 alone ([README "Runtime dependency: local patches"](README.md#runtime-dependency-local-patches)).
 
 1. `./scripts/check-local-patches.sh` — every local `fix/*` branch in the
-   hermes-agent checkout must still be merged into `local`, and the
-   case-collision twin must keep `skip-worktree` (without it every rebase and
-   merge refuses to start; `git checkout --` only flips which twin is dirty). A
-   missing patch fails silently at runtime, e.g. browser isolation.
+   hermes-agent checkout must still be merged into `local`, and while a pin
+   tracks both case-collision twins the lowercase one must keep `skip-worktree`
+   (without it every rebase and merge refuses to start; `git checkout --` only
+   flips which twin is dirty). A pin that tracks one twin needs the flag cleared
+   instead, or upstream changes to that file stay hidden. A missing patch fails
+   silently at runtime, e.g. browser isolation.
 2. `./scripts/validate-profile-skills.py --all`; delete any seeded category
    directory under `~/.hermes/skills/` and `~/.hermes/profiles/*/skills/`
    other than the managed links and `learned` (upstream seeds past
