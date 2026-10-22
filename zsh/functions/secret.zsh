@@ -513,15 +513,49 @@ _secret_store() {              # $1 name $2 project $3 comment $4 kind $5 layer 
   cmd+=" -w $(_secret_quote_si "$value")"
   cmd+=" $(_secret_quote_si "$kc")"
   err=$(print -r -- "$cmd" | security -i 2>&1 >/dev/null)
-  # create-only: any complaint from security (an existing item, in whatever language) is a refusal,
-  # even if an item of that name is there now: it may not be this one
-  if [[ $create == new && -n $err ]]; then
-    _secret_err "$(_secret_disp "$proj" "$layer" "$name") was not stored as new — ${err//$'\n'/ }"
+  # security -i reports a refusal on stderr and says nothing on success, so any
+  # complaint (a locked keychain, a denied ACL, an existing item under --new,
+  # in whatever language) is a failure — an item of that name being there
+  # afterwards proves nothing, it may be the one from before the write
+  local disp
+  disp=$(_secret_disp "$proj" "$layer" "$name")
+  if [[ -n $err ]]; then
+    if [[ $create == new ]]; then
+      _secret_err "$disp was not stored as new — ${err//$'\n'/ }"
+    else
+      _secret_err "failed to store $disp — ${err//$'\n'/ }"
+      _secret_err "(the item may be partly written; 'secret show' tells)"
+    fi
     return 1
   fi
-  if ! security find-generic-password -s "$svc" -a "$name" "$kc" >/dev/null 2>&1; then
-    _secret_err "failed to store $(_secret_disp "$proj" "$layer" "$name")${err:+ — ${err//$'\n'/ }}"
+  # and the value must read back as written: a silent no-op is a failure too
+  local back
+  if ! back=$(_secret_read_value "$svc" "$name" "$kc"); then
+    _secret_err "failed to store $disp (not found after the write)"
     return 1
+  fi
+  if [[ $back != "$value" ]]; then
+    _secret_err "failed to store $disp (the value did not read back; not stored)"
+    return 1
+  fi
+}
+
+# The value of one item. `find-generic-password -w` prints a value that is
+# not all printable ASCII as bare hex, which no reader can tell from a
+# password that happens to be hex digits; `-g` marks the hex form with
+# "0x" ('password: 0x636166C3A9  "caf\303\251"') and prints a plain one as
+# 'password: "..."', so that is what is read, and the hex is decoded.
+_secret_read_value() {         # $1 service  $2 name  $3 keychain -> value on stdout
+  local out line
+  out=$(security find-generic-password -s "$1" -a "$2" -g "$3" 2>&1 >/dev/null) || return 1
+  line=${out##*password: }
+  if [[ $line == 0x* ]]; then
+    local hex=${${line#0x}%% *} esc="" i
+    for (( i = 1; i <= ${#hex}; i += 2 )); do esc+="\\x${hex[i,i+1]}"; done
+    print -r -- "$(printf "$esc")"
+  else
+    line=${line#\"}
+    print -r -- "${line%\"}"
   fi
 }
 
@@ -529,7 +563,7 @@ _secret_get_value() {          # $1 name  $2 project  $3 layer -> value on stdou
   local kc
   kc=$(_secret_kc_for "$2")
   _secret_kc_ensure "$kc"
-  security find-generic-password -s "$(_secret_service "$2" "$3")" -a "$1" -w "$kc" 2>/dev/null
+  _secret_read_value "$(_secret_service "$2" "$3")" "$1" "$kc"
 }
 
 _secret_exists() {             # $1 name  $2 project  $3 layer (attributes only)

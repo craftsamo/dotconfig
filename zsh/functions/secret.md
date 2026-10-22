@@ -397,7 +397,12 @@ secret import secret-export-all-YYYYMMDD.json.age
 
 - Secret values never appear in process argv: writes are piped to
   `security -i` on stdin, interactive entry uses zsh `read -s`, reads use
-  `find-generic-password -w`.
+  `find-generic-password -g` and decode the `0x…` form `security` prints
+  for a value that is not all printable ASCII (`-w` prints such a value as
+  bare hex, which nothing can tell from a password made of hex digits).
+- A write is a failure unless `security` stayed silent and the value reads
+  back as written: a locked keychain, a denied ACL or a silent no-op never
+  reports `updated` / `stored`, even when the item existed before.
 - Values are single-line; control characters are rejected.
 - fzf — including preview — only ever sees names and metadata.
 - Clipboard copies clear after 45 s unless something else was copied since.
@@ -410,10 +415,13 @@ secret import secret-export-all-YYYYMMDD.json.age
 
 ## Tests
 
-[`zsh/tests/secret-selftest.zsh`](../tests/secret-selftest.zsh) — 309
+[`zsh/tests/secret-selftest.zsh`](../tests/secret-selftest.zsh) — 317
 assertions: round-trips (special characters, json/env/age), the export
 file's mode from the first byte, its absence after a failed write, the
-refused directory and the restored umask, partial updates,
+refused directory and the restored umask, partial updates and the write
+guard (a refusal from `security` or a value that does not read back fails
+`update` and `set`, with the item untouched; a UTF-8 value with
+surrounding spaces reads back byte for byte),
 `--no-env` (kept out of `env`, kept across rewrites and export/import, stored
 as the `envn`/`envy` type code), `--meta` fields (validation, sorting,
 `ls --meta` filters, export/import round-trips), `secret migrate` of the
