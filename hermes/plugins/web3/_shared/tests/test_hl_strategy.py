@@ -307,6 +307,100 @@ def test_a_walk_forward_grid_may_choose_the_entry_order():
         assert f["chosen_fingerprint"] == hs.fingerprint(hs.rules({"kind": "breakout", **f["chosen"]}), "4h")
 
 
+def test_one_market_of_simulate_many_is_simulate():
+    series, rules = walk(400), hs.rules({**BREAKOUT, "trail_atr": 2, "entry_order": "limit_then_market"})
+    cost, limits = hs.costs({"funding": "none"}), {"exposure_pct": 70, "max_leverage": 2}
+    one = hs.simulate(series, rules, "4h", cost, limits, trade_from=20)
+    many = hs.simulate_many({"BTC": series}, {"BTC": rules}, "4h", cost, limits, trade_from=20)
+    assert many == one and "market" not in one["trades"][0]
+    wf = hs.walk_forward(series, rules, "4h", cost, limits, {"grid": {"entry": [5, 8]}, "folds": 2, "min_trades": 0},
+                         rates=hs.funding_by_bar(series, "4h", None, 0.0, "none"), stance=[], direction="both")
+    wf_many = hs.walk_forward_many({"BTC": series}, rules, "4h", cost, limits,
+                                   {"grid": {"entry": [5, 8]}, "folds": 2, "min_trades": 0},
+                                   rates_by={"BTC": hs.funding_by_bar(series, "4h", None, 0.0, "none")}, stance=[],
+                                   direction="both")
+    assert wf_many["out_of_sample"] == wf["out_of_sample"] and wf_many["markets"] == ["BTC"]
+    assert [f["chosen"]["BTC"] for f in wf_many["folds"]] == [f["chosen"] for f in wf["folds"]]
+
+
+def test_markets_traded_together_share_the_cash_and_the_exposure_bound():
+    rules, cost = hs.rules(BREAKOUT), hs.costs({"taker_bps": 0, "slippage_bps": 0, "funding": "none"})
+    both = {"A": TOUCHED, "B": TOUCHED}  # the same breakout in two markets at once
+    wide = hs.simulate_many(both, {"A": rules, "B": rules}, "4h", cost, {"exposure_pct": 100, "max_leverage": 10})
+    assert [t["market"] for t in wide["trades"]] == ["A", "B"] and wide["trades"][0]["pnl"] == wide["trades"][1]["pnl"]
+    # a bound the first entry fills leaves the second a smaller one, or none
+    tight = hs.simulate_many(both, {"A": rules, "B": rules}, "4h", cost, {"exposure_pct": 30, "max_leverage": 10})
+    assert [t["market"] for t in tight["trades"]] == ["A", "B"] and tight["trades"][1]["pnl"] < tight["trades"][0]["pnl"]
+    none = hs.simulate_many(both, {"A": rules, "B": rules}, "4h", cost, {"exposure_pct": 18, "max_leverage": 10})
+    assert [t["market"] for t in none["trades"]] == ["A"]
+    # the curve is the account's: one point per shared time, both positions marked
+    assert len(wide["curve"]) == len(TOUCHED) and wide["totals"]["bars_held"] == 3
+    assert wide["buy_hold_pct"] == pytest.approx((TOUCHED[-1]["c"] / TOUCHED[0]["o"] - 1) * 100)
+
+
+def test_an_entry_sees_the_other_markets_only_as_they_stood_at_its_open():
+    rules, cost = hs.rules(BREAKOUT), hs.costs({"taker_bps": 0, "slippage_bps": 0, "funding": "none"})
+    limits = {"exposure_pct": 30, "max_leverage": 10}  # tight: B's size is what A leaves
+
+    def b_pnl(a_series):
+        run = hs.simulate_many({"A": a_series, "B": TOUCHED}, {"A": rules, "B": rules}, "4h", cost, limits)
+        return [t["pnl"] for t in run["trades"] if t["market"] == "B"]
+
+    plain = b_pnl(TOUCHED)
+    # A's bar runs away after the open, or its stop fires inside the bar: B, sized at the open, sees neither
+    assert b_pnl(TOUCHED[:11] + [bar(11, 106, 140, 105, 139), bar(12, 139, 141, 138, 140), bar(13, 140, 141, 139, 140)]) == plain
+    assert b_pnl(TOUCHED[:11] + [bar(11, 106, 108, 80, 85), bar(12, 85, 86, 84, 85), bar(13, 85, 86, 84, 85)]) == plain
+
+
+def test_an_entry_is_sized_from_the_accounts_value_with_the_others_unrealized_result():
+    rules, cost = hs.rules(BREAKOUT), hs.costs({"taker_bps": 0, "slippage_bps": 0, "funding": "none"})
+    limits = {"exposure_pct": 100, "max_leverage": 10}
+    later = flat(11) + [bar(11, 100, 106, 100, 105), bar(12, 106, 108, 105, 107), bar(13, 107.5, 109, 106.5, 108)]
+
+    def b_pnl(a_open_12):  # A is held from bar 11; B enters at bar 12's open, where A's mark is a_open_12
+        a = TOUCHED[:12] + [bar(12, a_open_12, a_open_12 + 2, a_open_12 - 1, a_open_12 + 1), bar(13, 108, 109, 107.5, 108)]
+        run = hs.simulate_many({"A": a, "B": later}, {"A": rules, "B": rules}, "4h", cost, limits)
+        return next(t["pnl"] for t in run["trades"] if t["market"] == "B")
+
+    assert b_pnl(150.0) > b_pnl(107.5) > b_pnl(90.0)
+
+
+def test_a_limit_resting_through_the_bar_reserves_its_value_for_the_other_markets():
+    cost, limits = hs.costs({"taker_bps": 0, "slippage_bps": 0, "funding": "none"}), {"exposure_pct": 30, "max_leverage": 10}
+    market, limit = hs.rules(BREAKOUT), hs.rules({**BREAKOUT, "entry_order": "limit_then_market"})
+    alone = hs.simulate_many({"B": TOUCHED}, {"B": market}, "4h", cost, limits)["trades"][0]["pnl"]
+    # A's limit at 105 rests unfilled through bar 11 (only touched): B's entry at that open is sized after it
+    beside = hs.simulate_many({"A": TOUCHED, "B": TOUCHED}, {"A": limit, "B": market}, "4h", cost, limits)
+    b = next(t for t in beside["trades"] if t["market"] == "B")
+    assert b["pnl"] < alone
+    # whether the bar then trades through A's limit (a fill the open could not know) changes nothing for B
+    traded_through = TOUCHED[:11] + [bar(11, 106, 108, 104.9, 107)] + TOUCHED[12:]
+    filled = hs.simulate_many({"A": traded_through, "B": TOUCHED}, {"A": limit, "B": market}, "4h", cost, limits)
+    assert [t["market"] for t in filled["trades"]] == ["A", "B"]
+    assert next(t for t in filled["trades"] if t["market"] == "B")["pnl"] == b["pnl"]
+
+
+def test_a_position_held_on_through_a_time_its_market_has_no_bar_at_counts_as_held():
+    rules, cost = hs.rules(BREAKOUT), hs.costs({"funding": "none"})
+    sparse = TOUCHED[:12] + TOUCHED[13:]  # B has no bar at time 12, while it holds from 11 to 13
+    run = hs.simulate_many({"A": flat(14), "B": sparse}, {"A": rules, "B": rules}, "4h", cost,
+                           {"exposure_pct": 100, "max_leverage": 10})
+    assert [t["market"] for t in run["trades"]] == ["B"] and run["totals"]["bars_held"] == 3
+
+
+def test_a_market_without_a_bar_at_a_time_sits_it_out():
+    a, b = walk(300, seed=1), walk(300, seed=2)[::2]  # B has every other bar
+    rules, cost = hs.rules(BREAKOUT), hs.costs({"funding": "none"})
+    run = hs.simulate_many({"A": a, "B": b}, {"A": rules, "B": rules}, "4h", cost, {"exposure_pct": 70, "max_leverage": 2})
+    assert len(run["curve"]) == 300 and run["bars"] == 300 and {t["market"] for t in run["trades"]} == {"A", "B"}
+    wf = hs.walk_forward_many({"A": walk(1200, seed=3), "B": walk(1200, seed=4)}, rules, "4h", cost,
+                              {"exposure_pct": 70, "max_leverage": 2},
+                              {"grid": {"entry": [5, 8]}, "folds": 2, "min_trades": 0},
+                              rates_by={"A": [(0.0, 0)] * 1200, "B": [(0.0, 0)] * 1200}, stance=[], direction="both")
+    assert len(wf["folds"]) == 2 and set(wf["folds"][0]["chosen"]) == {"A", "B"}
+    assert wf["out_of_sample"]["trades"] == sum(f["test"]["trades"] for f in wf["folds"])
+
+
 def test_a_bar_that_gaps_through_the_stop_fills_at_its_open_and_costs_are_charged():
     series = flat(10) + [bar(10, 100, 106, 100, 105), bar(11, 106, 107, 105, 106), bar(12, 80, 81, 79, 80)]
     cost = hs.costs({"taker_bps": 10, "slippage_bps": 0, "funding": "none"})
