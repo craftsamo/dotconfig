@@ -8,20 +8,20 @@ Part of the Hermes design docs — index: [`PROFILES.md`](../PROFILES.md).
 
 ## Shape
 
-| Piece                                                                                                                                      | Home                                                                             | Reader    |
-| ------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------- | --------- |
-| Read engine: GraphQL transport, references, tiers, board resolution, issue and board reads                                                 | `plugins/github-access/access.py`                                                | all       |
-| Repository reads: settings, labels, milestones                                                                                             | `access_repo.py` beside `access.py`                                              | all       |
-| Pull request reads: one in full with its checks and reviews, a repository's list                                                           | `access_pr.py` beside `access.py`                                                | all       |
-| Write engine: the op registry, change validation, the plan of targets, the card, applying a change list                                    | `plugins/github-access/changes.py`                                               | all       |
-| The ops of a change list, one module per domain: boards and their items, issues, repositories, pull requests and attachments               | `ops_board.py`, `ops_issue.py`, `ops_repo.py`, `ops_pr.py` beside `changes.py`   | all       |
-| Mandates: terms, the MAC'd state, whether a change list fits                                                                               | `plugins/github-access/mandate.py`                                               | all       |
-| Bypass guard                                                                                                                               | `plugins/github-access/guard.py`                                                 | all       |
-| `github_issue`, `github_board`, `github_repo`, `github_pr`, `github_change`, `github_mandate` tools (toolset `github_access`) and the hook | `plugins/github-access/__init__.py`                                              | Assistant |
-| How the Assistant reads Issues and boards, and the draft / issue model                                                                     | the `github-access:github` plugin skill (`plugins/github-access/skills/github/`) | Assistant |
-| How the Assistant changes them: proposing tracking, change lists, tiers, recipes                                                           | the `github-access:github-tracking` plugin skill                                 | Assistant |
-| How the Assistant reads and changes a repository, its labels and milestones                                                                | the `github-access:github-repo` plugin skill                                     | Assistant |
-| How the Assistant reads, opens, edits, attaches files to and merges a pull request                                                         | the `github-access:github-pr` plugin skill                                       | Assistant |
+| Piece                                                                                                                                           | Home                                                                                                               | Reader    |
+| ----------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ | --------- |
+| Read engine: GraphQL transport, references, tiers, board resolution, issue and board reads                                                      | `plugins/github-access/access.py`                                                                                  | all       |
+| Repository reads: settings, labels, milestones, releases, Actions workflows and runs                                                            | `access_repo.py` beside `access.py`                                                                                | all       |
+| Pull request reads: one in full with its checks and reviews, a repository's list                                                                | `access_pr.py` beside `access.py`                                                                                  | all       |
+| Write engine: the op registry, change validation, the plan of targets, the card, applying a change list                                         | `plugins/github-access/changes.py`                                                                                 | all       |
+| The ops of a change list, one module per domain: boards and their items, issues, repositories, pull requests and attachments, releases, Actions | `ops_board.py`, `ops_issue.py`, `ops_repo.py`, `ops_pr.py`, `ops_release.py`, `ops_actions.py` beside `changes.py` | all       |
+| Mandates: terms, the MAC'd state, whether a change list fits                                                                                    | `plugins/github-access/mandate.py`                                                                                 | all       |
+| Bypass guard                                                                                                                                    | `plugins/github-access/guard.py`                                                                                   | all       |
+| `github_issue`, `github_board`, `github_repo`, `github_pr`, `github_change`, `github_mandate` tools (toolset `github_access`) and the hook      | `plugins/github-access/__init__.py`                                                                                | Assistant |
+| How the Assistant reads Issues and boards, and the draft / issue model                                                                          | the `github-access:github` plugin skill (`plugins/github-access/skills/github/`)                                   | Assistant |
+| How the Assistant changes them: proposing tracking, change lists, tiers, recipes                                                                | the `github-access:github-tracking` plugin skill                                                                   | Assistant |
+| How the Assistant reads and changes a repository, its labels, milestones, releases and Actions runs                                             | the `github-access:github-repo` plugin skill                                                                       | Assistant |
+| How the Assistant reads, opens, edits, attaches files to and merges a pull request                                                              | the `github-access:github-pr` plugin skill                                                                         | Assistant |
 
 The plugin is enabled in the Assistant's private configuration only, like
 Google access: it reaches the user's own account. A person without the
@@ -85,7 +85,10 @@ board up to 2000 items before filtering and says when it was cut.
 flags, default branch, description, homepage, topics, license, features and
 merge settings with the viewer's permission and the tier; `labels` and
 `milestones` (open, closed or all, with due date and progress) list the
-rest. `github_pr` `view` reads a pull request's state, draft flag, base and
+rest, `releases` the latest releases (drafts too, for a viewer who can push),
+`workflows` and `runs` the Actions workflows and recent runs, and `run` one
+run's jobs and failed steps with the last 120 lines (at most 8,000
+characters) of their log, terminal colors and control characters removed. `github_pr` `view` reads a pull request's state, draft flag, base and
 head with the head commit, GitHub's mergeable and merge state, the review
 decision, latest reviews and requests, the head commit's checks (failing and
 pending ones named, required ones counted), the issues a merge closes and
@@ -242,9 +245,34 @@ under the same name, and gh uploads the copy: a path retargeted after the
 card uploads nothing it points to now. A body may reference an attached file
 by the path written in `attachments` (gh swaps the reference for the
 uploaded URL), and only in a body does that path pass the local-path check
-that refuses every other. When gh makes the pull
-request or comment but some uploads fail, the result keeps its URL under
-`partial`.
+that refuses every other. When gh makes the pull request or comment but some
+uploads fail, the result keeps its URL under `partial`.
+
+### Releases and Actions
+
+`release_create` always makes a draft (only people who can push see it, and
+the tag is made when it is published); its `target` is for a tag that does
+not exist yet and must name a branch or a full SHA. `release_edit` is
+`routine` on a draft and `admin` on a published release, where `target` is
+refused; the plan reads the release (among the latest 100, where drafts
+show to a viewer who can push) and raises the change's class, and binds the
+release's state and its tag's commit as a target ("Release"), so a draft
+published or a tag moved after the card is a different change. Notes travel
+on stdin. `release_publish` is `admin`: it turns a draft into a
+release everyone who can read the repository sees, makes its tag, and tells
+watchers.
+
+`run_rerun` and `workflow_dispatch` are `admin`: a workflow can deploy,
+publish or spend whatever its name says. `run_rerun` takes a finished run,
+by default re-running only its failed jobs (refused when it has none), and
+binds the run's attempt as a target ("Re-running"); a run URL of another
+repository is refused. `workflow_dispatch` takes an active workflow by id or
+path, or by a file name or name that names exactly one, a branch or tag (the
+default branch unless named) and inputs; its file at that commit must name
+`workflow_dispatch` outside a comment, the commit is bound as a target
+("Starting"), so a push after the card is a different change (one between the
+handler's read and GitHub's dispatch is not caught), and the inputs travel as JSON on stdin
+(never `-F`, which reads a value starting with `@` as a file).
 
 ## Approval
 
