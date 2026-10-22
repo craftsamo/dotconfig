@@ -154,8 +154,10 @@ def skill_environment(tmp_path, monkeypatch):
 
 
 def test_curated_skill_discovery_and_reference_reads(skill_environment):
+    from .skill_roots import find_all_skills
+
     skills, store, _ = skill_environment
-    names = {item["name"] for item in skills._find_all_skills()}
+    names = {item["name"] for item in find_all_skills()}
     assert set(TECHNICAL_SKILLS) <= names
     assert not {"hyperframes", "media-use"} & names
     for name in TECHNICAL_SKILLS:

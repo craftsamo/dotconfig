@@ -155,6 +155,8 @@ def _child(case, sandbox, candidate, source, disabled):
         from agent import skill_utils as su
         from agent import prompt_builder as pb
         from tools import skills_tool as st, skills_tool_plugin as sp, skill_usage
+
+        find_all_skills = getattr(st, "find_all_skills", None) or st._find_all_skills  # renamed in newer runtimes
         from tools.registry import registry
 
         stack.enter_context(patch.object(su, "get_project_skills_dirs", return_value=[]))
@@ -186,7 +188,7 @@ def _child(case, sandbox, candidate, source, disabled):
         rows = re.findall(r"^    - ([^: \n]+): (.*)$", prompt, re.MULTILINE)
         expected = {ROOT} if caller else set(PATHS)
         assert len(rows) == len(expected) and {n for n, _ in rows} == expected
-        found = st._find_all_skills()
+        found = find_all_skills()
         assert len(found) == len(expected) and {s["name"] for s in found} == expected
         listing = json.loads(registry.dispatch("skills_list", {}, task_id="writer-index"))
         assert listing["count"] == len(expected) and {s["name"] for s in listing["skills"]} == expected

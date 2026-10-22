@@ -468,9 +468,10 @@ Commands: [README "Commands"](README.md#commands).
   hyphenated, non-importable dirs). Private overlay tests likewise run with
   `hermes-python --test -m unittest …`.
 - A test that scopes the runtime's skill discovery builds its stub with
-  `scripts/tests/skill_roots.py`, not a literal tuple: `_skill_search_dirs` is
-  private and its return shape changes between runtimes, which breaks every
-  test that hard-codes one.
+  `scripts/tests/skill_roots.py`, not a literal tuple: the runtime's skill
+  scanner (`skill_search_dirs` / `find_all_skills`) changes its names and return
+  shape between runtimes, which breaks every test that hard-codes one; tests
+  reach it only through that module.
 - `../install.sh` after adding files; `hermes update` to update (not
   `setup.sh`); `hermes doctor` for providers and model tiers.
 - **`hermes -z` is YOLO.** It sets `HERMES_YOLO_MODE=1` before the agent
