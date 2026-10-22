@@ -180,7 +180,8 @@ def test_the_gate_asks_for_writes_only():
     directive = gate(tool_name="note", args={"action": "update_draft", "draft": "n0000000000a1", "base": "t1", "body": "new"},
                      tool_call_id="c1")
     assert directive["action"] == "approve"
-    assert directive["message"].startswith("note: replace draft n0000000000a1 as @writer\nNow: T — old\nTitle: T\n")
+    assert directive["message"].startswith("note · Replace draft n0000000000a1\n⚠️ Replaces the whole draft; "
+                                           "nothing is published\nAccount: @writer\nNow: T — old\nTitle: T\n")
     assert directive["rule_key"].startswith("note-access:update_draft:")
 
 
@@ -393,7 +394,7 @@ def test_a_preview_runs_without_a_card_even_unattended(isolated, monkeypatch):
     assert gate(tool_name="note", args=args, tool_call_id="p1") is None
     result = json.loads(handler(args))
     assert result["ok"] is True and result["preview"] is True and "save" not in isolated
-    assert result["card"].startswith("note: replace draft n0000000000a1")
+    assert result["card"].startswith("note · Replace draft n0000000000a1\n")
 
 
 @pytest.mark.parametrize("flag", [1, "true", "yes", 0.5])
