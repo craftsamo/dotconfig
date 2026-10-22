@@ -6,6 +6,8 @@ The engine behind the plugin's read tools. Everything goes through the user's ow
 Shared with the write side (``changes.py``) and the mandates (``mandate.py``):
 
   graphql()       one query or mutation, typed variables on stdin, errors raised
+  lookup()        a query that may name something that does not exist: GitHub's NOT_FOUND
+                  leaves null in ``data`` instead of raising, so the caller says what is missing
   parse_*()       an issue as 12 / #12 / owner/repo#12 / URL, a repository, a project
   repo_context()  who owns a repository, whether it is private, the viewer's permission
   board_context() the same for a project board
@@ -62,19 +64,33 @@ def run_gh(argv: list[str], stdin: str | None = None, timeout: int = GH_TIMEOUT,
         raise AccessError(f"gh did not answer within {timeout}s") from exc
 
 
-def graphql(query: str, variables: dict | None = None) -> dict:
-    """``data`` of one GraphQL request; any error raises with GitHub's messages."""
+def graphql(query: str, variables: dict | None = None, missing_ok: bool = False) -> dict:
+    """``data`` of one GraphQL request; any error raises with GitHub's messages.
+
+    GitHub answers a query naming something that does not exist (a repository, an issue, a pull
+    request, an organization, a board, a node id) with ``null`` at that path *and* an error of type
+    ``NOT_FOUND``. With ``missing_ok`` such a request returns its ``data``, so the caller reads the
+    null and says what is missing; any other error still raises. A mutation never passes it: a
+    target gone after the card must fail, not read as done."""
     done = run_gh(["api", "graphql", "--input", "-"], stdin=json.dumps({"query": query, "variables": variables or {}}))
     try:
         body = json.loads(done.stdout or "{}")
     except json.JSONDecodeError:
         body = {}
     errors = body.get("errors") or []
+    if missing_ok and errors and "data" in body and all(
+            isinstance(e, dict) and e.get("type") == "NOT_FOUND" for e in errors):
+        return body["data"] or {}
     if errors or done.returncode != 0 or "data" not in body:
         detail = "; ".join(str(e.get("message", e)) for e in errors if isinstance(e, dict)) or \
             (done.stderr or done.stdout or "").strip().splitlines()[-1:] or [f"exit {done.returncode}"]
         raise AccessError(f"GitHub refused the request: {detail if isinstance(detail, str) else detail[0]}"[:500])
     return body["data"] or {}
+
+
+def lookup(query: str, variables: dict | None = None) -> dict:
+    """A read that may name something that does not exist: ``graphql`` with ``missing_ok``."""
+    return graphql(query, variables, missing_ok=True)
 
 
 def paginate(query: str, variables: dict, pick, limit: int) -> list:
@@ -214,7 +230,7 @@ def repo_context(repo: str, fresh: bool = False) -> dict:
 
     def load():
         owner, name = repo.split("/", 1)
-        r = graphql(REPO_QUERY, {"owner": owner, "name": name}).get("repository")
+        r = lookup(REPO_QUERY, {"owner": owner, "name": name}).get("repository")
         if not r:
             raise AccessError(f"repository {repo} not found or not visible to the viewer")
         kind = r["owner"]["__typename"]
@@ -240,7 +256,7 @@ def _board(p: dict, fresh: bool = False) -> dict:
 
 def board_context(project_id: str, fresh: bool = False) -> dict:
     """A board as a write sees it, read now (boards are never cached)."""
-    data = graphql(f"query($id:ID!){{node(id:$id){{... on ProjectV2{{{PROJECT_FIELDS}}}}}}}", {"id": project_id})
+    data = lookup(f"query($id:ID!){{node(id:$id){{... on ProjectV2{{{PROJECT_FIELDS}}}}}}}", {"id": project_id})
     node = data.get("node") or {}
     if not node.get("id"):
         raise AccessError(f"project {project_id} not found")
@@ -272,8 +288,8 @@ def boards_titled(login: str, title: str) -> list[dict]:
 def board_by_number(login: str, number: int) -> dict:
     login = viewer() if login == "@me" else login
     root = _owner_root(login)
-    data = graphql(f"query($login:String!,$n:Int!){{{root}(login:$login){{projectV2(number:$n){{{PROJECT_FIELDS}}}}}}}",
-                   {"login": login, "n": number})
+    data = lookup(f"query($login:String!,$n:Int!){{{root}(login:$login){{projectV2(number:$n){{{PROJECT_FIELDS}}}}}}}",
+                  {"login": login, "n": number})
     node = (data.get(root) or {}).get("projectV2")
     if not node:
         raise AccessError(f"project {login}/{number} not found or not visible to the viewer")
@@ -382,8 +398,8 @@ DEPS_QUERY = ("query($owner:String!,$name:String!,$n:Int!){repository(owner:$own
 
 def issue(repo: str, number: int, comments: int = COMMENTS) -> dict:
     owner, name = parse_repo(repo).split("/", 1)
-    data = graphql(ISSUE_QUERY, {"owner": owner, "name": name, "n": number, "comments": max(1, comments),
-                                 "withComments": comments > 0})
+    data = lookup(ISSUE_QUERY, {"owner": owner, "name": name, "n": number, "comments": max(1, comments),
+                                "withComments": comments > 0})
     i = (data.get("repository") or {}).get("issue")
     if not i:
         raise AccessError(f"issue {repo}#{number} not found")
