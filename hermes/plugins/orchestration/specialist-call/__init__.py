@@ -171,7 +171,9 @@ def _scope():
         and async_delivery_supported()
     )
     inbound = platform == "a2a" or source == "a2a"
-    if not live and not inbound and (platform not in {"", "cli"} or source not in {"", "cli"}):
+    # A CLI turn reports `cli` where it runs in the CLI process and `local` where the CLI is a
+    # gateway client; either way the caller polls for the result.
+    if not live and not inbound and (platform not in {"", "cli", "local"} or source not in {"", "cli", "local"}):
         raise ValueError("Unverified caller delivery context; no specialist launched")
     owner = {"profile": profile, "session_id": route["ID"], "routing_digest":
              hashlib.sha256(json.dumps([str(home.resolve()), route], sort_keys=True).encode()).hexdigest()}
