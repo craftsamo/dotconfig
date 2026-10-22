@@ -265,7 +265,13 @@ CWD up to the git toplevel plus the subtree below the CWD (`node_modules`
 pruned, depth-limited) — and skips those names. Monorepo package files like
 `apps/web/.env` are therefore respected when launching from the workspace
 root; run inside `apps/api` for per-package precision. Templates
-(`.env.example`, ...) are ignored. Nested launches (npm scripts calling npm)
+(`.env.example`, ...) are ignored. Under `SECRET_STAGE` only `.env`,
+`.env.local` and the stage's own `.env.<stage>{,.local}` count (`prod` and
+`production` name `.env.production`, `dev` and `development`
+`.env.development`): a name in another stage's file — a `DATABASE_URL` in
+`.env.test` while launching with `SECRET_STAGE=prod` — no longer keeps the
+asked-for stage's keychain value out. With no stage every file counts, as
+the application may read any of them. Nested launches (npm scripts calling npm)
 skip re-injection via the `_SECRET_SHIM_PROJ` (`project@stage`) /
 `_SECRET_SHIM_TOOL` sentinels. A nested project launch in another stage (or
 project) first retracts what the outer shim injected — the names travel in
@@ -414,10 +420,11 @@ master machinery via the `SECRET_MASTER_ACCOUNT` / `SECRET_TEST_ONLY_KC`
 hooks, and cleans up after itself — safe to run on a machine with real data.
 
 [`zsh/tests/secret-shim-selftest.zsh`](../tests/secret-shim-selftest.zsh) —
-53 assertions for the launcher shims: layer injection and override order,
+58 assertions for the launcher shims: layer injection and override order,
 inherited-environment precedence, dotenv name skipping (monorepo union from
 the root vs per-package precision, `.env.example` exclusion, `export NAME=`
-lines), sentinels, stages (`SECRET_STAGE` in project mode, the stage-carrying
+lines, the stage's own file vs another stage's under `SECRET_STAGE`, the
+`production` alias), sentinels, stages (`SECRET_STAGE` in project mode, the stage-carrying
 sentinel, the prod announcement, no stage in tool mode, the swap of a nested
 launch in another stage: replaced, dropped and hand-exported values, the
 recorded names, the stderr line), the mise pin under a
