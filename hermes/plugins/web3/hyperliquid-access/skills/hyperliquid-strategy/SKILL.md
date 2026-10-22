@@ -71,6 +71,9 @@ default when a stance does not hold, with a note saying why.
    Give `costs.taker_bps` the account's own taker rate (`state`'s `fees`),
    and once a strategy has traded, its measured slippage (the gate's
    `execution`) as `slippage_bps` when it is higher than the default.
+   A limit entry (`entry_order`) is a backtest question only: the gate
+   sends entries at market and opens nothing for a variant that enters
+   with a limit, so never put one in a spec.
    Compare with buy-and-hold for scale, and say what `unread` says (assumed
    funding, older prices from Binance spot). Run the markets one after
    another: a backtest reads many pages, and several at once hit the venue's

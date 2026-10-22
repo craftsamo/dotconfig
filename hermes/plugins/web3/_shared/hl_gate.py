@@ -488,6 +488,12 @@ def run_strategy(directory: Path, now: int) -> dict:
     if untested:
         out["notes"].append(f"variant {', '.join(untested)} has no walk-forward out_of_sample recorded in the spec: "
                             "its markets open nothing until it is; closes and stops go on")
+    # a limit entry is tested in backtests only: the gate sends entries at market, which is not what was tested
+    unplaced = sorted({c["variant"] for c in choices.values()
+                       if "entry_order" in strategy["variants"][c["variant"]]["rules"]} - set(untested))
+    if unplaced:
+        out["notes"].append(f"variant {', '.join(unplaced)} enters with a limit order, which the gate does not place: "
+                            "its markets open nothing; closes and stops go on")
     ctx = hl.Ctx(strategy["network"], {"_api": _api_override()})
     limits = dict(strategy["limits"])
     if mandate:
@@ -647,7 +653,7 @@ def run_strategy(directory: Path, now: int) -> dict:
                                     "force")
             elif breaker_unread:
                 retry = True  # the bar is read again once the breaker can be
-            elif choice["variant"] not in untested and not hold_entries:  # each said once above, not per bar
+            elif choice["variant"] not in untested + unplaced and not hold_entries:  # each said once above
                 value, bound = hs.size_usd(account.equity, ev["price"], ev["stop"], rule_set, choice["size"], held,
                                            limits)
                 if value is None:

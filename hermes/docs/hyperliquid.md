@@ -319,12 +319,32 @@ tested is what runs.
   warm it up, so a long one needs `long_history` to leave bars to trade).
   Left out or 0, each leaves the rule set and its fingerprint
   those of the rules without it. Only completed bars are read.
+  `entry_order` says how an entry is sent: `market` (the default, likewise
+  left out of the rule set), `limit` or `limit_then_market`, with
+  `limit_atr` placing the limit that many ATRs better than the signal's
+  close (at the close without it; less than `stop_atr`, and only with a
+  limit).
 - **Fills**: a signal at a bar's close fills at the next bar's open with
   slippage and the taker fee both ways; a stop fills inside a bar whose range
   reaches it, at the open when the bar gaps through; funding accrues each
   hour held at the venue's rate (a gap pays none for its bar; a stop inside
   a bar pays the bar's whole, since OHLC does not say its hour). Sizes are capped by `limits` (a share of
   equity and a leverage) and the venue's 10 USDC minimum.
+- **Limit entries** rest through the next bar at their price, or at its
+  open when the market opened past it (a resting order cannot sit through
+  the market). They fill there with `costs.maker_bps` (default 1.5, the
+  lowest tier) and no slippage, only when the bar trades
+  `limit_through_bps` (default 2) past the price: a bar that only touches
+  it leaves the order in the queue, unfilled. Filled, the entry is the
+  market one's in everything else: its stop and size come from the
+  signal's close, and the bar's stop and funding count whole, as if it
+  filled at the open. Unfilled, `limit` enters nothing (a rule still
+  signalling at the next close places a new limit there), and
+  `limit_then_market` enters at market at the next open, as an entry from
+  that close, unless the close no longer holds the side. Figures with a
+  limit entry carry `limit_entries`: placed, filled, its fill rate, at
+  market after, missed. Exits stay market orders. The gate does not place
+  limit entries: they are tested here only.
 - **Data**: the venue's newest 5000 candles, in pages; `long_history` adds
   the coin's USDT pair from Binance's public market data before them, prices
   only, for main-dex tickers that map plainly, from 2017-07 at the earliest
@@ -337,6 +357,9 @@ tested is what runs.
   default; each fold chooses by `mar`, `sharpe` or `return_pct` on the data
   before it and trades the choice on the next window; the stitched unseen
   windows are `out_of_sample`. A position open at a fold's end closes there.
+  The grid may vary `entry_order` by name; a combination that is no rule
+  set (a `limit_atr` with a market entry, an exit longer than the entry) is
+  skipped.
 - **Monte Carlo**: `result` and `out_of_sample` each carry `monte_carlo`, the
   trades redrawn 1000 times with replacement in random order. Each trade
   keeps its own path while held (its lowest and highest marks and its fall
@@ -375,7 +398,9 @@ owns the procedure; this section owns what the code holds to.
   no longer match its fingerprint makes the spec invalid. A variant also
   records its walk-forward `out_of_sample` (at least its maximum drawdown and
   trades, one or more); without it the variant's markets open nothing, while
-  their closes and stops go on. `breaker` (`max_drawdown_pct`, 1 to 90, and
+  their closes and stops go on. A variant whose rules enter with a limit
+  (`entry_order`) opens nothing either: the gate sends entries at market,
+  which is not what was tested. `breaker` (`max_drawdown_pct`, 1 to 90, and
   `reset`) sets the breaker below; a spec without one, or with one that does
   not read, opens nothing either, and still closes and protects.
 - **The gate** (`hl_gate.py`, a cron `script` with an agent; the scheduler
