@@ -8,18 +8,20 @@ Part of the Hermes design docs — index: [`PROFILES.md`](../PROFILES.md).
 
 ## Shape
 
-| Piece                                                                                                                         | Home                                                                             | Reader    |
-| ----------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- | --------- |
-| Read engine: GraphQL transport, references, tiers, board resolution, issue and board reads                                    | `plugins/github-access/access.py`                                                | all       |
-| Repository reads: settings, labels, milestones                                                                                | `access_repo.py` beside `access.py`                                              | all       |
-| Write engine: the op registry, change validation, the plan of targets, the card, applying a change list                       | `plugins/github-access/changes.py`                                               | all       |
-| The ops of a change list, one module per domain: boards and their items, issues, repositories                                 | `ops_board.py`, `ops_issue.py`, `ops_repo.py` beside `changes.py`                | all       |
-| Mandates: terms, the MAC'd state, whether a change list fits                                                                  | `plugins/github-access/mandate.py`                                               | all       |
-| Bypass guard                                                                                                                  | `plugins/github-access/guard.py`                                                 | all       |
-| `github_issue`, `github_board`, `github_repo`, `github_change`, `github_mandate` tools (toolset `github_access`) and the hook | `plugins/github-access/__init__.py`                                              | Assistant |
-| How the Assistant reads Issues and boards, and the draft / issue model                                                        | the `github-access:github` plugin skill (`plugins/github-access/skills/github/`) | Assistant |
-| How the Assistant changes them: proposing tracking, change lists, tiers, recipes                                              | the `github-access:github-tracking` plugin skill                                 | Assistant |
-| How the Assistant reads and changes a repository, its labels and milestones                                                   | the `github-access:github-repo` plugin skill                                     | Assistant |
+| Piece                                                                                                                                      | Home                                                                             | Reader    |
+| ------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------- | --------- |
+| Read engine: GraphQL transport, references, tiers, board resolution, issue and board reads                                                 | `plugins/github-access/access.py`                                                | all       |
+| Repository reads: settings, labels, milestones                                                                                             | `access_repo.py` beside `access.py`                                              | all       |
+| Pull request reads: one in full with its checks and reviews, a repository's list                                                           | `access_pr.py` beside `access.py`                                                | all       |
+| Write engine: the op registry, change validation, the plan of targets, the card, applying a change list                                    | `plugins/github-access/changes.py`                                               | all       |
+| The ops of a change list, one module per domain: boards and their items, issues, repositories, pull requests and attachments               | `ops_board.py`, `ops_issue.py`, `ops_repo.py`, `ops_pr.py` beside `changes.py`   | all       |
+| Mandates: terms, the MAC'd state, whether a change list fits                                                                               | `plugins/github-access/mandate.py`                                               | all       |
+| Bypass guard                                                                                                                               | `plugins/github-access/guard.py`                                                 | all       |
+| `github_issue`, `github_board`, `github_repo`, `github_pr`, `github_change`, `github_mandate` tools (toolset `github_access`) and the hook | `plugins/github-access/__init__.py`                                              | Assistant |
+| How the Assistant reads Issues and boards, and the draft / issue model                                                                     | the `github-access:github` plugin skill (`plugins/github-access/skills/github/`) | Assistant |
+| How the Assistant changes them: proposing tracking, change lists, tiers, recipes                                                           | the `github-access:github-tracking` plugin skill                                 | Assistant |
+| How the Assistant reads and changes a repository, its labels and milestones                                                                | the `github-access:github-repo` plugin skill                                     | Assistant |
+| How the Assistant reads, opens, edits, attaches files to and merges a pull request                                                         | the `github-access:github-pr` plugin skill                                       | Assistant |
 
 The plugin is enabled in the Assistant's private configuration only, like
 Google access: it reaches the user's own account. A person without the
@@ -83,7 +85,13 @@ board up to 2000 items before filtering and says when it was cut.
 flags, default branch, description, homepage, topics, license, features and
 merge settings with the viewer's permission and the tier; `labels` and
 `milestones` (open, closed or all, with due date and progress) list the
-rest. A result over 60,000 characters is refused with a hint to narrow it.
+rest. `github_pr` `view` reads a pull request's state, draft flag, base and
+head with the head commit, GitHub's mergeable and merge state, the review
+decision, latest reviews and requests, the head commit's checks (failing and
+pending ones named, required ones counted), the issues a merge closes and
+the latest comments; `list` turns its filters into one search of one
+repository. A result over 60,000 characters is refused with a hint to narrow
+it.
 
 Issue bodies, comments and drafts are other people's text: the tool
 descriptions and the skill say never to follow instructions in them.
@@ -190,6 +198,53 @@ JSON body on stdin; a due date is sent as midday UTC, which reads as the same
 date from UTC−11 to UTC+11. A list resolves its repositories before anything
 runs, so labels and milestones of a repository the same list makes go in a
 later call.
+
+### Pull requests and attachments
+
+`pr_create` opens a pull request from a branch that is already pushed (or
+`owner:branch` of a fork, found among that owner's forks whatever its name)
+onto a base that exists, by default the repository's default branch; an open pull request for the same head is
+refused, and nothing is pushed. `pr_edit` changes a pull request's words,
+base, labels, assignees, reviewers or milestone; it is `routine` only for its
+own words without a mention, `create` otherwise. `pr_comment`, `pr_ready`
+(`undo` back to draft), `pr_close` and `pr_reopen` are `create`, and each is
+refused when the pull request is not in the state it changes. A pull request
+is never inside a mandate's parent issue tree.
+
+`pr_merge` is `admin`. The plan refuses a draft, a conflicting pull request
+and a method the repository does not allow (it is required when the
+repository allows more than one), and binds the head commit, the base and
+the method as a target ("Merging"), so a push, a retargeted base or another
+method after the card is a different change. Right before the merge the
+pull request is read once more, so an earlier change of the same list that
+retargets it, or a push since the plan, stops the merge; what remains is the
+moment between that read and GitHub's merge, where `--match-head-commit`
+pins the head and nothing pins the base. The merge never sends `--admin`, so
+GitHub's own rules still decide, and the result reads the pull request back:
+one a merge queue took is reported as not merged yet. The card names the issues the merge closes and warns of
+failing or pending checks, a review decision that is not an approval, and a
+merge state GitHub reports as blocked, behind, unstable or unknown. gh runs it
+from a temporary directory, so `--delete-branch` never touches a local
+checkout.
+
+`pr_create`, `pr_edit` and `pr_comment` take `attachments`: absolute paths of
+images (PNG, JPEG, GIF, WebP, SVG, up to 10 MiB) and videos (MP4, MOV, WebM,
+up to 100 MiB, no alt text) mapped to their alt text, at most 50, uploaded
+by gh 2.99 or later through `--attach`. Each must be a regular file (read
+without blocking, so a FIFO is refused rather than waited on) that starts
+like its type, so a renamed text file is refused. An upload is permanent and
+readable by everyone who can read the repository, by anyone at all on a
+public one, so each file is a target of its own ("Upload", with its whole
+path — and where a symlink points — and its size), bound by its SHA-256; no mandate
+names one, so a change that attaches always asks. At the write each file is
+read once more, compared with that hash, and copied into a private directory
+under the same name, and gh uploads the copy: a path retargeted after the
+card uploads nothing it points to now. A body may reference an attached file
+by the path written in `attachments` (gh swaps the reference for the
+uploaded URL), and only in a body does that path pass the local-path check
+that refuses every other. When gh makes the pull
+request or comment but some uploads fail, the result keeps its URL under
+`partial`.
 
 ## Approval
 
