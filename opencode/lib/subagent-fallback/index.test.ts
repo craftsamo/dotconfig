@@ -1576,6 +1576,154 @@ describe("Claude accounts", () => {
       send(inst, post("https://evil.example", headers("openai")), LUNA),
     ).rejects.toThrow(/Subagent preflight/)
   })
+  describe("launching on the second login", () => {
+    const OPUS_HIGH = ROUTES.debugger.alternate
+    // The alias models config defines for that login.
+    const aliased = async (extra: Record<string, unknown> = {}) => {
+      const { env, install } = await fixture()
+      for (const item of [...env.catalog])
+        if (item.providerID === OAUTH_PROVIDER)
+          env.catalog.push({
+            ...item,
+            id: `${item.id}-sub`,
+            variants: [...item.variants],
+          })
+      return { env, inst: await install(accounts(extra)) }
+    }
+    test("a spent active login sends a Claude role to the next login with room", async () => {
+      for (const room of [80, undefined]) {
+        const { env, inst } = await aliased()
+        env.quota.anthropic = 0
+        env.secondQuota = room
+        const result = await inst.run()
+        expect(env.originals[0].model).toBe(sel(SONNET_SUB))
+        expect(marker(env)).toMatchObject({
+          model: SONNET_SUB,
+          login: "sub",
+          connectionID: "fixture-second-login",
+          fallback: false,
+        })
+        expect(result.metadata.preflight).toEqual({
+          funding: "included",
+          from: sel(SONNET),
+          to: sel(SONNET_SUB),
+        })
+        expect(result.content).toContain("next saved login not empty")
+        expect(env.reads).toBe(1)
+      }
+    })
+    test("an active login with room, or unknown, keeps the launch there", async () => {
+      for (const percent of [90, undefined]) {
+        const { env, inst } = await aliased()
+        env.quota.anthropic = percent
+        env.secondQuota = 80
+        const input = { agent: "worker", prompt: "fixture", background: true }
+        await inst.run(input)
+        expect(env.originals[0]).toBe(input)
+        expect(marker(env).login).toBeUndefined()
+      }
+    })
+    test("with every login spent, unusable or uncatalogued, the usual alternate and credits follow", async () => {
+      const spent = await aliased()
+      spent.env.quota.anthropic = 0
+      spent.env.secondQuota = 0
+      await spent.inst.run()
+      expect(spent.env.originals[0].model).toBe(sel(SOL))
+      expect(marker(spent.env).login).toBeUndefined()
+      const unknownLabel = await aliased({
+        claudeAccounts: { sub: "Missing OAuth" },
+      })
+      unknownLabel.env.quota.anthropic = 0
+      unknownLabel.env.secondQuota = 80
+      await unknownLabel.inst.run()
+      expect(unknownLabel.env.originals[0].model).toBe(sel(SOL))
+      const { env, install } = await fixture()
+      const plain = await install(accounts())
+      env.quota.anthropic = 0
+      env.secondQuota = 80
+      await plain.run()
+      expect(env.originals[0].model).toBe(sel(SOL))
+      const all = await aliased()
+      all.env.quota = { anthropic: 0, openai: 0, xai: 90 }
+      all.env.secondQuota = 0
+      const result = await all.inst.run()
+      expect(all.env.originals[0].model).toBeUndefined()
+      expect(result.metadata.preflight.funding).toBe("provider")
+      expect(marker(all.env).login).toBeUndefined()
+    })
+    test("a ChatGPT role's Claude alternate takes the next login with room", async () => {
+      const { env, inst } = await aliased()
+      env.quota.openai = 0
+      env.quota.anthropic = 0
+      env.secondQuota = 80
+      await inst.run({ agent: "debugger", prompt: "fixture", background: true })
+      const alias = { ...OPUS_HIGH, id: `${OPUS_HIGH.id}-sub` }
+      expect(env.originals[0].model).toBe(sel(alias))
+      expect(marker(env)).toMatchObject({
+        model: alias,
+        login: "sub",
+        fallback: true,
+      })
+      // Its first context and request still pass the alternate's checks.
+      await inst.fire("context", { ...context(), model: alias })
+      expect(marker(env).launchChecked).toBe(true)
+      const e = await send(inst, prepared(), alias)
+      expect(e.request.headers.get("authorization")).toBe(
+        "Bearer fixture-anthropic-sub",
+      )
+      expect(marker(env).wireChecked).toBe(true)
+    })
+    test("an alias a longer configured suffix claims is never launched", async () => {
+      const { env, inst } = await aliased({
+        claudeAccounts: { sub: "Sub OAuth", "5-5-sub": "" },
+      })
+      env.quota.anthropic = 0
+      env.secondQuota = 80
+      await inst.run()
+      expect(env.originals[0].model).toBe(sel(SOL))
+      expect(marker(env).login).toBeUndefined()
+    })
+    test("a limit a bound child's side request hits is that login's, not the active one's", async () => {
+      const { env, inst } = await aliased()
+      env.quota.anthropic = 0
+      env.secondQuota = 80
+      await inst.run()
+      await inst.fire("retry", {
+        sessionID: "ses_child",
+        model: ROUTES.verifier.alternate,
+        attempt: 2,
+        error: { type: "provider.quota", message: "weekly limit reached" },
+        decision: { retry: true, delay: 30_000 },
+      })
+      await inst.run()
+      expect(env.originals[1].model).toBe(sel(SOL))
+      env.quota.anthropic = 90
+      const input = { agent: "worker", prompt: "fixture", background: true }
+      await inst.run(input)
+      expect(env.originals[2]).toBe(input)
+    })
+    test("a limit a child hit on that login steers the relaunch past it", async () => {
+      const { env, inst } = await aliased()
+      env.quota.anthropic = 0
+      env.secondQuota = 80
+      await inst.run()
+      expect(marker(env).login).toBe("sub")
+      const e = await inst.fire("retry", {
+        sessionID: "ses_child",
+        model: SONNET_SUB,
+        attempt: 2,
+        error: { type: "provider.quota", message: "weekly limit reached" },
+        decision: { retry: true, delay: 30_000 },
+      })
+      expect(e.decision).toEqual({ retry: false })
+      await inst.run()
+      expect(env.originals[1].model).toBe(sel(SOL))
+      env.now += 31_000
+      env.fetchedAt = env.now
+      await inst.run()
+      expect(env.originals[2].model).toBe(sel(SONNET_SUB))
+    })
+  })
   describe("a protected child on the second login", () => {
     const HAIKU = ROUTES.verifier.alternate
     // A worker child whose marker binds it to the login labelled Sub OAuth.
