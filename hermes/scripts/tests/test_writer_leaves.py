@@ -244,6 +244,8 @@ def test_hermes_discovers_writer_and_serves_its_references(tmp_path, monkeypatch
     from hermes_cli import config as hermes_config
     from tools import skills_tool
 
+    from .skill_roots import find_all_skills
+
     config = {"skills": {"external_dirs": [], "project_discovery": False}}
     (home / "config.yaml").write_text(yaml.safe_dump(config))
     source = SCRIPT.parent.parent / "profiles/writer/skills/writer-pipeline"
@@ -258,7 +260,7 @@ def test_hermes_discovers_writer_and_serves_its_references(tmp_path, monkeypatch
     skill_utils._external_dirs_cache_clear()
     skills_tool._SKILLS_CACHE.clear()
     try:
-        names = {item["name"] for item in skills_tool._find_all_skills()}
+        names = {item["name"] for item in find_all_skills()}
         assert {"writer-pipeline", "analyze-fixture", "japanese-writing"} <= names
         language = json.loads(skills_tool.skill_view("japanese-writing", preprocess=False))
         assert language["success"], language

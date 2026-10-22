@@ -104,8 +104,10 @@ def craft_store(request, tmp_path, monkeypatch):
 
 
 def test_actual_discovery_and_all_reference_bodies(craft_store):
+    from .skill_roots import find_all_skills
+
     profile, skills, store, _ = craft_store
-    found = {item["name"] for item in skills._find_all_skills()}
+    found = {item["name"] for item in find_all_skills()}
     expected = {f"media-craft-{name}" for name in PROFILE_CRAFT[profile]}
     assert found & {f"media-craft-{name}" for name in CRAFT} == expected
     for name in expected:

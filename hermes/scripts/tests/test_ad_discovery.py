@@ -1,6 +1,6 @@
 """Regression tests for create-ad / analyze-ad skill discovery.
 
-The shared Hermes scanner (`tools.skills_tool._find_all_skills`) only reads
+The shared Hermes scanner (the runtime's skill scanner, `find_all_skills`) only reads
 the first 4000 characters of each `SKILL.md` before calling
 `_parse_frontmatter` (`agent.skill_utils.parse_frontmatter`, which searches
 for the closing `\\n---\\n` fence). A closing fence that lands past that
@@ -19,7 +19,7 @@ import hermes_yaml as yaml
 
 from tools import skills_tool
 
-from .skill_roots import search_dirs_result
+from .skill_roots import find_all_skills, search_dirs_name, search_dirs_result
 
 HERMES_ROOT = Path(__file__).resolve().parents[2]
 VIDEO_PIPELINE = HERMES_ROOT / "profiles" / "video-creator" / "skills" / "video-creator-pipeline"
@@ -28,7 +28,7 @@ ANALYZE_AD_DIR = VIDEO_PIPELINE / "analyze" / "ad"
 CREATE_AD = CREATE_AD_DIR / "SKILL.md"
 ANALYZE_AD = ANALYZE_AD_DIR / "SKILL.md"
 
-# `_find_all_skills` truncates SKILL.md text to this many characters before
+# `find_all_skills` truncates SKILL.md text to this many characters before
 # searching for the closing frontmatter fence (tools/skills_tool.py); the
 # fence must end comfortably inside it, hence the tighter guard budget.
 FRONTMATTER_SCAN_BUDGET = 4000
@@ -60,14 +60,14 @@ class ClosingFenceBudgetTest(unittest.TestCase):
 
 
 class AdSkillDiscoveryTest(unittest.TestCase):
-    """Exercise the real `_find_all_skills` scan against ONLY the real
+    """Exercise the real `find_all_skills` scan against ONLY the real
     create/ad and analyze/ad directories, isolated from every other skill
     on disk (no other profile's skills leak in, no live config is read)."""
 
     def setUp(self) -> None:
         patchers = [
             patch.object(
-                skills_tool, "_skill_search_dirs",
+                skills_tool, search_dirs_name(),
                 return_value=search_dirs_result(CREATE_AD_DIR, ANALYZE_AD_DIR),
             ),
             patch.object(skills_tool, "_get_disabled_skill_names", return_value=set()),
@@ -78,7 +78,7 @@ class AdSkillDiscoveryTest(unittest.TestCase):
             self.addCleanup(patcher.stop)
 
     def test_discovers_exactly_create_and_analyze_ad(self) -> None:
-        results = skills_tool._find_all_skills()
+        results = find_all_skills()
         names = {item["name"] for item in results}
         self.assertEqual({"create-ad", "analyze-ad"}, names)
         self.assertNotIn("ad", names)

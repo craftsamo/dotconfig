@@ -130,7 +130,7 @@ class HandsRuntimeDiscoveryTest(unittest.TestCase):
     """Real tools.skills_tool discovery, scoped to each hands profile's own
     skill root (never the live default search path/config), plus
     agent.skill_utils.parse_frontmatter against exactly the first 4000
-    characters _find_all_skills reads. This is a canonical-name regression
+    characters find_all_skills reads. This is a canonical-name regression
     check, NOT a blanket frontmatter-length cap: a leaf's total file length
     is unconstrained here, only whether its frontmatter fence closes before
     the runtime discovery cutoff."""
@@ -149,17 +149,17 @@ class HandsRuntimeDiscoveryTest(unittest.TestCase):
     def test_find_all_skills_discovers_every_leaf_once_with_real_names(self) -> None:
         import tools.skills_tool as skills_tool
 
-        from .skill_roots import search_dirs_result
+        from .skill_roots import find_all_skills, search_dirs_name, search_dirs_result
 
         for profile in VALIDATOR.HANDS_PROFILES:
             with self.subTest(profile=profile):
                 pipeline = VALIDATOR.HERMES_ROOT / "profiles" / profile / "skills" / f"{profile}-pipeline"
                 expected = self._installed_leaves(profile)
                 self.assertTrue(expected, f"{profile} must have installed hands leaves to discover")
-                with patch.object(skills_tool, "_skill_search_dirs", return_value=search_dirs_result(pipeline)), \
+                with patch.object(skills_tool, search_dirs_name(), return_value=search_dirs_result(pipeline)), \
                      patch.object(skills_tool, "_get_disabled_skill_names", return_value=set()), \
                      patch.object(skills_tool, "_SKILLS_CACHE", {}):
-                    skills = skills_tool._find_all_skills()
+                    skills = find_all_skills()
                 names = [s["name"] for s in skills]
                 self.assertEqual(len(expected) + 1, len(names))  # + the pipeline root itself
                 self.assertEqual(len(names), len(set(names)))
