@@ -7,16 +7,24 @@ packages unless they are already imported, which shadows the runtime package
 for the whole session: runtime imports such as ``plugins.browser`` or
 ``plugins.platforms.a2a`` then fail. Importing the runtime packages first keeps
 them authoritative; plugin tests load their own code by file path anyway.
+
+Lazy installs are switched off before any runtime import, as the runtime's own
+test suite does: a self-updating checkout otherwise relaunches any process
+whose interpreter is not its managed one (the test interpreter is not), and
+that relaunch lands in an interpreter without pytest. Child processes inherit it.
 """
 
 import importlib
 import importlib.util
+import os
 import sys
 import types
 from pathlib import Path
 
-import plugins
-import pytest
+os.environ["HERMES_DISABLE_LAZY_INSTALLS"] = "1"
+
+import plugins  # noqa: E402
+import pytest  # noqa: E402
 
 _RUNTIME_PLUGINS = Path(plugins.__file__).parent
 for _child in (Path(__file__).parent / "plugins").iterdir():
