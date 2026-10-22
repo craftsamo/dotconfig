@@ -236,6 +236,32 @@ printf 'P_ONLY=fromprod\n' > "$R/.env.production"
   && ok "dotenv: .env and the stage's file are skipped under a stage" || bad "dotenv: .env and the stage's file are skipped under a stage"
 rm -f "$R/.env.test" "$R/.env.production"
 
+# --- tool -> project: the repository's layer wins over the tool's --------------
+# a tool shim records what it injected in _SECRET_SHIM_TOOL_NAMES; a project
+# launch underneath may replace those names from the repository's layers —
+# a tool value without a counterpart stays, a hand-exported value always wins
+print -r -- 'proj-tool' | secret set TT_TOOL -p $PT --stdin >/dev/null 2>&1
+[[ "$(tool_run _SECRET_SHIM_TOOL_NAMES)" == *TT_TOOL* && "$(tool_run _SECRET_SHIM_TOOL_NAMES)" == *TB_BASE* ]] \
+  && ok "tool: the injected names are exported to children" || bad "tool: the injected names are exported to children"
+[[ "$(_SECRET_SHIM_TOOL_NAMES='OUTER_X TT_TOOL' tool_run _SECRET_SHIM_TOOL_NAMES)" == *OUTER_X* && "$(_SECRET_SHIM_TOOL_NAMES='OUTER_X TT_TOOL' tool_run _SECRET_SHIM_TOOL_NAMES)" == *TB_BASE* ]] \
+  && ok "tool under a tool: the outer tool's names stay in the list" || bad "tool under a tool: the outer tool's names stay in the list ($(_SECRET_SHIM_TOOL_NAMES='OUTER_X TT_TOOL' tool_run _SECRET_SHIM_TOOL_NAMES))"
+[[ "$(_SECRET_SHIM_TOOL=$PTOOL _SECRET_SHIM_TOOL_NAMES='TT_TOOL TB_BASE' TT_TOOL=tool-1 TB_BASE=base-1 penv $R TT_TOOL)" == 'proj-tool' ]] \
+  && ok "tool->proj: the repository's value replaces the tool's" || bad "tool->proj: the repository's value replaces the tool's"
+[[ "$(_SECRET_SHIM_TOOL=$PTOOL _SECRET_SHIM_TOOL_NAMES='TT_TOOL TB_BASE' TT_TOOL=tool-1 TB_BASE=base-1 penv $R TB_BASE)" == 'base-1' ]] \
+  && ok "tool->proj: a tool value without a counterpart stays" || bad "tool->proj: a tool value without a counterpart stays"
+[[ "$(_SECRET_SHIM_TOOL=$PTOOL _SECRET_SHIM_TOOL_NAMES='TB_BASE' TT_TOOL=mine TB_BASE=base-1 penv $R TT_TOOL)" == 'mine' ]] \
+  && ok "tool->proj: a hand-exported value still wins" || bad "tool->proj: a hand-exported value still wins"
+# the real chain: the tool's binary launches a project-mode shim in the repository
+cat > "$TD/real/$PTOOL" <<EOF
+#!/bin/sh
+if [ "\$1" = "--chain" ]; then shift; cd "$TD/repo" && SECRET_SHIM_MODE=project exec "$TD/bin/printenv" "\$@"; fi
+if [ "\$1" = "--args" ]; then shift; printf '%s\n' "\$@"; exit 0; fi
+exec /usr/bin/printenv "\$@"
+EOF
+[[ "$(tool_run --chain TT_TOOL)" == 'proj-tool' && "$(tool_run --chain TB_BASE)" == 'base-1' && "$(tool_run --chain A_ONLY)" == 'kc-a' ]] \
+  && ok "tool->proj chain: repository layer, tool leftovers and project-only names" || bad "tool->proj chain: repository layer, tool leftovers and project-only names ($(tool_run --chain TT_TOOL)/$(tool_run --chain TB_BASE)/$(tool_run --chain A_ONLY))"
+secret rm TT_TOOL -p $PT -f >/dev/null 2>&1
+
 # --- mode by link target ----------------------------------------------------
 # the launcher a command is linked to declares its mode, without
 # SECRET_SHIM_MODE and without a name table: secret-shim-project for
