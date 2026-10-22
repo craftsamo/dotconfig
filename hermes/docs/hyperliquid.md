@@ -370,7 +370,9 @@ owns the procedure; this section owns what the code holds to.
   no longer match its fingerprint makes the spec invalid. A variant also
   records its walk-forward `out_of_sample` (at least its maximum drawdown and
   trades, one or more); without it the variant's markets open nothing, while
-  their closes and stops go on.
+  their closes and stops go on. `breaker` (`max_drawdown_pct`, 1 to 90, and
+  `reset`) sets the breaker below; a spec without one, or with one that does
+  not read, opens nothing either, and still closes and protects.
 - **The gate** (`hl_gate.py`, a cron `script` with an agent; the scheduler
   runs its wrapper from the copy `install.sh` keeps in the profile's
   `scripts/`, so the wrapper takes the runtime home from its own parent and
@@ -390,15 +392,34 @@ owns the procedure; this section owns what the code holds to.
   the risk per trade and capped by the limits and the mandate (with headroom
   for the worst price the order is valued at). Without a mandate in force no
   entry is listed, only noted; for a variant with no `out_of_sample`
-  recorded none is listed either, and the gate says so once rather than per
-  bar; a bar whose entry needed a read that failed
-  is read again on the next run. It remembers the positions it saw, so one
+  recorded, or while the breaker is missing or tripped, none is listed
+  either, and the gate says so once rather than per bar; a bar whose entry
+  needed a read that failed, the breaker's included, is read again on the
+  next run. It remembers the positions it saw, so one
   the venue closed on its own (a stop that fired, a liquidation) is noticed
   once and the run reports the trade's result, and the account's value at
   its first read, which every report compares the value now with. Its last
   line is `{"wakeAgent": false}` when nothing is to be done or said, so no
   model runs; a notice is said once. It never signs, reads a key or posts to
   `/exchange`.
+- **The breaker** ([decision](decisions/hyperliquid-breaker.md)) measures
+  the strategy's own result, never the account's value: each run the gate
+  reads its markets' fills (realized result less USDC fees) and funding from
+  where the last run stopped up to the venue's time of its account read, adds
+  the change in their positions' unrealized result at that read, and moves an
+  index by that sum as a share of the account's value at the last run.
+  Deposits, withdrawals and other markets leave it where it is, and later
+  results count against the account's new size. The first run only sets the
+  baseline. Its drawdown is the index's fall below its high; at
+  `max_drawdown_pct` it trips, and from then on no entry or leverage change
+  is listed while closes, stops and trailed stops go on. It stays tripped
+  until `reset` holds a time later than the trip and not in the future,
+  which starts the index and its high again. A memory the gate cannot read
+  (an unreadable `state.json`, or a breaker of a shape it never writes)
+  starts tripped with the drawdown unknown, never fresh. A fills or funding
+  read that fails, or that more rows than five pages hold, moves nothing and
+  holds that run's entries. Every other report carries `breaker` (the
+  drawdown, the limit, since when it counts, the trip).
 - **The run** is the Assistant's cron turn with only `hyperliquid_access`
   and `skills`: it quotes and submits the intents as listed and may only skip
   an increase or lower it. The trader and the mandate decide every submit as
@@ -416,10 +437,11 @@ owns the procedure; this section owns what the code holds to.
   to the market's default with a note. A stance never widens a limit: the spec's
   limits and the mandate bound every order.
 - **What the files cannot stop.** The spec and the stance are files the
-  Assistant writes; nothing signs them. The boundary is the mandate the user
-  approved on its card, which the trader checks against the account at
-  submit, and the run's toolsets, which leave out the file and terminal
-  tools.
+  Assistant writes; nothing signs them, and the breaker's memory is the
+  gate's `state.json`. The boundary is the mandate the user approved on its
+  card, which the trader checks against the account at submit, and the run's
+  toolsets, which leave out the file and terminal tools: a run can neither
+  reset the breaker nor clear its trip.
 
 ## Approval
 

@@ -380,6 +380,55 @@ def test_a_market_may_have_its_own_default_inside_the_spec():
             hs.spec(spec_raw(default={"variant": "fast", **over}))
 
 
+def test_a_breaker_is_read_from_the_spec_and_a_bad_one_holds_entries_without_failing_the_spec():
+    assert hs.spec(spec_raw())["breaker"] is None and hs.spec(spec_raw())["breaker_problem"] is None
+    s = hs.spec(spec_raw(breaker={"max_drawdown_pct": 25, "reset": None}))
+    assert s["breaker"] == {"max_drawdown_pct": 25.0, "reset": None}
+    reset = hs.spec(spec_raw(breaker={"max_drawdown_pct": 25, "reset": "2026-10-21T10:00:00Z"}))["breaker"]["reset"]
+    assert reset == hs.parse_time("2026-10-21T10:00:00Z", "t")
+    for bad, why in (({"max_drawdown_pct": 0.5}, "between 1 and 90"), ({"max_drawdown_pct": 95}, "between 1 and 90"),
+                     ({"max_drawdown_pct": 25, "reset": "yesterday"}, "breaker.reset"), ({"max_drawdown_pct": 25, "x": 1}, "not x"),
+                     ([25], "breaker is"), ({}, "max_drawdown_pct must be a number")):
+        s = hs.spec(spec_raw(breaker=bad))
+        assert s["breaker"] is None and why in s["breaker_problem"], (bad, s["breaker_problem"])
+
+
+def test_the_breaker_index_follows_the_strategys_result_against_the_account_and_trips_once():
+    m, dd = hs.breaker_step(None, 0.0, 1000.0, 20, None, NOW)
+    assert m == {"index": 1.0, "peak": 1.0, "tripped": None, "since": NOW} and dd == 0
+    m, dd = hs.breaker_step(m, 100.0, 1000.0, 20, None, NOW + 1)  # +10%
+    assert m["index"] == pytest.approx(1.1) and m["peak"] == pytest.approx(1.1) and dd == 0
+    # a withdrawal halves the account: the same 110 USDC loss now counts as 20% of it
+    m, dd = hs.breaker_step(m, -110.0, 550.0, 20, None, NOW + 2)
+    assert m["index"] == pytest.approx(0.88) and dd == pytest.approx(20) and m["tripped"] == {"at": NOW + 2, "drawdown_pct": 20.0}
+    # a recovery does not untrip it, and the trip keeps its first figures
+    m, dd = hs.breaker_step(m, 220.0, 440.0, 20, None, NOW + 3)
+    assert m["tripped"]["at"] == NOW + 2 and dd == 0
+    # no limit keeps the index without tripping
+    free, dd = hs.breaker_step(None, -500.0, 1000.0, None, None, NOW)
+    assert free["tripped"] is None and dd == pytest.approx(50)
+    # nothing to measure against: the index stays
+    assert hs.breaker_step(m, -50.0, 0.0, 20, None, NOW + 4)[0]["index"] == m["index"]
+    gone, dd = hs.breaker_step(None, -2000.0, 1000.0, 20, None, NOW)
+    assert gone["index"] == 0.0 and dd == 100.0
+
+
+def test_only_a_reset_written_after_the_trip_resumes_and_it_restarts_the_high():
+    m, _ = hs.breaker_step(None, -300.0, 1000.0, 25, None, NOW)
+    assert m["tripped"]["at"] == NOW
+    for early in (NOW - 1, NOW, NOW + 10 * hs.DAY_MS):  # before or at the trip, or not yet come
+        assert hs.breaker_step(m, 0.0, 700.0, 25, early, NOW + hs.HOUR_MS)[0]["tripped"] is not None
+    m, dd = hs.breaker_step(m, 0.0, 700.0, 25, NOW + 5, NOW + hs.HOUR_MS)
+    assert m["tripped"] is None and dd == 0 and m["index"] == m["peak"] == 1.0 and m["since"] == NOW + 5
+    m, dd = hs.breaker_step(m, -70.0, 700.0, 25, NOW + 5, NOW + 2 * hs.HOUR_MS)  # the same reset does nothing more
+    assert m["tripped"] is None and dd == pytest.approx(10)
+    # an account the strategy emptied resumes too, once refunded and reset
+    gone, _ = hs.breaker_step(None, -1200.0, 1000.0, 25, None, NOW)
+    back, dd = hs.breaker_step(gone, 0.0, 0.0, 25, NOW + 1, NOW + 2)
+    assert back["tripped"] is None and dd == 0
+    assert hs.breaker_step(back, 100.0, 1000.0, 25, NOW + 1, NOW + 3)[0]["index"] == pytest.approx(1.1)
+
+
 def stance_raw(**over):
     raw = {"schema": hs.STANCE_SCHEMA, "strategy": "trend", "issued": hs.iso(NOW - hs.DAY_MS),
            "expires": hs.iso(NOW + 3 * hs.DAY_MS),
