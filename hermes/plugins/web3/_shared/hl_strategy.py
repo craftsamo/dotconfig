@@ -10,6 +10,9 @@ what was tested is what runs. Contract: docs/hyperliquid.md "Strategies".
   trailing stop (``trail_atr``) that follows each completed close and never loosens, and a regime
   filter (``regime_ema``) that takes longs only above that EMA and shorts only below. ``fingerprint``
   names a rule set exactly (with its interval), so a strategy may only run rules a backtest reported.
+- **Markets together** (``simulate_many``, ``walk_forward_many``): the same rules on several markets on
+  one account, the cash and the exposure bound shared, so a strategy's breaker is set from the
+  drawdown of the account it will hold rather than of one market alone.
 - **A Monte Carlo** redraws a backtest's trades in random order, each with the path its equity took
   while it was held, so the spread of drawdowns the same trades could have produced sits beside the
   one their actual order did. Seeded from the request, so the same backtest gives the same spread.
@@ -26,6 +29,7 @@ what was tested is what runs. Contract: docs/hyperliquid.md "Strategies".
 
 from __future__ import annotations
 
+import bisect
 from collections import deque
 from datetime import datetime, timezone
 import hashlib
@@ -478,124 +482,220 @@ def simulate(series: list[dict], rule_set: dict, interval: str, cost: dict, limi
     as an entry from bar ``i+1``'s close, unless that close no longer holds the side. ``paths`` holds
     each trade's equity path for ``monte_carlo``: (end, low, high, drawdown), the equity at its close,
     lowest and highest marks as multiples of the equity before it, and the deepest fall from its own
-    highest mark."""
-    ind = ind or indicators(series, rule_set)
-    rates = rates or funding_by_bar(series, interval, None, BASELINE_FUNDING, cost["funding"])
+    highest mark. One market of ``simulate_many``: the same run, without the market named."""
+    return simulate_many({"": series}, {"": rule_set}, interval, cost, limits,
+                         rates_by={"": rates} if rates else None, stance_by={"": stance} if stance else None,
+                         direction_by={"": direction}, start_equity=start_equity, trade_from=trade_from,
+                         ind_by={"": ind} if ind else None)
+
+
+def simulate_many(series_by: dict, rules_by: dict, interval: str, cost: dict, limits: dict, *,
+                  rates_by: dict | None = None, stance_by: dict | None = None, direction_by: dict | None = None,
+                  start_equity: float = 1000.0, trade_from: int = 0, ind_by: dict | None = None) -> dict:
+    """Trade several markets' rules on one account, as ``simulate`` trades one: bar by bar along the
+    markets' shared timeline (the union of their bars' open times, oldest first; a market with no bar at
+    a time sits that time out), each market's rules on its own bars, the cash shared. Each time has two
+    steps, so nothing decided at an open sees the bar it opens: first every market's open (the close
+    it was decided at, the entry, in the markets' order), then every market's bar (its stop, funding,
+    trailing, close and the next decision). An entry is sized as the gate sizes it: from the account's
+    value (the cash and the other markets' unrealized results) less what the other markets hold (their
+    positions, and a limit of theirs resting through the bar), at prices known at that open. Trading
+    starts at the ``trade_from``-th time. Each trade names its market when there is more than one.
+    ``paths`` holds each trade's own path (the equity before it, moved by that trade alone), so
+    ``monte_carlo`` composes trades one after another whether or not they overlapped; the curve is the
+    account's. ``bars_held`` counts times with any position, and ``buy_hold_pct`` is the markets'
+    mean."""
+    markets = list(series_by)
+    many = len(markets) > 1
+    ind_by = {m: (ind_by or {}).get(m) or indicators(series_by[m], rules_by[m]) for m in markets}
+    rates_by = {m: (rates_by or {}).get(m) or funding_by_bar(series_by[m], interval, None, BASELINE_FUNDING,
+                                                               cost["funding"]) for m in markets}
+    stance_by = {m: (stance_by or {}).get(m) or [] for m in markets}
+    defaults = {m: {"direction": (direction_by or {}).get(m, "both"), "size": 1.0} for m in markets}
     fee, slip = cost["taker_bps"] / 10_000, cost["slippage_bps"] / 10_000
     maker, through = cost["maker_bps"] / 10_000, cost["limit_through_bps"] / 10_000
-    entry_order = rule_set.get("entry_order", "market")
-    default = {"direction": direction, "size": 1.0}
-    stance = stance or []
     cash = start_equity
-    pos = None
+    times = sorted({b["t"] for s in series_by.values() for b in s})
+    at = {m: {b["t"]: i for i, b in enumerate(series_by[m])} for m in markets}
+    # per market: the position, (close what is held?, side to open, its signal, how the entry is sent:
+    # market | limit), the side of a limit_then_market entry that did not fill, the value a limit resting
+    # through the bar reserves, and the newest price known (the open while the bar runs, then its close)
+    state = {m: {"pos": None, "pending": None, "owed": None, "reserved": 0.0, "resting": None, "mark": None}
+             for m in markets}
     trades: list[dict] = []
     paths: list[tuple[float, float, float, float]] = []
     curve: list[tuple[int, float]] = []
     totals = {"fees": 0.0, "funding": 0.0, "assumed_hours": 0, "bars_held": 0, **dict.fromkeys(LIMIT_TOTALS, 0)}
-    # (close what is held?, side to open, its signal, how the entry is sent: market | limit)
-    pending: tuple[bool, str | None, dict | None, str] | None = None
-    owed: str | None = None  # the side of a limit_then_market entry that did not fill
 
-    def mark_path(value: float):
+    def mark_path(pos: dict, value: float):
         m = value / pos["base"]
         pos["high"], pos["low"] = max(pos["high"], m), min(pos["low"], m)
         pos["dd"] = max(pos["dd"], 1 - m / pos["high"])
 
-    def close(i: int, price: float, reason: str):
-        nonlocal cash, pos
+    def own(pos: dict, unrealized: float) -> float:
+        """The trade's own path: the equity before it, moved by this trade alone (its fees, its funding,
+        its result), kept bar by bar in the order the cash moves so one market reads as the cash."""
+        return pos["own"] + unrealized
+
+    def unrealized(pos: dict, price: float) -> float:
+        return (price - pos["entry"]) * pos["qty"] * (1 if pos["side"] == "long" else -1)
+
+    def close(m: str, t: int, price: float, reason: str):
+        nonlocal cash
+        pos = state[m]["pos"]
         exit_px = price * (1 - slip) if pos["side"] == "long" else price * (1 + slip)
-        gross = (exit_px - pos["entry"]) * pos["qty"] * (1 if pos["side"] == "long" else -1)
+        gross = unrealized(pos, exit_px)
         cost_out = exit_px * pos["qty"] * fee
         cash += gross - cost_out
         totals["fees"] += cost_out
         pnl = gross - cost_out - pos["fee_in"] - pos["funding"]
-        trades.append({"side": pos["side"], "open": iso(pos["t"]), "close": iso(series[i]["t"]), "entry": sig5(pos["entry"]),
-                       "exit": sig5(exit_px), "pnl": round(pnl, 2), "r": round(pnl / pos["risk"], 2) if pos["risk"] else None,
-                       "reason": reason})
-        mark_path(cash)
-        paths.append((cash / pos["base"], pos["low"], pos["high"], pos["dd"]))
-        pos = None
+        trades.append({**({"market": m} if many else {}), "side": pos["side"], "open": iso(pos["t"]), "close": iso(t),
+                       "entry": sig5(pos["entry"]), "exit": sig5(exit_px), "pnl": round(pnl, 2),
+                       "r": round(pnl / pos["risk"], 2) if pos["risk"] else None, "reason": reason})
+        end = own(pos, gross - cost_out)
+        mark_path(pos, end)
+        paths.append((end / pos["base"], pos["low"], pos["high"], pos["dd"]))
+        state[m]["pos"] = None
+
+    def open_position(m: str, side: str, signal_close: float, stop: float, value: float, entry: float, rate: float,
+                      t: int):
+        nonlocal cash
+        qty = value / signal_close
+        fee_in = entry * qty * rate
+        # a maker rebate is not risk taken off: R stays the loss at the stop, never below it
+        state[m]["pos"] = {"side": side, "qty": qty, "entry": entry, "stop": stop, "t": t, "fee_in": fee_in,
+                           "funding": 0.0, "risk": abs(entry - stop) * qty + max(fee_in, 0.0),
+                           "base": cash, "own": cash - fee_in, "low": 1.0, "high": 1.0, "dd": 0.0}
+        cash -= fee_in
+        totals["fees"] += fee_in
+
+    def others(m: str) -> tuple[float, float]:
+        """What the other markets hold when ``m`` sizes an entry at an open, at prices known then (their
+        open of the same time, else their newest close): (the value held, as the gate's ``held``, with
+        a limit resting there reserved, as the gate counts a resting order; their unrealized result,
+        which the account's value carries)."""
+        held = unrealized_now = 0.0
+        for n, o in state.items():
+            if n == m:
+                continue
+            if o["pos"] is not None:
+                held += o["pos"]["qty"] * o["mark"]
+                unrealized_now += unrealized(o["pos"], o["mark"])
+            held += o["reserved"]
+        return held, unrealized_now
 
     start = max(trade_from, 0)
-    for i in range(start, len(series)):
-        b = series[i]
-        if pending is not None:
-            do_close, side, sig, how = pending
-            pending = None
-            if do_close and pos is not None:
-                close(i, b["o"], "signal")
-            if side and pos is None:
-                stance_now = _stance_at(stance, b["t"], default)
-                stop = stop_price(side, sig["close"], sig["atr"], rule_set)
-                gapped = b["o"] <= stop if side == "long" else b["o"] >= stop
-                equity = cash
-                value, _ = size_usd(equity, sig["close"], stop, rule_set, stance_now["size"], 0.0, limits)
-                entry, rate = None, fee
-                if value is not None and not gapped:
-                    if how == "limit":
-                        totals["limit_orders"] += 1
-                        filled = limit_fill(side, sig, b, rule_set, through, slip)
-                        if filled is not None:
-                            entry, crossed = filled
-                            rate = fee if crossed else maker
-                            totals["limit_filled"] += 1
-                            totals["limit_crossed"] += 1 if crossed else 0
-                        elif entry_order == "limit_then_market":
-                            owed = side
-                    else:
-                        entry = b["o"] * (1 + slip) if side == "long" else b["o"] * (1 - slip)
-                        if how == "after_limit":
-                            totals["market_after_limit"] += 1
-                if entry is not None:
-                    qty = value / sig["close"]
-                    fee_in = entry * qty * rate
-                    # a maker rebate is not risk taken off: R stays the loss at the stop, never below it
-                    pos = {"side": side, "qty": qty, "entry": entry, "stop": stop, "t": b["t"], "fee_in": fee_in,
-                           "funding": 0.0, "risk": abs(entry - stop) * qty + max(fee_in, 0.0),
-                           "base": cash, "low": 1.0, "high": 1.0, "dd": 0.0}
-                    cash -= fee_in
-                    totals["fees"] += fee_in
-        if pos is not None and (b["o"] <= pos["stop"] if pos["side"] == "long" else b["o"] >= pos["stop"]):
-            close(i, b["o"], "stop")  # gapped through at the open: no funding for this bar
-        if pos is not None:
+    for k in range(start, len(times)):
+        t = times[k]
+        here = {m: at[m].get(t) for m in markets}
+        for m in markets:  # the open: what the last close decided, at prices known at the open
+            i = here[m]
+            if i is None:
+                continue
+            state[m]["mark"] = series_by[m][i]["o"]
+        held_here = any(state[m]["pos"] is not None for m in markets if here[m] is None)  # held on, no bar here
+        for m in markets:
+            i = here[m]
+            if i is None:
+                continue
+            s, series, rule_set = state[m], series_by[m], rules_by[m]
+            b = series[i]
+            entry_order = rule_set.get("entry_order", "market")
+            if s["pending"] is not None:
+                do_close, side, sig, how = s["pending"]
+                s["pending"] = None
+                if do_close and s["pos"] is not None:
+                    close(m, t, b["o"], "signal")
+                if side and s["pos"] is None:
+                    stance_now = _stance_at(stance_by[m], t, defaults[m])
+                    stop = stop_price(side, sig["close"], sig["atr"], rule_set)
+                    gapped = b["o"] <= stop if side == "long" else b["o"] >= stop
+                    held, unrealized_now = others(m)
+                    value, _ = size_usd(cash + unrealized_now, sig["close"], stop, rule_set, stance_now["size"], held,
+                                        limits)
+                    entry, rate = None, fee
+                    if value is not None and not gapped:
+                        if how == "limit":
+                            totals["limit_orders"] += 1
+                            filled = limit_fill(side, sig, b, rule_set, through, slip)
+                            if filled is not None and filled[1]:  # the open had reached it: taken at once
+                                entry, rate = filled[0], fee
+                                totals["limit_crossed"] += 1
+                            else:  # rests through the bar, counted like a resting order; a fill inside the
+                                s["reserved"] = value  # bar is the bar's, not the open's
+                                if filled is not None:
+                                    s["resting"] = (side, sig["close"], stop, value, filled[0])
+                                elif entry_order == "limit_then_market":
+                                    s["owed"] = side
+                        else:
+                            entry = b["o"] * (1 + slip) if side == "long" else b["o"] * (1 - slip)
+                            if how == "after_limit":
+                                totals["market_after_limit"] += 1
+                    if entry is not None:
+                        totals["limit_filled"] += 1 if how == "limit" else 0
+                        open_position(m, side, sig["close"], stop, value, entry, rate, t)
+        for m in markets:  # the bar: its stop, funding, trailing and close, then the next bar's decision
+            i = here[m]
+            if i is None:
+                continue
+            s, series, rule_set, ind, rates = state[m], series_by[m], rules_by[m], ind_by[m], rates_by[m]
+            b = series[i]
+            entry_order = rule_set.get("entry_order", "market")
+            s["reserved"] = 0.0  # a limit still resting at the close is canceled
+            if s["resting"] is not None:  # the resting limit the bar trades through: filled as a maker
+                side, signal_close, stop, value, price = s["resting"]
+                s["resting"] = None
+                totals["limit_filled"] += 1
+                open_position(m, side, signal_close, stop, value, price, maker, t)
+            pos = s["pos"]
+            if pos is not None and (b["o"] <= pos["stop"] if pos["side"] == "long" else b["o"] >= pos["stop"]):
+                close(m, t, b["o"], "stop")  # gapped through at the open: no funding for this bar
+                pos = None
+            if pos is not None:
+                held_here = True
+                rate, assumed = rates[i]
+                paid = pos["qty"] * b["o"] * rate * (1 if pos["side"] == "long" else -1)
+                cash -= paid
+                pos["own"] -= paid
+                pos["funding"] += paid
+                totals["funding"] += paid
+                totals["assumed_hours"] += assumed
+                # a stop inside the bar: its hour is unknown from OHLC, so the bar's funding is charged whole
+                if b["l"] <= pos["stop"] if pos["side"] == "long" else b["h"] >= pos["stop"]:
+                    close(m, t, pos["stop"], "stop")
+                    pos = None
+            if pos is not None:  # the trailing stop follows this close from the next bar on
+                pos["stop"] = trailed(pos["side"], pos["stop"], b["c"], ind["atr"][i], rule_set)
+                mark_path(pos, own(pos, unrealized(pos, b["c"])))
+            s["mark"] = b["c"]
+            if i + 1 < len(series):
+                stance_now = _stance_at(stance_by[m], series[i + 1]["t"], defaults[m])
+                sig = signal(series, ind, i, rule_set)
+                do_close, side = decide(sig, pos["side"] if pos else None, stance_now["direction"])
+                how = "market" if entry_order == "market" else "limit"
+                if s["owed"] is not None and pos is None and sig is not None:
+                    # the limit that did not fill enters at market from this close, if the rules would still hold it
+                    leave, _ = decide(sig, s["owed"], stance_now["direction"])
+                    if not leave:
+                        do_close, side, how = False, s["owed"], "after_limit"
+                s["owed"] = None
+                if do_close or side:
+                    s["pending"] = (do_close, side, sig, how)
+        if held_here:
             totals["bars_held"] += 1
-            rate, assumed = rates[i]
-            paid = pos["qty"] * b["o"] * rate * (1 if pos["side"] == "long" else -1)
-            cash -= paid
-            pos["funding"] += paid
-            totals["funding"] += paid
-            totals["assumed_hours"] += assumed
-            # a stop inside the bar: its hour is unknown from OHLC, so the bar's funding is charged whole
-            if b["l"] <= pos["stop"] if pos["side"] == "long" else b["h"] >= pos["stop"]:
-                close(i, pos["stop"], "stop")
-        if pos is not None:  # the trailing stop follows this close from the next bar on
-            pos["stop"] = trailed(pos["side"], pos["stop"], b["c"], ind["atr"][i], rule_set)
-        mark = cash
-        if pos is not None:
-            mark += (b["c"] - pos["entry"]) * pos["qty"] * (1 if pos["side"] == "long" else -1)
-            mark_path(mark)
-        curve.append((b["t"], mark))
-        if i + 1 < len(series):
-            stance_now = _stance_at(stance, series[i + 1]["t"], default)
-            sig = signal(series, ind, i, rule_set)
-            do_close, side = decide(sig, pos["side"] if pos else None, stance_now["direction"])
-            how = "market" if entry_order == "market" else "limit"
-            if owed is not None and pos is None and sig is not None:
-                # the limit that did not fill enters at market from this close, if the rules would still hold it
-                leave, _ = decide(sig, owed, stance_now["direction"])
-                if not leave:
-                    do_close, side, how = False, owed, "after_limit"
-            owed = None
-            if do_close or side:
-                pending = (do_close, side, sig, how)
-    if pos is not None and series:
-        close(len(series) - 1, series[-1]["c"], "end")
+        curve.append((t, cash + sum(unrealized(s["pos"], s["mark"]) for s in state.values() if s["pos"] is not None)))
+    for m in markets:
+        if state[m]["pos"] is not None and series_by[m]:
+            close(m, series_by[m][-1]["t"], series_by[m][-1]["c"], "end")
+    if curve and any(tr["reason"] == "end" for tr in trades):
         curve[-1] = (curve[-1][0], cash)
+    traded = [m for m in markets if any(b["t"] >= times[start] for b in series_by[m])] if len(times) > start else []
+    buy_hold = [(series_by[m][-1]["c"] / next(b for b in series_by[m] if b["t"] >= times[start])["o"] - 1) * 100
+                for m in traded]
     return {"trades": trades, "paths": paths, "curve": curve, "totals": totals, "start_equity": start_equity,
-            "end_equity": cash, "bars": len(series) - start, "interval": interval,
-            "first": series[start]["t"] if len(series) > start else None,
-            "last": series[-1]["t"] if series else None,
-            "buy_hold_pct": (series[-1]["c"] / series[start]["o"] - 1) * 100 if len(series) > start else None}
+            "end_equity": cash, "bars": len(times) - start, "interval": interval,
+            "first": times[start] if len(times) > start else None, "last": times[-1] if times else None,
+            "buy_hold_pct": sum(buy_hold) / len(buy_hold) if buy_hold else None}
 
 
 def metrics(run: dict) -> dict:
@@ -749,12 +849,8 @@ def _score(m: dict, objective: str, min_trades: int) -> float:
     return m[objective]
 
 
-def walk_forward(series: list[dict], base: dict, interval: str, cost: dict, limits: dict, raw: dict, *,
-                 rates: list[tuple[float, int]], stance: list[dict], direction: str, seed: str = "") -> dict:
-    """Choose rules on past data, trade them on the next unseen window, and stitch the unseen windows:
-    the out-of-sample result is what choosing this way would have earned, with the Monte Carlo of its
-    trades (``seed``). ``raw``: grid, folds (2-6), objective (mar | sharpe | return_pct), min_trades,
-    anchored (train on everything before, default true, else only the window before)."""
+def _walk_forward_args(raw, base: dict) -> tuple[list[dict], int, str, int, bool]:
+    """(candidates, folds, objective, min_trades, anchored) from a walk_forward request."""
     if not isinstance(raw, dict):
         raise StrategyError("walk_forward is an object with grid and folds")
     candidates = grid(raw.get("grid"), base)
@@ -763,12 +859,25 @@ def walk_forward(series: list[dict], base: dict, interval: str, cost: dict, limi
     if objective not in OBJECTIVES:
         raise StrategyError(f"walk_forward.objective is one of {', '.join(OBJECTIVES)}")
     min_trades = _number({"min_trades": raw.get("min_trades", 5)}, "min_trades", 0, 1000, True, "walk_forward")
-    anchored = raw.get("anchored", True) is not False
-    lead = max(warmup(c) for c in candidates)
-    usable = len(series) - lead
-    chunk = usable // (folds + 1)
+    return candidates, folds, objective, min_trades, raw.get("anchored", True) is not False
+
+
+def _chunk(bars: int, lead: int, folds: int) -> int:
+    chunk = (bars - lead) // (folds + 1)
     if chunk < 50:
-        raise StrategyError(f"{len(series)} bars are too few for {folds} folds; fewer folds or a longer window")
+        raise StrategyError(f"{bars} bars are too few for {folds} folds; fewer folds or a longer window")
+    return chunk
+
+
+def walk_forward(series: list[dict], base: dict, interval: str, cost: dict, limits: dict, raw: dict, *,
+                 rates: list[tuple[float, int]], stance: list[dict], direction: str, seed: str = "") -> dict:
+    """Choose rules on past data, trade them on the next unseen window, and stitch the unseen windows:
+    the out-of-sample result is what choosing this way would have earned, with the Monte Carlo of its
+    trades (``seed``). ``raw``: grid, folds (2-6), objective (mar | sharpe | return_pct), min_trades,
+    anchored (train on everything before, default true, else only the window before)."""
+    candidates, folds, objective, min_trades, anchored = _walk_forward_args(raw, base)
+    lead = max(warmup(c) for c in candidates)
+    chunk = _chunk(len(series), lead, folds)
     cache = {}
 
     def run(rule_set, lo, hi, equity):
@@ -817,6 +926,91 @@ def walk_forward(series: list[dict], base: dict, interval: str, cost: dict, limi
             "out_of_sample": {**metrics(stitched), "monte_carlo": monte_carlo(stitched, f"{seed}\x00out_of_sample")},
             "equity": curve_points(stitched_curve),
             "window": {"start": iso(series[first]["t"]), "end": iso(series[-1]["t"])}}
+
+
+def walk_forward_many(series_by: dict, base: dict, interval: str, cost: dict, limits: dict, raw: dict, *,
+                      rates_by: dict, stance: list[dict], direction: str, seed: str = "") -> dict:
+    """``walk_forward`` over several markets on one account: the folds are cut on the markets' shared
+    timeline; in each, every market's rules are chosen on its own past bars (as ``walk_forward``
+    chooses them, by the market's own result), and the chosen rules trade the next unseen window
+    together (``simulate_many``). The stitched unseen windows are the account's out-of-sample result,
+    with the Monte Carlo of its trades."""
+    candidates, folds, objective, min_trades, anchored = _walk_forward_args(raw, base)
+    markets = list(series_by)
+    times = sorted({b["t"] for s in series_by.values() for b in s})
+    lead = max(warmup(c) for c in candidates)
+    chunk = _chunk(len(times), lead, folds)
+    stamps = {m: [b["t"] for b in series_by[m]] for m in markets}
+    cache: dict = {}
+
+    def index(m: str, k: int) -> int:
+        """The first bar of ``m`` at or after the ``k``-th shared time (its count when there is none)."""
+        return bisect.bisect_left(stamps[m], times[k]) if k < len(times) else len(stamps[m])
+
+    def ind_for(m: str, rule_set: dict, hi: int) -> dict:
+        key = (m, canonical(rule_set))
+        if key not in cache:
+            cache[key] = indicators(series_by[m], rule_set)
+        return {k: v[:hi] for k, v in cache[key].items()}
+
+    def run_one(m: str, rule_set: dict, lo: int, hi: int) -> dict:
+        at_lo, at_hi = index(m, lo), index(m, hi)
+        return simulate(series_by[m][:at_hi], rule_set, interval, cost, limits, rates=rates_by[m][:at_hi],
+                        stance=stance, direction=direction, start_equity=1000.0, trade_from=at_lo,
+                        ind=ind_for(m, rule_set, at_hi))
+
+    equity = 1000.0
+    stitched_curve: list[tuple[int, float]] = []
+    stitched_trades: list[dict] = []
+    stitched_paths: list[tuple[float, float, float, float]] = []
+    totals = {"fees": 0.0, "funding": 0.0, "assumed_hours": 0, "bars_held": 0, **dict.fromkeys(LIMIT_TOTALS, 0)}
+    rows = []
+    for k in range(1, folds + 1):
+        train_lo = lead if anchored else lead + (k - 1) * chunk
+        train_hi, test_hi = lead + k * chunk, (lead + (k + 1) * chunk if k < folds else len(times))
+        chosen_by, train_by, fingerprints, unqualified = {}, {}, {}, []
+        for m in markets:
+            scored = []
+            for c in candidates:
+                met = metrics(run_one(m, c, train_lo, train_hi))
+                scored.append((_score(met, objective, min_trades), met, c))
+            scored.sort(key=lambda s: s[0], reverse=True)
+            best_score, best_train, chosen = scored[0]
+            chosen_by[m] = chosen
+            train_by[m] = {objective: best_train[objective], "trades": best_train["trades"],
+                           "chosen": {k2: v for k2, v in chosen.items() if k2 != "kind"}}
+            fingerprints[m] = fingerprint(chosen, interval)
+            if best_score == -math.inf:
+                unqualified.append(m)
+        ends = {m: index(m, test_hi) for m in markets}
+        test = simulate_many({m: series_by[m][:ends[m]] for m in markets}, chosen_by, interval, cost, limits,
+                             rates_by={m: rates_by[m][:ends[m]] for m in markets},
+                             stance_by={m: stance for m in markets}, direction_by={m: direction for m in markets},
+                             start_equity=equity, trade_from=train_hi,
+                             ind_by={m: ind_for(m, chosen_by[m], ends[m]) for m in markets})
+        test_m = metrics(test)
+        equity = test["end_equity"]
+        stitched_curve += test["curve"]
+        stitched_trades += test["trades"]
+        stitched_paths += test["paths"]
+        for key in totals:
+            totals[key] += test["totals"][key]
+        rows.append({"train": {"start": iso(times[train_lo]), "end": iso(times[train_hi - 1]), "markets": train_by},
+                     "test": {"start": iso(times[train_hi]), "end": iso(times[test_hi - 1]), **test_m},
+                     "chosen": {m: train_by[m]["chosen"] for m in markets}, "chosen_fingerprint": fingerprints,
+                     "nothing_qualified": unqualified})
+    first = lead + chunk
+    held_from = {m: index(m, first) for m in markets}
+    buy_hold = [(series_by[m][-1]["c"] / series_by[m][held_from[m]]["o"] - 1) * 100
+                for m in markets if held_from[m] < len(series_by[m])]
+    stitched = {"trades": stitched_trades, "paths": stitched_paths, "curve": stitched_curve, "totals": totals,
+                "start_equity": 1000.0, "end_equity": equity, "bars": len(times) - first, "interval": interval,
+                "buy_hold_pct": sum(buy_hold) / len(buy_hold) if buy_hold else None}
+    return {"objective": objective, "anchored": anchored, "folds": rows, "candidates": len(candidates),
+            "markets": markets,
+            "out_of_sample": {**metrics(stitched), "monte_carlo": monte_carlo(stitched, f"{seed}\x00out_of_sample")},
+            "equity": curve_points(stitched_curve),
+            "window": {"start": iso(times[first]), "end": iso(times[-1])}}
 
 
 # --- specs and stances --------------------------------------------------------------------------
