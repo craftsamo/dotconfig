@@ -45,6 +45,8 @@ class FakeGh:
                     if isinstance(answer, Exception):
                         return subprocess.CompletedProcess(argv, 1, "", str(answer))
                     out = answer(argv, stdin) if callable(answer) else answer
+                    if isinstance(out, subprocess.CompletedProcess):  # a failure that still prints (gh api)
+                        return out
                     return subprocess.CompletedProcess(argv, 0, out if isinstance(out, str) else json.dumps(out), "")
             return subprocess.CompletedProcess(argv, 1, "", f"fake gh: no rule for {line}")
         body = json.loads(stdin or "{}")

@@ -1,4 +1,5 @@
 import importlib.util
+import json
 import os
 import sys
 from pathlib import Path
@@ -318,6 +319,125 @@ def test_a_merge_is_refused_before_the_card_when_it_cannot_land(gh, pr, merge, c
     gh.state["merge"] = merge or dict(squash=True)
     with pytest.raises(access.AccessError, match=message):
         changes.plan({"repo": "me/app", "changes": [{"op": "pr_merge", "pr": "12", **change}]})
+
+
+LOW = "b" * 40
+
+
+def stacked(gh, low_state="OPEN", low_draft=False, low_head=LOW):
+    """PR 12 at position 3 of stack 5: #10 merged at the bottom, #11 open between them."""
+    def entry(position, number, state, draft=False, head=SHA, mergeable="MERGEABLE"):
+        return {"position": position, "pullRequest": {"number": number, "title": f"Layer {position}", "state": state,
+                                                      "isDraft": draft, "headRefOid": head, "mergeable": mergeable}}
+    stack = {"number": 5, "size": 3, "baseRefName": "main", "entries": {"nodes": [
+        entry(1, 10, "MERGED"), entry(2, 11, low_state, low_draft, low_head), entry(3, 12, "OPEN")]}}
+    gh.state["pr"] = pr_node(stack=stack, stackEntry={"position": 3})
+    gh.state["layers"] = {11: pr_node(number=11, state=low_state, headRefOid=low_head)}
+    gh.add(r"pullRequest\(number:\$n\)", lambda v: {"repository": {"pullRequest":
+                                                                   gh.state["layers"].get(v["n"], gh.state["pr"])}})
+
+
+def test_a_stacked_pull_request_merges_through_the_async_route_with_the_layers_below(gh, monkeypatch):
+    stacked(gh)
+    planned = changes.plan({"repo": "me/app", "changes": [{"op": "pr_merge", "pr": "12", "subject": "Ship it"}]})
+    assert ["layer", f"11@{LOW}", "own"] in changes.binding(planned)
+    text = changes.card(planned)
+    assert "⚠️ Layer merged with it: #11 at bbbbbbb Layer 2 (own, private)" in text
+    assert "1. ⚠️ Merge me/app#12 and the 1 open layer below it into main by squash (head a1b2c3d)" in text
+    polls = iter([{"status": "pending", "details": {"uuid": "u1"}}, {"status": "merged", "details": {"sha": "m"}}])
+
+    def poll(argv, stdin):
+        answer = next(polls)
+        if answer["status"] == "merged":
+            gh.state["pr"] = {**gh.state["pr"], "state": "MERGED"}
+            gh.state["layers"][11] = {**gh.state["layers"][11], "state": "MERGED"}
+        return answer
+    gh.cmd(r"^api --method PUT repos/me/app/pulls/12/merge-async --input - -H X-GitHub-Api-Version: 2026-03-10$",
+           {"status": "pending", "details": {"uuid": "u1"}})
+    gh.cmd(r"^api repos/me/app/pulls/12/merge-async/u1 -H X-GitHub-Api-Version: 2026-03-10$", poll)
+    monkeypatch.setattr(ops.time, "sleep", lambda s: None)
+    result = changes.apply(planned)
+    assert result["ok"] is True, result
+    done = result["done"][0]
+    assert done["state"] == "merged" and done["states"] == {"#11": "merged", "#12": "merged"} and "note" not in done
+    sent = json.loads(next(s for a, s in zip(gh.argv, gh.stdin) if "--method" in a))
+    assert sent == {"merge_method": "squash", "sha": SHA, "commit_title": "Ship it"}
+    assert not gh.ran(r"^pr merge")  # gh's own merge refuses a stacked pull request
+
+
+@pytest.mark.parametrize("over,change,message", [
+    ({"low_draft": True}, {}, "#11 below it in the stack is a draft"),
+    ({}, {"delete_branch": True}, "deletes no branch itself"),
+])
+def test_a_stack_merge_is_refused_before_the_card_when_a_layer_below_cannot_land(gh, over, change, message):
+    stacked(gh, **over)
+    with pytest.raises(access.AccessError, match=message):
+        changes.plan({"repo": "me/app", "changes": [{"op": "pr_merge", "pr": "12", **change}]})
+
+
+def test_a_layer_below_that_moved_after_the_card_stops_the_stack_merge(gh):
+    stacked(gh)
+    planned = changes.plan({"repo": "me/app", "changes": [{"op": "pr_merge", "pr": "12"}]})
+    stacked(gh, low_head="c" * 40)
+    assert changes.binding(changes.plan({"repo": "me/app", "changes": [{"op": "pr_merge", "pr": "12"}]})) != \
+        changes.binding(planned)
+    result = changes.apply(planned)
+    assert result["ok"] is False and "the stack below it" in result["failed"]["error"]
+    assert not gh.ran(r"merge-async")
+
+
+def test_a_stack_merge_that_fails_says_what_already_landed(gh, monkeypatch):
+    stacked(gh)
+    planned = changes.plan({"repo": "me/app", "changes": [{"op": "pr_merge", "pr": "12"}]})
+
+    def put(argv, stdin):
+        gh.state["layers"][11] = {**gh.state["layers"][11], "state": "MERGED"}
+        return {"status": "failed", "details": {"message": "Required status check \"test\" is failing"}}
+    gh.cmd(r"^api --method PUT repos/me/app/pulls/12/merge-async", put)
+    result = changes.apply(planned)
+    assert result["ok"] is False
+    assert "Required status check" in result["failed"]["error"] and "already merged: #11" in result["failed"]["error"]
+    assert result["failed"]["partial"]["states"] == {"#11": "merged", "#12": "open"}
+
+
+def test_a_stack_merge_still_running_or_queued_is_not_reported_merged(gh, monkeypatch):
+    stacked(gh)
+    gh.cmd(r"^api --method PUT repos/me/app/pulls/12/merge-async", {"status": "enqueued", "details": {}})
+    done = changes.apply(changes.plan({"repo": "me/app", "changes": [{"op": "pr_merge", "pr": "12"}]}))["done"][0]
+    assert done["state"] == "open" and "merge queue" in done["note"]
+    gh.cmd(r"^api --method PUT repos/me/app/pulls/12/merge-async", {"status": "pending", "details": {"uuid": "u2"}})
+    gh.cmd(r"^api repos/me/app/pulls/12/merge-async/u2", RuntimeError("gh: Not Found (HTTP 404)"))
+    monkeypatch.setattr(ops.time, "sleep", lambda s: None)
+    done = changes.apply(changes.plan({"repo": "me/app", "changes": [{"op": "pr_merge", "pr": "12"}]}))["done"][0]
+    assert done["async"] == "pending" and "still merging" in done["note"]
+
+
+def test_a_merge_already_running_is_followed_not_sent_again(gh, monkeypatch):
+    stacked(gh)
+    running = __import__("subprocess").CompletedProcess(
+        [], 1, json.dumps({"status": "pending", "details": {"uuid": "u9", "merge_method": "squash"}}),
+        "gh: A merge request is already pending (HTTP 409)")
+    gh.cmd(r"^api --method PUT repos/me/app/pulls/12/merge-async", running)
+    gh.cmd(r"^api repos/me/app/pulls/12/merge-async/u9", {"status": "merged", "details": {"sha": "m"}})
+    monkeypatch.setattr(ops.time, "sleep", lambda s: None)
+    done = changes.apply(changes.plan({"repo": "me/app", "changes": [{"op": "pr_merge", "pr": "12"}]}))["done"][0]
+    assert done["already_running"] is True and done["request"] == "u9" and done["async"] == "merged"
+    assert len(gh.ran(r"--method PUT")) == 1
+
+
+@pytest.mark.parametrize("change,message", [
+    ("unread", "has 3 layers and only 2 could be read"),
+    ("other repo", "is in acme/other, not me/app"),
+])
+def test_a_stack_not_read_whole_or_reaching_another_repository_is_refused(gh, change, message):
+    stacked(gh)
+    stack = gh.state["pr"]["stack"]
+    if change == "unread":
+        stack["entries"]["nodes"] = [n for n in stack["entries"]["nodes"] if n["position"] != 1]
+    else:
+        stack["entries"]["nodes"][1]["pullRequest"]["repository"] = {"nameWithOwner": "acme/other"}
+    with pytest.raises(access.AccessError, match=message):
+        changes.plan({"repo": "me/app", "changes": [{"op": "pr_merge", "pr": "12"}]})
 
 
 def test_no_mandate_covers_an_upload_and_a_parent_mandate_never_covers_a_pull_request(gh, shot, tmp_path, monkeypatch):

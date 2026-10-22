@@ -39,6 +39,8 @@ PR_QUERY = (
     "latestReviews(first:20){nodes{author{login} state submittedAt}} "
     "closingIssuesReferences(first:20){nodes{number title url state repository{nameWithOwner}}} "
     "autoMergeRequest{mergeMethod} "
+    "stack{number size baseRefName entries(first:100){nodes{position pullRequest{number title state isDraft "
+    "headRefOid mergeable repository{nameWithOwner}}}}} stackEntry{position} "
     "lastCommit:commits(last:1){nodes{commit{oid statusCheckRollup{state contexts(first:100){nodes{__typename "
     "... on CheckRun{name status conclusion detailsUrl isRequired(pullRequestNumber:$n)} "
     "... on StatusContext{context state targetUrl isRequired(pullRequestNumber:$n)}}}}}}} "
@@ -73,6 +75,23 @@ def checks(rollup: dict | None) -> dict:
             "required_pending": sum(r["required"] for r in pending)}
 
 
+def stack(pr: dict) -> dict | None:
+    """The native stack a pull request is in (None when it is in none): its number, base, this
+    pull request's position (1 sits on the base) and every layer, bottom first."""
+    found, entry = pr.get("stack"), pr.get("stackEntry")
+    if not found or not entry:
+        return None
+    layers = sorted(({"position": e["position"], "number": e["pullRequest"]["number"],
+                      "title": e["pullRequest"].get("title") or "", "state": e["pullRequest"]["state"].lower(),
+                      "draft": bool(e["pullRequest"].get("isDraft")), "head_sha": e["pullRequest"].get("headRefOid"),
+                      "mergeable": (e["pullRequest"].get("mergeable") or "").lower(),
+                      "repo": (e["pullRequest"].get("repository") or {}).get("nameWithOwner")}
+                     for e in (found.get("entries") or {}).get("nodes") or [] if e and e.get("pullRequest")),
+                    key=lambda layer: layer["position"])
+    return {"number": found["number"], "size": found["size"], "base": found["baseRefName"],
+            "position": entry["position"], "layers": layers}
+
+
 def pull_request(repo: str, number: int, comments: int = COMMENTS) -> dict:
     owner, name = access.parse_repo(repo).split("/", 1)
     pr = (access.graphql(PR_QUERY, {"owner": owner, "name": name, "n": number, "comments": comments})
@@ -101,6 +120,7 @@ def pull_request(repo: str, number: int, comments: int = COMMENTS) -> dict:
         "closes": [{"issue": f"{i['repository']['nameWithOwner']}#{i['number']}", "title": i["title"],
                     "state": i["state"].lower()} for i in (pr.get("closingIssuesReferences") or {}).get("nodes") or []],
         "auto_merge": (pr.get("autoMergeRequest") or {}).get("mergeMethod"),
+        "stack": stack(pr),
         "checks": checks(head.get("statusCheckRollup")),
         "comments": [{"author": (c.get("author") or {}).get("login"), "body": c.get("body") or "", "at": c.get("createdAt"),
                       "url": c.get("url")} for c in (pr.get("comments") or {}).get("nodes") or []],
