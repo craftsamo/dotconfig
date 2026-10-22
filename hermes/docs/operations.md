@@ -46,7 +46,13 @@ tracked, machine-agnostic files in `hermes/launchd/`:
   never race one bot token. `restart` sends SIGUSR1 and waits for launchd's
   relaunch; `install` does the same when the job is loaded and the rendered
   plist is unchanged, because reloading SIGTERMs the gateway as an unplanned
-  stop (no turn resume, replies in flight left for the next boot).
+  stop (no turn resume, replies in flight left for the next boot). The
+  gateway lets in-flight turns finish before it stops (up to
+  `agent.restart_after_turn_timeout`, 1800 s by default) and only then
+  drains, so the launcher waits that whole window, printing what the gateway
+  is waiting on every 30 s, and exits 2 rather than forcing the stop when the
+  window passes: the restart is still pending inside the gateway. A quick
+  check can shorten the wait with `RESTART_WAIT=60`.
 
 **Telegram + Discord.** No synchronous SQLite in the gateway: gateway DB calls
 run off the asyncio loop (`AsyncSessionDB` / `asyncio.to_thread`) because

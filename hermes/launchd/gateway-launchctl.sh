@@ -11,10 +11,13 @@
 # the gateway gracefully instead of reloading it.
 #
 # `restart` sends SIGUSR1, the gateway's own planned restart (what `/restart`
-# and `hermes update` use): it drains running turns, marks them to resume, exits
-# 75, and KeepAlive relaunches it. Unloading the job instead delivers SIGTERM,
-# which Hermes treats as an unplanned kill: turns are not resumed and replies
-# still being sent are left for the next boot.
+# and `hermes update` use): it lets running turns finish (up to
+# agent.restart_after_turn_timeout), drains what is left, marks it to resume,
+# exits 75, and KeepAlive relaunches it. The launcher waits that whole window,
+# reporting what the gateway is waiting on, and never forces the stop: unloading
+# the job or `launchctl kickstart -k` delivers SIGTERM, which Hermes treats as
+# an unplanned kill — turns are not resumed and replies still being sent are
+# left for the next boot.
 #
 # Older agents (ai.hermes.keychain-multiplex, local.hermes.gateway.multiplex,
 # local.hermes.gateway.assistant)
@@ -26,10 +29,15 @@ LABEL=ai.hermes.multiplex
 LEGACY_LABELS="ai.hermes.keychain-multiplex local.hermes.gateway.multiplex local.hermes.gateway.assistant"
 TMPL="$HOME/.config/hermes/launchd/$LABEL.plist.tmpl"
 DEST="$HOME/Library/LaunchAgents/$LABEL.plist"
-# Covers agent.restart_drain_timeout (50 s: the per-user launchd domain clamps
-# ExitTimeOut to 60 s and Hermes keeps a 10 s cleanup reserve under it) plus the
-# 30 s ThrottleInterval, with margin.
-RESTART_WAIT=120
+# How long a planned restart can take: agent.restart_after_turn_timeout (the
+# gateway lets in-flight turns finish before it stops; the runtime default is
+# 1800 s — raise this with it) plus agent.restart_drain_timeout (50 s: the
+# per-user launchd domain clamps ExitTimeOut to 60 s and Hermes keeps a 10 s
+# cleanup reserve under it), the 30 s ThrottleInterval and margin. Overridable
+# for a quick check (RESTART_WAIT=60 … restart); the gateway's own cap still
+# applies, and a wait shorter than it ends in the exit-2 report below.
+RESTART_WAIT="${RESTART_WAIT:-1950}"
+GATEWAY_LOG="${HERMES_HOME:-$HOME/.hermes}/logs/gateway.log"
 
 remove_legacy() {
   for legacy in $LEGACY_LABELS; do
@@ -47,24 +55,44 @@ gateway_pid() {
   launchctl list | awk -v label="$LABEL" '$3 == label { print $1 }'
 }
 
-# Returns 1 without touching anything when no gateway is running.
+# The gateway's latest word on what this restart waits for (its "Restart deferred"
+# line names the active turns): only lines logged since the signal was sent, so an
+# earlier restart's wait is never shown as this one's.
+restart_progress() {
+  [ -r "$GATEWAY_LOG" ] || return 0
+  tail -n 2000 "$GATEWAY_LOG" | awk -v since="$1" 'substr($1 " " $2, 1, 19) >= since && /Restart deferred: waiting on/' \
+    | tail -n 1 | sed 's/^.*Restart deferred: //' | cut -c1-200
+}
+
+# Returns 1 without touching anything when no gateway is running. Exits 2 when
+# the gateway was asked to restart but has not relaunched within RESTART_WAIT:
+# it is still the old process, finishing its turns, and nothing here may force
+# it (install must not fall through to a reload, which would SIGTERM it).
 graceful_restart() {
   old=$(gateway_pid)
   case "$old" in '' | -) return 1 ;; esac
-  echo "restarting $LABEL (pid $old): draining active turns (up to ${RESTART_WAIT}s)..."
+  echo "restarting $LABEL (pid $old): letting active turns finish, then draining (up to ${RESTART_WAIT}s)..."
+  since=$(date '+%Y-%m-%d %H:%M:%S')
   kill -USR1 "$old" || return 1
   waited=0
   while [ "$waited" -lt "$RESTART_WAIT" ]; do
     sleep 2
     waited=$((waited + 2))
     new=$(gateway_pid)
-    case "$new" in '' | - | "$old") continue ;; esac
-    echo "restarted $LABEL (pid $new)"
-    return 0
+    case "$new" in '' | - | "$old") ;; *)
+      echo "restarted $LABEL (pid $new) after ${waited}s"
+      return 0 ;;
+    esac
+    if [ $((waited % 30)) -eq 0 ]; then
+      progress=$(restart_progress "$since")
+      echo "  ${waited}s: ${progress:-waiting for the gateway to stop}"
+    fi
   done
-  echo "WARN: $LABEL did not relaunch within ${RESTART_WAIT}s; forcing a restart" >&2
-  launchctl kickstart -k "gui/$(id -u)/$LABEL"
-  echo "restarted $LABEL (forced)"
+  echo "WARN: $LABEL (pid $old) has not relaunched after ${RESTART_WAIT}s. This is not a failure:" >&2
+  echo "      the gateway is still running, the restart is still pending inside it, and it will stop" >&2
+  echo "      and relaunch on its own once its turns finish or its own cap passes. Leave it, or watch" >&2
+  echo "      $GATEWAY_LOG. Do not kill it and do not run install: that drops the turns it is finishing." >&2
+  exit 2
 }
 
 case "${1:-install}" in
@@ -73,10 +101,10 @@ case "${1:-install}" in
     mkdir -p "$HOME/Library/LaunchAgents"
     remove_legacy
     rendered=$(mktemp)
+    trap 'rm -f "$rendered"' EXIT
     sed "s|__HOME__|$HOME|g" "$TMPL" > "$rendered"
     chmod 644 "$rendered"
     if cmp -s "$rendered" "$DEST" && graceful_restart; then
-      rm -f "$rendered"
       exit 0
     fi
     mv "$rendered" "$DEST"

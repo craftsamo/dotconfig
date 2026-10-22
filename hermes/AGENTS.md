@@ -188,7 +188,10 @@ skills.
   restarts the same way when the plist is unchanged) or `/restart`; stop with
   `uninstall`. Never restart by unloading the job or `launchctl kickstart -k`:
   that SIGTERM reads as an unplanned kill, so interrupted turns are not resumed
-  and replies still being sent wait for the next boot.
+  and replies still being sent wait for the next boot. The launcher's wait
+  covers `agent.restart_after_turn_timeout` (the gateway lets running turns
+  finish first) and never falls back to a kill; keep it that way, and raise
+  `RESTART_WAIT` with that timeout.
 - Changes to code that runs inside the gateway (e.g. the Assistant-side
   `specialist_call` kind validation) need a gateway restart; runner, handoff
   and OpenCode-plugin changes apply on the next resident turn.
