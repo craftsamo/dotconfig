@@ -5,6 +5,7 @@ import {
   type AccountsContext,
   type Subscription,
 } from "./accounts"
+import { AccountRouter, type ClaudeAccountsContext } from "./claude-accounts"
 import {
   dependencies,
   exportPath,
@@ -95,7 +96,8 @@ type Executor = (
   input: Record<string, unknown>,
   context: ToolContext,
 ) => Promise<Result>
-export type RuntimeContext = AccountsContext & {
+type LoginContext = AccountsContext & ClaudeAccountsContext
+export type RuntimeContext = LoginContext & {
   app: { version: string }
   options: Record<string, unknown>
   agent: {
@@ -361,6 +363,10 @@ export async function setupPreflight(
   }
   const primaryFallback = ctx.options.primaryFallback !== false
   const pinModels = ctx.options.pinModels === true
+  // Other saved Claude logins, reached by alias model (claude-accounts.ts).
+  // Independent of `enabled`: an alias must never fall back to the active
+  // login.
+  const claudeAccounts = AccountRouter.fromOption(ctx.options.claudeAccounts)
   const protectedChild = async (sessionID: string) => {
     const session = await ctx.session.get({ sessionID })
     const marker = parseMarker(session)
@@ -499,6 +505,14 @@ export async function setupPreflight(
     handshakes.clear()
   }
   try {
+    // Before the transport guard, so the guard sees the token a request
+    // leaves with.
+    if (claudeAccounts.active)
+      registrations.push(
+        await ctx.session.hook("http.request", async (event) => {
+          await claudeAccounts.route(ctx, event, supported(ctx.app.version))
+        }),
+      )
     registrations.push(await ctx.session.hook("context", guardContext))
     registrations.push(
       await ctx.session.hook("http.request", async (event) => {
