@@ -63,7 +63,10 @@ Merge only when the user asks to, for that pull request.
 1. `github_pr` `view`, and report in the reply: draft or ready, the checks
    (failing and pending ones by name, required ones first), the review
    decision, GitHub's merge state, and the issues the merge will close. For a
-   stack, say what the layers above still hold.
+   pull request in a stack (`stack` in the view), merging it also merges every
+   open layer below it: name those layers, and what the layers above still
+   hold. Merge a stack bottom-up, one layer per card, unless the user asks to
+   land several at once.
 2. Then `pr_merge` with the `method` the user or the repository's habit
    names (`github_repo` `view` shows the allowed ones), `delete_branch` when
    the user wants the branch gone, and a `subject` and `body` only when they
@@ -73,8 +76,10 @@ Merge only when the user asks to, for that pull request.
    merge of its base before any merge; GitHub refuses a merge its rules
    block, and nothing here overrides that.
 4. The result reads the pull request back: `state` `merged`, or a note that
-   it is not merged yet (a merge queue holds it); report what it says, and
-   check the closed issues with `github_issue` `view`.
+   it is not merged yet (a merge queue holds it, or GitHub is still merging a
+   stack); report what it says, and check the closed issues with
+   `github_issue` `view`. A stack merge also lists each layer's state: one that
+   failed part-way can leave the layers below merged, so say which.
 
 ## Recipes
 
