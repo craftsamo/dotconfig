@@ -471,6 +471,167 @@ def test_a_breaker_whose_memory_was_lost_holds_entries_until_the_user_resumes_it
         assert part["intents"] == [] and part["breaker"]["tripped"] is not None, broken
 
 
+def fill(coin, t, direction, side, px, sz, fee, oid, crossed=True, pnl="0"):
+    return {"coin": coin, "time": t, "dir": direction, "side": side, "px": px, "sz": sz, "fee": fee, "feeToken": "USDC",
+            "crossed": crossed, "closedPnl": pnl, "tid": oid * 10, "oid": oid}
+
+
+def test_the_gate_measures_what_each_order_cost_against_what_the_strategy_expected(api, tmp_path):
+    reset()
+    root = tmp_path / "hl-strategies"
+    strategy_dir(root)
+    assert kinds(gate(root, api, tmp_path)) == ["leverage", "open"]  # a long on the close at 110
+    # the run bought at 110.55 in two parts (50 bps past the close, taker), and someone shorted ETH by hand
+    STATE["fills"] = [fill("BTC", NOW + 1000, "Open Long", "B", "110.5", "0.5", "0.025", 1),
+                      fill("BTC", NOW + 1001, "Open Long", "B", "110.6", "0.5", "0.025", 1),
+                      fill("ETH", NOW + 2000, "Open Short", "A", "50", "1", "0.01", 2, crossed=False)]
+    STATE["positions"] = [{"coin": "BTC", "szi": "1", "entryPx": "110.55", "positionValue": "110.55"},
+                          {"coin": "ETH", "szi": "-1", "entryPx": "50", "positionValue": "50"}]
+    STATE["orders"] = [{"coin": "BTC", "side": "A", "orderType": "Stop Market", "reduceOnly": True, "isTrigger": True,
+                        "sz": "1", "triggerPx": "105"},
+                       {"coin": "ETH", "side": "B", "orderType": "Stop Market", "reduceOnly": True, "isTrigger": True,
+                        "sz": "1", "triggerPx": "60"}]
+    gate(root, api, tmp_path, NOW + H4)
+    memory = json.loads((root / "trend" / "state.json").read_text())["execution"]
+    assert memory["totals"]["entry"]["slippage_usd"] == pytest.approx(0.55) and memory["expect"] == {}
+    assert memory["stops"]["BTC"][-1] == {"side": "sell", "ref": 105.0, "oid": None}  # the one in force, newest
+    # the BTC stop fires at 104.5, half a dollar under its trigger: the position is gone, so the run wakes
+    STATE["fills"].append(fill("BTC", NOW + H4 + 1000, "Close Long", "A", "104.5", "1", "0.047", 3, pnl="-6.05"))
+    STATE["positions"] = [p for p in STATE["positions"] if p["coin"] == "ETH"]
+    STATE["orders"] = STATE["orders"][1:]
+    part = gate(root, api, tmp_path, NOW + 2 * H4)["strategies"][0]
+    assert part["fills_measured"] == [{"market": "BTC", "kind": "stop", "side": "sell", "size": "1", "price": "104.5",
+                                       "reference": "105", "slippage_bps": 47.62, "fee_bps": 4.5, "maker_pct": 0.0}]
+    costs = part["execution"]["costs"]
+    assert costs["entry"] == {"orders": 1, "slippage_bps": 50.0, "fee_bps": 4.52, "maker_pct": 0.0}
+    assert costs["stop"]["slippage_bps"] == 47.62 and costs["other"] == {"orders": 1, "slippage_bps": None,
+                                                                         "fee_bps": 2.0, "maker_pct": 100.0}
+    # a memory of a shape the gate never writes starts again rather than stopping the gate
+    state = json.loads((root / "trend" / "state.json").read_text())
+    for n, broken in enumerate(({"totals": {"entry": {"orders": "x"}}, "since": NOW},
+                                {"expect": {"BTC": {"entry": {"side": "buy", "ref": 0}}}},
+                                {"stops": {"BTC": [{"side": "sell", "ref": 90, "oid": "7"}]}},
+                                {"since": 10 ** 400, "expect": {"BTC": {"entry": [{"side": "buy", "ref": 10 ** 400}]}}},
+                                {"since": 1e30, "totals": {"entry": dict.fromkeys(
+                                    ("orders", "notional_usd", "fees_usd", "maker_notional_usd",
+                                     "reference_notional_usd", "slippage_usd"), 1)}},
+                                {"totals": {"entry": dict.fromkeys(("orders", "notional_usd", "fees_usd",
+                                                                   "maker_notional_usd", "reference_notional_usd",
+                                                                   "slippage_usd"), 1)}})):
+        (root / "trend" / "state.json").write_text(json.dumps({**state, "execution": broken}))
+        gate(root, api, tmp_path, NOW + (3 + n) * H4)
+        kept = json.loads((root / "trend" / "state.json").read_text())["execution"]
+        assert "entry" not in kept.get("totals", {}) and "BTC" not in kept.get("expect", {}), broken
+
+
+def test_a_reversal_prices_its_close_and_its_entry_and_a_split_order_counts_once(api, tmp_path):
+    reset()
+    # a long the rules now exit and turn short; ETH is held long with a stop far below
+    STATE["bars"] = {"BTC": series([100.0] * 40 + [95.0], NOW), "ETH": series([50.0] * 41, NOW)}
+    STATE["positions"] = [{"coin": "BTC", "szi": "1", "entryPx": "100", "positionValue": "95"},
+                          {"coin": "ETH", "szi": "1", "entryPx": "50", "positionValue": "50"}]
+    STATE["orders"] = [{"coin": "BTC", "side": "A", "orderType": "Stop Market", "reduceOnly": True, "isTrigger": True,
+                        "sz": "1", "triggerPx": "90", "oid": 7},
+                       {"coin": "ETH", "side": "A", "orderType": "Stop Market", "reduceOnly": True, "isTrigger": True,
+                        "sz": "1", "triggerPx": "40", "oid": 8}]
+    root = tmp_path / "hl-strategies"
+    strategy_dir(root)
+    assert kinds(gate(root, api, tmp_path)) == ["close", "leverage", "open"]  # both on the close at 95
+    # the close sold at 94.8; the short sold half at 94.7 (taker) and the rest only after the next read
+    # (maker); ETH was sold by hand at 60, far above its stop: not a stop
+    STATE["fills"] = [fill("BTC", NOW + 1000, "Close Long", "A", "94.8", "1", "0.04", 11),
+                      fill("BTC", NOW + 2000, "Open Short", "A", "94.7", "0.5", "0.02", 12),
+                      fill("ETH", NOW + 3000, "Close Long", "A", "60", "1", "0.03", 13)]
+    STATE["positions"] = [{"coin": "BTC", "szi": "-0.5", "entryPx": "94.7", "positionValue": "47.35"}]
+    STATE["orders"] = []
+    gate(root, api, tmp_path, NOW + H4)
+    STATE["fills"].append(fill("BTC", NOW + H4 + 1000, "Open Short", "A", "94.9", "0.5", "-0.001", 12, crossed=False))
+    gate(root, api, tmp_path, NOW + 2 * H4)
+    totals = json.loads((root / "trend" / "state.json").read_text())["execution"]["totals"]
+    assert totals["close"]["orders"] == 1 and totals["close"]["slippage_usd"] == pytest.approx(0.2)
+    assert totals["entry"]["orders"] == 1 and totals["entry"]["slippage_usd"] == pytest.approx(0.2)  # 0.15 + 0.05
+    assert totals["entry"]["maker_notional_usd"] == pytest.approx(47.45)  # the half that rested
+    assert totals["other"]["orders"] == 1 and "stop" not in totals
+
+
+def held_long(stop_oid: int = 7) -> None:
+    STATE["positions"] = [{"coin": "BTC", "szi": "1", "entryPx": "100", "positionValue": "100"}]
+    STATE["orders"] = [{"coin": "BTC", "side": "A", "orderType": "Stop Market", "reduceOnly": True, "isTrigger": True,
+                        "sz": "1", "triggerPx": "90", "oid": stop_oid}]
+
+
+def totals_now(root: Path) -> dict:
+    return json.loads((root / "trend" / "state.json").read_text())["execution"]["totals"]
+
+
+def test_closes_listed_while_fills_go_unread_are_each_priced_against_their_own_bar(api, tmp_path):
+    reset()
+    held_long()
+    STATE["bars"] = {"BTC": series([100.0] * 40 + [95.0], NOW), "ETH": series([50.0] * 41, NOW)}
+    root = tmp_path / "hl-strategies"
+    strategy_dir(root)
+    assert "close" in kinds(gate(root, api, tmp_path))  # against 95
+    STATE["fills"] = [fill("BTC", NOW + 1000, "Close Long", "A", "94.5", "0.5", "0", 21)]  # half of it
+    STATE["positions"] = [{"coin": "BTC", "szi": "0.5", "entryPx": "100", "positionValue": "47.5"}]
+    STATE["ledger_broken"] = True
+    STATE["bars"]["BTC"] = series([100.0] * 40 + [95.0, 90.0], NOW + H4)
+    assert "close" in kinds(gate(root, api, tmp_path, NOW + H4))  # against 90, while the first is unread
+    STATE["fills"].append(fill("BTC", NOW + H4 + 1000, "Close Long", "A", "89.8", "0.5", "0", 22))
+    STATE["positions"], STATE["orders"], STATE["ledger_broken"] = [], [], False
+    gate(root, api, tmp_path, NOW + 2 * H4)
+    close = totals_now(root)["close"]
+    assert close["orders"] == 2 and close["slippage_usd"] == pytest.approx(0.25 + 0.1)
+    assert close["reference_notional_usd"] == pytest.approx(95 * 0.5 + 90 * 0.5)
+
+
+def test_one_order_that_closes_and_reverses_is_priced_as_the_entry(api, tmp_path):
+    reset()
+    held_long()
+    STATE["bars"] = {"BTC": series([100.0] * 40 + [95.0], NOW), "ETH": series([50.0] * 41, NOW)}
+    root = tmp_path / "hl-strategies"
+    strategy_dir(root)
+    gate(root, api, tmp_path)
+    STATE["fills"] = [fill("BTC", NOW + 1000, "Close Long", "A", "94.9", "1", "0.04", 31),
+                      fill("BTC", NOW + 1001, "Open Short", "A", "94.9", "0.5", "0.02", 31)]
+    STATE["positions"] = [{"coin": "BTC", "szi": "-0.5", "entryPx": "94.9", "positionValue": "47.45"}]
+    STATE["orders"] = []
+    gate(root, api, tmp_path, NOW + H4)
+    totals = totals_now(root)
+    assert set(totals) == {"entry"} and totals["entry"]["orders"] == 1
+    assert totals["entry"]["slippage_usd"] == pytest.approx(0.1 * 1.5)
+
+
+def test_a_close_by_hand_is_not_taken_for_a_stop_whose_order_is_known(api, tmp_path):
+    reset()
+    held_long()
+    STATE["bars"] = {"BTC": series([100.0] * 41, NOW), "ETH": series([50.0] * 41, NOW)}
+    root = tmp_path / "hl-strategies"
+    strategy_dir(root)
+    gate(root, api, tmp_path)
+    STATE["fills"] = [fill("BTC", NOW + 1000, "Close Long", "A", "89.5", "1", "0.04", 8)]  # not the stop's order 7
+    STATE["positions"], STATE["orders"] = [], []
+    gate(root, api, tmp_path, NOW + H4)
+    assert set(totals_now(root)) == {"other"}
+
+
+def test_a_stop_that_fires_while_fills_cannot_be_read_is_priced_once_they_can(api, tmp_path):
+    reset()
+    STATE["bars"] = {"BTC": series([100.0] * 41, NOW), "ETH": series([50.0] * 41, NOW)}
+    STATE["positions"] = [{"coin": "BTC", "szi": "1", "entryPx": "100", "positionValue": "100"}]
+    STATE["orders"] = [{"coin": "BTC", "side": "A", "orderType": "Stop Market", "reduceOnly": True, "isTrigger": True,
+                        "sz": "1", "triggerPx": "90", "oid": 7}]
+    root = tmp_path / "hl-strategies"
+    strategy_dir(root)
+    gate(root, api, tmp_path)
+    STATE["positions"], STATE["orders"], STATE["ledger_broken"] = [], [], True
+    STATE["fills"] = [fill("BTC", NOW + 1000, "Close Long", "A", "89.5", "1", "0.04", 7, pnl="-10.5")]
+    gate(root, api, tmp_path, NOW + H4)
+    STATE["ledger_broken"] = False
+    assert gate(root, api, tmp_path, NOW + 2 * H4) == {"wakeAgent": False}  # the position's end was said already
+    stop = json.loads((root / "trend" / "state.json").read_text())["execution"]["totals"]["stop"]
+    assert stop["slippage_usd"] == pytest.approx(0.5) and stop["reference_notional_usd"] == 90  # by its order id
+
+
 def test_the_gate_keeps_the_start_equity_and_notices_a_position_the_venue_closed(api, tmp_path):
     reset()
     STATE["positions"] = [{"coin": "ETH", "szi": "-1", "entryPx": "50", "positionValue": "50"}]
@@ -620,6 +781,20 @@ def test_a_trailing_rule_replaces_a_looser_stop_once_per_bar_new_stop_first(api,
     (root / "trend" / "state.json").unlink()
     intents = [i for i in gate(root, api, tmp_path)["strategies"][0]["intents"] if i["market"] == "ETH"]
     assert [i["id"].split(":")[-1] for i in intents] == ["protect"] and float(intents[0]["quote"]["sl"]) == 52
+
+
+def test_a_trailed_stop_in_one_market_leaves_the_next_markets_entry_sized(api, tmp_path):
+    reset()
+    STATE["bars"] = {"BTC": series([100.0] * 41, NOW), "ETH": series([50.0] * 40 + [55.0], NOW)}
+    STATE["positions"] = [{"coin": "BTC", "szi": "1", "entryPx": "100", "positionValue": "100"}]
+    STATE["orders"] = [{"coin": "BTC", "side": "A", "orderType": "Stop Market", "reduceOnly": True, "isTrigger": True,
+                        "sz": "1", "triggerPx": "90", "oid": 7}]
+    root = tmp_path / "hl-strategies"
+    strategy_dir(root, trail_atr=2)
+    intents = gate(root, api, tmp_path)["strategies"][0]["intents"]
+    assert [(i["market"], i["id"].split(":")[-1]) for i in intents] == [
+        ("BTC", "trail"), ("BTC", "untrail"), ("ETH", "leverage"), ("ETH", "open")]
+    assert 10 <= float(intents[-1]["quote"]["usd"]) <= 300 * 0.98
 
 
 def test_an_entry_whose_leverage_could_not_be_read_is_tried_again_next_run(api, tmp_path):
