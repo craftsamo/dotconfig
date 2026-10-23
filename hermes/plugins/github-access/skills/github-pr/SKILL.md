@@ -71,7 +71,12 @@ Merge only when the user asks to, for that pull request.
    names (`github_repo` `view` shows the allowed ones), `delete_branch` when
    the user wants the branch gone, and a `subject` and `body` only when they
    asked for a merge message. The card is the user's go: it is pinned to the
-   head commit it shows, so a push after it needs a new card.
+   head commit it shows, so a push after it needs a new card. In a stack,
+   `delete_branch` removes the branch of every layer that lands, each named
+   on the card; one an open pull request still rests on (a layer above) is
+   kept. When the repository already deletes branches on merge
+   (`delete_branch_on_merge` in `github_repo` `view`), there is nothing to
+   ask.
 3. A draft is marked ready first (`pr_ready`); a conflict needs a rebase or a
    merge of its base before any merge; GitHub refuses a merge its rules
    block, and nothing here overrides that.
@@ -79,7 +84,9 @@ Merge only when the user asks to, for that pull request.
    it is not merged yet (a merge queue holds it, or GitHub is still merging a
    stack); report what it says, and check the closed issues with
    `github_issue` `view`. A stack merge also lists each layer's state: one that
-   failed part-way can leave the layers below merged, so say which.
+   failed part-way can leave the layers below merged, so say which. With
+   `delete_branch` it also says what became of each branch (`branches`):
+   report the ones kept and why; a kept branch is not a failed merge.
 
 ## Recipes
 

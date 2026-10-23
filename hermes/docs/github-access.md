@@ -249,8 +249,7 @@ own merge refuses one). That request lands the open layers below it too, so
 the change line says how many, and each layer is a target of its own on the
 card ("Layer merged with it", with its head), bound like the others. A
 stack that cannot be read whole, a layer in another repository, a draft or a
-conflict below are refused before the card, as is `delete_branch` (the
-route deletes no branch; the repository's own setting decides). The read
+conflict below are refused before the card. The read
 just before the write covers the layers below as well; what remains is the
 moment after it, where `sha` pins only the named pull request's head. A
 request already running (GitHub answers 409, as after a send whose answer
@@ -259,6 +258,21 @@ minutes while GitHub merges (`pending`), then reads every layer back: a merge
 that failed part-way names the layers that already landed, and one still
 running or taken into a merge queue is reported as not merged yet. Where the
 base has a merge queue, the queue picks the method and the commit message.
+
+The asynchronous route deletes no branch, so `delete_branch` on a stacked
+pull request is done by the run itself: the head branch of the named pull
+request and of each layer below it is a target of its own on the card
+("Branch deleted after", with its head), and is refused before the card when
+it lives in another repository or is the default branch. After the read-back
+each branch whose pull request merged is deleted, unless an open pull
+request is still based on it (a REST deletion can close such a pull request
+instead of retargeting it, and GitHub retargets the layers above a stack
+merge on its own time) or it moved since the card; the result names what
+happened to each (`deleted`, `already gone`, `kept: …`, `not deleted: …`,
+or `uncertain: …` when the delete got no answer). A branch that stays never
+turns a done merge into a failure. What remains is the moment between the
+read of the branch and its deletion: REST has no conditional delete, so a
+push in that moment is not seen.
 
 `pr_create`, `pr_edit` and `pr_comment` take `attachments`: absolute paths of
 images (PNG, JPEG, GIF, WebP, SVG, up to 10 MiB) and videos (MP4, MOV, WebM,
