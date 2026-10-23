@@ -6,7 +6,8 @@ completed candle for a strategy in force. Because both call ``signal`` on the sa
 what was tested is what runs. Contract: docs/hyperliquid.md "Strategies".
 
 - **Rules** are a ``kind`` and its numbers (``breakout``: a Donchian channel; ``ema_cross``: two
-  EMAs), each with an ATR stop placed with the entry and a risk per trade, and optionally a
+  EMAs; ``mean_revert``: the close's distance from an EMA in ATRs, entered against and left once it
+  has come back), each with an ATR stop placed with the entry and a risk per trade, and optionally a
   trailing stop (``trail_atr``) that follows each completed close and never loosens, and a regime
   filter (``regime_ema``) that takes longs only above that EMA and shorts only below. ``fingerprint``
   names a rule set exactly (with its interval), so a strategy may only run rules a backtest reported.
@@ -41,7 +42,7 @@ import re
 SPEC_SCHEMA = "hermes-hyperliquid-strategy/1"
 STANCE_SCHEMA = "hermes-hyperliquid-stance/1"
 BACKTEST_SCHEMA = "hermes-hyperliquid-backtest/1"
-KINDS = ("breakout", "ema_cross")
+KINDS = ("breakout", "ema_cross", "mean_revert")
 DIRECTIONS = ("long", "short", "both", "flat")
 SIDES = ("long", "short")
 MIN_ORDER_USD = 10.0      # the venue refuses smaller orders
@@ -73,6 +74,10 @@ PARAMS = {
                  "stop_atr": (0.5, 10.0, False), "risk_pct": (0.1, 5.0, False)},
     "ema_cross": {"fast": (2, 100, True), "slow": (3, 400, True), "atr": (5, 100, True),
                   "stop_atr": (0.5, 10.0, False), "risk_pct": (0.1, 5.0, False)},
+    # a close entry_atr ATRs below the mean EMA enters long (above it, short); exit_atr ATRs past the
+    # mean on the other side exits (0: at the mean)
+    "mean_revert": {"mean": (5, 400, True), "entry_atr": (0.5, 10.0, False), "exit_atr": (0.0, 10.0, False),
+                    "atr": (5, 100, True), "stop_atr": (0.5, 10.0, False), "risk_pct": (0.1, 5.0, False)},
 }
 # optional for every kind; 0 (or absent) leaves it out of the rule set, so earlier fingerprints hold:
 # trail_atr trails the stop; regime_ema allows entries only on the side of that EMA (longs above it);
@@ -178,6 +183,8 @@ def rules(raw, what: str = "rules") -> dict:
         raise StrategyError(f"{what}: exit must not be longer than entry")
     if kind == "ema_cross" and out["slow"] <= out["fast"]:
         raise StrategyError(f"{what}: slow must be longer than fast")
+    if kind == "mean_revert" and out["exit_atr"] >= out["entry_atr"]:
+        raise StrategyError(f"{what}: exit_atr must be less than entry_atr, or an entry exits at once")
     return out
 
 
@@ -192,6 +199,8 @@ def warmup(rule_set: dict) -> int:
     regime = rule_set.get("regime_ema", 0) * 3
     if rule_set["kind"] == "breakout":
         return max(rule_set["entry"], rule_set["exit"], rule_set["atr"], regime) + 1
+    if rule_set["kind"] == "mean_revert":
+        return max(rule_set["mean"] * 3, rule_set["atr"], regime) + 1
     return max(rule_set["slow"] * 3, rule_set["atr"], regime) + 1
 
 
@@ -284,6 +293,8 @@ def indicators(series: list[dict], rule_set: dict) -> dict:
         ind["down_entry"] = _channel(series, rule_set["entry"], "l", lambda kept, new: kept < new)
         ind["up_exit"] = _channel(series, rule_set["exit"], "h", lambda kept, new: kept > new)
         ind["down_exit"] = _channel(series, rule_set["exit"], "l", lambda kept, new: kept < new)
+    elif rule_set["kind"] == "mean_revert":
+        ind["mean"] = _ema(series, rule_set["mean"])
     else:
         ind["fast"] = _ema(series, rule_set["fast"])
         ind["slow"] = _ema(series, rule_set["slow"])
@@ -324,6 +335,22 @@ def _signal(series: list[dict], ind: dict, i: int, rule_set: dict) -> dict | Non
                 "atr": ind["atr"][i], "close": close,
                 "why": (f"close {sig5(close)}; {rule_set['entry']}-bar channel {sig5(down)}–{sig5(up)}, "
                         f"{rule_set['exit']}-bar exit channel {sig5(down_x)}–{sig5(up_x)}")}
+    if rule_set["kind"] == "mean_revert":
+        mean, atr = ind["mean"][i], ind["atr"][i]
+        if mean is None:
+            return None
+        # ATRs above the mean, negative below it; a dead market (no ATR) still exits, on the side of the
+        # mean the close sits, and enters nothing, having no stop distance
+        if atr > 0:
+            away = (close - mean) / atr
+        else:
+            away = math.copysign(math.inf, close - mean) if close != mean else 0.0
+        enter, leave = rule_set["entry_atr"], rule_set["exit_atr"]
+        where = f"{away:+.2f} ATR away" if math.isfinite(away) else "no ATR to measure by"
+        return {"long": atr > 0 and away <= -enter, "short": atr > 0 and away >= enter,
+                "exit_long": away >= leave, "exit_short": away <= -leave, "atr": atr, "close": close,
+                "why": (f"close {sig5(close)}; EMA {rule_set['mean']} {sig5(mean)}, {where} "
+                        f"(enter at {enter:g}, exit at {leave:g} past the mean)")}
     fast, slow = ind["fast"][i], ind["slow"][i]
     fast_0, slow_0 = ind["fast"][i - 1], ind["slow"][i - 1]
     if None in (fast, slow, fast_0, slow_0):
@@ -834,7 +861,8 @@ def grid(raw, base: dict) -> list[dict]:
         try:
             out.append(rules({**base, **combo}, "walk_forward.grid"))
         except StrategyError:
-            continue  # an impossible combination (exit longer than entry, slow under fast) is skipped
+            continue  # an impossible combination (exit longer than entry, slow under fast, exit_atr not under
+            # entry_atr) is skipped
     if not out:
         raise StrategyError("walk_forward.grid makes no valid rule set")
     return out
