@@ -368,6 +368,61 @@ def test_reads_takes_a_bounded_list_of_reads_only(net):
     assert reply["results"][0]["ok"] is False and reply["requests"] == 0 and not net[1]
 
 
+def graphql(**fields):
+    return bridge.main({"op": "graphql", "account": "work", "deadline": 30, **fields})
+
+
+SPAN = {"since": "2026-10-01T00:00:00Z", "until": "2026-10-02T00:00:00Z"}
+
+
+def test_an_analytics_query_is_one_of_the_fixed_ones_with_the_label_s_account(net):
+    routes, sent = net
+    routes["/graphql"] = (200, {"data": {"viewer": {"accounts": [{"workersInvocationsAdaptive": []}]}},
+                                "errors": None}, {})
+    reply = graphql(query="worker", variables={**SPAN, "scriptName": "api-worker"})
+    assert reply["ok"] is True and reply["data"]["data"]["viewer"]["accounts"] == [{"workersInvocationsAdaptive": []}]
+    [request] = sent
+    body = json.loads(request.data)
+    assert request.get_method() == "POST" and request.full_url == "https://api.cloudflare.com/client/v4/graphql"
+    assert body == {"query": bridge.QUERIES["worker"][1],
+                    "variables": {"accountTag": ACCOUNT, **SPAN, "scriptName": "api-worker"}}
+
+
+@pytest.mark.parametrize("query, variables", [
+    ("mutation", {}),                                                       # not a query of the table
+    ("traffic", {"zoneTag": ZONE, "since": "2026-10-01"}),                  # a variable missing
+    ("traffic", {"zoneTag": ZONE, "since": "2026-10-01", "until": "2026-10-07", "extra": "x"}),
+    ("traffic", {"zoneTag": "example.com", "since": "2026-10-01", "until": "2026-10-07"}),
+    ("paths", {"zoneTag": ZONE, "since": "2026-10-01", "until": "2026-10-02"}),   # dates where times go
+    ("worker", {**SPAN, "scriptName": "a b"}),
+    ("workers", {**SPAN, "accountTag": OTHER_ACCOUNT}),                    # the account is never the caller's
+])
+def test_an_analytics_query_outside_the_table_or_its_kinds_never_goes_out(net, query, variables):
+    reply = graphql(query=query, variables=variables)
+    assert reply["ok"] is False and reply["requests"] == 0 and not net[1]
+
+
+def test_the_analytics_endpoint_is_not_a_route_for_any_body(net):
+    reply = call(method="POST", path="/graphql", body={"query": "{ viewer { zones { zoneTag } } }"})
+    assert reply["ok"] is False and reply["requests"] == 0 and not net[1]
+
+
+def test_analytics_errors_on_a_200_are_a_failure(net):
+    routes, _ = net
+    routes["/graphql"] = (200, {"data": None, "errors": [{"message": "cannot request data older than 31d",
+                                                          "path": ["viewer"]}]}, {})
+    reply = graphql(query="traffic", variables={"zoneTag": ZONE, "since": "2025-01-01", "until": "2025-01-07"})
+    assert reply["kind"] == "graphql" and "older than 31d" in reply["error"]
+
+
+def test_a_forbidden_analytics_query_is_checked_like_any_call(net):
+    routes, _ = net
+    routes["/graphql"] = (403, {"errors": [{"message": "not authorized"}]}, {})
+    routes["/user/tokens/verify"] = ACTIVE
+    reply = graphql(query="traffic", variables={"zoneTag": ZONE, "since": "2026-10-01", "until": "2026-10-07"})
+    assert reply["kind"] == "forbidden" and reply["requests"] == 2
+
+
 def test_a_token_echoed_by_cloudflare_never_leaves(net):
     routes, _ = net
     routes["/zones"] = (400, failed(9999, f"bad header Bearer {USER_TOKEN} and cfat_somethingelse"), {})
