@@ -33,7 +33,7 @@ Read only applicable detail references below.
 
 Load for work you do yourself: no dispatch, no ack/notification
 mechanics. Most of it ends in one turn; your own multi-turn work (a report,
-registry or ledger upkeep, Admin maintenance) stays here across turns.
+registry or ledger upkeep, Hermes upkeep) stays here across turns.
 
 ## What stays in Chat
 
@@ -149,6 +149,6 @@ videos (often a received message with links) is such work: promote it to
 creative Execute, which loads `skill_view(name="video-inspection")`.
 
 Your own work stays in Chat however many turns or tool calls it takes: the
-workspace registry and ledgers, work reports, message replies, cron, and Admin
+workspace registry and ledgers, work reports, message replies, cron, and Hermes
 upkeep. Keep bulky reading out of your context: hand wide reading to
 `delegate_task` (`references/lookups.md`) and keep only the summary.
