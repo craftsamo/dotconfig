@@ -145,11 +145,14 @@ write that would fail:
   the size and count limits.
 - A remote image URL is accepted only if the draft being updated already has it.
 
-The card stays within Telegram's budget and names the draft, the account, the
-new title, the new and kept images (each new image with its SHA-256), the cover
-and the start of the Markdown. Long titles and the current text are shortened first, then the
-images are counted under one combined fingerprint. A save whose header still
-cannot fit is refused, so a cover or an image is never cut off the card.
+The card has the [shared shape](access-common.md#card-shape): `note · Save a
+new draft` with ✅ (nothing is published), or `note · Replace draft …` with ⚠️
+(the whole draft is replaced). It names the account, the draft as it is now,
+the new title, the new and kept images (each new image with its SHA-256 in a
+`New images` block), the cover and the start of the Markdown under `Body`.
+Long titles and the current text are shortened first, then the images are
+counted under one combined fingerprint. A save whose facts still cannot fit is
+refused, so a cover or an image is never cut off the card.
 
 The rule key covers the action, the account and the cookie's fingerprint, the
 draft and its last saved time, the title and the whole Markdown, and every image

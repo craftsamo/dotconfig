@@ -72,12 +72,13 @@ def test_card_lists_every_file_and_the_caption(ws, fake):
     put(ws, "trip/a.png")
     put(ws, "b.png", PNG2)
     card, key, _ = approved(send_args(text="旅行の写真です", files=["trip/a.png", "b.png"]))
-    assert "Files: 2 (" in card and "one message each; the text is the first one's caption" in card
+    assert "\n\n--- Files (2, " in card and ", one message each) ---\n" in card
     assert "- a.png (image/png, " in card and " in trip, sha256 " in card
     assert "- b.png (image/png, " in card and " in ~/Workspaces, sha256 " in card
-    assert card.endswith("\n\n旅行の写真です") and key.startswith("whatsapp-access:send:")
+    assert card.endswith("\n\n--- Caption of the first file ---\n旅行の写真です")
+    assert key.startswith("whatsapp-access:send:")
     card, _, _ = approved(send_args(), ids={**IDS, "tool_call_id": "call-2"})
-    assert card.endswith("\n\n(no caption)")
+    assert "Caption" not in card and card.endswith(" in trip, sha256 " + card.rsplit("sha256 ", 1)[1])
 
 
 def test_one_message_per_file_caption_and_reply_on_the_first(ws, fake):
@@ -342,7 +343,7 @@ def test_audio_cannot_carry_a_caption(ws, fake):
     card, _, _ = approved(send_args(files=["voice.mp3"]), ids={**IDS, "tool_call_id": "c2"})
     assert "voice.mp3" in card
     card, _, _ = approved(send_args(files=["trip/a.png", "voice.mp3"], text="聞いて"), ids={**IDS, "tool_call_id": "c3"})
-    assert "the text is the first one's caption" in card
+    assert card.endswith("--- Caption of the first file ---\n聞いて")
 
 
 def test_the_deadline_stops_before_a_file_it_cannot_finish(ws, fake, monkeypatch):

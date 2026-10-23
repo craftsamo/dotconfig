@@ -144,10 +144,11 @@ explicit `err`: the client order ids are looked up once and nothing is
 re-sent. An HTTP 4xx comes back before the venue processes anything (a
 malformed request, a rate limit) and is a refusal.
 
-Cards are plain text (both surfaces escape markup), shaped like a wallet
-transfer's: a title naming the network and the action, then the effect with a
-marker (⚠️ for one that can add exposure or sends funds out of the Hermes
-wallets, ✅ for one that cannot), then one fact a line, then a block per side
+Cards are plain text in the [shared shape](access-common.md#card-shape),
+built by the trader itself: a title naming the network and the action, then
+the effect with its marker (⚠️ for one that can add exposure, 🚨 for one that
+sends funds out of the Hermes wallets and for a mandate, ✅ for one that does
+neither), then one fact a line, then a block per side
 with the Keychain's project, name, address and memo. A move's `--- To ---`
 block says whose the destination is (own, watch-only by its Keychain name, or
 external) and shows the address in checksum case, though the signed action

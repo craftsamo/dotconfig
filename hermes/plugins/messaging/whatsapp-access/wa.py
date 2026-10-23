@@ -15,7 +15,6 @@ from contextlib import contextmanager
 from datetime import datetime
 import fcntl
 import hashlib
-import html
 import importlib.util
 import json
 import mimetypes
@@ -43,7 +42,18 @@ def _load_shared(name: str):
     return sys.modules[key]
 
 
+def _load_card():
+    if "hermes_card" not in sys.modules:
+        spec = importlib.util.spec_from_file_location("hermes_card", Path(__file__).resolve().parents[2] / "_shared"
+                                                      / "card.py")
+        module = importlib.util.module_from_spec(spec)
+        sys.modules["hermes_card"] = module
+        spec.loader.exec_module(module)
+    return sys.modules["hermes_card"]
+
+
 archives = _load_shared("archive_check")
+cards = _load_card()
 
 ACTIONS = ("status", "chats", "messages", "search", "context", "contacts", "check", "backfill", "media",
            "send")
@@ -91,14 +101,6 @@ CAPTION_LIMIT = 1024    # a media caption
 MESSAGE_CLIP = 2000     # one message's text in a read result
 NAME_CLIP = 40
 QUOTE_CLIP = 40
-# Approval cards: Telegram shows about 500 escaped characters of the reason (as for google-access).
-# A longer text is cut on the card and the rest counted.
-CARD_LIMIT = 480
-MORE = "(+{n} more characters)"
-# Shown as ⟨U+XXXX⟩ on the card: controls, bidi overrides and invisible characters that could make
-# a name or the text read differently from what is sent. ZWJ and variation selectors stay (emoji).
-SUSPICIOUS = re.compile("[\u0000-\u0008\u000b-\u001f\u007f-\u009f\u061c\u200b\u200c\u200e\u200f"
-                        "\u202a-\u202e\u2060-\u2064\u2066-\u2069\ufeff\ufff9-\ufffb]")
 # wacli errors that are raised before anything reaches WhatsApp; any other failure of a send is
 # reported as uncertain (wacli's own send timeout, a lost socket, an abnormal exit).
 NOT_DISPATCHED = (
@@ -717,7 +719,6 @@ OUTBOX_TTL = 6 * 3600                      # copies of a send that was never app
 PENDING_TTL = 120                          # one hook pass shares a snapshot for this long at most
 EXPIRED_TTL = 3600                         # a call whose snapshot expired stays refused this long
 OUTBOX_TOKEN = re.compile(r"^[0-9a-f]{32}$")
-CARD_TEXT_MIN = 40                         # room the caption keeps on a card that carries files
 DENY_PARTS = {".ssh", ".gnupg", ".aws", ".azure", ".kube", ".docker", ".config", ".git", ".registry",
               ".backups", ".password-store", "keychains"}
 DENY_NAMES = re.compile(r"^(?:\.env.*|\.netrc|\.npmrc|\.pypirc|\.pgpass|\.git-credentials|id_(?:rsa|dsa|ecdsa|ed25519).*"
@@ -751,11 +752,7 @@ def outbox() -> Path:
     return path.resolve()
 
 
-def _human(size: int) -> str:
-    for unit, scale in (("GB", 1 << 30), ("MB", 1 << 20), ("KB", 1 << 10)):
-        if size >= scale:
-            return f"{size / scale:.1f} {unit}"
-    return f"{size} B"
+_human = cards.human
 
 
 def _mime(path: Path) -> str:
@@ -1360,19 +1357,8 @@ def execute(args: dict, home: Path | None = None) -> dict:
 
 # --- approval -----------------------------------------------------------------------------------
 
-def _units(text: str) -> int:
-    """Length as the chat platform counts it: HTML-escaped, in UTF-16 code units."""
-    return len(html.escape(text).encode("utf-16-le")) // 2
-
-
-def visible(text: str) -> str:
-    """Text as the card shows it: controls, bidi overrides and invisible characters spelled out."""
-    return SUSPICIOUS.sub(lambda m: f"⟨U+{ord(m.group()):04X}⟩", text)
-
-
-def _one_line(value, limit: int) -> str:
-    """A name or quote from the mirror: third-party text, so one line, clipped and made visible."""
-    return visible(_clip(re.sub(r"\s+", " ", "" if value is None else str(value)).strip(), limit))
+visible = cards.visible
+_one_line = cards.line  # a name or quote from the mirror: third-party text
 
 
 def _chat_label(plan: dict) -> str:
@@ -1415,41 +1401,37 @@ def _file_line(f: dict) -> str:
 
 
 def card(plan: dict, staged: list[dict] | None = None) -> str:
-    """Plain English, one fact per line, as the Sheets cards:
+    """The shared card shape (plugins/_shared/card.py):
 
+        WhatsApp · Send message
+        ⚠️ They see it at once
         Account: work
         Chat: <name> (+<number>)
         Reply to: <sender>: <quoted text>
 
+        --- Files (2, 3.4 MB, one message each) ---
+        - photo.jpg (image/jpeg, 1.2 MB) in trip, sha256 1a2b3c4d5e6f
+
+        --- Caption of the first file ---
         <message text>
 
-    The text keeps its line breaks and gets whatever the header leaves of CARD_LIMIT. A longer
+    The text keeps its line breaks and gets whatever the rest leaves of the budget. A longer
     text is cut and what is not shown is counted, never silently dropped; its full wording is
     agreed with the user in chat before the send (the operating rule in the Assistant's
     reference), and the approval key still binds that exact text."""
-    head = [f"Account: {plan['account']}", f"Chat: {_chat_label(plan)}"]
-    if plan["reply_to"]:
-        head.append(f"Reply to: {_reply_label(plan)}")
-    if staged:
-        head.append(f"Files: {len(staged)} ({_human(sum(f['size'] for f in staged))}), one message each"
-                    + ("; the text is the first one's caption" if plan["text"] else ""))
-        head += [_file_line(f) for f in staged]
-    head.append("")
-    prefix = "\n".join(head) + "\n"
-    if staged and _units(prefix) > CARD_LIMIT - (CARD_TEXT_MIN if plan["text"] else 0):
-        raise WhatsAppError("these files do not all fit on one approval card; send fewer files at once")
-    text = plan["text"] or ("(no caption)" if staged else "")
-    if _units(prefix + visible(text)) <= CARD_LIMIT:
-        return prefix + visible(text)
-    # Longest prefix of the text that fits with the count of what is left.
-    lo, hi = 0, len(text)
-    while lo < hi:
-        mid = (lo + hi + 1) // 2
-        if _units(prefix + visible(text[:mid].rstrip()) + "…\n" + MORE.format(n=len(text) - mid)) <= CARD_LIMIT:
-            lo = mid
-        else:
-            hi = mid - 1
-    return prefix + visible(text[:lo].rstrip()) + "…\n" + MORE.format(n=len(text) - lo)
+    group = plan["chat"].endswith("@g.us")
+    effect = (cards.CAUTION, "Everyone in the group sees it at once" if group else "They see it at once")
+    facts = [("Account", plan["account"]), ("Chat", _chat_label(plan)),
+             ("Reply to", _reply_label(plan) if plan["reply_to"] else None)]
+    sections = [(f"Files ({len(staged)}, {_human(sum(f['size'] for f in staged))}, one message each)",
+                 [_file_line(f) for f in staged])] if staged else []
+    try:
+        return cards.compose("WhatsApp", "Send message", effect, facts, sections=sections,
+                             text=plan["text"] or None,
+                             text_label="Caption of the first file" if staged else None)
+    except cards.CardError as exc:
+        raise WhatsAppError("these files do not all fit on one approval card; send fewer files at once" if staged
+                            else str(exc)) from None
 
 
 def rule_key(plan: dict, staged: list[dict] | None = None) -> str:

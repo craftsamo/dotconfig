@@ -195,19 +195,20 @@ def test_sync_list_edits(home):
 def test_card_for_a_reply(home):
     reason, key = tg.approval_request({"action": "send", "chat": str(fakes.ALICE), "text": " 了解です \n",
                                        "reply_to": "10"}, home=home)
-    assert reason == ("Telegram: Rui (@rui)\nChat: Alice (@alice)\nReply to: Alice: 明日の打ち合わせは？\n\n了解です")
+    assert reason == ("Telegram · Send message\n⚠️ They see it at once\nAccount: Rui (@rui)\nChat: Alice (@alice)\n"
+                      "Reply to: Alice: 明日の打ち合わせは？\n\n--- Text ---\n了解です")
     assert key.startswith("telegram-access:send:")
     reason, _ = tg.approval_request({"action": "send", "chat": str(fakes.GROUP), "text": "x"}, home=home)
-    assert "Chat: Family (group, id -4001)" in reason
+    assert "Chat: Family (group, id -4001)" in reason and "\n⚠️ Everyone in the group sees it at once\n" in reason
     reason, _ = tg.approval_request({"action": "send", "chat": str(fakes.ME), "text": "note"}, home=home)
-    assert "Chat: Saved Messages" in reason
+    assert "Chat: Saved Messages" in reason and "\n✅ Only you see it\n" in reason
 
 
 def test_card_spells_out_hidden_characters_and_cuts_long_text(home):
     reason, _ = tg.approval_request({"action": "send", "chat": str(fakes.ALICE), "text": "a\u202eb"}, home=home)
     assert reason.endswith("a⟨U+202E⟩b")
     reason, _ = tg.approval_request({"action": "send", "chat": str(fakes.ALICE), "text": "あ" * 1000}, home=home)
-    assert "more characters)" in reason and tg._units(reason) <= tg.CARD_LIMIT
+    assert "more characters)" in reason and tg.cards.units(reason) <= tg.cards.BUDGET
 
 
 def test_rule_key_binds_the_exact_message(home):
@@ -238,7 +239,7 @@ def test_files_on_the_card_and_their_checks(state, home):
     (ws / "trip" / "photo.png").write_bytes(b"\x89PNG\r\n\x1a\n" + b"0" * 100)
     reason, _ = tg.approval_request({"action": "send", "chat": str(fakes.ALICE), "text": "旅行の写真",
                                      "files": ["trip/photo.png"]}, home=home)
-    assert "Files: 1 (108 B)\n- photo.png (" in reason and ", 108 B) in trip, sha256 " in reason
+    assert "\n\n--- Files (1, 108 B) ---\n- photo.png (" in reason and ", 108 B) in trip, sha256 " in reason
     for name, body in ((".env", b"A=1"), ("run.command", b"#!/bin/sh\n"), ("key.txt", b"-----BEGIN PRIVATE KEY-----"),
                        ("empty.txt", b""), ("mirror.db", b"x")):
         (ws / name).write_bytes(body)

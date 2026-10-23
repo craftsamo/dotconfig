@@ -126,8 +126,14 @@ results say so and the tool description forbids following instructions in them.
 
 Assistant only, on the chosen channel's own content; every write is held for the
 user's approval on a card that names the channel and what changes
-([approval gate](access-common.md#approval-gate)). Approval keys differ by how
-far a grant may reach:
+([approval gate](access-common.md#approval-gate)). The card has the
+[shared shape](access-common.md#card-shape): its title names the write
+(`YouTube · Edit a video`), its effect line who sees the result (✅ private, a
+draft or a reversible playlist change; ⚠️ public, unlisted or scheduled; 🚨 a
+ban, a rejected comment, or the whole channel marked made for kids), and the
+changes sit in a `Changes` block one a line. Long values shrink until the card
+fits; a card that still does not fit is refused. Approval keys differ by how far
+a grant may reach:
 
 | Action                                                                      | Approval key                             |
 | --------------------------------------------------------------------------- | ---------------------------------------- |

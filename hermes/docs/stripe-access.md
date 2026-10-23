@@ -151,15 +151,21 @@ end; the answer says that finalizing and sending are separate cards.
 
 ## Approval
 
-The card is plain lines within Telegram's budget: `Stripe · LIVE, real money ·
-account <label> (<account name>)` or `test mode`, then what changes, with every
-amount in its currency. Names, e-mails, descriptions and codes from Stripe are
-collapsed to one line with control and invisible characters spelled out, so a
-customer's text cannot forge card lines. Lines that must be seen (what changes,
-the money, what cannot be undone, a subscription item's price and quantity
-before and after, every recurring price a payment link starts) always fit, or
-the change is refused; detail lines (invoice lines, one-time link items,
-metadata) are counted when they do not.
+The card has the [shared shape](access-common.md#card-shape): its title names
+the change (`Stripe · Refund a payment`), its effect line the stakes in live
+mode — 🚨 for a refund, finalizing or voiding an invoice, canceling a
+subscription and deleting a coupon; ⚠️ for what reaches customers or replaces
+what is there; ✅ for drafts and records — and ✅ for everything in test mode.
+Then the account `<label> (<account name>)` and the mode (`LIVE, real money`
+or `test`), and what changes in a `Change` block, with every amount in its
+currency. Names, e-mails, descriptions and codes from Stripe are collapsed to
+one line with control and invisible characters spelled out, so a customer's
+text cannot forge card lines. Lines that must be seen (what changes, the
+money, what cannot be undone, a subscription item's price and quantity before
+and after, every recurring price a payment link starts) always fit what the
+chat shows, or the change is refused (sooner on Discord's shorter card);
+detail lines (invoice lines, one-time link items, metadata) are counted when
+they do not.
 
 The approval record is per tool call and allows one change. Its rule key
 hashes the exact plan, so "session" or "always" repeats only that identical

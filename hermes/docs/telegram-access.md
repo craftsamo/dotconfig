@@ -155,11 +155,13 @@ message of that chat. Text goes out exactly as written (no Markdown parsing).
 Chats the user has left, and channels they cannot post in, are refused before
 the card.
 
-- **Every send asks first** ([approval gate](access-common.md#approval-gate)).
-  The card names the account, the chat with its stable identity, the reply
-  target and every file with its SHA-256. Every file is always on the card: a
-  send whose files do not fit is refused (send fewer at once); the text gets
-  what is left.
+- **Every send asks first** ([approval gate](access-common.md#approval-gate)),
+  on a card of the [shared shape](access-common.md#card-shape) titled
+  `Telegram · Send message`, then who sees it (⚠️ the person or everyone in
+  the group, ✅ only the user for Saved Messages). The card names the account,
+  the chat with its stable identity, the reply target and every file with its
+  SHA-256. Every file is always on the card: a send whose files do not fit is
+  refused (send fewer at once); the text gets what is left.
 - **Files** come only from `~/Workspaces` under signal-access's rules (see
   [Signal access](./signal-access.md)). Archives are read entry by entry and
   sent only if every entry would pass those rules alone; other archive formats

@@ -120,7 +120,9 @@ def _fake_engine(monkeypatch, applied, plans=None):
     monkeypatch.setattr(plugin.changes, "binding", lambda planned: [[t["kind"], t["name"], t["tier"]] for t in planned["targets"]])
     monkeypatch.setattr(plugin.mandate, "covering", lambda home, planned: (None, []))
     monkeypatch.setattr(plugin, "_home", lambda: Path("/nonexistent-home"))
-    monkeypatch.setattr(plugin.changes, "card", lambda planned: "GitHub · 1 change")
+    monkeypatch.setattr(plugin.changes, "card",
+                        lambda planned, note=None: "GitHub · 1 change" + (f"\nNot covered by a mandate: {note}"
+                                                                           if note else ""))
     monkeypatch.setattr(plugin.changes, "apply", lambda planned: applied.append(planned) or {"ok": True, "done": []})
     plugin._DECISIONS.clear()
 
@@ -175,13 +177,38 @@ def test_a_list_that_left_its_mandate_before_the_write_is_refused(monkeypatch):
     assert result["ok"] is False and "no longer fits the mandate" in result["error"] and applied == []
 
 
+def test_a_change_list_whose_card_cannot_be_shown_is_blocked_undecided(monkeypatch):
+    _fake_engine(monkeypatch, [])
+
+    def too_long(planned, note=None):
+        raise plugin.access.AccessError("the approval card cannot show this change list; split it into smaller ones")
+    monkeypatch.setattr(plugin.changes, "card", too_long)
+    directive = plugin.gate(tool_name="github_change", args=CHANGE)
+    assert directive["action"] == "block" and "split it" in directive["message"]
+    assert plugin._DECISIONS == {}
+
+
+def test_a_mandate_whose_card_cannot_be_shown_is_blocked_undecided(monkeypatch):
+    monkeypatch.setattr(plugin, "_inbound_peer", lambda: False)
+    monkeypatch.setattr(plugin.human_gate, "no_human", lambda: None)
+    monkeypatch.setattr(plugin.mandate, "terms", lambda args: dict(TERMS))
+
+    def too_long(terms, say):
+        raise plugin.access.AccessError("the mandate's card cannot show all its bounds")
+    monkeypatch.setattr(plugin.mandate, "card", too_long)
+    plugin._DECISIONS.clear()
+    directive = plugin.gate(tool_name="github_mandate", args=MAKE)
+    assert directive["action"] == "block" and "all its bounds" in directive["message"]
+    assert plugin._DECISIONS == {}
+
+
 def test_outside_every_mandate_the_card_says_why(monkeypatch):
     _fake_engine(monkeypatch, [])
     monkeypatch.setattr(plugin.mandate, "covering",
                         lambda home, planned: (None, ["m1: team/web is shared: a mandate never covers create changes there"]))
     directive = plugin.gate(tool_name="github_change", args=CHANGE)
     assert directive["action"] == "approve"
-    assert directive["message"].splitlines()[-1].startswith("Not covered by a mandate: m1: team/web is shared")
+    assert "\nNot covered by a mandate: m1: team/web is shared" in directive["message"]   # handed to the card
 
 
 TERMS = {"boards": [], "repos": [{"id": "R_app", "name": "me/app", "tier": "own"}], "parent": None,

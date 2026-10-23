@@ -99,7 +99,8 @@ def test_every_write_has_a_plan_its_routes_and_its_arguments():
 def test_customer_create_card_and_request(stripe):
     card, key, result = approve_and_run({"action": "customer_create", "mode": "test", "name": "Bob",
                                          "email": "bob@example.com", "metadata": {"plan": "pro", "old": ""}})
-    assert card.splitlines()[:4] == ["Stripe · test mode · account work", "Create a customer", "Name: Bob",
+    assert card.splitlines()[:8] == ["Stripe · Create a customer", "✅ Test mode: no real money or customers",
+                                     "Account: work", "Mode: test", "", "--- Change ---", "Name: Bob",
                                      "Email: bob@example.com"]
     assert "Metadata: plan=pro, old removed" in card and key.startswith("stripe-access:customer_create:")
     [sent] = stripe.sent()
@@ -112,7 +113,17 @@ def test_customer_create_card_and_request(stripe):
 def test_the_account_name_is_on_the_card_once_known(stripe):
     sta.remember_account("work", "live", {"id": "acct_1", "name": "Shop"})
     card = sta.preview({"action": "customer_create", "mode": "live", "name": "Bob"})["card"]
-    assert card.splitlines()[0] == "Stripe · LIVE, real money · account work (Shop)"
+    assert card.splitlines()[:4] == ["Stripe · Create a customer", "✅ A record only: nothing is charged or sent",
+                                     "Account: work (Shop)", "Mode: LIVE, real money"]
+
+
+@pytest.mark.parametrize("action", sorted(sta.WRITES))
+def test_every_change_has_a_title_and_its_stakes_in_live_mode(action):
+    assert action in sta.TITLES and action in sta.EFFECTS
+    once = action in sta.ONCE and action not in ("invoice_send", "subscription_update")
+    # what cannot be undone is marked so; a card asked every time is never marked as staying the user's
+    assert (sta.EFFECTS[action][0] == sta.cards.DANGER) == once
+    assert action not in sta.ONCE or sta.EFFECTS[action][0] != sta.cards.SAFE
 
 
 def test_someone_elses_text_cannot_forge_card_lines(stripe):
@@ -126,8 +137,17 @@ def test_a_long_card_counts_what_does_not_fit(stripe):
     items = [{"price": "price_a", "quantity": n} for n in range(1, 11)]
     card = sta.preview({"action": "invoice_create", "mode": "live", "customer": "cus_1", "items": items,
                         "metadata": metadata})["card"]
-    assert sta._units(card) <= sta.CARD_LIMIT
+    assert sta.cards.units(card) <= sta.cards.BUDGET
     assert "A draft only" in card and re.search(r"\(\+\d+ more lines\)$", card)
+
+
+def test_a_card_fits_discord_or_is_refused(stripe, monkeypatch):
+    monkeypatch.setattr(sta.cards, "platform", lambda: "discord")
+    card = sta.preview({"action": "refund_create", "mode": "live", "payment": "pi_1", "amount": 1500})["card"]
+    assert sta.cards.units(card) <= sta.cards.COMPACT_BUDGET and card.split("\n")[1].startswith("🚨 ")
+    with pytest.raises(sta.StripeError, match="cannot show this change in full"):
+        sta.preview({"action": "customer_create", "mode": "live", "name": "x" * 256, "email": "a@example.com",
+                     "description": "d" * 350, "phone": "1" * 20})
 
 
 def test_invoice_create_builds_a_draft_then_its_lines(stripe):
@@ -386,7 +406,8 @@ def test_invoice_lifecycle_cards(stripe):
 def test_payment_link_create_and_deactivate(stripe):
     card, _, _ = approve_and_run({"action": "payment_link_create", "mode": "live", "allow_promotion_codes": True,
                                   "items": [{"price": "price_m", "quantity": 2}]})
-    assert "Create a payment link: 1 item, JPY 2,000 at checkout" in card and "Anyone with the link can pay." in card
+    assert "Create a payment link: 1 item, JPY 2,000 at checkout" in card
+    assert card.split("\n")[1] == "⚠️ Anyone with the link can pay"
     assert "Checkout starts a subscription that bills again:\n- 2 × price_m JPY 1,000 / 1 month" in card
     assert stripe.sent()[0]["params"] == [["line_items[0][price]", "price_m"], ["line_items[0][quantity]", "2"],
                                           ["allow_promotion_codes", "true"]]
@@ -400,7 +421,7 @@ def test_recurring_billing_is_never_cut_from_a_payment_link_card(stripe):
     items = [{"price": f"price_o{n}"} for n in range(1, 16)] + [{"price": "price_m"}]
     card = sta.preview({"action": "payment_link_create", "mode": "live", "items": items})["card"]
     assert "more lines)" in card and "- 1 × price_m JPY 1,000 / 1 month" in card
-    assert sta._units(card) <= sta.CARD_LIMIT
+    assert sta.cards.units(card) <= sta.cards.BUDGET
 
 
 def test_price_and_product_changes(stripe):

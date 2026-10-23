@@ -89,11 +89,12 @@ was changed.
   built. The refusal says nothing was sent or changed. Reads are unaffected.
 - **A card must outlast a tap.** The Assistant keeps `approvals.timeout` at
   600 s so a card stays answerable on Telegram.
-- **A card is plain English, one fact per line.** Names and quotes are
-  collapsed to one line and control, bidi-override and invisible characters are
-  spelled out (`⟨U+202E⟩`), so other people's words cannot forge card lines.
-  Long text is cut on the card with the rest counted, never refused; its full
-  wording is agreed with the user in chat first.
+- **Every card has one shape** ([below](#card-shape)), so the user reads
+  them all alike. Names and quotes are collapsed to one line and control,
+  bidi-override and invisible characters are spelled out (`⟨U+202E⟩`), so other
+  people's words cannot forge card lines. Long text is cut on the card with the
+  rest counted, never refused; its full wording is agreed with the user in chat
+  first.
 - **The key binds the exact request.** The allowlist key hashes the request
   (and each file's content), so "session" or "always" only repeats that
   identical one.
@@ -104,6 +105,45 @@ was changed.
 
 To try a write, ask the Assistant in a chat where its card reaches the user;
 `hermes -z` can check reads, never a write.
+
+### Card shape
+
+Hermes shows a card as the reason on its own prompt, right after "Why it was
+flagged: " and before the deadline line, as plain text (Telegram escapes
+markup). So a card has only lines to read by, and every one is laid out alike:
+
+```
+Signal · Send message            title: service · action, never "Label: value"
+⚠️ They see it at once           what is at stake, one line with its marker
+Account: +81…                    one fact a line
+Chat: Alice (+81…)
+
+--- Files (1, 1.2 KB) ---        a block per list, its heading counting it
+- photo.png (image/png, 1.2 KB) in trip, sha256 1a2b3c4d5e6f
+
+--- Text ---                     the free text last, under a heading that
+see you                          names it (Text, Caption, Message…)
+```
+
+The marker means the same on every card, web3's included:
+
+| Marker | When                                                                                                                                                                                |
+| ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ✅     | it stays the user's or can be undone: a draft, an own private target, an own wallet, a reduce-only order                                                                            |
+| ⚠️     | it reaches or shows to others, or replaces what is there, and can still be dealt with afterwards: a message, a comment, a replaced draft, someone else's repository, added exposure |
+| 🚨     | it cannot be undone or leaves the user's hands: a delete, publishing that cannot be taken back (an emailed post), funds leaving, a ban, an admin change, a mandate                  |
+
+A card fits what the chat shows of a reason: 480 escaped UTF-16 units on
+Telegram and the CLI, 290 on Discord (Hermes cuts at 500 and 300). Facts the
+card marks as context go first when it is short of room, then the free text is
+cut with the rest counted (on Discord's shorter card the facts keep their room
+first, so less of the text shows); a card whose facts still do not fit is
+refused, never shown cut. `plugins/_shared/card.py` builds this shape for the
+access plugins, and the Hyperliquid trader builds its own cards in it
+([hyperliquid.md](hyperliquid.md)). Two cards keep a shape of their own: a
+wallet transfer on EVM or Solana, built and signed in the web3 engine
+([web3.md](web3.md)), and a Sheets edit, cell by cell
+([google-access.md](google-access.md)).
 
 ## Bypass guard (Ways around the tool)
 

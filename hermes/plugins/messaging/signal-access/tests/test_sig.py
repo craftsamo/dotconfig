@@ -329,7 +329,8 @@ def test_check_without_sync(env):
 def test_text_send_card_and_record(env, daemon):
     args = {"action": "send", "chat": ALICE, "text": "  see you\n", "reply_to": "1790000000000"}
     (card, key), out = approve_and_send(args)
-    assert card == (f"Account: {fakes.NUMBER}\nChat: Alice (+819011111111)\nReply to: Alice: hello there\n\nsee you")
+    assert card == (f"Signal · Send message\n⚠️ They see it at once\nAccount: {fakes.NUMBER}\n"
+                    "Chat: Alice (+819011111111)\nReply to: Alice: hello there\n\n--- Text ---\nsee you")
     assert key.startswith("signal-access:send:")
     assert out["ok"] is True and out["id"] == "1790000009000"
     sent = daemon.requests[-1]["params"]
@@ -351,9 +352,10 @@ def test_send_needs_the_gate_first(env, daemon):
 def test_group_send_and_note_to_self(env, daemon):
     (card, _), out = approve_and_send({"action": "send", "chat": GROUP, "text": "hi all"})
     assert "Chat: Family (group AbCdEfGhIjKl…)" in card and out["ok"] is True
+    assert "\n⚠️ Everyone in the group sees it at once\n" in card
     assert daemon.requests[-1]["params"]["groupId"] == GROUP_ID
     (card, _), _ = approve_and_send({"action": "send", "chat": ME, "text": "memo"})
-    assert "Chat: Note to Self" in card
+    assert "Chat: Note to Self" in card and "\n✅ Only you see it\n" in card
 
 
 @pytest.mark.parametrize("args, message", [
@@ -376,7 +378,7 @@ def test_unknown_person_from_check_is_sendable(env, daemon):
 
 def test_long_text_is_cut_on_the_card(env):
     card, _ = sig.approval_request({"action": "send", "chat": ALICE, "text": "あ" * 1000})
-    assert card.endswith("more characters)") and sig._units(card) <= sig.CARD_LIMIT
+    assert card.endswith("more characters)") and sig.cards.units(card) <= sig.cards.BUDGET
 
 
 def test_suspicious_characters_are_spelled_out(env):
@@ -446,7 +448,8 @@ def test_file_send_card_staging_and_cleanup(env, daemon):
     (card, key), out = approve_and_send(args)
     digest = sig._sha256(env["workspace"] / "Personal/trip/photo.png")
     assert f"- photo.png (image/png, {len(PNG)} B) in Personal/trip, sha256 {digest[:12]}" in card
-    assert "Files: 1" in card and out["ok"] is True and out["files"] == ["photo.png"]
+    assert f"\n\n--- Files (1, {len(PNG)} B) ---\n" in card and card.endswith("\n\n--- Text ---\nphoto")
+    assert out["ok"] is True and out["files"] == ["photo.png"]
     staged = daemon.requests[-1]["params"]["attachment"]
     assert len(staged) == 1 and "/outbox/" in staged[0] and not Path(staged[0]).exists()
     assert list((env["state"] / "outbox").iterdir()) == []
@@ -466,6 +469,7 @@ def test_zip_is_inspected_shown_on_the_card_and_sent(env, daemon):
     args = {"action": "send", "chat": ALICE, "files": ["Personal/trip/photos.zip"]}
     (card, key), out = approve_and_send(args)
     assert "- photos.zip (application/zip, " in card and ", 2 files inside (" in card and "unpacked)" in card
+    assert "--- Text ---" not in card  # files alone: no text block
     assert out["ok"] is True and out["files"] == ["photos.zip"]
     staged = daemon.requests[-1]["params"]["attachment"]
     assert len(staged) == 1 and staged[0].endswith("-photos.zip")

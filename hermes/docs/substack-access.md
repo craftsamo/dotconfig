@@ -105,11 +105,17 @@ Drafts cannot be deleted. Writes are capped per 24 hours.
   The approval hook prepares the write with one paced read — the publication and
   account, the draft as it is now with a digest of what the card shows and the
   write acts on, the number of email subscribers for a release, and the
-  Markdown's local images. The card names the action, the publication, the
-  title, the audience, who is emailed and the length; draft cards end with
-  `Nothing is published or emailed.`. Names and titles shrink so every fact
-  fits, and a longer body is cut on the card with the rest counted, never
-  refused; the approval key binds the exact text regardless.
+  Markdown's local images. The card has the
+  [shared shape](access-common.md#card-shape): its title names the action and
+  the draft (`Substack · Publish draft 5`), and its effect line the stakes —
+  🚨 for publishing (public at once, who is emailed, cannot be undone), ⚠️ for
+  scheduling, a public Note and a new body, ✅ for other draft changes and for
+  cancelling a release. It names the publication, the title, the audience, who
+  is emailed and the length. Names and titles shrink so every fact fits (the
+  publication's address and the body's length go first), and a longer body is
+  cut on the card with the rest counted; a card whose facts still do not fit is
+  refused, which on Discord's shorter card happens to large changes. The
+  approval key binds the exact text regardless.
 - **The approval covers the exact write.** The allowlist key hashes the
   request, the publication, the account, the draft digest and each image's
   SHA-256, so "session" or "always" only ever repeats that identical write to

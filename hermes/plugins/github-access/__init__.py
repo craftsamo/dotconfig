@@ -362,10 +362,11 @@ def gate(**kwargs):
         reason = human_gate.no_human()
         if reason:
             return {"action": "block", "message": human_gate.refusal(tool, reason)}
+        try:
+            message = changes.card(planned, misses[0] if misses else None)
+        except Exception as exc:
+            return {"action": "block", "message": f"{tool}: not done. {exc}"}
         _decide(args, "card", changes.binding(planned))
-        message = changes.card(planned)
-        if misses:
-            message += "\n" + changes.say("Not covered by a mandate: " + misses[0], changes.LINE)
         # A fresh key: "session" or "always" on one card never approves another change list.
         return {"action": "approve", "message": message, "rule_key": f"{PLUGIN}:change:{secrets.token_hex(8)}"}
     if tool == "github_mandate":
@@ -378,10 +379,13 @@ def gate(**kwargs):
         reason = human_gate.no_human()
         if reason:
             return {"action": "block", "message": human_gate.refusal(tool, reason)}
+        try:
+            message = mandate.card(terms, changes.say)
+        except Exception as exc:
+            return {"action": "block", "message": f"{tool}: not done. {exc}"}
         _decide(args, "card", [terms])
         # A mandate is never covered by a mandate, and its key is fresh: every one asks.
-        return {"action": "approve", "message": mandate.card(terms, changes.say),
-                "rule_key": f"{PLUGIN}:mandate:{secrets.token_hex(8)}"}
+        return {"action": "approve", "message": message, "rule_key": f"{PLUGIN}:mandate:{secrets.token_hex(8)}"}
     message = guard.bypass(tool, args)
     if message:
         return {"action": "block", "message": message}

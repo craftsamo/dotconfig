@@ -66,8 +66,14 @@ project-scoped call names one.
 
 The hook decides before a tool runs; the rule is `approval_request` in
 `access.py`. The request goes through Hermes' own gate
-([approval gate](access-common.md#approval-gate)); the card shows recipients
-and body, the upload, or the full gcloud command.
+([approval gate](access-common.md#approval-gate)). Gmail, Drive and gcloud
+cards have the [shared shape](access-common.md#card-shape): `Gmail · Send an
+email` with ⚠️ (delivered at once, it cannot be unsent), the recipients, the
+subject and the body under its own heading, cut with the rest counted;
+`Google Drive · Upload a file` with ✅ into My Drive or ⚠️ into a folder that
+may be shared; `gcloud · Run a command` with 🚨 and the full command, which is
+never cut — a command too long for the card is refused. A card whose facts do
+not fit (too many recipients) is refused too.
 
 - **Changes ask first**: Sheets `update` / `batch_update` / `append` / `clear` /
   `create` / `add_sheet` / `layout` / `data` / `chart` / `pivot` / `protect` /
@@ -94,10 +100,11 @@ and body, the upload, or the full gcloud command.
   deletes one (`OBJECT_DESTRUCTIVE`) or writes a pivot table at a cell, which
   overwrites what it fills — so a grant for formatting never covers dropping
   rows.
-- **Spreadsheet cards** are plain English, one fact per line: the spreadsheet
-  title, the tab, then each cell as `K3257 > <column header>: <value>`. A whole
-  tab whose name cannot be confirmed, or a named range, shows positions relative
-  to the range instead of guessing addresses. The card fits Telegram's budget;
+- **Spreadsheet cards** keep a shape of their own, one fact per line: the
+  spreadsheet title, the tab, then each cell as
+  `K3257 > <column header>: <value>`. A whole tab whose name cannot be
+  confirmed, or a named range, shows positions relative to the range instead
+  of guessing addresses. The card fits Telegram's budget;
   the title gives way first and the remaining cells are counted. The title and
   header lookup waits only briefly (the hook runs before Hermes checks a grant,
   so it must not hold up approved edits) and falls back to ids and column

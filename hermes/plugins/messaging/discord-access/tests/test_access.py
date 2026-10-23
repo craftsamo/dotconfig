@@ -152,8 +152,8 @@ def test_sync_add_limit_reaches_the_model():
 def test_card_shows_account_chat_reply_and_text():
     card, key = access.approval_request({"action": "send", "channel": DM1, "text": "  了解、10時に伺います \n",
                                          "reply_to": str(M1)})
-    assert card == ("Discord: Me (@me)\nTo: DM with Taro (@taro)\nChannel id: " + DM1 +
-                    "\nReply to: Taro: 明日の打ち合わせは10時で\n\n了解、10時に伺います")
+    assert card == ("Discord · Send message\n⚠️ They see it at once\nAccount: Me (@me)\nTo: DM with Taro (@taro)\n"
+                    "Reply to: Taro: 明日の打ち合わせは10時で\nChannel id: " + DM1 + "\n\n--- Text ---\n了解、10時に伺います")
     assert key.startswith("discord-access:send:")
     assert access.approval_request({"action": "messages", "channel": DM1}) is None
 
@@ -161,11 +161,22 @@ def test_card_shows_account_chat_reply_and_text():
 def test_card_flags_pings_and_hidden_characters():
     card, _ = access.approval_request({"action": "send", "channel": GENERAL, "text": "@everyone hi\u202e"})
     assert "To: #general in Guild" in card and "Pings: @everyone" in card and "⟨U+202E⟩" in card
+    assert card.split("\n")[1] == "🚨 Pings @everyone at once"
+    card, _ = access.approval_request({"action": "send", "channel": GENERAL, "text": "hi all"})
+    assert card.split("\n")[1] == "⚠️ Everyone in the chat sees it at once"
 
 
 def test_long_text_is_cut_on_the_card_and_counted():
     card, _ = access.approval_request({"action": "send", "channel": DM1, "text": "あ" * 1500})
-    assert "more characters)" in card and access._units(card) <= access.CARD_LIMIT
+    assert "more characters)" in card and access.cards.units(card) <= access.cards.BUDGET
+
+
+def test_on_discord_the_card_fits_its_shorter_limit(monkeypatch):
+    monkeypatch.setattr(access.cards, "platform", lambda: "discord")
+    card, _ = access.approval_request({"action": "send", "channel": DM1, "text": "あ" * 1500,
+                                       "reply_to": str(M1)})
+    assert access.cards.units(card) <= access.cards.COMPACT_BUDGET and "more characters)" in card
+    assert "Reply to: Taro" in card
 
 
 def test_rule_key_binds_the_exact_message():
@@ -362,11 +373,11 @@ def test_files_are_checked(ws, tmp_path, monkeypatch):
 
 def test_the_card_lists_files_and_the_key_binds_their_contents(ws):
     card, key, _ = approve_and_bind(_file_send(ws), call="c1")
-    assert "Files (1): docs/report.txt (9 B)" in card and card.endswith("資料です")
+    assert "\n\n--- Files (1) ---\n- docs/report.txt (9 B)\n\n--- Text ---\n資料です" in card
     (ws / "docs" / "report.txt").write_text("v2 report")
     assert approve_and_bind(_file_send(ws), call="c2")[1] != key
     files_only = approve_and_bind(_file_send(ws, text=""), call="c3")[0]
-    assert files_only.endswith("(no text: files only)")
+    assert files_only.endswith("- docs/report.txt (9 B)") and "--- Text ---" not in files_only
 
 
 def test_a_card_with_ten_long_names_still_fits(ws):
@@ -376,7 +387,18 @@ def test_a_card_with_ten_long_names_still_fits(ws):
         (ws / name).write_text("data")
         names.append(str(ws / name))
     card = approve_and_bind({"action": "send", "channel": DM1, "text": "本文", "files": names})[0]
-    assert "Files (10):" in card and "more)" in card and access._units(card) <= access.CARD_LIMIT
+    assert "--- Files (10) ---" in card and "\n(+9 more)\n" in card and access.cards.units(card) <= access.cards.BUDGET
+
+
+def test_on_discord_a_send_with_files_still_fits(ws, monkeypatch):
+    monkeypatch.setattr(access.cards, "platform", lambda: "discord")
+    names = []
+    for i in range(3):
+        (ws / f"report_{i}_final_version.pdf").write_text("data")
+        names.append(str(ws / f"report_{i}_final_version.pdf"))
+    card = approve_and_bind({"action": "send", "channel": GENERAL, "text": "資料です", "files": names})[0]
+    assert access.cards.units(card) <= access.cards.COMPACT_BUDGET and "--- Files (3) ---" in card
+    assert card.endswith("--- Text ---\n資料です")
 
 
 def _zip(ws, name, entries):
@@ -399,7 +421,7 @@ def test_a_zip_is_inspected_shown_on_the_card_and_sent_scripts_included(ws, monk
                                  "bin/launch": b"#!/bin/sh\necho hi\n"})
     args = {"action": "send", "channel": DM1, "text": "zip", "files": [str(path)]}
     card, _, call = approve_and_bind(args)
-    assert "Files (1): proj.zip (" in card and ", 4 files inside)" in card
+    assert "--- Files (1) ---\n- proj.zip (" in card and ", 4 files inside)" in card
     result = access.execute(call)
     assert result["ok"] is True and sent[0]["names"] == ["proj.zip"] and sent[0]["bytes"] == [path.read_bytes()]
 
@@ -870,8 +892,9 @@ def _engine_says(monkeypatch, result):
 
 def test_react_card_and_run(monkeypatch):
     card, key, call = approve({"action": "react", "channel": DM1, "id": str(M1), "emoji": THUMB})
-    assert card == (f"Discord: Me (@me)\nIn: DM with Taro (@taro)\nChannel id: {DM1}\n"
-                    f"Message: Taro: 明日の打ち合わせは10時で\nReact with: {THUMB}")
+    assert card == (f"Discord · React\n⚠️ Everyone in the chat sees your reaction\nAccount: Me (@me)\n"
+                    f"In: DM with Taro (@taro)\nMessage: Taro: 明日の打ち合わせは10時で\nEmoji: {THUMB}\n"
+                    f"Channel id: {DM1}")
     assert key.startswith("discord-access:react:") and call["_approved"] == key
     calls = _engine_says(monkeypatch, {"outcome": "done"})
     assert access.execute(call) == {"ok": True, "action": "react", "note": "reaction added"}
@@ -890,7 +913,7 @@ def test_custom_emoji_already_on_the_message_and_unreact_precheck():
          json.dumps([{"emoji": "party:700000000000000001", "count": 1, "me": False}]), M1)
     card, _ = access.approval_request({"action": "react", "channel": DM1, "id": str(M1),
                                        "emoji": "<:party:700000000000000001>"})
-    assert card.endswith("React with: party:700000000000000001")
+    assert "\nEmoji: party:700000000000000001\n" in card
     with pytest.raises(access.DiscordError, match="have not reacted"):
         access.approval_request({"action": "unreact", "channel": DM1, "id": str(M1), "emoji": "party:700000000000000001"})
 
@@ -901,9 +924,13 @@ def test_edit_and_delete_only_the_users_own_messages():
     with pytest.raises(access.DiscordError, match="same as"):
         access.approval_request({"action": "edit", "channel": DM1, "id": str(M2), "text": "了解です"})
     card, _ = access.approval_request({"action": "edit", "channel": DM1, "id": str(M2), "text": "@everyone 了解しました"})
-    assert "Edit my message\nBefore: 了解です\nPings: @everyone\n\n@everyone 了解しました" in card
+    assert card.startswith("Discord · Edit my message\n🚨 Pings @everyone at once\n")
+    assert "\nBefore: 了解です\nPings: @everyone\n" in card and card.endswith("\n--- New text ---\n@everyone 了解しました")
+    card, _ = access.approval_request({"action": "edit", "channel": DM1, "id": str(M2), "text": "了解しました"})
+    assert card.split("\n")[1] == "⚠️ Everyone in the chat sees the new text"
     card, _ = access.approval_request({"action": "delete", "channel": DM1, "id": str(M2)})
-    assert card.endswith("Delete my message: 了解です\nThis cannot be undone.")
+    assert card.startswith("Discord · Delete my message\n🚨 Cannot be undone\n")
+    assert card.endswith(f"\nChannel id: {DM1}\nMessage: 了解です")
     with pytest.raises(access.DiscordError, match="read before"):
         access.approval_request({"action": "delete", "channel": DM1, "id": "500000000000000001"})
 
@@ -938,9 +965,9 @@ def test_write_outcomes(monkeypatch, engine_result, phrase):
 
 def test_pin_card_warns_that_everyone_sees_it_and_runs_as_approved(monkeypatch):
     card, key, call = approve({"action": "pin", "channel": DM1, "id": str(M1)})
-    assert card == (f"Discord: Me (@me)\nIn: DM with Taro (@taro)\nChannel id: {DM1}\n"
-                    "Message: Taro: 明日の打ち合わせは10時で\nPin this message\n"
-                    "Everyone in the chat sees \"pinned a message to this channel\". A chat holds at most 250 pins.")
+    assert card == ("Discord · Pin message\n⚠️ Everyone in the chat sees \"pinned a message to this channel\"\n"
+                    f"Account: Me (@me)\nIn: DM with Taro (@taro)\nMessage: Taro: 明日の打ち合わせは10時で\n"
+                    f"Channel id: {DM1}\nPins: a chat holds at most 250")
     assert key.startswith("discord-access:pin:") and call["_approved"] == key
     calls = _engine_says(monkeypatch, {"outcome": "done"})
     assert access.execute(call) == {"ok": True, "action": "pin", "note": "pinned"}
@@ -949,7 +976,8 @@ def test_pin_card_warns_that_everyone_sees_it_and_runs_as_approved(monkeypatch):
 
 def test_unpin_card_has_no_notice_and_a_key_of_its_own(monkeypatch):
     card, key, call = approve({"action": "unpin", "channel": DM1, "id": str(M1)})
-    assert card.endswith("Message: Taro: 明日の打ち合わせは10時で\nUnpin this message")
+    assert card.startswith("Discord · Unpin message\n✅ It can be pinned again\n")
+    assert f"Message: Taro: 明日の打ち合わせは10時で\nChannel id: {DM1}" in card and "Pins:" not in card
     assert key.startswith("discord-access:unpin:")
     assert key != access.approval_request({"action": "pin", "channel": DM1, "id": str(M1)})[1]
     calls = _engine_says(monkeypatch, {"outcome": "done"})
@@ -1052,12 +1080,13 @@ def test_role_add_card_and_strong_warning():
     seed_roles(mod_bits=(1 << 28) | (1 << 2))
     card, key = access.approval_request({"action": "role_add", "guild": G, "role": MEMBER, "user": TARO,
                                          "reason": "welcome"})
-    assert card == (f"Discord: Me (@me)\nServer: Guild\nAction: add role @Member to Taro (@taro)\n"
-                    f"Role id: {MEMBER}\nUser id: {TARO}\nReason (audit log): welcome")
+    assert card == ("Discord · Add a role\n⚠️ They get the role's permissions at once\nAccount: Me (@me)\n"
+                    f"Server: Guild\nRole: @Member\nRole id: {MEMBER}\nMember: Taro (@taro)\nUser id: {TARO}\n"
+                    "Reason (audit log): welcome")
     _set("UPDATE roles SET permissions = ? WHERE id = ?", str(1 << 2), MEMBER)
     card, other = access.approval_request({"action": "role_add", "guild": G, "role": MEMBER, "user": TARO,
                                            "reason": "welcome"})
-    assert card.startswith("⚠ Strong permissions: ban_members\n") and other != key
+    assert card.split("\n")[1] == "🚨 Strong permissions: ban_members" and other != key
 
 
 @pytest.mark.parametrize("args,error", [
@@ -1094,7 +1123,8 @@ def test_the_owner_manages_every_role_but_never_hands_out_administrator():
     with pytest.raises(access.DiscordError, match="Administrator"):
         access.approval_request({"action": "role_add", "guild": G, "role": ADMIN, "user": TARO})
     card, _ = access.approval_request({"action": "role_remove", "guild": G, "role": ADMIN, "user": TARO})
-    assert "remove role @Admin from Taro" in card
+    assert card.startswith("Discord · Remove a role\n⚠️ They lose the role's permissions at once\n")
+    assert "\nRole: @Admin\n" in card and "\nMember: Taro (@taro)\n" in card
 
 
 def test_role_create_edit_and_delete_cards(monkeypatch):
@@ -1102,14 +1132,21 @@ def test_role_create_edit_and_delete_cards(monkeypatch):
     card, _ = access.approval_request({"action": "role_create", "guild": G, "name": "Helpers",
                                        "permissions": ["manage_messages", "send_messages"], "color": "#FF8800",
                                        "hoist": True})
-    assert card.startswith("⚠ Strong permissions: manage_messages\n")
-    assert "Permissions: send_messages, manage_messages" in card and "Color: #ff8800, shown separately: yes" in card
+    assert card.startswith("Discord · Create a role\n🚨 Strong permissions: manage_messages\n")
+    assert "Name: 'Helpers'" in card and "Permissions: send_messages, manage_messages" in card
+    assert "Color: #ff8800, shown separately: yes" in card
+    card, _ = access.approval_request({"action": "role_create", "guild": G, "name": "Quiet"})
+    assert card.split("\n")[1] == "✅ No one holds it yet"
     card, _ = access.approval_request({"action": "role_edit", "guild": G, "role": MEMBER, "name": "Members",
                                        "grant": ["manage_messages"], "revoke": ["send_messages"]})
-    assert ("Action: edit role @Member\n" in card and "Name: Member → Members" in card
-            and "Adds: manage_messages" in card and "Removes: send_messages" in card)
+    assert (card.startswith("Discord · Edit a role\n") and "\nRole: @Member\n" in card
+            and "Name: Member → Members" in card and "Adds: manage_messages" in card
+            and "Removes: send_messages" in card)
+    card, _ = access.approval_request({"action": "role_edit", "guild": G, "role": MEMBER, "name": "Members"})
+    assert card.split("\n")[1] == "⚠️ Everyone who holds it is affected at once"
     card, _, call = approve({"action": "role_delete", "guild": G, "role": MEMBER})
-    assert "delete role @Member (12 member(s))" in card and card.endswith("This cannot be undone.")
+    assert card.startswith("Discord · Delete a role\n🚨 Cannot be undone; 12 member(s) lose it\n")
+    assert "\nRole: @Member\n" in card
     calls = _engine_says(monkeypatch, {"outcome": "done"})
     assert access.execute(call)["note"] == "role deleted" and calls[0] == ("role_delete", {"guild": G, "role": MEMBER})
 
@@ -1142,7 +1179,7 @@ def test_an_uncertain_role_create_says_never_create_again(monkeypatch):
 def test_bulk_add_names_every_member(monkeypatch):
     seed_roles()
     card, _, call = approve({"action": "role_bulk_add", "guild": G, "role": MEMBER, "users": [TARO, TARO]})
-    assert "add role @Member to 1 member(s)\nMembers: Taro (@taro)" in card
+    assert card.startswith("Discord · Add a role to 1 member(s)\n") and card.endswith("\nMembers: Taro (@taro)")
     _engine_says(monkeypatch, {"outcome": "done", "added": [TARO], "not_added": []})
     assert access.execute(call)["added"] == [TARO]
 
@@ -1178,14 +1215,26 @@ def test_an_edited_message_voids_a_delete_card(monkeypatch):
 def test_cards_fit_or_are_refused():
     _set("UPDATE messages SET content = ? WHERE id = ?", "&" * 300, M2)
     card, _ = access.approval_request({"action": "edit", "channel": DM1, "id": str(M2), "text": "新しい本文"})
-    assert access._units(card) <= access.CARD_LIMIT and card.endswith("新しい本文")
+    assert access.cards.units(card) <= access.cards.BUDGET and card.endswith("新しい本文")
     card, _ = access.approval_request({"action": "delete", "channel": DM1, "id": str(M2)})
-    assert access._units(card) <= access.CARD_LIMIT and card.endswith("This cannot be undone.")
+    assert access.cards.units(card) <= access.cards.BUDGET and "\n🚨 Cannot be undone\n" in card
+    assert f"\nChannel id: {DM1}\n" in card     # never left out of a write that cannot be taken back
     seed_roles()
     with pytest.raises(access.DiscordError, match="does not fit"):
         access.approval_request({"action": "role_edit", "guild": G, "role": MEMBER, "name": "&" * 100,
                                  "color": "#ffffff", "hoist": True, "mentionable": True, "reason": "<" * 300,
                                  "grant": ["manage_messages", "embed_links"], "revoke": ["send_messages"]})
+
+
+def test_on_discord_a_role_card_fits_or_is_refused_whole(monkeypatch):
+    seed_roles()
+    monkeypatch.setattr(access.cards, "platform", lambda: "discord")
+    card, _ = access.approval_request({"action": "role_add", "guild": G, "role": MEMBER, "user": TARO,
+                                       "reason": "welcome"})
+    assert access.cards.units(card) <= access.cards.COMPACT_BUDGET and card.endswith("Reason (audit log): welcome")
+    with pytest.raises(access.DiscordError, match="does not fit"):
+        access.approval_request({"action": "role_add", "guild": G, "role": MEMBER, "user": TARO,
+                                 "reason": "joined for the spring release; please give them the member role " * 2})
 
 
 def test_a_plan_that_expires_between_the_hooks_fails_the_call(monkeypatch):
