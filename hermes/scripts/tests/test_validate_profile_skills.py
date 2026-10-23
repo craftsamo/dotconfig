@@ -544,11 +544,11 @@ class AssistantDmTopicsTest(unittest.TestCase):
         )
         return path
 
-    def test_accepts_skill_less_inbox_and_admin(self) -> None:
+    def test_accepts_skill_less_inbox_and_general(self) -> None:
         config = self.write_config(
             "            - name: Inbox\n"
             "              thread_id: 1\n"
-            "            - name: Admin\n"
+            "            - name: General\n"
         )
         errors: list[str] = []
         VALIDATOR.validate_assistant_dm_topics(config, errors)
@@ -558,7 +558,7 @@ class AssistantDmTopicsTest(unittest.TestCase):
         config = self.write_config(
             "            - name: Inbox\n"
             "              thread_id: 1\n"
-            "            - name: Admin\n"
+            "            - name: General\n"
             "              skill: project-desk\n"
         )
         errors: list[str] = []
@@ -566,7 +566,7 @@ class AssistantDmTopicsTest(unittest.TestCase):
         self.assertTrue(any("binds a skill" in e for e in errors), errors)
 
     def test_requires_inbox_topic_name(self) -> None:
-        config = self.write_config("            - name: Admin\n")
+        config = self.write_config("            - name: General\n")
         errors: list[str] = []
         VALIDATOR.validate_assistant_dm_topics(config, errors)
         self.assertTrue(any("named 'Inbox'" in e for e in errors), errors)

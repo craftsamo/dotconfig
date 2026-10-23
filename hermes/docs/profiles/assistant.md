@@ -131,28 +131,36 @@ publishes. Marketer's browser is never a fallback.
 ### Pinned Telegram topics
 
 The assistant's `platforms.telegram.extra.dm_topics` (private `config.yaml`)
-declares exactly two pinned topics, both skill-less Assistant surfaces rather
-than worker threads: the chat-wide `assistant-pipeline` binding is the only skill
-surface. Each topic's contract lives entirely in its
+declares two pinned topics, both skill-less Assistant surfaces rather than
+worker threads: the chat-wide `assistant-pipeline` binding is the only skill
+surface. A topic's contract lives entirely in its
 `channel_prompts['<thread_id>']` entry (template in `config.example.yaml`). The
-validator (`validate_assistant_dm_topics`) rejects any topic carrying a `skill:`
-key and any `dm_topics` list without a topic literally named `Inbox`.
+entry replaces the chat-wide prompt rather than adding to it, so it carries any
+chat-wide rule the topic still needs; a topic without one runs on the chat-wide
+prompt. The validator (`validate_assistant_dm_topics`) rejects any topic
+carrying a `skill:` key and any `dm_topics` list without a topic literally named
+`Inbox`.
 
-- **Inbox** receives system cron output and starts no work. Jobs keep bare
-  `deliver: telegram`; `scripts/profile-secrets.sh` derives
+- **Inbox** receives system cron output and starts no work: its contract fixes
+  the tier to `inline`, and work that needs action hands off to a new ad-hoc
+  topic, which inherits the chat-wide binding and owns the sessions. Jobs keep
+  bare `deliver: telegram`; `scripts/profile-secrets.sh` derives
   `TELEGRAM_CRON_THREAD_ID` from the topic literally named `Inbox`, so renaming
   it makes every such job fail closed.
-- **Admin** is the inline surface for small administrative work: workspace
-  bookkeeping, edits to the dotconfig repo and its Hermes profiles,
-  and Hermes upkeep (browser relaunch, cron / validator checks, skill
-  housekeeping). No resident session or delegation. It is not the only OpenCode
-  topic: code work happens in any topic per the engineering entries (see
-  [opencode.md](../opencode.md)).
+- **General** is the everyday topic, reset often with `/new`. It has no
+  `channel_prompts` entry, so its routing and tiers are those of any topic the
+  user creates. It is pinned for its name only: Hermes renames an unpinned topic
+  to each new session's title, and a `dm_topics` entry exempts it. `/new` there
+  ends the old session's hold on the resident sessions it started (`status`,
+  `wait`, `cancel` and `close` answer only the originating session, see
+  [specialist-calls.md](./specialist-calls.md)), so long specialist work belongs
+  in a topic of its own; OpenCode runs stay bound to the topic and survive it
+  ([opencode.md](../opencode.md)).
 
-Both fix the tier to `inline`; work that needs a specialist hands off to a new
-ad-hoc topic, which inherits the chat-wide binding and owns the sessions. A new
-pinned topic is a `dm_topics` entry WITHOUT `thread_id`: the next gateway start
-creates the forum topic and writes the id back through the symlink into the
-private `config.yaml`; only then can its `channel_prompts` entry be keyed,
-followed by `/restart`. Hermes never deletes a Telegram topic: close retired ones
-by hand in the client.
+A new pinned topic is a `dm_topics` entry WITHOUT `thread_id`: the next gateway
+start creates the forum topic and writes the id back through the symlink into
+the private `config.yaml`; only then can its `channel_prompts` entry be keyed,
+followed by `/restart`. Renaming one (never Inbox) keeps its `thread_id` and
+history: change `name` in `dm_topics` and in the client, since Hermes never
+renames a pinned topic, then `/restart`. Hermes never deletes a Telegram topic:
+close retired ones by hand in the client.
