@@ -312,15 +312,19 @@ tested is what runs.
 
 - **Rules** are a `kind` and its numbers: `breakout` (a close beyond the
   last `entry` bars' range enters, beyond the last `exit` bars' opposite
-  range exits) or `ema_cross` (two EMAs cross), each with a stop at
-  `stop_atr` ATRs from the signal's close, placed with the entry, and a
-  `risk_pct` of equity lost at that stop. Two optional numbers: `trail_atr`
-  moves the stop to that many ATRs behind each completed close when that is
-  tighter, never looser; `regime_ema` takes longs only above that EMA and
-  shorts only below it (exits are the rules' own; three lengths of bars
-  warm it up, so a long one needs `long_history` to leave bars to trade).
-  Left out or 0, each leaves the rule set and its fingerprint
-  those of the rules without it. Only completed bars are read.
+  range exits), `ema_cross` (two EMAs cross) or `mean_revert` (a close
+  `entry_atr` ATRs under an EMA of `mean` bars enters long, over it short,
+  and the position exits once the close is `exit_atr` ATRs past the mean on
+  the other side, 0 being the mean itself; the signal stands while the close
+  stays that far out, so a stopped trade re-enters on the next bar), each
+  with a stop at `stop_atr` ATRs from the signal's close, placed with the
+  entry, and a `risk_pct` of equity lost at that stop. Two optional numbers:
+  `trail_atr` moves the stop to that many ATRs behind each completed close
+  when that is tighter, never looser; `regime_ema` takes longs only above
+  that EMA and shorts only below it (exits are the rules' own; three lengths
+  of bars warm it up, so a long one needs `long_history` to leave bars to
+  trade). Left out or 0, each leaves the rule set and its fingerprint those
+  of the rules without it. Only completed bars are read.
   `entry_order` says how an entry is sent: `market` (the default, likewise
   left out of the rule set), `limit` or `limit_then_market`, with
   `limit_atr` placing the limit that many ATRs better than the signal's
@@ -432,7 +436,12 @@ owns the procedure; this section owns what the code holds to.
   limit (`entry_order: limit`) opens nothing either: the gate places only
   `limit_then_market`. `breaker` (`max_drawdown_pct`, 1 to 90, and
   `reset`) sets the breaker below; a spec without one, or with one that does
-  not read, opens nothing either, and still closes and protects.
+  not read, opens nothing either, and still closes and protects. A market
+  belongs to one spec per account: the gate reads whatever position sits in
+  its market as the strategy's own, so two active specs naming one market on
+  one account each close the other's position when their own rules say so,
+  and a second strategy on a market (another rule kind, another interval)
+  runs on another Hermes account.
 - **The gate** (`hl_gate.py`, a cron `script` with an agent; the scheduler
   runs its wrapper from the copy `install.sh` keeps in the profile's
   `scripts/`, so the wrapper takes the runtime home from its own parent and
