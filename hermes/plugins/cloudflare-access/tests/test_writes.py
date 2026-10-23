@@ -656,6 +656,125 @@ def test_a_rule_s_name_shows_on_its_card_and_a_change_keeps_its_priority(mail):
     assert "name: spam trap" in card
 
 
+TUNNEL = "5a5a5a5a-1b1b-4c4c-8d8d-9e9e9e9e9e9e"
+TUNNEL_BASE = f"/accounts/{{account}}/cfd_tunnel/{TUNNEL}"
+CNAME = {"id": "6" * 32, "type": "CNAME", "name": "app.example.com", "content": f"{TUNNEL}.cfargotunnel.com"}
+
+
+@pytest.fixture
+def tunnel(fake):
+    fake.answers[TUNNEL_BASE] = envelope({"id": TUNNEL, "name": "home", "config_src": "cloudflare"})
+    fake.answers[f"{TUNNEL_BASE}/configurations"] = envelope({"version": 4, "config": {
+        "originRequest": {"connectTimeout": 10},
+        "ingress": [{"hostname": "wiki.example.com", "service": "http://localhost:3000"},
+                    {"service": "http_status:404"}]}})
+    fake.answers[f"/zones/{ZONE}/dns_records"] = envelope([])
+    return fake
+
+
+def route(**extra):
+    return {"action": "tunnel_route", "tunnel": TUNNEL, **extra}
+
+
+def test_publishing_a_hostname_adds_its_rule_before_the_catch_all_and_its_dns_record(tunnel):
+    card, key, result = approve_and_run(route(op="add", hostname="App.Example.com", service="http://localhost:8080"))
+    assert "🚨 Publishes a service of the machine behind the tunnel on the internet" in card
+    assert "Tunnel: home" in card and "+ app.example.com → http://localhost:8080" in card
+    assert "DNS: + CNAME app → the tunnel, proxied" in card
+    config, dns = tunnel.sends()
+    assert config["method"] == "PUT" and config["path"] == f"{TUNNEL_BASE}/configurations"
+    assert config["body"] == {"config": {"originRequest": {"connectTimeout": 10}, "ingress": [
+        {"hostname": "wiki.example.com", "service": "http://localhost:3000"},
+        {"hostname": "app.example.com", "service": "http://localhost:8080"}, {"service": "http_status:404"}]}}
+    assert dns["path"] == f"/zones/{ZONE}/dns_records/batch"
+    assert dns["body"] == {"posts": [{"type": "CNAME", "name": "app.example.com",
+                                      "content": f"{TUNNEL}.cfargotunnel.com", "proxied": True, "ttl": 1,
+                                      "comment": "Cloudflare Tunnel"}]}
+    assert result["ok"] is True and key != cfa.approval_request(
+        route(op="add", hostname="other.example.com", service="http://localhost:1"), call_id="x", can_write=True)[1]
+
+
+def test_a_hostname_with_other_records_or_outside_the_account_is_refused(tunnel):
+    tunnel.answers[f"/zones/{ZONE}/dns_records"] = envelope([{"id": "7" * 32, "type": "A", "name": "app.example.com",
+                                                              "content": "192.0.2.1"}])
+    with pytest.raises(cfa.CloudflareError, match="already has DNS records \\(A\\)"):
+        cfa.approval_request(route(op="add", hostname="app.example.com", service="http://localhost:8080"),
+                             can_write=True)
+    with pytest.raises(cfa.CloudflareError, match="not in a zone of this account"):
+        cfa.approval_request(route(op="add", hostname="app.example.org", service="http://localhost:8080"),
+                             can_write=True)
+    with pytest.raises(cfa.CloudflareError, match="service must be"):
+        cfa.approval_request(route(op="add", hostname="app.example.com", service="javascript:alert(1)"),
+                             can_write=True)
+    assert tunnel.sends() == []
+
+
+def test_a_tunnel_managed_locally_is_left_alone(tunnel):
+    tunnel.answers[TUNNEL_BASE] = envelope({"id": TUNNEL, "name": "home", "config_src": "local"})
+    with pytest.raises(cfa.CloudflareError, match="managed in a local config file"):
+        cfa.approval_request(route(op="remove", hostname="wiki.example.com"), can_write=True)
+
+
+def test_changing_or_removing_a_hostname(tunnel):
+    card, key = cfa.approval_request(route(op="update", hostname="wiki.example.com", service="http://localhost:3001"),
+                                     call_id="u", can_write=True)
+    assert "🚨 Changes which service" in card and "~ wiki.example.com: http://localhost:3000 → http://localhost:3001" in card
+    tunnel.answers[f"/zones/{ZONE}/dns_records"] = envelope([{**CNAME, "name": "wiki.example.com"}])
+    card, _, result = approve_and_run(route(op="remove", hostname="wiki.example.com"))
+    assert "🚨 The hostname stops answering" in card and "DNS: - CNAME wiki → the tunnel" in card
+    config, dns = tunnel.sends()
+    assert config["body"]["config"]["ingress"] == [{"service": "http_status:404"}]
+    assert dns["body"] == {"deletes": [{"id": "6" * 32}]}
+    with pytest.raises(cfa.CloudflareError, match="does not publish"):
+        cfa.approval_request(route(op="remove", hostname="nope.example.com"), can_write=True)
+
+
+def test_rules_keep_their_order_and_a_path_rule_still_comes_first(tunnel):
+    deny = {"path": "^/admin", "service": "http_status:403"}
+    tunnel.answers[f"{TUNNEL_BASE}/configurations"] = envelope({"version": 4, "config": {"ingress": [
+        deny, {"hostname": "wiki.example.com", "service": "http://localhost:3000"}, {"service": "http_status:404"}]}})
+    approve_and_run(route(op="add", hostname="app.example.com", service="http://localhost:8080"))
+    assert tunnel.sends()[0]["body"]["config"]["ingress"] == [
+        deny, {"hostname": "wiki.example.com", "service": "http://localhost:3000"},
+        {"hostname": "app.example.com", "service": "http://localhost:8080"}, {"service": "http_status:404"}]
+
+
+def test_removing_the_last_rule_of_a_hostname_deletes_its_record_and_asks_every_time(tunnel):
+    tunnel.answers[f"/zones/{ZONE}/dns_records"] = envelope([{**CNAME, "name": "wiki.example.com"}])
+    args = route(op="remove", hostname="wiki.example.com")
+    card, key = cfa.approval_request(args, call_id="r1", can_write=True)
+    assert "🚨 The hostname stops answering and its DNS record is deleted" in card
+    assert key != cfa.approval_request(args, call_id="r2", can_write=True)[1]
+
+
+def test_a_tunnel_configuration_changed_after_the_card_sends_nothing(tunnel):
+    args = route(op="add", hostname="app.example.com", service="http://localhost:8080")
+    cfa.approval_request(args, call_id="call-1", can_write=True)
+    tunnel.answers[f"{TUNNEL_BASE}/configurations"] = envelope({"version": 5, "config": {"ingress": [
+        {"service": "http_status:404"}]}})
+    assert "changed before the write ran" in cfa.execute(args, call_id="call-1", can_write=True)["error"]
+    assert tunnel.sends() == []
+
+
+def test_a_dns_failure_after_the_configuration_is_reported_part_way(tunnel):
+    args = route(op="add", hostname="app.example.com", service="http://localhost:8080")
+    cfa.approval_request(args, call_id="call-1", can_write=True)
+    original = tunnel.__call__
+
+    def dns_fails(op, **fields):
+        if fields.get("path", "").endswith("/dns_records/batch"):
+            tunnel.requests.append({"op": op, **fields})
+            return {**tunnel.head(fields), "ok": False, "requests": 1, "kind": "invalid", "status": 400,
+                    "error": "81053: record exists"}
+        return original(op, **fields)
+    cfa.bridge = dns_fails
+    try:
+        result = cfa.execute(args, call_id="call-1", can_write=True)
+    finally:
+        cfa.bridge = tunnel
+    assert result["error"].startswith("stopped part way") and "changing the hostnames of tunnel" in result["error"]
+
+
 def test_the_card_names_the_account_once_it_was_read(fake):
     cfa.remember_account("work", {"id": ACCOUNT, "name": "Work Co"})
     card, _ = cfa.approval_request(change({"op": "delete", "id": WWW}), can_write=True)
