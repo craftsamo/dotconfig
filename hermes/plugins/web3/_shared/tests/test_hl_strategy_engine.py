@@ -279,13 +279,14 @@ BREAKER = {"max_drawdown_pct": 25}
 
 
 def strategy_dir(root: Path, mandate: bool = True, stance: dict | None = None, oos: bool = True,
-                 breaker: dict | None = BREAKER, **rule_over) -> Path:
+                 breaker: dict | None = BREAKER, rules: dict | None = None, **rule_over) -> Path:
     import importlib.util
 
     spec_mod = importlib.util.spec_from_file_location("hs_for_engine_test", SHARED / "hl_strategy.py")
     hs = importlib.util.module_from_spec(spec_mod)
     spec_mod.loader.exec_module(hs)
-    rules = {"kind": "breakout", "entry": 20, "exit": 10, "atr": 14, "stop_atr": 2, "risk_pct": 1, **rule_over}
+    rules = {**(rules or {"kind": "breakout", "entry": 20, "exit": 10, "atr": 14, "stop_atr": 2, "risk_pct": 1}),
+             **rule_over}
     validated = {"fingerprint": hs.fingerprint(hs.rules(rules), "4h"), **({"out_of_sample": OOS} if oos else {})}
     spec = {"schema": hs.SPEC_SCHEMA, "name": "trend", "network": "testnet", "account": "hermes/HERMES_MAIN#0",
             "address": USER, "markets": ["BTC", "ETH"], "interval": "4h",
@@ -327,6 +328,20 @@ def test_a_breakout_wakes_the_assistant_with_exact_quotes_once_per_bar(api, tmp_
     assert float(entry["sl"]) < 110 and 10 <= float(entry["usd"]) <= 300 * 0.98
     assert all(i["effect"] == "increase" for i in intents)
     assert gate(root, api, tmp_path) == {"wakeAgent": False}  # the same bar is read once
+
+
+def test_a_mean_revert_variant_sells_the_spike_the_breakout_buys(api, tmp_path):
+    reset()  # the same bars: 40 closes at 100, then 110, far over a 10-bar mean
+    root = tmp_path / "hl-strategies"
+    strategy_dir(root, rules={"kind": "mean_revert", "mean": 10, "entry_atr": 2, "exit_atr": 0, "atr": 14,
+                              "stop_atr": 2, "risk_pct": 1})
+    part = gate(root, api, tmp_path)["strategies"][0]
+    intents = part["intents"]
+    assert [i["id"].split(":")[-1] for i in intents] == ["leverage", "open"]
+    entry = intents[1]["quote"]
+    assert entry["coin"] == "BTC" and entry["side"] == "sell" and entry["type"] == "market"
+    assert float(entry["sl"]) > 110 and "ATR away" in intents[1]["why"]
+    assert gate(root, api, tmp_path) == {"wakeAgent": False}
 
 
 def test_without_a_mandate_an_entry_is_only_noted_and_said_once(api, tmp_path):

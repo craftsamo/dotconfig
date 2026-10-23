@@ -70,7 +70,8 @@ READ_HELP = (
     "losses against the trend — heuristics, not a verdict), export (coin, interval, hours, end_time: candles and "
     "funding as one normalized dataset for backtesting prep, at most 500 candles), backtest (a main-dex perp coin, "
     "interval 15m to 1d, default 4h, and rules = {kind: breakout with entry, exit, atr, stop_atr, risk_pct | "
-    "ema_cross with fast, slow, atr, stop_atr, risk_pct; either optionally trail_atr, regime_ema and entry_order "
+    "ema_cross with fast, slow, atr, stop_atr, risk_pct | mean_revert with mean, entry_atr, exit_atr, atr, stop_atr, "
+    "risk_pct; each optionally trail_atr, regime_ema and entry_order "
     "limit | limit_then_market with limit_atr}: trades them "
     "over the venue's newest 5000 candles, or with long_history = true also older Binance spot candles of the coin's "
     "USDT pair, with the taker fee, slippage, funding and an ATR stop, trailed behind each close when trail_atr is "
@@ -154,8 +155,11 @@ PROPERTIES = {
     "oid": {"type": "string", "description": "orders: one order's status, by its order id as decimal digits or its "
                                             "0x cloid"},
     "fills": {"type": "integer", "description": "review: at most this many of the newest fills, default 500"},
-    "rules": {"type": "object", "description": "backtest: {kind: breakout, entry, exit, atr, stop_atr, risk_pct} or "
-                                              "{kind: ema_cross, fast, slow, atr, stop_atr, risk_pct}, either with an "
+    "rules": {"type": "object", "description": "backtest: {kind: breakout, entry, exit, atr, stop_atr, risk_pct}, "
+                                              "{kind: ema_cross, fast, slow, atr, stop_atr, risk_pct} or {kind: "
+                                              "mean_revert, mean, entry_atr, exit_atr, atr, stop_atr, risk_pct: a "
+                                              "close entry_atr ATRs under the mean EMA enters long, over it short, out "
+                                              "exit_atr ATRs past the mean, 0 at it}, each with an "
                                               "optional trail_atr, regime_ema, and entry_order (market default | limit "
                                               "| limit_then_market) with limit_atr (the limit's distance from the "
                                               "signal's close in ATRs, default 0)"},

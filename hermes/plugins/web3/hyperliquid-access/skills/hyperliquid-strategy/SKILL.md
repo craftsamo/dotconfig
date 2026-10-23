@@ -63,8 +63,16 @@ default when a stance does not hold, with a note saying why.
    market. A regime filter (`regime_ema`, say 0/600 on 4h: entries only on
    the EMA's side) is tested the same way and kept per market, through
    `default.markets`: what it does to one market's rules says nothing about
-   another's. Judge by `walk_forward.out_of_sample`, never by
-   `result` alone: return, CAGR, maximum drawdown, MAR, trades, fees, and its
+   another's. `mean_revert` (a close far under an EMA is bought, far over
+   it sold, out once it is back) takes a grid of its own: mean 20/50,
+   entry_atr 2/3/4, exit_atr 0/0.5, stop_atr 2/3 and regime_ema 0/600,
+   where the regime turns a plain reversal into a pullback entry with the
+   trend; judge the two apart. A strategy of one kind beside a strategy of
+   another on the same market runs on another Hermes account: the gate
+   treats any position in its market as its own, so two specs naming one
+   market on one account close each other's positions. Judge by
+   `walk_forward.out_of_sample`, never by `result` alone: return, CAGR,
+   maximum drawdown, MAR, trades, fees, and its
    `monte_carlo`: the drawdown the same trades reach at `p95` in another
    order, beside the one their order gave. Tell the user that `p95` drawdown
    as what to be ready to sit through, and that it is a floor, not a bound.
@@ -159,7 +167,8 @@ default when a stance does not hold, with a note saying why.
   a breaker the strategy opens nothing. `reset` stays `null` until the user
   resumes a tripped breaker ("Review, pause and stop").
 - Strategy markets belong to the strategy: the gate closes and protects any
-  position there, including one opened by hand. Say so.
+  position there, including one opened by hand or by another strategy on
+  the same account. Say so.
 
 Write it with the file tool, read it back, and show the user the decisions in
 plain words.
