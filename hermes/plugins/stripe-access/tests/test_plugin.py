@@ -183,7 +183,8 @@ def test_a_change_runs_only_after_its_card(isolated):
     assert sends(isolated) == []
     directive = gate(tool_name="stripe", args=dict(UPDATE), tool_call_id="call-1")
     assert directive["action"] == "approve" and directive["rule_key"].startswith("stripe-access:customer_update:")
-    assert "Stripe · LIVE, real money · account work" in directive["message"]
+    assert directive["message"].startswith("Stripe · Update a customer\n⚠️ Replaces the customer's details\n"
+                                           "Account: work\nMode: LIVE, real money\n\n--- Change ---\n")
     assert "Email: ada@example.com → ada@new.example" in directive["message"]
     result = json.loads(handler(dict(UPDATE)))
     assert result["ok"] is True and result["result"]["id"] == "cus_1"
