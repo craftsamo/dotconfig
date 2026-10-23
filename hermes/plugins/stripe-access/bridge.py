@@ -5,7 +5,8 @@ environment and the state directory as working directory, writes one JSON reques
 reads one JSON reply from stdout.
 
 Keys live in the Keychain (project ``hermes``, scope ``stripe-access``, a scope no Hermes profile
-receives), one per account label and mode: ``STRIPE_KEY_<LABEL>_LIVE`` and ``STRIPE_KEY_<LABEL>_TEST``.
+receives), one item per account label with a stage per mode: ``STRIPE_KEY_<LABEL>@prod`` for live and
+``STRIPE_KEY_<LABEL>@test``. Each is read by its exact layer, never a stage-less one or another stage.
 A key is read when a call needs it and lives only in this short-lived process; it is masked in every
 string that leaves. The key's own prefix must agree with the mode asked for, so a test call never
 runs on a live key and the other way round. Only the endpoints in ``ROUTES`` exist here, only
@@ -39,13 +40,14 @@ SECRET = Path.home() / ".config" / "bin" / "secret"
 PROJECT, SCOPE = "hermes", "stripe-access"
 PREFIX = "STRIPE_KEY_"
 MODES = ("live", "test")
+STAGES = {"live": "prod", "test": "test"}   # the secret CLI's stage for each Stripe mode
 SECRET_TIMEOUT = 20
 BASE = "https://api.stripe.com"
 VERSION = "2026-09-30.endive"
 UA = "hermes-stripe-access/1.0"
 
 LABEL = re.compile(r"^[a-z0-9](?:[a-z0-9_]{0,22}[a-z0-9])?$")
-ITEM = re.compile(r"^STRIPE_KEY_([A-Z0-9](?:[A-Z0-9_]{0,22}[A-Z0-9])?)_(LIVE|TEST)$")
+ITEM = re.compile(r"^STRIPE_KEY_([A-Z0-9](?:[A-Z0-9_]{0,22}[A-Z0-9])?)$")
 KEY = re.compile(r"^(sk|rk)_(live|test)_[A-Za-z0-9]{10,247}$")
 KEY_SHAPE = re.compile(r"\b(?:sk|rk|pk)_(?:live|test)_[A-Za-z0-9*]+")
 PARAM = re.compile(r"^[a-z_]+(?:\[[^\[\]\x00-\x1f]{0,64}\])*$")
@@ -138,12 +140,18 @@ def fingerprint(value: str) -> str:
     return hashlib.sha256(value.encode()).hexdigest()[:12]
 
 
-def item_name(label: str, mode: str) -> str:
-    return f"{PREFIX}{label.upper()}_{mode.upper()}"
+def item_name(label: str) -> str:
+    return f"{PREFIX}{label.upper()}"
+
+
+def layer(label: str, mode: str) -> str:
+    """The item as the secret CLI names one layer: STRIPE_KEY_WORK@prod."""
+    return f"{item_name(label)}@{STAGES[mode]}"
 
 
 def set_command(label: str, mode: str) -> str:
-    return f"secret set {item_name(label, mode)} -p {PROJECT} --scope {SCOPE} -D TOKEN --no-env"
+    return (f"secret set {item_name(label)} -p {PROJECT} --scope {SCOPE} --stage {STAGES[mode]} -D TOKEN "
+            "--no-env")
 
 
 def _secret(*argv: str) -> subprocess.CompletedProcess:
@@ -157,7 +165,8 @@ def _secret(*argv: str) -> subprocess.CompletedProcess:
 
 
 def stored() -> list[tuple[str, str]]:
-    """(label, mode) of every key item in the scope, from the Keychain's metadata (no value is read)."""
+    """(label, mode) of every key layer in the scope, from the Keychain's metadata (no value is read).
+    Only the prod and test stages count: a stage-less item or another stage is never a key."""
     proc = _secret("ls", "-p", PROJECT, "--json")
     if proc.returncode != 0:
         raise Setup(f"could not list the Keychain items of project {PROJECT}")
@@ -165,20 +174,21 @@ def stored() -> list[tuple[str, str]]:
         items = json.loads(proc.stdout or "[]")
     except ValueError as exc:
         raise Setup("the Keychain listing was not readable") from exc
+    modes = {stage: mode for mode, stage in STAGES.items()}
     found = set()
     for item in items if isinstance(items, list) else []:
-        if not isinstance(item, dict) or item.get("scope") != SCOPE or item.get("stage"):
+        if not isinstance(item, dict) or item.get("scope") != SCOPE or item.get("stage") not in modes:
             continue
         match = ITEM.fullmatch(str(item.get("name") or ""))
         if match:
-            found.add((match.group(1).lower(), match.group(2).lower()))
+            found.add((match.group(1).lower(), modes[item["stage"]]))
     return sorted(found)
 
 
 def read_key(label: str, mode: str) -> tuple[str, str]:
-    """(key, kind) for one label and mode; raises Setup with the fix."""
-    name = item_name(label, mode)
-    proc = _secret("get", name, "-p", PROJECT, "--scope", SCOPE)
+    """(key, kind) for one label and mode, read from that stage's exact layer; raises Setup with the fix."""
+    name = layer(label, mode)
+    proc = _secret("get", item_name(label), "-p", PROJECT, "--scope", SCOPE, "--stage", STAGES[mode])
     value = proc.stdout.strip()
     if proc.returncode != 0 or not value:
         raise Setup(f"no {mode} key for account {label} in the Keychain ({name}, project {PROJECT}, scope "
