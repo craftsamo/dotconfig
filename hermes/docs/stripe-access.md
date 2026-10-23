@@ -194,6 +194,7 @@ Service-specific steps; the rest is in [shared setup](access-common.md#setup-sha
    `secret env` as a second guard beside the scope.
 2. Enable the plugin and add `stripe_access` to the profile's `toolsets` and
    `platform_toolsets` (`a2a` only for Researcher and Marketer), then restart
-   the gateway.
+   the gateway. The three example configs in this repo have it; the private
+   configs carry the same entries.
 3. `status` shows each stored key; `account` with its mode confirms Stripe
    accepts it.
