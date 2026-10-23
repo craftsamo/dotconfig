@@ -242,6 +242,45 @@ def test_status_without_keys_says_how_to_store_one(fake):
     assert "not set up" in run(action="status")["problem"]
 
 
+def test_status_shows_routes_and_organization_keys(fake):
+    sta.remember_account("studio", "test", {"id": "acct_1Old", "name": "Old"})   # read before the route moved
+    fake.keys = {"ok": True, "requests": 0, "data": [
+        {"account": "studio", "mode": "test", "item": "STRIPE_ORG_MAIN", "org": "main", "field": "acct_studio",
+         "stripe_account": "acct_1Studio", "kind": "organization", "fingerprint": "a" * 12},
+        {"account": "shop", "mode": "test", "item": "STRIPE_SHOP", "kind": "restricted", "fingerprint": "b" * 12,
+         "note": "also reached through organization main; its own key is used"}],
+        "organizations": [{"org": "main", "mode": "test", "item": "STRIPE_ORG_MAIN", "kind": "organization",
+                           "fingerprint": "c" * 12}]}
+    status = run(action="status")
+    assert status["keys"][0] == {"account": "studio", "mode": "test", "item": "STRIPE_ORG_MAIN",
+                                 "kind": "organization",
+                                 "via": {"org": "main", "field": "acct_studio", "stripe_account": "acct_1Studio"}}
+    assert status["keys"][1]["note"].startswith("also reached through organization main")
+    assert status["organizations"] == [{"org": "main", "mode": "test", "item": "STRIPE_ORG_MAIN",
+                                        "kind": "organization"}]
+    fake.keys = {"ok": True, "requests": 0, "data": [], "organizations": fake.keys["organizations"]}
+    problem = run(action="status")["problem"]
+    assert "no account is reached through it" in problem
+    assert ("secret update STRIPE_ORG_MAIN -p hermes --scope stripe-access --stage test --meta acct_<label>=acct_…"
+            in problem)
+
+
+def test_a_refused_organization_key_names_its_own_item(fake):
+    route = {"org": "main", "item": "STRIPE_ORG_MAIN", "field": "acct_studio", "stripe_account": "acct_1Studio"}
+    fake.answers["/v1/balance"] = {"ok": False, "kind": "refused", "error": "Invalid API Key", "requests": 1,
+                                   "fingerprint": "f" * 12, **route}
+    with pytest.raises(sta.StripeError) as caught:
+        run(action="balance", mode="test", account="studio")
+    message = str(caught.value)
+    assert "refused the test organization key of main for account studio" in message
+    assert "secret update STRIPE_ORG_MAIN -p hermes --scope stripe-access --stage test --value" in message
+    assert "acct_1Studio is not an account it can act on" in message
+    assert "secret update STRIPE_ORG_MAIN -p hermes --scope stripe-access --stage test --meta acct_studio=acct_…" in message
+    fake.answers["/v1/customers"] = {"ok": False, "kind": "forbidden", "error": "no access", "requests": 1, **route}
+    with pytest.raises(sta.StripeError, match="organization main's key may not act on acct_1Studio"):
+        run(action="customers", mode="test", account="studio")
+
+
 def test_status_shows_items_of_the_scope_that_are_no_key(fake):
     fake.keys = {"ok": True, "requests": 0, "data": [], "unused": [
         {"item": "STRIPE_SHOP", "stage": "test", "problem": "it has no label= field naming its account"},
@@ -306,6 +345,7 @@ def test_the_state_directory_is_private(fake):
     "cd ~/x && secret rm STRIPE_WORK -p 'hermes' -f", "security find-generic-password -a STRIPE_WORK -w",
     "cat ~/.stripe-access/state.json", "python3 -c 'import stripe; print(stripe.api_key)'",
     "node -e \"require('stripe')\"", "cat ~/.config/stripe/config.toml", "echo sk_live_123 | pbcopy",
+    "curl -H 'Authorization: Bearer sk_org_test_123' -H 'Stripe-Context: acct_1' https://x.example",
     "ls ~/.hermes/plugins/stripe-access", "security dump-keychain", "secret export -p hermes",
     "cd /tmp && stripe listen --forward-to localhost:3000",
     # global flags before the command, the binary by path or behind a wrapper, a shell inside a shell

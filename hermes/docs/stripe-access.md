@@ -61,31 +61,52 @@ without regard to case. Other fields (`url=`, `account=`) stay free for the
 user's notes. The labels and the accounts behind them are private: they
 stay in the Keychain and the state directory, never in tracked files.
 
+An account can also be reached through a Stripe organization key instead of a
+key of its own. The organization key (`sk_org_…`) is an item with an
+`org=<org>` field and no label. Each account it serves is a field on that same
+item, `acct_<label>=acct_…` (in test mode the id of the account's sandbox): the
+id is no secret, so a route is metadata, not an item of its own. A call on such
+a label sends the organization key with `Stripe-Context: <acct_…>`, and the
+call itself is the same as with an account key. A label with a key of its own
+uses that key even when a route names it too (Stripe advises an account key
+where one account is all a call needs), and `status` notes the route it leaves
+unused. An organization two items carry in one stage, or a label two
+organization keys route, is refused like a label two items carry. An item with
+both `label=` and `org=` is no key: it names the field to keep.
+
 The bridge lists the scope's metadata, then reads a key by its exact layer
 (`--scope stripe-access --stage prod|test`), so a stage-less item or another
 stage is never taken for a key, and it never sets `SECRET_STAGE`. A label two
 items carry in one stage is refused with both names rather than guessed. An
 item of the scope that is no key (no stage, no `label=` field or one spelled
-`LABEL=`, a malformed label, a name the CLI does not take) is listed by
-`status` with what is wrong and the command that fixes it,
+`LABEL=`, a malformed label, a name the CLI does not take), and a route field
+that routes nothing (a malformed label in its name, a value that is no account
+id), is listed by `status` with what is wrong and the command that fixes it,
 so a typo in a field shows up instead of being skipped silently. Stored
 `--no-env`, the keys reach no environment through `secret env` or a shim in
 any stage.
 
 Every action but `status` names its `mode`: `live` (real money) or `test` (a
 test-mode or sandbox key; both use `_test_` keys). `account` picks the label;
-it may be left out when one label holds a key for that mode. The bridge refuses
-a key whose prefix disagrees with the mode (`sk_live_…` stored in `@test`),
-and a publishable key, before anything is sent. It reads only the item a call
+it may be left out when one label holds a key or a route for that mode. The
+bridge refuses a key whose prefix disagrees with the mode (`sk_live_…` stored
+in `@test`, `sk_org_live_…` in `@test`) and a publishable key before anything
+is sent. It reads only the items a call
 needs, and masks the value (and anything shaped like a Stripe key) in every
-string it returns.
+string it returns. A fingerprint names what a call runs on: the key, and for a
+route the organization key together with the account id.
 
 A 401 is a refused key, stored as in
 [refusal memory](access-common.md#state-directory-and-bridge-process) per
 label and mode, so later calls with that key are answered without Stripe until
-a new key is stored. A 429 pauses that label and mode for 30 seconds. A 403 is
-a restricted key without the permission a call needs: Stripe's message, which
-names the permission, is passed on and nothing is remembered.
+a new key is stored. For a route Stripe also answers 401 when the account is
+not one the organization key can act on (a live id on a sandbox key), so the
+message names both fixes, the key's value and the route's field; a nonexistent
+account id is a 400 instead. Each label a key serves learns of a refusal on its
+own call. A 429 pauses
+that label and mode for 30 seconds. A 403 is a restricted key without the
+permission a call needs, or an organization key that may not act on that
+account: Stripe's message is passed on and nothing is remembered.
 
 `~/.stripe-access/` (mode 700, outside every repository) holds no secret:
 `state.json` (per label and mode: a refused key's fingerprint, a pause's end,
@@ -94,8 +115,11 @@ and the Stripe account id and display name `account` last read) and a lock.
 ## Reads
 
 `status` never contacts Stripe: it lists the stored labels and modes, each
-key's item, its kind (`secret` or `restricted`) and any problem, and under
-`unused` the scope's items that are no key. `account` reads the
+key's item, its kind (`secret`, `restricted` or `organization`), for a route
+`via` (the organization, the field that routes it and the account id; its item
+is then the organization key's) and any problem;
+under `organizations` the organization keys; and under `unused` the scope's
+items that are none of these. `account` reads the
 Stripe account behind a key, `balance` its funds. Every other read is a list
 of one object type, or one object in full with `id` (a summary next to
 Stripe's own object). Lists page with Stripe's cursors behind one `cursor`
@@ -142,8 +166,9 @@ changing anything; it works in any run.
 
 At execution the handler plans again and refuses if anything the card showed
 or would send differs (someone refunded meanwhile, the invoice moved on,
-another key was stored). Every request carries the approved key's fingerprint,
-and the bridge sends nothing under a different stored key. Every POST carries
+another key was stored, a route now reaches another account). Every request
+carries the approved fingerprint, and the bridge sends nothing under a
+different stored key or to a different account. Every POST carries
 an `Idempotency-Key` derived from a nonce of that approval and the step, so a
 request Stripe already received is never applied twice, and two approvals of
 the same change (even under a reused tool-call id) never share a key. The steps
@@ -167,8 +192,10 @@ the change (`Stripe · Refund a payment`), its effect line the stakes in live
 mode — 🚨 for a refund, finalizing or voiding an invoice, canceling a
 subscription and deleting a coupon; ⚠️ for what reaches customers or replaces
 what is there; ✅ for drafts and records — and ✅ for everything in test mode.
-Then the account `<label> (<account name>)` and the mode (`LIVE, real money`
-or `test`), and what changes in a `Change` block, with every amount in its
+Then the account `<label> (<account name>)`; for an account reached through an
+organization, `Via: organization <org>, <acct_…>` (the name is shown only
+while it was read for that same account id); the mode (`LIVE, real money` or
+`test`); and what changes in a `Change` block, with every amount in its
 currency. Names, e-mails, descriptions and codes from Stripe are collapsed to
 one line with control and invisible characters spelled out, so a customer's
 text cannot forge card lines. Lines that must be seen (what changes, the
@@ -179,8 +206,8 @@ detail lines (invoice lines, one-time link items, metadata) are counted when
 they do not.
 
 The approval record is per tool call and allows one change. Its rule key
-hashes the exact plan, so "session" or "always" repeats only that identical
-change. A refund, finalizing, sending or voiding an invoice, changing or
+hashes the exact plan, the route included, so "session" or "always" repeats
+only that identical change on that same account. A refund, finalizing, sending or voiding an invoice, changing or
 canceling a subscription and deleting a coupon get a fresh key every time
 (`ONCE`), so no stored answer ever covers one.
 
@@ -201,8 +228,9 @@ config. Because the keys' names are free, and a `secret` read that leaves the
 scope out searches the scope named after the working directory's repository,
 it also blocks any value read or change of an item in the `hermes` project
 (`secret get|set|update|rm|import|env … -p hermes`) and the Keychain's own
-password reads; `secret ls` and `secret show` (metadata only) stay open. File tools may still read the plugin source, and the browser may still
-open the Stripe Dashboard. Patterns: `_TERMINAL` and `_STORE` in
+password reads; `secret ls` and `secret show` (metadata only) stay open. File
+tools may still read the plugin source, and the browser may still open the
+Stripe Dashboard. Patterns: `_TERMINAL` and `_STORE` in
 `plugins/stripe-access/sta.py`. Shared rules:
 [bypass guard](access-common.md#bypass-guard-ways-around-the-tool). The toolset
 is in an `a2a` platform toolset only where `A2A` lists actions (Researcher,
@@ -224,6 +252,16 @@ Service-specific steps; the rest is in [shared setup](access-common.md#setup-sha
    with `secret update <name> -p hermes --scope stripe-access --stage <prod|test> --value`,
    which keeps its fields; a mistyped field is fixed the same way with
    `--meta label=<label>`.
+
+   To reach an account through an organization instead, create a restricted
+   organization key in the organization's Dashboard (API keys; in its sandbox
+   for test mode) and store it with
+   `secret set STRIPE_ORG_<ORG> -p hermes --scope stripe-access --stage <prod|test> -D TOKEN --meta org=<org> --no-env`.
+   Then add each account's id (Settings → Account; for test mode the id of
+   that account's sandbox) to that item, with no value to paste:
+   `secret update STRIPE_ORG_<ORG> -p hermes --scope stripe-access --stage <prod|test> --meta acct_<label>=acct_…`
+   (`--meta acct_<label>=` takes it off again).
+
 2. Enable the plugin and add `stripe_access` to the profile's `toolsets` and
    `platform_toolsets` (`a2a` only for Researcher and Marketer), then restart
    the gateway. The three example configs in this repo have it; the private

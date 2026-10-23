@@ -273,6 +273,159 @@ def test_without_an_account_the_only_label_of_the_mode_is_used(tmp_path, monkeyp
     assert reply["kind"] == "setup" and "no live key is stored" in reply["error"]
 
 
+ORG_KEY = "sk_org_test_" + "c7" * 12
+ACCT = "acct_1StudioSandbox"
+
+
+def org_secret(tmp_path, monkeypatch, values=None, listed=None):
+    """An organization main holding a test key, whose item routes the account studio."""
+    values = values if values is not None else {"STRIPE_ORG_MAIN@test": ORG_KEY}
+    listed = listed if listed is not None else [item("STRIPE_ORG_MAIN", "test", org="main", acct_studio=ACCT)]
+    monkeypatch.setattr(bridge, "SECRET", fake_secret(tmp_path, values, listed))
+
+
+def test_an_account_reached_through_an_organization_sends_its_context(tmp_path, monkeypatch, net):
+    routes, sent = net
+    routes["/v1/balance"] = (200, {"object": "balance"}, {})
+    org_secret(tmp_path, monkeypatch)
+    reply = call(account="studio", path="/v1/balance")
+    assert reply["ok"] is True and reply["key_kind"] == "organization"
+    assert (reply["item"], reply["org"], reply["field"], reply["stripe_account"]) == (
+        "STRIPE_ORG_MAIN", "main", "acct_studio", ACCT)
+    assert "org_item" not in reply
+    assert reply["fingerprint"] == bridge.fingerprint(f"{ORG_KEY}|{ACCT}") != bridge.fingerprint(ORG_KEY)
+    assert sent[0].get_header("Authorization") == f"Bearer {ORG_KEY}"
+    assert sent[0].get_header("Stripe-context") == ACCT and sent[0].get_header("Stripe-version") == bridge.VERSION
+    assert ORG_KEY not in json.dumps(reply)
+    # The organization key is no label of its own: left out, account is the one route.
+    assert call(account=None, path="/v1/balance")["account"] == "studio"
+
+
+def test_an_account_s_own_key_wins_over_a_route(tmp_path, monkeypatch, net):
+    routes, sent = net
+    routes["/v1/balance"] = (200, {"object": "balance"}, {})
+    org_secret(tmp_path, monkeypatch, {"STRIPE_ORG_MAIN@test": ORG_KEY, "STRIPE_STUDIO_OWN@test": TEST_KEY},
+               [item("STRIPE_ORG_MAIN", "test", org="main", acct_studio=ACCT),
+                item("STRIPE_STUDIO_OWN", "test", label="studio")])
+    reply = call(account="studio", path="/v1/balance")
+    assert reply["key_kind"] == "secret" and reply["item"] == "STRIPE_STUDIO_OWN" and "org" not in reply
+    assert sent[0].get_header("Stripe-context") is None
+    entry = bridge.main({"op": "keys"})["data"][0]
+    assert entry["item"] == "STRIPE_STUDIO_OWN" and "also reached through organization main" in entry["note"]
+
+
+def test_a_route_lives_on_its_stage_s_organization_key(tmp_path, monkeypatch, net):
+    # A route on the live organization key does not serve a test call.
+    org_secret(tmp_path, monkeypatch, {"STRIPE_ORG_MAIN@prod": "sk_org_live_" + "c7" * 12},
+               [item("STRIPE_ORG_MAIN", "prod", org="main", acct_studio=ACCT)])
+    reply = call(account="studio", path="/v1/balance")
+    assert reply["kind"] == "setup" and "no test key for account studio" in reply["error"] and not net[1]
+
+
+def test_an_item_with_both_label_and_org_is_no_key(tmp_path, monkeypatch, net):
+    org_secret(tmp_path, monkeypatch, {"STRIPE_STUDIO@test": TEST_KEY},
+               [item("STRIPE_STUDIO", "test", label="studio", org="main")])
+    reply = call(account="studio", path="/v1/balance")
+    assert reply["kind"] == "setup" and not net[1]
+    [unused] = bridge.main({"op": "keys"})["unused"]
+    assert "carries both label=" in unused["problem"] and "acct_<label>=acct_…" in unused["problem"]
+    assert "secret update STRIPE_STUDIO -p hermes --scope stripe-access --stage test --meta org=" in unused["problem"]
+
+
+def test_an_organization_two_items_carry_is_never_guessed(tmp_path, monkeypatch, net):
+    org_secret(tmp_path, monkeypatch, {"STRIPE_ORG_A@test": ORG_KEY, "STRIPE_ORG_B@test": ORG_KEY},
+               [item("STRIPE_ORG_A", "test", org="main", acct_studio=ACCT), item("STRIPE_ORG_B", "test", org="Main")])
+    reply = call(account="studio", path="/v1/balance")
+    assert reply["kind"] == "setup" and "2 items in stage test carry org=main" in reply["error"] and not net[1]
+    organizations = bridge.main({"op": "keys"})["organizations"]
+    assert organizations == [{"org": "main", "mode": "test", "problem": organizations[0]["problem"]}]
+
+
+def test_a_label_two_organizations_route_is_never_guessed(tmp_path, monkeypatch, net):
+    routes, _ = net
+    routes["/v1/balance"] = (200, {"object": "balance"}, {})
+    values = {"STRIPE_ORG_MAIN@test": ORG_KEY, "STRIPE_ORG_SIDE@test": "sk_org_test_" + "d8" * 12}
+    org_secret(tmp_path, monkeypatch, values, [item("STRIPE_ORG_MAIN", "test", org="main", acct_studio=ACCT),
+                                               item("STRIPE_ORG_SIDE", "test", org="side", acct_studio="acct_1Other")])
+    reply = call(account="studio", path="/v1/balance")
+    fix = "secret update STRIPE_ORG_SIDE -p hermes --scope stripe-access --stage test --meta acct_studio="
+    assert reply["kind"] == "setup" and "2 items in stage test carry acct_studio" in reply["error"]
+    assert fix in reply["error"] and not net[1]
+    # What the fix leaves: the other route works and both organization keys stay.
+    org_secret(tmp_path, monkeypatch, values, [item("STRIPE_ORG_MAIN", "test", org="main", acct_studio=ACCT),
+                                               item("STRIPE_ORG_SIDE", "test", org="side")])
+    assert call(account="studio", path="/v1/balance")["stripe_account"] == ACCT
+    assert [o["item"] for o in bridge.main({"op": "keys"})["organizations"]] == ["STRIPE_ORG_MAIN", "STRIPE_ORG_SIDE"]
+
+
+@pytest.mark.parametrize("org_key, message", [
+    ("sk_org_live_" + "c7" * 12, "holds a live organization key, not a test one"),
+    ("sk_test_" + "c7" * 12, "is not a Stripe organization key"),
+])
+def test_a_route_whose_organization_key_is_wrong_sends_nothing(tmp_path, monkeypatch, net, org_key, message):
+    org_secret(tmp_path, monkeypatch, {"STRIPE_ORG_MAIN@test": org_key})
+    reply = call(account="studio", path="/v1/balance")
+    assert reply["kind"] == "setup" and message in reply["error"] and not net[1]
+    assert "c7c7" not in json.dumps(reply)
+
+
+@pytest.mark.parametrize("field, value, message", [
+    ("acct_studio", "sk_test_" + "e8" * 12, "its field acct_studio= holds no account id"),
+    ("acct_studio", "acct_1../x", "its field acct_studio= holds no account id"),
+    ("acct_Studio", ACCT, "its field acct_Studio= routes no label"),
+    ("ACCT_studio", ACCT, "its field ACCT_studio= routes no label"),
+])
+def test_a_route_field_that_routes_nothing_is_listed_and_never_used(tmp_path, monkeypatch, net, field, value,
+                                                                    message):
+    org_secret(tmp_path, monkeypatch, {"STRIPE_ORG_MAIN@test": ORG_KEY},
+               [item("STRIPE_ORG_MAIN", "test", org="main", **{field: value})])
+    reply = call(account="studio", path="/v1/balance")
+    assert reply["kind"] == "setup" and "no test key for account studio" in reply["error"] and not net[1]
+    listing = bridge.main({"op": "keys"})
+    assert [o["item"] for o in listing["organizations"]] == ["STRIPE_ORG_MAIN"]   # the key itself stays usable
+    [unused] = listing["unused"]
+    assert unused["item"] == "STRIPE_ORG_MAIN" and message in unused["problem"]
+    assert "e8e8" not in json.dumps(listing)
+
+
+def test_a_route_moved_to_another_account_is_caught_by_the_card_s_fingerprint(tmp_path, monkeypatch, net):
+    routes, sent = net
+    routes["/v1/balance"] = (200, {"object": "balance"}, {})
+    org_secret(tmp_path, monkeypatch)
+    card = bridge.main({"op": "key", "mode": "test", "account": "studio"})
+    assert card["stripe_account"] == ACCT and card["org"] == "main"
+    org_secret(tmp_path, monkeypatch, None, [item("STRIPE_ORG_MAIN", "test", org="main",
+                                                  acct_studio="acct_1SomeoneElse")])
+    reply = call(account="studio", path="/v1/balance", expect=card["fingerprint"])
+    assert reply["kind"] == "account" and reply["stripe_account"] == "acct_1SomeoneElse" and not sent
+
+
+def test_keys_lists_routes_and_organization_keys_without_contacting_stripe(tmp_path, monkeypatch, net):
+    org_secret(tmp_path, monkeypatch, None,
+               [item("STRIPE_ORG_MAIN", "test", org="main", acct_studio=ACCT, url="https://dashboard.stripe.com"),
+                item("STRIPE_SHOP", "test", label="shop", ORG="main")])
+    reply = bridge.main({"op": "keys"})
+    assert reply["ok"] is True and not net[1]
+    assert reply["data"] == [{"account": "studio", "mode": "test", "item": "STRIPE_ORG_MAIN", "org": "main",
+                              "field": "acct_studio", "stripe_account": ACCT, "kind": "organization",
+                              "fingerprint": bridge.fingerprint(f"{ORG_KEY}|{ACCT}")}]
+    assert reply["organizations"] == [{"org": "main", "mode": "test", "item": "STRIPE_ORG_MAIN",
+                                       "kind": "organization", "fingerprint": bridge.fingerprint(ORG_KEY)}]
+    assert "field ORG= is not read" in reply["unused"][0]["problem"]
+    assert ORG_KEY not in json.dumps(reply)
+    gets = [line for line in (tmp_path / "log").read_text().splitlines() if line.startswith("get STRIPE_ORG_MAIN")]
+    assert len(gets) == 1   # read once though it serves the route and its own entry
+
+
+def test_an_organization_key_never_leaves_even_when_stripe_echoes_it(tmp_path, monkeypatch, net):
+    routes, _ = net
+    routes["/v1/balance"] = (401, {"error": {"type": "invalid_request_error",
+                                             "message": "Invalid API Key provided: sk_org_test_c7c7…"}}, {})
+    org_secret(tmp_path, monkeypatch)
+    reply = call(account="studio", path="/v1/balance")
+    assert reply["kind"] == "refused" and "sk_org_" not in json.dumps(reply)
+
+
 @pytest.mark.parametrize("account", ["Work!", "../x", "a" * 30])
 def test_a_malformed_account_label_is_refused(net, account):
     assert call(account=account, path="/v1/balance")["kind"] == "setup" and not net[1]
