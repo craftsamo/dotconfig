@@ -243,6 +243,23 @@ def test_invoice_lines_are_checked_before_any_card(stripe, items, message):
     assert stripe.sent() == [] and sta._approved == {}
 
 
+def test_an_invoice_read_back_on_another_account_is_not_reported(stripe, monkeypatch):
+    stripe.writes[("POST", "/v1/invoices")] = {"id": "in_new", "status": "draft", "total": 1000, "currency": "jpy"}
+    stripe.objects["/v1/invoices/in_new"] = {"id": "in_new", "status": "draft", "total": 999999, "currency": "jpy"}
+    args = {"action": "invoice_create", "mode": "test", "customer": "cus_1",
+            "items": [{"amount": 1000, "currency": "jpy", "description": "Fee"}]}
+    sta.approval_request(args, call_id="c1", can_write=True)
+    calls = stripe.__call__
+
+    def moved_after_the_writes(op, **fields):   # the label reaches another account by the time of the read-back
+        if op == "call" and fields.get("method") == "GET" and fields.get("path") == "/v1/invoices/in_new":
+            stripe.fingerprint = "e" * 12
+        return calls(op, **fields)
+    monkeypatch.setattr(sta, "bridge", moved_after_the_writes)
+    result = sta.execute(args, call_id="c1", can_write=True)
+    assert result["ok"] is True and "999,999" not in str(result["result"])
+
+
 def test_a_failed_later_step_stops_part_way(stripe):
     stripe.writes[("POST", "/v1/invoices")] = {"id": "in_new"}
     stripe.writes[("POST", "/v1/invoiceitems")] = {"ok": False, "kind": "invalid", "status": 400, "requests": 1,

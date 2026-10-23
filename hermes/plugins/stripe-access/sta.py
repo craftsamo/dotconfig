@@ -1825,8 +1825,10 @@ def run(plan: dict, nonce: str) -> dict:
     result = {"ok": True, "action": plan["action"], "account": plan["account"], "mode": plan["mode"], "done": done}
     if plan["final"] and ids and ids[0]:
         try:
-            last, _ = get(plan["final"].replace("{0}", ids[0]), [], account=plan["account"], mode=plan["mode"],
-                          what="reading the result back")
+            fresh, reply = get(plan["final"].replace("{0}", ids[0]), [], account=plan["account"], mode=plan["mode"],
+                               what="reading the result back")
+            if reply.get("fingerprint") == plan["fingerprint"]:   # read on the account written to, or not used
+                last = fresh
         except StripeError:
             pass
     result["result"] = plan["shape"](last) if plan["shape"] else last
