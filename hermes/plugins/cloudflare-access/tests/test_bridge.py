@@ -2,6 +2,7 @@ import importlib.util
 import io
 import json
 from pathlib import Path
+import sqlite3
 import subprocess
 import sys
 import urllib.error
@@ -421,6 +422,43 @@ def test_a_forbidden_analytics_query_is_checked_like_any_call(net):
     routes["/user/tokens/verify"] = ACTIVE
     reply = graphql(query="traffic", variables={"zoneTag": ZONE, "since": "2026-10-01", "until": "2026-10-07"})
     assert reply["kind"] == "forbidden" and reply["requests"] == 2
+
+
+DB = "0f0e0d0c-0b0a-4908-8706-050403020100"
+
+
+def test_the_d1_query_route_sends_only_the_fixed_schema_read(net):
+    routes, sent = net
+    path = f"/accounts/{{account}}/d1/database/{DB}/query"
+    routes[f"/accounts/{ACCOUNT}/d1/database/{DB}/query"] = (200, ok([{"results": [], "success": True}]), {})
+    assert call(method="POST", path=path)["ok"] is True
+    assert json.loads(sent[0].data) == {"sql": bridge.SCHEMA_SQL} and bridge.SCHEMA_SQL.startswith("SELECT ")
+    reply = call(method="POST", path=path, body={"sql": "DROP TABLE users"})
+    assert reply["ok"] is False and reply["requests"] == 0 and len(sent) == 1
+
+
+def test_the_schema_read_leaves_out_only_sqlite_s_and_d1_s_own_objects():
+    db = sqlite3.connect(":memory:")
+    for table in ("users", "acf_users", "xcf_log", "sqliteish", "_cf_KV"):
+        db.execute(f'CREATE TABLE "{table}" (id INTEGER PRIMARY KEY AUTOINCREMENT, email TEXT UNIQUE)')
+    db.execute("CREATE INDEX users_email ON users(email)")
+    names = {row[1] for row in db.execute(bridge.SCHEMA_SQL)}
+    db.close()
+    assert names == {"users", "acf_users", "xcf_log", "sqliteish", "users_email"}
+
+
+@pytest.mark.parametrize("path", [
+    "/accounts/{account}/r2/buckets/media/objects/photo.jpg",          # an object's content
+    "/accounts/{account}/storage/kv/namespaces/" + "a" * 32 + "/values/key",
+    f"/accounts/{{account}}/d1/database/{DB}/raw",
+    f"/accounts/{{account}}/d1/database/{DB}/export",
+    "/accounts/{account}/r2/buckets/A_Bucket/objects",
+])
+def test_storage_contents_are_not_routes(net, path):
+    for method in ("GET", "POST"):
+        reply = call(method=method, path=path)
+        assert reply["ok"] is False and reply["requests"] == 0
+    assert not net[1]
 
 
 def test_a_token_echoed_by_cloudflare_never_leaves(net):

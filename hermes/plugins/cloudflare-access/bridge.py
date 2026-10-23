@@ -89,7 +89,16 @@ SEGMENTS = {
     "{setting}": r"[a-z0-9_]{1,64}",                 # a zone setting
     "{script}": r"[A-Za-z0-9_-]{1,64}",              # a Worker
     "{project}": r"[a-z0-9][a-z0-9-]{0,62}",         # a Pages project
+    "{bucket}": r"[a-z0-9][a-z0-9-]{1,61}[a-z0-9]",  # an R2 bucket
+    "{uuid}": r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}",   # a D1 database, a tunnel
 }
+# D1's query endpoint runs any SQL, writes included: the one statement this tool sends there is fixed here
+# and reads the schema, never a row. A request to it carries no body of the caller's. SQLite's and D1's own
+# objects are left out by their literal prefixes (in LIKE, `_` matches any character and would hide a table
+# such as acf_users).
+SCHEMA_SQL = ("SELECT type, name, tbl_name, sql FROM sqlite_master WHERE type IN ('table', 'index', 'view', "
+              "'trigger') AND substr(name, 1, 7) != 'sqlite_' AND substr(name, 1, 4) != '_cf_' ORDER BY type, name")
+FIXED_BODIES = {"/accounts/{account}/d1/database/{uuid}/query": {"sql": SCHEMA_SQL}}
 
 # Every endpoint this bridge will call, as (method, path pattern).
 ROUTES = (
@@ -108,6 +117,14 @@ ROUTES = (
     ("GET", "/accounts/{account}/pages/projects"),
     ("GET", "/accounts/{account}/pages/projects/{project}"),
     ("GET", "/accounts/{account}/pages/projects/{project}/deployments"),
+    # storage: the containers, the names and sizes in them and a database's schema, never a value or a row
+    ("GET", "/accounts/{account}/r2/buckets"),
+    ("GET", "/accounts/{account}/r2/buckets/{bucket}/objects"),
+    ("GET", "/accounts/{account}/storage/kv/namespaces"),
+    ("GET", "/accounts/{account}/storage/kv/namespaces/{id}/keys"),
+    ("GET", "/accounts/{account}/d1/database"),
+    ("GET", "/accounts/{account}/d1/database/{uuid}"),
+    ("POST", "/accounts/{account}/d1/database/{uuid}/query"),
 )
 VERIFY = {"user": "/user/tokens/verify", "account": "/accounts/{account}/tokens/verify"}
 
@@ -184,6 +201,7 @@ def _pattern(path: str) -> re.Pattern:
 
 
 _ROUTES = tuple((method, _pattern(path)) for method, path in ROUTES)
+_TEMPLATES = tuple((method, pattern, path) for (method, pattern), (_, path) in zip(_ROUTES, ROUTES))
 
 SECRETS: list[str] = []
 
@@ -359,9 +377,12 @@ def keys() -> tuple[list, list]:
     return result, unused
 
 
-def route(method: str, path: str) -> None:
-    if not any(m == method and pattern.fullmatch(path) for m, pattern in _ROUTES):
-        raise Failure(f"{method} {path} is not an endpoint this tool calls", "error")
+def route(method: str, path: str) -> str:
+    """The ROUTES template a call matches; raises Failure for any other."""
+    for m, pattern, template in _TEMPLATES:
+        if m == method and pattern.fullmatch(path):
+            return template
+    raise Failure(f"{method} {path} is not an endpoint this tool calls", "error")
 
 
 def encode(params, account_id: str) -> str:
@@ -392,10 +413,14 @@ def prepare(token: str, account_id: str, method: str, path: str, params, body=No
     """The request, checked against ROUTES; nothing is sent here."""
     if method not in METHODS or not isinstance(path, str):
         raise Failure("method and path are required")
-    route(method, path)
+    template = route(method, path)
     query = encode(params, account_id)
     headers = {"Authorization": f"Bearer {token}", "User-Agent": UA, "Accept": "application/json"}
     data = None
+    if template in FIXED_BODIES:
+        if body is not None:
+            raise Failure(f"{method} {template} sends only its own fixed body")
+        body = FIXED_BODIES[template]
     if method == "GET":
         if body is not None:
             raise Failure("a read carries no body")

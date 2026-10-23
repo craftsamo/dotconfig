@@ -358,6 +358,86 @@ def test_pages_lists_projects_and_reads_one_project_s_deployments(fake):
         run(action="pages", project="Site_1")
 
 
+DB = "0f0e0d0c-0b0a-4908-8706-050403020100"
+NAMESPACE = "4" * 32
+
+
+def test_every_storage_path_is_a_route():
+    def ok(method, path):
+        return any(m == method and p.fullmatch(path) for m, p in bridge_module._ROUTES)
+    base = "/accounts/{account}"
+    assert ok("GET", base + "/r2/buckets") and ok("GET", base + "/r2/buckets/media/objects")
+    assert ok("GET", base + "/storage/kv/namespaces") and ok("GET", f"{base}/storage/kv/namespaces/{NAMESPACE}/keys")
+    assert ok("GET", base + "/d1/database") and ok("GET", f"{base}/d1/database/{DB}")
+    assert ok("POST", f"{base}/d1/database/{DB}/query")
+
+
+def test_r2_lists_buckets_then_one_bucket_s_names_and_sizes_by_folder(fake):
+    fake.answers["/accounts/{account}/r2/buckets"] = envelope(
+        {"buckets": [{"name": "media", "creation_date": "2026-01-01T00:00:00Z", "location": "APAC"}]},
+        cursor="", per_page=20)
+    result = run(action="r2")
+    assert result["items"] == [{"name": "media", "created": "2026-01-01T00:00:00Z", "location": "APAC"}]
+    assert "next" not in result and "never read" in result["note"]
+    fake.answers["/accounts/{account}/r2/buckets/media/objects"] = envelope(
+        [{"key": "img/a.png", "size": 2048, "last_modified": "2026-10-01T00:00:00Z", "etag": "x",
+          "http_metadata": {"contentType": "image/png"}}], cursor="abc==", is_truncated=True, delimited=["img/sub/"])
+    result = run(action="r2", bucket="media", prefix="img/", limit=50, cursor="prev")
+    assert fake.last()["params"] == [["per_page", "50"], ["cursor", "prev"], ["delimiter", "/"], ["prefix", "img/"]]
+    assert result["objects"] == [{"key": "img/a.png", "size": 2048, "size_display": "2.0 KB",
+                                  "last_modified": "2026-10-01T00:00:00Z", "content_type": "image/png"}]
+    assert result["folders"] == ["img/sub/"] and result["next"] == "abc=="
+    with pytest.raises(cfa.CloudflareError, match="name the bucket"):
+        run(action="r2", prefix="img/")
+    with pytest.raises(cfa.CloudflareError, match="R2 bucket's name"):
+        run(action="r2", bucket="Media")
+
+
+def test_kv_lists_namespaces_then_key_names_never_values(fake):
+    fake.answers["/accounts/{account}/storage/kv/namespaces"] = envelope(
+        [{"id": NAMESPACE, "title": "SESSIONS", "supports_url_encoding": True}], page=1, total_pages=2)
+    result = run(action="kv")
+    assert result["items"] == [{"id": NAMESPACE, "title": "SESSIONS"}] and result["next"] == 2
+    keys = f"/accounts/{{account}}/storage/kv/namespaces/{NAMESPACE}/keys"
+    fake.answers[keys] = envelope([{"name": "user:1", "expiration": 1790856000, "metadata": {"secret": "x"}}],
+                                  cursor="next1", count=1)
+    result = run(action="kv", namespace=NAMESPACE, prefix="user:", limit=3)
+    assert fake.last()["params"] == [["limit", "10"], ["prefix", "user:"]]
+    assert result["keys"][0]["name"] == "user:1" and "metadata" not in result["keys"][0] and "expires" in result["keys"][0]
+    assert result["next"] == "next1"
+    with pytest.raises(cfa.CloudflareError, match="cursor, not page"):
+        run(action="kv", namespace=NAMESPACE, page=2)
+    with pytest.raises(cfa.CloudflareError, match="name the namespace"):
+        run(action="kv", prefix="user:")
+
+
+def test_d1_lists_databases_then_one_database_s_size_and_schema(fake):
+    fake.answers["/accounts/{account}/d1/database"] = envelope(
+        [{"uuid": DB, "name": "app", "created_at": "2026-01-01T00:00:00Z", "version": "production"}],
+        page=1, total_pages=1)
+    assert run(action="d1")["items"] == [{"id": DB, "name": "app", "created": "2026-01-01T00:00:00Z",
+                                          "version": "production"}]
+    fake.answers[f"/accounts/{{account}}/d1/database/{DB}"] = envelope(
+        {"uuid": DB, "name": "app", "file_size": 3 * 1024 * 1024, "num_tables": 99,
+         "read_replication": {"mode": "disabled"}})
+    fake.answers[f"/accounts/{{account}}/d1/database/{DB}/query"] = envelope([{"success": True, "results": [
+        {"type": "table", "name": "users", "tbl_name": "users", "sql": "CREATE TABLE users (id INTEGER)"},
+        {"type": "index", "name": "users_email", "tbl_name": "users", "sql": "CREATE INDEX users_email ON users(e)"}]}])
+    result = run(action="d1", database=DB)
+    post = fake.last(f"/accounts/{{account}}/d1/database/{DB}/query")
+    assert post["method"] == "POST" and post["body"] is None   # the bridge fixes the statement
+    assert result["database"] == {"id": DB, "name": "app", "size": 3145728, "size_display": "3.0 MB",
+                                  "read_replication": "disabled"}
+    assert result["schema"] == {"tables": [{"name": "users", "sql": "CREATE TABLE users (id INTEGER)"}],
+                                "indexes": [{"name": "users_email", "sql": "CREATE INDEX users_email ON users(e)",
+                                             "table": "users"}]}
+    fake.answers[f"/accounts/{{account}}/d1/database/{DB}/query"] = {"ok": False, "kind": "forbidden",
+                                                                      "error": "10000: no"}
+    assert "lacks a permission" in run(action="d1", database=DB)["schema_unavailable"]
+    with pytest.raises(cfa.CloudflareError, match="D1 database's id"):
+        run(action="d1", database="app")
+
+
 def test_account_checks_the_token_then_reads_the_account(fake):
     fake.answers["/accounts/{account}"] = envelope({"id": ACCOUNT, "name": "Work", "type": "standard"})
     result = run(action="account")
