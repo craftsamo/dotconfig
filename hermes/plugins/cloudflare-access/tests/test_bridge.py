@@ -220,7 +220,7 @@ def test_a_call_carries_the_token_and_fills_in_the_label_s_own_account(net):
     ("GET", f"/accounts/{ACCOUNT}"),               # an account named outright, not the label's own
     ("GET", f"/accounts/{OTHER_ACCOUNT}/tokens/verify"),
     ("GET", "/zones/../accounts"), ("GET", "/zones/not-an-id"), ("GET", f"/zones/{ZONE}/settings/../x"),
-    ("DELETE", f"/zones/{ZONE}/dns_records/{ZONE}"), ("POST", f"/zones/{ZONE}/purge_cache"),
+    ("DELETE", f"/zones/{ZONE}/dns_records/{ZONE}"), ("DELETE", f"/zones/{ZONE}"), ("POST", "/zones"),
     ("GET", "/user"), ("GET", "https://evil.example/client/v4/zones"), ("TRACE", "/zones"),
 ])
 def test_only_the_routes_in_the_table_are_called(net, method, path):

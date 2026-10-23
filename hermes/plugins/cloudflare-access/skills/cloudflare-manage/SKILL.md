@@ -1,12 +1,12 @@
 ---
 name: cloudflare-manage
-description: "Use before changing anything in the user's Cloudflare: DNS records."
+description: "Use before changing anything in the user's Cloudflare: DNS records or a cache purge."
 version: 1.0.0
 author: CraftSamo
 license: MIT
 metadata:
   hermes:
-    tags: [cloudflare, dns, domains]
+    tags: [cloudflare, dns, domains, cache]
 ---
 
 # Changing Cloudflare through the `cloudflare` tool
@@ -82,9 +82,22 @@ Recipes:
 Resolvers keep the old answer until its TTL runs out, so a change reaches
 everyone within the old TTL.
 
+## Cache
+
+`cache_purge` takes the `zone` and exactly one of: `urls` (full URLs, up to
+30), `hosts` (every file under each host name), `prefixes` (a host and path
+without the scheme, `www.example.com/blog/`, every file under it) or
+`everything: true`. Each must lie inside the zone. Purge what changed rather
+than everything: a full purge sends every visitor's next request to the
+origin at once, so it asks every time. A purge cannot be taken back, but it
+only drops copies; the next request fetches them again. Cloudflare limits how
+many purges an account sends a minute on smaller plans: a rate limit is a
+reason to wait, not to retry.
+
 ## Errors
 
-"lacks a permission" means the token may not change this: the user adds
-Zone → DNS → Edit to the token in the Cloudflare dashboard. A setup problem
+"lacks a permission" means the token may not change this: the user adds it
+to the token in the Cloudflare dashboard (DNS records need Zone → DNS →
+Edit, a purge Zone → Cache Purge → Purge). A setup problem
 (no token, a refused token) is the user's to fix: relay it, never work around
 it.
