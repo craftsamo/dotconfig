@@ -46,7 +46,7 @@ cards = _load_card()
 
 READS = ("status", "account", "zones", "dns_records", "zone_settings", "analytics", "workers", "pages", "r2", "kv",
          "d1", "tunnels", "email_routing")
-WRITES = ("dns_change",)
+WRITES = ("dns_change", "cache_purge")
 ACTIONS = READS + WRITES
 
 BRIDGE = HERE / "bridge.py"
@@ -1228,7 +1228,9 @@ def status(can_write: bool) -> dict:
 
 APPROVAL_TTL = 900
 COMMON_WRITE_ARGS = {"action", "account", "preview"}
-WRITE_ARGS = {"dns_change": {"zone", "changes"}}
+WRITE_ARGS = {"dns_change": {"zone", "changes"}, "cache_purge": {"zone", "urls", "hosts", "prefixes", "everything"}}
+PURGE_MAX = 30
+URL_MAX = 2048
 WRITABLE_TYPES = ("A", "AAAA", "CNAME", "MX", "TXT", "NS")
 PROXIABLE = {"A", "AAAA", "CNAME"}
 CHANGE_OPS = ("add", "update", "delete")
@@ -1487,7 +1489,73 @@ def _shape_dns_change(data: dict) -> dict:
             for key in ("deletes", "patches", "posts") if result.get(key)}
 
 
-PLANS = {"dns_change": _plan_dns_change}
+def _in_zone(host: str, zone: str) -> bool:
+    return host == zone or host.endswith("." + zone)
+
+
+def _purge_list(args: dict, key: str, zone: str) -> list:
+    """The URLs, host names or prefixes to purge, each checked to lie inside the zone."""
+    values = args.get(key)
+    if not isinstance(values, list) or not 0 < len(values) <= PURGE_MAX:
+        raise CloudflareError(f"{key} must be a list of 1 to {PURGE_MAX}")
+    checked = []
+    for value in values:
+        if not isinstance(value, str) or not value.strip() or len(value) > URL_MAX or any(
+                ord(c) <= 32 for c in value.strip()):
+            raise CloudflareError(f"each of {key} is one {key[:-1]} without spaces")
+        text = value.strip()
+        if key == "urls":
+            match = re.fullmatch(r"(https?)://([^/?#]+)([/?#].*)?", text)
+            host = hostname(match.group(2), "a URL's host") if match else None
+            if not host:
+                raise CloudflareError(f"{text[:80]} is not a URL (https://host/path)")
+            text = f"{match.group(1)}://{host}{match.group(3) or '/'}"
+        elif key == "hosts":
+            host = text = hostname(text, "a host")
+        else:
+            if "://" in text:
+                raise CloudflareError(f"a prefix is a host and path without the scheme: {text[:80]}")
+            head, _, rest = text.partition("/")
+            host = hostname(head, "a prefix's host")
+            text = f"{host}/{rest}" if rest else host
+        if not _in_zone(host, zone):
+            raise CloudflareError(f"{host} is not in the zone {zone}")
+        checked.append(text)
+    if len(set(checked)) != len(checked):
+        raise CloudflareError(f"{key} names one of them twice")
+    return checked
+
+
+def _plan_cache_purge(args: dict) -> dict:
+    given = [key for key in ("urls", "hosts", "prefixes", "everything") if args.get(key) not in (None, False)]
+    if len(given) != 1:
+        raise CloudflareError("cache_purge takes exactly one of urls, hosts, prefixes or everything: true")
+    if "everything" in given and args.get("everything") is not True:
+        raise CloudflareError("everything must be true")
+    zone, reply = zone_of(zone_ref(args), account_of(args))
+    zname = zone.get("name") or ""
+    plan = _plan("cache_purge", reply, "Purge the cache")
+    plan["facts"] = [("Zone", zname)]
+    if given == ["everything"]:
+        body = {"purge_everything": True}
+        plan["lines"] = [f"Everything cached for {zname} and its subdomains"]
+        plan["effect"] = (cards.CAUTION, "Every file is fetched from the origin again: a burst of traffic there")
+        plan["once"] = True
+    else:
+        key = given[0]
+        values = _purge_list(args, key, zname)
+        body = {{"urls": "files"}.get(key, key): values}
+        noun = {"urls": "URL", "hosts": "host name", "prefixes": "prefix"}[key]
+        plan["lines"] = [f"{len(values)} {noun}{'s' if len(values) > 1 else ''}" + (
+            ", every file under each" if key != "urls" else "")]
+        plan["details"] = [f"- {_short(value, 70)}" for value in values]
+        plan["effect"] = (cards.CAUTION, "Visitors get fresh copies; the origin serves them again")
+    plan["steps"].append({"method": "POST", "path": f"/zones/{zone['id']}/purge_cache", "body": body,
+                          "what": f"purging the cache of {zname}"})
+    return plan
+
+
+PLANS = {"dns_change": _plan_dns_change, "cache_purge": _plan_cache_purge}
 RESULTS = {"dns_change": _shape_dns_change}
 
 

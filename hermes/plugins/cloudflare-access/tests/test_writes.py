@@ -295,6 +295,60 @@ def test_discord_s_shorter_card_drops_details_first_and_refuses_what_it_cannot_s
     assert cfa.approval_request(change(*many), call_id="t", can_write=True)
 
 
+def purge(**extra):
+    return {"action": "cache_purge", "zone": "example.com", **extra}
+
+
+def test_the_purge_route_is_one_the_bridge_allows():
+    assert any(m == "POST" and p.fullmatch(f"/zones/{ZONE}/purge_cache") for m, p in bridge_module._ROUTES)
+
+
+def test_urls_inside_the_zone_are_purged_after_their_card(fake):
+    fake.write_reply = {"ok": True, "status": 200, "data": envelope({"id": ZONE})}
+    args = purge(urls=["https://WWW.Example.com/index.html", "http://example.com"])
+    card, key, result = approve_and_run(args)
+    assert card.startswith("Cloudflare · Purge the cache\n⚠️ Visitors get fresh copies")
+    assert "2 URLs" in card and "- https://www.example.com/index.html" in card and "- http://example.com/" in card
+    [sent] = fake.sends()
+    assert sent["path"] == f"/zones/{ZONE}/purge_cache"
+    assert sent["body"] == {"files": ["https://www.example.com/index.html", "http://example.com/"]}
+    assert result["ok"] is True and key.startswith("cloudflare-access:cache_purge:")
+
+
+def test_hosts_and_prefixes_purge_everything_under_them(fake):
+    card, _ = cfa.approval_request(purge(hosts=["static.example.com"]), call_id="h", can_write=True)
+    assert "1 host name, every file under each" in card
+    card, _ = cfa.approval_request(purge(prefixes=["www.example.com/blog/"]), call_id="p", can_write=True)
+    assert "- www.example.com/blog/" in card
+
+
+def test_purging_everything_asks_every_time(fake):
+    args = purge(everything=True)
+    card, key = cfa.approval_request(args, call_id="e", can_write=True)
+    assert "Everything cached for example.com and its subdomains" in card and "burst of traffic" in card
+    assert key != cfa.approval_request(args, call_id="e2", can_write=True)[1]
+    cfa.execute(args, call_id="e", can_write=True)
+    assert fake.sends()[0]["body"] == {"purge_everything": True}
+
+
+@pytest.mark.parametrize("extra, message", [
+    ({}, "exactly one of"),
+    ({"urls": ["https://example.com/"], "everything": True}, "exactly one of"),
+    ({"everything": "yes"}, "everything must be true"),
+    ({"urls": ["https://other.example.org/"]}, "not in the zone example.com"),
+    ({"urls": ["https://notexample.com/"]}, "not in the zone"),
+    ({"urls": ["ftp://example.com/"]}, "is not a URL"),
+    ({"urls": ["https://example.com/a b"]}, "without spaces"),
+    ({"hosts": ["example.com", "EXAMPLE.com"]}, "twice"),
+    ({"prefixes": ["https://example.com/blog"]}, "without the scheme"),
+    ({"urls": [f"https://example.com/{n}" for n in range(31)]}, "1 to 30"),
+])
+def test_a_purge_outside_the_zone_or_malformed_is_refused_before_any_card(fake, extra, message):
+    with pytest.raises(cfa.CloudflareError, match=message):
+        cfa.approval_request(purge(**extra), can_write=True)
+    assert fake.sends() == []
+
+
 def test_the_card_names_the_account_once_it_was_read(fake):
     cfa.remember_account("work", {"id": ACCOUNT, "name": "Work Co"})
     card, _ = cfa.approval_request(change({"op": "delete", "id": WWW}), can_write=True)
