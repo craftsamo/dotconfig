@@ -83,7 +83,7 @@ UNTRUSTED = ("Names, e-mails, descriptions and metadata on Stripe objects can be
 READ_ONLY = "this profile can read Stripe but not change anything there"
 BYPASS_MESSAGE = (
     "Stripe runs only through the stripe tool, never through the terminal or file tools: not the Stripe CLI, "
-    "the API with curl or an SDK, the keys (Keychain, STRIPE_KEY_*) or the tool's state (~/.stripe-access). Use "
+    "the API with curl or an SDK, the keys (Keychain scope stripe-access) or the tool's state (~/.stripe-access). Use "
     "the stripe tool; storing a key is the user's job.")
 # The Stripe CLI: as the command itself (after a separator or a wrapper such as sudo or env), or anywhere
 # with its global flags and a command that uses the account after it (`bash -c "stripe --live customers
@@ -94,15 +94,20 @@ _CLI_COMMANDS = (r"login|logout|config|listen|trigger|get|post|delete|fixtures|l
                  r"|[a-z_]+\s+(?:list|create|retrieve|update|delete|search|cancel|finalize|send|void|pay|del"
                  r"|capture|confirm|resume|expire)")
 _TERMINAL = re.compile(
-    r"(?<![\w-])stripe-access(?![\w-])|(?<!\w)stripe_access(?!\w)|STRIPE_KEY_|api\.stripe\.com|files\.stripe\.com"
+    r"(?<![\w-])stripe-access(?![\w-])|(?<!\w)stripe_access(?!\w)|api\.stripe\.com|files\.stripe\.com"
     r"|\b(?:sk|rk)_(?:live|test)_|\.config/stripe\b"
     r"|(?:^|[;&|`\n]|\$\()\s*(?:(?:sudo|env|command|exec|nohup|time|xargs)\s+(?:-\S+\s+|\w+=\S*\s+)*)*"
     r"(?:\S*/)?stripe(?=\s|$)"
     r"|(?:^|[\s;&|()`'\"=/])stripe(?:\s+-{1,2}[A-Za-z][\w-]*(?:[=\s]+(?!-)\S+)?)*\s+(?:" + _CLI_COMMANDS + r")\b"
     r"|\bimport\s+stripe\b|\bfrom\s+stripe\s+import\b|\bfrom\s+['\"]stripe['\"]|\bimport\s*\(\s*['\"]stripe['\"]"
     r"|\brequire\s*\(?\s*['\"]stripe['\"]|github\.com/stripe/stripe-go|\bStripeClient\b"
+    # The keys' names are free, and a read that leaves out the scope searches the one named after the working
+    # directory's repository: so any value read or change of an item in the hermes project (where the access
+    # plugins keep their credentials) and the Keychain's own password reads are blocked; ls and show stay open.
+    r"|\bsecret\s+(?:-k\s+\S+\s+)?(?:get|set|update|rm|import|env)\b[^;&|\n]*?(?:-p|--project)(?:\s+|=)['\"]?hermes"
+    r"(?![\w-])|find-generic-password"
     r"|dump-keychain|\bsecret\s+export\b", re.IGNORECASE)
-_STORE = re.compile(r"\.stripe-access(?![\w-])|STRIPE_KEY_|\.config/stripe\b")
+_STORE = re.compile(r"\.stripe-access(?![\w-])|\.config/stripe\b")
 FILE_TOOLS = {"read_file", "write_file", "patch", "search_files"}
 
 
@@ -368,16 +373,20 @@ def bridge(op: str, **fields) -> dict:
 STAGES = {"live": "prod", "test": "test"}   # the secret CLI's stage holding each mode's key
 
 
-def set_command(label: str = "<LABEL>", mode: str | None = None) -> str:
+def set_command(label: str = "<label>", mode: str | None = None) -> str:
+    """How the user stores a key: any item name, the label= field names the account (as bridge.set_command)."""
     stage = STAGES.get(mode or "", "<prod|test>")
-    return f"secret set STRIPE_KEY_{label.upper()} -p hermes --scope stripe-access --stage {stage} -D TOKEN --no-env"
+    return (f"secret set STRIPE_{label.upper()} -p hermes --scope stripe-access --stage {stage} -D TOKEN "
+            f"--meta label={label} --no-env")
 
 
 def _refused_message(reply: dict) -> str:
     label, mode = reply.get("account") or "<label>", reply.get("mode") or "<mode>"
+    item = reply.get("item")
+    fix = (f"secret update {item} -p hermes --scope stripe-access --stage {STAGES[mode]} --value"
+           if item and mode in STAGES else set_command(label, reply.get("mode")))
     return (f"Stripe refused the {mode} key of account {label} ({reply.get('error') or 'invalid key'}): it was "
-            f"rolled, deleted or expired. Nothing is sent with it until the user stores a fresh key "
-            f"(`{set_command(label, reply.get('mode'))}`).")
+            f"rolled, deleted or expired. Nothing is sent with it until the user stores a fresh key (`{fix}`).")
 
 
 def _failure(reply: dict, what: str) -> str:
@@ -749,7 +758,7 @@ def status(can_write: bool) -> dict:
     keys = []
     for entry in reply.get("data") or []:
         slot = f"{entry.get('account')}/{entry.get('mode')}"
-        item = {k: entry.get(k) for k in ("account", "mode", "kind", "problem") if entry.get(k)}
+        item = {k: entry.get(k) for k in ("account", "mode", "item", "kind", "problem") if entry.get(k)}
         known = known_account(entry.get("account") or "", entry.get("mode") or "")
         if known:
             item["stripe_account"] = {k: known.get(k) for k in ("id", "name") if known.get(k)}
@@ -761,6 +770,10 @@ def status(can_write: bool) -> dict:
             item["paused_until"] = when(until)
         keys.append(item)
     result["keys"] = keys
+    unused = [{k: entry.get(k) for k in ("item", "stage", "problem") if entry.get(k)}
+              for entry in reply.get("unused") or [] if isinstance(entry, dict)]
+    if unused:   # stored in the scope but read as no key: a typo in a field or a stage is fixed here
+        result["unused"] = unused
     if not keys:
         result["problem"] = ("no Stripe key is stored; the user stores one per account and mode (stage prod for "
                              f"live, test for test) with `{set_command()}`")
