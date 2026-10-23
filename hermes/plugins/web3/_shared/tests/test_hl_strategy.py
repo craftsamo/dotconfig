@@ -178,6 +178,89 @@ def test_a_walk_forward_grid_may_choose_the_regime_filter():
     assert all(f["chosen"].get("regime_ema", 0) in (0, 20) and f["chosen"]["entry"] in (5, 8) for f in out["folds"])
 
 
+MEAN_REVERT = {"kind": "mean_revert", "mean": 5, "entry_atr": 2, "exit_atr": 0, "atr": 5, "stop_atr": 2, "risk_pct": 1}
+
+
+def test_mean_revert_enters_against_the_distance_from_the_mean_and_leaves_once_it_is_back():
+    r = hs.rules(MEAN_REVERT)
+    assert r == {"kind": "mean_revert", "mean": 5, "entry_atr": 2.0, "exit_atr": 0.0, "atr": 5, "stop_atr": 2.0,
+                 "risk_pct": 1.0}
+    assert hs.warmup(r) == 16 and hs.warmup(hs.rules({**MEAN_REVERT, "regime_ema": 30})) == 91
+    assert hs.fingerprint(r, "4h") != hs.fingerprint(hs.rules({**MEAN_REVERT, "exit_atr": 0.5}), "4h")
+    for bad, why in (({**MEAN_REVERT, "exit_atr": 2}, "exit_atr must be less than entry_atr"),
+                     ({**MEAN_REVERT, "entry": 5}, "not entry"), ({**MEAN_REVERT, "mean": 2}, "mean must be between")):
+        with pytest.raises(hs.StrategyError, match=why):
+            hs.rules(bad)
+    # a flat market (ATR 2, EMA 100), then a close far under the mean, then a bounce back over it
+    series = flat(30) + [bar(30, 100, 101, 79, 80), bar(31, 80, 96, 80, 95), bar(32, 95, 96, 94, 95)]
+    ind = hs.indicators(series, r)
+    low = hs.signal(series, ind, 30, r)
+    assert low["long"] and not low["short"] and not low["exit_long"] and low["exit_short"]
+    assert (80 - ind["mean"][30]) / ind["atr"][30] < -2 and "ATR away" in low["why"]
+    back = hs.signal(series, ind, 31, r)
+    assert back["exit_long"] and not back["long"] and not back["short"]
+    cost = hs.costs({"taker_bps": 0, "slippage_bps": 0, "funding": "none"})
+    run = hs.simulate(series, r, "4h", cost, {"exposure_pct": 100, "max_leverage": 10})
+    trade = run["trades"][0]
+    assert (trade["side"], trade["entry"], trade["exit"], trade["reason"]) == ("long", "80", "95", "signal")
+    assert hs.evaluate(series[:31], r, {"direction": "both"}, None)["stop"] == pytest.approx(80 - 2 * ind["atr"][30])
+    # mirrored: a spike over the mean is a short, and no long
+    spike = flat(30) + [bar(30, 100, 121, 99, 120)]
+    up = hs.signal(spike, hs.indicators(spike, r), 30, r)
+    assert up["short"] and not up["long"] and up["exit_long"] and not up["exit_short"]
+    # under a regime EMA a dip is bought only above it: the crash fell through the EMA, so nothing
+    filtered = hs.rules({**MEAN_REVERT, "regime_ema": 10})
+    assert not hs.signal(series, hs.indicators(series, filtered), 30, filtered)["long"]
+    # a long rise, then four bars down: far under the 20-bar mean, still above the 60-bar regime EMA
+    rise = [bar(i, 100 + i, 101.5 + i, 99.5 + i, 101 + i) for i in range(200)]
+    rise += [bar(200 + j, 300 - 5 * j, 300.5 - 5 * j, 294.5 - 5 * j, 295 - 5 * j) for j in range(4)]
+    in_trend = hs.rules({**MEAN_REVERT, "mean": 20, "regime_ema": 60})
+    pullback = hs.signal(rise, hs.indicators(rise, in_trend), 203, in_trend)
+    assert pullback["long"] and not pullback["short"] and "regime" in pullback["why"]
+    # a dead market (no ATR) enters nothing, and a position held there still exits on the mean's side
+    still = [bar(i, 100, 100, 100, 100) for i in range(20)] + [bar(20, 100, 101, 100, 101)]
+    ind = hs.indicators(still, r)
+    dead = hs.signal(still, ind, 19, r)
+    assert not dead["long"] and not dead["short"] and dead["exit_long"] and dead["exit_short"]
+    ind["atr"][20] = 0.0  # the close sits over the mean with no ATR to measure by
+    above = hs.signal(still, ind, 20, r)
+    assert above["exit_long"] and not above["exit_short"] and not above["short"] and "no ATR" in above["why"]
+
+
+def test_mean_revert_holds_past_the_mean_to_exit_atr_and_re_enters_after_a_stop():
+    # exit_atr 0.5: the bounce to the mean does not exit, the one half an ATR past it does
+    patient = hs.rules({**MEAN_REVERT, "exit_atr": 0.5})
+    series = flat(30) + [bar(30, 100, 101, 79, 80), bar(31, 80, 96, 80, 95), bar(32, 95, 102, 94, 101),
+                         bar(33, 101, 102, 100, 101)]
+    ind = hs.indicators(series, patient)
+    at_mean = hs.signal(series, ind, 31, patient)
+    assert 0 <= (95 - ind["mean"][31]) / ind["atr"][31] < 0.5 and not at_mean["exit_long"]
+    assert hs.signal(series, ind, 32, patient)["exit_long"]
+    cost = hs.costs({"taker_bps": 0, "slippage_bps": 0, "funding": "none"})
+    limits = {"exposure_pct": 100, "max_leverage": 10}
+    run = hs.simulate(series, patient, "4h", cost, limits)
+    assert [(t["entry"], t["exit"], t["reason"]) for t in run["trades"]] == [("80", "101", "signal")]
+    # a close that stays far under the mean after a stop-out is bought again on the next bar
+    knife = flat(30) + [bar(30, 100, 101, 79, 80), bar(31, 80, 81, 59, 60), bar(32, 60, 61, 59, 60),
+                        bar(33, 60, 61, 59, 60)]
+    run = hs.simulate(knife, hs.rules(MEAN_REVERT), "4h", cost, limits)
+    reasons = [(t["side"], t["reason"]) for t in run["trades"]]
+    assert reasons[0] == ("long", "stop") and len(reasons) >= 2 and reasons[1][0] == "long"
+
+
+def test_a_walk_forward_grid_may_choose_mean_revert_numbers():
+    series = walk(1200)
+    cost = hs.costs({"funding": "none"})
+    rates = hs.funding_by_bar(series, "4h", None, 0.0, "none")
+    out = hs.walk_forward(series, hs.rules(MEAN_REVERT), "4h", cost, {"exposure_pct": 70, "max_leverage": 2},
+                          {"grid": {"mean": [5, 20], "entry_atr": [2, 3], "exit_atr": [0, 0.5]}, "folds": 2,
+                           "min_trades": 0}, rates=rates, stance=[], direction="both")
+    assert out["candidates"] == 8 and len(out["folds"]) == 2
+    for f in out["folds"]:
+        assert f["chosen"]["mean"] in (5, 20) and f["chosen"]["entry_atr"] in (2, 3) and f["chosen"]["exit_atr"] in (0, 0.5)
+        assert f["chosen_fingerprint"] == hs.fingerprint(hs.rules({"kind": "mean_revert", **f["chosen"]}), "4h")
+
+
 def test_an_entry_order_is_part_of_the_rules_and_market_keeps_the_fingerprint():
     plain = hs.rules(BREAKOUT)
     assert hs.rules({**BREAKOUT, "entry_order": "market"}) == plain == hs.rules({**BREAKOUT, "entry_order": None})
