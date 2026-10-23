@@ -22,6 +22,7 @@ import stat
 import sys
 import tempfile
 import time
+import urllib.parse
 from pathlib import Path
 
 
@@ -442,7 +443,8 @@ def _pr_merge_plan(step, planned):
         raise AccessError(f"pr_merge: {_ref(step)} is a draft; mark it ready first")
     if pr["merge_state"] == "dirty" or pr["mergeable"] == "conflicting":
         raise AccessError(f"pr_merge: {_ref(step)} conflicts with {pr['base']}; it needs a rebase or a merge of its base")
-    merge = repo_reads.settings(repo["repo"])["merge"]
+    settings = repo_reads.settings(repo["repo"])
+    merge = settings["merge"]
     allowed = [m for m in METHODS if merge[METHOD_SETTING[m]]]
     method = c.get("method")
     if method is None:
@@ -454,9 +456,6 @@ def _pr_merge_plan(step, planned):
     step["method"] = method
     below = _below(pr)
     if pr["stack"]:
-        if c.get("delete_branch"):
-            raise AccessError(f"pr_merge: {_ref(step)} is in a stack, whose merge deletes no branch itself; the "
-                              "repository's setting for deleting a branch on merge decides")
         if len(pr["stack"]["layers"]) < pr["stack"]["size"]:
             raise AccessError(f"pr_merge: stack {pr['stack']['number']} has {pr['stack']['size']} layers and only "
                               f"{len(pr['stack']['layers'])} could be read; it is not merged unseen")
@@ -481,6 +480,31 @@ def _pr_merge_plan(step, planned):
                      {"kind": "layer", "name": f"#{layer['number']} at {(layer['head_sha'] or '')[:7]} "
                                                f"{layer['title']}", "tier": repo["tier"],
                       "id": f"{layer['number']}@{layer['head_sha']}"})
+    step["delete"] = _branches_to_delete(step, pr, below, settings) if pr["stack"] and c.get("delete_branch") else []
+    # The asynchronous merge deletes no branch: the run deletes each landed layer's head itself, so each
+    # one is a target too, bound at the head the card shows.
+    for branch in step["delete"]:
+        planned.note(f"branch:{repo['repo'].lower()}:{branch['name']}",
+                     {"kind": "branch", "name": f"{branch['name']} at {branch['sha'][:7]} (#{branch['number']})",
+                      "tier": repo["tier"], "id": f"{branch['name']}@{branch['sha']}"})
+
+
+def _branches_to_delete(step, pr, below, settings) -> list[dict]:
+    """The head branches a stack merge with delete_branch removes: the named pull request's and each
+    open layer's below it. Only this repository's own branches, never its default branch."""
+    repo = step["repo"]["repo"]
+    heads = [{"name": pr["head"], "sha": pr["head_sha"], "number": step["pr_number"], "repo": pr["head_repo"]},
+             *({"name": x["head"], "sha": x["head_sha"], "number": x["number"], "repo": x["head_repo"]} for x in below)]
+    for head in heads:
+        if not head["name"] or not head["sha"]:
+            raise AccessError(f"pr_merge: the branch of #{head['number']} could not be read; it is not deleted unseen")
+        if head["repo"] and not access.same(head["repo"], repo):
+            raise AccessError(f"pr_merge: #{head['number']}'s branch is in {head['repo']}; delete_branch removes only "
+                              f"branches of {repo}")
+        if head["name"] == settings.get("default_branch"):
+            raise AccessError(f"pr_merge: #{head['number']}'s branch is {head['name']}, the default branch; it is "
+                              "never deleted")
+    return [{k: h[k] for k in ("name", "sha", "number")} for h in heads]
 
 
 def _below(pr: dict) -> list[dict]:
@@ -514,8 +538,10 @@ def _pr_merge_describe(step):
     below = step.get("below") or []
     # The layers that merge with it come first: a long line is cut at its end.
     with_ = f" and the {len(below)} open layer{'s' if len(below) > 1 else ''} below it" if below else ""
+    deletes = step.get("delete") or []
     extra = [f"closes {', '.join(i['issue'] for i in pr['closes'])}" if pr["closes"] else "",
-             "deletes its branch" if c.get("delete_branch") else ""]
+             (f"then deletes {len(deletes)} branch{'es' if len(deletes) > 1 else ''} that landed" if deletes
+              else "deletes its branch") if c.get("delete_branch") else ""]
     warn = _merge_warnings(pr)
     return (f"Merge {_ref(step)}{with_} into {pr['base']} by {step['method']} (head {pr['head_sha'][:7]})"
             + "".join(f"; {e}" for e in extra if e) + (f"; ⚠️ {', '.join(warn)}" if warn else ""))
@@ -634,7 +660,63 @@ def _merge_stack(step, out):
                        "pending": "GitHub is still merging; read it again before reporting it merged"}.get(
             status, "GitHub accepted the merge but the pull request is not merged yet; read it again before "
                     "reporting it merged")
+    if step.get("delete"):
+        out["branches"] = {b["name"]: _delete_landed(repo, b, states.get(b["number"])) for b in step["delete"]}
     return out
+
+
+BASED_ON = ("query($owner:String!,$name:String!,$base:String!){repository(owner:$owner,name:$name){"
+            "pullRequests(baseRefName:$base,states:OPEN,first:5){totalCount nodes{number}}}}")
+
+
+def _ref_route(repo: str, branch: str, single: bool) -> str:
+    return f"repos/{repo}/git/{'ref' if single else 'refs'}/heads/{urllib.parse.quote(branch, safe='/')}"
+
+
+def _delete_landed(repo: str, branch: dict, state: str | None) -> str:
+    """Delete one landed layer's head branch, or say why it stays. A merge stays done whatever
+    happens here: a branch that cannot be deleted is reported, never an error."""
+    if state != "merged":
+        return f"kept: #{branch['number']} is not merged"
+    owner, name = repo.split("/", 1)
+    try:
+        # Deleting a branch an open pull request is based on can close that pull request instead of
+        # retargeting it (GitHub retargets the layers above a stack merge, but not always at once).
+        based = ((access.lookup(BASED_ON, {"owner": owner, "name": name, "base": branch["name"]})
+                  .get("repository") or {}).get("pullRequests") or {})
+    except AccessError as exc:
+        return f"kept: could not check what is based on it ({exc})"[:300]
+    if based.get("totalCount"):
+        total = based["totalCount"]
+        numbers = ", ".join(f"#{n['number']}" for n in based.get("nodes") or [])
+        more = f" and {total - len(based.get('nodes') or [])} more" if total > len(based.get("nodes") or []) else ""
+        return f"kept: {total} open pull request{'s are' if total > 1 else ' is'} based on it ({numbers}{more})"
+    try:
+        done = access.run_gh(["api", _ref_route(repo, branch["name"], single=True)])
+    except AccessError as exc:  # a timeout: nothing was sent that changes anything
+        return f"kept: could not read it ({exc})"[:300]
+    if done.returncode != 0:
+        if "404" in (done.stderr or "") or "Not Found" in (done.stderr or ""):
+            return "already gone"
+        return f"kept: could not read it ({(done.stderr or '').strip().splitlines()[-1:] or ['?']})"[:300]
+    try:
+        sha = (json.loads(done.stdout or "{}").get("object") or {}).get("sha")
+    except json.JSONDecodeError:
+        sha = None
+    if sha != branch["sha"]:
+        return f"kept: it moved to {(sha or '?')[:7]} after the card"
+    # Nothing pins the delete to that head: a push between the read above and this request is the
+    # moment that remains (REST has no conditional delete).
+    try:
+        done = access.run_gh(["api", "--method", "DELETE", _ref_route(repo, branch["name"], single=False)])
+    except AccessError:  # sent, answer lost: it may be gone or not; never sent again
+        return "uncertain: the delete got no answer; read the branch before saying it is gone"
+    if done.returncode == 0:
+        return "deleted"
+    detail = (done.stderr or done.stdout or "").strip().splitlines()
+    if any("Reference does not exist" in line for line in [*detail, done.stdout or ""]):
+        return "already gone"
+    return f"not deleted: {detail[-1] if detail else f'exit {done.returncode}'}"[:300]
 
 
 def _pr_merge_check(change):
@@ -668,7 +750,8 @@ for _op in (
         Op("pr_reopen", "create", "pr", _pr_reopen_plan, lambda s: f"Reopen {_ref(s)}", _pr_state_run,
            required=("pr",), optional=("repo",)),
         Op("pr_merge", "admin",
-           "pr, method merge|squash|rebase (required when the repository allows more than one), delete_branch, "
+           "pr, method merge|squash|rebase (required when the repository allows more than one), delete_branch "
+           "(in a stack: each landed layer's branch, kept when an open pull request is based on it), "
            "subject and body of the merge commit: pinned to the head commit the card shows",
            _pr_merge_plan, _pr_merge_describe, _pr_merge_run, required=("pr",),
            optional=("repo", "method", "delete_branch", "subject", "body"), check=_pr_merge_check)):

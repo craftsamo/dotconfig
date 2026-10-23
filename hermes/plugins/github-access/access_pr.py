@@ -40,7 +40,8 @@ PR_QUERY = (
     "closingIssuesReferences(first:20){nodes{number title url state repository{nameWithOwner}}} "
     "autoMergeRequest{mergeMethod} "
     "stack{number size baseRefName entries(first:100){nodes{position pullRequest{number title state isDraft "
-    "headRefOid mergeable repository{nameWithOwner}}}}} stackEntry{position} "
+    "headRefOid headRefName headRepository{nameWithOwner} mergeable repository{nameWithOwner}}}}} "
+    "stackEntry{position} "
     "lastCommit:commits(last:1){nodes{commit{oid statusCheckRollup{state contexts(first:100){nodes{__typename "
     "... on CheckRun{name status conclusion detailsUrl isRequired(pullRequestNumber:$n)} "
     "... on StatusContext{context state targetUrl isRequired(pullRequestNumber:$n)}}}}}}} "
@@ -85,7 +86,9 @@ def stack(pr: dict) -> dict | None:
                       "title": e["pullRequest"].get("title") or "", "state": e["pullRequest"]["state"].lower(),
                       "draft": bool(e["pullRequest"].get("isDraft")), "head_sha": e["pullRequest"].get("headRefOid"),
                       "mergeable": (e["pullRequest"].get("mergeable") or "").lower(),
-                      "repo": (e["pullRequest"].get("repository") or {}).get("nameWithOwner")}
+                      "repo": (e["pullRequest"].get("repository") or {}).get("nameWithOwner"),
+                      "head": e["pullRequest"].get("headRefName"),
+                      "head_repo": (e["pullRequest"].get("headRepository") or {}).get("nameWithOwner")}
                      for e in (found.get("entries") or {}).get("nodes") or [] if e and e.get("pullRequest")),
                     key=lambda layer: layer["position"])
     return {"number": found["number"], "size": found["size"], "base": found["baseRefName"],
