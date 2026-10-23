@@ -19,8 +19,8 @@ apply to you.
 ## Contract
 
 - **Only the tool.** Read Stripe with `stripe`. Never the Stripe CLI, the API
-  with curl, an SDK in a script, the keys (`STRIPE_KEY_*`) or
-  `~/.stripe-access`; the terminal path is blocked. A tool limit is a reason
+  with curl, an SDK in a script, the keys (the Keychain scope
+  `stripe-access`) or `~/.stripe-access`; the terminal path is blocked. A tool limit is a reason
   to tell the user, not to switch routes.
 - **Which mode.** `mode` is required: `live` is real money and real
   customers, `test` is a test or sandbox key. Use `live` for questions about
@@ -76,9 +76,10 @@ Fetch what the question needs. A report over a month is a bounded `since` /
 
 ## When something fails
 
-`status` first. A missing key, a refused key or a key in the wrong mode is
-the user's to fix in a terminal (`secret set STRIPE_KEY_<LABEL> -p hermes
---scope stripe-access --stage <prod|test> -D TOKEN --no-env`, `prod` for
-live): relay the tool's message, do not retry or work around it. "refused this key access" means a restricted
+`status` first. A missing key, a refused key, a key in the wrong mode, a
+label two items carry, or an item listed under `unused` (no `label=` field,
+no stage, a malformed label) is the user's to fix in a terminal with the
+`secret set` / `secret update` command the message gives: relay it, do not
+retry or work around it. "refused this key access" means a restricted
 key lacks a permission; the message names it and the user adds it in the
 Stripe Dashboard. "paused" means Stripe is rate-limiting: wait, never loop.

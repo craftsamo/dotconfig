@@ -226,19 +226,29 @@ def test_account_is_remembered_for_status(fake):
     result = run(action="account", mode="live")
     assert result["stripe_account"]["name"] == "Shop" and result["key"] == "restricted"
     fake.keys = {"ok": True, "requests": 0, "data": [
-        {"account": "work", "mode": "live", "kind": "restricted", "fingerprint": "f" * 12}]}
+        {"account": "work", "mode": "live", "item": "STRIPE_WORK", "kind": "restricted", "fingerprint": "f" * 12}]}
     status = run(action="status")
-    assert status["keys"] == [{"account": "work", "mode": "live", "kind": "restricted",
+    assert status["keys"] == [{"account": "work", "mode": "live", "item": "STRIPE_WORK", "kind": "restricted",
                                "stripe_account": {"id": "acct_1", "name": "Shop"}}]
-    assert fake.requests[-1] == {"op": "keys"}
+    assert "unused" not in status and fake.requests[-1] == {"op": "keys"}
 
 
 def test_status_without_keys_says_how_to_store_one(fake):
     status = run(action="status")
     assert status["keys"] == []
-    assert "secret set STRIPE_KEY_<LABEL> -p hermes --scope stripe-access --stage <prod|test>" in status["problem"]
+    assert ("secret set STRIPE_<LABEL> -p hermes --scope stripe-access --stage <prod|test> -D TOKEN "
+            "--meta label=<label> --no-env" in status["problem"])
     fake.keys = {"ok": False, "kind": "setup", "error": "the secret CLI is missing", "requests": 0}
     assert "not set up" in run(action="status")["problem"]
+
+
+def test_status_shows_items_of_the_scope_that_are_no_key(fake):
+    fake.keys = {"ok": True, "requests": 0, "data": [], "unused": [
+        {"item": "STRIPE_SHOP", "stage": "test", "problem": "it has no label= field naming its account"},
+        "not an entry"]}
+    status = run(action="status")
+    assert status["unused"] == [{"item": "STRIPE_SHOP", "stage": "test",
+                                 "problem": "it has no label= field naming its account"}]
 
 
 def test_a_refused_key_is_remembered_until_it_works_again(fake):
@@ -249,8 +259,9 @@ def test_a_refused_key_is_remembered_until_it_works_again(fake):
     with pytest.raises(sta.StripeError):
         run(action="balance", mode="live")
     assert fake.requests[-1]["refused"] == {"work/live": "f" * 12}
-    fake.keys = {"ok": True, "requests": 0, "data": [{"account": "work", "mode": "live", "fingerprint": "f" * 12}]}
-    assert ("secret set STRIPE_KEY_WORK -p hermes --scope stripe-access --stage prod"
+    fake.keys = {"ok": True, "requests": 0, "data": [{"account": "work", "mode": "live", "item": "shop_key",
+                                                      "fingerprint": "f" * 12}]}
+    assert ("secret update shop_key -p hermes --scope stripe-access --stage prod --value"
             in run(action="status")["keys"][0]["problem"])
     fake.answers["/v1/balance"] = {"available": [], "pending": []}
     run(action="balance", mode="live")
@@ -286,7 +297,13 @@ def test_the_state_directory_is_private(fake):
 
 @pytest.mark.parametrize("command", [
     "stripe customers list --limit 3", "stripe login", "stripe config --list", "stripe get /v1/balance",
-    "curl https://api.stripe.com/v1/charges -u x:", "secret get STRIPE_KEY_WORK -p hermes --scope stripe-access --stage prod",
+    "curl https://api.stripe.com/v1/charges -u x:", "secret get STRIPE_WORK -p hermes --scope stripe-access --stage prod",
+    "secret get stripe-access/STRIPE_WORK@prod -p hermes", "secret update STRIPE_WORK --scope stripe-access --value",
+    "security find-generic-password -s 'secret.hermes/stripe-access@prod' -a STRIPE_WORK -w",
+    # the keys' names are free: a read that leaves the scope out, or the Keychain read directly
+    "secret get STRIPE_WORK -p hermes --stage prod", "secret -k login get STRIPE_WORK -p hermes",
+    "secret update STRIPE_WORK --project=hermes --value", "secret env -p hermes --stage prod",
+    "cd ~/x && secret rm STRIPE_WORK -p 'hermes' -f", "security find-generic-password -a STRIPE_WORK -w",
     "cat ~/.stripe-access/state.json", "python3 -c 'import stripe; print(stripe.api_key)'",
     "node -e \"require('stripe')\"", "cat ~/.config/stripe/config.toml", "echo sk_live_123 | pbcopy",
     "ls ~/.hermes/plugins/stripe-access", "security dump-keychain", "secret export -p hermes",
@@ -309,6 +326,9 @@ def test_the_terminal_cannot_go_around_the_tool(command):
     "git commit -m 'note the stripe fee was high'", "open https://dashboard.stripe.com/test/payments",
     "ls ./stripe-cli", "cat notes/stripe.md", "echo 'stripes and dots' | wc -w",
     "npm view stripe version", "grep -En '(stripe |solid )' patterns.txt",
+    # metadata only, or another project's item
+    "secret ls -p hermes --json", "secret show STRIPE_WORK -p hermes", "secret get API_TOKEN -p shop",
+    "secret get HERMES_TOKEN -p hermes-tools",
 ])
 def test_ordinary_mentions_of_stripe_are_not_blocked(command):
     assert sta.bypass("terminal", {"command": command}) is None
@@ -316,7 +336,7 @@ def test_ordinary_mentions_of_stripe_are_not_blocked(command):
 
 def test_file_tools_cannot_read_the_state_or_name_a_key():
     assert sta.bypass("read_file", {"path": "~/.stripe-access/state.json"}) == sta.BYPASS_MESSAGE
-    assert sta.bypass("search_files", {"pattern": "STRIPE_KEY_", "path": "~"}) == sta.BYPASS_MESSAGE
+    assert sta.bypass("search_files", {"pattern": "state", "path": "~/.stripe-access"}) == sta.BYPASS_MESSAGE
     assert sta.bypass("read_file", {"path": "~/.config/stripe/config.toml"}) == sta.BYPASS_MESSAGE
     assert sta.bypass("read_file", {"path": "hermes/plugins/stripe-access/sta.py"}) is None
     assert sta.bypass("web_search", {"query": "stripe customers list"}) is None

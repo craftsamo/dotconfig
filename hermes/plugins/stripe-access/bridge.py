@@ -5,17 +5,20 @@ environment and the state directory as working directory, writes one JSON reques
 reads one JSON reply from stdout.
 
 Keys live in the Keychain (project ``hermes``, scope ``stripe-access``, a scope no Hermes profile
-receives), one item per account label with a stage per mode: ``STRIPE_KEY_<LABEL>@prod`` for live and
-``STRIPE_KEY_<LABEL>@test``. Each is read by its exact layer, never a stage-less one or another stage.
-A key is read when a call needs it and lives only in this short-lived process; it is masked in every
-string that leaves. The key's own prefix must agree with the mode asked for, so a test call never
-runs on a live key and the other way round. Only the endpoints in ``ROUTES`` exist here, only
-api.stripe.com is contacted, never through a redirect, and the API version is pinned.
+receives). An item there is a key when it sits in the ``prod`` stage (live) or the ``test`` stage and
+carries a ``label=<label>`` field naming its account; its name is the user's to choose. Each is read by
+its exact layer, never a stage-less one or another stage, and a label held by two items in one stage is
+refused rather than guessed. A key is read when a call needs it and lives only in this short-lived
+process; it is masked in every string that leaves. The key's own prefix must agree with the mode asked
+for, so a test call never runs on a live key and the other way round. Only the endpoints in ``ROUTES``
+exist here, only api.stripe.com is contacted, never through a redirect, and the API version is pinned.
 Contract: docs/stripe-access.md.
 
-    {"op": "keys"}   the stored labels, modes and key kinds; never a value, never a request to Stripe
+    {"op": "keys"}   the stored labels, modes, items and key kinds, and the scope's items that are no
+                     key with why; never a value, never a request to Stripe
     {"op": "key", "account": label | null, "mode": "live" | "test"}
-                     the label a call would run on and its key's kind and fingerprint; no request to Stripe
+                     the label a call would run on, its item, and its key's kind and fingerprint; no
+                     request to Stripe
     {"op": "call", "account": label | null, "mode": "live" | "test", "method": "GET" | "POST" | "DELETE",
      "path": "/v1/...", "params": [[key, value], ...], "idempotency_key": str | null,
      "refused": {"<label>/<mode>": fingerprint}, "paused": {"<label>/<mode>": epoch seconds},
@@ -38,7 +41,6 @@ import urllib.request
 
 SECRET = Path.home() / ".config" / "bin" / "secret"
 PROJECT, SCOPE = "hermes", "stripe-access"
-PREFIX = "STRIPE_KEY_"
 MODES = ("live", "test")
 STAGES = {"live": "prod", "test": "test"}   # the secret CLI's stage for each Stripe mode
 SECRET_TIMEOUT = 20
@@ -47,7 +49,8 @@ VERSION = "2026-09-30.endive"
 UA = "hermes-stripe-access/1.0"
 
 LABEL = re.compile(r"^[a-z0-9](?:[a-z0-9_]{0,22}[a-z0-9])?$")
-ITEM = re.compile(r"^STRIPE_KEY_([A-Z0-9](?:[A-Z0-9_]{0,22}[A-Z0-9])?)$")
+# An item name as the secret CLI stores one, so it is never read as a flag or a "scope/NAME@stage" token.
+NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 KEY = re.compile(r"^(sk|rk)_(live|test)_[A-Za-z0-9]{10,247}$")
 KEY_SHAPE = re.compile(r"\b(?:sk|rk|pk)_(?:live|test)_[A-Za-z0-9*]+")
 PARAM = re.compile(r"^[a-z_]+(?:\[[^\[\]\x00-\x1f]{0,64}\])*$")
@@ -140,18 +143,15 @@ def fingerprint(value: str) -> str:
     return hashlib.sha256(value.encode()).hexdigest()[:12]
 
 
-def item_name(label: str) -> str:
-    return f"{PREFIX}{label.upper()}"
-
-
-def layer(label: str, mode: str) -> str:
-    """The item as the secret CLI names one layer: STRIPE_KEY_WORK@prod."""
-    return f"{item_name(label)}@{STAGES[mode]}"
-
-
 def set_command(label: str, mode: str) -> str:
-    return (f"secret set {item_name(label)} -p {PROJECT} --scope {SCOPE} --stage {STAGES[mode]} -D TOKEN "
-            "--no-env")
+    """How the user stores a key for a label; the name is only a suggestion, the label= field is what counts."""
+    return (f"secret set STRIPE_{label.upper()} -p {PROJECT} --scope {SCOPE} --stage {STAGES[mode]} -D TOKEN "
+            f"--meta label={label} --no-env")
+
+
+def update_command(item: str, mode: str, change: str = "--value") -> str:
+    """How the user changes one stored item in place (a fresh value by default, its fields kept)."""
+    return f"secret update {item} -p {PROJECT} --scope {SCOPE} --stage {STAGES[mode]} {change}"
 
 
 def _secret(*argv: str) -> subprocess.CompletedProcess:
@@ -164,9 +164,33 @@ def _secret(*argv: str) -> subprocess.CompletedProcess:
         raise Setup("reading the Keychain timed out") from exc
 
 
-def stored() -> list[tuple[str, str]]:
-    """(label, mode) of every key layer in the scope, from the Keychain's metadata (no value is read).
-    Only the prod and test stages count: a stage-less item or another stage is never a key."""
+def _unusable(name: str, stage: str, meta: dict) -> str | None:
+    """Why an item of the scope is no key, or None when it is one."""
+    if not NAME.fullmatch(name):
+        return ("its name is not one the secret CLI takes (letters, digits and _, not starting with a digit); "
+                "store it again under such a name")
+    modes = {s: m for m, s in STAGES.items()}
+    if stage not in modes:
+        where = f"stage {stage}" if stage else "no stage"
+        return f"it is in {where}; only the prod (live) and test stages hold keys"
+    fix = f"`{update_command(name, modes[stage], '--meta label=<label>')}`"
+    label = meta.get("label", "")
+    if not label:
+        other = next((k for k in meta if k.lower() == "label"), None)
+        if other:   # the field is matched by its exact spelling, so removing it is one exact command
+            return (f"its field {other}= is not read: the field is label=, in lowercase; rename it with "
+                    f"`{update_command(name, modes[stage], f'--meta {other}= --meta label=<label>')}`")
+        return f"it has no label= field naming its account; give it one with {fix}"
+    if not LABEL.fullmatch(label.lower()):
+        return (f"label={label[:40]} is not a label (lowercase letters, digits and _, at most 24); fix it with "
+                f"{fix}")
+    return None
+
+
+def inventory() -> tuple[dict, list]:
+    """The scope's items, from the Keychain's metadata (no value is read): {(label, mode): [item names]} for
+    the keys, and the items that are no key with what is wrong with each. The field is label= exactly; its
+    value matches without regard to case."""
     proc = _secret("ls", "-p", PROJECT, "--json")
     if proc.returncode != 0:
         raise Setup(f"could not list the Keychain items of project {PROJECT}")
@@ -175,61 +199,86 @@ def stored() -> list[tuple[str, str]]:
     except ValueError as exc:
         raise Setup("the Keychain listing was not readable") from exc
     modes = {stage: mode for mode, stage in STAGES.items()}
-    found = set()
+    found, unused = {}, []
     for item in items if isinstance(items, list) else []:
-        if not isinstance(item, dict) or item.get("scope") != SCOPE or item.get("stage") not in modes:
+        if not isinstance(item, dict) or item.get("scope") != SCOPE:
             continue
-        match = ITEM.fullmatch(str(item.get("name") or ""))
-        if match:
-            found.add((match.group(1).lower(), modes[item["stage"]]))
-    return sorted(found)
+        name, stage = str(item.get("name") or ""), str(item.get("stage") or "")
+        raw = item.get("meta") if isinstance(item.get("meta"), dict) else {}
+        meta = {str(k): str(v).strip() for k, v in raw.items()}
+        problem = _unusable(name, stage, meta)
+        if problem:
+            unused.append({"item": name[:80], "stage": stage, "problem": mask(problem)[:300]})
+            continue
+        found.setdefault((meta["label"].lower(), modes[stage]), []).append(name)
+    return {slot: sorted(names) for slot, names in found.items()}, unused
 
 
-def read_key(label: str, mode: str) -> tuple[str, str]:
-    """(key, kind) for one label and mode, read from that stage's exact layer; raises Setup with the fix."""
-    name = layer(label, mode)
-    proc = _secret("get", item_name(label), "-p", PROJECT, "--scope", SCOPE, "--stage", STAGES[mode])
+def _twice(label: str, mode: str, names: list) -> str:
+    listed = ", ".join(names[:4]) + (" …" if len(names) > 4 else "")
+    return (f"{len(names)} items in stage {STAGES[mode]} carry label={label} ({listed}); nothing was sent. Keep "
+            f"one: take the field off the others (`{update_command(names[-1], mode, '--meta label=')}`)")
+
+
+def read_key(label: str, mode: str, item: str) -> tuple[str, str]:
+    """(key, kind) of one item, read from that stage's exact layer; raises Setup with the fix."""
+    where = f"{item}@{STAGES[mode]} (label={label})"
+    proc = _secret("get", item, "-p", PROJECT, "--scope", SCOPE, "--stage", STAGES[mode])
     value = proc.stdout.strip()
     if proc.returncode != 0 or not value:
-        raise Setup(f"no {mode} key for account {label} in the Keychain ({name}, project {PROJECT}, scope "
-                    f"{SCOPE}); the user stores it with `{set_command(label, mode)}`")
+        raise Setup(f"{where} could not be read from the Keychain (locked, or removed since it was listed); "
+                    "nothing was sent")
     SECRETS.append(value)
     match = KEY.fullmatch(value)
     if not match:
-        raise Setup(f"{name} is not a Stripe secret or restricted key (sk_… / rk_…); a publishable key (pk_…) "
-                    "cannot read or change anything")
+        raise Setup(f"{where} is not a Stripe secret or restricted key (sk_… / rk_…); a publishable key (pk_…) "
+                    f"cannot read or change anything. Store the key there (`{update_command(item, mode)}`)")
     if match.group(2) != mode:
-        raise Setup(f"{name} holds a {match.group(2)} key, not a {mode} one; nothing was sent. Store the "
-                    f"{mode} key there (`{set_command(label, mode)}`)")
+        raise Setup(f"{where} holds a {match.group(2)} key, not a {mode} one; nothing was sent. Store the "
+                    f"{mode} key there (`{update_command(item, mode)}`)")
     return value, "restricted" if match.group(1) == "rk" else "secret"
 
 
-def resolve(account, mode: str) -> str:
-    """The account label a call runs on: the one named, or the only one stored for the mode."""
-    if account is not None:
-        if not isinstance(account, str) or not LABEL.fullmatch(account):
-            raise Setup("account must be a label like work (lowercase letters, digits and _)")
-        return account
-    labels = [label for label, m in stored() if m == mode]
-    if len(labels) == 1:
-        return labels[0]
-    if not labels:
-        raise Setup(f"no {mode} key is stored; the user stores one with `{set_command('<label>', mode)}`")
-    raise Setup(f"account is required: {mode} keys are stored for " + ", ".join(labels))
+def resolve(account, mode: str) -> tuple[str, str]:
+    """(label, item) a call runs on: the label named, or the only one stored for the mode, and its one item."""
+    if account is not None and (not isinstance(account, str) or not LABEL.fullmatch(account)):
+        raise Setup("account must be a label like work (lowercase letters, digits and _)")
+    found, _ = inventory()
+    if account is None:
+        labels = sorted(label for label, m in found if m == mode)
+        if not labels:
+            raise Setup(f"no {mode} key is stored; the user stores one with `{set_command('<label>', mode)}`")
+        if len(labels) > 1:
+            raise Setup(f"account is required: {mode} keys are stored for " + ", ".join(labels))
+        account = labels[0]
+    names = found.get((account, mode))
+    if not names:
+        raise Setup(f"no {mode} key for account {account} in the Keychain (project {PROJECT}, scope {SCOPE}, "
+                    f"stage {STAGES[mode]}, field label={account}); the user stores it with "
+                    f"`{set_command(account, mode)}`")
+    if len(names) > 1:
+        raise Setup(_twice(account, mode, names))
+    return account, names[0]
 
 
-def keys() -> list[dict]:
-    """Each stored key's label, mode, kind and fingerprint, read from the Keychain."""
+def keys() -> tuple[list, list]:
+    """Each stored key's label, mode, item, kind and fingerprint, read from the Keychain, and the scope's
+    items that are no key."""
+    found, unused = inventory()
     result = []
-    for label, mode in stored():
+    for (label, mode), names in sorted(found.items()):
         entry = {"account": label, "mode": mode}
-        try:
-            value, kind = read_key(label, mode)
-            entry.update(kind=kind, fingerprint=fingerprint(value))
-        except Setup as exc:
-            entry["problem"] = mask(exc)[:300]
+        if len(names) > 1:
+            entry["problem"] = mask(_twice(label, mode, names))[:300]
+        else:
+            entry["item"] = names[0]
+            try:
+                value, kind = read_key(label, mode, names[0])
+                entry.update(kind=kind, fingerprint=fingerprint(value))
+            except Setup as exc:
+                entry["problem"] = mask(exc)[:300]
         result.append(entry)
-    return result
+    return result, unused
 
 
 def route(method: str, path: str) -> None:
@@ -337,9 +386,9 @@ def call(req: dict) -> dict:
     mode = req.get("mode")
     if mode not in MODES:
         raise Setup("mode must be live or test")
-    label = resolve(req.get("account"), mode)
-    reply = {"account": label, "mode": mode, "requests": 0}
-    key, kind = read_key(label, mode)
+    label, item = resolve(req.get("account"), mode)
+    reply = {"account": label, "mode": mode, "item": item, "requests": 0}
+    key, kind = read_key(label, mode, item)
     reply.update(fingerprint=fingerprint(key), key_kind=kind)
     slot = f"{label}/{mode}"
     if (req.get("refused") or {}).get(slot) == reply["fingerprint"]:
@@ -371,17 +420,18 @@ def key(req: dict) -> dict:
     mode = req.get("mode")
     if mode not in MODES:
         raise Setup("mode must be live or test")
-    label = resolve(req.get("account"), mode)
-    value, kind = read_key(label, mode)
-    return {"ok": True, "account": label, "mode": mode, "fingerprint": fingerprint(value), "key_kind": kind,
-            "requests": 0}
+    label, item = resolve(req.get("account"), mode)
+    value, kind = read_key(label, mode, item)
+    return {"ok": True, "account": label, "mode": mode, "item": item, "fingerprint": fingerprint(value),
+            "key_kind": kind, "requests": 0}
 
 
 def main(req: dict) -> dict:
     op = req.get("op")
     try:
         if op == "keys":
-            return {"ok": True, "data": keys(), "requests": 0}
+            data, unused = keys()
+            return {"ok": True, "data": data, "unused": unused, "requests": 0}
         if op == "key":
             return key(req)
         if op == "call":

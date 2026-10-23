@@ -49,26 +49,36 @@ Marketer to reads.
 
 ## Keys, modes and state
 
-One Keychain item per account label, `STRIPE_KEY_<LABEL>`, in the `hermes`
-project under the scope `stripe-access`
-([secret scoping](access-common.md#secret-scoping)), with one stage per mode:
-`@prod` holds the live key and `@test` the test key. A label (`work`,
-`personal`) names one Stripe account; each business on its own Stripe account
-gets its own label. The labels and the accounts behind them are private: they
+Keys are Keychain items in the `hermes` project under the scope
+`stripe-access` ([secret scoping](access-common.md#secret-scoping)). An item
+there is a key when it sits in a mode's stage (`@prod` holds a live key,
+`@test` a test key) and carries a `label=<label>` field
+(`secret … --meta label=work`); its name is the user's to choose, as long as
+the `secret` CLI takes it. A label (`work`, `personal`) names one Stripe
+account; each business on its own Stripe account gets its own label. The
+field is read by its exact spelling, `label=` in lowercase, and its value
+without regard to case. Other fields (`url=`, `account=`) stay free for the
+user's notes. The labels and the accounts behind them are private: they
 stay in the Keychain and the state directory, never in tracked files.
 
-The bridge reads a key by its exact layer (`--scope stripe-access --stage
-prod|test`), so a stage-less `STRIPE_KEY_<LABEL>` or another stage is never
-taken for a key, and it never sets `SECRET_STAGE`. Stored `--no-env`, the keys
-reach no environment through `secret env` or a shim in any stage.
+The bridge lists the scope's metadata, then reads a key by its exact layer
+(`--scope stripe-access --stage prod|test`), so a stage-less item or another
+stage is never taken for a key, and it never sets `SECRET_STAGE`. A label two
+items carry in one stage is refused with both names rather than guessed. An
+item of the scope that is no key (no stage, no `label=` field or one spelled
+`LABEL=`, a malformed label, a name the CLI does not take) is listed by
+`status` with what is wrong and the command that fixes it,
+so a typo in a field shows up instead of being skipped silently. Stored
+`--no-env`, the keys reach no environment through `secret env` or a shim in
+any stage.
 
 Every action but `status` names its `mode`: `live` (real money) or `test` (a
 test-mode or sandbox key; both use `_test_` keys). `account` picks the label;
 it may be left out when one label holds a key for that mode. The bridge refuses
 a key whose prefix disagrees with the mode (`sk_live_…` stored in `@test`),
-and a publishable key, before anything is sent. It lists labels
-from the Keychain's metadata, reads only the item a call needs, and masks the
-value (and anything shaped like a Stripe key) in every string it returns.
+and a publishable key, before anything is sent. It reads only the item a call
+needs, and masks the value (and anything shaped like a Stripe key) in every
+string it returns.
 
 A 401 is a refused key, stored as in
 [refusal memory](access-common.md#state-directory-and-bridge-process) per
@@ -84,7 +94,8 @@ and the Stripe account id and display name `account` last read) and a lock.
 ## Reads
 
 `status` never contacts Stripe: it lists the stored labels and modes, each
-key's kind (`secret` or `restricted`) and any problem. `account` reads the
+key's item, its kind (`secret` or `restricted`) and any problem, and under
+`unused` the scope's items that are no key. `account` reads the
 Stripe account behind a key, `balance` its funds. Every other read is a list
 of one object type, or one object in full with `id` (a summary next to
 Stripe's own object). Lists page with Stripe's cursors behind one `cursor`
@@ -183,10 +194,14 @@ Reads and `preview=true` are unaffected.
 ## Ways around the tool
 
 On every profile with the tool the hook blocks terminal calls whose text names
-the plugin, a `STRIPE_KEY_` item, `api.stripe.com`, a Stripe key, the Stripe
-CLI's commands or its config (`~/.config/stripe`) or an inline Stripe SDK
-import, and file-tool calls on the state directory, the key names or the CLI's
-config. File tools may still read the plugin source, and the browser may still
+the plugin or its Keychain scope (`stripe-access`), `api.stripe.com`, a Stripe
+key, the Stripe CLI's commands or its config (`~/.config/stripe`) or an inline
+Stripe SDK import, and file-tool calls on the state directory or the CLI's
+config. Because the keys' names are free, and a `secret` read that leaves the
+scope out searches the scope named after the working directory's repository,
+it also blocks any value read or change of an item in the `hermes` project
+(`secret get|set|update|rm|import|env … -p hermes`) and the Keychain's own
+password reads; `secret ls` and `secret show` (metadata only) stay open. File tools may still read the plugin source, and the browser may still
 open the Stripe Dashboard. Patterns: `_TERMINAL` and `_STORE` in
 `plugins/stripe-access/sta.py`. Shared rules:
 [bypass guard](access-common.md#bypass-guard-ways-around-the-tool). The toolset
@@ -201,11 +216,14 @@ Service-specific steps; the rest is in [shared setup](access-common.md#setup-sha
    with read access to what the profiles should see and write access only to
    what the Assistant should change; a secret key works too but grants
    everything. Store it with
-   `secret set STRIPE_KEY_<LABEL> -p hermes --scope stripe-access --stage <prod|test> -D TOKEN --no-env`
-   (`prod` for a live key, `test` for a test or sandbox key) and paste the key
-   at the hidden prompt. `--no-env` keeps it out of `secret env` as a second
-   guard beside the scope. A live key is shown once in the Dashboard: store it
-   straight away.
+   `secret set STRIPE_<LABEL> -p hermes --scope stripe-access --stage <prod|test> -D TOKEN --meta label=<label> --no-env`
+   (any name the CLI takes; `prod` for a live key, `test` for a test or
+   sandbox key) and paste the key at the hidden prompt. `--no-env` keeps it out
+   of `secret env` as a second guard beside the scope. A live key is shown once
+   in the Dashboard: store it straight away. A fresh key goes into the same item
+   with `secret update <name> -p hermes --scope stripe-access --stage <prod|test> --value`,
+   which keeps its fields; a mistyped field is fixed the same way with
+   `--meta label=<label>`.
 2. Enable the plugin and add `stripe_access` to the profile's `toolsets` and
    `platform_toolsets` (`a2a` only for Researcher and Marketer), then restart
    the gateway. The three example configs in this repo have it; the private
