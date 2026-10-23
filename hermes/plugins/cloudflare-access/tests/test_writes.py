@@ -485,6 +485,68 @@ def test_a_pages_deploy_after_the_card_sends_nothing(fake):
     assert fake.sends() == []
 
 
+SETTING = f"/zones/{ZONE}/settings"
+
+
+def test_the_engine_and_the_bridge_name_the_same_settings():
+    assert tuple(cfa.SETTING_VALUES) == bridge_module.PATCHABLE
+    def ok(path):
+        return any(m == "PATCH" and p.fullmatch(path) for m, p in bridge_module._ROUTES)
+    assert all(ok(f"{SETTING}/{name}") for name in cfa.SETTING_VALUES)
+    assert not ok(f"{SETTING}/waf") and not ok(f"{SETTING}/ssl/../waf")
+
+
+def test_a_setting_moves_from_what_it_is_to_what_it_becomes(fake):
+    fake.answers[f"{SETTING}/ssl"] = envelope({"id": "ssl", "value": "full", "editable": True})
+    card, key, result = approve_and_run({"action": "zone_setting", "zone": "example.com", "setting": "ssl",
+                                         "value": "Strict"})
+    assert "⚠️ How Cloudflare reaches the origin" in card and "ssl: full → strict" in card
+    [sent] = fake.sends()
+    assert sent["method"] == "PATCH" and sent["path"] == f"{SETTING}/ssl" and sent["body"] == {"value": "strict"}
+    assert result["ok"] is True
+
+
+@pytest.mark.parametrize("setting, now, value", [("ssl", "strict", "flexible"), ("min_tls_version", "1.2", "1.0"),
+                                                 ("security_level", "medium", "essentially_off"),
+                                                 ("always_use_https", "on", "off")])
+def test_weakening_what_protects_visitors_is_marked_and_asked_every_time(fake, setting, now, value):
+    fake.answers[f"{SETTING}/{setting}"] = envelope({"id": setting, "value": now, "editable": True})
+    args = {"action": "zone_setting", "zone": "example.com", "setting": setting, "value": value}
+    card, key = cfa.approval_request(args, call_id="a", can_write=True)
+    assert "🚨 Weaker protection for visitors" in card
+    assert key != cfa.approval_request(args, call_id="b", can_write=True)[1]
+
+
+def test_browser_cache_ttl_goes_out_as_a_number(fake):
+    fake.answers[f"{SETTING}/browser_cache_ttl"] = envelope({"id": "browser_cache_ttl", "value": 14400})
+    approve_and_run({"action": "zone_setting", "zone": "example.com", "setting": "browser_cache_ttl", "value": "3600"})
+    assert fake.sends()[0]["body"] == {"value": 3600}
+
+
+@pytest.mark.parametrize("args, message", [
+    ({"setting": "waf", "value": "on"}, "setting must be one of"),
+    ({"setting": "ssl", "value": "full_strict"}, "ssl takes off, flexible, full, strict"),
+    ({"setting": "browser_cache_ttl", "value": "999"}, "browser_cache_ttl takes"),
+    ({"setting": "ssl", "value": "full"}, "already full"),
+    ({"setting": "http3", "value": "on"}, "cannot be changed on this zone's plan"),
+])
+def test_a_setting_change_that_would_fail_is_refused_before_any_card(fake, args, message):
+    fake.answers[f"{SETTING}/ssl"] = envelope({"id": "ssl", "value": "full", "editable": True})
+    fake.answers[f"{SETTING}/http3"] = envelope({"id": "http3", "value": "off", "editable": False})
+    with pytest.raises(cfa.CloudflareError, match=message):
+        cfa.approval_request({"action": "zone_setting", "zone": "example.com", **args}, can_write=True)
+    assert fake.sends() == []
+
+
+def test_a_setting_changed_after_the_card_sends_nothing(fake):
+    fake.answers[f"{SETTING}/ssl"] = envelope({"id": "ssl", "value": "full", "editable": True})
+    args = {"action": "zone_setting", "zone": "example.com", "setting": "ssl", "value": "strict"}
+    cfa.approval_request(args, call_id="s", can_write=True)
+    fake.answers[f"{SETTING}/ssl"] = envelope({"id": "ssl", "value": "flexible", "editable": True})
+    assert "changed before the write ran" in cfa.execute(args, call_id="s", can_write=True)["error"]
+    assert fake.sends() == []
+
+
 def test_the_card_names_the_account_once_it_was_read(fake):
     cfa.remember_account("work", {"id": ACCOUNT, "name": "Work Co"})
     card, _ = cfa.approval_request(change({"op": "delete", "id": WWW}), can_write=True)
