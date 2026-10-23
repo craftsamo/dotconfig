@@ -1,0 +1,4 @@
+name: stripe-access
+version: 1.0.0
+description: Stripe for the Assistant, Researcher and Marketer — balance, payments, customers, subscriptions, invoices, products, prices, payment links, refunds, coupons and promotion codes, live or test, through API keys kept in the Keychain.
+kind: standalone
