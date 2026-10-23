@@ -18,7 +18,6 @@ from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 import fcntl
 import hashlib
-import html
 import json
 import os
 from pathlib import Path
@@ -31,6 +30,19 @@ import threading
 import time
 
 HERE = Path(__file__).resolve().parent
+
+
+def _load_card():
+    if "hermes_card" not in sys.modules:
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("hermes_card", HERE.parent / "_shared" / "card.py")
+        module = importlib.util.module_from_spec(spec)
+        sys.modules["hermes_card"] = module
+        spec.loader.exec_module(module)
+    return sys.modules["hermes_card"]
+
+
+cards = _load_card()
 
 READS = ("status", "account", "balance", "balance_transactions", "payments", "customers", "subscriptions",
          "invoices", "products", "prices", "payment_links", "refunds", "coupons", "promotion_codes")
@@ -757,10 +769,7 @@ def status(can_write: bool) -> dict:
 
 # --- write arguments ----------------------------------------------------------------------------
 
-CARD_LIMIT = 480             # what Telegram shows of an approval reason (as for the other *-access tools)
-CARD_MORE_RESERVE = 24
 APPROVAL_TTL = 900
-SUSPICIOUS = re.compile(r"[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f\u200b-\u200f\u202a-\u202e\u2066-\u2069\ufeff]")
 EMAIL = re.compile(r"[^@\s]+@[^@\s]+\.[^@\s]+")
 METADATA_KEY = re.compile(r"[A-Za-z0-9_.:-]{1,40}")
 CODE = re.compile(r"[A-Za-z0-9_-]{3,64}")
@@ -797,13 +806,7 @@ WRITE_ARGS = {
 }
 
 
-def visible(text: str) -> str:
-    return SUSPICIOUS.sub(lambda m: f"⟨U+{ord(m.group()):04X}⟩", text)
-
-
-def _units(text: str) -> int:
-    """Length as Telegram counts an approval reason after escaping it."""
-    return len(html.escape(text).encode("utf-16-le")) // 2
+visible = cards.visible
 
 
 def _short(text, limit: int = 60) -> str:
@@ -1409,7 +1412,6 @@ def _plan_payment_link_create(args: dict, plan: dict) -> None:
     if recurring:   # what keeps billing is always on the card
         plan["lines"].append("Checkout starts a subscription that bills again:")
         plan["lines"] += recurring
-    plan["lines"].append("Anyone with the link can pay.")
     promo = _bool(args, "allow_promotion_codes")
     if promo is not None:
         params.append(["allow_promotion_codes", "true" if promo else "false"])
@@ -1475,7 +1477,6 @@ def _plan_refund_create(args: dict, plan: dict) -> None:
     whole = "all that is left" if amount == left else "part"
     plan["lines"].append(f"Refund {money(amount, currency)} ({whole}) of {name}")
     plan["lines"].append(f"Paid {money(paid, currency)}, refunded before {money(refunded, currency)}, by {who}")
-    plan["lines"].append("The money goes back to the customer's payment method.")
     params = [target, ["amount", str(amount)]]
     if reason:
         params.append(["reason", reason])
@@ -1592,24 +1593,63 @@ def write_plan(args: dict) -> dict:
     return plan
 
 
+TITLES = {
+    "customer_create": "Create a customer", "customer_update": "Update a customer",
+    "product_create": "Create a product", "product_update": "Update a product",
+    "price_create": "Create a price", "price_update": "Update a price",
+    "coupon_create": "Create a coupon", "coupon_update": "Update a coupon", "coupon_delete": "Delete a coupon",
+    "promotion_code_create": "Create a promotion code", "promotion_code_update": "Update a promotion code",
+    "invoice_create": "Draft an invoice", "invoice_finalize": "Finalize an invoice",
+    "invoice_send": "E-mail an invoice", "invoice_void": "Void an invoice",
+    "payment_link_create": "Create a payment link", "payment_link_update": "Update a payment link",
+    "refund_create": "Refund a payment",
+    "subscription_update": "Change a subscription", "subscription_cancel": "Cancel a subscription",
+}
+# What the user decides on in live mode, first under the title (plugins/_shared/card.py: ✅ stays the user's,
+# ⚠️ reaches customers or replaces what is there, 🚨 cannot be undone). Test mode moves no real money.
+EFFECTS = {
+    "customer_create": (cards.SAFE, "A record only: nothing is charged or sent"),
+    "customer_update": (cards.CAUTION, "Replaces the customer's details"),
+    "product_create": (cards.SAFE, "Nothing is sold or charged by itself"),
+    "product_update": (cards.CAUTION, "Changes what customers see and can buy"),
+    "price_create": (cards.SAFE, "Nothing is charged by itself"),
+    "price_update": (cards.CAUTION, "Changes what customers can buy"),
+    "coupon_create": (cards.SAFE, "No one gets it until it is applied or given a code"),
+    "coupon_update": (cards.CAUTION, "Customers see the new name"),
+    "coupon_delete": (cards.DANGER, "Cannot be undone: new redemptions stop"),
+    "promotion_code_create": (cards.CAUTION, "Anyone with the code can use it"),
+    "promotion_code_update": (cards.CAUTION, "Changes who can use the code"),
+    "invoice_create": (cards.SAFE, "A draft only: nothing is sent or charged"),
+    "invoice_finalize": (cards.DANGER, "Cannot be undone: it becomes payable and fixed"),
+    "invoice_send": (cards.CAUTION, "E-mails the customer at once"),
+    "invoice_void": (cards.DANGER, "Cannot be undone: it can no longer be paid"),
+    "payment_link_create": (cards.CAUTION, "Anyone with the link can pay"),
+    "payment_link_update": (cards.CAUTION, "Changes what the link's payers get"),
+    "refund_create": (cards.DANGER, "Money goes back to the customer's payment method; it cannot be undone"),
+    "subscription_update": (cards.CAUTION, "Changes what the customer is billed"),
+    "subscription_cancel": (cards.DANGER, "Billing stops at once; it cannot be resumed"),
+}
+TEST_EFFECT = (cards.SAFE, "Test mode: no real money or customers")
+
+
 def card(plan: dict) -> str:
-    """Plain lines, one fact each: the account and mode, then what changes. Lines that do not fit are counted."""
+    """The shared card shape (plugins/_shared/card.py): the account and mode, then what changes in one block.
+    Its lines always fit or the change is refused; detail lines that do not fit are counted."""
     known = known_account(plan["account"], plan["mode"]) or {}
     name = f" ({_short(known['name'], 30)})" if known.get("name") else ""
-    mode = "LIVE, real money" if plan["mode"] == "live" else "test mode"
-    text = "\n".join([f"Stripe · {mode} · account {plan['account']}{name}"] + plan["lines"])
-    if _units(text) > CARD_LIMIT:
-        raise StripeError("the approval card cannot show this change in full; use shorter text")
+    live = plan["mode"] == "live"
+    title = TITLES[plan["action"]]
+    facts = [("Account", f"{plan['account']}{name}"), ("Mode", "LIVE, real money" if live else "test")]
+    lines = plan["lines"][1:] if plan["lines"][:1] == [title] else plan["lines"]
     details = plan["details"]
-    shown = 0
-    for line in details:
-        if _units(text + "\n" + line) > CARD_LIMIT - (CARD_MORE_RESERVE if shown < len(details) - 1 else 0):
-            break
-        text += "\n" + line
-        shown += 1
-    if shown < len(details):
-        text += f"\n(+{len(details) - shown} more lines)"
-    return text
+    for shown in range(len(details), -1, -1):
+        rest = [f"(+{len(details) - shown} more lines)"] if shown < len(details) else []
+        try:
+            return cards.compose("Stripe", title, EFFECTS[plan["action"]] if live else TEST_EFFECT, facts,
+                                 sections=[("Change", lines + details[:shown] + rest)])
+        except cards.CardError:
+            continue
+    raise StripeError("the approval card cannot show this change in full; use shorter text")
 
 
 def digest(plan: dict) -> str:
