@@ -775,6 +775,123 @@ def test_a_dns_failure_after_the_configuration_is_reported_part_way(tunnel):
     assert result["error"].startswith("stopped part way") and "changing the hostnames of tunnel" in result["error"]
 
 
+DB = "0f0e0d0c-0b0a-4908-8706-050403020100"
+NAMESPACE = "4" * 32
+
+
+def test_the_storage_routes_are_ones_the_bridge_allows():
+    def ok(method, path):
+        return any(m == method and p.fullmatch(path) for m, p in bridge_module._ROUTES)
+    base = "/accounts/{account}"
+    assert ok("POST", f"{base}/r2/buckets") and ok("DELETE", f"{base}/r2/buckets/media")
+    assert ok("DELETE", f"{base}/storage/kv/namespaces/{NAMESPACE}") and ok("DELETE", f"{base}/d1/database/{DB}")
+    assert not ok("DELETE", f"{base}/r2/buckets/media/objects/photo.jpg")
+    assert not ok("PUT", f"{base}/storage/kv/namespaces/{NAMESPACE}/values/key")
+
+
+@pytest.mark.parametrize("kind, name, path, body", [
+    ("r2", "media", "/accounts/{account}/r2/buckets", {"name": "media"}),
+    ("kv", "SESSIONS", "/accounts/{account}/storage/kv/namespaces", {"title": "SESSIONS"}),
+    ("d1", "app_db", "/accounts/{account}/d1/database", {"name": "app_db"}),
+])
+def test_a_container_is_created_empty_after_its_card(fake, kind, name, path, body):
+    fake.answers[path] = envelope([] if kind != "r2" else {"buckets": []})
+    card, _, result = approve_and_run({"action": "storage_create", "kind": kind, "name": name})
+    assert "✅ A new, empty one" in card and name in card
+    [sent] = fake.sends()
+    assert sent["method"] == "POST" and sent["path"] == path and sent["body"] == body and result["ok"] is True
+
+
+def test_a_name_already_taken_or_malformed_is_refused(fake):
+    fake.answers["/accounts/{account}/r2/buckets"] = envelope({"buckets": [{"name": "media"}]})
+    with pytest.raises(cfa.CloudflareError, match="an R2 bucket named media already exists"):
+        cfa.approval_request({"action": "storage_create", "kind": "r2", "name": "media"}, can_write=True)
+    with pytest.raises(cfa.CloudflareError, match="lowercase letters"):
+        cfa.approval_request({"action": "storage_create", "kind": "r2", "name": "Media!"}, can_write=True)
+    with pytest.raises(cfa.CloudflareError, match="kind must be"):
+        cfa.approval_request({"action": "storage_create", "kind": "s3", "name": "media"}, can_write=True)
+
+
+def test_an_empty_bucket_is_deleted_and_one_holding_objects_is_not(fake):
+    objects = "/accounts/{account}/r2/buckets/media/objects"
+    fake.answers[objects] = envelope([])
+    card, key, result = approve_and_run({"action": "storage_delete", "kind": "r2", "bucket": "media"})
+    assert "🚨 Deleted for good" in card and "- R2 bucket media, found empty" in card
+    assert fake.sends()[0]["path"] == "/accounts/{account}/r2/buckets/media" and fake.sends()[0]["method"] == "DELETE"
+    fake.answers[objects] = envelope([{"key": "a.png", "size": 1}])
+    with pytest.raises(cfa.CloudflareError, match="still holds objects"):
+        cfa.approval_request({"action": "storage_delete", "kind": "r2", "bucket": "media"}, can_write=True)
+    fake.answers[objects] = {**envelope([]), "result_info": {"delimited": ["photos/"]}}
+    with pytest.raises(cfa.CloudflareError, match="still holds objects"):
+        cfa.approval_request({"action": "storage_delete", "kind": "r2", "bucket": "media"}, can_write=True)
+
+
+def test_an_object_added_after_the_card_stops_the_delete(fake):
+    objects = "/accounts/{account}/r2/buckets/media/objects"
+    fake.answers[objects] = envelope([])
+    args = {"action": "storage_delete", "kind": "r2", "bucket": "media"}
+    cfa.approval_request(args, call_id="call-1", can_write=True)
+    fake.answers[objects] = envelope([{"key": "late.png", "size": 1}])
+    assert "still holds objects" in cfa.execute(args, call_id="call-1", can_write=True)["error"]
+    assert fake.sends() == []
+
+
+def test_an_empty_first_page_of_keys_with_more_behind_it_is_not_empty(fake):
+    keys = f"/accounts/{{account}}/storage/kv/namespaces/{NAMESPACE}/keys"
+    fake.answers["/accounts/{account}/storage/kv/namespaces"] = envelope([{"id": NAMESPACE, "title": "SESSIONS"}])
+
+    def pages(params):
+        if "cursor" not in params:
+            return {**envelope([]), "result_info": {"cursor": "next1", "count": 0}}
+        return {**envelope([{"name": "live"}]), "result_info": {"cursor": "", "count": 1}}
+    fake.answers[keys] = pages
+    with pytest.raises(cfa.CloudflareError, match="still holds keys"):
+        cfa.approval_request({"action": "storage_delete", "kind": "kv", "namespace": NAMESPACE}, can_write=True)
+    fake.answers[keys] = lambda params: {**envelope([]), "result_info": {"cursor": "again", "count": 0}}
+    with pytest.raises(cfa.CloudflareError, match="not taken for empty"):
+        cfa.approval_request({"action": "storage_delete", "kind": "kv", "namespace": NAMESPACE}, can_write=True)
+
+
+def test_a_schema_that_could_not_be_read_is_not_empty(fake):
+    fake.answers[f"/accounts/{{account}}/d1/database/{DB}"] = envelope({"uuid": DB, "name": "app"})
+    fake.write_reply = {"ok": True, "status": 200, "data": envelope([{"success": False, "results": []}])}
+    with pytest.raises(cfa.CloudflareError, match="could not be read in full"):
+        cfa.approval_request({"action": "storage_delete", "kind": "d1", "database": DB}, can_write=True)
+    fake.write_reply = {"ok": True, "status": 200, "data": envelope([])}
+    with pytest.raises(cfa.CloudflareError, match="could not be read in full"):
+        cfa.approval_request({"action": "storage_delete", "kind": "d1", "database": DB}, can_write=True)
+
+
+def test_a_bucket_page_that_continues_is_not_empty(fake):
+    fake.answers["/accounts/{account}/r2/buckets/media/objects"] = {**envelope([]), "result_info": {
+        "cursor": "more", "is_truncated": True}}
+    with pytest.raises(cfa.CloudflareError, match="still holds objects"):
+        cfa.approval_request({"action": "storage_delete", "kind": "r2", "bucket": "media"}, can_write=True)
+
+
+def test_namespaces_and_databases_are_deleted_only_when_empty(fake):
+    fake.answers["/accounts/{account}/storage/kv/namespaces"] = envelope([{"id": NAMESPACE, "title": "SESSIONS"}])
+    fake.answers[f"/accounts/{{account}}/storage/kv/namespaces/{NAMESPACE}/keys"] = envelope([{"name": "k"}])
+    with pytest.raises(cfa.CloudflareError, match="still holds keys"):
+        cfa.approval_request({"action": "storage_delete", "kind": "kv", "namespace": NAMESPACE}, can_write=True)
+    fake.answers[f"/accounts/{{account}}/storage/kv/namespaces/{NAMESPACE}/keys"] = envelope([])
+    card, _ = cfa.approval_request({"action": "storage_delete", "kind": "kv", "namespace": NAMESPACE},
+                                   call_id="k", can_write=True)
+    assert "- KV namespace SESSIONS (44444444), found empty" in card
+    fake.answers[f"/accounts/{{account}}/d1/database/{DB}"] = envelope({"uuid": DB, "name": "app"})
+    fake.write_reply = {"ok": True, "status": 200, "data": envelope([{"success": True, "results": [
+        {"type": "table", "name": "users", "tbl_name": "users", "sql": "CREATE TABLE users (id)"}]}])}
+    with pytest.raises(cfa.CloudflareError, match="still holds tables"):
+        cfa.approval_request({"action": "storage_delete", "kind": "d1", "database": DB}, can_write=True)
+    fake.write_reply = {"ok": True, "status": 200, "data": envelope([{"success": True, "results": []}])}
+    card, _ = cfa.approval_request({"action": "storage_delete", "kind": "d1", "database": DB}, call_id="d",
+                                   can_write=True)
+    assert "- D1 database app (0f0e0d0c), found empty" in card
+    with pytest.raises(cfa.CloudflareError, match="named by database, not bucket"):
+        cfa.approval_request({"action": "storage_delete", "kind": "d1", "database": DB, "bucket": "x"},
+                             can_write=True)
+
+
 def test_the_card_names_the_account_once_it_was_read(fake):
     cfa.remember_account("work", {"id": ACCOUNT, "name": "Work Co"})
     card, _ = cfa.approval_request(change({"op": "delete", "id": WWW}), can_write=True)
