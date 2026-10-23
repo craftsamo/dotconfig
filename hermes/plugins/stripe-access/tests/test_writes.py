@@ -47,12 +47,15 @@ class Stripe:
             "/v1/payment_links/plink_1": {"id": "plink_1", "url": "https://buy.stripe.com/x", "active": True},
         }
         self.writes = {}
+        self.route = None   # {"org", "item", "field", "stripe_account"} for an account reached through an organization
+        self.fingerprint = "f" * 12
 
     def __call__(self, op, **fields):
         self.requests.append({"op": op, **fields})
-        base = {"account": fields.get("account") or "work", "mode": fields.get("mode"), "fingerprint": "f" * 12}
+        base = {"account": fields.get("account") or "work", "mode": fields.get("mode"),
+                "fingerprint": self.fingerprint, **(self.route or {})}
         if op == "key":
-            return {**base, "ok": True, "key_kind": "restricted", "requests": 0}
+            return {**base, "ok": True, "key_kind": "organization" if self.route else "restricted", "requests": 0}
         method, path = fields["method"], fields["path"]
         if method == "GET":
             if path not in self.objects:
@@ -115,6 +118,39 @@ def test_the_account_name_is_on_the_card_once_known(stripe):
     card = sta.preview({"action": "customer_create", "mode": "live", "name": "Bob"})["card"]
     assert card.splitlines()[:4] == ["Stripe · Create a customer", "✅ A record only: nothing is charged or sent",
                                      "Account: work (Shop)", "Mode: LIVE, real money"]
+
+
+ROUTE = {"org": "main", "item": "STRIPE_ORG_MAIN", "field": "acct_studio", "stripe_account": "acct_1Studio"}
+
+
+def test_a_card_through_an_organization_names_the_account_it_reaches(stripe):
+    stripe.route = ROUTE
+    card = sta.preview({"action": "customer_create", "mode": "test", "name": "Bob"})["card"]
+    assert card.splitlines()[:5] == ["Stripe · Create a customer", "✅ Test mode: no real money or customers",
+                                     "Account: work", "Via: organization main, acct_1Studio", "Mode: test"]
+    # A name read for another account (the route was pointed elsewhere since) is never shown.
+    sta.remember_account("work", "test", {"id": "acct_1Other", "name": "Other"})
+    assert "Account: work\n" in sta.preview({"action": "customer_create", "mode": "test", "name": "Bob"})["card"]
+    sta.remember_account("work", "test", {"id": "acct_1Studio", "name": "Studio"})
+    assert "Account: work (Studio)\n" in sta.preview({"action": "customer_create", "mode": "test", "name": "Bob"})["card"]
+
+
+def test_a_route_pointed_elsewhere_after_the_card_sends_nothing(stripe):
+    stripe.route = ROUTE
+    args = {"action": "customer_create", "mode": "live", "name": "Bob"}
+    sta.approval_request(args, call_id="c1", can_write=True)
+    stripe.route = {**ROUTE, "stripe_account": "acct_1Someone"}
+    stripe.fingerprint = "e" * 12
+    result = sta.execute(args, call_id="c1", can_write=True)
+    assert result["ok"] is False and "changed before the write ran" in result["error"] and stripe.sent() == []
+
+
+def test_a_write_through_an_organization_is_pinned_to_its_route(stripe):
+    stripe.route = ROUTE
+    stripe.fingerprint = "a" * 12
+    _, _, result = approve_and_run({"action": "customer_create", "mode": "live", "name": "Bob"})
+    [sent] = stripe.sent()
+    assert result["ok"] is True and sent["expect"] == "a" * 12
 
 
 @pytest.mark.parametrize("action", sorted(sta.WRITES))
