@@ -1,6 +1,6 @@
 ---
 name: cloudflare-manage
-description: "Use before changing anything in the user's Cloudflare: DNS records or a cache purge."
+description: "Use before changing anything in the user's Cloudflare: DNS records, a cache purge, or rolling back a Worker or a Pages site."
 version: 1.0.0
 author: CraftSamo
 license: MIT
@@ -94,10 +94,28 @@ only drops copies; the next request fetches them again. Cloudflare limits how
 many purges an account sends a minute on smaller plans: a rate limit is a
 reason to wait, not to retry.
 
+## Rollbacks
+
+A rollback puts back what ran before; it never deploys new code. Read first
+(`workers` with `script`, `pages` with `project`) and say which deployment
+goes live.
+
+- `worker_rollback` with `script`: by default the previous deployment exactly
+  as it was (a gradual rollout keeps its shares), or with `version` one version
+  an earlier deployment served, at 100%. `message` is the new deployment's
+  note. The rollback is itself a deployment: the next deploy replaces it.
+- `pages_rollback` with `project`: by default the previous successful
+  production deployment, or the `deployment` named (its id or short id). A
+  preview, a failed build or the live deployment is refused.
+
+A deploy that lands between the card and the run stops the rollback: read
+again and ask anew.
+
 ## Errors
 
 "lacks a permission" means the token may not change this: the user adds it
 to the token in the Cloudflare dashboard (DNS records need Zone → DNS →
-Edit, a purge Zone → Cache Purge → Purge). A setup problem
+Edit, a purge Zone → Cache Purge → Purge, a Worker rollback Account →
+Workers Scripts → Edit, a Pages rollback Account → Cloudflare Pages → Edit). A setup problem
 (no token, a refused token) is the user's to fix: relay it, never work around
 it.
