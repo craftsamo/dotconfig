@@ -1944,7 +1944,7 @@ def validate_research_alignment(errors: list[str]) -> None:
 
 
 def validate_assistant_dm_topics(config: Path, errors: list[str]) -> None:
-    """Pinned Telegram DM topics are skill-less surfaces (Inbox, General).
+    """Pinned Telegram DM topics are skill-less surfaces (Inbox).
 
     The topic-bound desk skills were retired on 2026-09-14; every pinned topic
     is governed by its ``channel_prompts`` contract only, and the chat-wide
