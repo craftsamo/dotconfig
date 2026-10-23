@@ -46,7 +46,7 @@ cards = _load_card()
 
 READS = ("status", "account", "zones", "dns_records", "zone_settings", "analytics", "workers", "pages", "r2", "kv",
          "d1", "tunnels", "email_routing")
-WRITES = ("dns_change", "cache_purge")
+WRITES = ("dns_change", "cache_purge", "worker_rollback", "pages_rollback")
 ACTIONS = READS + WRITES
 
 BRIDGE = HERE / "bridge.py"
@@ -1228,7 +1228,10 @@ def status(can_write: bool) -> dict:
 
 APPROVAL_TTL = 900
 COMMON_WRITE_ARGS = {"action", "account", "preview"}
-WRITE_ARGS = {"dns_change": {"zone", "changes"}, "cache_purge": {"zone", "urls", "hosts", "prefixes", "everything"}}
+WRITE_ARGS = {"dns_change": {"zone", "changes"}, "cache_purge": {"zone", "urls", "hosts", "prefixes", "everything"},
+              "worker_rollback": {"script", "version", "message"}, "pages_rollback": {"project", "deployment"}}
+DEPLOYMENT = re.compile(r"^[A-Za-z0-9-]{1,64}$")
+ROLLBACK_MESSAGE = "Rolled back through Hermes"
 PURGE_MAX = 30
 URL_MAX = 2048
 WRITABLE_TYPES = ("A", "AAAA", "CNAME", "MX", "TXT", "NS")
@@ -1265,7 +1268,7 @@ def _check_args(action: str, args: dict) -> None:
 def _plan(action: str, reply: dict, title: str) -> dict:
     return {"action": action, "account": reply["account"], "account_id": reply.get("account_id"),
             "fingerprint": reply.get("fingerprint"), "title": title, "effect": None, "once": False, "facts": [],
-            "lines": [], "details": [], "steps": [], "shape": None}
+            "lines": [], "details": [], "steps": [], "bind": [], "shape": None}
 
 
 def _same_token(plan: dict, reply: dict) -> None:
@@ -1555,8 +1558,131 @@ def _plan_cache_purge(args: dict) -> dict:
     return plan
 
 
-PLANS = {"dns_change": _plan_dns_change, "cache_purge": _plan_cache_purge}
-RESULTS = {"dns_change": _shape_dns_change}
+def _served(versions) -> list:
+    """A deployment's versions as [{version_id, percentage}], in a fixed order."""
+    served = [{"version_id": v.get("version_id"), "percentage": v.get("percentage")}
+              for v in versions or [] if isinstance(v, dict) and v.get("version_id")]
+    return sorted(served, key=lambda v: str(v["version_id"]))
+
+
+def _served_text(versions: list) -> str:
+    return " + ".join(f"{str(v['version_id'])[:8]} {v['percentage']:g}%" if isinstance(v.get("percentage"), (int, float))
+                      else str(v["version_id"])[:8] for v in versions) or "nothing"
+
+
+def _plan_worker_rollback(args: dict) -> dict:
+    script = _named(args, "script", SCRIPT, "a Worker's name")
+    if script is None:
+        raise CloudflareError("worker_rollback needs script, the Worker's name (workers lists them)")
+    version = _named(args, "version", UUID, "a version's id (workers with script lists them)")
+    message = _text(args, "message", 100)
+    data, reply = get(f"/accounts/{{account}}/workers/scripts/{script}/deployments", [], account=account_of(args),
+                      what=f"the deployments of Worker {script}")
+    deployments = sorted(_result_list(data, "deployments"), key=lambda d: str(d.get("created_on") or ""),
+                         reverse=True)
+    if len(deployments) < 2:
+        raise CloudflareError(f"Worker {script} has no earlier deployment to go back to")
+    current, earlier = deployments[0], deployments[1:]
+    now = _served(current.get("versions"))
+
+    def ran(deployment: dict) -> set:
+        """The versions a deployment sent traffic to: a share above zero."""
+        return {v["version_id"] for v in _served(deployment.get("versions"))
+                if isinstance(v.get("percentage"), (int, float)) and v["percentage"] > 0}
+    if version is None:
+        target, source = _served(earlier[0].get("versions")), earlier[0]
+        shares = [v.get("percentage") for v in target]
+        if not target or not all(isinstance(s, (int, float)) and s > 0 for s in shares) or abs(sum(shares) - 100) > 0.01:
+            raise CloudflareError(f"the previous deployment of {script} does not split its traffic in shares that add "
+                                  "up to 100%; name the version to go back to")
+    else:
+        source = next((d for d in earlier if version in ran(d)), None)
+        if source is None:
+            raise CloudflareError(f"version {version} did not serve traffic in an earlier deployment of {script}; a "
+                                  "rollback only goes back to versions that ran before")
+        target = [{"version_id": version, "percentage": 100}]
+    if target == now:
+        raise CloudflareError(f"Worker {script} already serves {_served_text(now)}")
+    plan = _plan("worker_rollback", reply, "Roll back a Worker")
+    plan["facts"] = [("Worker", script)]
+    plan["lines"] = [f"Serve {_served_text(target)}", f"instead of {_served_text(now)}"]
+    notes = source.get("annotations") if isinstance(source.get("annotations"), dict) else {}
+    plan["details"] = [f"as deployed {source.get('created_on') or '?'}"
+                       + (f" by {_short(source['author_email'], 40)}" if source.get("author_email") else ""),
+                       *([f"then: {_short(notes['workers/message'], 60)}"] if notes.get("workers/message") else []),
+                       f"message: {_short(message or ROLLBACK_MESSAGE, 60)}"]
+    plan["effect"] = (cards.CAUTION, "Visitors get the earlier code at once; deploying again undoes it")
+    plan["bind"] = [current.get("id")]
+    plan["steps"].append({"method": "POST", "path": f"/accounts/{{account}}/workers/scripts/{script}/deployments",
+                          "body": {"strategy": "percentage", "versions": target,
+                                   "annotations": {"workers/message": message or ROLLBACK_MESSAGE}},
+                          "what": f"rolling back Worker {script}"})
+    plan["shape"] = "worker_rollback"
+    return plan
+
+
+def _pages_line(item: dict) -> str:
+    shaped = shape_pages_deployment(item)
+    parts = [shaped.get("short_id") or str(item.get("id"))[:8], shaped.get("branch"), shaped.get("commit", "")[:8],
+             (shaped.get("created_on") or "")[:10]]
+    return " ".join(_short(part, 40) for part in parts if part)
+
+
+def _plan_pages_rollback(args: dict) -> dict:
+    project = _named(args, "project", PROJECT, "a Pages project's name")
+    if project is None:
+        raise CloudflareError("pages_rollback needs project, the Pages project's name (pages lists them)")
+    wanted = _named(args, "deployment", DEPLOYMENT, "a deployment's id (pages with project lists them)")
+    base = f"/accounts/{{account}}/pages/projects/{project}"
+    results, reply = get_many([(base, []), (f"{base}/deployments", [["env", "production"], ["per_page", "25"]])],
+                              account=account_of(args), what=f"Pages project {project}")
+    for result in results:
+        if not result.get("ok"):
+            raise CloudflareError(_failure({**result, "account": reply.get("account")}, f"Pages project {project}"))
+    info = (results[0].get("data") or {}).get("result")
+    current = (info or {}).get("canonical_deployment") if isinstance(info, dict) else None
+    if not isinstance(current, dict) or not current.get("id"):
+        raise CloudflareError(f"Pages project {project} has no live production deployment to roll back from")
+    listed = _result_list(results[1].get("data") or {}, "deployments")
+
+    def usable(item: dict) -> bool:
+        """An earlier successful production deployment: older than the live one, never the live one."""
+        stage = item.get("latest_stage") if isinstance(item.get("latest_stage"), dict) else {}
+        return (item.get("id") != current["id"] and item.get("environment") == "production"
+                and stage.get("status") == "success" and not item.get("is_skipped")
+                and bool(item.get("created_on")) and str(item["created_on"]) < str(current.get("created_on") or ""))
+    if wanted is None:
+        older = [d for d in listed if usable(d)]
+        if not older:
+            raise CloudflareError(f"Pages project {project} has no earlier successful production deployment")
+        target = max(older, key=lambda d: str(d.get("created_on") or ""))
+    else:
+        target = next((d for d in listed if d.get("id") == wanted or d.get("short_id") == wanted), None)
+        if target is None:
+            data, _ = get(f"{base}/deployments/{wanted}", [], account=reply["account"], what=f"deployment {wanted}")
+            target = data.get("result") if isinstance(data.get("result"), dict) else {}
+        if not usable(target):
+            raise CloudflareError(f"deployment {wanted} is not a successful production deployment older than the "
+                                  f"live one of {project}, so it cannot be made live again")
+    plan = _plan("pages_rollback", reply, "Roll back a Pages site")
+    plan["facts"] = [("Project", project)]
+    plan["lines"] = [f"Make live again: {_pages_line(target)}", f"instead of {_pages_line(current)}"]
+    plan["details"] = [f"- {_short(url, 70)}" for url in (info or {}).get("domains") or [] if isinstance(url, str)]
+    plan["effect"] = (cards.CAUTION, "Visitors get the earlier site at once; a new deployment undoes it")
+    plan["bind"] = [current["id"]]
+    plan["steps"].append({"method": "POST", "path": f"{base}/deployments/{target['id']}/rollback", "body": None,
+                          "what": f"rolling back Pages project {project}"})
+    plan["shape"] = "pages_rollback"
+    return plan
+
+
+PLANS = {"dns_change": _plan_dns_change, "cache_purge": _plan_cache_purge, "worker_rollback": _plan_worker_rollback,
+         "pages_rollback": _plan_pages_rollback}
+RESULTS = {"dns_change": _shape_dns_change,
+           "worker_rollback": lambda data: shape_deployment(data.get("result") if isinstance(data.get("result"), dict)
+                                                            else {}),
+           "pages_rollback": lambda data: shape_pages_deployment(data.get("result")
+                                                                 if isinstance(data.get("result"), dict) else {})}
 
 
 def write_plan(args: dict) -> dict:
@@ -1585,10 +1711,11 @@ def card(plan: dict) -> str:
 
 
 def digest(plan: dict) -> str:
-    """What the card showed and what would be sent, under which token on which account."""
+    """What the card showed and what would be sent, under which token on which account, and the state the plan
+    rests on without showing it (`bind`: the deployment live now, a rule as it is)."""
     return hashlib.sha256(json.dumps([plan["action"], plan["account"], plan["account_id"], plan["fingerprint"],
                                       plan["title"], list(plan["effect"]), plan["facts"], plan["lines"],
-                                      plan["details"], plan["steps"]],
+                                      plan["details"], plan["steps"], plan["bind"]],
                                      sort_keys=True, ensure_ascii=False).encode("utf-8")).hexdigest()
 
 

@@ -38,12 +38,15 @@ class Bridge:
         }
         self.write_reply = None
         self.fingerprint = "f" * 12
+        self.answers = {}   # any other GET: path -> Cloudflare's JSON
 
     def head(self, fields):
         return {"account": fields.get("account") or "work", "item": "CLOUDFLARE_WORK", "account_id": ACCOUNT,
                 "fingerprint": self.fingerprint, "token_kind": "user"}
 
     def record(self, path):
+        if path in self.answers:
+            return {"ok": True, "status": 200, "data": self.answers[path]}
         rid = path.rsplit("/", 1)[1]
         if rid in self.records:
             return {"ok": True, "status": 200, "data": envelope(dict(self.records[rid]))}
@@ -59,9 +62,17 @@ class Bridge:
             return {**self.head(fields), "ok": True, "requests": 1, "data": envelope([ZONE_OBJ])}
         if method == "GET" and path == f"/zones/{ZONE}":
             return {**self.head(fields), "ok": True, "requests": 1, "data": envelope(ZONE_OBJ)}
-        if method == "POST":
+        if method == "GET" and path in self.answers:
+            return {**self.head(fields), "ok": True, "requests": 1, "data": self.answers[path]}
+        if method == "GET":
+            return {**self.head(fields), "ok": False, "requests": 1, "kind": "not_found", "status": 404,
+                    "error": "not found"}
+        if method in ("POST", "PUT", "PATCH", "DELETE"):
             if self.write_reply is not None:
                 return {**self.head(fields), "requests": 1, **self.write_reply}
+            if not path.endswith("/dns_records/batch"):
+                return {**self.head(fields), "ok": True, "requests": 1, "status": 200,
+                        "data": envelope({"id": "new", **(fields.get("body") or {})})}
             body = fields.get("body") or {}
             result = {"posts": [{"id": "9" * 32, **post} for post in body.get("posts", [])],
                       "patches": [{**self.records[p["id"]], **p} for p in body.get("patches", [])],
@@ -346,6 +357,131 @@ def test_purging_everything_asks_every_time(fake):
 def test_a_purge_outside_the_zone_or_malformed_is_refused_before_any_card(fake, extra, message):
     with pytest.raises(cfa.CloudflareError, match=message):
         cfa.approval_request(purge(**extra), can_write=True)
+    assert fake.sends() == []
+
+
+V1, V2, V3 = ("11111111-1111-4111-8111-111111111111", "22222222-2222-4222-8222-222222222222",
+              "33333333-3333-4333-8333-333333333333")
+WORKER = "/accounts/{account}/workers/scripts/api/deployments"
+
+
+def deployment(n, *versions, message=None):
+    return {"id": f"d{n}", "created_on": f"2026-10-0{n}T00:00:00Z", "author_email": "dev@example.com",
+            "versions": [{"version_id": v, "percentage": p} for v, p in versions],
+            **({"annotations": {"workers/message": message}} if message else {})}
+
+
+def test_the_rollback_routes_are_ones_the_bridge_allows():
+    def ok(method, path):
+        return any(m == method and p.fullmatch(path) for m, p in bridge_module._ROUTES)
+    assert ok("POST", WORKER) and ok("POST", "/accounts/{account}/pages/projects/site/deployments/abc-1/rollback")
+    assert not ok("PUT", "/accounts/{account}/workers/scripts/api")   # uploading code is no route
+
+
+def test_a_worker_goes_back_to_its_previous_deployment_exactly(fake):
+    fake.answers[WORKER] = envelope({"deployments": [deployment(1, (V1, 100)), deployment(3, (V3, 100)),
+                                                      deployment(2, (V1, 40), (V2, 60), message="canary")]})
+    card, _, result = approve_and_run({"action": "worker_rollback", "script": "api"})
+    assert card.startswith("Cloudflare · Roll back a Worker\n⚠️ Visitors get the earlier code at once")
+    assert "Worker: api" in card and "Serve 11111111 40% + 22222222 60%" in card and "instead of 33333333 100%" in card
+    assert "then: canary" in card and "message: Rolled back through Hermes" in card
+    [sent] = fake.sends()
+    assert sent["method"] == "POST" and sent["path"] == WORKER
+    assert sent["body"] == {"strategy": "percentage", "versions": [{"version_id": V1, "percentage": 40},
+                                                                   {"version_id": V2, "percentage": 60}],
+                            "annotations": {"workers/message": "Rolled back through Hermes"}}
+    assert result["ok"] is True
+
+
+def test_a_worker_goes_back_only_to_a_version_that_ran_before(fake):
+    fake.answers[WORKER] = envelope({"deployments": [deployment(2, (V2, 100)), deployment(1, (V1, 100))]})
+    args = {"action": "worker_rollback", "script": "api", "version": V1, "message": "back to stable"}
+    card, _ = cfa.approval_request(args, call_id="v", can_write=True)
+    assert "Serve 11111111 100%" in card and "message: back to stable" in card
+    with pytest.raises(cfa.CloudflareError, match="only goes back to versions that ran before"):
+        cfa.approval_request({**args, "version": V3}, can_write=True)
+    with pytest.raises(cfa.CloudflareError, match="only goes back to versions that ran before"):
+        cfa.approval_request({**args, "version": V2}, can_write=True)   # served now, never before
+    fake.answers[WORKER] = envelope({"deployments": [deployment(3, (V1, 100)), deployment(2, (V2, 100)),
+                                                      deployment(1, (V1, 100))]})
+    with pytest.raises(cfa.CloudflareError, match="already serves 11111111 100%"):
+        cfa.approval_request(args, can_write=True)
+    fake.answers[WORKER] = envelope({"deployments": [deployment(1, (V1, 100))]})
+    with pytest.raises(cfa.CloudflareError, match="no earlier deployment"):
+        cfa.approval_request({"action": "worker_rollback", "script": "api"}, can_write=True)
+
+
+def test_a_deployment_after_the_card_sends_nothing(fake):
+    fake.answers[WORKER] = envelope({"deployments": [deployment(2, (V2, 100)), deployment(1, (V1, 100))]})
+    args = {"action": "worker_rollback", "script": "api"}
+    cfa.approval_request(args, call_id="call-1", can_write=True)
+    fake.answers[WORKER] = envelope({"deployments": [deployment(3, (V3, 100)), deployment(2, (V2, 100)),
+                                                      deployment(1, (V1, 100))]})
+    result = cfa.execute(args, call_id="call-1", can_write=True)
+    assert "changed before the write ran" in result["error"] and fake.sends() == []
+
+
+PAGES = "/accounts/{account}/pages/projects/site"
+
+
+def pages_deploy(n, status="success", environment="production"):
+    return {"id": f"dep-{n}", "short_id": f"short{n}00", "environment": environment,
+            "created_on": f"2026-10-0{n}T00:00:00Z", "latest_stage": {"name": "deploy", "status": status},
+            "deployment_trigger": {"metadata": {"branch": "main", "commit_hash": f"{n}" * 40}}}
+
+
+def test_a_pages_site_goes_back_to_its_previous_successful_production_deployment(fake):
+    fake.answers[PAGES] = envelope({"name": "site", "domains": ["example.com"], "canonical_deployment": pages_deploy(4)})
+    fake.answers[f"{PAGES}/deployments"] = envelope([pages_deploy(4), pages_deploy(3, status="failure"),
+                                                     pages_deploy(2), pages_deploy(1)])
+    card, _, result = approve_and_run({"action": "pages_rollback", "project": "site"})
+    assert "Cloudflare · Roll back a Pages site" in card and "Project: site" in card
+    assert "Make live again: short200 main 22222222 2026-10-02" in card and "instead of short400" in card
+    [sent] = fake.sends()
+    assert sent["path"] == f"{PAGES}/deployments/dep-2/rollback" and sent["body"] is None
+    assert result["ok"] is True
+
+
+def test_a_pages_rollback_refuses_a_preview_a_failure_or_the_live_one(fake):
+    fake.answers[PAGES] = envelope({"name": "site", "canonical_deployment": pages_deploy(4)})
+    fake.answers[f"{PAGES}/deployments"] = envelope([pages_deploy(4), pages_deploy(3, status="failure")])
+    fake.answers[f"{PAGES}/deployments/dep-5"] = envelope(pages_deploy(5, environment="preview"))
+    for wanted in ("dep-3", "dep-4", "dep-5"):
+        with pytest.raises(cfa.CloudflareError, match="not a successful production deployment older than the live"):
+            cfa.approval_request({"action": "pages_rollback", "project": "site", "deployment": wanted},
+                                 can_write=True)
+    with pytest.raises(cfa.CloudflareError, match="no earlier successful production deployment"):
+        cfa.approval_request({"action": "pages_rollback", "project": "site"}, can_write=True)
+    assert fake.sends() == []
+
+
+def test_a_version_that_never_served_traffic_or_shares_that_do_not_add_up_are_refused(fake):
+    fake.answers[WORKER] = envelope({"deployments": [deployment(3, (V3, 100)), deployment(2, (V1, 100), (V2, 0)),
+                                                      deployment(1, (V1, 100))]})
+    with pytest.raises(cfa.CloudflareError, match="did not serve traffic"):
+        cfa.approval_request({"action": "worker_rollback", "script": "api", "version": V2}, can_write=True)
+    with pytest.raises(cfa.CloudflareError, match="add up to 100%"):
+        cfa.approval_request({"action": "worker_rollback", "script": "api"}, can_write=True)
+    assert fake.sends() == []
+
+
+def test_a_named_pages_deployment_newer_than_the_live_one_is_refused(fake):
+    fake.answers[PAGES] = envelope({"name": "site", "canonical_deployment": pages_deploy(2)})
+    fake.answers[f"{PAGES}/deployments"] = envelope([pages_deploy(3), pages_deploy(2), pages_deploy(1)])
+    with pytest.raises(cfa.CloudflareError, match="older than the live one"):
+        cfa.approval_request({"action": "pages_rollback", "project": "site", "deployment": "dep-3"}, can_write=True)
+    assert cfa.approval_request({"action": "pages_rollback", "project": "site", "deployment": "short100"},
+                                can_write=True)
+
+
+def test_a_pages_deploy_after_the_card_sends_nothing(fake):
+    fake.answers[PAGES] = envelope({"name": "site", "canonical_deployment": pages_deploy(3)})
+    fake.answers[f"{PAGES}/deployments"] = envelope([pages_deploy(3), pages_deploy(2)])
+    args = {"action": "pages_rollback", "project": "site"}
+    cfa.approval_request(args, call_id="p", can_write=True)
+    fake.answers[PAGES] = envelope({"name": "site", "canonical_deployment": pages_deploy(4)})
+    fake.answers[f"{PAGES}/deployments"] = envelope([pages_deploy(4), pages_deploy(3), pages_deploy(2)])
+    assert "changed before the write ran" in cfa.execute(args, call_id="p", can_write=True)["error"]
     assert fake.sends() == []
 
 

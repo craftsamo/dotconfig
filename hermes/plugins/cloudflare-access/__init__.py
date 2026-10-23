@@ -117,7 +117,10 @@ WRITE_DESCRIPTION = READ_DESCRIPTION + (
     "denied one unchanged): dns_change (zone, changes: up to 20 of {op: add, type, name, content, ttl, proxied, "
     "priority for MX, comment} | {op: update, id, the fields that change} | {op: delete, id}; A, AAAA, CNAME, "
     "MX, TXT and NS records; all apply at once or none does), cache_purge (zone, and one of urls, hosts or "
-    "prefixes, up to 30 inside the zone, or everything: true). preview=true returns the card without asking or "
+    "prefixes, up to 30 inside the zone, or everything: true), worker_rollback (script; back to the previous "
+    "deployment, or to one version an earlier deployment served; message), pages_rollback (project; the "
+    "previous successful production deployment, or deployment). Rollbacks never deploy new code. "
+    "preview=true returns the card without asking or "
     "changing anything, in any run. A run with no person to answer a card (cron, another agent's session, a "
     "single query) changes nothing. 'not done' means nothing changed; 'stopped part way' lists what was done; "
     "'UNCERTAIN' means read it in Cloudflare before anything else.")
@@ -144,6 +147,11 @@ WRITE_PROPERTIES = {
     "prefixes": {"type": "array", "items": {"type": "string"},
                  "description": "cache_purge: host and path without the scheme, www.example.com/blog"},
     "everything": {"type": "boolean", "description": "cache_purge: the whole zone's cache"},
+    "version": {"type": "string", "description": "worker_rollback: a version an earlier deployment served (its "
+                                                 "UUID); default the previous deployment as it was"},
+    "message": {"type": "string", "description": "worker_rollback: the deployment's message, one line"},
+    "deployment": {"type": "string", "description": "pages_rollback: the deployment to make live again (its id "
+                                                    "or short id); default the previous successful one"},
     "preview": {"type": "boolean", "description": "a change: return its card only; nothing is sent or asked"},
 }
 

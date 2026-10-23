@@ -91,6 +91,7 @@ SEGMENTS = {
     "{project}": r"[a-z0-9][a-z0-9-]{0,62}",         # a Pages project
     "{bucket}": r"[a-z0-9][a-z0-9-]{1,61}[a-z0-9]",  # an R2 bucket
     "{uuid}": r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}",   # a D1 database, a tunnel
+    "{deployment}": r"[A-Za-z0-9-]{1,64}",           # a Pages deployment
 }
 # D1's query endpoint runs any SQL, writes included: the one statement this tool sends there is fixed here
 # and reads the schema, never a row. A request to it carries no body of the caller's. SQLite's and D1's own
@@ -136,6 +137,10 @@ ROUTES = (
     # changes: each runs only after its approval card, under the token the card was made with
     ("POST", "/zones/{id}/dns_records/batch"),
     ("POST", "/zones/{id}/purge_cache"),
+    # a rollback: a Worker back to versions an earlier deployment served, a Pages site to an earlier deployment
+    ("POST", "/accounts/{account}/workers/scripts/{script}/deployments"),
+    ("GET", "/accounts/{account}/pages/projects/{project}/deployments/{deployment}"),
+    ("POST", "/accounts/{account}/pages/projects/{project}/deployments/{deployment}/rollback"),
 )
 VERIFY = {"user": "/user/tokens/verify", "account": "/accounts/{account}/tokens/verify"}
 
