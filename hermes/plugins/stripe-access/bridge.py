@@ -5,20 +5,28 @@ environment and the state directory as working directory, writes one JSON reques
 reads one JSON reply from stdout.
 
 Keys live in the Keychain (project ``hermes``, scope ``stripe-access``, a scope no Hermes profile
-receives). An item there is a key when it sits in the ``prod`` stage (live) or the ``test`` stage and
-carries a ``label=<label>`` field naming its account; its name is the user's to choose. Each is read by
-its exact layer, never a stage-less one or another stage, and a label held by two items in one stage is
+receives), in the ``prod`` stage (live) or the ``test`` stage; an item's name is the user's to choose and
+its fields say what it is:
+
+    label=<label>              the account's own key (sk_… / rk_…)
+    org=<org>                  an organization key (sk_org_…); each of its fields acct_<label>=acct_…
+                               routes a label to that account, whose id goes out as Stripe-Context with
+                               every request the label makes
+
+A label with its own key uses it even when a route names it too. Each item is read by its exact layer,
+never a stage-less one or another stage, and a label or organization two items carry in one stage is
 refused rather than guessed. A key is read when a call needs it and lives only in this short-lived
 process; it is masked in every string that leaves. The key's own prefix must agree with the mode asked
-for, so a test call never runs on a live key and the other way round. Only the endpoints in ``ROUTES``
-exist here, only api.stripe.com is contacted, never through a redirect, and the API version is pinned.
-Contract: docs/stripe-access.md.
+for, so a test call never runs on a live key and the other way round. A fingerprint names what a call
+runs on: the key, and for a route the key with the account id, so a card made for one account never
+runs on another. Only the endpoints in ``ROUTES`` exist here, only api.stripe.com is contacted, never
+through a redirect, and the API version is pinned. Contract: docs/stripe-access.md.
 
-    {"op": "keys"}   the stored labels, modes, items and key kinds, and the scope's items that are no
-                     key with why; never a value, never a request to Stripe
+    {"op": "keys"}   the stored labels and organization keys, their modes, items, kinds and routes, and
+                     the scope's items that are no key with why; never a key, never a request to Stripe
     {"op": "key", "account": label | null, "mode": "live" | "test"}
-                     the label a call would run on, its item, and its key's kind and fingerprint; no
-                     request to Stripe
+                     the label a call would run on, its item and route, and its kind and fingerprint;
+                     no request to Stripe
     {"op": "call", "account": label | null, "mode": "live" | "test", "method": "GET" | "POST" | "DELETE",
      "path": "/v1/...", "params": [[key, value], ...], "idempotency_key": str | null,
      "refused": {"<label>/<mode>": fingerprint}, "paused": {"<label>/<mode>": epoch seconds},
@@ -52,7 +60,10 @@ LABEL = re.compile(r"^[a-z0-9](?:[a-z0-9_]{0,22}[a-z0-9])?$")
 # An item name as the secret CLI stores one, so it is never read as a flag or a "scope/NAME@stage" token.
 NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 KEY = re.compile(r"^(sk|rk)_(live|test)_[A-Za-z0-9]{10,247}$")
-KEY_SHAPE = re.compile(r"\b(?:sk|rk|pk)_(?:live|test)_[A-Za-z0-9*]+")
+ORG_KEY = re.compile(r"^sk_org_(live|test)_[A-Za-z0-9]{10,247}$")
+ACCOUNT_ID = re.compile(r"^acct_[A-Za-z0-9]{6,64}$")
+ROUTE_FIELD = "acct_"   # acct_<label>=acct_… on an organization key's item
+KEY_SHAPE = re.compile(r"\b(?:sk|rk|pk)_(?:live|test|org)_[A-Za-z0-9_*]+")
 PARAM = re.compile(r"^[a-z_]+(?:\[[^\[\]\x00-\x1f]{0,64}\])*$")
 PARAM_VALUE_MAX = 10000
 PARAMS_MAX = 400
@@ -165,7 +176,7 @@ def _secret(*argv: str) -> subprocess.CompletedProcess:
 
 
 def _unusable(name: str, stage: str, meta: dict) -> str | None:
-    """Why an item of the scope is no key, or None when it is one."""
+    """Why an item of the scope is none of a key, an organization key or a route; None when it is one."""
     if not NAME.fullmatch(name):
         return ("its name is not one the secret CLI takes (letters, digits and _, not starting with a digit); "
                 "store it again under such a name")
@@ -173,24 +184,52 @@ def _unusable(name: str, stage: str, meta: dict) -> str | None:
     if stage not in modes:
         where = f"stage {stage}" if stage else "no stage"
         return f"it is in {where}; only the prod (live) and test stages hold keys"
-    fix = f"`{update_command(name, modes[stage], '--meta label=<label>')}`"
-    label = meta.get("label", "")
-    if not label:
-        other = next((k for k in meta if k.lower() == "label"), None)
-        if other:   # the field is matched by its exact spelling, so removing it is one exact command
-            return (f"its field {other}= is not read: the field is label=, in lowercase; rename it with "
-                    f"`{update_command(name, modes[stage], f'--meta {other}= --meta label=<label>')}`")
-        return f"it has no label= field naming its account; give it one with {fix}"
-    if not LABEL.fullmatch(label.lower()):
-        return (f"label={label[:40]} is not a label (lowercase letters, digits and _, at most 24); fix it with "
-                f"{fix}")
+    mode = modes[stage]
+    for field in ("label", "org"):
+        other = next((k for k in meta if k.lower() == field and k != field), None)
+        if other and not meta.get(field):   # matched by its exact spelling, so removing it is one exact command
+            return (f"its field {other}= is not read: the field is {field}=, in lowercase; rename it with "
+                    f"`{update_command(name, mode, f'--meta {other}= --meta {field}=<{field}>')}`")
+    if not meta.get("label") and not meta.get("org"):
+        return (f"it has no label= field naming its account, nor org= naming an organization key; give it one "
+                f"with `{update_command(name, mode, '--meta label=<label>')}`")
+    if meta.get("label") and meta.get("org"):
+        return ("it carries both label= (an account's own key) and org= (an organization key); an account reached "
+                "through an organization is a field acct_<label>=acct_… on the organization key's item, so keep "
+                f"one of the two (`{update_command(name, mode, '--meta org=')}` for an account's own key)")
+    for field in ("label", "org"):
+        value = meta.get(field, "")
+        if value and not LABEL.fullmatch(value.lower()):
+            return (f"{field}={value[:40]} is not a {field} name (lowercase letters, digits and _, at most 24); "
+                    f"fix it with `{update_command(name, mode, f'--meta {field}=<{field}>')}`")
     return None
 
 
-def inventory() -> tuple[dict, list]:
-    """The scope's items, from the Keychain's metadata (no value is read): {(label, mode): [item names]} for
-    the keys, and the items that are no key with what is wrong with each. The field is label= exactly; its
-    value matches without regard to case."""
+def _routes(name: str, mode: str, meta: dict) -> tuple[list, list]:
+    """The acct_<label>=acct_… fields of an organization key's item: [(label, account id)], and the fields
+    that route nothing with what is wrong with each."""
+    routes, problems = [], []
+    for field, value in sorted(meta.items()):
+        if not field.lower().startswith(ROUTE_FIELD):
+            continue
+        label = field[len(ROUTE_FIELD):]
+        fix = update_command(name, mode, f"--meta {field}= --meta {ROUTE_FIELD}<label>=acct_…")
+        if not field.startswith(ROUTE_FIELD) or not LABEL.fullmatch(label):
+            problems.append(f"its field {field[:40]}= routes no label: the field is {ROUTE_FIELD}<label>, the label "
+                            f"in lowercase letters, digits and _ (`{fix}`)")
+        elif not ACCOUNT_ID.fullmatch(value):
+            problems.append(f"its field {field}= holds no account id (acct_…); store the "
+                            f"{'sandbox ' if mode == 'test' else ''}account's id there (`{fix}`)")
+        else:
+            routes.append((label, value))
+    return routes, problems
+
+
+def inventory() -> tuple[dict, dict, list]:
+    """The scope's items, from the Keychain's metadata (no value is read): {(label, mode): [entries]} for the
+    accounts, each {"item"} for its own key or {"item", "org", "account_id"} for a route on an organization
+    key's item; {(org, mode): [items]} for the organization keys; and what is no key or routes nothing, with
+    what is wrong. Fields are spelled exactly; label and org values match without regard to case."""
     proc = _secret("ls", "-p", PROJECT, "--json")
     if proc.returncode != 0:
         raise Setup(f"could not list the Keychain items of project {PROJECT}")
@@ -199,7 +238,7 @@ def inventory() -> tuple[dict, list]:
     except ValueError as exc:
         raise Setup("the Keychain listing was not readable") from exc
     modes = {stage: mode for mode, stage in STAGES.items()}
-    found, unused = {}, []
+    found, orgs, unused = {}, {}, []
     for item in items if isinstance(items, list) else []:
         if not isinstance(item, dict) or item.get("scope") != SCOPE:
             continue
@@ -210,24 +249,48 @@ def inventory() -> tuple[dict, list]:
         if problem:
             unused.append({"item": name[:80], "stage": stage, "problem": mask(problem)[:300]})
             continue
-        found.setdefault((meta["label"].lower(), modes[stage]), []).append(name)
-    return {slot: sorted(names) for slot, names in found.items()}, unused
+        mode = modes[stage]
+        label, org = meta.get("label", "").lower(), meta.get("org", "").lower()
+        if label:
+            found.setdefault((label, mode), []).append({"item": name})
+            continue
+        orgs.setdefault((org, mode), []).append(name)
+        routes, problems = _routes(name, mode, meta)
+        for routed, account_id in routes:
+            found.setdefault((routed, mode), []).append({"item": name, "org": org, "account_id": account_id})
+        unused += [{"item": name[:80], "stage": stage, "problem": mask(problem)[:300]} for problem in problems]
+    return ({slot: sorted(entries, key=lambda e: e["item"]) for slot, entries in found.items()},
+            {slot: sorted(names) for slot, names in orgs.items()}, unused)
 
 
-def _twice(label: str, mode: str, names: list) -> str:
+def _twice(field: str, value: str, mode: str, names: list, clear: str | None = None) -> str:
+    """`clear` is what to take off the others (by default the field itself)."""
     listed = ", ".join(names[:4]) + (" …" if len(names) > 4 else "")
-    return (f"{len(names)} items in stage {STAGES[mode]} carry label={label} ({listed}); nothing was sent. Keep "
-            f"one: take the field off the others (`{update_command(names[-1], mode, '--meta label=')}`)")
+    fix = update_command(names[-1], mode, clear or f"--meta {field}=")
+    return (f"{len(names)} items in stage {STAGES[mode]} carry {field}={value} ({listed}); nothing was sent. "
+            f"Keep one: take the fields off the others (`{fix}`)")
 
 
-def read_key(label: str, mode: str, item: str) -> tuple[str, str]:
-    """(key, kind) of one item, read from that stage's exact layer; raises Setup with the fix."""
-    where = f"{item}@{STAGES[mode]} (label={label})"
+_READ: dict[tuple[str, str], str] = {}   # one read per item in this process: an organization key serves many
+
+
+def _get(item: str, mode: str, where: str) -> str:
+    """One item's value, read from that stage's exact layer; raises Setup with the fix."""
+    if (item, mode) in _READ:
+        return _READ[(item, mode)]
     proc = _secret("get", item, "-p", PROJECT, "--scope", SCOPE, "--stage", STAGES[mode])
     value = proc.stdout.strip()
     if proc.returncode != 0 or not value:
         raise Setup(f"{where} could not be read from the Keychain (locked, or removed since it was listed); "
                     "nothing was sent")
+    _READ[(item, mode)] = value
+    return value
+
+
+def read_key(label: str, mode: str, item: str) -> tuple[str, str]:
+    """(key, kind) of an account's own key; raises Setup with the fix."""
+    where = f"{item}@{STAGES[mode]} (label={label})"
+    value = _get(item, mode, where)
     SECRETS.append(value)
     match = KEY.fullmatch(value)
     if not match:
@@ -239,11 +302,57 @@ def read_key(label: str, mode: str, item: str) -> tuple[str, str]:
     return value, "restricted" if match.group(1) == "rk" else "secret"
 
 
-def resolve(account, mode: str) -> tuple[str, str]:
-    """(label, item) a call runs on: the label named, or the only one stored for the mode, and its one item."""
+def read_org_key(org: str, mode: str, item: str) -> str:
+    """An organization key; its prefix must agree with the mode, as an account key's does."""
+    where = f"{item}@{STAGES[mode]} (org={org})"
+    value = _get(item, mode, where)
+    SECRETS.append(value)
+    match = ORG_KEY.fullmatch(value)
+    if not match:
+        raise Setup(f"{where} is not a Stripe organization key (sk_org_…); store the organization's key there "
+                    f"(`{update_command(item, mode)}`)")
+    if match.group(1) != mode:
+        raise Setup(f"{where} holds a {match.group(1)} organization key, not a {mode} one; nothing was sent. "
+                    f"Store the {mode} key there (`{update_command(item, mode)}`)")
+    return value
+
+
+def pick(label: str, mode: str, entries: list, orgs: dict) -> dict:
+    """What a label runs on, from the listing: {"item", "org", "account_id", "also"}; its own key when it has
+    one, else the one organization key whose item routes it."""
+    own = [entry["item"] for entry in entries if not entry.get("org")]
+    routed = [entry for entry in entries if entry.get("org")]
+    if len(own) > 1:
+        raise Setup(_twice("label", label, mode, own))
+    if own:
+        return {"item": own[0], "org": None, "account_id": None, "also": sorted({e["org"] for e in routed})}
+    field = f"{ROUTE_FIELD}{label}"
+    if len(routed) > 1:
+        raise Setup(_twice(field, "…", mode, [e["item"] for e in routed]))
+    route = routed[0]
+    holders = orgs.get((route["org"], mode)) or []
+    if len(holders) > 1:
+        raise Setup(_twice("org", route["org"], mode, holders))
+    return {"item": route["item"], "org": route["org"], "account_id": route["account_id"], "field": field,
+            "also": []}
+
+
+def credentials(label: str, mode: str, target: dict) -> dict:
+    """The key, its kind, the Stripe-Context and the fingerprint of what a call runs on."""
+    if target["org"] is None:
+        key, kind = read_key(label, mode, target["item"])
+        return {"key": key, "kind": kind, "context": None, "fingerprint": fingerprint(key)}
+    key = read_org_key(target["org"], mode, target["item"])
+    account_id = target["account_id"]
+    return {"key": key, "kind": "organization", "context": account_id,
+            "fingerprint": fingerprint(f"{key}|{account_id}")}
+
+
+def resolve(account, mode: str) -> tuple[str, dict]:
+    """(label, target) a call runs on: the label named, or the only one stored for the mode."""
     if account is not None and (not isinstance(account, str) or not LABEL.fullmatch(account)):
         raise Setup("account must be a label like work (lowercase letters, digits and _)")
-    found, _ = inventory()
+    found, orgs, _ = inventory()
     if account is None:
         labels = sorted(label for label, m in found if m == mode)
         if not labels:
@@ -251,34 +360,53 @@ def resolve(account, mode: str) -> tuple[str, str]:
         if len(labels) > 1:
             raise Setup(f"account is required: {mode} keys are stored for " + ", ".join(labels))
         account = labels[0]
-    names = found.get((account, mode))
-    if not names:
+    entries = found.get((account, mode))
+    if not entries:
         raise Setup(f"no {mode} key for account {account} in the Keychain (project {PROJECT}, scope {SCOPE}, "
                     f"stage {STAGES[mode]}, field label={account}); the user stores it with "
                     f"`{set_command(account, mode)}`")
-    if len(names) > 1:
-        raise Setup(_twice(account, mode, names))
-    return account, names[0]
+    return account, pick(account, mode, entries, orgs)
 
 
-def keys() -> tuple[list, list]:
-    """Each stored key's label, mode, item, kind and fingerprint, read from the Keychain, and the scope's
-    items that are no key."""
-    found, unused = inventory()
+def _route(target: dict) -> dict:
+    """The reply fields that say what a call runs on."""
+    fields = {"item": target["item"]}
+    if target["org"]:   # item is then the organization key's, field the one on it that routes the label
+        fields.update(org=target["org"], field=target["field"], stripe_account=target["account_id"])
+    return fields
+
+
+def keys() -> tuple[list, list, list]:
+    """Each stored label's route, item, kind and fingerprint, each organization key's, and the scope's items
+    that are none of these; read from the Keychain."""
+    found, orgs, unused = inventory()
     result = []
-    for (label, mode), names in sorted(found.items()):
+    for (label, mode), entries in sorted(found.items()):
         entry = {"account": label, "mode": mode}
+        try:
+            target = pick(label, mode, entries, orgs)
+            entry.update(_route(target))
+            if target["also"]:
+                entry["note"] = (f"also reached through organization {', '.join(target['also'])}; its own key is "
+                                 "used")
+            creds = credentials(label, mode, target)
+            entry.update(kind=creds["kind"], fingerprint=creds["fingerprint"])
+        except Setup as exc:
+            entry["problem"] = mask(exc)[:300]
+        result.append(entry)
+    organizations = []
+    for (org, mode), names in sorted(orgs.items()):
+        entry = {"org": org, "mode": mode}
         if len(names) > 1:
-            entry["problem"] = mask(_twice(label, mode, names))[:300]
+            entry["problem"] = mask(_twice("org", org, mode, names))[:300]
         else:
             entry["item"] = names[0]
             try:
-                value, kind = read_key(label, mode, names[0])
-                entry.update(kind=kind, fingerprint=fingerprint(value))
+                entry.update(kind="organization", fingerprint=fingerprint(read_org_key(org, mode, names[0])))
             except Setup as exc:
                 entry["problem"] = mask(exc)[:300]
-        result.append(entry)
-    return result, unused
+        organizations.append(entry)
+    return result, organizations, unused
 
 
 def route(method: str, path: str) -> None:
@@ -321,14 +449,20 @@ KINDS = {400: "invalid", 401: "refused", 402: "invalid", 403: "forbidden", 404: 
          429: "limited"}
 
 
-def prepare(key: str, method: str, path: str, params, idempotency_key) -> urllib.request.Request:
-    """The request, checked against ROUTES and Stripe's parameter shape; nothing is sent here."""
+def prepare(key: str, method: str, path: str, params, idempotency_key,
+            context: str | None = None) -> urllib.request.Request:
+    """The request, checked against ROUTES and Stripe's parameter shape; nothing is sent here. `context` is
+    the account an organization key acts on."""
     if not isinstance(method, str) or not isinstance(path, str):
         raise Failure("method and path are required")
     route(method, path)
     query = encode(params)
     headers = {"Authorization": f"Bearer {key}", "Stripe-Version": VERSION, "User-Agent": UA,
                "Accept": "application/json"}
+    if context is not None:
+        if not ACCOUNT_ID.fullmatch(context):
+            raise Failure("an organization key needs the account it acts on")
+        headers["Stripe-Context"] = context
     body = None
     url = BASE + path
     if method == "POST":
@@ -386,10 +520,10 @@ def call(req: dict) -> dict:
     mode = req.get("mode")
     if mode not in MODES:
         raise Setup("mode must be live or test")
-    label, item = resolve(req.get("account"), mode)
-    reply = {"account": label, "mode": mode, "item": item, "requests": 0}
-    key, kind = read_key(label, mode, item)
-    reply.update(fingerprint=fingerprint(key), key_kind=kind)
+    label, target = resolve(req.get("account"), mode)
+    reply = {"account": label, "mode": mode, **_route(target), "requests": 0}
+    creds = credentials(label, mode, target)
+    reply.update(fingerprint=creds["fingerprint"], key_kind=creds["kind"])
     slot = f"{label}/{mode}"
     if (req.get("refused") or {}).get(slot) == reply["fingerprint"]:
         return {**reply, "ok": False, "kind": "refused"}
@@ -398,9 +532,11 @@ def call(req: dict) -> dict:
         return {**reply, "ok": False, "kind": "limited", "until": until}
     if req.get("expect") and req["expect"] != reply["fingerprint"]:
         return {**reply, "ok": False, "kind": "account",
-                "error": "the stored key changed since the approval card was made; nothing was sent"}
+                "error": "the stored key or the account it reaches changed since the approval card was made; "
+                         "nothing was sent"}
     try:
-        prepared = prepare(key, req.get("method"), req.get("path"), req.get("params"), req.get("idempotency_key"))
+        prepared = prepare(creds["key"], req.get("method"), req.get("path"), req.get("params"),
+                           req.get("idempotency_key"), creds["context"])
     except Failure as exc:
         return {**reply, "ok": False, "kind": "error", "error": mask(exc)[:400]}
     deadline = time.monotonic() + float(req.get("deadline", 60))
@@ -420,18 +556,19 @@ def key(req: dict) -> dict:
     mode = req.get("mode")
     if mode not in MODES:
         raise Setup("mode must be live or test")
-    label, item = resolve(req.get("account"), mode)
-    value, kind = read_key(label, mode, item)
-    return {"ok": True, "account": label, "mode": mode, "item": item, "fingerprint": fingerprint(value),
-            "key_kind": kind, "requests": 0}
+    label, target = resolve(req.get("account"), mode)
+    creds = credentials(label, mode, target)
+    return {"ok": True, "account": label, "mode": mode, **_route(target), "fingerprint": creds["fingerprint"],
+            "key_kind": creds["kind"], "requests": 0}
 
 
 def main(req: dict) -> dict:
     op = req.get("op")
+    _READ.clear()   # what one request read, never a value an earlier request saw
     try:
         if op == "keys":
-            data, unused = keys()
-            return {"ok": True, "data": data, "unused": unused, "requests": 0}
+            data, organizations, unused = keys()
+            return {"ok": True, "data": data, "organizations": organizations, "unused": unused, "requests": 0}
         if op == "key":
             return key(req)
         if op == "call":
