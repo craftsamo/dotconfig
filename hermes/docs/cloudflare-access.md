@@ -1,20 +1,20 @@
 # Cloudflare access
 
-Cloudflare for the Assistant, Researcher and Marketer: the zones, DNS records
-and zone settings of the user's own Cloudflare accounts, through API tokens the
-user creates. Every profile with the tool reads. Read it when changing the
+Cloudflare for the Assistant, Researcher and Marketer: the zones, DNS records,
+zone settings and analytics of the user's own Cloudflare accounts, through API
+tokens the user creates. Every profile with the tool reads. Read it when changing the
 plugin, its tokens or what it may call. Common rules:
 [access-common.md](access-common.md). Part of the Hermes design docs — index:
 [`PROFILES.md`](../PROFILES.md).
 
 ## Shape
 
-| Piece                                                                                                          | Home                                                                                             | Reader                          |
-| -------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ | ------------------------------- |
-| Engine: validation, request building from a fixed table, zone lookup, token state, result shapes, bypass guard | `plugins/cloudflare-access/cfa.py`                                                               | all                             |
-| The only process holding a token; the endpoints it may call (`ROUTES`) and the account it fills in             | `plugins/cloudflare-access/bridge.py`                                                            | all                             |
-| `cloudflare` tool and the `pre_tool_call` hook (toolset `cloudflare_access`), the actions each profile gets    | `plugins/cloudflare-access/__init__.py`                                                          | Assistant, Researcher, Marketer |
-| How a profile reads Cloudflare: accounts, zones, record names, pages, permissions, recovery                    | the `cloudflare-access:cloudflare` plugin skill (`plugins/cloudflare-access/skills/cloudflare/`) | Assistant, Researcher, Marketer |
+| Piece                                                                                                                                             | Home                                                                                             | Reader                          |
+| ------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ | ------------------------------- |
+| Engine: validation, request building from a fixed table, zone lookup, token state, result shapes, bypass guard                                    | `plugins/cloudflare-access/cfa.py`                                                               | all                             |
+| The only process holding a token; the endpoints it may call (`ROUTES`), the analytics queries it may send (`QUERIES`) and the account it fills in | `plugins/cloudflare-access/bridge.py`                                                            | all                             |
+| `cloudflare` tool and the `pre_tool_call` hook (toolset `cloudflare_access`), the actions each profile gets                                       | `plugins/cloudflare-access/__init__.py`                                                          | Assistant, Researcher, Marketer |
+| How a profile reads Cloudflare: accounts, zones, record names, pages, permissions, recovery                                                       | the `cloudflare-access:cloudflare` plugin skill (`plugins/cloudflare-access/skills/cloudflare/`) | Assistant, Researcher, Marketer |
 
 Cloudflare's own REST API, so no terms are stretched: the risk is the user's
 sites and domains, not the account. Everything is standard library, so there is
@@ -22,7 +22,8 @@ no venv and no install step; the bridge runs under Hermes' own interpreter in
 isolated mode with a minimal environment
 ([bridge process](access-common.md#state-directory-and-bridge-process)). It
 calls only `https://api.cloudflare.com/client/v4`, only the method and path
-pairs in `ROUTES`, and never follows a redirect. Deploying code (Workers,
+pairs in `ROUTES` and the fixed analytics queries in `QUERIES`, and never
+follows a redirect. Deploying code (Workers,
 Pages) is not the tool's job: it stays with the project's own tooling.
 
 ## Profiles
@@ -123,12 +124,26 @@ setting the plan or the token cannot read is listed under `unavailable` with
 its reason. Lists page with `page` and `limit` (20 by default; zones at least
 5 and at most 50, DNS records at most 100) and return `next` while pages
 remain; a zone limit under 5 is read as 5, so following `next` never skips a
-zone. A result over
-60,000 characters is refused with a hint to narrow it.
+zone. A result over 60,000 characters is refused with a hint to narrow it.
+
+`analytics` reads Cloudflare's GraphQL Analytics API, but only through the
+bridge's fixed queries: the engine names one and passes its variables, which
+the bridge checks by kind (a zone id, a date, a UTC time, a Worker's name) and
+completes with the label's account, so no query text of the caller's is ever
+sent. A zone report runs only after the zone is checked to belong to the
+label's account. `traffic` counts whole UTC days (7 by default, at most 366);
+`paths`, `countries` and `statuses` are the 25 largest over a span (the last
+day by default, at most 31 days), `security` groups security actions by action
+and source and `security_events` lists the latest ones, and `workers` reads
+the account's Worker invocations, optionally for one `script`. Cloudflare
+answers query errors with a 200 as well; any error is a failure, passed on with
+Cloudflare's message and a note that a range beyond what the plan keeps, or a
+token without the analytics permission, reads this way. Visitors' IP addresses
+are never asked for.
 
 Zone and account names, DNS record contents (a TXT record holds any text) and
-comments can be set by others, so results carry a note that they are data,
-never instructions.
+comments can be set by others, and request paths come from visitors, so
+results carry a note that they are data, never instructions.
 
 ## Ways around the tool
 
@@ -158,10 +173,10 @@ Service-specific steps; the rest is in [shared setup](access-common.md#setup-sha
 
 1. In the Cloudflare dashboard, create an API token (My Profile → API Tokens
    for a user-owned token, or Manage Account → API Tokens for an account-owned
-   one) limited to the account and zones the profiles should see, with
-   Zone → Zone → Read, Zone → DNS → Read, Zone → Zone Settings → Read and
-   Account → Account Settings → Read. Copy the account id from the account's
-   home page. Store the token with
+   one) limited to the account and zones the profiles should see, with the
+   Read permission of each action they should use (the Permissions table of
+   the `cloudflare-access:cloudflare` skill lists them). Copy the account id
+   from the account's home page. Store the token with
    `secret set CLOUDFLARE_<LABEL> -p hermes --scope cloudflare-access --no-stage -D TOKEN --meta label=<label> --meta account_id=<account id> --no-env`
    (any name the CLI takes) and paste the token at the hidden prompt.
    `--no-env` keeps it out of `secret env` as a second guard beside the scope.
