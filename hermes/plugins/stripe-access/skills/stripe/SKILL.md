@@ -77,8 +77,8 @@ Fetch what the question needs. A report over a month is a bounded `since` /
 ## When something fails
 
 `status` first. A missing key, a refused key or a key in the wrong mode is
-the user's to fix in a terminal (`secret set STRIPE_KEY_<LABEL>_<MODE> -p
-hermes --scope stripe-access -D TOKEN --no-env`): relay the tool's message,
-do not retry or work around it. "refused this key access" means a restricted
+the user's to fix in a terminal (`secret set STRIPE_KEY_<LABEL> -p hermes
+--scope stripe-access --stage <prod|test> -D TOKEN --no-env`, `prod` for
+live): relay the tool's message, do not retry or work around it. "refused this key access" means a restricted
 key lacks a permission; the message names it and the user adds it in the
 Stripe Dashboard. "paused" means Stripe is rate-limiting: wait, never loop.

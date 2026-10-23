@@ -235,7 +235,8 @@ def test_account_is_remembered_for_status(fake):
 
 def test_status_without_keys_says_how_to_store_one(fake):
     status = run(action="status")
-    assert status["keys"] == [] and "secret set STRIPE_KEY_<LABEL>_<LIVE|TEST>" in status["problem"]
+    assert status["keys"] == []
+    assert "secret set STRIPE_KEY_<LABEL> -p hermes --scope stripe-access --stage <prod|test>" in status["problem"]
     fake.keys = {"ok": False, "kind": "setup", "error": "the secret CLI is missing", "requests": 0}
     assert "not set up" in run(action="status")["problem"]
 
@@ -249,7 +250,8 @@ def test_a_refused_key_is_remembered_until_it_works_again(fake):
         run(action="balance", mode="live")
     assert fake.requests[-1]["refused"] == {"work/live": "f" * 12}
     fake.keys = {"ok": True, "requests": 0, "data": [{"account": "work", "mode": "live", "fingerprint": "f" * 12}]}
-    assert "secret set STRIPE_KEY_WORK_LIVE" in run(action="status")["keys"][0]["problem"]
+    assert ("secret set STRIPE_KEY_WORK -p hermes --scope stripe-access --stage prod"
+            in run(action="status")["keys"][0]["problem"])
     fake.answers["/v1/balance"] = {"available": [], "pending": []}
     run(action="balance", mode="live")
     run(action="balance", mode="live")
@@ -284,7 +286,7 @@ def test_the_state_directory_is_private(fake):
 
 @pytest.mark.parametrize("command", [
     "stripe customers list --limit 3", "stripe login", "stripe config --list", "stripe get /v1/balance",
-    "curl https://api.stripe.com/v1/charges -u x:", "secret get STRIPE_KEY_WORK_LIVE -p hermes --scope stripe-access",
+    "curl https://api.stripe.com/v1/charges -u x:", "secret get STRIPE_KEY_WORK -p hermes --scope stripe-access --stage prod",
     "cat ~/.stripe-access/state.json", "python3 -c 'import stripe; print(stripe.api_key)'",
     "node -e \"require('stripe')\"", "cat ~/.config/stripe/config.toml", "echo sk_live_123 | pbcopy",
     "ls ~/.hermes/plugins/stripe-access", "security dump-keychain", "secret export -p hermes",

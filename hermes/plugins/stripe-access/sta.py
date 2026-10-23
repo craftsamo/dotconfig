@@ -353,12 +353,19 @@ def bridge(op: str, **fields) -> dict:
     return reply
 
 
+STAGES = {"live": "prod", "test": "test"}   # the secret CLI's stage holding each mode's key
+
+
+def set_command(label: str = "<LABEL>", mode: str | None = None) -> str:
+    stage = STAGES.get(mode or "", "<prod|test>")
+    return f"secret set STRIPE_KEY_{label.upper()} -p hermes --scope stripe-access --stage {stage} -D TOKEN --no-env"
+
+
 def _refused_message(reply: dict) -> str:
     label, mode = reply.get("account") or "<label>", reply.get("mode") or "<mode>"
-    item = f"STRIPE_KEY_{label.upper()}_{mode.upper()}"
     return (f"Stripe refused the {mode} key of account {label} ({reply.get('error') or 'invalid key'}): it was "
-            f"rolled, deleted or expired. Nothing is sent with it until the user stores a fresh key (`secret set "
-            f"{item} -p hermes --scope stripe-access -D TOKEN --no-env`).")
+            f"rolled, deleted or expired. Nothing is sent with it until the user stores a fresh key "
+            f"(`{set_command(label, reply.get('mode'))}`).")
 
 
 def _failure(reply: dict, what: str) -> str:
@@ -743,8 +750,8 @@ def status(can_write: bool) -> dict:
         keys.append(item)
     result["keys"] = keys
     if not keys:
-        result["problem"] = ("no Stripe key is stored; the user stores one per account and mode with `secret set "
-                             "STRIPE_KEY_<LABEL>_<LIVE|TEST> -p hermes --scope stripe-access -D TOKEN --no-env`")
+        result["problem"] = ("no Stripe key is stored; the user stores one per account and mode (stage prod for "
+                             f"live, test for test) with `{set_command()}`")
     return result
 
 
