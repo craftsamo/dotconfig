@@ -726,11 +726,12 @@ telegram:
         - assistant-pipeline
   channel_prompts:
     # On first startup Hermes creates the topics below and persists each thread_id.
-    # Replace the two *_THREAD_ID keys with those numeric ids, then restart once.
+    # Replace the INBOX_THREAD_ID key with the Inbox topic's numeric id, then restart once.
     # Until that restart, Telegram cron delivery fails closed instead of using root DM.
     # Pinned topics bind NO skill (the desk skills were retired 2026-09-14); the
     # chat-wide assistant-pipeline binding above is the only skill surface, and
-    # each topic's contract lives entirely in its channel_prompts entry.
+    # a topic's contract lives entirely in its channel_prompts entry. General has
+    # none: it uses the chat-wide prompt, like any topic the user creates.
     "YOUR_TELEGRAM_CHAT_ID": |
       Telegram-specific overrides:
       - This chat renders rich Markdown — lean into it: tables, headings, bullet/numbered
@@ -750,22 +751,6 @@ telegram:
         and watchdog alerts.
       - Summarize or explain a notification when asked, but do not start or dispatch execution
         work here. Prepare a handoff and ask for a new topic when action is required.
-    "ADMIN_THREAD_ID": |
-      Topic contract — Admin:
-      - This topic is the inline surface for small administrative work that does not
-        deserve a topic of its own: workspace bookkeeping (project registry, group or repo
-        scaffolding, people and ledger records, docs/data touch-ups), edits to
-        the dotconfig repo (~/ghq/github.com/craftsamo/dotconfig) and its Hermes profiles,
-        and Hermes upkeep (browser relaunch, cron and validator checks, skill housekeeping).
-      - Finish the work here in the Assistant session with the owning workspace skill or
-        local tools. Never start a resident session or delegate from
-        this topic; when a request grows into implementation, media, or sustained research,
-        prepare a compact handoff and ask for a new topic.
-      - Edit Hermes config in the dotconfig repo only, never through ~/.hermes or ~/.config
-        (both are links into it); follow the AGENTS.md of the tree you touch. Commits,
-        pushes, and gateway restarts need explicit approval.
-      - Treat everything under ~/Workspaces/Personal as sensitive; summarize and never
-        expose raw financial data, contacts, or PII.
   allowed_chats: ''
 platforms:
   telegram:
@@ -821,7 +806,9 @@ platforms:
         - name: Inbox
           icon_custom_emoji_id: '5417915203100613993'
           icon_color: 7322096
-        - name: Admin
+        # General is the everyday topic, reset often with /new. It stays pinned
+        # because Hermes renames an unpinned topic to each new session's title.
+        - name: General
           icon_custom_emoji_id: '5350554349074391003'
           icon_color: 9367192
 mattermost:
