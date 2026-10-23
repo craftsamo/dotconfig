@@ -119,7 +119,7 @@ in the plugin skills; the contract in the linked doc.
 | EVM / Solana                          | `evm_access`, `solana_access` | reads shared with Researcher, Searcher, Marketer; wallet actions the Assistant's alone                                    | [web3.md](../web3.md)                           |
 | Hyperliquid                           | `hyperliquid_access`          | reads shared with Researcher, Searcher, Marketer; trading the Assistant's alone, increases on a card                      | [hyperliquid.md](../hyperliquid.md)             |
 | Stripe                                | `stripe_access`               | live or test per call; reads shared with Researcher, Marketer; every change on a card, refunds and invoices ask each time | [stripe-access.md](../stripe-access.md)         |
-| Cloudflare                            | `cloudflare_access`           | reads shared with Researcher, Marketer; changes and rollbacks on a card, deletes and weakening ask each time              | [cloudflare-access.md](../cloudflare-access.md) |
+| Cloudflare                            | `cloudflare_access`           | reads shared with Researcher, Marketer; changes on a card; deletes, publishing and weakening ask each time                | [cloudflare-access.md](../cloudflare-access.md) |
 | This Mac's audio (Discord app)        | `screen_listen`               | one allowed app's output: minutes transcribed, or a session kept as a file; no account, no API, no card                   | [screen-listen.md](../screen-listen.md)         |
 
 Marketing work is the Assistant's to execute, with Marketer as its strategy
