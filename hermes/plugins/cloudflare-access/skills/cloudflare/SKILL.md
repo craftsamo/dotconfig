@@ -1,6 +1,6 @@
 ---
 name: cloudflare
-description: "Use for any reading of the user's Cloudflare: zones, DNS records, zone settings, traffic, security and Workers analytics, Workers and Pages deployments, or R2, KV and D1 names, sizes and schemas of their own accounts."
+description: "Use for any reading of the user's Cloudflare: zones, DNS records, zone settings, analytics, Workers and Pages deployments, R2, KV and D1 listings, tunnels or Email Routing of their own accounts."
 version: 1.0.0
 author: CraftSamo
 license: MIT
@@ -56,6 +56,9 @@ apply to you.
 | which R2 buckets exist, what files a bucket holds and how big | `r2`, then `r2` with `bucket` (`prefix`) |
 | which KV namespaces exist, which keys one holds | `kv`, then `kv` with `namespace` (`prefix`) |
 | which D1 databases exist, a database's size and tables | `d1`, then `d1` with `database` |
+| which tunnels exist and whether they are up | `tunnels` (`status`) |
+| which hostnames a tunnel publishes, to which service | `tunnels` with `tunnel` |
+| where a domain's mail goes | `email_routing` with `zone` |
 
 `name` is read relative to the zone: `www` is `www.example.com`, `@` the zone
 itself; a filter matches exactly. A record's `ttl` of `auto` is Cloudflare's
@@ -88,6 +91,16 @@ below, read the next with `prefix`. R2 and KV page with `cursor` = the previous
 tables, indexes, views and triggers as their `CREATE` statements;
 `schema_unavailable` means the token may not run D1's query endpoint, as the
 message says.
+
+A tunnel `managed` in the dashboard has its public hostnames in `ingress`,
+the last rule catching everything else; one managed in a local config file
+shows none here, since they live on the machine that runs it. A tunnel's
+`connections` count the links to Cloudflare its connector holds. Email
+Routing `rules` match an address (`when`) and forward, drop or hand mail to
+a Worker (`then`); the `catch_all` takes what no rule matches. A destination
+that is not `verified` receives nothing until its owner confirms the e-mail
+Cloudflare sent. Rules and destinations come 50 a page: `rules_next` or
+`destinations_next` is the `page` to read for the rest.
 
 ## Analytics
 
@@ -133,3 +146,5 @@ command the message gives: relay it, do not retry or work around it.
 | `r2` | Account → Workers R2 Storage → Read |
 | `kv` | Account → Workers KV Storage → Read |
 | `d1` | Account → D1 → Read |
+| `tunnels` | Account → Cloudflare Tunnel → Read |
+| `email_routing` | Zone → Email Routing Rules → Read, and for destinations Account → Email Routing Addresses → Read |

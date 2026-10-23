@@ -1,9 +1,9 @@
 # Cloudflare access
 
 Cloudflare for the Assistant, Researcher and Marketer: the zones, DNS records,
-zone settings, analytics, Workers and Pages deployments and the names, sizes
-and schemas in R2, KV and D1 of the user's own Cloudflare accounts, through
-API tokens the user creates. Every profile with the tool reads. Read it when changing the
+zone settings, analytics, Workers and Pages deployments, the names, sizes and
+schemas in R2, KV and D1, tunnels and Email Routing of the user's own
+Cloudflare accounts, through API tokens the user creates. Every profile with the tool reads. Read it when changing the
 plugin, its tokens or what it may call. Common rules:
 [access-common.md](access-common.md). Part of the Hermes design docs — index:
 [`PROFILES.md`](../PROFILES.md).
@@ -159,6 +159,17 @@ metadata. `d1` lists the databases, or one `database`'s size and schema. D1's
 query endpoint runs any SQL, writes included, so the only statement the tool
 sends there is fixed in the bridge (`SCHEMA_SQL`, a read of `sqlite_master`),
 and a request to that route carrying a body of its own is refused.
+
+`tunnels` lists the account's Cloudflare Tunnels that are not deleted, with
+their health, where they are managed and how many connections their
+connectors hold (data centers and client versions, never the origin's IP
+address), or for one `tunnel` also its public hostnames and the services
+behind them, which a tunnel managed in a local file does not report.
+`email_routing` reads a zone's Email Routing state, rules and catch-all
+together with the account's destination addresses, each verified or not;
+rules and destinations come 50 a `page`, each list with its own `next`, and a
+part the token may not read is listed under `<part>_unavailable` rather than
+failing the rest.
 
 Zone and account names, DNS record contents (a TXT record holds any text) and
 comments can be set by others, request paths come from visitors, deployment

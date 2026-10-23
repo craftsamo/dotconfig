@@ -125,6 +125,14 @@ ROUTES = (
     ("GET", "/accounts/{account}/d1/database"),
     ("GET", "/accounts/{account}/d1/database/{uuid}"),
     ("POST", "/accounts/{account}/d1/database/{uuid}/query"),
+    # tunnels and Email Routing
+    ("GET", "/accounts/{account}/cfd_tunnel"),
+    ("GET", "/accounts/{account}/cfd_tunnel/{uuid}"),
+    ("GET", "/accounts/{account}/cfd_tunnel/{uuid}/configurations"),
+    ("GET", "/zones/{id}/email/routing"),
+    ("GET", "/zones/{id}/email/routing/rules"),
+    ("GET", "/zones/{id}/email/routing/rules/catch_all"),
+    ("GET", "/accounts/{account}/email/routing/addresses"),
 )
 VERIFY = {"user": "/user/tokens/verify", "account": "/accounts/{account}/tokens/verify"}
 
