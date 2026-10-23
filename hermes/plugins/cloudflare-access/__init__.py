@@ -4,9 +4,12 @@ One tool, ``cloudflare`` (toolset ``cloudflare_access``), run by ``cfa.py`` besi
 request to Cloudflare goes through ``bridge.py``, the only process that reads an API token from the
 Keychain (one token per account label). Each profile is offered the actions ``PROFILES`` lists for it,
 checked again by the gate, the handler and the engine; inbound A2A gets only what ``A2A`` lists for the
-profile. A ``pre_tool_call`` hook blocks terminal and file calls that would go around the tool. The
-plugin ships read-only skills (``skills/``), registered as ``cloudflare-access:<skill>`` for the
-profiles whose actions need them. Contract: docs/cloudflare-access.md.
+profile, never a change. A ``pre_tool_call`` hook holds every change for Hermes' human approval gate
+(the card names the account, the zone and what changes); a run with no person to answer it (cron,
+YOLO, a single query, a webhook) cannot change anything. The hook also blocks terminal and file calls
+that would go around the tool. The plugin ships read-only skills (``skills/``), registered as
+``cloudflare-access:<skill>`` for the profiles whose actions need them. Contract:
+docs/cloudflare-access.md.
 """
 
 from __future__ import annotations
@@ -34,17 +37,19 @@ def _load(name, path):
 
 HERE = Path(__file__).resolve().parent
 cfa = _load("hermes_cloudflare_access_engine", HERE / "cfa.py")
+human_gate = _load("hermes_human_gate", HERE.parent / "_shared" / "human_gate.py")
 tool_preview = _load("hermes_tool_preview", HERE.parent / "_shared" / "tool_preview.py")
 
 # The actions each profile's schema offers (checked again by the gate, the handler and the engine),
-# and the ones an inbound A2A request may run there. The Assistant never serves a peer; Researcher and
-# Marketer read, for reports and analysis.
+# and the ones an inbound A2A request may run there. The Assistant alone changes anything and never
+# serves a peer; Researcher and Marketer read, for reports and analysis.
 PROFILES = {"assistant": cfa.ACTIONS, "researcher": cfa.READS, "marketer": cfa.READS}
 A2A = {"researcher": cfa.READS, "marketer": cfa.READS}
 # Skill -> the profiles it is registered for, by the actions they hold. A skill is read-only to Hermes
 # (not editable through skill_manage); a profile that cannot do what a skill describes is not given it.
 SKILLS = {
     "cloudflare": {p for p, actions in PROFILES.items() if set(actions) & set(cfa.READS)},
+    "cloudflare-manage": {p for p, actions in PROFILES.items() if set(actions) & set(cfa.WRITES)},
 }
 
 READ_DESCRIPTION = (
@@ -107,9 +112,42 @@ READ_PROPERTIES = {
 }
 
 
+WRITE_DESCRIPTION = READ_DESCRIPTION + (
+    " Changes, each on its own approval card the user answers (agree the details in chat first; never retry a "
+    "denied one unchanged): dns_change (zone, changes: up to 20 of {op: add, type, name, content, ttl, proxied, "
+    "priority for MX, comment} | {op: update, id, the fields that change} | {op: delete, id}; A, AAAA, CNAME, "
+    "MX, TXT and NS records; all apply at once or none does). preview=true returns the card without asking or "
+    "changing anything, in any run. A run with no person to answer a card (cron, another agent's session, a "
+    "single query) changes nothing. 'not done' means nothing changed; 'stopped part way' lists what was done; "
+    "'UNCERTAIN' means read it in Cloudflare before anything else.")
+
+WRITE_PROPERTIES = {
+    "changes": {"type": "array", "description": "dns_change: the changes, in one batch that applies whole or not "
+                                                "at all",
+                "items": {"type": "object", "additionalProperties": False, "required": ["op"], "properties": {
+                    "op": {"type": "string", "enum": list(cfa.CHANGE_OPS)},
+                    "id": {"type": "string", "description": "update / delete: the record's id (dns_records lists "
+                                                            "them)"},
+                    "type": {"type": "string", "enum": list(cfa.WRITABLE_TYPES)},
+                    "name": {"type": "string", "description": "www, www.example.com or @ for the zone itself"},
+                    "content": {"type": "string", "description": "an address, a target host name or the text"},
+                    "ttl": {"type": "integer", "description": f"1 = automatic (default), or {cfa.TTL_LEAST} to "
+                                                              f"{cfa.TTL_MOST} seconds"},
+                    "proxied": {"type": "boolean", "description": "A, AAAA and CNAME: through Cloudflare"},
+                    "priority": {"type": "integer", "description": "MX: its priority"},
+                    "comment": {"type": "string", "description": "a note on the record"}}}},
+    "preview": {"type": "boolean", "description": "a change: return its card only; nothing is sent or asked"},
+}
+
+
 def schema_parts(actions) -> tuple[str, dict]:
     """(description, properties) for the actions a profile is offered."""
-    return READ_DESCRIPTION, {"action": {"type": "string", "enum": list(actions)}, **READ_PROPERTIES}
+    properties = {"action": {"type": "string", "enum": list(actions)}, **READ_PROPERTIES}
+    if not set(actions) & set(cfa.WRITES):
+        return READ_DESCRIPTION, properties
+    properties["zone"] = {**properties["zone"], "description": properties["zone"]["description"]
+                          + "; the zone a change is about"}
+    return WRITE_DESCRIPTION, {**properties, **WRITE_PROPERTIES}
 
 
 def _inbound_peer():
@@ -157,6 +195,17 @@ def _refusal(profile: str, args) -> str | None:
     return None
 
 
+def _is_write(args) -> bool:
+    """A call that would change Cloudflare. A preview only reads, so it is not one; a malformed preview flag
+    counts as a change, so the gate still sees it (and refuses it)."""
+    if not isinstance(args, dict) or args.get("action") not in cfa.WRITES:
+        return False
+    try:
+        return not cfa.is_preview(args)
+    except cfa.CloudflareError:
+        return True
+
+
 def make_handler(profile: str):
     allowed = PROFILES[profile]
     can_write = bool(set(allowed) & set(cfa.WRITES))
@@ -167,6 +216,10 @@ def make_handler(profile: str):
             refusal = _refusal(profile, args)
             if refusal:
                 raise cfa.CloudflareError(refusal)
+            if _is_write(args):
+                reason = human_gate.no_human()
+                if reason:
+                    return json.dumps({"ok": False, "error": human_gate.refusal(TOOL, reason)})
             text = json.dumps(cfa.execute(args, home=_home(), call_id=_call_id(), can_write=can_write,
                                           allowed=allowed), ensure_ascii=False)
             if len(text) > LIMIT:
@@ -179,15 +232,31 @@ def make_handler(profile: str):
 
 
 def make_gate(profile: str):
+    can_write = bool(set(PROFILES[profile]) & set(cfa.WRITES))
+
     def gate(**kwargs):
-        """pre_tool_call: a block for actions the profile is not offered, inbound A2A beyond what it may run,
-        and ways around the tool."""
+        """pre_tool_call: approval for every change, a block for actions the profile is not offered, inbound
+        A2A beyond what it may run, changes that would fail or that no person can approve, and ways around
+        the tool."""
         tool = kwargs.get("tool_name")
         args = kwargs.get("args")
         if tool == TOOL:
             refusal = _refusal(profile, args)
             if refusal:
                 return {"action": "block", "message": refusal if refusal.startswith(TOOL) else f"{TOOL}: {refusal}"}
+            if not _is_write(args):
+                return None
+            reason = human_gate.no_human()
+            if reason:
+                return {"action": "block", "message": human_gate.refusal(TOOL, reason)}
+            try:
+                request = cfa.approval_request(args, call_id=str(kwargs.get("tool_call_id") or ""),
+                                               can_write=can_write)
+            except Exception as exc:
+                return {"action": "block", "message": f"{TOOL}: not done: {exc}"}
+            if request:
+                reason, rule_key = request
+                return {"action": "approve", "message": reason, "rule_key": rule_key}
             return None
         message = cfa.bypass(tool, args)
         if message:
@@ -221,6 +290,8 @@ def register(ctx):
     description, properties = schema_parts(PROFILES[profile])
     description += (f' For anything past a single lookup, first load '
                     f'skill_view(name="cloudflare-access:{skills_for(profile)[0]}").')
+    if "cloudflare-manage" in skills_for(profile):
+        description += ' Before any change, load skill_view(name="cloudflare-access:cloudflare-manage").'
     schema = {"name": TOOL, "description": description, "parameters": {
         "type": "object", "properties": properties, "required": ["action"], "additionalProperties": False}}
     ctx.register_tool(name=TOOL, toolset=TOOLSET, handler=make_handler(profile), description=description,
