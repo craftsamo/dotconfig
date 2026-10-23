@@ -286,6 +286,78 @@ def test_an_analytics_refusal_names_range_and_permission(fake):
         run(action="analytics", report="traffic", zone=ZONE)
 
 
+def test_every_workers_and_pages_path_is_a_route_and_a_script_s_code_is_not():
+    def ok(path):
+        return any(m == "GET" and p.fullmatch(path) for m, p in bridge_module._ROUTES)
+    base = "/accounts/{account}"
+    for path in ("/workers/scripts", "/workers/scripts/api-1/deployments", "/workers/scripts/api-1/versions",
+                 "/pages/projects", "/pages/projects/site", "/pages/projects/site/deployments"):
+        assert ok(base + path), path
+    assert not ok(base + "/workers/scripts/api-1") and not ok(base + "/workers/scripts/api-1/content")
+
+
+def test_workers_lists_the_account_s_scripts(fake):
+    fake.answers["/accounts/{account}/workers/scripts"] = envelope([
+        {"id": "api", "created_on": "2026-01-01T00:00:00Z", "modified_on": "2026-10-01T00:00:00Z",
+         "usage_model": "standard", "compatibility_date": "2026-09-01", "handlers": ["fetch"], "etag": "x"}])
+    result = run(action="workers")
+    assert result["items"] == [{"name": "api", "created_on": "2026-01-01T00:00:00Z",
+                                "modified_on": "2026-10-01T00:00:00Z", "usage_model": "standard",
+                                "compatibility_date": "2026-09-01", "handlers": ["fetch"]}]
+    with pytest.raises(cfa.CloudflareError, match="comes whole"):
+        run(action="workers", limit=5)
+
+
+def test_one_worker_shows_its_current_deployment_earlier_ones_and_versions(fake):
+    base = "/accounts/{account}/workers/scripts/api"
+    deployment = lambda n, message: {"id": f"d{n}", "created_on": f"2026-10-0{n}T00:00:00Z", "source": "wrangler",
+                                     "strategy": "percentage", "author_email": "dev@example.com",
+                                     "annotations": {"workers/message": message},
+                                     "versions": [{"version_id": f"v{n}", "percentage": 100}]}
+    fake.answers[f"{base}/deployments"] = envelope({"deployments": [deployment(2, "fix"), deployment(1, "first")]})
+    fake.answers[f"{base}/versions"] = envelope({"items": [{"id": "v2", "number": 2, "metadata": {
+        "created_on": "2026-10-02T00:00:00Z", "source": "wrangler"}}]}, page=1, total_pages=3)
+    result = run(action="workers", script="api", limit=1)
+    [reads] = [r for r in fake.requests if r["op"] == "reads"]
+    assert reads["requests"][1]["params"] == [["page", "1"], ["per_page", "1"]]
+    assert result["current"]["versions"] == [{"version_id": "v2", "percentage": 100}]
+    assert result["current"]["message"] == "fix" and [d["id"] for d in result["deployments"]] == ["d1"]
+    assert result["versions"] == [{"id": "v2", "number": 2, "created_on": "2026-10-02T00:00:00Z",
+                                   "source": "wrangler"}]
+    assert result["versions_next"] == 2 and "whoever deployed" in result["note"]
+    fake.answers[f"{base}/versions"] = {"ok": False, "kind": "forbidden", "error": "10000: no"}
+    assert "lacks a permission" in run(action="workers", script="api")["versions_unavailable"]
+    with pytest.raises(cfa.CloudflareError, match="Worker's name"):
+        run(action="workers", script="../x")
+
+
+def test_pages_lists_projects_and_reads_one_project_s_deployments(fake):
+    deploy = {"id": "dep-1", "short_id": "abcd1234", "environment": "production", "url": "https://abcd.site.pages.dev",
+              "created_on": "2026-10-01T00:00:00Z", "latest_stage": {"name": "deploy", "status": "success"},
+              "deployment_trigger": {"metadata": {"branch": "main", "commit_hash": "f" * 40,
+                                                  "commit_message": "Ship it"}}, "is_skipped": False}
+    project = {"name": "site", "subdomain": "site.pages.dev", "domains": ["example.com"], "production_branch": "main",
+               "canonical_deployment": deploy, "latest_deployment": deploy}
+    fake.answers["/accounts/{account}/pages/projects"] = envelope([project])
+    [item] = run(action="pages")["items"]
+    assert item["production"]["stage"] == "deploy success" and "latest" not in item
+    fake.answers["/accounts/{account}/pages/projects/site"] = envelope(project)
+    fake.answers["/accounts/{account}/pages/projects/site/deployments"] = envelope([deploy], page=1, total_pages=1)
+    result = run(action="pages", project="site", env="production")
+    [reads] = [r for r in fake.requests if r["op"] == "reads"]
+    assert reads["requests"][1]["params"] == [["page", "1"], ["per_page", "10"], ["env", "production"]]
+    assert result["deployments"] == [{"id": "dep-1", "short_id": "abcd1234", "environment": "production",
+                                      "url": "https://abcd.site.pages.dev", "created_on": "2026-10-01T00:00:00Z",
+                                      "stage": "deploy success", "branch": "main", "commit": "f" * 12,
+                                      "commit_message": "Ship it"}]
+    with pytest.raises(cfa.CloudflareError, match="env must be"):
+        run(action="pages", project="site", env="staging")
+    with pytest.raises(cfa.CloudflareError, match="name the project"):
+        run(action="pages", env="preview")
+    with pytest.raises(cfa.CloudflareError, match="Pages project's name"):
+        run(action="pages", project="Site_1")
+
+
 def test_account_checks_the_token_then_reads_the_account(fake):
     fake.answers["/accounts/{account}"] = envelope({"id": ACCOUNT, "name": "Work", "type": "standard"})
     result = run(action="account")
