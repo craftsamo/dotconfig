@@ -70,7 +70,8 @@ READ_DESCRIPTION = (
 READ_PROPERTIES = {
     "mode": {"type": "string", "enum": list(sta.MODES),
              "description": "live (real money) or test (test or sandbox key); required except for status"},
-    "account": {"type": "string", "description": "label of a stored key, e.g. work; default the only one"},
+    "account": {"type": "string", "description": "a stored key's label (status lists them), e.g. work; default "
+                                                 "the only one"},
     "id": {"type": "string", "description": "a list action: one object in full (cus_…, in_…, sub_…, a coupon id …)"},
     "query": {"type": "string", "description": "payments / customers / subscriptions / invoices / products / "
                                                "prices: Stripe search query, instead of filters"},
