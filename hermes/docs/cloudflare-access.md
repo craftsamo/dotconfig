@@ -1,8 +1,9 @@
 # Cloudflare access
 
 Cloudflare for the Assistant, Researcher and Marketer: the zones, DNS records,
-zone settings, analytics and Workers and Pages deployments of the user's own
-Cloudflare accounts, through API tokens the user creates. Every profile with the tool reads. Read it when changing the
+zone settings, analytics, Workers and Pages deployments and the names, sizes
+and schemas in R2, KV and D1 of the user's own Cloudflare accounts, through
+API tokens the user creates. Every profile with the tool reads. Read it when changing the
 plugin, its tokens or what it may call. Common rules:
 [access-common.md](access-common.md). Part of the Hermes design docs — index:
 [`PROFILES.md`](../PROFILES.md).
@@ -149,10 +150,21 @@ projects with their production and latest deployment, or for one `project` a
 page of its deployments (`env` production or preview) with each one's branch,
 commit and stage.
 
+Storage is read to names, sizes and schemas, never a value or a row: the
+routes that return an R2 object, a KV value or a D1 export are not in
+`ROUTES`. `r2` lists the buckets, or one `bucket`'s object names, sizes and
+content types a folder at a time (`delimiter` `/`, `prefix`, `cursor`). `kv`
+lists the namespaces, or one `namespace`'s key names and expiry, never their
+metadata. `d1` lists the databases, or one `database`'s size and schema. D1's
+query endpoint runs any SQL, writes included, so the only statement the tool
+sends there is fixed in the bridge (`SCHEMA_SQL`, a read of `sqlite_master`),
+and a request to that route carrying a body of its own is refused.
+
 Zone and account names, DNS record contents (a TXT record holds any text) and
-comments can be set by others, request paths come from visitors, and
-deployment and commit messages from whoever deployed, so results carry a note
-that they are data, never instructions.
+comments can be set by others, request paths come from visitors, deployment
+and commit messages from whoever deployed, and storage names from the apps
+that wrote them, so results carry a note that they are data, never
+instructions.
 
 ## Ways around the tool
 
