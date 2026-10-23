@@ -49,18 +49,24 @@ Marketer to reads.
 
 ## Keys, modes and state
 
-One Keychain item per account label and mode, in the `hermes` project under
-the scope `stripe-access` ([secret scoping](access-common.md#secret-scoping)):
-`STRIPE_KEY_<LABEL>_LIVE` and `STRIPE_KEY_<LABEL>_TEST`. A label (`work`,
+One Keychain item per account label, `STRIPE_KEY_<LABEL>`, in the `hermes`
+project under the scope `stripe-access`
+([secret scoping](access-common.md#secret-scoping)), with one stage per mode:
+`@prod` holds the live key and `@test` the test key. A label (`work`,
 `personal`) names one Stripe account; each business on its own Stripe account
 gets its own label. The labels and the accounts behind them are private: they
 stay in the Keychain and the state directory, never in tracked files.
 
+The bridge reads a key by its exact layer (`--scope stripe-access --stage
+prod|test`), so a stage-less `STRIPE_KEY_<LABEL>` or another stage is never
+taken for a key, and it never sets `SECRET_STAGE`. Stored `--no-env`, the keys
+reach no environment through `secret env` or a shim in any stage.
+
 Every action but `status` names its `mode`: `live` (real money) or `test` (a
 test-mode or sandbox key; both use `_test_` keys). `account` picks the label;
 it may be left out when one label holds a key for that mode. The bridge refuses
-a key whose prefix disagrees with the mode (`sk_live_…` stored as
-`…_TEST`), and a publishable key, before anything is sent. It lists labels
+a key whose prefix disagrees with the mode (`sk_live_…` stored in `@test`),
+and a publishable key, before anything is sent. It lists labels
 from the Keychain's metadata, reads only the item a call needs, and masks the
 value (and anything shaped like a Stripe key) in every string it returns.
 
@@ -189,9 +195,11 @@ Service-specific steps; the rest is in [shared setup](access-common.md#setup-sha
    with read access to what the profiles should see and write access only to
    what the Assistant should change; a secret key works too but grants
    everything. Store it with
-   `secret set STRIPE_KEY_<LABEL>_<LIVE|TEST> -p hermes --scope stripe-access -D TOKEN --no-env`
-   and paste the key at the hidden prompt. `--no-env` keeps it out of
-   `secret env` as a second guard beside the scope.
+   `secret set STRIPE_KEY_<LABEL> -p hermes --scope stripe-access --stage <prod|test> -D TOKEN --no-env`
+   (`prod` for a live key, `test` for a test or sandbox key) and paste the key
+   at the hidden prompt. `--no-env` keeps it out of `secret env` as a second
+   guard beside the scope. A live key is shown once in the Dashboard: store it
+   straight away.
 2. Enable the plugin and add `stripe_access` to the profile's `toolsets` and
    `platform_toolsets` (`a2a` only for Researcher and Marketer), then restart
    the gateway. The three example configs in this repo have it; the private

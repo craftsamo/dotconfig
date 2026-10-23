@@ -19,19 +19,29 @@ LIVE_KEY = "rk_live_" + "b2" * 12
 
 
 def fake_secret(tmp_path: Path, values: dict, listed: list | None = None) -> Path:
-    """A `secret` CLI that lists `listed` (default: every name in `values`, in the stripe-access scope),
-    answers `get` from `values` and logs its arguments."""
+    """A `secret` CLI keyed by layer ("NAME@stage", "NAME@" for a stage-less one): it lists `listed`
+    (default: every layer in `values`, in the stripe-access scope), answers `get NAME --stage S` from
+    `values` only when the `--scope stripe-access` and `--stage` it is given name that exact layer, and logs
+    its arguments."""
     listed = listed if listed is not None else [
-        {"name": name, "project": "hermes", "scope": "stripe-access", "stage": "", "kind": "TOKEN"} for name in values]
+        {"name": key.split("@")[0], "project": "hermes", "scope": "stripe-access", "stage": key.split("@")[1],
+         "kind": "TOKEN"} for key in values]
     (tmp_path / "ls.json").write_text(json.dumps(listed))
-    branches = "".join(f"    {name}) printf '%s\\n' '{value}' ;;\n" for name, value in values.items())
+    branches = "".join(f"    {key}) printf '%s\\n' '{value}' ;;\n" for key, value in values.items())
     script = tmp_path / "secret"
     script.write_text(
         "#!/bin/sh\n"
         f"echo \"$@\" >> '{tmp_path / 'log'}'\n"
+        'stage=""; scope=""; prev=""\n'
+        'for a in "$@"; do\n'
+        '  [ "$prev" = "--stage" ] && stage="$a"\n'
+        '  [ "$prev" = "--scope" ] && scope="$a"\n'
+        '  prev="$a"\n'
+        "done\n"
         'case "$1" in\n'
         f"  ls) cat '{tmp_path / 'ls.json'}' ;;\n"
-        '  get) case "$2" in\n'
+        '  get) [ "$scope" = "stripe-access" ] || exit 1\n'
+        '    case "$2@$stage" in\n'
         f"{branches}"
         "    *) exit 1 ;;\n"
         "  esac ;;\n"
@@ -57,8 +67,8 @@ class Reply(io.BytesIO):
 @pytest.fixture
 def net(tmp_path, monkeypatch):
     """Stripe as a table of path -> (status, JSON, headers); records each request."""
-    monkeypatch.setattr(bridge, "SECRET", fake_secret(tmp_path, {"STRIPE_KEY_WORK_TEST": TEST_KEY,
-                                                                 "STRIPE_KEY_WORK_LIVE": LIVE_KEY}))
+    monkeypatch.setattr(bridge, "SECRET", fake_secret(tmp_path, {"STRIPE_KEY_WORK@test": TEST_KEY,
+                                                                 "STRIPE_KEY_WORK@prod": LIVE_KEY}))
     bridge.SECRETS.clear()
     routes, sent = {}, []
 
@@ -79,17 +89,18 @@ def call(**fields):
     return bridge.main({"op": "call", "mode": "test", "account": "work", "method": "GET", "deadline": 30, **fields})
 
 
-def test_keys_lists_the_scope_and_reads_kinds_without_contacting_stripe(tmp_path, monkeypatch, net):
+def test_keys_lists_the_prod_and_test_stages_of_the_scope_without_contacting_stripe(tmp_path, monkeypatch, net):
     listed = [
-        {"name": "STRIPE_KEY_WORK_TEST", "scope": "stripe-access", "stage": ""},
-        {"name": "STRIPE_KEY_WORK_LIVE", "scope": "stripe-access", "stage": ""},
-        {"name": "STRIPE_KEY_SHOP_2_LIVE", "scope": "stripe-access", "stage": ""},   # stored, unreadable
-        {"name": "STRIPE_KEY_OTHER_LIVE", "scope": "another-scope", "stage": ""},
-        {"name": "STRIPE_KEY_STAGED_LIVE", "scope": "stripe-access", "stage": "prod"},
-        {"name": "UNRELATED", "scope": "stripe-access", "stage": ""},
+        {"name": "STRIPE_KEY_WORK", "scope": "stripe-access", "stage": "test"},
+        {"name": "STRIPE_KEY_WORK", "scope": "stripe-access", "stage": "prod"},
+        {"name": "STRIPE_KEY_SHOP_2", "scope": "stripe-access", "stage": "prod"},   # stored, unreadable
+        {"name": "STRIPE_KEY_PLAIN", "scope": "stripe-access", "stage": ""},       # no stage: not a key
+        {"name": "STRIPE_KEY_STAGING", "scope": "stripe-access", "stage": "staging"},   # another stage
+        {"name": "STRIPE_KEY_OTHER", "scope": "another-scope", "stage": "prod"},
+        {"name": "UNRELATED", "scope": "stripe-access", "stage": "prod"},
     ]
-    monkeypatch.setattr(bridge, "SECRET", fake_secret(tmp_path, {"STRIPE_KEY_WORK_TEST": TEST_KEY,
-                                                                 "STRIPE_KEY_WORK_LIVE": LIVE_KEY}, listed))
+    monkeypatch.setattr(bridge, "SECRET", fake_secret(tmp_path, {"STRIPE_KEY_WORK@test": TEST_KEY,
+                                                                 "STRIPE_KEY_WORK@prod": LIVE_KEY}, listed))
     reply = bridge.main({"op": "keys"})
     _, sent = net
     assert reply["ok"] is True and reply["requests"] == 0 and not sent
@@ -97,8 +108,27 @@ def test_keys_lists_the_scope_and_reads_kinds_without_contacting_stripe(tmp_path
     assert set(entries) == {("work", "test"), ("work", "live"), ("shop_2", "live")}
     assert entries[("work", "test")]["kind"] == "secret" and len(entries[("work", "test")]["fingerprint"]) == 12
     assert entries[("work", "live")]["kind"] == "restricted"
-    assert "secret set STRIPE_KEY_SHOP_2_LIVE -p hermes --scope stripe-access" in entries[("shop_2", "live")]["problem"]
+    assert ("secret set STRIPE_KEY_SHOP_2 -p hermes --scope stripe-access --stage prod -D TOKEN --no-env"
+            in entries[("shop_2", "live")]["problem"])
+    assert "STRIPE_KEY_SHOP_2@prod" in entries[("shop_2", "live")]["problem"]
     assert TEST_KEY not in json.dumps(reply) and LIVE_KEY not in json.dumps(reply)
+
+
+def test_each_mode_reads_its_own_stage_exactly(tmp_path, monkeypatch, net):
+    routes, _ = net
+    routes["/v1/balance"] = (200, {"object": "balance"}, {})
+    assert call(mode="live", path="/v1/balance")["key_kind"] == "restricted"
+    assert call(mode="test", path="/v1/balance")["key_kind"] == "secret"
+    gets = [line.split() for line in (tmp_path / "log").read_text().splitlines() if line.startswith("get ")]
+    assert gets == [["get", "STRIPE_KEY_WORK", "-p", "hermes", "--scope", "stripe-access", "--stage", "prod"],
+                    ["get", "STRIPE_KEY_WORK", "-p", "hermes", "--scope", "stripe-access", "--stage", "test"]]
+
+
+def test_a_stage_less_item_is_never_read_as_a_key(tmp_path, monkeypatch, net):
+    monkeypatch.setattr(bridge, "SECRET", fake_secret(tmp_path, {"STRIPE_KEY_WORK@": TEST_KEY}))
+    reply = call(path="/v1/balance")
+    assert reply["kind"] == "setup" and "no test key for account work" in reply["error"] and not net[1]
+    assert bridge.main({"op": "keys"})["data"] == []
 
 
 def test_a_get_is_pinned_authorized_and_encoded(net):
@@ -128,9 +158,10 @@ def test_the_key_never_leaves_even_when_stripe_echoes_it(net):
 
 def test_a_key_of_the_other_mode_is_never_used(tmp_path, monkeypatch, net):
     _, sent = net
-    monkeypatch.setattr(bridge, "SECRET", fake_secret(tmp_path, {"STRIPE_KEY_WORK_TEST": "sk_live_" + "c3" * 12}))
+    monkeypatch.setattr(bridge, "SECRET", fake_secret(tmp_path, {"STRIPE_KEY_WORK@test": "sk_live_" + "c3" * 12}))
     reply = call(path="/v1/balance")
-    assert reply["ok"] is False and reply["kind"] == "setup" and "holds a live key, not a test one" in reply["error"]
+    assert reply["ok"] is False and reply["kind"] == "setup"
+    assert "STRIPE_KEY_WORK@test holds a live key, not a test one" in reply["error"]
     assert not sent and "c3c3" not in json.dumps(reply)
 
 
@@ -139,7 +170,7 @@ def test_a_key_of_the_other_mode_is_never_used(tmp_path, monkeypatch, net):
     ("not a key", "not a Stripe secret or restricted key"),
 ])
 def test_a_key_that_is_not_a_secret_key_is_a_setup_problem(tmp_path, monkeypatch, net, value, message):
-    monkeypatch.setattr(bridge, "SECRET", fake_secret(tmp_path, {"STRIPE_KEY_WORK_TEST": value}))
+    monkeypatch.setattr(bridge, "SECRET", fake_secret(tmp_path, {"STRIPE_KEY_WORK@test": value}))
     reply = call(path="/v1/balance")
     assert reply["kind"] == "setup" and message in reply["error"] and not net[1]
 
@@ -147,15 +178,18 @@ def test_a_key_that_is_not_a_secret_key_is_a_setup_problem(tmp_path, monkeypatch
 def test_a_missing_key_names_the_command_that_stores_it(net):
     reply = call(account="shop", path="/v1/balance")
     assert reply["kind"] == "setup" and reply["requests"] == 0
-    assert "secret set STRIPE_KEY_SHOP_TEST -p hermes --scope stripe-access -D TOKEN --no-env" in reply["error"]
+    assert "STRIPE_KEY_SHOP@test" in reply["error"]
+    assert "secret set STRIPE_KEY_SHOP -p hermes --scope stripe-access --stage test -D TOKEN --no-env" in reply["error"]
+    reply = call(account="shop", mode="live", path="/v1/balance")
+    assert "secret set STRIPE_KEY_SHOP -p hermes --scope stripe-access --stage prod -D TOKEN --no-env" in reply["error"]
 
 
 def test_without_an_account_the_only_label_of_the_mode_is_used(tmp_path, monkeypatch, net):
     routes, _ = net
     routes["/v1/balance"] = (200, {"object": "balance"}, {})
     assert call(account=None, path="/v1/balance")["account"] == "work"
-    monkeypatch.setattr(bridge, "SECRET", fake_secret(tmp_path, {"STRIPE_KEY_WORK_TEST": TEST_KEY,
-                                                                 "STRIPE_KEY_SHOP_TEST": "sk_test_" + "e5" * 12}))
+    monkeypatch.setattr(bridge, "SECRET", fake_secret(tmp_path, {"STRIPE_KEY_WORK@test": TEST_KEY,
+                                                                 "STRIPE_KEY_SHOP@test": "sk_test_" + "e5" * 12}))
     reply = call(account=None, path="/v1/balance")
     assert reply["kind"] == "setup" and "account is required" in reply["error"] and "shop, work" in reply["error"]
     reply = call(account=None, mode="live", path="/v1/balance")
