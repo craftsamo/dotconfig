@@ -1,8 +1,8 @@
 # Cloudflare access
 
 Cloudflare for the Assistant, Researcher and Marketer: the zones, DNS records,
-zone settings and analytics of the user's own Cloudflare accounts, through API
-tokens the user creates. Every profile with the tool reads. Read it when changing the
+zone settings, analytics and Workers and Pages deployments of the user's own
+Cloudflare accounts, through API tokens the user creates. Every profile with the tool reads. Read it when changing the
 plugin, its tokens or what it may call. Common rules:
 [access-common.md](access-common.md). Part of the Hermes design docs — index:
 [`PROFILES.md`](../PROFILES.md).
@@ -141,9 +141,18 @@ Cloudflare's message and a note that a range beyond what the plan keeps, or a
 token without the analytics permission, reads this way. Visitors' IP addresses
 are never asked for.
 
+`workers` lists the account's Workers, or for one `script` its current
+deployment (the versions it serves and their traffic shares), its earlier
+deployments and a page of its versions, read together under one token read; a
+script's code is not a route, so it is never read. `pages` lists the Pages
+projects with their production and latest deployment, or for one `project` a
+page of its deployments (`env` production or preview) with each one's branch,
+commit and stage.
+
 Zone and account names, DNS record contents (a TXT record holds any text) and
-comments can be set by others, and request paths come from visitors, so
-results carry a note that they are data, never instructions.
+comments can be set by others, request paths come from visitors, and
+deployment and commit messages from whoever deployed, so results carry a note
+that they are data, never instructions.
 
 ## Ways around the tool
 

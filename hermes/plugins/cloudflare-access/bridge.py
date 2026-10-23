@@ -87,6 +87,8 @@ METHODS = ("GET", "POST", "PUT", "PATCH", "DELETE")
 SEGMENTS = {
     "{id}": r"[0-9a-f]{32}",                        # a zone, a DNS record, a KV namespace
     "{setting}": r"[a-z0-9_]{1,64}",                 # a zone setting
+    "{script}": r"[A-Za-z0-9_-]{1,64}",              # a Worker
+    "{project}": r"[a-z0-9][a-z0-9-]{0,62}",         # a Pages project
 }
 
 # Every endpoint this bridge will call, as (method, path pattern).
@@ -99,6 +101,13 @@ ROUTES = (
     ("GET", "/zones/{id}/dns_records"),
     ("GET", "/zones/{id}/dns_records/{id}"),
     ("GET", "/zones/{id}/settings/{setting}"),
+    # Workers and Pages: what runs and what was deployed, never a script's code
+    ("GET", "/accounts/{account}/workers/scripts"),
+    ("GET", "/accounts/{account}/workers/scripts/{script}/deployments"),
+    ("GET", "/accounts/{account}/workers/scripts/{script}/versions"),
+    ("GET", "/accounts/{account}/pages/projects"),
+    ("GET", "/accounts/{account}/pages/projects/{project}"),
+    ("GET", "/accounts/{account}/pages/projects/{project}/deployments"),
 )
 VERIFY = {"user": "/user/tokens/verify", "account": "/accounts/{account}/tokens/verify"}
 
