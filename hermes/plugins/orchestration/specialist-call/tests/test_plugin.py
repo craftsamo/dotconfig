@@ -808,11 +808,11 @@ def test_profile_configuration_and_plugin_api():
             assert platforms["a2a"] == platforms["cli"]
         else:
             # inbound A2A gets neither local inspection, this Mac's audio, the registry, nor
-            # Hyperliquid or Stripe (both refuse A2A on the Assistant)
+            # Hyperliquid, Stripe or Cloudflare (each refuses A2A on the Assistant)
             assert platforms["a2a"] == [
                 tool for tool in platforms["cli"]
                 if tool not in {"media_inspect", "screen_listen", "workspace_registry", "hyperliquid_access",
-                                "stripe_access"}
+                                "stripe_access", "cloudflare_access"}
             ]
             assert "workspace_registry" not in platforms["a2a"]
         for tools in [config["toolsets"], *platforms.values()]:

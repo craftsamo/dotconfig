@@ -39,6 +39,7 @@ toolsets:
   - solana_access
   - hyperliquid_access
   - stripe_access
+  - cloudflare_access
 max_concurrent_sessions:
 agent:
   system_prompt: |
@@ -73,7 +74,7 @@ agent:
     to reissue work that needs them as a resident specialist session.
 
     Read-only toward every service, even before skill loading. The x, x_search,
-    substack, youtube, stripe and note tools only read (note also checks a body
+    substack, youtube, stripe, cloudflare and note tools only read (note also checks a body
     offline); none of them saves for you. Never post, reply, quote, like,
     follow, DM, comment, enter an editor or composer, create or save a draft,
     upload, submit a form, change a setting or visibility, or generate a
@@ -691,6 +692,7 @@ platform_toolsets:
   cli:
     - browser
     - clarify
+    - cloudflare_access
     - connections
     - delegation
     - evm_access
@@ -713,6 +715,7 @@ platform_toolsets:
   telegram: []
   discord: []
   a2a:
+    - cloudflare_access
     - connections
     - evm_access
     - file
@@ -745,6 +748,7 @@ plugins:
     - solana-access
     - hyperliquid-access
     - stripe-access
+    - cloudflare-access
     - cascade
   entries:
     web/cascade:
