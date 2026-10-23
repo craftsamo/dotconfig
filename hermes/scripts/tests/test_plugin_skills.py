@@ -47,6 +47,7 @@ EXPECTED = {
     },
     "google-access": {"google-sheets": {"assistant"}},
     "stripe-access": {"stripe": {"assistant", "researcher", "marketer"}, "stripe-manage": {"assistant"}},
+    "cloudflare-access": {"cloudflare": {"assistant", "researcher", "marketer"}},
     "github-access": {"github": {"assistant"}, "github-tracking": {"assistant"}, "github-repo": {"assistant"},
                       "github-pr": {"assistant"}},
     "workspace/workspace-drafts": {"workspace-drafts": {"assistant"}},
