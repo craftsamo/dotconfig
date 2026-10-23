@@ -194,7 +194,8 @@ def test_a_write_is_approved_bound_and_carried_out_once(writes):
     ids = {"session_id": "s", "task_id": "t", "tool_call_id": "c1"}
     directive = gate(tool_name="substack", args=args, **ids)
     assert directive["action"] == "approve" and directive["rule_key"].startswith("substack-access:note:")
-    assert "post a public Note as @craftsamo" in directive["message"] and "Hello from Hermes" in directive["message"]
+    assert directive["message"] == ("Substack · Post a Note\n⚠️ Public at once\nAccount: @craftsamo\n\n"
+                                    "--- Note ---\nHello from Hermes")
     modify = bind(tool_name="substack", args=args, **ids)
     assert modify["action"] == "modify" and len(modify["args"]["_prepared"]) == 32
     assert [c["op"] for c in writes] == ["prepare"]  # one read for both hooks

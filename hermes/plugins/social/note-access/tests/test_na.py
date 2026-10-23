@@ -356,8 +356,10 @@ def test_create_with_images_and_cover(note, tmp_path):
     args = {"action": "create_draft", "title": "New", "eyecatch": "cover.png",
             "body": "intro\n\n![one](img/a.png)\n\n[![again](img/a.png)](https://x.example/)\n"}
     card, key = approve(args)
-    assert card.startswith("note: new draft as @writer\nTitle: New\nBody: ")
-    assert "1 new image" in card and "a.png 1240×400" in card and "Cover: cover.png 1280×670" in card
+    assert card.startswith("note · Save a new draft\n✅ Draft only; nothing is published\nAccount: @writer\n"
+                           "Title: New\nBody: ")
+    assert "1 new image" in card and "Cover: cover.png 1280×670" in card
+    assert "\n\n--- New images ---\n- a.png 1240×400" in card and "\n\n--- Body ---\nintro" in card
     assert key.startswith("note-access:create_draft:")
     result = na.write(dict(args), call_id="call-1")
     assert result["ok"] is True and result["verified"] is True and result["images_uploaded"] == 1
@@ -382,7 +384,8 @@ def test_update_replaces_title_and_body_and_keeps_known_images_and_blocks(note):
     current = na.draft({"draft": "n0000000000b2"})["markdown"]
     edited = current.replace("first", "second")
     card, _ = approve({"action": "update_draft", "draft": "n0000000000b2", "base": BASE, "body": edited})
-    assert card.startswith("note: replace draft n0000000000b2 as @writer\nNow: Title — first c player\nTitle: Title")
+    assert card.startswith("note · Replace draft n0000000000b2\n⚠️ Replaces the whole draft; nothing is published\n"
+                           "Account: @writer\nNow: Title — first c player\nTitle: Title")
     assert "keeps 1 image and 1 embed/file block" in card
     result = na.write({"action": "update_draft", "draft": "n0000000000b2", "base": BASE, "body": edited}, call_id="call-1")
     assert result["ok"] is True and result["verified"] is True and not note.uploads
@@ -478,7 +481,7 @@ def test_the_card_stays_within_telegrams_limit(note, tmp_path):
         ws(tmp_path, f"photos/a-very-long-image-file-name-{n:02d}.png", png(100 + n, 100))
     body = "".join(f"![p{n}](photos/a-very-long-image-file-name-{n:02d}.png)\n\n" for n in range(12)) + "text " * 400
     card, _ = approve({"action": "create_draft", "title": "T" * 150, "body": body})
-    assert na._units(card) <= na.CARD_LIMIT
+    assert na.cards.units(card) <= na.cards.BUDGET
     assert "12 new images" in card and "combined sha256" in card and "more characters" in card
 
 
@@ -610,7 +613,7 @@ def test_plugin_writes_to_one_draft_are_serialised(note, monkeypatch):
 def test_a_new_cookie_after_the_card_is_refused(note):
     args = {"action": "create_draft", "title": "T", "body": "x\n"}
     card, _ = approve(args)
-    assert "as @writer" in card
+    assert "\nAccount: @writer\n" in card
     note.fingerprint = "0123456789ab"   # the user stored another account's cookie meanwhile
     result = na.write(dict(args), call_id="call-1")
     assert result["ok"] is False and "signed-in account changed" in result["error"]
@@ -678,11 +681,20 @@ def test_an_unexpected_error_after_a_save_is_reported_with_progress(note, monkey
 def test_a_title_of_escaped_characters_still_leaves_the_cover_on_the_card(note, tmp_path):
     ws(tmp_path, "cover.png", png(1280, 670))
     card, _ = approve({"action": "create_draft", "title": "&" * 150, "body": "x" * 2000, "eyecatch": "cover.png"})
-    assert na._units(card) <= na.CARD_LIMIT and "Cover: cover.png" in card
+    assert na.cards.units(card) <= na.cards.BUDGET and "Cover: cover.png" in card
+
+
+def test_on_discord_a_draft_with_a_cover_still_fits(note, tmp_path, monkeypatch):
+    monkeypatch.setattr(na.cards, "platform", lambda: "discord")
+    ws(tmp_path, "cover.png", png(1280, 670))
+    card, _ = approve({"action": "create_draft", "title": "春のリリースノート：新機能のまとめ", "body": "本文。" * 600,
+                       "eyecatch": "cover.png"})
+    assert na.cards.units(card) <= na.cards.COMPACT_BUDGET and "Cover: cover.png" in card
+    assert "more characters)" in card
 
 
 def test_a_card_that_cannot_fit_is_refused(note, tmp_path, monkeypatch):
-    monkeypatch.setattr(na, "CARD_LIMIT", 120)
+    monkeypatch.setattr(na.cards, "BUDGET", 120)
     ws(tmp_path, "cover.png", png(1280, 670))
     with pytest.raises(na.NoteError, match="cannot show this save"):
         approve({"action": "create_draft", "title": "T", "body": "x", "eyecatch": "cover.png"})
@@ -708,7 +720,7 @@ def test_a_preview_checks_everything_and_saves_nothing(note, tmp_path):
     assert na.approval_request(args, can_write=True) is None          # no card for a preview
     result = na.execute(args, can_write=True)
     assert result["preview"] is True and result["base"] == BASE and result["key"] == "n0000000000a1"
-    assert result["card"].startswith("note: replace draft n0000000000a1 as @writer")
+    assert result["card"].startswith("note · Replace draft n0000000000a1\n")
     assert result["files"][0]["sha256"] == na._sha256(tmp_path / "ws" / "a.png")
     assert not any(op in ("presign", "create", "save", "eyecatch") for op, _ in note.calls) and not note.uploads
     with pytest.raises(na.NoteError, match="body line 1"):

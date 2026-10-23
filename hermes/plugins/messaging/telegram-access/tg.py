@@ -14,7 +14,6 @@ from __future__ import annotations
 
 from datetime import datetime
 import hashlib
-import html
 import importlib.util
 import json
 import os
@@ -50,9 +49,19 @@ def _load_shared(name: str):
     return sys.modules[key]
 
 
+def _load_card():
+    if "hermes_card" not in sys.modules:
+        spec = importlib.util.spec_from_file_location("hermes_card", HERE.parents[1] / "_shared" / "card.py")
+        module = importlib.util.module_from_spec(spec)
+        sys.modules["hermes_card"] = module
+        spec.loader.exec_module(module)
+    return sys.modules["hermes_card"]
+
+
 store = _load("store")
 rpc = _load("rpc")
 archives = _load_shared("archive_check")
+cards = _load_card()
 
 ACTIONS = ("status", "chats", "messages", "search", "context", "backfill", "media", "sync_list", "sync_add",
            "sync_remove", "send")
@@ -67,9 +76,6 @@ CAPTION_LIMIT = 1024
 MESSAGE_CLIP = 2000
 NAME_CLIP = 40
 QUOTE_CLIP = 40
-CARD_LIMIT = 480            # what Telegram shows of an approval reason (as for whatsapp-access)
-CARD_TEXT_MIN = 40
-MORE = "(+{n} more characters)"
 APPROVAL_TTL = 900
 
 READ_TIMEOUT = 60
@@ -99,8 +105,6 @@ RISKY_FILES = store.RISKY_FILES
 
 WHEN = re.compile(r"^\d{4}-\d{2}-\d{2}(?:[T ]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})?)?$")
 MESSAGE_ID = re.compile(r"^[0-9]{1,12}$")
-SUSPICIOUS = re.compile("[\u0000-\u0008\u000b-\u001f\u007f-\u009f\u061c\u200b\u200c\u200e\u200f"
-                        "\u202a-\u202e\u2060-\u2064\u2066-\u2069\ufeff\ufff9-\ufffb]")
 
 ARCHIVE_NOTE = archives.ARCHIVE_NOTE
 UNPACKED_NOTE = archives.UNPACKED_NOTE
@@ -320,11 +324,7 @@ def _clip(value, limit: int) -> str:
     return text if len(text) <= limit else text[:limit - 1] + "…"
 
 
-def _human(size: int) -> str:
-    for unit, scale in (("GB", 1 << 30), ("MB", 1 << 20), ("KB", 1 << 10)):
-        if size >= scale:
-            return f"{size / scale:.1f} {unit}"
-    return f"{size} B"
+_human = cards.human
 
 
 def _media_entry(media: dict | None) -> dict | None:
@@ -1003,16 +1003,7 @@ def send_plan(args: dict, home: Path | None) -> dict:
             "chat": chat, "chat_info": chat_info, "text": text, "files": files, "reply_to": reply_to, "quote": quote}
 
 
-def _units(text: str) -> int:
-    return len(html.escape(text).encode("utf-16-le")) // 2
-
-
-def visible(text: str) -> str:
-    return SUSPICIOUS.sub(lambda m: f"⟨U+{ord(m.group()):04X}⟩", text)
-
-
-def _one_line(value, limit: int) -> str:
-    return visible(_clip(re.sub(r"\s+", " ", "" if value is None else str(value)).strip(), limit))
+_one_line = cards.line
 
 
 def _account_label(me: dict) -> str:
@@ -1046,43 +1037,46 @@ def _file_line(f: dict) -> str:
             f"sha256 {f['sha256'][:12]}")
 
 
-def card(plan: dict) -> str:
-    """Plain English, one fact per line:
+EFFECTS = {"self": (cards.SAFE, "Only you see it"),
+           "group": (cards.CAUTION, "Everyone in the group sees it at once"),
+           "supergroup": (cards.CAUTION, "Everyone in the group sees it at once")}
 
-        Telegram: <account name> (@<username>)
+
+def card(plan: dict) -> str:
+    """The shared card shape (plugins/_shared/card.py):
+
+        Telegram · Send message
+        ⚠️ They see it at once
+        Account: <account name> (@<username>)
         Chat: <name> (@<username> | +<phone> | group, id <id> | …)
         Reply to: <sender>: <quoted text>
-        Files: 2 (3.4 MB)
+
+        --- Files (2, 3.4 MB) ---
         - photo.jpg (image/jpeg, 1.2 MB) in Personal/trip, sha256 1a2b3c4d5e6f
 
+        --- Text ---
         <message text>
 
     Every file is always on the card; a send whose files do not fit is refused (send fewer at
     once). The text gets what is left and a longer one is cut with the rest counted."""
-    head = [f"Telegram: {_account_label(plan['me'])}", f"Chat: {_chat_label(plan)}"]
+    reply = None
     quote = plan.get("quote")
     if quote:
         who = "me" if quote["from_me"] else _one_line(quote.get("sender_name"), NAME_CLIP)
         quoted = _one_line(quote.get("text") or f"message {quote['id']}", QUOTE_CLIP)
-        head.append(f"Reply to: {who}: {quoted}" if who else f"Reply to: {quoted}")
-    if plan["files"]:
-        head.append(f"Files: {len(plan['files'])} ({_human(sum(f['size'] for f in plan['files']))})")
-        head += [_file_line(f) for f in plan["files"]]
-    head.append("")
-    prefix = "\n".join(head) + "\n"
-    text = plan["text"] or ("(no text)" if plan["files"] else "")
-    if _units(prefix) > CARD_LIMIT - (CARD_TEXT_MIN if plan["text"] else 0):
-        raise TelegramError("these files do not all fit on one approval card; send fewer files at once")
-    if _units(prefix + visible(text)) <= CARD_LIMIT:
-        return prefix + visible(text)
-    lo, hi = 0, len(text)
-    while lo < hi:
-        mid = (lo + hi + 1) // 2
-        if _units(prefix + visible(text[:mid].rstrip()) + "…\n" + MORE.format(n=len(text) - mid)) <= CARD_LIMIT:
-            lo = mid
-        else:
-            hi = mid - 1
-    return prefix + visible(text[:lo].rstrip()) + "…\n" + MORE.format(n=len(text) - lo)
+        reply = f"{who}: {quoted}" if who else quoted
+    files = plan["files"]
+    sections = [(f"Files ({len(files)}, {_human(sum(f['size'] for f in files))})",
+                 [_file_line(f) for f in files])] if files else []
+    effect = EFFECTS.get(plan["chat_info"]["kind"], (cards.CAUTION, "They see it at once"))
+    try:
+        return cards.compose("Telegram", "Send message", effect,
+                             [("Account", _account_label(plan["me"])), ("Chat", _chat_label(plan)),
+                              ("Reply to", reply)],
+                             sections=sections, text=plan["text"] or None)
+    except cards.CardError as exc:
+        raise TelegramError("these files do not all fit on one approval card; send fewer files at once" if files
+                            else str(exc)) from None
 
 
 def rule_key(plan: dict) -> str:

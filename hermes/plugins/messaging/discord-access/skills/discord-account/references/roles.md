@@ -47,10 +47,10 @@ Relay the refusal; never look for another route.
 
 ## On the card
 
-A card starting with `⚠ Strong permissions: …` gives power over other people
-or the server (ban, kick, manage roles, messages or channels, …). Mention
-that, or a `role_delete`'s member count, in your reply; it is not a separate
-question, the card is the confirmation.
+A card whose second line reads `🚨 Strong permissions: …` gives power over
+other people or the server (ban, kick, manage roles, messages or channels, …).
+Mention that, or a `role_delete`'s member count, in your reply; it is not a
+separate question, the card is the confirmation.
 
 ## Outcomes
 

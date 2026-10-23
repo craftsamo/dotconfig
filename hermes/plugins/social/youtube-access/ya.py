@@ -33,7 +33,6 @@ from contextlib import contextmanager
 from datetime import date, datetime, timedelta, timezone
 import fcntl
 import hashlib
-import html
 import json
 import os
 from pathlib import Path
@@ -69,6 +68,19 @@ READ_SCOPES = (SCOPE_READ, SCOPE_ANALYTICS)  # what a read asks for when it refr
 TOKEN_URI = "https://oauth2.googleapis.com/token"
 
 HERE = Path(__file__).resolve().parent
+
+
+def _load_card():
+    if "hermes_card" not in sys.modules:
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("hermes_card", HERE.parents[1] / "_shared" / "card.py")
+        module = importlib.util.module_from_spec(spec)
+        sys.modules["hermes_card"] = module
+        spec.loader.exec_module(module)
+    return sys.modules["hermes_card"]
+
+
+cards = _load_card()
 BRIDGE = HERE / "bridge.py"
 # Engine runtime root: machine-local, outside the repository (HERMES_LOCAL overrides).
 RUNTIME_ROOT = Path(os.environ.get("HERMES_LOCAL") or Path.home() / ".hermes" / "local")
@@ -139,9 +151,9 @@ COMMENT_ORDERS = ("relevance", "time")
 DEFAULT_METRICS = ("views,estimatedMinutesWatched,averageViewDuration,averageViewPercentage,"
                    "subscribersGained,subscribersLost,likes,comments,shares")
 
-# Approval cards: Telegram shows about 500 characters of the reason, Discord about 300.
-CARD_LIMIT = 480
+# Approval cards (plugins/_shared/card.py): a value's clip, and the scales it shrinks by until the card fits.
 CARD_CLIP = 160
+CARD_SCALES = (1.0, 0.6, 0.35, 0.2)
 CONTEXT_TTL = 600
 CONTEXT_TIMEOUT = 3
 
@@ -1885,27 +1897,8 @@ _CONTEXT: dict[str, tuple[float, str | None]] = {}
 _CONTEXT_LOCK = threading.Lock()
 
 
-def _units(text: str) -> int:
-    """Length as the chat platform counts it: HTML-escaped, in UTF-16 code units."""
-    return len(html.escape(text).encode("utf-16-le")) // 2
-
-
-def _line(text, limit: int = CARD_CLIP) -> str:
-    text = " ".join(str(text).split())
-    return text if len(text) <= limit else text[:limit - 1] + "…"
-
-
-def _fit(lines: list[str]) -> str:
-    text = "\n".join(lines)
-    while _units(text) > CARD_LIMIT:
-        i = max(range(len(lines)), key=lambda k: _units(lines[k]))
-        if len(lines[i]) <= 12:
-            break
-        lines[i] = lines[i][:-6].rstrip("…") + "…"
-        text = "\n".join(lines)
-    while _units(text) > CARD_LIMIT:
-        text = text[:-8] + "…"
-    return text
+def _line(text, limit: int = CARD_CLIP, scale: float = 1.0) -> str:
+    return cards.line(text, max(8, int(limit * scale)))
 
 
 def _lookup(key: str, fetch):
@@ -1955,23 +1948,19 @@ def _digest(payload) -> str:
                           .encode("utf-8")).hexdigest()[:16]
 
 
-def _human(size: int) -> str:
-    for unit, scale in (("GB", 1024 ** 3), ("MB", 1024 ** 2), ("KB", 1024)):
-        if size >= scale:
-            return f"{size / scale:.1f} {unit}"
-    return f"{size} B"
+_human = cards.human
 
 
-def _change_lines(args: dict) -> list[str]:
+def _change_lines(args: dict, scale: float = 1.0) -> list[str]:
     snippet, status_ = _edits(args)
     lines = []
     if "title" in snippet:
-        lines.append(f"title → {_line(snippet['title'])}")
+        lines.append(f"title → {_line(snippet['title'], scale=scale)}")
     if "description" in snippet:
-        lines.append(f"description → {_line(snippet['description'], 200) or '(empty)'} "
+        lines.append(f"description → {_line(snippet['description'], 200, scale) or '(empty)'} "
                      f"({len(snippet['description'])} chars)")
     if "tags" in snippet:
-        lines.append(f"tags → {_line(', '.join(snippet['tags'])) or '(none)'}")
+        lines.append(f"tags → {_line(', '.join(snippet['tags']), scale=scale) or '(none)'}")
     if "categoryId" in snippet:
         lines.append(f"category → {snippet['categoryId']}")
     if "publishAt" in status_:
@@ -1988,11 +1977,11 @@ def _change_lines(args: dict) -> list[str]:
                        ("containsSyntheticMedia", "altered or synthetic content")):
         if key in status_:
             lines.append(f"{label} → {'yes' if status_[key] else 'no'}")
-    lines += _localization_lines(_video_localizations(args))
+    lines += _localization_lines(_video_localizations(args), scale)
     return lines
 
 
-def _localization_lines(localizations: dict | None) -> list[str]:
+def _localization_lines(localizations: dict | None, scale: float = 1.0) -> list[str]:
     if localizations is None:
         return []
     lines = []
@@ -2000,7 +1989,8 @@ def _localization_lines(localizations: dict | None) -> list[str]:
     removed = [lang for lang, item in localizations.items() if item is None]
     for lang in changed[:3]:
         item = localizations[lang]
-        lines.append(f"{lang} → " + " / ".join(_line(item[k], 60) for k in ("title", "description") if k in item))
+        lines.append(f"{lang} → " + " / ".join(_line(item[k], 60, scale) for k in ("title", "description")
+                                                if k in item))
     if len(changed) > 3:
         lines.append(f"…and {len(changed) - 3} more languages: {', '.join(changed[3:])}")
     if removed:
@@ -2008,21 +1998,21 @@ def _localization_lines(localizations: dict | None) -> list[str]:
     return lines
 
 
-def _channel_lines(args: dict) -> list[str]:
+def _channel_lines(args: dict, scale: float = 1.0) -> list[str]:
     branding, localizations, kids = _channel_edits(args)
     lines = []
     if "description" in branding:
-        lines.append(f"description → {_line(branding['description'], 200) or '(empty)'} "
+        lines.append(f"description → {_line(branding['description'], 200, scale) or '(empty)'} "
                      f"({len(branding['description'])} chars)")
     if "keywords" in branding:
-        lines.append(f"keywords → {_line(branding['keywords']) or '(none)'}")
+        lines.append(f"keywords → {_line(branding['keywords'], scale=scale) or '(none)'}")
     if "country" in branding:
         lines.append(f"country → {branding['country']}")
     if "defaultLanguage" in branding:
         lines.append(f"language → {branding['defaultLanguage']}")
     if "unsubscribedTrailer" in branding:
         lines.append(f"trailer for visitors → {branding['unsubscribedTrailer'] or '(none)'}")
-    lines += _localization_lines(localizations)
+    lines += _localization_lines(localizations, scale)
     if kids is not None:
         lines.append(f"whole channel made for kids → {'YES' if kids else 'no'}")
     return lines
@@ -2042,105 +2032,170 @@ def approval_request(args: dict, home: Path | None = None, profile: str | None =
     if action not in WRITES:
         return None
     cid, meta = resolve_channel(args.get("channel"), home, own=True)
-    head = f"YouTube: {_line(meta.get('title') or cid, 60)}"
     key_args = dict(args, channel=cid)
+    seen = {}   # what the card shows beside the arguments: the video, its title, the file, the comments
     if action in ("update", "thumbnail"):
-        vid = video_id(args.get("video"))
-        title = _video_title(cid, vid) if lookup else None
-        target = f"{_line(title, 80)} ({vid})" if title else vid
+        seen["vid"] = vid = video_id(args.get("video"))
+        seen["title"] = _video_title(cid, vid) if lookup else None
         if action == "update":
-            changes = _change_lines(args)
-            if not changes:
+            if not _change_lines(args):
                 raise YouTubeError(UPDATE_FIELDS)
-            lines = [head, f"Edit video: {target}", *changes]
-            _, status_ = _edits(args)
-            if "privacyStatus" in status_ or "publishAt" in status_:
-                return _fit(lines), f"youtube-access:update:{_digest(key_args)}"
         else:
-            path = local_file(args, "path", THUMB_TYPES, home, THUMB_MAX)
-            lines = [head, f"Set thumbnail: {target}", f"image: {path} ({_human(path.stat().st_size)})"]
-        return _fit(lines), f"youtube-access:edit:{cid}:{vid}"
-    if action == "reply":
-        parent = _str(args, "comment")
-        if not COMMENT_ID.match(parent):
+            seen["path"] = local_file(args, "path", THUMB_TYPES, home, THUMB_MAX)
+    elif action == "reply":
+        if not COMMENT_ID.match(_str(args, "comment")):
             raise YouTubeError("comment must be a comment id from comments")
-        text = _str(args, "text", limit=REPLY_MAX)
-        lines = [head, f"Reply publicly to comment {parent}", f"text: {_line(text, 300)}"]
-    elif action == "upload":
-        path = local_file(args, "path", VIDEO_TYPES, home)
-        snippet, status_ = _upload_edits(args)
+        _str(args, "text", limit=REPLY_MAX)
+    elif action in ("upload", "watermark", "caption_upload"):
+        if action == "caption_upload":
+            seen["vid"] = video_id(args.get("video"))
+        types, limit = {"upload": (VIDEO_TYPES, None), "watermark": (THUMB_TYPES, WATERMARK_MAX),
+                        "caption_upload": (CAPTION_TYPES, CAPTION_MAX)}[action]
+        seen["path"] = path = local_file(args, "path", types, home, limit) if limit else \
+            local_file(args, "path", types, home)
+        {"upload": _upload_edits, "watermark": _watermark_timing, "caption_upload": _caption_edits}[action](args)
         stat = path.stat()
         key_args["file"] = [stat.st_size, stat.st_mtime_ns]
-        lines = [head, f"Upload video: {path} ({_human(stat.st_size)})", f"title: {_line(snippet['title'])}",
-                 f"privacy: {(status_.get('privacyStatus') or 'private').upper()}"
-                 + (f", publish at {status_['publishAt']}" if status_.get("publishAt") else "")]
-        if "description" in snippet:
-            lines.append(f"description: {_line(snippet['description'], 120)}")
+        if action == "caption_upload":
+            seen["title"] = _video_title(cid, seen["vid"]) if lookup else None
     elif action == "playlist_create":
-        lines = [head, f"Create playlist: {_line(_str(args, 'title', limit=150))}",
-                 f"privacy: {(_choice(args, 'privacy', PRIVACY, 'private')).upper()}"]
+        _str(args, "title", limit=150)
+        _choice(args, "privacy", PRIVACY, "private")
     elif action == "playlist_add":
-        pid, vid = playlist_id(args.get("playlist")), video_id(args.get("video"))
+        playlist_id(args.get("playlist"))
+        seen["vid"] = vid = video_id(args.get("video"))
         _position(args)
-        title = _video_title(cid, vid) if lookup else None
-        lines = [head, f"Add to playlist {pid}", f"video: {_line(title, 80) + ' (' + vid + ')' if title else vid}"]
+        seen["title"] = _video_title(cid, vid) if lookup else None
     elif action == "playlist_update":
-        pid = playlist_id(args.get("playlist"))
-        snippet, privacy = _playlist_edits(args)
-        lines = [head, f"Edit playlist {pid}"]
-        if "title" in snippet:
-            lines.append(f"title → {_line(snippet['title'])}")
-        if "description" in snippet:
-            lines.append(f"description → {_line(snippet['description'], 200) or '(empty)'}")
-        if privacy:
-            lines.append(f"privacy → {privacy.upper()}")
-    elif action == "playlist_move":
-        item = _str(args, "item")
-        if not ITEM_ID.match(item):
+        playlist_id(args.get("playlist"))
+        _playlist_edits(args)
+    elif action in ("playlist_move", "playlist_remove"):
+        if not ITEM_ID.match(_str(args, "item")):
             raise YouTubeError("item must be a playlist_item_id from playlist")
-        lines = [head, f"Move playlist entry {item}", f"to position {_position(args, required=True)} (0 = first)"]
+        if action == "playlist_move":
+            _position(args, required=True)
     elif action == "channel_update":
-        lines = [head, "Edit channel settings", *_channel_lines(args)]
-    elif action == "watermark":
-        path = local_file(args, "path", THUMB_TYPES, home, WATERMARK_MAX)
-        stat = path.stat()
-        key_args["file"] = [stat.st_size, stat.st_mtime_ns]
-        lines = [head, "Set the channel watermark on every video", f"image: {path} ({_human(stat.st_size)})",
-                 f"shown: {_timing_text(_watermark_timing(args))}"]
-    elif action == "watermark_remove":
-        lines = [head, "Remove the channel watermark from every video"]
+        _channel_lines(args)
     elif action == "moderate":
-        ids = _comment_ids(args)
+        seen["ids"] = ids = _comment_ids(args)
+        _moderation(args)
+        seen["texts"] = _comment_texts(cid, ids[:3]) if lookup else None
+    key = f"youtube-access:{action}:{_digest(key_args)}"
+    if action == "thumbnail" or action == "update" and not {"privacyStatus", "publishAt"} & set(_edits(args)[1]):
+        key = f"youtube-access:edit:{cid}:{seen['vid']}"
+    for scale in CARD_SCALES:
+        try:
+            return _card(action, args, meta.get("title") or cid, scale, seen), key
+        except cards.CardError:
+            continue
+    raise YouTubeError("the approval card cannot show this change in full; change fewer things at once")
+
+
+_VISIBILITY = {"private": (cards.SAFE, "Private: only you see it"),
+               "unlisted": (cards.CAUTION, "Anyone with the link can watch"),
+               "public": (cards.CAUTION, "Public at once")}
+
+
+def _visibility(privacy: str | None, publish_at: str | None, default: tuple[str, str]) -> tuple[str, str]:
+    if publish_at:
+        return cards.CAUTION, f"Private until {publish_at}, then public"
+    return _VISIBILITY.get((privacy or "").lower(), default)
+
+
+def _card(action: str, args: dict, channel: str, scale: float, seen: dict) -> str:
+    """The card for a checked write, its values clipped by ``scale``; ``seen`` holds what
+    ``approval_request`` checked and looked up. CardError when it does not fit."""
+    facts = [("Channel", _line(channel, 60, scale))]
+    sections, text, text_label = [], None, None
+    vid, title = seen.get("vid"), seen.get("title")
+    target = f"{_line(title, 80, scale)} ({vid})" if title else vid
+    path = seen.get("path")
+    file = f"{path} ({_human(path.stat().st_size)})" if path else None
+    if action == "update":
+        snippet, status_ = _edits(args)
+        name = "Edit a video"
+        effect = _visibility(status_.get("privacyStatus"), status_.get("publishAt"),
+                             (cards.CAUTION, "Viewers see the changes at once"))
+        facts.append(("Video", target))
+        sections = [("Changes", _change_lines(args, scale))]
+    elif action == "thumbnail":
+        name, effect = "Set a thumbnail", (cards.CAUTION, "Viewers see it at once")
+        facts += [("Video", target), ("Image", file)]
+    elif action == "reply":
+        name, effect = "Reply to a comment", (cards.CAUTION, "Public at once")
+        facts.append(("Comment", _str(args, "comment")))
+        text, text_label = _str(args, "text", limit=REPLY_MAX), "Reply"
+    elif action == "upload":
+        snippet, status_ = _upload_edits(args)
+        name = "Upload a video"
+        effect = _visibility(status_.get("privacyStatus") or "private", status_.get("publishAt"), _VISIBILITY["private"])
+        facts += [("File", file), ("Title", _line(snippet["title"], scale=scale))]
+        if "description" in snippet:
+            text, text_label = snippet["description"], "Description"
+    elif action == "playlist_create":
+        name = "Create a playlist"
+        effect = _visibility(_choice(args, "privacy", PRIVACY, "private"), None, _VISIBILITY["private"])
+        facts.append(("Title", _line(_str(args, "title", limit=150), scale=scale)))
+    elif action == "playlist_add":
+        name, effect = "Add to a playlist", (cards.CAUTION, "The playlist shows it at once")
+        facts += [("Playlist", playlist_id(args.get("playlist"))), ("Video", target)]
+    elif action == "playlist_update":
+        snippet, privacy = _playlist_edits(args)
+        name = "Edit a playlist"
+        effect = _visibility(privacy, None, (cards.CAUTION, "Viewers see the changes at once"))
+        facts.append(("Playlist", playlist_id(args.get("playlist"))))
+        changes = [f"title → {_line(snippet['title'], scale=scale)}" if "title" in snippet else None,
+                   (f"description → {_line(snippet['description'], 200, scale) or '(empty)'}"
+                    if "description" in snippet else None),
+                   f"privacy → {privacy.upper()}" if privacy else None]
+        sections = [("Changes", [c for c in changes if c])]
+    elif action == "playlist_move":
+        name, effect = "Move a playlist entry", (cards.SAFE, "It can be moved back")
+        facts += [("Entry", _str(args, "item")), ("To position", f"{_position(args, required=True)} (0 = first)")]
+    elif action == "playlist_remove":
+        name, effect = "Remove a playlist entry", (cards.SAFE, "The video itself is not deleted")
+        facts.append(("Entry", _str(args, "item")))
+    elif action == "channel_update":
+        _, _, kids = _channel_edits(args)
+        name = "Edit channel settings"
+        effect = ((cards.DANGER, "Marks the whole channel made for kids") if kids
+                  else (cards.CAUTION, "Visitors see the changes at once"))
+        sections = [("Changes", _channel_lines(args, scale))]
+    elif action == "watermark":
+        name, effect = "Set the channel watermark", (cards.CAUTION, "Shown on every video at once")
+        facts += [("Image", file), ("Shown", _timing_text(_watermark_timing(args)))]
+    elif action == "watermark_remove":
+        name, effect = "Remove the channel watermark", (cards.SAFE, "It can be set again")
+    elif action == "moderate":
+        ids = seen["ids"]
         moderation, ban = _moderation(args)
-        verb = {"publish": "Publish", "hold": "Hold for review", "reject": "Reject (hide)"}[moderation]
-        lines = [head, f"{verb} {len(ids)} comment{'s' if len(ids) > 1 else ''}"]
-        texts = _comment_texts(cid, ids[:3]) if lookup else None
-        lines += [_line(t, 100) for t in texts or []] or [", ".join(ids[:3]) + (" …" if len(ids) > 3 else "")]
-        if moderation == "reject":
-            lines.append("its replies are hidden too; a rejected comment cannot be published again")
+        count = f"{len(ids)} comment{'s' if len(ids) > 1 else ''}"
+        name = {"publish": f"Publish {count}", "hold": f"Hold {count} for review",
+                "reject": f"Reject (hide) {count}"}[moderation]
         if ban:
-            lines.append("and BAN the author from the channel's comments")
-    elif action == "caption_upload":
-        vid = video_id(args.get("video"))
-        path = local_file(args, "path", CAPTION_TYPES, home, CAPTION_MAX)
-        edits = _caption_edits(args)
-        stat = path.stat()
-        key_args["file"] = [stat.st_size, stat.st_mtime_ns]
-        title = _video_title(cid, vid) if lookup else None
-        target = f"{_line(title, 80)} ({vid})" if title else vid
-        if "caption" in edits:
-            lines = [head, f"Replace caption track {edits['caption']}", f"video: {target}"]
+            hidden = "; hidden for good, replies too" if moderation == "reject" else ""
+            effect = (cards.DANGER, f"BANS the author from the channel's comments{hidden}")
+        elif moderation == "reject":
+            effect = (cards.DANGER, "Hidden for good, replies too: it cannot be published again")
+        elif moderation == "publish":
+            effect = (cards.CAUTION, "Public at once")
         else:
-            lines = [head, f"Add captions ({edits['language']}{', ' + edits['name'] if edits['name'] else ''})",
-                     f"video: {target}"]
-        lines += [f"file: {path} ({_human(stat.st_size)})",
-                  "draft (not shown to viewers)" if edits["draft"] else "shown to viewers at once"]
-    else:
-        item = _str(args, "item")
-        if not ITEM_ID.match(item):
-            raise YouTubeError("item must be a playlist_item_id from playlist")
-        lines = [head, f"Remove playlist entry {item}", "(the video itself is not deleted)"]
-    return _fit(lines), f"youtube-access:{action}:{_digest(key_args)}"
+            effect = (cards.SAFE, "Held until you review it")
+        texts = seen.get("texts")
+        shown = [_line(t, 100, scale) for t in texts or []] or [", ".join(ids[:3]) + (" …" if len(ids) > 3 else "")]
+        sections = [(f"Comments ({len(ids)})", shown)]
+    else:  # caption_upload
+        edits = _caption_edits(args)
+        if "caption" in edits:
+            name = "Replace a caption track"
+            facts.append(("Track", edits["caption"]))
+        else:
+            name = "Add captions"
+            facts.append(("Language", edits["language"] + (f", {edits['name']}" if edits["name"] else "")))
+        effect = (cards.SAFE, "Draft: not shown to viewers") if edits["draft"] else \
+            (cards.CAUTION, "Viewers see them at once")
+        facts += [("Video", target), ("File", file)]
+    return cards.compose("YouTube", name, effect, facts, sections=sections, text=text, text_label=text_label)
 
 
 # --- guard --------------------------------------------------------------------------------------

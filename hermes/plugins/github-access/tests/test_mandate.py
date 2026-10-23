@@ -287,12 +287,25 @@ def test_a_real_plan_meets_a_real_mandate(gh, home):
 def test_the_mandate_card_names_every_bound(home):
     text = mandate.card(terms(parent="me/app#3"), lambda s, n: s)
     lines = text.splitlines()
-    assert lines[:2] == ["GitHub · Mandate", "⚠️ Changes inside it skip the card"]
+    assert lines[:2] == ["GitHub · Mandate", "🚨 Changes inside it skip the card"]
     assert "Board: me/1 Roadmap (own)" in lines and "Repository: team/web (shared)" in lines
-    assert "Only issue me/app#3 and its direct sub-issues" in lines
+    assert "Only: issue me/app#3 and its direct sub-issues" in lines
     assert any(l.startswith("Never covered: admin changes") for l in lines)
     assert any(l.startswith("Until: ") and "(7 days)" in l for l in lines)
     fixed = terms(expires=1767225600)  # the card prints the end it will store
     assert __import__("time").strftime("%Y-%m-%d %H:%M", __import__("time").localtime(1767225600)) in \
         mandate.card(fixed, lambda s, n: s)
     assert "Purpose: Run the release" in lines
+    assert mandate.cards.units(text) <= mandate.cards.BUDGET
+
+
+def test_a_mandate_card_keeps_every_bound_or_is_refused(home, monkeypatch):
+    say = lambda s, n: s if len(s) <= n else s[:n - 1] + "…"   # noqa: E731
+    boards = [{"id": f"PVT_me_{i}", "name": f"me/{i} " + "Roadmap " * 10, "tier": "own"} for i in range(2)]
+    text = mandate.card(terms(boards=boards, parent="me/app#3", purpose="p" * 200), say)
+    assert mandate.cards.units(text) <= mandate.cards.BUDGET
+    assert text.count("\nBoard: ") == 2 and text.count("\nRepository: ") == 2 and "\nUntil: " in text
+    assert "Never covered" not in text            # the rule every mandate shares went first
+    repos = [{"id": f"R_{i}", "name": f"me/repository-with-a-long-name-{i}", "tier": "own"} for i in range(8)]
+    with pytest.raises(mandate.AccessError, match="cannot show all its bounds"):
+        mandate.card(terms(repos=repos, parent="me/app#3"), say)

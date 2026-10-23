@@ -43,11 +43,11 @@ def _load(name, path):
 
 HERE = Path(__file__).resolve().parent
 access = _load("hermes_github_access_engine", HERE / "access.py")
+cards = _load("hermes_card", HERE.parent / "_shared" / "card.py")
 AccessError = access.AccessError
 
 MAX_CHANGES = 50
 LINE = 140
-CARD_LIMIT = 1500
 CLASSES = ("routine", "create", "admin")
 ADMIN = "admin"  # always asks on a card: no mandate covers it
 
@@ -412,39 +412,75 @@ def say(value, limit: int = LINE) -> str:
     return text if len(text) <= limit else text[:limit - 1] + "…"
 
 
-def card(planned: dict) -> str:
-    n = len(planned["steps"])
-    lines = [f"GitHub · {n} change{'s' if n != 1 else ''}"]
+def _effect(planned: dict, admin: list[int]) -> tuple[str, str]:
+    """What the user decides on, first under the title: admin changes outrank someone else's targets,
+    which outrank targets others can read."""
+    if admin:
+        return cards.DANGER, f"{len(admin)} admin change{'s' if len(admin) != 1 else ''}, never covered by a mandate"
+    tiers = [t["tier"] for t in planned["targets"]]
+    if "other" in tiers:
+        return cards.CAUTION, "Lands on something someone else owns"
+    if "shared" in tiers:
+        return cards.CAUTION, "Others can read where it lands"
+    return cards.SAFE, "Only your own private repositories and boards"
+
+
+TIER_MARKS = {"own": "own, private", "shared": "others can read it", "other": "⚠️ someone else's"}
+
+
+def _target_facts(planned: dict, once: bool) -> list:
+    """Each target with its tier; ``once``: the tier every target shares said once, before them."""
+    facts = [("All targets", TIER_MARKS[planned["targets"][0]["tier"]])] if once else []
     for t in planned["targets"]:
-        mark = {"own": "own, private", "shared": "others can read it", "other": "⚠️ someone else's"}[t["tier"]]
         kind = {"repo": "Repository", "owner": "New board for", "new_repo": "New repository",
                 "template": "Copied from", "file": "Upload", "head": "Merging", "run": "Re-running",
                 "workflow": "Starting", "release": "Release", "ruleset": "Ruleset",
                 "layer": "⚠️ Layer merged with it", "branch": "Branch deleted after"}.get(t["kind"], "Board")
         # An upload's whole path: two files that differ only in a folder must not read alike.
-        lines.append(f"{kind}: {say(t['name'], 600 if t['kind'] == 'file' else 80)} ({mark})")
+        name = say(t["name"], 600 if t["kind"] == "file" else 80)
+        facts.append((kind, name if once else f"{name} ({TIER_MARKS[t['tier']]})"))
+    return facts
+
+
+def card(planned: dict, note: str | None = None) -> str:
+    """The shared card shape (plugins/_shared/card.py): the targets one a line, then the numbered
+    changes, as many as fit with the rest counted. ``note`` says why no mandate covers the list."""
+    n = len(planned["steps"])
     hosts, paths, branch = _hosts(planned)
+    more = []
     if hosts:
         shown_hosts = [f"{h} ({', '.join(map(str, at))})" for h, at in sorted(hosts.items(), key=lambda kv: kv[1][0])]
-        lines.append(say("Links to: " + ", ".join(shown_hosts), LINE))
-    if paths:
-        lines.append(f"Local paths in the text: {paths}")
-    if branch:
-        lines.append(f"⚠️ Code links that follow a branch (their content can change): {branch}")
+        more.append(("Links to", say(", ".join(shown_hosts), LINE)))
+    more += [("Local paths in the text", paths or None),
+             ("⚠️ Code links that follow a branch (their content can change)", branch or None),
+             ("Not covered by a mandate", say(note, LINE) if note else None)]
     admin = [i for i, step in enumerate(planned["steps"], 1) if step["class"] == ADMIN]
-    if admin:
-        lines.append(say(f"⚠️ Admin changes, never covered by a mandate: {', '.join(map(str, admin))}", LINE))
-    lines.append("")
-    shown = 0
-    for i, step in enumerate(planned["steps"], 1):
-        mark = "⚠️ " if step["class"] == ADMIN else ""
-        line = f"{i}. {mark}{say(OPS[step['change']['op']].describe(step), LINE)}"
-        if sum(len(l) + 1 for l in lines) + len(line) > CARD_LIMIT - 40:
-            lines.append(f"(+{n - shown} more changes)")
+    lines = [(step["class"] == ADMIN,
+              f"{i}. {'⚠️ ' if step['class'] == ADMIN else ''}{say(OPS[step['change']['op']].describe(step), LINE)}")
+             for i, step in enumerate(planned["steps"], 1)]
+    others = n - len(admin)
+    # Saying a tier every target shares once loses nothing, so it comes before any change is left off.
+    targets = planned["targets"]
+    ways = (False, True) if len(targets) > 1 and len({t["tier"] for t in targets}) == 1 else (False,)
+    # Every admin change stays on the card; the others fill what room is left, in order, the rest counted.
+    for room in range(others, -1, -1):
+        shown, kept = [], 0
+        for is_admin, line in lines:
+            if is_admin or kept < room:
+                shown.append(line)
+                kept += not is_admin
+        if not shown:
             break
-        lines.append(line)
-        shown += 1
-    return "\n".join(lines)
+        hidden = n - len(shown)
+        rest = [f"(+{hidden} more change{'s' if hidden != 1 else ''})"] if hidden else []
+        for once in ways:
+            try:
+                return cards.compose("GitHub", f"{n} change{'s' if n != 1 else ''}", _effect(planned, admin),
+                                     _target_facts(planned, once) + more, sections=[("Changes", shown + rest)])
+            except cards.CardError:
+                continue
+    raise AccessError("the approval card cannot show this change list with every admin change on it; split it "
+                      "into smaller ones (a Discord chat shows a shorter card than Telegram)")
 
 
 # --- apply ----------------------------------------------------------------------------------------

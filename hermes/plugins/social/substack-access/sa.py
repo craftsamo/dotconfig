@@ -14,8 +14,8 @@ from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 import fcntl
 import hashlib
-import html as _html
 from html.parser import HTMLParser
+import importlib.util
 import json
 import os
 from pathlib import Path
@@ -24,6 +24,7 @@ import secrets
 import shutil
 import stat
 import subprocess
+import sys
 import tempfile
 import threading
 import time
@@ -37,6 +38,18 @@ PUBLIC_READS = ("status", "archive", "post")
 PROFILE_ACTIONS = {"assistant": ACTIONS, "marketer": READS, "searcher": PUBLIC_READS}
 
 HERE = Path(__file__).resolve().parent
+
+
+def _load_card():
+    if "hermes_card" not in sys.modules:
+        spec = importlib.util.spec_from_file_location("hermes_card", HERE.parents[1] / "_shared" / "card.py")
+        module = importlib.util.module_from_spec(spec)
+        sys.modules["hermes_card"] = module
+        spec.loader.exec_module(module)
+    return sys.modules["hermes_card"]
+
+
+cards = _load_card()
 BRIDGE = HERE / "bridge.py"
 # Engine runtime root: machine-local, outside the repository (HERMES_LOCAL overrides).
 RUNTIME_ROOT = Path(os.environ.get("HERMES_LOCAL") or Path.home() / ".hermes" / "local")
@@ -1034,148 +1047,121 @@ def consume(request: str, token) -> tuple[Path, dict]:
 
 # --- writes: the approval card ------------------------------------------------------------------
 
-CARD_LIMIT = 480            # as discord-access: Telegram shows about 500 escaped characters
 NAME_CLIP = 60
 FILES_CLIP = 160
-MORE = "(+{n} more characters)"
-SUSPICIOUS = re.compile("[\u0000-\u0008\u000b-\u001f\u007f-\u009f\u061c\u200b\u200c\u200e\u200f"
-                        "\u202a-\u202e\u2060-\u2064\u2066-\u2069\ufeff\ufff9-\ufffb]")
-
-
-def visible(text: str) -> str:
-    return SUSPICIOUS.sub(lambda m: f"⟨U+{ord(m.group()):04X}⟩", text)
+BODY_ROOM = 60              # a card with a body keeps this much for its start and the "(+N more)" line
+visible = cards.visible
 
 
 def _line(value, limit: int = NAME_CLIP) -> str:
     return visible(_one_line(value, limit))
 
 
-def _units(text: str) -> int:
-    return len(_html.escape(text).encode("utf-16-le")) // 2
-
-
-def _images_line(staged: list[dict], clip: int = NAME_CLIP) -> str:
+def _image_lines(staged: list[dict], clip: int = NAME_CLIP) -> list[str]:
     shown, used = [], 0
     for i, f in enumerate(staged):
-        item = f"{_line(f['shown'], clip)} ({_human(f['size'])})"
+        item = f"- {_line(f['shown'], clip)} ({_human(f['size'])})"
         if shown and used + len(item) > min(FILES_CLIP, clip * 2):
             shown.append(f"(+{len(staged) - i} more)")
             break
         shown.append(item)
-        used += len(item) + 2
-    return f"Images ({len(staged)}): " + ", ".join(shown)
+        used += len(item)
+    return shown
 
 
-BODY_ROOM = 60              # a card with a body keeps this much for its start and the "(+N more)" line
-
-
-def _cut(prefix: str, body: str) -> str:
-    """The longest start of the body that fits after the prefix, with the rest counted; at least
-    the count, never a silently dropped tail."""
-    if _units(prefix + visible(body)) <= CARD_LIMIT:
-        return prefix + visible(body)
-    lo, hi = 0, len(body)
-    while lo < hi:
-        mid = (lo + hi + 1) // 2
-        if _units(prefix + visible(body[:mid].rstrip()) + "…\n" + MORE.format(n=len(body) - mid)) <= CARD_LIMIT:
-            lo = mid
-        else:
-            hi = mid - 1
-    return prefix + visible(body[:lo].rstrip()) + "…\n" + MORE.format(n=len(body) - lo)
-
-
-def _fit(head: list[str], body: str | None, *, last: bool = False) -> str | None:
-    """The card within CARD_LIMIT, the body cut and counted; None when the facts leave the body no
-    room and shorter names and titles may still make some (``last``: take it as it is)."""
-    prefix = "\n".join(head)
-    if not body:
-        return prefix if last or _units(prefix) <= CARD_LIMIT else None
-    prefix += "\n\n"
-    if not last and _units(prefix) + BODY_ROOM > CARD_LIMIT:
-        return None
-    return _cut(prefix, body)
-
-
-def _where(prepared: dict, clip: int = NAME_CLIP) -> str:
+def _where(prepared: dict, clip: int = NAME_CLIP) -> tuple[str, str | None]:
+    """(the publication as the card names it, its address when the name stands in for it)."""
     pub = prepared.get("publication") or {}
-    host = (pub.get("url") or "").removeprefix("https://")
-    return f"{_line(pub.get('name'), clip)} ({host})" if pub.get("name") else host or "the user's publication"
+    host = (pub.get("url") or "").removeprefix("https://") or None
+    if pub.get("name"):
+        return _line(pub["name"], clip), host
+    return host or "the user's publication", None
 
 
-def _email_line(plan: dict, prepared: dict, when: str = "") -> str:
+def _email(plan: dict, prepared: dict) -> tuple[str, str]:
+    """(the Email fact, the effect's words for it)."""
     if not plan["send_email"]:
-        return f"Email: none{when} (web only)"
+        return "none (web only)", "no email"
     n = prepared.get("email_subscribers")
-    who = f"{n} email subscriber{'s' if n != 1 else ''}" if isinstance(n, int) else "every email subscriber"
-    return f"Email: sent{when} to {who}"
+    if not isinstance(n, int):
+        return "sent to every email subscriber", "emails every subscriber"
+    return f"sent to {n} email subscriber{'s' if n != 1 else ''}", f"emails {n} subscriber{'s' if n != 1 else ''}"
 
 
-CARD_CLIPS = (120, 60, 30, 15)  # names and titles shrink until every fact fits on the card
+CARD_CLIPS = (120, 60, 30, 15, 8)  # names and titles shrink until every fact fits on the card
 
 
-def _card_parts(plan: dict, prepared: dict, staged: list[dict], clip: int) -> tuple[list[str], str | None]:
+def _card_at(plan: dict, prepared: dict, staged: list[dict], clip: int) -> str:
+    """The card with names and titles clipped to ``clip``; CardError when it does not fit."""
     action = plan["action"]
     draft = prepared.get("draft") or {}
     current = _line(draft.get("title") or "(untitled)", clip)
-    where = _where(prepared, min(clip, NAME_CLIP))
-    head: list[str] = []
-    body = None
+    name, host = _where(prepared, min(clip, NAME_CLIP))
+    where = ("Publication", name)
+    # Left out first when the chat shows a shorter card: the name already says which publication.
+    context = [("Address", host)]
+    images = [(f"Images ({len(staged)})", _image_lines(staged, clip))] if staged else []
+    sections, body, body_label = [], None, "Body"
     if action == "note":
         account = prepared.get("account") or {}
-        head = [f"Substack: post a public Note as @{_line(account.get('handle'), clip)}, visible at once"]
-        body = plan["text"]
+        title, effect = "Post a Note", (cards.CAUTION, "Public at once")
+        facts, context = [("Account", f"@{_line(account.get('handle'), clip)}")], []
+        body, body_label = plan["text"], "Note"
     elif action == "create_draft":
-        head = [f"Substack: create a draft in {where}", f"Title: {_line(plan['title'], clip)}"]
-        if plan["subtitle"]:
-            head.append(f"Subtitle: {_line(plan['subtitle'], clip)}")
-        head.append(f"Audience: {plan['audience']}")
-        if staged:
-            head.append(_images_line(staged, clip))
-        head.append("Nothing is published or emailed.")
-        body = plan["markdown"]
+        title, effect = "Create a draft", (cards.SAFE, "Draft only; nothing is published or emailed")
+        facts = [where, ("Title", _line(plan["title"], clip)),
+                 ("Subtitle", _line(plan["subtitle"], clip) if plan["subtitle"] else None),
+                 ("Audience", plan["audience"])]
+        sections, body = images, plan["markdown"]
     elif action == "update_draft":
-        head = [f"Substack: change draft {plan['draft']} in {where}", f"Draft now: {current}"]
-        if plan["title"] is not None:
-            head.append(f"New title: {_line(plan['title'], clip)}")
-        if plan["subtitle"] is not None:
-            head.append(f"New subtitle: {_line(plan['subtitle'], clip) or '(none)'}")
-        if plan["audience"] is not None:
-            head.append(f"New audience: {plan['audience']}")
+        title = f"Change draft {plan['draft']}"
+        effect = ((cards.CAUTION, "New body; nothing is published or emailed")
+                  if plan["markdown"] is not None else (cards.SAFE, "Nothing is published or emailed"))
+        drops = prepared.get("unsupported") if plan["replace_unsupported"] else None
+        facts = [where, ("Draft now", current),
+                 ("New title", _line(plan["title"], clip) if plan["title"] is not None else None),
+                 ("New subtitle", (_line(plan["subtitle"], clip) or "(none)") if plan["subtitle"] is not None
+                  else None),
+                 ("New audience", plan["audience"]),
+                 ("Drops", f"{drops} block(s) that have no Markdown form"
+                  if plan["markdown"] is not None and drops else None)]
         if plan["markdown"] is not None:
-            head.append(f"Body: replaced ({len(plan['markdown'])} characters)")
-            if plan["replace_unsupported"] and prepared.get("unsupported"):
-                head.append(f"Drops {prepared['unsupported']} block(s) that have no Markdown form")
-        if staged:
-            head.append(_images_line(staged, clip))
-        head.append("Nothing is published or emailed.")
-        body = plan["markdown"]
+            context.append(("Body", f"replaced ({len(plan['markdown'])} characters)"))
+        sections, body = images, plan["markdown"]
     elif action == "publish":
-        head = [f"Substack: PUBLISH draft {plan['draft']} in {where} now; this cannot be undone",
-                f"Title: {current}", f"Audience: {draft.get('audience')}", _email_line(plan, prepared),
-                f"Words: {draft.get('words')}"]
+        email, says = _email(plan, prepared)
+        title, effect = f"Publish draft {plan['draft']}", (cards.DANGER, f"Public at once · {says} · cannot be undone")
+        facts = [where, ("Title", current), ("Audience", draft.get("audience")), ("Email", email),
+                 ("Words", draft.get("words"))]
     elif action == "schedule":
-        head = [f"Substack: SCHEDULE draft {plan['draft']} in {where} to publish at {_local(plan['at'])}",
-                f"Title: {current}", f"Audience: {draft.get('audience')}",
-                _email_line(plan, prepared, " at release"), f"Words: {draft.get('words')}"]
-    elif action == "unschedule":
-        head = [f"Substack: cancel the scheduled release of draft {plan['draft']} in {where}",
-                f"Title: {current}",
-                "Scheduled for: " + ", ".join(_local(s) or s for s in draft.get("scheduled") or []),
-                "It stays an unpublished draft."]
-    return head, body
+        email, says = _email(plan, prepared)
+        title = f"Schedule draft {plan['draft']}"
+        effect = (cards.CAUTION, f"Public at release · {says} · can be cancelled before")
+        facts = [where, ("Title", current), ("At", _local(plan["at"])), ("Audience", draft.get("audience")),
+                 ("Email", f"{email} at release" if plan["send_email"] else email), ("Words", draft.get("words"))]
+    else:  # unschedule
+        title = f"Cancel the release of draft {plan['draft']}"
+        effect = (cards.SAFE, "It stays an unpublished draft")
+        facts = [where, ("Title", current),
+                 ("Scheduled for", ", ".join(_local(s) or s for s in draft.get("scheduled") or []))]
+    room = BODY_ROOM if clip != CARD_CLIPS[-1] else cards.TEXT_MIN   # the shortest names leave the body less
+    return cards.compose("Substack", title, effect, facts, context=context, sections=sections, text=body or None,
+                         text_label=body_label, text_min=room)
 
 
 def card(plan: dict, prepared: dict, staged: list[dict]) -> str:
-    """Plain English, one fact per line, the body (if any) last, as the WhatsApp card: names and
-    titles shrink first so the facts and the start of the body fit what Telegram shows; a longer
-    body is cut on the card and what is not shown is counted, never refused. Its full wording is
-    agreed with the user in chat beforehand (the Assistant's reference), and the approval key
-    still binds the exact text."""
+    """The shared card shape (plugins/_shared/card.py), the body (if any) last: names and titles
+    shrink first so the facts and the start of the body fit what the chat shows; a longer body is
+    cut on the card and what is not shown is counted. Its full wording is agreed with the user in
+    chat beforehand (the Assistant's reference), and the approval key still binds the exact text.
+    A card whose facts do not fit even with the shortest names is refused."""
     for clip in CARD_CLIPS:
-        text = _fit(*_card_parts(plan, prepared, staged, clip), last=clip == CARD_CLIPS[-1])
-        if text is not None:
-            return text
-    raise AssertionError("unreachable: the last clip always gives a card")
+        try:
+            return _card_at(plan, prepared, staged, clip)
+        except cards.CardError:
+            continue
+    raise SubstackError("the approval card cannot show this change in full; use a shorter title or fewer images, "
+                        "or change fewer things at once (a Discord chat shows a shorter card than Telegram)")
 
 
 def identity(prepared: dict) -> dict:

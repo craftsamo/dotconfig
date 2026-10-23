@@ -567,7 +567,7 @@ TITLES = {"order": "Order", "close": "Close", "tpsl": "TP/SL", "modify": "Modify
 EFFECTS = {"increase": ("⚠️ Can add exposure", "⚠️ adds exposure"),
            "reduce": ("✅ Can only lower exposure", "✅ reduce only"),
            "own": ("✅ Stays in your Hermes wallets", "✅ to own wallet"),
-           "external": ("⚠️ Funds LEAVE your Hermes wallets", "⚠️ funds leave")}
+           "external": ("🚨 Funds LEAVE your Hermes wallets", "🚨 funds leave")}
 
 
 def _title(quote: dict) -> str:

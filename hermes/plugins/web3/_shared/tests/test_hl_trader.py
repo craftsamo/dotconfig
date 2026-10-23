@@ -489,7 +489,7 @@ def test_a_mandate_is_made_only_on_its_own_card(run):
     q = quote(run, kind="mandate", **TERMS)
     assert q["effect"] == "increase" and exchanged() == []
     card = q["card"]
-    assert card.startswith("Hyperliquid testnet · Mandate\n⚠️ Orders inside it skip the card\n"
+    assert card.startswith("Hyperliquid testnet · Mandate\n🚨 Orders inside it skip the card\n"
                            "Markets: BTC (perps)\n")
     assert "Per order: up to 200 USDC\nHeld in total: up to 1000 USDC" in card
     assert "Leverage: up to 10x · at most 5 orders an hour" in card and "(7 days)" in card
@@ -674,7 +674,7 @@ def test_both_mandate_cards_carry_every_bound_within_their_budgets(run):
     mandate(run)
     q = quote(run, kind="mandate", **{**TERMS, "markets": ["BTC", "ETH"]})
     short = json.loads((run.state / "hl-quotes" / f"{q['quote']}.json").read_text())["card_short"]
-    for needle in ("Hyperliquid testnet · Mandate · ⚠️ orders without a card\n",
+    for needle in ("Hyperliquid testnet · Mandate · 🚨 orders without a card\n",
                    "Perps: BTC,ETH", "Order ≤200 · total ≤1000 USDC · ≤10x · 5/h", "Until ",
                    OPS, "Replaces m"):
         assert needle in short, needle
@@ -772,7 +772,7 @@ def test_funds_to_anyone_else_need_the_card(run):
     q = quote(run, kind="withdraw", amount="50", destination=STRANGER)
     assert q["effect"] == "external"
     # the detailed card, shaped like a wallet transfer's: the effect first, one fact a line, a block per side
-    for part in ("Hyperliquid testnet · Withdraw\n⚠️ Funds LEAVE your Hermes wallets\n",
+    for part in ("Hyperliquid testnet · Withdraw\n🚨 Funds LEAVE your Hermes wallets\n",
                  "Amount: 50 USDC perp → Arbitrum Sepolia (Circle CCTP)\nArrives: about 49.8 USDC within a minute\n",
                  "Fee: 0.2 Circle (from amount) · ≈0.01 venue (beside)\n", "--- From ---\nProject: hermes(Shared)",
                  f"--- To ---\nType: External\nAddress: {STRANGER}"):
@@ -870,7 +870,7 @@ def test_a_move_to_a_watch_only_wallet_names_it_on_both_cards_and_still_asks(run
     assert "--- To ---\nType: Watch-only (external)\nProject: team(Shared)\nName: PROD_MNEMONIC\nAddress #0: " \
         + watched in q["card"]
     short = json.loads((run.state / "hl-quotes" / f"{q['quote']}.json").read_text())["card_short"]
-    assert f"To (watch-only): {watched}" in short and "⚠️ funds leave" in short
+    assert f"To (watch-only): {watched}" in short and "🚨 funds leave" in short
 
 
 def test_an_external_unified_send_s_compact_card_fits_discord_whole(run):
@@ -897,7 +897,7 @@ def test_an_external_withdrawal_s_compact_card_fits_discord_at_its_longest(run):
     short = json.loads((run.state / "hl-quotes" / f"{q['quote']}.json").read_text())["card_short"]
     assert q["effect"] == "external" and len(short.replace("&", "&amp;").encode("utf-16-le")) // 2 <= 290
     # the account's long name is clipped first; the effect, the amounts and both addresses stay whole
-    for part in ("Hyperliquid testnet · Withdraw · ⚠️ funds leave\n",
+    for part in ("Hyperliquid testnet · Withdraw · 🚨 funds leave\n",
                  "24.123456 USDC unified → World Chain Sepolia\nArrives ≈23.923456 · fees 0.2 + ≈0.01\n",
                  f"To (external): {STRANGER}"):
         assert part in short, part

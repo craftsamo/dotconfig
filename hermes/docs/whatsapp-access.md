@@ -102,10 +102,13 @@ is looked up so the quote resolves.
 
 - **Every send asks first** ([approval gate](access-common.md#approval-gate)),
   as google-access does.
-- **The card** names the account, the chat, the reply target and each file with
-  its SHA-256. The chat always carries its stable identity beside the name,
-  because names are chosen by other people and two chats can share one: the
-  number for a person, the JID for a group or a hidden-number contact
+- **The card** has the [shared shape](access-common.md#card-shape):
+  `WhatsApp · Send message`, then ⚠️ who sees it (the person, or everyone in
+  the group). It names the account, the chat, the reply target and each file
+  with its SHA-256 in a `Files` block; with files, the text is shown as the
+  first file's caption. The chat always carries its stable identity beside the
+  name, because names are chosen by other people and two chats can share one:
+  the number for a person, the JID for a group or a hidden-number contact
   (`…@lid`). Name and quote lookups wait only briefly and fall back to the
   number or JID.
 - **Long texts are cut on the card, not refused** (Telegram limits a reason's

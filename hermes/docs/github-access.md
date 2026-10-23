@@ -343,19 +343,26 @@ edited in GitHub's page after the card is not overwritten.
 
 ## Approval
 
-The hook plans the call and shows one card for the whole list: the targets
-(the owner of a board not made yet as "New board for", a template as
-"Copied from"), each with its tier (`own, private`, `others can read it`,
+The hook plans the call and shows one card for the whole list, in the
+[shared shape](access-common.md#card-shape): `GitHub · N changes`, then its
+stakes (🚨 how many `admin` changes it holds, ⚠️ a target someone else owns or
+one others can read, ✅ only the user's own private ones), the targets (the
+owner of a board not made yet as "New board for", a template as "Copied
+from"), each with its tier (`own, private`, `others can read it`,
 `⚠️ someone else's`), the sites the changes link to (with the numbers of the
 changes that do), how many local paths the text carries and how many code
-links follow a branch rather than a commit, which changes are `admin`, then
-one line per change (an `admin` one marked ⚠️). Names and quoted text are
-collapsed to one line, control, bidi-override and invisible characters are
-spelled out, and a list too long for the card ends with the count of the
-rest; the skill agrees the full wording of text others will read first, as a
-Markdown file delivered with a question before the card. Each card gets a
-fresh allowlist key, so "session" or "always" on one card never approves
-another list.
+links follow a branch rather than a commit, why no mandate covers it, then a
+`Changes` block with one line per change (an `admin` one marked ⚠️). Names
+and quoted text are collapsed to one line, control, bidi-override and
+invisible characters are spelled out. Every `admin` change is always in the
+block; the others fill what the chat shows, in order, the rest counted. When
+every target has the same tier and the card is short of room, the tier is said
+once (`All targets: own, private`) before any change is left off. A list
+whose card cannot hold its targets and every `admin` change is refused,
+which happens sooner on Discord's shorter card. The skill agrees the full
+wording of text others will read first, as a Markdown file delivered with a
+question before the card. Each card gets a fresh allowlist key, so "session"
+or "always" on one card never approves another list.
 
 Before any card every text a change writes is checked: its words (title,
 body, note, comment), the values it sets (board field values, a kind, which
@@ -391,8 +398,12 @@ checked writable when it is made, and held by node id, so a repository
 renamed away and another made under the old name is not covered), an
 optional parent issue, the classes it covers, a purpose, and 1 to 30 days.
 The end is fixed when the card is drawn and printed on it; that is the end
-stored, and a card approved after it makes nothing. `list` shows those in
-force; `revoke` ends one at once. Neither asks.
+stored, and a card approved after it makes nothing. The card (🚨, since
+changes inside skip their card) carries every one of these terms: when it is
+short of room, the rule every mandate shares ("Never covered") goes first,
+then board names and the purpose are shortened, and a mandate whose terms
+still do not fit is refused. `list` shows those in force; `revoke` ends one at
+once. Neither asks.
 
 With a parent, every issue a change touches or relates must be that issue or
 one of its direct sub-issues (read at the write), and nothing may leave the

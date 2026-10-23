@@ -82,7 +82,8 @@ def test_gate_asks_for_sends_only():
     assert plugin.gate(tool_name="discord_account", args={"action": "dms"}) is None
     directive = plugin.gate(tool_name="discord_account", args={"action": "send", "channel": DM, "text": "hi"})
     assert directive["action"] == "approve"
-    assert directive["message"] == f"Discord: Me (@me)\nTo: DM with Taro (@taro)\nChannel id: {DM}\n\nhi"
+    assert directive["message"] == ("Discord · Send message\n⚠️ They see it at once\nAccount: Me (@me)\n"
+                                    f"To: DM with Taro (@taro)\nChannel id: {DM}\n\n--- Text ---\nhi")
     assert directive["rule_key"].startswith("discord-access:send:")
 
 
@@ -146,7 +147,7 @@ def test_file_sends_are_staged_and_bound_to_the_call(tmp_path, monkeypatch):
     args = {"action": "send", "channel": DM, "files": [str(ws / "a.txt")]}
     payload = {"tool_name": "discord_account", "args": args, "tool_call_id": "call-1", "session_id": "s"}
     directive = plugin.gate(**payload)
-    assert directive["action"] == "approve" and "Files (1): a.txt (5 B)" in directive["message"]
+    assert directive["action"] == "approve" and "--- Files (1) ---\n- a.txt (5 B)" in directive["message"]
     modify = plugin.bind(**payload)
     assert modify["action"] == "modify" and len(modify["args"]["_outbox"]) == 32
     assert (plugin.access._outbox() / modify["args"]["_outbox"]).is_dir()
@@ -168,7 +169,7 @@ def test_other_writes_are_approved_and_bound_to_their_key():
     call = {"tool_name": "discord_account", "args": args, "tool_call_id": "call-1", "session_id": "s"}
     directive = plugin.gate(**call)
     assert directive["action"] == "approve" and directive["rule_key"].startswith("discord-access:delete:")
-    assert "This cannot be undone." in directive["message"]
+    assert "\n🚨 Cannot be undone\n" in directive["message"]
     modify = plugin.bind(**call)
     assert modify == {"action": "modify", "args": {"_approved": directive["rule_key"]}}
     assert plugin.bind(tool_name="discord_account", args=args) is None                  # no call id: never runs
@@ -187,7 +188,7 @@ def test_pin_waits_for_approval_like_any_other_write():
     call = {"tool_name": "discord_account", "args": args, "tool_call_id": "call-pin", "session_id": "s"}
     directive = plugin.gate(**call)
     assert directive["action"] == "approve" and directive["rule_key"].startswith("discord-access:pin:")
-    assert "Pin this message" in directive["message"] and "Everyone in the chat sees" in directive["message"]
+    assert directive["message"].startswith("Discord · Pin message\n⚠️ Everyone in the chat sees")
     assert plugin.bind(**call) == {"action": "modify", "args": {"_approved": directive["rule_key"]}}
     assert plugin.gate(tool_name="discord_account", args={**args, "_approved": "x"})["action"] == "block"
 
