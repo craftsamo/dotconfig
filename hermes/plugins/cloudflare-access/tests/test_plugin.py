@@ -12,24 +12,34 @@ cfa = plugin.cfa
 
 ACCOUNT = "0123456789abcdef0123456789abcdef"
 ZONE = {"id": "1" * 32, "name": "example.com", "account": {"id": ACCOUNT}}
+RECORD = {"id": "2" * 32, "type": "A", "name": "www.example.com", "content": "192.0.2.1", "proxied": False, "ttl": 1}
 
 
 @pytest.fixture(autouse=True)
 def isolated(monkeypatch, tmp_path):
     monkeypatch.setattr(cfa, "STORE", tmp_path)  # never the real ~/.cloudflare-access
     calls = []
+    head = {"account": "work", "account_id": ACCOUNT, "fingerprint": "f" * 12}
 
     def fake_bridge(op, **fields):
         calls.append({"op": op, **fields})
         if op == "keys":
             return {"ok": True, "data": [], "unused": [], "requests": 0}
+        if op == "reads":
+            results = [{"ok": True, "data": {"success": True, "result": dict(RECORD)}} for _ in fields["requests"]]
+            return {**head, "ok": True, "requests": len(results), "results": results}
+        if fields.get("method") == "POST":
+            return {**head, "ok": True, "requests": 1, "status": 200,
+                    "data": {"success": True, "result": {"patches": [dict(RECORD)]}}}
         result = [ZONE] if fields.get("path") == "/zones" else ZONE
-        return {"ok": True, "account": "work", "account_id": ACCOUNT, "requests": 1, "fingerprint": "f" * 12,
+        return {**head, "ok": True, "requests": 1,
                 "data": {"success": True, "result": result, "result_info": {"page": 1, "total_pages": 1}}}
     monkeypatch.setattr(cfa, "bridge", fake_bridge)
     monkeypatch.setattr(plugin, "_inbound_peer", lambda: False)
     monkeypatch.setattr(plugin, "_home", lambda: None)
     monkeypatch.setattr(plugin, "_call_id", lambda: "call-1")
+    monkeypatch.setattr(plugin.human_gate, "no_human", lambda: None)   # a person is there to answer cards
+    cfa._approved.clear()
     return calls
 
 
@@ -86,7 +96,17 @@ def test_assistant_researcher_and_marketer_get_the_tool_others_nothing():
         assert params["properties"]["action"]["enum"] == list(plugin.PROFILES[profile])
         assert 'skill_view(name="cloudflare-access:cloudflare")' in tool["description"]
         assert [name for name, _ in ctx.hooks] == ["pre_tool_call"]
+    assistant = registered("assistant")
+    assert set(assistant.skills) == {"cloudflare", "cloudflare-manage"}
+    tool = assistant.tools["cloudflare"]
+    assert {"changes", "preview"} <= set(tool["schema"]["parameters"]["properties"])
+    assert "dns_change" in tool["description"] and 'name="cloudflare-access:cloudflare-manage"' in tool["description"]
+    for profile in ("researcher", "marketer"):
+        ctx = registered(profile)
+        tool = ctx.tools["cloudflare"]
         assert set(ctx.skills) == {"cloudflare"}
+        assert not {"changes", "preview"} & set(tool["schema"]["parameters"]["properties"])
+        assert "dns_change" not in tool["description"] and "cloudflare-manage" not in tool["description"]
 
 
 def test_the_read_profiles_hold_reads_only():
@@ -145,6 +165,96 @@ def test_engine_errors_come_back_as_json():
     result = json.loads(handler({"action": "dns_records"}))
     assert result == {"ok": False, "error": "zone is required: its domain (example.com) or its id (zones lists them)"}
     assert json.loads(handler(None))["ok"] is False
+
+
+UPDATE = {"action": "dns_change", "zone": "example.com", "changes": [{"op": "update", "id": "2" * 32,
+                                                                      "content": "192.0.2.10"}]}
+
+
+def sends(calls):
+    return [c for c in calls if c["op"] == "call" and c["method"] != "GET"]
+
+
+def fresh():
+    return json.loads(json.dumps(UPDATE))
+
+
+def test_a_change_runs_only_after_its_card(isolated):
+    handler, gate = handler_and_gate("assistant")
+    assert json.loads(handler(fresh()))["error"].startswith("not done: this write did not pass its approval card")
+    assert sends(isolated) == []
+    directive = gate(tool_name="cloudflare", args=fresh(), tool_call_id="call-1")
+    assert directive["action"] == "approve" and directive["rule_key"].startswith("cloudflare-access:dns_change:")
+    assert directive["message"].startswith("Cloudflare · Change DNS records\n⚠️ ")
+    assert "~ A www: 192.0.2.1 → 192.0.2.10" in directive["message"]
+    result = json.loads(handler(fresh()))
+    assert result["ok"] is True
+    [sent] = sends(isolated)
+    assert sent["path"] == f"/zones/{'1' * 32}/dns_records/batch" and sent["expect"] == "f" * 12
+    assert "did not pass its approval card" in json.loads(handler(fresh()))["error"]
+
+
+def test_an_approval_covers_only_its_own_call(isolated):
+    handler, gate = handler_and_gate("assistant")
+    gate(tool_name="cloudflare", args=fresh(), tool_call_id="another-call")
+    assert "did not pass" in json.loads(handler(fresh()))["error"]
+    gate(tool_name="cloudflare", args=fresh(), tool_call_id="call-1")
+    other = fresh()
+    other["changes"][0]["content"] = "192.0.2.99"
+    assert "did not pass" in json.loads(handler(other))["error"]
+    assert sends(isolated) == []
+
+
+@pytest.mark.parametrize("reason", ["yolo mode is on", "this is a cron job", "nobody is present to answer"])
+def test_no_person_no_change_in_the_gate_and_the_handler(isolated, monkeypatch, reason):
+    handler, gate = handler_and_gate("assistant")
+    monkeypatch.setattr(plugin.human_gate, "no_human", lambda: reason)
+    directive = gate(tool_name="cloudflare", args=fresh(), tool_call_id="call-1")
+    assert directive["action"] == "block" and reason in directive["message"]
+    assert "Nothing was sent" in directive["message"]
+    assert reason in json.loads(handler(fresh()))["error"]
+    assert sends(isolated) == [] and cfa._approved == {}
+    # reads and previews still work there
+    assert json.loads(handler({"action": "zones"}))["ok"] is True
+    preview = json.loads(handler({**fresh(), "preview": True}))
+    assert preview["preview"] is True and "192.0.2.10" in preview["card"]
+    assert gate(tool_name="cloudflare", args={**fresh(), "preview": True}) is None
+    assert sends(isolated) == []
+
+
+def test_the_genuine_check_refuses_a_change_in_this_headless_test_run(isolated, monkeypatch):
+    spec_ = importlib.util.spec_from_file_location("cloudflare_genuine_human_gate",
+                                                   ROOT.parent / "_shared" / "human_gate.py")
+    real = importlib.util.module_from_spec(spec_)
+    spec_.loader.exec_module(real)
+    monkeypatch.setattr(plugin, "human_gate", real)
+    handler, gate = handler_and_gate("assistant")
+    assert gate(tool_name="cloudflare", args=fresh(), tool_call_id="call-1")["action"] == "block"
+    assert json.loads(handler(fresh()))["ok"] is False and sends(isolated) == []
+
+
+def test_a_malformed_preview_counts_as_a_change(isolated):
+    _, gate = handler_and_gate("assistant")
+    directive = gate(tool_name="cloudflare", args={**fresh(), "preview": "yes"}, tool_call_id="call-1")
+    assert directive["action"] == "block" and "preview must be true or false" in directive["message"]
+
+
+def test_a_change_that_would_fail_is_blocked_before_any_card(isolated):
+    _, gate = handler_and_gate("assistant")
+    directive = gate(tool_name="cloudflare", args={**fresh(), "changes": []}, tool_call_id="call-1")
+    assert directive["action"] == "block" and "1 to 20 changes" in directive["message"]
+    directive = gate(tool_name="cloudflare", args={**fresh(), "setting": "ssl"}, tool_call_id="call-1")
+    assert directive["action"] == "block" and "does not take setting" in directive["message"]
+    assert cfa._approved == {}
+
+
+def test_read_profiles_cannot_change_or_preview(isolated):
+    for profile in ("researcher", "marketer"):
+        handler, gate = handler_and_gate(profile)
+        for args in (fresh(), {**fresh(), "preview": True}):
+            assert gate(tool_name="cloudflare", args=args, tool_call_id="call-1")["action"] == "block"
+            assert json.loads(handler(args))["ok"] is False
+    assert sends(isolated) == [] and cfa._approved == {}
 
 
 def test_the_hook_blocks_ways_around_the_tool():
