@@ -1,6 +1,6 @@
 ---
 name: cloudflare-manage
-description: "Use before changing anything in the user's Cloudflare: DNS records, a cache purge, or rolling back a Worker or a Pages site."
+description: "Use before changing anything in the user's Cloudflare: DNS records, a cache purge, a zone setting, or rolling back a Worker or a Pages site."
 version: 1.0.0
 author: CraftSamo
 license: MIT
@@ -94,6 +94,32 @@ only drops copies; the next request fetches them again. Cloudflare limits how
 many purges an account sends a minute on smaller plans: a rate limit is a
 reason to wait, not to retry.
 
+## Zone settings
+
+`zone_setting` takes the `zone`, a `setting` and its new `value`; read it
+first (`zone_settings`). Only these change here, each with its own values:
+`ssl` (`off`, `flexible`, `full`, `strict`), `min_tls_version` (`1.0` to
+`1.3`), `tls_1_3` (`on`, `off`, `zrt`), `security_level` (`off`,
+`essentially_off`, `low`, `medium`, `high`, `under_attack`), `cache_level`
+(`basic`, `simplified`, `aggressive`), `browser_cache_ttl` (seconds from
+Cloudflare's list, `0` follows the origin) and the switches
+`always_use_https`, `automatic_https_rewrites`, `http3`, `development_mode`,
+`always_online`, `email_obfuscation`, `ipv6`, `websockets` (`on`, `off`).
+Everything else stays with the dashboard.
+
+- `ssl`: `strict` needs a valid certificate on the origin, `full` any
+  certificate, `flexible` reaches the origin over plain HTTP. A mode the
+  origin cannot serve takes the site down (error 525/526): check before
+  raising it, and say what lowering it exposes.
+- `development_mode: on` bypasses the cache for three hours, then turns off
+  by itself.
+- `security_level: under_attack` challenges every visitor; use it during an
+  attack only.
+
+Lowering `ssl`, `min_tls_version` or `security_level`, or turning
+`always_use_https` off, weakens what protects visitors: its card is marked
+and asks every time.
+
 ## Rollbacks
 
 A rollback puts back what ran before; it never deploys new code. Read first
@@ -115,7 +141,8 @@ again and ask anew.
 
 "lacks a permission" means the token may not change this: the user adds it
 to the token in the Cloudflare dashboard (DNS records need Zone → DNS →
-Edit, a purge Zone → Cache Purge → Purge, a Worker rollback Account →
-Workers Scripts → Edit, a Pages rollback Account → Cloudflare Pages → Edit). A setup problem
+Edit, a purge Zone → Cache Purge → Purge, a setting Zone → Zone Settings →
+Edit, a Worker rollback Account → Workers Scripts → Edit, a Pages rollback
+Account → Cloudflare Pages → Edit). A setup problem
 (no token, a refused token) is the user's to fix: relay it, never work around
 it.

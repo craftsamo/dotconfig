@@ -93,6 +93,11 @@ SEGMENTS = {
     "{uuid}": r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}",   # a D1 database, a tunnel
     "{deployment}": r"[A-Za-z0-9-]{1,64}",           # a Pages deployment
 }
+# The zone settings a change may touch (the engine checks each one's values); any other is not a route.
+PATCHABLE = ("ssl", "always_use_https", "automatic_https_rewrites", "min_tls_version", "tls_1_3", "http3",
+             "development_mode", "security_level", "cache_level", "browser_cache_ttl", "always_online",
+             "email_obfuscation", "ipv6", "websockets")
+SEGMENTS["{patchable}"] = "(?:" + "|".join(PATCHABLE) + ")"
 # D1's query endpoint runs any SQL, writes included: the one statement this tool sends there is fixed here
 # and reads the schema, never a row. A request to it carries no body of the caller's. SQLite's and D1's own
 # objects are left out by their literal prefixes (in LIKE, `_` matches any character and would hide a table
@@ -141,6 +146,7 @@ ROUTES = (
     ("POST", "/accounts/{account}/workers/scripts/{script}/deployments"),
     ("GET", "/accounts/{account}/pages/projects/{project}/deployments/{deployment}"),
     ("POST", "/accounts/{account}/pages/projects/{project}/deployments/{deployment}/rollback"),
+    ("PATCH", "/zones/{id}/settings/{patchable}"),
 )
 VERIFY = {"user": "/user/tokens/verify", "account": "/accounts/{account}/tokens/verify"}
 

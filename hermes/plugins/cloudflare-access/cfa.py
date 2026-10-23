@@ -46,7 +46,7 @@ cards = _load_card()
 
 READS = ("status", "account", "zones", "dns_records", "zone_settings", "analytics", "workers", "pages", "r2", "kv",
          "d1", "tunnels", "email_routing")
-WRITES = ("dns_change", "cache_purge", "worker_rollback", "pages_rollback")
+WRITES = ("dns_change", "cache_purge", "worker_rollback", "pages_rollback", "zone_setting")
 ACTIONS = READS + WRITES
 
 BRIDGE = HERE / "bridge.py"
@@ -1229,7 +1229,37 @@ def status(can_write: bool) -> dict:
 APPROVAL_TTL = 900
 COMMON_WRITE_ARGS = {"action", "account", "preview"}
 WRITE_ARGS = {"dns_change": {"zone", "changes"}, "cache_purge": {"zone", "urls", "hosts", "prefixes", "everything"},
-              "worker_rollback": {"script", "version", "message"}, "pages_rollback": {"project", "deployment"}}
+              "worker_rollback": {"script", "version", "message"}, "pages_rollback": {"project", "deployment"},
+              "zone_setting": {"zone", "setting", "value"}}
+# The zone settings zone_setting changes and the values each takes; the bridge routes only these.
+SETTING_VALUES = {
+    "ssl": ("off", "flexible", "full", "strict"),
+    "always_use_https": ("on", "off"),
+    "automatic_https_rewrites": ("on", "off"),
+    "min_tls_version": ("1.0", "1.1", "1.2", "1.3"),
+    "tls_1_3": ("on", "off", "zrt"),
+    "http3": ("on", "off"),
+    "development_mode": ("on", "off"),
+    "security_level": ("off", "essentially_off", "low", "medium", "high", "under_attack"),
+    "cache_level": ("basic", "simplified", "aggressive"),
+    "browser_cache_ttl": ("0", "30", "60", "120", "300", "1200", "1800", "3600", "7200", "10800", "14400", "18000",
+                          "28800", "43200", "57600", "72000", "86400", "172800", "259200", "345600", "432000",
+                          "691200", "1382400", "2073600", "2678400", "5356800", "16070400", "31536000"),
+    "always_online": ("on", "off"),
+    "email_obfuscation": ("on", "off"),
+    "ipv6": ("on", "off"),
+    "websockets": ("on", "off"),
+}
+# Settings whose order means strength: moving down one weakens what protects visitors.
+STRENGTH = {"ssl": ("off", "flexible", "full", "strict"), "min_tls_version": ("1.0", "1.1", "1.2", "1.3"),
+            "security_level": ("off", "essentially_off", "low", "medium", "high", "under_attack")}
+SETTING_EFFECTS = {
+    "ssl": "How Cloudflare reaches the origin; a wrong mode breaks the site",
+    "always_use_https": "Whether plain HTTP visits are sent to HTTPS",
+    "min_tls_version": "Which visitors' TLS versions are accepted",
+    "development_mode": "On, the cache is bypassed for three hours",
+    "security_level": "How often visitors are challenged",
+}
 DEPLOYMENT = re.compile(r"^[A-Za-z0-9-]{1,64}$")
 ROLLBACK_MESSAGE = "Rolled back through Hermes"
 PURGE_MAX = 30
@@ -1676,9 +1706,48 @@ def _plan_pages_rollback(args: dict) -> dict:
     return plan
 
 
+def _plan_zone_setting(args: dict) -> dict:
+    setting = args.get("setting")
+    if setting not in SETTING_VALUES:
+        raise CloudflareError("setting must be one of " + ", ".join(SETTING_VALUES) + "; others are changed in "
+                              "the Cloudflare dashboard")
+    raw = args.get("value")
+    value = str(raw).strip().lower() if isinstance(raw, (str, int)) and not isinstance(raw, bool) else None
+    if value not in SETTING_VALUES[setting]:
+        raise CloudflareError(f"{setting} takes " + ", ".join(SETTING_VALUES[setting]))
+    zone, reply = zone_of(zone_ref(args), account_of(args))
+    zname = zone.get("name") or ""
+    data, read = get(f"/zones/{zone['id']}/settings/{setting}", [], account=reply["account"],
+                     what=f"{setting} of {zname}")
+    current = data.get("result") if isinstance(data.get("result"), dict) else {}
+    plan = _plan("zone_setting", reply, "Change a zone setting")
+    _same_token(plan, read)
+    if current.get("editable") is False:
+        raise CloudflareError(f"{setting} of {zname} cannot be changed on this zone's plan")
+    now = str(current.get("value")).lower() if current.get("value") is not None else "?"
+    if now == value:
+        raise CloudflareError(f"{setting} of {zname} is already {value}")
+    plan["facts"] = [("Zone", zname)]
+    plan["lines"] = [f"{setting}: {now} → {value}"]
+    order = STRENGTH.get(setting)
+    weaker = bool(order) and now in order and order.index(value) < order.index(now)
+    if setting == "always_use_https" and value == "off":
+        weaker = True
+    words = SETTING_EFFECTS.get(setting, "Changes how the zone is served")
+    plan["effect"] = (cards.DANGER, f"Weaker protection for visitors. {words}") if weaker else (cards.CAUTION, words)
+    plan["once"] = weaker
+    body_value = int(value) if setting == "browser_cache_ttl" else value
+    plan["steps"].append({"method": "PATCH", "path": f"/zones/{zone['id']}/settings/{setting}",
+                          "body": {"value": body_value}, "what": f"setting {setting} of {zname} to {value}"})
+    plan["shape"] = "zone_setting"
+    return plan
+
+
 PLANS = {"dns_change": _plan_dns_change, "cache_purge": _plan_cache_purge, "worker_rollback": _plan_worker_rollback,
-         "pages_rollback": _plan_pages_rollback}
+         "pages_rollback": _plan_pages_rollback, "zone_setting": _plan_zone_setting}
 RESULTS = {"dns_change": _shape_dns_change,
+           "zone_setting": lambda data: shape_setting(data.get("result") if isinstance(data.get("result"), dict)
+                                                      else {}),
            "worker_rollback": lambda data: shape_deployment(data.get("result") if isinstance(data.get("result"), dict)
                                                             else {}),
            "pages_rollback": lambda data: shape_pages_deployment(data.get("result")

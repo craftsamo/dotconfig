@@ -119,7 +119,10 @@ WRITE_DESCRIPTION = READ_DESCRIPTION + (
     "MX, TXT and NS records; all apply at once or none does), cache_purge (zone, and one of urls, hosts or "
     "prefixes, up to 30 inside the zone, or everything: true), worker_rollback (script; back to the previous "
     "deployment, or to one version an earlier deployment served; message), pages_rollback (project; the "
-    "previous successful production deployment, or deployment). Rollbacks never deploy new code. "
+    "previous successful production deployment, or deployment). Rollbacks never deploy new code. zone_setting "
+    "(zone, setting, value: ssl off | flexible | full | strict, always_use_https, automatic_https_rewrites, "
+    "min_tls_version, tls_1_3, http3, development_mode, security_level, cache_level, browser_cache_ttl, "
+    "always_online, email_obfuscation, ipv6, websockets; on | off for the switches). "
     "preview=true returns the card without asking or "
     "changing anything, in any run. A run with no person to answer a card (cron, another agent's session, a "
     "single query) changes nothing. 'not done' means nothing changed; 'stopped part way' lists what was done; "
@@ -152,6 +155,8 @@ WRITE_PROPERTIES = {
     "message": {"type": "string", "description": "worker_rollback: the deployment's message, one line"},
     "deployment": {"type": "string", "description": "pages_rollback: the deployment to make live again (its id "
                                                     "or short id); default the previous successful one"},
+    "value": {"type": "string", "description": "zone_setting: the setting's new value, e.g. strict, on, 1.2, "
+                                               "14400"},
     "preview": {"type": "boolean", "description": "a change: return its card only; nothing is sent or asked"},
 }
 
