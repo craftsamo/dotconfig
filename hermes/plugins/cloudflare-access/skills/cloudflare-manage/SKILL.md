@@ -149,7 +149,8 @@ goes live.
   note. The rollback is itself a deployment: the next deploy replaces it.
 - `pages_rollback` with `project`: by default the previous successful
   production deployment, or the `deployment` named (its id or short id). A
-  preview, a failed build or the live deployment is refused.
+  preview, a failed build, the live deployment or one newer than it is
+  refused.
 
 A deploy that lands between the card and the run stops the rollback: read
 again and ask anew.
