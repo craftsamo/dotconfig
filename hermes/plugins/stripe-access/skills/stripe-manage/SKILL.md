@@ -17,8 +17,9 @@ change is prepared, approved and checked.
 ## Contract
 
 - **Every change is one card.** Each write action shows Hermes' approval card
-  (account, LIVE or test, and what changes, read fresh from Stripe) and runs
-  only if the user approves it. Refunds, finalizing, sending and voiding an
+  (account, `Via` the organization and account id when the account is reached
+  through an organization key, LIVE or test, and what changes, read fresh
+  from Stripe) and runs only if the user approves it. Refunds, finalizing, sending and voiding an
   invoice, changing or canceling a subscription and deleting a coupon ask
   every time, even after "always".
 - **Agree first, then card.** Settle the customer, amounts, currency, dates
@@ -42,7 +43,7 @@ change is prepared, approved and checked.
 | `not done: …` | nothing changed | fix the cause or tell the user |
 | `stopped part way: …` | the steps listed in `done` applied, the rest did not | read the object, tell the user what exists now |
 | `UNCERTAIN: …` | sent, outcome unknown | read the object first; never repeat the call blindly |
-| "what the card showed changed" | Stripe or the stored key changed after the card | read again, then ask anew |
+| "what the card showed changed" | Stripe, the stored key or the account it reaches changed after the card | read again, then ask anew |
 
 ## Invoices
 
@@ -96,6 +97,7 @@ that is left, so give it for a partial refund. `reason` is one of
 ## Errors
 
 "refused this key access" means the restricted key lacks the write permission
-named in the message; the user adds it in the Stripe Dashboard. A setup
+named in the message (or an organization key may not act on that account);
+the user fixes it in the Stripe Dashboard. A setup
 problem (no key, wrong mode) is the user's to fix: relay it, never work around
 it.

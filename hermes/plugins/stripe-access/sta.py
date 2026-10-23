@@ -95,7 +95,7 @@ _CLI_COMMANDS = (r"login|logout|config|listen|trigger|get|post|delete|fixtures|l
                  r"|capture|confirm|resume|expire)")
 _TERMINAL = re.compile(
     r"(?<![\w-])stripe-access(?![\w-])|(?<!\w)stripe_access(?!\w)|api\.stripe\.com|files\.stripe\.com"
-    r"|\b(?:sk|rk)_(?:live|test)_|\.config/stripe\b"
+    r"|\b(?:sk|rk)_(?:live|test)_|\bsk_org_|\.config/stripe\b"
     r"|(?:^|[;&|`\n]|\$\()\s*(?:(?:sudo|env|command|exec|nohup|time|xargs)\s+(?:-\S+\s+|\w+=\S*\s+)*)*"
     r"(?:\S*/)?stripe(?=\s|$)"
     r"|(?:^|[\s;&|()`'\"=/])stripe(?:\s+-{1,2}[A-Za-z][\w-]*(?:[=\s]+(?!-)\S+)?)*\s+(?:" + _CLI_COMMANDS + r")\b"
@@ -340,9 +340,13 @@ def remember_account(label: str, mode: str, info: dict) -> None:
         _write_state(state)
 
 
-def known_account(label: str, mode: str) -> dict | None:
+def known_account(label: str, mode: str, reaches: str | None = None) -> dict | None:
+    """What `account` last read for a label; for a route (`reaches` = its acct_… id), only while the route
+    still reaches that same account, so a re-pointed route never shows another account's name."""
     info = (_read_state().get("accounts") or {}).get(f"{label}/{mode}")
-    return info if isinstance(info, dict) else None
+    if not isinstance(info, dict) or (reaches and info.get("id") != reaches):
+        return None
+    return info
 
 
 # --- bridge -------------------------------------------------------------------------------------
@@ -380,13 +384,29 @@ def set_command(label: str = "<label>", mode: str | None = None) -> str:
             f"--meta label={label} --no-env")
 
 
+def route_command(item: str = "<item>", label: str = "<label>", mode: str | None = None) -> str:
+    """How the user routes a label through an organization key: a field on that key's item, no new item."""
+    stage = STAGES.get(mode or "", "<prod|test>")
+    return f"secret update {item} -p hermes --scope stripe-access --stage {stage} --meta acct_{label}=acct_…"
+
+
 def _refused_message(reply: dict) -> str:
     label, mode = reply.get("account") or "<label>", reply.get("mode") or "<mode>"
-    item = reply.get("item")
+    org = reply.get("org")
+    item = reply.get("item")   # for a route, the organization key's own item
     fix = (f"secret update {item} -p hermes --scope stripe-access --stage {STAGES[mode]} --value"
            if item and mode in STAGES else set_command(label, reply.get("mode")))
+    if org:   # Stripe answers 401 too for an account the key cannot act on (a live id on a sandbox key)
+        account = reply.get("stripe_account") or "its account"
+        field = reply.get("field") or f"acct_{label}"
+        return (f"Stripe refused the {mode} organization key of {org} for account {label} "
+                f"({reply.get('error') or 'invalid key'}): either the key was rolled, deleted or expired (`{fix}`), "
+                f"or {account} is not an account it can act on, such as a live id on a sandbox key (fix the field "
+                f"with `secret update {item} -p hermes --scope stripe-access --stage {STAGES.get(mode, mode)} "
+                f"--meta {field}=acct_…`). Nothing is sent for {label} until one of them changes.")
     return (f"Stripe refused the {mode} key of account {label} ({reply.get('error') or 'invalid key'}): it was "
-            f"rolled, deleted or expired. Nothing is sent with it until the user stores a fresh key (`{fix}`).")
+            f"rolled, deleted or expired. Nothing is sent with it for {label} until the user stores a fresh key "
+            f"(`{fix}`).")
 
 
 def _failure(reply: dict, what: str) -> str:
@@ -401,8 +421,10 @@ def _failure(reply: dict, what: str) -> str:
     if kind == "limited":
         return f"paused: Stripe is rate-limiting {where}; try again in about a minute, and never loop"
     if kind == "forbidden":
+        reach = (f", or organization {reply['org']}'s key may not act on {reply.get('stripe_account')}"
+                 if reply.get("org") else "")
         return (f"{what}: Stripe refused this key access ({error or 403}). A restricted key needs the permission "
-                "named there; adding it is the user's job in the Stripe Dashboard")
+                f"named there{reach}; fixing it is the user's job in the Stripe Dashboard")
     if kind == "not_found":
         return f"{what}: not found in {where} ({error or 404})"
     if kind == "invalid":
@@ -758,8 +780,11 @@ def status(can_write: bool) -> dict:
     keys = []
     for entry in reply.get("data") or []:
         slot = f"{entry.get('account')}/{entry.get('mode')}"
-        item = {k: entry.get(k) for k in ("account", "mode", "item", "kind", "problem") if entry.get(k)}
-        known = known_account(entry.get("account") or "", entry.get("mode") or "")
+        item = {k: entry.get(k) for k in ("account", "mode", "item", "kind", "note", "problem") if entry.get(k)}
+        if entry.get("org"):   # item is the organization key's; field the one on it that routes this label
+            item["via"] = {"org": entry["org"], "field": entry.get("field"),
+                           "stripe_account": entry.get("stripe_account")}
+        known = known_account(entry.get("account") or "", entry.get("mode") or "", entry.get("stripe_account"))
         if known:
             item["stripe_account"] = {k: known.get(k) for k in ("id", "name") if known.get(k)}
         stale = refused.get(slot) or {}
@@ -770,11 +795,20 @@ def status(can_write: bool) -> dict:
             item["paused_until"] = when(until)
         keys.append(item)
     result["keys"] = keys
+    organizations = [{k: entry.get(k) for k in ("org", "mode", "item", "kind", "problem") if entry.get(k)}
+                     for entry in reply.get("organizations") or [] if isinstance(entry, dict)]
+    if organizations:
+        result["organizations"] = organizations
     unused = [{k: entry.get(k) for k in ("item", "stage", "problem") if entry.get(k)}
               for entry in reply.get("unused") or [] if isinstance(entry, dict)]
     if unused:   # stored in the scope but read as no key: a typo in a field or a stage is fixed here
         result["unused"] = unused
-    if not keys:
+    if not keys and organizations:
+        first = organizations[0]
+        result["problem"] = ("an organization key is stored but no account is reached through it; the user adds "
+                             "each account's id (acct_…) as a field on the key's item with "
+                             f"`{route_command(first.get('item') or '<item>', '<label>', first.get('mode'))}`")
+    elif not keys:
         result["problem"] = ("no Stripe key is stored; the user stores one per account and mode (stage prod for "
                              f"live, test for test) with `{set_command()}`")
     return result
@@ -933,8 +967,10 @@ def _start(args: dict) -> dict:
     reply = bridge("key", account=account_of(args), mode=mode)
     if not reply.get("ok"):
         raise StripeError(_failure(reply, "the key"))
-    return {"action": action, "mode": mode, "account": reply["account"], "fingerprint": reply["fingerprint"],
-            "lines": [], "details": [], "steps": [], "shape": None, "final": None}
+    route = {"org": reply["org"], "stripe_account": reply.get("stripe_account")} if reply.get("org") else None
+    return {"action": action, "mode": mode, "account": reply["account"], "route": route,
+            "fingerprint": reply["fingerprint"], "lines": [], "details": [], "steps": [], "shape": None,
+            "final": None}
 
 
 def _read(plan: dict, path: str, what: str, params=()) -> dict:
@@ -1648,11 +1684,13 @@ TEST_EFFECT = (cards.SAFE, "Test mode: no real money or customers")
 def card(plan: dict) -> str:
     """The shared card shape (plugins/_shared/card.py): the account and mode, then what changes in one block.
     Its lines always fit or the change is refused; detail lines that do not fit are counted."""
-    known = known_account(plan["account"], plan["mode"]) or {}
+    route = plan.get("route")   # an account reached through an organization key: always on the card
+    known = known_account(plan["account"], plan["mode"], route["stripe_account"] if route else None) or {}
     name = f" ({_short(known['name'], 30)})" if known.get("name") else ""
     live = plan["mode"] == "live"
     title = TITLES[plan["action"]]
-    facts = [("Account", f"{plan['account']}{name}"), ("Mode", "LIVE, real money" if live else "test")]
+    via = f"organization {route['org']}, {route['stripe_account']}" if route else None
+    facts = [("Account", f"{plan['account']}{name}"), ("Via", via), ("Mode", "LIVE, real money" if live else "test")]
     lines = plan["lines"][1:] if plan["lines"][:1] == [title] else plan["lines"]
     details = plan["details"]
     for shown in range(len(details), -1, -1):
@@ -1666,9 +1704,10 @@ def card(plan: dict) -> str:
 
 
 def digest(plan: dict) -> str:
-    """What the card showed and what would be sent, under which key."""
+    """What the card showed and what would be sent, under which key and, through an organization, to which
+    account."""
     return hashlib.sha256(json.dumps([plan["action"], plan["account"], plan["mode"], plan["fingerprint"],
-                                      plan["lines"], plan["details"], plan["steps"]],
+                                      plan.get("route"), plan["lines"], plan["details"], plan["steps"]],
                                      sort_keys=True, ensure_ascii=False).encode("utf-8")).hexdigest()
 
 
@@ -1786,8 +1825,10 @@ def run(plan: dict, nonce: str) -> dict:
     result = {"ok": True, "action": plan["action"], "account": plan["account"], "mode": plan["mode"], "done": done}
     if plan["final"] and ids and ids[0]:
         try:
-            last, _ = get(plan["final"].replace("{0}", ids[0]), [], account=plan["account"], mode=plan["mode"],
-                          what="reading the result back")
+            fresh, reply = get(plan["final"].replace("{0}", ids[0]), [], account=plan["account"], mode=plan["mode"],
+                               what="reading the result back")
+            if reply.get("fingerprint") == plan["fingerprint"]:   # read on the account written to, or not used
+                last = fresh
         except StripeError:
             pass
     result["result"] = plan["shape"](last) if plan["shape"] else last
