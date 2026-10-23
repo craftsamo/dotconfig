@@ -1,6 +1,6 @@
 ---
 name: cloudflare-manage
-description: "Use before changing anything in the user's Cloudflare: DNS records, a cache purge, a zone setting, or rolling back a Worker or a Pages site."
+description: "Use before changing anything in the user's Cloudflare: DNS records, a cache purge, a zone setting, an e-mail rule, or rolling back a Worker or a Pages site."
 version: 1.0.0
 author: CraftSamo
 license: MIT
@@ -120,6 +120,23 @@ Lowering `ssl`, `min_tls_version` or `security_level`, or turning
 `always_use_https` off, weakens what protects visitors: its card is marked
 and asks every time.
 
+## E-mail rules
+
+`email_rule` takes the `zone` and an `op`; read first (`email_routing`):
+
+- `add` with `to` (an address at the zone, `sales` or `sales@example.com`) and
+  one of `forward` (a destination address the account has verified), `drop:
+  true` or `worker` (a Worker's name); optional `name`, `enabled`.
+- `update` with `id` and only what changes: `to`, the action, `name`,
+  `enabled`.
+- `delete` with `id`: mail to that address falls to the catch-all.
+- `catch_all` with its action and/or `enabled`: where mail no rule matches
+  goes.
+
+A destination that is not verified receives nothing: Cloudflare e-mails its
+owner first, and adding destinations is the user's to do in the dashboard.
+Deleting a rule and changing the catch-all ask every time.
+
 ## Rollbacks
 
 A rollback puts back what ran before; it never deploys new code. Read first
@@ -142,7 +159,8 @@ again and ask anew.
 "lacks a permission" means the token may not change this: the user adds it
 to the token in the Cloudflare dashboard (DNS records need Zone → DNS →
 Edit, a purge Zone → Cache Purge → Purge, a setting Zone → Zone Settings →
-Edit, a Worker rollback Account → Workers Scripts → Edit, a Pages rollback
-Account → Cloudflare Pages → Edit). A setup problem
+Edit, an e-mail rule Zone → Email Routing Rules → Edit, a Worker rollback
+Account → Workers Scripts → Edit, a Pages rollback Account → Cloudflare
+Pages → Edit). A setup problem
 (no token, a refused token) is the user's to fix: relay it, never work around
 it.

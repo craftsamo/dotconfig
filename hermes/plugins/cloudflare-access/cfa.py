@@ -46,7 +46,7 @@ cards = _load_card()
 
 READS = ("status", "account", "zones", "dns_records", "zone_settings", "analytics", "workers", "pages", "r2", "kv",
          "d1", "tunnels", "email_routing")
-WRITES = ("dns_change", "cache_purge", "worker_rollback", "pages_rollback", "zone_setting")
+WRITES = ("dns_change", "cache_purge", "worker_rollback", "pages_rollback", "zone_setting", "email_rule")
 ACTIONS = READS + WRITES
 
 BRIDGE = HERE / "bridge.py"
@@ -1230,7 +1230,12 @@ APPROVAL_TTL = 900
 COMMON_WRITE_ARGS = {"action", "account", "preview"}
 WRITE_ARGS = {"dns_change": {"zone", "changes"}, "cache_purge": {"zone", "urls", "hosts", "prefixes", "everything"},
               "worker_rollback": {"script", "version", "message"}, "pages_rollback": {"project", "deployment"},
-              "zone_setting": {"zone", "setting", "value"}}
+              "zone_setting": {"zone", "setting", "value"},
+              "email_rule": {"zone", "op", "id", "to", "forward", "drop", "worker", "name", "enabled"}}
+RULE_OPS = ("add", "update", "delete", "catch_all")
+DESTINATION_PAGES = 20   # at most this many pages of destination addresses are read to find one
+RULE_ID = re.compile(r"^[A-Za-z0-9]{1,64}$")
+EMAIL = re.compile(r"^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]{1,64}@[A-Za-z0-9.-]{1,253}$")
 # The zone settings zone_setting changes and the values each takes; the bridge routes only these.
 SETTING_VALUES = {
     "ssl": ("off", "flexible", "full", "strict"),
@@ -1743,9 +1748,165 @@ def _plan_zone_setting(args: dict) -> dict:
     return plan
 
 
+def _rule_action(args: dict, verified, required: bool) -> list | None:
+    """The rule's action from exactly one of forward (a destination `verified(address)` confirms), drop or
+    worker; None when none is given and none is required."""
+    given = [key for key in ("forward", "drop", "worker") if args.get(key) not in (None, False, "")]
+    if not given and not required:
+        return None
+    if len(given) != 1:
+        raise CloudflareError("a rule does exactly one of forward (a destination address), drop: true or worker")
+    if given == ["forward"]:
+        address = args["forward"].strip().lower() if isinstance(args["forward"], str) else ""
+        if not EMAIL.fullmatch(address):
+            raise CloudflareError("forward must be an e-mail address")
+        if not verified(address):
+            raise CloudflareError(f"{address} is not a verified destination of this account: its owner confirms "
+                                  "Cloudflare's e-mail first (email_routing lists the destinations)")
+        return [{"type": "forward", "value": [address]}]
+    if given == ["drop"]:
+        if args["drop"] is not True:
+            raise CloudflareError("drop must be true")
+        return [{"type": "drop"}]
+    worker = args["worker"].strip() if isinstance(args["worker"], str) else ""
+    if not SCRIPT.fullmatch(worker):
+        raise CloudflareError("worker must be a Worker's name")
+    return [{"type": "worker", "value": [worker]}]
+
+
+def _rule_text(actions: list) -> str:
+    return "; ".join(f"{a.get('type')}" + (f" {_short(', '.join(a.get('value') or []), 50)}" if a.get("value")
+                                          else "") for a in actions or [] if isinstance(a, dict)) or "nothing"
+
+
+def _rule_address(rule: dict) -> str:
+    matchers = [m for m in rule.get("matchers") or [] if isinstance(m, dict)]
+    if any(m.get("type") == "all" for m in matchers):
+        return "every other address"
+    return ", ".join(_short(m.get("value"), 60) for m in matchers if m.get("value")) or "?"
+
+
+def _plan_email_rule(args: dict) -> dict:
+    op = args.get("op")
+    if op not in RULE_OPS:
+        raise CloudflareError("op must be one of " + ", ".join(RULE_OPS))
+    rid = args.get("id")
+    if op in ("update", "delete"):
+        if not isinstance(rid, str) or not RULE_ID.fullmatch(rid):
+            raise CloudflareError(f"{op} needs id, the rule's id (email_routing lists them)")
+    elif rid is not None:
+        raise CloudflareError(f"{op} takes no id")
+    if op in ("delete", "catch_all") and args.get("to") is not None:
+        raise CloudflareError(f"{op} takes no to")
+    if op == "delete":
+        extra = [k for k in ("forward", "drop", "worker", "name", "enabled") if args.get(k) is not None]
+        if extra:
+            raise CloudflareError("delete takes only the rule's id, not " + ", ".join(extra))
+    enabled = _bool(args, "enabled")
+    name = _text(args, "name", 100)
+    zone, reply = zone_of(zone_ref(args), account_of(args))
+    zname, base = zone.get("name") or "", f"/zones/{zone['id']}/email/routing/rules"
+    reads = [("/accounts/{account}/email/routing/addresses", [["per_page", str(EMAIL_PAGE)]])]
+    if op in ("update", "delete"):
+        reads.append((f"{base}/{rid}", []))
+    elif op == "catch_all":
+        reads.append((f"{base}/catch_all", []))
+    results, read = get_many(reads, account=reply["account"], what=f"Email Routing of {zname}")
+    plan = _plan("email_rule", reply, {"add": "Add an e-mail rule", "update": "Change an e-mail rule",
+                                       "delete": "Delete an e-mail rule", "catch_all": "Change the catch-all"}[op])
+    _same_token(plan, read)
+    for result in results:
+        if not result.get("ok"):
+            raise CloudflareError(_failure({**result, "account": reply["account"]}, f"Email Routing of {zname}"))
+    known = {"data": results[0].get("data") or {}, "page": 1, "found": set()}
+
+    def verified(address: str) -> bool:
+        """Whether the account has verified the address, reading further pages of destinations only as needed."""
+        while True:
+            known["found"] |= {str(a.get("email")).lower() for a in _result_list(known["data"], "")
+                               if a.get("verified")}
+            if address in known["found"]:
+                return True
+            total = (known["data"].get("result_info") or {}).get("total_pages")
+            if not isinstance(total, int) or known["page"] >= min(total, DESTINATION_PAGES):
+                return False
+            known["page"] += 1
+            data, more = get("/accounts/{account}/email/routing/addresses",
+                             [["page", str(known["page"])], ["per_page", str(EMAIL_PAGE)]], account=reply["account"],
+                             what="the destination addresses")
+            _same_token(plan, more)
+            known["data"] = data
+    current = (results[1].get("data") or {}).get("result") if len(results) > 1 else None
+    current = current if isinstance(current, dict) else {}
+    plan["facts"] = [("Zone", zname)]
+    if op == "add":
+        to = args.get("to")
+        address = (to if "@" in to else f"{to}@{zname}").strip().lower() if isinstance(to, str) and to.strip() else ""
+        if not EMAIL.fullmatch(address) or not address.endswith("@" + zname):
+            raise CloudflareError(f"to must be an address at {zname}, such as sales or sales@{zname}")
+        actions = _rule_action(args, verified, True)
+        body = {"matchers": [{"type": "literal", "field": "to", "value": address}], "actions": actions,
+                "enabled": True if enabled is None else enabled, **({"name": name} if name else {})}
+        plan["lines"] = [f"+ {address} → {_rule_text(actions)}" + ("" if body["enabled"] else " (off)")]
+        plan["details"] = [f"name: {_short(name, 60)}"] if name else []
+        plan["effect"] = (cards.CAUTION, "Mail to the address goes where the rule says")
+        plan["steps"].append({"method": "POST", "path": base, "body": body, "what": f"adding a rule for {address}"})
+    elif op == "delete":
+        plan["lines"] = [f"- {_rule_address(current)} → {_rule_text(current.get('actions'))}"]
+        plan["details"] = ["Mail to it then goes to the catch-all"]
+        plan["effect"] = (cards.DANGER, "The rule is gone: mail it routed falls to the catch-all")
+        plan["once"] = True
+        plan["bind"] = [current]
+        plan["steps"].append({"method": "DELETE", "path": f"{base}/{rid}", "body": None,
+                              "what": f"deleting the rule for {_rule_address(current)}"})
+    else:
+        actions = _rule_action(args, verified, op == "catch_all" and enabled is None)
+        new_actions = actions or current.get("actions") or []
+        new_enabled = bool(current.get("enabled")) if enabled is None else enabled
+        matchers = current.get("matchers") or []
+        if op == "update" and args.get("to") is not None:
+            to = args["to"]
+            address = (to if "@" in to else f"{to}@{zname}").strip().lower() if isinstance(to, str) else ""
+            if not EMAIL.fullmatch(address) or not address.endswith("@" + zname):
+                raise CloudflareError(f"to must be an address at {zname}")
+            matchers = [{"type": "literal", "field": "to", "value": address}]
+        if op == "catch_all":
+            matchers = [{"type": "all"}]
+        changes = []
+        if matchers != (current.get("matchers") or []) and op == "update":
+            changes.append(f"to {_rule_address(current)} → {_rule_address({'matchers': matchers})}")
+        if new_actions != (current.get("actions") or []):
+            changes.append(f"{_rule_text(current.get('actions'))} → {_rule_text(new_actions)}")
+        if new_enabled != bool(current.get("enabled")):
+            changes.append("on → off" if current.get("enabled") else "off → on")
+        new_name = name if name is not None else current.get("name")
+        if new_name != current.get("name"):
+            old = current.get("name")
+            changes.append(f"name {_short(old, 30) if old else '(none)'} → {_short(new_name, 30)}")
+        if not changes:
+            raise CloudflareError("the change moves nothing")
+        body = {"matchers": matchers, "actions": new_actions, "enabled": new_enabled,
+                **({"name": new_name} if new_name else {}),
+                # a PUT replaces the rule: what it already had and the change does not touch goes back with it
+                **({"priority": current["priority"]} if isinstance(current.get("priority"), int) else {})}
+        who = "catch-all" if op == "catch_all" else _rule_address(current)
+        plan["lines"] = [f"~ {who}: " + "; ".join(changes)]
+        if op == "catch_all":
+            plan["effect"] = (cards.DANGER, "Changes where all mail no rule matches goes")
+            plan["once"] = True
+        else:
+            plan["effect"] = (cards.CAUTION, "Mail to the address goes where the rule says")
+        plan["bind"] = [current]
+        plan["steps"].append({"method": "PUT", "path": f"{base}/{'catch_all' if op == 'catch_all' else rid}",
+                              "body": body, "what": f"changing the rule for {who}"})
+    plan["shape"] = "email_rule"
+    return plan
+
+
 PLANS = {"dns_change": _plan_dns_change, "cache_purge": _plan_cache_purge, "worker_rollback": _plan_worker_rollback,
-         "pages_rollback": _plan_pages_rollback, "zone_setting": _plan_zone_setting}
+         "pages_rollback": _plan_pages_rollback, "zone_setting": _plan_zone_setting, "email_rule": _plan_email_rule}
 RESULTS = {"dns_change": _shape_dns_change,
+           "email_rule": lambda data: _rule(data.get("result") if isinstance(data.get("result"), dict) else {}),
            "zone_setting": lambda data: shape_setting(data.get("result") if isinstance(data.get("result"), dict)
                                                       else {}),
            "worker_rollback": lambda data: shape_deployment(data.get("result") if isinstance(data.get("result"), dict)
