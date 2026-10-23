@@ -47,7 +47,7 @@ cards = _load_card()
 READS = ("status", "account", "zones", "dns_records", "zone_settings", "analytics", "workers", "pages", "r2", "kv",
          "d1", "tunnels", "email_routing")
 WRITES = ("dns_change", "cache_purge", "worker_rollback", "pages_rollback", "zone_setting", "email_rule",
-          "tunnel_route")
+          "tunnel_route", "storage_create", "storage_delete")
 ACTIONS = READS + WRITES
 
 BRIDGE = HERE / "bridge.py"
@@ -1233,7 +1233,11 @@ WRITE_ARGS = {"dns_change": {"zone", "changes"}, "cache_purge": {"zone", "urls",
               "worker_rollback": {"script", "version", "message"}, "pages_rollback": {"project", "deployment"},
               "zone_setting": {"zone", "setting", "value"},
               "email_rule": {"zone", "op", "id", "to", "forward", "drop", "worker", "name", "enabled"},
-              "tunnel_route": {"tunnel", "op", "hostname", "service", "path"}}
+              "tunnel_route": {"tunnel", "op", "hostname", "service", "path"},
+              "storage_create": {"kind", "name"}, "storage_delete": {"kind", "bucket", "namespace", "database"}}
+STORAGE_KINDS = ("r2", "kv", "d1")
+KV_PAGES = 20   # pages of keys followed to find a namespace empty
+D1_NAME = re.compile(r"^[a-z0-9][a-z0-9_-]{0,62}$")
 RULE_OPS = ("add", "update", "delete", "catch_all")
 ROUTE_OPS = ("add", "update", "remove")
 SERVICE = re.compile(r"^(?:(?:https?|tcp|ssh|rdp|smb|unix|unix\+tls)://[^\s]{1,200}|http_status:[1-5]\d\d|hello_world)$")
@@ -2010,10 +2014,136 @@ def _plan_tunnel_route(args: dict) -> dict:
     return plan
 
 
+STORAGE_NOUNS = {"r2": "R2 bucket", "kv": "KV namespace", "d1": "D1 database"}
+STORAGE_A = {"r2": "an R2 bucket", "kv": "a KV namespace", "d1": "a D1 database"}
+
+
+def _storage_kind(args: dict) -> str:
+    kind = args.get("kind")
+    if kind not in STORAGE_KINDS:
+        raise CloudflareError("kind must be r2, kv or d1")
+    return kind
+
+
+def _plan_storage_create(args: dict) -> dict:
+    kind = _storage_kind(args)
+    raw = args.get("name")
+    if kind == "kv":
+        name = _text(args, "name", 512)
+        if not name:
+            raise CloudflareError("a KV namespace needs a name (its title), one line")
+    else:
+        name = raw.strip() if isinstance(raw, str) else ""
+        if not (BUCKET if kind == "r2" else D1_NAME).fullmatch(name):
+            raise CloudflareError(f"{STORAGE_A[kind]}'s name is lowercase letters, digits and -"
+                                  + (" or _" if kind == "d1" else "") + ", up to 63 characters")
+    lists = {"r2": ("/accounts/{account}/r2/buckets", [["name_contains", name], ["per_page", "100"]], "buckets",
+                    "name"),
+             "kv": ("/accounts/{account}/storage/kv/namespaces", [["per_page", "100"]], "", "title"),
+             "d1": ("/accounts/{account}/d1/database", [["name", name], ["per_page", "100"]], "", "name")}
+    path, params, key, field = lists[kind]
+    data, reply = get(path, params, account=account_of(args), what=f"the {STORAGE_NOUNS[kind]}s")
+    # the list is read to refuse a name already taken; a long list is checked again by Cloudflare itself
+    if any(item.get(field) == name for item in _result_list(data, key)):
+        raise CloudflareError(f"{STORAGE_A[kind]} named {name} already exists")
+    plan = _plan("storage_create", reply, f"Create {STORAGE_A[kind]}")
+    plan["lines"] = [f"+ {STORAGE_NOUNS[kind]} {_short(name, 60)}"]
+    plan["effect"] = (cards.SAFE, "A new, empty one: nothing is public or bound to a Worker")
+    body = {"r2": {"name": name}, "kv": {"title": name}, "d1": {"name": name}}[kind]
+    plan["steps"].append({"method": "POST", "path": path, "body": body,
+                          "what": f"creating {STORAGE_NOUNS[kind]} {name}"})
+    plan["shape"] = "storage"
+    return plan
+
+
+def _plan_storage_delete(args: dict) -> dict:
+    kind = _storage_kind(args)
+    given = {"r2": "bucket", "kv": "namespace", "d1": "database"}[kind]
+    others = [k for k in ("bucket", "namespace", "database") if k != given and args.get(k) is not None]
+    if others:
+        raise CloudflareError(f"{STORAGE_A[kind]} is named by {given}, not " + ", ".join(others))
+    account = account_of(args)
+    if kind == "r2":
+        ref = _named(args, "bucket", BUCKET, "an R2 bucket's name")
+        if ref is None:
+            raise CloudflareError("storage_delete of an R2 bucket needs bucket")
+        data, reply = get(f"/accounts/{{account}}/r2/buckets/{ref}/objects", [["per_page", "1"]], account=account,
+                          what=f"bucket {ref}")
+        info = data.get("result_info") if isinstance(data.get("result_info"), dict) else {}
+        empty = not _result_list(data, "objects") and not info.get("delimited") and not _following(data)
+        shown, evidence, path = ref, [], f"/accounts/{{account}}/r2/buckets/{ref}"
+        what = "objects"
+    elif kind == "kv":
+        if args.get("namespace") in (None, ""):
+            raise CloudflareError("storage_delete of a KV namespace needs namespace (its id)")
+        ref = object_id(args.get("namespace"), "namespace")
+        keys = f"/accounts/{{account}}/storage/kv/namespaces/{ref}/keys"
+        results, reply = get_many([("/accounts/{account}/storage/kv/namespaces", [["per_page", "100"]]),
+                                   (keys, [["limit", "1000"]])], account=account, what=f"namespace {ref}")
+        for result in results:
+            if not result.get("ok"):
+                raise CloudflareError(_failure({**result, "account": reply.get("account")}, f"namespace {ref}"))
+        title = next((n.get("title") for n in _result_list(results[0].get("data") or {}, "") if n.get("id") == ref),
+                     None)
+        # An empty page is not an empty namespace: expired keys can leave one with a cursor to live keys
+        # behind it, so the pages are followed to the end, and a scan cut short counts as not empty.
+        page, empty = results[1].get("data") or {}, None
+        for _ in range(KV_PAGES):
+            if _result_list(page, ""):
+                empty = False
+                break
+            following = _following(page)
+            if not following:
+                empty = True
+                break
+            page, more = get(keys, [["limit", "1000"], ["cursor", following]], account=reply["account"],
+                             what=f"the keys of namespace {ref}")
+            if more.get("fingerprint") != reply.get("fingerprint"):
+                raise CloudflareError("the stored token changed while the card was being made; try again")
+        if empty is None:
+            raise CloudflareError(f"namespace {ref} has more pages of keys than are read here; it is not taken "
+                                  "for empty")
+        shown, evidence, path = f"{_short(title, 40)} ({ref[:8]})" if title else ref, [title], \
+            f"/accounts/{{account}}/storage/kv/namespaces/{ref}"
+        what = "keys"
+    else:
+        ref = _named(args, "database", UUID, "a D1 database's id")
+        if ref is None:
+            raise CloudflareError("storage_delete of a D1 database needs database (its id)")
+        path = f"/accounts/{{account}}/d1/database/{ref}"
+        data, reply = get(path, [], account=account, what=f"D1 database {ref}")
+        info = data.get("result") if isinstance(data.get("result"), dict) else {}
+        schema, _ = fixed_post(f"{path}/query", account=reply["account"], what="its schema")
+        statements = schema.get("result") if isinstance(schema.get("result"), list) else []
+        first = statements[0] if statements and isinstance(statements[0], dict) else {}
+        if first.get("success") is not True or not isinstance(first.get("results"), list):
+            raise CloudflareError(f"the schema of D1 database {ref} could not be read in full, so it is not taken "
+                                  "for empty")
+        tables = [r.get("name") for r in first["results"] if isinstance(r, dict) and r.get("type") == "table"]
+        empty = not tables
+        shown, evidence, what = f"{_short(info.get('name'), 40)} ({ref[:8]})", [info.get("name"), tables], "tables"
+    if not empty:
+        raise CloudflareError(f"{STORAGE_NOUNS[kind]} {shown} still holds {what}: only an empty one is deleted "
+                              "here; emptying it is the user's to do")
+    plan = _plan("storage_delete", reply, f"Delete {STORAGE_A[kind]}")
+    plan["lines"] = [f"- {STORAGE_NOUNS[kind]} {shown}, found empty"]
+    plan["details"] = ["A Worker bound to it loses it"]
+    plan["effect"] = (cards.DANGER, "Deleted for good: its name and settings are gone")
+    plan["once"] = True
+    plan["bind"] = [ref, *evidence, empty]
+    plan["steps"].append({"method": "DELETE", "path": path, "body": None,
+                          "what": f"deleting {STORAGE_NOUNS[kind]} {shown}"})
+    plan["shape"] = "storage"
+    return plan
+
+
 PLANS = {"dns_change": _plan_dns_change, "cache_purge": _plan_cache_purge, "worker_rollback": _plan_worker_rollback,
          "pages_rollback": _plan_pages_rollback, "zone_setting": _plan_zone_setting, "email_rule": _plan_email_rule,
-         "tunnel_route": _plan_tunnel_route}
+         "tunnel_route": _plan_tunnel_route, "storage_create": _plan_storage_create,
+         "storage_delete": _plan_storage_delete}
 RESULTS = {"dns_change": _shape_dns_change,
+           "storage": lambda data: _compact({k: (data.get("result") or {}).get(k) for k in ("name", "id", "uuid", "title")})
+           if isinstance(data.get("result"), dict) else None,
            "email_rule": lambda data: _rule(data.get("result") if isinstance(data.get("result"), dict) else {}),
            "zone_setting": lambda data: shape_setting(data.get("result") if isinstance(data.get("result"), dict)
                                                       else {}),

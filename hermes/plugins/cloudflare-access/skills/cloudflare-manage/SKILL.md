@@ -1,6 +1,6 @@
 ---
 name: cloudflare-manage
-description: "Use before changing anything in the user's Cloudflare: DNS records, a cache purge, a zone setting, an e-mail rule, a tunnel's public hostname, or rolling back a Worker or a Pages site."
+description: "Use before changing anything in the user's Cloudflare: DNS records, a cache purge, a zone setting, an e-mail rule, a tunnel's public hostname, an R2, KV or D1 container, or rolling back a Worker or a Pages site."
 version: 1.0.0
 author: CraftSamo
 license: MIT
@@ -159,6 +159,16 @@ Rules keep their order, so a path rule written before others still applies
 first. A tunnel managed in a local config file changes on that machine, not
 here.
 
+## Storage containers
+
+`storage_create` with `kind` (`r2`, `kv`, `d1`) and `name` makes an empty
+bucket, namespace or database; binding it to a Worker happens in the
+project's own configuration. `storage_delete` with `kind` and the `bucket`,
+`namespace` (its id) or `database` (its id) deletes one only when it is found
+empty, both when the card is made and when it runs: no object, no key, no
+table. Emptying one is the user's to do, since contents are never read here.
+A delete asks every time; say which Worker loses it.
+
 ## Rollbacks
 
 A rollback puts back what ran before; it never deploys new code. Read first
@@ -183,7 +193,9 @@ again and ask anew.
 to the token in the Cloudflare dashboard (DNS records need Zone → DNS →
 Edit, a purge Zone → Cache Purge → Purge, a setting Zone → Zone Settings →
 Edit, an e-mail rule Zone → Email Routing Rules → Edit, a tunnel hostname
-Account → Cloudflare Tunnel → Edit with Zone → DNS → Edit, a Worker rollback
+Account → Cloudflare Tunnel → Edit with Zone → DNS → Edit, a bucket Account →
+Workers R2 Storage → Edit, a namespace Account → Workers KV Storage → Edit, a
+database Account → D1 → Edit, a Worker rollback
 Account → Workers Scripts → Edit, a Pages rollback Account → Cloudflare
 Pages → Edit). A setup problem
 (no token, a refused token) is the user's to fix: relay it, never work around

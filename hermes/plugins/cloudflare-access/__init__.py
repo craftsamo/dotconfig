@@ -126,7 +126,9 @@ WRITE_DESCRIPTION = READ_DESCRIPTION + (
     "with to and one of forward (a verified destination), drop: true or worker | update with id and what "
     "changes | delete with id | catch_all with its action or enabled; name, enabled), tunnel_route (tunnel, op: "
     "add | update | remove, hostname in a zone of the account, service such as http://localhost:8080, path; "
-    "only for a tunnel managed in the dashboard; add also makes the hostname's DNS record). "
+    "only for a tunnel managed in the dashboard; add also makes the hostname's DNS record), storage_create "
+    "(kind r2 | kv | d1, name: an empty bucket, namespace or database), storage_delete (kind, and bucket, "
+    "namespace or database: only one found empty). "
     "preview=true returns the card without asking or "
     "changing anything, in any run. A run with no person to answer a card (cron, another agent's session, a "
     "single query) changes nothing. 'not done' means nothing changed; 'stopped part way' lists what was done; "
@@ -164,6 +166,7 @@ WRITE_PROPERTIES = {
     "op": {"type": "string", "enum": list(dict.fromkeys(cfa.RULE_OPS + cfa.ROUTE_OPS)),
            "description": "email_rule: add | update | delete | catch_all; tunnel_route: add | update | remove"},
     "hostname": {"type": "string", "description": "tunnel_route: the public host name, app.example.com"},
+    "kind": {"type": "string", "enum": list(cfa.STORAGE_KINDS), "description": "storage_create / storage_delete"},
     "service": {"type": "string", "description": "tunnel_route: what the connector serves, http://localhost:8080"},
     "path": {"type": "string", "description": "tunnel_route: only requests whose path matches this pattern"},
     "to": {"type": "string", "description": "email_rule: the address at the zone, sales or sales@example.com"},
@@ -179,7 +182,10 @@ WRITE_PROPERTIES = {
 WRITE_ALSO = {
     "zone": "the zone a change is about",
     "id": "email_rule update / delete: the rule's id",
-    "name": "email_rule: the rule's name",
+    "name": "email_rule: the rule's name; storage_create: the new bucket's, namespace's or database's name",
+    "bucket": "storage_delete: the empty bucket",
+    "namespace": "storage_delete: the empty namespace",
+    "database": "storage_delete: the empty database",
     "setting": "zone_setting: the setting to change",
     "script": "worker_rollback: the Worker",
     "project": "pages_rollback: the project",
