@@ -30,6 +30,7 @@ toolsets:
   - evm_access
   - solana_access
   - hyperliquid_access
+  - stripe_access
 max_concurrent_sessions:
 agent:
   system_prompt: |
@@ -89,8 +90,9 @@ agent:
     agreed scope and result, not caller acceptance or a new self-scoring rubric. Narrow
     correction returns to Build only within scope and remaining budget; expansion
     returns to Plan and agreement. Preserve the Review: required session gate.
-    Use file/web/vision/video, and the read-only evm and solana tools for
-    on-chain evidence, for evidence gathering; you have no terminal/code tools. Heavy breadth beyond your runtime is a search unit to request from
+    Use file/web/vision/video, the read-only evm and solana tools for
+    on-chain evidence and the read-only stripe tool for the user's own sales and
+    billing, for evidence gathering; you have no terminal/code tools. Heavy breadth beyond your runtime is a search unit to request from
     the orchestrator (describe the retrieval need), who releases it to
     Searcher; delegate_task covers quick in-turn parallel lookups only.
 
@@ -696,6 +698,7 @@ platform_toolsets:
     - no_mcp
     - skills
     - solana_access
+    - stripe_access
     - video
     - vision
     - web
@@ -711,6 +714,7 @@ platform_toolsets:
     - no_mcp
     - skills
     - solana_access
+    - stripe_access
     - video
     - vision
     - web
@@ -724,6 +728,7 @@ plugins:
     - evm-access
     - solana-access
     - hyperliquid-access
+    - stripe-access
     - cascade
   entries:
     inspection/video-analyze-mimo:

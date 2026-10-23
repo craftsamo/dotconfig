@@ -1,7 +1,7 @@
 # Access plugins — common contract
 
 What the access plugins have in common: Discord, Telegram, WhatsApp, Signal,
-Google, GitHub, X, note, Substack and YouTube. Each `*-access` doc inherits this one
+Google, GitHub, X, note, Substack, YouTube and Stripe. Each `*-access` doc inherits this one
 and records only its own differences; read it first when changing or adding an
 access plugin. Web3 follows the same approval and bypass-guard rules in its own
 doc ([web3.md](web3.md)). Two writes skip their card only inside a mandate the
@@ -17,8 +17,8 @@ undocumented web endpoint or a browser session's cookies, which the service's
 terms forbid or do not cover; the account can be limited or suspended at any
 time. The user accepted that risk per service (each doc says what it is), so
 the designs stay low-volume and client-like — paced requests, no read receipts
-— rather than pretending the risk away. Google's and YouTube's own APIs are
-the exception.
+— rather than pretending the risk away. Google's, YouTube's and Stripe's own
+APIs are the exception.
 
 ## Secret scoping
 
@@ -36,7 +36,8 @@ restart. Short rule: [AGENTS.md](../AGENTS.md) "Secrets, auth and accounts".
 
 State lives outside every repository and is private (mode 700). The cookie
 services (X, note, Substack) keep pacing timestamps, caps, locks and
-the service's last verdict in `~/.<name>-access/`, with no secret. The
+the service's last verdict in `~/.<name>-access/`, with no secret; Stripe keeps
+its keys' last verdicts there the same way. The
 messaging plugins keep their mirror and outbox under
 `~/.local/state/hermes-<name>/` (their docs say what else).
 
@@ -51,8 +52,8 @@ messaging plugins keep their mirror and outbox under
   client. Google's and YouTube's API calls are the exception: they use Google's
   client libraries in Hermes' own Python, and keep access tokens in memory (their
   docs say how). Where there is a venv it is hash-locked under `~/.hermes/local/<name>/venv`
-  and never Hermes' interpreter; note's bridge is stdlib only and runs under
-  Hermes' interpreter in isolated mode (`-I`).
+  and never Hermes' interpreter; note's and Stripe's bridges are stdlib only and
+  run under Hermes' interpreter in isolated mode (`-I`).
 
 ## Profile gating
 
@@ -76,8 +77,8 @@ was changed.
   cron rule. So the plugin refuses itself in those modes, in cron, in
   single-query runs, on unattended platforms (`webhook`, `msgraph_webhook`,
   `api_server`) and wherever no interactive terminal, gateway or ask bridge
-  exists. Discord, Telegram, WhatsApp, Signal, Google and note use the shared
-  check `plugins/_shared/human_gate.py` (`no_human`), which fails closed when
+  exists. Discord, Telegram, WhatsApp, Signal, Google, note and Stripe use the
+  shared check `plugins/_shared/human_gate.py` (`no_human`), which fails closed when
   Hermes' approval context cannot be read; Substack and YouTube refuse through
   their own `_unattended()` and `is_approval_bypass_active()`. A write
   inside a mandate (Hyperliquid, GitHub) has no card to answer and runs also

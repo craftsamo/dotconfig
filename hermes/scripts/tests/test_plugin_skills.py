@@ -46,6 +46,7 @@ EXPECTED = {
         "substack-drafts": {"assistant"},
     },
     "google-access": {"google-sheets": {"assistant"}},
+    "stripe-access": {"stripe": {"assistant", "researcher", "marketer"}, "stripe-manage": {"assistant"}},
     "github-access": {"github": {"assistant"}, "github-tracking": {"assistant"}, "github-repo": {"assistant"},
                       "github-pr": {"assistant"}},
     "workspace/workspace-drafts": {"workspace-drafts": {"assistant"}},

@@ -52,8 +52,9 @@ pipeline: the client applies the shared writing acceptance contract.
 ### Read-only toward every service
 
 Marketer's tools only read: `x` and `x_search` ([x-access.md](../x-access.md)),
-`substack` ([substack-access.md](../substack-access.md)) and `youtube`
-([youtube-access.md](../youtube-access.md)) have read-only Marketer schemas, and
+`substack` ([substack-access.md](../substack-access.md)), `youtube`
+([youtube-access.md](../youtube-access.md)) and `stripe`
+([stripe-access.md](../stripe-access.md)) have read-only Marketer schemas, and
 the `note` tool ([note-access.md](../note-access.md)) offers Marketer its reads
 and the offline `check`, never a save or preview. All of them also answer
 inbound A2A inquiries, without the browser or the lease, on budgets shared

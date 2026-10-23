@@ -43,6 +43,7 @@ toolsets:
 - screen_listen
 - workspace_registry
 - hyperliquid_access
+- stripe_access
 max_concurrent_sessions: null
 agent:
   system_prompt: |
@@ -958,6 +959,7 @@ platform_toolsets:
   - computer_use
   - specialist
   - hyperliquid_access
+  - stripe_access
   - no_mcp
   telegram:
   - media_inspect
@@ -978,6 +980,7 @@ platform_toolsets:
   - computer_use
   - specialist
   - hyperliquid_access
+  - stripe_access
   - no_mcp
   discord:
   - media_inspect
@@ -998,6 +1001,7 @@ platform_toolsets:
   - computer_use
   - specialist
   - hyperliquid_access
+  - stripe_access
   - no_mcp
   a2a:
   - web
@@ -1053,6 +1057,7 @@ plugins:
   - media-inspect
   - screen-listen
   - hyperliquid-access
+  - stripe-access
   - cascade
   entries:
     web/cascade:

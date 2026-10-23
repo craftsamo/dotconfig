@@ -39,6 +39,8 @@ output template and the Verification its Build ends by self-checking against —
 while the stages themselves are shared `references/plan.md` and `build.md`
 (the evidence Method and the self-check) beside `references/gather.md`, which is
 required beyond a few direct lookups.
+Researcher reads the user's own sales and billing through the read-only
+`stripe` tool ([stripe-access.md](../stripe-access.md)).
 On-chain evidence comes from the read-only `evm` and `solana` tools: the
 kernel's source evaluation says how chain state, text in the chain and
 name-based leads score, and `references/platforms/evm.md` and `solana.md`
