@@ -438,6 +438,79 @@ def test_d1_lists_databases_then_one_database_s_size_and_schema(fake):
         run(action="d1", database="app")
 
 
+TUNNEL = "5a5a5a5a-1b1b-4c4c-8d8d-9e9e9e9e9e9e"
+
+
+def test_every_tunnel_and_email_path_is_a_route():
+    def ok(path):
+        return any(m == "GET" and p.fullmatch(path) for m, p in bridge_module._ROUTES)
+    for path in ("/accounts/{account}/cfd_tunnel", f"/accounts/{{account}}/cfd_tunnel/{TUNNEL}",
+                 f"/accounts/{{account}}/cfd_tunnel/{TUNNEL}/configurations", f"/zones/{ZONE}/email/routing",
+                 f"/zones/{ZONE}/email/routing/rules", f"/zones/{ZONE}/email/routing/rules/catch_all",
+                 "/accounts/{account}/email/routing/addresses"):
+        assert ok(path), path
+
+
+def test_tunnels_list_their_health_and_one_tunnel_its_public_hostnames(fake):
+    tunnel = {"id": TUNNEL, "name": "home", "status": "healthy", "config_src": "cloudflare",
+              "created_at": "2026-01-01T00:00:00Z", "connections": [
+                  {"colo_name": "nrt01", "client_version": "2026.9.0", "origin_ip": "203.0.113.5"},
+                  {"colo_name": "kix01", "client_version": "2026.9.0", "origin_ip": "203.0.113.5"}]}
+    fake.answers["/accounts/{account}/cfd_tunnel"] = envelope([tunnel], page=1, total_pages=1)
+    [item] = run(action="tunnels", status="healthy")["items"]
+    assert fake.last()["params"] == [["is_deleted", "false"], ["page", "1"], ["per_page", "20"], ["status", "healthy"]]
+    assert item == {"id": TUNNEL, "name": "home", "status": "healthy", "managed": "in the dashboard",
+                    "created": "2026-01-01T00:00:00Z", "connections": 2, "colos": ["kix01", "nrt01"],
+                    "client_versions": ["2026.9.0"]}
+    assert "203.0.113.5" not in str(item)
+    base = f"/accounts/{{account}}/cfd_tunnel/{TUNNEL}"
+    fake.answers[base] = envelope(tunnel)
+    fake.answers[f"{base}/configurations"] = envelope({"version": 4, "config": {"ingress": [
+        {"hostname": "app.example.com", "service": "http://localhost:8080", "originRequest": {}},
+        {"service": "http_status:404"}]}})
+    result = run(action="tunnels", tunnel=TUNNEL)
+    assert result["ingress"] == [{"hostname": "app.example.com", "service": "http://localhost:8080"},
+                                 {"service": "http_status:404"}]
+    assert result["config_version"] == 4
+    with pytest.raises(cfa.CloudflareError, match="status must be one of healthy"):
+        run(action="tunnels", status="active")
+
+
+def test_email_routing_reads_settings_rules_catch_all_and_destinations_together(fake):
+    base = f"/zones/{ZONE}/email/routing"
+    fake.answers[base] = envelope({"enabled": True, "status": "ready", "name": "example.com"})
+    fake.answers[f"{base}/rules"] = envelope([{"id": "r1", "name": "sales", "enabled": True, "priority": 0,
+                                                "matchers": [{"type": "literal", "field": "to",
+                                                              "value": "sales@example.com"}],
+                                                "actions": [{"type": "forward", "value": ["owner@example.net"]}]}])
+    fake.answers[f"{base}/rules/catch_all"] = envelope({"id": "c1", "enabled": False, "matchers": [{"type": "all"}],
+                                                         "actions": [{"type": "drop"}]})
+    fake.answers["/accounts/{account}/email/routing/addresses"] = envelope([
+        {"email": "owner@example.net", "verified": "2026-01-02T00:00:00Z"}, {"email": "new@example.net",
+                                                                            "verified": None}])
+    result = run(action="email_routing", zone="example.com")
+    [reads] = [r for r in fake.requests if r["op"] == "reads"]
+    assert len(reads["requests"]) == 4
+    assert result["settings"] == {"enabled": True, "status": "ready"}
+    assert result["rules"] == [{"id": "r1", "name": "sales", "enabled": True, "priority": 0,
+                                "when": ["to sales@example.com"], "then": ["forward owner@example.net"]}]
+    assert result["catch_all"] == {"id": "c1", "enabled": False, "when": ["all"], "then": ["drop"]}
+    assert result["destinations"] == [{"email": "owner@example.net", "verified": True,
+                                       "verified_on": "2026-01-02T00:00:00Z"},
+                                      {"email": "new@example.net", "verified": False}]
+    assert "rules_next" not in result and "destinations_next" not in result
+    fake.answers[f"{base}/rules"] = envelope([], page=2, per_page=50, total_pages=3, total_count=120)
+    result = run(action="email_routing", zone="example.com", page=2)
+    reads = [r for r in fake.requests if r["op"] == "reads"][-1]
+    assert reads["requests"][1]["params"] == [["page", "2"], ["per_page", "50"]]
+    assert reads["requests"][3]["params"] == [["page", "2"], ["per_page", "50"]]
+    assert result["rules_next"] == 3 and result["rules_total"] == 120
+    fake.answers["/accounts/{account}/email/routing/addresses"] = {"ok": False, "kind": "forbidden", "error": "no"}
+    assert "lacks a permission" in run(action="email_routing", zone=ZONE)["destinations_unavailable"]
+    with pytest.raises(cfa.CloudflareError, match="zone is required"):
+        run(action="email_routing")
+
+
 def test_account_checks_the_token_then_reads_the_account(fake):
     fake.answers["/accounts/{account}"] = envelope({"id": ACCOUNT, "name": "Work", "type": "standard"})
     result = run(action="account")
