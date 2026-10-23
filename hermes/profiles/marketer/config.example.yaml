@@ -38,6 +38,7 @@ toolsets:
   - evm_access
   - solana_access
   - hyperliquid_access
+  - stripe_access
 max_concurrent_sessions:
 agent:
   system_prompt: |
@@ -72,7 +73,7 @@ agent:
     to reissue work that needs them as a resident specialist session.
 
     Read-only toward every service, even before skill loading. The x, x_search,
-    substack, youtube and note tools only read (note also checks a body
+    substack, youtube, stripe and note tools only read (note also checks a body
     offline); none of them saves for you. Never post, reply, quote, like,
     follow, DM, comment, enter an editor or composer, create or save a draft,
     upload, submit a form, change a setting or visibility, or generate a
@@ -701,6 +702,7 @@ platform_toolsets:
     - skills
     - solana_access
     - specialist
+    - stripe_access
     - substack_access
     - terminal
     - vision
@@ -721,6 +723,7 @@ platform_toolsets:
     - skills
     - solana_access
     - specialist
+    - stripe_access
     - substack_access
     - vision
     - web
@@ -741,6 +744,7 @@ plugins:
     - evm-access
     - solana-access
     - hyperliquid-access
+    - stripe-access
     - cascade
   entries:
     web/cascade:
