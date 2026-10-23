@@ -46,7 +46,8 @@ cards = _load_card()
 
 READS = ("status", "account", "zones", "dns_records", "zone_settings", "analytics", "workers", "pages", "r2", "kv",
          "d1", "tunnels", "email_routing")
-WRITES = ("dns_change", "cache_purge", "worker_rollback", "pages_rollback", "zone_setting", "email_rule")
+WRITES = ("dns_change", "cache_purge", "worker_rollback", "pages_rollback", "zone_setting", "email_rule",
+          "tunnel_route")
 ACTIONS = READS + WRITES
 
 BRIDGE = HERE / "bridge.py"
@@ -1231,8 +1232,12 @@ COMMON_WRITE_ARGS = {"action", "account", "preview"}
 WRITE_ARGS = {"dns_change": {"zone", "changes"}, "cache_purge": {"zone", "urls", "hosts", "prefixes", "everything"},
               "worker_rollback": {"script", "version", "message"}, "pages_rollback": {"project", "deployment"},
               "zone_setting": {"zone", "setting", "value"},
-              "email_rule": {"zone", "op", "id", "to", "forward", "drop", "worker", "name", "enabled"}}
+              "email_rule": {"zone", "op", "id", "to", "forward", "drop", "worker", "name", "enabled"},
+              "tunnel_route": {"tunnel", "op", "hostname", "service", "path"}}
 RULE_OPS = ("add", "update", "delete", "catch_all")
+ROUTE_OPS = ("add", "update", "remove")
+SERVICE = re.compile(r"^(?:(?:https?|tcp|ssh|rdp|smb|unix|unix\+tls)://[^\s]{1,200}|http_status:[1-5]\d\d|hello_world)$")
+ROUTE_PATH_MAX = 200
 DESTINATION_PAGES = 20   # at most this many pages of destination addresses are read to find one
 RULE_ID = re.compile(r"^[A-Za-z0-9]{1,64}$")
 EMAIL = re.compile(r"^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]{1,64}@[A-Za-z0-9.-]{1,253}$")
@@ -1903,8 +1908,111 @@ def _plan_email_rule(args: dict) -> dict:
     return plan
 
 
+def _zone_for(host: str, account: str, account_id: str | None) -> dict:
+    """The zone of the label's account a host name lies in: the longest zone name it ends with."""
+    data, _ = get("/zones", [["account.id", "{account}"], ["per_page", "50"]], account=account, what="the zones")
+    zones = [z for z in data.get("result") or [] if isinstance(z, dict) and isinstance(z.get("name"), str)
+             and _in_zone(host, z["name"]) and isinstance(z.get("account"), dict)
+             and z["account"].get("id") == account_id]
+    if not zones:
+        raise CloudflareError(f"{host} is not in a zone of this account; zones lists them")
+    return max(zones, key=lambda z: len(z["name"]))
+
+
+def _plan_tunnel_route(args: dict) -> dict:
+    tunnel = _named(args, "tunnel", UUID, "a tunnel's id (tunnels lists them)")
+    op = args.get("op")
+    if tunnel is None or op not in ROUTE_OPS:
+        raise CloudflareError("tunnel_route needs tunnel (its id) and op: add, update or remove")
+    host = hostname(args.get("hostname"), "hostname")
+    service = args.get("service")
+    if op == "remove" and service is not None:
+        raise CloudflareError("remove takes no service")
+    if op != "remove" and (not isinstance(service, str) or not SERVICE.fullmatch(service.strip())):
+        raise CloudflareError("service must be what the connector serves: http://localhost:8080, https://…, tcp://…, "
+                              "ssh://… or http_status:404")
+    service = service.strip() if isinstance(service, str) else None
+    path = _text(args, "path", ROUTE_PATH_MAX)
+    base = f"/accounts/{{account}}/cfd_tunnel/{tunnel}"
+    results, reply = get_many([(base, []), (f"{base}/configurations", [])], account=account_of(args),
+                              what=f"tunnel {tunnel}")
+    for result in results:
+        if not result.get("ok"):
+            raise CloudflareError(_failure({**result, "account": reply.get("account")}, f"tunnel {tunnel}"))
+    info = (results[0].get("data") or {}).get("result") or {}
+    if info.get("config_src") != "cloudflare":
+        raise CloudflareError(f"tunnel {_short(info.get('name'), 40)} is managed in a local config file: its "
+                              "hostnames change on the machine that runs it, not here")
+    configuration = (results[1].get("data") or {}).get("result") or {}
+    config = configuration.get("config") if isinstance(configuration.get("config"), dict) else {}
+    ingress = [rule for rule in config.get("ingress") or [] if isinstance(rule, dict)]
+    # Rules keep their order: a rule without a hostname (a path rule) still applies before the ones after it.
+    # Only the last rule matching everything (no hostname, no path) is the catch-all a new rule goes before.
+    if not ingress or ingress[-1].get("hostname") or ingress[-1].get("path"):
+        ingress_end = ingress + [{"service": "http_status:404"}]
+    else:
+        ingress_end = ingress
+    found = next((r for r in ingress_end if r.get("hostname") == host and r.get("path") == path), None)
+    zone = _zone_for(host, reply["account"], reply.get("account_id"))
+    data, read = get(f"/zones/{zone['id']}/dns_records", [["name.exact", host], ["per_page", "20"]],
+                     account=reply["account"], what=f"the DNS records of {host}")
+    records = [r for r in data.get("result") or [] if isinstance(r, dict)]
+    target = f"{tunnel}.cfargotunnel.com"
+    ours = [r for r in records if r.get("type") == "CNAME" and r.get("content") == target]
+    titles = {"add": "Publish a tunnel hostname", "update": "Change a tunnel hostname",
+              "remove": "Remove a tunnel hostname"}
+    plan = _plan("tunnel_route", reply, titles[op])
+    _same_token(plan, read)
+    shown = host + (f" {_short(path, 40)}" if path else "")
+    plan["facts"] = [("Tunnel", _short(info.get("name") or tunnel, 40)), ("Zone", zone["name"])]
+    dns = None
+    if op == "add":
+        if found:
+            raise CloudflareError(f"{shown} is already published by this tunnel, to {found.get('service')}")
+        if records and not ours:
+            kinds = ", ".join(sorted({str(r.get("type")) for r in records}))
+            raise CloudflareError(f"{host} already has DNS records ({kinds}); remove them first with dns_change")
+        new_rules = ingress_end[:-1] + [_compact({"hostname": host, "path": path, "service": service})] \
+            + ingress_end[-1:]
+        plan["lines"] = [f"+ {shown} → {_short(service, 60)}"]
+        if not ours:
+            dns = {"posts": [{"type": "CNAME", "name": host, "content": target, "proxied": True, "ttl": 1,
+                              "comment": "Cloudflare Tunnel"}]}
+            plan["lines"].append(f"DNS: + CNAME {_rel(host, zone['name'])} → the tunnel, proxied")
+        plan["effect"] = (cards.DANGER, "Publishes a service of the machine behind the tunnel on the internet")
+        plan["once"] = True
+    else:
+        if not found:
+            raise CloudflareError(f"this tunnel does not publish {shown}")
+        if op == "update":
+            if service == found.get("service"):
+                raise CloudflareError(f"{shown} already goes to {service}")
+            new_rules = [{**r, "service": service} if r is found else r for r in ingress_end]
+            plan["lines"] = [f"~ {shown}: {_short(found.get('service'), 40)} → {_short(service, 40)}"]
+            plan["effect"] = (cards.DANGER, "Changes which service of the machine is on the internet")
+            plan["once"] = True
+        else:
+            new_rules = [r for r in ingress_end if r is not found]
+            plan["lines"] = [f"- {shown} → {_short(found.get('service'), 60)}"]
+            plan["effect"] = (cards.CAUTION, "The hostname stops answering through the tunnel")
+            if ours and not any(r.get("hostname") == host for r in new_rules):
+                dns = {"deletes": [{"id": r["id"]} for r in ours if r.get("id")]}
+                plan["lines"].append(f"DNS: - CNAME {_rel(host, zone['name'])} → the tunnel")
+                plan["effect"] = (cards.DANGER, "The hostname stops answering and its DNS record is deleted")
+                plan["once"] = True
+    plan["bind"] = [configuration.get("version"), ingress, records]
+    plan["steps"].append({"method": "PUT", "path": f"{base}/configurations",
+                          "body": {"config": {**config, "ingress": new_rules}},
+                          "what": f"changing the hostnames of tunnel {tunnel}"})
+    if dns:
+        plan["steps"].append({"method": "POST", "path": f"/zones/{zone['id']}/dns_records/batch", "body": dns,
+                              "what": f"{'adding' if 'posts' in dns else 'removing'} the DNS record of {host}"})
+    return plan
+
+
 PLANS = {"dns_change": _plan_dns_change, "cache_purge": _plan_cache_purge, "worker_rollback": _plan_worker_rollback,
-         "pages_rollback": _plan_pages_rollback, "zone_setting": _plan_zone_setting, "email_rule": _plan_email_rule}
+         "pages_rollback": _plan_pages_rollback, "zone_setting": _plan_zone_setting, "email_rule": _plan_email_rule,
+         "tunnel_route": _plan_tunnel_route}
 RESULTS = {"dns_change": _shape_dns_change,
            "email_rule": lambda data: _rule(data.get("result") if isinstance(data.get("result"), dict) else {}),
            "zone_setting": lambda data: shape_setting(data.get("result") if isinstance(data.get("result"), dict)

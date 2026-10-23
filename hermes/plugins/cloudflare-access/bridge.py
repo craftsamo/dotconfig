@@ -153,6 +153,8 @@ ROUTES = (
     ("PUT", "/zones/{id}/email/routing/rules/{rule}"),
     ("DELETE", "/zones/{id}/email/routing/rules/{rule}"),
     ("PUT", "/zones/{id}/email/routing/rules/catch_all"),
+    # a tunnel's public hostnames (its DNS record goes through the batch route above)
+    ("PUT", "/accounts/{account}/cfd_tunnel/{uuid}/configurations"),
 )
 VERIFY = {"user": "/user/tokens/verify", "account": "/accounts/{account}/tokens/verify"}
 
