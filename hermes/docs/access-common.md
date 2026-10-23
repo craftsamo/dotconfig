@@ -77,8 +77,9 @@ was changed.
   cron rule. So the plugin refuses itself in those modes, in cron, in
   single-query runs, on unattended platforms (`webhook`, `msgraph_webhook`,
   `api_server`) and wherever no interactive terminal, gateway or ask bridge
-  exists. Discord, Telegram, WhatsApp, Signal, Google, note and Stripe use the
-  shared check `plugins/_shared/human_gate.py` (`no_human`), which fails closed when
+  exists. Discord, Telegram, WhatsApp, Signal, Google, note, Stripe and
+  Cloudflare use the shared check `plugins/_shared/human_gate.py`
+  (`no_human`), which fails closed when
   Hermes' approval context cannot be read; Substack and YouTube refuse through
   their own `_unattended()` and `is_approval_bypass_active()`. A write
   inside a mandate (Hyperliquid, GitHub) has no card to answer and runs also
