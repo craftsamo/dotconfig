@@ -44,9 +44,11 @@ class Bridge:
         return {"account": fields.get("account") or "work", "item": "CLOUDFLARE_WORK", "account_id": ACCOUNT,
                 "fingerprint": self.fingerprint, "token_kind": "user"}
 
-    def record(self, path):
+    def record(self, path, params=None):
         if path in self.answers:
-            return {"ok": True, "status": 200, "data": self.answers[path]}
+            answer = self.answers[path]
+            return {"ok": True, "status": 200,
+                    "data": answer(dict(params or [])) if callable(answer) else answer}
         rid = path.rsplit("/", 1)[1]
         if rid in self.records:
             return {"ok": True, "status": 200, "data": envelope(dict(self.records[rid]))}
@@ -55,7 +57,7 @@ class Bridge:
     def __call__(self, op, **fields):
         self.requests.append({"op": op, **fields})
         if op == "reads":
-            results = [self.record(r["path"]) for r in fields["requests"]]
+            results = [self.record(r["path"], r.get("params")) for r in fields["requests"]]
             return {**self.head(fields), "ok": True, "requests": len(results), "results": results}
         path, method = fields.get("path"), fields.get("method")
         if method == "GET" and path == "/zones":
@@ -63,7 +65,9 @@ class Bridge:
         if method == "GET" and path == f"/zones/{ZONE}":
             return {**self.head(fields), "ok": True, "requests": 1, "data": envelope(ZONE_OBJ)}
         if method == "GET" and path in self.answers:
-            return {**self.head(fields), "ok": True, "requests": 1, "data": self.answers[path]}
+            answer = self.answers[path]
+            data = answer(dict(fields.get("params") or [])) if callable(answer) else answer
+            return {**self.head(fields), "ok": True, "requests": 1, "data": data}
         if method == "GET":
             return {**self.head(fields), "ok": False, "requests": 1, "kind": "not_found", "status": 404,
                     "error": "not found"}
@@ -545,6 +549,111 @@ def test_a_setting_changed_after_the_card_sends_nothing(fake):
     fake.answers[f"{SETTING}/ssl"] = envelope({"id": "ssl", "value": "flexible", "editable": True})
     assert "changed before the write ran" in cfa.execute(args, call_id="s", can_write=True)["error"]
     assert fake.sends() == []
+
+
+RULES = f"/zones/{ZONE}/email/routing/rules"
+ADDRESSES = "/accounts/{account}/email/routing/addresses"
+RULE = {"id": "a" * 32, "name": "sales", "enabled": True,
+        "matchers": [{"type": "literal", "field": "to", "value": "sales@example.com"}],
+        "actions": [{"type": "forward", "value": ["owner@example.net"]}]}
+
+
+@pytest.fixture
+def mail(fake):
+    fake.answers[ADDRESSES] = envelope([{"email": "owner@example.net", "verified": "2026-01-01T00:00:00Z"},
+                                        {"email": "new@example.net", "verified": None}])
+    fake.answers[f"{RULES}/{'a' * 32}"] = envelope(dict(RULE))
+    fake.answers[f"{RULES}/catch_all"] = envelope({"id": "c", "enabled": False, "matchers": [{"type": "all"}],
+                                                   "actions": [{"type": "drop"}]})
+    return fake
+
+
+def rule(**extra):
+    return {"action": "email_rule", "zone": "example.com", **extra}
+
+
+def test_the_rule_routes_never_reach_the_catch_all_through_an_id():
+    def ok(method, path):
+        return any(m == method and p.fullmatch(path) for m, p in bridge_module._ROUTES)
+    assert ok("PUT", f"{RULES}/{'a' * 32}") and ok("PUT", f"{RULES}/catch_all") and ok("DELETE", f"{RULES}/abc")
+    assert not ok("DELETE", f"{RULES}/catch_all")
+
+
+def test_a_rule_forwards_only_to_a_verified_destination(mail):
+    card, _, result = approve_and_run(rule(op="add", to="Sales", forward="Owner@Example.net", name="sales desk"))
+    assert "Cloudflare · Add an e-mail rule" in card and "+ sales@example.com → forward owner@example.net" in card
+    [sent] = mail.sends()
+    assert sent["method"] == "POST" and sent["path"] == RULES
+    assert sent["body"] == {"matchers": [{"type": "literal", "field": "to", "value": "sales@example.com"}],
+                            "actions": [{"type": "forward", "value": ["owner@example.net"]}], "enabled": True,
+                            "name": "sales desk"}
+    with pytest.raises(cfa.CloudflareError, match="not a verified destination"):
+        cfa.approval_request(rule(op="add", to="info", forward="new@example.net"), can_write=True)
+    with pytest.raises(cfa.CloudflareError, match="an address at example.com"):
+        cfa.approval_request(rule(op="add", to="info@other.example", drop=True), can_write=True)
+    with pytest.raises(cfa.CloudflareError, match="exactly one of forward"):
+        cfa.approval_request(rule(op="add", to="info", drop=True, forward="owner@example.net"), can_write=True)
+
+
+def test_a_rule_change_shows_what_moves_and_keeps_the_rest(mail):
+    card, _, _ = approve_and_run(rule(op="update", id="a" * 32, drop=True, enabled=False))
+    assert "~ sales@example.com: forward owner@example.net → drop; on → off" in card
+    [sent] = mail.sends()
+    assert sent["method"] == "PUT" and sent["body"] == {"matchers": RULE["matchers"], "actions": [{"type": "drop"}],
+                                                        "enabled": False, "name": "sales"}
+    with pytest.raises(cfa.CloudflareError, match="moves nothing"):
+        cfa.approval_request(rule(op="update", id="a" * 32, forward="owner@example.net"), can_write=True)
+
+
+def test_deleting_a_rule_or_changing_the_catch_all_asks_every_time(mail):
+    args = rule(op="delete", id="a" * 32)
+    card, key = cfa.approval_request(args, call_id="d", can_write=True)
+    assert "🚨 The rule is gone" in card and "- sales@example.com → forward owner@example.net" in card
+    assert key != cfa.approval_request(args, call_id="d2", can_write=True)[1]
+    card, key = cfa.approval_request(rule(op="catch_all", forward="owner@example.net", enabled=True),
+                                     call_id="c", can_write=True)
+    assert "🚨 Changes where all mail no rule matches goes" in card
+    assert "~ catch-all: drop → forward owner@example.net; off → on" in card
+    cfa.execute(rule(op="catch_all", forward="owner@example.net", enabled=True), call_id="c", can_write=True)
+    [sent] = mail.sends()
+    assert sent["path"] == f"{RULES}/catch_all" and sent["body"]["matchers"] == [{"type": "all"}]
+    with pytest.raises(cfa.CloudflareError, match="delete takes only the rule's id"):
+        cfa.approval_request(rule(op="delete", id="a" * 32, drop=True), can_write=True)
+    with pytest.raises(cfa.CloudflareError, match="needs id"):
+        cfa.approval_request(rule(op="delete"), can_write=True)
+
+
+def test_a_rule_changed_after_the_card_sends_nothing(mail):
+    args = rule(op="update", id="a" * 32, enabled=False)
+    cfa.approval_request(args, call_id="call-1", can_write=True)
+    mail.answers[f"{RULES}/{'a' * 32}"] = envelope({**RULE, "name": "renamed meanwhile"})
+    assert "changed before the write ran" in cfa.execute(args, call_id="call-1", can_write=True)["error"]
+    assert mail.sends() == []
+
+
+def test_a_destination_on_a_later_page_is_found(mail):
+    def addresses(params):
+        if params.get("page", "1") == "1":
+            return {**envelope([{"email": "owner@example.net", "verified": "2026-01-01T00:00:00Z"}]),
+                    "result_info": {"page": 1, "total_pages": 2}}
+        return {**envelope([{"email": "late@example.net", "verified": "2026-01-02T00:00:00Z"}]),
+                "result_info": {"page": 2, "total_pages": 2}}
+    mail.answers[ADDRESSES] = addresses
+    card, _ = cfa.approval_request(rule(op="add", to="info", forward="late@example.net"), call_id="l",
+                                   can_write=True)
+    assert "forward late@example.net" in card
+    with pytest.raises(cfa.CloudflareError, match="not a verified destination"):
+        cfa.approval_request(rule(op="add", to="info", forward="nobody@example.net"), can_write=True)
+
+
+def test_a_rule_s_name_shows_on_its_card_and_a_change_keeps_its_priority(mail):
+    mail.answers[f"{RULES}/{'a' * 32}"] = envelope({**RULE, "priority": 3})
+    card, _, _ = approve_and_run(rule(op="update", id="a" * 32, name="front desk\u202e"))
+    assert "name sales → front desk⟨U+202E⟩" in card
+    assert mail.sends()[0]["body"]["priority"] == 3
+    card, _ = cfa.approval_request(rule(op="add", to="info", drop=True, name="spam trap"), call_id="n",
+                                   can_write=True)
+    assert "name: spam trap" in card
 
 
 def test_the_card_names_the_account_once_it_was_read(fake):

@@ -122,7 +122,9 @@ WRITE_DESCRIPTION = READ_DESCRIPTION + (
     "previous successful production deployment, or deployment). Rollbacks never deploy new code. zone_setting "
     "(zone, setting, value: ssl off | flexible | full | strict, always_use_https, automatic_https_rewrites, "
     "min_tls_version, tls_1_3, http3, development_mode, security_level, cache_level, browser_cache_ttl, "
-    "always_online, email_obfuscation, ipv6, websockets; on | off for the switches). "
+    "always_online, email_obfuscation, ipv6, websockets; on | off for the switches), email_rule (zone, op: add "
+    "with to and one of forward (a verified destination), drop: true or worker | update with id and what "
+    "changes | delete with id | catch_all with its action or enabled; name, enabled). "
     "preview=true returns the card without asking or "
     "changing anything, in any run. A run with no person to answer a card (cron, another agent's session, a "
     "single query) changes nothing. 'not done' means nothing changed; 'stopped part way' lists what was done; "
@@ -157,7 +159,24 @@ WRITE_PROPERTIES = {
                                                     "or short id); default the previous successful one"},
     "value": {"type": "string", "description": "zone_setting: the setting's new value, e.g. strict, on, 1.2, "
                                                "14400"},
+    "op": {"type": "string", "enum": list(cfa.RULE_OPS), "description": "email_rule: what to do"},
+    "to": {"type": "string", "description": "email_rule: the address at the zone, sales or sales@example.com"},
+    "forward": {"type": "string", "description": "email_rule: a verified destination address to forward to"},
+    "drop": {"type": "boolean", "description": "email_rule: true drops the mail"},
+    "worker": {"type": "string", "description": "email_rule: a Worker that handles the mail"},
+    "enabled": {"type": "boolean", "description": "email_rule: whether the rule is on"},
     "preview": {"type": "boolean", "description": "a change: return its card only; nothing is sent or asked"},
+}
+
+
+# Read arguments a change also takes, and what it uses them for.
+WRITE_ALSO = {
+    "zone": "the zone a change is about",
+    "id": "email_rule update / delete: the rule's id",
+    "name": "email_rule: the rule's name",
+    "setting": "zone_setting: the setting to change",
+    "script": "worker_rollback: the Worker",
+    "project": "pages_rollback: the project",
 }
 
 
@@ -166,8 +185,8 @@ def schema_parts(actions) -> tuple[str, dict]:
     properties = {"action": {"type": "string", "enum": list(actions)}, **READ_PROPERTIES}
     if not set(actions) & set(cfa.WRITES):
         return READ_DESCRIPTION, properties
-    properties["zone"] = {**properties["zone"], "description": properties["zone"]["description"]
-                          + "; the zone a change is about"}
+    for key, use in WRITE_ALSO.items():
+        properties[key] = {**properties[key], "description": properties[key]["description"] + "; " + use}
     return WRITE_DESCRIPTION, {**properties, **WRITE_PROPERTIES}
 
 
