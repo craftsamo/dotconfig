@@ -104,6 +104,9 @@ user's chosen control.
    criteria, risks, and resume handles (worktree, branch, session ids). With
    Phases left, add the next Phase's plan for the user's approval.
 
+A question about tracking the job on GitHub, also one the user raises
+mid-job, is answered from [github-ops.md](references/github-ops.md)
+"Tracking a job on GitHub", read before you answer.
 For a job the user chose to track on GitHub, you mirror the run to its
 issues with `github_change` as [github-ops.md](references/github-ops.md)
 says: the Phase's sub-issue Fixed at approval, each finished step ticked, its

@@ -124,7 +124,10 @@ leave install, gateway restarts and the cutover to the person.
    (below), then each Phase's steps before that Phase's build; for a single
    PR, one approval. Planning consent alone does not authorize implementation.
    Record the user's approving words in the log: Build quotes them as
-   `approval`.
+   `approval`. A roadmap of several Phases, or work others will pick up,
+   carries the tracking proposal in the same question (below): read
+   `skill_view(name="github-access:github-tracking")` first, so the proposal
+   names its real shape.
 6. **Release** the approved Phase through PR delivery under
    [Execute](../execute-assistant-engineering/SKILL.md). Keep the approved plan
    session as the trunk and fork it for each Phase.
@@ -167,9 +170,12 @@ the user, and the Phase's PR with how to try it.
 Tracking a job on GitHub is the user's choice: propose it once, and only with
 the roadmap of a job of several Phases or when others will pick the work up,
 and record the answer in the log. Duration, complexity or multiple PRs never
-decide it alone. For a tracked job the plan lives in a parent issue and its
-sub-issues, which you write and OpenCode reads
-([GitHub boundaries](../execute-assistant-engineering/references/github-ops.md)).
+decide it alone. The proposal is one sentence of what it would be: the board,
+a parent issue with one sub-issue per Phase (and drafts for the work outside
+the code), and a routine mandate so ticking steps needs no card. A yes starts
+it before Phase 1's build, as
+[GitHub boundaries](../execute-assistant-engineering/references/github-ops.md)
+"Starting" says; you write it and OpenCode reads it.
 A supplied Issue URL is a specification, not permission to edit it. Existing
 session ids can be handed over as context, but old grants need
 reconciliation, not adoption.
