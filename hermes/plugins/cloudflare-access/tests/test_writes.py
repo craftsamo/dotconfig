@@ -38,12 +38,17 @@ class Bridge:
         }
         self.write_reply = None
         self.fingerprint = "f" * 12
+        self.answers = {}   # any other GET: path -> Cloudflare's JSON
 
     def head(self, fields):
         return {"account": fields.get("account") or "work", "item": "CLOUDFLARE_WORK", "account_id": ACCOUNT,
                 "fingerprint": self.fingerprint, "token_kind": "user"}
 
-    def record(self, path):
+    def record(self, path, params=None):
+        if path in self.answers:
+            answer = self.answers[path]
+            return {"ok": True, "status": 200,
+                    "data": answer(dict(params or [])) if callable(answer) else answer}
         rid = path.rsplit("/", 1)[1]
         if rid in self.records:
             return {"ok": True, "status": 200, "data": envelope(dict(self.records[rid]))}
@@ -52,16 +57,26 @@ class Bridge:
     def __call__(self, op, **fields):
         self.requests.append({"op": op, **fields})
         if op == "reads":
-            results = [self.record(r["path"]) for r in fields["requests"]]
+            results = [self.record(r["path"], r.get("params")) for r in fields["requests"]]
             return {**self.head(fields), "ok": True, "requests": len(results), "results": results}
         path, method = fields.get("path"), fields.get("method")
         if method == "GET" and path == "/zones":
             return {**self.head(fields), "ok": True, "requests": 1, "data": envelope([ZONE_OBJ])}
         if method == "GET" and path == f"/zones/{ZONE}":
             return {**self.head(fields), "ok": True, "requests": 1, "data": envelope(ZONE_OBJ)}
-        if method == "POST":
+        if method == "GET" and path in self.answers:
+            answer = self.answers[path]
+            data = answer(dict(fields.get("params") or [])) if callable(answer) else answer
+            return {**self.head(fields), "ok": True, "requests": 1, "data": data}
+        if method == "GET":
+            return {**self.head(fields), "ok": False, "requests": 1, "kind": "not_found", "status": 404,
+                    "error": "not found"}
+        if method in ("POST", "PUT", "PATCH", "DELETE"):
             if self.write_reply is not None:
                 return {**self.head(fields), "requests": 1, **self.write_reply}
+            if not path.endswith("/dns_records/batch"):
+                return {**self.head(fields), "ok": True, "requests": 1, "status": 200,
+                        "data": envelope({"id": "new", **(fields.get("body") or {})})}
             body = fields.get("body") or {}
             result = {"posts": [{"id": "9" * 32, **post} for post in body.get("posts", [])],
                       "patches": [{**self.records[p["id"]], **p} for p in body.get("patches", [])],
@@ -347,6 +362,298 @@ def test_a_purge_outside_the_zone_or_malformed_is_refused_before_any_card(fake, 
     with pytest.raises(cfa.CloudflareError, match=message):
         cfa.approval_request(purge(**extra), can_write=True)
     assert fake.sends() == []
+
+
+V1, V2, V3 = ("11111111-1111-4111-8111-111111111111", "22222222-2222-4222-8222-222222222222",
+              "33333333-3333-4333-8333-333333333333")
+WORKER = "/accounts/{account}/workers/scripts/api/deployments"
+
+
+def deployment(n, *versions, message=None):
+    return {"id": f"d{n}", "created_on": f"2026-10-0{n}T00:00:00Z", "author_email": "dev@example.com",
+            "versions": [{"version_id": v, "percentage": p} for v, p in versions],
+            **({"annotations": {"workers/message": message}} if message else {})}
+
+
+def test_the_rollback_routes_are_ones_the_bridge_allows():
+    def ok(method, path):
+        return any(m == method and p.fullmatch(path) for m, p in bridge_module._ROUTES)
+    assert ok("POST", WORKER) and ok("POST", "/accounts/{account}/pages/projects/site/deployments/abc-1/rollback")
+    assert not ok("PUT", "/accounts/{account}/workers/scripts/api")   # uploading code is no route
+
+
+def test_a_worker_goes_back_to_its_previous_deployment_exactly(fake):
+    fake.answers[WORKER] = envelope({"deployments": [deployment(1, (V1, 100)), deployment(3, (V3, 100)),
+                                                      deployment(2, (V1, 40), (V2, 60), message="canary")]})
+    card, _, result = approve_and_run({"action": "worker_rollback", "script": "api"})
+    assert card.startswith("Cloudflare · Roll back a Worker\n⚠️ Visitors get the earlier code at once")
+    assert "Worker: api" in card and "Serve 11111111 40% + 22222222 60%" in card and "instead of 33333333 100%" in card
+    assert "then: canary" in card and "message: Rolled back through Hermes" in card
+    [sent] = fake.sends()
+    assert sent["method"] == "POST" and sent["path"] == WORKER
+    assert sent["body"] == {"strategy": "percentage", "versions": [{"version_id": V1, "percentage": 40},
+                                                                   {"version_id": V2, "percentage": 60}],
+                            "annotations": {"workers/message": "Rolled back through Hermes"}}
+    assert result["ok"] is True
+
+
+def test_a_worker_goes_back_only_to_a_version_that_ran_before(fake):
+    fake.answers[WORKER] = envelope({"deployments": [deployment(2, (V2, 100)), deployment(1, (V1, 100))]})
+    args = {"action": "worker_rollback", "script": "api", "version": V1, "message": "back to stable"}
+    card, _ = cfa.approval_request(args, call_id="v", can_write=True)
+    assert "Serve 11111111 100%" in card and "message: back to stable" in card
+    with pytest.raises(cfa.CloudflareError, match="only goes back to versions that ran before"):
+        cfa.approval_request({**args, "version": V3}, can_write=True)
+    with pytest.raises(cfa.CloudflareError, match="only goes back to versions that ran before"):
+        cfa.approval_request({**args, "version": V2}, can_write=True)   # served now, never before
+    fake.answers[WORKER] = envelope({"deployments": [deployment(3, (V1, 100)), deployment(2, (V2, 100)),
+                                                      deployment(1, (V1, 100))]})
+    with pytest.raises(cfa.CloudflareError, match="already serves 11111111 100%"):
+        cfa.approval_request(args, can_write=True)
+    fake.answers[WORKER] = envelope({"deployments": [deployment(1, (V1, 100))]})
+    with pytest.raises(cfa.CloudflareError, match="no earlier deployment"):
+        cfa.approval_request({"action": "worker_rollback", "script": "api"}, can_write=True)
+
+
+def test_a_deployment_after_the_card_sends_nothing(fake):
+    fake.answers[WORKER] = envelope({"deployments": [deployment(2, (V2, 100)), deployment(1, (V1, 100))]})
+    args = {"action": "worker_rollback", "script": "api"}
+    cfa.approval_request(args, call_id="call-1", can_write=True)
+    fake.answers[WORKER] = envelope({"deployments": [deployment(3, (V3, 100)), deployment(2, (V2, 100)),
+                                                      deployment(1, (V1, 100))]})
+    result = cfa.execute(args, call_id="call-1", can_write=True)
+    assert "changed before the write ran" in result["error"] and fake.sends() == []
+
+
+PAGES = "/accounts/{account}/pages/projects/site"
+
+
+def pages_deploy(n, status="success", environment="production"):
+    return {"id": f"dep-{n}", "short_id": f"short{n}00", "environment": environment,
+            "created_on": f"2026-10-0{n}T00:00:00Z", "latest_stage": {"name": "deploy", "status": status},
+            "deployment_trigger": {"metadata": {"branch": "main", "commit_hash": f"{n}" * 40}}}
+
+
+def test_a_pages_site_goes_back_to_its_previous_successful_production_deployment(fake):
+    fake.answers[PAGES] = envelope({"name": "site", "domains": ["example.com"], "canonical_deployment": pages_deploy(4)})
+    fake.answers[f"{PAGES}/deployments"] = envelope([pages_deploy(4), pages_deploy(3, status="failure"),
+                                                     pages_deploy(2), pages_deploy(1)])
+    card, _, result = approve_and_run({"action": "pages_rollback", "project": "site"})
+    assert "Cloudflare · Roll back a Pages site" in card and "Project: site" in card
+    assert "Make live again: short200 main 22222222 2026-10-02" in card and "instead of short400" in card
+    [sent] = fake.sends()
+    assert sent["path"] == f"{PAGES}/deployments/dep-2/rollback" and sent["body"] is None
+    assert result["ok"] is True
+
+
+def test_a_pages_rollback_refuses_a_preview_a_failure_or_the_live_one(fake):
+    fake.answers[PAGES] = envelope({"name": "site", "canonical_deployment": pages_deploy(4)})
+    fake.answers[f"{PAGES}/deployments"] = envelope([pages_deploy(4), pages_deploy(3, status="failure")])
+    fake.answers[f"{PAGES}/deployments/dep-5"] = envelope(pages_deploy(5, environment="preview"))
+    for wanted in ("dep-3", "dep-4", "dep-5"):
+        with pytest.raises(cfa.CloudflareError, match="not a successful production deployment older than the live"):
+            cfa.approval_request({"action": "pages_rollback", "project": "site", "deployment": wanted},
+                                 can_write=True)
+    with pytest.raises(cfa.CloudflareError, match="no earlier successful production deployment"):
+        cfa.approval_request({"action": "pages_rollback", "project": "site"}, can_write=True)
+    assert fake.sends() == []
+
+
+def test_a_version_that_never_served_traffic_or_shares_that_do_not_add_up_are_refused(fake):
+    fake.answers[WORKER] = envelope({"deployments": [deployment(3, (V3, 100)), deployment(2, (V1, 100), (V2, 0)),
+                                                      deployment(1, (V1, 100))]})
+    with pytest.raises(cfa.CloudflareError, match="did not serve traffic"):
+        cfa.approval_request({"action": "worker_rollback", "script": "api", "version": V2}, can_write=True)
+    with pytest.raises(cfa.CloudflareError, match="add up to 100%"):
+        cfa.approval_request({"action": "worker_rollback", "script": "api"}, can_write=True)
+    assert fake.sends() == []
+
+
+def test_a_named_pages_deployment_newer_than_the_live_one_is_refused(fake):
+    fake.answers[PAGES] = envelope({"name": "site", "canonical_deployment": pages_deploy(2)})
+    fake.answers[f"{PAGES}/deployments"] = envelope([pages_deploy(3), pages_deploy(2), pages_deploy(1)])
+    with pytest.raises(cfa.CloudflareError, match="older than the live one"):
+        cfa.approval_request({"action": "pages_rollback", "project": "site", "deployment": "dep-3"}, can_write=True)
+    assert cfa.approval_request({"action": "pages_rollback", "project": "site", "deployment": "short100"},
+                                can_write=True)
+
+
+def test_a_pages_deploy_after_the_card_sends_nothing(fake):
+    fake.answers[PAGES] = envelope({"name": "site", "canonical_deployment": pages_deploy(3)})
+    fake.answers[f"{PAGES}/deployments"] = envelope([pages_deploy(3), pages_deploy(2)])
+    args = {"action": "pages_rollback", "project": "site"}
+    cfa.approval_request(args, call_id="p", can_write=True)
+    fake.answers[PAGES] = envelope({"name": "site", "canonical_deployment": pages_deploy(4)})
+    fake.answers[f"{PAGES}/deployments"] = envelope([pages_deploy(4), pages_deploy(3), pages_deploy(2)])
+    assert "changed before the write ran" in cfa.execute(args, call_id="p", can_write=True)["error"]
+    assert fake.sends() == []
+
+
+SETTING = f"/zones/{ZONE}/settings"
+
+
+def test_the_engine_and_the_bridge_name_the_same_settings():
+    assert tuple(cfa.SETTING_VALUES) == bridge_module.PATCHABLE
+    def ok(path):
+        return any(m == "PATCH" and p.fullmatch(path) for m, p in bridge_module._ROUTES)
+    assert all(ok(f"{SETTING}/{name}") for name in cfa.SETTING_VALUES)
+    assert not ok(f"{SETTING}/waf") and not ok(f"{SETTING}/ssl/../waf")
+
+
+def test_a_setting_moves_from_what_it_is_to_what_it_becomes(fake):
+    fake.answers[f"{SETTING}/ssl"] = envelope({"id": "ssl", "value": "full", "editable": True})
+    card, key, result = approve_and_run({"action": "zone_setting", "zone": "example.com", "setting": "ssl",
+                                         "value": "Strict"})
+    assert "⚠️ How Cloudflare reaches the origin" in card and "ssl: full → strict" in card
+    [sent] = fake.sends()
+    assert sent["method"] == "PATCH" and sent["path"] == f"{SETTING}/ssl" and sent["body"] == {"value": "strict"}
+    assert result["ok"] is True
+
+
+@pytest.mark.parametrize("setting, now, value", [("ssl", "strict", "flexible"), ("min_tls_version", "1.2", "1.0"),
+                                                 ("security_level", "medium", "essentially_off"),
+                                                 ("always_use_https", "on", "off")])
+def test_weakening_what_protects_visitors_is_marked_and_asked_every_time(fake, setting, now, value):
+    fake.answers[f"{SETTING}/{setting}"] = envelope({"id": setting, "value": now, "editable": True})
+    args = {"action": "zone_setting", "zone": "example.com", "setting": setting, "value": value}
+    card, key = cfa.approval_request(args, call_id="a", can_write=True)
+    assert "🚨 Weaker protection for visitors" in card
+    assert key != cfa.approval_request(args, call_id="b", can_write=True)[1]
+
+
+def test_browser_cache_ttl_goes_out_as_a_number(fake):
+    fake.answers[f"{SETTING}/browser_cache_ttl"] = envelope({"id": "browser_cache_ttl", "value": 14400})
+    approve_and_run({"action": "zone_setting", "zone": "example.com", "setting": "browser_cache_ttl", "value": "3600"})
+    assert fake.sends()[0]["body"] == {"value": 3600}
+
+
+@pytest.mark.parametrize("args, message", [
+    ({"setting": "waf", "value": "on"}, "setting must be one of"),
+    ({"setting": "ssl", "value": "full_strict"}, "ssl takes off, flexible, full, strict"),
+    ({"setting": "browser_cache_ttl", "value": "999"}, "browser_cache_ttl takes"),
+    ({"setting": "ssl", "value": "full"}, "already full"),
+    ({"setting": "http3", "value": "on"}, "cannot be changed on this zone's plan"),
+])
+def test_a_setting_change_that_would_fail_is_refused_before_any_card(fake, args, message):
+    fake.answers[f"{SETTING}/ssl"] = envelope({"id": "ssl", "value": "full", "editable": True})
+    fake.answers[f"{SETTING}/http3"] = envelope({"id": "http3", "value": "off", "editable": False})
+    with pytest.raises(cfa.CloudflareError, match=message):
+        cfa.approval_request({"action": "zone_setting", "zone": "example.com", **args}, can_write=True)
+    assert fake.sends() == []
+
+
+def test_a_setting_changed_after_the_card_sends_nothing(fake):
+    fake.answers[f"{SETTING}/ssl"] = envelope({"id": "ssl", "value": "full", "editable": True})
+    args = {"action": "zone_setting", "zone": "example.com", "setting": "ssl", "value": "strict"}
+    cfa.approval_request(args, call_id="s", can_write=True)
+    fake.answers[f"{SETTING}/ssl"] = envelope({"id": "ssl", "value": "flexible", "editable": True})
+    assert "changed before the write ran" in cfa.execute(args, call_id="s", can_write=True)["error"]
+    assert fake.sends() == []
+
+
+RULES = f"/zones/{ZONE}/email/routing/rules"
+ADDRESSES = "/accounts/{account}/email/routing/addresses"
+RULE = {"id": "a" * 32, "name": "sales", "enabled": True,
+        "matchers": [{"type": "literal", "field": "to", "value": "sales@example.com"}],
+        "actions": [{"type": "forward", "value": ["owner@example.net"]}]}
+
+
+@pytest.fixture
+def mail(fake):
+    fake.answers[ADDRESSES] = envelope([{"email": "owner@example.net", "verified": "2026-01-01T00:00:00Z"},
+                                        {"email": "new@example.net", "verified": None}])
+    fake.answers[f"{RULES}/{'a' * 32}"] = envelope(dict(RULE))
+    fake.answers[f"{RULES}/catch_all"] = envelope({"id": "c", "enabled": False, "matchers": [{"type": "all"}],
+                                                   "actions": [{"type": "drop"}]})
+    return fake
+
+
+def rule(**extra):
+    return {"action": "email_rule", "zone": "example.com", **extra}
+
+
+def test_the_rule_routes_never_reach_the_catch_all_through_an_id():
+    def ok(method, path):
+        return any(m == method and p.fullmatch(path) for m, p in bridge_module._ROUTES)
+    assert ok("PUT", f"{RULES}/{'a' * 32}") and ok("PUT", f"{RULES}/catch_all") and ok("DELETE", f"{RULES}/abc")
+    assert not ok("DELETE", f"{RULES}/catch_all")
+
+
+def test_a_rule_forwards_only_to_a_verified_destination(mail):
+    card, _, result = approve_and_run(rule(op="add", to="Sales", forward="Owner@Example.net", name="sales desk"))
+    assert "Cloudflare · Add an e-mail rule" in card and "+ sales@example.com → forward owner@example.net" in card
+    [sent] = mail.sends()
+    assert sent["method"] == "POST" and sent["path"] == RULES
+    assert sent["body"] == {"matchers": [{"type": "literal", "field": "to", "value": "sales@example.com"}],
+                            "actions": [{"type": "forward", "value": ["owner@example.net"]}], "enabled": True,
+                            "name": "sales desk"}
+    with pytest.raises(cfa.CloudflareError, match="not a verified destination"):
+        cfa.approval_request(rule(op="add", to="info", forward="new@example.net"), can_write=True)
+    with pytest.raises(cfa.CloudflareError, match="an address at example.com"):
+        cfa.approval_request(rule(op="add", to="info@other.example", drop=True), can_write=True)
+    with pytest.raises(cfa.CloudflareError, match="exactly one of forward"):
+        cfa.approval_request(rule(op="add", to="info", drop=True, forward="owner@example.net"), can_write=True)
+
+
+def test_a_rule_change_shows_what_moves_and_keeps_the_rest(mail):
+    card, _, _ = approve_and_run(rule(op="update", id="a" * 32, drop=True, enabled=False))
+    assert "~ sales@example.com: forward owner@example.net → drop; on → off" in card
+    [sent] = mail.sends()
+    assert sent["method"] == "PUT" and sent["body"] == {"matchers": RULE["matchers"], "actions": [{"type": "drop"}],
+                                                        "enabled": False, "name": "sales"}
+    with pytest.raises(cfa.CloudflareError, match="moves nothing"):
+        cfa.approval_request(rule(op="update", id="a" * 32, forward="owner@example.net"), can_write=True)
+
+
+def test_deleting_a_rule_or_changing_the_catch_all_asks_every_time(mail):
+    args = rule(op="delete", id="a" * 32)
+    card, key = cfa.approval_request(args, call_id="d", can_write=True)
+    assert "🚨 The rule is gone" in card and "- sales@example.com → forward owner@example.net" in card
+    assert key != cfa.approval_request(args, call_id="d2", can_write=True)[1]
+    card, key = cfa.approval_request(rule(op="catch_all", forward="owner@example.net", enabled=True),
+                                     call_id="c", can_write=True)
+    assert "🚨 Changes where all mail no rule matches goes" in card
+    assert "~ catch-all: drop → forward owner@example.net; off → on" in card
+    cfa.execute(rule(op="catch_all", forward="owner@example.net", enabled=True), call_id="c", can_write=True)
+    [sent] = mail.sends()
+    assert sent["path"] == f"{RULES}/catch_all" and sent["body"]["matchers"] == [{"type": "all"}]
+    with pytest.raises(cfa.CloudflareError, match="delete takes only the rule's id"):
+        cfa.approval_request(rule(op="delete", id="a" * 32, drop=True), can_write=True)
+    with pytest.raises(cfa.CloudflareError, match="needs id"):
+        cfa.approval_request(rule(op="delete"), can_write=True)
+
+
+def test_a_rule_changed_after_the_card_sends_nothing(mail):
+    args = rule(op="update", id="a" * 32, enabled=False)
+    cfa.approval_request(args, call_id="call-1", can_write=True)
+    mail.answers[f"{RULES}/{'a' * 32}"] = envelope({**RULE, "name": "renamed meanwhile"})
+    assert "changed before the write ran" in cfa.execute(args, call_id="call-1", can_write=True)["error"]
+    assert mail.sends() == []
+
+
+def test_a_destination_on_a_later_page_is_found(mail):
+    def addresses(params):
+        if params.get("page", "1") == "1":
+            return {**envelope([{"email": "owner@example.net", "verified": "2026-01-01T00:00:00Z"}]),
+                    "result_info": {"page": 1, "total_pages": 2}}
+        return {**envelope([{"email": "late@example.net", "verified": "2026-01-02T00:00:00Z"}]),
+                "result_info": {"page": 2, "total_pages": 2}}
+    mail.answers[ADDRESSES] = addresses
+    card, _ = cfa.approval_request(rule(op="add", to="info", forward="late@example.net"), call_id="l",
+                                   can_write=True)
+    assert "forward late@example.net" in card
+    with pytest.raises(cfa.CloudflareError, match="not a verified destination"):
+        cfa.approval_request(rule(op="add", to="info", forward="nobody@example.net"), can_write=True)
+
+
+def test_a_rule_s_name_shows_on_its_card_and_a_change_keeps_its_priority(mail):
+    mail.answers[f"{RULES}/{'a' * 32}"] = envelope({**RULE, "priority": 3})
+    card, _, _ = approve_and_run(rule(op="update", id="a" * 32, name="front desk\u202e"))
+    assert "name sales → front desk⟨U+202E⟩" in card
+    assert mail.sends()[0]["body"]["priority"] == 3
+    card, _ = cfa.approval_request(rule(op="add", to="info", drop=True, name="spam trap"), call_id="n",
+                                   can_write=True)
+    assert "name: spam trap" in card
 
 
 def test_the_card_names_the_account_once_it_was_read(fake):

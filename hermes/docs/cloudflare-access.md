@@ -4,8 +4,9 @@ Cloudflare for the Assistant, Researcher and Marketer: the zones, DNS records,
 zone settings, analytics, Workers and Pages deployments, the names, sizes and
 schemas in R2, KV and D1, tunnels and Email Routing of the user's own
 Cloudflare accounts, through API tokens the user creates. Every profile with
-the tool reads; the Assistant alone also changes DNS records and purges
-caches, each change behind an approval card. Read it when changing the
+the tool reads; the Assistant alone also changes DNS records, zone settings
+and e-mail rules, purges caches and rolls Workers and Pages sites back, each
+change behind an approval card. Read it when changing the
 plugin, its tokens or what it may call. Common rules:
 [access-common.md](access-common.md). Part of the Hermes design docs — index:
 [`PROFILES.md`](../PROFILES.md).
@@ -18,7 +19,7 @@ plugin, its tokens or what it may call. Common rules:
 | The only process holding a token; the endpoints it may call (`ROUTES`), the analytics queries it may send (`QUERIES`) and the account it fills in | `plugins/cloudflare-access/bridge.py`                                                                                       | all                             |
 | `cloudflare` tool and the `pre_tool_call` hook (toolset `cloudflare_access`), the actions each profile gets                                       | `plugins/cloudflare-access/__init__.py`                                                                                     | Assistant, Researcher, Marketer |
 | How a profile reads Cloudflare: accounts, zones, record names, pages, permissions, recovery                                                       | the `cloudflare-access:cloudflare` plugin skill (`plugins/cloudflare-access/skills/cloudflare/`)                            | Assistant, Researcher, Marketer |
-| Changing Cloudflare: the card, DNS record changes, cache purges, outcomes                                                                         | the `cloudflare-access:cloudflare-manage` plugin skill (`.../skills/cloudflare-manage/`); registered for the Assistant only | Assistant                       |
+| Changing Cloudflare: the card, DNS records, cache purges, zone settings, e-mail rules, rollbacks, outcomes                                        | the `cloudflare-access:cloudflare-manage` plugin skill (`.../skills/cloudflare-manage/`); registered for the Assistant only | Assistant                       |
 
 Cloudflare's own REST API, so no terms are stretched: the risk is the user's
 sites and domains, not the account. Everything is standard library, so there is
@@ -197,6 +198,31 @@ moves nothing, or one that changes a record's type, is refused.
 `cache_purge` takes a zone and exactly one of up to 30 URLs, host names or
 path prefixes, each checked to lie inside the zone, or the whole zone's cache.
 
+`zone_setting` changes one setting of a fixed list (`SETTING_VALUES`: the SSL
+mode, the TLS floor, TLS 1.3, HTTP/3, the security and caching levels, the
+browser cache TTL and a few switches) to one of the values listed for it; the
+bridge routes a `PATCH` to those settings only (`PATCHABLE`, kept equal by a
+test). It reads the setting first and refuses one the plan cannot edit or a
+value it already has.
+
+`worker_rollback` and `pages_rollback` put back what ran before and never
+deploy new code: a Worker returns to its previous deployment exactly
+(gradual shares included, refused unless they add up to 100%) or to one
+version an earlier deployment sent traffic to, at 100%, and a version that
+never ran is refused; a Pages site returns to its previous successful
+production deployment or one named that is older than the live one, never a
+preview, a failed build or the live one. The route that uploads a Worker's code is not in
+`ROUTES`.
+
+`email_rule` adds, changes or deletes a rule for an address at the zone, or
+changes the catch-all. A rule forwards only to a destination the account has
+verified, drops the mail or hands it to a Worker; adding destinations stays
+with the dashboard.
+
+Rollbacks, setting and rule changes bind what they read (the live deployment,
+the setting, the rule as it was) into the plan, so a deploy or an edit made
+between the card and the run stops the change before anything is sent.
+
 Each action takes only its own arguments; any other is refused, so a mistaken
 argument is never dropped silently. The plan reads what the card shows from
 Cloudflare first and blocks a change that would fail. `preview=true` runs the
@@ -222,11 +248,15 @@ outcome is reported this way:
 
 The card has the [shared shape](access-common.md#card-shape): its title names
 the change (`Cloudflare · Change DNS records`), its effect line the stakes —
-🚨 when a record is deleted, ⚠️ for every other change, since each reaches
-visitors — then the account `<label> (<account name>)` and the zone, and what
-changes in a `Change` block: one line per record (`+` added, `~` changed from
-what it is to what it becomes, `-` deleted, names relative to the zone) or the
-purge with its URLs. Record contents and comments are collapsed to one line
+🚨 when a record or an e-mail rule is deleted, the catch-all changes, or a
+setting weakens what protects visitors (a lower SSL mode, TLS floor or
+security level, Always Use HTTPS off); ⚠️ for every other change, since each
+reaches visitors — then the account `<label> (<account name>)` and the zone,
+Worker or project, and what changes in a `Change` block: one line per record
+(`+` added, `~` changed from what it is to what it becomes, `-` deleted, names
+relative to the zone), the purge with its URLs, the setting or rule from what
+it is to what it becomes, or the deployment going live instead of the live
+one. Record contents and comments are collapsed to one line
 with control and invisible characters spelled out, so others' text cannot
 forge card lines. Lines that must be seen (every record change, what a purge
 reaches) always fit what the chat shows, or the change is refused (sooner on
@@ -235,8 +265,8 @@ purge's URLs) are counted when they do not.
 
 The approval record is per tool call and allows one change. Its rule key
 hashes the exact plan, so "session" or "always" repeats only that identical
-change on that same account. A change that deletes a record and a purge of
-everything get a fresh key every time, so no stored answer ever covers one.
+change on that same account. Every 🚨 change and a purge of everything get a
+fresh key every time, so no stored answer ever covers one.
 
 ## Where a write may run
 
@@ -276,8 +306,9 @@ Service-specific steps; the rest is in [shared setup](access-common.md#setup-sha
    one) limited to the account and zones the profiles should see, with the
    Read permission of each action they should use (the Permissions table of
    the `cloudflare-access:cloudflare` skill lists them) and, for the
-   Assistant's changes, Zone → DNS → Edit and Zone → Cache Purge → Purge only
-   where it should change them. Copy the account id
+   Assistant's changes, the Edit permission of each change it should make (the
+   Errors section of `cloudflare-access:cloudflare-manage` lists them) only
+   where it should make them. Copy the account id
    from the account's home page. Store the token with
    `secret set CLOUDFLARE_<LABEL> -p hermes --scope cloudflare-access --no-stage -D TOKEN --meta label=<label> --meta account_id=<account id> --no-env`
    (any name the CLI takes) and paste the token at the hidden prompt.
