@@ -2,6 +2,7 @@ import importlib.util
 import json
 import os
 import sys
+import types
 from pathlib import Path
 
 import pytest
@@ -407,6 +408,42 @@ def test_a_stack_merge_deletes_the_landed_branches_it_showed_on_the_card(gh):
     done = changes.apply(planned)["done"][0]
     assert done["state"] == "merged" and done["branches"] == {"fix/login": "deleted", "layer-2": "deleted"}
     assert len(gh.ran(r"--method DELETE")) == 2
+
+
+def tall_stack(gh, below):
+    """PR 12 on top of ``below`` open layers (#101 upward), each with a branch and a head of its own."""
+    def entry(position, number, head):
+        return {"position": position, "pullRequest": {
+            "number": number, "title": f"Layer {position}: the part of the feature this layer adds", "state": "OPEN",
+            "isDraft": False, "headRefOid": head, "mergeable": "MERGEABLE",
+            "headRefName": f"feat/stacked-layer-{position}", "headRepository": {"nameWithOwner": "me/app"}}}
+    heads = {100 + p: f"{p:02x}" * 20 for p in range(1, below + 1)}
+    stack = {"number": 5, "size": below + 1, "baseRefName": "main", "entries": {"nodes": [
+        *(entry(n - 100, n, head) for n, head in heads.items()), entry(below + 1, 12, SHA)]}}
+    gh.state["pr"] = pr_node(stack=stack, stackEntry={"position": below + 1})
+    gh.state["layers"] = {n: pr_node(number=n, headRefOid=head) for n, head in heads.items()}
+    gh.add(r"pullRequest\(number:\$n\)", lambda v: {"repository": {"pullRequest":
+                                                                   gh.state["layers"].get(v["n"], gh.state["pr"])}})
+
+
+def test_a_tall_stack_lands_on_one_card_where_the_chat_shows_it_whole(gh, monkeypatch):
+    """Four layers below, each landing and losing its branch, outgrow the 480-unit card, which is
+    refused rather than cut. A runtime whose Telegram card gives the reason the room a plugin's
+    short command leaves shows every layer and branch on the one card."""
+    tall_stack(gh, 4)
+    planned = changes.plan({"repo": "me/app", "changes": [{"op": "pr_merge", "pr": "12", "delete_branch": True}]})
+    monkeypatch.setattr(changes.cards, "platform", lambda: "telegram")
+    monkeypatch.setitem(sys.modules, "gateway.platforms.base_exec_approval", None)
+    with pytest.raises(access.AccessError, match="cannot show this change list"):
+        changes.card(planned)
+    shown = types.ModuleType("gateway.platforms.base_exec_approval")
+    shown.ea_reason_budget = lambda adapter, command, smart_denied: 0
+    monkeypatch.setitem(sys.modules, "gateway.platforms.base_exec_approval", shown)
+    text = changes.card(planned)
+    assert changes.cards.units(text) <= changes.cards.ROOMY["telegram"]
+    assert "Merge me/app#12 and the 4 open layers below it into main" in text
+    for n in range(101, 105):
+        assert f"\n⚠️ Layer merged with it: #{n} at " in text and f" (#{n}) (own, private)\n" in text
 
 
 def test_a_branch_is_kept_when_something_still_rests_on_it_or_it_moved(gh):

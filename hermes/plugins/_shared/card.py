@@ -18,8 +18,10 @@ is built the same way, so the person answering reads them all alike:
     the message as written            counted when it does not fit
 
 Telegram cuts the reason at 500 escaped UTF-16 units and Discord at 300, so a card is fitted to
-``budget()`` for the platform the turn runs on. Everything but the free text must fit whole; a card
-that cannot is refused (``CardError``), never shown cut.
+``budget()`` for the platform the turn runs on. The patched runtime gives the reason the room its
+short command leaves (``ea_reason_budget``), most of the message; there a card may be ``ROOMY``
+long. Everything but the free text must fit whole; a card that cannot is refused (``CardError``),
+never shown cut.
 
 Shared by the plugins that return an ``approve`` directive (each loads this file by path; it is
 not a plugin and has no manifest).
@@ -29,6 +31,7 @@ from __future__ import annotations
 
 import html
 import re
+import sys
 
 SAFE, CAUTION, DANGER = "safe", "caution", "danger"
 MARKERS = {SAFE: "✅", CAUTION: "⚠️", DANGER: "🚨"}
@@ -36,6 +39,10 @@ MARKERS = {SAFE: "✅", CAUTION: "⚠️", DANGER: "🚨"}
 BUDGET = 480            # Telegram shows 500 escaped UTF-16 units of the reason
 COMPACT_BUDGET = 290    # Discord shows 300
 COMPACT_PLATFORMS = {"discord"}
+# On the patched runtime: what Telegram's 4096 and Discord's 2000 leave once the prompt's own lines
+# are drawn (about 3890 and 1740), less room for a translated header, a smart-deny line and, on
+# Discord, approval mentions (about 23 units each); past it the gateway would cut the card itself.
+ROOMY = {"telegram": 3500, "discord": 1200}
 TEXT_MIN = 40           # room the free text keeps on a card that carries any
 
 # The card's own words, kept in one table so another language can be added beside them.
@@ -88,8 +95,18 @@ def platform() -> str:
         return ""
 
 
+def roomy() -> bool:
+    """Whether the gateway showing this turn's card gives the reason the room its command leaves.
+    Read from the gateway already loaded, never imported: only a running gateway shows a card on
+    Telegram or Discord, and a runtime without the patch keeps the short budgets."""
+    return hasattr(sys.modules.get("gateway.platforms.base_exec_approval"), "ea_reason_budget")
+
+
 def budget(where: str | None = None) -> int:
-    return COMPACT_BUDGET if (platform() if where is None else where) in COMPACT_PLATFORMS else BUDGET
+    where = platform() if where is None else where
+    if where in ROOMY and roomy():
+        return ROOMY[where]
+    return COMPACT_BUDGET if where in COMPACT_PLATFORMS else BUDGET
 
 
 def _one(value) -> str:
@@ -119,7 +136,7 @@ def compose(service: str, action: str, effect: tuple[str, str], facts=(), *, con
     limit = budget(where)
     body = visible(text) if text else ""
     # A shorter card keeps its facts before the start of the text.
-    room = (text_min if limit == BUDGET else min(text_min, TEXT_MIN)) if body else 0
+    room = (text_min if limit >= BUDGET else min(text_min, TEXT_MIN)) if body else 0
     for kept in range(len(context), -1, -1):
         upper = "\n".join(head + facts + context[:kept] + blocks)
         prefix = upper + (f"\n\n--- {text_label or WORDS['text']} ---\n" if body else "")
