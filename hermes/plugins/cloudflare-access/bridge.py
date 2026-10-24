@@ -91,7 +91,14 @@ SEGMENTS = {
     "{project}": r"[a-z0-9][a-z0-9-]{0,62}",         # a Pages project
     "{bucket}": r"[a-z0-9][a-z0-9-]{1,61}[a-z0-9]",  # an R2 bucket
     "{uuid}": r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}",   # a D1 database, a tunnel
+    "{deployment}": r"[A-Za-z0-9-]{1,64}",           # a Pages deployment
+    "{rule}": r"[A-Za-z0-9]{1,64}",                  # an Email Routing rule (never catch_all, which has its own)
 }
+# The zone settings a change may touch (the engine checks each one's values); any other is not a route.
+PATCHABLE = ("ssl", "always_use_https", "automatic_https_rewrites", "min_tls_version", "tls_1_3", "http3",
+             "development_mode", "security_level", "cache_level", "browser_cache_ttl", "always_online",
+             "email_obfuscation", "ipv6", "websockets")
+SEGMENTS["{patchable}"] = "(?:" + "|".join(PATCHABLE) + ")"
 # D1's query endpoint runs any SQL, writes included: the one statement this tool sends there is fixed here
 # and reads the schema, never a row. A request to it carries no body of the caller's. SQLite's and D1's own
 # objects are left out by their literal prefixes (in LIKE, `_` matches any character and would hide a table
@@ -136,6 +143,16 @@ ROUTES = (
     # changes: each runs only after its approval card, under the token the card was made with
     ("POST", "/zones/{id}/dns_records/batch"),
     ("POST", "/zones/{id}/purge_cache"),
+    # a rollback: a Worker back to versions an earlier deployment served, a Pages site to an earlier deployment
+    ("POST", "/accounts/{account}/workers/scripts/{script}/deployments"),
+    ("GET", "/accounts/{account}/pages/projects/{project}/deployments/{deployment}"),
+    ("POST", "/accounts/{account}/pages/projects/{project}/deployments/{deployment}/rollback"),
+    ("PATCH", "/zones/{id}/settings/{patchable}"),
+    ("GET", "/zones/{id}/email/routing/rules/{rule}"),
+    ("POST", "/zones/{id}/email/routing/rules"),
+    ("PUT", "/zones/{id}/email/routing/rules/{rule}"),
+    ("DELETE", "/zones/{id}/email/routing/rules/{rule}"),
+    ("PUT", "/zones/{id}/email/routing/rules/catch_all"),
 )
 VERIFY = {"user": "/user/tokens/verify", "account": "/accounts/{account}/tokens/verify"}
 

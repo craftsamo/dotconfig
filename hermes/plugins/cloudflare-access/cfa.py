@@ -46,7 +46,7 @@ cards = _load_card()
 
 READS = ("status", "account", "zones", "dns_records", "zone_settings", "analytics", "workers", "pages", "r2", "kv",
          "d1", "tunnels", "email_routing")
-WRITES = ("dns_change", "cache_purge")
+WRITES = ("dns_change", "cache_purge", "worker_rollback", "pages_rollback", "zone_setting", "email_rule")
 ACTIONS = READS + WRITES
 
 BRIDGE = HERE / "bridge.py"
@@ -1228,7 +1228,45 @@ def status(can_write: bool) -> dict:
 
 APPROVAL_TTL = 900
 COMMON_WRITE_ARGS = {"action", "account", "preview"}
-WRITE_ARGS = {"dns_change": {"zone", "changes"}, "cache_purge": {"zone", "urls", "hosts", "prefixes", "everything"}}
+WRITE_ARGS = {"dns_change": {"zone", "changes"}, "cache_purge": {"zone", "urls", "hosts", "prefixes", "everything"},
+              "worker_rollback": {"script", "version", "message"}, "pages_rollback": {"project", "deployment"},
+              "zone_setting": {"zone", "setting", "value"},
+              "email_rule": {"zone", "op", "id", "to", "forward", "drop", "worker", "name", "enabled"}}
+RULE_OPS = ("add", "update", "delete", "catch_all")
+DESTINATION_PAGES = 20   # at most this many pages of destination addresses are read to find one
+RULE_ID = re.compile(r"^[A-Za-z0-9]{1,64}$")
+EMAIL = re.compile(r"^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]{1,64}@[A-Za-z0-9.-]{1,253}$")
+# The zone settings zone_setting changes and the values each takes; the bridge routes only these.
+SETTING_VALUES = {
+    "ssl": ("off", "flexible", "full", "strict"),
+    "always_use_https": ("on", "off"),
+    "automatic_https_rewrites": ("on", "off"),
+    "min_tls_version": ("1.0", "1.1", "1.2", "1.3"),
+    "tls_1_3": ("on", "off", "zrt"),
+    "http3": ("on", "off"),
+    "development_mode": ("on", "off"),
+    "security_level": ("off", "essentially_off", "low", "medium", "high", "under_attack"),
+    "cache_level": ("basic", "simplified", "aggressive"),
+    "browser_cache_ttl": ("0", "30", "60", "120", "300", "1200", "1800", "3600", "7200", "10800", "14400", "18000",
+                          "28800", "43200", "57600", "72000", "86400", "172800", "259200", "345600", "432000",
+                          "691200", "1382400", "2073600", "2678400", "5356800", "16070400", "31536000"),
+    "always_online": ("on", "off"),
+    "email_obfuscation": ("on", "off"),
+    "ipv6": ("on", "off"),
+    "websockets": ("on", "off"),
+}
+# Settings whose order means strength: moving down one weakens what protects visitors.
+STRENGTH = {"ssl": ("off", "flexible", "full", "strict"), "min_tls_version": ("1.0", "1.1", "1.2", "1.3"),
+            "security_level": ("off", "essentially_off", "low", "medium", "high", "under_attack")}
+SETTING_EFFECTS = {
+    "ssl": "How Cloudflare reaches the origin; a wrong mode breaks the site",
+    "always_use_https": "Whether plain HTTP visits are sent to HTTPS",
+    "min_tls_version": "Which visitors' TLS versions are accepted",
+    "development_mode": "On, the cache is bypassed for three hours",
+    "security_level": "How often visitors are challenged",
+}
+DEPLOYMENT = re.compile(r"^[A-Za-z0-9-]{1,64}$")
+ROLLBACK_MESSAGE = "Rolled back through Hermes"
 PURGE_MAX = 30
 URL_MAX = 2048
 WRITABLE_TYPES = ("A", "AAAA", "CNAME", "MX", "TXT", "NS")
@@ -1265,7 +1303,7 @@ def _check_args(action: str, args: dict) -> None:
 def _plan(action: str, reply: dict, title: str) -> dict:
     return {"action": action, "account": reply["account"], "account_id": reply.get("account_id"),
             "fingerprint": reply.get("fingerprint"), "title": title, "effect": None, "once": False, "facts": [],
-            "lines": [], "details": [], "steps": [], "shape": None}
+            "lines": [], "details": [], "steps": [], "bind": [], "shape": None}
 
 
 def _same_token(plan: dict, reply: dict) -> None:
@@ -1555,8 +1593,326 @@ def _plan_cache_purge(args: dict) -> dict:
     return plan
 
 
-PLANS = {"dns_change": _plan_dns_change, "cache_purge": _plan_cache_purge}
-RESULTS = {"dns_change": _shape_dns_change}
+def _served(versions) -> list:
+    """A deployment's versions as [{version_id, percentage}], in a fixed order."""
+    served = [{"version_id": v.get("version_id"), "percentage": v.get("percentage")}
+              for v in versions or [] if isinstance(v, dict) and v.get("version_id")]
+    return sorted(served, key=lambda v: str(v["version_id"]))
+
+
+def _served_text(versions: list) -> str:
+    return " + ".join(f"{str(v['version_id'])[:8]} {v['percentage']:g}%" if isinstance(v.get("percentage"), (int, float))
+                      else str(v["version_id"])[:8] for v in versions) or "nothing"
+
+
+def _plan_worker_rollback(args: dict) -> dict:
+    script = _named(args, "script", SCRIPT, "a Worker's name")
+    if script is None:
+        raise CloudflareError("worker_rollback needs script, the Worker's name (workers lists them)")
+    version = _named(args, "version", UUID, "a version's id (workers with script lists them)")
+    message = _text(args, "message", 100)
+    data, reply = get(f"/accounts/{{account}}/workers/scripts/{script}/deployments", [], account=account_of(args),
+                      what=f"the deployments of Worker {script}")
+    deployments = sorted(_result_list(data, "deployments"), key=lambda d: str(d.get("created_on") or ""),
+                         reverse=True)
+    if len(deployments) < 2:
+        raise CloudflareError(f"Worker {script} has no earlier deployment to go back to")
+    current, earlier = deployments[0], deployments[1:]
+    now = _served(current.get("versions"))
+
+    def ran(deployment: dict) -> set:
+        """The versions a deployment sent traffic to: a share above zero."""
+        return {v["version_id"] for v in _served(deployment.get("versions"))
+                if isinstance(v.get("percentage"), (int, float)) and v["percentage"] > 0}
+    if version is None:
+        target, source = _served(earlier[0].get("versions")), earlier[0]
+        shares = [v.get("percentage") for v in target]
+        if not target or not all(isinstance(s, (int, float)) and s > 0 for s in shares) or abs(sum(shares) - 100) > 0.01:
+            raise CloudflareError(f"the previous deployment of {script} does not split its traffic in shares that add "
+                                  "up to 100%; name the version to go back to")
+    else:
+        source = next((d for d in earlier if version in ran(d)), None)
+        if source is None:
+            raise CloudflareError(f"version {version} did not serve traffic in an earlier deployment of {script}; a "
+                                  "rollback only goes back to versions that ran before")
+        target = [{"version_id": version, "percentage": 100}]
+    if target == now:
+        raise CloudflareError(f"Worker {script} already serves {_served_text(now)}")
+    plan = _plan("worker_rollback", reply, "Roll back a Worker")
+    plan["facts"] = [("Worker", script)]
+    plan["lines"] = [f"Serve {_served_text(target)}", f"instead of {_served_text(now)}"]
+    notes = source.get("annotations") if isinstance(source.get("annotations"), dict) else {}
+    plan["details"] = [f"as deployed {source.get('created_on') or '?'}"
+                       + (f" by {_short(source['author_email'], 40)}" if source.get("author_email") else ""),
+                       *([f"then: {_short(notes['workers/message'], 60)}"] if notes.get("workers/message") else []),
+                       f"message: {_short(message or ROLLBACK_MESSAGE, 60)}"]
+    plan["effect"] = (cards.CAUTION, "Visitors get the earlier code at once; deploying again undoes it")
+    plan["bind"] = [current.get("id")]
+    plan["steps"].append({"method": "POST", "path": f"/accounts/{{account}}/workers/scripts/{script}/deployments",
+                          "body": {"strategy": "percentage", "versions": target,
+                                   "annotations": {"workers/message": message or ROLLBACK_MESSAGE}},
+                          "what": f"rolling back Worker {script}"})
+    plan["shape"] = "worker_rollback"
+    return plan
+
+
+def _pages_line(item: dict) -> str:
+    shaped = shape_pages_deployment(item)
+    parts = [shaped.get("short_id") or str(item.get("id"))[:8], shaped.get("branch"), shaped.get("commit", "")[:8],
+             (shaped.get("created_on") or "")[:10]]
+    return " ".join(_short(part, 40) for part in parts if part)
+
+
+def _plan_pages_rollback(args: dict) -> dict:
+    project = _named(args, "project", PROJECT, "a Pages project's name")
+    if project is None:
+        raise CloudflareError("pages_rollback needs project, the Pages project's name (pages lists them)")
+    wanted = _named(args, "deployment", DEPLOYMENT, "a deployment's id (pages with project lists them)")
+    base = f"/accounts/{{account}}/pages/projects/{project}"
+    results, reply = get_many([(base, []), (f"{base}/deployments", [["env", "production"], ["per_page", "25"]])],
+                              account=account_of(args), what=f"Pages project {project}")
+    for result in results:
+        if not result.get("ok"):
+            raise CloudflareError(_failure({**result, "account": reply.get("account")}, f"Pages project {project}"))
+    info = (results[0].get("data") or {}).get("result")
+    current = (info or {}).get("canonical_deployment") if isinstance(info, dict) else None
+    if not isinstance(current, dict) or not current.get("id"):
+        raise CloudflareError(f"Pages project {project} has no live production deployment to roll back from")
+    listed = _result_list(results[1].get("data") or {}, "deployments")
+
+    def usable(item: dict) -> bool:
+        """An earlier successful production deployment: older than the live one, never the live one."""
+        stage = item.get("latest_stage") if isinstance(item.get("latest_stage"), dict) else {}
+        return (item.get("id") != current["id"] and item.get("environment") == "production"
+                and stage.get("status") == "success" and not item.get("is_skipped")
+                and bool(item.get("created_on")) and str(item["created_on"]) < str(current.get("created_on") or ""))
+    if wanted is None:
+        older = [d for d in listed if usable(d)]
+        if not older:
+            raise CloudflareError(f"Pages project {project} has no earlier successful production deployment")
+        target = max(older, key=lambda d: str(d.get("created_on") or ""))
+    else:
+        target = next((d for d in listed if d.get("id") == wanted or d.get("short_id") == wanted), None)
+        if target is None:
+            data, _ = get(f"{base}/deployments/{wanted}", [], account=reply["account"], what=f"deployment {wanted}")
+            target = data.get("result") if isinstance(data.get("result"), dict) else {}
+        if not usable(target):
+            raise CloudflareError(f"deployment {wanted} is not a successful production deployment older than the "
+                                  f"live one of {project}, so it cannot be made live again")
+    plan = _plan("pages_rollback", reply, "Roll back a Pages site")
+    plan["facts"] = [("Project", project)]
+    plan["lines"] = [f"Make live again: {_pages_line(target)}", f"instead of {_pages_line(current)}"]
+    plan["details"] = [f"- {_short(url, 70)}" for url in (info or {}).get("domains") or [] if isinstance(url, str)]
+    plan["effect"] = (cards.CAUTION, "Visitors get the earlier site at once; a new deployment undoes it")
+    plan["bind"] = [current["id"]]
+    plan["steps"].append({"method": "POST", "path": f"{base}/deployments/{target['id']}/rollback", "body": None,
+                          "what": f"rolling back Pages project {project}"})
+    plan["shape"] = "pages_rollback"
+    return plan
+
+
+def _plan_zone_setting(args: dict) -> dict:
+    setting = args.get("setting")
+    if setting not in SETTING_VALUES:
+        raise CloudflareError("setting must be one of " + ", ".join(SETTING_VALUES) + "; others are changed in "
+                              "the Cloudflare dashboard")
+    raw = args.get("value")
+    value = str(raw).strip().lower() if isinstance(raw, (str, int)) and not isinstance(raw, bool) else None
+    if value not in SETTING_VALUES[setting]:
+        raise CloudflareError(f"{setting} takes " + ", ".join(SETTING_VALUES[setting]))
+    zone, reply = zone_of(zone_ref(args), account_of(args))
+    zname = zone.get("name") or ""
+    data, read = get(f"/zones/{zone['id']}/settings/{setting}", [], account=reply["account"],
+                     what=f"{setting} of {zname}")
+    current = data.get("result") if isinstance(data.get("result"), dict) else {}
+    plan = _plan("zone_setting", reply, "Change a zone setting")
+    _same_token(plan, read)
+    if current.get("editable") is False:
+        raise CloudflareError(f"{setting} of {zname} cannot be changed on this zone's plan")
+    now = str(current.get("value")).lower() if current.get("value") is not None else "?"
+    if now == value:
+        raise CloudflareError(f"{setting} of {zname} is already {value}")
+    plan["facts"] = [("Zone", zname)]
+    plan["lines"] = [f"{setting}: {now} → {value}"]
+    order = STRENGTH.get(setting)
+    weaker = bool(order) and now in order and order.index(value) < order.index(now)
+    if setting == "always_use_https" and value == "off":
+        weaker = True
+    words = SETTING_EFFECTS.get(setting, "Changes how the zone is served")
+    plan["effect"] = (cards.DANGER, f"Weaker protection for visitors. {words}") if weaker else (cards.CAUTION, words)
+    plan["once"] = weaker
+    body_value = int(value) if setting == "browser_cache_ttl" else value
+    plan["steps"].append({"method": "PATCH", "path": f"/zones/{zone['id']}/settings/{setting}",
+                          "body": {"value": body_value}, "what": f"setting {setting} of {zname} to {value}"})
+    plan["shape"] = "zone_setting"
+    return plan
+
+
+def _rule_action(args: dict, verified, required: bool) -> list | None:
+    """The rule's action from exactly one of forward (a destination `verified(address)` confirms), drop or
+    worker; None when none is given and none is required."""
+    given = [key for key in ("forward", "drop", "worker") if args.get(key) not in (None, False, "")]
+    if not given and not required:
+        return None
+    if len(given) != 1:
+        raise CloudflareError("a rule does exactly one of forward (a destination address), drop: true or worker")
+    if given == ["forward"]:
+        address = args["forward"].strip().lower() if isinstance(args["forward"], str) else ""
+        if not EMAIL.fullmatch(address):
+            raise CloudflareError("forward must be an e-mail address")
+        if not verified(address):
+            raise CloudflareError(f"{address} is not a verified destination of this account: its owner confirms "
+                                  "Cloudflare's e-mail first (email_routing lists the destinations)")
+        return [{"type": "forward", "value": [address]}]
+    if given == ["drop"]:
+        if args["drop"] is not True:
+            raise CloudflareError("drop must be true")
+        return [{"type": "drop"}]
+    worker = args["worker"].strip() if isinstance(args["worker"], str) else ""
+    if not SCRIPT.fullmatch(worker):
+        raise CloudflareError("worker must be a Worker's name")
+    return [{"type": "worker", "value": [worker]}]
+
+
+def _rule_text(actions: list) -> str:
+    return "; ".join(f"{a.get('type')}" + (f" {_short(', '.join(a.get('value') or []), 50)}" if a.get("value")
+                                          else "") for a in actions or [] if isinstance(a, dict)) or "nothing"
+
+
+def _rule_address(rule: dict) -> str:
+    matchers = [m for m in rule.get("matchers") or [] if isinstance(m, dict)]
+    if any(m.get("type") == "all" for m in matchers):
+        return "every other address"
+    return ", ".join(_short(m.get("value"), 60) for m in matchers if m.get("value")) or "?"
+
+
+def _plan_email_rule(args: dict) -> dict:
+    op = args.get("op")
+    if op not in RULE_OPS:
+        raise CloudflareError("op must be one of " + ", ".join(RULE_OPS))
+    rid = args.get("id")
+    if op in ("update", "delete"):
+        if not isinstance(rid, str) or not RULE_ID.fullmatch(rid):
+            raise CloudflareError(f"{op} needs id, the rule's id (email_routing lists them)")
+    elif rid is not None:
+        raise CloudflareError(f"{op} takes no id")
+    if op in ("delete", "catch_all") and args.get("to") is not None:
+        raise CloudflareError(f"{op} takes no to")
+    if op == "delete":
+        extra = [k for k in ("forward", "drop", "worker", "name", "enabled") if args.get(k) is not None]
+        if extra:
+            raise CloudflareError("delete takes only the rule's id, not " + ", ".join(extra))
+    enabled = _bool(args, "enabled")
+    name = _text(args, "name", 100)
+    zone, reply = zone_of(zone_ref(args), account_of(args))
+    zname, base = zone.get("name") or "", f"/zones/{zone['id']}/email/routing/rules"
+    reads = [("/accounts/{account}/email/routing/addresses", [["per_page", str(EMAIL_PAGE)]])]
+    if op in ("update", "delete"):
+        reads.append((f"{base}/{rid}", []))
+    elif op == "catch_all":
+        reads.append((f"{base}/catch_all", []))
+    results, read = get_many(reads, account=reply["account"], what=f"Email Routing of {zname}")
+    plan = _plan("email_rule", reply, {"add": "Add an e-mail rule", "update": "Change an e-mail rule",
+                                       "delete": "Delete an e-mail rule", "catch_all": "Change the catch-all"}[op])
+    _same_token(plan, read)
+    for result in results:
+        if not result.get("ok"):
+            raise CloudflareError(_failure({**result, "account": reply["account"]}, f"Email Routing of {zname}"))
+    known = {"data": results[0].get("data") or {}, "page": 1, "found": set()}
+
+    def verified(address: str) -> bool:
+        """Whether the account has verified the address, reading further pages of destinations only as needed."""
+        while True:
+            known["found"] |= {str(a.get("email")).lower() for a in _result_list(known["data"], "")
+                               if a.get("verified")}
+            if address in known["found"]:
+                return True
+            total = (known["data"].get("result_info") or {}).get("total_pages")
+            if not isinstance(total, int) or known["page"] >= min(total, DESTINATION_PAGES):
+                return False
+            known["page"] += 1
+            data, more = get("/accounts/{account}/email/routing/addresses",
+                             [["page", str(known["page"])], ["per_page", str(EMAIL_PAGE)]], account=reply["account"],
+                             what="the destination addresses")
+            _same_token(plan, more)
+            known["data"] = data
+    current = (results[1].get("data") or {}).get("result") if len(results) > 1 else None
+    current = current if isinstance(current, dict) else {}
+    plan["facts"] = [("Zone", zname)]
+    if op == "add":
+        to = args.get("to")
+        address = (to if "@" in to else f"{to}@{zname}").strip().lower() if isinstance(to, str) and to.strip() else ""
+        if not EMAIL.fullmatch(address) or not address.endswith("@" + zname):
+            raise CloudflareError(f"to must be an address at {zname}, such as sales or sales@{zname}")
+        actions = _rule_action(args, verified, True)
+        body = {"matchers": [{"type": "literal", "field": "to", "value": address}], "actions": actions,
+                "enabled": True if enabled is None else enabled, **({"name": name} if name else {})}
+        plan["lines"] = [f"+ {address} → {_rule_text(actions)}" + ("" if body["enabled"] else " (off)")]
+        plan["details"] = [f"name: {_short(name, 60)}"] if name else []
+        plan["effect"] = (cards.CAUTION, "Mail to the address goes where the rule says")
+        plan["steps"].append({"method": "POST", "path": base, "body": body, "what": f"adding a rule for {address}"})
+    elif op == "delete":
+        plan["lines"] = [f"- {_rule_address(current)} → {_rule_text(current.get('actions'))}"]
+        plan["details"] = ["Mail to it then goes to the catch-all"]
+        plan["effect"] = (cards.DANGER, "The rule is gone: mail it routed falls to the catch-all")
+        plan["once"] = True
+        plan["bind"] = [current]
+        plan["steps"].append({"method": "DELETE", "path": f"{base}/{rid}", "body": None,
+                              "what": f"deleting the rule for {_rule_address(current)}"})
+    else:
+        actions = _rule_action(args, verified, op == "catch_all" and enabled is None)
+        new_actions = actions or current.get("actions") or []
+        new_enabled = bool(current.get("enabled")) if enabled is None else enabled
+        matchers = current.get("matchers") or []
+        if op == "update" and args.get("to") is not None:
+            to = args["to"]
+            address = (to if "@" in to else f"{to}@{zname}").strip().lower() if isinstance(to, str) else ""
+            if not EMAIL.fullmatch(address) or not address.endswith("@" + zname):
+                raise CloudflareError(f"to must be an address at {zname}")
+            matchers = [{"type": "literal", "field": "to", "value": address}]
+        if op == "catch_all":
+            matchers = [{"type": "all"}]
+        changes = []
+        if matchers != (current.get("matchers") or []) and op == "update":
+            changes.append(f"to {_rule_address(current)} → {_rule_address({'matchers': matchers})}")
+        if new_actions != (current.get("actions") or []):
+            changes.append(f"{_rule_text(current.get('actions'))} → {_rule_text(new_actions)}")
+        if new_enabled != bool(current.get("enabled")):
+            changes.append("on → off" if current.get("enabled") else "off → on")
+        new_name = name if name is not None else current.get("name")
+        if new_name != current.get("name"):
+            old = current.get("name")
+            changes.append(f"name {_short(old, 30) if old else '(none)'} → {_short(new_name, 30)}")
+        if not changes:
+            raise CloudflareError("the change moves nothing")
+        body = {"matchers": matchers, "actions": new_actions, "enabled": new_enabled,
+                **({"name": new_name} if new_name else {}),
+                # a PUT replaces the rule: what it already had and the change does not touch goes back with it
+                **({"priority": current["priority"]} if isinstance(current.get("priority"), int) else {})}
+        who = "catch-all" if op == "catch_all" else _rule_address(current)
+        plan["lines"] = [f"~ {who}: " + "; ".join(changes)]
+        if op == "catch_all":
+            plan["effect"] = (cards.DANGER, "Changes where all mail no rule matches goes")
+            plan["once"] = True
+        else:
+            plan["effect"] = (cards.CAUTION, "Mail to the address goes where the rule says")
+        plan["bind"] = [current]
+        plan["steps"].append({"method": "PUT", "path": f"{base}/{'catch_all' if op == 'catch_all' else rid}",
+                              "body": body, "what": f"changing the rule for {who}"})
+    plan["shape"] = "email_rule"
+    return plan
+
+
+PLANS = {"dns_change": _plan_dns_change, "cache_purge": _plan_cache_purge, "worker_rollback": _plan_worker_rollback,
+         "pages_rollback": _plan_pages_rollback, "zone_setting": _plan_zone_setting, "email_rule": _plan_email_rule}
+RESULTS = {"dns_change": _shape_dns_change,
+           "email_rule": lambda data: _rule(data.get("result") if isinstance(data.get("result"), dict) else {}),
+           "zone_setting": lambda data: shape_setting(data.get("result") if isinstance(data.get("result"), dict)
+                                                      else {}),
+           "worker_rollback": lambda data: shape_deployment(data.get("result") if isinstance(data.get("result"), dict)
+                                                            else {}),
+           "pages_rollback": lambda data: shape_pages_deployment(data.get("result")
+                                                                 if isinstance(data.get("result"), dict) else {})}
 
 
 def write_plan(args: dict) -> dict:
@@ -1585,10 +1941,11 @@ def card(plan: dict) -> str:
 
 
 def digest(plan: dict) -> str:
-    """What the card showed and what would be sent, under which token on which account."""
+    """What the card showed and what would be sent, under which token on which account, and the state the plan
+    rests on without showing it (`bind`: the deployment live now, a rule as it is)."""
     return hashlib.sha256(json.dumps([plan["action"], plan["account"], plan["account_id"], plan["fingerprint"],
                                       plan["title"], list(plan["effect"]), plan["facts"], plan["lines"],
-                                      plan["details"], plan["steps"]],
+                                      plan["details"], plan["steps"], plan["bind"]],
                                      sort_keys=True, ensure_ascii=False).encode("utf-8")).hexdigest()
 
 
