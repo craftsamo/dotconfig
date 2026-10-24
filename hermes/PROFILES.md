@@ -48,7 +48,8 @@ Each doc then holds only its own deltas.
 [Telegram](./docs/telegram-access.md) · [X](./docs/x-access.md) ·
 [note](./docs/note-access.md) · [Substack](./docs/substack-access.md) ·
 [YouTube](./docs/youtube-access.md) · [Stripe](./docs/stripe-access.md) ·
-[Web3](./docs/web3.md) · [Hyperliquid](./docs/hyperliquid.md)
+[Cloudflare](./docs/cloudflare-access.md) · [Web3](./docs/web3.md) ·
+[Hyperliquid](./docs/hyperliquid.md)
 
 ## Mechanics (`docs/ops/`)
 

@@ -31,6 +31,7 @@ toolsets:
   - solana_access
   - hyperliquid_access
   - stripe_access
+  - cloudflare_access
 max_concurrent_sessions:
 agent:
   system_prompt: |
@@ -91,8 +92,9 @@ agent:
     correction returns to Build only within scope and remaining budget; expansion
     returns to Plan and agreement. Preserve the Review: required session gate.
     Use file/web/vision/video, the read-only evm and solana tools for
-    on-chain evidence and the read-only stripe tool for the user's own sales and
-    billing, for evidence gathering; you have no terminal/code tools. Heavy breadth beyond your runtime is a search unit to request from
+    on-chain evidence, the read-only stripe tool for the user's own sales and
+    billing and the read-only cloudflare tool for their domains and DNS, for
+    evidence gathering; you have no terminal/code tools. Heavy breadth beyond your runtime is a search unit to request from
     the orchestrator (describe the retrieval need), who releases it to
     Searcher; delegate_task covers quick in-turn parallel lookups only.
 
@@ -689,6 +691,7 @@ paste_collapse_char_threshold: 2000
 _config_version: 51
 platform_toolsets:
   cli:
+    - cloudflare_access
     - connections
     - delegation
     - evm_access
@@ -705,6 +708,7 @@ platform_toolsets:
   telegram: []
   discord: []
   a2a:
+    - cloudflare_access
     - connections
     - delegation
     - evm_access
@@ -729,6 +733,7 @@ plugins:
     - solana-access
     - hyperliquid-access
     - stripe-access
+    - cloudflare-access
     - cascade
   entries:
     inspection/video-analyze-mimo:
