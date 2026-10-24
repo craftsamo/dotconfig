@@ -291,6 +291,7 @@ def _prepare(home, owner, role_name, role, settings, args, kwargs):
     return {"output": output, "writing": writing, "fork": fork, "chosen": chosen or meta.get("selection") or {},
             "explicit": bool(chosen), "sid": sid, "directory": directory, "branch": branch, "repo": repo,
             "protected": protected, "approval": approval, "issue_approval": issue_approval,
+            "read_roots": tuple(settings.get("read_roots", ())),
             # The latest build approval stays on the session as the record of its grant; the
             # prompt no longer carries it.
             "record": approval if writing else (meta.get("approval") if isinstance(meta.get("approval"), str)
@@ -315,7 +316,8 @@ def _setup(home, owner, role_name, role, plan, kwargs):
     server = turn.call("get", "/api/info") or {}
     tmp = (server.get("paths") or {}).get("tmp") if isinstance(server, dict) else None
     ruleset = policy.rules(role["policy"], plan["issue_approval"], plan["protected"], tmp=tmp, person_denies=person,
-                           output=plan["output"], branch=plan["branch"], gh_aliases=policy.gh_aliases())
+                           output=plan["output"], branch=plan["branch"], gh_aliases=policy.gh_aliases(),
+                           read_roots=plan.get("read_roots", ()))
     model = models.engine(role, plan["chosen"], info, directory,
                           models.caller_models(home, kwargs.get("session_id")))
     hermes = {"v": 2, "profile": home.name, "owner": owner, "role": role_name, "branch": plan["branch"],

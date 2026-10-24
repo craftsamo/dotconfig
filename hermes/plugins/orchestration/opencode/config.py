@@ -7,6 +7,7 @@ whether the caller's own model is allowed, and a short note.
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 import re
 
@@ -15,6 +16,9 @@ import hermes_yaml as yaml
 KEY = "opencode"
 # Where `opencode_session workspace` puts a task branch's worktree: <root>/<repo>/<branch>.
 DEFAULT_WORKTREE_ROOT = "~/Worktrees"
+# Source checkouts every run may read (never edit) without a round trip to the
+# caller; the worktree root is added to them. Credentials live outside them.
+DEFAULT_READ_ROOTS = ("~/ghq",)
 POLICIES = ("read-only", "write")
 # Whether a role may run on the caller's own model. `refuse` keeps the caller from
 # judging or building what it then accepts itself; `allow` is a maintainer's choice.
@@ -98,7 +102,7 @@ def load(home):
     config = read(home).get(KEY) or {}
     if not isinstance(config, dict) or config.get("enabled") is not True:
         raise ValueError(f"OpenCode integration is not enabled ({KEY}.enabled)")
-    unknown = set(config) - {"enabled", "wait_timeout", "allowed_providers", "roles", "worktree_root"}
+    unknown = set(config) - {"enabled", "wait_timeout", "allowed_providers", "roles", "worktree_root", "read_roots"}
     if unknown:
         raise ValueError(f"{KEY}: unknown keys {', '.join(sorted(unknown))}")
     wait = config.get("wait_timeout", DEFAULT_WAIT_TIMEOUT)
@@ -118,7 +122,27 @@ def load(home):
         if role.get("alternate") and role["alternate"].split("/", 1)[0] not in providers:
             raise ValueError(f"{KEY}.roles.{name}.alternate is not from {KEY}.allowed_providers")
     root = config.get("worktree_root", DEFAULT_WORKTREE_ROOT)
-    if not isinstance(root, str) or not root.startswith(("/", "~/")) or any(c in root for c in "*?"):
+    if not _directory(root):
         raise ValueError(f"{KEY}.worktree_root must be an absolute path (or start with ~/) without wildcards")
+    reads = config.get("read_roots", list(DEFAULT_READ_ROOTS))
+    if not isinstance(reads, list) or not all(_directory(v) for v in reads):
+        raise ValueError(f"{KEY}.read_roots must be a list of absolute paths (or ~/…) without wildcards")
+    worktree_root = str(Path(root).expanduser())
+    read_roots = []
+    home = Path.home()
+    above = {home, *home.parents, home.resolve(), *home.resolve().parents}
+    for value in [*reads, worktree_root]:
+        path = Path(os.path.normpath(Path(value).expanduser()))
+        # A root holding the home directory would open every credential store in it; the
+        # ruleset also allows the resolved spelling, so a link to the home is refused too.
+        if path in above or path.resolve() in above:
+            raise ValueError(f"{KEY}.read_roots: {value} must lie below the home directory or elsewhere, "
+                             "never the home directory itself or above it")
+        if str(path) not in read_roots:
+            read_roots.append(str(path))
     return {"wait_timeout": wait, "allowed_providers": providers, "roles": configured,
-            "worktree_root": str(Path(root).expanduser())}
+            "worktree_root": worktree_root, "read_roots": read_roots}
+
+
+def _directory(value):
+    return isinstance(value, str) and value.startswith(("/", "~/")) and not any(c in value for c in "*?")
