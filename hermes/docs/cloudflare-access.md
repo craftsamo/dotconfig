@@ -3,19 +3,22 @@
 Cloudflare for the Assistant, Researcher and Marketer: the zones, DNS records,
 zone settings, analytics, Workers and Pages deployments, the names, sizes and
 schemas in R2, KV and D1, tunnels and Email Routing of the user's own
-Cloudflare accounts, through API tokens the user creates. Every profile with the tool reads. Read it when changing the
+Cloudflare accounts, through API tokens the user creates. Every profile with
+the tool reads; the Assistant alone also changes DNS records and purges
+caches, each change behind an approval card. Read it when changing the
 plugin, its tokens or what it may call. Common rules:
 [access-common.md](access-common.md). Part of the Hermes design docs — index:
 [`PROFILES.md`](../PROFILES.md).
 
 ## Shape
 
-| Piece                                                                                                                                             | Home                                                                                             | Reader                          |
-| ------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ | ------------------------------- |
-| Engine: validation, request building from a fixed table, zone lookup, token state, result shapes, bypass guard                                    | `plugins/cloudflare-access/cfa.py`                                                               | all                             |
-| The only process holding a token; the endpoints it may call (`ROUTES`), the analytics queries it may send (`QUERIES`) and the account it fills in | `plugins/cloudflare-access/bridge.py`                                                            | all                             |
-| `cloudflare` tool and the `pre_tool_call` hook (toolset `cloudflare_access`), the actions each profile gets                                       | `plugins/cloudflare-access/__init__.py`                                                          | Assistant, Researcher, Marketer |
-| How a profile reads Cloudflare: accounts, zones, record names, pages, permissions, recovery                                                       | the `cloudflare-access:cloudflare` plugin skill (`plugins/cloudflare-access/skills/cloudflare/`) | Assistant, Researcher, Marketer |
+| Piece                                                                                                                                             | Home                                                                                                                        | Reader                          |
+| ------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- | ------------------------------- |
+| Engine: validation, request building from a fixed table, zone lookup, token state, result shapes, write plans, approval card, bypass guard        | `plugins/cloudflare-access/cfa.py`                                                                                          | all                             |
+| The only process holding a token; the endpoints it may call (`ROUTES`), the analytics queries it may send (`QUERIES`) and the account it fills in | `plugins/cloudflare-access/bridge.py`                                                                                       | all                             |
+| `cloudflare` tool and the `pre_tool_call` hook (toolset `cloudflare_access`), the actions each profile gets                                       | `plugins/cloudflare-access/__init__.py`                                                                                     | Assistant, Researcher, Marketer |
+| How a profile reads Cloudflare: accounts, zones, record names, pages, permissions, recovery                                                       | the `cloudflare-access:cloudflare` plugin skill (`plugins/cloudflare-access/skills/cloudflare/`)                            | Assistant, Researcher, Marketer |
+| Changing Cloudflare: the card, DNS record changes, cache purges, outcomes                                                                         | the `cloudflare-access:cloudflare-manage` plugin skill (`.../skills/cloudflare-manage/`); registered for the Assistant only | Assistant                       |
 
 Cloudflare's own REST API, so no terms are stretched: the risk is the user's
 sites and domains, not the account. Everything is standard library, so there is
@@ -24,24 +27,25 @@ isolated mode with a minimal environment
 ([bridge process](access-common.md#state-directory-and-bridge-process)). It
 calls only `https://api.cloudflare.com/client/v4`, only the method and path
 pairs in `ROUTES` and the fixed analytics queries in `QUERIES`, and never
-follows a redirect. Deploying code (Workers,
-Pages) is not the tool's job: it stays with the project's own tooling.
+follows a redirect. Deploying code (Workers, Pages) is not the tool's job: it
+stays with the project's own tooling.
 
 ## Profiles
 
-| Profile    | Actions    | Inbound A2A |
-| ---------- | ---------- | ----------- |
-| Assistant  | every read | refused     |
-| Researcher | every read | reads       |
-| Marketer   | every read | reads       |
+| Profile    | Actions             | Inbound A2A |
+| ---------- | ------------------- | ----------- |
+| Assistant  | every read, changes | refused     |
+| Researcher | every read          | reads       |
+| Marketer   | every read          | reads       |
 
 The action list a profile gets (`PROFILES`) is fixed when the plugin registers
 and checked again by the gate, the handler and the engine
 ([profile gating](access-common.md#profile-gating)). An inbound request runs
-only what `A2A` lists for the profile, and only when the turn's bound profile
-home is that profile's, failing closed otherwise. Every profile uses the same
-token for a label, so what the token may do in Cloudflare bounds what the tool
-can do.
+only what `A2A` lists for the profile, never a change or a `preview`, and only
+when the turn's bound profile home is that profile's, failing closed
+otherwise. Every profile uses the same token for a label, so what the token
+may do in Cloudflare bounds the Assistant's changes, and the action lists keep
+Researcher and Marketer to reads.
 
 ## Tokens, accounts and state
 
@@ -177,6 +181,70 @@ and commit messages from whoever deployed, and storage names from the apps
 that wrote them, so results carry a note that they are data, never
 instructions.
 
+## Writes
+
+`dns_change` takes a zone and up to 20 changes, each an add, an update of the
+fields named or a delete, of A, AAAA, CNAME, MX, TXT and NS records (other
+types stay with the dashboard). They go out as one request to Cloudflare's
+batch endpoint, which applies them in one transaction: all of them land or
+none does (resolvers still follow within each record's TTL). Each record is
+checked for its type before any card: an IPv4 or IPv6 address, a host name
+for CNAME, MX and NS, one line of at most 2,048 characters for TXT, a priority
+for MX, proxying only for A, AAAA and CNAME, a TTL of 1 (automatic) or 60 to
+86,400 seconds. An update or a delete reads the record first; an update that
+moves nothing, or one that changes a record's type, is refused.
+
+`cache_purge` takes a zone and exactly one of up to 30 URLs, host names or
+path prefixes, each checked to lie inside the zone, or the whole zone's cache.
+
+Each action takes only its own arguments; any other is refused, so a mistaken
+argument is never dropped silently. The plan reads what the card shows from
+Cloudflare first and blocks a change that would fail. `preview=true` runs the
+same plan and returns the card without asking or changing anything; it works
+in any run.
+
+At execution the handler plans again and refuses if anything the card showed
+or would send differs (a record changed meanwhile, another token was stored,
+the label now acts on another account). Every request carries the approved
+fingerprint, and the bridge sends nothing under a different stored token or
+account. Cloudflare takes no idempotency key, so nothing is ever resent; each
+outcome is reported this way:
+
+- **`not done`:** nothing changed. Cloudflare answered with a 4xx, or nothing
+  was sent.
+- **`stopped part way`:** the steps listed in `done` applied, then Cloudflare
+  refused one.
+- **`UNCERTAIN`:** a request was sent and its answer does not show whether it
+  applied (a timeout, a broken connection, a 5xx, a 2xx without a success).
+  Read it first.
+
+## Approval
+
+The card has the [shared shape](access-common.md#card-shape): its title names
+the change (`Cloudflare · Change DNS records`), its effect line the stakes —
+🚨 when a record is deleted, ⚠️ for every other change, since each reaches
+visitors — then the account `<label> (<account name>)` and the zone, and what
+changes in a `Change` block: one line per record (`+` added, `~` changed from
+what it is to what it becomes, `-` deleted, names relative to the zone) or the
+purge with its URLs. Record contents and comments are collapsed to one line
+with control and invisible characters spelled out, so others' text cannot
+forge card lines. Lines that must be seen (every record change, what a purge
+reaches) always fit what the chat shows, or the change is refused (sooner on
+Discord's shorter card); detail lines (the all-or-nothing note, comments, a
+purge's URLs) are counted when they do not.
+
+The approval record is per tool call and allows one change. Its rule key
+hashes the exact plan, so "session" or "always" repeats only that identical
+change on that same account. A change that deletes a record and a purge of
+everything get a fresh key every time, so no stored answer ever covers one.
+
+## Where a write may run
+
+A change is refused wherever no person can answer its card, through the shared
+check ([approval gate](access-common.md#approval-gate)); the hook and the
+handler each refuse before a card is built, and the answer names the reason.
+Reads and `preview=true` are unaffected.
+
 ## Ways around the tool
 
 On every profile with the tool the hook blocks terminal calls whose text names
@@ -207,7 +275,9 @@ Service-specific steps; the rest is in [shared setup](access-common.md#setup-sha
    for a user-owned token, or Manage Account → API Tokens for an account-owned
    one) limited to the account and zones the profiles should see, with the
    Read permission of each action they should use (the Permissions table of
-   the `cloudflare-access:cloudflare` skill lists them). Copy the account id
+   the `cloudflare-access:cloudflare` skill lists them) and, for the
+   Assistant's changes, Zone → DNS → Edit and Zone → Cache Purge → Purge only
+   where it should change them. Copy the account id
    from the account's home page. Store the token with
    `secret set CLOUDFLARE_<LABEL> -p hermes --scope cloudflare-access --no-stage -D TOKEN --meta label=<label> --meta account_id=<account id> --no-env`
    (any name the CLI takes) and paste the token at the hidden prompt.

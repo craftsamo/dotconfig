@@ -3,29 +3,50 @@
 Every request to Cloudflare runs through ``bridge.py``, a short-lived child process that alone reads
 an API token from the Keychain; this module validates the arguments, builds the request from a fixed
 table, remembers what Cloudflare made of each token and shapes the reply. A zone is named by its
-domain or its id and always checked to belong to the label's own account. Contract:
-docs/cloudflare-access.md.
+domain or its id and always checked to belong to the label's own account.
+
+A change (the Assistant's alone) runs only after Hermes' approval card for that exact call (see
+``approval_request``): the card names the account, the zone and what changes, read fresh from
+Cloudflare; execution plans it again and refuses on any difference, sends every request under the
+token the card was made with, and never retries. Contract: docs/cloudflare-access.md.
 """
 
 from __future__ import annotations
 
 from contextlib import contextmanager
 import fcntl
+import hashlib
+import ipaddress
 import json
 import os
 from pathlib import Path
 import re
+import secrets
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 from datetime import date, datetime, timedelta, timezone
 
 HERE = Path(__file__).resolve().parent
 
+
+def _load_card():
+    if "hermes_card" not in sys.modules:
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("hermes_card", HERE.parent / "_shared" / "card.py")
+        module = importlib.util.module_from_spec(spec)
+        sys.modules["hermes_card"] = module
+        spec.loader.exec_module(module)
+    return sys.modules["hermes_card"]
+
+
+cards = _load_card()
+
 READS = ("status", "account", "zones", "dns_records", "zone_settings", "analytics", "workers", "pages", "r2", "kv",
          "d1", "tunnels", "email_routing")
-WRITES: tuple = ()
+WRITES = ("dns_change", "cache_purge")
 ACTIONS = READS + WRITES
 
 BRIDGE = HERE / "bridge.py"
@@ -1199,11 +1220,31 @@ def status(can_write: bool) -> dict:
     return result
 
 
-# --- dispatch -----------------------------------------------------------------------------------
+# --- writes -------------------------------------------------------------------------------------
+#
+# A plan names the token it runs on (label, account, fingerprint), the card's title, stakes and facts,
+# its lines (`lines` always shown, `details` while they fit), the requests to send (`steps`) and how the
+# result is shaped. Planning reads what the card shows from Cloudflare; nothing is changed.
 
-READERS = {"zones": zones, "dns_records": dns_records, "zone_settings": zone_settings, "analytics": analytics,
-           "workers": workers, "pages": pages, "r2": r2, "kv": kv, "d1": d1, "tunnels": tunnels,
-           "email_routing": email_routing}
+APPROVAL_TTL = 900
+COMMON_WRITE_ARGS = {"action", "account", "preview"}
+WRITE_ARGS = {"dns_change": {"zone", "changes"}, "cache_purge": {"zone", "urls", "hosts", "prefixes", "everything"}}
+PURGE_MAX = 30
+URL_MAX = 2048
+WRITABLE_TYPES = ("A", "AAAA", "CNAME", "MX", "TXT", "NS")
+PROXIABLE = {"A", "AAAA", "CNAME"}
+CHANGE_OPS = ("add", "update", "delete")
+CHANGES_MAX = 20
+COMMENT_MAX = 100
+TXT_MAX = 2048
+TTL_LEAST, TTL_MOST = 60, 86400
+
+visible = cards.visible
+
+
+def _short(text, limit: int = 60) -> str:
+    """One line of someone's text for a card: control and invisible characters spelled out, cut to `limit`."""
+    return cards.line(text, limit)
 
 
 def is_preview(args) -> bool:
@@ -1214,14 +1255,474 @@ def is_preview(args) -> bool:
     return True
 
 
+def _check_args(action: str, args: dict) -> None:
+    extra = sorted(k for k, v in args.items() if v is not None and k not in WRITE_ARGS[action] | COMMON_WRITE_ARGS)
+    if extra:
+        raise CloudflareError(f"{action} does not take " + ", ".join(extra) + "; it takes "
+                              + ", ".join(sorted(WRITE_ARGS[action])))
+
+
+def _plan(action: str, reply: dict, title: str) -> dict:
+    return {"action": action, "account": reply["account"], "account_id": reply.get("account_id"),
+            "fingerprint": reply.get("fingerprint"), "title": title, "effect": None, "once": False, "facts": [],
+            "lines": [], "details": [], "steps": [], "shape": None}
+
+
+def _same_token(plan: dict, reply: dict) -> None:
+    if reply.get("fingerprint") != plan["fingerprint"]:
+        raise CloudflareError("the stored token changed while the card was being made; try again")
+
+
+def _rel(name: str, zone: str) -> str:
+    """A record's name as the card shows it: relative to its zone, @ for the zone itself."""
+    if name == zone:
+        return "@"
+    return name[:-len(zone) - 1] if name.endswith("." + zone) else name
+
+
+def _ttl(value) -> int | None:
+    if value is None:
+        return None
+    if value == "auto":
+        return 1
+    if isinstance(value, bool) or not isinstance(value, int) or not (value == 1 or TTL_LEAST <= value <= TTL_MOST):
+        raise CloudflareError(f"ttl must be 1 (automatic) or {TTL_LEAST} to {TTL_MOST} seconds")
+    return value
+
+
+def _ttl_text(value) -> str:
+    return "auto" if value in (1, None) else f"{value}s"
+
+
+def _content(kind: str, value, name: str) -> str:
+    """A record's content checked for its type: an address, a host name, or one line of text."""
+    if not isinstance(value, str) or not value.strip():
+        raise CloudflareError(f"a {kind} record needs content")
+    text = value.strip()
+    try:
+        if kind == "A":
+            return str(ipaddress.IPv4Address(text))
+        if kind == "AAAA":
+            return str(ipaddress.IPv6Address(text))
+    except ValueError as exc:
+        raise CloudflareError(f"{text[:60]} is not an IPv{'4' if kind == 'A' else '6'} address") from exc
+    if kind in ("CNAME", "NS", "MX"):
+        target = hostname(text, f"the {kind} target")
+        if "." not in target or target == name:
+            raise CloudflareError(f"a {kind} record points to another host name, not {text[:60]}")
+        return target
+    if len(text) > TXT_MAX or any(ord(c) < 32 for c in text):
+        raise CloudflareError(f"TXT content must be one line of at most {TXT_MAX} characters")
+    return text
+
+
+def _shown(kind: str, content: str, priority=None) -> str:
+    if kind == "TXT":
+        return '"' + _short(content, 40) + '"'
+    return content + (f" (priority {priority})" if kind == "MX" and priority is not None else "")
+
+
+def _flags(proxied, ttl) -> str:
+    return ", ".join(part for part in ("proxied" if proxied else None, f"TTL {_ttl_text(ttl)}") if part)
+
+
+def _record_body(change: dict, kind: str, zone: str) -> tuple[dict, str]:
+    """(the new record, its card line) of an add."""
+    name = _record_name(change.get("name"), zone)
+    content = _content(kind, change.get("content"), name)
+    ttl = _ttl(change.get("ttl")) or 1
+    proxied = bool(change.get("proxied"))
+    if change.get("proxied") is not None and not isinstance(change.get("proxied"), bool):
+        raise CloudflareError("proxied must be true or false")
+    if proxied and kind not in PROXIABLE:
+        raise CloudflareError(f"a {kind} record cannot be proxied; only A, AAAA and CNAME records can")
+    body = {"type": kind, "name": name, "content": content, "ttl": ttl, "proxied": proxied}
+    priority = change.get("priority")
+    if kind == "MX":
+        if isinstance(priority, bool) or not isinstance(priority, int) or not 0 <= priority <= 65535:
+            raise CloudflareError("an MX record needs priority, 0 to 65535")
+        body["priority"] = priority
+    elif priority is not None:
+        raise CloudflareError("priority is for MX records")
+    comment = change.get("comment")
+    if comment is not None:
+        if not isinstance(comment, str) or len(comment) > COMMENT_MAX or "\n" in comment:
+            raise CloudflareError(f"comment must be one line of at most {COMMENT_MAX} characters")
+        body["comment"] = comment
+    line = f"+ {kind} {_rel(name, zone)} → {_shown(kind, content, priority)}, {_flags(proxied, ttl)}"
+    return body, line
+
+
+def _record_patch(change: dict, current: dict, zone: str) -> tuple[dict, str, list]:
+    """(the fields to change, the card line, its detail lines) of an update, from the record as it is now."""
+    kind = current.get("type")
+    if kind not in WRITABLE_TYPES:
+        raise CloudflareError(f"a {kind} record is changed in the Cloudflare dashboard, not here")
+    if change.get("type") not in (None, kind):
+        raise CloudflareError("an update keeps the record's type; delete it and add one of the new type instead")
+    patch, parts = {}, []
+    name = current.get("name") or zone
+    if change.get("name") is not None:
+        new = _record_name(change.get("name"), zone)
+        if new != name:
+            patch["name"] = new
+            parts.append(f"name {_rel(name, zone)} → {_rel(new, zone)}")
+            name = new
+    if change.get("content") is not None:
+        new = _content(kind, change.get("content"), name)
+        if new != current.get("content"):
+            patch["content"] = new
+            parts.append(f"{_shown(kind, current.get('content') or '')} → {_shown(kind, new)}")
+    if change.get("priority") is not None:
+        if kind != "MX":
+            raise CloudflareError("priority is for MX records")
+        value = change.get("priority")
+        if isinstance(value, bool) or not isinstance(value, int) or not 0 <= value <= 65535:
+            raise CloudflareError("priority must be 0 to 65535")
+        if value != current.get("priority"):
+            patch["priority"] = value
+            parts.append(f"priority {current.get('priority')} → {value}")
+    if change.get("ttl") is not None:
+        ttl = _ttl(change.get("ttl"))
+        if ttl != current.get("ttl"):
+            patch["ttl"] = ttl
+            parts.append(f"TTL {_ttl_text(current.get('ttl'))} → {_ttl_text(ttl)}")
+    if change.get("proxied") is not None:
+        if not isinstance(change.get("proxied"), bool):
+            raise CloudflareError("proxied must be true or false")
+        if change["proxied"] and kind not in PROXIABLE:
+            raise CloudflareError(f"a {kind} record cannot be proxied")
+        if change["proxied"] != bool(current.get("proxied")):
+            patch["proxied"] = change["proxied"]
+            parts.append("proxied " + ("off → on" if change["proxied"] else "on → off"))
+    details = []
+    if change.get("comment") is not None:
+        comment = change.get("comment")
+        if not isinstance(comment, str) or len(comment) > COMMENT_MAX or "\n" in comment:
+            raise CloudflareError(f"comment must be one line of at most {COMMENT_MAX} characters ('' removes it)")
+        old = current.get("comment") or ""
+        if comment != old:
+            patch["comment"] = comment
+            parts.append("comment")
+            details.append(f"  comment: {_short(old, 40) if old else '(none)'} → "
+                           f"{_short(comment, 40) if comment else '(removed)'}")
+    if not patch:
+        raise CloudflareError(f"the update of {kind} {_rel(current.get('name') or zone, zone)} changes nothing")
+    return patch, f"~ {kind} {_rel(current.get('name') or zone, zone)}: " + "; ".join(parts), details
+
+
+def _plan_dns_change(args: dict) -> dict:
+    changes = args.get("changes")
+    if not isinstance(changes, list) or not 0 < len(changes) <= CHANGES_MAX:
+        raise CloudflareError(f"changes must be a list of 1 to {CHANGES_MAX} changes, each "
+                              "{op: add | update | delete, …}")
+    ids = []
+    for n, change in enumerate(changes, 1):
+        if not isinstance(change, dict) or change.get("op") not in CHANGE_OPS:
+            raise CloudflareError(f"change {n} needs op: add, update or delete")
+        allowed = {"add": {"op", "type", "name", "content", "ttl", "proxied", "priority", "comment"},
+                   "update": {"op", "id", "type", "name", "content", "ttl", "proxied", "priority", "comment"},
+                   "delete": {"op", "id"}}[change["op"]]
+        extra = sorted(k for k, v in change.items() if v is not None and k not in allowed)
+        if extra:
+            raise CloudflareError(f"change {n} ({change['op']}) does not take " + ", ".join(extra))
+        if change["op"] != "add":
+            ids.append(object_id(change.get("id"), f"change {n}'s id"))
+        elif not isinstance(change.get("type"), str) or change["type"].upper() not in WRITABLE_TYPES:
+            raise CloudflareError(f"change {n}: type must be one of " + ", ".join(WRITABLE_TYPES) + "; other "
+                                  "types are changed in the Cloudflare dashboard")
+    if len(set(ids)) != len(ids):
+        raise CloudflareError("a record may be changed only once in one call")
+    zone, reply = zone_of(zone_ref(args), account_of(args))
+    zname = zone.get("name") or ""
+    plan = _plan("dns_change", reply, "Change DNS records")
+    plan["facts"] = [("Zone", zname)]
+    current = {}
+    if ids:
+        results, read = get_many([(f"/zones/{zone['id']}/dns_records/{rid}", []) for rid in ids],
+                                 account=reply["account"], what=f"the records of {zname}")
+        _same_token(plan, read)
+        for rid, result in zip(ids, results):
+            record = (result.get("data") or {}).get("result") if result.get("ok") else None
+            if not isinstance(record, dict):
+                raise CloudflareError(_failure({**result, "account": reply["account"]}, f"DNS record {rid}"))
+            current[rid] = record
+    deletes, patches, posts, lines, details, danger = [], [], [], [], [], False
+    for change in changes:
+        op = change["op"]
+        if op == "add":
+            body, line = _record_body(change, change["type"].upper(), zname)
+            posts.append(body)
+            lines.append(line)
+            if body.get("comment"):
+                details.append(f"  comment: {_short(body['comment'], 60)}")
+        elif op == "update":
+            record = current[object_id(change["id"], "id")]
+            patch, line, notes = _record_patch(change, record, zname)
+            patches.append({"id": record["id"], **patch})
+            lines.append(line)
+            details += notes
+        else:
+            record = current[object_id(change["id"], "id")]
+            kind = record.get("type")
+            if kind not in WRITABLE_TYPES:
+                raise CloudflareError(f"a {kind} record is deleted in the Cloudflare dashboard, not here")
+            deletes.append({"id": record["id"]})
+            lines.append(f"- {kind} {_rel(record.get('name') or zname, zname)} "
+                         f"{_shown(kind, record.get('content') or '', record.get('priority'))}")
+            danger = True
+    body = {key: value for key, value in (("deletes", deletes), ("patches", patches), ("posts", posts)) if value}
+    plan["lines"] = lines
+    plan["details"] = (["All of them apply at once, or none does."] if len(lines) > 1 else []) + details
+    plan["effect"] = ((cards.DANGER, "A deleted record is gone: a site or its mail can stop") if danger else
+                      (cards.CAUTION, "Changes where the domain points; resolvers follow within the TTL"))
+    plan["once"] = danger
+    plan["steps"].append({"method": "POST", "path": f"/zones/{zone['id']}/dns_records/batch", "body": body,
+                          "what": f"changing {len(changes)} DNS record{'s' if len(changes) > 1 else ''} of {zname}"})
+    plan["shape"] = "dns_change"
+    return plan
+
+
+def _shape_dns_change(data: dict) -> dict:
+    result = data.get("result") if isinstance(data.get("result"), dict) else {}
+    return {key: [shape_record(r) for r in result.get(key) or [] if isinstance(r, dict)]
+            for key in ("deletes", "patches", "posts") if result.get(key)}
+
+
+def _in_zone(host: str, zone: str) -> bool:
+    return host == zone or host.endswith("." + zone)
+
+
+def _purge_list(args: dict, key: str, zone: str) -> list:
+    """The URLs, host names or prefixes to purge, each checked to lie inside the zone."""
+    values = args.get(key)
+    if not isinstance(values, list) or not 0 < len(values) <= PURGE_MAX:
+        raise CloudflareError(f"{key} must be a list of 1 to {PURGE_MAX}")
+    checked = []
+    for value in values:
+        if not isinstance(value, str) or not value.strip() or len(value) > URL_MAX or any(
+                ord(c) <= 32 for c in value.strip()):
+            raise CloudflareError(f"each of {key} is one {key[:-1]} without spaces")
+        text = value.strip()
+        if key == "urls":
+            match = re.fullmatch(r"(https?)://([^/?#]+)([/?#].*)?", text)
+            host = hostname(match.group(2), "a URL's host") if match else None
+            if not host:
+                raise CloudflareError(f"{text[:80]} is not a URL (https://host/path)")
+            text = f"{match.group(1)}://{host}{match.group(3) or '/'}"
+        elif key == "hosts":
+            host = text = hostname(text, "a host")
+        else:
+            if "://" in text:
+                raise CloudflareError(f"a prefix is a host and path without the scheme: {text[:80]}")
+            head, _, rest = text.partition("/")
+            host = hostname(head, "a prefix's host")
+            text = f"{host}/{rest}" if rest else host
+        if not _in_zone(host, zone):
+            raise CloudflareError(f"{host} is not in the zone {zone}")
+        checked.append(text)
+    if len(set(checked)) != len(checked):
+        raise CloudflareError(f"{key} names one of them twice")
+    return checked
+
+
+def _plan_cache_purge(args: dict) -> dict:
+    given = [key for key in ("urls", "hosts", "prefixes", "everything") if args.get(key) not in (None, False)]
+    if len(given) != 1:
+        raise CloudflareError("cache_purge takes exactly one of urls, hosts, prefixes or everything: true")
+    if "everything" in given and args.get("everything") is not True:
+        raise CloudflareError("everything must be true")
+    zone, reply = zone_of(zone_ref(args), account_of(args))
+    zname = zone.get("name") or ""
+    plan = _plan("cache_purge", reply, "Purge the cache")
+    plan["facts"] = [("Zone", zname)]
+    if given == ["everything"]:
+        body = {"purge_everything": True}
+        plan["lines"] = [f"Everything cached for {zname} and its subdomains"]
+        plan["effect"] = (cards.CAUTION, "Every file is fetched from the origin again: a burst of traffic there")
+        plan["once"] = True
+    else:
+        key = given[0]
+        values = _purge_list(args, key, zname)
+        body = {{"urls": "files"}.get(key, key): values}
+        noun = {"urls": "URL", "hosts": "host name", "prefixes": "prefix"}[key]
+        plan["lines"] = [f"{len(values)} {noun}{'s' if len(values) > 1 else ''}" + (
+            ", every file under each" if key != "urls" else "")]
+        plan["details"] = [f"- {_short(value, 70)}" for value in values]
+        plan["effect"] = (cards.CAUTION, "Visitors get fresh copies; the origin serves them again")
+    plan["steps"].append({"method": "POST", "path": f"/zones/{zone['id']}/purge_cache", "body": body,
+                          "what": f"purging the cache of {zname}"})
+    return plan
+
+
+PLANS = {"dns_change": _plan_dns_change, "cache_purge": _plan_cache_purge}
+RESULTS = {"dns_change": _shape_dns_change}
+
+
+def write_plan(args: dict) -> dict:
+    """What a write would do, read fresh from Cloudflare; raises CloudflareError for one that would fail."""
+    action = action_of(args)
+    _check_args(action, args)
+    return PLANS[action](args)
+
+
+def card(plan: dict) -> str:
+    """The shared card shape (plugins/_shared/card.py): the account and what it touches, then what changes in
+    one block. Its lines always fit or the change is refused; detail lines that do not fit are counted."""
+    known = known_account(plan["account"], plan.get("account_id")) or {}
+    name = f" ({_short(known['name'], 30)})" if known.get("name") else ""
+    facts = [("Account", f"{plan['account']}{name}"), *plan["facts"]]
+    details = plan["details"]
+    for shown in range(len(details), -1, -1):
+        rest = [f"(+{len(details) - shown} more lines)"] if shown < len(details) else []
+        try:
+            return cards.compose("Cloudflare", plan["title"], plan["effect"], facts,
+                                 sections=[("Change", plan["lines"] + details[:shown] + rest)])
+        except cards.CardError:
+            continue
+    raise CloudflareError("the approval card cannot show this change in full; send fewer changes at once or "
+                          "shorter text")
+
+
+def digest(plan: dict) -> str:
+    """What the card showed and what would be sent, under which token on which account."""
+    return hashlib.sha256(json.dumps([plan["action"], plan["account"], plan["account_id"], plan["fingerprint"],
+                                      plan["title"], list(plan["effect"]), plan["facts"], plan["lines"],
+                                      plan["details"], plan["steps"]],
+                                     sort_keys=True, ensure_ascii=False).encode("utf-8")).hexdigest()
+
+
+def rule_key(plan: dict, plan_digest: str) -> str:
+    """Hermes' allowlist key: the exact change, or a fresh one for a change an "always" must never cover."""
+    tail = secrets.token_hex(8) if plan["once"] else plan_digest[:16]
+    return f"cloudflare-access:{plan['action']}:{tail}"
+
+
+# The gate's view of each write, per tool call, so execution sends exactly what the card showed:
+# (when, the plan's digest).
+_approved: dict[str, tuple[float, str]] = {}
+_approved_lock = threading.Lock()
+
+
+def _call_key(args: dict, call_id: str) -> str:
+    return hashlib.sha256(json.dumps([call_id or "", args], sort_keys=True, ensure_ascii=False,
+                                     default=str).encode("utf-8")).hexdigest()
+
+
+def approval_request(args: dict, call_id: str = "", can_write: bool = False) -> tuple[str, str] | None:
+    """(card, allowlist rule key) for a write, None for a read or a preview; raises for a call that would
+    fail anyway, so it is blocked without asking."""
+    args = args if isinstance(args, dict) else {}
+    if action_of(args) not in WRITES or is_preview(args):
+        return None
+    if not can_write:
+        raise CloudflareError(READ_ONLY)
+    plan = write_plan(args)
+    text, plan_digest = card(plan), digest(plan)
+    with _approved_lock:
+        now = time.monotonic()
+        for old in [k for k, (at, _) in _approved.items() if now - at > APPROVAL_TTL]:
+            _approved.pop(old, None)
+        _approved[_call_key(args, call_id)] = (now, plan_digest)
+    return text, rule_key(plan, plan_digest)
+
+
+def _approved_write(args: dict, call_id: str) -> str | None:
+    """The digest of the approval this call passed, consumed; None without one."""
+    with _approved_lock:
+        entry = _approved.pop(_call_key(args, call_id), None)
+    if not entry or time.monotonic() - entry[0] > APPROVAL_TTL:
+        return None
+    return entry[1]
+
+
+def preview(args: dict) -> dict:
+    """Everything a write would check and the card it would show, without changing or asking."""
+    plan = write_plan(args)
+    return {"ok": True, "action": plan["action"], "preview": True, "account": plan["account"], "card": card(plan),
+            "requests": len(plan["steps"]),
+            "note": "nothing was sent; the write itself needs the same arguments without preview, and its card"}
+
+
+def write(args: dict, call_id: str = "") -> dict:
+    approved = _approved_write(args, call_id)
+    if approved is None:
+        return {"ok": False, "error": "not done: this write did not pass its approval card; nothing was sent"}
+    try:
+        plan = write_plan(args)
+    except CloudflareError as exc:
+        return {"ok": False, "error": f"not done: {exc}"}
+    if digest(plan) != approved:
+        return {"ok": False, "error": "not done: what the card showed changed before the write ran (in Cloudflare, "
+                                      "or the stored token); nothing was sent. Read it again, then ask anew"}
+    return run(plan)
+
+
+def run(plan: dict) -> dict:
+    """Send the plan's steps in order under the approved token, never retrying. A step Cloudflare answered
+    with a 4xx did not apply; any other failure after sending leaves the outcome unknown."""
+    done, last, notes = [], {}, []
+
+    def told(result: dict) -> dict:
+        return {**result, "notes": notes} if notes else result
+
+    for step in plan["steps"]:
+        try:
+            reply = bridge("call", account=plan["account"], method=step["method"], path=step["path"],
+                           params=step.get("params") or [], body=step.get("body"), expect=plan["fingerprint"],
+                           **_calls(_read_state()))
+        except CloudflareError as exc:   # no reply from the bridge: the request may have gone out
+            return told(_uncertain(plan, done, step, str(exc)))
+        except OSError as exc:            # the bridge did not start: nothing left
+            reply = {"ok": False, "kind": "error", "requests": 0, "error": f"the bridge could not start ({exc})"}
+        try:
+            _record(reply)
+        except Exception as exc:  # noqa: BLE001 - bookkeeping never hides what Cloudflare answered
+            notes.append(f"the tool's state could not be updated ({exc}); a refusal or a pause was not remembered")
+        if reply.get("ok"):
+            last = reply.get("data") or {}
+            done.append(step["what"])
+            continue
+        status = reply.get("status")
+        if not reply.get("requests") or (isinstance(status, int) and 400 <= status < 500):
+            failure = _failure(reply, step["what"])
+            if not done:
+                return told({"ok": False, "error": f"not done: {failure}; nothing was changed"})
+            return told({"ok": False, "error": f"stopped part way: {failure}. Done before it: " + "; ".join(done),
+                         "done": done})
+        return told(_uncertain(plan, done, step, reply.get("error") or reply.get("kind") or "no readable answer"))
+    result = {"ok": True, "action": plan["action"], "account": plan["account"], "done": done}
+    shape = RESULTS.get(plan["shape"])
+    result["result"] = shape(last) if shape else last.get("result")
+    return told(result)
+
+
+def _uncertain(plan: dict, done: list, step: dict, error: str) -> dict:
+    return {"ok": False, "uncertain": True, "done": done,
+            "error": f"UNCERTAIN: {step['what']} was sent and Cloudflare's answer does not show whether it applied "
+                     f"({error}). Read it in Cloudflare before anything else; never repeat the write without "
+                     "checking"}
+
+
+# --- dispatch -----------------------------------------------------------------------------------
+
+READERS = {"zones": zones, "dns_records": dns_records, "zone_settings": zone_settings, "analytics": analytics,
+           "workers": workers, "pages": pages, "r2": r2, "kv": kv, "d1": d1, "tunnels": tunnels,
+           "email_routing": email_routing}
+
+
 def execute(args: dict, home: Path | None = None, call_id: str = "", can_write: bool = False,
             allowed: tuple | None = None) -> dict:
     args = args if isinstance(args, dict) else {}
     action = action_of(args)
     if allowed is not None and action not in allowed:
         raise CloudflareError(not_allowed(action, allowed))
-    if action in WRITES and not can_write:
-        raise CloudflareError(READ_ONLY)
+    if action in WRITES:
+        if not can_write:
+            raise CloudflareError(READ_ONLY)
+        if is_preview(args):
+            return preview(args)
+        return write(args, call_id)
     if action == "status":
         _only(args, "status", set())
         return status(can_write)
