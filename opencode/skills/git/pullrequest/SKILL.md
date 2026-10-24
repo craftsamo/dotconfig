@@ -344,36 +344,82 @@ do not cover, such as `gh stack sync` or `gh stack checkout`.
   with no keyword written anywhere. Check the layer's `closingIssues` with
   `gh_pr_status` before merging a lower layer, or the issue closes while the
   rest of the stack is still open.
-- Merging (`gh stack merge`) stays out of scope here, like every other merge.
+- Merging (`gh stack merge`) stays out of scope here, like every other merge;
+  how a finished stack should land is the handoff in <MergeMessageHandoff>.
 
 </StackedPRs>
 
 <MergeMessageHandoff>
 
-PR descriptions and merge messages have different scopes. A native stack has
-no independent title/body that can stand in for its members. Do not assume a
-particular member supplies the default title of a stack merge commit.
+PR descriptions and merge messages have different scopes, and a stack shows
+the gap: each layer's PR describes its own diff, while one stack merge lands
+every open layer up to the PR it names, by one method. This skill never
+merges. When the user asks how to land a stack, or the layer that completes
+its goal is published, it hands over a landing plan.
 
-At handoff, distinguish the documented native-stack merge methods:
+What a stack merge leaves on the trunk:
 
-| Method | Result and description scope |
-| --- | --- |
-| Merge commit | One merge commit for the selected group; its title and body should describe all PRs being landed. |
-| Squash | One squash commit per merged PR; each layer's description remains relevant, subject to repository message defaults. |
-| Rebase | Individual commits are replayed; their subjects remain the descriptions, not one aggregate PR title. |
+| Method | Commits on the trunk | Default message |
+| --- | --- | --- |
+| Merge commit | ONE merge commit for all the layers merged together; each of their PRs records that same commit | the named PR's merge message (under the default settings its title + ` (#n)`): the top layer only |
+| Squash | one squash commit per PR | each PR's own, from the repository's squash settings |
+| Rebase | every commit replayed | each commit's own subject |
 
-A later, separately authorized merge must re-read the current stack and the
-selected prefix: merging through a middle layer excludes the layers above it.
-Prepare the merge description from that actual range and chosen method, not
-from a stale whole-stack summary or a mechanically copied top-layer title.
-PR creation does not settle the merge scope, method or message in advance.
+GitHub's stack reference promises one merge commit per PR; the merges make
+one for the group. When they disagree, trust the trunk
+(`git log --first-parent`), not the reference.
 
-This is a handoff rule, not merge execution. Do not add merge commands, API
-fallbacks or repository-setting mutations to this workflow. If the installed
-CLI cannot customize a merge message, disclose that limit; do not claim a PR
-rename guarantees the desired merge subject or use an API to bypass a gate.
+Landing plan for a stack whose layers serve one goal:
 
-Sources: [native stack merge methods](https://docs.github.com/en/pull-requests/reference/stacked-pull-requests#merge-methods)
+- **Once, when done.** Land the whole stack in one merge after every layer
+  is reviewed and its checks pass. Landing layer by layer leaves a half-built
+  goal on the trunk for as long as the rest takes. The number of layers does
+  not change this.
+- **A merge commit with an explicit message.** Title: the goal in the
+  repository's PR-title style, ending in ` (#<top PR>)`, written for the
+  <Audience> reader like any PR title (no plan labels). Body: one line per
+  layer it lands, bottom-up, `- #<n> <PR title>`. Every layer's commits stay
+  in the history under that merge, and the body names each PR the default
+  message drops. Always write the message: repositories differ in their
+  defaults (`Merge pull request #n from …`, a PR body, a blank body), so
+  leaving it to them lands a different message per repository.
+- **Where the message can be given.** GitHub's stack merge page: its title
+  field starts as the top PR's title and ` (#n)` and lands exactly as edited,
+  so keep the ` (#n)`. Or `PUT /repos/{owner}/{repo}/pulls/{top}/merge-async`
+  with `merge_method: merge`, the top PR's head as `sha`, `commit_title` and
+  `commit_message`; nothing appends the number there. `gh stack merge` takes
+  no message: with `--merge` it always lands the top PR's title, so never hand
+  it a stack of two or more layers for a merge commit.
+- **No merge commits allowed, or the user asks for squash:** squash lands one
+  commit per layer with that layer's own default message, so there is nothing
+  to write; a `commit_title` sent with it renames only the top layer's commit.
+  Rebase replays every commit and leaves no line for the goal.
+- **A lower part first** is an exception the user names, for example when
+  other work needs that base now. That merge lands the layers up to the PR it
+  names: one layer follows the repository's single-PR habit, several follow
+  the merge-commit rule above. GitHub then rebases the layers left above onto
+  the trunk itself.
+- **A stack that carries several goals** (work stacked on an unrelated
+  unmerged PR) lands each goal's layers as a landing of their own, bottom-up.
+- **`gh stack merge` itself:** with no argument and `--yes` it merges the
+  whole current stack; a bare number is read as a stack number before a PR
+  number; without a method flag it reuses the last method. Spell out the PR
+  and the method when handing it over.
+
+The plan names the layers it lands, the surface, the method, and the title
+and body. Re-read the stack right before handing it over: a layer added since
+changes the range. A later, separately authorized merge re-reads it again and
+takes the message from the range it actually lands, never from a stale
+summary or a copied top-layer title. PR creation settles none of this in
+advance.
+
+This is a handoff rule, not merge execution. The surfaces above are named for
+whoever lands the stack; this skill runs none of them. Do not add merge
+commands, API fallbacks or repository-setting mutations to this workflow, and
+do not claim a PR rename sets the merge subject.
+
+Sources: [native stack merge methods](https://docs.github.com/en/pull-requests/reference/stacked-pull-requests#merge-methods),
+[asynchronous merge](https://docs.github.com/en/rest/pulls/pulls#merge-a-pull-request-asynchronously)
 and [squash-message settings](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/configuring-pull-request-merges/configuring-commit-squashing-for-pull-requests).
 
 </MergeMessageHandoff>
@@ -468,8 +514,10 @@ and [squash-message settings](https://docs.github.com/en/repositories/configurin
    unreferenced files sit at the end: that is the expected difference from
    the body you wrote.
 9. Report the PR URL and its ready/draft state, including the immediate base
-   for a stack, and whether Step 3 rebased (with its `before` sha). Keep any
-   later merge-message handoff separate. Do not merge.
+   for a stack, and whether Step 3 rebased (with its `before` sha). When this
+   publication completes a stack's goal, add its landing plan
+   (<MergeMessageHandoff>) after the report, never in the PR text. Do not
+   merge.
 10. When CI or review feedback should be followed, read it with
     `gh_pr_status` (`wait: true` to wait for the checks) instead of `sleep` +
     `gh pr checks` loops or `--watch`. It returns the checks' verdict, the
@@ -548,5 +596,9 @@ and [squash-message settings](https://docs.github.com/en/repositories/configurin
   a layer to disguise a whole-stack merge-message mismatch.
 - Do not treat a PR title as a guaranteed merge subject or a PR-creation
   request as authorization to choose or execute a later stack merge.
+- Do not plan a goal's stack to land layer by layer unless the user names that
+  exception, and do not hand two or more layers to a merge-commit landing
+  without an explicit title and body (`gh stack merge --merge` cannot take
+  one): the one commit it makes describes the top layer only.
 
 </AntiPatterns>

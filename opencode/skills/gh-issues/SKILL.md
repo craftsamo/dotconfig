@@ -146,8 +146,9 @@ is the implementation. Omit it when Requirements already make the work plain.
   plus its own kickoff findings. Fold into Requirements when short.
 - `## Implementation outline` — Draft: prose bullets of the expected PR
   slices. Fixed: a `- [ ]` checklist of stack layers, bottom to top; tick a
-  layer when its PR lands and append the `#n`. The checklist, not a set of
-  issues, is the decomposition, so re-slicing is a text edit.
+  layer when its PR opens and append the `#n` (the layers land together, so
+  the ticks are the progress). The checklist, not a set of issues, is the
+  decomposition, so re-slicing is a text edit.
 - `## Open decisions` — what kickoff must settle; removed when Fixed, re-added
   when an escalated discovery raises one.
 - `## Acceptance` — done checks (`- [ ]`).
@@ -244,8 +245,8 @@ the current PR on scope.
   `**Implementation status**: In progress`.
 - Progress note or decision: `gh_issue_comment { issue, body }`; a change to
   the spec edits the body (`appendBody` for an addendum section).
-- A layer landed: `gh_issue_update { issue, body }` ticking the outline line
-  with its PR `#n`.
+- A layer's PR opened: `gh_issue_update { issue, body }` ticking the outline
+  line with its PR `#n`.
 - Done: the closing PR merges; or `gh_issue_update { issue, state: "closed",
   reason: "completed", comment }` when no PR closes it. Dropped: `reason:
   "not planned"`. A twin: `reason: "duplicate"` with the original in `comment`.

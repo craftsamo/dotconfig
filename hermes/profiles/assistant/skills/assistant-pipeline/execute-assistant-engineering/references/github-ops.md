@@ -116,9 +116,9 @@ No credentials or private records belong in the repository or public description
 
 Use [acceptance](../../qa-assistant-engineering/references/acceptance.md) before the
 `pr_merge` card, and `skill_view(name="github", file_path="references/merge.md")`
-for its method and message. A stack merges bottom-up, one layer per card:
-merging a layer also lands the open layers below it. After the merge, verify
-actual state with `github_pr` `view`. If further stacked work was requested,
+for its method and message. A finished stack lands whole, on one card from
+its top layer: merging a layer also lands the open layers below it. After the
+merge, verify actual state with `github_pr` `view`. If further stacked work was requested,
 tell the build session what changed so it can propose the appropriate update;
 do not grant history rewriting implicitly: with the user's explicit go, you
 copy the steps of
