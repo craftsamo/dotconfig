@@ -127,6 +127,21 @@
           "resource": "~/.opencode/plan/*",
           "effect": "allow"
         },
+        // Source checkouts (ghq and task worktrees) are read without a prompt:
+        // a plan reads the repositories beside its own all day. Not global:
+        // the same action gates a shell's working directory, so Build would
+        // run its allowed commands (`pnpm run …`) in the live checkouts
+        // unasked. Credentials live outside these roots and still ask.
+        {
+          "action": "external_directory",
+          "resource": "~/ghq/*",
+          "effect": "allow"
+        },
+        {
+          "action": "external_directory",
+          "resource": "~/Worktrees/*",
+          "effect": "allow"
+        },
         {
           "action": "git_commit",
           "resource": "*",
