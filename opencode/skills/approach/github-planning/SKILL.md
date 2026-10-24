@@ -49,7 +49,8 @@ Board item … the parent issue (and standalone issues); sub-issues when their
              dates or Status matter on their own (gh-projects)
 Parent issue … the requirement; tracking only, no branch
  └ Sub-issue … ONE goal that delivers on its own, the execution unit
-    │           ("do this now"); one branch or one stack of 1–3 PRs;
+    │           ("do this now"); one branch or one stack of PRs that
+    │           lands once, when the goal is done;
     │           carries its spec (Draft → Fixed) and implementation outline;
     │           ordered among siblings with blocked-by
     └ Stack layer … one reviewable PR in the sub-issue's native stack;
@@ -67,15 +68,17 @@ edit, not issue surgery.
 Shape (decompose along the codebase's structural seams):
 
 - One sub-goal that fits one PR, no wider context → a **single issue**.
-- One unit-sized sub-goal (1–3 PRs) → a **single issue** with the unit body.
+- One unit-sized sub-goal (a stack of PRs) → a **single issue** with the unit
+  body.
 - Several unit-sized sub-goals → a **parent issue** with sub-issues.
-- A parent that would decompose straight into ~5+ PR-sized pieces, or spans
+- A parent that would decompose straight into PR-sized pieces, or spans
   several domains, is missing a tier: insert sub-issues that are goals. A
-  unit is the smallest thing that delivers a meaningful outcome on its own
-  and fits one branch or one stack of a few PRs; anything larger is still a
-  parent-sized lump — keep decomposing.
-- A feature that must land atomically is one unit (its stack merges
-  atomically), never a parent (a parent has no branch or stack).
+  unit is the smallest goal that delivers a meaningful outcome on its own,
+  and its stack lands once, when that goal is done (`<Landing>`): the goal
+  sizes it, not a count of layers. A part that should reach the default
+  branch before the rest is a unit of its own.
+- A feature that must land atomically is one unit (its stack lands in one
+  merge), never a parent (a parent has no branch or stack).
 
 Time and order live in GitHub's relations, not in text: a **milestone** on
 the parent (and on sub-issues with their own date), **blocked by** on a
@@ -111,8 +114,9 @@ whose trunk is always the default branch.
 
 - **Parents have no branch.** A months-long parent branch would starve the
   default branch and rot; the parent's progress is its sub-issue bar.
-- **Units have no merge-vehicle branch either.** Layers land on the default
-  branch one by one, so it never falls a unit behind.
+- **Units have no merge-vehicle branch either.** The stack's layers land on
+  the default branch directly, together, when the unit is done
+  (`<Landing>`); no branch collects them on the way.
 - **One unit = one stack; one layer = one PR**: `main ← l1 ← l2 ← …`, every
   layer branch named after the unit (`<number>-<slug>/l1`, `/l2`, …).
 - **A multi-layer unit takes NO linked development branch.**
@@ -127,8 +131,8 @@ whose trunk is always the default branch.
   and makes two kinds of PR.
 - **Closing.** Intermediate layers carry `Refs #<unit>`; the completing
   layer carries `Closes #<unit>` instead (normally the top; move it when
-  another layer is appended). Fill the unit's `## Evidence` before that
-  layer merges.
+  another layer is appended). Fill the unit's `## Evidence` before the
+  stack lands.
 - **Degenerate case**: a one-PR unit needs no stack, and `gh_issue_develop`
   is right there — closing on that merge is wanted.
 
@@ -150,6 +154,29 @@ convention and template:
   out-of-scope ones escalate to the unit's `## Open decisions`).
 
 </StackLayerPR>
+
+<Landing>
+
+A unit's stack lands once, when its goal is done: every layer reviewed and
+its checks green. Layers landed one by one leave a half-built goal on the
+default branch for as long as the rest takes, and a stack landed in one merge
+under its default message leaves one commit that names only the top layer.
+
+- **One merge, one message.** A merge commit titled with the unit's goal and
+  ` (#<top PR>)`, its body listing every layer bottom-up as
+  `- #<n> <PR title>`: the landing plan of `git-pullrequest`
+  `<MergeMessageHandoff>`, which also says where such a message can be
+  given. The layers' commits stay in the history under it, however many
+  layers there are.
+- **Hand it over; land only when asked.** Give the landing plan when the
+  completing layer is published; the merge runs only on an explicit request.
+- **A part first only when the user says so**, for example when another unit
+  needs that base now. When that is known at kickoff, make the part a unit of
+  its own instead.
+- **After it lands:** the completing layer's `Closes #<unit>` closes the
+  unit; set `**Implementation status**: Done` and Status Done on the board.
+
+</Landing>
 
 <Steps>
 
@@ -176,11 +203,11 @@ convention and template:
    one-PR unit takes `gh_issue_develop` instead.
 5. **Execute layer by layer.** Implement the current layer, PR it via
    `git-pullrequest` (`Refs #<unit>`; `Closes` on the completing layer),
-   then `git_stack add` for the next. Tick the outline as layers land
-   (`gh_issue_update`). After changing a lower layer: `git_stack rebase`,
-   `git_publish_preview`, `git_publish push`. Land only on an explicit
-   request with `gh stack merge` (atomic); the top layer's merge closes
-   the unit.
+   then `git_stack add` for the next. Tick the outline as each layer's PR
+   opens (`gh_issue_update`). After changing a lower layer: `git_stack
+   rebase`, `git_publish_preview`, `git_publish push`. Once the completing
+   layer is published, hand over the landing plan; land the stack only on an
+   explicit request, in one merge (`<Landing>`), which closes the unit.
 6. **Close the loop.** When every sub-issue lands, run the parent's
    `## Acceptance`, close it (`gh_issue_update { state: "closed", reason:
    "completed" }`), set Status Done, summarize. No orphan local files.
@@ -211,6 +238,8 @@ is deleted; no parent dangles.
 - Do not take a linked development branch for a multi-layer unit — the
   first merge closes it.
 - Do not create a parent branch or a unit merge-vehicle branch.
+- Do not land a unit layer by layer unless the user asks for that part first,
+  and do not land it under the top layer's default message (`<Landing>`).
 - Do not number waves or write `Parent: #n` in bodies — blocked-by and the
   sub-issue panel carry order and parentage.
 - Do not create research-only issues — domain research is parent comments,
@@ -223,9 +252,9 @@ is deleted; no parent dangles.
 
 <Gates>
 
-- [ ] Shape chosen by decomposition: 1 PR → an issue; 1–3 PRs → an issue
-  with the unit body; several units → a parent with sub-issues; a parent
-  never decomposes straight into PRs.
+- [ ] Shape chosen by decomposition: 1 PR → an issue; one stack of PRs → an
+  issue with the unit body; several units → a parent with sub-issues; a
+  parent never decomposes straight into PRs.
 - [ ] Order and time are relations: blocked-by between siblings, milestone
   on the parent; the parent's `## Plan` lists `#n` with no checkboxes.
 - [ ] Every unit body carries its spec status; Draft has Open decisions,
@@ -236,6 +265,8 @@ is deleted; no parent dangles.
   appended as implemented; no parent branch, no merge vehicle, no linked
   development branch on a multi-layer unit.
 - [ ] Exactly one layer carries `Closes #<unit>`; the others `Refs #<unit>`.
+- [ ] The unit's stack lands once, when done, as one merge commit whose
+  message names the goal and lists every layer.
 - [ ] Superseded issues closed with successor links, never deleted.
 - [ ] Re-enterable from the board and `gh_issue_view` alone.
 

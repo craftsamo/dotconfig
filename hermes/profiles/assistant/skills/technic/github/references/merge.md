@@ -16,6 +16,9 @@ request; green CI never implies it.
 
 ## Method and message (this user's convention)
 
+For a pull request that lands alone. Two or more stacked layers landing in
+one merge follow "Stacks and chains" below.
+
 - **One commit: squash.** `subject` = the commit's own subject + ` (#n)`,
   `body` = the commit's own body (read it with `git log -1 --format=%B <sha>`
   in a clone). Always pass both: repository squash settings and other
@@ -40,14 +43,37 @@ request; green CI never implies it.
   each other; a native stack is what `github_pr` `view` shows as `stack`
   (null otherwise; merged members stay listed). Say "native stack" only after
   that check; never call a chain stacked.
-- **Merge a stack bottom-up, one layer per card.** `pr_merge` on a stacked
-  pull request also lands every open layer below it, and its card lists
-  them. After each layer: read the next one with `github_pr` `view` (its base
-  is now the trunk, its commits are only its own, its additions match the
-  original) and wait for its CI before the next card.
+- **A stack whose layers serve one goal lands once, on one card, when it is
+  done.** Wait until every layer is green, then `pr_merge` on the top pull
+  request: it lands every open layer below it too, and its card lists them.
+  Landing layer by layer would leave a half-built goal on main for as long as
+  the rest takes. The number of layers does not change this.
+- **Its message names the goal and every layer.** A merge-commit merge of
+  several layers makes ONE commit on main, and every one of their pull
+  requests records it; without a `subject` it carries the top pull request's
+  title alone, and the lower layers vanish from main's first-parent line.
+  So: a merge commit, `subject` = the goal in the style of a pull request
+  title + ` (#<top>)`, `body` = one line per layer, bottom-up,
+  `- #<n> <title>`. Every layer's commits stay in the history under it,
+  whatever their counts. Its commits land as they are, so the text scan
+  covers each layer's messages as for several commits above.
+- **Squash on a stack** makes one commit per layer, each with that layer's
+  default message; a `subject` renames only the top layer's commit. Only when
+  the user asks for it; a repository that allows no merge commit is stopped
+  and told, as above.
+- **When the user lands it by hand** on GitHub's page, give the title and
+  body to paste: the page's title field starts as the top title with
+  ` (#<top>)` and lands exactly as edited, so keep the number at its end.
+- **A lower part first** only when the user asks (another job needs that
+  base now): `pr_merge` on the highest layer to land, with the one-PR rules
+  above for one layer and the stack message for several. GitHub rebases the
+  layers above onto main itself: read the next one with `github_pr` `view`
+  (its base is now the trunk, its commits are only its own, its additions
+  match the original) and wait for its CI before its card.
 - **After each merge-commit merge, check where it forked**, in a fetched
   clone: for the new main commit C, `git rev-parse C^1` must equal
-  `git merge-base C^1 C^2`. After the last one, run the same check over
+  `git merge-base C^1 C^2`, and C^2 is the top layer's head. After a stack's
+  last landing, run the same check over
   `git rev-list --merges <stack base>..origin/main`, look at `git log --graph`
   (each side branch hangs off the previous merge, not an older branch tip),
   and `git diff --stat <old top sha> origin/main` must be empty. Never report

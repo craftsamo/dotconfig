@@ -122,8 +122,9 @@ What goes on the board, and how large work is broken down:
 - Break large multi-step work into an **epic**: one parent issue whose body
   follows the Epic format in `<BodyGuidance>` (Overview + a Plan of dependency
   waves — ordering lives in the body, there is no Wave field). Its direct
-  sub-issues are **purpose issues** (the execution unit, sized 1–3 PRs), each
-  of which executes as a native GitHub stack of PRs at kickoff. Tier
+  sub-issues are **purpose issues** (the execution unit, sized by its goal),
+  each of which executes as a native GitHub stack of PRs at kickoff and
+  lands once, when done. Tier
   selection, spec lifecycle, and branch topology live in
   `approach-github-projects`.
 - Issues stop at the purpose: a purpose's PR slices are **stack layers, not
@@ -258,7 +259,7 @@ Two issue tiers — epic and purpose — plus the stack-layer PR body:
   short.
 - `## Implementation outline` — the expected PR slices. Draft: prose bullets.
   Fixed (at kickoff): a `- [ ]` checklist of stack layers, bottom to top, one
-  line each; tick a layer when its PR lands and append its `#n` inline. This
+  line each; tick a layer when its PR opens and append its `#n` inline. This
   checklist — not a set of sub-issues — is the purpose's decomposition, so it
   can be re-sliced with a text edit while the layers above are unwritten.
 - `## Open decisions` — what must be settled at kickoff. Removed when Fixed

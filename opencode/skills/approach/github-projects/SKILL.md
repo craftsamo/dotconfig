@@ -4,7 +4,7 @@ description: >-
   Use when durable, multi-step, or cross-session work from an approach should
   live on GitHub Projects — decompose a high-level requirement into an epic
   whose direct sub-issues are PURPOSE issues (the "do this now" execution
-  unit, sized 1–3 PRs, spec Draft→Fixed at kickoff), then execute each purpose
+  unit, one stack of PRs, spec Draft→Fixed at kickoff), then execute each purpose
   as a native GitHub stack of PRs rooted at the default branch, grown one
   layer at a time (ロードマップ, 計画をボードに, エピック, 目的 Issue,
   Parent issue, Sub-issue, 起票して進める, track work, roadmap, epic,
@@ -46,7 +46,8 @@ Issues stop at the purpose; below it the unit of work is a PR, not an issue:
 Board item … the EPIC only (never purposes — keep the org Roadmap noise-free)
 Epic (parent issue) … the high-level requirement; tracking only
  └ Purpose issue … ONE purpose, the execution unit ("do this now"),
-    │              sized 1–3 reviewable PRs; carries its own spec
+    │              one stack of reviewable PRs, landed once when done;
+    │              carries its own spec
     │              (Requirements Draft→Fixed) and implementation outline
     └ Stack layer … one reviewable PR in the purpose's native GitHub stack;
        │            NOT an issue — its slice spec lives in the PR body
@@ -64,17 +65,19 @@ Shape selection (decompose along the codebase's structural seams):
 
 - One standalone sub-goal that fits one PR (no epic context) → a **single
   issue**.
-- One purpose-sized sub-goal (1–3 PRs) → a **single purpose issue** (no epic).
+- One purpose-sized sub-goal (one stack of PRs) → a **single purpose issue**
+  (no epic).
 - Several purpose-sized sub-goals → an **epic** with purpose issues.
 - Inside an epic, a purpose that turns out to be one PR stays a purpose issue
   and simply needs no stack (see `<BranchTopology>`).
-- An epic that would decompose directly into ~5+ PR-sized units, or spans
+- An epic that would decompose directly into PR-sized units, or spans
   several domains, is the signal that the purpose tier is missing — insert it.
-  A "purpose" is the smallest unit that delivers a meaningful outcome on its
-  own; if picking it up for the week feels heavy, it is still an epic-sized
-  lump: keep decomposing.
+  A "purpose" is the smallest goal that delivers a meaningful outcome on its
+  own, and its stack lands once, when that goal is done: the goal sizes it,
+  not a count of layers. A part that should reach the default branch before
+  the rest is a purpose of its own.
 - A short-lived feature that must land atomically is modeled as a **purpose
-  issue**, not an epic — a purpose's stack merges atomically, an epic has no
+  issue**, not an epic — a purpose's stack lands in one merge, an epic has no
   branch or stack of its own (see `<BranchTopology>`).
 
 The epic's `## Plan` orders purposes into dependency waves (a Wave table or
@@ -136,7 +139,7 @@ the `git_stack` / `git_publish` tools as `git-pullrequest`
   sub-issue bar.
 - **Purposes have no merge-vehicle branch either.** A purpose is a spec and a
   tracking unit, not a place to accumulate merged work. Its layers land on the
-  default branch, so the default branch never falls a purpose behind.
+  default branch directly, together, when the purpose is done (Step 5).
 - **One purpose = one stack; one layer = one PR.** The shape is
   `main ← layer1 ← layer2 ← …`. Name every layer branch after the purpose
   (`<purpose-number>-<slug>/l1`, `/l2`, …) so any layer traces back to it
@@ -160,9 +163,10 @@ the `git_stack` / `git_publish` tools as `git-pullrequest`
   completes the purpose carries `Closes #<purpose>` **instead** (the closing
   keyword is itself the reference) — normally the top one, and move it if you
   append another layer above. Closing keywords fire from any layer of a
-  default-branch-rooted stack, so this is the whole mechanism: intermediate
-  layers can land without ending the purpose. Fill the purpose's
-  `## Evidence` before that last layer merges.
+  default-branch-rooted stack, so this is the whole mechanism: a lower part
+  landed first, when the user asks for that, does not end the purpose. Fill
+  the purpose's
+  `## Evidence` before the stack lands.
 - **Degenerate case**: a one-PR purpose needs no stack — here
   `github_project_issue_develop` is right, because closing the purpose when
   its single PR lands is exactly the desired behavior.
@@ -195,12 +199,16 @@ the `git_stack` / `git_publish` tools as `git-pullrequest`
    instead takes a linked branch via `github_project_issue_develop`.
 5. **Execute layer by layer.** Implement the current layer, PR it via
    `git-pullrequest`, then `git_stack` `add` for the next one. Tick the
-   outline checklist as layers land. After changing a lower layer, `git_stack`
-   `rebase`, then `git_publish_preview` and `git_publish` `push` — the stack cannot
-   merge unless each layer is a linear descendant of the one below. Land,
-   only on an explicit request, with `gh stack merge`
-   (atomic: if any layer is not mergeable, none merge); merging the top layer
-   closes the purpose. Keep the epic's Plan in sync.
+   outline checklist as each layer's PR opens. After changing a lower layer,
+   `git_stack` `rebase`, then `git_publish_preview` and `git_publish` `push` —
+   the stack cannot merge unless each layer is a linear descendant of the one
+   below. Land the stack once, when the purpose is done and only on an
+   explicit request: one merge commit (atomic: if any layer is not mergeable,
+   none merge) titled with the purpose's goal and ` (#<top PR>)`, its body
+   listing every layer bottom-up as `- #<n> <PR title>`, per
+   `git-pullrequest` `<MergeMessageHandoff>`; that merge closes the purpose.
+   A lower part lands first only when the user asks. Keep the epic's Plan in
+   sync.
 6. **Close the loop.** When all purposes land, run the epic's `## Acceptance`
    integration checks, close the epic, set the board item Status to Done, and
    summarize. No orphan local plan/TODO files.
@@ -247,7 +255,8 @@ Closed superseded issues remain readable as originals; successors link back
 - Do not open a linked development branch for a multi-layer purpose — the
   link closes the purpose as soon as the first layer merges.
 - Do not create an epic branch or a purpose merge-vehicle branch — epics are
-  tracking-only and purposes land layer by layer on the default branch.
+  tracking-only and a purpose's layers land on the default branch directly,
+  together, when it is done.
 - Do not put purposes on the board — the board carries the epic (and
   standalone tasks) only; anything more is Roadmap noise.
 - Do not create research-only issues — domain research lives in epic comments,
@@ -268,7 +277,7 @@ Closed superseded issues remain readable as originals; successors link back
 
 - [ ] Ideas are DRAFT board items; decided work is a promoted epic — the board
   carries epics and standalone items only, never an epic's descendants.
-- [ ] Shape chosen by decomposition: 1 PR → single issue; 1–3 PRs → purpose;
+- [ ] Shape chosen by decomposition: 1 PR → single issue; one stack → purpose;
   several purposes → epic (purpose tier inserted, no direct epic→PR lumps).
 - [ ] Every purpose body carries its spec status; Draft purposes have Open
   decisions, Fixed purposes have a layer checklist in the outline.
@@ -280,6 +289,8 @@ Closed superseded issues remain readable as originals; successors link back
   purpose (it would close the purpose at the first merge).
 - [ ] Exactly one layer carries `Closes #<purpose>` (the last one); every
   other layer carries `Refs #<purpose>` instead.
+- [ ] The purpose's stack lands once, when done, as one merge commit whose
+  message names the goal and lists every layer.
 - [ ] Superseded issues are closed with successor links, never deleted; no
   stale `Parent:` lines in bodies.
 - [ ] Re-enterable: `item_list` → epic Plan → purpose status → branch checkout
