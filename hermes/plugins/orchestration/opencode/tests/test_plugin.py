@@ -1403,6 +1403,44 @@ def test_read_only_session_reopens_nothing_a_reviewer_denies():
     assert not [r for r in policy.rules("read-only", None, {"main"}) if r["action"] == "shell" and r["effect"] != "deny"]
 
 
+def test_read_roots_open_reading_to_read_only_runs_only(tmp_path):
+    """A read-only run reads the source checkouts beside its worktree without a round
+    trip, and never edits there; credentials stay shut. A write run keeps asking: its
+    shell's working directory is checked under the same action and it allows `edit *`,
+    so a read root would let it change the live checkout unasked."""
+    root = tmp_path / "ghq"
+    other = f"{root}/github.com/o/other"
+    walled = {"action": "external_directory", "resource": f"{root}/github.com/o/walled/*", "effect": "deny"}
+    rules = policy.rules("read-only", None, {"main"}, read_roots=(str(root),), person_denies=[walled])
+    assert policy.decide(rules, "external_directory", f"{other}/*") == "allow"
+    assert policy.decide(rules, "external_directory", f"{other}/src/*") == "allow"
+    assert policy.decide(rules, "external_directory", f"{root}/github.com/o/walled/*") == "deny"
+    assert policy.decide(rules, "external_directory", f"{Path.home()}/.aws/*") == "ask"
+    assert policy.decide(rules, "read", f"{other}/.env") == "deny"
+    for path in (f"{other}/src/a.py", f"{other}/.env.example"):
+        assert policy.decide(rules, "edit", path) == "deny", path
+    allows = [r for r in rules if r["effect"] == "allow" and r["resource"].startswith(str(root))]
+    assert allows == [{"action": "external_directory", "resource": str(root), "effect": "allow"},
+                      {"action": "external_directory", "resource": f"{root}/*", "effect": "allow"}]
+    write = policy.rules("write", None, {"main"}, read_roots=(str(root),), person_denies=[walled])
+    assert policy.decide(write, "external_directory", f"{other}/*") == "ask"
+    assert not [r for r in write if r["resource"].startswith(str(root)) and r["effect"] != "deny"]
+
+
+def test_read_roots_default_to_ghq_and_the_worktree_root(fixture):
+    home, _, _, _ = fixture
+    (home / "config.yaml").write_text("opencode:\n  enabled: true\n  worktree_root: /tmp/wt\n")
+    assert config.load(home)["read_roots"] == [str(Path.home() / "ghq"), "/tmp/wt"]
+    (home / "config.yaml").write_text("opencode:\n  enabled: true\n  read_roots: [/src, /tmp/wt]\n"
+                                      "  worktree_root: /tmp/wt\n")
+    assert config.load(home)["read_roots"] == ["/src", "/tmp/wt"]
+    link = home / "home-link"
+    link.symlink_to(Path.home())
+    (home / "config.yaml").write_text(f"opencode:\n  enabled: true\n  read_roots: ['{link}']\n")
+    with pytest.raises(ValueError, match="home directory"):
+        config.load(home)
+
+
 def test_ruleset_stays_small_enough_to_send_every_turn():
     # Every turn re-sends it; the service took about 2,350 rules in tens of ms.
     assert len(policy.rules("write", None, {"main", "master"}, branch="topic", gh_aliases=("co",))) < 3000
@@ -1647,6 +1685,12 @@ def test_a_role_note_is_part_of_the_session_instruction(fixture):
     ("  roles:\n    a: {agent: plan, policy: write, alternate: 'xai/grok-4.7'}\n", "allowed_providers"),
     ("  worktree_root: relative/dir\n", "worktree_root"),
     ("  worktree_root: '/tmp/*'\n", "worktree_root"),
+    ("  read_roots: /src\n", "read_roots"),
+    ("  read_roots: [relative/dir]\n", "read_roots"),
+    ("  read_roots: ['/src/*']\n", "read_roots"),
+    ("  read_roots: ['~/']\n", "home directory"),
+    ("  read_roots: ['/']\n", "home directory"),
+    ("  read_roots: ['~/..']\n", "home directory"),
 ])
 def test_configuration_is_validated(fixture, text, message):
     home, _, _, _ = fixture

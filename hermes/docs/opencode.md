@@ -167,7 +167,14 @@ every subagent session copies its parent's ruleset. So the
 session ruleset (`policy.rules`) owns each run's constraints for the whole
 session tree, and it is applied after a subagent's own posture. It holds
 denies, asks and narrow allows: the worktree boundary (`external_directory`
-asks; OpenCode's read-only reference clones under its data `repos/` readable),
+asks; a read-only run is allowed it under `opencode.read_roots`, default
+`~/ghq`, plus `worktree_root`, so a plan's explore subagents read the
+repositories beside its own without a round trip per directory, while the
+person's outside-path denies still win and a root may not be the home
+directory, where credentials live, or above it. A write run keeps the ask:
+the same action gates its shell's working directory and its edits outside the
+worktree, so a read root would let it change the live checkout unasked;
+OpenCode's read-only reference clones under its data `repos/` readable),
 secrets unreadable, pushes, shell history rewrites, branch moves
 (`gh pr checkout` and the person's `gh` aliases included), package downloaders
 (`npm exec`, `pnpm dlx`; `pnpm exec` runs only installed tools and is left to

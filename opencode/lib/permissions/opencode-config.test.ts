@@ -168,6 +168,17 @@ describe("global outside-directory rules", () => {
       expect([resource, outside(resource)]).toEqual([resource, "ask"])
   })
 
+  test("Plan reads the source checkouts without a prompt; Build and credentials still ask", () => {
+    const plan = config.agents.plan.permissions ?? []
+    const build = config.agents.build.permissions ?? []
+    for (const resource of ["~/ghq/github.com/o/other/*", "~/ghq/github.com/o/other/src/*", "~/Worktrees/repo/topic/*"]) {
+      expect([resource, outside(resource, plan)]).toEqual([resource, "allow"])
+      expect([resource, outside(resource, build)]).toEqual([resource, "ask"])
+    }
+    for (const resource of ["~/ghqx/*", "~/.aws/*", "~/.config/gh/*", "~/.local/share/opencode/*"])
+      expect([resource, outside(resource, plan)]).toEqual([resource, "ask"])
+  })
+
   test("skill directories and OpenCode's scratch directory stay open", () => {
     for (const resource of [
       "~/.agents/skills/commit/references/*",
