@@ -116,11 +116,40 @@ def test_the_cut_is_measured_after_escaping():
     assert card.units(text) <= card.BUDGET and "more characters" in text
 
 
+@pytest.fixture
+def shown_by(monkeypatch):
+    """The gateway's approval module as loaded in this process: ``patched`` gives the reason the
+    room its command leaves, else the reason keeps the platform's short cut; None is no gateway."""
+    def load(patched):
+        module = None
+        if patched is not None:
+            module = types.ModuleType("gateway.platforms.base_exec_approval")
+            if patched:
+                module.ea_reason_budget = lambda adapter, command, smart_denied: 0
+        monkeypatch.setitem(sys.modules, "gateway.platforms.base_exec_approval", module)
+    return load
+
+
+@pytest.mark.parametrize("patched", [None, False])
 @pytest.mark.parametrize("where, limit", [("telegram", card.BUDGET), ("discord", card.COMPACT_BUDGET),
                                           ("", card.BUDGET)])
-def test_the_budget_follows_the_platform(where, limit):
+def test_the_budget_follows_the_platform(shown_by, patched, where, limit):
+    shown_by(patched)
     assert card.budget(where) == limit
     assert card.units(send(text="x" * 2000, where=where)) <= limit
+
+
+@pytest.mark.parametrize("where", ["telegram", "discord"])
+def test_a_patched_gateway_lets_the_card_take_most_of_the_message(shown_by, where):
+    shown_by(True)
+    assert card.budget(where) == card.ROOMY[where]
+    text = send(facts=[("Files", "f" * 900)], text="x" * 5000, where=where)
+    assert "f" * 900 in text and "more characters)" in text and card.units(text) <= card.ROOMY[where]
+
+
+def test_a_patched_gateway_leaves_other_surfaces_their_short_card(shown_by):
+    shown_by(True)
+    assert card.budget("") == card.BUDGET and card.budget("whatsapp") == card.BUDGET
 
 
 def test_the_platform_is_read_from_the_turn(monkeypatch):
