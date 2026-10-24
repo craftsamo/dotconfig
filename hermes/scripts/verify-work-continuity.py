@@ -82,6 +82,9 @@ RUNTIME_PYTEST_FILES = (
     "tests/gateway/test_canonical_wire_contract.py",
     "tests/gateway/test_session_authority_cancel_settlement.py",
     "tests/hermes_cli/test_gateway_agent.py",
+    # The room an approval reason takes beside a short command, which plugins/_shared/card.py fits.
+    "tests/gateway/test_telegram_approval_buttons.py",
+    "tests/gateway/test_discord_exec_approval_content.py",
 )
 
 ASSISTANT_PIPELINE = "hermes/profiles/assistant/skills/assistant-pipeline"

@@ -2337,7 +2337,7 @@ def _file_lines(staged: list[dict]) -> list[str]:
     """Every file by its path under the attach root and size, FILES_CLIP characters in all (half of
     it where the chat shows less of a card) with the rest counted, so a card with ten files still
     leaves room for the text."""
-    limit = FILES_CLIP if cards.budget() == cards.BUDGET else FILES_CLIP // 2
+    limit = FILES_CLIP if cards.budget() >= cards.BUDGET else FILES_CLIP // 2
     shown, used = [], 0
     for i, f in enumerate(staged):
         inside = f", {f['archive']['entries']} files inside" if f.get("archive") else ""
