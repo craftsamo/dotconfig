@@ -532,7 +532,7 @@ ITEM_FRAGMENT = (
     f"... on ProjectV2ItemFieldRepositoryValue{{repository{{nameWithOwner}} {FIELD_NAME}}} "
     f"... on ProjectV2ItemFieldLabelValue{{labels(first:20){{nodes{{name}}}} {FIELD_NAME}}} "
     f"... on ProjectV2ItemFieldUserValue{{users(first:10){{nodes{{login}}}} {FIELD_NAME}}}"
-    "} content{__typename "
+    "}} content{__typename "
     "... on DraftIssue{id title body} "
     "... on Issue{id number title url state repository{nameWithOwner} issueType{name} labels(first:20){nodes{name}} "
     "parent{number} subIssuesSummary{total completed}} "

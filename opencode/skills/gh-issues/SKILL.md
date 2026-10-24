@@ -72,7 +72,7 @@ GitHub's own relations carry the structure; nothing is duplicated in text:
 | When / which release | a **milestone** (repository-scoped; set it on the parent and on each sub-issue that has its own date) | a date in the title |
 | Order between siblings | **blocked by** on the later issue (boards show a Blocked marker) | a wave table that goes stale |
 | What sort of work | **kind**: an Issue Type on an organization repository that defines it (task / bug / feature by default), a `type:<kind>` label elsewhere — the tools pick per kind, so an organization repository mixes types and labels unless it defines every kind it uses | a `Kind` board field |
-| How far along | the parent's sub-issue progress bar, the issue's `## Implementation outline` checklist, its state | a percentage in the body |
+| How far along | the board's Status, the parent's sub-issue progress bar, the issue's `## Implementation outline` checklist, its state | a percentage or a status line in the body |
 
 Parent issues track; they have no branch and no stack. A parent is right when
 the goal decomposes into several units that each deliver something on their
@@ -136,8 +136,6 @@ is the implementation. Omit it when Requirements already make the work plain.
 
 **Sub-issue, or any issue about to be implemented** (the execution unit):
 
-- Header lines `**Requirement status**: Draft | Fixed` and
-  `**Implementation status**: Not started | In progress | Done`.
 - `## Purpose` — the single goal (1–2 lines).
 - `## Requirements` — Draft: provisional; Fixed: confirmed, open decisions
   folded in.
@@ -153,6 +151,10 @@ is the implementation. Omit it when Requirements already make the work plain.
   when an escalated discovery raises one.
 - `## Acceptance` — done checks (`- [ ]`).
 - `## Evidence` — links to research comments, decision issues, predecessors.
+
+The body carries no status line: whether the spec is Draft or Fixed shows
+in its shape (`<SpecLifecycle>`), and how far the work is shows in the
+board's Status, the outline's ticks and the issue's state.
 
 A repository with Issue Forms uses them instead of these skeletons.
 
@@ -185,19 +187,24 @@ file of the repository: write its repository-relative path or a permalink.
 
 <SpecLifecycle>
 
-An issue that will be implemented carries a two-stage spec in its header:
+An issue that will be implemented has a two-stage spec, and its body's
+shape says which stage it is in — no status line repeats it:
 
-1. **Draft** at planning: provisional Requirements, a prose outline, Open
-   decisions. Deliberate — later issues' PR boundaries depend on earlier
-   implementations, so slicing everything up front causes rework.
+1. **Draft** at planning: provisional Requirements, a prose outline, an
+   `## Open decisions` section. Deliberate — later issues' PR boundaries
+   depend on earlier implementations, so slicing everything up front causes
+   rework.
 2. **Fixed** at kickoff: run the issue's system research (existing code,
    port sources, library choices, seams), settle Open decisions with the user,
-   `gh_issue_update` the body (Draft → Fixed, decisions folded into
-   Requirements, the outline turned into a layer checklist), then implement.
-   The checklist stays editable while the layers above are unwritten.
+   `gh_issue_update` the body (decisions folded into Requirements, the
+   outline turned into a layer checklist, `## Open decisions` removed), then
+   implement. The checklist stays editable while the layers above are
+   unwritten.
 
-Only an issue derived from an already-confirmed spec starts Fixed. Never
-implement a Draft.
+An issue is Draft while it has an `## Open decisions` section or a prose
+outline; Fixed once it has neither and its outline is a checklist. Only an
+issue derived from an already-confirmed spec starts Fixed. Never implement a
+Draft.
 
 </SpecLifecycle>
 
@@ -241,8 +248,8 @@ the current PR on scope.
   `addToProject: true` to place it on the board (`gh-projects` says which).
 - Create the parent first, then the sub-issues with `parent`; or attach later
   with `gh_issue_relate { issue: "<parent>", addSubIssues: [...] }`.
-- Kickoff: `gh_issue_update { issue, body }` with the Fixed body, then
-  `**Implementation status**: In progress`.
+- Kickoff: `gh_issue_update { issue, body }` with the Fixed body; Status
+  In Progress on the board (`gh-projects`).
 - Progress note or decision: `gh_issue_comment { issue, body }`; a change to
   the spec edits the body (`appendBody` for an addendum section).
 - A layer's PR opened: `gh_issue_update { issue, body }` ticking the outline

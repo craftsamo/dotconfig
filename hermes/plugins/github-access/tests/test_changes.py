@@ -46,6 +46,26 @@ def gh(monkeypatch):
     return fake
 
 
+def test_every_graphql_document_closes_where_it_ends():
+    # GitHub answers an unbalanced document with a parse error at its last column, which the fake
+    # gh never sees: it matches a query by substring. So every document the plugin holds as a
+    # constant is checked here: each `{` and `(` closed, and depth back to zero exactly at the end.
+    modules = [m for name, m in sys.modules.items() if name.startswith("hermes_github_access_")]
+    documents = [(f"{m.__name__}.{k}", v) for m in modules for k, v in vars(m).items()
+                 if isinstance(v, str) and v.lstrip().startswith(("query", "mutation"))]
+    assert len(documents) >= 20, documents
+    pairs = {"{": "}", "(": ")"}
+    for name, document in documents:
+        stack = []
+        for i, ch in enumerate(document):
+            if ch in pairs:
+                stack.append(ch)
+            elif ch in pairs.values():
+                assert stack and pairs[stack.pop()] == ch, f"{name}: unmatched {ch!r} at column {i + 1}"
+        assert not stack, f"{name}: {len(stack)} unclosed {''.join(stack)!r} at the end"
+        assert document.rstrip().endswith("}"), f"{name}: does not end on its selection set"
+
+
 def test_every_change_is_checked_before_anything_is_read(gh):
     for args, message in (
             ({"changes": []}, "non-empty list"),
