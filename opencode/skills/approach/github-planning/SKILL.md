@@ -174,7 +174,7 @@ under its default message leaves one commit that names only the top layer.
   needs that base now. When that is known at kickoff, make the part a unit of
   its own instead.
 - **After it lands:** the completing layer's `Closes #<unit>` closes the
-  unit; set `**Implementation status**: Done` and Status Done on the board.
+  unit; set Status Done on the board.
 
 </Landing>
 
@@ -195,9 +195,9 @@ under its default message leaves one commit that names only the top layer.
    branches yet.
 4. **Kickoff a unit (repeat).** Pick the next unblocked sub-issue: run its
    system research → settle `## Open decisions` with the user →
-   `gh_issue_update` the body to Fixed with the outline as a layer
-   checklist and `**Implementation status**: In progress`; Status → In
-   Progress on the board. Then a task branch `<number>-<slug>/l1` off the
+   `gh_issue_update` the body to Fixed (the outline a layer checklist,
+   `## Open decisions` gone); Status → In Progress on the board. Then a task
+   branch `<number>-<slug>/l1` off the
    default branch (`git_worktree { action: "create" }`); after its first
    commit, `git_stack split` with no cuts makes it the stack's bottom. A
    one-PR unit takes `gh_issue_develop` instead.
@@ -257,8 +257,8 @@ is deleted; no parent dangles.
   parent never decomposes straight into PRs.
 - [ ] Order and time are relations: blocked-by between siblings, milestone
   on the parent; the parent's `## Plan` lists `#n` with no checkboxes.
-- [ ] Every unit body carries its spec status; Draft has Open decisions,
-  Fixed has a layer checklist.
+- [ ] Every unit body shows its spec stage by shape: Draft has Open
+  decisions and a prose outline, Fixed a layer checklist and no status line.
 - [ ] Research tiered: parent comments / unit `## Research` (transcribed) /
   none at layer tier.
 - [ ] Branches: trunk is the default branch, layers named after the unit and
