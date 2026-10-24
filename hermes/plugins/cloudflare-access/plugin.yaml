@@ -1,0 +1,4 @@
+name: cloudflare-access
+version: 1.0.0
+description: Cloudflare for the Assistant, Researcher and Marketer — zones, DNS records and zone settings of the user's own accounts, through API tokens kept in the Keychain.
+kind: standalone
