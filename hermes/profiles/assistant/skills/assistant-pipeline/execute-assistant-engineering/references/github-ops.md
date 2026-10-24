@@ -32,7 +32,10 @@ sentence proposes making one (its owner and title), as the tracking skill's
 "Setting up a board" says. The user's answer goes in the decision log. A yes
 covers this job only. The job's operational work around its repository
 (hosting, DNS, a domain, a contract, a hand-over item) is part of it: drafts
-on the same board.
+on the same board. When the user raises tracking or a board themselves, at
+any point of the job, the answer is this same shape, after reading the
+tracking skill: never a board of Phase items, columns or update rules you
+design anew.
 
 **The record.** For a tracked job GitHub holds the plan; the job directory
 keeps what is private: the decision log with the user's own words, mocks,
