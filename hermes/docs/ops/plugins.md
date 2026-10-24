@@ -9,9 +9,14 @@ Part of the Hermes mechanics docs — entry: [`README.md`](../../README.md).
 
 ## Plugins
 
-`~/.hermes/plugins` (and each profile's) is symlinked to `hermes/plugins/`, so a
-new plugin needs no re-`install.sh` — only `plugins.enabled` (and any toolset)
-in the relevant `config.yaml`. After a plugin enablement change the multiplex
+`~/.hermes/plugins` is a real directory of links into `hermes/plugins/` (a
+flat plugin linked whole, a group as a directory of one link per plugin), and
+each profile's `plugins` links to it ([README "Symlinks"](../../README.md#symlinks)).
+So a new plugin, like any new file, needs `../install.sh` to link it, and then
+`plugins.enabled` (and any toolset) in the relevant `config.yaml`; until the
+installer runs, Hermes does not see it. Editing an existing plugin needs no
+installer run: its link already points into the repo. After a new plugin, an
+enablement change or a change to plugin code the gateway runs, the multiplex
 gateway needs one normal drained restart (`/restart` or
 `gateway-launchctl.sh restart`); never launch a second gateway.
 
