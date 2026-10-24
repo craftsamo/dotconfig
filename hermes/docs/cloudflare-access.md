@@ -4,8 +4,9 @@ Cloudflare for the Assistant, Researcher and Marketer: the zones, DNS records,
 zone settings, analytics, Workers and Pages deployments, the names, sizes and
 schemas in R2, KV and D1, tunnels and Email Routing of the user's own
 Cloudflare accounts, through API tokens the user creates. Every profile with
-the tool reads; the Assistant alone also changes DNS records, zone settings
-and e-mail rules, purges caches and rolls Workers and Pages sites back, each
+the tool reads; the Assistant alone also changes DNS records, zone settings,
+e-mail rules and a tunnel's public hostnames, purges caches, rolls Workers
+and Pages sites back, and creates or deletes empty storage containers, each
 change behind an approval card. Read it when changing the
 plugin, its tokens or what it may call. Common rules:
 [access-common.md](access-common.md). Part of the Hermes design docs — index:
@@ -19,7 +20,7 @@ plugin, its tokens or what it may call. Common rules:
 | The only process holding a token; the endpoints it may call (`ROUTES`), the analytics queries it may send (`QUERIES`) and the account it fills in | `plugins/cloudflare-access/bridge.py`                                                                                       | all                             |
 | `cloudflare` tool and the `pre_tool_call` hook (toolset `cloudflare_access`), the actions each profile gets                                       | `plugins/cloudflare-access/__init__.py`                                                                                     | Assistant, Researcher, Marketer |
 | How a profile reads Cloudflare: accounts, zones, record names, pages, permissions, recovery                                                       | the `cloudflare-access:cloudflare` plugin skill (`plugins/cloudflare-access/skills/cloudflare/`)                            | Assistant, Researcher, Marketer |
-| Changing Cloudflare: the card, DNS records, cache purges, zone settings, e-mail rules, rollbacks, outcomes                                        | the `cloudflare-access:cloudflare-manage` plugin skill (`.../skills/cloudflare-manage/`); registered for the Assistant only | Assistant                       |
+| Changing Cloudflare: the card, DNS records, cache purges, settings, e-mail rules, tunnels, storage, rollbacks, outcomes                           | the `cloudflare-access:cloudflare-manage` plugin skill (`.../skills/cloudflare-manage/`); registered for the Assistant only | Assistant                       |
 
 Cloudflare's own REST API, so no terms are stretched: the risk is the user's
 sites and domains, not the account. Everything is standard library, so there is
@@ -219,9 +220,28 @@ changes the catch-all. A rule forwards only to a destination the account has
 verified, drops the mail or hands it to a Worker; adding destinations stays
 with the dashboard.
 
-Rollbacks, setting and rule changes bind what they read (the live deployment,
-the setting, the rule as it was) into the plan, so a deploy or an edit made
-between the card and the run stops the change before anything is sent.
+`tunnel_route` adds, repoints or removes a public hostname of a tunnel
+managed in the dashboard (one managed in a local file is refused). The
+hostname must lie in a zone of the label's account; adding writes its rule
+right before the tunnel's final catch-all, every other rule keeping its
+place (a path rule earlier in the list still applies first), and makes its
+proxied CNAME through the DNS batch route in the same run; a hostname that
+already has other records is refused. Removing takes the record away once no
+rule of the tunnel uses it, and then counts as a deleted record. The
+configuration goes first, so a refused DNS step reads `stopped part way`.
+
+`storage_create` makes an empty R2 bucket, KV namespace or D1 database under
+a name not yet taken. `storage_delete` deletes one only when it is found
+empty, read when the card is made: no object or folder and no page left in a
+bucket, no key on any page of a namespace (a scan cut short is not empty), no
+table in a database whose schema read succeeded. Contents are never read, so
+emptying one stays the user's.
+
+Rollbacks, setting, rule, tunnel and storage changes bind what they read
+(the live deployment, the setting, the rule, the tunnel's configuration and
+the records at the name, a container's emptiness) into the plan, so a deploy
+or an edit made between the card and the run stops the change before
+anything is sent.
 
 Each action takes only its own arguments; any other is refused, so a mistaken
 argument is never dropped silently. The plan reads what the card shows from
@@ -248,10 +268,11 @@ outcome is reported this way:
 
 The card has the [shared shape](access-common.md#card-shape): its title names
 the change (`Cloudflare · Change DNS records`), its effect line the stakes —
-🚨 when a record or an e-mail rule is deleted, the catch-all changes, or a
-setting weakens what protects visitors (a lower SSL mode, TLS floor or
-security level, Always Use HTTPS off); ⚠️ for every other change, since each
-reaches visitors — then the account `<label> (<account name>)` and the zone,
+🚨 when a record, an e-mail rule or a storage container is deleted, the
+catch-all changes, a tunnel publishes or repoints a hostname, or a setting
+weakens what protects visitors (a lower SSL mode, TLS floor or security
+level, Always Use HTTPS off); ✅ for a new empty storage container; ⚠️ for
+every other change, since each reaches visitors — then the account `<label> (<account name>)` and the zone,
 Worker or project, and what changes in a `Change` block: one line per record
 (`+` added, `~` changed from what it is to what it becomes, `-` deleted, names
 relative to the zone), the purge with its URLs, the setting or rule from what
