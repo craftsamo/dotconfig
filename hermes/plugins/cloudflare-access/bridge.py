@@ -133,6 +133,9 @@ ROUTES = (
     ("GET", "/zones/{id}/email/routing/rules"),
     ("GET", "/zones/{id}/email/routing/rules/catch_all"),
     ("GET", "/accounts/{account}/email/routing/addresses"),
+    # changes: each runs only after its approval card, under the token the card was made with
+    ("POST", "/zones/{id}/dns_records/batch"),
+    ("POST", "/zones/{id}/purge_cache"),
 )
 VERIFY = {"user": "/user/tokens/verify", "account": "/accounts/{account}/tokens/verify"}
 
