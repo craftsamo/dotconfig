@@ -158,7 +158,11 @@ Reading or editing outside the Location asks: since 2.0.25 the built-in rules
 allow it, and the global `external_directory: *` ask restores the prompt. The
 skill directories and OpenCode's own scratch directory (`os.tmpdir()/opencode`)
 stay open after it. Agent rules come last: the read-only subagents allow
-outside reads in their own rules, while worker and design reset
+outside reads in their own rules, and Plan allows the source checkouts
+(`~/ghq`, `~/Worktrees`), where it reads the repositories beside its own;
+credential stores elsewhere in the home directory keep asking. Build does not:
+the same action gates a shell's working directory, so its allowed commands
+would run in the live checkouts unasked. Worker and design reset
 `external_directory` to ask and so ask for those directories too.
 
 Keep the matching permission denies as well (a test checks every shell
