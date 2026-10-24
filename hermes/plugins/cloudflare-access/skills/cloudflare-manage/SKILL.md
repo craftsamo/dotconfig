@@ -1,6 +1,6 @@
 ---
 name: cloudflare-manage
-description: "Use before changing anything in the user's Cloudflare: DNS records, a cache purge, a zone setting, an e-mail rule, or rolling back a Worker or a Pages site."
+description: "Use before changing anything in the user's Cloudflare: DNS records, a cache purge, a zone setting, an e-mail rule, a tunnel's public hostname, an R2, KV or D1 container, or rolling back a Worker or a Pages site."
 version: 1.0.0
 author: CraftSamo
 license: MIT
@@ -137,6 +137,38 @@ A destination that is not verified receives nothing: Cloudflare e-mails its
 owner first, and adding destinations is the user's to do in the dashboard.
 Deleting a rule and changing the catch-all ask every time.
 
+## Tunnel hostnames
+
+`tunnel_route` takes the `tunnel` (its id; `tunnels` lists them), an `op` and
+the `hostname`; read the tunnel first (`tunnels` with `tunnel`).
+
+- `add` with `service` (what the connector serves: `http://localhost:8080`,
+  `https://…`, `tcp://…`, `ssh://…`) and optional `path`: the hostname is
+  published, and its DNS record (a proxied CNAME to the tunnel) made with it.
+  A hostname that already has other DNS records is refused; remove them first
+  with `dns_change`.
+- `update` with a new `service` for a published hostname.
+- `remove`: the hostname stops answering, and its DNS record goes when no
+  other rule of the tunnel uses it.
+
+Publishing puts a service of the machine behind the tunnel on the internet:
+ask who should reach it and whether it has its own login, and suggest
+Cloudflare Access in the dashboard when it should not be open to everyone.
+Adding, changing and a removal that deletes the DNS record ask every time.
+Rules keep their order, so a path rule written before others still applies
+first. A tunnel managed in a local config file changes on that machine, not
+here.
+
+## Storage containers
+
+`storage_create` with `kind` (`r2`, `kv`, `d1`) and `name` makes an empty
+bucket, namespace or database; binding it to a Worker happens in the
+project's own configuration. `storage_delete` with `kind` and the `bucket`,
+`namespace` (its id) or `database` (its id) deletes one only when it is found
+empty, both when the card is made and when it runs: no object, no key, no
+table. Emptying one is the user's to do, since contents are never read here.
+A delete asks every time; say which Worker loses it.
+
 ## Rollbacks
 
 A rollback puts back what ran before; it never deploys new code. Read first
@@ -160,7 +192,10 @@ again and ask anew.
 "lacks a permission" means the token may not change this: the user adds it
 to the token in the Cloudflare dashboard (DNS records need Zone → DNS →
 Edit, a purge Zone → Cache Purge → Purge, a setting Zone → Zone Settings →
-Edit, an e-mail rule Zone → Email Routing Rules → Edit, a Worker rollback
+Edit, an e-mail rule Zone → Email Routing Rules → Edit, a tunnel hostname
+Account → Cloudflare Tunnel → Edit with Zone → DNS → Edit, a bucket Account →
+Workers R2 Storage → Edit, a namespace Account → Workers KV Storage → Edit, a
+database Account → D1 → Edit, a Worker rollback
 Account → Workers Scripts → Edit, a Pages rollback Account → Cloudflare
 Pages → Edit). A setup problem
 (no token, a refused token) is the user's to fix: relay it, never work around

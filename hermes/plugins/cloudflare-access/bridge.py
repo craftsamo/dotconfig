@@ -153,6 +153,15 @@ ROUTES = (
     ("PUT", "/zones/{id}/email/routing/rules/{rule}"),
     ("DELETE", "/zones/{id}/email/routing/rules/{rule}"),
     ("PUT", "/zones/{id}/email/routing/rules/catch_all"),
+    # a tunnel's public hostnames (its DNS record goes through the batch route above)
+    ("PUT", "/accounts/{account}/cfd_tunnel/{uuid}/configurations"),
+    # storage containers: made empty, removed only once the engine has found them empty
+    ("POST", "/accounts/{account}/r2/buckets"),
+    ("DELETE", "/accounts/{account}/r2/buckets/{bucket}"),
+    ("POST", "/accounts/{account}/storage/kv/namespaces"),
+    ("DELETE", "/accounts/{account}/storage/kv/namespaces/{id}"),
+    ("POST", "/accounts/{account}/d1/database"),
+    ("DELETE", "/accounts/{account}/d1/database/{uuid}"),
 )
 VERIFY = {"user": "/user/tokens/verify", "account": "/accounts/{account}/tokens/verify"}
 

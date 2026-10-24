@@ -46,7 +46,8 @@ cards = _load_card()
 
 READS = ("status", "account", "zones", "dns_records", "zone_settings", "analytics", "workers", "pages", "r2", "kv",
          "d1", "tunnels", "email_routing")
-WRITES = ("dns_change", "cache_purge", "worker_rollback", "pages_rollback", "zone_setting", "email_rule")
+WRITES = ("dns_change", "cache_purge", "worker_rollback", "pages_rollback", "zone_setting", "email_rule",
+          "tunnel_route", "storage_create", "storage_delete")
 ACTIONS = READS + WRITES
 
 BRIDGE = HERE / "bridge.py"
@@ -1231,8 +1232,16 @@ COMMON_WRITE_ARGS = {"action", "account", "preview"}
 WRITE_ARGS = {"dns_change": {"zone", "changes"}, "cache_purge": {"zone", "urls", "hosts", "prefixes", "everything"},
               "worker_rollback": {"script", "version", "message"}, "pages_rollback": {"project", "deployment"},
               "zone_setting": {"zone", "setting", "value"},
-              "email_rule": {"zone", "op", "id", "to", "forward", "drop", "worker", "name", "enabled"}}
+              "email_rule": {"zone", "op", "id", "to", "forward", "drop", "worker", "name", "enabled"},
+              "tunnel_route": {"tunnel", "op", "hostname", "service", "path"},
+              "storage_create": {"kind", "name"}, "storage_delete": {"kind", "bucket", "namespace", "database"}}
+STORAGE_KINDS = ("r2", "kv", "d1")
+KV_PAGES = 20   # pages of keys followed to find a namespace empty
+D1_NAME = re.compile(r"^[a-z0-9][a-z0-9_-]{0,62}$")
 RULE_OPS = ("add", "update", "delete", "catch_all")
+ROUTE_OPS = ("add", "update", "remove")
+SERVICE = re.compile(r"^(?:(?:https?|tcp|ssh|rdp|smb|unix|unix\+tls)://[^\s]{1,200}|http_status:[1-5]\d\d|hello_world)$")
+ROUTE_PATH_MAX = 200
 DESTINATION_PAGES = 20   # at most this many pages of destination addresses are read to find one
 RULE_ID = re.compile(r"^[A-Za-z0-9]{1,64}$")
 EMAIL = re.compile(r"^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]{1,64}@[A-Za-z0-9.-]{1,253}$")
@@ -1903,9 +1912,238 @@ def _plan_email_rule(args: dict) -> dict:
     return plan
 
 
+def _zone_for(host: str, account: str, account_id: str | None) -> dict:
+    """The zone of the label's account a host name lies in: the longest zone name it ends with."""
+    data, _ = get("/zones", [["account.id", "{account}"], ["per_page", "50"]], account=account, what="the zones")
+    zones = [z for z in data.get("result") or [] if isinstance(z, dict) and isinstance(z.get("name"), str)
+             and _in_zone(host, z["name"]) and isinstance(z.get("account"), dict)
+             and z["account"].get("id") == account_id]
+    if not zones:
+        raise CloudflareError(f"{host} is not in a zone of this account; zones lists them")
+    return max(zones, key=lambda z: len(z["name"]))
+
+
+def _plan_tunnel_route(args: dict) -> dict:
+    tunnel = _named(args, "tunnel", UUID, "a tunnel's id (tunnels lists them)")
+    op = args.get("op")
+    if tunnel is None or op not in ROUTE_OPS:
+        raise CloudflareError("tunnel_route needs tunnel (its id) and op: add, update or remove")
+    host = hostname(args.get("hostname"), "hostname")
+    service = args.get("service")
+    if op == "remove" and service is not None:
+        raise CloudflareError("remove takes no service")
+    if op != "remove" and (not isinstance(service, str) or not SERVICE.fullmatch(service.strip())):
+        raise CloudflareError("service must be what the connector serves: http://localhost:8080, https://…, tcp://…, "
+                              "ssh://… or http_status:404")
+    service = service.strip() if isinstance(service, str) else None
+    path = _text(args, "path", ROUTE_PATH_MAX)
+    base = f"/accounts/{{account}}/cfd_tunnel/{tunnel}"
+    results, reply = get_many([(base, []), (f"{base}/configurations", [])], account=account_of(args),
+                              what=f"tunnel {tunnel}")
+    for result in results:
+        if not result.get("ok"):
+            raise CloudflareError(_failure({**result, "account": reply.get("account")}, f"tunnel {tunnel}"))
+    info = (results[0].get("data") or {}).get("result") or {}
+    if info.get("config_src") != "cloudflare":
+        raise CloudflareError(f"tunnel {_short(info.get('name'), 40)} is managed in a local config file: its "
+                              "hostnames change on the machine that runs it, not here")
+    configuration = (results[1].get("data") or {}).get("result") or {}
+    config = configuration.get("config") if isinstance(configuration.get("config"), dict) else {}
+    ingress = [rule for rule in config.get("ingress") or [] if isinstance(rule, dict)]
+    # Rules keep their order: a rule without a hostname (a path rule) still applies before the ones after it.
+    # Only the last rule matching everything (no hostname, no path) is the catch-all a new rule goes before.
+    if not ingress or ingress[-1].get("hostname") or ingress[-1].get("path"):
+        ingress_end = ingress + [{"service": "http_status:404"}]
+    else:
+        ingress_end = ingress
+    found = next((r for r in ingress_end if r.get("hostname") == host and r.get("path") == path), None)
+    zone = _zone_for(host, reply["account"], reply.get("account_id"))
+    data, read = get(f"/zones/{zone['id']}/dns_records", [["name.exact", host], ["per_page", "20"]],
+                     account=reply["account"], what=f"the DNS records of {host}")
+    records = [r for r in data.get("result") or [] if isinstance(r, dict)]
+    target = f"{tunnel}.cfargotunnel.com"
+    ours = [r for r in records if r.get("type") == "CNAME" and r.get("content") == target]
+    titles = {"add": "Publish a tunnel hostname", "update": "Change a tunnel hostname",
+              "remove": "Remove a tunnel hostname"}
+    plan = _plan("tunnel_route", reply, titles[op])
+    _same_token(plan, read)
+    shown = host + (f" {_short(path, 40)}" if path else "")
+    plan["facts"] = [("Tunnel", _short(info.get("name") or tunnel, 40)), ("Zone", zone["name"])]
+    dns = None
+    if op == "add":
+        if found:
+            raise CloudflareError(f"{shown} is already published by this tunnel, to {found.get('service')}")
+        if records and not ours:
+            kinds = ", ".join(sorted({str(r.get("type")) for r in records}))
+            raise CloudflareError(f"{host} already has DNS records ({kinds}); remove them first with dns_change")
+        new_rules = ingress_end[:-1] + [_compact({"hostname": host, "path": path, "service": service})] \
+            + ingress_end[-1:]
+        plan["lines"] = [f"+ {shown} → {_short(service, 60)}"]
+        if not ours:
+            dns = {"posts": [{"type": "CNAME", "name": host, "content": target, "proxied": True, "ttl": 1,
+                              "comment": "Cloudflare Tunnel"}]}
+            plan["lines"].append(f"DNS: + CNAME {_rel(host, zone['name'])} → the tunnel, proxied")
+        plan["effect"] = (cards.DANGER, "Publishes a service of the machine behind the tunnel on the internet")
+        plan["once"] = True
+    else:
+        if not found:
+            raise CloudflareError(f"this tunnel does not publish {shown}")
+        if op == "update":
+            if service == found.get("service"):
+                raise CloudflareError(f"{shown} already goes to {service}")
+            new_rules = [{**r, "service": service} if r is found else r for r in ingress_end]
+            plan["lines"] = [f"~ {shown}: {_short(found.get('service'), 40)} → {_short(service, 40)}"]
+            plan["effect"] = (cards.DANGER, "Changes which service of the machine is on the internet")
+            plan["once"] = True
+        else:
+            new_rules = [r for r in ingress_end if r is not found]
+            plan["lines"] = [f"- {shown} → {_short(found.get('service'), 60)}"]
+            plan["effect"] = (cards.CAUTION, "The hostname stops answering through the tunnel")
+            if ours and not any(r.get("hostname") == host for r in new_rules):
+                dns = {"deletes": [{"id": r["id"]} for r in ours if r.get("id")]}
+                plan["lines"].append(f"DNS: - CNAME {_rel(host, zone['name'])} → the tunnel")
+                plan["effect"] = (cards.DANGER, "The hostname stops answering and its DNS record is deleted")
+                plan["once"] = True
+    plan["bind"] = [configuration.get("version"), ingress, records]
+    plan["steps"].append({"method": "PUT", "path": f"{base}/configurations",
+                          "body": {"config": {**config, "ingress": new_rules}},
+                          "what": f"changing the hostnames of tunnel {tunnel}"})
+    if dns:
+        plan["steps"].append({"method": "POST", "path": f"/zones/{zone['id']}/dns_records/batch", "body": dns,
+                              "what": f"{'adding' if 'posts' in dns else 'removing'} the DNS record of {host}"})
+    return plan
+
+
+STORAGE_NOUNS = {"r2": "R2 bucket", "kv": "KV namespace", "d1": "D1 database"}
+STORAGE_A = {"r2": "an R2 bucket", "kv": "a KV namespace", "d1": "a D1 database"}
+
+
+def _storage_kind(args: dict) -> str:
+    kind = args.get("kind")
+    if kind not in STORAGE_KINDS:
+        raise CloudflareError("kind must be r2, kv or d1")
+    return kind
+
+
+def _plan_storage_create(args: dict) -> dict:
+    kind = _storage_kind(args)
+    raw = args.get("name")
+    if kind == "kv":
+        name = _text(args, "name", 512)
+        if not name:
+            raise CloudflareError("a KV namespace needs a name (its title), one line")
+    else:
+        name = raw.strip() if isinstance(raw, str) else ""
+        if not (BUCKET if kind == "r2" else D1_NAME).fullmatch(name):
+            raise CloudflareError(f"{STORAGE_A[kind]}'s name is lowercase letters, digits and -"
+                                  + (" or _" if kind == "d1" else "") + ", up to 63 characters")
+    lists = {"r2": ("/accounts/{account}/r2/buckets", [["name_contains", name], ["per_page", "100"]], "buckets",
+                    "name"),
+             "kv": ("/accounts/{account}/storage/kv/namespaces", [["per_page", "100"]], "", "title"),
+             "d1": ("/accounts/{account}/d1/database", [["name", name], ["per_page", "100"]], "", "name")}
+    path, params, key, field = lists[kind]
+    data, reply = get(path, params, account=account_of(args), what=f"the {STORAGE_NOUNS[kind]}s")
+    # the list is read to refuse a name already taken; a long list is checked again by Cloudflare itself
+    if any(item.get(field) == name for item in _result_list(data, key)):
+        raise CloudflareError(f"{STORAGE_A[kind]} named {name} already exists")
+    plan = _plan("storage_create", reply, f"Create {STORAGE_A[kind]}")
+    plan["lines"] = [f"+ {STORAGE_NOUNS[kind]} {_short(name, 60)}"]
+    plan["effect"] = (cards.SAFE, "A new, empty one: nothing is public or bound to a Worker")
+    body = {"r2": {"name": name}, "kv": {"title": name}, "d1": {"name": name}}[kind]
+    plan["steps"].append({"method": "POST", "path": path, "body": body,
+                          "what": f"creating {STORAGE_NOUNS[kind]} {name}"})
+    plan["shape"] = "storage"
+    return plan
+
+
+def _plan_storage_delete(args: dict) -> dict:
+    kind = _storage_kind(args)
+    given = {"r2": "bucket", "kv": "namespace", "d1": "database"}[kind]
+    others = [k for k in ("bucket", "namespace", "database") if k != given and args.get(k) is not None]
+    if others:
+        raise CloudflareError(f"{STORAGE_A[kind]} is named by {given}, not " + ", ".join(others))
+    account = account_of(args)
+    if kind == "r2":
+        ref = _named(args, "bucket", BUCKET, "an R2 bucket's name")
+        if ref is None:
+            raise CloudflareError("storage_delete of an R2 bucket needs bucket")
+        data, reply = get(f"/accounts/{{account}}/r2/buckets/{ref}/objects", [["per_page", "1"]], account=account,
+                          what=f"bucket {ref}")
+        info = data.get("result_info") if isinstance(data.get("result_info"), dict) else {}
+        empty = not _result_list(data, "objects") and not info.get("delimited") and not _following(data)
+        shown, evidence, path = ref, [], f"/accounts/{{account}}/r2/buckets/{ref}"
+        what = "objects"
+    elif kind == "kv":
+        if args.get("namespace") in (None, ""):
+            raise CloudflareError("storage_delete of a KV namespace needs namespace (its id)")
+        ref = object_id(args.get("namespace"), "namespace")
+        keys = f"/accounts/{{account}}/storage/kv/namespaces/{ref}/keys"
+        results, reply = get_many([("/accounts/{account}/storage/kv/namespaces", [["per_page", "100"]]),
+                                   (keys, [["limit", "1000"]])], account=account, what=f"namespace {ref}")
+        for result in results:
+            if not result.get("ok"):
+                raise CloudflareError(_failure({**result, "account": reply.get("account")}, f"namespace {ref}"))
+        title = next((n.get("title") for n in _result_list(results[0].get("data") or {}, "") if n.get("id") == ref),
+                     None)
+        # An empty page is not an empty namespace: expired keys can leave one with a cursor to live keys
+        # behind it, so the pages are followed to the end, and a scan cut short counts as not empty.
+        page, empty = results[1].get("data") or {}, None
+        for _ in range(KV_PAGES):
+            if _result_list(page, ""):
+                empty = False
+                break
+            following = _following(page)
+            if not following:
+                empty = True
+                break
+            page, more = get(keys, [["limit", "1000"], ["cursor", following]], account=reply["account"],
+                             what=f"the keys of namespace {ref}")
+            if more.get("fingerprint") != reply.get("fingerprint"):
+                raise CloudflareError("the stored token changed while the card was being made; try again")
+        if empty is None:
+            raise CloudflareError(f"namespace {ref} has more pages of keys than are read here; it is not taken "
+                                  "for empty")
+        shown, evidence, path = f"{_short(title, 40)} ({ref[:8]})" if title else ref, [title], \
+            f"/accounts/{{account}}/storage/kv/namespaces/{ref}"
+        what = "keys"
+    else:
+        ref = _named(args, "database", UUID, "a D1 database's id")
+        if ref is None:
+            raise CloudflareError("storage_delete of a D1 database needs database (its id)")
+        path = f"/accounts/{{account}}/d1/database/{ref}"
+        data, reply = get(path, [], account=account, what=f"D1 database {ref}")
+        info = data.get("result") if isinstance(data.get("result"), dict) else {}
+        schema, _ = fixed_post(f"{path}/query", account=reply["account"], what="its schema")
+        statements = schema.get("result") if isinstance(schema.get("result"), list) else []
+        first = statements[0] if statements and isinstance(statements[0], dict) else {}
+        if first.get("success") is not True or not isinstance(first.get("results"), list):
+            raise CloudflareError(f"the schema of D1 database {ref} could not be read in full, so it is not taken "
+                                  "for empty")
+        tables = [r.get("name") for r in first["results"] if isinstance(r, dict) and r.get("type") == "table"]
+        empty = not tables
+        shown, evidence, what = f"{_short(info.get('name'), 40)} ({ref[:8]})", [info.get("name"), tables], "tables"
+    if not empty:
+        raise CloudflareError(f"{STORAGE_NOUNS[kind]} {shown} still holds {what}: only an empty one is deleted "
+                              "here; emptying it is the user's to do")
+    plan = _plan("storage_delete", reply, f"Delete {STORAGE_A[kind]}")
+    plan["lines"] = [f"- {STORAGE_NOUNS[kind]} {shown}, found empty"]
+    plan["details"] = ["A Worker bound to it loses it"]
+    plan["effect"] = (cards.DANGER, "Deleted for good: its name and settings are gone")
+    plan["once"] = True
+    plan["bind"] = [ref, *evidence, empty]
+    plan["steps"].append({"method": "DELETE", "path": path, "body": None,
+                          "what": f"deleting {STORAGE_NOUNS[kind]} {shown}"})
+    plan["shape"] = "storage"
+    return plan
+
+
 PLANS = {"dns_change": _plan_dns_change, "cache_purge": _plan_cache_purge, "worker_rollback": _plan_worker_rollback,
-         "pages_rollback": _plan_pages_rollback, "zone_setting": _plan_zone_setting, "email_rule": _plan_email_rule}
+         "pages_rollback": _plan_pages_rollback, "zone_setting": _plan_zone_setting, "email_rule": _plan_email_rule,
+         "tunnel_route": _plan_tunnel_route, "storage_create": _plan_storage_create,
+         "storage_delete": _plan_storage_delete}
 RESULTS = {"dns_change": _shape_dns_change,
+           "storage": lambda data: _compact({k: (data.get("result") or {}).get(k) for k in ("name", "id", "uuid", "title")})
+           if isinstance(data.get("result"), dict) else None,
            "email_rule": lambda data: _rule(data.get("result") if isinstance(data.get("result"), dict) else {}),
            "zone_setting": lambda data: shape_setting(data.get("result") if isinstance(data.get("result"), dict)
                                                       else {}),
