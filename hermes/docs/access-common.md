@@ -135,7 +135,11 @@ The marker means the same on every card, web3's included:
 | 🚨     | it cannot be undone or leaves the user's hands: a delete, publishing that cannot be taken back (an emailed post), funds leaving, a ban, an admin change, a mandate                  |
 
 A card fits what the chat shows of a reason: 480 escaped UTF-16 units on
-Telegram and the CLI, 290 on Discord (Hermes cuts at 500 and 300). Facts the
+Telegram and the CLI, 290 on Discord (Hermes cuts at 500 and 300). The
+patched runtime gives the reason the room its short command leaves, most of
+the message, so there a card may take 3500 units on Telegram and 1200 on
+Discord (room kept for its approval mentions); `card.py` reads that from the gateway it runs in, and a runtime
+without the patch keeps the short budgets. Facts the
 card marks as context go first when it is short of room, then the free text is
 cut with the rest counted (on Discord's shorter card the facts keep their room
 first, so less of the text shows); a card whose facts still do not fit is

@@ -51,7 +51,10 @@ the configs still load, but some parts fail silently or not at all:
 - thinking and `tool_choice` handling for newer Claude models
   ([`docs/models-auth.md`](docs/models-auth.md) "Fable and the Claude weekly pool");
 - real-profile browser isolation ([`docs/ops/browser.md`](docs/ops/browser.md));
-- scope-keyed audio handling ([`docs/hands/audio.md`](docs/hands/audio.md)).
+- scope-keyed audio handling ([`docs/hands/audio.md`](docs/hands/audio.md));
+- room for a plugin's approval card past the 500-unit reason cut, without
+  which a long card (a stack merge with several layers) is refused
+  ([`docs/access-common.md`](docs/access-common.md) "Card shape").
 
 The base is a `pin/main-<date>` branch: upstream `main` fixed at one commit,
 the first parent at the root of `local`. `origin/main` moves on past it and is
