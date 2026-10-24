@@ -65,16 +65,20 @@ Merge only when the user asks to, for that pull request.
    decision, GitHub's merge state, and the issues the merge will close. For a
    pull request in a stack (`stack` in the view), merging it also merges every
    open layer below it: name those layers, and what the layers above still
-   hold. Merge a stack bottom-up, one layer per card, unless the user asks to
-   land several at once.
+   hold. A stack whose layers serve one goal lands whole, on one card from
+   its top layer, once every layer is green; a lower part lands first only
+   when the user asks.
 2. Then `pr_merge` with the `method` the user or the repository's habit
    names (`github_repo` `view` shows the allowed ones), `delete_branch` when
-   the user wants the branch gone, and a `subject` and `body` only when they
-   asked for a merge message. The card is the user's go: it is pinned to the
-   head commit it shows, so a push after it needs a new card. In a stack,
-   `delete_branch` removes the branch of every layer that lands, each named
-   on the card; one an open pull request still rests on (a layer above) is
-   kept. When the repository already deletes branches on merge
+   the user wants the branch gone, and a `subject` and `body` when they asked
+   for a merge message. A merge commit that lands two or more layers always
+   takes both: GitHub makes one commit for all of them, titled after the
+   named pull request alone otherwise, so the `subject` names the goal and
+   the `body` lists each layer it lands. The card is the user's go: it is
+   pinned to the head commit it shows, so a push after it needs a new card.
+   In a stack, `delete_branch` removes the branch of every layer that lands,
+   each named on the card; one an open pull request still rests on (a layer
+   above) is kept. When the repository already deletes branches on merge
    (`delete_branch_on_merge` in `github_repo` `view`), there is nothing to
    ask.
 3. A draft is marked ready first (`pr_ready`); a conflict needs a rebase or a
