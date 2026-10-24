@@ -263,10 +263,21 @@ def gh_aliases():
     return tuple(sorted({name for name in names if re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", name)}))
 
 
+def spellings(paths):
+    """Each path as given and as resolved: OpenCode matches the lexical path."""
+    out = []
+    for path in paths:
+        for spelling in (str(path), str(Path(path).resolve())):
+            if spelling not in out:
+                out.append(spelling)
+    return out
+
+
 def rules(policy, issue_approval, protected, *, tmp=None, person_denies=(), output=None, branch=None,
-          gh_aliases=()):
+          gh_aliases=(), read_roots=()):
     """The session ruleset for one run, ordered broad to narrow under last-match
-    evaluation. Its one caller-chosen allow is the output directory, which the
+    evaluation. Its caller-chosen allows are the output directory and, in a
+    read-only run, the configured `read_roots` (source checkouts), which the
     person's own outside-path denies still override. `branch` is a write run's
     task branch, whose own lease push asks rather than being denied; each of
     `gh_aliases` asks like a branch switch."""
@@ -275,6 +286,13 @@ def rules(policy, issue_approval, protected, *, tmp=None, person_denies=(), outp
     out = [rule("external_directory", "*", "ask")]
     if output:
         out += [rule("external_directory", output, "allow"), rule("external_directory", f"{output}/*", "allow")]
+    if policy == "read-only":
+        # Never in a write run: the shell's working directory is checked under the same
+        # action, so a read root would let an allowed command (`pnpm run …`) run inside
+        # the live checkout or another worktree without asking, and an outside edit is
+        # gated by this ask alone (a write run allows `edit *`).
+        for root in spellings(read_roots):
+            out += [rule("external_directory", root, "allow"), rule("external_directory", f"{root}/*", "allow")]
     out += [rule("external_directory", path, "allow") for path in references()]
     # The person's own outside-path denies stay denies, not asks the caller could approve.
     out += [rule("external_directory", d["resource"], "deny") for d in person

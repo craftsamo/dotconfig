@@ -375,8 +375,13 @@ Contract: [docs/opencode.md](docs/opencode.md). When editing
   and the caller can approve a request only `once` — a session-wide allow would
   reopen what an explore or reviewer subagent denies itself. The one exception
   is a `write` run's `edit *` in its worktree, ordered before every edit deny so
-  the config, skill and secret denies still win (a test enforces both). Anything
-  the caller must never approve is a `deny`, not an `ask`.
+  the config, skill and secret denies still win (a test enforces both). The
+  `opencode.read_roots` allows (`external_directory` under the source checkouts)
+  go to read-only runs only: the same action gates a shell's working directory
+  and a write run's outside edits, so in a write run they would let it change
+  the live checkout unasked. A read root never holds the home directory, where
+  credentials live. Anything the caller must never approve is a `deny`, not an
+  `ask`.
 - **Reach OpenCode only through `api.py`** (`opencode api`, output to files,
   minimal environment): a piped reply is cut off at a buffer boundary with exit
   status zero, `--param` silently drops query parameters (queries go in the

@@ -126,7 +126,7 @@ clone (a refresh resets it). Editing the local checkouts keeps the global
 `edit` ask: they are live, since `~/.hermes` links into them. Paths are spelled
 from `~`, because a relative path resolves from the file and a task worktree
 would point elsewhere. Worker resets `external_directory` to ask, so it still
-asks to reach them; a Hermes run's session ruleset does the same (its
+asks to reach them; a Hermes write run's session ruleset does the same (its
 reference clones aside). Descriptions reach every agent's instructions, and
 this repository is public: keep them free of private details.
 
