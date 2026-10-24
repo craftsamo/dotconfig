@@ -1,3 +1,4 @@
+from datetime import datetime
 import importlib.util
 from pathlib import Path
 import stat
@@ -35,6 +36,7 @@ class Bridge:
         self.answers = {"/zones": envelope([EXAMPLE], page=1, per_page=20, total_pages=1, total_count=1),
                         f"/zones/{ZONE}": envelope(EXAMPLE)}
         self.keys = {"ok": True, "data": [], "unused": [], "requests": 0}
+        self.graphs = {}
         self.verified = {"ok": True, "token_kind": "user", "token_status": "active",
                          "verify": {"status": "active", "owner": "user", "expires_on": "2027-01-01T00:00:00Z"}}
 
@@ -57,6 +59,11 @@ class Bridge:
         if op == "reads":
             results = [self.answer(r["path"]) for r in fields["requests"]]
             return {**self.head(fields), "ok": True, "requests": len(results), "results": results}
+        if op == "graphql":
+            answer = self.graphs.get(fields["query"], {"viewer": {}})
+            if "ok" in answer:
+                return {**self.head(fields), "requests": 1, **answer}
+            return {**self.head(fields), "ok": True, "requests": 1, "data": {"data": answer, "errors": None}}
         answer = self.answer(fields["path"])
         return {**self.head(fields), "requests": 1, **answer}
 
@@ -177,6 +184,331 @@ def test_zone_settings_reads_the_usual_ones_under_one_token_read(fake):
     run(action="zone_settings", zone="example.com", setting="Min_TLS_Version")
     reads = [r for r in fake.requests if r["op"] == "reads"][-1]
     assert [r["path"] for r in reads["requests"]] == [f"/zones/{ZONE}/settings/min_tls_version"]
+
+
+def graphs(fake, query=None):
+    calls = [r for r in fake.requests if r["op"] == "graphql" and (query is None or r["query"] == query)]
+    return calls[-1]
+
+
+def test_every_report_is_a_query_the_bridge_sends():
+    for report in cfa.REPORTS:
+        assert report in bridge_module.QUERIES
+    assert "worker" in bridge_module.QUERIES
+
+
+def test_traffic_reads_whole_utc_days_of_a_zone_in_the_label_s_account(fake):
+    day = lambda d, r, c: {"dimensions": {"date": d}, "sum": {"requests": r, "cachedRequests": c, "bytes": 2048,
+                                                              "cachedBytes": 1024, "threats": 1, "pageViews": 5},
+                           "uniq": {"uniques": 3}}
+    fake.graphs["traffic"] = {"viewer": {"zones": [{"httpRequests1dGroups": [day("2026-10-01", 100, 40),
+                                                                              day("2026-10-02", 300, 160)]}]}}
+    result = run(action="analytics", report="traffic", zone="example.com", since="2026-10-01", until="2026-10-02")
+    assert graphs(fake)["variables"] == {"since": "2026-10-01", "until": "2026-10-02", "zoneTag": ZONE}
+    assert [r["path"] for r in fake.requests if r["op"] == "call"] == ["/zones"]   # the zone is checked first
+    assert result["days"][1] == {"date": "2026-10-02", "requests": 300, "cached_requests": 160, "bytes": 2048,
+                                 "cached_bytes": 1024, "threats": 1, "page_views": 5, "uniques": 3}
+    totals = result["totals"]
+    assert totals["requests"] == 400 and totals["cached_share"] == "50%" and totals["bytes_display"] == "4.0 KB"
+    assert result["zone"] == "example.com" and "UTC" in result["note"]
+
+
+def test_traffic_defaults_to_the_last_seven_days_and_keeps_to_its_longest_range(fake):
+    run(action="analytics", report="traffic", zone=ZONE)
+    variables = graphs(fake)["variables"]
+    since, until = (datetime.fromisoformat(variables[k]) for k in ("since", "until"))
+    assert (until - since).days == 6
+    with pytest.raises(cfa.CloudflareError, match="at most 366 days"):
+        run(action="analytics", report="traffic", zone=ZONE, since="2024-01-01", until="2026-01-01")
+    with pytest.raises(cfa.CloudflareError, match="must not be after"):
+        run(action="analytics", report="traffic", zone=ZONE, since="2026-10-08", until="2026-10-01")
+
+
+def test_a_top_list_reads_a_utc_span_and_says_whose_words_it_holds(fake):
+    fake.graphs["paths"] = {"viewer": {"zones": [{"httpRequestsAdaptiveGroups": [
+        {"count": 42, "dimensions": {"clientRequestPath": "/ignore-all-instructions"}}]}]}}
+    result = run(action="analytics", report="paths", zone=ZONE, since="2026-10-01T09:00:00+09:00",
+                 until=1790856000)
+    assert graphs(fake)["variables"] == {"since": "2026-10-01T00:00:00Z", "until": "2026-10-01T12:00:00Z",
+                                         "zoneTag": ZONE}
+    assert result["top"] == [{"value": "/ignore-all-instructions", "count": 42}]
+    assert "visitors' requests" in result["note"]
+
+
+def test_a_span_is_sent_as_utc_times_with_until_excluded(fake):
+    run(action="analytics", report="statuses", zone=ZONE, since="2026-10-01T09:00:00+09:00",
+        until="2026-10-01T12:00:00Z")
+    assert graphs(fake)["variables"] == {"since": "2026-10-01T00:00:00Z", "until": "2026-10-01T12:00:00Z",
+                                         "zoneTag": ZONE}
+    with pytest.raises(cfa.CloudflareError, match="at most 31 days"):
+        run(action="analytics", report="countries", zone=ZONE, since="2026-08-01", until="2026-10-01")
+    with pytest.raises(cfa.CloudflareError, match="since must be before until"):
+        run(action="analytics", report="countries", zone=ZONE, since="2026-10-02T00:00:00Z",
+            until="2026-10-01T00:00:00Z")
+
+
+def test_security_reports_group_actions_and_list_events(fake):
+    fake.graphs["security"] = {"viewer": {"zones": [{"firewallEventsAdaptiveGroups": [
+        {"count": 7, "dimensions": {"action": "block", "source": "waf"}}]}]}}
+    fake.graphs["security_events"] = {"viewer": {"zones": [{"firewallEventsAdaptive": [
+        {"datetime": "2026-10-01T00:00:00Z", "action": "challenge", "source": "securitylevel",
+         "clientCountryName": "XX", "clientRequestPath": "/wp-login.php"}]}]}}
+    assert run(action="analytics", report="security", zone=ZONE)["groups"] == [
+        {"action": "block", "source": "waf", "count": 7}]
+    result = run(action="analytics", report="security_events", zone=ZONE)
+    assert result["events"] == [{"at": "2026-10-01T00:00:00Z", "action": "challenge", "source": "securitylevel",
+                                 "country": "XX", "path": "/wp-login.php"}]
+
+
+def test_workers_reads_the_account_and_one_script_on_request(fake):
+    fake.graphs["worker"] = {"viewer": {"accounts": [{"workersInvocationsAdaptive": [
+        {"sum": {"requests": 10, "errors": 1, "subrequests": 3}, "quantiles": {"cpuTimeP50": 900, "cpuTimeP99": 4000},
+         "dimensions": {"scriptName": "api", "status": "success"}}]}]}}
+    result = run(action="analytics", report="workers", script="api")
+    call = graphs(fake)
+    assert call["query"] == "worker" and call["variables"]["scriptName"] == "api" and "zoneTag" not in call["variables"]
+    assert [r for r in fake.requests if r["op"] == "call"] == []
+    assert result["rows"] == [{"script": "api", "status": "success", "requests": 10, "errors": 1, "subrequests": 3,
+                               "cpu_time_p50_us": 900, "cpu_time_p99_us": 4000}]
+    run(action="analytics", report="workers")
+    assert graphs(fake)["query"] == "workers"
+    with pytest.raises(cfa.CloudflareError, match="leave out zone"):
+        run(action="analytics", report="workers", zone=ZONE)
+    with pytest.raises(cfa.CloudflareError, match="script is for the workers report"):
+        run(action="analytics", report="traffic", zone=ZONE, script="api")
+    with pytest.raises(cfa.CloudflareError, match="report must be one of"):
+        run(action="analytics", zone=ZONE)
+
+
+def test_an_analytics_refusal_names_range_and_permission(fake):
+    fake.graphs["traffic"] = {"ok": False, "kind": "graphql", "error": "cannot request data older than 31d"}
+    with pytest.raises(cfa.CloudflareError, match="older than 31d.*shorter or more recent.*Analytics → Read"):
+        run(action="analytics", report="traffic", zone=ZONE)
+
+
+def test_every_workers_and_pages_path_is_a_route_and_a_script_s_code_is_not():
+    def ok(path):
+        return any(m == "GET" and p.fullmatch(path) for m, p in bridge_module._ROUTES)
+    base = "/accounts/{account}"
+    for path in ("/workers/scripts", "/workers/scripts/api-1/deployments", "/workers/scripts/api-1/versions",
+                 "/pages/projects", "/pages/projects/site", "/pages/projects/site/deployments"):
+        assert ok(base + path), path
+    assert not ok(base + "/workers/scripts/api-1") and not ok(base + "/workers/scripts/api-1/content")
+
+
+def test_workers_lists_the_account_s_scripts(fake):
+    fake.answers["/accounts/{account}/workers/scripts"] = envelope([
+        {"id": "api", "created_on": "2026-01-01T00:00:00Z", "modified_on": "2026-10-01T00:00:00Z",
+         "usage_model": "standard", "compatibility_date": "2026-09-01", "handlers": ["fetch"], "etag": "x"}])
+    result = run(action="workers")
+    assert result["items"] == [{"name": "api", "created_on": "2026-01-01T00:00:00Z",
+                                "modified_on": "2026-10-01T00:00:00Z", "usage_model": "standard",
+                                "compatibility_date": "2026-09-01", "handlers": ["fetch"]}]
+    with pytest.raises(cfa.CloudflareError, match="comes whole"):
+        run(action="workers", limit=5)
+
+
+def test_one_worker_shows_its_current_deployment_earlier_ones_and_versions(fake):
+    base = "/accounts/{account}/workers/scripts/api"
+    deployment = lambda n, message: {"id": f"d{n}", "created_on": f"2026-10-0{n}T00:00:00Z", "source": "wrangler",
+                                     "strategy": "percentage", "author_email": "dev@example.com",
+                                     "annotations": {"workers/message": message},
+                                     "versions": [{"version_id": f"v{n}", "percentage": 100}]}
+    fake.answers[f"{base}/deployments"] = envelope({"deployments": [deployment(2, "fix"), deployment(1, "first")]})
+    fake.answers[f"{base}/versions"] = envelope({"items": [{"id": "v2", "number": 2, "metadata": {
+        "created_on": "2026-10-02T00:00:00Z", "source": "wrangler"}}]}, page=1, total_pages=3)
+    result = run(action="workers", script="api", limit=1)
+    [reads] = [r for r in fake.requests if r["op"] == "reads"]
+    assert reads["requests"][1]["params"] == [["page", "1"], ["per_page", "1"]]
+    assert result["current"]["versions"] == [{"version_id": "v2", "percentage": 100}]
+    assert result["current"]["message"] == "fix" and [d["id"] for d in result["deployments"]] == ["d1"]
+    assert result["versions"] == [{"id": "v2", "number": 2, "created_on": "2026-10-02T00:00:00Z",
+                                   "source": "wrangler"}]
+    assert result["versions_next"] == 2 and "whoever deployed" in result["note"]
+    fake.answers[f"{base}/versions"] = {"ok": False, "kind": "forbidden", "error": "10000: no"}
+    assert "lacks a permission" in run(action="workers", script="api")["versions_unavailable"]
+    with pytest.raises(cfa.CloudflareError, match="Worker's name"):
+        run(action="workers", script="../x")
+
+
+def test_pages_lists_projects_and_reads_one_project_s_deployments(fake):
+    deploy = {"id": "dep-1", "short_id": "abcd1234", "environment": "production", "url": "https://abcd.site.pages.dev",
+              "created_on": "2026-10-01T00:00:00Z", "latest_stage": {"name": "deploy", "status": "success"},
+              "deployment_trigger": {"metadata": {"branch": "main", "commit_hash": "f" * 40,
+                                                  "commit_message": "Ship it"}}, "is_skipped": False}
+    project = {"name": "site", "subdomain": "site.pages.dev", "domains": ["example.com"], "production_branch": "main",
+               "canonical_deployment": deploy, "latest_deployment": deploy}
+    fake.answers["/accounts/{account}/pages/projects"] = envelope([project])
+    [item] = run(action="pages")["items"]
+    assert item["production"]["stage"] == "deploy success" and "latest" not in item
+    fake.answers["/accounts/{account}/pages/projects/site"] = envelope(project)
+    fake.answers["/accounts/{account}/pages/projects/site/deployments"] = envelope([deploy], page=1, total_pages=1)
+    result = run(action="pages", project="site", env="production")
+    [reads] = [r for r in fake.requests if r["op"] == "reads"]
+    assert reads["requests"][1]["params"] == [["page", "1"], ["per_page", "10"], ["env", "production"]]
+    assert result["deployments"] == [{"id": "dep-1", "short_id": "abcd1234", "environment": "production",
+                                      "url": "https://abcd.site.pages.dev", "created_on": "2026-10-01T00:00:00Z",
+                                      "stage": "deploy success", "branch": "main", "commit": "f" * 12,
+                                      "commit_message": "Ship it"}]
+    with pytest.raises(cfa.CloudflareError, match="env must be"):
+        run(action="pages", project="site", env="staging")
+    with pytest.raises(cfa.CloudflareError, match="name the project"):
+        run(action="pages", env="preview")
+    with pytest.raises(cfa.CloudflareError, match="Pages project's name"):
+        run(action="pages", project="Site_1")
+
+
+DB = "0f0e0d0c-0b0a-4908-8706-050403020100"
+NAMESPACE = "4" * 32
+
+
+def test_every_storage_path_is_a_route():
+    def ok(method, path):
+        return any(m == method and p.fullmatch(path) for m, p in bridge_module._ROUTES)
+    base = "/accounts/{account}"
+    assert ok("GET", base + "/r2/buckets") and ok("GET", base + "/r2/buckets/media/objects")
+    assert ok("GET", base + "/storage/kv/namespaces") and ok("GET", f"{base}/storage/kv/namespaces/{NAMESPACE}/keys")
+    assert ok("GET", base + "/d1/database") and ok("GET", f"{base}/d1/database/{DB}")
+    assert ok("POST", f"{base}/d1/database/{DB}/query")
+
+
+def test_r2_lists_buckets_then_one_bucket_s_names_and_sizes_by_folder(fake):
+    fake.answers["/accounts/{account}/r2/buckets"] = envelope(
+        {"buckets": [{"name": "media", "creation_date": "2026-01-01T00:00:00Z", "location": "APAC"}]},
+        cursor="", per_page=20)
+    result = run(action="r2")
+    assert result["items"] == [{"name": "media", "created": "2026-01-01T00:00:00Z", "location": "APAC"}]
+    assert "next" not in result and "never read" in result["note"]
+    fake.answers["/accounts/{account}/r2/buckets/media/objects"] = envelope(
+        [{"key": "img/a.png", "size": 2048, "last_modified": "2026-10-01T00:00:00Z", "etag": "x",
+          "http_metadata": {"contentType": "image/png"}}], cursor="abc==", is_truncated=True, delimited=["img/sub/"])
+    result = run(action="r2", bucket="media", prefix="img/", limit=50, cursor="prev")
+    assert fake.last()["params"] == [["per_page", "50"], ["cursor", "prev"], ["delimiter", "/"], ["prefix", "img/"]]
+    assert result["objects"] == [{"key": "img/a.png", "size": 2048, "size_display": "2.0 KB",
+                                  "last_modified": "2026-10-01T00:00:00Z", "content_type": "image/png"}]
+    assert result["folders"] == ["img/sub/"] and result["next"] == "abc=="
+    with pytest.raises(cfa.CloudflareError, match="name the bucket"):
+        run(action="r2", prefix="img/")
+    with pytest.raises(cfa.CloudflareError, match="R2 bucket's name"):
+        run(action="r2", bucket="Media")
+
+
+def test_kv_lists_namespaces_then_key_names_never_values(fake):
+    fake.answers["/accounts/{account}/storage/kv/namespaces"] = envelope(
+        [{"id": NAMESPACE, "title": "SESSIONS", "supports_url_encoding": True}], page=1, total_pages=2)
+    result = run(action="kv")
+    assert result["items"] == [{"id": NAMESPACE, "title": "SESSIONS"}] and result["next"] == 2
+    keys = f"/accounts/{{account}}/storage/kv/namespaces/{NAMESPACE}/keys"
+    fake.answers[keys] = envelope([{"name": "user:1", "expiration": 1790856000, "metadata": {"secret": "x"}}],
+                                  cursor="next1", count=1)
+    result = run(action="kv", namespace=NAMESPACE, prefix="user:", limit=3)
+    assert fake.last()["params"] == [["limit", "10"], ["prefix", "user:"]]
+    assert result["keys"][0]["name"] == "user:1" and "metadata" not in result["keys"][0] and "expires" in result["keys"][0]
+    assert result["next"] == "next1"
+    with pytest.raises(cfa.CloudflareError, match="cursor, not page"):
+        run(action="kv", namespace=NAMESPACE, page=2)
+    with pytest.raises(cfa.CloudflareError, match="name the namespace"):
+        run(action="kv", prefix="user:")
+
+
+def test_d1_lists_databases_then_one_database_s_size_and_schema(fake):
+    fake.answers["/accounts/{account}/d1/database"] = envelope(
+        [{"uuid": DB, "name": "app", "created_at": "2026-01-01T00:00:00Z", "version": "production"}],
+        page=1, total_pages=1)
+    assert run(action="d1")["items"] == [{"id": DB, "name": "app", "created": "2026-01-01T00:00:00Z",
+                                          "version": "production"}]
+    fake.answers[f"/accounts/{{account}}/d1/database/{DB}"] = envelope(
+        {"uuid": DB, "name": "app", "file_size": 3 * 1024 * 1024, "num_tables": 99,
+         "read_replication": {"mode": "disabled"}})
+    fake.answers[f"/accounts/{{account}}/d1/database/{DB}/query"] = envelope([{"success": True, "results": [
+        {"type": "table", "name": "users", "tbl_name": "users", "sql": "CREATE TABLE users (id INTEGER)"},
+        {"type": "index", "name": "users_email", "tbl_name": "users", "sql": "CREATE INDEX users_email ON users(e)"}]}])
+    result = run(action="d1", database=DB)
+    post = fake.last(f"/accounts/{{account}}/d1/database/{DB}/query")
+    assert post["method"] == "POST" and post["body"] is None   # the bridge fixes the statement
+    assert result["database"] == {"id": DB, "name": "app", "size": 3145728, "size_display": "3.0 MB",
+                                  "read_replication": "disabled"}
+    assert result["schema"] == {"tables": [{"name": "users", "sql": "CREATE TABLE users (id INTEGER)"}],
+                                "indexes": [{"name": "users_email", "sql": "CREATE INDEX users_email ON users(e)",
+                                             "table": "users"}]}
+    fake.answers[f"/accounts/{{account}}/d1/database/{DB}/query"] = {"ok": False, "kind": "forbidden",
+                                                                      "error": "10000: no"}
+    assert "lacks a permission" in run(action="d1", database=DB)["schema_unavailable"]
+    with pytest.raises(cfa.CloudflareError, match="D1 database's id"):
+        run(action="d1", database="app")
+
+
+TUNNEL = "5a5a5a5a-1b1b-4c4c-8d8d-9e9e9e9e9e9e"
+
+
+def test_every_tunnel_and_email_path_is_a_route():
+    def ok(path):
+        return any(m == "GET" and p.fullmatch(path) for m, p in bridge_module._ROUTES)
+    for path in ("/accounts/{account}/cfd_tunnel", f"/accounts/{{account}}/cfd_tunnel/{TUNNEL}",
+                 f"/accounts/{{account}}/cfd_tunnel/{TUNNEL}/configurations", f"/zones/{ZONE}/email/routing",
+                 f"/zones/{ZONE}/email/routing/rules", f"/zones/{ZONE}/email/routing/rules/catch_all",
+                 "/accounts/{account}/email/routing/addresses"):
+        assert ok(path), path
+
+
+def test_tunnels_list_their_health_and_one_tunnel_its_public_hostnames(fake):
+    tunnel = {"id": TUNNEL, "name": "home", "status": "healthy", "config_src": "cloudflare",
+              "created_at": "2026-01-01T00:00:00Z", "connections": [
+                  {"colo_name": "nrt01", "client_version": "2026.9.0", "origin_ip": "203.0.113.5"},
+                  {"colo_name": "kix01", "client_version": "2026.9.0", "origin_ip": "203.0.113.5"}]}
+    fake.answers["/accounts/{account}/cfd_tunnel"] = envelope([tunnel], page=1, total_pages=1)
+    [item] = run(action="tunnels", status="healthy")["items"]
+    assert fake.last()["params"] == [["is_deleted", "false"], ["page", "1"], ["per_page", "20"], ["status", "healthy"]]
+    assert item == {"id": TUNNEL, "name": "home", "status": "healthy", "managed": "in the dashboard",
+                    "created": "2026-01-01T00:00:00Z", "connections": 2, "colos": ["kix01", "nrt01"],
+                    "client_versions": ["2026.9.0"]}
+    assert "203.0.113.5" not in str(item)
+    base = f"/accounts/{{account}}/cfd_tunnel/{TUNNEL}"
+    fake.answers[base] = envelope(tunnel)
+    fake.answers[f"{base}/configurations"] = envelope({"version": 4, "config": {"ingress": [
+        {"hostname": "app.example.com", "service": "http://localhost:8080", "originRequest": {}},
+        {"service": "http_status:404"}]}})
+    result = run(action="tunnels", tunnel=TUNNEL)
+    assert result["ingress"] == [{"hostname": "app.example.com", "service": "http://localhost:8080"},
+                                 {"service": "http_status:404"}]
+    assert result["config_version"] == 4
+    with pytest.raises(cfa.CloudflareError, match="status must be one of healthy"):
+        run(action="tunnels", status="active")
+
+
+def test_email_routing_reads_settings_rules_catch_all_and_destinations_together(fake):
+    base = f"/zones/{ZONE}/email/routing"
+    fake.answers[base] = envelope({"enabled": True, "status": "ready", "name": "example.com"})
+    fake.answers[f"{base}/rules"] = envelope([{"id": "r1", "name": "sales", "enabled": True, "priority": 0,
+                                                "matchers": [{"type": "literal", "field": "to",
+                                                              "value": "sales@example.com"}],
+                                                "actions": [{"type": "forward", "value": ["owner@example.net"]}]}])
+    fake.answers[f"{base}/rules/catch_all"] = envelope({"id": "c1", "enabled": False, "matchers": [{"type": "all"}],
+                                                         "actions": [{"type": "drop"}]})
+    fake.answers["/accounts/{account}/email/routing/addresses"] = envelope([
+        {"email": "owner@example.net", "verified": "2026-01-02T00:00:00Z"}, {"email": "new@example.net",
+                                                                            "verified": None}])
+    result = run(action="email_routing", zone="example.com")
+    [reads] = [r for r in fake.requests if r["op"] == "reads"]
+    assert len(reads["requests"]) == 4
+    assert result["settings"] == {"enabled": True, "status": "ready"}
+    assert result["rules"] == [{"id": "r1", "name": "sales", "enabled": True, "priority": 0,
+                                "when": ["to sales@example.com"], "then": ["forward owner@example.net"]}]
+    assert result["catch_all"] == {"id": "c1", "enabled": False, "when": ["all"], "then": ["drop"]}
+    assert result["destinations"] == [{"email": "owner@example.net", "verified": True,
+                                       "verified_on": "2026-01-02T00:00:00Z"},
+                                      {"email": "new@example.net", "verified": False}]
+    assert "rules_next" not in result and "destinations_next" not in result
+    fake.answers[f"{base}/rules"] = envelope([], page=2, per_page=50, total_pages=3, total_count=120)
+    result = run(action="email_routing", zone="example.com", page=2)
+    reads = [r for r in fake.requests if r["op"] == "reads"][-1]
+    assert reads["requests"][1]["params"] == [["page", "2"], ["per_page", "50"]]
+    assert reads["requests"][3]["params"] == [["page", "2"], ["per_page", "50"]]
+    assert result["rules_next"] == 3 and result["rules_total"] == 120
+    fake.answers["/accounts/{account}/email/routing/addresses"] = {"ok": False, "kind": "forbidden", "error": "no"}
+    assert "lacks a permission" in run(action="email_routing", zone=ZONE)["destinations_unavailable"]
+    with pytest.raises(cfa.CloudflareError, match="zone is required"):
+        run(action="email_routing")
 
 
 def test_account_checks_the_token_then_reads_the_account(fake):

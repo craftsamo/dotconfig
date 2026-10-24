@@ -2,6 +2,7 @@ import importlib.util
 import io
 import json
 from pathlib import Path
+import sqlite3
 import subprocess
 import sys
 import urllib.error
@@ -366,6 +367,98 @@ def test_reads_takes_a_bounded_list_of_reads_only(net):
     assert bridge.main({"op": "reads", "account": "work", "requests": too_many})["ok"] is False
     reply = bridge.main({"op": "reads", "account": "work", "requests": [{"path": f"/zones/{ZONE}/purge_cache"}]})
     assert reply["results"][0]["ok"] is False and reply["requests"] == 0 and not net[1]
+
+
+def graphql(**fields):
+    return bridge.main({"op": "graphql", "account": "work", "deadline": 30, **fields})
+
+
+SPAN = {"since": "2026-10-01T00:00:00Z", "until": "2026-10-02T00:00:00Z"}
+
+
+def test_an_analytics_query_is_one_of_the_fixed_ones_with_the_label_s_account(net):
+    routes, sent = net
+    routes["/graphql"] = (200, {"data": {"viewer": {"accounts": [{"workersInvocationsAdaptive": []}]}},
+                                "errors": None}, {})
+    reply = graphql(query="worker", variables={**SPAN, "scriptName": "api-worker"})
+    assert reply["ok"] is True and reply["data"]["data"]["viewer"]["accounts"] == [{"workersInvocationsAdaptive": []}]
+    [request] = sent
+    body = json.loads(request.data)
+    assert request.get_method() == "POST" and request.full_url == "https://api.cloudflare.com/client/v4/graphql"
+    assert body == {"query": bridge.QUERIES["worker"][1],
+                    "variables": {"accountTag": ACCOUNT, **SPAN, "scriptName": "api-worker"}}
+
+
+@pytest.mark.parametrize("query, variables", [
+    ("mutation", {}),                                                       # not a query of the table
+    ("traffic", {"zoneTag": ZONE, "since": "2026-10-01"}),                  # a variable missing
+    ("traffic", {"zoneTag": ZONE, "since": "2026-10-01", "until": "2026-10-07", "extra": "x"}),
+    ("traffic", {"zoneTag": "example.com", "since": "2026-10-01", "until": "2026-10-07"}),
+    ("paths", {"zoneTag": ZONE, "since": "2026-10-01", "until": "2026-10-02"}),   # dates where times go
+    ("worker", {**SPAN, "scriptName": "a b"}),
+    ("workers", {**SPAN, "accountTag": OTHER_ACCOUNT}),                    # the account is never the caller's
+])
+def test_an_analytics_query_outside_the_table_or_its_kinds_never_goes_out(net, query, variables):
+    reply = graphql(query=query, variables=variables)
+    assert reply["ok"] is False and reply["requests"] == 0 and not net[1]
+
+
+def test_the_analytics_endpoint_is_not_a_route_for_any_body(net):
+    reply = call(method="POST", path="/graphql", body={"query": "{ viewer { zones { zoneTag } } }"})
+    assert reply["ok"] is False and reply["requests"] == 0 and not net[1]
+
+
+def test_analytics_errors_on_a_200_are_a_failure(net):
+    routes, _ = net
+    routes["/graphql"] = (200, {"data": None, "errors": [{"message": "cannot request data older than 31d",
+                                                          "path": ["viewer"]}]}, {})
+    reply = graphql(query="traffic", variables={"zoneTag": ZONE, "since": "2025-01-01", "until": "2025-01-07"})
+    assert reply["kind"] == "graphql" and "older than 31d" in reply["error"]
+
+
+def test_a_forbidden_analytics_query_is_checked_like_any_call(net):
+    routes, _ = net
+    routes["/graphql"] = (403, {"errors": [{"message": "not authorized"}]}, {})
+    routes["/user/tokens/verify"] = ACTIVE
+    reply = graphql(query="traffic", variables={"zoneTag": ZONE, "since": "2026-10-01", "until": "2026-10-07"})
+    assert reply["kind"] == "forbidden" and reply["requests"] == 2
+
+
+DB = "0f0e0d0c-0b0a-4908-8706-050403020100"
+
+
+def test_the_d1_query_route_sends_only_the_fixed_schema_read(net):
+    routes, sent = net
+    path = f"/accounts/{{account}}/d1/database/{DB}/query"
+    routes[f"/accounts/{ACCOUNT}/d1/database/{DB}/query"] = (200, ok([{"results": [], "success": True}]), {})
+    assert call(method="POST", path=path)["ok"] is True
+    assert json.loads(sent[0].data) == {"sql": bridge.SCHEMA_SQL} and bridge.SCHEMA_SQL.startswith("SELECT ")
+    reply = call(method="POST", path=path, body={"sql": "DROP TABLE users"})
+    assert reply["ok"] is False and reply["requests"] == 0 and len(sent) == 1
+
+
+def test_the_schema_read_leaves_out_only_sqlite_s_and_d1_s_own_objects():
+    db = sqlite3.connect(":memory:")
+    for table in ("users", "acf_users", "xcf_log", "sqliteish", "_cf_KV"):
+        db.execute(f'CREATE TABLE "{table}" (id INTEGER PRIMARY KEY AUTOINCREMENT, email TEXT UNIQUE)')
+    db.execute("CREATE INDEX users_email ON users(email)")
+    names = {row[1] for row in db.execute(bridge.SCHEMA_SQL)}
+    db.close()
+    assert names == {"users", "acf_users", "xcf_log", "sqliteish", "users_email"}
+
+
+@pytest.mark.parametrize("path", [
+    "/accounts/{account}/r2/buckets/media/objects/photo.jpg",          # an object's content
+    "/accounts/{account}/storage/kv/namespaces/" + "a" * 32 + "/values/key",
+    f"/accounts/{{account}}/d1/database/{DB}/raw",
+    f"/accounts/{{account}}/d1/database/{DB}/export",
+    "/accounts/{account}/r2/buckets/A_Bucket/objects",
+])
+def test_storage_contents_are_not_routes(net, path):
+    for method in ("GET", "POST"):
+        reply = call(method=method, path=path)
+        assert reply["ok"] is False and reply["requests"] == 0
+    assert not net[1]
 
 
 def test_a_token_echoed_by_cloudflare_never_leaves(net):

@@ -30,8 +30,9 @@ reported as a refused token. Contract: docs/cloudflare-access.md.
     {"op": "key", "account": label | null}
                        the label a call would run on, its item, account, token kind and fingerprint;
                        no request to Cloudflare
-    {"op": "verify", "account": label | null, "deadline": seconds}
-                       the token's status from its verify endpoint (user-owned or account-owned)
+    {"op": "verify", "account": label | null, "paused", "deadline": seconds}
+                       the token's status from its verify endpoint (user-owned or account-owned), even
+                       for a token remembered as refused
     {"op": "call", "account": label | null, "method": "GET" | "POST" | "PUT" | "PATCH" | "DELETE",
      "path": "/zones/...", "params": [[key, value], ...], "body": JSON | null,
      "refused": {"<label>": fingerprint}, "paused": {"<label>": epoch seconds},
@@ -40,6 +41,9 @@ reported as a refused token. Contract: docs/cloudflare-access.md.
      "expect", "deadline"}
                        several GETs under one read of the token, in order; stops at a refused token,
                        a rate limit or a broken connection
+    {"op": "graphql", "account": label | null, "query": a name in QUERIES, "variables": {...}, "refused",
+     "paused", "deadline"}
+                       one fixed analytics query; never a query text of the caller's
 """
 
 from __future__ import annotations
@@ -83,7 +87,18 @@ METHODS = ("GET", "POST", "PUT", "PATCH", "DELETE")
 SEGMENTS = {
     "{id}": r"[0-9a-f]{32}",                        # a zone, a DNS record, a KV namespace
     "{setting}": r"[a-z0-9_]{1,64}",                 # a zone setting
+    "{script}": r"[A-Za-z0-9_-]{1,64}",              # a Worker
+    "{project}": r"[a-z0-9][a-z0-9-]{0,62}",         # a Pages project
+    "{bucket}": r"[a-z0-9][a-z0-9-]{1,61}[a-z0-9]",  # an R2 bucket
+    "{uuid}": r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}",   # a D1 database, a tunnel
 }
+# D1's query endpoint runs any SQL, writes included: the one statement this tool sends there is fixed here
+# and reads the schema, never a row. A request to it carries no body of the caller's. SQLite's and D1's own
+# objects are left out by their literal prefixes (in LIKE, `_` matches any character and would hide a table
+# such as acf_users).
+SCHEMA_SQL = ("SELECT type, name, tbl_name, sql FROM sqlite_master WHERE type IN ('table', 'index', 'view', "
+              "'trigger') AND substr(name, 1, 7) != 'sqlite_' AND substr(name, 1, 4) != '_cf_' ORDER BY type, name")
+FIXED_BODIES = {"/accounts/{account}/d1/database/{uuid}/query": {"sql": SCHEMA_SQL}}
 
 # Every endpoint this bridge will call, as (method, path pattern).
 ROUTES = (
@@ -95,8 +110,95 @@ ROUTES = (
     ("GET", "/zones/{id}/dns_records"),
     ("GET", "/zones/{id}/dns_records/{id}"),
     ("GET", "/zones/{id}/settings/{setting}"),
+    # Workers and Pages: what runs and what was deployed, never a script's code
+    ("GET", "/accounts/{account}/workers/scripts"),
+    ("GET", "/accounts/{account}/workers/scripts/{script}/deployments"),
+    ("GET", "/accounts/{account}/workers/scripts/{script}/versions"),
+    ("GET", "/accounts/{account}/pages/projects"),
+    ("GET", "/accounts/{account}/pages/projects/{project}"),
+    ("GET", "/accounts/{account}/pages/projects/{project}/deployments"),
+    # storage: the containers, the names and sizes in them and a database's schema, never a value or a row
+    ("GET", "/accounts/{account}/r2/buckets"),
+    ("GET", "/accounts/{account}/r2/buckets/{bucket}/objects"),
+    ("GET", "/accounts/{account}/storage/kv/namespaces"),
+    ("GET", "/accounts/{account}/storage/kv/namespaces/{id}/keys"),
+    ("GET", "/accounts/{account}/d1/database"),
+    ("GET", "/accounts/{account}/d1/database/{uuid}"),
+    ("POST", "/accounts/{account}/d1/database/{uuid}/query"),
+    # tunnels and Email Routing
+    ("GET", "/accounts/{account}/cfd_tunnel"),
+    ("GET", "/accounts/{account}/cfd_tunnel/{uuid}"),
+    ("GET", "/accounts/{account}/cfd_tunnel/{uuid}/configurations"),
+    ("GET", "/zones/{id}/email/routing"),
+    ("GET", "/zones/{id}/email/routing/rules"),
+    ("GET", "/zones/{id}/email/routing/rules/catch_all"),
+    ("GET", "/accounts/{account}/email/routing/addresses"),
 )
 VERIFY = {"user": "/user/tokens/verify", "account": "/accounts/{account}/tokens/verify"}
+
+# The GraphQL Analytics API takes any query, so it is not in ROUTES: only these fixed queries are sent, with
+# variables checked by kind. accountTag is the label's own account, filled in here; a zone report names a
+# zone id the engine has checked belongs to that account.
+GRAPHQL = "/graphql"
+_TOP = """query($zoneTag: string, $since: Time, $until: Time) {
+  viewer { zones(filter: {zoneTag: $zoneTag}) {
+    httpRequestsAdaptiveGroups(limit: 25, orderBy: [count_DESC],
+        filter: {datetime_geq: $since, datetime_lt: $until, requestSource: "eyeball"}) {
+      count
+      dimensions { %s }
+    }
+  } }
+}"""
+_WORKERS = """query($accountTag: string, $since: Time, $until: Time%s) {
+  viewer { accounts(filter: {accountTag: $accountTag}) {
+    workersInvocationsAdaptive(limit: 100, orderBy: [sum_requests_DESC],
+        filter: {datetime_geq: $since, datetime_lt: $until%s}) {
+      sum { requests errors subrequests }
+      quantiles { cpuTimeP50 cpuTimeP99 }
+      dimensions { scriptName status }
+    }
+  } }
+}"""
+QUERIES = {
+    "traffic": ({"zoneTag": "zone", "since": "date", "until": "date"}, """query($zoneTag: string, $since: Date, $until: Date) {
+  viewer { zones(filter: {zoneTag: $zoneTag}) {
+    httpRequests1dGroups(limit: 400, orderBy: [date_ASC], filter: {date_geq: $since, date_leq: $until}) {
+      dimensions { date }
+      sum { requests bytes cachedRequests cachedBytes threats pageViews }
+      uniq { uniques }
+    }
+  } }
+}"""),
+    "paths": ({"zoneTag": "zone", "since": "time", "until": "time"}, _TOP % "clientRequestPath"),
+    "countries": ({"zoneTag": "zone", "since": "time", "until": "time"}, _TOP % "clientCountryName"),
+    "statuses": ({"zoneTag": "zone", "since": "time", "until": "time"}, _TOP % "edgeResponseStatus"),
+    "security": ({"zoneTag": "zone", "since": "time", "until": "time"}, """query($zoneTag: string, $since: Time, $until: Time) {
+  viewer { zones(filter: {zoneTag: $zoneTag}) {
+    firewallEventsAdaptiveGroups(limit: 25, orderBy: [count_DESC],
+        filter: {datetime_geq: $since, datetime_lt: $until}) {
+      count
+      dimensions { action source }
+    }
+  } }
+}"""),
+    "security_events": ({"zoneTag": "zone", "since": "time", "until": "time"}, """query($zoneTag: string, $since: Time, $until: Time) {
+  viewer { zones(filter: {zoneTag: $zoneTag}) {
+    firewallEventsAdaptive(limit: 25, orderBy: [datetime_DESC],
+        filter: {datetime_geq: $since, datetime_lt: $until}) {
+      datetime action source clientCountryName clientRequestPath
+    }
+  } }
+}"""),
+    "workers": ({"accountTag": "account", "since": "time", "until": "time"}, _WORKERS % ("", "")),
+    "worker": ({"accountTag": "account", "since": "time", "until": "time", "scriptName": "script"},
+               _WORKERS % (", $scriptName: string", ", scriptName: $scriptName")),
+}
+VARIABLES = {
+    "zone": re.compile(r"^[0-9a-f]{32}$"),
+    "date": re.compile(r"^\d{4}-\d{2}-\d{2}$"),
+    "time": re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$"),
+    "script": re.compile(r"^[A-Za-z0-9_-]{1,64}$"),
+}
 
 
 def _pattern(path: str) -> re.Pattern:
@@ -107,6 +209,7 @@ def _pattern(path: str) -> re.Pattern:
 
 
 _ROUTES = tuple((method, _pattern(path)) for method, path in ROUTES)
+_TEMPLATES = tuple((method, pattern, path) for (method, pattern), (_, path) in zip(_ROUTES, ROUTES))
 
 SECRETS: list[str] = []
 
@@ -282,9 +385,12 @@ def keys() -> tuple[list, list]:
     return result, unused
 
 
-def route(method: str, path: str) -> None:
-    if not any(m == method and pattern.fullmatch(path) for m, pattern in _ROUTES):
-        raise Failure(f"{method} {path} is not an endpoint this tool calls", "error")
+def route(method: str, path: str) -> str:
+    """The ROUTES template a call matches; raises Failure for any other."""
+    for m, pattern, template in _TEMPLATES:
+        if m == method and pattern.fullmatch(path):
+            return template
+    raise Failure(f"{method} {path} is not an endpoint this tool calls", "error")
 
 
 def encode(params, account_id: str) -> str:
@@ -315,10 +421,14 @@ def prepare(token: str, account_id: str, method: str, path: str, params, body=No
     """The request, checked against ROUTES; nothing is sent here."""
     if method not in METHODS or not isinstance(path, str):
         raise Failure("method and path are required")
-    route(method, path)
+    template = route(method, path)
     query = encode(params, account_id)
     headers = {"Authorization": f"Bearer {token}", "User-Agent": UA, "Accept": "application/json"}
     data = None
+    if template in FIXED_BODIES:
+        if body is not None:
+            raise Failure(f"{method} {template} sends only its own fixed body")
+        body = FIXED_BODIES[template]
     if method == "GET":
         if body is not None:
             raise Failure("a read carries no body")
@@ -329,6 +439,27 @@ def prepare(token: str, account_id: str, method: str, path: str, params, body=No
         headers["Content-Type"] = "application/json"
     url = BASE + path.replace("{account}", account_id) + (f"?{query}" if query else "")
     return urllib.request.Request(url, data=data, headers=headers, method=method)
+
+
+def prepare_graphql(token: str, account_id: str, name, variables) -> urllib.request.Request:
+    """One of the fixed QUERIES with its variables checked by kind; nothing is sent here."""
+    if name not in QUERIES:
+        raise Failure(f"{name!r} is not a query this tool sends")
+    kinds, text = QUERIES[name]
+    if not isinstance(variables, dict) or set(variables) != {k for k, kind in kinds.items() if kind != "account"}:
+        raise Failure(f"the {name} query takes " + ", ".join(sorted(k for k, v in kinds.items() if v != "account")))
+    values = {}
+    for key, kind in kinds.items():
+        if kind == "account":
+            values[key] = account_id
+        elif not isinstance(variables[key], str) or not VARIABLES[kind].fullmatch(variables[key]):
+            raise Failure(f"variable {key} is not a {kind}")
+        else:
+            values[key] = variables[key]
+    data = json.dumps({"query": text, "variables": values}).encode("utf-8")
+    headers = {"Authorization": f"Bearer {token}", "User-Agent": UA, "Accept": "application/json",
+               "Content-Type": "application/json"}
+    return urllib.request.Request(BASE + GRAPHQL, data=data, headers=headers, method="POST")
 
 
 KINDS = {400: "invalid", 401: "refused", 403: "forbidden", 404: "not_found", 405: "invalid", 409: "conflict",
@@ -359,9 +490,9 @@ def _retry_after(head) -> int | None:
     return max(1, min(value, 3600))
 
 
-def send(req: urllib.request.Request, deadline: float) -> tuple[int, dict, dict]:
+def send(req: urllib.request.Request, deadline: float, graphql: bool = False) -> tuple[int, dict, dict]:
     """(status, parsed reply, response facts) of one request; raises Failure for anything but a 2xx
-    Cloudflare marked a success."""
+    Cloudflare marked a success (for GraphQL: data without errors, which come with a 200 as well)."""
     left = deadline - time.monotonic()
     if left <= 1:
         raise Failure("Cloudflare did not answer in time", "timeout")
@@ -391,6 +522,11 @@ def send(req: urllib.request.Request, deadline: float) -> tuple[int, dict, dict]
     except ValueError:
         data = None
     message, codes = _errors(data)
+    if 200 <= status < 300 and graphql:
+        if not isinstance(data, dict) or not isinstance(data.get("data"), dict) or data.get("errors"):
+            raise Failure(message or f"Cloudflare answered {status} without readable data", "graphql", status,
+                          **facts)
+        return status, data, facts
     if 200 <= status < 300:
         if not isinstance(data, dict) or data.get("success") is not True:
             raise Failure(message or f"Cloudflare answered {status} without a readable success", "uncertain",
@@ -473,13 +609,19 @@ def _open(req: dict, checks: str = "call") -> tuple[dict, dict | None, dict | No
 
 
 def _one(reply: dict, creds: dict, method, path, params, body, deadline: float) -> dict:
+    return _exchange(reply, creds, lambda: prepare(creds["token"], reply["account_id"], method, path, params, body),
+                     deadline)
+
+
+def _exchange(reply: dict, creds: dict, build, deadline: float, graphql: bool = False) -> dict:
+    """One request built by `build`, sent, and a 401 or 403 checked against the token's verify endpoint."""
     try:
-        prepared = prepare(creds["token"], reply["account_id"], method, path, params, body)
+        prepared = build()
     except Failure as exc:
         return {**reply, "ok": False, "kind": "error", "error": mask(exc)[:400]}
     reply = {**reply, "requests": reply["requests"] + 1}
     try:
-        status, data, facts = send(prepared, deadline)
+        status, data, facts = send(prepared, deadline, graphql)
     except Failure as exc:
         failure = _failed(reply, exc)
         if exc.status in (401, 403) or exc.kind == "refused":
@@ -496,6 +638,15 @@ def call(req: dict) -> dict:
         return early
     deadline = time.monotonic() + float(req.get("deadline", 60))
     return _one(reply, creds, req.get("method"), req.get("path"), req.get("params"), req.get("body"), deadline)
+
+
+def graphql(req: dict) -> dict:
+    reply, creds, early = _open(req)
+    if early:
+        return early
+    deadline = time.monotonic() + float(req.get("deadline", 60))
+    build = lambda: prepare_graphql(creds["token"], reply["account_id"], req.get("query"), req.get("variables"))
+    return _exchange(reply, creds, build, deadline, graphql=True)
 
 
 STOPS = {"refused", "limited", "timeout", "network", "account"}
@@ -564,6 +715,8 @@ def main(req: dict) -> dict:
             return call(req)
         if op == "reads":
             return reads(req)
+        if op == "graphql":
+            return graphql(req)
         return {"ok": False, "kind": "error", "error": f"unknown op {op!r}", "requests": 0}
     except Setup as exc:
         return {"ok": False, "kind": "setup", "error": mask(exc)[:500], "requests": 0}

@@ -68,6 +68,7 @@ def test_the_progress_line_shows_the_action_only(monkeypatch):
     registered("researcher")
     line = lambda **args: display.build_tool_preview("cloudflare", args, max_len=0)
     assert line(action="dns_records", zone="secret-project.example", name="staging") == "dns_records"
+    assert line(action="analytics", report="paths", zone="secret-project.example") == "analytics paths"
     assert line(action="status") == "status"
     assert line(action="anything", zone="x") is None
 
