@@ -55,13 +55,44 @@ A board shows and schedules; an issue is the record of one piece of work.
 | An idea, or work with no repository yet | a **draft** on the board: a title and a body, no repository |
 | One piece of work | an **issue**: one branch, or one stack of PRs, implements it |
 | A goal made of several pieces | a **parent issue** with sub-issues |
-| When, or which release | a **milestone** (per repository) |
+| When, or which release | a **milestone** (per repository) on the parent, and on a sub-issue that has a date of its own; the board's **Target** for the day |
 | What must finish first | **blocked by** on the later issue |
 | What sort of work | the kind: an Issue Type in an organization that defines it, else a `type:<kind>` label |
 | Where it stands | the board's **Status** (Todo, In Progress, Done, Cancelled; `Waiting` where a board adds it) |
+| How settled its spec is | the body's shape: an `## Open decisions` section or a prose outline means Draft, a checklist outline and no open decisions means Fixed |
 
-Order and parentage live in these relations, never in body text: a body
-never says `Parent: #n` or numbers waves.
+Order, parentage, time and standing live in these relations and shapes,
+never in body text: a body never says `Parent: #n`, numbers waves, names a
+phase or carries a status line.
+
+### Parent and execution unit
+
+An issue has one of two shapes. A **parent** is a goal: it tracks, has no
+branch, and its progress is its sub-issue bar. A **sub-issue**, or an issue
+with no parent, is the execution unit, "do this now": one goal that
+delivers on its own, implemented by one branch or one stack of pull requests
+that lands once. Below it the unit of work is a pull request, never another
+issue: a layer's own scope lives in its PR body. A parent that would split
+straight into PR-sized pieces is missing a tier; a goal that must land in
+one merge is one unit, never a parent.
+
+An execution unit's spec has two stages, told apart by the body's shape.
+**Draft** at planning: provisional requirements, a prose outline of the
+expected slices, an `## Open decisions` section. **Fixed** at kickoff: the
+code read, the open decisions settled with the user and folded into the
+requirements, the outline a checklist of layers, the open decisions gone.
+Slicing every unit up front causes rework:
+later slices depend on what earlier units built. A Draft is never
+implemented; only a unit cut from a spec already confirmed starts Fixed. The
+bodies: `github-access:github-tracking` "Issue bodies".
+
+### What goes on the board
+
+Parent issues and issues with no parent always: they are the roadmap.
+Sub-issues when their dates or Status matter on their own; otherwise the
+parent's progress bar is enough and the board stays readable. Drafts for
+work that is not an issue yet. Never a pull request's slice (its PR tracks
+it).
 
 ### Draft or issue
 
@@ -73,9 +104,10 @@ Keep an item a **draft** while any of these holds:
 
 A draft holds a short action-phrase title, why the work exists, links to
 where it came from, and dated notes appended as things happen. Order goes in
-one line each: "Together with: …", "After: …". A draft may be finished
-without ever becoming an issue when the work never touches a repository;
-its last note records what proves it done.
+one line each: "Together with: …", "After: …", naming an issue as
+`owner/repo#n` (a draft has no repository, so `#n` is plain text there). A
+draft may be finished without ever becoming an issue when the work never
+touches a repository; its last note records what proves it done.
 
 Turn a draft into an **issue** when any of these becomes true:
 
@@ -83,9 +115,9 @@ Turn a draft into an **issue** when any of these becomes true:
 - it needs a PR, an assignee who works in GitHub, or discussion there;
 - it has grown steps worth tracking as sub-issues.
 
-When it becomes an issue, its body is rewritten in the issue form (purpose,
-requirements, acceptance), the draft's notes move to an `## Evidence`
-section, and its "After:" lines become blocked-by.
+When it becomes an issue, its body is rewritten in the issue's form (a
+parent's, or an execution unit's at Draft), the draft's notes move to an
+`## Evidence` section, and its "After:" lines become blocked-by.
 
 Questions to someone outside are not board items: they live where they are
 asked (a message, a shared sheet). An answer that creates work becomes a
