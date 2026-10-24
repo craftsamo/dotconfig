@@ -122,6 +122,19 @@ class EngineeringClientTests(unittest.TestCase):
         qa = read("qa-assistant-engineering/references/acceptance.md")
         self.assertIn("An untracked job gets no Issue or board close-out", qa)
 
+    def test_tracking_is_proposed_with_the_roadmap_in_its_real_shape(self):
+        plan = read("plan-assistant-engineering/SKILL.md")
+        self.assertIn("carries the tracking proposal in the same question", plan)
+        self.assertIn('skill_view(name="github-access:github-tracking")` first', plan)
+        self.assertIn("a parent issue with one sub-issue per Phase", plan)
+        ops = read("execute-assistant-engineering/references/github-ops.md")
+        self.assertIn("When the user raises tracking or a board themselves, at any point of the job, the answer "
+                      "is this same shape", ops)
+        self.assertIn("never a board of Phase items, columns or update rules you design anew", ops)
+        execute = read("execute-assistant-engineering/SKILL.md")
+        self.assertIn("A question about tracking the job on GitHub, also one the user raises mid-job, is answered "
+                      "from", execute)
+
     def test_plan_archetypes_still_have_acceptance_rows(self):
         names = {p.stem for p in (ROOT / "plan-assistant-engineering/references").glob("*.md")}
         text = (ROOT / "qa-assistant-engineering/references/inspection.md").read_text()
