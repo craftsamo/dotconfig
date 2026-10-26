@@ -22,7 +22,7 @@ from tools import skills_tool
 from .skill_roots import find_all_skills, search_dirs_name, search_dirs_result
 
 HERMES_ROOT = Path(__file__).resolve().parents[2]
-VIDEO_PIPELINE = HERMES_ROOT / "profiles" / "video-creator" / "skills" / "video-creator-pipeline"
+VIDEO_PIPELINE = HERMES_ROOT / "profiles" / "video-creator" / "skills" / "pipeline"
 CREATE_AD_DIR = VIDEO_PIPELINE / "create" / "ad"
 ANALYZE_AD_DIR = VIDEO_PIPELINE / "analyze" / "ad"
 CREATE_AD = CREATE_AD_DIR / "SKILL.md"

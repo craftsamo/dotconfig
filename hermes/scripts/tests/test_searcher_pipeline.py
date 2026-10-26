@@ -8,7 +8,7 @@ import hermes_yaml as yaml
 
 
 HERMES = Path(__file__).resolve().parents[2]
-PIPELINE = HERMES / "profiles/searcher/skills/searcher-pipeline"
+PIPELINE = HERMES / "profiles/searcher/skills/pipeline"
 TECHNIC = HERMES / "profiles/searcher/skills/technic"
 spec = importlib.util.spec_from_file_location("searcher_topology", HERMES / "scripts/validate-profile-skills.py")
 validator = importlib.util.module_from_spec(spec)
@@ -119,7 +119,7 @@ def test_kernel_keeps_release_boundaries():
 
 @pytest.fixture
 def candidate(tmp_path):
-    return Path(shutil.copytree(PIPELINE, tmp_path / "searcher-pipeline"))
+    return Path(shutil.copytree(PIPELINE, tmp_path / "pipeline"))
 
 
 @pytest.mark.parametrize("relative", (*(f"{name}/SKILL.md" for name in ENTRIES),
@@ -149,7 +149,7 @@ def test_direct_entry_cannot_drop_dependency_or_recovery(candidate, token, name)
 
 @pytest.mark.parametrize("replacement, expected", (
     (("name: lookup-searcher", "name: alternate-lookup"), "frontmatter name must be lookup-searcher"),
-    (("category: searcher-pipeline", "category: technic"), "metadata.hermes.category must be searcher-pipeline"),
+    (("category: pipeline", "category: technic"), "metadata.hermes.category must be pipeline"),
     (("Lookup specific facts", "Generic specific facts"), "searcher description must frontload lookup"),
     (("version: 1.0.0", "version: ''"), "searcher entry version must be a nonempty string"),
 ))
@@ -217,7 +217,7 @@ def test_nested_symlink_cannot_hide_instructions(candidate):
 @pytest.mark.parametrize("name", ENTRIES)
 def test_worker_wires_entries_and_detects_learned_collision(tmp_path, monkeypatch, name):
     skills = tmp_path / "profiles/searcher/skills"
-    shutil.copytree(PIPELINE, skills / "searcher-pipeline")
+    shutil.copytree(PIPELINE, skills / "pipeline")
     shutil.copytree(TECHNIC, skills / "technic")
     monkeypatch.setattr(validator, "HERMES_ROOT", tmp_path)
     # Learned skills live in the profile HOME, beside the links into the tree.
@@ -410,10 +410,10 @@ def test_x_reference_keeps_x_search_first_and_names_the_account_read():
 
 def technic_candidate(tmp_path):
     skills = tmp_path / "skills"
-    shutil.copytree(PIPELINE, skills / "searcher-pipeline")
+    shutil.copytree(PIPELINE, skills / "pipeline")
     shutil.copytree(TECHNIC, skills / "technic")
     leaves = {path.parent.name: path for path in (skills / "technic").glob("*/SKILL.md")}
-    return skills / "searcher-pipeline", leaves
+    return skills / "pipeline", leaves
 
 
 def test_technics_are_routed_to_their_mode():
@@ -435,7 +435,7 @@ def test_technics_are_routed_to_their_mode():
 
 @pytest.mark.parametrize("name", sorted(TECHNICS))
 @pytest.mark.parametrize("token", ('skill_view(name="searcher-pipeline")', "never replaces", "caller's release",
-                                   "${HERMES_SKILL_DIR}/../../searcher-pipeline/SKILL.md"))
+                                   "${HERMES_SKILL_DIR}/../../pipeline/SKILL.md"))
 def test_technic_cannot_drop_its_mode_or_recovery(tmp_path, name, token):
     pipeline, leaves = technic_candidate(tmp_path)
     leaves[name].write_text(leaves[name].read_text().replace(token, "removed"))
@@ -480,7 +480,7 @@ def test_public_footprint_keeps_its_floors():
 
 
 def test_the_assistant_names_every_technic_with_its_unit():
-    caller = (HERMES / "profiles/assistant/skills/assistant-pipeline/plan-assistant-search/SKILL.md").read_text()
+    caller = (HERMES / "profiles/assistant/skills/pipeline/plan-assistant-search/SKILL.md").read_text()
     rows = {}
     for line in caller.splitlines():
         cells = [cell.strip() for cell in line.strip("|").split("|")]

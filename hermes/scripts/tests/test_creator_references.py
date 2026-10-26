@@ -28,7 +28,7 @@ class CreatorReferenceFixture(unittest.TestCase):
         patcher.start()
         self.addCleanup(patcher.stop)
         self.pipeline_dir = (
-            self.hermes_root / "profiles" / "creator" / "skills" / "creator-pipeline"
+            self.hermes_root / "profiles" / "creator" / "skills" / "pipeline"
         )
         self.pipeline_dir.mkdir(parents=True)
 
@@ -41,7 +41,7 @@ class CreatorReferenceFixture(unittest.TestCase):
     def hands_leaf(self, hands: str, verb: str, subject: str) -> Path:
         path = (
             self.hermes_root / "profiles" / hands / "skills"
-            / f"{hands}-pipeline" / verb / subject / "SKILL.md"
+            / "pipeline" / verb / subject / "SKILL.md"
         )
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(f"---\nname: {verb}-{subject}\n---\n", encoding="utf-8")
@@ -66,7 +66,7 @@ class CreatorReferenceFixture(unittest.TestCase):
         self.write(
             f"{name}/SKILL.md",
             f"---\nname: {name}\ndescription: Fixture entry\nversion: 1.0.0\n"
-            "metadata:\n  hermes:\n    category: creator-pipeline\n---\n"
+            "metadata:\n  hermes:\n    category: pipeline\n---\n"
             '<ReadBeforeWork>\nskill_view(name="creator-pipeline")\n'
             "Reuse the full body, not a summary. If unchanged, read_file\n"
             "${HERMES_SKILL_DIR}/../SKILL.md or ${HERMES_SKILL_DIR}/SKILL.md;\n"

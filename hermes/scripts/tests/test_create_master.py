@@ -17,8 +17,8 @@ import pytest
 import hermes_yaml as yaml
 
 HERMES_ROOT = Path(__file__).resolve().parents[2]
-LEAF = HERMES_ROOT / "profiles/video-creator/skills/video-creator-pipeline/create/master"
-CREATOR = HERMES_ROOT / "profiles/creator/skills/creator-pipeline"
+LEAF = HERMES_ROOT / "profiles/video-creator/skills/pipeline/create/master"
+CREATOR = HERMES_ROOT / "profiles/creator/skills/pipeline"
 
 spec = importlib.util.spec_from_file_location("create_master", LEAF / "scripts/master.py")
 master = importlib.util.module_from_spec(spec)
@@ -175,7 +175,7 @@ def test_burned_captions_render_through_hyperframes(tmp_path):
 
 
 def test_assistant_routes_finishing_to_create_master():
-    commission = (CREATOR.parents[1] / "../assistant/skills/assistant-pipeline/execute-assistant-creative/references/master.md"
+    commission = (CREATOR.parents[1] / "../assistant/skills/pipeline/execute-assistant-creative/references/master.md"
                   ).resolve().read_text(encoding="utf-8")
     assert "| `create-master` |" in commission and "## Leaves" in commission
     assert 'target="video-creator", message=<the text>, kind="work"' in commission
@@ -183,7 +183,7 @@ def test_assistant_routes_finishing_to_create_master():
     assert "[master](references/video-creator/master.md)" in (CREATOR / "SKILL.md").read_text()
     advisor = (CREATOR / "references/video-creator/music-video.md").read_text(encoding="utf-8")
     assert "[master](master.md)" in advisor
-    mv = (CREATOR.parents[1] / "../assistant/skills/assistant-pipeline/execute-assistant-creative/references/music-video.md"
+    mv = (CREATOR.parents[1] / "../assistant/skills/pipeline/execute-assistant-creative/references/music-video.md"
           ).resolve().read_text(encoding="utf-8")
     assert "[create-master](master.md)" in mv
     config = yaml.safe_load((CREATOR.parents[1] / "config.example.yaml").read_text())

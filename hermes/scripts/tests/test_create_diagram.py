@@ -15,7 +15,7 @@ from pathlib import Path
 import pytest
 
 HERMES_ROOT = Path(__file__).resolve().parents[2]
-PIPELINE = HERMES_ROOT / "profiles" / "image-creator" / "skills" / "image-creator-pipeline"
+PIPELINE = HERMES_ROOT / "profiles" / "image-creator" / "skills" / "pipeline"
 LEAF = PIPELINE / "create" / "diagram"
 SKILL = LEAF / "SKILL.md"
 SCRIPT = LEAF / "scripts" / "diagram.py"

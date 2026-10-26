@@ -25,7 +25,7 @@ full-body kernel (`skill_view(name="researcher-pipeline")`), the verify entry
 and this body in current context, not a past load or summary. If unchanged is
 returned while the earlier body is unavailable, use read_file on
 `${HERMES_SKILL_DIR}/SKILL.md` and the kernel's canonical
-`${HERMES_SKILL_DIR}/../../researcher-pipeline/SKILL.md`; stop the affected
+`${HERMES_SKILL_DIR}/../../pipeline/SKILL.md`; stop the affected
 action if they stay unavailable. Selecting this technic is not the
 caller's release and never widens the agreed scope or budget.
 

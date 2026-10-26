@@ -8,7 +8,7 @@ import hermes_yaml as yaml
 
 
 HERMES = Path(__file__).resolve().parents[2]
-PIPELINE = HERMES / "profiles/writer/skills/writer-pipeline"
+PIPELINE = HERMES / "profiles/writer/skills/pipeline"
 
 
 @pytest.mark.parametrize("verb", ["write", "edit", "analyze"])

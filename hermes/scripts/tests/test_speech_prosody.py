@@ -19,7 +19,7 @@ from unittest import mock
 import hermes_yaml as yaml
 
 HERMES_ROOT = Path(__file__).resolve().parents[2]
-PIPELINE = HERMES_ROOT / "profiles" / "audio-creator" / "skills" / "audio-creator-pipeline"
+PIPELINE = HERMES_ROOT / "profiles" / "audio-creator" / "skills" / "pipeline"
 SCRIPT = PIPELINE / "scripts" / "speech-media.py"
 
 try:

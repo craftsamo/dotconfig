@@ -9,7 +9,7 @@ import sys
 from pathlib import Path
 
 HERMES_ROOT = Path(__file__).resolve().parents[2]
-PIPELINE = HERMES_ROOT / "profiles" / "image-creator" / "skills" / "image-creator-pipeline"
+PIPELINE = HERMES_ROOT / "profiles" / "image-creator" / "skills" / "pipeline"
 LEAF = PIPELINE / "generate" / "illustration"
 SKILL = LEAF / "SKILL.md"
 SIBLINGS = [PIPELINE / "generate" / "card" / "SKILL.md"]

@@ -14,7 +14,7 @@ import hermes_yaml as yaml
 
 HERMES_ROOT = Path(__file__).resolve().parents[2]
 PROFILE = HERMES_ROOT / "profiles" / "video-creator"
-PIPELINE = PROFILE / "skills" / "video-creator-pipeline"
+PIPELINE = PROFILE / "skills" / "pipeline"
 TECHNICAL_SKILLS = (
     "hyperframes-core",
     "hyperframes-animation",
@@ -130,7 +130,7 @@ def skill_environment(tmp_path, monkeypatch):
     sources = [*PIPELINE.glob("**/SKILL.md"), PIPELINE / "references/hyperframes.md", PIPELINE / "references/three-graphics.md"]
     sources.extend(PIPELINE / "create" / subject / "references/authoring.md" for subject in ("tour", "ad", "explainer-video", "promotion", "story"))
     for source in sources:
-        target = local / "video-creator-pipeline" / source.relative_to(PIPELINE)
+        target = local / "pipeline" / source.relative_to(PIPELINE)
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(source, target)
     store = tmp_path / ".agents" / "skills"

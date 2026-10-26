@@ -38,7 +38,7 @@ TECHNICS = ("public-footprint", "primary-fact-pack", "release-digest")
 EXPECTED = {"searcher-pipeline"} | set(CHILDREN) | set(TECHNICS)
 ALLOW = {"skills_list", "skill_view", "read_file"}
 CASES = ("discovery", "reads_and_reuse", "recovery", "relocation")
-TREE = Path("hermes/profiles/searcher/skills/searcher-pipeline")
+TREE = Path("hermes/profiles/searcher/skills/pipeline")
 TECHNIC_TREE = Path("hermes/profiles/searcher/skills/technic")
 
 
@@ -153,7 +153,7 @@ def _child(case, sandbox, candidate_tree, technic_tree, source):
             stack.enter_context(patch.object(target, name, deny_network))
 
         skills = home / ".hermes/skills"
-        tree = skills / "searcher-pipeline"
+        tree = skills / "pipeline"
         docs = sorted(candidate_tree.rglob("*.md"))
         assert len(docs) == 14, "Candidate tree must hold kernel + modes + stage, capability and service references"
         for path in docs:
@@ -336,7 +336,7 @@ def _child(case, sandbox, candidate_tree, technic_tree, source):
                     rendered = re.search(r"`([^`]*/technic/<technic>/SKILL\.md)`", kernel_text).group(1)
                     assert Path(rendered.replace("<technic>", name)).resolve() == (technics / name / "SKILL.md")
                     leaf = view(name, task="recovery-paths")["content"]
-                    back = re.search(r"`([^`]*/searcher-pipeline/SKILL\.md)`", leaf).group(1)
+                    back = re.search(r"`([^`]*/pipeline/SKILL\.md)`", leaf).group(1)
                     assert Path(back).resolve() == root_path.resolve()
                 st.reset_skill_view_dedup()
                 for name, relative, path in documents:
@@ -395,7 +395,7 @@ def _child(case, sandbox, candidate_tree, technic_tree, source):
                     assert set(rows(index())) == EXPECTED
                     assert {s["name"] for s in find_all_skills()} == EXPECTED
                     for name in CHILDREN:
-                        target = moved_home / "skills/searcher-pipeline" / name / "SKILL.md"
+                        target = moved_home / "skills/pipeline" / name / "SKILL.md"
                         result = view(name, task="moved-namespace-only")
                         body_matches(result, target, rendered=True)
                         assert result["skill_dir"] == str(target.parent)
@@ -403,7 +403,7 @@ def _child(case, sandbox, candidate_tree, technic_tree, source):
                     for stage in STAGES:
                         relative = f"references/{stage}.md"
                         body_matches(view("searcher-pipeline", relative, task="moved-namespace-only"),
-                                     moved_home / "skills/searcher-pipeline" / relative)
+                                     moved_home / "skills/pipeline" / relative)
                 finally:
                     pb.clear_skills_system_prompt_cache(clear_snapshot=True)
                     reset_hermes_home_override(token)

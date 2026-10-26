@@ -160,7 +160,7 @@ def hands_pipeline_dir(root: Path, profile: str) -> Path:
     # Resolved so every caller compares against the same symlink-normalized
     # path (macOS /tmp -> /private/var/... otherwise splits a resolved leaf
     # path from an unresolved pipeline root under relative_to()).
-    return (root / "hermes" / "profiles" / profile / "skills" / f"{profile}-pipeline").resolve()
+    return (root / "hermes" / "profiles" / profile / "skills" / "pipeline").resolve()
 
 
 def discover_leaves(root: Path) -> list[tuple[str, Path, Path]]:

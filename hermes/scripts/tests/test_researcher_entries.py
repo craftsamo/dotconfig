@@ -16,7 +16,7 @@ import hermes_yaml as yaml
 
 HERMES = Path(__file__).resolve().parents[2]
 PROFILE = HERMES / "profiles/researcher"
-TREE = PROFILE / "skills/researcher-pipeline"
+TREE = PROFILE / "skills/pipeline"
 TECHNIC = PROFILE / "skills/technic"
 SPEC = importlib.util.spec_from_file_location(
     "researcher_validator", HERMES / "scripts/validate-profile-skills.py"
@@ -57,7 +57,7 @@ def test_candidate_topology_and_always_on_contract():
         path = TREE / name / "SKILL.md"
         data = VALIDATOR.frontmatter(path)
         assert data["version"] == "1.0.0"
-        assert data["metadata"]["hermes"]["category"] == "researcher-pipeline"
+        assert data["metadata"]["hermes"]["category"] == "pipeline"
         assert data["description"][:60].lower().startswith(name.split("-")[0] + " ")
         assert 4 <= path.read_text().find("\n---", 4) < 4000
     config = yaml.safe_load((PROFILE / "config.example.yaml").read_text())
@@ -92,7 +92,7 @@ def test_candidate_topology_and_always_on_contract():
 def test_primary_relays_acceptance_baseline_without_transferring_handle(caller):
     root = HERMES / "profiles" / caller
     if caller == "marketer":
-        source = (root / "skills/marketer-pipeline/SKILL.md").read_text()
+        source = (root / "skills/pipeline/SKILL.md").read_text()
     else:
         source = yaml.safe_load((root / "config.example.yaml").read_text())["agent"]["system_prompt"]
     text = " ".join(source.split())
@@ -113,18 +113,18 @@ def test_creator_advisor_reaches_only_researcher_and_searcher_for_evidence():
                    "evidence, not a decision", "never retry an unknown result",
                    "Searcher retrieves sourced links"):
         assert phrase in text
-    kernel = " ".join((root / "skills/creator-pipeline/SKILL.md").read_text().split())
+    kernel = " ".join((root / "skills/pipeline/SKILL.md").read_text().split())
     assert "`specialist_call` reaches Researcher" in kernel and "and Searcher, for references" in kernel
 
 
 @pytest.mark.parametrize("profile", ("creator", "marketer"))
 def test_breadth_goes_from_the_client_to_searcher(profile):
-    pipeline = flat(HERMES / "profiles" / profile / f"skills/{profile}-pipeline/SKILL.md")
+    pipeline = flat(HERMES / "profiles" / profile / "skills/pipeline/SKILL.md")
     assert "When Researcher reports that a question needs breadth, release that retrieval to Searcher" in pipeline
     gather = flat(TREE / "references/gather.md")
     assert "releases to Searcher directly" in gather
     assert "the advisor client (creator, marketer or another)" in gather
-    searcher = flat(HERMES / "profiles/searcher/skills/searcher-pipeline/SKILL.md")
+    searcher = flat(HERMES / "profiles/searcher/skills/pipeline/SKILL.md")
     assert "the Assistant, Creator, Marketer or another advisor profile, whichever opened the conversation" in searcher
     prompt = " ".join(yaml.safe_load((HERMES / "profiles/searcher/config.example.yaml").read_text())
                       ["agent"]["system_prompt"].split())
@@ -141,7 +141,7 @@ def test_searcher_technic_names_stay_in_sync_where_copied():
     gather = flat(TREE / "references/gather.md")
     listed = re.search(r"Searcher's technic \(([^)]*)\)", gather).group(1)
     assert set(re.findall(r"`([a-z0-9-]+)`", listed)) == names
-    marketer = (HERMES / "profiles/marketer/skills/marketer-pipeline/SKILL.md").read_text()
+    marketer = (HERMES / "profiles/marketer/skills/pipeline/SKILL.md").read_text()
     searcher_bullet = " ".join(marketer.split("- Searcher:", 1)[1].split("\n- ", 1)[0].split())
     for name in names:
         assert f"`{name}`" in searcher_bullet, name
@@ -190,7 +190,7 @@ def test_worker_integration(tmp_path, monkeypatch):
     ("platform_link", "does not link platform reference evm"),
 ])
 def test_invalid_entries(tmp_path, mutation, expected):
-    tree = tmp_path / "researcher-pipeline"
+    tree = tmp_path / "pipeline"
     shutil.copytree(TREE, tree)
     path = tree / "verify-researcher/SKILL.md"
     text = path.read_text()
@@ -420,7 +420,7 @@ def test_technics_are_routed_to_their_mode():
 
 @pytest.mark.parametrize("name", sorted(TECHNICS))
 @pytest.mark.parametrize("token", ('skill_view(name="researcher-pipeline")', "never replaces", "caller's release",
-                                   "${HERMES_SKILL_DIR}/../../researcher-pipeline/SKILL.md"))
+                                   "${HERMES_SKILL_DIR}/../../pipeline/SKILL.md"))
 def test_technic_cannot_drop_its_mode_or_recovery(tmp_path, name, token):
     shutil.copytree(TECHNIC, tmp_path / "technic")
     leaves = _technic_leaves(tmp_path / "technic")
@@ -446,7 +446,7 @@ def test_technic_mode_must_match_its_capability_row(tmp_path):
 
 
 def test_entry_must_link_the_technic_capabilities(tmp_path):
-    tree = tmp_path / "researcher-pipeline"
+    tree = tmp_path / "pipeline"
     shutil.copytree(TREE, tree)
     entry = tree / "verify-researcher/SKILL.md"
     entry.write_text(entry.read_text().replace("(../references/capabilities.md)", ""))
@@ -466,8 +466,8 @@ def _technic_rows(text):
 
 
 @pytest.mark.parametrize("caller", (
-    "assistant/skills/assistant-pipeline/plan-assistant-research/SKILL.md",
-    "marketer/skills/marketer-pipeline/SKILL.md",
+    "assistant/skills/pipeline/plan-assistant-research/SKILL.md",
+    "marketer/skills/pipeline/SKILL.md",
 ))
 def test_callers_name_every_technic_with_its_unit(caller):
     rows = _technic_rows((HERMES / "profiles" / caller).read_text())
@@ -477,11 +477,11 @@ def test_callers_name_every_technic_with_its_unit(caller):
 
 
 def test_creator_names_every_technic_and_one_work_conversation():
-    kernel = flat(HERMES / "profiles/creator/skills/creator-pipeline/SKILL.md")
+    kernel = flat(HERMES / "profiles/creator/skills/pipeline/SKILL.md")
     for name in TECHNICS:
         assert f"`{name}`" in kernel
     assert 'Both run as one `kind="work"` conversation' in kernel
-    marketer = flat(HERMES / "profiles/marketer/skills/marketer-pipeline/SKILL.md")
+    marketer = flat(HERMES / "profiles/marketer/skills/pipeline/SKILL.md")
     assert "never one call per few items" in marketer and "stays your decision" in marketer
 
 
@@ -559,7 +559,7 @@ def runtime_child(sandbox, source, configured_external):
     logging.disable(logging.CRITICAL)
     home = sandbox / "home"
     assert Path.home().resolve() == home
-    tree = home / ".hermes/skills/researcher-pipeline"
+    tree = home / ".hermes/skills/pipeline"
     # Copy only the candidate instruction documents, never live config or state.
     shutil.copytree(TREE, tree)
     technics = home / ".hermes/skills/technic"
@@ -644,7 +644,7 @@ def runtime_child(sandbox, source, configured_external):
             leaf = view(name)
             assert leaf["content"] == (technics / name / "SKILL.md").read_text().replace(
                 "${HERMES_SKILL_DIR}", str(technics / name))
-            back = re.search(r"`([^`]*/researcher-pipeline/SKILL\.md)`", leaf["content"]).group(1)
+            back = re.search(r"`([^`]*/pipeline/SKILL\.md)`", leaf["content"]).group(1)
             assert Path(back).resolve() == (tree / "SKILL.md").resolve()
         # Real read mechanics only: this loop selects modes and stages, not a model.
         for mode in MODES:

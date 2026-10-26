@@ -10,8 +10,8 @@ import unittest
 
 
 PROFILES = Path(__file__).resolve().parents[2] / "profiles"
-ASSISTANT = PROFILES / "assistant/skills/assistant-pipeline"
-CREATOR = PROFILES / "creator/skills/creator-pipeline"
+ASSISTANT = PROFILES / "assistant/skills/pipeline"
+CREATOR = PROFILES / "creator/skills/pipeline"
 
 
 def read(root, relative):

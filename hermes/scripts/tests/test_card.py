@@ -10,7 +10,7 @@ import unittest
 from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[2]
-HELPER = ROOT / "profiles/image-creator/skills/image-creator-pipeline/scripts/card.py"
+HELPER = ROOT / "profiles/image-creator/skills/pipeline/scripts/card.py"
 MODULE = importlib.util.spec_from_file_location("card", HELPER)
 card = importlib.util.module_from_spec(MODULE)
 MODULE.loader.exec_module(card)
@@ -291,7 +291,7 @@ class CardTests(unittest.TestCase):
 
     def test_card_routing_and_generation_contracts(self):
         # Static contracts, NOT a live LLM handoff or provider-call test.
-        routing = (ROOT / "profiles/assistant/skills/assistant-pipeline/execute-assistant-creative/references/card.md").read_text()
+        routing = (ROOT / "profiles/assistant/skills/pipeline/execute-assistant-creative/references/card.md").read_text()
         for verb in ("create", "generate", "edit", "analyze"):
             name = verb + "-card"
             leaf = card.ROOT / verb / "card/SKILL.md"
@@ -313,7 +313,7 @@ class CardTests(unittest.TestCase):
             self.assertEqual(options.split("[", 1)[1].rstrip("]").split(", "), list(STYLES))
             for style in STYLES:
                 self.assertTrue((card.ROOT / verb / "card/references/styles" / (style + ".md")).is_file())
-        advisor = (ROOT / "profiles/creator/skills/creator-pipeline/references/image-creator/card.md").read_text()
+        advisor = (ROOT / "profiles/creator/skills/pipeline/references/image-creator/card.md").read_text()
         for verb in ("create", "generate", "edit", "analyze"):
             self.assertIn(verb + "-card", advisor)
         self.assertFalse((ROOT / "profiles/creator/skills/technic/creator-text-card").exists())

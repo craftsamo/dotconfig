@@ -42,7 +42,7 @@ class CreativeClientReferencesTestCase(unittest.TestCase):
             / "profiles"
             / "assistant"
             / "skills"
-            / "assistant-pipeline"
+            / "pipeline"
         )
         self.pipeline_dir.mkdir(parents=True)
         pipeline_patcher = mock.patch.object(
@@ -215,7 +215,7 @@ class CreativeClientReferencesTestCase(unittest.TestCase):
         self.build_valid_tree()
         self.write(
             "plan-assistant-creative/references/raster-guide.md",
-            GUIDE_BODY + "\nSee `image-creator-pipeline/generate/icon/SKILL.md`.\n",
+            GUIDE_BODY + "\nSee `pipeline/generate/icon/SKILL.md`.\n",
         )
         self.assertEqual([], self.validate())
 

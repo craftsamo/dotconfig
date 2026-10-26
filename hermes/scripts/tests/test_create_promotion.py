@@ -12,12 +12,12 @@ import pytest
 import hermes_yaml as yaml
 
 HERMES_ROOT = Path(__file__).resolve().parents[2]
-VIDEO = HERMES_ROOT / "profiles/video-creator/skills/video-creator-pipeline"
+VIDEO = HERMES_ROOT / "profiles/video-creator/skills/pipeline"
 LEAF = VIDEO / "create/promotion"
 VOCABULARY = HERMES_ROOT.parent / "agents/skills/motion-vocabulary/references"
 CREATOR = HERMES_ROOT / "profiles/creator"
-ADVISOR = CREATOR / "skills/creator-pipeline/references/video-creator/promotion.md"
-COMMISSION = HERMES_ROOT / "profiles/assistant/skills/assistant-pipeline/execute-assistant-creative/references/promotion.md"
+ADVISOR = CREATOR / "skills/pipeline/references/video-creator/promotion.md"
+COMMISSION = HERMES_ROOT / "profiles/assistant/skills/pipeline/execute-assistant-creative/references/promotion.md"
 
 spec = importlib.util.spec_from_file_location("promotion", LEAF / "scripts/promotion.py")
 motion = importlib.util.module_from_spec(spec)
@@ -123,7 +123,7 @@ def test_assistant_commissions_authored_motion_and_creator_only_advises():
     assert 'specialist_call(target="video-creator"' in commission and 'kind="work"' in commission
     assert "[commissioning](../SKILL.md)" in commission
     assert ADVISOR.is_file() and "`create-promotion`" in ADVISOR.read_text()
-    assert "(references/video-creator/promotion.md)" in (CREATOR / "skills/creator-pipeline/SKILL.md").read_text()
+    assert "(references/video-creator/promotion.md)" in (CREATOR / "skills/pipeline/SKILL.md").read_text()
     config = yaml.safe_load((CREATOR / "config.example.yaml").read_text())
     assert config["specialist_call"]["resident_targets"] == ["researcher", "searcher"]
     assert "video_gen" not in config["toolsets"] and "image_gen" not in config["toolsets"]

@@ -15,7 +15,7 @@ from pathlib import Path
 import pytest
 
 HERMES_ROOT = Path(__file__).resolve().parents[2]
-PIPELINE = HERMES_ROOT / "profiles" / "video-creator" / "skills" / "video-creator-pipeline"
+PIPELINE = HERMES_ROOT / "profiles" / "video-creator" / "skills" / "pipeline"
 LEAF = PIPELINE / "create" / "pixel-animation"
 SKILL = LEAF / "SKILL.md"
 CELS = LEAF / "scripts" / "cels.py"

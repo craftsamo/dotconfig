@@ -14,7 +14,7 @@ import pytest
 
 pytestmark = pytest.mark.skipif(os.environ.get("THREE_GRAPHICS_NATIVE_TEST") != "1", reason="opt-in native graphics test")
 HERE = Path(__file__).resolve().parent
-PIPELINE = HERE.parents[1] / "profiles/video-creator/skills/video-creator-pipeline"
+PIPELINE = HERE.parents[1] / "profiles/video-creator/skills/pipeline"
 
 
 def module(name, path):

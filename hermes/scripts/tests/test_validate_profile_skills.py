@@ -173,7 +173,7 @@ class SandboxTreeTest(unittest.TestCase):
         for old, new, diagnostic in (
             ("name: plan-assistant-engineering", "name: wrong", "frontmatter name"),
             ("version: 1.0.0", "version: ''", "version must be a nonempty string"),
-            ("category: assistant-pipeline", "category: orchestration", "category must be assistant-pipeline"),
+            ("category: pipeline", "category: orchestration", "category must be pipeline"),
             ("Plan engineering entry.", "General engineering plan.", "description must frontload"),
         ):
             with self.subTest(diagnostic=diagnostic):
@@ -218,7 +218,7 @@ class SandboxTreeTest(unittest.TestCase):
         self.build_minimal_tree()
         text = entry_text("plan-assistant-engineering").replace(
             "${HERMES_SKILL_DIR}/../",
-            "~/.hermes/profiles/assistant/skills/assistant-pipeline/",
+            "~/.hermes/profiles/assistant/skills/pipeline/",
         )
         self.write("plan-assistant-engineering/SKILL.md", text)
         errors = self.validate()
@@ -337,7 +337,7 @@ class AssistantAlignmentIsolationTest(unittest.TestCase):
 class AssistantCrossProfileStructureTest(unittest.TestCase):
     def test_pipeline_matches_this_checkout_s_workers_and_hands(self) -> None:
         public = SCRIPT.parents[1]
-        pipeline = public / "profiles/assistant/skills/assistant-pipeline"
+        pipeline = public / "profiles/assistant/skills/pipeline"
         self.assertTrue(pipeline.is_dir(), f"assistant pipeline missing: {pipeline}")
         self.assertFalse(pipeline.is_symlink(), f"assistant pipeline must be tracked here: {pipeline}")
         with mock.patch.object(VALIDATOR, "ASSISTANT_PIPELINE", pipeline), mock.patch.object(
@@ -348,11 +348,11 @@ class AssistantCrossProfileStructureTest(unittest.TestCase):
             for capability in ("creative", "engineering", "writing", "research", "search"):
                 getattr(VALIDATOR, f"validate_{capability}_alignment")(errors)
             for profile in VALIDATOR.WORKER_PROFILES:
-                kernel = public / "profiles" / profile / "skills" / f"{profile}-pipeline/SKILL.md"
+                kernel = public / "profiles" / profile / "skills" / "pipeline/SKILL.md"
                 self.assertTrue(kernel.is_file(), f"public worker kernel missing: {kernel}")
             hands_leaves = {}
             for profile in VALIDATOR.HANDS_PROFILES:
-                hands_pipeline = public / "profiles" / profile / "skills" / f"{profile}-pipeline"
+                hands_pipeline = public / "profiles" / profile / "skills" / "pipeline"
                 self.assertTrue(hands_pipeline.is_dir(), f"public hands pipeline missing: {hands_pipeline}")
                 hands_leaves[profile] = VALIDATOR.validate_hands_leaves(hands_pipeline, profile, errors)
             VALIDATOR.validate_hands_subjects(hands_leaves, errors)
@@ -387,9 +387,9 @@ class GitBoundarySymlinkTest(unittest.TestCase):
         self._tmp = tempfile.TemporaryDirectory()
         root = Path(self._tmp.name)
         self.overlay = root / "private"
-        (self.overlay / "skills" / "assistant-pipeline").mkdir(parents=True)
+        (self.overlay / "skills" / "pipeline").mkdir(parents=True)
         self.overlay_link = root / "overlay-link"
-        self.overlay_link.symlink_to(self.overlay / "skills" / "assistant-pipeline")
+        self.overlay_link.symlink_to(self.overlay / "skills" / "pipeline")
         self._original = VALIDATOR.PRIVATE_OVERLAY
         VALIDATOR.PRIVATE_OVERLAY = self.overlay
         # A path outside the repository keeps the learned check green.
@@ -414,7 +414,7 @@ class GitBoundarySymlinkTest(unittest.TestCase):
     def test_skill_root_rejects_overlay_link(self) -> None:
         skills = Path(self._tmp.name) / "skills"
         skills.mkdir()
-        (skills / "assistant-pipeline").symlink_to(self.overlay / "skills" / "assistant-pipeline")
+        (skills / "pipeline").symlink_to(self.overlay / "skills" / "pipeline")
         errors: list[str] = []
         VALIDATOR.validate_allowed_skill_roots(skills, set(), errors)
         self.assertTrue(any("must not contain symlinks" in e for e in errors), errors)
@@ -429,7 +429,7 @@ class AssistantPrivateTechnicTest(unittest.TestCase):
         root = Path(self._tmp.name).resolve()
         self.overlay = root / "private"
         self.technic = self.overlay / "hermes/profiles/assistant/skills/technic"
-        self.pipeline = self.overlay / "hermes/profiles/assistant/skills/assistant-pipeline"
+        self.pipeline = self.overlay / "hermes/profiles/assistant/skills/pipeline"
         self.pipeline.mkdir(parents=True)
         self.profile = root / "public/profiles/assistant"
         (self.profile / "skills/learned").mkdir(parents=True)
@@ -804,8 +804,8 @@ class LearnedPlacementTest(unittest.TestCase):
         for profile in VALIDATOR.HANDS_PROFILES:
             source = VALIDATOR.HERMES_ROOT / "profiles" / profile
             target = root / "profiles" / profile
-            shutil.copytree(source / "skills" / f"{profile}-pipeline",
-                            target / "skills" / f"{profile}-pipeline")
+            shutil.copytree(source / "skills" / "pipeline",
+                            target / "skills" / "pipeline")
             shutil.copy2(source / "config.example.yaml", target / "config.example.yaml")
         # Learned skills live in the profile HOME, beside the links into the tree.
         home = Path(directory.name) / ".hermes"
@@ -850,7 +850,7 @@ class HandsLeafTest(unittest.TestCase):
 
     def setUp(self) -> None:
         self._tmp = tempfile.TemporaryDirectory()
-        self.root = Path(self._tmp.name) / "image-creator-pipeline"
+        self.root = Path(self._tmp.name) / "pipeline"
         self.root.mkdir()
         (self.root / "SKILL.md").write_text(
             "---\nname: image-creator-pipeline\nmetadata:\n  hermes:\n"

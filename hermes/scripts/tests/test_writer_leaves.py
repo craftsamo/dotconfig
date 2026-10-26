@@ -27,7 +27,7 @@ def read_contract():
 
 
 def consultation(root):
-    source = SCRIPT.parent.parent / "profiles/writer/skills/writer-pipeline/consult-writer/SKILL.md"
+    source = SCRIPT.parent.parent / "profiles/writer/skills/pipeline/consult-writer/SKILL.md"
     path = root / "consult-writer/SKILL.md"
     path.parent.mkdir(parents=True)
     path.write_text(source.read_text())
@@ -203,7 +203,7 @@ def test_leaf_missing_read_contract_is_rejected(tmp_path, required):
 
 def test_worker_accepts_leaves_and_rejects_duplicate_learned_name(tmp_path, monkeypatch):
     skills = tmp_path / "profiles/writer/skills"
-    root = skills / "writer-pipeline"
+    root = skills / "pipeline"
     root.mkdir(parents=True)
     (root / "SKILL.md").write_text("---\nname: writer-pipeline\n---\n")
     (skills / "technic").mkdir()
@@ -248,8 +248,8 @@ def test_hermes_discovers_writer_and_serves_its_references(tmp_path, monkeypatch
 
     config = {"skills": {"external_dirs": [], "project_discovery": False}}
     (home / "config.yaml").write_text(yaml.safe_dump(config))
-    source = SCRIPT.parent.parent / "profiles/writer/skills/writer-pipeline"
-    target = local / "writer-pipeline"
+    source = SCRIPT.parent.parent / "profiles/writer/skills/pipeline"
+    target = local / "pipeline"
     shutil.copytree(source, target)
     language_source = SCRIPT.parents[2] / "agents/skills/japanese-writing"
     shutil.copytree(language_source, local / "japanese-writing")

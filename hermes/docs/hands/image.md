@@ -91,7 +91,7 @@ relabel an agent choice as human approval.
 
 ## Kit family
 
-`image-creator-pipeline/<verb>/kit/` carries all five verbs. The family is
+`profiles/image-creator/skills/pipeline/<verb>/kit/` carries all five verbs. The family is
 game props and UI images, not website components or 3D mesh files. `contents`
 is a comma-list; explicit `items` is the whole list, replacing defaults. State
 variants are named items and count toward the generation budget.

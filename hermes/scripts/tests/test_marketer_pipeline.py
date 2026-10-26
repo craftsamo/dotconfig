@@ -13,7 +13,7 @@ import hermes_yaml as yaml
 
 
 HERMES = Path(__file__).resolve().parents[2]
-ROOT = HERMES / "profiles/marketer/skills/marketer-pipeline"
+ROOT = HERMES / "profiles/marketer/skills/pipeline"
 SPEC = importlib.util.spec_from_file_location("marketer_validator", HERMES / "scripts/validate-profile-skills.py")
 VALIDATOR = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(VALIDATOR)
@@ -50,7 +50,7 @@ def text(relative):
 
 @pytest.fixture
 def candidate(tmp_path, monkeypatch):
-    root = tmp_path / "profiles/marketer/skills/marketer-pipeline"
+    root = tmp_path / "profiles/marketer/skills/pipeline"
     shutil.copytree(ROOT, root)
     monkeypatch.setattr(VALIDATOR, "HERMES_ROOT", tmp_path)
     # Learned skills live in the profile HOME, not in the tree.
@@ -198,7 +198,7 @@ def test_entry_wrong_category_fails(candidate, entry):
     data = yaml.safe_load(raw[4:raw.index("\n---\n", 4)])
     data["metadata"]["hermes"]["category"] = "writing"
     edit_frontmatter(path, metadata=data["metadata"])
-    assert any("metadata.hermes.category must be marketer-pipeline" in e for e in errors(candidate))
+    assert any("metadata.hermes.category must be pipeline" in e for e in errors(candidate))
 
 
 @pytest.mark.parametrize("entry", ENTRIES)

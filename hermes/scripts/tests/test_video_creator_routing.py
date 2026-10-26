@@ -23,17 +23,17 @@ class VideoCreatorRoutingTest(unittest.TestCase):
         self.assertNotIn("multiplex_profile_allowlist", root["gateway"])
         self.assertEqual(9908, video["platforms"]["a2a"]["extra"]["port"])
         self.assertIn("video-creator", assistant["specialist_call"]["resident_targets"])
-        self.assertIn("~/.hermes/profiles/video-creator/skills/video-creator-pipeline",
+        self.assertIn("~/.hermes/profiles/video-creator/skills/pipeline",
                       assistant["skills"]["external_dirs"])
         # Creator is an advisor: it reads the leaves' forms but has no video-creator peer or target.
         self.assertNotIn("video-creator", creator["a2a_agents"])
         self.assertNotIn("video-creator", creator["specialist_call"]["resident_targets"])
-        self.assertIn("~/.hermes/profiles/video-creator/skills/video-creator-pipeline",
+        self.assertIn("~/.hermes/profiles/video-creator/skills/pipeline",
                       creator["skills"]["external_dirs"])
         self.assertEqual({}, video["a2a_agents"])
 
     def test_every_hyperframes_leaf_names_from_the_vocabulary(self) -> None:
-        kernel = HERMES_ROOT / "profiles/video-creator/skills/video-creator-pipeline"
+        kernel = HERMES_ROOT / "profiles/video-creator/skills/pipeline"
         vocab = (VOCABULARY / "core.md").read_text()
         self.assertIn("A dictionary, not a rulebook", vocab)
         self.assertIn("## Visual metaphors", vocab)

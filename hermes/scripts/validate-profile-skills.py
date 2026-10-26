@@ -6,7 +6,7 @@
 """Validate Hermes skill topology, metadata, routing, and Git ownership.
 
 The assistant profile owns a kernel and 19 flat, selectable entry skills
-under profiles/assistant/skills/assistant-pipeline/. Each entry owns its
+under profiles/assistant/skills/pipeline/. Each entry owns its
 references; only common phase references remain beside the kernel.
 The `default-pipeline` skill in the shared
 skills/ dir is a thin CLI adapter over that tree. This validator checks the
@@ -34,7 +34,7 @@ REPO_ROOT = HERMES_ROOT.parent
 # skills it writes itself (learned/) beside them — never inside the repository.
 HERMES_HOME_ROOT = Path.home() / ".hermes"
 ASSISTANT_PIPELINE = (
-    HERMES_ROOT / "profiles" / "assistant" / "skills" / "assistant-pipeline"
+    HERMES_ROOT / "profiles" / "assistant" / "skills" / "pipeline"
 )
 WORKER_PROFILES = (
     "researcher",
@@ -44,7 +44,7 @@ WORKER_PROFILES = (
     "marketer",
 )
 # Creator's hands (docs/hands/overview.md "Creator hands"): receive-only A2A
-# producers whose skills are `<hands>-pipeline/<verb>/<subject>/SKILL.md`
+# producers whose skills are `pipeline/<verb>/<subject>/SKILL.md`
 # leaves, one deliverable and one form each. Add a profile here when its
 # skeleton lands; subjects must stay unique across every listed hands.
 HANDS_PROFILES = ("image-creator", "video-creator", "audio-creator")
@@ -244,7 +244,7 @@ def validate_assistant_pipeline(errors: list[str]) -> int:
         if not entry_skill.is_file():
             errors.append(f"missing assistant entry skill: {name}/SKILL.md")
             continue
-        validate_skill(entry_skill, name, errors, expected_category="assistant-pipeline")
+        validate_skill(entry_skill, name, errors, expected_category="pipeline")
         data = frontmatter(entry_skill)
         version = data.get("version")
         if not isinstance(version, str) or not version.strip():
@@ -381,8 +381,8 @@ def untracked_managed_files() -> list[str]:
             "--others",
             "--exclude-standard",
             "--",
-            "hermes/skills/default-pipeline/**",
-            "hermes/profiles/*/skills/*-pipeline/**",
+            "hermes/skills/pipeline/**",
+            "hermes/profiles/*/skills/pipeline/**",
             "hermes/profiles/*/skills/technic/**",
             "hermes/plugins/**/skills/**",
             "hermes/plugins/guards/skill-topology/**",
@@ -766,7 +766,7 @@ def validate_worker(
     profile_root = HERMES_ROOT / "profiles" / profile
     skills = profile_root / "skills"
     pipeline_name = f"{profile}-pipeline"
-    pipeline_dir = skills / pipeline_name
+    pipeline_dir = skills / "pipeline"
     pipeline = pipeline_dir / "SKILL.md"
     technic_dir = skills / "technic"
     learned_dir = learned_root(profile)
@@ -792,12 +792,12 @@ def validate_worker(
 
     learned, learned_roots = validate_learned_skills(learned_dir, errors)
 
-    allowed = {(pipeline_name, "SKILL.md")}
+    allowed = {("pipeline", "SKILL.md")}
     allowed.update(("technic", name, "SKILL.md") for name in leaves)
     creator_entries: set[str] = set()
     if profile == "creator" and pipeline.is_file() and (_pipeline_major_version(frontmatter(pipeline)) or 0) >= 9:
         creator_entries = set(CREATOR_ENTRIES.values())
-        allowed.update((pipeline_name, name, "SKILL.md") for name in creator_entries)
+        allowed.update(("pipeline", name, "SKILL.md") for name in creator_entries)
         for name in creator_entries & (leaves.keys() | learned.keys()):
             errors.append(f"duplicate creator entry name: {name}")
     writing: dict[str, Path] = {}
@@ -919,7 +919,7 @@ def validate_searcher_entries(pipeline_dir: Path, errors: list[str]) -> dict[str
         if not entry.is_file():
             continue
         entries[name] = entry
-        validate_skill(entry, name, errors, expected_category="searcher-pipeline")
+        validate_skill(entry, name, errors, expected_category="pipeline")
         data = frontmatter(entry)
         version = data.get("version")
         if not isinstance(version, str) or not version.strip():
@@ -1001,7 +1001,7 @@ def validate_mode_technics(role: str, modes: tuple[str, ...], pipeline_dir: Path
         for required in (
             f'skill_view(name="{role}-pipeline")', f'skill_view(name="{mode}-{role}")',
             'file_path="references/<stage>.md"', "${HERMES_SKILL_DIR}/SKILL.md",
-            f"${{HERMES_SKILL_DIR}}/../../{role}-pipeline/SKILL.md", "never replaces",
+            "${HERMES_SKILL_DIR}/../../pipeline/SKILL.md", "never replaces",
             "current context", "read_file", "caller's release",
         ):
             if required not in block:
@@ -1054,7 +1054,7 @@ def validate_researcher_entries(pipeline_dir: Path, errors: list[str]) -> dict[s
         if not path.is_file():
             continue
         entries[name] = path
-        validate_skill(path, name, errors, expected_category="researcher-pipeline")
+        validate_skill(path, name, errors, expected_category="pipeline")
         data = frontmatter(path)
         description = data.get("description")
         if not isinstance(description, str) or not 1 <= len(description.strip()) <= 1024:
@@ -1166,7 +1166,7 @@ def validate_marketer_references(pipeline_dir: Path, errors: list[str]) -> dict[
             errors.append(f"missing marketer entry skill: {name}")
             continue
         entries[name] = entry
-        validate_skill(entry, name, errors, expected_category="marketer-pipeline")
+        validate_skill(entry, name, errors, expected_category="pipeline")
         data = frontmatter(entry)
         if not isinstance(data.get("version"), str) or not data["version"].strip():
             errors.append(f"marketer entry version must be a nonempty string: {name}")
@@ -1507,7 +1507,7 @@ def validate_hands(profile: str, errors: list[str]) -> tuple[dict[str, Path], in
     profile_root = HERMES_ROOT / "profiles" / profile
     skills = profile_root / "skills"
     pipeline_name = f"{profile}-pipeline"
-    pipeline_dir = skills / pipeline_name
+    pipeline_dir = skills / "pipeline"
     pipeline = pipeline_dir / "SKILL.md"
     learned_dir = learned_root(profile)
 
@@ -1521,9 +1521,9 @@ def validate_hands(profile: str, errors: list[str]) -> tuple[dict[str, Path], in
     leaves = validate_hands_leaves(pipeline_dir, profile, errors)
     learned, learned_roots = validate_learned_skills(learned_dir, errors)
 
-    allowed = {(pipeline_name, "SKILL.md")}
+    allowed = {("pipeline", "SKILL.md")}
     allowed.update(
-        (pipeline_name, *path.relative_to(pipeline_dir).parts) for path in leaves.values()
+        ("pipeline", *path.relative_to(pipeline_dir).parts) for path in leaves.values()
     )
     allowed.update(learned_roots)
     validate_allowed_skill_roots(skills, allowed, errors)
@@ -1564,11 +1564,11 @@ def _pipeline_major_version(data: dict[str, Any]) -> int | None:
 
 def collect_hands_subjects() -> dict[str, set[str]]:
     """Subjects (deduped across verbs) served by each hands profile, read
-    from `<hands>-pipeline/<verb>/<subject>/SKILL.md` below HERMES_ROOT."""
+    from `<hands>/skills/pipeline/<verb>/<subject>/SKILL.md` below HERMES_ROOT."""
     subjects: dict[str, set[str]] = {}
     for profile in HANDS_PROFILES:
         pipeline_dir = (
-            HERMES_ROOT / "profiles" / profile / "skills" / f"{profile}-pipeline"
+            HERMES_ROOT / "profiles" / profile / "skills" / "pipeline"
         )
         found: set[str] = set()
         if pipeline_dir.is_dir():
@@ -1648,7 +1648,7 @@ def validate_creator_references(pipeline_dir: Path, errors: list[str]) -> None:
         if not index.is_file():
             errors.append(f"missing creator entry skill: {name}/SKILL.md")
             continue
-        validate_skill(index, name, errors, expected_category="creator-pipeline")
+        validate_skill(index, name, errors, expected_category="pipeline")
         if _pipeline_major_version(frontmatter(index)) is None:
             errors.append(f"invalid creator entry version: {name}")
         if not str(frontmatter(index).get("description", "")).strip():
@@ -2005,8 +2005,8 @@ def validate_assistant(errors: list[str]) -> tuple[int, int, int]:
             technics[name] = path
     learned, learned_roots = validate_learned_skills(learned_dir, errors)
 
-    allowed: set[tuple[str, ...]] = {("assistant-pipeline", "SKILL.md")}
-    allowed.update(("assistant-pipeline", name, "SKILL.md") for name in ASSISTANT_ENTRIES)
+    allowed: set[tuple[str, ...]] = {("pipeline", "SKILL.md")}
+    allowed.update(("pipeline", name, "SKILL.md") for name in ASSISTANT_ENTRIES)
     allowed.update(("technic", name, "SKILL.md") for name in technics)
     allowed.update(learned_roots)
     validate_allowed_skill_roots(skills, allowed, errors)
@@ -2148,7 +2148,7 @@ def validate_assistant_private_technics(
 
 def validate_shared(errors: list[str]) -> tuple[int, int]:
     skills = HERMES_ROOT / "skills"
-    default_pipeline = skills / "default-pipeline"
+    default_pipeline = skills / "pipeline"
     learned_dir = learned_root("default")
 
     managed: dict[str, Path] = {}
@@ -2166,7 +2166,7 @@ def validate_shared(errors: list[str]) -> tuple[int, int]:
 
     learned, learned_roots = validate_learned_skills(learned_dir, errors)
 
-    allowed = {("default-pipeline", "SKILL.md")}
+    allowed = {("pipeline", "SKILL.md")}
     allowed.update(learned_roots)
     validate_allowed_skill_roots(skills, allowed, errors)
     validate_git_boundary([default_pipeline], learned_dir, errors)

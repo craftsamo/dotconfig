@@ -19,7 +19,7 @@ from types import SimpleNamespace
 
 from PIL import Image, ImageDraw
 
-LEAF = Path(__file__).resolve().parents[4] / "profiles/video-creator/skills/video-creator-pipeline/create/explainer-video"
+LEAF = Path(__file__).resolve().parents[4] / "profiles/video-creator/skills/pipeline/create/explainer-video"
 SPEC = importlib.util.spec_from_file_location("explainer_fixture_helper", LEAF / "scripts/explainer.py")
 explainer = importlib.util.module_from_spec(SPEC)
 sys.modules[SPEC.name] = explainer

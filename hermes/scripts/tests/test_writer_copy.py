@@ -6,8 +6,8 @@ import pytest
 import hermes_yaml as yaml
 
 
-PIPELINE = Path(__file__).resolve().parents[2] / "profiles/writer/skills/writer-pipeline"
-MARKETER = PIPELINE.parents[2] / "marketer/skills/marketer-pipeline"
+PIPELINE = Path(__file__).resolve().parents[2] / "profiles/writer/skills/pipeline"
+MARKETER = PIPELINE.parents[2] / "marketer/skills/pipeline"
 DESTINATIONS = ["landing-page", "email", "announcement"]
 CRAFT = {
     "landing-page": (
@@ -103,7 +103,7 @@ def test_marketer_advises_on_copy_without_writing_or_accepting_it():
     prompt = " ".join(config["agent"]["system_prompt"].split())
     assert "never a replacement manuscript" in prompt
     assert "references/acceptance/index.md" not in prompt
-    assert "writer-pipeline" not in str(config["skills"]["external_dirs"])
+    assert "writer/skills/pipeline" not in str(config["skills"]["external_dirs"])
     kernel = content(MARKETER / "SKILL.md")
     assert "Writer authors post/article/copy/script text and Creator makes media" in kernel
     assert "never a substitute public manuscript" in kernel

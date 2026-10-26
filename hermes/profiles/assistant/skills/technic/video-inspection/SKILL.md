@@ -55,7 +55,7 @@ the ledger's copy. So two rounds of the same genre may check different
 aspects, and a round may add an item nobody catalogued by editing its
 ledger's `aspects`. A video no reference covers is still inspected with this
 procedure: speech, thumbnail and claims below are genre-independent, and the
-picture goes to the analyze leaf whose subject fits ([execute-assistant-creative](../../assistant-pipeline/execute-assistant-creative/SKILL.md)
+picture goes to the analyze leaf whose subject fits ([execute-assistant-creative](../../pipeline/execute-assistant-creative/SKILL.md)
 "Choosing the leaf"); `init` then takes the closest catalog, you drop the
 aspects that do not apply, and you tell the user in one line that no genre
 reference exists and which items you therefore could not name.
@@ -160,7 +160,7 @@ conversation (`plan-assistant-research`).
    or note and ask that
    each finding name its item (`item: problem` in the problem cell, or the
    item in the second cell), so `import` places it without guessing.
-   - Speech: the [speech](../../assistant-pipeline/execute-assistant-creative/references/speech.md)
+   - Speech: the [speech](../../pipeline/execute-assistant-creative/references/speech.md)
      reference's `analyze-speech` with `source` (the audio download),
      `script`, `language`, `prosody: yes` when voice is in scope, `captions`
      (the fetched `[m:ss]` transcript) when the language is Japanese,
@@ -196,7 +196,7 @@ conversation (`plan-assistant-research`).
      the hands' work. A video longer than the leaf's limit is outside it:
      its picture stays unchecked and is named so on the sheet unless the
      user decides otherwise.
-   - Thumbnail: the [card](../../assistant-pipeline/execute-assistant-creative/references/card.md)
+   - Thumbnail: the [card](../../pipeline/execute-assistant-creative/references/card.md)
      reference's `analyze-card` with `files` (the one thumbnail),
      `input_kind: single`, `destination: youtube-thumb` for a YouTube
      thumbnail, `expected_text` when the intended title is known, `deliver`
@@ -207,7 +207,7 @@ conversation (`plan-assistant-research`).
 5. **Check the claims.** From each video's `claims.md`, send tier A
    first: one Searcher lookup per batch, `technic: primary-fact-pack`, the
    claims with figures, dates and ranks as the item list ([search
-   plan](../../assistant-pipeline/plan-assistant-search/SKILL.md)). Put in
+   plan](../../pipeline/plan-assistant-search/SKILL.md)). Put in
    the request: open the first-party page directly where its address is
    known rather than searching for it, append each item's result to the
    output file as soon as it is in hand, and stop with what was gathered
@@ -215,7 +215,7 @@ conversation (`plan-assistant-research`).
    returns nothing). Judge each claim against the returned facts yourself
    and cite them. Send tier B through Creator to Researcher with
    `technic: claim-check` ([research
-   plan](../../assistant-pipeline/plan-assistant-research/SKILL.md)) for a
+   plan](../../pipeline/plan-assistant-research/SKILL.md)) for a
    claim that is the episode's central premise, concerns a real person's or
    company's conduct or intent, got no first-party source or conflicting ones
    in tier A, or that the user marks. Record the tier in each finding's
@@ -339,7 +339,7 @@ conversation (`plan-assistant-research`).
    If they waive it, use their wording.
 9. **Report, only when the user asks for one.** Release a Writer
    `write-document` unit through
-   [writing execution](../../assistant-pipeline/execute-assistant-writing/SKILL.md):
+   [writing execution](../../pipeline/execute-assistant-writing/SKILL.md):
    format `report`; reader the requester; purpose what the requester must
    decide or fix; sources the ledger path; `must_keep` every kept finding's
    time, quotes, figures and certainty, and the counts; `avoid` adding,

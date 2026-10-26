@@ -20,7 +20,7 @@ PROFILE_CRAFT = {
 
 
 def pipeline(profile):
-    return HERMES / "profiles" / profile / "skills" / f"{profile}-pipeline"
+    return HERMES / "profiles" / profile / "skills" / "pipeline"
 
 
 @pytest.mark.parametrize("profile", PROFILE_CRAFT)

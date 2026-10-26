@@ -498,9 +498,9 @@ skills:
     - ~/.agents/skills
     # Hands leaves, read for their forms and option references only; the
     # Assistant commissions them and the hands run them.
-    - ~/.hermes/profiles/image-creator/skills/image-creator-pipeline
-    - ~/.hermes/profiles/video-creator/skills/video-creator-pipeline
-    - ~/.hermes/profiles/audio-creator/skills/audio-creator-pipeline
+    - ~/.hermes/profiles/image-creator/skills/pipeline
+    - ~/.hermes/profiles/video-creator/skills/pipeline
+    - ~/.hermes/profiles/audio-creator/skills/pipeline
   create_dir: skills/learned
   disabled:
     # ~/.agents/skills is the harness-neutral store shared with OpenCode /

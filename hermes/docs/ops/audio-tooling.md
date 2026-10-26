@@ -35,7 +35,7 @@ a new output directory:
 
 ```sh
 hermes-python \
-  profiles/audio-creator/skills/audio-creator-pipeline/scripts/sfx-media.py \
+  profiles/audio-creator/skills/pipeline/scripts/sfx-media.py \
   synth --kind whoosh --seconds 0.5 --pitch 880 --seed 0 \
   --out /tmp/sfx-example --slug whoosh
 ```

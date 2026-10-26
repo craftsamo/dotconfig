@@ -10,7 +10,7 @@ entries, gate or topics. Part of the Hermes design docs — index:
 For non-creative work, the assistant is the quality gate. Every specialist
 deliverable (a resident session reply) is a candidate until the assistant has
 verified the actual artifact per the `qa-assistant-*` entries under
-`profiles/assistant/skills/assistant-pipeline/` and common QA
+`profiles/assistant/skills/pipeline/` and common QA
 (`references/quality-assurance/index.md`). Writing QA uses Writer's public
 acceptance contract ([writer.md](./writer.md) "Writer craft and independent
 editorial QA"), which is not copied into the Assistant's entries.

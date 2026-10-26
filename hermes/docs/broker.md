@@ -41,7 +41,7 @@ never as placeholder stubs:
 | Owner     | Path                                                 | Says                                                                                                                                                                                             |
 | --------- | ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Assistant | `execute-assistant-creative/references/<subject>.md` | transport (`inquiry` or `work`), the subject's round-trip (for example storyboard, approval, render), how each approval is relayed, the units it depends on, subject-specific budget and consent |
-| Creator   | `creator-pipeline/references/<hands>/<subject>.md`   | what the leaf can express: range, options, boundary with neighbouring leaves, where its examples live                                                                                            |
+| Creator   | `profiles/creator/skills/pipeline/references/<hands>/<subject>.md`   | what the leaf can express: range, options, boundary with neighbouring leaves, where its examples live                                                                                            |
 
 The hands leaf's front matter remains the only form; neither side copies forms,
 option lists, provider defaults, size tables or approval hashes. The Assistant

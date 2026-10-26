@@ -19,7 +19,7 @@ assert VALIDATOR_SPEC and VALIDATOR_SPEC.loader
 VALIDATOR = importlib.util.module_from_spec(VALIDATOR_SPEC)
 VALIDATOR_SPEC.loader.exec_module(VALIDATOR)
 
-VIDEO_PIPELINE = HERMES_ROOT / "profiles" / "video-creator" / "skills" / "video-creator-pipeline"
+VIDEO_PIPELINE = HERMES_ROOT / "profiles" / "video-creator" / "skills" / "pipeline"
 CREATE_AD = VIDEO_PIPELINE / "create" / "ad" / "SKILL.md"
 ANALYZE_AD = VIDEO_PIPELINE / "analyze" / "ad" / "SKILL.md"
 
@@ -64,7 +64,7 @@ class LeafValidatorTest(unittest.TestCase):
         errors: list[str] = []
         leaves_by_profile: dict[str, dict[str, Path]] = {}
         for profile_dir in (HERMES_ROOT / "profiles").iterdir():
-            pipeline = profile_dir / "skills" / f"{profile_dir.name}-pipeline"
+            pipeline = profile_dir / "skills" / "pipeline"
             if not pipeline.is_dir():
                 continue
             sub_errors: list[str] = []
@@ -77,9 +77,9 @@ class LeafValidatorTest(unittest.TestCase):
 
 # ── commissioning + video-creator config/pipeline describe create-ad / analyze-ad ─
 
-ASSISTANT_CREATIVE = (HERMES_ROOT / "profiles/assistant/skills/assistant-pipeline/"
+ASSISTANT_CREATIVE = (HERMES_ROOT / "profiles/assistant/skills/pipeline/"
                       "execute-assistant-creative")
-CREATOR_PIPELINE = HERMES_ROOT / "profiles/creator/skills/creator-pipeline"
+CREATOR_PIPELINE = HERMES_ROOT / "profiles/creator/skills/pipeline"
 
 
 class CommissioningAndVideoConfigTest(unittest.TestCase):
@@ -151,7 +151,7 @@ class CommissioningAndVideoConfigTest(unittest.TestCase):
         profiles_md = " ".join((HERMES_ROOT / "docs" / "hands" / "video.md").read_text().split())
         self.assertIn("A generated ad is not a leaf", profiles_md)
         self.assertNotIn("generate-ad` is planned", profiles_md)
-        leaves = {p.parent.name for p in (HERMES_ROOT / "profiles/video-creator/skills/video-creator-pipeline")
+        leaves = {p.parent.name for p in (HERMES_ROOT / "profiles/video-creator/skills/pipeline")
                   .glob("generate/*/SKILL.md")}
         self.assertNotIn("ad", leaves)
 
