@@ -312,7 +312,8 @@ it also blocks any value read or change of an item in the `hermes` project
 (`secret get|set|update|rm|import|env … -p hermes`) and the Keychain's own
 password reads; `secret ls` and `secret show` (metadata only) stay open. File
 tools may still read the plugin source, and the browser may still open the
-Cloudflare dashboard. Patterns: `_TERMINAL` and `_STORE` in
+Cloudflare dashboard. Patterns: `CLIS` (read by command position, with
+`_CLI_TEXT` for a line that cannot be read that way), `_TERMINAL` and `_STORE` in
 `plugins/cloudflare-access/cfa.py`. Shared rules:
 [bypass guard](access-common.md#bypass-guard-ways-around-the-tool). The toolset
 is in an `a2a` platform toolset only where `A2A` lists actions (Researcher,

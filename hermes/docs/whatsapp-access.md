@@ -169,7 +169,8 @@ is tried only through a chat where a card reaches the user.
 The same hook blocks terminal commands that run `wacli`, and terminal or
 file-tool calls whose command, working directory or path names the store, the
 sync launcher, agent or log, a `WACLI_` variable or the outbox. Patterns:
-`_CLI`, `_PATHS` and `_ENGINE` in `plugins/messaging/whatsapp-access/wa.py`
+`CLIS` (read by command position, with `_CLI` for a line that cannot be read
+that way), `_PATHS` and `_ENGINE` in `plugins/messaging/whatsapp-access/wa.py`
 (they also keep matching the agent's earlier names). Shared rules:
 [bypass guard](access-common.md#bypass-guard-ways-around-the-tool).
 

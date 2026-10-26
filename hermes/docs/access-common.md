@@ -160,6 +160,19 @@ a pattern match on the call's text, not a sandbox: the approval gate is a
 guarantee for the tool and a policy for everything else. The patterns live in
 each plugin's module (named in its doc); never copy them into docs.
 
+A CLI the plugin owns (`gcloud`, `wrangler`, `stripe`, `signal-cli`, `wacli`)
+counts where a command runs it: `plugins/_shared/shell_commands.py` reads the
+line as a shell would (quotes, separators, substitutions, `bash -c`, `eval`,
+`trap`, wrappers such as `env` or `sudo`, package runners such as `npx` and
+`pnpm exec`). A mention passes as an argument of a command known to treat its
+arguments as data (`grep -n 'gcloud auth' scripts/deploy.sh`, `sed`, `cat`,
+`echo`, `git log`), so reading a project's scripts and docs is never a way
+around. The plugin's strict pattern judges the whole line instead when
+another command names a CLI in its arguments (`ssh host gcloud`, an inline
+`python -c`), or when the reader cannot follow the line (a here-document, a
+command name from an expansion, a shell or interpreter reading its code from
+input).
+
 ## Setup (shared)
 
 - Store a credential with `secret set NAME -p hermes --scope S [-D KIND]`,
