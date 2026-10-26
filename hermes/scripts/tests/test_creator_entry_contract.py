@@ -21,7 +21,7 @@ RETIRED_ENTRIES = ("plan-creator", "build-creator", "qa-creator")
 
 
 def pipeline(profile):
-    return ROOT / f"profiles/{profile}/skills/{profile}-pipeline"
+    return ROOT / f"profiles/{profile}/skills/pipeline"
 
 
 def text(path):
@@ -117,9 +117,9 @@ def test_creator_turn_selection_and_retired_paths():
         assert required in prompt, required
     skills = ROOT / "profiles/creator/skills"
     for entry in RETIRED_ENTRIES:
-        assert not (skills / "creator-pipeline" / entry).exists()
+        assert not (skills / "pipeline" / entry).exists()
     for retired in ("capabilities.md", "craft.md", "legacy"):
-        assert not (skills / "creator-pipeline/references" / retired).exists()
+        assert not (skills / "pipeline/references" / retired).exists()
     assert not any(p.is_file() and p.name != ".gitkeep" for p in (skills / "technic").rglob("*"))
     for path in skills.rglob("*.md"):
         body = text(path)
@@ -143,7 +143,7 @@ def test_creator_config_has_no_generation_or_hands_reach():
     assert not config.get("platforms", {}).get("telegram")
     external = [str(p) for p in config["skills"]["external_dirs"]]
     for hands in ("image-creator", "video-creator", "audio-creator"):
-        assert f"~/.hermes/profiles/{hands}/skills/{hands}-pipeline" in external
+        assert f"~/.hermes/profiles/{hands}/skills/pipeline" in external
 
 
 def test_creator_names_motion_by_feel_and_tell():

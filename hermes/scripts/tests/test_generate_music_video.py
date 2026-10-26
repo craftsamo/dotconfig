@@ -28,13 +28,13 @@ VALIDATOR = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(VALIDATOR)
 
 PIPELINE_DIR = (
-    VALIDATOR.HERMES_ROOT / "profiles" / "video-creator" / "skills" / "video-creator-pipeline"
+    VALIDATOR.HERMES_ROOT / "profiles" / "video-creator" / "skills" / "pipeline"
 )
 MUSIC_VIDEO_LEAF_DIR = PIPELINE_DIR / "generate" / "music-video"
 MUSIC_VIDEO_SKILL = MUSIC_VIDEO_LEAF_DIR / "SKILL.md"
-CREATOR_PIPELINE = VALIDATOR.HERMES_ROOT / "profiles" / "creator" / "skills" / "creator-pipeline"
+CREATOR_PIPELINE = VALIDATOR.HERMES_ROOT / "profiles" / "creator" / "skills" / "pipeline"
 COMMISSIONING = (
-    VALIDATOR.HERMES_ROOT / "profiles" / "assistant" / "skills" / "assistant-pipeline"
+    VALIDATOR.HERMES_ROOT / "profiles" / "assistant" / "skills" / "pipeline"
     / "execute-assistant-creative"
 )
 
@@ -46,7 +46,7 @@ class GenerateMusicVideoLeafTest(unittest.TestCase):
         errors: list[str] = []
         by_profile = {
             p: VALIDATOR.validate_hands_leaves(
-                VALIDATOR.HERMES_ROOT / "profiles" / p / "skills" / f"{p}-pipeline", p, errors
+                VALIDATOR.HERMES_ROOT / "profiles" / p / "skills" / "pipeline", p, errors
             )
             for p in VALIDATOR.HANDS_PROFILES
         }
@@ -240,7 +240,7 @@ class MusicVideoRootAndRoutingTest(unittest.TestCase):
         for relative in (
             "creator/config.example.yaml", "creator/profile.yaml",
             "video-creator/config.example.yaml", "video-creator/profile.yaml",
-            "video-creator/skills/video-creator-pipeline/SKILL.md",
+            "video-creator/skills/pipeline/SKILL.md",
         ):
             with self.subTest(path=relative):
                 text = (VALIDATOR.HERMES_ROOT / "profiles" / relative).read_text(

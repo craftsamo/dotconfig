@@ -18,7 +18,7 @@ from pathlib import Path
 
 
 HERMES = Path(__file__).resolve().parents[2]
-PIPELINE = HERMES / "profiles/searcher/skills/searcher-pipeline"
+PIPELINE = HERMES / "profiles/searcher/skills/pipeline"
 PLUGIN = HERMES / "plugins/orchestration/specialist-call/__init__.py"
 
 spec = importlib.util.spec_from_file_location("specialist_call_reliability", PLUGIN)

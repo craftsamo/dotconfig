@@ -7,7 +7,7 @@ import hermes_yaml as yaml
 
 
 HERMES = Path(__file__).resolve().parents[2]
-PIPELINE = HERMES / "profiles/writer/skills/writer-pipeline"
+PIPELINE = HERMES / "profiles/writer/skills/pipeline"
 RETIRED = ["legacy.md", "assess.md", "prose.md", "script.md", "review.md"]
 
 

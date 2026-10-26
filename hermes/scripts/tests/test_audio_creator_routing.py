@@ -29,7 +29,7 @@ class AudioCreatorRoutingTest(unittest.TestCase):
             (HERMES_ROOT / "profiles" / "assistant" / "config.example.yaml").read_text()
         )
         cls.commissioning = (
-            HERMES_ROOT / "profiles" / "assistant" / "skills" / "assistant-pipeline"
+            HERMES_ROOT / "profiles" / "assistant" / "skills" / "pipeline"
             / "execute-assistant-creative"
         )
 
@@ -40,7 +40,7 @@ class AudioCreatorRoutingTest(unittest.TestCase):
         self.assertEqual(9909, self.audio["platforms"]["a2a"]["extra"]["port"])
         self.assertIn("audio-creator", self.assistant["specialist_call"]["resident_targets"])
         self.assertIn(
-            "~/.hermes/profiles/audio-creator/skills/audio-creator-pipeline",
+            "~/.hermes/profiles/audio-creator/skills/pipeline",
             self.assistant["skills"]["external_dirs"],
         )
         # Creator is an advisor: no audio-creator peer, target or skills of its own to commission.
@@ -84,7 +84,7 @@ class AudioCreatorRoutingTest(unittest.TestCase):
             self.assertEqual("", provider.get("api_key", ""))
 
     def test_pipeline_leaves_are_speech_and_sfx_no_source(self) -> None:
-        pipeline = HERMES_ROOT / "profiles" / "audio-creator" / "skills" / "audio-creator-pipeline"
+        pipeline = HERMES_ROOT / "profiles" / "audio-creator" / "skills" / "pipeline"
         for verb in ("generate", "edit", "analyze"):
             self.assertTrue((pipeline / verb / "speech" / "SKILL.md").is_file())
         for verb in ("create", "generate", "edit", "analyze"):
@@ -102,7 +102,7 @@ class AudioCreatorRoutingTest(unittest.TestCase):
 
     def test_music_family_leaves_and_toolset(self) -> None:
         """New music subject: served, AudioCreator-only, no song/mix scope creep."""
-        pipeline = HERMES_ROOT / "profiles" / "audio-creator" / "skills" / "audio-creator-pipeline"
+        pipeline = HERMES_ROOT / "profiles" / "audio-creator" / "skills" / "pipeline"
         for verb in ("create", "generate", "edit", "analyze"):
             self.assertTrue((pipeline / verb / "music" / "SKILL.md").is_file())
         self.assertIn("music_gen", set(self.audio["toolsets"]))
@@ -128,7 +128,7 @@ class AudioCreatorRoutingTest(unittest.TestCase):
         for leaf in ("create-music", "generate-music", "edit-music", "analyze-music"):
             self.assertIn(f"`{leaf}`", commission)
         advisor = (
-            HERMES_ROOT / "profiles" / "creator" / "skills" / "creator-pipeline"
+            HERMES_ROOT / "profiles" / "creator" / "skills" / "pipeline"
             / "references" / "audio-creator" / "music.md"
         ).read_text()
         self.assertIn("generate-music", advisor)
@@ -154,7 +154,7 @@ class AudioCreatorRoutingTest(unittest.TestCase):
             / "profiles"
             / "assistant"
             / "skills"
-            / "assistant-pipeline"
+            / "pipeline"
             / "references"
         )
         index = references / "execute" / "creative" / "index.md"
@@ -173,7 +173,7 @@ class AudioCreatorRoutingTest(unittest.TestCase):
         and the skill falls back to its parent directory name ('music') for all four leaves."""
         from agent.skill_utils import parse_frontmatter
 
-        pipeline = HERMES_ROOT / "profiles" / "audio-creator" / "skills" / "audio-creator-pipeline"
+        pipeline = HERMES_ROOT / "profiles" / "audio-creator" / "skills" / "pipeline"
         expected_names = {
             "create": "create-music",
             "generate": "generate-music",
@@ -193,7 +193,7 @@ class AudioCreatorRoutingTest(unittest.TestCase):
 
         from .skill_roots import find_all_skills, search_dirs_name, search_dirs_result
 
-        pipeline = HERMES_ROOT / "profiles" / "audio-creator" / "skills" / "audio-creator-pipeline"
+        pipeline = HERMES_ROOT / "profiles" / "audio-creator" / "skills" / "pipeline"
         with patch.object(skills_tool, search_dirs_name(), return_value=search_dirs_result(pipeline)), \
              patch.object(skills_tool, "_get_disabled_skill_names", return_value=set()), \
              patch.object(skills_tool, "_SKILLS_CACHE", {}):

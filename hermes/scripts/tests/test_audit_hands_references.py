@@ -16,7 +16,7 @@ SCRIPT = Path(__file__).resolve().parents[1] / "audit-hands-references.py"
 HERMES_ROOT = SCRIPT.parents[1]
 REPO_ROOT = HERMES_ROOT.parent
 REAL_CARD_ROOT = (
-    HERMES_ROOT / "profiles" / "image-creator" / "skills" / "image-creator-pipeline"
+    HERMES_ROOT / "profiles" / "image-creator" / "skills" / "pipeline"
 )
 
 SPEC = importlib.util.spec_from_file_location("audit_hands_references", SCRIPT)
@@ -85,7 +85,7 @@ class FixtureTreeCase(unittest.TestCase):
         self._tmp.cleanup()
 
     def profile_pipeline(self, profile: str = "image-creator") -> Path:
-        return self.root / "hermes" / "profiles" / profile / "skills" / f"{profile}-pipeline"
+        return self.root / "hermes" / "profiles" / profile / "skills" / "pipeline"
 
     def write_leaf(
         self, verb: str, subject: str, form_yaml: str, profile: str = "image-creator",
@@ -367,7 +367,7 @@ class ReferenceCatalogTest(FixtureTreeCase):
 class LeafFlagTest(FixtureTreeCase):
     def test_rejects_missing_directory(self) -> None:
         with self.assertRaises(AUDIT.InvalidInvocation):
-            AUDIT.audit(self.root, "hermes/profiles/image-creator/skills/image-creator-pipeline/create/nope")
+            AUDIT.audit(self.root, "hermes/profiles/image-creator/skills/pipeline/create/nope")
 
     def test_rejects_directory_outside_root(self) -> None:
         outside = Path(self._tmp.name).parent
@@ -380,7 +380,7 @@ class LeafFlagTest(FixtureTreeCase):
         )
         # A dir one level too shallow (verb only, no subject/SKILL.md).
         with self.assertRaises(AUDIT.InvalidInvocation):
-            AUDIT.audit(self.root, "hermes/profiles/image-creator/skills/image-creator-pipeline/create")
+            AUDIT.audit(self.root, "hermes/profiles/image-creator/skills/pipeline/create")
 
     def test_scopes_to_one_leaf(self) -> None:
         self.write_leaf(
@@ -390,7 +390,7 @@ class LeafFlagTest(FixtureTreeCase):
             "create", "gadget", "      style:\n        required: true\n        options: [alpha]\n"
         )
         findings = AUDIT.audit(
-            self.root, "hermes/profiles/image-creator/skills/image-creator-pipeline/create/widget"
+            self.root, "hermes/profiles/image-creator/skills/pipeline/create/widget"
         )
         # Only widget's missing-backed-option is reported, not gadget's.
         self.assertTrue(
@@ -767,7 +767,7 @@ class CardAdapterTest(FixtureTreeCase):
         # explicitly rather than stay silent (which would read as "passed").
         findings = AUDIT.audit(
             self.root,
-            "hermes/profiles/image-creator/skills/image-creator-pipeline/create/card",
+            "hermes/profiles/image-creator/skills/pipeline/create/card",
         )
         codes = {(f["severity"], f["code"]) for f in findings.items}
         self.assertIn(("warning", "card-style-parity-unverified"), codes)
@@ -859,7 +859,7 @@ class RealTreeTest(unittest.TestCase):
     def test_real_card_leaf_scoped(self) -> None:
         findings = AUDIT.audit(
             REPO_ROOT,
-            "hermes/profiles/image-creator/skills/image-creator-pipeline/create/card",
+            "hermes/profiles/image-creator/skills/pipeline/create/card",
         )
         errors = [f for f in findings.items if f["severity"] == "error"]
         self.assertEqual([], errors)

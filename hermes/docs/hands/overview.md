@@ -51,7 +51,7 @@ reopened service-side draft are separate facts.
 
 ```
 profiles/<hands>/skills/
-  <hands>-pipeline/
+  pipeline/                  # skill <hands>-pipeline
     SKILL.md                 # <=40 lines: validate form -> load leaf -> run -> QA -> report
     scripts/                 # helpers shared by several leaves (e.g. img-postprocess.sh)
     <verb>/<subject>/

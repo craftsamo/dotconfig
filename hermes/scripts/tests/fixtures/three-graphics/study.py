@@ -8,7 +8,7 @@ from types import SimpleNamespace
 
 HERE = Path(__file__).resolve().parent
 HERMES = HERE.parents[3]
-PIPELINE = HERMES / "profiles/video-creator/skills/video-creator-pipeline"
+PIPELINE = HERMES / "profiles/video-creator/skills/pipeline"
 sys.path.insert(0, str(PIPELINE / "scripts"))
 spec = importlib.util.spec_from_file_location("three_study_ad", PIPELINE / "create/ad/scripts/ad-render.py")
 ad = importlib.util.module_from_spec(spec)

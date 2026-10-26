@@ -15,7 +15,7 @@ import pytest
 
 np = pytest.importorskip("numpy", reason="needs numpy, absent from the Hermes test environment")
 
-SCRIPT = Path(__file__).resolve().parents[2] / "profiles/audio-creator/skills/audio-creator-pipeline/scripts/music-media.py"
+SCRIPT = Path(__file__).resolve().parents[2] / "profiles/audio-creator/skills/pipeline/scripts/music-media.py"
 pytestmark = pytest.mark.skipif(not (shutil.which("ffmpeg") and shutil.which("ffprobe")), reason="ffmpeg/ffprobe required")
 
 

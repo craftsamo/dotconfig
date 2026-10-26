@@ -9,7 +9,7 @@ import pytest
 import hermes_yaml as yaml
 
 HERMES_ROOT = Path(__file__).resolve().parents[2]
-PIPELINE = HERMES_ROOT / "profiles/video-creator/skills/video-creator-pipeline"
+PIPELINE = HERMES_ROOT / "profiles/video-creator/skills/pipeline"
 
 spec = importlib.util.spec_from_file_location("frame_rate", PIPELINE / "scripts/frame_rate.py")
 frame_rate = importlib.util.module_from_spec(spec)

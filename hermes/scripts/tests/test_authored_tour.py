@@ -10,7 +10,7 @@ import hermes_yaml as yaml
 from PIL import Image
 
 ROOT = Path(__file__).resolve().parents[2]
-LEAF = ROOT / "profiles/video-creator/skills/video-creator-pipeline/create/tour"
+LEAF = ROOT / "profiles/video-creator/skills/pipeline/create/tour"
 sys.path.insert(0, str(LEAF / "scripts"))
 import authored
 
@@ -235,11 +235,11 @@ def test_reference_fields_are_open_ended():
 
 
 def test_assistant_commissions_authored_tours_and_creator_only_advises():
-    commission = (ROOT / "profiles/assistant/skills/assistant-pipeline/execute-assistant-creative/references/tour.md").read_text()
+    commission = (ROOT / "profiles/assistant/skills/pipeline/execute-assistant-creative/references/tour.md").read_text()
     assert "| `create-tour` |" in commission
     assert 'kind="work"' in commission
     assert "task-local" in commission and "Explicit none is the only omission instruction" in commission
-    advisor = (ROOT / "profiles/creator/skills/creator-pipeline/references/video-creator/tour.md").read_text()
+    advisor = (ROOT / "profiles/creator/skills/pipeline/references/video-creator/tour.md").read_text()
     assert "create-tour" in advisor
     config = yaml.safe_load((ROOT / "profiles/creator/config.example.yaml").read_text())
     assert config["specialist_call"]["resident_targets"] == ["researcher", "searcher"]

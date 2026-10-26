@@ -41,7 +41,7 @@ def test_creator_entry_runtime_offline_mechanical(case):
     if source is None:
         pytest.fail("PYTHONPATH must explicitly include the local Hermes source checkout")
     for profile in ("creator", *HANDS):
-        assert (candidate / f"profiles/{profile}/skills/{profile}-pipeline/SKILL.md").is_file()
+        assert (candidate / f"profiles/{profile}/skills/pipeline/SKILL.md").is_file()
     with tempfile.TemporaryDirectory(prefix="creator-entry-runtime-") as directory:
         sandbox = Path(directory).resolve()
         home = sandbox / "home"
@@ -79,7 +79,7 @@ def _child(case, sandbox, candidate, source):
     assert Path(os.environ["HERMES_HOME"]).resolve() == home / ".hermes"
     assert not any(name == "agent" or name.startswith("tools.") for name in sys.modules)
     candidate_trees = {
-        profile: candidate / f"profiles/{profile}/skills/{profile}-pipeline"
+        profile: candidate / f"profiles/{profile}/skills/pipeline"
         for profile in ("creator", *HANDS)
     }
     code_roots = (source, Path(sys.base_prefix).resolve(), Path(sys.prefix).resolve(),
@@ -122,7 +122,7 @@ def _child(case, sandbox, candidate, source):
         skills = home / ".hermes/skills"
         trees = {}
         for profile, original in candidate_trees.items():
-            tree = (skills if profile == owner else sandbox / "external") / original.name
+            tree = (skills if profile == owner else sandbox / "external" / profile) / original.name
             trees[profile] = tree
             for path in original.rglob("*.md"):
                 assert not path.is_symlink() and path.resolve().is_relative_to(original)

@@ -30,7 +30,7 @@ ENTRIES = {"plan-marketer", "review-marketer", "analyze-marketer"}
 EXPECTED = ENTRIES | {"marketer-pipeline"}
 ALLOW = {"skills_list", "skill_view", "read_file"}
 CASES = ("discovery", "entry_reads", "contained_paths", "dedup_reset", "index_cache")
-TREE = Path("hermes/profiles/marketer/skills/marketer-pipeline")
+TREE = Path("hermes/profiles/marketer/skills/pipeline")
 # Each entry is its mode procedure; state, platforms, X ranking and browsing stay shared.
 OWN_REF = {"review-marketer": "references/content.md", "analyze-marketer": "references/measurement.md"}
 
@@ -127,7 +127,7 @@ def _child(case, sandbox, candidate_tree, source):
             stack.enter_context(patch.object(socket, name, deny_network))
 
         skills = home / ".hermes/skills"
-        tree = skills / "marketer-pipeline"
+        tree = skills / "pipeline"
         for path in candidate_tree.rglob("*.md"):
             assert not path.is_symlink() and path.resolve().is_relative_to(candidate_tree)
             target = tree / path.relative_to(candidate_tree)

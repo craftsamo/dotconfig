@@ -20,7 +20,7 @@ request for either is `no skill fits`, never routed to a core/external stand-in.
 
 ## Speech family
 
-Three leaves under `audio-creator-pipeline/<verb>/speech/`, not a second menu
+Three leaves under `profiles/audio-creator/skills/pipeline/<verb>/speech/`, not a second menu
 system. Profiles with ordinary conversational TTS use it for their own replies
 only, never as a speech-asset bypass.
 
@@ -111,7 +111,7 @@ direct CLI synthesis cannot detect that gateway-specific loss;
 
 ## SFX family
 
-SFX is a separate four-leaf subject under `audio-creator-pipeline/<verb>/sfx/`,
+SFX is a separate four-leaf subject under `profiles/audio-creator/skills/pipeline/<verb>/sfx/`,
 not a music or mix family, and adds no profile, peer, gain automation or TTS.
 
 - `create-sfx`: deterministic local kernels; the seed controls noise, not a
@@ -178,7 +178,7 @@ mutate the runtime, and there is never a second engine, install or daemon.
 ## Music family
 
 Music is instrumental BGM or a short melodic opener/closer under
-`audio-creator-pipeline/<verb>/music/` — not Song and not Mix. A full song with
+`profiles/audio-creator/skills/pipeline/<verb>/music/` — not Song and not Mix. A full song with
 lyrics/singing or standalone sound design is `no skill fits`, never
 approximated by a music leaf; combining finished sources is "Mix family" below.
 Music adds no profile, peer, secret, model download or launch service.
@@ -220,7 +220,7 @@ the music proposal CLI's guard-plus-proposal regression for that case.
 ## Mix family
 
 Mix places already-finished sources on one shared timeline under
-`audio-creator-pipeline/<verb>/mix/`. It is not synthesis and not a music/SFX
+`profiles/audio-creator/skills/pipeline/<verb>/mix/`. It is not synthesis and not a music/SFX
 family: no generation, loops, speed/pitch changes, EQ, reverb, source
 separation or video assembly — a request needing those routes to the fitting
 leaf first, and a music/SFX leaf is still not itself a mixer. Mix adds no

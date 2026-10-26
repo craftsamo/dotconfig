@@ -7,7 +7,7 @@ import shutil
 import sys
 from pathlib import Path
 
-LEAF = Path(__file__).resolve().parents[4] / "profiles/video-creator/skills/video-creator-pipeline/create/ad"
+LEAF = Path(__file__).resolve().parents[4] / "profiles/video-creator/skills/pipeline/create/ad"
 TOUR_LEAF = LEAF.parent / "tour"
 
 

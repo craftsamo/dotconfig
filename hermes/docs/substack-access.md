@@ -18,7 +18,7 @@ Hermes design docs — index: [`PROFILES.md`](../PROFILES.md).
 | `substack` tool and its `pre_tool_call` hooks (toolset `substack_access`)                                                          | `plugins/social/substack-access/__init__.py`             | Assistant, Marketer |
 | Engine venv                                                                                                                        | `scripts/substack-access.sh`, `engines/python-substack/` | people              |
 | When and how the Assistant uses it                                                                                                 | the Assistant's private Chat reference `substack.md`     | Assistant           |
-| When Marketer may read with it                                                                                                     | `marketer-pipeline/references/platforms/substack.md`     | Marketer            |
+| When Marketer may read with it                                                                                                     | `profiles/marketer/skills/pipeline/references/platforms/substack.md`     | Marketer            |
 
 Substack has no general API for this: its Developer API covers public profile
 data and its official MCP server reads analytics of Bestseller publications

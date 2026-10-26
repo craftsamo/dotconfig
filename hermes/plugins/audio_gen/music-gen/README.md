@@ -24,7 +24,7 @@ traversing and symlinked paths are rejected. An existing job is never replaced.
 Do not put job state or media in this source directory.
 
 The plugin dynamically imports
-`profiles/audio-creator/skills/audio-creator-pipeline/scripts/music_plan.py`
+`profiles/audio-creator/skills/pipeline/scripts/music_plan.py`
 and calls `load_approved(path, sha256, "generate")`. Its returned version-1
 manifest must contain `kind: generate`, `form`, `settings`, `artifact_text`,
 `artifact_sha256`, `approval_sha256`, and `approved_plan`. The helper owns

@@ -10,7 +10,7 @@ import pytest
 import hermes_yaml as yaml
 
 ROOT = Path(__file__).resolve().parents[2]
-PIPELINE = ROOT / "profiles/video-creator/skills/video-creator-pipeline"
+PIPELINE = ROOT / "profiles/video-creator/skills/pipeline"
 spec = importlib.util.spec_from_file_location("three_graphics_test", PIPELINE / "scripts/three_graphics.py")
 graphics = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(graphics)

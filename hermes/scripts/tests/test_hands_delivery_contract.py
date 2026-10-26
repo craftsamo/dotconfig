@@ -44,7 +44,7 @@ def test_delivery_policy_does_not_expand_authority(profile):
 
 def test_assistant_handoff_uses_the_same_nested_shape():
     text = " ".join((
-        ROOT / "profiles/assistant/skills/assistant-pipeline/execute-assistant-creative/SKILL.md"
+        ROOT / "profiles/assistant/skills/pipeline/execute-assistant-creative/SKILL.md"
     ).read_text().split())
     assert "`.agent/<YYYYMMDD>-<job>/` (or a job-owned subdirectory)" in text
     assert "`~/Workspaces/.agent/<YYYYMMDD>-<job>/`" in text
@@ -55,7 +55,7 @@ def test_assistant_handoff_uses_the_same_nested_shape():
 
 def test_creator_does_not_dictate_delivery_paths():
     text = " ".join((
-        ROOT / "profiles/creator/skills/creator-pipeline/SKILL.md"
+        ROOT / "profiles/creator/skills/pipeline/SKILL.md"
     ).read_text().split())
     assert "leaves `deliver:` and `budget:` for the Assistant to fill when unknown" in text
     assert "Never write into a deliverable or a `deliver:` directory" in text

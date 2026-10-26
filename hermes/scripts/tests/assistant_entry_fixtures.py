@@ -14,7 +14,7 @@ def entry_text(name, routes=()):
         "name": name,
         "description": phase.replace("-", " ").title() + domain + " entry.",
         "version": "1.0.0",
-        "metadata": {"hermes": {"category": "assistant-pipeline"}},
+        "metadata": {"hermes": {"category": "pipeline"}},
     }
     paths = ["SKILL.md"]
     calls = ['skill_view(name="assistant-pipeline")']

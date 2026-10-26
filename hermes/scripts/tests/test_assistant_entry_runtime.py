@@ -46,7 +46,7 @@ CASES = (
     "writer_missing_skill", "writer_missing_file", "dedup_reset",
     "proactive_prune", "index_cache", "relocation",
 )
-TREE = Path("hermes/profiles/assistant/skills/assistant-pipeline")
+TREE = Path("hermes/profiles/assistant/skills/pipeline")
 
 
 @pytest.mark.parametrize("case", CASES)
@@ -157,7 +157,7 @@ def _child(case, sandbox, candidate_tree, source):
             stack.enter_context(patch.object(socket, name, deny_network))
 
         skills = home / ".hermes/skills"
-        tree = skills / "assistant-pipeline"
+        tree = skills / "pipeline"
         for path in candidate_tree.rglob("*.md"):
             assert not path.is_symlink() and path.resolve().is_relative_to(candidate_tree)
             target = tree / path.relative_to(candidate_tree)
@@ -426,7 +426,7 @@ def _child(case, sandbox, candidate_tree, source):
                     assert set(rows(index())) == EXPECTED
                     assert {s["name"] for s in find_all_skills()} == EXPECTED
                     for name in sorted(ENTRIES):
-                        target = moved_home / "skills/assistant-pipeline" / name / "SKILL.md"
+                        target = moved_home / "skills/pipeline" / name / "SKILL.md"
                         result = view(name, task="moved-namespace-only")
                         body_matches(result, target, rendered=True)
                         assert result["skill_dir"] == str(target.parent)

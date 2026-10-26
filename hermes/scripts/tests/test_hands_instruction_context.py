@@ -17,7 +17,7 @@ HANDS = ("image-creator", "video-creator", "audio-creator")
 
 
 def pipeline(profile):
-    return ROOT / f"profiles/{profile}/skills/{profile}-pipeline"
+    return ROOT / f"profiles/{profile}/skills/pipeline"
 
 
 def text(path):

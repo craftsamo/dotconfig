@@ -18,7 +18,7 @@ import unittest
 from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[2]
-HELPER = ROOT / "profiles/image-creator/skills/image-creator-pipeline/scripts/card.py"
+HELPER = ROOT / "profiles/image-creator/skills/pipeline/scripts/card.py"
 MODULE = importlib.util.spec_from_file_location("card", HELPER)
 card = importlib.util.module_from_spec(MODULE)
 MODULE.loader.exec_module(card)

@@ -6,7 +6,7 @@ import pytest
 import hermes_yaml as yaml
 
 
-PIPELINE = Path(__file__).resolve().parents[2] / "profiles/writer/skills/writer-pipeline"
+PIPELINE = Path(__file__).resolve().parents[2] / "profiles/writer/skills/pipeline"
 CHANNELS = ["email", "chat", "notification", "ui", "error"]
 CRAFT = {
     "email": ("subject", "sender stance", "requested reply", "refusal"),

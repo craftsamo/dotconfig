@@ -136,7 +136,7 @@ class HandsRuntimeDiscoveryTest(unittest.TestCase):
     the runtime discovery cutoff."""
 
     def _installed_leaves(self, profile: str) -> dict[str, Path]:
-        pipeline = VALIDATOR.HERMES_ROOT / "profiles" / profile / "skills" / f"{profile}-pipeline"
+        pipeline = VALIDATOR.HERMES_ROOT / "profiles" / profile / "skills" / "pipeline"
         leaves: dict[str, Path] = {}
         for path in sorted(pipeline.rglob("SKILL.md")):
             rel = path.relative_to(pipeline)
@@ -153,7 +153,7 @@ class HandsRuntimeDiscoveryTest(unittest.TestCase):
 
         for profile in VALIDATOR.HANDS_PROFILES:
             with self.subTest(profile=profile):
-                pipeline = VALIDATOR.HERMES_ROOT / "profiles" / profile / "skills" / f"{profile}-pipeline"
+                pipeline = VALIDATOR.HERMES_ROOT / "profiles" / profile / "skills" / "pipeline"
                 expected = self._installed_leaves(profile)
                 self.assertTrue(expected, f"{profile} must have installed hands leaves to discover")
                 with patch.object(skills_tool, search_dirs_name(), return_value=search_dirs_result(pipeline)), \

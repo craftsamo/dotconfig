@@ -6,7 +6,7 @@ import pytest
 import hermes_yaml as yaml
 
 
-PIPELINE = Path(__file__).resolve().parents[2] / "profiles/writer/skills/writer-pipeline"
+PIPELINE = Path(__file__).resolve().parents[2] / "profiles/writer/skills/pipeline"
 FORMATS = [
     "readme", "guide", "reference", "report", "minutes", "proposal",
     "slides", "release-notes", "issue",

@@ -10,7 +10,7 @@ Every approval below follows the one rule in [`broker.md`](../broker.md)
 "Approvals, budget and consent": relayed by the Assistant in the same
 conversation, binding bytes, not approver identity. Forms, options and flags:
 each leaf's `SKILL.md` and `references/` under
-`profiles/video-creator/skills/video-creator-pipeline/`.
+`profiles/video-creator/skills/pipeline/`.
 
 ## Ad family
 
@@ -52,7 +52,7 @@ a stray file (e.g. `.DS_Store`) under a frozen root to make a rescan pass.
 
 ## Music-video family
 
-`video-creator-pipeline/generate/music-video/` serves `generate-music-video`.
+`profiles/video-creator/skills/pipeline/generate/music-video/` serves `generate-music-video`.
 MV is a deliverable, not a collection of character/format skill products: a
 short MV-style progression with performance, a coherent world and highlights,
 unlike clip's silent single shot. No new provider, wrapper, endpoint, TTS or
@@ -107,7 +107,7 @@ why: [`AGENTS.md`](../../AGENTS.md) "Skills"). They are separate from the
 knowledge-only craft pins ([`overview.md`](./overview.md) "Media craft
 knowledge"). Only `create-tour`, `create-ad`, `create-promotion`,
 `create-story` and the HyperFrames path of `create-explainer-video` may consult
-them, per `video-creator-pipeline/references/hyperframes.md`; clip, MV and
+them, per `profiles/video-creator/skills/pipeline/references/hyperframes.md`; clip, MV and
 analyze-ad do not, and Motion Canvas uses only its own local reference.
 
 They are optional, read-only background — never a new approval gate, workflow
@@ -118,7 +118,7 @@ locally; a real CLI/dependency failure or failed approval check still blocks.
 
 **Frame rate.** The authored HyperFrames leaves (promotion, story, ad, tour,
 explainer's HyperFrames path) render at a rate from the one list in
-`video-creator-pipeline/scripts/frame_rate.py`. Omitted means 30 and is never
+`profiles/video-creator/skills/pipeline/scripts/frame_rate.py`. Omitted means 30 and is never
 written into a plan, so frozen plans, proposals and forms keep their bytes and
 hashes. The rate is part of the approved plan: a change needs a new approval,
 like a changed aspect. Promotion and story drafts render capped at 30 (GSAP
@@ -145,7 +145,7 @@ Why: "Storyboard vocabulary" under the Promotion family.
 **Three graphics** is an opt-in (`graphics: three-webgl2`) on create-tour,
 create-ad and the HyperFrames path of create-explainer-video — not a third
 explainer renderer or a new video subject; details in
-`video-creator-pipeline/references/three-graphics.md`. Rules to keep:
+`profiles/video-creator/skills/pipeline/references/three-graphics.md`. Rules to keep:
 
 - The engine pins its own toolchain and a dedicated cloned browser
   (`engines/three-webgl/`); never use or downgrade the mutable global CLI for
@@ -158,7 +158,7 @@ explainer renderer or a new video subject; details in
 
 ## Tour family
 
-`video-creator-pipeline/create/tour/` serves `create-tour`: bounded
+`profiles/video-creator/skills/pipeline/create/tour/` serves `create-tour`: bounded
 task-local authored UI walkthroughs — recreate from reference/design/text, edit
 supplied local footage, or capture an explicitly approved sanitized Web demo —
 with frozen source projects and exclusive preview/final directories. It is not
@@ -229,7 +229,7 @@ separate final gate.
 
 ## Explainer-video family
 
-`video-creator-pipeline/create/explainer-video/` serves `create-explainer-video`:
+`profiles/video-creator/skills/pipeline/create/explainer-video/` serves `create-explainer-video`:
 a bounded local-authored explanation of a topic, for an audience, toward a
 `learning_goal` — never a UI walkthrough (`create-tour`), an ad (`create-ad`), a
 model-generated MV (`generate-music-video`) or a talking-model product. Always
@@ -308,7 +308,7 @@ reported as not run, never trimmed to fit. Always `kind="work"`.
 
 ## Promotion family
 
-`video-creator-pipeline/create/promotion/` serves `create-promotion`:
+`profiles/video-creator/skills/pipeline/create/promotion/` serves `create-promotion`:
 authored promotion video — launch/promo, brand or sizzle pieces, feature
 reveals, kinetic typography, logo stings — that VideoCreator designs and draws
 itself in HTML/CSS/SVG/GSAP, optionally matching a local reference video.
@@ -350,7 +350,7 @@ techniques.
 
 ## Story family
 
-`video-creator-pipeline/create/story/` serves `create-story`: a short character
+`profiles/video-creator/skills/pipeline/create/story/` serves `create-story`: a short character
 story in which recurring characters from their approved art act out a narrative
 across scenes, with dialogue from an approved script and a finished soundtrack,
 staged as 2.5D HyperFrames animation (frame rate: "Frame rate"). Always
@@ -377,7 +377,7 @@ separate units the Assistant releases.
 
 ## Master family
 
-`video-creator-pipeline/create/master/` serves `create-master`: one finished
+`profiles/video-creator/skills/pipeline/create/master/` serves `create-master`: one finished
 delivery master from already-approved parts — silent segments joined by cut or
 dissolve, a finished WAV or audio-creator Mix bundle under them, optional
 captions burned in plus an SRT sidecar. Always `kind="work"`; free. It covers
@@ -405,7 +405,7 @@ pads, stretches, reframes or retimes a part. Segment sound is dropped.
 
 ## Clip family
 
-`video-creator-pipeline/<verb>/clip/` is one short shot, not a generic
+`profiles/video-creator/skills/pipeline/<verb>/clip/` is one short shot, not a generic
 film-production workflow. Clip does not consult the HyperFrames references, and
 no external menu/router is pulled in.
 
@@ -437,7 +437,7 @@ root and served-clip routing together and restart the single gateway.
 
 ## Pixel-animation family
 
-`video-creator-pipeline/create/pixel-animation/` carries one verb.
+`profiles/video-creator/skills/pipeline/create/pixel-animation/` carries one verb.
 `create-pixel-animation` delivers a grid-exact pixel animation (sprite/cel
 cycle, loop, effect, integer-step parallax) as an RGB-lossless master MP4, a
 yuv420p compatibility MP4 and an optional GIF, with palette, cadence and loop

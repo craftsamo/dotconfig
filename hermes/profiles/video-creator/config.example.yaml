@@ -173,7 +173,7 @@ agent:
 
     HyperFrames technical references (create-tour/create-ad/create-explainer-video/
     create-promotion/create-story only): these five leaves may consult the four external references named in
-    video-creator-pipeline/references/hyperframes.md - read-only procedural
+    references/hyperframes.md (video-creator-pipeline) - read-only procedural
     background for staging/timing/pointer choices already permitted by their
     own leaf. This is profile-wide discovery scope, not a tool-permission
     sandbox and not a new request leaf or workflow: no other leaf reads them,

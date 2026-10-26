@@ -26,7 +26,7 @@ SCRIPT_PATH = (
     / "profiles"
     / "image-creator"
     / "skills"
-    / "image-creator-pipeline"
+    / "pipeline"
     / "source"
     / "kit"
     / "scripts"

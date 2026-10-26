@@ -17,11 +17,11 @@ import hermes_yaml as yaml
 from PIL import Image
 
 HERMES_ROOT = Path(__file__).resolve().parents[2]
-VIDEO = HERMES_ROOT / "profiles/video-creator/skills/video-creator-pipeline"
+VIDEO = HERMES_ROOT / "profiles/video-creator/skills/pipeline"
 LEAF = VIDEO / "create/story"
 CREATOR = HERMES_ROOT / "profiles/creator"
-COMMISSION = HERMES_ROOT / "profiles/assistant/skills/assistant-pipeline/execute-assistant-creative/references/story.md"
-ADVISOR = CREATOR / "skills/creator-pipeline/references/video-creator/story.md"
+COMMISSION = HERMES_ROOT / "profiles/assistant/skills/pipeline/execute-assistant-creative/references/story.md"
+ADVISOR = CREATOR / "skills/pipeline/references/video-creator/story.md"
 
 spec = importlib.util.spec_from_file_location("create_story", LEAF / "scripts/story.py")
 story = importlib.util.module_from_spec(spec)
@@ -216,7 +216,7 @@ def test_leaf_form_and_routing():
     assert "kind=\"work\"" in row
     assert "no lip sync" in " ".join(COMMISSION.read_text().split())
     assert "`create-story`" in ADVISOR.read_text()
-    assert "(references/video-creator/story.md)" in (CREATOR / "skills/creator-pipeline/SKILL.md").read_text()
+    assert "(references/video-creator/story.md)" in (CREATOR / "skills/pipeline/SKILL.md").read_text()
     config = yaml.safe_load((CREATOR / "config.example.yaml").read_text())
     assert config["specialist_call"]["resident_targets"] == ["researcher", "searcher"]
 
