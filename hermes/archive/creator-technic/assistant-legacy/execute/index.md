@@ -1,7 +1,7 @@
 # Legacy creative - unit supervision
 
 Use only for a Creator-confirmed legacy method after
-[legacy planning](../../../plan-assistant-creative/references/legacy/index.md). Normal work uses
+[legacy planning](../../../plan-creative/references/legacy/index.md). Normal work uses
 [the Client handoff](../../SKILL.md), not this unit loop. The common approval
 and input-permission rules there apply here too, as does its direct delivery
 procedure. Legacy is not an exception that restores routine Assistant QA.

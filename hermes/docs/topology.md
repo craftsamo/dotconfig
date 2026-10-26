@@ -218,7 +218,7 @@ Three per-profile layers, kept separate:
   - assistant → heavy tool-bound creative entries (`comfyui`,
     `touchdesigner-mcp`, `manim-video`, `ascii-video`) sit in `skills.disabled`:
     media production is the hands'. It reads the three hands pipelines for their
-    forms; the commissioning references live in `execute-assistant-creative`
+    forms; the commissioning references live in `execute-creative`
     ([`broker.md`](./broker.md)).
   - creator has no technics. It reads the hands pipelines read-only for forms
     and option references, plus curated `media-craft-*` and HyperFrames

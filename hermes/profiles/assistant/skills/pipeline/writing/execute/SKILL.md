@@ -1,5 +1,5 @@
 ---
-name: execute-assistant-writing
+name: execute-writing
 description: "Execute writing: supervise released units and revisions. Preserve Writer ownership and the shared acceptance gate; do not patch text, publish or send messages."
 version: 1.0.0
 author: CraftSamo

@@ -1,5 +1,5 @@
 ---
-name: plan-assistant-research
+name: plan-research
 description: "Plan research: bring purpose and constraints through the consuming primary, then agree the Researcher proposal. Preserve caller-authored briefs; retrieval-only work belongs to search."
 version: 1.0.0
 author: CraftSamo

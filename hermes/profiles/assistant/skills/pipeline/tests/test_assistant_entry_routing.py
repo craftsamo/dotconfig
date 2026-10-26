@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 MODES = {"plan": "plan", "execute": "execute", "qa": "quality-assurance"}
 CAPABILITIES = ("engineering", "creative", "writing", "research", "search", "marketing")
 ENTRIES = {"chat-assistant": ("chat", None)} | {
-    f"{prefix}-assistant-{capability}": (mode, capability)
+    f"{prefix}-{capability}": (mode, capability)
     for prefix, mode in MODES.items()
     for capability in CAPABILITIES
 }
@@ -20,7 +20,7 @@ ENTRIES = {"chat-assistant": ("chat", None)} | {
 def entry_dir(name):
     if name == "chat-assistant":
         return "chat"
-    mode, _, domain = name.partition("-assistant-")
+    mode, _, domain = name.partition("-")
     return f"{domain}/{mode}"
 
 
@@ -43,8 +43,8 @@ class AssistantEntryRoutingTest(unittest.TestCase):
                 metadata, _, _ = self.document(name)
                 self.assertEqual(metadata["name"], name)
                 self.assertEqual(metadata["version"],
-                                 "2.0.0" if name == "execute-assistant-creative"
-                                 or name.endswith("-assistant-engineering") else "1.0.0")
+                                 "2.0.0" if name == "execute-creative"
+                                 or name.endswith("-engineering") else "1.0.0")
                 self.assertEqual(metadata["author"], "CraftSamo")
                 self.assertEqual(metadata["license"], "MIT")
                 self.assertEqual(metadata["metadata"]["hermes"]["category"], "pipeline")
@@ -78,13 +78,13 @@ class AssistantEntryRoutingTest(unittest.TestCase):
                 self.assertEqual(re.findall(r"skill_view\([^)]*\)", contract), calls)
 
     def test_creative_inspiration_is_visible_before_reading_the_body(self):
-        metadata, _, _ = self.document("plan-assistant-creative")
+        metadata, _, _ = self.document("plan-creative")
         prefix = metadata["description"][:57]
         self.assertIn("media intent", prefix)
         self.assertIn("inspiration comparisons", prefix)
 
     def test_writing_scripts_are_visible_before_reading_the_body(self):
-        metadata, _, _ = self.document("plan-assistant-writing")
+        metadata, _, _ = self.document("plan-writing")
         prefix = metadata["description"][:57]
         self.assertIn("scripts", prefix)
         self.assertIn("storyboards", prefix)

@@ -1,5 +1,5 @@
 ---
-name: plan-assistant-creative
+name: plan-creative
 description: "Plan creative: media intent and inspiration comparisons. Settle intent and acceptance; the hands produce and design their storyboards, Creator advises on open looks. Managed hands-reference maintenance belongs to engineering."
 version: 1.0.0
 author: CraftSamo

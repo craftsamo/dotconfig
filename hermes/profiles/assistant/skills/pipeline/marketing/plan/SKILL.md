@@ -1,5 +1,5 @@
 ---
-name: plan-assistant-marketing
+name: plan-marketing
 description: "Plan marketing: consult Marketer on strategy, then plan the execution yourself. Turn agreed direction into Writer/hands units and a named service draft; exact remote-save consent, never publication."
 version: 1.0.0
 author: CraftSamo

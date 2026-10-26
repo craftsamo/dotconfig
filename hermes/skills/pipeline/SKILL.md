@@ -33,7 +33,7 @@ The single source of truth is the assistant's tree:
 ~/.hermes/profiles/assistant/skills/pipeline/
   SKILL.md
   chat/SKILL.md                       # chat-assistant
-  <domain>/{plan,execute,qa}/SKILL.md # {plan,execute,qa}-assistant-<domain>
+  <domain>/{plan,execute,qa}/SKILL.md # {plan,execute,qa}-<domain>
   <entry dir>/references/             # entry-owned details, creative legacy
   references/plan/index.md
   references/execute/{index,resident-sessions}.md
@@ -46,8 +46,8 @@ with a bounded filesystem listing of that root: `chat/SKILL.md`, and under
 each domain directory (engineering, creative, writing, research, search,
 marketing) the `plan/`, `execute/` and `qa/` directories' `SKILL.md`. Each
 declares the same name as the root map: `chat-assistant` and
-`plan-assistant-<domain>` / `execute-assistant-<domain>` /
-`qa-assistant-<domain>`. Do not generate another index or add these 19 skills
+`plan-<domain>` / `execute-<domain>` /
+`qa-<domain>`. Do not generate another index or add these 19 skills
 to default's `skills.external_dirs`; clones must not inherit an expanded
 skill menu.
 

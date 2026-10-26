@@ -40,7 +40,7 @@ never as placeholder stubs:
 
 | Owner     | Path                                                 | Says                                                                                                                                                                                             |
 | --------- | ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Assistant | `execute-assistant-creative`'s `references/<subject>.md` | transport (`inquiry` or `work`), the subject's round-trip (for example storyboard, approval, render), how each approval is relayed, the units it depends on, subject-specific budget and consent |
+| Assistant | `execute-creative`'s `references/<subject>.md` | transport (`inquiry` or `work`), the subject's round-trip (for example storyboard, approval, render), how each approval is relayed, the units it depends on, subject-specific budget and consent |
 | Creator   | `profiles/creator/skills/pipeline/references/<hands>/<subject>.md`   | what the leaf can express: range, options, boundary with neighbouring leaves, where its examples live                                                                                            |
 
 The hands leaf's front matter remains the only form; neither side copies forms,
@@ -48,7 +48,7 @@ option lists, provider defaults, size tables or approval hashes. The Assistant
 reads leaves through its `skills.external_dirs` entries for the three hands
 pipelines and reads a leaf's form with `skill_view`, never running its
 `<Procedure>`. The Plan entry's outcome Client guides
-(`plan-assistant-creative`'s `references/<deliverable>.md`) stay deliverable-first:
+(`plan-creative`'s `references/<deliverable>.md`) stay deliverable-first:
 a new hands subject does not oblige a guide, and a missing guide never
 establishes an unavailable capability.
 

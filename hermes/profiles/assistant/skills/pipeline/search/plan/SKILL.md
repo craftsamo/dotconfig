@@ -1,5 +1,5 @@
 ---
-name: plan-assistant-search
+name: plan-search
 description: "Plan search: bring purpose and constraints, then agree Searcher-proposed scope, coverage and units. Preserve settled caller briefs; conclusions and recommendations belong to research."
 version: 1.0.0
 author: CraftSamo

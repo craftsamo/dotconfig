@@ -1,5 +1,5 @@
 ---
-name: qa-assistant-engineering
+name: qa-engineering
 description: "QA engineering: accept outcomes against PR and worktree evidence, with an independent OpenCode review for risky changes and baseline comparison for rendered UI. Acceptance grants no merge or deployment, and touches Issues only to close out a job the user chose to track."
 version: 2.0.0
 author: CraftSamo

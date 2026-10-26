@@ -23,6 +23,6 @@ OpenCode's build checks every rendered change with its `web_ui_check` tool
 (overflow, accessibility, focus, runtime errors, broken images, screenshots and,
 given the baseline, comparison images). Neither you nor OpenCode grades taste.
 
-Acceptance: [qa-assistant-engineering](../../qa/SKILL.md)
+Acceptance: [qa-engineering](../../qa/SKILL.md)
 compares the new screenshots with the baseline and asks the user only about
 changes the approved scope does not explain.

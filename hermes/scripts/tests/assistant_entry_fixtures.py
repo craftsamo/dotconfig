@@ -43,12 +43,12 @@ def build_assistant_tree(write, validator):
     for prefix, phase in PHASES.items():
         extras = ("resident-sessions.md",) if prefix == "execute" else ()
         write(f"references/{phase}/index.md", "\n".join(
-            [f"{prefix}-assistant-{cap}" for cap in CAPABILITIES] + list(extras)
+            [f"{prefix}-{cap}" for cap in CAPABILITIES] + list(extras)
         ))
         for filename in extras:
             write(f"references/{phase}/{filename}", "# Common\n")
         for cap in CAPABILITIES:
-            name = f"{prefix}-assistant-{cap}"
+            name = f"{prefix}-{cap}"
             entry = f"{cap}/{prefix}"
             routes = []
             if prefix == "qa":

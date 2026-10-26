@@ -37,7 +37,7 @@ import pytest
 DOMAINS = ("engineering", "creative", "writing", "research", "search", "marketing")
 MODES = {"plan": "plan", "execute": "execute", "qa": "quality-assurance"}
 ENTRIES = {"chat-assistant"} | {
-    f"{mode}-assistant-{domain}" for mode in MODES for domain in DOMAINS
+    f"{mode}-{domain}" for mode in MODES for domain in DOMAINS
 }
 EXPECTED = ENTRIES | {"assistant-pipeline"}
 
@@ -45,7 +45,7 @@ EXPECTED = ENTRIES | {"assistant-pipeline"}
 def entry_dir(name):
     if name == "chat-assistant":
         return "chat"
-    mode, _, domain = name.partition("-assistant-")
+    mode, _, domain = name.partition("-")
     return f"{domain}/{mode}"
 
 ALLOW = {"skills_list", "skill_view", "read_file"}
@@ -236,7 +236,7 @@ def _child(case, sandbox, candidate_tree, source):
             visible = rows(prompt)
             assert len(visible) == 20 and set(visible) == EXPECTED
             assert len(set(visible.values())) == 20
-            assert "ONLY on explicit user request" in visible["qa-assistant-creative"]
+            assert "ONLY on explicit user request" in visible["qa-creative"]
             for name, desc in visible.items():
                 assert 0 < len(desc) <= 60
                 path = tree / ("SKILL.md" if name == "assistant-pipeline" else f"{entry_dir(name)}/SKILL.md")
@@ -303,7 +303,7 @@ def _child(case, sandbox, candidate_tree, source):
                 assert result.get("success") is False
 
             elif case.startswith("writer_"):
-                qa = view("qa-assistant-writing")
+                qa = view("qa-writing")
                 body_matches(qa, tree / "writing/qa/SKILL.md", rendered=True)
                 calls = re.findall(r'skill_view\(name="([^"]+)", file_path="([^"]+)"\)', qa["content"])
                 writer_calls = [(name, path) for name, path in calls if name == "writer-pipeline"]
@@ -328,7 +328,7 @@ def _child(case, sandbox, candidate_tree, source):
                     assert set(rows(index())) == EXPECTED | {"writer-pipeline"}
                     for branch in ("prose", "script"):
                         relative = f"references/{branch}.md"
-                        body_matches(view("qa-assistant-writing", relative), tree / "writing/qa" / relative)
+                        body_matches(view("qa-writing", relative), tree / "writing/qa" / relative)
                 else:
                     for name, relative in writer_calls:
                         result = view(name, relative)

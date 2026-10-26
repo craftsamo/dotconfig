@@ -1,5 +1,5 @@
 ---
-name: execute-assistant-marketing
+name: execute-marketing
 description: "Execute marketing: commission parts, accept them and save the approved service draft yourself. Marketer advises; preserve accepted Writer text and exact upload consent, never publish or duplicate drafts."
 version: 1.0.0
 author: CraftSamo

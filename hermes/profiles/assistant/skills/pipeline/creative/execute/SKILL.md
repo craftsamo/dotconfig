@@ -1,5 +1,5 @@
 ---
-name: execute-assistant-creative
+name: execute-creative
 description: "Execute creative: commission the media hands directly with filled forms, consult Creator for open looks and vague feedback, relay proposals and approvals, and deliver candidates promptly with producer checks and caveats. Normal completions stay here, without a separate QA stage."
 version: 2.0.0
 author: CraftSamo
@@ -194,7 +194,7 @@ dependents' evidence.
 
 ## Direct delivery
 
-Stay in Execute on normal completion; do not load `qa-assistant-creative` or
+Stay in Execute on normal completion; do not load `qa-creative` or
 ask Creator to review. Read the report for output kind, paths, required check
 status, obvious conflicts with settled constraints and spend; request a missing
 receipt or a scoped fix from the same producer, or report the blocker. Never

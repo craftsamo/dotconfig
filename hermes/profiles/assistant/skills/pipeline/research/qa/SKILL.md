@@ -1,5 +1,5 @@
 ---
-name: qa-assistant-research
+name: qa-research
 description: "QA research: test conclusions against load-bearing sources. Inspect evidence, counterevidence and scope by unit; return retrieval gaps to search, never accept unsupported reasoning."
 version: 1.0.0
 author: CraftSamo

@@ -32,7 +32,7 @@ thumbnail note says so.
 ## The picture leaf
 
 The picture goes to video-creator's `analyze-explainer-video`
-([commissioning reference](../../../pipeline/execute-assistant-creative/references/explainer-video.md)),
+([commissioning reference](../../../pipeline/execute-creative/references/explainer-video.md)),
 one `specialist_call(kind="work")` conversation per video, `deliver` the
 video's `<NN>/visual/`. It sees the picture and the caption file only:
 
