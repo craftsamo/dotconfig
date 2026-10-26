@@ -641,9 +641,29 @@ def test_the_guard_blocks_ways_around_the_tool(command):
     "grep wrangler package.json", "brew install cloudflared", "cat wrangler.toml", "npm view wrangler version",
     "dig example.com", "curl https://www.cloudflarestatus.com/api/v2/status.json", "secret ls -p hermes",
     "secret show CLOUDFLARE_WORK -p hermes", "ls .wrangler/state", "git log --grep cloudflare",
+    "grep -n 'wrangler deploy' docs/deploy.md", "grep -En 'wrangler (pages|d1)' package.json | head",
+    "echo \"run wrangler login first\"", "npm run deploy",
 ])
 def test_the_guard_leaves_ordinary_commands_alone(command):
     assert cfa.bypass("terminal", {"command": command}) is None
+
+
+def test_a_project_runs_its_own_wrangler_through_its_package_manager(tmp_path, monkeypatch):
+    project = tmp_path / "ghq" / "shop"
+    (project / ".git").mkdir(parents=True)
+    (project / ".git" / "config").write_text('[remote "origin"]\n\turl = git@github.com:me/shop.git\n')
+    monkeypatch.setattr(cfa.project_place, "_roots", lambda: [(tmp_path / "ghq").resolve()])
+    monkeypatch.setattr(cfa.project_place, "_own_common", lambda: None)
+    deploy = {"command": "pnpm exec wrangler deploy", "workdir": str(project)}
+    assert cfa.bypass("terminal", deploy) == cfa.BYPASS_MESSAGE   # not one of its dependencies
+    (project / "node_modules" / ".bin").mkdir(parents=True)
+    (project / "node_modules" / ".bin" / "wrangler").write_text("")
+    assert cfa.bypass("terminal", deploy) is None
+    assert cfa.bypass("terminal", {"command": f"cd {project} && pnpm run deploy"}) is None
+    for command in ("wrangler deploy", "pnpm dlx wrangler deploy", "npx -y wrangler deploy", "cloudflared tunnel list"):
+        assert cfa.bypass("terminal", {"command": command, "workdir": str(project)}) == cfa.BYPASS_MESSAGE
+    assert cfa.bypass("terminal", {"command": "pnpm exec wrangler deploy", "workdir": str(tmp_path)}) == \
+        cfa.BYPASS_MESSAGE
 
 
 def test_file_tools_may_read_the_plugin_but_not_its_state_or_the_cli_logins():
