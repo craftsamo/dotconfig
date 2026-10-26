@@ -32,9 +32,11 @@ Read only applicable detail references below.
 
 # Engineering - acceptance
 
-Before the first `opencode_*` call, load the tool mechanics with
-`skill_view(name="opencode:opencode")` unless its full body is already in the
-current context.
+Before the first `opencode_*` call, load the tool mechanics unless their
+full bodies are already in the current context: `skill_view(name="opencode:brief")`
+for the message you send a review run, `skill_view(name="opencode:drive")` for
+starting and reading it, and `skill_view(name="opencode:answer")` when it is
+waiting on you.
 
 Judge the delivered outcome against the user's request and the approved scope.
 OpenCode already runs the project's checks and its own review passes; do not duplicate that pipeline or rerun every suite. Your part

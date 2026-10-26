@@ -32,9 +32,11 @@ Read only applicable detail references below.
 
 # Engineering - planning with OpenCode
 
-Before the first `opencode_*` call, load the tool mechanics with
-`skill_view(name="opencode:opencode")` unless its full body is already in the
-current context.
+Before the first `opencode_*` call, load the tool mechanics unless their
+full bodies are already in the current context: `skill_view(name="opencode:brief")`
+for the message you send a run, `skill_view(name="opencode:drive")` for
+starting, reading and reporting runs, and `skill_view(name="opencode:answer")`
+when a run is waiting on you.
 
 ## Who owns what
 
@@ -53,7 +55,7 @@ user's words woven into your sentences where their wording carries the intent
 (the log keeps them verbatim). Nothing else: no commands, steps, file lists,
 output limits, report templates or restated prohibitions its tools already
 enforce. Detailed instructions narrow the model without adding information.
-The plugin skill's opening section shows the voice. A technical question
+`opencode:brief` shows the voice. A technical question
 OpenCode asks goes back as its own call. What OpenCode proposes reaches the user in plain language and unrounded
 where it touches them: every capability, screen and stored thing, not a
 summary of them.
@@ -163,7 +165,7 @@ approval covers what the user saw, so what you show is the scope Build is held
 to. Models are OpenCode's own defaults; name one only when you depart from it
 (an alternate after a limit error).
 
-During a build, report as the plugin skill's "Progress" section says: each
+During a build, report as `opencode:drive`'s "Progress" says: each
 finished Phase step in one line, at once when one is blocked or the run needs
 the user, and the Phase's PR with how to try it.
 
