@@ -1,118 +1,23 @@
 ---
-name: opencode
-description: "Use before any opencode_* tool call: starting, continuing, steering, interrupting and reading OpenCode runs, their permission requests and questions, models, output directories and session history."
+name: drive
+description: "Use before any opencode_* call that starts, continues, forks, moves, steers, waits on, interrupts or reads a run, picks its model, or reports its state to the user. The message itself is opencode:brief; a run waiting on you is opencode:answer."
 version: 1.0.0
 author: CraftSamo
 license: MIT
 metadata:
   hermes:
-    tags: [opencode, opencode_run, engineering, coding-agent, permissions]
+    tags: [opencode, opencode_run, opencode_session, engineering, coding-agent]
 ---
 
-# OpenCode through the `opencode_*` tools
+# Driving OpenCode runs
 
-The engineering entries (`plan-engineering`,
-`execute-engineering`, `qa-engineering`) own what to ask
-for, when the user's approval is needed and how a result is accepted. This
-skill owns how the tools behave. Never call raw `opencode` commands or the
-OpenCode API from the terminal, and never substitute another coding agent to
-get around these tools.
-
-OpenCode is the developer: it investigates, plans, implements, tests, reviews
-and commits with its own agents and skills, and the technical calls are its
-own. You are the client who commissions it, not a go-between: brief it as you
-would a capable colleague, in the user's language and in plain prose. Say what
-is wanted and why, what this turn should hand back, and what is already
-settled (point at the job's decision log for the detail). People read these
-messages in OpenCode too, so a message is a few short paragraphs: no headings,
-no labelled blocks ("constraints:", "the person's words:"), and a list only
-for things that are a list (claim numbers, repositories to compare).
-
-- **The user's words** go inside your sentences where their wording carries
-  the intent, in "…" in an English message (the user said "a weekly summary
-  is enough", so …) and 「」 in a Japanese one
-  (依頼者は「週に一度まとめて見られれば十分」と話していて、…), never as a
-  block of quotes standing in for the requirement you draw from them. Quote
-  exactly only what
-  is itself specification (a label on a screen, a sentence that must appear);
-  the decision log keeps the rest verbatim. Do not open by reporting who
-  approved what: the tools record approval.
-- **Markup.** OpenCode shows the message as typed, so Markdown appears as raw
-  symbols. Use backticks, and nothing else, for paths, commands, identifiers,
-  settings keys and branch names: they mark exactly what is literal. A fenced
-  block (three backticks) only for several lines that must pass unchanged (an
-  error output, wording that appears on a screen); anything longer than a
-  screenful goes in a file you point at. No headings, bold, tables, link
-  syntax, `>` quotes or other fences such as `'''`, and no fenced steps or
-  command lists. `- ` or `1.` at a line start only for things that are a list.
-- **Paths.** A file in the session's repository is relative to its root
-  (`apps/web/src/app/page.tsx`): the session moves from the default checkout to
-  its own worktree after a plan, and forks share that layout, so an absolute
-  path inside the repository goes stale. Anything outside it (the decision log,
-  a shared brief, another repository) is absolute. `@file`, `@agent` and
-  `/command` are the TUI's own input: from Hermes they arrive as plain text.
-- **Leave out** what the session already holds (its earlier turns, the plan it
-  wrote), what its tools, ruleset and operating note already carry (prohibited
-  commands, commit rules, push and merge limits, how to write commands, where
-  the report goes), and how to do the work (commands, steps, file lists, retry
-  counts, a report template): spelling those out narrows the model and buys
-  nothing. Name the outcome you need ("make clear where checked fact ends and
-  inference begins"), not its layout. Never paste its global instructions or
-  whole skill bodies into a prompt.
-- **One request to several repositories:** write the shared brief once in the
-  job directory, then give each run its path and a sentence of its own.
-- **A constraint the tools do not enforce** and that must hold for the whole
-  session (no deployment, a file left alone) goes in once with
-  `opencode_instructions` (`put`, key `hermes.<name>`), not into every message.
-- **A technical question** from the run (a library, a schema detail, how to
-  test, how to split commits or PRs) goes back as its own call: answer that it
-  decides and records the choice in its report or PR. Relay only what changes
-  what people can do or see, what is stored, cost, or anything irreversible.
-
-A build turn after the user changed the approved plan, not as a relay
-("Approved by the user. The user's words: - "…" - "…" So … Constraints: - …
-When done …") but as a brief:
-
-```text
-Go ahead with the build, with one change from the plan. The CSV export stays,
-but the low-stock email alerts are out for now: the user said "let's see whether
-people actually look at the stock page before we decide on emails", so drop
-step 1.3 and leave alerts for a later Phase.
-
-This turn covers the changes in the repository and the PR. The user sets up the
-hosting side themselves, so list the outside steps they will need in the PR
-description. When you are done, tell me the results of the checks you actually
-ran and the PR URL. Earlier decisions are in
-`/Users/me/Workspaces/Projects/Acme/.agent/20260301-inventory/decisions.md`.
-```
-
-The same brief for a user who writes in Japanese:
-
-```text
-実装を進めてください。ただ、計画から一つ変更があります。
-CSV の書き出しはそのまま残し、在庫が少なくなったときのメール通知は今回は見送ります。
-依頼者は「在庫の画面をみんなが本当に見るか確かめてから、メールを送るか決めたい」と話していたので、
-手順 1.3 は外し、通知は後の Phase に回してください。
-
-今回の範囲は、リポジトリ内の変更と PR までです。
-ホスティング側の設定は依頼者が自分で行うので、そのときに必要になる作業を PR の説明に書き出しておいてください。
-終わったら、実際に行った確認の結果と PR の URL を教えてください。
-これまでの決定は `/Users/me/Workspaces/Projects/Acme/.agent/20260301-inventory/decisions.md` にまとめてあります。
-```
-
-A read-only check of someone's claims, with the intent in your own words
-where no remark of the user's carries it better:
-
-```text
-A migration proposal from another team makes several claims about this
-repository, and the user wants them checked against the code before anyone
-relies on them. Please check claims C01 to C08 in
-`/Users/me/Workspaces/Projects/Acme/.agent/20260305-claims-check/claims.md`
-against the code on every branch and the committed files. Do not query
-production or any external service. If anything disagrees with the earlier
-`report.md` in the same folder, point that out too. It helps if the report
-makes clear where checked fact ends and inference begins.
-```
+The engineering entries (`plan-engineering`, `execute-engineering`,
+`qa-engineering`) own what to ask for, when the user's approval is needed and
+how a result is accepted. This skill owns how the tools behave; the message
+you send is `opencode:brief`, and a run that pauses for a decision is
+`opencode:answer`. Never call raw `opencode` commands or the OpenCode API
+from the terminal, and never substitute another coding agent to get around
+these tools.
 
 The tools drive the person's shared OpenCode service. Runs appear in their
 OpenCode history and keep running when a Hermes turn ends. Nothing is recorded
@@ -182,34 +87,8 @@ configured.
   It rebases its task branch onto the latest base before each push and may
   amend or fix up its own commits; its tools refuse the default branch, shared
   commits and protected branches. When its work splits into reviewable
-  layers it opens a native GitHub stack of PRs instead of one PR. Publishing a
-  PR, plain or stacked, arrives as a `git_publish` request (push, submit or
-  link). The request carries only a preview token: approve it against the
-  `git_publish_preview` the build reported (the base, each layer, its commits,
-  its PR, whether it is force-pushed, and under `text` the PR titles and
-  bodies a submit will set, with what they trip), and ask for that preview
-  first if it did not; the metadata it judged (labels, assignees, review
-  requests, a milestone) is set with that approval. The titles and bodies are
-  pinned in the token, so what you read is what is published. The preview
-  only flags what trips a pattern; you read the whole text as someone who
-  has only the repository, and reject the request, with the words to change,
-  when it names a Phase, a decision number, the tools or agents that did the
-  work, a local path or this machine's or account's state. Metadata on an existing PR is applied
-  without asking when nothing reacts to it; the rest arrives as a
-  `gh_pr_meta_apply` request, to approve against the reasons the build
-  reported (a workflow, a merge bot, a webhook, or the people it notifies).
-  Pushes (a rebased
-  branch's `git push --force-with-lease origin HEAD:refs/heads/<task branch>`,
-  `git_publish` and `gh stack push` included), shell history rewrites, branch moves, package
-  downloaders (`npm exec`, `pnpm dlx`), anything naming `deploy`, `publish`, `secret`, `--remote` or `--prod`, per-command git configuration (`git -c`) and Issue writes without
-  `issue_approval` come back to you as requests, also behind a prefix or a
-  wrapper such as `env` or `sh -c`. Every other force push, protected-branch
-  pushes, merges, `gh api`, Project writes, git config and remote rewrites,
-  `gh` aliases and extensions, edits under `.git/` or the global git and gh
-  config, and secret reads are denied outright, however spelled; a read-only
-  run is denied the requests above as well. A build refuses a
-  worktree another OpenCode session is running in (a person's included);
-  read-only runs may run alongside.
+  layers it opens a native GitHub stack of PRs instead of one PR. What comes
+  back to you as a request, and how to judge it, is `opencode:answer`.
 - **`output_dir`:** an existing job directory inside a Workspaces draft
   (`<Group>/.agent/<YYYYMMDD>-<job>/…`), outside the worktree. The run may write
   there without asking (reports, screenshots), and later
@@ -222,17 +101,6 @@ configured.
   A write run with an output directory keeps its Phase steps in
   `progress.md` there (its operating note says how); that is the step list
   you report against.
-- Ask for outcomes, not methods: the checks' actual results, and a closer
-  review in a plain sentence that names the area and why (no keyword triggers
-  one) only where the person's stake is high (who can see what, stored data,
-  money). Checkpoint commits, `web_ui_check` for a page
-  change and how to test are the run's own practice.
-- Permission rules match each command as written, and every unmatched one
-  pauses the run for you. So never tell a run to write commands with a
-  `NAME=value` prefix, a status wrapper (`…; exit "$status"`) or a launcher
-  (`npx`, `mise exec`): name the target as the program's own option instead
-  (`gh -R owner/repo …`, a script's flag). The operating note tells the run the
-  same.
 - Never start a second turn on a session that is still running: wait, steer or
   interrupt it.
 
@@ -241,12 +109,14 @@ configured.
 Each role follows its pin in `opencode.roles` or else the OpenCode agent's own
 model; the result's `engine` names what ran. `opencode_catalog` `models` lists
 what you may pass as `model` (provider/model) and `variant` (that model's
-reasoning efforts), each role's default and your own models. Your own model
-(the configured one and a fallback you are answering with now) is refused for
-every role, so you never review or accept output from the model you run on;
-pick another listed model then. A name outside the list is refused, never
-substituted: report it and ask, without stopping the job. An explicit choice
-binds the rest of that session.
+reasoning efforts), each role's default and your own models (marked
+`yours`: the configured one and a fallback you are answering with now). A
+model of yours is refused for a role unless the catalog lists that role under
+`allow_yours`; where it is allowed, independence is kept where it matters
+(a build runs its own reviewer, and an acceptance review of your own job
+runs on another listed model, as the QA entry says). A name outside the list
+is refused, never substituted: report it and ask, without stopping the job.
+An explicit choice binds the rest of that session.
 
 ## Session tools
 
@@ -290,41 +160,6 @@ list/get/children for metadata, usage for tokens and activity over `[from,
 to)`. Titles and costs only with `include_title` / `include_cost`; message
 content never. Check `source` and `status`, and pass a `partial` answer's
 limitation on. Activity is time model steps ran, not human working time.
-
-## Requests
-
-A run pauses as `waiting` when it needs a decision: a permission (a path
-outside the worktree, a push, a shell history rewrite, a branch move, a package
-runner, an Issue write without the grant, a subagent command outside its
-allowlist) or a question the agent would put to a person.
-`opencode_request(action="list", session_id)` shows each pending item with its
-`kind`, `id`, whether a subagent asked, and its action and resources or its
-fields and options. A shell request names every simple command of a chain as
-its own resource, and the one that needs you is often the last (`kill`,
-`rm`, `git push`): judge them all before answering. A notification shortens
-them; where it says `complete: false`, read the request with `list` first.
-
-`opencode_request(action="reply", session_id, replies=[{request_id, …}, …])`
-answers every pending request in one call (`request_id` alone answers one); all
-replies are checked before any is sent. The result is the run's next state when
-it comes within a few seconds (often the next request), so answer that in the
-same way rather than waiting for a notification.
-
-- A permission inside the user's approved scope → `decision: "once"`. Outside
-  it or unclear → `decision: "reject"` with a short `reason` OpenCode can act
-  on, then take the decision to the user if the work needs it.
-- A question: a technical choice goes back as the run's own call
-  (`answer` that it decides and states the choice in its report). Relay to the
-  user, first, only a decision about what people can do or see, what is stored,
-  cost or anything irreversible, and pass their answer back as a plain
-  sentence that keeps their wording where it carries the intent.
-  `decision: "reject"` declines it.
-
-There is no broader approval: `always` would save a project-wide rule the
-person's own sessions inherit. If the same in-scope request keeps coming, say
-so once with `opencode_instructions` (for example: use the read and grep tools
-instead of `cat`/`grep`, run the project script instead of `node -e`). A
-request stays pending until answered, and the run waits meanwhile.
 
 ## Results
 

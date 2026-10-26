@@ -14,7 +14,7 @@ class EngineeringClientTests(unittest.TestCase):
     def test_entries_load_the_opencode_tool_skill(self):
         for entry in ("plan", "execute", "qa"):
             text = (ROOT / f"engineering/{entry}/SKILL.md").read_text()
-            self.assertIn('skill_view(name="opencode:opencode")', text, entry)
+            self.assertIn('skill_view(name="opencode:drive")', text, entry)
             self.assertNotIn("opencode run", text, entry)
             self.assertIsNone(re.search(r"\bEngineer\b", text), entry)
 
@@ -46,7 +46,7 @@ class EngineeringClientTests(unittest.TestCase):
         self.assertNotIn("Settle in-scope technical questions yourself", text)
 
     def test_the_tool_skill_fixes_markup_and_paths_for_messages(self):
-        text = " ".join((ROOT.parents[3] / "plugins/orchestration/opencode/skills/opencode/SKILL.md")
+        text = " ".join((ROOT.parents[3] / "plugins/orchestration/opencode/skills/brief/SKILL.md")
                         .read_text().split())
         self.assertIn("Use backticks, and nothing else, for paths, commands, identifiers", text)
         self.assertIn("A fenced block (three backticks) only for several lines that must pass unchanged", text)

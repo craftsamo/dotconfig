@@ -59,7 +59,7 @@ class GithubRouting(unittest.TestCase):
         prompt = flat(PUBLIC_ROOT / "hermes/profiles/assistant/config.example.yaml")
         self.assertIn("pull request changes, merges, releases and CI re-runs are yours", prompt)
         self.assertIn("never a gh write in the terminal", prompt)
-        opencode = flat(PUBLIC_ROOT / "hermes/plugins/orchestration/opencode/skills/opencode/SKILL.md")
+        opencode = flat(PUBLIC_ROOT / "hermes/plugins/orchestration/opencode/skills/drive/SKILL.md")
         self.assertIn("never passes `issue_approval`", opencode)
 
     def test_the_private_contract_says_the_same(self):

@@ -206,7 +206,7 @@ put items on it in the next.
   call. Milestones are one per date, not one per piece: a piece gets its
   own only when its date differs from the parent's.
 - **Kickoff of a unit:** the next piece nothing blocks. Read it, then a
-  plan run through OpenCode (`skill_view(name="opencode:opencode")`) reads
+  plan run through OpenCode (`skill_view(name="opencode:drive")`) reads
   the code and proposes what Fixed needs: the open decisions resolved, the
   outline as layers. Settle the decisions with the user (on a `shared` or
   `other` target, agree the words as "Before writing" says), then
