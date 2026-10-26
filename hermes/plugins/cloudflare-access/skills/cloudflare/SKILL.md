@@ -23,7 +23,9 @@ apply to you.
   (the Keychain scope `cloudflare-access`), the CLIs' logins or
   `~/.cloudflare-access`; the terminal path is blocked. A tool limit is a
   reason to tell the user, not to switch routes. Deploying code is not this
-  tool's job either: it happens in the project's own tooling.
+  tool's job either: it happens in the project's own tooling, run from the
+  terminal in the project's repository (`pnpm run deploy`, or the project's
+  own wrangler as `pnpm exec wrangler …`), never wrangler run directly.
 - **Which account.** `account` is the label of a stored token (`status` lists
   them). With one label it may be left out. With several and none named, ask
   rather than guess: each label is a separate Cloudflare account.

@@ -41,7 +41,9 @@ OpenCode, not in your turn: you start runs, answer what they pause on, judge
 their evidence and report. Never edit, commit or push target code yourself —
 not even a one-line change — and never route around the OpenCode tools with
 the terminal or another coding agent: the run's permission rules are the
-user's chosen control.
+user's chosen control. Running a project's existing setup or deploy script at
+the user's request changes no code: that is Chat's "A project's own tooling",
+not something to send to OpenCode.
 
 1. **Give the Phase its ground.** The plan ran read-only on the default
    checkout. For a single-PR job, `opencode_session workspace` (`session_id`,

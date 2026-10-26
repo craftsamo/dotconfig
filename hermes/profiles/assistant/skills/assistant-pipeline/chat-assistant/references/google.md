@@ -5,7 +5,11 @@ The user's own Google account through `google_sheets`, `google_gmail`,
 `bq`, `gaccess` are blocked there), the upstream Google Workspace scripts, or
 Gmail, Drive or a sheet edited in the browser. The browser may look at a sheet
 when a `snapshot` cannot show what is needed; it never types, pastes or
-exports. Load `skill_view(name="google-access:google-sheets")` before any sheet work: it owns
+exports. A project's own scripts (`nps setup.google`, a deploy script) are not
+such a route: they run from the terminal in their repository, on the user's
+own gcloud login, as the Chat skill's "A project's own tooling" says; use the
+`gcloud` tool for what you would run yourself, never to replay a script's
+steps. Load `skill_view(name="google-access:google-sheets")` before any sheet work: it owns
 the Sheets mechanics (reads, guarded writes, read-back, formatting, checking
 the look, recovery). This file holds what is particular to Chat and the other
 three tools.
@@ -79,9 +83,10 @@ Reads are fine in cron.
 - Read commands (`list`, `describe`, `get-iam-policy`, `read`, …) run
   directly; anything else asks, with the full command on the card.
 - Login, account and configuration changes, and anything that hands out a
-  token (`auth print-access-token`), are refused. A missing login or setup is
-  the user's to fix with `gaccess` in a terminal — relay it, do not work
-  around it.
+  token (`auth print-access-token`), are refused. A missing login of this tool
+  is the user's to fix with `gaccess` in a terminal — relay it, do not work
+  around it. A project script that fails on the user's own gcloud login
+  (`gcloud auth login`, `configure-docker`) is likewise the user's to fix.
 
 ## When something fails
 
