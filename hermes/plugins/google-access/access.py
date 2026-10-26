@@ -163,7 +163,10 @@ FILE_TOOLS = {"read_file", "write_file", "patch", "search_files"}
 BYPASS_MESSAGE = (
     "Google (Sheets, Gmail, Drive) and gcloud run only through the google_sheets, google_gmail, "
     "google_drive and gcloud tools, never through the terminal or file tools, and their credentials "
-    "are never read directly. Use the matching tool; setup (`gaccess`) is the user's job.")
+    "are never read directly. Use the matching tool; setup (`gaccess`) is the user's job. Reading a "
+    "script or doc that names gcloud is fine, and a project's own tooling (`nps setup.google`, "
+    "`pnpm run deploy`, `./scripts/…`) runs from the terminal in its repository (workdir, or a "
+    "leading `cd <absolute path> &&`).")
 
 NOT_SET_UP = ("Google access is not set up for this profile. The user runs "
               "`gaccess auth <client_secret.json>` once in a terminal (see docs/google-access.md).")
