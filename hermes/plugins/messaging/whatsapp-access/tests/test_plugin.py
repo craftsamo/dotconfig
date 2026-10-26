@@ -207,7 +207,7 @@ def test_the_genuine_check_refuses_a_send_in_this_headless_test_run(monkeypatch)
 
 
 def test_the_skill_reaches_only_the_assistant():
-    for profile, names in (("assistant", {"whatsapp"}), ("marketer", set()), ("creator", set())):
+    for profile, names in (("assistant", {"whatsapp", "count-activity"}), ("marketer", set()), ("creator", set())):
         ctx = Ctx(profile)
         plugin.register(ctx)
         assert set(ctx.skills) == names

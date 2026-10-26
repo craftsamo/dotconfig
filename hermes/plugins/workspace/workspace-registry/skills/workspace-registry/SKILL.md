@@ -1,6 +1,6 @@
 ---
 name: workspace-registry
-description: Use when the Assistant looks up or updates workspace people, projects, organizations, memberships or repository records with workspace_registry, resolves a message sender, creates an approved Group, or links a registered repository to its existing clone. Not for cloning repositories, moving directories, managing drafts, deciding the shared workspace layout, or handling inbound A2A requests.
+description: "Use when the Assistant looks up or updates workspace people, projects, organizations, memberships or repositories with workspace_registry, resolves a message sender, creates an approved Group, or links a repository to its clone. Not for cloning or for drafts."
 ---
 
 # Workspace registry

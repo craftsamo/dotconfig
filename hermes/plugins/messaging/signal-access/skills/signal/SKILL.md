@@ -7,7 +7,6 @@ license: MIT
 metadata:
   hermes:
     tags: [signal, signal_access, messaging, chat, approval]
-    category: technic
 ---
 
 # Signal through the `signal` tool

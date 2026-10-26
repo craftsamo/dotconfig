@@ -218,7 +218,7 @@ def test_bind_hook_pins_writes_only():
 
 
 def test_the_write_skill_reaches_only_the_profile_that_can_write():
-    expected = {"assistant": {"youtube", "youtube-manage"}, "marketer": {"youtube"},
+    expected = {"assistant": {"youtube", "youtube-manage", "configure-studio"}, "marketer": {"youtube"},
                 "searcher": {"youtube"}, "creator": set()}
     for profile, names in expected.items():
         ctx = Ctx(profile)

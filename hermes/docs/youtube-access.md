@@ -190,8 +190,8 @@ saves only on a yes, and reads the page again to confirm. There is no approval
 card on this path — `clarify` is the confirmation — so it runs only in a
 conversation with the user, never in cron, a single query or an A2A request.
 Account-level and destructive Studio settings (permissions, monetization,
-channel deletion or transfer) stay with the user. The procedure lives in the
-`youtube-access:youtube-manage` skill's `references/studio.md`; when a Studio
+channel deletion or transfer) stay with the user. The procedure is the
+`youtube-access:configure-studio` skill; when a Studio
 page does not match it, the Assistant stops and hands the change to the user.
 
 ## Ways around the tool

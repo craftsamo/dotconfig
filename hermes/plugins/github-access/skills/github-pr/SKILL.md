@@ -1,13 +1,12 @@
 ---
 name: github-pr
-description: "Use to read and change GitHub pull requests for the user: where one stands (checks, reviews, mergeability, the issues it closes), opening one from a pushed branch, editing its text, base, labels or reviewers, attaching screenshots and recordings, commenting, marking it ready or draft, closing, reopening and merging it."
+description: "Use to read or change a GitHub pull request for the user: where it stands, opening one from a pushed branch, editing it, attachments, comments, ready or draft, closing, reopening or merging."
 version: 1.0.0
 author: CraftSamo
 license: MIT
 metadata:
   hermes:
     tags: [github, pull-request, pr, merge, attachments, screenshots, review]
-    category: technic
 ---
 
 # Pull requests through `github_pr` and `github_change`

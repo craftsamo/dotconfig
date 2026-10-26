@@ -1,6 +1,6 @@
 ---
 name: workspace-drafts
-description: Use when the Assistant inventories existing workspace drafts or incoming inbox items with workspace_drafts, checks for a draft before starting a job, filters stale or misnamed entries, or interprets legacy, partial or truncated results. Read-only and metadata-only. Not for reading draft contents as canon, creating or moving files, promoting or deleting drafts, choosing the shared workspace layout, or handling inbound A2A requests.
+description: "Use when the Assistant inventories existing workspace drafts or inbox items with workspace_drafts, or checks for a draft before starting a job. Read-only, metadata only; not for reading draft contents, creating, moving, promoting or deleting files."
 ---
 
 # Workspace draft inventory

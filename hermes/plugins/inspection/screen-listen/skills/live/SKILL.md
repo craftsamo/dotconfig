@@ -1,6 +1,6 @@
 ---
 name: live
-description: Use when the user asks what is happening right now in a live call, voice channel or stream shown by an app on this Mac (Discord today) — "see what they are streaming", "listen in on the voice channel", "summarize the stream" — or asks to record a call or stream to keep (its audio, or the screen share on video too), transcribe it, turn it into minutes or share it, from Telegram or anywhere else. Gets the app into the channel or stream with computer_use (how, per app, in references/), hears it with screen_listen (a bounded listen, or a recording session with start and stop), looks at it with a capture, reports, and leaves. Not for reading messages (the app's account tool), for recording without the user asking, or for watching unattended over time.
+description: "Use when the user asks what is happening now in a live call, voice channel or stream an app on this Mac shows (Discord today), or to record, transcribe or make minutes of one they asked for. Not for reading messages, recording unasked, or watching unattended."
 ---
 
 # Live: hear, watch, record what an app is playing
@@ -16,10 +16,10 @@ Two kinds of knowledge, kept apart:
 - **This file**: what `screen_listen` does, how to read its answers, the
   recording session from start to minutes, and the boundaries. The same for
   every app.
-- **`references/<app>.md`**: how to get *that* app into the channel or stream
-  and out again — opening, joining, the microphone, the stream window,
-  leaving. Read the one for the app before touching it:
-  `skill_view(name="screen-listen:live", file_path="references/discord.md")`.
+- **`screen-listen:attend-<app>`**: how to get *that* app into the channel
+  or stream and out again — opening, joining, the microphone, the stream
+  window, leaving. Read the one for the app before touching it:
+  `skill_view(name="screen-listen:attend-discord")`.
   `references/computer-use.md` is how `computer_use` behaves here (actions,
   coordinates, approvals, verdicts); read it once per session before the
   first input action.
@@ -45,7 +45,7 @@ Two kinds of knowledge, kept apart:
   leave it alone. It is recorded only when the user asks for their own voice
   (`mic`), and they can pause that at any time. Never deafen or mute the
   app's output: that silences what `screen_listen` hears. How each app shows
-  these controls is in its reference.
+  these controls is in its `attend-<app>` skill.
 - If `screen_listen` `status` says the helper is not built or reports no audio
   delivered, stop and tell the user which command grants it; do not try to
   record another way. The only route to the helper is `screen_listen`: run
@@ -57,7 +57,8 @@ Two kinds of knowledge, kept apart:
 1. **Resolve the target** with the app's account tool (names to ids), then
    `screen_listen` `status`: if the helper is not built, stop here.
 2. **Get the app into it** — open, join, mute, watch the stream if there is
-   one — as the app's reference says. Confirm you are in with a `capture`.
+   one — as the app's `attend-<app>` skill says. Confirm you are in with a
+   `capture`.
 3. **Listen.** `screen_listen` `listen` with `seconds` fitted to the ask: 30–60
    for "what are they talking about", up to 300 for a summary of a segment.
    One call at a time; for a longer stretch, call again and summarize the
@@ -75,16 +76,16 @@ Two kinds of knowledge, kept apart:
    - Transcription runs on this Mac unless the profile's `screen_listen.stt`
      is `chain`.
 4. **Look**, if the user wants the picture described: `capture` with
-   `mode: "vision"` of the stream's window (the reference says which). Native
-   vision shows at most three images per step; a `screenshot_path` is
-   delivered to the user only when they asked to see it.
+   `mode: "vision"` of the stream's window (the `attend-<app>` skill says
+   which). Native vision shows at most three images per step; a
+   `screenshot_path` is delivered to the user only when they asked to see it.
 5. **Report** in the user's language: who seems to be there (from the capture),
    what the picture shows (if asked), what was said (from the transcript,
    summarized). Mark uncertainty: a transcript of a noisy call or overlapping
    voices is approximate.
-6. **Leave** as the reference says, and leave the app as it was: running in
-   the background is fine; quit it only if it was not running when you
-   started.
+6. **Leave** as the `attend-<app>` skill says, and leave the app as it was:
+   running in the background is fine; quit it only if it was not running
+   when you started.
 
 ## A recording session
 
@@ -94,7 +95,8 @@ same entry (steps 1–2), then a session instead of a listen.
 Two situations, and the microphone rule differs:
 
 - **You joined for the user** (they are elsewhere: another call, away from the
-  Mac): join as the reference says, microphone muted, and leave at the end.
+  Mac): join as the `attend-<app>` skill says, microphone muted, and leave
+  at the end.
 - **The user is already in the channel on this Mac**, taking part themselves,
   and asks you to record it: do not open, join, mute or unmute anything —
   the microphone is theirs and muting it would cut them off mid-sentence.
@@ -151,13 +153,13 @@ already answered.
    picture up before starting, then start once** — never stop a running
    recording to improve its picture. The order:
    - Give the stream a window of its own and frame it for the framing and
-     the chat panel decided above, as the app's reference says (in a main
-     window the stream is a small panel among other things; `share` fills
-     that window with the stream).
+     the chat panel decided above, as the app's `attend-<app>` skill says
+     (in a main window the stream is a small panel among other things;
+     `share` fills that window with the stream).
    - `screen_listen` `windows` lists the app's windows with id, title and
-     size; the reference says how to tell the stream's window from the main
-     one. Pass its `window_id` to `record_start` (a `window` title works too,
-     exact before containing).
+     size; the `attend-<app>` skill says how to tell the stream's window
+     from the main one. Pass its `window_id` to `record_start` (a `window`
+     title works too, exact before containing).
    - The start answer names `video_window`; if it is the wrong one, stop and
      start again right then, before anything has happened — not later.
    Leave the app showing the stream for the whole session (navigating away
@@ -186,7 +188,8 @@ already answered.
 4. **Stop** with `record_stop` when the user says so, or when `record_status`
    shows the channel empty and the user agreed to stop then. The answer names
    the m4a (and the mp4) and their folder; with `mic`, `mic.muted_spans` are
-   the stretches the user paused. Then leave as the reference says.
+   the stretches the user paused. Then leave as the `attend-<app>` skill
+   says.
 5. **Hand over the audio** when they want to listen back: a bare
    `MEDIA:/abs/path/audio.m4a` line delivers it in this chat. For someone else,
    the user chooses the route: a messaging plugin's attachment
