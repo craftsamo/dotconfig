@@ -15,7 +15,7 @@ docs — index: [`PROFILES.md`](../PROFILES.md).
 | Engine: wacli calls, result shapes, file checks and snapshots, approval card, bypass guard | `plugins/messaging/whatsapp-access/wa.py`                                                          | all       |
 | `whatsapp` tool and the `pre_tool_call` hooks (toolset `whatsapp_access`)                  | `plugins/messaging/whatsapp-access/__init__.py`                                                    | Assistant |
 | Pairing and the per-account sync agent                                                     | `launchd/whatsapp-access-launchctl.sh`, `launchd/local.hermes.whatsapp-access.sync.plist.tmpl`     | people    |
-| How the Assistant works with it: reads, history, files, checks, sends, outcomes, counts    | the `whatsapp-access:whatsapp` plugin skill (`plugins/messaging/whatsapp-access/skills/whatsapp/`) | Assistant |
+| How the Assistant works with it: reads, history, files, checks, sends, outcomes, counts    | the `whatsapp-access:account` plugin skill (`plugins/messaging/whatsapp-access/skills/account/`) | Assistant |
 | When the Assistant uses it in Chat                                                         | the Assistant's private Chat reference `whatsapp.md`                                               | Assistant |
 
 The engine shells out to [`wacli`](https://github.com/openclaw/wacli)

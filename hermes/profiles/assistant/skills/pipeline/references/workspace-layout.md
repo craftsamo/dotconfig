@@ -26,7 +26,7 @@ This reference owns these facts; other documents point here.
 - `.registry/*.csv` — the workspace registry: people (identity, aliases, contacts,
   languages), projects (Groups and organizations), memberships and repos. Read and write
   it only with the `workspace_registry` tool, never a terminal command or a file edit.
-  Before calling the registry, read `skill_view(name="workspace-registry:workspace-registry")`
+  Before calling the registry, read `skill_view(name="workspace-registry:manage")`
   for its plugin-owned operation procedures.
   **Sensitive** like `Personal/`: people records and member calibration
   (`working_relationship`, notes) are summarized, never pasted raw into chat or logs.
@@ -54,7 +54,7 @@ Where a file sits is its status. There is no job record, state file or log.
   gets its owning Group chosen at promotion; the root has no canonical surface.
 - **A draft that remains is work not yet promoted.** Deleting a draft without
   promotion also needs the user's OK. Before the `workspace_drafts`
-  inventory, read `skill_view(name="workspace-drafts:workspace-drafts")`. The
+  inventory, read `skill_view(name="workspace-drafts:inventory")`. The
   tool and the `/drafts` command only read; incoming `.inbox/` material is not
   a draft.
 - Deliver from the draft with a bare `MEDIA:/abs/path` line.

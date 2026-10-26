@@ -94,19 +94,19 @@ def test_assistant_researcher_and_marketer_get_the_tool_others_nothing():
         params = tool["schema"]["parameters"]
         assert params["additionalProperties"] is False and params["required"] == ["action"]
         assert params["properties"]["action"]["enum"] == list(plugin.PROFILES[profile])
-        assert 'skill_view(name="cloudflare-access:cloudflare")' in tool["description"]
+        assert 'skill_view(name="cloudflare-access:read")' in tool["description"]
         assert [name for name, _ in ctx.hooks] == ["pre_tool_call"]
     assistant = registered("assistant")
-    assert set(assistant.skills) == {"cloudflare", "cloudflare-manage"}
+    assert set(assistant.skills) == {"read", "manage"}
     tool = assistant.tools["cloudflare"]
     assert {"changes", "preview"} <= set(tool["schema"]["parameters"]["properties"])
-    assert "dns_change" in tool["description"] and 'name="cloudflare-access:cloudflare-manage"' in tool["description"]
+    assert "dns_change" in tool["description"] and 'name="cloudflare-access:manage"' in tool["description"]
     for profile in ("researcher", "marketer"):
         ctx = registered(profile)
         tool = ctx.tools["cloudflare"]
-        assert set(ctx.skills) == {"cloudflare"}
+        assert set(ctx.skills) == {"read"}
         assert not {"changes", "preview"} & set(tool["schema"]["parameters"]["properties"])
-        assert "dns_change" not in tool["description"] and "cloudflare-manage" not in tool["description"]
+        assert "dns_change" not in tool["description"] and "manage" not in tool["description"]
 
 
 def test_the_read_profiles_hold_reads_only():

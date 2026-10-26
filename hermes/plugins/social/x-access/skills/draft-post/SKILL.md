@@ -11,11 +11,11 @@ metadata:
 
 # Saving an X post draft in the browser
 
-One of the two exceptions to `x-access:x-twitter`'s rule that the browser
+One of the two exceptions to `x-access:read`'s rule that the browser
 stays off x.com, beside the Article editor (`x-access:draft-article`). It
 writes into the user's main account, so the conditions are strict.
 
-- Read first, write second. Load `x-access:x-twitter` for the `x` tool's
+- Read first, write second. Load `x-access:read` for the `x` tool's
   mechanics: reading the user's own posts before drafting in their voice, and
   proving after the save that nothing went out.
 - Publishing, scheduling, posting, replying, liking, following, DMs and

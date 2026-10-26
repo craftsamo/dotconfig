@@ -20,7 +20,7 @@ follow or DM. Retrieve what was said and by whom; judging it stays under
 - **Search through the tool:** `x(action="search")` only when `x_search` is
   unavailable or has failed, never both for one question.
 
-The actions, budgets and recovery are `skill_view(name="x-access:x-twitter")`.
+The actions, budgets and recovery are `skill_view(name="x-access:read")`.
 `search`, `thread` and `user` draw on a share of the sub-account's hourly and
 daily caps that the Assistant and Marketer also use: plan the reads a unit
 needs, never loop or poll, and a `paused:` answer is a budget stop to report.

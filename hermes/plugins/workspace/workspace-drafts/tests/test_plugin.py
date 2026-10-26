@@ -432,8 +432,8 @@ def test_registration_is_limited_to_the_assistant(profile, expected):
 def test_skill_is_registered_with_its_own_path():
     ctx = Ctx("assistant")
     plugin.register(ctx)
-    path, description = ctx.skills["workspace-drafts"]
-    assert path == ROOT / "skills" / "workspace-drafts" / "SKILL.md" and description
+    path, description = ctx.skills["inventory"]
+    assert path == ROOT / "skills" / "inventory" / "SKILL.md" and description
 
 
 @pytest.mark.parametrize("profile", ["engineer", "creator"])

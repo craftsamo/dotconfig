@@ -14,8 +14,8 @@ metadata:
 A strategy is a rule set the user chose from backtests, written down as a
 spec, bounded by a mandate the user approved on its card, and run by a cron
 gate that wakes you only when the rules call for an action. Reading is
-`hyperliquid-access:hyperliquid` and trading is
-`hyperliquid-access:hyperliquid-trade`; load both first. This skill owns
+`hyperliquid-access:read` and trading is
+`hyperliquid-access:trade`; load both first. This skill owns
 choosing the rules, the spec, the mandate and the gate. What you do on each
 gate run is `hyperliquid-access:run-strategy`; an advisor's stance, the
 review, pausing and stopping are `hyperliquid-access:manage-strategy`.

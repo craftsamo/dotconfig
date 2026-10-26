@@ -30,7 +30,7 @@ drafts = _load("hermes_workspace_drafts", Path(__file__).resolve().parent / "dra
 PROFILES = {"assistant"}
 # Skill -> the profiles it is registered for. A skill is read-only to Hermes (not editable through
 # skill_manage); a profile that cannot do what a skill describes is not given it.
-SKILLS = {"workspace-drafts": set(PROFILES)}
+SKILLS = {"inventory": set(PROFILES)}
 PLUGIN = "workspace-drafts"
 logger = logging.getLogger(__name__)
 

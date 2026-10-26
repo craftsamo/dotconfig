@@ -16,7 +16,7 @@ under `Open for researcher`.
 - **One article:** `article` for its text, `comments` for replies.
 
 The actions, the budget and recovery are
-`skill_view(name="note-access:note-com")`. note is where Japanese practitioners
+`skill_view(name="note-access:read")`. note is where Japanese practitioners
 write first-person accounts, so a Japanese-language lookup or sweep that
 touches lived experience reads it rather than leaving it to web search.
 

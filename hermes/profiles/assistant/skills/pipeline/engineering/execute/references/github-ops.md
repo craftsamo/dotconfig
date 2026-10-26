@@ -3,13 +3,13 @@
 | Operation | Owner and permission |
 | --- | --- |
 | Code, commits, task-branch push, PR creation | An OpenCode build run you drive, within explicit implementation approval |
-| A PR for a branch already pushed that the user names | You, through `github_change` `pr_create` (`skill_view(name="github-access:github-pr")`), when the user asks; never for a branch a build run made, whose PR comes from that run |
-| A PR's text, labels, reviewers, attachments (screenshots), ready / draft, closing | You, through `github_change` (`skill_view(name="github-access:github-pr")`), when the user asks; each attached file with their yes |
+| A PR for a branch already pushed that the user names | You, through `github_change` `pr_create` (`skill_view(name="github-access:manage-pr")`), when the user asks; never for a branch a build run made, whose PR comes from that run |
+| A PR's text, labels, reviewers, attachments (screenshots), ready / draft, closing | You, through `github_change` (`skill_view(name="github-access:manage-pr")`), when the user asks; each attached file with their yes |
 | Issues and boards | You, through `github_change` (github-access), only for a job the user chose to track (below); never an OpenCode run |
-| Repo creation and settings, labels, milestones, branch protection, clone, workspace registry | Assistant, when separately requested/approved; GitHub changes through `github_change` (`skill_view(name="github-access:github-repo")`) |
+| Repo creation and settings, labels, milestones, branch protection, clone, workspace registry | Assistant, when separately requested/approved; GitHub changes through `github_change` (`skill_view(name="github-access:manage-repo")`) |
 | CI: why a run failed, re-running it | You read it (`github_repo` `run`); a real failure goes back to the build session. A re-run (`run_rerun`) when the user asks, or proposed by you only for a failure that looks transient; its card is their go |
 | Merge | Assistant, only when the user asks, after readiness checks: `pr_merge`, whose card is their go; method and message as `skill_view(name="github", file_path="references/merge.md")` says |
-| Deploy/publish (publishing a release, starting a workflow that deploys) | Outside the implementation grant; separately scoped work. When the user asks for it: `release_create` / `release_publish` or `workflow_dispatch` (`github-access:github-repo`), each on its own card |
+| Deploy/publish (publishing a release, starting a workflow that deploys) | Outside the implementation grant; separately scoped work. When the user asks for it: `release_create` / `release_publish` or `workflow_dispatch` (`github-access:manage-repo`), each on its own card |
 
 Do not create Issues or change boards for a job the user did not choose to
 track, and never as an automatic close-out. Reading an Issue is not
@@ -20,8 +20,8 @@ build session when released.
 
 ## Tracking a job on GitHub
 
-Read `skill_view(name="github-access:github")` and
-`skill_view(name="github-access:github-tracking")` before the first GitHub
+Read `skill_view(name="github-access:read-tracking")` and
+`skill_view(name="github-access:manage-tracking")` before the first GitHub
 change of a job.
 
 **The choice.** Propose tracking once, and only with the roadmap of a job of
@@ -97,11 +97,11 @@ you, after you have read it.
 ## Repository lifecycle
 
 Use the decisions from [bootstrap](../../plan/references/bootstrap.md).
-Before any registry call, read `skill_view(name="workspace-registry:workspace-registry")`.
+Before any registry call, read `skill_view(name="workspace-registry:manage")`.
 Create a missing Group with the `workspace_registry` `group_create` action only when approved;
 pass an organization only when it names a real approved registry record.
 Establish GitHub repositories with approved owner, visibility and history
-through `github_change` `repo_create` (`skill_view(name="github-access:github-repo")`,
+through `github_change` `repo_create` (`skill_view(name="github-access:manage-repo")`,
 always on its own card): `template` for a starter, or an empty repository for
 an approved scratch or history-preserving path (the history is pushed into
 it). Clone through `ghq`, not an unregistered local `git init`; preserve

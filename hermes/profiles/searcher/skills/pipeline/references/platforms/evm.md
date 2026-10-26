@@ -9,7 +9,7 @@ nothing is signed or sent, and a write function run with `call` is only an
 
 ## Which action
 
-The actions and what each returns are `skill_view(name="evm-access:evm")`.
+The actions and what each returns are `skill_view(name="evm-access:read")`.
 Retrieve with them; the rules below are what Searcher adds.
 
 ## What to record per item

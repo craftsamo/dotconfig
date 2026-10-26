@@ -13,8 +13,8 @@ metadata:
 # GitHub: the user's conventions
 
 The tools' mechanics live in the `github-access` skills
-(`skill_view(name="github-access:github-pr")` for pull requests and merges,
-`skill_view(name="github-access:github-repo")` for repositories and Actions).
+(`skill_view(name="github-access:manage-pr")` for pull requests and merges,
+`skill_view(name="github-access:manage-repo")` for repositories and Actions).
 This skill adds what this user expects on top of them. Read the reference for
 the work in front of you; each stands alone.
 

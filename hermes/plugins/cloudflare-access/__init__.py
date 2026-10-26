@@ -48,8 +48,8 @@ A2A = {"researcher": cfa.READS, "marketer": cfa.READS}
 # Skill -> the profiles it is registered for, by the actions they hold. A skill is read-only to Hermes
 # (not editable through skill_manage); a profile that cannot do what a skill describes is not given it.
 SKILLS = {
-    "cloudflare": {p for p, actions in PROFILES.items() if set(actions) & set(cfa.READS)},
-    "cloudflare-manage": {p for p, actions in PROFILES.items() if set(actions) & set(cfa.WRITES)},
+    "read": {p for p, actions in PROFILES.items() if set(actions) & set(cfa.READS)},
+    "manage": {p for p, actions in PROFILES.items() if set(actions) & set(cfa.WRITES)},
 }
 
 READ_DESCRIPTION = (
@@ -343,8 +343,8 @@ def register(ctx):
     description, properties = schema_parts(PROFILES[profile])
     description += (f' For anything past a single lookup, first load '
                     f'skill_view(name="cloudflare-access:{skills_for(profile)[0]}").')
-    if "cloudflare-manage" in skills_for(profile):
-        description += ' Before any change, load skill_view(name="cloudflare-access:cloudflare-manage").'
+    if "manage" in skills_for(profile):
+        description += ' Before any change, load skill_view(name="cloudflare-access:manage").'
     schema = {"name": TOOL, "description": description, "parameters": {
         "type": "object", "properties": properties, "required": ["action"], "additionalProperties": False}}
     ctx.register_tool(name=TOOL, toolset=TOOLSET, handler=make_handler(profile), description=description,

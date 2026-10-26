@@ -415,9 +415,9 @@ def test_chain_reads_are_retrieval_without_verdicts():
             assert phrase in text, phrase
     assert "`powers`" in evm and "`guessed`" in evm and "block ranges actually read" in evm
     assert "`omitted`" in evm and "`coverage`" in evm
-    skill = flat(HERMES / "plugins/web3/evm-access/skills/evm/SKILL.md")
+    skill = flat(HERMES / "plugins/web3/evm-access/skills/read/SKILL.md")
     assert "`address` = the contract" in skill and "`state_unread`" in skill and "zero address" in skill
-    assert 'skill_view(name="evm-access:evm")' in evm and 'skill_view(name="solana-access:solana")' in solana
+    assert 'skill_view(name="evm-access:read")' in evm and 'skill_view(name="solana-access:read")' in solana
     assert "`state_unread`" in evm and "zero address is unset" in evm and "`block`" in evm
     assert "`slot`" in solana
     for name in ENTRIES:
@@ -436,14 +436,14 @@ def test_venue_reads_are_retrieval_without_verdicts():
     text = flat(PIPELINE / "references/platforms/hyperliquid.md")
     for phrase in ("Reading is allowed and it never writes", "nothing is signed or sent", "`Open for researcher`",
                    '`{"untrusted": …}`', "explorer link", "unsearched ground", "network and time",
-                   'skill_view(name="hyperliquid-access:hyperliquid")'):
+                   'skill_view(name="hyperliquid-access:read")'):
         assert phrase in text, phrase
     assert "venue reads of the hyperliquid tool, which never trades" in flat(PIPELINE / "SKILL.md")
-    assert (HERMES / "plugins/web3/hyperliquid-access/skills/hyperliquid/SKILL.md").is_file()
+    assert (HERMES / "plugins/web3/hyperliquid-access/skills/read/SKILL.md").is_file()
 
 
-SKILLS_FOR_SERVICE = {"x": "x-access:x-twitter", "youtube": "youtube-access:youtube",
-                      "note": "note-access:note-com", "substack": "substack-access:substack"}
+SKILLS_FOR_SERVICE = {"x": "x-access:read", "youtube": "youtube-access:read",
+                      "note": "note-access:read", "substack": "substack-access:read"}
 
 
 @pytest.mark.parametrize("service, skill", sorted(SKILLS_FOR_SERVICE.items()))

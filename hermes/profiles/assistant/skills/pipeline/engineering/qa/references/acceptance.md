@@ -12,7 +12,7 @@ merge state and what the closing references will close. For a stack, verify the
 target layer and dependent layers: merging a layer also lands the open layers
 below it. A first layer must not close an Issue whose remaining scope belongs to
 later layers. The merge itself is `pr_merge`
-(`skill_view(name="github-access:github-pr")`), with the method and message
+(`skill_view(name="github-access:manage-pr")`), with the method and message
 `skill_view(name="github", file_path="references/merge.md")` sets: its card, pinned to the head
 commit it shows, is the user's explicit go; follow [GitHub
 operations](../../execute/references/github-ops.md).

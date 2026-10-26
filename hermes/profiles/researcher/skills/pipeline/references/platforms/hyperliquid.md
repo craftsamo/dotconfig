@@ -5,7 +5,7 @@ Hyperliquid's perp and spot venue, mainnet and testnet, read through the
 can be read by its address. The venue's own app and explorer show the same
 state; cite the tool's read, with the explorer link it returns for an account
 as its locator. The tool's actions and mechanics are
-`skill_view(name="hyperliquid-access:hyperliquid")`; this file holds how the
+`skill_view(name="hyperliquid-access:read")`; this file holds how the
 evidence is weighed.
 
 ## What the venue proves

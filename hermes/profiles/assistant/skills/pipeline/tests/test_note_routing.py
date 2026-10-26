@@ -19,22 +19,22 @@ class NoteRouting(unittest.TestCase):
     def test_the_skills_exist_and_take_no_save_packages(self):
         skills = public_root() / "hermes/plugins/social/note-access/skills"
         texts = {}
-        for name in ("note-com", "note-com-format", "note-com-drafts"):
+        for name in ("read", "check-format", "draft"):
             text = (skills / name / "SKILL.md").read_text()
             meta = yaml.safe_load(text.split("---", 2)[1])
             self.assertEqual(meta["name"], name)
             self.assertNotIn("save package", text)
             self.assertFalse((skills / name / "references/save-package.md").exists())
             texts[name] = text
-        self.assertIn("no exception", " ".join(texts["note-com"].split()))
-        self.assertIn("`check`", texts["note-com-format"])
-        self.assertIn("preview", texts["note-com-drafts"])
+        self.assertIn("no exception", " ".join(texts["read"].split()))
+        self.assertIn("`check`", texts["check-format"])
+        self.assertIn("preview", texts["draft"])
 
     def test_chat_loads_the_skills_and_keeps_no_mechanics(self):
         kernel = (ROOT / "chat/SKILL.md").read_text()
-        self.assertIn('skill_view(name="note-access:note-com")', kernel)
+        self.assertIn('skill_view(name="note-access:read")', kernel)
         reference = (ROOT / "chat/references/note.md").read_text()
-        for name in ("note-com", "note-com-format", "note-com-drafts"):
+        for name in ("read", "check-format", "draft"):
             self.assertIn(f'skill_view(name="note-access:{name}")', reference)
         for mechanic in ("`base`", "note-block", "UNCERTAIN", "20 MB"):
             self.assertNotIn(mechanic, reference)
@@ -43,8 +43,8 @@ class NoteRouting(unittest.TestCase):
         execute = " ".join((ROOT / "marketing/execute/SKILL.md").read_text().split())
         for route in ('skill_view(name="x-access:draft-post")',
                       'skill_view(name="x-access:draft-article")',
-                      'skill_view(name="substack-access:substack-drafts")',
-                      'skill_view(name="note-access:note-com-drafts")', 'skill_view(name="zenn-dev")'):
+                      'skill_view(name="substack-access:manage")',
+                      'skill_view(name="note-access:draft")', 'skill_view(name="zenn-dev")'):
             self.assertIn(route, execute)
         self.assertNotIn("save-package", execute)
         self.assertNotIn("files[].sha256", execute)

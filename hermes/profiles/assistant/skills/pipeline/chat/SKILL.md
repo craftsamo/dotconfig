@@ -53,39 +53,39 @@ registry or ledger upkeep, Hermes upkeep) stays here across turns.
   `google_drive` and `gcloud`, never gcloud in the terminal or editing in the
   browser (a project's own scripts are another matter, below); every change
   waits for approval on its card. Any sheet work loads
-  `skill_view(name="google-access:google-sheets")` first — `references/google.md`.
+  `skill_view(name="google-access:sheets")` first — `references/google.md`.
 - **The user's WhatsApp** (reading chats, saving a file someone sent,
   checking a number, counting chats or replies, sending a message or a
   workspace file) — only through the `whatsapp` tool, never the terminal or
-  WhatsApp Web. Any WhatsApp work loads `skill_view(name="whatsapp-access:whatsapp")` first —
+  WhatsApp Web. Any WhatsApp work loads `skill_view(name="whatsapp-access:account")` first —
   `references/whatsapp.md`.
 - **The user's Signal** (reading chats, saving a file someone sent, checking
   a number, sending a message or a workspace file) — only through the
   `signal` tool, never the terminal or Signal Desktop; every send waits for
-  approval on its card. Any Signal work loads `skill_view(name="signal-access:signal")`
+  approval on its card. Any Signal work loads `skill_view(name="signal-access:account")`
   first — `references/signal.md`.
 - **The user's own Discord account** (their DMs and servers, threads, pins,
   mentions, friends, syncing a server, sending, reacting, pinning, editing or
   deleting their own message, managing a server's roles) — only through the
   `discord_account` tool, never the terminal or Discord in the browser. Any
-  Discord account work loads `skill_view(name="discord-access:discord-account")` first —
+  Discord account work loads `skill_view(name="discord-access:account")` first —
   `references/discord.md`.
 - **The user's own Telegram account** (their chats, groups and channels,
   syncing a supergroup or channel, sending a message or a workspace file — not
   this chat with you) — only through the `telegram_account` tool, never the
   terminal or a Telegram app. Any Telegram account work loads
-  `skill_view(name="telegram-access:telegram-account")` first — `references/telegram.md`.
+  `skill_view(name="telegram-access:account")` first — `references/telegram.md`.
 - **X (Twitter)** (the user's posts and mentions, a post or thread, a
   profile, a post's media, checking posts' real authors and counts) —
   read-only, only through the `x` tool, never the terminal or x.com in the
   browser, except saving a post draft or finishing an X Article draft the
   user asked for (saved draft only, never published). Any X work loads
-  `skill_view(name="x-access:x-twitter")` first — `references/x.md`.
+  `skill_view(name="x-access:read")` first — `references/x.md`.
 - **note (note.com)** (articles, creators, comments, the user's drafts and
   stats, checking a draft body's format, saving an agreed unpublished draft
   with images) — only through the `note` tool, never the terminal or the note
   editor in the browser; nothing publishes. Any note work loads
-  `skill_view(name="note-access:note-com")` first — `references/note.md`.
+  `skill_view(name="note-access:read")` first — `references/note.md`.
 - **The user's own Substack** (reading publications, their inbox, drafts and
   stats; drafting, publishing, scheduling, posting a Note) — only through the
   `substack` tool, never the terminal or substack.com in the browser; every
@@ -97,7 +97,7 @@ registry or ledger upkeep, Hermes upkeep) stays here across turns.
   never the terminal or yt-dlp; every write waits for approval on its card.
   YouTube Studio in the browser only for channel settings the tool cannot
   change (name, handle, picture, banner, links, upload defaults), each after
-  a `clarify` yes. Any YouTube work loads `skill_view(name="youtube-access:youtube")` first
+  a `clarify` yes. Any YouTube work loads `skill_view(name="youtube-access:read")` first
   — `references/youtube.md`.
 - **Blockchains and the user's web3 wallets** (a transaction, block,
   address, token, approval, balance, price, contract or program on an EVM
@@ -141,11 +141,11 @@ registry or ledger upkeep, Hermes upkeep) stays here across turns.
 | `references/message-reply.md` | interpreting a received message and copy-ready reply drafts |
 | `references/cron.md` | registering or changing scheduled recurring jobs |
 | `references/lookups.md` | in-turn parallel lookups via `delegate_task` |
-| `references/google.md` | the user's Google account: Sheets (mechanics in the `google-access:google-sheets` skill), Gmail reads and approved sends, Drive downloads and approved uploads, gcloud reads and approved commands |
-| `references/whatsapp.md` | the user's WhatsApp accounts in Chat: which account a request means, replies, files and the inbox folder (mechanics in the `whatsapp-access:whatsapp` skill) |
-| `references/signal.md` | the user's Signal account in Chat (mechanics in the `signal-access:signal` skill): replies, files to send, the inbox folder |
-| `references/discord.md` | the user's own Discord account in Chat (mechanics in the `discord-access:discord-account` skill): what stays inline, the test server, files and reports |
-| `references/telegram.md` | the user's own Telegram account in Chat (mechanics in the `telegram-access:telegram-account` skill): what stays inline, choosing the chat, files and reports |
+| `references/google.md` | the user's Google account: Sheets (mechanics in the `google-access:sheets` skill), Gmail reads and approved sends, Drive downloads and approved uploads, gcloud reads and approved commands |
+| `references/whatsapp.md` | the user's WhatsApp accounts in Chat: which account a request means, replies, files and the inbox folder (mechanics in the `whatsapp-access:account` skill) |
+| `references/signal.md` | the user's Signal account in Chat (mechanics in the `signal-access:account` skill): replies, files to send, the inbox folder |
+| `references/discord.md` | the user's own Discord account in Chat (mechanics in the `discord-access:account` skill): what stays inline, the test server, files and reports |
+| `references/telegram.md` | the user's own Telegram account in Chat (mechanics in the `telegram-access:account` skill): what stays inline, choosing the chat, files and reports |
 | `references/x.md` | reading X as the sub-account, verifying posts, downloading a post's media, and when an X Article draft may be finished in the browser |
 | `references/note.md` | reading note.com and the user's drafts and stats, checking a body's format, and saving an approved unpublished draft |
 | `references/substack.md` | reading Substack and the user's own publication, and approved drafts, releases and Notes |

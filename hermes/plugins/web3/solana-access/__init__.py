@@ -33,7 +33,7 @@ PLUGIN = "solana-access"
 logger = logging.getLogger(__name__)
 # Skill -> the profiles it is registered for. A skill is read-only to Hermes (not editable through
 # skill_manage); the wallet procedure reaches only the profiles that can sign.
-SKILLS = {"solana": set(access.PROFILES), "solana-wallet": set(access.SIGNING)}
+SKILLS = {"read": set(access.PROFILES), "wallet": set(access.SIGNING)}
 
 
 def register_skills(ctx, profile):

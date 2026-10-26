@@ -22,7 +22,7 @@ own contract is [hyperliquid.md](hyperliquid.md).
 | Signer: derives accounts, builds, simulates, signs and sends; the only reader of wallet secrets | `_shared/signer.py` with `keychain.py`, `ledger.py`, `seeds.py`                                                                           |
 | Engine dependencies, hash-locked                                                                | `engines/web3/requirements.{in,lock}` → `~/.hermes/local/web3/venv`                                                                       |
 | Setup and status launcher                                                                       | `scripts/web3.sh`                                                                                                                         |
-| How a profile reads a chain; how the Assistant lists wallets, makes new ones and sends          | plugin skills `evm-access:evm`, `solana-access:solana`, and for the Assistant only `evm-access:evm-wallet`, `solana-access:solana-wallet` |
+| How a profile reads a chain; how the Assistant lists wallets, makes new ones and sends          | plugin skills `evm-access:read`, `solana-access:read`, and for the Assistant only `evm-access:manage-wallets`, `solana-access:wallet` |
 | What the Assistant does inline in Chat; how Researcher and Searcher use chain evidence          | the Assistant's Chat reference `web3.md`; each pipeline's `references/platforms/evm.md`, `solana.md`                                      |
 
 Every profile in the plugins' list gets the read actions; the Assistant's tools
