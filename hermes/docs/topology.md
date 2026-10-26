@@ -275,6 +275,9 @@ Profile docs list only their deltas to this shared contract:
   that portability check; the exception never authorizes a broken dependency.
 - **Cached index.** The gateway caches its skill index in-process; manual file
   edits do not invalidate it, and a fresh session alone is not invalidation.
+  A session keeps the index it was built with, across restarts too;
+  `/reload-skills` tells a running session what was added or removed without
+  replacing that index, and only `/new` starts one on the current index.
 
 ## Candidate rollout and cutover
 
