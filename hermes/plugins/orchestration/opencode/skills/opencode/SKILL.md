@@ -1,13 +1,12 @@
 ---
 name: opencode
-description: "Use before any opencode_* tool call: how to start, continue, steer, interrupt and read OpenCode runs, answer their permission requests and questions, pick models, hand runs an output directory, and read OpenCode's session history."
+description: "Use before any opencode_* tool call: starting, continuing, steering, interrupting and reading OpenCode runs, their permission requests and questions, models, output directories and session history."
 version: 1.0.0
 author: CraftSamo
 license: MIT
 metadata:
   hermes:
     tags: [opencode, opencode_run, engineering, coding-agent, permissions]
-    category: technic
 ---
 
 # OpenCode through the `opencode_*` tools

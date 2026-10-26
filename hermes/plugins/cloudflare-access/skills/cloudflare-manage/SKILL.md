@@ -1,6 +1,6 @@
 ---
 name: cloudflare-manage
-description: "Use before changing anything in the user's Cloudflare: DNS records, a cache purge, a zone setting, an e-mail rule, a tunnel's public hostname, an R2, KV or D1 container, or rolling back a Worker or a Pages site."
+description: "Use before changing anything in the user's Cloudflare: DNS records, cache, zone settings, e-mail rules, tunnel hostnames, R2, KV, D1, or rolling back a Worker or a Pages site."
 version: 1.0.0
 author: CraftSamo
 license: MIT

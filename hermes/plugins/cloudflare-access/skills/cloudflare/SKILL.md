@@ -1,6 +1,6 @@
 ---
 name: cloudflare
-description: "Use for any reading of the user's Cloudflare: zones, DNS records, zone settings, analytics, Workers and Pages deployments, R2, KV and D1 listings, tunnels or Email Routing of their own accounts."
+description: "Use for any reading of the user's own Cloudflare accounts: zones, DNS records, zone settings, analytics, Workers and Pages deployments, R2, KV, D1, tunnels or Email Routing. Reads only."
 version: 1.0.0
 author: CraftSamo
 license: MIT
