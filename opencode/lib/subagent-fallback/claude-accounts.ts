@@ -5,8 +5,8 @@ import { METHODS, type ModelRef } from "./policy"
 // Saved Claude subscription logins beside the active one. OpenCode resolves
 // only an integration's active login, and the Claude login plugin rewrites
 // requests for provider `anthropic` alone, so another login is reached through
-// alias models of that provider: `claude-opus-5-5-sub` (config
-// `modelID: "claude-opus-5-5"`) runs on the login the `sub` suffix names. Its
+// alias models of that provider: `claude-opus-5-5-main` (config
+// `modelID: "claude-opus-5-5"`) runs on the login the `main` suffix names. Its
 // requests leave with that login's token in place of the active one's.
 export type ClaudeAccount = { suffix: string; label: string }
 

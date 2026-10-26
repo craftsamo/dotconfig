@@ -616,12 +616,12 @@ Pro/Max login cannot be a provider of its own the way a credit lane is. The
 same plugin (`lib/subagent-fallback`) reaches it through alias models instead:
 
 - `providers.anthropic.models` in `opencode.jsonc` defines
-  `claude-<model>-sub` for Fable, Opus, Sonnet and Haiku, each with `modelID`
+  `claude-<model>-main` for Fable, Opus, Sonnet and Haiku, each with `modelID`
   set to the real model: it sends the real model ID and inherits its variants,
-  limits and prices. `/models` lists them as "Claude Opus 5.5 (Sub OAuth)" and
+  limits and prices. `/models` lists them as "Claude Opus 5.5 (Main OAuth)" and
   so on.
 - The option `claudeAccounts` maps a model-ID suffix to the label of a saved
-  login (`{ "sub": "Sub OAuth" }`). A request on an alias model leaves with
+  login (`{ "main": "Main OAuth" }`). A request on an alias model leaves with
   that login's token in place of the active one's; the plain models keep the
   active login. The side requests of a session on an alias model (compaction
   on the compaction agent's Haiku, a title on a Claude model) follow the
@@ -650,13 +650,13 @@ same plugin (`lib/subagent-fallback`) reaches it through alias models instead:
 
 To add a login, run `opencode auth login anthropic --method claude-max` from a
 browser signed into that account. A new login becomes the active one: switch
-back right away (`opencode auth switch anthropic "Main OAuth"`), then give the
+back right away (`opencode auth switch anthropic "Sub OAuth"`), then give the
 new login the label the option names, from the TUI's account list or with
 `opencode api patch /api/credential/<credential id> --data
-'{"label":"Sub OAuth"}'` (`opencode auth list --format json` shows the ID). The
-labels are opaque; which account each one is lives in the private overlay.
-Quota shows every saved login, as `[Claude Main OAuth] (active)` and
-`[Claude Sub OAuth]`; it has no setting to rename the `Claude` prefix.
+'{"label":"Main OAuth"}'` (`opencode auth list --format json` shows the ID).
+The labels are opaque; which account each one is lives in the private overlay.
+Quota shows every saved login, as `[Claude Sub OAuth] (active)` and
+`[Claude Main OAuth]`; it has no setting to rename the `Claude` prefix.
 
 Limits:
 
@@ -701,8 +701,8 @@ A move to a credit lane (see above) therefore pays one full write.
   so the three logins are independent even where two of them are the same
   account. Log in from a browser signed into the account OpenCode should use:
   `opencode auth login anthropic --method claude-max`. Several accounts can be
-  saved; one is active at a time (`opencode auth switch`, label `Main OAuth`),
-  and another is reached through alias models (label `Sub OAuth`, see "Claude
+  saved; one is active at a time (`opencode auth switch`, label `Sub OAuth`),
+  and another is reached through alias models (label `Main OAuth`, see "Claude
   accounts"), picked by hand or as the last stop after the credit lanes. Which
   account each is lives in the private overlay.
 - **Anthropic Console credit lanes**: the monthly API credits that Max plans
