@@ -158,7 +158,7 @@ def test_searcher_gets_only_the_public_reads():
 
 
 def test_the_draft_skill_reaches_only_the_profile_that_saves_drafts():
-    expected = {"assistant": {"x-twitter", "x-twitter-drafts"}, "marketer": {"x-twitter"},
+    expected = {"assistant": {"x-twitter", "draft-post", "draft-article"}, "marketer": {"x-twitter"},
                 "searcher": {"x-twitter"}, "creator": set()}
     for profile, names in expected.items():
         ctx = Ctx(profile)

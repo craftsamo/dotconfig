@@ -1,3 +1,14 @@
+---
+name: collect-history
+description: "Use when a document, inventory or summary will cite what was said in the user's Discord: the history goes to files once, verbatim. Read-only."
+version: 1.0.0
+author: CraftSamo
+license: MIT
+metadata:
+  hermes:
+    tags: [discord, discord_account, collection, evidence, export]
+---
+
 # Collecting Discord history as evidence
 
 For a document, an inventory or a summary that will cite what was said: the

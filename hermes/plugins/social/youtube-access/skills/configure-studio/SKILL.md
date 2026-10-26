@@ -1,3 +1,14 @@
+---
+name: configure-studio
+description: "Use only for a YouTube channel setting the youtube tool cannot change (name, handle, picture, banner, links, contact email, home tab, upload defaults): Studio in the browser, one setting per clarify yes."
+version: 1.0.0
+author: CraftSamo
+license: MIT
+metadata:
+  hermes:
+    tags: [youtube, youtube-studio, browser, channel-settings, clarify]
+---
+
 # Studio settings in the browser
 
 Only for what the `youtube` tool cannot change: the channel's name, handle,

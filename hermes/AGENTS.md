@@ -243,12 +243,17 @@ skills.
   protects the path only because a path element is literally `skills` — never
   rename the directory. A profile gets a skill only if its tool can do what the
   skill describes, so a read-only profile never sees write procedures: split a
-  skill by capability (`x-twitter` / `x-twitter-drafts`), never by
+  skill by capability (`x-twitter` / `draft-post`), never by
   `references/` (a loaded skill's references are readable by anyone who loads
-  it). A registered plugin skill is also listed in the profile's available-skills
-  index, so its description is read every turn: it says when to use the skill
-  and where it stops, within the budget `test_plugin_skills.py` sets; what the
-  skill does is the body's. It carries no `metadata.hermes.category` (the
+  it). A procedure the model follows through a step (`collect-history`,
+  `configure-studio`) is a skill of its own, not a `references/` file: after a
+  context compaction only a skill name can be reloaded, a reference only
+  through its parent's name. `references/` keeps lookup knowledge (a design
+  guide, a coordinate table). A registered plugin skill is also listed in the
+  profile's available-skills index, so its description is read every turn:
+  it says when to use the skill and where it stops, within the budget
+  `test_plugin_skills.py` sets; what the skill does is the body's. It
+  carries no `metadata.hermes.category` (the
   runtime files every plugin skill under `plugin`). The tool description or
   the pipeline still names `skill_view(name="<plugin>:<skill>")` where the
   skill must be read. `test_plugin_skills.py` is the audience table; a new

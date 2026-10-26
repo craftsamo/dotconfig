@@ -1,3 +1,14 @@
+---
+name: manage-roles
+description: "Use when the user asks for a role change in a Discord server they name: read the roles first, make the one change asked for, nothing more."
+version: 1.0.0
+author: CraftSamo
+license: MIT
+metadata:
+  hermes:
+    tags: [discord, discord_account, roles, permissions, audit-log]
+---
+
 # Discord roles
 
 Only in a server the user names, and only the change they asked for — never

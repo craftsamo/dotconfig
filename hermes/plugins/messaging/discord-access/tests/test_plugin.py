@@ -204,7 +204,7 @@ def test_writes_on_unknown_targets_are_blocked(args):
 
 
 def test_the_skill_reaches_only_the_assistant():
-    for profile, names in (("assistant", {"discord-account"}), ("marketer", set()), ("creator", set())):
+    for profile, names in (("assistant", {"discord-account", "collect-history", "manage-roles"}), ("marketer", set()), ("creator", set())):
         ctx = Ctx(profile)
         plugin.register(ctx)
         assert set(ctx.skills) == names
@@ -212,16 +212,18 @@ def test_the_skill_reaches_only_the_assistant():
 
 # --- the tool, its description and its skill say the same thing -----------------------------------------
 
-SKILL_DIR = ROOT / "skills" / "discord-account"
+SKILLS_DIR = ROOT / "skills"
+SKILL_FILES = ("discord-account/SKILL.md", "manage-roles/SKILL.md", "collect-history/SKILL.md",
+               "discord-account/references/recipes.md")
 
 
 def _skill_text(*names):
-    return "\n".join((SKILL_DIR / name).read_text(encoding="utf-8") for name in names)
+    return "\n".join((SKILLS_DIR / name).read_text(encoding="utf-8") for name in names)
 
 
 def test_every_action_is_in_the_tool_description_and_the_skill():
     description = plugin.DESCRIPTION
-    skill = _skill_text("SKILL.md", "references/roles.md", "references/collection.md", "references/recipes.md")
+    skill = _skill_text(*SKILL_FILES)
     for action in plugin.access.ACTIONS:
         assert re.search(rf"(?<![\w]){action}(?![\w])", description), f"{action} is not in the tool description"
         assert f"`{action}`" in skill, f"{action} is not in the skill"
@@ -229,15 +231,15 @@ def test_every_action_is_in_the_tool_description_and_the_skill():
 
 def test_the_skill_names_only_arguments_the_tool_has():
     properties = set(plugin.PROPERTIES)
-    for name in ("SKILL.md", "references/roles.md", "references/collection.md", "references/recipes.md"):
+    for name in SKILL_FILES:
         text = _skill_text(name)
         for argument in set(re.findall(r"`([a-z_]+)=", text)):
             assert argument in properties, f"{name} names {argument}= but the tool has no such argument"
 
 
 def test_the_recipes_are_reached_from_the_skill_and_cover_the_usual_jobs():
-    assert "references/recipes.md" in _skill_text("SKILL.md")
-    recipes = _skill_text("references/recipes.md")
+    assert "references/recipes.md" in _skill_text("discord-account/SKILL.md")
+    recipes = _skill_text("discord-account/references/recipes.md")
     headings = re.findall(r"^## \d+\. (.+)$", recipes, re.MULTILINE)
     assert headings == ["What is waiting for my answer", "Look into a channel", "Review the sync list",
                         "Read a forum", "Sync looks wrong"]

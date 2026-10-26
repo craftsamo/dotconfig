@@ -19,7 +19,7 @@ import sys
 PROFILES = {"assistant"}
 # Skill -> the profiles it is registered for. A skill is read-only to Hermes (not editable through
 # skill_manage); a profile that cannot do what a skill describes is not given it.
-SKILLS = {"whatsapp": set(PROFILES)}
+SKILLS = {"whatsapp": set(PROFILES), "count-activity": set(PROFILES)}
 TOOLSET = "whatsapp_access"
 TOOL = "whatsapp"
 LIMIT = 60000

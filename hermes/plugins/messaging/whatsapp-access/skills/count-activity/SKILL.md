@@ -1,7 +1,18 @@
+---
+name: count-activity
+description: "Use when the user asks for a count of chats, sends or replies in their WhatsApp over a period: page to complete, compute in a script, say what the mirror cannot see."
+version: 1.0.0
+author: CraftSamo
+license: MIT
+metadata:
+  hermes:
+    tags: [whatsapp, whatsapp_access, census, counting, period]
+---
+
 # Counting from WhatsApp
 
 How to count chats, sends and replies over a period. The task skill says
-what is counted and where it is reported; this file says how the count is
+what is counted and where it is reported; this skill says how the count is
 made so it holds up.
 
 ## Collect
