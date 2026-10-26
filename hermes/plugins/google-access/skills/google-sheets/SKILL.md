@@ -1,13 +1,12 @@
 ---
 name: google-sheets
-description: "Use for any work in the user's Google Sheets: finding and reading a sheet, counting from it, writing or importing rows, formatting, comments, checking how it looks, recovering a bad write, or designing a new sheet."
+description: "Use for any work in the user's Google Sheets: finding, reading or counting from a sheet, writing or importing rows, formatting, comments, checking how it looks, recovering a bad write, or designing a new one."
 version: 1.0.0
 author: CraftSamo
 license: MIT
 metadata:
   hermes:
     tags: [google-sheets, spreadsheet, google_sheets, formatting, import, recovery]
-    category: technic
 ---
 
 # Google Sheets through the `google_sheets` tool

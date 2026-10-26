@@ -1,6 +1,6 @@
 ---
 name: live
-description: Use when the user asks what is happening right now in a live call, voice channel or stream shown by an app on this Mac (Discord today) — "see what they are streaming", "listen in on the voice channel", "summarize the stream" — or asks to record a call or stream to keep (its audio, or the screen share on video too), transcribe it, turn it into minutes or share it, from Telegram or anywhere else. Gets the app into the channel or stream with computer_use (how, per app, in references/), hears it with screen_listen (a bounded listen, or a recording session with start and stop), looks at it with a capture, reports, and leaves. Not for reading messages (the app's account tool), for recording without the user asking, or for watching unattended over time.
+description: "Use when the user asks what is happening now in a live call, voice channel or stream an app on this Mac shows (Discord today), or to record, transcribe or make minutes of one they asked for. Not for reading messages, recording unasked, or watching unattended."
 ---
 
 # Live: hear, watch, record what an app is playing

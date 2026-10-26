@@ -1,13 +1,12 @@
 ---
 name: github-repo
-description: "Use to read and change a GitHub repository for the user: its settings and visibility, making or archiving one, labels, milestones, releases, Actions runs (why one failed, re-running, starting a workflow) and branch protection."
+description: "Use to read or change a GitHub repository for the user: settings and visibility, creating or archiving one, labels, milestones, releases, Actions runs and branch protection."
 version: 1.0.0
 author: CraftSamo
 license: MIT
 metadata:
   hermes:
     tags: [github, repository, settings, visibility, labels, milestones, admin]
-    category: technic
 ---
 
 # Repositories through `github_repo` and `github_change`

@@ -1,13 +1,12 @@
 ---
 name: whatsapp
-description: "Use for any work in the user's own WhatsApp accounts: finding a chat, reading messages, saving a photo or document someone sent, fetching older history, checking whether a number is on WhatsApp, counting chats or replies over a period, or sending an approved message or workspace file."
+description: "Use for any work in the user's own WhatsApp accounts: finding a chat, reading, saving a photo or document, older history, whether a number is on WhatsApp, counting chats or replies over a period, or sending an approved message or file."
 version: 1.0.0
 author: CraftSamo
 license: MIT
 metadata:
   hermes:
     tags: [whatsapp, whatsapp_access, messaging, chat, approval]
-    category: technic
 ---
 
 # WhatsApp through the `whatsapp` tool

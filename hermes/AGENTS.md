@@ -246,11 +246,13 @@ skills.
   skill by capability (`x-twitter` / `x-twitter-drafts`), never by
   `references/` (a loaded skill's references are readable by anyone who loads
   it). A registered plugin skill is also listed in the profile's available-skills
-  index, so its description is read every turn: keep it as narrow as the skill.
-  The tool description or the pipeline still names
-  `skill_view(name="<plugin>:<skill>")` where the skill must be read.
-  `test_plugin_skills.py` is the audience table; a new skill or a wider
-  audience is added there on purpose.
+  index, so its description is read every turn: it says when to use the skill
+  and where it stops, within the budget `test_plugin_skills.py` sets; what the
+  skill does is the body's. It carries no `metadata.hermes.category` (the
+  runtime files every plugin skill under `plugin`). The tool description or
+  the pipeline still names `skill_view(name="<plugin>:<skill>")` where the
+  skill must be read. `test_plugin_skills.py` is the audience table; a new
+  skill or a wider audience is added there on purpose.
 - **Engine runtime state lives under `HERMES_LOCAL` (`~/.hermes/local/`),
   never beside the source.** Resolve it through that contract alone, and make
   every artifact an engine writes there name other files relative to its own

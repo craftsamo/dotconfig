@@ -1,13 +1,12 @@
 ---
 name: github
-description: "Use to read GitHub Issues and Projects boards: what a board holds and where each item stands, one issue in full (parent, sub-issues, dependencies, closing PRs), the issues of a repository, and how work moves from a draft on a board to an issue. Covers which board a repository uses and the own / shared / other tiers."
+description: "Use to read GitHub Issues and Projects boards: a board and its items, one issue in full, a repository's issues, which board a repository uses and the own / shared / other tiers. Reads only."
 version: 1.0.0
 author: CraftSamo
 license: MIT
 metadata:
   hermes:
     tags: [github, issues, projects, board, roadmap, draft, sub-issues, milestone]
-    category: technic
 ---
 
 # GitHub Issues and boards through `github_issue` and `github_board`

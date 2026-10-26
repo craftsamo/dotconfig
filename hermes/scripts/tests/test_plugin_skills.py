@@ -3,6 +3,10 @@
 Plugin skills are registered as ``<plugin>:<skill>`` and are read-only to Hermes. A profile
 that can only read must not be shown the procedure for writing, so this table is the review
 point: a new skill or a wider audience has to be added here on purpose.
+
+A registered skill's description is also read on every turn by every profile in its audience
+(the available-skills index), so it carries only when to use the skill and where it stops;
+what the skill does is the body's. ``DESCRIPTION_BUDGET`` keeps it that way.
 """
 
 import importlib.util
@@ -12,6 +16,7 @@ import pytest
 
 HERMES = Path(__file__).resolve().parents[2]
 PROFILES_DIR = HERMES / "profiles"
+DESCRIPTION_BUDGET = 260
 
 ALL_READERS = {"assistant", "marketer", "searcher"}
 EXPECTED = {
@@ -82,6 +87,23 @@ def load(plugin):
 
 def profiles():
     return sorted(p.name for p in PROFILES_DIR.iterdir() if (p / "config.yaml").is_file() or (p / "config.example.yaml").is_file())
+
+
+def shipped_skills():
+    return sorted(
+        path for path in (HERMES / "plugins").rglob("skills/*/SKILL.md") if "tests" not in path.parts
+    )
+
+
+@pytest.mark.parametrize("path", shipped_skills(), ids=lambda p: p.parent.name)
+def test_the_description_stays_within_the_index_budget(path):
+    from agent.skill_utils import parse_frontmatter
+
+    meta, _ = parse_frontmatter(path.read_text(encoding="utf-8"))
+    assert len(meta["description"]) <= DESCRIPTION_BUDGET, len(meta["description"])
+    # The runtime files every plugin skill under the "plugin" category; a category in the
+    # frontmatter is never read and would only suggest a shelf the skill is not on.
+    assert "category" not in ((meta.get("metadata") or {}).get("hermes") or {})
 
 
 def test_every_shipped_skill_is_in_the_table():

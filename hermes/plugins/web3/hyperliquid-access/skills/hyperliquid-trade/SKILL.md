@@ -1,6 +1,6 @@
 ---
 name: hyperliquid-trade
-description: "Use to trade on Hyperliquid from the user's Hermes wallets (perps and spot, mainnet or testnet): place, close, protect (TP/SL), modify or cancel orders, set leverage or isolated margin, make, list or revoke a mandate, and deposit, withdraw, send or move USDC and spot tokens — quote, then submit, with an approval card for anything that can add exposure outside a mandate or send funds to someone else."
+description: "Use to trade on Hyperliquid from the user's Hermes wallets (perps and spot, mainnet or testnet): orders, TP/SL, leverage, margin, mandates, moving USDC or spot tokens. Quote, then submit; a card for new exposure outside a mandate or funds sent to anyone else."
 version: 1.3.0
 author: CraftSamo
 license: MIT

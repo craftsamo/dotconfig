@@ -1,6 +1,6 @@
 ---
 name: hyperliquid-strategy
-description: "Use to run a rule strategy on Hyperliquid perps from the user's Hermes wallets: choose and validate rules with backtests, write the strategy spec, size its mandate from the balance, register the cron gate, act on each gate run, record an advisor's stance, review, pause or stop it."
+description: "Use to run a rule strategy on Hyperliquid perps from the user's Hermes wallets: choosing and backtesting rules, the strategy spec and its mandate, the cron gate, each gate run, an advisor's stance, review, pause or stop."
 version: 1.0.0
 author: CraftSamo
 license: MIT

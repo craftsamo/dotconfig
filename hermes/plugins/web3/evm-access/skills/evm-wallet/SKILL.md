@@ -1,6 +1,6 @@
 ---
 name: evm-wallet
-description: "Use to list the user's crypto wallets, make a new Hermes wallet, send a coin, token or NFT from one, or revoke an approval it gave (EVM chains and Solana): accounts, create_wallet, quote, transfer and status, with an approval card for every new wallet, every revoke and anything sent to someone else."
+description: "Use to list the user's crypto wallets, make a new Hermes wallet, send a coin, token or NFT, or revoke an approval, on EVM chains and Solana. A card for every new wallet, every revoke and anything sent to someone else."
 version: 1.4.0
 author: CraftSamo
 license: MIT

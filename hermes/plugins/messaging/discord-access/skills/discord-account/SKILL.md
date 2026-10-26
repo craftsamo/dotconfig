@@ -1,13 +1,12 @@
 ---
 name: discord-account
-description: "Use for any work in the user's own Discord account through discord_account: reading DMs, servers, threads, pins or mentions, searching, saving a message's files, collecting a channel's history as evidence, the sync list, sending, reacting, pinning, editing or deleting their messages, or managing a server's roles."
+description: "Use for any work in the user's own Discord account through discord_account: reading, searching, saving files, collecting a channel's history, the sync list, sending, reacting, pinning, editing or deleting their messages, or managing a server's roles."
 version: 1.0.0
 author: CraftSamo
 license: MIT
 metadata:
   hermes:
     tags: [discord, discord_account, messaging, collection, roles]
-    category: technic
 ---
 
 # Discord through the `discord_account` tool
