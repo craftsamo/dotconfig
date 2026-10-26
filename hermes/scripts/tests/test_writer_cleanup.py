@@ -34,7 +34,7 @@ def test_all_eighteen_leaves_are_retained_and_routed():
         ("write", "edit", "analyze"),
         ("post", "article", "document", "message", "copy", "script"),
     ):
-        path = f"{verb}/{subject}/SKILL.md"
+        path = f"{subject}/{verb}/SKILL.md"
         assert (PIPELINE / path).is_file()
         assert f"]({path})" in kernel
     assert "technical-prose briefs" in kernel

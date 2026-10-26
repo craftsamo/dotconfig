@@ -1,6 +1,6 @@
 """Tests for the `create-pixel-animation` leaf: front matter contract, the
 `cels.py` draw/sheet commands and an end-to-end encode + verify of a tiny loop
-(profiles/video-creator/.../create/pixel-animation)."""
+(profiles/video-creator/.../pixel-animation/create)."""
 
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ import pytest
 
 HERMES_ROOT = Path(__file__).resolve().parents[2]
 PIPELINE = HERMES_ROOT / "profiles" / "video-creator" / "skills" / "pipeline"
-LEAF = PIPELINE / "create" / "pixel-animation"
+LEAF = PIPELINE / "pixel-animation" / "create"
 SKILL = LEAF / "SKILL.md"
 CELS = LEAF / "scripts" / "cels.py"
 ENCODE = LEAF / "scripts" / "encode-pixel-video.sh"

@@ -44,7 +44,7 @@ WORKER_PROFILES = (
     "marketer",
 )
 # Creator's hands (docs/hands/overview.md "Creator hands"): receive-only A2A
-# producers whose skills are `pipeline/<verb>/<subject>/SKILL.md`
+# producers whose skills are `pipeline/<subject>/<verb>/SKILL.md`
 # leaves, one deliverable and one form each. Add a profile here when its
 # skeleton lands; subjects must stay unique across every listed hands.
 HANDS_PROFILES = ("image-creator", "video-creator", "audio-creator")
@@ -1259,10 +1259,10 @@ def validate_writer_leaves(pipeline_dir: Path, errors: list[str]) -> dict[str, P
         rel = path.relative_to(pipeline_dir)
         if rel.parts in (("SKILL.md",), ("consult-writer", "SKILL.md")):
             continue
-        if len(rel.parts) != 3 or rel.parts[0] not in WRITER_VERBS:
-            errors.append(f"writer leaf must sit at write|edit|analyze/<subject>/SKILL.md: {path}")
+        if len(rel.parts) != 3 or rel.parts[1] not in WRITER_VERBS:
+            errors.append(f"writer leaf must sit at <subject>/write|edit|analyze/SKILL.md: {path}")
             continue
-        verb, subject, _ = rel.parts
+        subject, verb, _ = rel.parts
         if not HANDS_NAME.fullmatch(subject):
             errors.append(f"writer subject must be a slug: {path}")
             continue
@@ -1333,7 +1333,7 @@ def validate_writer_leaves(pipeline_dir: Path, errors: list[str]) -> dict[str, P
 # One leaf = one deliverable = one form. The front matter is the ONLY
 # representation of the leaf's contract (no generated index, no preset
 # layer), so it is what gets validated: the path names the leaf
-# (`<verb>/<subject>` ⇒ `name: <verb>-<subject>`), the verb is one of the
+# (`<subject>/<verb>` ⇒ `name: <verb>-<subject>`), the verb is one of the
 # closed set, the cost class is declared, and the form is a dict of fields
 # each carrying `required`. A `style` field's options must be backed by
 # `references/styles/<option>.md`; every leaf carries a `note` escape
@@ -1393,7 +1393,7 @@ def validate_hands_form(
 def validate_hands_leaves(
     pipeline_dir: Path, profile: str, errors: list[str]
 ) -> dict[str, Path]:
-    """Validate every `<verb>/<subject>/SKILL.md` under a hands pipeline root
+    """Validate every `<subject>/<verb>/SKILL.md` under a hands pipeline root
     and return name -> path. Support dirs (references/assets/scripts) of
     the root itself are not leaf roots."""
     leaves: dict[str, Path] = {}
@@ -1403,10 +1403,10 @@ def validate_hands_leaves(
             continue
         if len(rel.parts) != 3:
             errors.append(
-                f"hands leaf must sit at <verb>/<subject>/SKILL.md: {path}"
+                f"hands leaf must sit at <subject>/<verb>/SKILL.md: {path}"
             )
             continue
-        verb, subject, _ = rel.parts
+        subject, verb, _ = rel.parts
         if verb not in HANDS_VERBS:
             errors.append(f"hands verb must be one of {'|'.join(HANDS_VERBS)}: {path}")
             continue
@@ -1457,7 +1457,7 @@ def validate_hands_routing(
     subjects: dict[str, str] = {}
     for profile, leaves in hands_leaves.items():
         for name, path in leaves.items():
-            subjects.setdefault(path.parent.name, profile)
+            subjects.setdefault(path.parent.parent.name, profile)
     present = (
         {p.stem for p in refs.glob("*.md") if p.name not in COMMISSIONING_SHARED_REFERENCES}
         if refs.is_dir() else set()
@@ -1470,7 +1470,7 @@ def validate_hands_routing(
         errors.append(f"commissioning reference has no hands subject: {subject}.md")
     for profile, leaves in hands_leaves.items():
         for name, path in sorted(leaves.items()):
-            ref = refs / f"{path.parent.name}.md"
+            ref = refs / f"{path.parent.parent.name}.md"
             if ref.is_file() and not re.search(
                 rf"(?<![\w-]){re.escape(name)}(?![\w-])", ref.read_text(encoding="utf-8")
             ):
@@ -1540,7 +1540,7 @@ def _pipeline_major_version(data: dict[str, Any]) -> int | None:
 
 def collect_hands_subjects() -> dict[str, set[str]]:
     """Subjects (deduped across verbs) served by each hands profile, read
-    from `<hands>/skills/pipeline/<verb>/<subject>/SKILL.md` below HERMES_ROOT."""
+    from `<hands>/skills/pipeline/<subject>/<verb>/SKILL.md` below HERMES_ROOT."""
     subjects: dict[str, set[str]] = {}
     for profile in HANDS_PROFILES:
         pipeline_dir = (
@@ -1554,7 +1554,7 @@ def collect_hands_subjects() -> dict[str, set[str]]:
                     continue
                 if len(rel.parts) != 3:
                     continue
-                verb, subject, _ = rel.parts
+                subject, verb, _ = rel.parts
                 if verb not in HANDS_VERBS:
                     continue
                 found.add(subject)

@@ -27,8 +27,8 @@ SCRIPT_PATH = (
     / "image-creator"
     / "skills"
     / "pipeline"
-    / "source"
     / "kit"
+    / "source"
     / "scripts"
     / "kenney-fetch.py"
 )

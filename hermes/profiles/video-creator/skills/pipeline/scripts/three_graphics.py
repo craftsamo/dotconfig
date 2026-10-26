@@ -16,7 +16,7 @@ HERMES = Path(__file__).resolve().parents[5]
 ENGINE = HERMES / "engines/three-webgl"
 # Engine runtime root: machine-local, outside the repository (HERMES_LOCAL overrides).
 RUNTIME = Path(os.environ.get("HERMES_LOCAL") or Path.home() / ".hermes" / "local").expanduser().absolute() / "three-webgl"
-sys.path.insert(0, str(PIPELINE / "create/tour/scripts"))
+sys.path.insert(0, str(PIPELINE / "tour/create/scripts"))
 from tour import command, digest, load, local, require, write  # noqa: E402
 
 MODE = "three-webgl2"

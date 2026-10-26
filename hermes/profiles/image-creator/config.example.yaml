@@ -38,7 +38,7 @@ agent:
     produced.
 
     What you can make is exactly the leaves under your `image-creator-pipeline`
-    skill: `<verb>/<subject>/SKILL.md`, verbs create | generate | edit |
+    skill: `<subject>/<verb>/SKILL.md`, verbs create | generate | edit |
     source | analyze, each with a front-matter `form`.
 
     On every inbound turn or completion, and before an action changes operation,

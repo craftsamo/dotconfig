@@ -274,7 +274,7 @@ def test_real_generate_approval_start_resume_and_default_three_call_grant(plan, 
 @pytest.mark.parametrize("outcome", ["success", "failure"])
 def test_generate_one_attempt_grant_from_documented_internal_controls(plan, inputs, rig, outcome):
     """SKILL.md's 'Internal local one-attempt controls' example is a real max_calls: 1 grant."""
-    skill = HERMES / "profiles/audio-creator/skills/pipeline/generate/music/SKILL.md"
+    skill = HERMES / "profiles/audio-creator/skills/pipeline/music/generate/SKILL.md"
     fenced = skill.read_text().split("Internal local one-attempt controls", 1)[1]
     controls = json.loads(fenced.split("```json", 1)[1].split("```", 1)[0])
 

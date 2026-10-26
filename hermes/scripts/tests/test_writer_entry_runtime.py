@@ -23,7 +23,7 @@ import pytest
 
 
 ROOT = "writer-pipeline"
-PRODUCTION = {f"{verb}-{subject}": f"{verb}/{subject}/SKILL.md"
+PRODUCTION = {f"{verb}-{subject}": f"{subject}/{verb}/SKILL.md"
               for verb in ("write", "edit", "analyze")
               for subject in ("post", "article", "document", "message", "copy", "script")}
 PATHS = {ROOT: "SKILL.md", "consult-writer": "consult-writer/SKILL.md", **PRODUCTION}

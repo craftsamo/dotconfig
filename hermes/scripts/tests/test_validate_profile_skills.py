@@ -828,7 +828,7 @@ class LearnedPlacementTest(unittest.TestCase):
 
 
 class HandsLeafTest(unittest.TestCase):
-    """Creator hands v3: `<verb>/<subject>/SKILL.md` leaves with a form."""
+    """Creator hands v3: `<subject>/<verb>/SKILL.md` leaves with a form."""
 
     LEAF = (
         "---\n"
@@ -892,50 +892,50 @@ class HandsLeafTest(unittest.TestCase):
         return leaves, errors
 
     def test_valid_leaf_passes(self) -> None:
-        self.leaf("generate/icon", "generate-icon")
+        self.leaf("icon/generate", "generate-icon")
         leaves, errors = self.validate()
         self.assertEqual([], errors)
         self.assertEqual(["generate-icon"], sorted(leaves))
 
     def test_root_support_dirs_are_not_leaves(self) -> None:
-        self.leaf("generate/icon", "generate-icon")
+        self.leaf("icon/generate", "generate-icon")
         (self.root / "scripts").mkdir()
         (self.root / "scripts" / "helper.sh").write_text("#!/bin/sh\n")
         _, errors = self.validate()
         self.assertEqual([], errors)
 
     def test_rejects_unknown_verb(self) -> None:
-        self.leaf("render/icon", "render-icon")
+        self.leaf("icon/render", "render-icon")
         _, errors = self.validate()
         self.assertTrue(any("hands verb must be one of" in e for e in errors), errors)
 
     def test_rejects_leaf_at_wrong_depth(self) -> None:
-        self.leaf("generate/icon/app", "generate-icon-app")
+        self.leaf("icon/generate/app", "generate-icon-app")
         _, errors = self.validate()
-        self.assertTrue(any("<verb>/<subject>/SKILL.md" in e for e in errors), errors)
+        self.assertTrue(any("<subject>/<verb>/SKILL.md" in e for e in errors), errors)
 
     def test_rejects_name_path_mismatch(self) -> None:
-        self.leaf("generate/icon", "generate-logo")
+        self.leaf("icon/generate", "generate-logo")
         _, errors = self.validate()
         self.assertTrue(
             any("frontmatter name must be generate-icon" in e for e in errors), errors
         )
 
     def test_rejects_wrong_hands_and_cost(self) -> None:
-        self.leaf("generate/icon", "generate-icon", hands="video-creator", cost="cheap")
+        self.leaf("icon/generate", "generate-icon", hands="video-creator", cost="cheap")
         _, errors = self.validate()
         self.assertTrue(any("hands must be image-creator" in e for e in errors), errors)
         self.assertTrue(any("cost must be one of" in e for e in errors), errors)
 
     def test_rejects_form_without_note_or_required_flag(self) -> None:
         form = "      what_for: {{label: x}}\n"
-        self.leaf("generate/icon", "generate-icon", form=form, styles=())
+        self.leaf("icon/generate", "generate-icon", form=form, styles=())
         _, errors = self.validate()
         self.assertTrue(any("carry a `note` field" in e for e in errors), errors)
         self.assertTrue(any("must set required" in e for e in errors), errors)
 
     def test_rejects_unbacked_style_option(self) -> None:
-        self.leaf("generate/icon", "generate-icon", styles=())
+        self.leaf("icon/generate", "generate-icon", styles=())
         _, errors = self.validate()
         self.assertTrue(
             any("no references/styles/pixel.md" in e for e in errors), errors
@@ -946,7 +946,7 @@ class HandsLeafTest(unittest.TestCase):
             "      what_for: {{required: true, type: blob}}\n"
             "      note: {{required: false}}\n"
         )
-        self.leaf("generate/icon", "generate-icon", form=form, styles=())
+        self.leaf("icon/generate", "generate-icon", form=form, styles=())
         _, errors = self.validate()
         self.assertTrue(any("unknown type 'blob'" in e for e in errors), errors)
 
@@ -955,7 +955,7 @@ class HandsLeafTest(unittest.TestCase):
             "      contents: {{required: true, options: [buttons, panels]}}\n"
             "      note: {{required: false}}\n"
         )
-        path = self.leaf("generate/kit", "generate-kit", form=form, styles=())
+        path = self.leaf("kit/generate", "generate-kit", form=form, styles=())
         refs = path.parent / "references" / "contents"
         refs.mkdir(parents=True)
         (refs / "buttons.md").write_text("# buttons\n")
@@ -970,7 +970,7 @@ class HandsLeafTest(unittest.TestCase):
             "      pack: {{required: true, options: [custom]}}\n"
             "      note: {{required: false}}\n"
         )
-        self.leaf("generate/kit", "generate-kit", form=form, styles=())
+        self.leaf("kit/generate", "generate-kit", form=form, styles=())
         self.assertEqual([], self.validate()[1])
 
     def test_reference_options_cannot_escape_directory(self) -> None:
@@ -978,7 +978,7 @@ class HandsLeafTest(unittest.TestCase):
             "      style: {{required: true, options: ['../outside']}}\n"
             "      note: {{required: false}}\n"
         )
-        self.leaf("generate/kit", "generate-kit", form=form, styles=())
+        self.leaf("kit/generate", "generate-kit", form=form, styles=())
         self.assertTrue(any("reference option must be a slug" in e for e in self.validate()[1]))
 
     def test_subjects_unique_across_hands(self) -> None:
@@ -1002,7 +1002,7 @@ class HandsLeafTest(unittest.TestCase):
             "      note: {{required: false}}\n"
         )
         self.leaf(
-            "generate/speech",
+            "speech/generate",
             "generate-speech",
             hands="audio-creator",
             cost="free",

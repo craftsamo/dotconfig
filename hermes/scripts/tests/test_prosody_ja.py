@@ -213,7 +213,7 @@ class Dictionary(unittest.TestCase):
 
 class LeafContract(unittest.TestCase):
     def test_leaf_takes_captions_and_runs_the_check_under_uv(self):
-        text = (PIPELINE / "analyze" / "speech" / "SKILL.md").read_text()
+        text = (PIPELINE / "speech" / "analyze" / "SKILL.md").read_text()
         meta = yaml.safe_load(text.split("---", 2)[1])
         self.assertEqual(meta["metadata"]["hermes"]["form"]["captions"]["type"], "file")
         flat = " ".join(text.split())

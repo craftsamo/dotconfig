@@ -51,8 +51,8 @@ import numpy as np
 HERE = Path(__file__).resolve().parent
 HERMES = HERE.parents[3]
 VIDEO_PIPELINE = HERMES / "profiles/video-creator/skills/pipeline"
-AD_LEAF = VIDEO_PIPELINE / "create/ad"
-TOUR_LEAF = VIDEO_PIPELINE / "create/tour"
+AD_LEAF = VIDEO_PIPELINE / "ad/create"
+TOUR_LEAF = VIDEO_PIPELINE / "tour/create"
 AUDIO_MIX_SCRIPTS = HERMES / "profiles/audio-creator/skills/pipeline/scripts"
 
 RATE = 48000

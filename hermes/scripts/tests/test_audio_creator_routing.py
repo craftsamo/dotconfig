@@ -86,11 +86,11 @@ class AudioCreatorRoutingTest(unittest.TestCase):
     def test_pipeline_leaves_are_speech_and_sfx_no_source(self) -> None:
         pipeline = HERMES_ROOT / "profiles" / "audio-creator" / "skills" / "pipeline"
         for verb in ("generate", "edit", "analyze"):
-            self.assertTrue((pipeline / verb / "speech" / "SKILL.md").is_file())
+            self.assertTrue((pipeline / "speech" / verb / "SKILL.md").is_file())
         for verb in ("create", "generate", "edit", "analyze"):
-            self.assertTrue((pipeline / verb / "sfx" / "SKILL.md").is_file())
-            self.assertTrue((pipeline / verb / "music" / "SKILL.md").is_file())
-        self.assertFalse((pipeline / "create" / "speech").exists())
+            self.assertTrue((pipeline / "sfx" / verb / "SKILL.md").is_file())
+            self.assertTrue((pipeline / "music" / verb / "SKILL.md").is_file())
+        self.assertFalse((pipeline / "speech" / "create").exists())
         self.assertFalse((pipeline / "source").exists())
         prompt = self.audio["agent"]["system_prompt"]
         # No blanket "audio is free" claim: speech keeps its 1+1 take grant,
@@ -104,7 +104,7 @@ class AudioCreatorRoutingTest(unittest.TestCase):
         """New music subject: served, AudioCreator-only, no song/mix scope creep."""
         pipeline = HERMES_ROOT / "profiles" / "audio-creator" / "skills" / "pipeline"
         for verb in ("create", "generate", "edit", "analyze"):
-            self.assertTrue((pipeline / verb / "music" / "SKILL.md").is_file())
+            self.assertTrue((pipeline / "music" / verb / "SKILL.md").is_file())
         self.assertIn("music_gen", set(self.audio["toolsets"]))
         self.assertIn("music_gen", set(self.audio["platform_toolsets"]["cli"]))
         self.assertIn("music_gen", set(self.audio["platform_toolsets"]["a2a"]))
@@ -181,7 +181,7 @@ class AudioCreatorRoutingTest(unittest.TestCase):
             "analyze": "analyze-music",
         }
         for verb, expected_name in expected_names.items():
-            text = (pipeline / verb / "music" / "SKILL.md").read_text(encoding="utf-8")
+            text = (pipeline / "music" / verb / "SKILL.md").read_text(encoding="utf-8")
             frontmatter, _ = parse_frontmatter(text[:4000])
             self.assertEqual(expected_name, frontmatter.get("name"))
 

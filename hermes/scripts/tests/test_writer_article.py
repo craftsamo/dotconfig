@@ -13,7 +13,7 @@ PIPELINE = HERMES / "profiles/writer/skills/pipeline"
 
 @pytest.mark.parametrize("verb", ["write", "edit", "analyze"])
 def test_article_form_and_platform_references(verb):
-    path = PIPELINE / verb / "article/SKILL.md"
+    path = PIPELINE / "article" / verb / "SKILL.md"
     text = path.read_text()
     assert text.index("---", 3) + 3 < 4000
     data = yaml.safe_load(text.split("---", 2)[1])
@@ -35,15 +35,15 @@ def test_article_form_and_platform_references(verb):
 def test_article_routes_and_approaches_exist():
     kernel = (PIPELINE / "SKILL.md").read_text()
     for verb in ("write", "edit", "analyze"):
-        assert f"]({verb}/article/SKILL.md)" in kernel
-    root = PIPELINE / "write/article"
+        assert f"](article/{verb}/SKILL.md)" in kernel
+    root = PIPELINE / "article/write"
     data = yaml.safe_load((root / "SKILL.md").read_text().split("---", 2)[1])
     for approach in data["metadata"]["hermes"]["form"]["approach"]["options"]:
         assert (root / "references/approach" / f"{approach}.md").is_file()
 
 
 def test_asset_requirements_remain_separate_from_published_text():
-    assets = " ".join((PIPELINE / "write/article/references/production/assets.md").read_text().split())
+    assets = " ".join((PIPELINE / "article/write/references/production/assets.md").read_text().split())
     for kind in ("image", "embed", "table"):
         assert f"[[{kind}:id]]" in assets
     assert "<draft-stem>.production.md" in assets
@@ -54,7 +54,7 @@ def test_asset_requirements_remain_separate_from_published_text():
 
 @pytest.mark.parametrize("verb", ["write", "edit", "analyze"])
 def test_production_record_contract_agrees_across_operations(verb):
-    root = PIPELINE / verb / "article"
+    root = PIPELINE / "article" / verb
     assets = (root / "references/production/assets.md").read_text()
     for field in ("ID", "Kind", "Placement", "Purpose", "Source", "Requirements", "State"):
         assert f"`{field}`" in assets
@@ -64,7 +64,7 @@ def test_production_record_contract_agrees_across_operations(verb):
 
 
 def test_platform_input_models_are_not_conflated():
-    refs = PIPELINE / "write/article/references"
+    refs = PIPELINE / "article/write/references"
     zenn = (refs / "zenn.md").read_text()
     note = " ".join((refs / "note.md").read_text().split())
     x = " ".join((refs / "x-article.md").read_text().split())
@@ -82,7 +82,7 @@ def test_writer_checks_note_format_through_the_tool_only():
     for platform, names in config["platform_toolsets"].items():
         assert ("note_access" in names) == (platform in ("cli", "a2a")), platform
     for verb in ("write", "edit", "analyze"):
-        reference = " ".join((PIPELINE / verb / "article/references/note.md").read_text().split())
+        reference = " ".join((PIPELINE / "article" / verb / "references/note.md").read_text().split())
         assert "`check`" in reference, verb
     spec = importlib.util.spec_from_file_location("note_access_for_writer", HERMES / "plugins/social/note-access/__init__.py")
     plugin = importlib.util.module_from_spec(spec)
@@ -91,7 +91,7 @@ def test_writer_checks_note_format_through_the_tool_only():
 
 
 def test_edit_article_proofread_scope_enum_default_and_routing_contract():
-    path = PIPELINE / "edit/article/SKILL.md"
+    path = PIPELINE / "article/edit/SKILL.md"
     text = path.read_text()
     data = yaml.safe_load(text.split("---", 2)[1])
     scope = data["metadata"]["hermes"]["form"]["scope"]
@@ -106,7 +106,7 @@ def test_edit_article_proofread_scope_enum_default_and_routing_contract():
 
 
 def test_edit_article_protection_and_no_op_report_contract():
-    path = PIPELINE / "edit/article/SKILL.md"
+    path = PIPELINE / "article/edit/SKILL.md"
     text = path.read_text()
     procedure = " ".join(text.split("<Procedure>", 1)[1].split("</Procedure>", 1)[0].split())
     qa = text.split("<QA>", 1)[1].split("</QA>", 1)[0]
@@ -125,7 +125,7 @@ def test_edit_article_protection_and_no_op_report_contract():
 
 
 def test_analyze_article_proofreading_focus_keeps_existing_modes_and_source_unchanged():
-    path = PIPELINE / "analyze/article/SKILL.md"
+    path = PIPELINE / "article/analyze/SKILL.md"
     text = path.read_text()
     data = yaml.safe_load(text.split("---", 2)[1])
     form = data["metadata"]["hermes"]["form"]
@@ -167,13 +167,13 @@ ARTICLE_CRAFT_CASES = [
 
 def test_article_craft_cases_cover_every_reference():
     expected = {
-        PIPELINE / verb / "article/references" / f"{reference}.md"
+        PIPELINE / "article" / verb / "references" / f"{reference}.md"
         for verb, reference, _ in ARTICLE_CRAFT_CASES
     }
     actual = {
         path
         for verb in ("write", "edit", "analyze")
-        for path in (PIPELINE / verb / "article/references").rglob("*.md")
+        for path in (PIPELINE / "article" / verb / "references").rglob("*.md")
     }
     assert len(expected) == len(ARTICLE_CRAFT_CASES) == 19
     assert actual == expected
@@ -181,7 +181,7 @@ def test_article_craft_cases_cover_every_reference():
 
 @pytest.mark.parametrize("verb,reference,concepts", ARTICLE_CRAFT_CASES)
 def test_article_reference_has_local_evidence_oriented_craft(verb, reference, concepts):
-    path = PIPELINE / verb / "article/references" / f"{reference}.md"
+    path = PIPELINE / "article" / verb / "references" / f"{reference}.md"
     source = path.read_text()
     text = " ".join(source.split())
     assert len(source.splitlines()) <= 90

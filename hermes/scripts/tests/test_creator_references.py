@@ -41,7 +41,7 @@ class CreatorReferenceFixture(unittest.TestCase):
     def hands_leaf(self, hands: str, verb: str, subject: str) -> Path:
         path = (
             self.hermes_root / "profiles" / hands / "skills"
-            / "pipeline" / verb / subject / "SKILL.md"
+            / "pipeline" / subject / verb / "SKILL.md"
         )
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(f"---\nname: {verb}-{subject}\n---\n", encoding="utf-8")

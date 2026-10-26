@@ -92,14 +92,14 @@ class ManagedSkillWriteGuardTest(unittest.TestCase):
         cls.plugin.PRIVATE_ROOT = cls.fixture_root / "private/hermes"
         cls.managed = str(
             cls.plugin.MANAGED_ROOT
-            / "profiles/image-creator/skills/pipeline/create/emoji/scripts/text-emoji.sh"
+            / "profiles/image-creator/skills/pipeline/emoji/create/scripts/text-emoji.sh"
         )
         cls.learned = str(cls.plugin.MANAGED_ROOT / "profiles/image-creator/skills/learned/x/SKILL.md")
         cls.skills = cls.plugin.MANAGED_ROOT / "profiles/image-creator/skills"
         cls.skills.mkdir(parents=True)
         cls.alias = cls.fixture_root / "home-alias"
         cls.alias.symlink_to(cls.plugin.MANAGED_ROOT, target_is_directory=True)
-        cls.script = str(cls.skills / "pipeline/create/emoji/scripts/propose.py")
+        cls.script = str(cls.skills / "pipeline/emoji/create/scripts/propose.py")
 
     def guard(self, tool_name: str, **args: Any) -> Any:
         return self.plugin._guard_managed_skill_writes(tool_name=tool_name, args=args)
@@ -306,7 +306,7 @@ class ManagedSkillWriteGuardTest(unittest.TestCase):
         self.assertEqual(self.guard("terminal", command=f"command -v rm > {self.managed}")["action"], "block")
 
     def test_explicit_working_directory_and_spaced_paths(self) -> None:
-        relative = "pipeline/create/emoji/file with spaces.txt"
+        relative = "pipeline/emoji/create/file with spaces.txt"
         for key in ("cwd", "workdir"):
             for command in (f"rm '{relative}'", f"cp /tmp/in '{relative}'", f"echo x > '{relative}'"):
                 with self.subTest(key=key, command=command):

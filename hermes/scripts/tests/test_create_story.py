@@ -18,7 +18,7 @@ from PIL import Image
 
 HERMES_ROOT = Path(__file__).resolve().parents[2]
 VIDEO = HERMES_ROOT / "profiles/video-creator/skills/pipeline"
-LEAF = VIDEO / "create/story"
+LEAF = VIDEO / "story/create"
 CREATOR = HERMES_ROOT / "profiles/creator"
 COMMISSION = HERMES_ROOT / "profiles/assistant/skills/pipeline/creative/execute/references/story.md"
 ADVISOR = CREATOR / "skills/pipeline/references/video-creator/story.md"
@@ -142,7 +142,7 @@ def test_lines_without_a_script_are_pending(tmp_path, capsys):
 def test_duration_limits_are_the_story_s_own(tmp_path):
     draft, cast, script = fixture(tmp_path)
     assert story.base.MIN_S == 10 and story.base.MAX_S == 120 and story.base.MOVIE == "story.mp4"
-    promo = importlib.util.spec_from_file_location("promo_check", VIDEO / "create/promotion/scripts/promotion.py")
+    promo = importlib.util.spec_from_file_location("promo_check", VIDEO / "promotion/create/scripts/promotion.py")
     module = importlib.util.module_from_spec(promo)
     promo.loader.exec_module(module)
     assert (module.MIN_S, module.MAX_S, module.MOVIE) == (3, 60, "promotion.mp4")
@@ -231,7 +231,7 @@ def test_render_smoke(tmp_path):
     source = tmp_path / "source"
     (source / "assets/cast").mkdir(parents=True)
     for name in ("gsap.min.js", "GSAP-LICENSE.txt", "gsap-provenance.json"):
-        shutil.copy(VIDEO / "create/tour/assets" / name, source / "assets" / name)
+        shutil.copy(VIDEO / "tour/create/assets" / name, source / "assets" / name)
     shutil.copy(tmp_path / "cast/mika/happy.png", source / "assets/cast/mika.png")
     shutil.copy(tmp_path / "tobi.png", source / "assets/cast/tobi.png")
     (source / "index.html").write_text(

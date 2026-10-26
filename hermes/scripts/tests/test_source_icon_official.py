@@ -1,6 +1,6 @@
 """Tests for the official path of the `source-icon` leaf: front matter contract
 and the `brand-check.py` render/provenance commands
-(profiles/image-creator/.../source/icon)."""
+(profiles/image-creator/.../icon/source)."""
 
 from __future__ import annotations
 
@@ -17,7 +17,7 @@ import pytest
 
 HERMES_ROOT = Path(__file__).resolve().parents[2]
 PIPELINE = HERMES_ROOT / "profiles" / "image-creator" / "skills" / "pipeline"
-LEAF = PIPELINE / "source" / "icon"
+LEAF = PIPELINE / "icon" / "source"
 SKILL = LEAF / "SKILL.md"
 SCRIPT = LEAF / "scripts" / "brand-check.py"
 

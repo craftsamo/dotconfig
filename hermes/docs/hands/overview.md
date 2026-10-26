@@ -54,7 +54,7 @@ profiles/<hands>/skills/
   pipeline/                  # skill <hands>-pipeline
     SKILL.md                 # <=40 lines: validate form -> load leaf -> run -> QA -> report
     scripts/                 # helpers shared by several leaves (e.g. img-postprocess.sh)
-    <verb>/<subject>/
+    <subject>/<verb>/
       SKILL.md               # name: <verb>-<subject>  (one deliverable, one form)
       references/styles/*.md # this leaf's style notes only — never cross-media
       assets/reference-*.*   # optional: a sample the leaf has actually produced
@@ -231,7 +231,7 @@ through the Assistant, recording what the form got wrong.
 Creator's former technics are not hands subjects: which became leaves and which
 are archived is owned by [`broker.md`](../broker.md) "Legacy routes".
 
-Families by hands (the leaves are the `<verb>/<subject>` directories; the
+Families by hands (the leaves are the `<subject>/<verb>` directories; the
 validator is the inventory):
 
 - **image-creator:** icon, emoji, mascot, reimagine, kit, card, diagram,

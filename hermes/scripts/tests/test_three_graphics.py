@@ -53,7 +53,7 @@ def test_omitted_mode_preserves_old_behavior():
 
 @pytest.mark.parametrize("subject", ["tour", "ad", "explainer-video"])
 def test_graphics_option_fits_runtime_discovery_prefix(subject):
-    prefix = (PIPELINE / "create" / subject / "SKILL.md").read_text()[:4000]
+    prefix = (PIPELINE / subject / "create" / "SKILL.md").read_text()[:4000]
     assert prefix.count("---") >= 2, "frontmatter exceeds Hermes discovery prefix"
     metadata = yaml.safe_load(prefix.split("---", 2)[1])
     assert metadata["metadata"]["hermes"]["form"]["graphics"]["options"] == [graphics.MODE]

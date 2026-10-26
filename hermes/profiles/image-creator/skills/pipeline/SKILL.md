@@ -2,7 +2,7 @@
 name: image-creator-pipeline
 description: >-
   Root of image-creator's leaves. Load first, then the leaf a filled form
-  names (`<verb>/<subject>`, verbs create | generate | edit | source |
+  names (`<subject>/<verb>`, verbs create | generate | edit | source |
   analyze). Holds the five-step run and the scripts several leaves share.
 version: 1.0.0
 author: CraftSamo
@@ -32,7 +32,7 @@ whole reference tree. Optional advisory references retain their existing fallbac
 If skill_view returns unchanged but the earlier body is unavailable, use
 read_file on the canonical document: this kernel is
 `${HERMES_SKILL_DIR}/SKILL.md`; a leaf is
-`${HERMES_SKILL_DIR}/<verb>/<subject>/SKILL.md`, and its references resolve from
+`${HERMES_SKILL_DIR}/<subject>/<verb>/SKILL.md`, and its references resolve from
 that leaf's directory. In raw file text, `${HERMES_SKILL_DIR}` always denotes the
 document's owning skill root, not the last loaded skill. Follow next_offset for
 a genuinely truncated read; never use alternate paths or artificial ranges to
@@ -104,12 +104,12 @@ historical constraints, never a request to repeat its generation or spend.
 
 - `python3 scripts/card.py create|edit <absolute-spec.json> --out <new-absolute-bundle>`
   - deterministic card HTML/CSS/font rendering or explicit raster fit. Consumes
-    create/card destination front matter and canonical style CSS blocks; isolated
+    card/create destination front matter and canonical style CSS blocks; isolated
     offline agent-browser, ImageMagick PNG crops, stable snapshots and exclusive
     output. Generate-card shares the composer, never duplicates its CSS.
 - `python3 scripts/card.py analyze <absolute-spec.json>`
   - measured findings on declared single/ordered tiles/panorama inputs, no
-    corrected media. See create/card/references/spec.md for file-based schemas.
+    corrected media. See card/create/references/spec.md for file-based schemas.
 
 - `scripts/img-postprocess.sh INPUT OUTPUT [--size WxH] [--fit cover|contain] [--format webp|png|jpg] [--max-bytes N]`
   — normalize any generated image (URL or path) to an exact size, format

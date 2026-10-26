@@ -21,8 +21,8 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 VIDEO_PIPELINE = ROOT.parent / "profiles/video-creator/skills/pipeline"
-AD_LEAF = VIDEO_PIPELINE / "create/ad"
-TOUR_LEAF = VIDEO_PIPELINE / "create/tour"
+AD_LEAF = VIDEO_PIPELINE / "ad/create"
+TOUR_LEAF = VIDEO_PIPELINE / "tour/create"
 AUDIO_MIX_SCRIPTS = ROOT.parent / "profiles/audio-creator/skills/pipeline/scripts"
 
 

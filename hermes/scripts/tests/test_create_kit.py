@@ -1,5 +1,5 @@
 """Behaviour tests for the `create-kit` leaf's renderer
-(profiles/image-creator/skills/pipeline/create/kit/scripts/ui-draw.py).
+(profiles/image-creator/skills/pipeline/kit/create/scripts/ui-draw.py).
 
 Exercised as a subprocess CLI (the way the skill's Procedure calls it) so
 that argument parsing, exit codes and stdout are covered exactly as a
@@ -24,8 +24,8 @@ SCRIPT = (
     / "image-creator"
     / "skills"
     / "pipeline"
-    / "create"
     / "kit"
+    / "create"
     / "scripts"
     / "ui-draw.py"
 )
