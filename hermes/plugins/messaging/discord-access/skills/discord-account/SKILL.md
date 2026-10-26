@@ -131,7 +131,8 @@ it), and never unpack with `unzip`, `tar` or another terminal tool.
 ## Collecting history as evidence
 
 A reference document, an inventory or a summary of a long chat needs the
-history on disk, not in context. Follow `references/collection.md`: agree
+history on disk, not in context. Follow
+`skill_view(name="discord-access:collect-history")`: agree
 the channels first, read one channel at a time with a cap, write verbatim
 files with permalinks, and record what was not read. For a DM or a synced
 channel, `export` writes that file in one call (verbatim, quoted, a permalink
@@ -236,7 +237,7 @@ people may have seen).
 Only in a server the user names, and only the change they asked for: role
 writes are logged under the user's name in the server's audit log, and they
 are the riskiest thing this tool does. Procedure and rules:
-`references/roles.md`.
+`skill_view(name="discord-access:manage-roles")`.
 
 ## When it fails
 

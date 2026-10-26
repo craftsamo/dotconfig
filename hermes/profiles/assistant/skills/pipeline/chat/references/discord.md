@@ -19,7 +19,7 @@ is being **said, streamed or shown** — "配信に参加して内容教えて",
 何話してる？", "この通話録っておいて", "配信を見てきて" — do not answer from
 the channel's text and do not say you cannot hear: load
 `skill_view(name="screen-listen:live")` and its Discord steps
-(`file_path="references/discord.md"`) and follow them. They open the
+(`skill_view(name="screen-listen:attend-discord")`) and follow them. They open the
 channel in the Discord app on this Mac with `computer_use`, listen or
 record with `screen_listen`, look with a capture, report and leave. Use
 `discord_account` on the way only to resolve server and channel names to ids

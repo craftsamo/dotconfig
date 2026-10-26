@@ -21,7 +21,8 @@ Part of the Hermes design docs — index: [`PROFILES.md`](../PROFILES.md).
 | `screen_listen` tool (toolset `screen_listen`), allowlist, STT handoff                                                                                                                                                               | `plugins/inspection/screen-listen/__init__.py`, `listen.py`           | Assistant |
 | Recording sessions (start, status, stop, the kept files)                                                                                                                                                                             | `plugins/inspection/screen-listen/record.py`                          | Assistant |
 | Transcripts of kept recordings (a detached local-whisper job)                                                                                                                                                                        | `plugins/inspection/screen-listen/transcript.py`, `transcribe_job.py` | Assistant |
-| When and how the Assistant uses it with `computer_use`: the procedure, and one reference per app for getting the app into the channel and out (`references/discord.md`), plus `computer_use`'s habits (`references/computer-use.md`) | the plugin skill `screen-listen:live`                                 | Assistant |
+| When and how the Assistant uses it with `computer_use`: the procedure, plus `computer_use`'s habits (`references/computer-use.md`) | the plugin skill `screen-listen:live`                                 | Assistant |
+| Getting one app into the channel or stream and out again, one skill per app | the plugin skill `screen-listen:attend-<app>` (`attend-discord` today) | Assistant |
 
 ## Why a process tap, and why an app
 
@@ -124,10 +125,11 @@ than the host, silently from the plugin's side (`open` fails with -10825).
   Assistant made the Mac one with `computer_use`. The tool never opens, joins
   or leaves anything; that choreography is the skill's (`screen-listen:live`:
   the app-agnostic procedure — listen, record, transcribe, minutes, the
-  boundaries — with the app's own steps in `references/<app>.md`, Discord
-  today: resolve the channel with `discord_account`, open its deep link in
-  the background, join, watch, listen, report, leave; a second app is a
-  second reference, not a second skill). The reference reads the app's
+  boundaries — with the app's own steps in `screen-listen:attend-<app>`,
+  Discord today: resolve the channel with `discord_account`, open its deep
+  link in the background, join, watch, listen, report, leave; a second app is
+  a second `attend-<app>` skill, named so the Assistant can reload it after
+  a context compaction, not a second reference). The app skill reads the app's
   controls from the accessibility tree by label in the app's own language
   rather than assuming positions, because Discord's UI
   changes. A channel the skill joins for the user has its microphone muted

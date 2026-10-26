@@ -25,7 +25,7 @@ column or vocabulary, follow it; the mechanics below still apply.
   limit is a reason to tell the user, not to switch to the browser.
 - **One exception: Apps Script.** Only for a change no tool op can express,
   and only after the user agrees for that sheet. Procedure:
-  `references/apps-script.md`. Report what was missing so the tool can grow.
+  `skill_view(name="google-access:run-apps-script")`. Report what was missing so the tool can grow.
 - **The live sheet is the record.** Read it fresh for every decision and
   every count. A local copy is a before-image for recovery, kept in the job
   directory and deleted when the job ends, unless the task skill says

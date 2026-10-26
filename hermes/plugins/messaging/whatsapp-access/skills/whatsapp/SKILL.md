@@ -178,8 +178,9 @@ assume the last send landed or failed.
 ## Counting
 
 Counts of chats, sends or replies over a period follow
-`references/census.md`: page to `complete`, save what was read, compute in a
-script, and state what the mirror cannot see.
+`skill_view(name="whatsapp-access:count-activity")`: page to `complete`,
+save what was read, compute in a script, and state what the mirror cannot
+see.
 
 ## Not through the tool
 

@@ -31,7 +31,7 @@ Which route depends on whether the chat is synced.
    - Read the part that matters with `messages` (`after` / `before`, `limit`
      25-50), or `search` inside it (`channel`, `author`, `has`).
    - Evidence for a document: `export` (see "Collecting history as evidence"
-     in `SKILL.md` and `collection.md`), then read the file in bounded parts
+     in `SKILL.md` and `discord-access:collect-history`), then read the file in bounded parts
      and cite the permalinks.
 3. **Not synced**: one bounded live window with `messages` (at most 100,
    `before` to page back) or one `search` with `live=true` for the question.
@@ -65,7 +65,7 @@ Which route depends on whether the chat is synced.
 3. Read a post with `messages` (`channel` = the post's id). One post at a
    time, lower `limit` for long posts, never a loop over every post.
 4. To keep a forum's content as evidence, `export` does not apply (posts are
-   not synced); follow `collection.md` and write each post you read to a file.
+   not synced); follow `discord-access:collect-history` and write each post you read to a file.
 5. Replying in an existing post is a `send` to the post's id, on its own card.
    A new post is the user's to make in the app.
 

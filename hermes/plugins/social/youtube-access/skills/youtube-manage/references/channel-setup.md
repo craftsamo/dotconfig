@@ -17,7 +17,7 @@ Studio make possible and where the traps are.
 ## Name and handle
 
 - The display name is what viewers see; the `@handle` matters for links and
-  mentions. Both are changed in Studio (`references/studio.md`), never
+  mentions. Both are changed in Studio (`youtube-access:configure-studio`), never
   through the tool.
 - Probing a handle: `youtube(action="channels", of="@name")`. "no channel has
   the handle" does not prove it is free — a private or terminated channel or

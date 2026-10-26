@@ -22,11 +22,13 @@ ALL_READERS = {"assistant", "marketer", "searcher"}
 EXPECTED = {
     "social/x-access": {
         "x-twitter": ALL_READERS,
-        "x-twitter-drafts": {"assistant"},
+        "draft-post": {"assistant"},
+        "draft-article": {"assistant"},
     },
     "social/youtube-access": {
         "youtube": ALL_READERS,
         "youtube-manage": {"assistant"},
+        "configure-studio": {"assistant"},
     },
     "social/note-access": {
         "note-com": ALL_READERS,
@@ -50,18 +52,22 @@ EXPECTED = {
         "substack": ALL_READERS,
         "substack-drafts": {"assistant"},
     },
-    "google-access": {"google-sheets": {"assistant"}},
+    "google-access": {"google-sheets": {"assistant"}, "run-apps-script": {"assistant"}},
     "stripe-access": {"stripe": {"assistant", "researcher", "marketer"}, "stripe-manage": {"assistant"}},
     "cloudflare-access": {"cloudflare": {"assistant", "researcher", "marketer"}, "cloudflare-manage": {"assistant"}},
     "github-access": {"github": {"assistant"}, "github-tracking": {"assistant"}, "github-repo": {"assistant"},
                       "github-pr": {"assistant"}},
     "workspace/workspace-drafts": {"workspace-drafts": {"assistant"}},
     "workspace/workspace-registry": {"workspace-registry": {"assistant"}},
-    "messaging/discord-access": {"discord-account": {"assistant"}},
-    "inspection/screen-listen": {"live": {"assistant"}},
+    "messaging/discord-access": {
+        "discord-account": {"assistant"},
+        "collect-history": {"assistant"},
+        "manage-roles": {"assistant"},
+    },
+    "inspection/screen-listen": {"live": {"assistant"}, "attend-discord": {"assistant"}},
     "messaging/signal-access": {"signal": {"assistant"}},
     "messaging/telegram-access": {"telegram-account": {"assistant"}},
-    "messaging/whatsapp-access": {"whatsapp": {"assistant"}},
+    "messaging/whatsapp-access": {"whatsapp": {"assistant"}, "count-activity": {"assistant"}},
     "orchestration/opencode": {"opencode": {"assistant"}},
 }
 

@@ -1,3 +1,14 @@
+---
+name: run-apps-script
+description: "Use only when no google_sheets op can make a change the user wants in their sheet (an image inside a cell, say) and they agreed to a script for it: a bound Apps Script, written, authorized, run and cleaned up."
+version: 1.0.0
+author: CraftSamo
+license: MIT
+metadata:
+  hermes:
+    tags: [google-sheets, apps-script, browser, consent, exception]
+---
+
 # Apps Script exception
 
 Use only when no `google_sheets` op can make the change (for example an image
