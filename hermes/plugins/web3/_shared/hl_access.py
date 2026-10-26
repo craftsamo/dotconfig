@@ -44,8 +44,8 @@ tool_preview = _load("hermes_tool_preview", Path(__file__).resolve().parents[2] 
 
 TOOL = "hyperliquid"
 TOOLSET = "hyperliquid_access"
-SKILL = "hyperliquid-access:hyperliquid"
-TRADE_SKILL = "hyperliquid-access:hyperliquid-trade"
+SKILL = "hyperliquid-access:read"
+TRADE_SKILL = "hyperliquid-access:trade"
 NETWORKS = ("mainnet", "testnet")
 READS = ("dexs", "markets", "spots", "candles", "funding", "book", "state", "balances", "fills", "orders",
          "review", "export", "backtest", "deposit_info")

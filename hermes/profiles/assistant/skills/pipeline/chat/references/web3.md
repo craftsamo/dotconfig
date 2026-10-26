@@ -5,11 +5,11 @@ Arbitrum, OP Mainnet, Polygon, BNB Chain, Avalanche, Linea, Scroll, ZKsync
 Era, Unichain, Gnosis, Celo, Mantle, Sonic, World Chain, Ink, Zora and their
 testnets) and
 the `solana` tool (mainnet-beta and devnet) only. Load the chain's skill
-before any chain work: `skill_view(name="evm-access:evm")` or
-`skill_view(name="solana-access:solana")` own the mechanics of reading.
+before any chain work: `skill_view(name="evm-access:read")` or
+`skill_view(name="solana-access:read")` own the mechanics of reading.
 Anything about the user's wallets, a new wallet or sending is
-`skill_view(name="evm-access:evm-wallet")` first (and
-`skill_view(name="solana-access:solana-wallet")` for Solana). This file holds
+`skill_view(name="evm-access:manage-wallets")` first (and
+`skill_view(name="solana-access:wallet")` for Solana). This file holds
 only what is particular to Chat.
 
 ## What stays in Chat
@@ -33,8 +33,8 @@ schedule instead.
 ## Hyperliquid
 
 Hyperliquid's perp and spot venue goes through the `hyperliquid` tool only:
-`skill_view(name="hyperliquid-access:hyperliquid")` for reading, and
-`skill_view(name="hyperliquid-access:hyperliquid-trade")` before any trade.
+`skill_view(name="hyperliquid-access:read")` for reading, and
+`skill_view(name="hyperliquid-access:trade")` before any trade.
 A Hermes wallet account's Hyperliquid account is its EVM address from the
 `evm` tool's `accounts`.
 

@@ -3,7 +3,7 @@
 Solana mainnet-beta and devnet, read through the `solana` tool. It reads
 only: nothing is signed or sent. An explorer page shows the same chain data
 plus the explorer's own labels; cite the chain read; the explorer link the tool returns is its locator. The
-tool's actions and mechanics are `skill_view(name="solana-access:solana")`;
+tool's actions and mechanics are `skill_view(name="solana-access:read")`;
 this file holds how the evidence is weighed.
 
 ## What the chain proves

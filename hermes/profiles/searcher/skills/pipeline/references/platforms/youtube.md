@@ -16,7 +16,7 @@ under `Open for researcher`.
   video; `comments` for the audience's replies.
 
 The actions, the daily budget shared by every profile and recovery are
-`skill_view(name="youtube-access:youtube")`. Searches are the scarce part of
+`skill_view(name="youtube-access:read")`. Searches are the scarce part of
 the budget: prefer `videos` and `playlist` once you hold ids, keep `limit`
 bounded, and a `paused:` answer is a budget stop to report.
 

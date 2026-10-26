@@ -1,6 +1,6 @@
 # X (Twitter)
 
-Load `skill_view(name="x-access:x-twitter")` before any X work: it owns the
+Load `skill_view(name="x-access:read")` before any X work: it owns the
 mechanics — the `x` tool only (never the terminal, twscrape, FxTwitter or its
 mirrors, or the sub-account's cookies), the sub-account's caps and
 `verify`'s own, which action to read with, verifying posts, media, the

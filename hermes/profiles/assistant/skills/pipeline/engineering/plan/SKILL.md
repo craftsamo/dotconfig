@@ -128,7 +128,7 @@ leave install, gateway restarts and the cutover to the person.
    Record the user's approving words in the log: Build quotes them as
    `approval`. A roadmap of several Phases, or work others will pick up,
    carries the tracking proposal in the same question (below): read
-   `skill_view(name="github-access:github-tracking")` first, so the proposal
+   `skill_view(name="github-access:manage-tracking")` first, so the proposal
    names its real shape.
 6. **Release** the approved Phase through PR delivery under
    [Execute](../execute/SKILL.md). Keep the approved plan

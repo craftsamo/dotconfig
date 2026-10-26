@@ -103,7 +103,7 @@ class EngineeringClientTests(unittest.TestCase):
     def test_a_tracked_job_is_written_by_the_assistant_and_read_by_opencode(self):
         text = read("engineering/execute/references/github-ops.md")
         self.assertIn("You, through `github_change` (github-access), only for a job the user chose to track", text)
-        self.assertIn('skill_view(name="github-access:github-tracking")', text)
+        self.assertIn('skill_view(name="github-access:manage-tracking")', text)
         self.assertIn("Never pass `issue_approval`: a build does not write Issues or boards", text)
         self.assertIn("one sub-issue per Phase", text)
         self.assertIn("Propose the **mandate**: `routine`", text)
@@ -125,7 +125,7 @@ class EngineeringClientTests(unittest.TestCase):
     def test_tracking_is_proposed_with_the_roadmap_in_its_real_shape(self):
         plan = read("engineering/plan/SKILL.md")
         self.assertIn("carries the tracking proposal in the same question", plan)
-        self.assertIn('skill_view(name="github-access:github-tracking")` first', plan)
+        self.assertIn('skill_view(name="github-access:manage-tracking")` first', plan)
         self.assertIn("a parent issue with one sub-issue per Phase", plan)
         ops = read("engineering/execute/references/github-ops.md")
         self.assertIn("When the user raises tracking or a board themselves, at any point of the job, the answer "

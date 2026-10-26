@@ -22,7 +22,7 @@ bridge, A2A rule, approval record and bypass guard) and the rules of
 | Moves of funds: builders, signed types, card lines, notes        | `_shared/hl_moves.py`, one table entry per kind and per signed type           |
 | Rules, backtests, specs and stances (pure, no network)           | `_shared/hl_strategy.py`, used by `hl.py` and the gate                        |
 | The strategies' cron gate                                        | `_shared/hl_gate.py`, run by `profiles/assistant/scripts/hl-strategy-gate.sh` |
-| How a profile reads Hyperliquid; how the Assistant trades        | plugin skills `hyperliquid-access:hyperliquid`, `…:hyperliquid-trade`         |
+| How a profile reads Hyperliquid; how the Assistant trades        | plugin skills `hyperliquid-access:read`, `…:trade`         |
 | How the Assistant sets up, runs and manages a strategy           | plugin skills `hyperliquid-access:configure-strategy`, `…:run-strategy`, `…:manage-strategy` |
 | How Researcher and Searcher weigh and record venue evidence      | each pipeline's `references/platforms/hyperliquid.md`                         |
 | What the Assistant does inline in Chat                           | the Assistant's Chat reference `web3.md`, section "Hyperliquid"               |

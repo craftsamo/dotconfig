@@ -9,7 +9,7 @@ exports. A project's own scripts (`nps setup.google`, a deploy script) are not
 such a route: they run from the terminal in their repository, on the user's
 own gcloud login, as the Chat skill's "A project's own tooling" says; use the
 `gcloud` tool for what you would run yourself, never to replay a script's
-steps. Load `skill_view(name="google-access:google-sheets")` before any sheet work: it owns
+steps. Load `skill_view(name="google-access:sheets")` before any sheet work: it owns
 the Sheets mechanics (reads, guarded writes, read-back, formatting, checking
 the look, recovery). This file holds what is particular to Chat and the other
 three tools.
@@ -25,7 +25,7 @@ production work needs a sheet (an outreach batch, a report source), the
 specialist works from a saved read you hand it, and you write its results to
 the sheet yourself after QA. Never ask the user to log in again because a
 specialist hit a login wall. Sheet design or a restructure is a proposal for
-the user (`google-access:google-sheets` → `references/design.md`), not something to apply
+the user (`google-access:sheets` → `references/design.md`), not something to apply
 uninvited.
 
 ## Approvals

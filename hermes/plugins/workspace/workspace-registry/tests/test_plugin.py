@@ -37,8 +37,8 @@ class RegisterTest(unittest.TestCase):
     def test_skill_is_registered_with_its_own_path(self):
         ctx = Ctx("assistant")
         plugin.register(ctx)
-        path, description = ctx.skills["workspace-registry"]
-        self.assertEqual(path, HERE / "skills" / "workspace-registry" / "SKILL.md")
+        path, description = ctx.skills["manage"]
+        self.assertEqual(path, HERE / "skills" / "manage" / "SKILL.md")
         self.assertTrue(description)
 
     def test_register_skills_skips_other_profiles(self):

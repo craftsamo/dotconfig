@@ -507,7 +507,7 @@ def test_a_stack_merge_not_landed_deletes_nothing(gh):
 def test_the_model_reads_how_delete_branch_works_in_a_stack():
     doc = " ".join(changes.OPS["pr_merge"].doc.split())
     assert "delete_branch (in a stack: each landed layer's branch, kept when an open pull request is based on it)" in doc
-    skill = " ".join((ROOT / "skills/github-pr/SKILL.md").read_text().split())
+    skill = " ".join((ROOT / "skills/manage-pr/SKILL.md").read_text().split())
     assert "In a stack, `delete_branch` removes the branch of every layer that lands" in skill
     assert "a kept branch is not a failed merge" in skill
 

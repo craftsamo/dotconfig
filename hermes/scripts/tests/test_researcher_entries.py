@@ -422,7 +422,7 @@ def test_onchain_evidence_rules_and_platform_references():
         assert "(../../references/platforms/evm.md)" in text and "(../../references/platforms/solana.md)" in text
         assert "(../../references/platforms/hyperliquid.md)" in text
     venue = flat(TREE / "references/platforms/hyperliquid.md")
-    for phrase in ("nothing is signed or sent", 'skill_view(name="hyperliquid-access:hyperliquid")',
+    for phrase in ("nothing is signed or sent", 'skill_view(name="hyperliquid-access:read")',
                    "A read is a moment", "a testnet figure is never evidence about mainnet",
                    "An account is an address, not a person", "never a yield forecast",
                    "`review` findings are Inference", '`{"untrusted": …}`', "`unread`",

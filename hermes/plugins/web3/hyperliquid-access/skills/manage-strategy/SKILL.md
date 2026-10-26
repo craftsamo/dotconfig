@@ -16,8 +16,8 @@ A strategy in force has a spec, a mandate and a cron gate
 `hyperliquid-access:run-strategy`. This skill is what happens between runs,
 only when the user asks in this conversation: an advisor's stance, the
 review, a tripped breaker, pausing, stopping or changing it. Reading is
-`hyperliquid-access:hyperliquid` and trading is
-`hyperliquid-access:hyperliquid-trade`; load both first.
+`hyperliquid-access:read` and trading is
+`hyperliquid-access:trade`; load both first.
 
 ## Contract
 

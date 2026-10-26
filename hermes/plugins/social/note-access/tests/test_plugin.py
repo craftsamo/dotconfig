@@ -428,9 +428,9 @@ def test_writer_inbound_a2a_fails_closed_unless_bound_and_names_only_check(monke
 
 
 def test_each_skill_reaches_only_the_profiles_whose_actions_it_describes():
-    expected = {"assistant": {"note-com", "note-com-format", "note-com-drafts"},
-                "marketer": {"note-com", "note-com-format"}, "writer": {"note-com-format"},
-                "searcher": {"note-com"}}
+    expected = {"assistant": {"read", "check-format", "draft"},
+                "marketer": {"read", "check-format"}, "writer": {"check-format"},
+                "searcher": {"read"}}
     for profile, names in expected.items():
         ctx = Ctx(profile)
         plugin.register(ctx)
@@ -444,4 +444,4 @@ def test_each_skill_reaches_only_the_profiles_whose_actions_it_describes():
         ctx = Ctx(profile)
         plugin.register(ctx)
         for path in ctx.skills.values():
-            assert "note-com-drafts" not in path.read_text() and "create_draft" not in path.read_text()
+            assert "note-access:draft" not in path.read_text() and "create_draft" not in path.read_text()
