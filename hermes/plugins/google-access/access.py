@@ -54,18 +54,20 @@ from pathlib import Path
 _THREAD_LOCK = threading.Lock()
 
 
-def _load_card():
-    if "hermes_card" not in sys.modules:
+def _load_shared(name):
+    key = f"hermes_{name}"
+    if key not in sys.modules:
         import importlib.util
-        spec = importlib.util.spec_from_file_location("hermes_card",
-                                                      Path(__file__).resolve().parents[1] / "_shared" / "card.py")
+        spec = importlib.util.spec_from_file_location(key,
+                                                      Path(__file__).resolve().parents[1] / "_shared" / f"{name}.py")
         module = importlib.util.module_from_spec(spec)
-        sys.modules["hermes_card"] = module
+        sys.modules[key] = module
         spec.loader.exec_module(module)
-    return sys.modules["hermes_card"]
+    return sys.modules[key]
 
 
-cards = _load_card()
+cards = _load_shared("card")
+shell_commands = _load_shared("shell_commands")
 
 SHEETS = "https://www.googleapis.com/auth/spreadsheets"
 GMAIL_READ = "https://www.googleapis.com/auth/gmail.readonly"
@@ -146,6 +148,9 @@ PROJECT_ID = re.compile(r"^[a-z0-9][a-z0-9.:-]{1,99}$")
 
 # Ways around the tools: the CLIs themselves, the upstream google-workspace scripts, and any path
 # holding a Google or gcloud credential (this plugin's state and the user's own gcloud config).
+# A CLI counts where a command runs it (shell_commands); `_CLI`, the name anywhere, judges a line
+# that cannot be read that way.
+CLIS = ("gcloud", "gsutil", "bq", "gaccess")
 _CLI = re.compile(r"(?:^|[\s;&|()`'\"=])(?:[^\s;&|()`'\"]*/)?(?:gcloud|gsutil|bq|gaccess)(?=$|[\s;&|()`'\"])")
 # The state directory itself is matched anywhere in a call (a `cd` into it or a workdir there
 # counts), with no exception inside it; only the plugin's own source under plugins/ stays readable.
@@ -4121,7 +4126,7 @@ def bypass(tool: str, args) -> str | None:
     args = args if isinstance(args, dict) else {}
     if tool == "terminal":
         command = args.get("command")
-        if isinstance(command, str) and _CLI.search(command):
+        if isinstance(command, str) and shell_commands.runs(command, CLIS, _CLI):
             return BYPASS_MESSAGE
         if any(_PATHS.search(text) for text in _strings(args)):  # command, workdir, …
             return BYPASS_MESSAGE

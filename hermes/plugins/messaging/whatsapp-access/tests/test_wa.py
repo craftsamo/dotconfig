@@ -456,7 +456,8 @@ def test_terminal_ways_around_are_blocked(command):
     assert wa.bypass("terminal", {"command": command}) == wa.BYPASS_MESSAGE
 
 
-@pytest.mark.parametrize("command", ["ls -la", "grep whatsapp notes.md", "echo wacliish"])
+@pytest.mark.parametrize("command", ["ls -la", "grep whatsapp notes.md", "echo wacliish",
+                                     "grep -n 'wacli send' docs/notes.md", "which wacli"])
 def test_ordinary_terminal_calls_pass(command):
     assert wa.bypass("terminal", {"command": command}) is None
 

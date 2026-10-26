@@ -472,6 +472,8 @@ def test_long_reasons_fit_what_the_chat_shows():
 @pytest.mark.parametrize("command", [
     "gcloud projects list", "/opt/homebrew/bin/gcloud run deploy", "cd x && gsutil ls gs://b",
     "bq query 'select 1'", "gaccess check", "(gcloud auth print-access-token)",
+    "bash -c 'gcloud auth list'", "echo \"$(gcloud auth print-access-token)\"", "xargs -I{} gcloud {}",
+    "cat <<EOF | sh\ngcloud auth list\nEOF", "python3 -c 'import os; os.system(\"gcloud auth list\")'",
     "cat ~/.config/gcloud/credentials.db", "CLOUDSDK_CONFIG=/tmp/x foo",
     "python3 ~/ghq/x/skills/productivity/google-workspace/scripts/google_api.py sheets get",
     "cat ~/.hermes/profiles/assistant/google-access/token.json",
@@ -485,7 +487,15 @@ def test_terminal_bypass_is_blocked(command):
 
 
 @pytest.mark.parametrize("command", ["ls ~/Workspaces", "git log --grep gcloudy", "echo mybq",
-                                     "open ~/.hermes/profiles/assistant/google-downloads/a.pdf"])
+                                     "open ~/.hermes/profiles/assistant/google-downloads/a.pdf",
+                                     # reading a project's scripts and docs only mentions the CLIs
+                                     "sed -n 1,60p scripts/deploy-manual.sh | grep -nE 'usage|gcloud auth|PROJECT'",
+                                     "grep -rn \"gcloud builds\\|gcloud run deploy\" docs/*.md | head -20",
+                                     "grep -n -E \"^\\s+- name:|gcloud|docker\" .github/workflows/deploy.yml",
+                                     "which gcloud", "command -v gcloud", "git commit -m 'note: gcloud auth'",
+                                     # a project's own entry points
+                                     "zsh -lc 'cd /repo && DRY_RUN=1 pnpm exec nps setup.google'",
+                                     "GOOGLE_CLOUD_PROJECT=x ./scripts/deploy.sh", "make deploy"])
 def test_ordinary_terminal_commands_pass(command):
     assert access.bypass("terminal", {"command": command}) is None
 
