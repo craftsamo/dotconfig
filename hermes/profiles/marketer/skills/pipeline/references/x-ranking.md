@@ -82,7 +82,7 @@ counts as a lever. Experiments on the client's own account decide these.
 
 ## Review lenses for an X draft
 
-Use in [content review](../review-marketer/references/content.md) when the
+Use in [content review](../review/references/content.md) when the
 destination is X. Report each lens as observed / risk / direction for Writer
 (through the client), label judgments as hypotheses and never rewrite the
 text yourself. A lens that does
@@ -112,7 +112,7 @@ format and posting hour. Shares, dwell, profile and link clicks, follows and
 negative feedback are not visible there; views are not unique readers. Missing
 is not zero. Compare posts at the same age; For You stops ranking a post after
 48 hours, so most change happens before then. Interpret through
-[Analyze](../analyze-marketer/SKILL.md); small samples stay inconclusive.
+[Analyze](../analyze/SKILL.md); small samples stay inconclusive.
 
 ## Discovering conversations
 

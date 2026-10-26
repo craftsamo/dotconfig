@@ -76,7 +76,7 @@ requirement to create another campaign.
    not a universal playbook. Conditions and contradictory evidence survive reuse.
 
 For an offer-unknown client, connect repeated reader needs with actual delivery
-capacity through [discovery](../plan-marketer/references/discovery.md). Respect their priority among
+capacity through [discovery](../plan/references/discovery.md). Respect their priority among
 products/services, paid content, relationships and enjoyable work. Do not create
 sales promises or stronger public claims from this analysis.
 

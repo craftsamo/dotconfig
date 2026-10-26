@@ -246,7 +246,7 @@ def _child(case, sandbox, candidate, source):
                 for name, word in relevant.items():
                     desc = visible[name]
                     assert desc and word in desc.lower()
-                    path = tree / ("SKILL.md" if name == "creator-pipeline" else f"{name}/SKILL.md")
+                    path = tree / ("SKILL.md" if name == "creator-pipeline" else f"{name.split('-', 1)[0]}/SKILL.md")
                     fm, _ = su.parse_frontmatter(path.read_text(encoding="utf-8"))
                     assert desc == su.extract_skill_description(fm)
                 listing = dispatch("skills_list", {})
@@ -254,7 +254,7 @@ def _child(case, sandbox, candidate, source):
                 assert {s["name"] for s in listing["skills"]} == expected
 
             elif case == "direct_revise":
-                entry = body_matches(view("revise-creator"), tree / "revise-creator/SKILL.md")
+                entry = body_matches(view("revise-creator"), tree / "revise/SKILL.md")
                 assert 'skill_view(name="creator-pipeline")' in entry
                 assert "<Goal>" not in entry
                 assert [args["name"] for _, args, _ in calls] == ["revise-creator"]
@@ -266,7 +266,7 @@ def _child(case, sandbox, candidate, source):
             elif case.startswith("subject_change_"):
                 task = "same-propose-task"
                 for name, path in (("creator-pipeline", tree / "SKILL.md"),
-                                   ("propose-creator", tree / "propose-creator/SKILL.md")):
+                                   ("propose-creator", tree / "propose/SKILL.md")):
                     body_matches(view(name, task=task), path)
                 card = "references/image-creator/card.md"
                 previous = body_matches(view("creator-pipeline", card, task), tree / card)
@@ -282,14 +282,14 @@ def _child(case, sandbox, candidate, source):
                 bodies = []
                 relative = "references/audio-creator/music.md"
                 for name in sorted(ENTRIES):
-                    bodies.append(body_matches(view(name), tree / name / "SKILL.md"))
+                    bodies.append(body_matches(view(name), tree / name.split("-", 1)[0] / "SKILL.md"))
                     unchanged(view("creator-pipeline"))
                 body_matches(view("creator-pipeline", relative), tree / relative)
                 assert len(set(bodies)) == 2
                 for name in ENTRIES:
                     unchanged(view(name))
                 # Reads leave every original entry and reference byte intact in the sandbox.
-                for path in ("SKILL.md", *(f"{n}/SKILL.md" for n in ENTRIES), relative):
+                for path in ("SKILL.md", *(f"{n.split('-', 1)[0]}/SKILL.md" for n in ENTRIES), relative):
                     assert (tree / path).read_bytes() == (candidate_trees["creator"] / path).read_bytes()
 
             elif case == "hands_options":
@@ -335,7 +335,7 @@ def _child(case, sandbox, candidate, source):
             elif case == "canonical_recovery":
                 for name, relative in (("creator-pipeline", None), ("revise-creator", None),
                                        ("creator-pipeline", "references/audio-creator/music.md")):
-                    base = tree if name == "creator-pipeline" else tree / name
+                    base = tree if name == "creator-pipeline" else tree / name.split("-", 1)[0]
                     path = base / (relative or "SKILL.md")
                     body_matches(view(name, relative), path)
                     unchanged(view(name, relative))
@@ -361,11 +361,11 @@ def _child(case, sandbox, candidate, source):
                     assert not (tree / retired).exists()
                     assert view(retired).get("success") is False
                 for entry in sorted(ENTRIES):
-                    body_matches(view(entry), tree / entry / "SKILL.md")
+                    body_matches(view(entry), tree / entry.split("-", 1)[0] / "SKILL.md")
 
             elif case == "external_form":
                 assert trees["image-creator"] in external
-                body_matches(view("propose-creator"), tree / "propose-creator/SKILL.md")
+                body_matches(view("propose-creator"), tree / "propose/SKILL.md")
                 path = trees["image-creator"] / "create/card/SKILL.md"
                 payload = view("create-card")
                 body_matches(payload, path)
