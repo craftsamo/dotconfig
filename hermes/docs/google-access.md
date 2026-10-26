@@ -165,7 +165,10 @@ this plugin's state directory (only the plugin source under `plugins/`
 excepted), its Keychain item or scope, or a whole-Keychain read
 (`dump-keychain`, `secret export`). Patterns: `CLIS` (read by command
 position, with `_CLI` for a line that cannot be read that way) and `_PATHS` in
-`plugins/google-access/access.py`. Shared rules:
+`plugins/google-access/access.py`. A project's own tooling (`nps setup.google`,
+a deploy script) may still run, and the gcloud it calls uses the user's own
+`~/.config/gcloud` login, not this tool's
+([project tooling](access-common.md#bypass-guard-ways-around-the-tool)). Shared rules:
 [bypass guard](access-common.md#bypass-guard-ways-around-the-tool).
 
 ## Setup

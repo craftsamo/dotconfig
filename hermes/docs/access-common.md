@@ -173,6 +173,21 @@ another command names a CLI in its arguments (`ssh host gcloud`, an inline
 command name from an expansion, a shell or interpreter reading its code from
 input).
 
+In a project, the Google, Cloudflare and Stripe guards also let the project
+run its own tooling. A project is a Git repository under `~/ghq` or
+`~/Worktrees` that the call names as its working directory (`workdir`, or a
+leading `cd <absolute path> &&`); Hermes' own configuration (this checkout,
+the private overlay and their worktrees) never is one, since its scripts
+change Hermes itself. There the project's entry points and scripts (`nps`,
+`make`, `./scripts/…`, `node scripts/…`) are not unknown commands, and a CLI
+the plugin lists as a project dependency runs through the project's package
+manager when the project has it in `node_modules/.bin` (`pnpm exec wrangler
+deploy`), never as a download (`dlx`, `npx -y`). The CLI run directly, or
+named in an entry point's arguments, is judged as anywhere else. What the
+project's tooling runs uses the user's own CLI logins (`~/.config/gcloud`,
+wrangler's), not the tools' credentials. Code:
+`plugins/_shared/project_place.py`.
+
 ## Setup (shared)
 
 - Store a credential with `secret set NAME -p hermes --scope S [-D KIND]`,
