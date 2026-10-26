@@ -215,7 +215,7 @@ status, everything under `.agent/` is a draft, canon is only a Group's
   needs the user's OK.
 - You alone promote and delete. Producers write inside the path they are
   given and report their files.
-- Before opening a job, read `skill_view(name="workspace-drafts:workspace-drafts")`,
+- Before opening a job, read `skill_view(name="workspace-drafts:inventory")`,
   then check `workspace_drafts` for an existing draft of the
   same work and continue it rather than starting a second one.
 - The earlier `.agent/{scratch,deliverables,notes}/` and root `.scratch/`,

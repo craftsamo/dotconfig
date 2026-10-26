@@ -80,9 +80,9 @@ guard = _load("hermes_web3_guard", HERE / "guard.py")
 tool_preview = _load("hermes_tool_preview", Path(__file__).resolve().parents[2] / "_shared" / "tool_preview.py")
 
 FAMILY = {"evm": {"tool": "evm", "toolset": "evm_access", "chains": list(chains.EVM),
-                  "skill": "evm-access:evm", "wallet_skill": "evm-access:evm-wallet"},
+                  "skill": "evm-access:read", "wallet_skill": "evm-access:manage-wallets"},
           "solana": {"tool": "solana", "toolset": "solana_access", "chains": list(chains.SOLANA),
-                     "skill": "solana-access:solana", "wallet_skill": "solana-access:solana-wallet"}}
+                     "skill": "solana-access:read", "wallet_skill": "solana-access:wallet"}}
 
 READ_HELP = {
     "evm": (

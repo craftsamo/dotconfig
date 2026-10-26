@@ -34,7 +34,7 @@ PLUGIN = "evm-access"
 logger = logging.getLogger(__name__)
 # Skill -> the profiles it is registered for. A skill is read-only to Hermes (not editable through
 # skill_manage); the wallet procedure reaches only the profiles that can sign.
-SKILLS = {"evm": set(access.PROFILES), "evm-wallet": set(access.SIGNING)}
+SKILLS = {"read": set(access.PROFILES), "manage-wallets": set(access.SIGNING)}
 
 
 def register_skills(ctx, profile):

@@ -12,7 +12,7 @@ a reply that grows into a crafted piece goes through Plan (writing).
 (the message itself) and the user's ask: interpret, draft a reply, or both.
 
 **1. Resolve the sender.** First load
-`skill_view(name="workspace-registry:workspace-registry")`, then look the sender
+`skill_view(name="workspace-registry:manage")`, then look the sender
 up with the `workspace_registry` tool, never a terminal command or the CSV files:
 
 ```text

@@ -1,10 +1,10 @@
 # Substack
 
-Load `skill_view(name="substack-access:substack")` before any Substack work:
+Load `skill_view(name="substack-access:read")` before any Substack work:
 it owns the mechanics — the `substack` tool only (never the terminal, the
 cookies or substack.com in the browser), paced reads, which action to read
 with, and recovery. Every write (drafts, releases, scheduling, Notes, each on
-an approval card) is `skill_view(name="substack-access:substack-drafts")`.
+an approval card) is `skill_view(name="substack-access:manage")`.
 This file holds only what is particular to Chat.
 
 Marketing work (a campaign, a series of posts) goes through Plan and Execute

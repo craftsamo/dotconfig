@@ -5,10 +5,10 @@ mechanics, and this file holds only what is particular to Chat:
 
 | Work | Skill |
 | --- | --- |
-| Reading issues and boards | `skill_view(name="github-access:github")` |
-| Changing issues and boards, a board's setup, tracking | `skill_view(name="github-access:github-tracking")` |
-| A repository's settings, labels, milestones, releases, Actions runs, branch protection | `skill_view(name="github-access:github-repo")` |
-| A pull request: where it stands, opening, editing, attachments, merging | `skill_view(name="github-access:github-pr")` |
+| Reading issues and boards | `skill_view(name="github-access:read-tracking")` |
+| Changing issues and boards, a board's setup, tracking | `skill_view(name="github-access:manage-tracking")` |
+| A repository's settings, labels, milestones, releases, Actions runs, branch protection | `skill_view(name="github-access:manage-repo")` |
+| A pull request: where it stands, opening, editing, attachments, merging | `skill_view(name="github-access:manage-pr")` |
 | The user's conventions: merging (method, message, stacks), commit and PR text, red CI | also `skill_view(name="github")`, then the reference its table names |
 
 Read with `github_issue`, `github_board`, `github_repo` and `github_pr`;

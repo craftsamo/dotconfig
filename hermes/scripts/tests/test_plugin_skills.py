@@ -21,54 +21,56 @@ DESCRIPTION_BUDGET = 260
 ALL_READERS = {"assistant", "marketer", "searcher"}
 EXPECTED = {
     "social/x-access": {
-        "x-twitter": ALL_READERS,
+        "read": ALL_READERS,
         "draft-post": {"assistant"},
         "draft-article": {"assistant"},
     },
     "social/youtube-access": {
-        "youtube": ALL_READERS,
-        "youtube-manage": {"assistant"},
+        "read": ALL_READERS,
+        "manage": {"assistant"},
         "configure-studio": {"assistant"},
     },
     "social/note-access": {
-        "note-com": ALL_READERS,
-        "note-com-format": {"assistant", "marketer", "writer"},
-        "note-com-drafts": {"assistant"},
+        "read": ALL_READERS,
+        "check-format": {"assistant", "marketer", "writer"},
+        "draft": {"assistant"},
     },
     "web3/evm-access": {
-        "evm": {"assistant", "researcher", "searcher", "marketer"},
-        "evm-wallet": {"assistant"},
+        "read": {"assistant", "researcher", "searcher", "marketer"},
+        "manage-wallets": {"assistant"},
     },
     "web3/solana-access": {
-        "solana": {"assistant", "researcher", "searcher", "marketer"},
-        "solana-wallet": {"assistant"},
+        "read": {"assistant", "researcher", "searcher", "marketer"},
+        "wallet": {"assistant"},
     },
     "web3/hyperliquid-access": {
-        "hyperliquid": {"assistant", "researcher", "searcher", "marketer"},
-        "hyperliquid-trade": {"assistant"},
-        "hyperliquid-strategy": {"assistant"},
+        "read": {"assistant", "researcher", "searcher", "marketer"},
+        "trade": {"assistant"},
+        "configure-strategy": {"assistant"},
+        "run-strategy": {"assistant"},
+        "manage-strategy": {"assistant"},
     },
     "social/substack-access": {
-        "substack": ALL_READERS,
-        "substack-drafts": {"assistant"},
+        "read": ALL_READERS,
+        "manage": {"assistant"},
     },
-    "google-access": {"google-sheets": {"assistant"}, "run-apps-script": {"assistant"}},
-    "stripe-access": {"stripe": {"assistant", "researcher", "marketer"}, "stripe-manage": {"assistant"}},
-    "cloudflare-access": {"cloudflare": {"assistant", "researcher", "marketer"}, "cloudflare-manage": {"assistant"}},
-    "github-access": {"github": {"assistant"}, "github-tracking": {"assistant"}, "github-repo": {"assistant"},
-                      "github-pr": {"assistant"}},
-    "workspace/workspace-drafts": {"workspace-drafts": {"assistant"}},
-    "workspace/workspace-registry": {"workspace-registry": {"assistant"}},
+    "google-access": {"sheets": {"assistant"}, "run-apps-script": {"assistant"}},
+    "stripe-access": {"read": {"assistant", "researcher", "marketer"}, "manage": {"assistant"}},
+    "cloudflare-access": {"read": {"assistant", "researcher", "marketer"}, "manage": {"assistant"}},
+    "github-access": {"read-tracking": {"assistant"}, "manage-tracking": {"assistant"}, "manage-repo": {"assistant"},
+                      "manage-pr": {"assistant"}},
+    "workspace/workspace-drafts": {"inventory": {"assistant"}},
+    "workspace/workspace-registry": {"manage": {"assistant"}},
     "messaging/discord-access": {
-        "discord-account": {"assistant"},
+        "account": {"assistant"},
         "collect-history": {"assistant"},
         "manage-roles": {"assistant"},
     },
-    "inspection/screen-listen": {"live": {"assistant"}, "attend-discord": {"assistant"}},
-    "messaging/signal-access": {"signal": {"assistant"}},
-    "messaging/telegram-access": {"telegram-account": {"assistant"}},
-    "messaging/whatsapp-access": {"whatsapp": {"assistant"}, "count-activity": {"assistant"}},
-    "orchestration/opencode": {"opencode": {"assistant"}},
+    "inspection/screen-listen": {"listen": {"assistant"}, "attend-discord": {"assistant"}},
+    "messaging/signal-access": {"account": {"assistant"}},
+    "messaging/telegram-access": {"account": {"assistant"}},
+    "messaging/whatsapp-access": {"account": {"assistant"}, "count-activity": {"assistant"}},
+    "orchestration/opencode": {"brief": {"assistant"}, "drive": {"assistant"}, "answer": {"assistant"}},
 }
 
 
@@ -101,7 +103,12 @@ def shipped_skills():
     )
 
 
-@pytest.mark.parametrize("path", shipped_skills(), ids=lambda p: p.parent.name)
+def qualified(path):
+    """``<plugin>:<skill>``, the name the runtime registers the skill under."""
+    return f"{path.parents[2].name}:{path.parent.name}"
+
+
+@pytest.mark.parametrize("path", shipped_skills(), ids=qualified)
 def test_the_description_stays_within_the_index_budget(path):
     from agent.skill_utils import parse_frontmatter
 

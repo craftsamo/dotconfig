@@ -51,7 +51,7 @@ turn_env = _load("hermes_turn_env", _HERE.parents[1] / "_shared" / "turn_env.py"
 
 PROFILES = {"assistant"}
 # The tool mechanics skill reaches only the profiles that will drive OpenCode.
-SKILLS = {"opencode": {"assistant"}}
+SKILLS = {"brief": {"assistant"}, "drive": {"assistant"}, "answer": {"assistant"}}
 TOPIC_FIELDS = ("PLATFORM", "SOURCE", "PROFILE", "KEY", "CHAT_ID", "THREAD_ID", "USER_ID")
 SESSION_ID = re.compile(r"ses_[A-Za-z0-9_-]+\Z")
 PERMISSION_ID = re.compile(r"per_[A-Za-z0-9_-]{1,64}\Z")

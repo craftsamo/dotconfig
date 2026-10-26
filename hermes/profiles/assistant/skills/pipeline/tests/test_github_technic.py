@@ -46,7 +46,7 @@ class GithubTechnic(unittest.TestCase):
         blocked = guard().blocked
         self.assertTrue(blocked("gh pr merge 1 --squash"))  # the guard this test leans on still blocks
         merge = flat(self.references["merge.md"])
-        for name in ('skill_view(name="github-access:github-pr")', "`pr_merge`", "`github_pr` `view`"):
+        for name in ('skill_view(name="github-access:manage-pr")', "`pr_merge`", "`github_pr` `view`"):
             self.assertIn(name, merge)
         for name, text in {"SKILL.md": self.entry, **self.references}.items():
             if name == BUILD_BRIEF:

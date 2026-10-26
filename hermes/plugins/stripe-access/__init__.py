@@ -48,8 +48,8 @@ A2A = {"researcher": sta.READS, "marketer": sta.READS}
 # Skill -> the profiles it is registered for, by the actions they hold. A skill is read-only to Hermes
 # (not editable through skill_manage); a profile that cannot do what a skill describes is not given it.
 SKILLS = {
-    "stripe": {p for p, actions in PROFILES.items() if set(actions) & set(sta.READS)},
-    "stripe-manage": {p for p, actions in PROFILES.items() if set(actions) & set(sta.WRITES)},
+    "read": {p for p, actions in PROFILES.items() if set(actions) & set(sta.READS)},
+    "manage": {p for p, actions in PROFILES.items() if set(actions) & set(sta.WRITES)},
 }
 
 READ_DESCRIPTION = (
@@ -333,8 +333,8 @@ def register(ctx):
         return
     description, properties = schema_parts(PROFILES[profile])
     description += f' For anything past a single lookup, first load skill_view(name="stripe-access:{skills_for(profile)[0]}").'
-    if "stripe-manage" in skills_for(profile):
-        description += ' Before any change, load skill_view(name="stripe-access:stripe-manage").'
+    if "manage" in skills_for(profile):
+        description += ' Before any change, load skill_view(name="stripe-access:manage").'
     schema = {"name": TOOL, "description": description, "parameters": {
         "type": "object", "properties": properties, "required": ["action"], "additionalProperties": False}}
     ctx.register_tool(name=TOOL, toolset=TOOLSET, handler=make_handler(profile), description=description,

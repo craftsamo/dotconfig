@@ -13,7 +13,7 @@ drafts the user approves through its own `substack` tool; the user publishes.
 
 The `substack` tool reads the user's own account without the browser, so it
 takes no lease and also answers inbound A2A questions (mechanics:
-`skill_view(name="substack-access:substack")`). It never saves,
+`skill_view(name="substack-access:read")`). It never saves,
 publishes or posts for Marketer. Use it for:
 
 - measurement: `published` (per-post numbers) and `stats` (subscribers, open

@@ -1,6 +1,6 @@
 # Discord
 
-Load `skill_view(name="discord-access:discord-account")` before any work in the user's own
+Load `skill_view(name="discord-access:account")` before any work in the user's own
 Discord account: it owns the mechanics — the `discord_account` tool only
 (never the terminal, the token, the mirror files or Discord in the browser),
 low traffic, which action to read with, the sync list, files, collecting
@@ -18,7 +18,7 @@ its text tab shows only what people typed beside it. When the user asks what
 is being **said, streamed or shown** — "配信に参加して内容教えて", "ボイスで
 何話してる？", "この通話録っておいて", "配信を見てきて" — do not answer from
 the channel's text and do not say you cannot hear: load
-`skill_view(name="screen-listen:live")` and its Discord steps
+`skill_view(name="screen-listen:listen")` and its Discord steps
 (`skill_view(name="screen-listen:attend-discord")`) and follow them. They open the
 channel in the Discord app on this Mac with `computer_use`, listen or
 record with `screen_listen`, look with a capture, report and leave. Use

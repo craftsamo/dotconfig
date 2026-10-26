@@ -19,7 +19,7 @@ import sys
 PROFILES = {"assistant"}
 # Skill -> the profiles it is registered for. A skill is read-only to Hermes (not editable through
 # skill_manage); a profile that cannot do what a skill describes is not given it.
-SKILLS = {"signal": set(PROFILES)}
+SKILLS = {"account": set(PROFILES)}
 TOOLSET = "signal_access"
 TOOL = "signal"
 LIMIT = 60000

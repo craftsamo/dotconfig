@@ -6,7 +6,7 @@ facts; judging them stays under `Open for researcher`.
 
 ## Which action
 
-The actions and what each returns are `skill_view(name="solana-access:solana")`
+The actions and what each returns are `skill_view(name="solana-access:read")`
 (`tx`, `address`, `program`, `token`, `portfolio`, `activity`, `decode`).
 Retrieve with them; the rules below are what Searcher adds.
 

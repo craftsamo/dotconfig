@@ -12,7 +12,7 @@ published and by whom; judging it stays under `Open for researcher`.
   publication: the tool's default is not someone you were asked about.
 - **One post:** `post` with the URL as found.
 
-The actions and recovery are `skill_view(name="substack-access:substack")`.
+The actions and recovery are `skill_view(name="substack-access:read")`.
 Substack is where analysts and founders publish long-form arguments in
 English; a lookup or sweep after an expert's own words reads it rather than
 leaving it to web search.

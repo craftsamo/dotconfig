@@ -17,16 +17,15 @@ language for the user, keeps the job's decision log (the user's exact words
 live there), obtains the user's explicit implementation approval, answers what
 the runs pause on and accepts the result. People read the briefs in OpenCode
 too, and a relay of quoted remarks and restated approvals reads as a
-subcontract and narrows the run, so a message weaves the user's words into its
-own sentences and carries no commands, steps, report templates or restated
-rules. OpenCode shows the message as typed, so its only markup is backticks
-(and a fenced block for text that must pass unchanged); repository paths are
-relative to the root, since the session moves into a worktree after a plan,
-and `@` / `/` mentions are TUI input that the API's text does not resolve. It never edits target code itself, and it
+subcontract and narrows the run, so a brief is written as `opencode:brief`
+says: the user's words inside its own sentences, no commands, steps or report
+templates, backticks as the only markup, repository paths relative to the
+root. It never edits target code itself, and it
 sends every code question or change to OpenCode, however small. The Assistant's
-engineering entries (`{plan,execute,qa}-assistant-engineering`) carry those
-decisions; the plugin's own skill (`opencode:opencode`) carries the tool
-mechanics. Code work happens in any Telegram/Discord topic. The CLI `default`
+engineering entries (`{plan,execute,qa}-engineering`) carry those decisions;
+the plugin's own skills carry the tool mechanics: `opencode:brief` the message
+to a run, `opencode:drive` starting, reading and reporting runs,
+`opencode:answer` what a run pauses on. Code work happens in any Telegram/Discord topic. The CLI `default`
 profile has no OpenCode tools: there the person runs OpenCode directly, as they
 usually do on this configuration repo (`~/ghq/github.com/craftsamo/dotconfig`). The Assistant may run
 OpenCode on it too, but its links make every change in the live
@@ -257,7 +256,7 @@ notification and a further turn; requests just answered are ignored while the
 service still lists them. There is no
 broader approval: `always` saves a project-wide approval people's own sessions
 would inherit, and a session-wide allow would be copied into every subagent
-session after its own denies. The decision rule lives in the plugin skill and
+session after its own denies. The decision rule lives in `opencode:answer` and
 the engineering entries.
 
 **Models.** A role's model comes from `opencode.roles.<role>.model`, else the

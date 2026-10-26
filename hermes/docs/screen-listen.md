@@ -21,7 +21,7 @@ Part of the Hermes design docs — index: [`PROFILES.md`](../PROFILES.md).
 | `screen_listen` tool (toolset `screen_listen`), allowlist, STT handoff                                                                                                                                                               | `plugins/inspection/screen-listen/__init__.py`, `listen.py`           | Assistant |
 | Recording sessions (start, status, stop, the kept files)                                                                                                                                                                             | `plugins/inspection/screen-listen/record.py`                          | Assistant |
 | Transcripts of kept recordings (a detached local-whisper job)                                                                                                                                                                        | `plugins/inspection/screen-listen/transcript.py`, `transcribe_job.py` | Assistant |
-| When and how the Assistant uses it with `computer_use`: the procedure, plus `computer_use`'s habits (`references/computer-use.md`) | the plugin skill `screen-listen:live`                                 | Assistant |
+| When and how the Assistant uses it with `computer_use`: the procedure, plus `computer_use`'s habits (`references/computer-use.md`) | the plugin skill `screen-listen:listen`                                 | Assistant |
 | Getting one app into the channel or stream and out again, one skill per app | the plugin skill `screen-listen:attend-<app>` (`attend-discord` today) | Assistant |
 
 ## Why a process tap, and why an app
@@ -123,7 +123,7 @@ than the host, silently from the plugin's side (`open` fails with -10825).
 
 - The app must be open and playing on this Mac: the user is a viewer, or the
   Assistant made the Mac one with `computer_use`. The tool never opens, joins
-  or leaves anything; that choreography is the skill's (`screen-listen:live`:
+  or leaves anything; that choreography is the skill's (`screen-listen:listen`:
   the app-agnostic procedure — listen, record, transcribe, minutes, the
   boundaries — with the app's own steps in `screen-listen:attend-<app>`,
   Discord today: resolve the channel with `discord_account`, open its deep

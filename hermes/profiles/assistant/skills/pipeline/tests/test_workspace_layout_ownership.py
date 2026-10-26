@@ -26,7 +26,7 @@ class WorkspaceLayoutOwnershipTest(unittest.TestCase):
     def test_file_disposition_refs_read_the_public_layout_explicitly(self):
         layout = "~/.hermes/profiles/assistant/skills/pipeline/references/workspace-layout.md"
         refs = [ROOT / "chat" / "references" / f"{name}.md" for name in ("signal", "whatsapp", "x", "discord")]
-        refs.append(REPO / "hermes/plugins/messaging/telegram-access/skills/telegram-account/SKILL.md")
+        refs.append(REPO / "hermes/plugins/messaging/telegram-access/skills/account/SKILL.md")
         for ref in refs:
             text = " ".join(ref.read_text(encoding="utf-8").split())
             self.assertNotIn("~/Workspaces/AGENTS.md", text, ref.name)
@@ -34,7 +34,7 @@ class WorkspaceLayoutOwnershipTest(unittest.TestCase):
             self.assertIn("read_file", text, ref.name)
 
     def test_registry_users_read_the_plugin_skill_explicitly(self):
-        call = 'skill_view(name="workspace-registry:workspace-registry")'
+        call = 'skill_view(name="workspace-registry:manage")'
         refs = [LAYOUT,
                 ROOT / "chat" / "references" / "workspace-ops.md",
                 ROOT / "chat" / "references" / "message-reply.md",
@@ -44,10 +44,10 @@ class WorkspaceLayoutOwnershipTest(unittest.TestCase):
             self.assertIn(call, text, ref.name)
 
     def test_plugin_skill_owns_procedures_not_layout(self):
-        path = REPO / "hermes/plugins/workspace/workspace-registry/skills/workspace-registry/SKILL.md"
+        path = REPO / "hermes/plugins/workspace/workspace-registry/skills/manage/SKILL.md"
         self.assertTrue(path.is_file())
         text = path.read_text(encoding="utf-8")
-        self.assertTrue(text.startswith("---\nname: workspace-registry\n"))
+        self.assertTrue(text.startswith("---\nname: manage\n"))
         for action in ("whois", "group_create", "repo_set", "link_repo"):
             self.assertIn(action, text)
         for needle in ("inbound A2A", "entire list", "not its directory", "status=missing"):
@@ -58,16 +58,16 @@ class WorkspaceLayoutOwnershipTest(unittest.TestCase):
         self.assertNotIn(".registry", text)
 
     def test_draft_users_read_the_plugin_skill_explicitly(self):
-        call = 'skill_view(name="workspace-drafts:workspace-drafts")'
+        call = 'skill_view(name="workspace-drafts:inventory")'
         for ref in (LAYOUT, ROOT / "SKILL.md"):
             text = " ".join(ref.read_text(encoding="utf-8").split())
             self.assertIn(call, text, ref.name)
 
     def test_drafts_plugin_skill_owns_procedures_not_layout(self):
-        path = REPO / "hermes/plugins/workspace/workspace-drafts/skills/workspace-drafts/SKILL.md"
+        path = REPO / "hermes/plugins/workspace/workspace-drafts/skills/inventory/SKILL.md"
         self.assertTrue(path.is_file())
         text = path.read_text(encoding="utf-8")
-        self.assertTrue(text.startswith("---\nname: workspace-drafts\n"))
+        self.assertTrue(text.startswith("---\nname: inventory\n"))
         for needle in ("summary", "list", "inbox", "read-only", "metadata", "inbound A2A",
                        "truncated", "status=partial", "AND"):
             self.assertIn(needle, text)

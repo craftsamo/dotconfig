@@ -14,7 +14,7 @@ class EngineeringClientTests(unittest.TestCase):
     def test_entries_load_the_opencode_tool_skill(self):
         for entry in ("plan", "execute", "qa"):
             text = (ROOT / f"engineering/{entry}/SKILL.md").read_text()
-            self.assertIn('skill_view(name="opencode:opencode")', text, entry)
+            self.assertIn('skill_view(name="opencode:drive")', text, entry)
             self.assertNotIn("opencode run", text, entry)
             self.assertIsNone(re.search(r"\bEngineer\b", text), entry)
 
@@ -46,7 +46,7 @@ class EngineeringClientTests(unittest.TestCase):
         self.assertNotIn("Settle in-scope technical questions yourself", text)
 
     def test_the_tool_skill_fixes_markup_and_paths_for_messages(self):
-        text = " ".join((ROOT.parents[3] / "plugins/orchestration/opencode/skills/opencode/SKILL.md")
+        text = " ".join((ROOT.parents[3] / "plugins/orchestration/opencode/skills/brief/SKILL.md")
                         .read_text().split())
         self.assertIn("Use backticks, and nothing else, for paths, commands, identifiers", text)
         self.assertIn("A fenced block (three backticks) only for several lines that must pass unchanged", text)
@@ -103,7 +103,7 @@ class EngineeringClientTests(unittest.TestCase):
     def test_a_tracked_job_is_written_by_the_assistant_and_read_by_opencode(self):
         text = read("engineering/execute/references/github-ops.md")
         self.assertIn("You, through `github_change` (github-access), only for a job the user chose to track", text)
-        self.assertIn('skill_view(name="github-access:github-tracking")', text)
+        self.assertIn('skill_view(name="github-access:manage-tracking")', text)
         self.assertIn("Never pass `issue_approval`: a build does not write Issues or boards", text)
         self.assertIn("one sub-issue per Phase", text)
         self.assertIn("Propose the **mandate**: `routine`", text)
@@ -125,7 +125,7 @@ class EngineeringClientTests(unittest.TestCase):
     def test_tracking_is_proposed_with_the_roadmap_in_its_real_shape(self):
         plan = read("engineering/plan/SKILL.md")
         self.assertIn("carries the tracking proposal in the same question", plan)
-        self.assertIn('skill_view(name="github-access:github-tracking")` first', plan)
+        self.assertIn('skill_view(name="github-access:manage-tracking")` first', plan)
         self.assertIn("a parent issue with one sub-issue per Phase", plan)
         ops = read("engineering/execute/references/github-ops.md")
         self.assertIn("When the user raises tracking or a board themselves, at any point of the job, the answer "

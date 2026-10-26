@@ -9,7 +9,7 @@ from _pair import PUBLIC_ROOT, private_config
 
 
 ROOT = Path(__file__).resolve().parents[1]
-SKILLS = ("github", "github-tracking", "github-repo", "github-pr")
+SKILLS = ("read-tracking", "manage-tracking", "manage-repo", "manage-pr")
 TECHNIC = PUBLIC_ROOT / "hermes/profiles/assistant/skills/technic/github"
 MERGE = 'skill_view(name="github", file_path="references/merge.md")'
 
@@ -42,7 +42,7 @@ class GithubRouting(unittest.TestCase):
         self.assertIn(MERGE, acceptance)
         ops = flat(ROOT / "engineering/execute/references/github-ops.md")
         for name in ("`pr_create`", "`run_rerun`", "`release_publish`", "`workflow_dispatch`",
-                     'skill_view(name="github-access:github-repo")', MERGE,
+                     'skill_view(name="github-access:manage-repo")', MERGE,
                      'skill_view(name="github", file_path="references/history-repair.md")'):
             self.assertIn(name, ops)
         self.assertIn("never for a branch a build run made", ops)
@@ -59,7 +59,7 @@ class GithubRouting(unittest.TestCase):
         prompt = flat(PUBLIC_ROOT / "hermes/profiles/assistant/config.example.yaml")
         self.assertIn("pull request changes, merges, releases and CI re-runs are yours", prompt)
         self.assertIn("never a gh write in the terminal", prompt)
-        opencode = flat(PUBLIC_ROOT / "hermes/plugins/orchestration/opencode/skills/opencode/SKILL.md")
+        opencode = flat(PUBLIC_ROOT / "hermes/plugins/orchestration/opencode/skills/drive/SKILL.md")
         self.assertIn("never passes `issue_approval`", opencode)
 
     def test_the_private_contract_says_the_same(self):

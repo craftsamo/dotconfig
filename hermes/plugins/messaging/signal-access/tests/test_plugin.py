@@ -160,7 +160,7 @@ def test_oversized_results_are_refused(monkeypatch):
 
 
 def test_the_skill_reaches_only_the_assistant():
-    for profile, names in (("assistant", {"signal"}), ("marketer", set()), ("creator", set())):
+    for profile, names in (("assistant", {"account"}), ("marketer", set()), ("creator", set())):
         ctx = Ctx(profile)
         plugin.register(ctx)
         assert set(ctx.skills) == names

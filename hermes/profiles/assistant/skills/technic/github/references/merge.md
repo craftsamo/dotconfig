@@ -1,7 +1,7 @@
 # Merging pull requests
 
 How to merge is the `pr_merge` mechanics in
-`skill_view(name="github-access:github-pr")`. This adds what this user
+`skill_view(name="github-access:manage-pr")`. This adds what this user
 expects of a merge: which method, which message, in which order, and how to
 read what went wrong. It applies only after the user said to merge that pull
 request; green CI never implies it.

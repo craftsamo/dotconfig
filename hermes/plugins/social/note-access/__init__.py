@@ -53,9 +53,9 @@ A2A = {"marketer": na.READS + na.OFFLINE, "writer": na.OFFLINE}
 # Skill -> the profiles it is registered for, by the actions they hold. A skill is read-only to Hermes
 # (not editable through skill_manage); a profile that cannot do what a skill describes is not given it.
 SKILLS = {
-    "note-com": {p for p, actions in PROFILES.items() if set(actions) & set(na.READS)},
-    "note-com-format": {p for p, actions in PROFILES.items() if "check" in actions},
-    "note-com-drafts": {p for p, actions in PROFILES.items() if set(actions) & set(na.WRITES)},
+    "read": {p for p, actions in PROFILES.items() if set(actions) & set(na.READS)},
+    "check-format": {p for p, actions in PROFILES.items() if "check" in actions},
+    "draft": {p for p, actions in PROFILES.items() if set(actions) & set(na.WRITES)},
 }
 
 PUBLIC_READ_DESCRIPTION = (

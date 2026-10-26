@@ -19,8 +19,8 @@ plugin, its tokens or what it may call. Common rules:
 | Engine: validation, request building from a fixed table, zone lookup, token state, result shapes, write plans, approval card, bypass guard        | `plugins/cloudflare-access/cfa.py`                                                                                          | all                             |
 | The only process holding a token; the endpoints it may call (`ROUTES`), the analytics queries it may send (`QUERIES`) and the account it fills in | `plugins/cloudflare-access/bridge.py`                                                                                       | all                             |
 | `cloudflare` tool and the `pre_tool_call` hook (toolset `cloudflare_access`), the actions each profile gets                                       | `plugins/cloudflare-access/__init__.py`                                                                                     | Assistant, Researcher, Marketer |
-| How a profile reads Cloudflare: accounts, zones, record names, pages, permissions, recovery                                                       | the `cloudflare-access:cloudflare` plugin skill (`plugins/cloudflare-access/skills/cloudflare/`)                            | Assistant, Researcher, Marketer |
-| Changing Cloudflare: the card, DNS records, cache purges, settings, e-mail rules, tunnels, storage, rollbacks, outcomes                           | the `cloudflare-access:cloudflare-manage` plugin skill (`.../skills/cloudflare-manage/`); registered for the Assistant only | Assistant                       |
+| How a profile reads Cloudflare: accounts, zones, record names, pages, permissions, recovery                                                       | the `cloudflare-access:read` plugin skill (`plugins/cloudflare-access/skills/read/`)                            | Assistant, Researcher, Marketer |
+| Changing Cloudflare: the card, DNS records, cache purges, settings, e-mail rules, tunnels, storage, rollbacks, outcomes                           | the `cloudflare-access:manage` plugin skill (`.../skills/manage/`); registered for the Assistant only | Assistant                       |
 
 Cloudflare's own REST API, so no terms are stretched: the risk is the user's
 sites and domains, not the account. Everything is standard library, so there is
@@ -329,9 +329,9 @@ Service-specific steps; the rest is in [shared setup](access-common.md#setup-sha
    for a user-owned token, or Manage Account → API Tokens for an account-owned
    one) limited to the account and zones the profiles should see, with the
    Read permission of each action they should use (the Permissions table of
-   the `cloudflare-access:cloudflare` skill lists them) and, for the
+   the `cloudflare-access:read` skill lists them) and, for the
    Assistant's changes, the Edit permission of each change it should make (the
-   Errors section of `cloudflare-access:cloudflare-manage` lists them) only
+   Errors section of `cloudflare-access:manage` lists them) only
    where it should make them. Copy the account id
    from the account's home page. Store the token with
    `secret set CLOUDFLARE_<LABEL> -p hermes --scope cloudflare-access --no-stage -D TOKEN --meta label=<label> --meta account_id=<account id> --no-env`

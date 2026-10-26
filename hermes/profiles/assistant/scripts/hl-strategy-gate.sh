@@ -5,9 +5,9 @@
 # <profile home>/hl-strategies/ through Hyperliquid's public /info endpoint and prints one JSON line.
 # When nothing is to be done or said that line is {"wakeAgent": false} and no model runs; otherwise
 # it lists the exact hyperliquid quotes the rules call for, and the Assistant follows the
-# hyperliquid-access:hyperliquid-strategy skill. It never signs or reads a key. Contract:
-# docs/hyperliquid.md "Strategies". The job lives in the machine-local cron; the skill's "Running
-# it" section has the cronjob call.
+# hyperliquid-access:run-strategy skill. It never signs or reads a key. Contract:
+# docs/hyperliquid.md "Strategies". The job lives in the machine-local cron; the
+# hyperliquid-access:configure-strategy skill's "Running it" section has the cronjob call.
 
 set -u
 

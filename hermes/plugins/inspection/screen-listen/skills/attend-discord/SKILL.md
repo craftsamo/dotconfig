@@ -1,6 +1,6 @@
 ---
 name: attend-discord
-description: "Use from screen-listen:live when the Discord app on this Mac must get into a voice channel, stage or stream, or out of it. The app's steps only."
+description: "Use from screen-listen:listen when the Discord app on this Mac must get into a voice channel, stage or stream, or out of it. The app's steps only."
 version: 1.0.0
 author: CraftSamo
 license: MIT
@@ -12,7 +12,7 @@ metadata:
 # Discord: into the channel or stream, and out
 
 How the Discord app on this Mac is opened, joined, muted, watched and left,
-for the procedure in `screen-listen:live`. Names and ids come from
+for the procedure in `screen-listen:listen`. Names and ids come from
 `discord_account` (`guilds`, `channels`; a voice channel is `kind: voice`, a
 stage `kind: stage`); nothing here touches the Discord API or the user's token.
 
@@ -41,7 +41,7 @@ running before you opened it: that decides whether you quit it at the end.
   whose label is the channel name) joins it. Discord's channel list is often
   not exposed as elements at all (the row's label appears only as the window
   title); then click by `coordinate` in the screenshot's own pixels — read the
-  row's position off the som image (`skill_view(name="screen-listen:live",
+  row's position off the som image (`skill_view(name="screen-listen:listen",
   file_path="references/computer-use.md")` says how).
 - **Stage channel**: joining makes the Mac an audience member (no microphone
   by design), through its join control ("ステージに参加" / "Join Stage" or
@@ -89,7 +89,7 @@ For a **video recording**, give the stream a window of its own first:
    Discord"). `computer_use` `list_windows` and `screen_listen` `windows`
    both show it. As opened, the pop-out shows the stage as the app does:
    the stream panel on top, the speakers and the audience below.
-2. **Frame it** for the framing chosen in `screen-listen:live`:
+2. **Frame it** for the framing chosen in `screen-listen:listen`:
    - `full` (the whole stage): leave the pop-out as it is, and make the
      window large with its green zoom button so the stream panel is not
      tiny.
