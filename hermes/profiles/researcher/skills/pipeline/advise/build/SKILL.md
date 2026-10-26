@@ -1,9 +1,10 @@
 ---
-name: advise-researcher
+name: build-advise
 description: >-
-  Advise a named consumer with evidence-backed directives: agree the decision
-  points, trace each MUST/SHOULD to scored evidence, self-check and deliver
-  guidance. Not the consumer's artifact or a verdict on it.
+  Advise, Build stage: gather the agreed evidence fills, convert findings into
+  MUST/SHOULD directives traced to scored evidence, self-check and deliver
+  the guidance. Requires the client's agreement from Plan; not the consumer's
+  artifact or a verdict on it.
 version: 1.0.0
 author: CraftSamo
 license: MIT
@@ -11,75 +12,52 @@ compatibility: Requires Hermes Agent and the parent researcher-pipeline kernel.
 metadata:
   hermes:
     category: pipeline
-    tags: [research, advise]
+    tags: [research, advise, build]
 ---
 
 <ReadBeforeWork>
 
-Load `skill_view(name="researcher-pipeline")` first, including on direct entry,
-before any stage. On every inbound turn/completion and before a midturn mode,
-stage or scope change, reselect the mode and load this entry with
-`skill_view(name="advise-researcher")` and the current stage's shared reference with
-`skill_view(name="researcher-pipeline", file_path="references/<stage>.md")`:
-[Plan](../references/plan.md) or [Build](../references/build.md). Reuse only full bodies in current context, never a
-past load, preload or summary.
+Load `skill_view(name="researcher-pipeline")` first, including on direct entry;
+its `<Build>` section is the stage this entry specializes. On every inbound
+turn/completion and before a midturn mode, stage or scope change, reselect the
+mode and stage and load this entry with
+`skill_view(name="build-advise")`. Reuse only full bodies in
+current context, never a past load, preload or summary.
 
 Gathering beyond a few direct lookups requires
 `skill_view(name="researcher-pipeline", file_path="references/gather.md")`:
-[Gather](../references/gather.md). Reading strategy does not authorize searches.
+[Gather](../../references/gather.md). Reading strategy does not authorize searches.
 Evidence from a chain or from Hyperliquid also requires its shared reference:
-[EVM](../references/platforms/evm.md), [Solana](../references/platforms/solana.md) or
-[Hyperliquid](../references/platforms/hyperliquid.md).
-A technic the brief names or [Capabilities](../references/capabilities.md)
+[EVM](../../references/platforms/evm.md), [Solana](../../references/platforms/solana.md) or
+[Hyperliquid](../../references/platforms/hyperliquid.md).
+A technic the brief names or [Capabilities](../../references/capabilities.md)
 matches is loaded too with `skill_view(name="<technic>")`; it adds to this mode
 and never replaces it.
 If `skill_view` returns unchanged with a missing body or cannot supply it, use
-`read_file` on canonical `${HERMES_SKILL_DIR}/../SKILL.md`,
-`${HERMES_SKILL_DIR}/SKILL.md`, `${HERMES_SKILL_DIR}/../references/<stage>.md`,
-`${HERMES_SKILL_DIR}/../references/gather.md` and
-`${HERMES_SKILL_DIR}/../references/platforms/<chain>.md` as applicable. Follow
-`next_offset` through actual truncation; if recovery fails, stop the affected
-action. Never evade dedup with alternate paths or artificial ranges.
+`read_file` on canonical `${HERMES_SKILL_DIR}/../../SKILL.md`,
+`${HERMES_SKILL_DIR}/SKILL.md`, `${HERMES_SKILL_DIR}/../../references/gather.md`
+and `${HERMES_SKILL_DIR}/../../references/platforms/<chain>.md` as applicable.
+Follow `next_offset` through actual truncation; if recovery fails, stop the
+affected action. Never evade dedup with alternate paths or artificial ranges.
 Selection/resume is not a new grant, budget reset or permission to replay work.
 
 </ReadBeforeWork>
 
-# Advise
+# Advise: Build
 
 Use for principles, constraints, dos/don'ts and selection rules someone will
 act on. The result is guidance derived from sources and/or parent-task results,
 directives the agreed consumer can act on without rereading sources; it is not
 production of the artifact they will make.
 
-## Plan
-
-1. Name the consumer and the decision points the guidance must close. Propose
-   them from the client's purpose rather than demanding a prebuilt list. A missing
-   consumer is a spec gap when it changes what to research; otherwise label the
-   harmless assumption for agreement.
-2. Identify the supplied evidence base, prior task IDs/results and examples.
-   These are source inputs, not authorization for wider inquiry. Propose targeted
-   evidence fills, recency needs and the depth/budget needed for this consumer.
-3. Agree done criteria: each decision point closes with a traced, checkable
-   directive or is explicitly left open. Plan MUST constraints, SHOULD
-   recommendations and consumer-owned open choices as separate output categories;
-   do not predeclare unsupported preferences as constraints.
-4. State scope/exclusions, durable outputs if requested and review material.
-   Lead with the two or three decisions that would most change the consumer's
-   behavior, not an exhaustive list of dos/don'ts.
-
-If asked for both guidance and the artifact, propose the guidance within this
-role and report the production mismatch to caller. Scripts/storyboards/copy,
-media and code remain other roles' production, not assignments made here.
-Use supplied material in Plan; get agreement before any external evidence fill.
-
 ## Build
 
 1. Restate the agreed consumer and decision points. Missing consumer information
    that changes research returns to Plan; harmless assumptions stay labeled.
-2. Gather using Build's Method. Prior results/parent task IDs supplied by the
-   brief are source inputs, not fresh authorization. Add only agreed targeted
-   fills; cite examples like any other source and score their trust.
+2. Gather using the kernel's Build Method. Prior results/parent task IDs
+   supplied by the brief are source inputs, not fresh authorization. Add only
+   agreed targeted fills; cite examples like any other source and score their
+   trust.
 3. Convert findings into directives, each traced to evidence. Separate MUST
    (constraints strongly supported by evidence), SHOULD (recommendations with
    reasoning) and open choices deliberately retained by the consumer.
@@ -138,14 +116,15 @@ evidence base. Do not judge or produce the downstream artifact.
   a quality verdict about such an artifact.
 
 Return checked/unmet/unknown conditions, not a numeric self-score. An in-scope
-trace or wording correction returns to Build within remaining budget; a new
-consumer decision, evidence-base expansion or additional unit requires Plan
-and agreement. The caller still owns final acceptance and production choices.
+trace or wording correction stays in Build within remaining budget; a new
+consumer decision, evidence-base expansion or additional unit requires
+[plan-advise](../plan/SKILL.md) and agreement. The caller still
+owns final acceptance and production choices.
 
 ## Handoff
 
-Plan ends at the client's agreement. Build ends, in the same turn, with the
-self-check against this entry's Verification, and the reply carries what it
-found unmet or unknown. Each stage's own Handoff in its shared reference says
-what follows. Keep this mode for the unit; another kind of question is another
-agreed unit with its own mode entry, never a silent switch.
+Build ends, in the same turn, with the self-check against this entry's
+Verification, and the reply carries what it found unmet or unknown; the
+kernel's Build section says how the findings are delivered. Keep this mode for
+the unit; another kind of question is another agreed unit with its own
+entries, never a silent switch.

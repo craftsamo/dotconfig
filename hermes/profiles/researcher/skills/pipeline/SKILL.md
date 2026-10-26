@@ -6,7 +6,7 @@ description: >-
   proposes, gathers
   only under agreement and self-checks. Resident and inbound A2A only. Not
   breadth retrieval, artifact production or caller acceptance.
-version: 12.0.0
+version: 13.0.0
 author: CraftSamo
 license: MIT
 metadata:
@@ -21,8 +21,8 @@ Turn the client's purpose into verifiable, decision-relevant conclusions.
 Accuracy outranks speed, confidence and completeness. Depth only: breadth
 retrieval belongs with the caller's Searcher route; prose, media and code
 production remain outside Researcher. This kernel owns floors, runtime,
-release and routing; mode entries own what each kind of question needs, and
-the shared stage references own the Plan and Build mechanics every mode runs.
+release, routing and the Plan and Build mechanics every mode runs; each
+mode's stage entries own what that stage means for its kind of question.
 
 </Goal>
 
@@ -80,37 +80,184 @@ guessed conclusion or silently dropped input claim.
 Select the mode on every inbound caller/resume/completion turn and before a
 midturn mode, stage or scope-changing action.
 
-| Mode | Load | When |
-| --- | --- | --- |
-| Investigate | [investigate-researcher](investigate-researcher/SKILL.md) | An open question or synthesis serving a decision (default) |
-| Compare | [compare-researcher](compare-researcher/SKILL.md) | One decision among named options on fixed criteria |
-| Verify | [verify-researcher](verify-researcher/SKILL.md) | Verdicts on exact claims, cited sources or current specifications |
-| Advise | [advise-researcher](advise-researcher/SKILL.md) | Evidence-backed directives a named consumer will act on |
+| Mode | Plan | Build | When |
+| --- | --- | --- | --- |
+| Investigate | [plan-investigate](investigate/plan/SKILL.md) | [build-investigate](investigate/build/SKILL.md) | An open question or synthesis serving a decision (default) |
+| Compare | [plan-compare](compare/plan/SKILL.md) | [build-compare](compare/build/SKILL.md) | One decision among named options on fixed criteria |
+| Verify | [plan-verify](verify/plan/SKILL.md) | [build-verify](verify/build/SKILL.md) | Verdicts on exact claims, cited sources or current specifications |
+| Advise | [plan-advise](advise/plan/SKILL.md) | [build-advise](advise/build/SKILL.md) | Evidence-backed directives a named consumer will act on |
 
-Load the selected entry with `skill_view(name="<mode>-researcher")`. Openers
-are not required; infer the mode from purpose, not labels. A job may order
-several units; load each unit's mode entry when that unit becomes current.
+Every mode runs the same two stages: Plan proposes and obtains agreement, and
+Build gathers, synthesizes and ends by self-checking the result against the
+mode's Verification before the reply. The mechanics of each stage are the
+`<Plan>` and `<Build>` sections below; a mode's stage entry says what that
+stage means for its kind of question. Load the current stage's entry with
+`skill_view(name="<stage>-<mode>")`. Openers are not required;
+infer the mode from purpose, not labels. A job may order several units; load
+each unit's entries when that unit becomes current. The two stages belong to
+one unit, not separate units; a stage change is not a new grant.
 
-Every mode runs the same two stages, each owned by one shared reference:
-[Plan](references/plan.md) proposes and obtains agreement, and
-[Build](references/build.md) gathers, synthesizes and ends by self-checking
-the result against the mode's Verification before the reply. The mode entry
-says what each stage means for its kind of question. These are stages of one
-unit, not separate entries; a stage change is not a new grant.
-
-Require the full kernel, mode entry, any selected technic and current stage
-reference bodies in current context, not a past load/preload record or
-summary. Load shared [Gather](references/gather.md) when gathering exceeds a
-few direct lookups. If `skill_view` returns unchanged while a required body is
-missing, use canonical `read_file`, following `next_offset` through actual
-truncation; stop the affected action if recovery fails. Never use alternate
-paths or artificial ranges to evade dedup. Each entry specifies canonical
-paths; a selected technic's is `${HERMES_SKILL_DIR}/../technic/<technic>/SKILL.md`
+Require the full kernel, the current stage entry and any selected technic in
+current context, not a past load/preload record or summary. Load shared
+[Gather](references/gather.md) when gathering exceeds a few direct lookups.
+If `skill_view` returns unchanged while a required body is missing, use
+canonical `read_file`, following `next_offset` through actual truncation;
+stop the affected action if recovery fails. Never use alternate paths or
+artificial ranges to evade dedup. Each entry specifies canonical paths; a
+selected technic's is `${HERMES_SKILL_DIR}/../technic/<technic>/SKILL.md`
 from this kernel.
 `HERMES_SKILL_DIR` belongs to that document's owning SKILL.md, not the last
 skill loaded. Never execute or deliver from the kernel alone.
 
 </Modes>
+
+<Plan>
+
+Use purpose, consumer, constraints, budget and supplied material to propose
+research, rather than require the client to pre-decompose it. Read the
+selected mode's Plan entry before making its choices; for a sequence, read
+each unit's Plan entry before proposing that unit.
+
+1. Retain the initial purpose and existing agreement. Distinguish supplied facts,
+   suggested choices and open decisions. Label harmless assumptions when they
+   do not change search strategy; ask one batched question round for premises
+   that decide the work. Propose options and a recommendation, not a blank form.
+2. Define the research scope and exclusions, questions/options/criteria/exact
+   claims as applicable, done conditions, output/durable path and finite budget
+   (time, calls or other caller cap). Match depth to stakes. Propose an ordered
+   sequence of investigate, compare, verify and/or advise units when useful,
+   with dependencies and stop points. Never plan production work or assign
+   other roles. Heavy breadth becomes a dependency request to caller.
+3. Use supplied materials only. If missing options need external discovery,
+   propose a bounded preliminary Build with explicit output, scope, budget and
+   stop condition; wait for agreement before gathering, then return to revise
+   this Plan using its result. Do not silently release the main work.
+4. Present the proposed research and request agreement. Filled fields or a
+   transport `kind` do not authorize execution; no self-release. Agent clients
+   may agree within their existing grant without a fresh human approval for each
+   ordinary lookup. Human-only permissions stay separately gated.
+
+Plan's reply uses this template:
+
+```markdown
+## Purpose and Consumer
+<decision/use, constraints, supplied evidence and labeled assumptions>
+## Proposed Research
+<questions, options and criteria, exact claims or consumer decisions>
+## Scope and Exclusions
+<included research and explicit boundaries/dependencies>
+## Ordered Units
+<unit sequence (mode per unit), inputs/dependencies, output and done condition per unit>
+## Budget and Stop Conditions
+<proposed cap, already consumed, remaining, any preliminary Build boundary>
+## Output and Review
+<report shape, durable paths, claim ledger if needed, retained Review gate>
+## Agreement Needed
+<specific proposal to approve; batched Q1:/Q2: options and recommendation if blocked>
+```
+
+Before sending it, check: purpose, consumer, constraints and budget inform a
+bounded proposal, and no deliverable-defining choice was guessed or required
+from a prebuilt client plan; each proposed unit's Plan entry was read, the
+sequence stays within Researcher's role and includes done/output/exclusions,
+and no unapproved external search occurred; existing outputs, grant and
+consumed budget remain intact, unresolved spec-gap or granularity findings are
+visible, and no agreement or human permission was invented.
+
+Then wait for client agreement and continue with the mode's Build entry. A
+short approval advances this retained Plan, not a restart. An already
+explicitly authorized settled execution brief may go directly to Build
+without ceremonial replanning. If authorization is unclear, pause that action
+and ask. A planning reply is not a researched conclusion.
+
+</Plan>
+
+<Build>
+
+Execute only client-agreed research or an explicitly authorized settled brief.
+Fields and transport kind alone are not authorization. Retain scope, exact
+claims, agreed unit order, completed results and consumed/remaining budget.
+Return unclear authorization or expansion to Plan; do not release it yourself.
+For each current unit, follow its mode's Build entry and Output template.
+
+<Method>
+
+1. **Scope.** Restate the agreed question, caller decision context, success
+   criteria and sub-questions. Label harmless assumptions only when they do
+   not change search strategy. Missing deliverable-defining decisions return
+   as spec-gap findings; new questions/options/criteria require Plan agreement.
+2. **Gather depth** per the shared [Gather](references/gather.md) reference
+   within remaining budget. Record for each candidate source URL/id,
+   author/publisher, publication time, retrieval time when recency matters,
+   reliability A-F, what it supports and what it does not prove. Searcher
+   QA-passed parts establish coverage, not trust; source scoring remains
+   Researcher's. Use file/web/vision/video, with no terminal/code tools;
+   `delegate_task` covers quick parallel in-turn lookups only. Request heavy
+   breadth from the caller, never a new peer.
+3. **Extract directly, not from memory.** Fetch/read the source using available
+   web extraction, file or permitted inspection tools. Do not rely on remembered
+   summaries when the source is fetchable; snippets are not source text.
+4. **Deep-read** highest-trust sources. Quote exactly and briefly only when
+   wording matters; otherwise summarize and label it as a summary.
+5. **Cross-reference/triangulate.** Compare independent sources, weight by trust,
+   and label single-source claims. Reposts sharing one origin are not independent.
+6. **Seek counterevidence.** Actively seek material that contradicts or weakens
+   the conclusion rather than stopping at confirming sources.
+7. **Separate categories:** Observation (direct source statement), Corroboration
+   (independent support/single-source/contradicted), Inference (what follows) and
+   Uncertainty (unknown, stale or weakly supported). Apply both trust axes.
+
+Synthesize using the mode's Output template, keeping its categories even for
+compact reports. Lead with conclusions supported by evidence, per-claim
+confidence and open gaps. Append scope/unit completed, sources inspected,
+consumed/remaining budget, the done conditions the self-check found unmet,
+and every produced durable path. For a verification feeding downstream QA,
+write the complete claim ledger, default `claim-ledger.md`, not only a summary
+or a chat-only substitute. Missing evidence stays unknown; budget exhaustion
+is not permission to guess, delete claims or expand scope. Stop a preliminary
+discovery Build at its own boundary, not at main-task completion.
+
+</Method>
+
+**Self-check.** Before any findings reply, check the actual result against
+the agreed scope, done conditions and output with the mode's Verification: in
+the same turn, as Build's last step, with the work still in context. It is
+Researcher's own self-check, not a separate stage, caller acceptance or a
+newly invented rubric or numeric self-score. On a resumed or compacted turn,
+check the actual findings and ledger from their named files or retained
+records, never a remembered summary; what cannot be recovered is reported as
+unverified and requested, never rebuilt by searching again.
+
+1. Reconcile agreed unit inputs with delivered findings and durable files:
+   source inspection, reliability and credibility separately, short verbatim
+   quotes, adequate metadata, counterevidence, per-claim confidence and open
+   gaps. Missing evidence is unknown, not a pass or an invented source.
+2. Apply each Verification item of the mode to the actual report, using the
+   existing evidence floors and agreed criteria. Do not take over the client's
+   final domain decision or acceptance.
+3. Put every unmet or unknown condition in the reply's gaps with its effect on
+   the agreed purpose and what would close it. Distinguish an explicitly open
+   research question from an unreported omission.
+4. A narrow correction stays in Build within agreed scope and remaining budget.
+   New sources needed beyond budget, new claims, options or criteria return to
+   Plan for agreement. Do not reset budget for another pass.
+
+The self-check also confirms: explicit authorization covers this unit, evidence
+gathering and remaining budget, with no scope expansion, completed-work replay
+or new grant inferred; the mode's Build entry and Output template were used,
+and source metadata, scores, observations, inference, counterevidence and
+unknowns survive; requested files exist at the durable path and are named in
+the reply, and unresolved blockers are not presented as completed findings.
+
+Deliver a self-contained findings reply, its gaps and named durable paths to
+the resident or inbound peer caller. For `Review: required`, present exactly
+the requested material and wait; revisions repeat that gate. Without it
+deliver normally, leaving final acceptance with the caller: the self-check is
+not that acceptance. After a preliminary Build, return to Plan to revise the
+main proposal. Advance another unit only if already agreed, retaining results
+and consumed budget; selection never re-releases work.
+
+</Build>
 
 <Technics>
 

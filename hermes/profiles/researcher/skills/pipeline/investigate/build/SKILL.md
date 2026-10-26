@@ -1,10 +1,10 @@
 ---
-name: investigate-researcher
+name: build-investigate
 description: >-
-  Investigate an open research question: propose its scope, gather scored
-  evidence under agreement, self-check and deliver an evidence pack. Not
-  option comparison, claim verdicts, consumer directives or artifact
-  production.
+  Investigate, Build stage: gather scored evidence for the agreed question,
+  synthesize an evidence pack, self-check and deliver it. Requires the
+  client's agreement from Plan; not option comparison, claim verdicts or
+  consumer directives.
 version: 1.0.0
 author: CraftSamo
 license: MIT
@@ -12,71 +12,47 @@ compatibility: Requires Hermes Agent and the parent researcher-pipeline kernel.
 metadata:
   hermes:
     category: pipeline
-    tags: [research, investigate]
+    tags: [research, investigate, build]
 ---
 
 <ReadBeforeWork>
 
-Load `skill_view(name="researcher-pipeline")` first, including on direct entry,
-before any stage. On every inbound turn/completion and before a midturn mode,
-stage or scope change, reselect the mode and load this entry with
-`skill_view(name="investigate-researcher")` and the current stage's shared reference with
-`skill_view(name="researcher-pipeline", file_path="references/<stage>.md")`:
-[Plan](../references/plan.md) or [Build](../references/build.md). Reuse only full bodies in current context, never a
-past load, preload or summary.
+Load `skill_view(name="researcher-pipeline")` first, including on direct entry;
+its `<Build>` section is the stage this entry specializes. On every inbound
+turn/completion and before a midturn mode, stage or scope change, reselect the
+mode and stage and load this entry with
+`skill_view(name="build-investigate")`. Reuse only full bodies in
+current context, never a past load, preload or summary.
 
 Gathering beyond a few direct lookups requires
 `skill_view(name="researcher-pipeline", file_path="references/gather.md")`:
-[Gather](../references/gather.md). Reading strategy does not authorize searches.
+[Gather](../../references/gather.md). Reading strategy does not authorize searches.
 Evidence from a chain or from Hyperliquid also requires its shared reference:
-[EVM](../references/platforms/evm.md), [Solana](../references/platforms/solana.md) or
-[Hyperliquid](../references/platforms/hyperliquid.md).
-A technic the brief names or [Capabilities](../references/capabilities.md)
+[EVM](../../references/platforms/evm.md), [Solana](../../references/platforms/solana.md) or
+[Hyperliquid](../../references/platforms/hyperliquid.md).
+A technic the brief names or [Capabilities](../../references/capabilities.md)
 matches is loaded too with `skill_view(name="<technic>")`; it adds to this mode
 and never replaces it.
 If `skill_view` returns unchanged with a missing body or cannot supply it, use
-`read_file` on canonical `${HERMES_SKILL_DIR}/../SKILL.md`,
-`${HERMES_SKILL_DIR}/SKILL.md`, `${HERMES_SKILL_DIR}/../references/<stage>.md`,
-`${HERMES_SKILL_DIR}/../references/gather.md` and
-`${HERMES_SKILL_DIR}/../references/platforms/<chain>.md` as applicable. Follow
-`next_offset` through actual truncation; if recovery fails, stop the affected
-action. Never evade dedup with alternate paths or artificial ranges.
+`read_file` on canonical `${HERMES_SKILL_DIR}/../../SKILL.md`,
+`${HERMES_SKILL_DIR}/SKILL.md`, `${HERMES_SKILL_DIR}/../../references/gather.md`
+and `${HERMES_SKILL_DIR}/../../references/platforms/<chain>.md` as applicable.
+Follow `next_offset` through actual truncation; if recovery fails, stop the
+affected action. Never evade dedup with alternate paths or artificial ranges.
 Selection/resume is not a new grant, budget reset or permission to replay work.
 
 </ReadBeforeWork>
 
-# Investigate
+# Investigate: Build
 
 Use for an open question or synthesis serving a decision, not enumeration,
 named-option comparison, fixed-claim verdicts or consumer directives alone.
 The deliverable is an evidence pack: conclusion-led synthesis with scored sources.
 
-## Plan
-
-1. Translate the purpose into a proposed settled question and decision context.
-   Name the sub-questions needed to answer it and the supplied source base.
-   If no question is discernible, report the spec gap with candidate framings;
-   do not research a guessed framing.
-2. Propose done criteria: each sub-question will be closed by evidence or left
-   explicitly open with what would close it. Set recency/source requirements,
-   depth, exclusions, report shape and runtime budget to the decision's stakes.
-3. If one question contains several distinct decisions, identify the granularity
-   issue and propose ordered own-role units with boundaries for agreement.
-   Do not silently absorb them into an unlimited landscape survey. Heavy breadth
-   becomes a bounded retrieval dependency request to caller.
-4. Name the output categories: Summary, Sources, Key Observations, Corroboration,
-   Uncertainty and Implications for Caller, with per-claim confidence. Identify
-   any durable artifact path and retained Review requirement.
-
-Bring the proposal into Plan's agreement reply. Harmless assumptions may be
-labeled, but missing deliverable-defining choices need agreement. Use supplied
-material only; an external scoping search needs its own approved preliminary
-Build. Do not take the caller's final domain decision unless explicitly asked.
-
 ## Build
 
 Execute one agreed question with decision context and done criteria using
-Build's Method and the kernel source/citation floors. An ordered plan may
+the kernel's Build Method and source/citation floors. An ordered plan may
 contain more than one pack; finish and retain each separately within its scope.
 Missing framing returns to Plan, not a guessed question or broader survey.
 
@@ -132,13 +108,14 @@ criteria. This checks Researcher's result, not caller final acceptance.
 
 Report unmet and unknown conditions in the reply's Uncertainty. Missing evidence
 is unknown, never a new self-score. A narrow omitted-category or evidence
-correction goes to Build only within agreed scope and remaining budget; a new
-question/depth expansion needs Plan and client agreement.
+correction stays in Build only within agreed scope and remaining budget; a new
+question/depth expansion needs [plan-investigate](../plan/SKILL.md)
+and client agreement.
 
 ## Handoff
 
-Plan ends at the client's agreement. Build ends, in the same turn, with the
-self-check against this entry's Verification, and the reply carries what it
-found unmet or unknown. Each stage's own Handoff in its shared reference says
-what follows. Keep this mode for the unit; another kind of question is another
-agreed unit with its own mode entry, never a silent switch.
+Build ends, in the same turn, with the self-check against this entry's
+Verification, and the reply carries what it found unmet or unknown; the
+kernel's Build section says how the findings are delivered. Keep this mode for
+the unit; another kind of question is another agreed unit with its own
+entries, never a silent switch.

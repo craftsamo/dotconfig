@@ -36,6 +36,14 @@ def text(path):
     return " ".join(path.read_text(encoding="utf-8").split())
 
 
+def kernel_stage(domain, tag):
+    """The flattened <Plan> or <Build> section of the specialist's kernel."""
+    raw = (public_pipeline(domain) / "SKILL.md").read_text(encoding="utf-8")
+    match = re.search(rf"<{tag}>(.*?)</{tag}>", raw, re.S)
+    assert match, (domain, tag)
+    return " ".join(match.group(1).split())
+
+
 class ResearchSearchHandoffTest(unittest.TestCase):
     def test_specialist_pipelines_come_from_this_checkout(self):
         for domain in UNITS:
@@ -61,20 +69,25 @@ class ResearchSearchHandoffTest(unittest.TestCase):
                             self.assertIn("agreed proposal or explicitly released settled brief", contract)
             self.assertEqual(set(MODES[domain]), set(units))
             for unit in units:
-                name = f"{MODES[domain][unit]}-{role}"
-                raw = (public / name / "SKILL.md").read_text(encoding="utf-8")
-                self.assertEqual(yaml.safe_load(raw.split("---\n", 2)[1])["name"], name)
-                self.assertFalse((public / name / "references").exists())
-                for stage in STAGES:
-                    self.assertIn(f"(../references/{stage}.md)", raw)
+                mode = MODES[domain][unit]
+                self.assertFalse((public / f"{mode}-{role}").exists())
+                self.assertFalse((public / mode / "SKILL.md").exists())
+                for stage, other in (("plan", "build"), ("build", "plan")):
+                    name = f"{stage}-{mode}"
+                    raw = (public / mode / stage / "SKILL.md").read_text(encoding="utf-8")
+                    self.assertEqual(yaml.safe_load(raw.split("---\n", 2)[1])["name"], name)
+                    self.assertFalse((public / mode / stage / "references").exists())
+                    self.assertIn(f"(../{other}/SKILL.md)", raw)
+                    self.assertIn(f"({mode}/{stage}/SKILL.md)", text(public / "SKILL.md"))
             for stage in STAGES:
-                self.assertTrue(text(public / "references" / f"{stage}.md"))
+                self.assertTrue(kernel_stage(domain, stage.capitalize()))
                 self.assertFalse((public / f"{stage}-{role}").exists())
+                self.assertFalse((public / "references" / f"{stage}.md").exists())
 
     def test_purpose_first_agreement_and_explicit_direct_build_both_survive(self):
         for domain in UNITS:
             caller = text(ROOT / f"plan-assistant-{domain}" / "SKILL.md")
-            public = text(public_pipeline(domain) / "references/plan.md")
+            public = kernel_stage(domain, "Plan")
             for token in ("purpose", "consumer", "constraints", "budget", "durable path",
                           "Client", "agreement", "Build"):
                 self.assertIn(token, caller)
@@ -92,7 +105,7 @@ class ResearchSearchHandoffTest(unittest.TestCase):
     def test_preliminary_build_has_separate_main_agreement_and_existing_handle(self):
         for domain in UNITS:
             caller = text(ROOT / f"plan-assistant-{domain}" / "SKILL.md")
-            public = text(public_pipeline(domain) / "references/plan.md")
+            public = kernel_stage(domain, "Plan")
             for token in ("no unapproved external search", "bounded preliminary Build",
                           "scope, output, budget and stop condition", "separate agreement",
                           "Preliminary agreement never releases main work", "conversation_id",
@@ -149,7 +162,7 @@ class ResearchSearchHandoffTest(unittest.TestCase):
     def test_self_check_never_replaces_requester_acceptance(self):
         for domain in UNITS:
             caller = text(ROOT / f"qa-assistant-{domain}/SKILL.md")
-            public = text(public_pipeline(domain) / "references/build.md")
+            public = kernel_stage(domain, "Build")
             self.assertIn("agreed proposal or explicitly released settled brief", caller)
             self.assertIn("self-check, not an external pass", caller)
             self.assertIn("scoring, criteria or correction limit", caller)
@@ -159,8 +172,8 @@ class ResearchSearchHandoffTest(unittest.TestCase):
             self.assertIn("Plan", public)
             self.assertNotIn(public, caller)
             for path in (ROOT / f"qa-assistant-{domain}/references").glob("*.md"):
-                mode = f"{MODES[domain][path.stem]}-{domain}er"
-                verification = (public_pipeline(domain) / mode / "SKILL.md").read_text(encoding="utf-8")
+                entry = public_pipeline(domain) / MODES[domain][path.stem] / "build/SKILL.md"
+                verification = entry.read_text(encoding="utf-8")
                 verification = verification.split("\n## Verification", 1)[1].split("\n## Handoff", 1)[0]
                 self.assertNotIn(" ".join(verification.split()), text(path))
         research = text(ROOT / "qa-assistant-research/SKILL.md")
@@ -174,6 +187,8 @@ class ResearchSearchHandoffTest(unittest.TestCase):
 
     def test_assistant_menu_does_not_import_specialist_mode_entries(self):
         phases = {f"{mode}-{domain}er" for domain in UNITS for mode in MODES[domain].values()}
+        phases |= {f"{stage}-{mode}" for domain in UNITS for mode in MODES[domain].values()
+                   for stage in STAGES}
         phases |= {f"{phase}-{domain}er" for domain in UNITS for phase in STAGES}
         self.assertEqual(len(list(ROOT.glob("*/SKILL.md"))), 19)
         self.assertTrue(phases.isdisjoint(p.parent.name for p in ROOT.glob("*/SKILL.md")))

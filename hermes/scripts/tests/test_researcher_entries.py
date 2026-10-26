@@ -32,13 +32,17 @@ def _skip_learned(directory, names):
 
 MODES = ("investigate", "compare", "verify", "advise")
 STAGES = ("plan", "build")
-ENTRIES = {f"{mode}-researcher" for mode in MODES}
+# Declared name -> (mode, stage); each entry lives at pipeline/<mode>/<stage>/SKILL.md.
+STAGE_ENTRIES = {f"{stage}-{mode}": (mode, stage) for mode in MODES for stage in STAGES}
+ENTRIES = set(STAGE_ENTRIES)
+ENTRY_PATH = {name: f"{mode}/{stage}/SKILL.md" for name, (mode, stage) in STAGE_ENTRIES.items()}
+BUILD_ENTRIES = sorted(name for name, (_, stage) in STAGE_ENTRIES.items() if stage == "build")
+PLAN_ENTRIES = sorted(name for name, (_, stage) in STAGE_ENTRIES.items() if stage == "plan")
 PLATFORMS = {"references/platforms/evm.md", "references/platforms/solana.md",
              "references/platforms/hyperliquid.md"}
 CAPABILITIES = "references/capabilities.md"
-SHARED = ({"references/gather.md", CAPABILITIES} | {f"references/{stage}.md" for stage in STAGES}
-          | PLATFORMS)
-DOCUMENTS = {"SKILL.md"} | SHARED | {f"{name}/SKILL.md" for name in ENTRIES}
+SHARED = {"references/gather.md", CAPABILITIES} | PLATFORMS
+DOCUMENTS = {"SKILL.md"} | SHARED | set(ENTRY_PATH.values())
 TECHNICS = {"evidence-screen": "verify", "claim-check": "verify"}
 
 
@@ -46,30 +50,51 @@ def flat(path):
     return " ".join(Path(path).read_text().split())
 
 
+def kernel_section(tag):
+    """The flattened text of the kernel's <Plan> or <Build> section."""
+    match = re.search(rf"<{tag}>(.*?)</{tag}>", (TREE / "SKILL.md").read_text(), re.S)
+    assert match, tag
+    return " ".join(match.group(1).split())
+
+
+def stage_parts(mode):
+    """Flattened (plan section, build section, output template, verification) of a mode's entries."""
+    plan = (TREE / mode / "plan/SKILL.md").read_text()
+    build = (TREE / mode / "build/SKILL.md").read_text()
+    plan_part = plan.split("\n## Plan\n", 1)[1].split("\n## Handoff", 1)[0]
+    build_part = build.split("\n## Build\n", 1)[1].split("\n## Output template", 1)[0]
+    template = build.split("## Output template", 1)[1].split("\n## Verification", 1)[0]
+    checks = build.split("\n## Verification", 1)[1].split("\n## Handoff", 1)[0]
+    return plan_part, build_part, template, " ".join(checks.split())
+
+
 def test_candidate_topology_and_always_on_contract():
     errors = []
     assert set(VALIDATOR.validate_researcher_entries(TREE, errors)) == ENTRIES
     assert errors == []
     assert {p.relative_to(TREE).as_posix() for p in TREE.rglob("*.md")} == DOCUMENTS
-    assert len(DOCUMENTS) == 12
-    assert VALIDATOR.frontmatter(TREE / "SKILL.md")["version"] == "12.0.0"
-    for name in ENTRIES:
-        path = TREE / name / "SKILL.md"
+    assert len(DOCUMENTS) == 14 and len(ENTRIES) == 8
+    assert VALIDATOR.frontmatter(TREE / "SKILL.md")["version"] == "13.0.0"
+    for name, (mode, stage) in STAGE_ENTRIES.items():
+        path = TREE / ENTRY_PATH[name]
         data = VALIDATOR.frontmatter(path)
+        assert data["name"] == name
         assert data["version"] == "1.0.0"
         assert data["metadata"]["hermes"]["category"] == "pipeline"
-        assert data["description"][:60].lower().startswith(name.split("-")[0] + " ")
+        assert re.match(rf"{mode}\b", data["description"][:60], re.I)
+        assert re.search(rf"\b{stage}\b", data["description"], re.I)
         assert 4 <= path.read_text().find("\n---", 4) < 4000
     config = yaml.safe_load((PROFILE / "config.example.yaml").read_text())
     prompt = config["agent"]["system_prompt"]
     assert "first message is the brief" not in " ".join(prompt.lower().split())
     assert "Purpose alone is not execution authority" in prompt
-    for name in ENTRIES:
-        assert name in prompt
-    for gone in ("plan-researcher", "build-researcher", "qa-researcher", "card gate", "Workflow v5"):
+    assert "<stage>-<mode>" in prompt
+    assert "<Plan>" in prompt and "<Build>" in prompt
+    for gone in ("plan-researcher", "build-researcher", "qa-researcher", "card gate", "Workflow v5",
+                 *(f"{mode}-researcher" for mode in MODES), "references/<stage>.md"):
         assert gone not in prompt
     for token in ("every", "turn", "completion", "mid", "mode", "stage", "read_file",
-                  "next_offset", "stop", "scope", "budget", "references/<stage>.md"):
+                  "next_offset", "stop", "scope", "budget"):
         assert token in prompt.lower()
     assert "artifact-vs-brief quality verdicts" in prompt
     assert "terminal" not in config["toolsets"]
@@ -83,8 +108,8 @@ def test_candidate_topology_and_always_on_contract():
     assert config["platform_toolsets"]["telegram"] == []
     assert config["platform_toolsets"]["discord"] == []
     assert not config.get("a2a_agents")
-    build = flat(TREE / "references/build.md")
-    assert "## Self-check" in build and "as Build's last step" in build
+    build = kernel_section("Build")
+    assert "**Self-check.**" in build and "as Build's last step" in build
     assert not (TREE / "references/qa.md").exists()
 
 
@@ -162,101 +187,128 @@ def test_worker_integration(tmp_path, monkeypatch):
 
 
 @pytest.mark.parametrize("mutation,expected", [
-    ("missing_entry", "missing researcher document"),
-    ("missing_stage", "missing researcher document"),
-    ("old_phase", "unexpected researcher document"),
+    ("missing_entry", "missing researcher document: verify/build/SKILL.md"),
+    ("missing_plan_entry", "missing researcher document: verify/plan/SKILL.md"),
+    ("old_phase", "unexpected researcher document: build-researcher/SKILL.md"),
+    ("old_mode_entry", "unexpected researcher document: verify-researcher/SKILL.md"),
+    ("old_stage_reference", "unexpected researcher document: references/build.md"),
     ("old_unit_reference", "unexpected researcher document"),
     ("hidden_skill", "unexpected researcher document"),
     ("wrong_name", "frontmatter name must be"),
     ("wrong_description", "description must frontload verify"),
-    ("root_link", "kernel does not route"),
-    ("root_stage_link", "kernel does not link reference: build.md"),
-    ("stage_link", "does not link stage reference build"),
+    ("wrong_stage_description", "description must frontload verify and name the build stage"),
+    ("root_link", "kernel does not route build-verify"),
+    ("root_reference_link", "kernel does not link reference: gather.md"),
+    ("missing_kernel_stage", "kernel must own the <Plan> stage"),
+    ("sibling_link", "does not link its plan stage"),
     ("missing_dependency", "missing dependency/recovery"),
     ("missing_recovery", "missing dependency/recovery"),
     ("missing_canonical", "missing dependency/recovery"),
+    ("missing_stage_tag", "missing dependency/recovery <Build>"),
+    ("missing_gather_dependency", "missing dependency/recovery"),
     ("missing_reuse", "missing full-body reuse contract"),
     ("missing_output", "missing ## Output template"),
     ("missing_plan", "missing ## Plan"),
+    ("missing_build", "missing ## Build"),
     ("missing_verification", "missing ## Verification"),
-    ("stage_section", "stage reference missing ## Handoff: build.md"),
-    ("missing_method", "build stage must own the <Method>"),
+    ("stage_section", "missing ## Handoff"),
+    ("missing_method", "Build stage must own the <Method>"),
     ("reference_name", "reference must not declare a skill name"),
-    ("escaping_link", "broken/escaping researcher link"),
+    ("escaping_link", "researcher link escapes pipeline"),
     ("escaping_symlink", "must not contain symlinks"),
     ("frontmatter_prefix", "frontmatter exceeds discovery prefix"),
     ("missing_gather", "missing researcher document"),
     ("missing_platform", "missing researcher document: references/platforms/solana.md"),
     ("platform_link", "does not link platform reference evm"),
+    ("plan_reads_platform", "researcher plan entry reads supplied material only: plan-verify"),
+    ("plan_reads_gather", "researcher plan entry reads supplied material only: plan-verify"),
 ])
 def test_invalid_entries(tmp_path, mutation, expected):
     tree = tmp_path / "pipeline"
     shutil.copytree(TREE, tree)
-    path = tree / "verify-researcher/SKILL.md"
+    plan_mutations = {"missing_plan", "plan_reads_platform", "plan_reads_gather"}
+    path = tree / ("verify/plan/SKILL.md" if mutation in plan_mutations else "verify/build/SKILL.md")
     text = path.read_text()
     if mutation == "missing_entry":
         path.unlink()
-    elif mutation == "missing_stage":
-        (tree / "references/build.md").unlink()
-    elif mutation in {"old_phase", "old_unit_reference", "hidden_skill"}:
+    elif mutation == "missing_plan_entry":
+        (tree / "verify/plan/SKILL.md").unlink()
+    elif mutation in {"old_phase", "old_mode_entry", "old_stage_reference", "old_unit_reference", "hidden_skill"}:
         target = tree / {
             "old_phase": "build-researcher/SKILL.md",
-            "old_unit_reference": "verify-researcher/references/fact-check.md",
+            "old_mode_entry": "verify-researcher/SKILL.md",
+            "old_stage_reference": "references/build.md",
+            "old_unit_reference": "verify/references/fact-check.md",
             "hidden_skill": ".hidden/SKILL.md",
         }[mutation]
         target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(text.replace("name: verify-researcher", "name: build-researcher"))
+        target.write_text(text.replace("name: build-verify", "name: build-researcher"))
     elif mutation == "missing_gather":
         (tree / "references/gather.md").unlink()
     elif mutation == "missing_platform":
         (tree / "references/platforms/solana.md").unlink()
     elif mutation == "platform_link":
-        path.write_text(text.replace("(../references/platforms/evm.md)", "(../references/gather.md)"))
+        path.write_text(text.replace("(../../references/platforms/evm.md)", "(../../references/gather.md)"))
     elif mutation == "root_link":
         kernel = tree / "SKILL.md"
-        kernel.write_text(kernel.read_text().replace("(verify-researcher/SKILL.md)", "(SKILL.md)"))
-    elif mutation == "root_stage_link":
+        kernel.write_text(kernel.read_text().replace("(verify/build/SKILL.md)", "(SKILL.md)"))
+    elif mutation == "root_reference_link":
         kernel = tree / "SKILL.md"
-        kernel.write_text(kernel.read_text().replace("(references/build.md)", "(SKILL.md)"))
+        kernel.write_text(kernel.read_text().replace("(references/gather.md)", "(SKILL.md)"))
+    elif mutation == "missing_kernel_stage":
+        kernel = tree / "SKILL.md"
+        kernel.write_text(kernel.read_text().replace("</Plan>", ""))
     elif mutation == "escaping_symlink":
         outside = tmp_path / "outside.md"
         outside.write_text("# Outside fixture\n")
-        reference = tree / "references/plan.md"
+        reference = tree / "references/gather.md"
         reference.unlink()
         reference.symlink_to(outside)
-    elif mutation == "stage_section":
-        reference = tree / "references/build.md"
-        reference.write_text(reference.read_text().replace("## Handoff", "## Removed"))
     elif mutation == "missing_method":
-        reference = tree / "references/build.md"
-        reference.write_text(reference.read_text().replace("<Method>", "<Steps>"))
+        kernel = tree / "SKILL.md"
+        kernel.write_text(kernel.read_text().replace("<Method>", "<Steps>"))
     elif mutation == "reference_name":
-        reference = tree / "references/build.md"
-        reference.write_text("---\nname: hidden-build\n---\n" + reference.read_text())
+        reference = tree / "references/gather.md"
+        reference.write_text("---\nname: hidden-gather\n---\n" + reference.read_text())
     else:
         if mutation == "wrong_name":
-            text = text.replace("name: verify-researcher", "name: different")
+            text = text.replace("name: build-verify", "name: different")
         elif mutation == "wrong_description":
-            text = text.replace("  Verify exact claims", "  Check exact claims")
-        elif mutation == "stage_link":
-            text = text.replace("(../references/build.md)", "(../references/plan.md)")
+            text = text.replace("  Verify, Build stage", "  Check, Build stage")
+        elif mutation == "wrong_stage_description":
+            text = text.replace("  Verify, Build stage", "  Verify, final stage")
+        elif mutation == "sibling_link":
+            text = text.replace("(../plan/SKILL.md)", "(../../SKILL.md)")
         elif mutation == "missing_dependency":
             text = text.replace('skill_view(name="researcher-pipeline")', "skip kernel")
         elif mutation == "missing_recovery":
             text = text.replace("read_file", "remember")
         elif mutation == "missing_canonical":
-            text = text.replace("${HERMES_SKILL_DIR}/../references/<stage>.md", "remember stage")
+            text = text.replace("${HERMES_SKILL_DIR}/../../SKILL.md", "remember kernel")
+        elif mutation == "missing_stage_tag":
+            text = text.replace("<Build>", "the stage")
+        elif mutation == "missing_gather_dependency":
+            text = text.replace('file_path="references/gather.md"', "remember gather")
         elif mutation == "missing_reuse":
-            text = text.replace("Reuse only full bodies in current context", "Use remembered summaries")
+            text, count = re.subn(r"Reuse only full bodies in\s+current context", "Use remembered summaries", text)
+            assert count == 1
         elif mutation == "missing_output":
             text = text.replace("## Output template", "## Unspecified output")
         elif mutation == "missing_plan":
             text = text.replace("\n## Plan\n", "\n## Framing\n")
+        elif mutation == "missing_build":
+            text = text.replace("\n## Build\n", "\n## Doing\n")
         elif mutation == "missing_verification":
             text = text.replace("\n## Verification\n", "\n## Checks\n")
+        elif mutation == "stage_section":
+            text = text.replace("\n## Handoff\n", "\n## Removed\n")
+        elif mutation == "plan_reads_platform":
+            text += "\nRead references/platforms/evm.md first.\n"
+        elif mutation == "plan_reads_gather":
+            text += "\nRead references/gather.md first.\n"
         elif mutation == "escaping_link":
             (tmp_path / "outside.md").write_text("# Outside fixture\n")
-            text += "\n[Outside](../../outside.md)\n"
+            text += "\n[Outside](../../../outside.md)\n"
         elif mutation == "frontmatter_prefix":
             text = text.replace("version: 1.0.0", "padding: " + "x" * 4000 + "\nversion: 1.0.0")
         path.write_text(text)
@@ -268,20 +320,20 @@ def test_invalid_entries(tmp_path, mutation, expected):
 def test_declared_agreement_and_continuity_contract():
     """Instruction assertions, not evidence of actual model routing or approval behavior."""
     kernel = flat(TREE / "SKILL.md")
-    plan, build = (flat(TREE / f"references/{stage}.md") for stage in STAGES)
+    plan, build = kernel_section("Plan"), kernel_section("Build")
     for phrase in ("purpose, consumer, constraints and budget", "Plan needs client agreement before Build",
                    "never self-release", "already explicitly authorized for execution may go straight to Build",
                    "transport kind or entry selection alone are not authorization",
                    "do not demand human approval for every lookup", "Human-only permissions remain separate",
                    "Multiple own-role units are allowed", "never decompose the whole production",
                    "no outbound peers", "reset budget", "replay completed work",
-                   "stages of one unit, not separate entries",
+                   "stages belong to one unit, not separate units",
                    "ends by self-checking the result against the mode's Verification before the reply"):
         assert phrase in kernel
     for gone in ("card gate", "register cards", "Cards are refused"):
         assert gone not in kernel
     for phrase in ("supplied materials only", "bounded preliminary Build", "wait for agreement before gathering",
-                   "return to revise", "short approval advances this retained Plan", "(build.md)"):
+                   "return to revise", "short approval advances this retained Plan"):
         assert phrase in plan
     for phrase in ("explicitly authorized settled brief", "Fields and transport kind alone are not authorization",
                    "consumed/remaining budget", "scope and remaining budget"):
@@ -290,8 +342,8 @@ def test_declared_agreement_and_continuity_contract():
                    "narrow correction", "agreed scope and remaining budget", "Plan for agreement",
                    "Review: required", "wait", "After a preliminary Build"):
         assert phrase in build
-    for name in ENTRIES:
-        text = flat(TREE / name / "SKILL.md")
+    for name in sorted(ENTRIES):
+        text = flat(TREE / ENTRY_PATH[name])
         assert "not a new grant" in text
         assert "budget reset or permission to replay work" in text
         assert "direct entry" in text
@@ -301,27 +353,26 @@ def test_declared_agreement_and_continuity_contract():
         assert "next_offset" in text and "stop the affected action" in text
         assert "Never evade dedup with alternate paths or artificial ranges" in text
         assert "never a silent switch" in text
-        assert "with the self-check against this entry's Verification" in text
+        if STAGE_ENTRIES[name][1] == "build":
+            assert "with the self-check against this entry's Verification" in text
         assert "references/qa.md" not in text
 
 
 @pytest.mark.parametrize("name,fields", [
-    ("investigate-researcher", ("Summary", "Sources", "Key Observations", "Corroboration", "Uncertainty", "Implications for Caller")),
-    ("compare-researcher", ("Decision", "Matrix", "Deal-breakers", "Recommendation", "Sources", "Assumptions & unknowns")),
-    ("verify-researcher", ("Verdicts", "Original", "Restatement", "Verdict", "Evidence", "Counterevidence", "Context", "Sources", "Notes")),
-    ("advise-researcher", ("For", "Constraints (MUST)", "Recommendations (SHOULD)", "Open choices", "Evidence base", "Uncertainty")),
+    ("investigate", ("Summary", "Sources", "Key Observations", "Corroboration", "Uncertainty", "Implications for Caller")),
+    ("compare", ("Decision", "Matrix", "Deal-breakers", "Recommendation", "Sources", "Assumptions & unknowns")),
+    ("verify", ("Verdicts", "Original", "Restatement", "Verdict", "Evidence", "Counterevidence", "Context", "Sources", "Notes")),
+    ("advise", ("For", "Constraints (MUST)", "Recommendations (SHOULD)", "Open choices", "Evidence base", "Uncertainty")),
 ])
 def test_declared_mode_output_and_verification(name, fields):
-    text = (TREE / name / "SKILL.md").read_text()
-    template = text.split("## Output template", 1)[1].split("\n## Verification", 1)[0]
-    checks = " ".join(text.split("\n## Verification", 1)[1].split("\n## Handoff", 1)[0].split())
+    plan_part, build_part, template, checks = stage_parts(name)
     for field in fields:
         assert field in template
-    for token in ("confidence", "evidence", "budget", "Plan", "Build"):
+    for token in ("confidence", "evidence", "budget", "Build"):
         assert token in checks
-    plan_part = text.split("\n## Plan\n", 1)[1].split("\n## Build\n", 1)[0]
-    build_part = text.split("\n## Build\n", 1)[1].split("\n## Output template", 1)[0]
-    if name == "verify-researcher":
+    # Expansion goes back to the mode's Plan stage entry, which the Verification links.
+    assert f"[plan-{name}](../plan/SKILL.md)" in checks
+    if name == "verify":
         for part in (build_part + template, checks):
             for token in ("byte-for-byte", "Unicode", "apostrophes", "capitalization", "claim-ledger.md",
                           "supported", "refuted", "partly true", "unverifiable", "ounterevidence",
@@ -330,10 +381,10 @@ def test_declared_mode_output_and_verification(name, fields):
         assert "single B-source" in build_part and "single B-source" in checks
         assert "two independent a/b" in build_part.lower() and "two independent a/b" in checks.lower()
         assert "byte-for-byte" in plan_part
-    elif name == "compare-researcher":
+    elif name == "compare":
         assert "Unknown" in build_part and "Unknown" in checks
         assert "same axes" in build_part and "same axes" in checks and "same axes" in plan_part
-    elif name == "advise-researcher":
+    elif name == "advise":
         assert "checkable" in build_part and "checkable" in checks
         assert "open choices" in build_part and "open choices" in checks
     else:
@@ -366,10 +417,10 @@ def test_onchain_evidence_rules_and_platform_references():
     assert "on-chain state) — reliability A" in gather and "Your own `evm` and `solana` tools" in gather
     prompt = " ".join(yaml.safe_load((PROFILE / "config.example.yaml").read_text())["agent"]["system_prompt"].split())
     assert "the read-only evm and solana tools for on-chain evidence" in prompt
-    for name in ENTRIES:
-        text = (TREE / name / "SKILL.md").read_text()
-        assert "(../references/platforms/evm.md)" in text and "(../references/platforms/solana.md)" in text
-        assert "(../references/platforms/hyperliquid.md)" in text
+    for name in BUILD_ENTRIES:
+        text = (TREE / ENTRY_PATH[name]).read_text()
+        assert "(../../references/platforms/evm.md)" in text and "(../../references/platforms/solana.md)" in text
+        assert "(../../references/platforms/hyperliquid.md)" in text
     venue = flat(TREE / "references/platforms/hyperliquid.md")
     for phrase in ("nothing is signed or sent", 'skill_view(name="hyperliquid-access:hyperliquid")',
                    "A read is a moment", "a testnet figure is never evidence about mainnet",
@@ -389,8 +440,7 @@ def test_declared_source_floors_and_shared_gather():
                   "Observation", "Corroboration", "Inference", "Uncertainty", "Never invent URLs",
                   "Never quote snippets", "Review: required", "explicit go"):
         assert token in kernel
-    assert "<Method>" not in kernel
-    assert "<Method>" in (TREE / "references/build.md").read_text()
+    assert "<Method>" in kernel_section("Build")
     gather = flat(TREE / "references/gather.md")
     for token in ("delegate_task", "Heavy breadth", "orchestrator", "trust scoring", "Open for researcher"):
         assert token in gather
@@ -415,12 +465,13 @@ def test_technics_are_routed_to_their_mode():
     prompt = " ".join(yaml.safe_load((PROFILE / "config.example.yaml").read_text())["agent"]["system_prompt"].split())
     assert "references/capabilities.md" in prompt and "never replaces the mode" in prompt
     for name in ENTRIES:
-        assert "(../references/capabilities.md)" in (TREE / name / "SKILL.md").read_text()
+        assert "(../../references/capabilities.md)" in (TREE / ENTRY_PATH[name]).read_text()
 
 
 @pytest.mark.parametrize("name", sorted(TECHNICS))
 @pytest.mark.parametrize("token", ('skill_view(name="researcher-pipeline")', "never replaces", "caller's release",
-                                   "${HERMES_SKILL_DIR}/../../pipeline/SKILL.md"))
+                                   "${HERMES_SKILL_DIR}/../../pipeline/SKILL.md",
+                                   'skill_view(name="<stage>-verify")'))
 def test_technic_cannot_drop_its_mode_or_recovery(tmp_path, name, token):
     shutil.copytree(TECHNIC, tmp_path / "technic")
     leaves = _technic_leaves(tmp_path / "technic")
@@ -430,12 +481,17 @@ def test_technic_cannot_drop_its_mode_or_recovery(tmp_path, name, token):
     assert f"researcher technic ReadBeforeWork missing {token}: {name}" in errors
 
 
+@pytest.mark.parametrize("name", sorted(TECHNICS))
+def test_technic_no_longer_reads_a_stage_reference(name):
+    assert 'file_path="references/<stage>.md"' not in (TECHNIC / name / "SKILL.md").read_text()
+
+
 def test_technic_mode_must_match_its_capability_row(tmp_path):
     shutil.copytree(TECHNIC, tmp_path / "technic")
     leaves = _technic_leaves(tmp_path / "technic")
     path = leaves["claim-check"]
     path.write_text(path.read_text().replace("mode: verify", "mode: advise").replace(
-        'skill_view(name="verify-researcher")', 'skill_view(name="advise-researcher")'))
+        'skill_view(name="<stage>-verify")', 'skill_view(name="<stage>-advise")'))
     errors = []
     VALIDATOR.validate_researcher_technics(TREE, leaves, errors)
     assert errors == ["researcher capability row routes claim-check to another mode than advise"]
@@ -445,14 +501,15 @@ def test_technic_mode_must_match_its_capability_row(tmp_path):
     assert any("must name one mode" in error for error in errors)
 
 
-def test_entry_must_link_the_technic_capabilities(tmp_path):
+@pytest.mark.parametrize("name", sorted(ENTRIES))
+def test_entry_must_link_the_technic_capabilities(tmp_path, name):
     tree = tmp_path / "pipeline"
     shutil.copytree(TREE, tree)
-    entry = tree / "verify-researcher/SKILL.md"
-    entry.write_text(entry.read_text().replace("(../references/capabilities.md)", ""))
+    entry = tree / ENTRY_PATH[name]
+    entry.write_text(entry.read_text().replace("(../../references/capabilities.md)", ""))
     errors = []
     VALIDATOR.validate_researcher_entries(tree, errors)
-    assert "researcher entry does not link the technic capabilities: verify-researcher" in errors
+    assert f"researcher entry does not link the technic capabilities: {name}" in errors
 
 
 def _technic_rows(text):
@@ -629,7 +686,7 @@ def runtime_child(sandbox, source, configured_external):
         rows = dict(re.findall(r"^    - ([^: \n]+): (.*)$", prompt, re.M))
         assert set(rows) == names and len(set(rows.values())) == len(names)
         assert all(0 < len(desc) <= 60 for desc in rows.values())
-        assert all(rows[f"{mode}-researcher"].lower().startswith(mode + " ") for mode in MODES)
+        assert all(rows[name].lower().startswith(mode) for name, (mode, _) in STAGE_ENTRIES.items())
 
         def view(name, file_path=None):
             return json.loads(registry.dispatch("skill_view", {"name": name, "file_path": file_path}, task_id="research-test"))
@@ -647,9 +704,8 @@ def runtime_child(sandbox, source, configured_external):
             back = re.search(r"`([^`]*/pipeline/SKILL\.md)`", leaf["content"]).group(1)
             assert Path(back).resolve() == (tree / "SKILL.md").resolve()
         # Real read mechanics only: this loop selects modes and stages, not a model.
-        for mode in MODES:
-            name = f"{mode}-researcher"
-            path = tree / name / "SKILL.md"
+        for name in sorted(ENTRIES):
+            path = tree / ENTRY_PATH[name]
             payload = view(name)
             assert payload["content"] == path.read_text().replace("${HERMES_SKILL_DIR}", str(path.parent))
             assert view(name)["status"] == "unchanged"
@@ -659,8 +715,9 @@ def runtime_child(sandbox, source, configured_external):
             assert view("researcher-pipeline", relative)["status"] == "unchanged"
         assert view("researcher-pipeline")["content_returned"] is False
         assert view("researcher-pipeline", "references/fact-check.md")["success"] is False
-        assert view("investigate-researcher")["content_returned"] is False
-        for gone in ("plan-researcher", "build-researcher", "qa-researcher", "fact-check-researcher"):
+        assert view("build-investigate")["content_returned"] is False
+        for gone in ("plan-researcher", "build-researcher", "qa-researcher", "fact-check-researcher",
+                     *(f"{mode}-researcher" for mode in MODES)):
             assert view(gone)["success"] is False
 
         from tools import file_tools as ft, file_tools_paths as fp, skill_manager_guards
@@ -681,9 +738,9 @@ def runtime_child(sandbox, source, configured_external):
 
         # Recover missing bodies via the documented canonical owner paths. Simulate
         # a real output budget, not arbitrary ranges chosen to evade read dedup.
-        owner = tree / "investigate-researcher"
-        canonical = [owner / "../SKILL.md", *(owner / ".." / relative for relative in sorted(SHARED))]
-        canonical.extend(tree / name / "SKILL.md" for name in sorted(ENTRIES))
+        owner = tree / "investigate/build"
+        canonical = [owner / "../../SKILL.md", *(owner / ".." / ".." / relative for relative in sorted(SHARED))]
+        canonical.extend(tree / ENTRY_PATH[name] for name in sorted(ENTRIES))
         canonical.extend(technics / name / "SKILL.md" for name in sorted(TECHNICS))
         assert len(canonical) == 1 + len(SHARED) + len(ENTRIES) + len(TECHNICS)
         continued = 0
@@ -708,15 +765,15 @@ def runtime_child(sandbox, source, configured_external):
         assert continued > 0
         # An unavailable canonical file yields an error, not a usable body. The
         # instruction-only stop requirement is checked separately above.
-        missing = tree / "references/build.md"
+        missing = tree / "references/gather.md"
         original = missing.read_text()
         missing.unlink()
         assert read(missing).get("error")
         missing.write_text(original)
         _reset_read_dedup_caches("research-test")
-        assert "content" in view("verify-researcher")
-        assert "content" in view("researcher-pipeline", "references/build.md")
-        assert "content" in read(tree / "verify-researcher/SKILL.md")
+        assert "content" in view("build-verify")
+        assert "content" in view("researcher-pipeline", "references/gather.md")
+        assert "content" in read(tree / "verify/build/SKILL.md")
         # Scan the profile's configured upstream roots as metadata only, never execute them.
         external.extend(Path(p) for p in configured_external)
         assert all(p.is_dir() and p.resolve().is_relative_to(source) for p in external)

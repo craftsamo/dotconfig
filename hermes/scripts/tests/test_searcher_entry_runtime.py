@@ -1,6 +1,6 @@
 """Opt-in, offline integration with the real Hermes source and the public
-Searcher candidate docs (kernel + 3 modes + 2 stage, capability and 6 service
-references), no private checkout.
+Searcher candidate docs (kernel + a Plan and a Build entry for each of 3 modes
++ capability and 7 service references), no private checkout.
 
 Empty PYTHONPATH skips (offline default); an explicit PYTHONPATH lacking a
 real Hermes source checkout fails. The candidate tree resolves relative to
@@ -31,8 +31,11 @@ import tempfile
 import pytest
 
 
-CHILDREN = ("lookup-searcher", "sweep-searcher", "hunt-searcher")
+MODES = ("lookup", "sweep", "hunt")
 STAGES = ("plan", "build")
+# Declared stage-entry name -> its path under the pipeline: <mode>/<stage>/SKILL.md.
+ENTRY_PATH = {f"{stage}-{mode}": f"{mode}/{stage}/SKILL.md" for mode in MODES for stage in STAGES}
+CHILDREN = tuple(ENTRY_PATH)
 SERVICES = ("x", "youtube", "note", "substack", "evm", "solana", "hyperliquid")
 TECHNICS = ("public-footprint", "primary-fact-pack", "release-digest")
 EXPECTED = {"searcher-pipeline"} | set(CHILDREN) | set(TECHNICS)
@@ -55,14 +58,13 @@ def test_searcher_entry_runtime(case):
     repo_root = Path(__file__).resolve().parents[3]
     candidate_tree = (repo_root / TREE).resolve()
     assert (candidate_tree / "SKILL.md").is_file() and all(
-        (candidate_tree / child / "SKILL.md").is_file() for child in CHILDREN
-    ), "Searcher must have the kernel and all three entries"
+        (candidate_tree / relative).is_file() for relative in ENTRY_PATH.values()
+    ), "Searcher must have the kernel and a Plan and Build entry for each of its three modes"
     docs = sorted(candidate_tree.rglob("*.md"))
     assert {p.relative_to(candidate_tree).as_posix() for p in docs} == {
-        "SKILL.md", *(f"{name}/SKILL.md" for name in CHILDREN),
-        *(f"references/{stage}.md" for stage in STAGES), "references/capabilities.md",
+        "SKILL.md", *ENTRY_PATH.values(), "references/capabilities.md",
         *(f"references/platforms/{p}.md" for p in SERVICES),
-    }, "Searcher must have exactly its kernel, modes, stages, capabilities and service references"
+    }, "Searcher must have exactly its kernel, stage entries, capabilities and service references"
     technic_tree = (repo_root / TECHNIC_TREE).resolve()
     assert {p.relative_to(technic_tree).as_posix() for p in technic_tree.rglob("*.md")} == {
         f"{name}/SKILL.md" for name in TECHNICS
@@ -155,7 +157,7 @@ def _child(case, sandbox, candidate_tree, technic_tree, source):
         skills = home / ".hermes/skills"
         tree = skills / "pipeline"
         docs = sorted(candidate_tree.rglob("*.md"))
-        assert len(docs) == 14, "Candidate tree must hold kernel + modes + stage, capability and service references"
+        assert len(docs) == 15, "Candidate tree must hold kernel + stage entries + capability and service references"
         for path in docs:
             assert not path.is_symlink() and path.resolve().is_relative_to(candidate_tree)
             target = tree / path.relative_to(candidate_tree)
@@ -163,7 +165,7 @@ def _child(case, sandbox, candidate_tree, technic_tree, source):
             target.write_bytes(path.read_bytes())
         assert (tree / "SKILL.md").is_file()
         for child in CHILDREN:
-            assert (tree / child / "SKILL.md").is_file()
+            assert (tree / ENTRY_PATH[child]).is_file()
         technics = skills / "technic"
         for name in TECHNICS:
             source_leaf = technic_tree / name / "SKILL.md"
@@ -174,7 +176,7 @@ def _child(case, sandbox, candidate_tree, technic_tree, source):
         def skill_path(name):
             if name == "searcher-pipeline":
                 return tree / "SKILL.md"
-            return technics / name / "SKILL.md" if name in TECHNICS else tree / name / "SKILL.md"
+            return technics / name / "SKILL.md" if name in TECHNICS else tree / ENTRY_PATH[name]
         # Synthetic, not copied from any private config.
         (home / ".hermes/config.yaml").write_text(
             "skills:\n  external_dirs: []\n  disabled: []\n  template_vars: true\n"
@@ -258,7 +260,7 @@ def _child(case, sandbox, candidate_tree, technic_tree, source):
             elif case == "reads_and_reuse":
                 # Direct child loads render their own ${HERMES_SKILL_DIR}, not the kernel's.
                 for name in CHILDREN:
-                    path = tree / name / "SKILL.md"
+                    path = tree / ENTRY_PATH[name]
                     payload = json.loads(st.skill_view(name))
                     body_matches(payload, path, rendered=True)
                     assert payload["skill_dir"] == str(path.parent)
@@ -273,10 +275,9 @@ def _child(case, sandbox, candidate_tree, technic_tree, source):
                 # Scripted mode and stage switching proves read mechanics, not
                 # model routing or agreement compliance.
                 for name in CHILDREN:
-                    body_matches(view(name, task=task), tree / name / "SKILL.md", rendered=True)
+                    body_matches(view(name, task=task), tree / ENTRY_PATH[name], rendered=True)
                 contents = []
-                for stage in STAGES:
-                    relative = f"references/{stage}.md"
+                for relative in ("references/capabilities.md", "references/platforms/x.md"):
                     result = view("searcher-pipeline", relative, task=task)
                     body_matches(result, tree / relative)
                     contents.append(result["content"])
@@ -287,7 +288,7 @@ def _child(case, sandbox, candidate_tree, technic_tree, source):
                 root_again = view("searcher-pipeline", task=task)
                 assert root_again["status"] == "unchanged" and root_again["content_returned"] is False
 
-                mode_again = view("hunt-searcher", task=task)
+                mode_again = view("build-hunt", task=task)
                 assert mode_again["status"] == "unchanged" and mode_again["content_returned"] is False
 
             elif case == "recovery":
@@ -324,9 +325,9 @@ def _child(case, sandbox, candidate_tree, technic_tree, source):
                 # Real tools can exhaust recovery. This is not model-compliance evidence.
                 documents = [("searcher-pipeline", None, tree / "SKILL.md")]
                 for name in CHILDREN:
-                    documents.append((name, None, tree / name / "SKILL.md"))
-                documents.extend(("searcher-pipeline", f"references/{stage}.md", tree / f"references/{stage}.md")
-                                 for stage in STAGES)
+                    documents.append((name, None, tree / ENTRY_PATH[name]))
+                documents.extend(("searcher-pipeline", relative, tree / relative)
+                                 for relative in ("references/capabilities.md", "references/platforms/x.md"))
                 documents.extend((name, None, technics / name / "SKILL.md") for name in TECHNICS)
 
                 # Both recovery paths render to real documents: a technic's to the kernel, the
@@ -363,8 +364,8 @@ def _child(case, sandbox, candidate_tree, technic_tree, source):
                 config = home / ".hermes/config.yaml"
                 config.write_text(config.read_text() + "file_read_max_chars: 1200\n", encoding="utf-8")
                 assert ft._get_max_read_chars() == 1200
-                for path in (root_path, tree / "hunt-searcher/SKILL.md",
-                             tree / "references/build.md"):
+                for path in (root_path, tree / ENTRY_PATH["build-hunt"],
+                             tree / ENTRY_PATH["plan-lookup"]):
                     page_task = f"recovery-pagination-{path}"
                     lines, offset, pages = [], 1, 0
                     while True:
@@ -395,13 +396,12 @@ def _child(case, sandbox, candidate_tree, technic_tree, source):
                     assert set(rows(index())) == EXPECTED
                     assert {s["name"] for s in find_all_skills()} == EXPECTED
                     for name in CHILDREN:
-                        target = moved_home / "skills/pipeline" / name / "SKILL.md"
+                        target = moved_home / "skills/pipeline" / ENTRY_PATH[name]
                         result = view(name, task="moved-namespace-only")
                         body_matches(result, target, rendered=True)
                         assert result["skill_dir"] == str(target.parent)
                         assert str(tree) not in result["content"]
-                    for stage in STAGES:
-                        relative = f"references/{stage}.md"
+                    for relative in ("references/capabilities.md", "references/platforms/x.md"):
                         body_matches(view("searcher-pipeline", relative, task="moved-namespace-only"),
                                      moved_home / "skills/pipeline" / relative)
                 finally:

@@ -1,9 +1,10 @@
 ---
-name: verify-researcher
+name: build-verify
 description: >-
-  Verify exact claims, cited sources or current specifications: agree the
-  fixed claim list, trace origins and counterevidence, self-check and deliver
-  verdicts with a durable ledger. Not topic surveys or artifact-quality QA.
+  Verify, Build stage: trace each agreed claim to its origin, corroboration
+  and counterevidence, assign confidence-rated verdicts, write the ledger,
+  self-check and deliver. Requires the client's agreement from Plan; not an
+  open investigation, option comparison or consumer directives.
 version: 1.0.0
 author: CraftSamo
 license: MIT
@@ -11,75 +12,48 @@ compatibility: Requires Hermes Agent and the parent researcher-pipeline kernel.
 metadata:
   hermes:
     category: pipeline
-    tags: [research, verify]
+    tags: [research, verify, build]
 ---
 
 <ReadBeforeWork>
 
-Load `skill_view(name="researcher-pipeline")` first, including on direct entry,
-before any stage. On every inbound turn/completion and before a midturn mode,
-stage or scope change, reselect the mode and load this entry with
-`skill_view(name="verify-researcher")` and the current stage's shared reference with
-`skill_view(name="researcher-pipeline", file_path="references/<stage>.md")`:
-[Plan](../references/plan.md) or [Build](../references/build.md). Reuse only full bodies in current context, never a
-past load, preload or summary.
+Load `skill_view(name="researcher-pipeline")` first, including on direct entry;
+its `<Build>` section is the stage this entry specializes. On every inbound
+turn/completion and before a midturn mode, stage or scope change, reselect the
+mode and stage and load this entry with
+`skill_view(name="build-verify")`. Reuse only full bodies in
+current context, never a past load, preload or summary.
 
 Gathering beyond a few direct lookups requires
 `skill_view(name="researcher-pipeline", file_path="references/gather.md")`:
-[Gather](../references/gather.md). Reading strategy does not authorize searches.
+[Gather](../../references/gather.md). Reading strategy does not authorize searches.
 Evidence from a chain or from Hyperliquid also requires its shared reference:
-[EVM](../references/platforms/evm.md), [Solana](../references/platforms/solana.md) or
-[Hyperliquid](../references/platforms/hyperliquid.md).
-A technic the brief names or [Capabilities](../references/capabilities.md)
+[EVM](../../references/platforms/evm.md), [Solana](../../references/platforms/solana.md) or
+[Hyperliquid](../../references/platforms/hyperliquid.md).
+A technic the brief names or [Capabilities](../../references/capabilities.md)
 matches is loaded too with `skill_view(name="<technic>")`; it adds to this mode
 and never replaces it.
 If `skill_view` returns unchanged with a missing body or cannot supply it, use
-`read_file` on canonical `${HERMES_SKILL_DIR}/../SKILL.md`,
-`${HERMES_SKILL_DIR}/SKILL.md`, `${HERMES_SKILL_DIR}/../references/<stage>.md`,
-`${HERMES_SKILL_DIR}/../references/gather.md` and
-`${HERMES_SKILL_DIR}/../references/platforms/<chain>.md` as applicable. Follow
-`next_offset` through actual truncation; if recovery fails, stop the affected
-action. Never evade dedup with alternate paths or artificial ranges.
+`read_file` on canonical `${HERMES_SKILL_DIR}/../../SKILL.md`,
+`${HERMES_SKILL_DIR}/SKILL.md`, `${HERMES_SKILL_DIR}/../../references/gather.md`
+and `${HERMES_SKILL_DIR}/../../references/platforms/<chain>.md` as applicable.
+Follow `next_offset` through actual truncation; if recovery fails, stop the
+affected action. Never evade dedup with alternate paths or artificial ranges.
 Selection/resume is not a new grant, budget reset or permission to replay work.
 
 </ReadBeforeWork>
 
-# Verify
+# Verify: Build
 
 Use for specific external claims, cited sources or current specifications.
 The output is claim-level verdicts, never a survey or an artifact-quality gate.
 Corroboration and counterevidence matter more than breadth.
 
-## Plan
-
-1. Identify the claims from supplied text or an artifact inspected only for
-   its factual claims and context. Preserve each source claim byte-for-byte in
-   a verbatim code span/block, including punctuation and Unicode. Do not normalize
-   apostrophes, quotes, dashes, spacing, numbers or capitalization.
-2. Propose individually checkable subclaims for compound sentences, retaining
-   the exact original plus a separate neutral investigation restatement and
-   mapping. Agree the fixed claims list and source requirements before Build;
-   an unavailable or moving list is a spec gap, not license to check a vibe.
-3. Define recency/context, source coverage, exclusions, budget and closure:
-   every input claim receives a confidence-rated `supported`, `refuted`,
-   `partly true` or `unverifiable` verdict, evidence, counterevidence and gaps.
-   Research stops at a stable verdict, not an exhaustive topic survey.
-4. Name the consumer and output. If downstream QA consumes the results, settle
-   the durable path and requested filename (default `claim-ledger.md`) for the
-   complete verdict ledger, not just a one-line conclusion. Missing durable
-   destination is a blocking input for that required delivery, never a guessed path.
-
-State explicitly that extracting claims from text/image/video/audio does not
-authorize judging craft, rendering, mechanical specifications, completeness or
-fit to the brief. If the claims list sprouts a topic survey, report the
-granularity issue and propose a separate investigate unit for agreement.
-No external verification occurs in Plan without an approved preliminary Build.
-
 ## Build
 
-Apply Build's Method to the agreed fixed claims and source requirements. A
-moving list or topic-survey expansion returns to Plan; it never silently
-changes the release.
+Apply the kernel's Build Method to the agreed fixed claims and source
+requirements. A moving list or topic-survey expansion returns to Plan; it
+never silently changes the release.
 
 1. Decompose compound sentences into individually checkable claims using the
    agreed mapping. Preserve each source claim byte-for-byte as a verbatim code
@@ -167,14 +141,15 @@ and ledger. This is claim-evidence self-check, not artifact-quality acceptance.
   rendering, mechanical, completeness or artifact-vs-brief verdict was produced.
 
 Report missing ledger/evidence as unmet or unknown, not caller acceptance or a
-self-score. An exact-copy repair or in-scope evidence correction returns to
+self-score. An exact-copy repair or in-scope evidence correction stays in
 Build within remaining budget. Changed claims, a topic survey or expanded
-source hunt needs Plan and agreement; preserve originals and prior budget.
+source hunt needs [plan-verify](../plan/SKILL.md) and agreement;
+preserve originals and prior budget.
 
 ## Handoff
 
-Plan ends at the client's agreement. Build ends, in the same turn, with the
-self-check against this entry's Verification, and the reply carries what it
-found unmet or unknown. Each stage's own Handoff in its shared reference says
-what follows. Keep this mode for the unit; another kind of question is another
-agreed unit with its own mode entry, never a silent switch.
+Build ends, in the same turn, with the self-check against this entry's
+Verification, and the reply carries what it found unmet or unknown; the
+kernel's Build section says how the findings are delivered. Keep this mode for
+the unit; another kind of question is another agreed unit with its own
+entries, never a silent switch.
