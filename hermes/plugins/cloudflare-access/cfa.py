@@ -45,6 +45,7 @@ def _load_shared(name):
 
 cards = _load_shared("card")
 shell_commands = _load_shared("shell_commands")
+project_place = _load_shared("project_place")
 
 READS = ("status", "account", "zones", "dns_records", "zone_settings", "analytics", "workers", "pages", "r2", "kv",
          "d1", "tunnels", "email_routing")
@@ -113,6 +114,10 @@ BYPASS_MESSAGE = (
 # allowed. `_CLI_TEXT` judges a line that cannot be read that way: the command itself after a separator,
 # a wrapper or a runner, or the CLI anywhere with a command that uses the account after it.
 CLIS = ("wrangler", "cloudflared", "flarectl")
+# In a project repository (project_place), wrangler may run as one of the project's own dependencies
+# through its package manager (`pnpm exec wrangler deploy`): that is the project's tooling, signed in
+# with the user's own wrangler login, not this tool's token.
+PROJECT_CLIS = ("wrangler",)
 _RUNNER = r"(?:npx|bunx|pnpx|(?:pnpm|npm|yarn|bun)\s+(?:exec|dlx|x)|yarn)\s+(?:-\S+\s+)*"
 _CLIS = r"(?:wrangler|cloudflared|flarectl)(?:@\S*)?"   # a package runner may pin a version: wrangler@4
 _CLI_COMMANDS = (r"login|logout|whoami|deploy|publish|delete|rollback|versions|deployments|secret|secrets-store|kv"
@@ -2351,7 +2356,13 @@ def bypass(tool: str, args) -> str | None:
     args = args if isinstance(args, dict) else {}
     if tool == "terminal":
         command = args.get("command")
-        if isinstance(command, str) and shell_commands.runs(command, CLIS, _CLI_TEXT):
+        place = project_place.project_dir(args) if isinstance(command, str) else None
+
+        def local(name):
+            return name in PROJECT_CLIS and project_place.local_bin(place, name)
+
+        if isinstance(command, str) and shell_commands.runs(command, CLIS, _CLI_TEXT, project=place is not None,
+                                                            local=local, moves=project_place.leading_moves(args)):
             return BYPASS_MESSAGE
         if any(_TERMINAL.search(text) for text in _strings(args)):
             return BYPASS_MESSAGE

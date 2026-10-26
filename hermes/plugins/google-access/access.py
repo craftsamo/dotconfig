@@ -68,6 +68,7 @@ def _load_shared(name):
 
 cards = _load_shared("card")
 shell_commands = _load_shared("shell_commands")
+project_place = _load_shared("project_place")
 
 SHEETS = "https://www.googleapis.com/auth/spreadsheets"
 GMAIL_READ = "https://www.googleapis.com/auth/gmail.readonly"
@@ -4126,7 +4127,8 @@ def bypass(tool: str, args) -> str | None:
     args = args if isinstance(args, dict) else {}
     if tool == "terminal":
         command = args.get("command")
-        if isinstance(command, str) and shell_commands.runs(command, CLIS, _CLI):
+        project = project_place.project_dir(args) is not None if isinstance(command, str) else False
+        if isinstance(command, str) and shell_commands.runs(command, CLIS, _CLI, project=project):
             return BYPASS_MESSAGE
         if any(_PATHS.search(text) for text in _strings(args)):  # command, workdir, …
             return BYPASS_MESSAGE
