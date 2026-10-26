@@ -83,8 +83,15 @@ planning or widens a grant. Default's CLI adapter reads the same tree (see
   into `channel_skill_bindings` and `channel_prompts`, the gateway restarts, and
   `/new` starts the first working session.
 - The gateway injects the skill body into a session's first turn;
-  `compression.protect_first_n` does not prove the bodies stay present. After an
-  approved restart, `/new` starts a session on the refreshed index.
+  `compression.protect_first_n` does not prove the bodies stay present.
+- **A session's skill index is built once and kept** (the session row stores
+  its system prompt, so a gateway restart restores it unchanged). After an
+  approved restart, a running session learns renamed or added skills through
+  `/reload-skills`: the next turn carries what was added and removed, and
+  `skill_view` resolves by name, so the new names work while the index still
+  lists the old ones. `/new` is for a conversation that should start over; it
+  starts a session on the refreshed index but carries nothing of the previous
+  session over ("Reaching a previous session" below).
 - The flow (Classify → Locate → Mode → Deliver), the question policy and tier
   choice (`inline` / resident session / cron) are owned by the root `SKILL.md`
   and `references/execute/index.md`. The contract here: tier follows context
@@ -161,6 +168,19 @@ and `close` answer only the originating session, see
 [specialist-calls.md](./specialist-calls.md)), so long specialist work belongs
 in a topic of its own; OpenCode runs stay bound to the topic and survive it
 ([opencode.md](../opencode.md)).
+
+### Reaching a previous session
+
+`/new` keeps the old session in the profile's session store (its row ends as
+`session_reset`, the new one names it as parent) and carries nothing of it
+into the new one. The Assistant's `session_search` toolset (cli, Telegram and
+Discord lists, not A2A) is how a session reads one: a bare call lists the
+profile's recent sessions, `session_id` reads a transcript. The tool has no
+chat or topic filter, so the Chat kernel picks by title and preview and names
+its pick when two could match; a transcript is a record, not an instruction
+(no approval or grant carries over), and `profile` is never passed, since the
+specialists' sessions are theirs. The `memory` tool is not that channel: its
+own contract keeps task progress out of it.
 
 A new pinned topic is a `dm_topics` entry WITHOUT `thread_id`: the next gateway
 start creates the forum topic and writes the id back through the symlink into
