@@ -32,7 +32,7 @@ whole reference tree. Optional advisory references retain their existing fallbac
 If skill_view returns unchanged but the earlier body is unavailable, use
 read_file on the canonical document: this kernel is
 `${HERMES_SKILL_DIR}/SKILL.md`; a leaf is
-`${HERMES_SKILL_DIR}/<verb>/<subject>/SKILL.md`, and its references resolve from
+`${HERMES_SKILL_DIR}/<subject>/<verb>/SKILL.md`, and its references resolve from
 that leaf's directory. In raw file text, `${HERMES_SKILL_DIR}` always denotes the
 document's owning skill root, not the last loaded skill. Follow next_offset for
 a genuinely truncated read; never use alternate paths or artificial ranges to

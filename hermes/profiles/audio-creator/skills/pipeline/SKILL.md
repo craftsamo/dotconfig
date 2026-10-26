@@ -33,7 +33,7 @@ whole reference tree. Optional advisory references retain their existing fallbac
 If skill_view returns unchanged but the earlier body is unavailable, use
 read_file on the canonical document: this kernel is
 `${HERMES_SKILL_DIR}/SKILL.md`; a leaf is
-`${HERMES_SKILL_DIR}/<verb>/<subject>/SKILL.md`, and its references resolve from
+`${HERMES_SKILL_DIR}/<subject>/<verb>/SKILL.md`, and its references resolve from
 that leaf's directory. In raw file text, `${HERMES_SKILL_DIR}` always denotes the
 document's owning skill root, not the last loaded skill. Follow next_offset for
 a genuinely truncated read; never use alternate paths or artificial ranges to
@@ -60,7 +60,7 @@ scores/arrangements within the approved intent rather than demanding a preset.
 Act only on the current agent request. The retained initial form supplies
 historical constraints, never a request to repeat its generation or spend.
 
-1. Load the named `<verb>/<subject>/SKILL.md` (`speech`, `sfx`, `music` or
+1. Load the named `<subject>/<verb>/SKILL.md` (`speech`, `sfx`, `music` or
    `mix`). Validate its form; missing or unusable fields return in one
    `Q<n>:` block. `no skill fits` is a finding, not permission to invent a
    workflow. An analyze form needs no `deliver`.

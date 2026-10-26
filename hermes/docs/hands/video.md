@@ -52,7 +52,7 @@ a stray file (e.g. `.DS_Store`) under a frozen root to make a rescan pass.
 
 ## Music-video family
 
-`profiles/video-creator/skills/pipeline/generate/music-video/` serves `generate-music-video`.
+`profiles/video-creator/skills/pipeline/music-video/generate/` serves `generate-music-video`.
 MV is a deliverable, not a collection of character/format skill products: a
 short MV-style progression with performance, a coherent world and highlights,
 unlike clip's silent single shot. No new provider, wrapper, endpoint, TTS or
@@ -158,7 +158,7 @@ explainer renderer or a new video subject; details in
 
 ## Tour family
 
-`profiles/video-creator/skills/pipeline/create/tour/` serves `create-tour`: bounded
+`profiles/video-creator/skills/pipeline/tour/create/` serves `create-tour`: bounded
 task-local authored UI walkthroughs — recreate from reference/design/text, edit
 supplied local footage, or capture an explicitly approved sanitized Web demo —
 with frozen source projects and exclusive preview/final directories. It is not
@@ -229,7 +229,7 @@ separate final gate.
 
 ## Explainer-video family
 
-`profiles/video-creator/skills/pipeline/create/explainer-video/` serves `create-explainer-video`:
+`profiles/video-creator/skills/pipeline/explainer-video/create/` serves `create-explainer-video`:
 a bounded local-authored explanation of a topic, for an audience, toward a
 `learning_goal` — never a UI walkthrough (`create-tour`), an ad (`create-ad`), a
 model-generated MV (`generate-music-video`) or a talking-model product. Always
@@ -240,7 +240,7 @@ preserved — never silently switched, including on failure. `renderer:
 hyperframes` (plan `version: 1`) authors HTML/CSS/GSAP; `renderer:
 motion-canvas` (plan `version: 2`) authors a Motion Canvas scene through the
 pinned runtime in `engines/motion-canvas/`, with its own reference
-`create/explainer-video/references/motion-canvas.md` and no dependency on the
+`explainer-video/create/references/motion-canvas.md` and no dependency on the
 external HyperFrames skills. A `version: 1` plan
 naming `motion-canvas` stays non-executable: it needs a fresh `version: 2`
 proposal and approval, never a resume of the old hash. An unsupported renderer
@@ -308,7 +308,7 @@ reported as not run, never trimmed to fit. Always `kind="work"`.
 
 ## Promotion family
 
-`profiles/video-creator/skills/pipeline/create/promotion/` serves `create-promotion`:
+`profiles/video-creator/skills/pipeline/promotion/create/` serves `create-promotion`:
 authored promotion video — launch/promo, brand or sizzle pieces, feature
 reveals, kinetic typography, logo stings — that VideoCreator designs and draws
 itself in HTML/CSS/SVG/GSAP, optionally matching a local reference video.
@@ -350,7 +350,7 @@ techniques.
 
 ## Story family
 
-`profiles/video-creator/skills/pipeline/create/story/` serves `create-story`: a short character
+`profiles/video-creator/skills/pipeline/story/create/` serves `create-story`: a short character
 story in which recurring characters from their approved art act out a narrative
 across scenes, with dialogue from an approved script and a finished soundtrack,
 staged as 2.5D HyperFrames animation (frame rate: "Frame rate"). Always
@@ -377,7 +377,7 @@ separate units the Assistant releases.
 
 ## Master family
 
-`profiles/video-creator/skills/pipeline/create/master/` serves `create-master`: one finished
+`profiles/video-creator/skills/pipeline/master/create/` serves `create-master`: one finished
 delivery master from already-approved parts — silent segments joined by cut or
 dissolve, a finished WAV or audio-creator Mix bundle under them, optional
 captions burned in plus an SRT sidecar. Always `kind="work"`; free. It covers
@@ -437,7 +437,7 @@ root and served-clip routing together and restart the single gateway.
 
 ## Pixel-animation family
 
-`profiles/video-creator/skills/pipeline/create/pixel-animation/` carries one verb.
+`profiles/video-creator/skills/pipeline/pixel-animation/create/` carries one verb.
 `create-pixel-animation` delivers a grid-exact pixel animation (sprite/cel
 cycle, loop, effect, integer-step parallax) as an RGB-lossless master MP4, a
 yuv420p compatibility MP4 and an optional GIF, with palette, cadence and loop

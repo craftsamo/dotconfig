@@ -57,7 +57,7 @@ class CardAuthoredTests(unittest.TestCase):
         from .skill_roots import find_all_skills, search_dirs_name, search_dirs_result
 
         for verb in ("create", "generate", "edit", "analyze"):
-            body = (card.ROOT / verb / "card/SKILL.md").read_text()
+            body = (card.ROOT / "card" / verb / "SKILL.md").read_text()
             self.assertLess(body.index("\n---", 4) + 4, 3800)
         with patch.object(skills_tool, "_SKILLS_CACHE", {}), \
              patch.object(skills_tool, search_dirs_name(), return_value=search_dirs_result(card.ROOT)), \

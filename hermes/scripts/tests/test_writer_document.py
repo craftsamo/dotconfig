@@ -19,7 +19,7 @@ def content(path):
 
 @pytest.mark.parametrize("verb", ["write", "edit", "analyze"])
 def test_document_form_and_local_format_references(verb):
-    root = PIPELINE / verb / "document"
+    root = PIPELINE / "document" / verb
     text = (root / "SKILL.md").read_text()
     assert text.index("---", 3) + 3 < 4000
     data = yaml.safe_load(text.split("---", 2)[1])
@@ -54,23 +54,23 @@ def test_document_form_and_local_format_references(verb):
 def test_document_kernel_routes_existing_brief_names():
     kernel = content(PIPELINE / "SKILL.md")
     for verb in ("write", "edit", "analyze"):
-        assert f"]({verb}/document/SKILL.md)" in kernel
+        assert f"](document/{verb}/SKILL.md)" in kernel
     assert "documentation or business-document" in kernel
     assert "Factual release notes belong here" in kernel
-    assert "](write/script/SKILL.md)" in kernel
-    assert "](write/copy/SKILL.md)" in kernel
+    assert "](script/write/SKILL.md)" in kernel
+    assert "](copy/write/SKILL.md)" in kernel
 
 
 @pytest.mark.parametrize("verb", ["write", "edit", "analyze"])
 def test_minutes_do_not_turn_missing_records_into_decisions(verb):
-    text = content(PIPELINE / verb / "document/references/minutes.md").lower()
+    text = content(PIPELINE / "document" / verb / "references/minutes.md").lower()
     assert "record" in text and "owner" in text and "deadline" in text
     assert "agreement" in text or "decision" in text
     assert "missing from the record" in text or "absent deadline" in text
 
 
 def test_edit_protects_structure_and_execution_status():
-    text = content(PIPELINE / "edit/document/SKILL.md")
+    text = content(PIPELINE / "document/edit/SKILL.md")
     assert "Untouched sections and protected content stay unchanged" in text
     assert "Do not imply that unseen inbound links were checked" in text
     assert "Do not execute examples" in text
@@ -78,7 +78,7 @@ def test_edit_protects_structure_and_execution_status():
 
 
 def test_analysis_gates_report_not_an_imaginary_new_document():
-    text = content(PIPELINE / "analyze/document/SKILL.md")
+    text = content(PIPELINE / "document/analyze/SKILL.md")
     assert "Apply QA to the report" in text
     assert "does not require a full new-document brief" in text
     assert "analysis report need not contain a new README quick start" in text
@@ -87,10 +87,10 @@ def test_analysis_gates_report_not_an_imaginary_new_document():
 
 
 def test_release_status_and_slides_are_not_publication_claims():
-    release = content(PIPELINE / "write/document/references/release-notes.md")
+    release = content(PIPELINE / "document/write/references/release-notes.md")
     assert "planned, unreleased and shipped" in release
     assert "Do not infer a release date" in release
-    slides = content(PIPELINE / "write/document/references/slides.md")
+    slides = content(PIPELINE / "document/write/references/slides.md")
     assert "not a rendered deck" in slides
     assert "Source text alone cannot prove legibility" in slides
 
@@ -98,7 +98,7 @@ def test_release_status_and_slides_are_not_publication_claims():
 @pytest.mark.parametrize("name", FORMATS)
 def test_format_guidance_is_operation_specific(name):
     texts = {
-        (PIPELINE / verb / f"document/references/{name}.md").read_text()
+        (PIPELINE / "document" / verb / f"references/{name}.md").read_text()
         for verb in ("write", "edit", "analyze")
     }
     assert len(texts) == 3
@@ -106,7 +106,7 @@ def test_format_guidance_is_operation_specific(name):
 
 @pytest.mark.parametrize("verb", ["write", "edit", "analyze"])
 def test_report_craft_has_grounded_examples_and_scope_limits(verb):
-    reference = content(PIPELINE / verb / "document/references/report.md")
+    reference = content(PIPELINE / "document" / verb / "references/report.md")
     assert "## Worked example and counterexample" in reference
     assert all(value in reference for value in ("30", "50", "respondents"))
     assert "v1.5.0" in reference
@@ -115,8 +115,8 @@ def test_report_craft_has_grounded_examples_and_scope_limits(verb):
 
 
 def test_report_operations_do_not_conflate_correction_and_analysis():
-    edit = content(PIPELINE / "edit/document/references/report.md")
-    analysis = content(PIPELINE / "analyze/document/references/report.md")
+    edit = content(PIPELINE / "document/edit/references/report.md")
+    analysis = content(PIPELINE / "document/analyze/references/report.md")
     assert "leave it unchanged" in edit
     assert "outside scope" in edit
     assert "unavailable source" in analysis
@@ -124,7 +124,7 @@ def test_report_operations_do_not_conflate_correction_and_analysis():
 
 
 def test_guide_example_does_not_invent_navigation():
-    guide = content(PIPELINE / "write/document/references/guide.md")
+    guide = content(PIPELINE / "document/write/references/guide.md")
     assert "The documented action is to select Archive and confirm" in guide
     assert "open Project settings" not in guide
 
@@ -132,7 +132,7 @@ def test_guide_example_does_not_invent_navigation():
 @pytest.mark.parametrize("verb", ["write", "edit", "analyze"])
 @pytest.mark.parametrize("name", [name for name in FORMATS if name != "report"])
 def test_document_craft_has_decisions_examples_and_pinned_attribution(verb, name):
-    text = (PIPELINE / verb / f"document/references/{name}.md").read_text()
+    text = (PIPELINE / "document" / verb / f"references/{name}.md").read_text()
     guidance, heading, example = text.partition(
         "\n## Worked example and retain condition\n"
     )
@@ -153,12 +153,12 @@ def test_document_craft_has_decisions_examples_and_pinned_attribution(verb, name
 
 @pytest.mark.parametrize("name", [name for name in FORMATS if name != "report"])
 def test_document_craft_keeps_edit_and_analysis_boundaries(name):
-    edit = content(PIPELINE / "edit" / f"document/references/{name}.md")
+    edit = content(PIPELINE / f"document/edit/references/{name}.md")
     assert "untouched sections and protected content unchanged" in edit
     assert "no-op is legitimate" in edit
     example = edit.split("## Worked example and retain condition", 1)[1]
     assert example.index("Before:") < example.index("After:") < example.index("QA:")
-    analysis = content(PIPELINE / "analyze" / f"document/references/{name}.md")
+    analysis = content(PIPELINE / f"document/analyze/references/{name}.md")
     assert "replacement draft" in analysis
     assert all(term in analysis for term in (
         "actual defect", "missing evidence", "optional preference",
@@ -182,5 +182,5 @@ def test_document_craft_keeps_edit_and_analysis_boundaries(name):
     ("issue", ("observed", "expected", "environment", "hypothes", "cause")),
 ])
 def test_document_craft_retains_format_specific_decisions(verb, name, concepts):
-    text = content(PIPELINE / verb / f"document/references/{name}.md").lower()
+    text = content(PIPELINE / "document" / verb / f"references/{name}.md").lower()
     assert all(concept in text for concept in concepts)

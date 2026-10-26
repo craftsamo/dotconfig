@@ -68,7 +68,7 @@ document's owning `SKILL.md`, not whichever skill was loaded last.
    an analysis of an imaginary manuscript: select `consult-writer` instead.
 2. Identify the subject from the intended deliverable, not its length.
    Check the installed Writer leaves through the skill list. A leaf lives
-   at `<operation>/<subject>/SKILL.md` and is named `<operation>-<subject>`.
+   at `<subject>/<operation>/SKILL.md` and is named `<operation>-<subject>`.
    Do not infer that every possible combination is installed.
 3. Read the selected leaf with `skill_view`, including for a short or
    obvious-looking request: its rules are where the narrow cases live.
@@ -118,8 +118,8 @@ grants no general terminal or code-execution tool.
 <PostFamily>
 
 Social post text covers X single/long posts and
-threads, and Instagram feed/reel captions. Use [write-post](write/post/SKILL.md),
-[edit-post](edit/post/SKILL.md) or [analyze-post](analyze/post/SKILL.md).
+threads, and Instagram feed/reel captions. Use [write-post](post/write/SKILL.md),
+[edit-post](post/edit/SKILL.md) or [analyze-post](post/analyze/SKILL.md).
 X Articles, private messages and in-image text are different subjects.
 Post work uses the selected leaf's QA and never the legacy four-pass floor.
 The requester consumes the resulting text unchanged and owns platform
@@ -130,8 +130,8 @@ not a new post; it needs neither attachments nor Publish approval to exist.
 
 <ArticleFamily>
 
-Articles use [write-article](write/article/SKILL.md),
-[edit-article](edit/article/SKILL.md) or [analyze-article](analyze/article/SKILL.md).
+Articles use [write-article](article/write/SKILL.md),
+[edit-article](article/edit/SKILL.md) or [analyze-article](article/analyze/SKILL.md).
 Existing technical-prose briefs select this family.
 The selected leaf owns destination syntax, approach and QA. Rich-text editor
 operations and missing media stay outside the publishable body as explicit
@@ -143,8 +143,8 @@ Documents, copy and production scripts remain distinct subjects.
 
 <DocumentFamily>
 
-Technical and business documents use [write-document](write/document/SKILL.md),
-[edit-document](edit/document/SKILL.md) or [analyze-document](analyze/document/SKILL.md).
+Technical and business documents use [write-document](document/write/SKILL.md),
+[edit-document](document/edit/SKILL.md) or [analyze-document](document/analyze/SKILL.md).
 Existing briefs saying documentation or business-document select this family.
 Factual release notes belong here, not promotional copy; a slide outline is
 document text, not a rendered deck. The format selects only the leaf's local
@@ -159,8 +159,8 @@ Production scripts use the separate Script family below, not document templates.
 <MessageFamily>
 
 Email, chat, notification, UI and error wording use
-[write-message](write/message/SKILL.md), [edit-message](edit/message/SKILL.md)
-or [analyze-message](analyze/message/SKILL.md). These are text jobs, not contact
+[write-message](message/write/SKILL.md), [edit-message](message/edit/SKILL.md)
+or [analyze-message](message/analyze/SKILL.md). These are text jobs, not contact
 resolution, system diagnosis, interface implementation or sending. Use the
 supplied recipient/context; personal-context workflows remain with the requester.
 Social posts and promotional mail are separate subjects, not short-message
@@ -174,8 +174,8 @@ humanizer. The recipient-facing body must remain separable from review notes.
 
 <CopyFamily>
 
-Promotional text uses [write-copy](write/copy/SKILL.md),
-[edit-copy](edit/copy/SKILL.md) or [analyze-copy](analyze/copy/SKILL.md).
+Promotional text uses [write-copy](copy/write/SKILL.md),
+[edit-copy](copy/edit/SKILL.md) or [analyze-copy](copy/analyze/SKILL.md).
 Existing marketing-copy briefs select this family. Landing page, email and
 announcement are local destination options; a custom destination uses its
 supplied constraints. Ordinary correspondence, social posts and factual
@@ -193,8 +193,8 @@ return corrections to Writer; text acceptance is not publication approval.
 
 <ScriptFamily>
 
-Production text uses [write-script](write/script/SKILL.md),
-[edit-script](edit/script/SKILL.md) or [analyze-script](analyze/script/SKILL.md).
+Production text uses [write-script](script/write/SKILL.md),
+[edit-script](script/edit/SKILL.md) or [analyze-script](script/analyze/SKILL.md).
 Narration, comic, storyboard, screenplay and slide-script are local format
 options; actual producer requirements take precedence over defaults. A plain
 speech input contains only intended words, with instructions in separate

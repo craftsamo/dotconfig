@@ -87,7 +87,7 @@ class VideoInspectionRouting(unittest.TestCase):
         self.assertIn("`analyze-explainer-video`", commission)
         self.assertIn('kind="work")`, one conversation per video', commission)
         self.assertIn("`remote_analysis` defaults to no", commission)
-        leaf = flat(PUBLIC_ROOT / "hermes/profiles/video-creator/skills/pipeline/analyze/explainer-video/SKILL.md")
+        leaf = flat(PUBLIC_ROOT / "hermes/profiles/video-creator/skills/pipeline/explainer-video/analyze/SKILL.md")
         for boundary in ("Never say whether a portrait looks like a real person", "List them; do not judge them",
                          "Text heights come from `measure`", "No thumbnail review"):
             self.assertIn(boundary, leaf)

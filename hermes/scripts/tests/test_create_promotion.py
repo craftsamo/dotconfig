@@ -13,7 +13,7 @@ import hermes_yaml as yaml
 
 HERMES_ROOT = Path(__file__).resolve().parents[2]
 VIDEO = HERMES_ROOT / "profiles/video-creator/skills/pipeline"
-LEAF = VIDEO / "create/promotion"
+LEAF = VIDEO / "promotion/create"
 VOCABULARY = HERMES_ROOT.parent / "agents/skills/motion-vocabulary/references"
 CREATOR = HERMES_ROOT / "profiles/creator"
 ADVISOR = CREATOR / "skills/pipeline/references/video-creator/promotion.md"
@@ -141,7 +141,7 @@ def test_render_smoke(tmp_path):
     source = tmp_path / "source"
     (source / "assets").mkdir(parents=True)
     for name in ("gsap.min.js", "GSAP-LICENSE.txt", "gsap-provenance.json"):
-        shutil.copy(VIDEO / "create/tour/assets" / name, source / "assets" / name)
+        shutil.copy(VIDEO / "tour/create/assets" / name, source / "assets" / name)
     (source / "index.html").write_text(
         '<!doctype html><html><body><div id="root" data-composition-id="promotion" data-start="0" '
         'data-width="1920" data-height="1080" data-duration="4" data-fps="30" style="background:#fff;'

@@ -222,7 +222,7 @@ def _child(case, sandbox, candidate, source):
                     leaves = list(trees[profile].glob("*/*/SKILL.md"))
                     assert leaves, profile
                     for leaf in leaves:
-                        name = f"{leaf.parent.parent.name}-{leaf.parent.name}"
+                        name = f"{leaf.parent.name}-{leaf.parent.parent.name}"
                         fm, _ = su.parse_frontmatter(leaf.read_text(encoding="utf-8"))
                         assert fm["name"] == name and name not in expected
                         expected.add(name)
@@ -299,7 +299,7 @@ def _child(case, sandbox, candidate, source):
                 found = {s["name"] for s in find_all_skills()}
                 assert "video-creator-pipeline" in found and not found.intersection(CREATOR_NAMES)
                 body_matches(view("video-creator-pipeline", task=task), root / "SKILL.md")
-                leaf = root / "generate/music-video"
+                leaf = root / "music-video/generate"
                 body_matches(view("generate-music-video", task=task), leaf / "SKILL.md")
                 fm, _ = su.parse_frontmatter((leaf / "SKILL.md").read_text(encoding="utf-8"))
                 option = fm["metadata"]["hermes"]["form"]["pace"]
@@ -318,7 +318,7 @@ def _child(case, sandbox, candidate, source):
             elif case == "hands_inline_format":
                 root = trees[owner]
                 body_matches(view("video-creator-pipeline"), root / "SKILL.md")
-                path = root / "edit/clip/SKILL.md"
+                path = root / "clip/edit/SKILL.md"
                 payload = view("edit-clip")
                 body_matches(payload, path)
                 fm, _ = su.parse_frontmatter(payload["content"])
@@ -366,7 +366,7 @@ def _child(case, sandbox, candidate, source):
             elif case == "external_form":
                 assert trees["image-creator"] in external
                 body_matches(view("propose-creator"), tree / "propose/SKILL.md")
-                path = trees["image-creator"] / "create/card/SKILL.md"
+                path = trees["image-creator"] / "card/create/SKILL.md"
                 payload = view("create-card")
                 body_matches(payload, path)
                 fm, _ = su.parse_frontmatter(payload["content"])

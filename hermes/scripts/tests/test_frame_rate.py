@@ -47,7 +47,7 @@ def test_drafts_are_capped_at_30(rate, expected):
 
 @pytest.mark.parametrize("subject", ["promotion", "story", "ad", "tour", "explainer-video"])
 def test_each_authored_leaf_offers_the_same_rates(subject):
-    text = (PIPELINE / "create" / subject / "SKILL.md").read_text(encoding="utf-8")
+    text = (PIPELINE / subject / "create" / "SKILL.md").read_text(encoding="utf-8")
     end = text.index("\n---", 4)
     form = yaml.safe_load(text[4:end])["metadata"]["hermes"]["form"]
     assert form["fps"]["required"] is False

@@ -38,7 +38,7 @@ file via `skill_view(name=..., file_path="...")`; do not list or install.
 Motion Canvas is not one of these four references and this file grants it
 no scope. It is implemented as create-explainer-video's own separate v2
 renderer choice with its own local reference
-(`create/explainer-video/references/motion-canvas.md`), which these four
+(`explainer-video/create/references/motion-canvas.md`), which these four
 HyperFrames references never back — a Motion Canvas job never treats this
 file as a substitute for that local reference, and this policy is never a
 route to a fallback renderer of either kind.

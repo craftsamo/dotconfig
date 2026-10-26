@@ -34,11 +34,11 @@ def consultation(root):
     return path
 
 
-def leaf(root, location="write/article", **overrides):
+def leaf(root, location="article/write", **overrides):
     path = root / location / "SKILL.md"
     path.parent.mkdir(parents=True, exist_ok=True)
     data = {
-        "name": location.replace("/", "-"),
+        "name": "-".join(reversed(location.split("/"))),
         "description": "Write an article draft, not a published post.",
         "metadata": {"hermes": {
             "category": "writing", "output": "Complete draft at the requested path",
@@ -70,11 +70,11 @@ def test_empty_migration_is_valid(tmp_path):
 
 @pytest.mark.parametrize("verb", ["write", "edit", "analyze"])
 def test_operation_leaf_is_valid(tmp_path, verb):
-    leaf(tmp_path, f"{verb}/article")
+    leaf(tmp_path, f"article/{verb}")
     assert errors(tmp_path) == []
 
 
-@pytest.mark.parametrize("location", ["generate/article", "write/article/zenn", "write/Article"])
+@pytest.mark.parametrize("location", ["article/generate", "article/write/zenn", "Article/write"])
 def test_invalid_location(tmp_path, location):
     leaf(tmp_path, location)
     assert errors(tmp_path)
@@ -253,7 +253,7 @@ def test_hermes_discovers_writer_and_serves_its_references(tmp_path, monkeypatch
     shutil.copytree(source, target)
     language_source = SCRIPT.parents[2] / "agents/skills/japanese-writing"
     shutil.copytree(language_source, local / "japanese-writing")
-    leaf(target, "analyze/fixture")
+    leaf(target, "fixture/analyze")
     monkeypatch.setattr(skills_tool, "SKILLS_DIR", local)
     monkeypatch.setattr(skill_utils, "get_project_skills_dirs", lambda: [])
     monkeypatch.setattr(hermes_config, "load_config", lambda *args, **kwargs: config)

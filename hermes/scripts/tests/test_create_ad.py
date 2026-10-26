@@ -19,7 +19,7 @@ from PIL import Image
 from PIL import Image as PILImage
 
 ROOT = Path(__file__).resolve().parents[2]
-LEAF = ROOT / "profiles/video-creator/skills/pipeline/create/ad"
+LEAF = ROOT / "profiles/video-creator/skills/pipeline/ad/create"
 
 
 def _load(name, path):

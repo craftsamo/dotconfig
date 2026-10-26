@@ -20,7 +20,7 @@ from pathlib import Path
 HERMES_ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = (
     HERMES_ROOT / "profiles" / "video-creator" / "skills" / "pipeline"
-    / "analyze" / "explainer-video" / "scripts" / "explainer-evidence.py"
+    / "explainer-video" / "analyze" / "scripts" / "explainer-evidence.py"
 )
 
 try:

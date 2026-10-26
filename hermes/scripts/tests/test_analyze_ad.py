@@ -29,7 +29,7 @@ import hermes_yaml as yaml
 from PIL import Image
 
 ROOT = Path(__file__).resolve().parents[2]
-LEAF = ROOT / "profiles/video-creator/skills/pipeline/analyze/ad"
+LEAF = ROOT / "profiles/video-creator/skills/pipeline/ad/analyze"
 
 
 def _load(name, path):

@@ -17,7 +17,7 @@ import pytest
 import hermes_yaml as yaml
 
 HERMES_ROOT = Path(__file__).resolve().parents[2]
-LEAF = HERMES_ROOT / "profiles/video-creator/skills/pipeline/create/master"
+LEAF = HERMES_ROOT / "profiles/video-creator/skills/pipeline/master/create"
 CREATOR = HERMES_ROOT / "profiles/creator/skills/pipeline"
 
 spec = importlib.util.spec_from_file_location("create_master", LEAF / "scripts/master.py")

@@ -26,7 +26,7 @@ def _leaves(*triples: tuple[str, str, str]) -> dict[str, dict[str, Path]]:
     result: dict[str, dict[str, Path]] = {}
     for profile, subject, name in triples:
         verb = name.split("-", 1)[0]
-        result.setdefault(profile, {})[name] = Path(f"/fake/{profile}/{verb}/{subject}/SKILL.md")
+        result.setdefault(profile, {})[name] = Path(f"/fake/{profile}/{subject}/{verb}/SKILL.md")
     return result
 
 
@@ -142,7 +142,7 @@ class HandsRuntimeDiscoveryTest(unittest.TestCase):
             rel = path.relative_to(pipeline)
             if len(rel.parts) != 3:
                 continue
-            verb, subject, _ = rel.parts
+            subject, verb, _ = rel.parts
             leaves[f"{verb}-{subject}"] = path
         return leaves
 

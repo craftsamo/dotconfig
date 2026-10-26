@@ -83,7 +83,7 @@ is `.` (launch / task workspace) except the assistant's `~/Workspaces`.
 | **researcher**    | depth modes investigate / compare / verify / advise; serves creator/marketer only (not Assistant directly), cards refused               | — (A2A receive-only) | served (a2a :9906)    |
 | **searcher**      | retrieval modes lookup / sweep / hunt; resident sessions only, cards refused                                                            | — (specialist)       | served (no platforms) |
 | **creator**       | the Assistant's creative advisor: directions and located revisions; never produces or commissions ([creator.md](./profiles/creator.md)) | — (Assistant only)   | served (a2a :9903)    |
-| **image-creator** | still-image hands: runs one `<verb>/<subject>` leaf from a filled form; answers only the Assistant                                      | — (A2A receive-only) | served (a2a :9907)    |
+| **image-creator** | still-image hands: runs one `<subject>/<verb>` leaf from a filled form; answers only the Assistant                                      | — (A2A receive-only) | served (a2a :9907)    |
 | **video-creator** | video hands: runs video leaves from approved forms; answers only the Assistant                                                          | — (A2A receive-only) | served (a2a :9908)    |
 | **audio-creator** | audio hands: speech, sfx, music (instrumental only) and mix (finished sources, never synthesis); no claims of listening                 | — (A2A receive-only) | served (a2a :9909)    |
 | **writer**        | reader-facing prose and producer-facing scripts from released units; draft-only, never publishes; serves the assistant                  | — (A2A receive-only) | served (a2a :9905)    |

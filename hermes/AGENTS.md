@@ -296,7 +296,7 @@ Contract: [docs/hands/overview.md](docs/hands/overview.md),
 [docs/broker.md](docs/broker.md) and
 [docs/profiles/creator.md](docs/profiles/creator.md). When editing:
 
-- A hands skill is a `pipeline/<verb>/<subject>/SKILL.md` leaf with one
+- A hands skill is a `pipeline/<subject>/<verb>/SKILL.md` leaf with one
   form — never a technic, a generated index, `menu.yaml`, a preset layer or
   cross-media Styles (those earlier shapes decided nothing or governed
   everything). A subject must be unique across all hands, because the Assistant

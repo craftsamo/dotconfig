@@ -24,7 +24,7 @@ from unittest.mock import patch
 from PIL import Image, ImageDraw, ImageFont
 
 ROOT = Path(__file__).resolve().parents[2]
-SCRIPT = ROOT / "profiles/video-creator/skills/pipeline/create/tour/scripts/tour.py"
+SCRIPT = ROOT / "profiles/video-creator/skills/pipeline/tour/create/scripts/tour.py"
 spec = importlib.util.spec_from_file_location("tour", SCRIPT)
 tour = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(tour)

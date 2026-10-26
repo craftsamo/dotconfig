@@ -2,7 +2,7 @@
 """Read-only audit of Creator hands option-backed reference catalogs.
 
 Scope: managed image-creator/video-creator/audio-creator pipeline
-<verb>/<subject>/SKILL.md leaves only. Reuses validate_hands_form's exact
+<subject>/<verb>/SKILL.md leaves only. Reuses validate_hands_form's exact
 option-backing mapping (style -> styles, theme -> themes, else the field
 name; style is always backed, other option fields only when their catalog
 dir exists or the field carries a bare `references` marker key - never a
@@ -23,7 +23,7 @@ Usage:
 
 Exit codes: 0 no errors (warnings permitted), 1 errors found,
 2 invalid invocation (bad --root, or a --leaf that is missing, escapes
---root, or is not a hands <verb>/<subject> leaf directory).
+--root, or is not a hands <subject>/<verb> leaf directory).
 """
 
 from __future__ import annotations
@@ -164,7 +164,7 @@ def hands_pipeline_dir(root: Path, profile: str) -> Path:
 
 
 def discover_leaves(root: Path) -> list[tuple[str, Path, Path]]:
-    """Every <verb>/<subject>/SKILL.md leaf across all hands pipelines below
+    """Every <subject>/<verb>/SKILL.md leaf across all hands pipelines below
     --root. Returns (profile, pipeline_dir, leaf_path)."""
     leaves: list[tuple[str, Path, Path]] = []
     for profile in HANDS_PROFILES:
@@ -173,14 +173,14 @@ def discover_leaves(root: Path) -> list[tuple[str, Path, Path]]:
             continue
         for path in sorted(pipeline_dir.rglob("SKILL.md")):
             rel = path.relative_to(pipeline_dir)
-            if len(rel.parts) != 3 or rel.parts[0] not in HANDS_VERBS:
+            if len(rel.parts) != 3 or rel.parts[1] not in HANDS_VERBS:
                 continue
             leaves.append((profile, pipeline_dir, path))
     return leaves
 
 
 def classify_leaf(root: Path, leaf_dir: Path) -> tuple[str, Path, str, str]:
-    """(profile, pipeline_dir, verb, subject) for a <verb>/<subject> leaf
+    """(profile, pipeline_dir, verb, subject) for a <subject>/<verb> leaf
     directory, or raise InvalidInvocation when it names no such leaf."""
     resolved = leaf_dir.resolve()
     for profile in HANDS_PROFILES:
@@ -189,10 +189,10 @@ def classify_leaf(root: Path, leaf_dir: Path) -> tuple[str, Path, str, str]:
             rel = resolved.relative_to(pipeline_dir)
         except (OSError, ValueError):
             continue
-        if len(rel.parts) == 2 and rel.parts[0] in HANDS_VERBS:
-            return profile, pipeline_dir, rel.parts[0], rel.parts[1]
+        if len(rel.parts) == 2 and rel.parts[1] in HANDS_VERBS:
+            return profile, pipeline_dir, rel.parts[1], rel.parts[0]
     raise InvalidInvocation(
-        f"--leaf is not a hands <verb>/<subject> leaf directory: {leaf_dir}"
+        f"--leaf is not a hands <subject>/<verb> leaf directory: {leaf_dir}"
     )
 
 
@@ -354,11 +354,11 @@ def audit_style_catalog(
     adapters: CardAdapters,
     findings: Findings,
 ) -> None:
-    # css_style() always resolves against create/card/references (card.py's
+    # css_style() always resolves against card/create/references (card.py's
     # module-level REFERENCES constant): generate-card's own-named style
     # options are backdrop prompt prose, not duplicated CSS, so only
     # create-card's options exercise the CSS-fence check.
-    if leaf_path.parent.parent.name != "create":
+    if leaf_path.parent.name != "create":
         return
     adapter = adapters.get(pipeline_dir)
     if adapter is None:
@@ -411,7 +411,7 @@ def audit_leaf(
     findings: Findings,
 ) -> None:
     rel = leaf_path.relative_to(pipeline_dir)
-    verb, subject = rel.parts[0], rel.parts[1]
+    subject, verb = rel.parts[0], rel.parts[1]
     name = f"{verb}-{subject}"
     is_card_family = profile == "image-creator" and subject == "card"
 
@@ -565,7 +565,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--leaf",
-        help="repo-relative <verb>/<subject> hands leaf directory to scope the audit to",
+        help="repo-relative <subject>/<verb> hands leaf directory to scope the audit to",
     )
     parser.add_argument("--json", action="store_true", help="emit a JSON findings report instead of text")
     return parser

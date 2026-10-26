@@ -16,7 +16,7 @@ import tempfile
 import uuid
 
 ROOT = Path(__file__).resolve().parents[1]
-REFERENCES = ROOT / "create/card/references"
+REFERENCES = ROOT / "card/create/references"
 TEXT = {"title", "subtitle", "brand", "label", "meta", "slug", "note"}
 TILING = {"destination", "tiles", "tile", "gap"}
 CREATE = TEXT | TILING | {"style", "style_css", "texture", "layout_html", "copy_blocks", "background", "motif", "palette", "font", "tile_titles"}

@@ -7,8 +7,8 @@ import shutil
 import sys
 from pathlib import Path
 
-LEAF = Path(__file__).resolve().parents[4] / "profiles/video-creator/skills/pipeline/create/ad"
-TOUR_LEAF = LEAF.parent / "tour"
+LEAF = Path(__file__).resolve().parents[4] / "profiles/video-creator/skills/pipeline/ad/create"
+TOUR_LEAF = LEAF.parent.parent / "tour" / "create"
 
 
 def _load(name, path):

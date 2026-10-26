@@ -1,4 +1,4 @@
-"""Coverage for video-creator's generate/music-video hands leaf.
+"""Coverage for video-creator's music-video/generate hands leaf.
 
 Structural checks reuse the same validator functions validate-profile-skills.py
 runs. The `StaticContractLanguageTest` class at the bottom is DOCS-ONLY: it
@@ -30,7 +30,7 @@ SPEC.loader.exec_module(VALIDATOR)
 PIPELINE_DIR = (
     VALIDATOR.HERMES_ROOT / "profiles" / "video-creator" / "skills" / "pipeline"
 )
-MUSIC_VIDEO_LEAF_DIR = PIPELINE_DIR / "generate" / "music-video"
+MUSIC_VIDEO_LEAF_DIR = PIPELINE_DIR / "music-video" / "generate"
 MUSIC_VIDEO_SKILL = MUSIC_VIDEO_LEAF_DIR / "SKILL.md"
 CREATOR_PIPELINE = VALIDATOR.HERMES_ROOT / "profiles" / "creator" / "skills" / "pipeline"
 COMMISSIONING = (
@@ -125,7 +125,7 @@ class GenerateMusicVideoLeafTest(unittest.TestCase):
         self.assertNotIn("mv", names)
         self.assertNotIn("generate-mv", names)
         self.assertNotIn("music-video", names)
-        self.assertFalse((PIPELINE_DIR / "generate" / "mv").exists())
+        self.assertFalse((PIPELINE_DIR / "mv" / "generate").exists())
 
 
 class ThemeMappingRegressionTest(unittest.TestCase):
@@ -144,7 +144,7 @@ class ThemeMappingRegressionTest(unittest.TestCase):
     def setUp(self) -> None:
         self._tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self._tmp.cleanup)
-        self.leaf_dir = Path(self._tmp.name) / "generate" / "music-video"
+        self.leaf_dir = Path(self._tmp.name) / "music-video" / "generate"
         self.leaf_dir.mkdir(parents=True)
 
     def validate(self, form: str) -> list[str]:

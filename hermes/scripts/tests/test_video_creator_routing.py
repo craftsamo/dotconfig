@@ -44,7 +44,7 @@ class VideoCreatorRoutingTest(unittest.TestCase):
         self.assertIn("## Drawn looks", (VOCABULARY / "looks.md").read_text())
         self.assertIn("never re-renders supplied\nart, a cast or a logo", (VOCABULARY / "video/looks.md").read_text())
         for leaf in ("promotion", "story", "ad", "tour", "explainer-video"):
-            text = (kernel / "create" / leaf / "SKILL.md").read_text()
+            text = (kernel / leaf / "create" / "SKILL.md").read_text()
             with self.subTest(leaf=leaf):
                 self.assertIn('skill_view(name="motion-vocabulary")', text)
                 self.assertIn('skill_view(name="motion-vocabulary", file_path="references/core.md")', text)
