@@ -106,8 +106,9 @@ BYPASS_MESSAGE = (
     "Cloudflare runs only through the cloudflare tool, never through the terminal or file tools: not wrangler, "
     "cloudflared or flarectl, the API with curl or an SDK, the tokens (Keychain scope cloudflare-access), the "
     "CLIs' logins (~/.wrangler/config, ~/.cloudflared) or the tool's state (~/.cloudflare-access). Use the "
-    "cloudflare tool; storing a token is the user's job, and deploying code is a job for the project's own "
-    "tooling outside Hermes.")
+    "cloudflare tool; storing a token is the user's job. Deploying code is a job for the project's own "
+    "tooling, which runs from the terminal in its repository (workdir, or a leading `cd <absolute path> "
+    "&&`): `pnpm run deploy`, or the project's own wrangler as `pnpm exec wrangler …`.")
 # The Cloudflare CLIs, where a command runs them: directly, behind a wrapper such as sudo or env, inside
 # `bash -c`, or through a package runner such as npx or pnpm exec (shell_commands). Mentions that run nothing
 # (`grep wrangler package.json`, `grep -n 'wrangler deploy' docs/x.md`, `brew install cloudflared`) stay

@@ -87,7 +87,9 @@ READ_ONLY = "this profile can read Stripe but not change anything there"
 BYPASS_MESSAGE = (
     "Stripe runs only through the stripe tool, never through the terminal or file tools: not the Stripe CLI, "
     "the API with curl or an SDK, the keys (Keychain scope stripe-access) or the tool's state (~/.stripe-access). Use "
-    "the stripe tool; storing a key is the user's job.")
+    "the stripe tool; storing a key is the user's job. A project's own tooling (`pnpm run …`, "
+    "`./scripts/…`) runs from the terminal in its repository (workdir, or a leading `cd <absolute "
+    "path> &&`).")
 # The Stripe CLI, where a command runs it: directly, behind a wrapper such as sudo or env, inside `bash -c`,
 # or through a package runner (shell_commands). Mentions that run nothing (`npm view stripe version`,
 # `grep -n 'stripe listen' docs/x.md`) stay allowed. `_CLI_TEXT` judges a line that cannot be read that
