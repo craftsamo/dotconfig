@@ -124,3 +124,55 @@ def test_nesting_past_the_limits_falls_back():
     assert shell.runs(deep, NAMES, re.compile("x")) is True
     shallow = "echo " + "$(echo " * 3 + "x" + ")" * 3
     assert shell.runs(shallow, NAMES, re.compile("x")) is False
+
+
+# --- in a project ---------------------------------------------------------------------------------
+
+def in_project(command, local=("wrangler",)):
+    return shell.runs(command, NAMES, STRICT, project=True, local=lambda name: name in local)
+
+
+@pytest.mark.parametrize("command", [
+    "pnpm exec wrangler deploy", "pnpm --filter web exec wrangler deploy", "yarn exec wrangler deploy",
+    "npm exec wrangler -- deploy", "npx wrangler deploy", "bunx wrangler deploy", "pnpm wrangler deploy",
+    "./node_modules/.bin/wrangler deploy", "zsh -lc 'pnpm exec wrangler deploy'",
+    "grep gcloud README.md | ./scripts/summarize.sh", "echo x | node scripts/collect.mjs",
+])
+def test_a_project_runs_its_own_dependencies_and_scripts(command):
+    assert not in_project(command)
+
+
+@pytest.mark.parametrize("command", [
+    # what the project does not provide still counts, and a download is never the project's own
+    "pnpm exec gcloud auth list", "npx gcloud x", "pnpm dlx wrangler deploy", "pnpx wrangler deploy",
+    "npx -y wrangler deploy", "npx --package=wrangler wrangler deploy", "npm exec --yes wrangler deploy",
+    "wrangler deploy", "gcloud auth list", "/opt/homebrew/bin/wrangler deploy", "env wrangler deploy",
+    "pnpm exec env wrangler deploy",
+    # an entry point does not hide a CLI named in its arguments
+    "./scripts/run.sh gcloud auth list", "make GCLOUD=gcloud deploy",
+])
+def test_a_project_still_does_not_run_the_cli_directly(command):
+    assert in_project(command)
+
+
+@pytest.mark.parametrize("command,moves", [
+    ("printf 'gcloud auth list\\n' | sh -s ./ignored", 0), ("pnpm -C /elsewhere exec wrangler deploy", 0),
+    ("pnpm --dir=/elsewhere exec wrangler deploy", 0), ("npm --prefix /elsewhere exec wrangler deploy", 0),
+    ("env -C /elsewhere pnpm exec wrangler deploy", 0), ("pnpm exec /opt/homebrew/bin/wrangler deploy", 0),
+    ("npx wrangler@3 deploy", 0), ("cd /P && c\"d\" /elsewhere && pnpm exec wrangler deploy", 1),
+    ("c\"d\" /elsewhere && pnpm exec wrangler deploy", 0), ("(cd sub; pnpm exec wrangler deploy)", 0),
+    ("printf 'gcloud auth list\\n' | ./bin/sh -s", 0),
+])
+def test_a_project_exception_never_follows_the_line_elsewhere(command, moves):
+    assert shell.runs(command, NAMES, STRICT, project=True, local=lambda name: name == "wrangler", moves=moves)
+
+
+def test_a_leading_cd_is_the_project_place_itself():
+    for command in ("cd /P && pnpm exec wrangler deploy", "zsh -lc 'cd /P && pnpm exec wrangler deploy'",
+                    "cd /P && NOTE='pushd /tmp' pnpm exec wrangler deploy"):
+        assert not shell.runs(command, NAMES, STRICT, project=True, local=lambda name: True, moves=1)
+
+
+def test_outside_a_project_the_dependency_still_counts():
+    assert shell.runs("pnpm exec wrangler deploy", NAMES, STRICT, local=lambda name: True)
+    assert in_project("pnpm exec wrangler deploy", local=())
