@@ -49,7 +49,7 @@ TRADE_SKILL = "hyperliquid-access:hyperliquid-trade"
 NETWORKS = ("mainnet", "testnet")
 READS = ("dexs", "markets", "spots", "candles", "funding", "book", "state", "balances", "fills", "orders",
          "review", "export", "backtest", "deposit_info")
-STRATEGY_SKILL = "hyperliquid-access:hyperliquid-strategy"
+STRATEGY_SKILL = "hyperliquid-access:configure-strategy"
 TRADES = ("quote", "submit", "mandates", "revoke_mandate")
 QUOTE_ID = re.compile(r"^h[0-9a-f]{8}$")
 KINDS = ("order", "close", "tpsl", "modify", "cancel", "leverage", "margin", "mandate", "withdraw", "send", "transfer")
@@ -248,7 +248,7 @@ def schema_for(profile: str) -> dict:
         f"Hyperliquid perps and spot — {scope}. Every call names an action and a network (submit takes its "
         "quote's). " + READ_HELP + UNTRUSTED + (TRADE_HELP if trading else "")
         + f' Before sustained reading, load skill_view(name="{SKILL}")'
-        + (f', before trading, skill_view(name="{TRADE_SKILL}") and, before making or running a strategy, '
+        + (f', before trading, skill_view(name="{TRADE_SKILL}") and, before setting up a strategy, '
            f'skill_view(name="{STRATEGY_SKILL}").' if trading else "."))
     return {"name": TOOL, "description": description, "parameters": {
         "type": "object", "properties": properties, "required": ["action"], "additionalProperties": False}}

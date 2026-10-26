@@ -36,7 +36,8 @@ logger = logging.getLogger(__name__)
 # Skill -> the profiles it is registered for. A skill is read-only to Hermes (not editable through
 # skill_manage); the trade and strategy procedures reach only the profiles that can sign.
 SKILLS = {"hyperliquid": set(access.PROFILES), "hyperliquid-trade": set(access.SIGNING),
-          "hyperliquid-strategy": set(access.SIGNING)}
+          "configure-strategy": set(access.SIGNING), "run-strategy": set(access.SIGNING),
+          "manage-strategy": set(access.SIGNING)}
 
 
 def register_skills(ctx, profile):

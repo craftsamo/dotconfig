@@ -23,7 +23,7 @@ bridge, A2A rule, approval record and bypass guard) and the rules of
 | Rules, backtests, specs and stances (pure, no network)           | `_shared/hl_strategy.py`, used by `hl.py` and the gate                        |
 | The strategies' cron gate                                        | `_shared/hl_gate.py`, run by `profiles/assistant/scripts/hl-strategy-gate.sh` |
 | How a profile reads Hyperliquid; how the Assistant trades        | plugin skills `hyperliquid-access:hyperliquid`, `…:hyperliquid-trade`         |
-| How the Assistant runs a strategy                                | plugin skill `hyperliquid-access:hyperliquid-strategy`                        |
+| How the Assistant sets up, runs and manages a strategy           | plugin skills `hyperliquid-access:configure-strategy`, `…:run-strategy`, `…:manage-strategy` |
 | How Researcher and Searcher weigh and record venue evidence      | each pipeline's `references/platforms/hyperliquid.md`                         |
 | What the Assistant does inline in Chat                           | the Assistant's Chat reference `web3.md`, section "Hyperliquid"               |
 
@@ -420,8 +420,9 @@ A strategy is the Assistant's way to trade unattended
 mandate on its card, and a cron gate that wakes the Assistant only when the
 rules call for an action. Its files live in
 `<assistant home>/hl-strategies/<name>/`: `spec.json` and `stance.json`
-written by the Assistant, `state.json` by the gate alone. The strategy skill
-owns the procedure; this section owns what the code holds to.
+written by the Assistant, `state.json` by the gate alone. The strategy skills
+(`configure-strategy`, `run-strategy`, `manage-strategy`) own the procedure;
+this section owns what the code holds to.
 
 - **The spec** (`hermes-hyperliquid-strategy/1`) names one Hermes account,
   a network, up to 8 main-dex perps, an interval, up to 6 variants each with
@@ -513,7 +514,7 @@ owns the procedure; this section owns what the code holds to.
   whose fills cannot be read holds the
   market entry after a limit, not the resting limit. A strategy turned
   inactive is not read at all: pausing one cancels its resting limit by
-  hand (the strategy skill).
+  hand (`manage-strategy`).
 - **The breaker** ([decision](decisions/hyperliquid-breaker.md)) measures
   the strategy's own result, never the account's value: each run the gate
   reads its markets' fills (realized result less USDC fees) and funding from
@@ -622,4 +623,4 @@ signer's process and that every increase shows its card.
    venue, on the network the user means ("Deposits").
 4. To run strategies, the Assistant's machine-local cron job with
    `script: hl-strategy-gate.sh` and only the `hyperliquid_access` and
-   `skills` toolsets; the strategy skill's "Running it" has the call.
+   `skills` toolsets; `configure-strategy`'s "Running it" has the call.

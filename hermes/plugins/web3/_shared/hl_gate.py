@@ -998,7 +998,7 @@ def run(root: Path, now: int) -> dict:
     if not acting:
         return SILENT
     return {"schema": SCHEMA, "time": hs.iso(now), "strategies": acting,
-            "instructions": 'skill_view(name="hyperliquid-access:hyperliquid-strategy"), section "Each run"',
+            "instructions": 'skill_view(name="hyperliquid-access:run-strategy")',
             "wakeAgent": True}
 
 

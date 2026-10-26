@@ -52,10 +52,12 @@ A Hermes wallet account's Hyperliquid account is its EVM address from the
   skill's "Mandates"); without one, never schedule it. Revoke a mandate the
   moment the user asks.
 - Trading that should run on its own is a rule strategy:
-  `skill_view(name="hyperliquid-access:hyperliquid-strategy")` owns choosing
-  rules by backtest, the spec, its mandate and breaker, and the cron gate.
-  A tripped breaker is resumed only when the user asks. When the user
-  repeats the same kind of trade by hand or asks for automation, offer it;
+  `skill_view(name="hyperliquid-access:configure-strategy")` owns choosing
+  rules by backtest, the spec, its mandate and breaker, and the cron gate;
+  `skill_view(name="hyperliquid-access:manage-strategy")` a stance, the
+  review, a tripped breaker (resumed only when the user asks), pausing and
+  stopping it. When the user repeats the same kind of trade by hand or asks
+  for automation, offer it;
   the backtests are research-sized, so a broad comparison goes to Plan and
   Execute research, and a single rule set's backtest stays inline.
 - Depositing, withdrawing and sending funds follow the trade skill's
