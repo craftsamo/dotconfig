@@ -29,7 +29,8 @@ how a change is prepared, approved and checked.
   agent's session, a single query) every change is refused. Prepare it with
   `preview=true` and hand the exact call back to whoever can ask the user.
 - **Deploying is not this tool's.** Code reaches Workers and Pages through the
-  project's own tooling; never route around that.
+  project's own tooling, run in the project's repository (`pnpm run deploy`,
+  `pnpm exec wrangler deploy`); never route around that with this tool.
 
 ## Outcomes
 
