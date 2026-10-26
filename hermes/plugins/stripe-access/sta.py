@@ -45,6 +45,7 @@ def _load_shared(name):
 
 cards = _load_shared("card")
 shell_commands = _load_shared("shell_commands")
+project_place = _load_shared("project_place")
 
 READS = ("status", "account", "balance", "balance_transactions", "payments", "customers", "subscriptions",
          "invoices", "products", "prices", "payment_links", "refunds", "coupons", "promotion_codes")
@@ -1894,7 +1895,8 @@ def bypass(tool: str, args) -> str | None:
     args = args if isinstance(args, dict) else {}
     if tool == "terminal":
         command = args.get("command")
-        if isinstance(command, str) and shell_commands.runs(command, CLIS, _CLI_TEXT):
+        project = project_place.project_dir(args) is not None if isinstance(command, str) else False
+        if isinstance(command, str) and shell_commands.runs(command, CLIS, _CLI_TEXT, project=project):
             return BYPASS_MESSAGE
         if any(_TERMINAL.search(text) for text in _strings(args)):
             return BYPASS_MESSAGE
