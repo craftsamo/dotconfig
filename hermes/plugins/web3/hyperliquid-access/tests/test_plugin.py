@@ -44,7 +44,8 @@ def test_the_plugin_registers_the_hyperliquid_tool_from_the_shared_logic():
 
 
 def test_the_trade_skill_reaches_only_the_profile_that_signs():
-    expected = {"assistant": {"hyperliquid", "hyperliquid-trade", "hyperliquid-strategy"}, "researcher": {"hyperliquid"},
+    expected = {"assistant": {"hyperliquid", "hyperliquid-trade", "configure-strategy", "run-strategy", "manage-strategy"},
+                "researcher": {"hyperliquid"},
                 "searcher": {"hyperliquid"}, "marketer": {"hyperliquid"}, "creator": set()}
     for profile, names in expected.items():
         ctx = Ctx(profile)
@@ -55,7 +56,7 @@ def test_the_trade_skill_reaches_only_the_profile_that_signs():
         description = ctx.tools["hyperliquid"]["description"]
         assert 'hyperliquid-access:hyperliquid"' in description
         assert ('hyperliquid-access:hyperliquid-trade"' in description) == (profile == "assistant")
-        assert ('hyperliquid-access:hyperliquid-strategy"' in description) == (profile == "assistant")
+        assert ('hyperliquid-access:configure-strategy"' in description) == (profile == "assistant")
         actions = ctx.tools["hyperliquid"]["schema"]["parameters"]["properties"]["action"]["enum"]
         assert ("submit" in actions) == (profile == "assistant")
     for profile in ("researcher", "searcher", "marketer"):

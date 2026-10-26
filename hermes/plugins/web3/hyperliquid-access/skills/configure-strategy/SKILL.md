@@ -1,6 +1,6 @@
 ---
-name: hyperliquid-strategy
-description: "Use to run a rule strategy on Hyperliquid perps from the user's Hermes wallets: choosing and backtesting rules, the strategy spec and its mandate, the cron gate, each gate run, an advisor's stance, review, pause or stop."
+name: configure-strategy
+description: "Use when the user asks for trading on Hyperliquid that runs on its own: choosing rules by backtest, the strategy spec, sizing and submitting its mandate, the testnet trial and the cron gate. Each run and later changes are run-strategy and manage-strategy."
 version: 1.0.0
 author: CraftSamo
 license: MIT
@@ -9,14 +9,16 @@ metadata:
     tags: [hyperliquid, trading, strategy, backtest, cron, mandate, hyperliquid_access]
 ---
 
-# Running a strategy on Hyperliquid
+# Setting up a strategy on Hyperliquid
 
 A strategy is a rule set the user chose from backtests, written down as a
 spec, bounded by a mandate the user approved on its card, and run by a cron
 gate that wakes you only when the rules call for an action. Reading is
 `hyperliquid-access:hyperliquid` and trading is
-`hyperliquid-access:hyperliquid-trade`; load both first. This skill owns the
-spec, the gate and what you do on each run.
+`hyperliquid-access:hyperliquid-trade`; load both first. This skill owns
+choosing the rules, the spec, the mandate and the gate. What you do on each
+gate run is `hyperliquid-access:run-strategy`; an advisor's stance, the
+review, pausing and stopping are `hyperliquid-access:manage-strategy`.
 
 ## Contract
 
@@ -165,7 +167,7 @@ default when a stance does not hold, with a note saying why.
   about one in twenty reshuffles of the tested trades fell further"); the
   user decides. Without
   a breaker the strategy opens nothing. `reset` stays `null` until the user
-  resumes a tripped breaker ("Review, pause and stop").
+  resumes a tripped breaker (`hyperliquid-access:manage-strategy`).
 - Strategy markets belong to the strategy: the gate closes and protects any
   position there, including one opened by hand or by another strategy on
   the same account. Say so.
@@ -214,8 +216,8 @@ after confirming the schedule with the user:
 - `script`: `hl-strategy-gate.sh`.
 - `enabled_toolsets`: `["hyperliquid_access", "skills"]` — nothing else.
 - `prompt`: `Hyperliquid strategy gate. Load
-  skill_view(name="hyperliquid-access:hyperliquid-strategy") and follow its
-  "Each run" section on the gate report above. Act only on its intents.`
+  skill_view(name="hyperliquid-access:run-strategy") and follow it on the
+  gate report above. Act only on its intents.`
 - `attach_to_session`: `true`. Leave `deliver` out.
 
 Create it from the topic the user asked in: the job records that topic as its
@@ -226,147 +228,3 @@ Each run itself is a fresh session of its own, without that conversation. To
 move the reports, delete the job and create it again from the new topic.
 
 When the gate has nothing to do or say, no model runs at all.
-
-## Each run
-
-The gate's report is a JSON line: per strategy, its `account` and `address`,
-`intents` (each with an `effect`, a `why` and the exact `quote` arguments),
-`notes`, `problems` and `new_notices`, and for the footer `breaker`,
-`execution` and `fills_measured`. A run has only the `hyperliquid` and
-`skills` tools: every read it makes (`state`, `fills`, `orders`) takes the
-report's `address` on the report's `network`; the spec and the wallet's
-account list are out of reach there.
-
-1. For each strategy, reduce intents first, then increases, in the order
-   listed. For each: call `hyperliquid` with the intent's `quote` arguments
-   as they are, check the returned `summary` against the intent (coin, side,
-   size within the `usd`, stop), then `submit` it once.
-   - Skip an increase (or lower its `usd`) only for a reason you can name: a
-     fresh `state` read shows the position already there, or the summary
-     disagrees with the intent. Say why.
-   - A `leverage` intent comes before its entry: if it is refused, skip the
-     entry.
-   - An intent with `after` (the cancel of a stop a trailed one replaces,
-     or an entry listed beside the close of the market's other side) is
-     sent only once the intent it names was `sent`; if that one was refused
-     or `unknown`, skip it, so the position keeps the stop it has, or the
-     entry does not net against a position still held.
-   - An entry with `type: limit` rests until its bar closes: its `resting`
-     (or `filled`, when the market had already reached it) is its success.
-     Report it resting at its price; the gate follows it from there, by the
-     `cloid` it carries. Later runs protect a part that filled, cancel what
-     still rests when the bar closes, and, once the venue shows it over with
-     nothing filled, list the market entry after it; a notice says when it
-     filled, and the run reports that fill like an entry's.
-   - Refused, `not submitted`, or outside the mandate: nothing was sent;
-     report the reason, never retry or work around it.
-   - `unknown` or a submit that did not finish: stop that strategy for this
-     run, read `orders` and `state`, and report; never quote it again.
-   - A note that a position is gone from the account (the venue closed it:
-     a stop that fired, a liquidation): read `fills` for that market from a
-     day before the time the note gives (the gate first saw the position
-     then; its entry may be earlier), and report the trade's result (step
-     2). No quote follows from it. A close you sent yourself is not noticed
-     again: its result goes in the run that sent it.
-2. Report once per run, one block per strategy, in this order and nothing
-   else. Labels, wording and language are yours; a reader skims it on a
-   phone, so facts only, and an explanation of the method belongs in a
-   reply, not here. Tables render on the platforms a run reports to; keep
-   each to two or three columns, so it does not wrap.
-   - **One plain sentence** of what happened (a long opened on the
-     breakout; the stop fired; the stop moved up; nothing sent, a notice).
-     It is what a notification preview shows.
-   - **A bold title line**: the strategy, the network and the bar's time
-     (and the variant, when the strategy runs more than one).
-   - **The actions, a table with one row per intent**: what was sent and its
-     outcome, with a mark that reads at a glance (filled with size and
-     average price; resting or waiting for trigger at its price; refused
-     with the reason; skipped with yours). A trailed stop reads as from → to.
-   - **The position, a two-column table** (label, value): side and size with
-     its value, entry → price now with the change, the stop in force with
-     its distance, and the unrealized result in USDC and in R (over the risk
-     at entry: size × the distance from the entry to the stop placed with
-     it; the stop in force now when that one is not known). Several
-     positions are one such table each. None: say so in one line.
-   - **On a close, a stop's fill or a position the gate says is gone, the
-     trade's result instead**: exit price and why, the realized result from
-     the fills in USDC and in R, and the fees, so a losing streak reads
-     against the rule's expectation rather than in USDC alone.
-   - **The footer**: the account's value from a fresh `state` read, with
-     the change since the strategy started (the gate's `start_equity_usd`,
-     its first funded read; deposits and withdrawals since move it too), and
-     the strategy's drawdown against its breaker from the report's `breaker`
-     (like "drawdown 8.2% of 30%"; tripped, say since when). Under it,
-     folded where the platform folds (a collapsed quote or
-     spoiler), else one short line: order ids, split fills, the gate's
-     reasons (channel and EMA levels), fee breakdown, and from the
-     report's `fills_measured` each priced order's slippage and fees in
-     basis points (an entry's against its bar's close, a stop's against
-     its trigger).
-   - `new_notices` and problems last, marked so they stand out, never
-     folded.
-   With no intents, the sentence, the title, the notices and the footer.
-   The cumulative result beyond the change since start is not for a run:
-   `review` gives it weekly ("Review, pause and stop").
-3. Never edit the spec, the stance or the state on a run, and never call any
-   action but `quote`, `submit` and reads.
-
-## An advisor's stance
-
-An advisor (a specialist the user consults, or the user) may choose, per
-market, a `direction` from the spec's `advisor.directions`, a `variant` from
-the spec's variants and a `size` up to `advisor.max_size`, for at most
-`max_age_days`. Write its reply as `stance.json` only when it fits:
-
-```json
-{
-  "schema": "hermes-hyperliquid-stance/1",
-  "strategy": "trend-btc-eth",
-  "issued": "2026-10-15T00:00:00Z",
-  "expires": "2026-10-22T00:00:00Z",
-  "advisor": "who chose it",
-  "markets": {"BTC": {"direction": "long", "variant": "trend40", "size": 1.25},
-              "ETH": {"direction": "flat"}},
-  "basis": [{"claim": "…", "source": "…", "as_of": "2026-10-14T13:30:00Z"}]
-}
-```
-
-- Every basis item has a claim, a source and the time it was known, no later
-  than `issued`. Without a basis the stance is not used.
-- Turning a market from long to short (or back) sooner than
-  `min_days_between_flips` after the last turn makes it flat until then.
-- An expired or invalid stance falls back to the default; the run's notes say
-  so. Tell the user what the stance changes before writing it.
-
-## Review, pause and stop
-
-- **Weekly**, or when asked: `review` over the strategy's window and
-  markets, against the variant's `validated` figures: trades, win rate, fees,
-  drawdown. A losing streak inside the backtest's drawdown is the strategy
-  working as tested; say so plainly, and say when it is outside. Compare
-  the gate's `execution` (the latest report's, or `state.json`'s running
-  totals) with what the backtest assumed per side: `slippage_bps` (5 by
-  default) and `taker_bps` (the account's rate). Costs above them shave the
-  tested result on every trade: say by how much, and backtest the variant
-  again with the measured costs when the gap is more than a few basis
-  points.
-- **Breaker tripped:** the gate says so once; from then on it lists closes
-  and stops but no entry. Tell the user the drawdown against the tested
-  range, and offer a review before anything else. A breaker "holding" with
-  the drawdown unknown lost its memory (the gate's `state.json` could not be
-  read): say so, and read `review` and `state` for where the strategy stands.
-  Either way, only when the user asks to
-  resume, write the time now as `breaker.reset` (an ISO time with a zone):
-  the next run clears the trip and counts the drawdown from there, and says
-  so. A reset written earlier than the trip does nothing. Raising
-  `max_drawdown_pct` instead is the user's decision too, said in plain words.
-- **Pause:** `"active": false` in the spec. The gate then ignores it entirely:
-  positions stay, with their stops on the venue. A limit entry still resting
-  (`orders`: an open limit in its markets that is not reduce-only) would no
-  longer be followed: cancel it (`quote` `kind: cancel`, its `oid`).
-- **Stop:** pause, `revoke_mandate` at once, and close its positions only if
-  the user asks (closes run without a card). Delete the cron job when no
-  strategy remains, and the directory when the user wants it gone.
-- **Change:** new rules are a new backtest and fingerprint; a larger
-  exposure, more markets or more leverage are a new mandate on its card.
-  Before the mandate ends, the gate notes it: ask the user whether to renew.

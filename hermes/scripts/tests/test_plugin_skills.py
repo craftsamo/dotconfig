@@ -46,7 +46,9 @@ EXPECTED = {
     "web3/hyperliquid-access": {
         "hyperliquid": {"assistant", "researcher", "searcher", "marketer"},
         "hyperliquid-trade": {"assistant"},
-        "hyperliquid-strategy": {"assistant"},
+        "configure-strategy": {"assistant"},
+        "run-strategy": {"assistant"},
+        "manage-strategy": {"assistant"},
     },
     "social/substack-access": {
         "substack": ALL_READERS,
