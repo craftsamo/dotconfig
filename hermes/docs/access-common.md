@@ -160,6 +160,34 @@ a pattern match on the call's text, not a sandbox: the approval gate is a
 guarantee for the tool and a policy for everything else. The patterns live in
 each plugin's module (named in its doc); never copy them into docs.
 
+A CLI the plugin owns (`gcloud`, `wrangler`, `stripe`, `signal-cli`, `wacli`)
+counts where a command runs it: `plugins/_shared/shell_commands.py` reads the
+line as a shell would (quotes, separators, substitutions, `bash -c`, `eval`,
+`trap`, wrappers such as `env` or `sudo`, package runners such as `npx` and
+`pnpm exec`). A mention passes as an argument of a command known to treat its
+arguments as data (`grep -n 'gcloud auth' scripts/deploy.sh`, `sed`, `cat`,
+`echo`, `git log`), so reading a project's scripts and docs is never a way
+around. The plugin's strict pattern judges the whole line instead when
+another command names a CLI in its arguments (`ssh host gcloud`, an inline
+`python -c`), or when the reader cannot follow the line (a here-document, a
+command name from an expansion, a shell or interpreter reading its code from
+input).
+
+In a project, the Google, Cloudflare and Stripe guards also let the project
+run its own tooling. A project is a Git repository under `~/ghq` or
+`~/Worktrees` that the call names as its working directory (`workdir`, or a
+leading `cd <absolute path> &&`); Hermes' own configuration (this checkout,
+the private overlay and their worktrees) never is one, since its scripts
+change Hermes itself. There the project's entry points and scripts (`nps`,
+`make`, `./scripts/…`, `node scripts/…`) are not unknown commands, and a CLI
+the plugin lists as a project dependency runs through the project's package
+manager when the project has it in `node_modules/.bin` (`pnpm exec wrangler
+deploy`), never as a download (`dlx`, `npx -y`). The CLI run directly, or
+named in an entry point's arguments, is judged as anywhere else. What the
+project's tooling runs uses the user's own CLI logins (`~/.config/gcloud`,
+wrangler's), not the tools' credentials. Code:
+`plugins/_shared/project_place.py`.
+
 ## Setup (shared)
 
 - Store a credential with `secret set NAME -p hermes --scope S [-D KIND]`,

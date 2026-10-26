@@ -42,18 +42,21 @@ def _load_shared(name: str):
     return sys.modules[key]
 
 
-def _load_card():
-    if "hermes_card" not in sys.modules:
-        spec = importlib.util.spec_from_file_location("hermes_card", Path(__file__).resolve().parents[2] / "_shared"
-                                                      / "card.py")
+def _load_common(name: str):
+    """A module of plugins/_shared/ (every plugin's), as opposed to messaging's own _shared/."""
+    key = f"hermes_{name}"
+    if key not in sys.modules:
+        spec = importlib.util.spec_from_file_location(key, Path(__file__).resolve().parents[2] / "_shared"
+                                                      / f"{name}.py")
         module = importlib.util.module_from_spec(spec)
-        sys.modules["hermes_card"] = module
+        sys.modules[key] = module
         spec.loader.exec_module(module)
-    return sys.modules["hermes_card"]
+    return sys.modules[key]
 
 
 archives = _load_shared("archive_check")
-cards = _load_card()
+cards = _load_common("card")
+shell_commands = _load_common("shell_commands")
 
 ACTIONS = ("status", "chats", "messages", "search", "context", "contacts", "check", "backfill", "media",
            "send")
@@ -130,7 +133,9 @@ NOT_SET_UP = ("WhatsApp is not set up: no wacli account exists. The user pairs o
               "see docs/whatsapp-access.md.")
 NO_WACLI = "wacli is not installed (`brew install openclaw/tap/wacli`); see docs/whatsapp-access.md."
 
-# Ways around the tool: the CLI as a command word, its store, its sync launcher and env.
+# Ways around the tool: the CLI where a command runs it (shell_commands; `_CLI`, the name as a word
+# anywhere, judges a line that cannot be read that way), its store, its sync launcher and env.
+CLIS = ("wacli",)
 _CLI = re.compile(r"(?:^|[\s;&|()`'\"=])(?:[^\s;&|()`'\"]*/)?wacli(?=$|[\s;&|()`'\"])")
 _PATHS = re.compile(r"\.wacli(?![\w-])|wacli\.db|wacli-sync|local\.wacli|WACLI_|hermes-whatsapp"
                     r"|whatsapp-access-sync|whatsapp-access\.sync|whatsapp-access-launchctl")
@@ -1492,7 +1497,7 @@ def bypass(tool: str, args) -> str | None:
     args = args if isinstance(args, dict) else {}
     if tool == "terminal":
         command = args.get("command")
-        if isinstance(command, str) and _CLI.search(command):
+        if isinstance(command, str) and shell_commands.runs(command, CLIS, _CLI):
             return BYPASS_MESSAGE
         if any(_PATHS.search(text) or _ENGINE.search(text) for text in _strings(args)):
             return BYPASS_MESSAGE

@@ -222,7 +222,8 @@ Reads and `preview=true` are unaffected.
 
 On every profile with the tool the hook blocks terminal calls whose text names
 the plugin or its Keychain scope (`stripe-access`), `api.stripe.com`, a Stripe
-key, the Stripe CLI's commands or its config (`~/.config/stripe`) or an inline
+key, the Stripe CLI run as a command (also through a package runner) or its
+config (`~/.config/stripe`) or an inline
 Stripe SDK import, and file-tool calls on the state directory or the CLI's
 config. Because the keys' names are free, and a `secret` read that leaves the
 scope out searches the scope named after the working directory's repository,
@@ -230,7 +231,8 @@ it also blocks any value read or change of an item in the `hermes` project
 (`secret get|set|update|rm|import|env … -p hermes`) and the Keychain's own
 password reads; `secret ls` and `secret show` (metadata only) stay open. File
 tools may still read the plugin source, and the browser may still open the
-Stripe Dashboard. Patterns: `_TERMINAL` and `_STORE` in
+Stripe Dashboard. Patterns: `CLIS` (read by command position, with `_CLI_TEXT`
+for a line that cannot be read that way), `_TERMINAL` and `_STORE` in
 `plugins/stripe-access/sta.py`. Shared rules:
 [bypass guard](access-common.md#bypass-guard-ways-around-the-tool). The toolset
 is in an `a2a` platform toolset only where `A2A` lists actions (Researcher,

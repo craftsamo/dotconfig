@@ -205,7 +205,8 @@ proof of approval; only this check keeps a card-less run from sending.
 The same hook blocks terminal commands that run `signal-cli`, and terminal or
 file-tool calls whose command, working directory or path names the state, the
 agent, its launcher or log, a `HERMES_SIGNAL_` variable or Signal Desktop's
-data. Patterns: `_CLI`, `_PATHS` and `_ENGINE` in
+data. Patterns: `CLIS` (read by command position, with `_CLI` for a line that
+cannot be read that way), `_PATHS` and `_ENGINE` in
 `plugins/messaging/signal-access/sig.py` (they also keep matching the agent's
 earlier names). Shared rules:
 [bypass guard](access-common.md#bypass-guard-ways-around-the-tool).

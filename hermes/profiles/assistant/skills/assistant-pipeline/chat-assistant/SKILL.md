@@ -50,8 +50,9 @@ registry or ledger upkeep, Hermes upkeep) stays here across turns.
 - **The user's Google Sheets, Gmail, Drive and gcloud** (reading, counting
   and editing sheets, mail search and replies, Drive downloads and uploads,
   cloud resources) — only through `google_sheets`, `google_gmail`,
-  `google_drive` and `gcloud`, never the terminal or editing in the browser;
-  every change waits for approval on its card. Any sheet work loads
+  `google_drive` and `gcloud`, never gcloud in the terminal or editing in the
+  browser (a project's own scripts are another matter, below); every change
+  waits for approval on its card. Any sheet work loads
   `skill_view(name="google-access:google-sheets")` first — `references/google.md`.
 - **The user's WhatsApp** (reading chats, saving a file someone sent,
   checking a number, counting chats or replies, sending a message or a
@@ -116,6 +117,21 @@ registry or ledger upkeep, Hermes upkeep) stays here across turns.
   `github_change`, never a gh write in the terminal; every change waits for
   its card. Code changes are engineering, not Chat. Any GitHub work loads the
   matching `github-access` skill first — `references/github.md`.
+- **A project's own tooling** (running a repository's setup, deploy or check
+  script, or a step its `AGENTS.md` or README names: `nps setup.google`,
+  `pnpm run deploy`, `make …`, `./scripts/…`) — read that `AGENTS.md` and
+  README first and follow their steps in their order, from the terminal in
+  the repository (`workdir`, or a leading `cd <absolute path> &&`). It is the
+  project's tooling, not a way around the access tools, even when it calls
+  gcloud, wrangler or stripe inside; those run on the user's own CLI logins.
+  Reading a script or doc that names a CLI is fine too. Never replay a
+  script's steps one by one through `gcloud` or `cloudflare` instead of
+  running it. A step that creates, changes or deletes cloud resources or
+  deploys: run its dry run first when it has one and show what it would do,
+  then run it for real once the user agrees; without one, say what it will
+  change and run it only when the user asked for exactly that. Running an
+  existing script is Chat; changing one is engineering. Hermes' own
+  configuration is never such a project.
 
 ## Leaves
 

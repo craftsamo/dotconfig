@@ -650,6 +650,7 @@ def test_bypass_is_blocked(tool, args):
 @pytest.mark.parametrize("tool, args", [
     ("terminal", {"command": "ls ~/Workspaces"}),
     ("terminal", {"command": "echo signal processing"}),
+    ("terminal", {"command": "grep -n 'signal-cli send' docs/notes.md"}),
     ("read_file", {"path": "plugins/messaging/signal-access/sig.py"}),
 ])
 def test_ordinary_calls_pass(tool, args):

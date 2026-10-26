@@ -32,17 +32,20 @@ import time
 HERE = Path(__file__).resolve().parent
 
 
-def _load_card():
-    if "hermes_card" not in sys.modules:
+def _load_shared(name):
+    key = f"hermes_{name}"
+    if key not in sys.modules:
         import importlib.util
-        spec = importlib.util.spec_from_file_location("hermes_card", HERE.parent / "_shared" / "card.py")
+        spec = importlib.util.spec_from_file_location(key, HERE.parent / "_shared" / f"{name}.py")
         module = importlib.util.module_from_spec(spec)
-        sys.modules["hermes_card"] = module
+        sys.modules[key] = module
         spec.loader.exec_module(module)
-    return sys.modules["hermes_card"]
+    return sys.modules[key]
 
 
-cards = _load_card()
+cards = _load_shared("card")
+shell_commands = _load_shared("shell_commands")
+project_place = _load_shared("project_place")
 
 READS = ("status", "account", "balance", "balance_transactions", "payments", "customers", "subscriptions",
          "invoices", "products", "prices", "payment_links", "refunds", "coupons", "promotion_codes")
@@ -84,21 +87,28 @@ READ_ONLY = "this profile can read Stripe but not change anything there"
 BYPASS_MESSAGE = (
     "Stripe runs only through the stripe tool, never through the terminal or file tools: not the Stripe CLI, "
     "the API with curl or an SDK, the keys (Keychain scope stripe-access) or the tool's state (~/.stripe-access). Use "
-    "the stripe tool; storing a key is the user's job.")
-# The Stripe CLI: as the command itself (after a separator or a wrapper such as sudo or env), or anywhere
-# with its global flags and a command that uses the account after it (`bash -c "stripe --live customers
-# list"`). Commands that never touch the account (version, completion, open, status) are left out, so
-# `npm view stripe version` stays allowed; `(` is not a command position, as it is mostly a pattern's.
+    "the stripe tool; storing a key is the user's job. A project's own tooling (`pnpm run …`, "
+    "`./scripts/…`) runs from the terminal in its repository (workdir, or a leading `cd <absolute "
+    "path> &&`).")
+# The Stripe CLI, where a command runs it: directly, behind a wrapper such as sudo or env, inside `bash -c`,
+# or through a package runner (shell_commands). Mentions that run nothing (`npm view stripe version`,
+# `grep -n 'stripe listen' docs/x.md`) stay allowed. `_CLI_TEXT` judges a line that cannot be read that
+# way: the command itself after a separator or a wrapper, or the CLI anywhere with its global flags and a
+# command that uses the account after it. Commands that never touch the account (version, completion,
+# open, status) are left out of it; `(` is not a command position there, as it is mostly a pattern's.
+CLIS = ("stripe",)
 _CLI_COMMANDS = (r"login|logout|config|listen|trigger|get|post|delete|fixtures|logs|samples|resources|events"
                  r"|plugin|apps|terminal"
                  r"|[a-z_]+\s+(?:list|create|retrieve|update|delete|search|cancel|finalize|send|void|pay|del"
                  r"|capture|confirm|resume|expire)")
+_CLI_TEXT = re.compile(
+    r"(?:^|[;&|`\n]|\$\()\s*(?:(?:sudo|env|command|exec|nohup|time|xargs)\s+(?:-\S+\s+|\w+=\S*\s+)*)*"
+    r"(?:\S*/)?stripe(?=\s|$)"
+    r"|(?:^|[\s;&|()`'\"=/])stripe(?:\s+-{1,2}[A-Za-z][\w-]*(?:[=\s]+(?!-)\S+)?)*\s+(?:" + _CLI_COMMANDS + r")\b",
+    re.IGNORECASE)
 _TERMINAL = re.compile(
     r"(?<![\w-])stripe-access(?![\w-])|(?<!\w)stripe_access(?!\w)|api\.stripe\.com|files\.stripe\.com"
     r"|\b(?:sk|rk)_(?:live|test)_|\bsk_org_|\.config/stripe\b"
-    r"|(?:^|[;&|`\n]|\$\()\s*(?:(?:sudo|env|command|exec|nohup|time|xargs)\s+(?:-\S+\s+|\w+=\S*\s+)*)*"
-    r"(?:\S*/)?stripe(?=\s|$)"
-    r"|(?:^|[\s;&|()`'\"=/])stripe(?:\s+-{1,2}[A-Za-z][\w-]*(?:[=\s]+(?!-)\S+)?)*\s+(?:" + _CLI_COMMANDS + r")\b"
     r"|\bimport\s+stripe\b|\bfrom\s+stripe\s+import\b|\bfrom\s+['\"]stripe['\"]|\bimport\s*\(\s*['\"]stripe['\"]"
     r"|\brequire\s*\(?\s*['\"]stripe['\"]|github\.com/stripe/stripe-go|\bStripeClient\b"
     # The keys' names are free, and a read that leaves out the scope searches the one named after the working
@@ -1886,6 +1896,10 @@ def bypass(tool: str, args) -> str | None:
     A pattern match on the call's text, not a sandbox."""
     args = args if isinstance(args, dict) else {}
     if tool == "terminal":
+        command = args.get("command")
+        project = project_place.project_dir(args) is not None if isinstance(command, str) else False
+        if isinstance(command, str) and shell_commands.runs(command, CLIS, _CLI_TEXT, project=project):
+            return BYPASS_MESSAGE
         if any(_TERMINAL.search(text) for text in _strings(args)):
             return BYPASS_MESSAGE
     elif tool in FILE_TOOLS:
