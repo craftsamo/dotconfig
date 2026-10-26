@@ -1,74 +1,58 @@
 ---
-name: hunt-searcher
+name: build-hunt
 description: >-
-  Hunt primary sources across hops: agree the question, done criteria and cap,
-  follow the trail to saturation with a hop ledger, check it and hand off a
-  source map. Not long sweeps or verdicts.
+  Hunt, Build stage: follow the trail hop by hop from secondary mentions to
+  primary documents with a running ledger until saturation, the done criteria
+  or the cap, check and hand off a source map. Requires the client's
+  agreement from Plan; not long sweeps or verdicts.
 version: 1.0.0
 author: CraftSamo
 license: MIT
 metadata:
   hermes:
     category: pipeline
-    tags: [search, hunt]
+    tags: [search, hunt, build]
 ---
 
 <ReadBeforeWork>
 
 On every caller, resume or completion turn and before a midturn mode, stage or
-scope change, require full-body kernel, this mode entry and the current stage
-reference in current context, not a past load or summary. Direct entry requires
-`skill_view(name="searcher-pipeline")` before any stage. Load
-`skill_view(name="hunt-searcher")` and the current stage with
-`skill_view(name="searcher-pipeline", file_path="references/<stage>.md")`:
-[Plan](../references/plan.md) or [Build](../references/build.md). Retrieval on a service also requires its
-shared reference: [X](../references/platforms/x.md),
-[YouTube](../references/platforms/youtube.md), [note](../references/platforms/note.md),
-[Substack](../references/platforms/substack.md), [EVM](../references/platforms/evm.md),
-[Solana](../references/platforms/solana.md) or
-[Hyperliquid](../references/platforms/hyperliquid.md). A technic the brief names or
-[Capabilities](../references/capabilities.md) matches is loaded too with
+scope change, require full-body kernel and this stage entry in current context,
+not a past load or summary. Direct entry requires
+`skill_view(name="searcher-pipeline")` before any stage; its `<Build>` section
+is the stage this entry specializes. Load `skill_view(name="build-hunt")`.
+Retrieval on a service also requires its shared reference:
+[X](../../references/platforms/x.md), [YouTube](../../references/platforms/youtube.md),
+[note](../../references/platforms/note.md), [Substack](../../references/platforms/substack.md),
+[EVM](../../references/platforms/evm.md), [Solana](../../references/platforms/solana.md) or
+[Hyperliquid](../../references/platforms/hyperliquid.md). A technic the brief names or
+[Capabilities](../../references/capabilities.md) matches is loaded too with
 `skill_view(name="<technic>")`; it adds to this mode and never replaces it.
 If unchanged is returned while the earlier body is unavailable, or a body is
-missing, use read_file on canonical
-`${HERMES_SKILL_DIR}/../SKILL.md`, `${HERMES_SKILL_DIR}/SKILL.md` and
-`${HERMES_SKILL_DIR}/../references/<stage>.md`. Follow next_offset through
-actual truncation; stop the affected action if unavailable. Never evade dedup
-with alternate paths or artificial ranges. Raw skill_dir is this entry's
-directory. Loading does not restart coverage or the frontier, reset a budget or
-replay work. Expansion needs the caller's release; selection is not a new grant.
+missing, use read_file on canonical `${HERMES_SKILL_DIR}/../../SKILL.md`,
+`${HERMES_SKILL_DIR}/SKILL.md` and
+`${HERMES_SKILL_DIR}/../../references/platforms/<service>.md`. Follow
+next_offset through actual truncation; stop the affected action if
+unavailable. Never evade dedup with alternate paths or artificial ranges. Raw
+skill_dir is this entry's directory. Loading does not restart coverage or the
+frontier, reset a budget or replay work. Expansion needs the caller's release;
+selection is not a new grant.
 
 </ReadBeforeWork>
 
-# Hunt
+# Hunt: Build
 
 Use for **exhaustive source hunts**: obscure topics, contested claims
-needing primary sources, provenance chases — always against the brief's
-done criteria and scope exclusions ("find everything" with neither is a
-spec gap, not a hunt).
-Deliverable = a structured **source map** built by following the trail from
-secondary mentions to primary documents. Depth of coverage — still retrieval,
-not analysis or conclusions.
+needing primary sources, provenance chases — always against the agreed done
+criteria and scope exclusions. Deliverable = a structured **source map**
+built by following the trail from secondary mentions to primary documents.
+Depth of coverage — still retrieval, not analysis or conclusions.
 
 Dispatch shape: a hunt is one resident conversation. Keep running hops in the
 turn until coverage saturates, the done criteria are met or the agreed effort
 cap is spent. If the turn must end first, hand off with the ledger and the
 gaps stated; the caller continues in the same conversation, and consumed
 budget carries over.
-
-## Plan
-
-Choose hunt for obscure topics, contested claims needing primary sources or
-provenance trails. Propose the settled question, sub-areas, done criteria, scope
-exclusions, freshness, finite hop/time/call cap and source-map output. "Find
-everything" without criteria or exclusions is a spec gap, not an execution brief.
-Plan depth from secondary mentions toward primary documents, not truth judgments.
-
-Propose a hunt as one resident conversation: hops run until saturation, the
-done criteria or the agreed cap, and a turn that ends first hands back its
-ledger and gaps for the caller to continue. A long sweep is still sweep.
-Existing frontier and consumed budget survive a refined Plan; never grant
-another full hunt merely on resume.
 
 ## Build
 
@@ -132,7 +116,9 @@ Primary/secondary marked on every entry; conflicts flagged, not resolved.
 
 ## Handoff
 
-Plan ends at the client's agreement. Build ends, in the same turn, with the
-check against this entry's Verification, and the reply carries it. Each
-stage's own Handoff in its shared reference says what follows. Keep this mode for the unit; another kind of retrieval is another
-agreed unit with its own mode entry, never a silent switch.
+Build ends, in the same turn, with the check against this entry's
+Verification, and the reply carries it; the kernel's Build section says how
+the report is delivered. Expansion goes to
+[plan-hunt](../plan/SKILL.md) and client agreement. Keep this mode
+for the unit; another kind of retrieval is another agreed unit with its own
+entries, never a silent switch.

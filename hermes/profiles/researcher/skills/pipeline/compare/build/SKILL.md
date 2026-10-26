@@ -1,9 +1,10 @@
 ---
-name: compare-researcher
+name: build-compare
 description: >-
-  Compare named options for one decision on fixed criteria: agree the roster
-  and axes, fill every cell with scored evidence or Unknown, self-check and
-  recommend. Not open surveys, claim verdicts or artifact production.
+  Compare, Build stage: fill the agreed tradeoff matrix with sourced cells,
+  recommend with confidence, self-check and deliver it. Requires the client's
+  agreement from Plan; not an open investigation, claim verdicts or consumer
+  directives.
 version: 1.0.0
 author: CraftSamo
 license: MIT
@@ -11,78 +12,53 @@ compatibility: Requires Hermes Agent and the parent researcher-pipeline kernel.
 metadata:
   hermes:
     category: pipeline
-    tags: [research, compare]
+    tags: [research, compare, build]
 ---
 
 <ReadBeforeWork>
 
-Load `skill_view(name="researcher-pipeline")` first, including on direct entry,
-before any stage. On every inbound turn/completion and before a midturn mode,
-stage or scope change, reselect the mode and load this entry with
-`skill_view(name="compare-researcher")` and the current stage's shared reference with
-`skill_view(name="researcher-pipeline", file_path="references/<stage>.md")`:
-[Plan](../references/plan.md) or [Build](../references/build.md). Reuse only full bodies in current context, never a
-past load, preload or summary.
+Load `skill_view(name="researcher-pipeline")` first, including on direct entry;
+its `<Build>` section is the stage this entry specializes. On every inbound
+turn/completion and before a midturn mode, stage or scope change, reselect the
+mode and stage and load this entry with
+`skill_view(name="build-compare")`. Reuse only full bodies in
+current context, never a past load, preload or summary.
 
 Gathering beyond a few direct lookups requires
 `skill_view(name="researcher-pipeline", file_path="references/gather.md")`:
-[Gather](../references/gather.md). Reading strategy does not authorize searches.
+[Gather](../../references/gather.md). Reading strategy does not authorize searches.
 Evidence from a chain or from Hyperliquid also requires its shared reference:
-[EVM](../references/platforms/evm.md), [Solana](../references/platforms/solana.md) or
-[Hyperliquid](../references/platforms/hyperliquid.md).
-A technic the brief names or [Capabilities](../references/capabilities.md)
+[EVM](../../references/platforms/evm.md), [Solana](../../references/platforms/solana.md) or
+[Hyperliquid](../../references/platforms/hyperliquid.md).
+A technic the brief names or [Capabilities](../../references/capabilities.md)
 matches is loaded too with `skill_view(name="<technic>")`; it adds to this mode
 and never replaces it.
 If `skill_view` returns unchanged with a missing body or cannot supply it, use
-`read_file` on canonical `${HERMES_SKILL_DIR}/../SKILL.md`,
-`${HERMES_SKILL_DIR}/SKILL.md`, `${HERMES_SKILL_DIR}/../references/<stage>.md`,
-`${HERMES_SKILL_DIR}/../references/gather.md` and
-`${HERMES_SKILL_DIR}/../references/platforms/<chain>.md` as applicable. Follow
-`next_offset` through actual truncation; if recovery fails, stop the affected
-action. Never evade dedup with alternate paths or artificial ranges.
+`read_file` on canonical `${HERMES_SKILL_DIR}/../../SKILL.md`,
+`${HERMES_SKILL_DIR}/SKILL.md`, `${HERMES_SKILL_DIR}/../../references/gather.md`
+and `${HERMES_SKILL_DIR}/../../references/platforms/<chain>.md` as applicable.
+Follow `next_offset` through actual truncation; if recovery fails, stop the
+affected action. Never evade dedup with alternate paths or artificial ranges.
 Selection/resume is not a new grant, budget reset or permission to replay work.
 
 </ReadBeforeWork>
 
-# Compare
+# Compare: Build
 
 Use for one decision supported by a closed option set and fixed criteria. The
 deliverable is a tradeoff matrix: closed options by fixed criteria, sourced
 cells and a confidence-rated recommendation, fast enough for the agreed
-planning loop. This can support a live caller planning consultation without
-making Researcher's own Plan stage an external research operation.
-
-## Plan
-
-1. Restate the decision and context. Derive a proposed option roster from
-   supplied material. An ambiguous or growing roster is a spec-gap/granularity
-   finding, never permission to guess or gather unlimited candidates.
-2. Fix criteria before evidence: propose the axes from the decision context and
-   the 2-3 relevant omissions, such as operations burden, reversibility and
-   maturity. Include weights when the caller implies priorities and label those
-   proposed weights for agreement. Every option must face the same axes.
-3. Bound depth per option by stakes and runtime budget. A live Plan consultation
-   compresses useful decision support into its budget, not an exhaustive survey.
-   Propose balanced effort; unresolved cells will be `Unknown` with what would
-   resolve them, never plausible filler.
-4. Agree the closed roster, fixed criteria/weights, exclusions, time box, output
-   and done criteria: every cell sourced or `Unknown`, deal-breakers reported,
-   and a confidence-rated recommendation (possibly a conditional split).
-
-Label nonblocking assumptions instead of stalling, but do not silently fix a
-deliverable-defining option set. If discovering options needs external sources,
-obtain agreement on a bounded preliminary Build first, then revise and agree
-the matrix Plan. New criteria or options during execution need renewed scope
-agreement, not a more flattering axis for one option.
+planning loop.
 
 ## Build
 
 1. Restate the agreed decision, option set and criteria, including agreed
    weights. Do not add criteria or grow the roster while gathering; return
    those changes to Plan for agreement. Label harmless assumptions.
-2. Gather using Build's Method, scoped to filling the matrix: primary docs and
-   credible experience reports per option. Keep depth per option bounded by
-   stakes and runtime budget, not exhaustive research for a live consultation.
+2. Gather using the kernel's Build Method, scoped to filling the matrix:
+   primary docs and credible experience reports per option. Keep depth per
+   option bounded by stakes and runtime budget, not exhaustive research for a
+   live consultation.
 3. Score every cell with evidence or mark it `Unknown`; note sourced per-option
    deal-breakers. Compare all options on the same axes, not their individual
    marketing strengths. Balance effort instead of deep-reading one and skimming
@@ -140,12 +116,13 @@ caller or grading the downstream artifact.
 Put unmet or unknown conditions in Assumptions & unknowns; no new numeric quality rubric. Correct
 an in-scope cell or missing explanation in Build only within remaining budget.
 A growing roster, new criteria or extra investigation beyond budget returns to
-Plan for agreement, preserving the original result and consumed budget.
+[plan-compare](../plan/SKILL.md) for agreement, preserving the
+original result and consumed budget.
 
 ## Handoff
 
-Plan ends at the client's agreement. Build ends, in the same turn, with the
-self-check against this entry's Verification, and the reply carries what it
-found unmet or unknown. Each stage's own Handoff in its shared reference says
-what follows. Keep this mode for the unit; another kind of question is another
-agreed unit with its own mode entry, never a silent switch.
+Build ends, in the same turn, with the self-check against this entry's
+Verification, and the reply carries what it found unmet or unknown; the
+kernel's Build section says how the findings are delivered. Keep this mode for
+the unit; another kind of question is another agreed unit with its own
+entries, never a silent switch.

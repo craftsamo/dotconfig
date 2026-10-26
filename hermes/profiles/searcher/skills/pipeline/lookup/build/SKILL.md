@@ -1,63 +1,52 @@
 ---
-name: lookup-searcher
+name: build-lookup
 description: >-
-  Lookup specific facts, documents, links, latest events or who-said-what:
-  agree the question, retrieve sourced answers item by item, check them and
-  hand off link-first. Not enumeration, source trails or synthesis.
+  Lookup, Build stage: retrieve sourced answers for the agreed question or
+  batch, link-first, flag stale or conflicting hits, check and hand off.
+  Requires the client's agreement from Plan; not enumeration or source
+  trails.
 version: 1.0.0
 author: CraftSamo
 license: MIT
 metadata:
   hermes:
     category: pipeline
-    tags: [search, lookup]
+    tags: [search, lookup, build]
 ---
 
 <ReadBeforeWork>
 
 On every caller, resume or completion turn and before a midturn mode, stage or
-scope change, require full-body kernel, this mode entry and the current stage
-reference in current context, not a past load or summary. Direct entry requires
-`skill_view(name="searcher-pipeline")` before any stage. Load
-`skill_view(name="lookup-searcher")` and the current stage with
-`skill_view(name="searcher-pipeline", file_path="references/<stage>.md")`:
-[Plan](../references/plan.md) or [Build](../references/build.md). Retrieval on a service also requires its
-shared reference: [X](../references/platforms/x.md),
-[YouTube](../references/platforms/youtube.md), [note](../references/platforms/note.md),
-[Substack](../references/platforms/substack.md), [EVM](../references/platforms/evm.md),
-[Solana](../references/platforms/solana.md) or
-[Hyperliquid](../references/platforms/hyperliquid.md). A technic the brief names or
-[Capabilities](../references/capabilities.md) matches is loaded too with
+scope change, require full-body kernel and this stage entry in current context,
+not a past load or summary. Direct entry requires
+`skill_view(name="searcher-pipeline")` before any stage; its `<Build>` section
+is the stage this entry specializes. Load `skill_view(name="build-lookup")`.
+Retrieval on a service also requires its shared reference:
+[X](../../references/platforms/x.md), [YouTube](../../references/platforms/youtube.md),
+[note](../../references/platforms/note.md), [Substack](../../references/platforms/substack.md),
+[EVM](../../references/platforms/evm.md), [Solana](../../references/platforms/solana.md) or
+[Hyperliquid](../../references/platforms/hyperliquid.md). A technic the brief names or
+[Capabilities](../../references/capabilities.md) matches is loaded too with
 `skill_view(name="<technic>")`; it adds to this mode and never replaces it.
 If unchanged is returned while the earlier body is unavailable, or a body is
-missing, use read_file on canonical
-`${HERMES_SKILL_DIR}/../SKILL.md`, `${HERMES_SKILL_DIR}/SKILL.md` and
-`${HERMES_SKILL_DIR}/../references/<stage>.md`. Follow next_offset through
-actual truncation; stop the affected action if unavailable. Never evade dedup
-with alternate paths or artificial ranges. Raw skill_dir is this entry's
-directory. Loading does not restart coverage or the frontier, reset a budget or
-replay work. Expansion needs the caller's release; selection is not a new grant.
+missing, use read_file on canonical `${HERMES_SKILL_DIR}/../../SKILL.md`,
+`${HERMES_SKILL_DIR}/SKILL.md` and
+`${HERMES_SKILL_DIR}/../../references/platforms/<service>.md`. Follow
+next_offset through actual truncation; stop the affected action if
+unavailable. Never evade dedup with alternate paths or artificial ranges. Raw
+skill_dir is this entry's directory. Loading does not restart coverage or the
+frontier, reset a budget or replay work. Expansion needs the caller's release;
+selection is not a new grant.
 
 </ReadBeforeWork>
 
-# Lookup
+# Lookup: Build
 
 Use when the unit wants **specific answers**: a fact, a doc/link,
-"latest on X", who-said-what, a version, a date. This is the **default mode**
-when no other fits; a batch releases as one unit with an itemized question
-list — answer item by item, none silently dropped. Deliverable = claims +
-source URLs. Done when the question is answered with sources — not when the
-web is exhausted.
-
-## Plan
-
-Choose lookup for specific facts, documents/links, latest events, who-said-what,
-versions or dates; it is the default when neither enumeration nor a source trail
-is needed. Propose one question or an itemized batch with no silently dropped
-items. Set entities, time window/freshness, source classes, exclusions, finite
-query cap and link-first output. Done means each question has a sourced answer
-or named miss with attempts, not exhausting the web. Where stakes warrant,
-include independent corroboration, leaving conflicting answers unadjudicated.
+"latest on X", who-said-what, a version, a date. A batch is one unit with an
+itemized question list — answer item by item, none silently dropped.
+Deliverable = claims + source URLs. Done when the question is answered with
+sources — not when the web is exhausted.
 
 ## Build
 
@@ -120,7 +109,9 @@ Keep it link-first. No essays.
 
 ## Handoff
 
-Plan ends at the client's agreement. Build ends, in the same turn, with the
-check against this entry's Verification, and the reply carries it. Each
-stage's own Handoff in its shared reference says what follows. Keep this mode for the unit; another kind of retrieval is another
-agreed unit with its own mode entry, never a silent switch.
+Build ends, in the same turn, with the check against this entry's
+Verification, and the reply carries it; the kernel's Build section says how
+the report is delivered. Expansion goes to
+[plan-lookup](../plan/SKILL.md) and client agreement. Keep this mode
+for the unit; another kind of retrieval is another agreed unit with its own
+entries, never a silent switch.

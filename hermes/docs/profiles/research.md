@@ -29,16 +29,19 @@ success.
 
 ### Researcher
 
-Researcher's `researcher-pipeline` kernel routes four mode entries, one
-per kind of question: `investigate-researcher` (an open question, answered as an
-evidence pack), `compare-researcher` (named options on fixed criteria, a
-tradeoff matrix), `verify-researcher` (exact claims, verdicts and a durable
-claim ledger) and `advise-researcher` (directives for a named consumer). Each
-entry owns what Plan and Build mean for its question — framing, synthesis,
-output template and the Verification its Build ends by self-checking against —
-while the stages themselves are shared `references/plan.md` and `build.md`
-(the evidence Method and the self-check) beside `references/gather.md`, which is
-required beyond a few direct lookups.
+Researcher's `researcher-pipeline` kernel routes four modes, one per kind of
+question: investigate (an open question, answered as an evidence pack),
+compare (named options on fixed criteria, a tradeoff matrix), verify (exact
+claims, verdicts and a durable claim ledger) and advise (directives for a
+named consumer). Each mode has one entry per stage at
+`pipeline/<mode>/<stage>/SKILL.md`, named `<stage>-<mode>`: the
+Plan entry owns the framing the proposal needs, the Build entry owns the
+synthesis, output template and the Verification its Build ends by
+self-checking against. The stage mechanics themselves (the proposal, the
+evidence Method and the self-check) are the kernel's own `<Plan>` and
+`<Build>` sections, so a turn loads the kernel and one stage entry;
+`references/gather.md` stays shared and is required beyond a few direct
+lookups.
 Researcher reads the user's own sales and billing through the read-only
 `stripe` tool ([stripe-access.md](../stripe-access.md)), and their domains,
 DNS and zone settings through the read-only `cloudflare` tool
@@ -81,9 +84,10 @@ the accepted findings into the Researcher brief.
 ### Searcher
 
 Searcher's `searcher-pipeline` kernel (retrieval, release and the
-resident runtime) routes three mode entries, `lookup-searcher`,
-`sweep-searcher` and `hunt-searcher`, over the same shared Plan and Build
-stage references. Its clients are the Assistant and the advisors (Creator,
+resident runtime) routes three modes, lookup, sweep and hunt, each with a
+Plan and a Build entry at `pipeline/<mode>/<stage>/SKILL.md` named
+`<stage>-<mode>`, over the kernel's own `<Plan>` and `<Build>`
+sections. Its clients are the Assistant and the advisors (Creator,
 Marketer, and any the private overlay adds), each over a resident
 conversation it owns. Retrieval and link integrity remain its
 limits: no trust verdicts, synthesis, rankings or production. Beyond web
@@ -132,9 +136,10 @@ authorized settled one goes directly to Build.
 ### Entries and status
 
 Neither tree keeps an alias for `plan-`, `build-` or `qa-` entries or per-stage
-unit references, and neither adds a second common-mode index. All seven mode entries follow the shared
-[entry loading contract](../topology.md#entry-loading-contract), with the
-current stage reference bodies loaded too. Selection/resume never resets
+unit references, and neither adds a second common-mode index. All fourteen
+stage entries follow the shared
+[entry loading contract](../topology.md#entry-loading-contract), each with
+the kernel that owns its stage. Selection/resume never resets
 coverage/frontier or consumed/remaining budget. Parent references are Hermes-specific dependencies:
 never duplicate Gather, the stages, evidence floors or the kernel to satisfy
 the generic portability check. No other profile gains these entries.
