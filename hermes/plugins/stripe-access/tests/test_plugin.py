@@ -94,22 +94,22 @@ def test_assistant_researcher_and_marketer_get_the_tool_others_nothing():
         assert params["additionalProperties"] is False and params["required"] == ["action"]
         assert params["properties"]["action"]["enum"] == list(plugin.PROFILES[profile])
         assert params["properties"]["mode"]["enum"] == ["live", "test"]
-        assert 'skill_view(name="stripe-access:stripe")' in tool["description"]
+        assert 'skill_view(name="stripe-access:read")' in tool["description"]
         assert [name for name, _ in ctx.hooks] == ["pre_tool_call"]
     assistant = registered("assistant")
-    assert set(assistant.skills) == {"stripe", "stripe-manage"}
+    assert set(assistant.skills) == {"read", "manage"}
     tool = assistant.tools["stripe"]
     properties = tool["schema"]["parameters"]["properties"]
     assert {"items", "metadata", "percent_off", "proration", "preview", "reason"} <= set(properties)
-    assert "refund_create" in tool["description"] and 'name="stripe-access:stripe-manage"' in tool["description"]
+    assert "refund_create" in tool["description"] and 'name="stripe-access:manage"' in tool["description"]
     assert "refund_create" in properties["payment"]["description"]
     for profile in ("researcher", "marketer"):
         ctx = registered(profile)
         tool = ctx.tools["stripe"]
         properties = tool["schema"]["parameters"]["properties"]
-        assert set(ctx.skills) == {"stripe"}
+        assert set(ctx.skills) == {"read"}
         assert not {"items", "metadata", "percent_off", "preview"} & set(properties)
-        assert "refund_create" not in tool["description"] and "stripe-manage" not in tool["description"]
+        assert "refund_create" not in tool["description"] and "manage" not in tool["description"]
 
 
 def test_the_read_profiles_hold_reads_only():

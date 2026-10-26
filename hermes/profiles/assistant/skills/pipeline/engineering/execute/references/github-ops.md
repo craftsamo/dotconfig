@@ -3,13 +3,13 @@
 | Operation | Owner and permission |
 | --- | --- |
 | Code, commits, task-branch push, PR creation | An OpenCode build run you drive, within explicit implementation approval |
-| A PR for a branch already pushed that the user names | You, through `github_change` `pr_create` (`skill_view(name="github-access:github-pr")`), when the user asks; never for a branch a build run made, whose PR comes from that run |
-| A PR's text, labels, reviewers, attachments (screenshots), ready / draft, closing | You, through `github_change` (`skill_view(name="github-access:github-pr")`), when the user asks; each attached file with their yes |
+| A PR for a branch already pushed that the user names | You, through `github_change` `pr_create` (`skill_view(name="github-access:manage-pr")`), when the user asks; never for a branch a build run made, whose PR comes from that run |
+| A PR's text, labels, reviewers, attachments (screenshots), ready / draft, closing | You, through `github_change` (`skill_view(name="github-access:manage-pr")`), when the user asks; each attached file with their yes |
 | Issues and boards | You, through `github_change` (github-access), only for a job the user chose to track (below); never an OpenCode run |
-| Repo creation and settings, labels, milestones, branch protection, clone, workspace registry | Assistant, when separately requested/approved; GitHub changes through `github_change` (`skill_view(name="github-access:github-repo")`) |
+| Repo creation and settings, labels, milestones, branch protection, clone, workspace registry | Assistant, when separately requested/approved; GitHub changes through `github_change` (`skill_view(name="github-access:manage-repo")`) |
 | CI: why a run failed, re-running it | You read it (`github_repo` `run`); a real failure goes back to the build session. A re-run (`run_rerun`) when the user asks, or proposed by you only for a failure that looks transient; its card is their go |
 | Merge | Assistant, only when the user asks, after readiness checks: `pr_merge`, whose card is their go; method and message as `skill_view(name="github", file_path="references/merge.md")` says |
-| Deploy/publish (publishing a release, starting a workflow that deploys) | Outside the implementation grant; separately scoped work. When the user asks for it: `release_create` / `release_publish` or `workflow_dispatch` (`github-access:github-repo`), each on its own card |
+| Deploy/publish (publishing a release, starting a workflow that deploys) | Outside the implementation grant; separately scoped work. When the user asks for it: `release_create` / `release_publish` or `workflow_dispatch` (`github-access:manage-repo`), each on its own card |
 
 Do not create Issues or change boards for a job the user did not choose to
 track, and never as an automatic close-out. Reading an Issue is not
@@ -20,8 +20,8 @@ build session when released.
 
 ## Tracking a job on GitHub
 
-Read `skill_view(name="github-access:github")` and
-`skill_view(name="github-access:github-tracking")` before the first GitHub
+Read `skill_view(name="github-access:read-tracking")` and
+`skill_view(name="github-access:manage-tracking")` before the first GitHub
 change of a job.
 
 **The choice.** Propose tracking once, and only with the roadmap of a job of
@@ -49,22 +49,22 @@ tier the wording agreed first.
 1. Gather the background: read what the job touches that you can reach
    (the conversation, the synced messages and sheets, the repository
    inventory, OpenCode's plan) and note each fact's source.
-2. When the agreed board does not exist yet, make it first, in a call of its
-   own: `board_create` with its owner, title and `link_repo` the repository.
+2. When the agreed board does not exist yet, make it first, as the tracking
+   skill's "Setting up a board" says.
 3. Write the parent issue and every sub-issue (and the operational drafts)
-   into one Markdown file in the job directory. On a `shared` or `other`
-   tier ask with `clarify`, the file in its `context`; on `own` the card is
-   enough.
-4. One `github_change` list: the parent first, then a sub-issue per Phase
-   with `parent: "$1"` and `blocked_by` the one before (`"$2"`, `"$3"`, …:
-   an issue an earlier change of the same list creates), each with
-   `board_fields`; the drafts with it. One card shows the whole plan.
+   into one Markdown file in the job directory, agreed with the user as the
+   tracking skill's "Before writing, by tier" says for the target's tier.
+4. One `github_change` list, the parent first and a sub-issue per Phase
+   that names it as `parent` and the one before as `blocked_by`, each with
+   `board_fields`, the drafts with it; the tracking skill's "Recipes" show
+   the shape. One card shows the whole plan.
 5. Propose the **mandate**: `routine`, boards = the job's board, repos = its
    repository, parent = the parent issue (so it covers that issue tree and
    nothing else in the repository), until the job is expected to be
-   delivered (at most 30 days). Creating issues, commenting and closing still
-   ask, unless the user's own private board and repository are all the job
-   touches and the user wants those covered too.
+   delivered, within the term the tracking skill's "Mandates" allows.
+   Creating issues, commenting and closing still ask, unless the user's own
+   private board and repository are all the job touches and the user wants
+   those covered too.
 6. Record the parent issue, the board and the mandate id in the decision
    log: a new session finds the job's GitHub record from there.
 
@@ -97,11 +97,11 @@ you, after you have read it.
 ## Repository lifecycle
 
 Use the decisions from [bootstrap](../../plan/references/bootstrap.md).
-Before any registry call, read `skill_view(name="workspace-registry:workspace-registry")`.
+Before any registry call, read `skill_view(name="workspace-registry:manage")`.
 Create a missing Group with the `workspace_registry` `group_create` action only when approved;
 pass an organization only when it names a real approved registry record.
 Establish GitHub repositories with approved owner, visibility and history
-through `github_change` `repo_create` (`skill_view(name="github-access:github-repo")`,
+through `github_change` `repo_create` (`skill_view(name="github-access:manage-repo")`,
 always on its own card): `template` for a starter, or an empty repository for
 an approved scratch or history-preserving path (the history is pushed into
 it). Clone through `ghq`, not an unregistered local `git init`; preserve

@@ -45,17 +45,17 @@ def test_the_plugin_registers_the_solana_tool_from_the_shared_logic():
 
 
 def test_the_wallet_skill_reaches_only_the_profile_that_signs():
-    expected = {"assistant": {"solana", "solana-wallet"}, "researcher": {"solana"}, "searcher": {"solana"},
-                "marketer": {"solana"}, "creator": set()}
+    expected = {"assistant": {"read", "wallet"}, "researcher": {"read"}, "searcher": {"read"},
+                "marketer": {"read"}, "creator": set()}
     for profile, names in expected.items():
         ctx = Ctx(profile)
         plugin.register(ctx)
         assert set(ctx.skills) == names
         if ctx.tools:
-            assert 'solana-access:solana"' in ctx.tools["solana"]["description"]
+            assert 'solana-access:read"' in ctx.tools["solana"]["description"]
     for profile in ("researcher", "searcher", "marketer"):
         ctx = Ctx(profile)
         plugin.register(ctx)
-        body = ctx.skills["solana"].read_text().lower()
+        body = ctx.skills["read"].read_text().lower()
         assert not any(word in body for word in ("`quote`", "`transfer`", "`accounts`", "approval card", "use: sign"))
         assert "wallet" not in ctx.tools["solana"]["description"].lower()

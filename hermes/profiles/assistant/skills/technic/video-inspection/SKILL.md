@@ -104,7 +104,7 @@ conversation (`plan-research`).
    `remote_analysis: yes`) needs the user's explicit consent for that
    operation, asked once for the batch; without it, say so and keep local.
 2. **Fetch.** A YouTube video comes through the `youtube` tool (load
-   `skill_view(name="youtube-access:youtube")` first): `download` kind
+   `skill_view(name="youtube-access:read")` first): `download` kind
    video, `download` kind audio, and `transcript` in the video's language
    (its file keeps `[m:ss]` line starts). A `download` that fails with HTTP
    403 may be retried once with `max_height: 720`; record the lower
@@ -259,7 +259,7 @@ conversation (`plan-research`).
    when you could not reproduce it exactly or it rests on taste or listening.
 7. **Build the inspection spreadsheet.** The user answers in a Google
    Sheet, one per round, made and read with the `google_sheets` tool under
-   `skill_view(name="google-access:google-sheets")` (plan the payload in a
+   `skill_view(name="google-access:sheets")` (plan the payload in a
    script file, one guarded write, read back). The user does not judge on
    the sheet; they answer each row YES, NO or "can't tell", and the status
    follows from the answer. So first word every `confirm` finding as a

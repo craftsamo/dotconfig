@@ -117,7 +117,7 @@ class ManagedSkillWriteGuardTest(unittest.TestCase):
         self.assertEqual(result["action"], "block")
 
     def test_skills_shipped_inside_a_plugin_are_read_only(self) -> None:
-        shipped = self.plugin.MANAGED_ROOT / "plugins/social/x-access/skills/x-twitter"
+        shipped = self.plugin.MANAGED_ROOT / "plugins/social/x-access/skills/read"
         for path in (shipped / "SKILL.md", shipped / "references/new.md", shipped.parent / "fresh/SKILL.md"):
             self.assertEqual(self.guard("write_file", path=str(path), content="x")["action"], "block")
             self.assertEqual(self.guard("terminal", command=f"echo x > {path}")["action"], "block")

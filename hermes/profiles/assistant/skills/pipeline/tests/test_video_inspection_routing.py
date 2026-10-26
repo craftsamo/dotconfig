@@ -57,7 +57,7 @@ class VideoInspectionRouting(unittest.TestCase):
                       "`captions` (the fetched `[m:ss]` transcript) when the language is Japanese",
                       "passes a line that names its item",
                       "never import a speech report as it is", "inspection.py triage-speech",
-                      'skill_view(name="google-access:google-sheets")', "inspection.py export", "inspection.py readback"):
+                      'skill_view(name="google-access:sheets")', "inspection.py export", "inspection.py readback"):
             self.assertIn(owner, text)
         self.assertNotIn('analyze-speech` with `kind="inquiry"', text)
         self.assertNotIn("analyze-explainer-video", text, "the picture leaf is the genre reference's, not the procedure's")

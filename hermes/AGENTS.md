@@ -238,12 +238,16 @@ skills.
 - **A plugin's mechanics skill ships inside the plugin, in a directory named
   `skills/`.** `plugins/<group>/<name>/skills/<skill>/SKILL.md` is registered
   by the plugin's `register_skills` from its `SKILLS` table (skill → profiles)
-  as `<plugin>:<skill>`; a bare name does not resolve. It is read-only to
+  as `<plugin>:<skill>`; a bare name does not resolve. The plugin is the
+  subject, so the skill's name is `<how>` or `<how>-<object>`
+  (`cloudflare-access:manage`, `x-access:draft-post`) and never repeats it;
+  `read` is the read-only skill, `manage` the one that writes, and a step with
+  a procedure of its own gets its verb (`collect-history`). It is read-only to
   Hermes (`skill_manage` cannot find it) and the `skill-topology` guard
   protects the path only because a path element is literally `skills` — never
   rename the directory. A profile gets a skill only if its tool can do what the
   skill describes, so a read-only profile never sees write procedures: split a
-  skill by capability (`x-twitter` / `draft-post`), never by
+  skill by capability (`read` / `draft-post`), never by
   `references/` (a loaded skill's references are readable by anyone who loads
   it). A procedure the model follows through a step (`collect-history`,
   `configure-studio`) is a skill of its own, not a `references/` file: after a

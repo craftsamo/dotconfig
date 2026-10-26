@@ -47,17 +47,17 @@ def test_the_plugin_registers_the_evm_tool_from_the_shared_logic():
 
 
 def test_the_wallet_skill_reaches_only_the_profile_that_signs():
-    expected = {"assistant": {"evm", "evm-wallet"}, "researcher": {"evm"}, "searcher": {"evm"},
-                "marketer": {"evm"}, "creator": set()}
+    expected = {"assistant": {"read", "manage-wallets"}, "researcher": {"read"}, "searcher": {"read"},
+                "marketer": {"read"}, "creator": set()}
     for profile, names in expected.items():
         ctx = Ctx(profile)
         plugin.register(ctx)
         assert set(ctx.skills) == names
         if ctx.tools:
-            assert 'evm-access:evm"' in ctx.tools["evm"]["description"]
+            assert 'evm-access:read"' in ctx.tools["evm"]["description"]
     for profile in ("researcher", "searcher", "marketer"):
         ctx = Ctx(profile)
         plugin.register(ctx)
-        body = ctx.skills["evm"].read_text().lower()
+        body = ctx.skills["read"].read_text().lower()
         assert not any(word in body for word in ("`quote`", "`transfer`", "`accounts`", "approval card", "use: sign"))
         assert "wallet" not in ctx.tools["evm"]["description"].lower()

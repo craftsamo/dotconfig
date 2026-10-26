@@ -44,8 +44,8 @@ tool_preview = _load("hermes_tool_preview", Path(__file__).resolve().parents[2] 
 PROFILES = set(sa.PROFILE_ACTIONS)
 # Skill -> the profiles it is registered for. A skill is read-only to Hermes (not editable through
 # skill_manage); a profile that cannot do what a skill describes is not given it.
-SKILLS = {"substack": set(PROFILES), "substack-drafts": {p for p in PROFILES if set(sa.WRITES) & set(sa.actions_for(p))}}
-SKILL_HINT = ' For anything past a single lookup, first load skill_view(name="substack-access:substack").'
+SKILLS = {"read": set(PROFILES), "manage": {p for p in PROFILES if set(sa.WRITES) & set(sa.actions_for(p))}}
+SKILL_HINT = ' For anything past a single lookup, first load skill_view(name="substack-access:read").'
 
 READ_DESCRIPTION = (
     "status (engine, whether the account's cookies are stored or were refused, a running rate limit, calls "

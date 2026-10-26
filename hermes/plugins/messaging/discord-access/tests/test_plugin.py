@@ -204,7 +204,7 @@ def test_writes_on_unknown_targets_are_blocked(args):
 
 
 def test_the_skill_reaches_only_the_assistant():
-    for profile, names in (("assistant", {"discord-account", "collect-history", "manage-roles"}), ("marketer", set()), ("creator", set())):
+    for profile, names in (("assistant", {"account", "collect-history", "manage-roles"}), ("marketer", set()), ("creator", set())):
         ctx = Ctx(profile)
         plugin.register(ctx)
         assert set(ctx.skills) == names
@@ -213,8 +213,8 @@ def test_the_skill_reaches_only_the_assistant():
 # --- the tool, its description and its skill say the same thing -----------------------------------------
 
 SKILLS_DIR = ROOT / "skills"
-SKILL_FILES = ("discord-account/SKILL.md", "manage-roles/SKILL.md", "collect-history/SKILL.md",
-               "discord-account/references/recipes.md")
+SKILL_FILES = ("account/SKILL.md", "manage-roles/SKILL.md", "collect-history/SKILL.md",
+               "account/references/recipes.md")
 
 
 def _skill_text(*names):
@@ -238,8 +238,8 @@ def test_the_skill_names_only_arguments_the_tool_has():
 
 
 def test_the_recipes_are_reached_from_the_skill_and_cover_the_usual_jobs():
-    assert "references/recipes.md" in _skill_text("discord-account/SKILL.md")
-    recipes = _skill_text("discord-account/references/recipes.md")
+    assert "references/recipes.md" in _skill_text("account/SKILL.md")
+    recipes = _skill_text("account/references/recipes.md")
     headings = re.findall(r"^## \d+\. (.+)$", recipes, re.MULTILINE)
     assert headings == ["What is waiting for my answer", "Look into a channel", "Review the sync list",
                         "Read a forum", "Sync looks wrong"]

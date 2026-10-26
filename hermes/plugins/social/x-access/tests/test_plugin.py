@@ -158,8 +158,8 @@ def test_searcher_gets_only_the_public_reads():
 
 
 def test_the_draft_skill_reaches_only_the_profile_that_saves_drafts():
-    expected = {"assistant": {"x-twitter", "draft-post", "draft-article"}, "marketer": {"x-twitter"},
-                "searcher": {"x-twitter"}, "creator": set()}
+    expected = {"assistant": {"read", "draft-post", "draft-article"}, "marketer": {"read"},
+                "searcher": {"read"}, "creator": set()}
     for profile, names in expected.items():
         ctx = Ctx(profile)
         plugin.register(ctx)
@@ -170,7 +170,7 @@ def test_the_draft_skill_reaches_only_the_profile_that_saves_drafts():
         for path in ctx.skills.values():
             body = path.read_text().lower()
             assert not any(word in body for word in ("post-draft", "article-draft", "composer", "editor"))
-        assert 'x-access:x-twitter"' in ctx.tools["x"]["description"]
+        assert 'x-access:read"' in ctx.tools["x"]["description"]
 
 
 def test_a_broken_skill_never_costs_the_tool(monkeypatch):

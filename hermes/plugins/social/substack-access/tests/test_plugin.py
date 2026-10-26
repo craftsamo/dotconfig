@@ -333,8 +333,8 @@ def test_oversized_results_are_refused(monkeypatch):
 
 
 def test_the_write_skill_reaches_only_the_profile_that_can_write():
-    expected = {"assistant": {"substack", "substack-drafts"}, "marketer": {"substack"},
-                "searcher": {"substack"}, "creator": set()}
+    expected = {"assistant": {"read", "manage"}, "marketer": {"read"},
+                "searcher": {"read"}, "creator": set()}
     for profile, names in expected.items():
         ctx = Ctx(profile)
         plugin.register(ctx)
@@ -342,6 +342,6 @@ def test_the_write_skill_reaches_only_the_profile_that_can_write():
     for profile in ("marketer", "searcher"):
         ctx = Ctx(profile)
         plugin.register(ctx)
-        body = ctx.skills["substack"].read_text()
+        body = ctx.skills["read"].read_text()
         assert not any(word in body for word in ("create_draft", "update_draft", "schedule", "approval card"))
-        assert 'substack-access:substack"' in ctx.tools["substack"]["description"]
+        assert 'substack-access:read"' in ctx.tools["substack"]["description"]

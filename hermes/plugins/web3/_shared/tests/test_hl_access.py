@@ -106,7 +106,7 @@ def test_the_four_reading_profiles_get_the_tool_and_others_nothing():
         assert registered["toolset"] == "hyperliquid_access" and params["additionalProperties"] is False
         assert params["required"] == ["action"]  # network is checked per action: a submit takes its quote's
         assert params["properties"]["network"]["enum"] == ["mainnet", "testnet"]
-        assert 'skill_view(name="hyperliquid-access:hyperliquid")' in registered["description"]
+        assert 'skill_view(name="hyperliquid-access:read")' in registered["description"]
         assert [hook for hook, _ in ctx.hooks] == ["pre_tool_call"]
         trading = profile == "assistant"
         trades = ["quote", "submit", "mandates", "revoke_mandate"] if trading else []

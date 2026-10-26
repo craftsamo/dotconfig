@@ -218,8 +218,8 @@ def test_bind_hook_pins_writes_only():
 
 
 def test_the_write_skill_reaches_only_the_profile_that_can_write():
-    expected = {"assistant": {"youtube", "youtube-manage", "configure-studio"}, "marketer": {"youtube"},
-                "searcher": {"youtube"}, "creator": set()}
+    expected = {"assistant": {"read", "manage", "configure-studio"}, "marketer": {"read"},
+                "searcher": {"read"}, "creator": set()}
     for profile, names in expected.items():
         ctx = Ctx(profile)
         plugin.register(ctx)
@@ -227,6 +227,6 @@ def test_the_write_skill_reaches_only_the_profile_that_can_write():
     for profile in ("marketer", "searcher"):
         ctx = Ctx(profile)
         plugin.register(ctx)
-        body = ctx.skills["youtube"].read_text().lower()
-        assert not any(word in body for word in ("youtube-manage", "approval", "studio", "channel_update"))
-        assert 'youtube-access:youtube"' in ctx.tools["youtube"]["description"]
+        body = ctx.skills["read"].read_text().lower()
+        assert not any(word in body for word in ("youtube-access:manage", "approval", "studio", "channel_update"))
+        assert 'youtube-access:read"' in ctx.tools["youtube"]["description"]

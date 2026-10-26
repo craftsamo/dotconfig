@@ -45,8 +45,8 @@ tool_preview = _load("hermes_tool_preview", Path(__file__).resolve().parents[2] 
 PROFILES = set(xa.PROFILE_ACTIONS)
 # Skill -> the profiles it is registered for. A skill is read-only to Hermes (not editable through
 # skill_manage); a profile that cannot do what a skill describes is not given it.
-SKILLS = {"x-twitter": set(PROFILES), "draft-post": {"assistant"}, "draft-article": {"assistant"}}
-SKILL_HINT = ' For anything past a single lookup, first load skill_view(name="x-access:x-twitter").'
+SKILLS = {"read": set(PROFILES), "draft-post": {"assistant"}, "draft-article": {"assistant"}}
+SKILL_HINT = ' For anything past a single lookup, first load skill_view(name="x-access:read").'
 
 DESCRIPTION = (
     "Read-only X (Twitter), signed in as the user's separate sub-account (never the main one). "
