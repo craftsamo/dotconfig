@@ -23,7 +23,7 @@ import pytest
 
 
 ROOT = "writer-pipeline"
-PRODUCTION = {f"{verb}-{subject}": f"{verb}/{subject}/SKILL.md"
+PRODUCTION = {f"{verb}-{subject}": f"{subject}/{verb}/SKILL.md"
               for verb in ("write", "edit", "analyze")
               for subject in ("post", "article", "document", "message", "copy", "script")}
 PATHS = {ROOT: "SKILL.md", "consult-writer": "consult-writer/SKILL.md", **PRODUCTION}
@@ -34,7 +34,7 @@ CASES = ("discovery", "owner_reads", "caller_assistant")
 @pytest.mark.parametrize("case", CASES)
 def test_writer_entry_runtime(case):
     public = Path(__file__).resolve().parents[3]
-    candidate = public / "hermes/profiles/writer/skills/writer-pipeline"
+    candidate = public / "hermes/profiles/writer/skills/pipeline"
     roots = [Path(p).resolve() for p in os.environ.get("PYTHONPATH", "").split(os.pathsep) if p]
     source = next((p for p in roots if (p / "agent/skill_utils.py").is_file()), None)
     assert source is not None, "PYTHONPATH must explicitly include the Hermes source checkout"

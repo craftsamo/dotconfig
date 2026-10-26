@@ -22,9 +22,9 @@ from tools import skills_tool
 from .skill_roots import find_all_skills, search_dirs_name, search_dirs_result
 
 HERMES_ROOT = Path(__file__).resolve().parents[2]
-VIDEO_PIPELINE = HERMES_ROOT / "profiles" / "video-creator" / "skills" / "video-creator-pipeline"
-CREATE_AD_DIR = VIDEO_PIPELINE / "create" / "ad"
-ANALYZE_AD_DIR = VIDEO_PIPELINE / "analyze" / "ad"
+VIDEO_PIPELINE = HERMES_ROOT / "profiles" / "video-creator" / "skills" / "pipeline"
+CREATE_AD_DIR = VIDEO_PIPELINE / "ad" / "create"
+ANALYZE_AD_DIR = VIDEO_PIPELINE / "ad" / "analyze"
 CREATE_AD = CREATE_AD_DIR / "SKILL.md"
 ANALYZE_AD = ANALYZE_AD_DIR / "SKILL.md"
 
@@ -61,7 +61,7 @@ class ClosingFenceBudgetTest(unittest.TestCase):
 
 class AdSkillDiscoveryTest(unittest.TestCase):
     """Exercise the real `find_all_skills` scan against ONLY the real
-    create/ad and analyze/ad directories, isolated from every other skill
+    ad/create and ad/analyze directories, isolated from every other skill
     on disk (no other profile's skills leak in, no live config is read)."""
 
     def setUp(self) -> None:

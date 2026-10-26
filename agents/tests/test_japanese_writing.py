@@ -84,7 +84,8 @@ def test_host_router_only_loads_core():
 
 
 def test_writer_does_not_call_skill_resources_directly():
-    pipeline = ROOT / "hermes/profiles/writer/skills/writer-pipeline"
+    pipeline = ROOT / "hermes/profiles/writer/skills/pipeline"
+    assert pipeline.is_dir(), pipeline
     for path in pipeline.rglob("*.md"):
         text = path.read_text(encoding="utf-8")
         assert "japanese-writing/scripts/" not in text, path

@@ -23,7 +23,7 @@ SCRIPT = (
     / "profiles"
     / "video-creator"
     / "skills"
-    / "video-creator-pipeline"
+    / "pipeline"
     / "scripts"
     / "clip-media.py"
 )

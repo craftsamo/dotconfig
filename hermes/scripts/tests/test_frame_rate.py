@@ -9,7 +9,7 @@ import pytest
 import hermes_yaml as yaml
 
 HERMES_ROOT = Path(__file__).resolve().parents[2]
-PIPELINE = HERMES_ROOT / "profiles/video-creator/skills/video-creator-pipeline"
+PIPELINE = HERMES_ROOT / "profiles/video-creator/skills/pipeline"
 
 spec = importlib.util.spec_from_file_location("frame_rate", PIPELINE / "scripts/frame_rate.py")
 frame_rate = importlib.util.module_from_spec(spec)
@@ -47,7 +47,7 @@ def test_drafts_are_capped_at_30(rate, expected):
 
 @pytest.mark.parametrize("subject", ["promotion", "story", "ad", "tour", "explainer-video"])
 def test_each_authored_leaf_offers_the_same_rates(subject):
-    text = (PIPELINE / "create" / subject / "SKILL.md").read_text(encoding="utf-8")
+    text = (PIPELINE / subject / "create" / "SKILL.md").read_text(encoding="utf-8")
     end = text.index("\n---", 4)
     form = yaml.safe_load(text[4:end])["metadata"]["hermes"]["form"]
     assert form["fps"]["required"] is False

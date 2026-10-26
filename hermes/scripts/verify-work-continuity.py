@@ -87,7 +87,7 @@ RUNTIME_PYTEST_FILES = (
     "tests/gateway/test_discord_exec_approval_content.py",
 )
 
-ASSISTANT_PIPELINE = "hermes/profiles/assistant/skills/assistant-pipeline"
+ASSISTANT_PIPELINE = "hermes/profiles/assistant/skills/pipeline"
 ASSISTANT_TESTS = f"{ASSISTANT_PIPELINE}/tests"
 
 
@@ -129,7 +129,7 @@ def check_candidate_pairing(private: Path) -> None:
     which still owns the Assistant's config and private technics -- never
     soften the validator's own checks, just refuse an unpaired candidate."""
     private = private.resolve()
-    pipeline = HERMES_ROOT / "profiles/assistant/skills/assistant-pipeline"
+    pipeline = HERMES_ROOT / "profiles/assistant/skills/pipeline"
     require(not pipeline.is_symlink(), f"{pipeline} must be a tracked directory, not a link")
     require(pipeline.is_dir(), f"missing assistant pipeline directory: {pipeline}")
     require(private.is_dir(), f"missing --private checkout: {private}")

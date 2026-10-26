@@ -13,19 +13,19 @@ def text(path):
 
 class VisualDesignContractTest(unittest.TestCase):
     def test_assistant_carries_complete_design_and_creator_does_not_bind_it(self):
-        skill = text(ROOT / "assistant/skills/assistant-pipeline/execute-assistant-creative/SKILL.md")
+        skill = text(ROOT / "assistant/skills/pipeline/creative/execute/SKILL.md")
         for phrase in ("never add form keys", "accept a silently flattened substitute",
                        "Authored video gets intent only; the producer writes the storyboard"):
             self.assertIn(phrase, skill)
-        kernel = text(ROOT / "creator/skills/creator-pipeline/SKILL.md")
+        kernel = text(ROOT / "creator/skills/pipeline/SKILL.md")
         self.assertIn("Technique names (GSAP, Three.js, shaders) appear only where the selected leaf supports them",
                       kernel)
         self.assertIn("No storyboard, timeline, frame specification, layout or pixel size", kernel)
         self.assertIn("never propose an unsupported method", kernel)
 
     def test_hands_preserve_components_and_intermediate_motion(self):
-        video = text(ROOT / "video-creator/skills/video-creator-pipeline/references/craft.md")
-        image = text(ROOT / "image-creator/skills/image-creator-pipeline/references/craft.md")
+        video = text(ROOT / "video-creator/skills/pipeline/references/craft.md")
+        image = text(ROOT / "image-creator/skills/pipeline/references/craft.md")
         self.assertIn("before/during/after", video)
         self.assertIn("Do not postpone intermediate choreography", video)
         self.assertIn("exact proposal/preview approvals", video)

@@ -95,7 +95,7 @@ class PreflightFailureTest(unittest.TestCase):
         self.other_private = root / "other-private"
         self.other_private.mkdir()
         hermes = root / "public/hermes"
-        self.pipeline = hermes / "profiles/assistant/skills/assistant-pipeline"
+        self.pipeline = hermes / "profiles/assistant/skills/pipeline"
         self.pipeline.mkdir(parents=True)
         self.home = root / "home"
         live_private = self.home / V.LIVE_PRIVATE_ROOT
@@ -120,7 +120,7 @@ class PreflightFailureTest(unittest.TestCase):
         V.check_candidate_pairing(self.private)
 
     def test_leftover_overlay_link_is_rejected(self) -> None:
-        target = self.private / "hermes/profiles/assistant/skills/assistant-pipeline"
+        target = self.private / "hermes/profiles/assistant/skills/pipeline"
         target.mkdir(parents=True)
         self.pipeline.rmdir()
         self.pipeline.symlink_to(target)
@@ -201,7 +201,7 @@ class PerProfileHandoffContractTest(unittest.TestCase):
     def test_public_roots_mention_agent_vs_human_handoff_distinction(self) -> None:
         for profile in self.PUBLIC_ROOTS:
             with self.subTest(profile=profile):
-                path = REAL_PUBLIC_ROOT / f"hermes/profiles/{profile}/skills/{profile}-pipeline/SKILL.md"
+                path = REAL_PUBLIC_ROOT / f"hermes/profiles/{profile}/skills/pipeline/SKILL.md"
                 self.assertTrue(path.is_file(), path)
                 text = " ".join(path.read_text(encoding="utf-8").split())
                 self.assertRegex(

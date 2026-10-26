@@ -10,7 +10,7 @@ from types import SimpleNamespace
 import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
-LEAF = ROOT / "profiles/video-creator/skills/video-creator-pipeline/create/tour"
+LEAF = ROOT / "profiles/video-creator/skills/pipeline/tour/create"
 sys.path.insert(0, str(LEAF / "scripts"))
 import approval
 import authored

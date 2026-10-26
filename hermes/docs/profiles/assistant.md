@@ -9,8 +9,8 @@ entries, gate or topics. Part of the Hermes design docs — index:
 
 For non-creative work, the assistant is the quality gate. Every specialist
 deliverable (a resident session reply) is a candidate until the assistant has
-verified the actual artifact per the `qa-assistant-*` entries under
-`profiles/assistant/skills/assistant-pipeline/` and common QA
+verified the actual artifact per the `qa-<domain>` entries under
+`profiles/assistant/skills/pipeline/` and common QA
 (`references/quality-assurance/index.md`). Writing QA uses Writer's public
 acceptance contract ([writer.md](./writer.md) "Writer craft and independent
 editorial QA"), which is not copied into the Assistant's entries.
@@ -29,7 +29,7 @@ brand rules, exclusions, inputs, references and what each is for); the producer
 designs the storyboard, which Assistant relays for the user's approval. When the
 look is open, Creator proposes named directions that travel in the form's fields
 and `note`, never a design ([creator.md](./creator.md)). Static UI images use the
-Plan entry's `plan-assistant-creative/references/ui-design.md`. The hands keep
+Plan entry's `plan-creative`'s `references/ui-design.md`. The hands keep
 their own proposal and preview approvals.
 
 ## Creative early delivery candidate
@@ -46,7 +46,7 @@ acceptance stage:
 - Required failures still block final readiness and dependent use, but a
   viewable preview may be shown with them disclosed. Delivery is not acceptance;
   an early preview establishes neither final readiness nor approval.
-- `qa-assistant-creative` is the explicit user-requested inspection entry, never
+- `qa-creative` is the explicit user-requested inspection entry, never
   an automatic completion step: one scoped findings pass, not a repair grant or a
   chain of reviews.
 - Unresolved direction gets an early representative sample (for a moving
@@ -60,9 +60,10 @@ The `assistant-pipeline` root is tracked in this repository like every other
 pipeline. Names of private accounts, businesses and people stay on the private
 technic shelf, which the entries reach by skill name only. The root owns
 lifecycle, grants and delivery policy; its 19 independent child skills are
-`chat-assistant` plus `{plan,execute,qa}-assistant-<domain>` for engineering,
-creative, writing, research, search and marketing. Each child's `SKILL.md` owns
-its mode/domain index. No entry lives below the parent's `references/`, which
+`chat-assistant` (at `pipeline/chat/`) plus `{plan,execute,qa}-<domain>`
+(at `pipeline/<domain>/{plan,execute,qa}/`) for engineering, creative,
+writing, research, search and marketing. A domain directory only groups its
+three entries; each child's `SKILL.md` owns its mode/domain index. No entry lives below the parent's `references/`, which
 holds only `plan/index.md`, `execute/{index,resident-sessions}.md` and
 `quality-assurance/index.md`. No aliases, generated index, new overlay/symlink
 install mapping or default `skills.external_dirs` expansion.

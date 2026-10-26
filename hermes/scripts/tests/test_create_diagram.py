@@ -1,5 +1,5 @@
 """Tests for the `create-diagram` leaf: front matter contract and the
-`diagram.py render` checks (profiles/image-creator/.../create/diagram)."""
+`diagram.py render` checks (profiles/image-creator/.../diagram/create)."""
 
 from __future__ import annotations
 
@@ -15,8 +15,8 @@ from pathlib import Path
 import pytest
 
 HERMES_ROOT = Path(__file__).resolve().parents[2]
-PIPELINE = HERMES_ROOT / "profiles" / "image-creator" / "skills" / "image-creator-pipeline"
-LEAF = PIPELINE / "create" / "diagram"
+PIPELINE = HERMES_ROOT / "profiles" / "image-creator" / "skills" / "pipeline"
+LEAF = PIPELINE / "diagram" / "create"
 SKILL = LEAF / "SKILL.md"
 SCRIPT = LEAF / "scripts" / "diagram.py"
 

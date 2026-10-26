@@ -30,7 +30,7 @@ ENTRIES = {"plan-marketer", "review-marketer", "analyze-marketer"}
 EXPECTED = ENTRIES | {"marketer-pipeline"}
 ALLOW = {"skills_list", "skill_view", "read_file"}
 CASES = ("discovery", "entry_reads", "contained_paths", "dedup_reset", "index_cache")
-TREE = Path("hermes/profiles/marketer/skills/marketer-pipeline")
+TREE = Path("hermes/profiles/marketer/skills/pipeline")
 # Each entry is its mode procedure; state, platforms, X ranking and browsing stay shared.
 OWN_REF = {"review-marketer": "references/content.md", "analyze-marketer": "references/measurement.md"}
 
@@ -127,7 +127,7 @@ def _child(case, sandbox, candidate_tree, source):
             stack.enter_context(patch.object(socket, name, deny_network))
 
         skills = home / ".hermes/skills"
-        tree = skills / "marketer-pipeline"
+        tree = skills / "pipeline"
         for path in candidate_tree.rglob("*.md"):
             assert not path.is_symlink() and path.resolve().is_relative_to(candidate_tree)
             target = tree / path.relative_to(candidate_tree)
@@ -196,7 +196,7 @@ def _child(case, sandbox, candidate_tree, source):
             assert len(visible) == 4 and set(visible) == EXPECTED and len(set(visible.values())) == 4
             for name, desc in visible.items():
                 assert 0 < len(desc) <= 60
-                path = tree / ("SKILL.md" if name == "marketer-pipeline" else f"{name}/SKILL.md")
+                path = tree / ("SKILL.md" if name == "marketer-pipeline" else f"{name.split('-', 1)[0]}/SKILL.md")
                 fm, _ = su.parse_frontmatter(path.read_text(encoding="utf-8"))
                 assert desc == su.extract_skill_description(fm)
                 assert "skill" not in desc.lower(), "Split entry must not describe itself as a generic skill"
@@ -207,12 +207,12 @@ def _child(case, sandbox, candidate_tree, source):
             return prompt
 
         def phase_turn(entry, task):
-            body_matches(view(entry, task=task), tree / entry / "SKILL.md", rendered=True)
+            body_matches(view(entry, task=task), tree / entry.split("-", 1)[0] / "SKILL.md", rendered=True)
             own_ref = OWN_REF.get(entry)
             if own_ref is None:
                 return None
             own_view = view(entry, own_ref, task)
-            body_matches(own_view, tree / entry / own_ref)
+            body_matches(own_view, tree / entry.split("-", 1)[0] / own_ref)
             return own_view
 
         try:
@@ -295,7 +295,7 @@ def _child(case, sandbox, candidate_tree, source):
                 task = "isolated-recovery"
                 root_path = tree / "SKILL.md"
                 child_ref = OWN_REF["review-marketer"]
-                child_path = tree / "review-marketer" / child_ref
+                child_path = tree / "review" / child_ref
 
                 body_matches(view("marketer-pipeline", task=task), root_path, rendered=True)
                 body_matches(view("review-marketer", child_ref, task), child_path)

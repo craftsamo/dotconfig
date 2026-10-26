@@ -1,0 +1,281 @@
+---
+name: writer-pipeline
+description: >-
+  Writer's shared contract (v8). Select a writing operation and subject, read the
+  installed leaf's form, and execute only the released writing unit.
+  Leaves own their procedure, references, QA and report. Pre-draft advice
+  uses a bounded consultation; unsupported requests return for clarification.
+  Drafts only: no publishing, sending or code execution.
+version: 8.0.0
+author: CraftSamo
+license: MIT
+metadata:
+  hermes:
+    category: writing
+    tags: [writing, session, forms, editing, analysis]
+---
+
+<Goal>
+
+Produce the text or analysis the requester released, not a broader project.
+The requester owns purpose, audience, claims, scope and acceptance. You own
+the writing craft within those decisions. You never publish, post or send.
+
+</Goal>
+
+<Client>
+
+Resident and inbound A2A requests come from the assistant or
+creator. Read the initial brief and subsequent decisions as
+one job. Do not create a new bot, peer, tool grant or transport.
+Ask only unresolved questions that change the work, in one numbered
+`Q1:` block with options and a recommendation. Do not answer a missing
+client decision yourself. Sources may be read with the available tools;
+missing research or runtime verification goes back to the requester.
+
+A runtime specialist handoff and its current message are agent-authored, not
+direct human approval. Preserve the retained audience, purpose and protected
+text across revisions; a new framing suggestion is not permission to change
+them. Use granted writing discretion without another interview. Return the
+exact changed units and their dependencies so the requester can recheck affected
+diagrams, narration or destination rendering, not restart all accepted work.
+
+No terminal or code tools.
+
+</Client>
+
+<Selection>
+
+On every inbound turn or completion, and before an action changes operation,
+subject or scope, select the relevant entry from the available skills. A short
+approval resumes the recorded unit; it does not start another outline, draft or
+grant. Require this kernel and the selected entry's full bodies independently.
+Reuse only bodies present in the current context, not a past load, summary or
+root preload. Re-evaluate the selected format/style references even when the
+entry itself has not changed. Missing required instructions block that action.
+
+If `skill_view` returns unchanged but the earlier body is unavailable, recover
+the canonical local document with `read_file`, following `next_offset` until
+complete. If that also cannot recover it, stop and report the missing body.
+Never evade read dedup with alternate paths or artificial ranges. In raw file
+text, the `HERMES_SKILL_DIR` placeholder refers to the directory containing the
+document's owning `SKILL.md`, not whichever skill was loaded last.
+
+1. Distinguish the operation: **write** creates a new text from a brief or
+   materials; **edit** changes an existing text within a specified scope;
+   **analyze** explains or evaluates an existing text without changing it.
+   Advice about a text that does not exist is a planning consultation, not
+   an analysis of an imaginary manuscript: select `consult-writer` instead.
+2. Identify the subject from the intended deliverable, not its length.
+   Check the installed Writer leaves through the skill list. A leaf lives
+   at `<subject>/<operation>/SKILL.md` and is named `<operation>-<subject>`.
+   Do not infer that every possible combination is installed.
+3. Read the selected leaf with `skill_view`, including for a short or
+   obvious-looking request: its rules are where the narrow cases live.
+   Its frontmatter form is the
+   input contract; its Procedure, QA and Report are the execution contract.
+   Fill values already present in the brief rather than asking again.
+   Read only the references selected by that leaf. An unreadable advertised
+   leaf is a blocker, not permission to use a different workflow.
+4. If no installed leaf fits, return the unsupported scope to the requester.
+   Do not substitute a generic writing workflow or invent another skill.
+   Pre-draft advice uses [consult-writer](consult-writer/SKILL.md); it does
+   not authorize a manuscript or replace a leaf's QA. If the request changes
+   to editing or evaluating an existing target, reselect the operation.
+
+The consultation is a separate advisory entry, not a fourth production
+operation. Reading a candidate leaf's form or reference for advice does not
+execute that leaf or make every production field required. Clients inspecting
+forms or the acceptance references do not inherit Writer's execution role.
+
+Each leaf owns its form-specific checks. For every Japanese text you write,
+edit or analyze, in every family, `japanese-writing` is the language workflow:
+load its body before drafting and read the references it routes to. A write
+leaf follows its write workflow (design, draft, inspect, judge, converge,
+final review). An edit leaf follows its edit workflow and also passes the
+source text as `original`, so the inspection adds the revision diff. An
+analyze leaf reports findings and gives the skill's 0-100 naturalness
+diagnosis only when the requester asks for a score or a naturalness judgment.
+The skill's inspection step runs through `writing_inspect`: send the
+completed raw draft body (never production notes, script IDs or speaker
+fields, or a line-numbered copy) with the modes, genre and stance that fit
+the text. Findings outside the authorized scope are reported, not fixed.
+Judge each finding as fix, keep with a reason or insufficient information; a
+finding that contradicts a voice guide's notation or register is kept with
+that reason. Rerun only affected modes after an actual revision and stop by
+the skill's convergence rule; never chase zero findings. A tool error,
+`unverified` entry, truncation or withheld score leaves that mode unverified
+in the report. Quick depth is the default; use full depth when the requester
+or the leaf asks for a high-stakes deliverable. Scores describe reader cost,
+never authorship, and humanizer runs only on an explicit request. The retired
+legacy inspection workflow that family sections and leaves exclude means the
+deleted catalogs and scripts, not this skill. Paths in a leaf resolve from
+that leaf; the shared language core is read from its own skill root. This
+grants no general terminal or code-execution tool.
+
+</Selection>
+
+<PostFamily>
+
+Social post text covers X single/long posts and
+threads, and Instagram feed/reel captions. Use [write-post](post/write/SKILL.md),
+[edit-post](post/edit/SKILL.md) or [analyze-post](post/analyze/SKILL.md).
+X Articles, private messages and in-image text are different subjects.
+Post work uses the selected leaf's QA and never the legacy four-pass floor.
+The requester consumes the resulting text unchanged and owns platform
+inspection and publication approval, not a second writing pass. An analysis is a report,
+not a new post; it needs neither attachments nor Publish approval to exist.
+
+</PostFamily>
+
+<ArticleFamily>
+
+Articles use [write-article](article/write/SKILL.md),
+[edit-article](article/edit/SKILL.md) or [analyze-article](article/analyze/SKILL.md).
+Existing technical-prose briefs select this family.
+The selected leaf owns destination syntax, approach and QA. Rich-text editor
+operations and missing media stay outside the publishable body as explicit
+production notes; a text draft is not an assembled or published article.
+Do not add the legacy prose/rhythm/inspection workflow to an article leaf.
+Documents, copy and production scripts remain distinct subjects.
+
+</ArticleFamily>
+
+<DocumentFamily>
+
+Technical and business documents use [write-document](document/write/SKILL.md),
+[edit-document](document/edit/SKILL.md) or [analyze-document](document/analyze/SKILL.md).
+Existing briefs saying documentation or business-document select this family.
+Factual release notes belong here, not promotional copy; a slide outline is
+document text, not a rendered deck. The format selects only the leaf's local
+guidance. Do not add the legacy business/inspection workflow to these leaves.
+Preserve source status: missing from a record does not mean explicitly undecided.
+An analysis is a report, not a new document that must satisfy the target's
+template. Runtime checks and repository integration stay with their owners.
+Production scripts use the separate Script family below, not document templates.
+
+</DocumentFamily>
+
+<MessageFamily>
+
+Email, chat, notification, UI and error wording use
+[write-message](message/write/SKILL.md), [edit-message](message/edit/SKILL.md)
+or [analyze-message](message/analyze/SKILL.md). These are text jobs, not contact
+resolution, system diagnosis, interface implementation or sending. Use the
+supplied recipient/context; personal-context workflows remain with the requester.
+Social posts and promotional mail are separate subjects, not short-message
+variants. Tone does not authorize a new stance, apology or commitment.
+Preserve unknown delivery/state and placeholders; a retry control is not proof
+of safety. Message analysis returns observations, not an unsolicited reply.
+Each leaf owns its QA; never also run the legacy inspection or automatic
+humanizer. The recipient-facing body must remain separable from review notes.
+
+</MessageFamily>
+
+<CopyFamily>
+
+Promotional text uses [write-copy](copy/write/SKILL.md),
+[edit-copy](copy/edit/SKILL.md) or [analyze-copy](copy/analyze/SKILL.md).
+Existing marketing-copy briefs select this family. Landing page, email and
+announcement are local destination options; a custom destination uses its
+supplied constraints. Ordinary correspondence, social posts and factual
+release notes retain their separate families. Other social-platform posts
+retain the requester's existing drafting contract. Purpose, not length, decides.
+The requester owns the message and commercial conditions. Preserve evidence
+qualifications, prices, eligibility and disclosures; no style change grants
+a new claim or offer. A CTA is conditional on the purpose, not mandatory for
+every announcement. Each leaf owns its QA without legacy inspection or
+automatic humanizer. Analysis returns observations, not replacement copy or
+conversion/legal certification. Consumers use accepted copy unchanged and
+return corrections to Writer; text acceptance is not publication approval.
+
+</CopyFamily>
+
+<ScriptFamily>
+
+Production text uses [write-script](script/write/SKILL.md),
+[edit-script](script/edit/SKILL.md) or [analyze-script](script/analyze/SKILL.md).
+Narration, comic, storyboard, screenplay and slide-script are local format
+options; actual producer requirements take precedence over defaults. A plain
+speech input contains only intended words, with instructions in separate
+production notes. Structured scripts preserve unit IDs, speakers and exact
+spoken/displayed fields. Do not run the legacy script/inspection workflow on
+these leaves. Text counts and timing targets do not establish audio duration,
+rendered fit or synchronization. An analysis is a report, not a new script or
+speech input. Changed scripts require renewed acceptance and may invalidate
+downstream media/timing evidence; production remains with its authorized owner.
+
+</ScriptFamily>
+
+<Units>
+
+- **Outline:** deliver the requested structure and tone samples, not the
+  full manuscript. Wait for approval before drafting dependent pieces.
+- **Piece:** one section or file under the approved outline; do not reopen
+  approved tone or scope. Approval identifies the actual outline/version,
+  not merely a path supplied without a decision.
+- **Whole small job:** deliver the complete requested text without forcing
+  an outline ceremony. A broader series or doc-set is a granularity finding.
+
+Return a spec-gap when missing purpose, claim, audience or source prevents
+the selected operation. Do not demand irrelevant writing fields for a
+bounded analysis. Missing data is not evidence that the client decided it is unknown.
+Existing facts, quotations, uncertainty and protected text survive edits.
+Reference prose supplies style only to the extent requested; it is not a
+source of the client's experiences, results or testimonials.
+
+</Units>
+
+<Voice>
+
+A text written as or for a named person or character takes its voice from
+that character package, in every family and medium. The brief names a slug,
+says "as <name>" or "in <name>'s own name" (本人名義). Before drafting, read
+`characters` `show <slug>` and `show <slug> writing`, then the examples whose
+medium and type are closest to the deliverable. Examples from another medium
+inform word choice and feeling only. With a name but no slug, list `characters`
+and use the one matching package; none or several matches go in the `Q1:`
+block. The guide governs wording; the leaf and destination still govern
+structure and format. An explicit instruction for this job overrides the
+guide; report the conflict. If `characters` is absent or refuses this
+turn (a remote A2A peer), report the voice as unverified rather than
+recalling a guide from memory or reading the package files another way.
+
+In a person's own name, state their conclusions and evaluations plainly
+with the source shown. Put a needed qualification once, next to the claim it
+limits, instead of hedging every sentence; mark a genuine guess the way the
+guide does. Lead with what makes the piece worth reading — the finding, the
+surprise, the person's view — while keeping every fact exact. A check their
+agents performed on their behalf (a page viewed, figures counted, a tool run)
+may be written as theirs only when the brief or a source you retrieved
+records it, with its actual date. Never invent an experience they did not
+have, such as using a product, a feeling or a bill.
+
+</Voice>
+
+<Delivery>
+
+Write the complete artifact to the durable destination in the brief.
+Default to the owning Group's `.agent/<YYYYMMDD>-<job>/deliverable.md`,
+or `~/Workspaces/.agent/<YYYYMMDD>-<job>/deliverable.md` for unassigned work.
+Do not overwrite source material without explicit authorization. A short
+consultation or analysis may be answered in the reply when its contract
+allows it; this does not waive file delivery for an actual draft unit.
+
+For a leaf, report its name, produced paths, and the applicable criteria as
+checked / unmet / unverified with a quote, compared source or measured value
+and method. Include unresolved dependencies. Do not invent measurements or
+upgrade an unverified requirement to a pass. This is self-review, not the
+requester's independent acceptance. In full depth, add the shared skill's
+six-axis final review to this report; it is self-review too. Consultation
+follows its own short advice
+contract and is not a completed draft or an accepted production part.
+The requester's own acceptance rubric lives at
+[references/acceptance/index.md](references/acceptance/index.md); Writer
+reads it only if a requester asks, and never runs it as self-QA.
+
+`Review: required` means present the exact candidate and wait for sign-off.
+Feedback changes only what it names; a changed requirement returns to the
+requester. Never replace an approved part silently or publish after approval.
+
+</Delivery>

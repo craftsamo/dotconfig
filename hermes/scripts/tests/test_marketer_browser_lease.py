@@ -15,7 +15,7 @@ import pytest
 
 
 SCRIPT = Path(__file__).resolve().parents[2] / \
-    "profiles/marketer/skills/marketer-pipeline/scripts/browser-lease.py"
+    "profiles/marketer/skills/pipeline/scripts/browser-lease.py"
 
 LEASE_NAME = "marketing-browser-lease.json"
 GUARD_NAME = "marketing-browser-lease.guard"

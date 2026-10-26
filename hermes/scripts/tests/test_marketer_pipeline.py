@@ -13,13 +13,18 @@ import hermes_yaml as yaml
 
 
 HERMES = Path(__file__).resolve().parents[2]
-ROOT = HERMES / "profiles/marketer/skills/marketer-pipeline"
+ROOT = HERMES / "profiles/marketer/skills/pipeline"
 SPEC = importlib.util.spec_from_file_location("marketer_validator", HERMES / "scripts/validate-profile-skills.py")
 VALIDATOR = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(VALIDATOR)
 
 # Split, flat advisory entries: no mode/domain matrix like the Assistant pipeline.
 ENTRIES = ("plan-marketer", "review-marketer", "analyze-marketer")
+
+
+def mode_dir(entry: str) -> str:
+    """pipeline/<mode>/SKILL.md holds the entry named <mode>-marketer."""
+    return entry.split("-", 1)[0]
 
 DEPENDENCY_TOKENS = (
     'skill_view(name="marketer-pipeline")',
@@ -50,7 +55,7 @@ def text(relative):
 
 @pytest.fixture
 def candidate(tmp_path, monkeypatch):
-    root = tmp_path / "profiles/marketer/skills/marketer-pipeline"
+    root = tmp_path / "profiles/marketer/skills/pipeline"
     shutil.copytree(ROOT, root)
     monkeypatch.setattr(VALIDATOR, "HERMES_ROOT", tmp_path)
     # Learned skills live in the profile HOME, not in the tree.
@@ -92,10 +97,10 @@ def test_four_roots_and_three_entries_returned(candidate):
     entries, found = entries_and_errors(candidate)
     assert found == []
     roots = sorted(p.relative_to(candidate).as_posix() for p in candidate.rglob("SKILL.md"))
-    assert roots == sorted(["SKILL.md"] + [f"{name}/SKILL.md" for name in ENTRIES])
+    assert roots == sorted(["SKILL.md"] + [f"{mode_dir(name)}/SKILL.md" for name in ENTRIES])
     assert set(entries) == set(ENTRIES)
     for name in ENTRIES:
-        assert entries[name] == candidate / name / "SKILL.md"
+        assert entries[name] == candidate / mode_dir(name) / "SKILL.md"
 
 
 def test_fifteen_reference_files_all_present(candidate):
@@ -113,7 +118,7 @@ def test_missing_reference_fails(candidate, relative):
 
 @pytest.mark.parametrize("link", ["../../../../missing.md", "../../scripts/missing.py"])
 def test_broken_and_escaping_links_fail(candidate, link):
-    doc = candidate / "plan-marketer/references/discovery.md"
+    doc = candidate / "plan/references/discovery.md"
     doc.write_text(doc.read_text() + f"\n[bad]({link})\n")
     assert any("reference escapes" in e or "broken marketer reference" in e for e in errors(candidate))
 
@@ -125,13 +130,13 @@ def test_old_publish_engine_and_duplicate_mode_platforms_fail(candidate):
 
 @pytest.mark.parametrize("entry, reference", [("build-marketer", "draft.md"), ("qa-marketer", "saved-draft.md")])
 def test_retired_draft_entries_fail(candidate, entry, reference):
-    path = candidate / entry / "references" / reference
+    path = candidate / mode_dir(entry) / "references" / reference
     path.parent.mkdir(parents=True)
     path.write_text("# Retired\n")
-    (candidate / entry / "SKILL.md").write_text(f"---\nname: {entry}\n---\n")
+    (candidate / mode_dir(entry) / "SKILL.md").write_text(f"---\nname: {entry}\n---\n")
     found = errors(candidate)
-    assert f"unexpected marketer skill root: {entry}/SKILL.md" in found
-    assert f"unexpected marketer reference: {entry}/references/{reference}" in found
+    assert f"unexpected marketer skill root: {mode_dir(entry)}/SKILL.md" in found
+    assert f"unexpected marketer reference: {mode_dir(entry)}/references/{reference}" in found
 
 
 def test_pipeline_v8_needs_the_advisory_version(candidate):
@@ -149,7 +154,7 @@ def test_unlinked_reference_fails(candidate):
 def test_root_unlinking_entry_route_fails(candidate, entry):
     kernel = candidate / "SKILL.md"
     doc = kernel.read_text(encoding="utf-8")
-    needle = f"[{entry}]({entry}/SKILL.md)"
+    needle = f"[{entry}]({mode_dir(entry)}/SKILL.md)"
     assert needle in doc
     kernel.write_text(doc.replace(needle, entry), encoding="utf-8")
     assert any(f"marketer root does not route entry: {entry}" in e for e in errors(candidate))
@@ -161,11 +166,11 @@ def test_legacy_version_remains_valid_without_new_tree(tmp_path):
 
 
 def test_nested_rogue_skill_md_fails(candidate):
-    rogue = candidate / "plan-marketer/references/rogue/SKILL.md"
+    rogue = candidate / "plan/references/rogue/SKILL.md"
     rogue.parent.mkdir(parents=True)
     rogue.write_text("---\nname: rogue\n---\n")
     assert any(
-        "unexpected marketer skill root: plan-marketer/references/rogue/SKILL.md" in e
+        "unexpected marketer skill root: plan/references/rogue/SKILL.md" in e
         for e in errors(candidate)
     )
 
@@ -177,7 +182,7 @@ def test_pipeline_symlink_fails(candidate):
     assert any("marketer pipeline must not contain symlinks" in e for e in errors(candidate))
 
 
-@pytest.mark.parametrize("relative", ["references/notes.txt", "plan-marketer/references/notes.txt"])
+@pytest.mark.parametrize("relative", ["references/notes.txt", "plan/references/notes.txt"])
 def test_non_markdown_reference_fails(candidate, relative):
     path = candidate / relative
     path.write_text("not markdown")
@@ -186,24 +191,24 @@ def test_non_markdown_reference_fails(candidate, relative):
 
 @pytest.mark.parametrize("entry", ENTRIES)
 def test_entry_wrong_name_fails(candidate, entry):
-    path = candidate / entry / "SKILL.md"
+    path = candidate / mode_dir(entry) / "SKILL.md"
     edit_frontmatter(path, name="wrong-name")
     assert any(f"frontmatter name must be {entry}" in e for e in errors(candidate))
 
 
 @pytest.mark.parametrize("entry", ENTRIES)
 def test_entry_wrong_category_fails(candidate, entry):
-    path = candidate / entry / "SKILL.md"
+    path = candidate / mode_dir(entry) / "SKILL.md"
     raw = path.read_text(encoding="utf-8")
     data = yaml.safe_load(raw[4:raw.index("\n---\n", 4)])
     data["metadata"]["hermes"]["category"] = "writing"
     edit_frontmatter(path, metadata=data["metadata"])
-    assert any("metadata.hermes.category must be marketer-pipeline" in e for e in errors(candidate))
+    assert any("metadata.hermes.category must be pipeline" in e for e in errors(candidate))
 
 
 @pytest.mark.parametrize("entry", ENTRIES)
 def test_entry_bad_description_fails(candidate, entry):
-    path = candidate / entry / "SKILL.md"
+    path = candidate / mode_dir(entry) / "SKILL.md"
     edit_frontmatter(path, description="Not prefixed with the phase at all.")
     prefix = f"{entry.split('-', 1)[0]} marketing"
     assert any(f"marketer entry description must frontload {prefix}: {entry}" in e for e in errors(candidate))
@@ -212,7 +217,7 @@ def test_entry_bad_description_fails(candidate, entry):
 @pytest.mark.parametrize("entry", ENTRIES)
 @pytest.mark.parametrize("version", [1, "", "   "])
 def test_entry_bad_version_fails(candidate, entry, version):
-    path = candidate / entry / "SKILL.md"
+    path = candidate / mode_dir(entry) / "SKILL.md"
     edit_frontmatter(path, version=version)
     assert any(f"marketer entry version must be a nonempty string: {entry}" in e for e in errors(candidate))
 
@@ -220,7 +225,7 @@ def test_entry_bad_version_fails(candidate, entry, version):
 @pytest.mark.parametrize("entry", ENTRIES)
 @pytest.mark.parametrize("token", DEPENDENCY_TOKENS)
 def test_entry_missing_dependency_token_fails(candidate, entry, token):
-    path = candidate / entry / "SKILL.md"
+    path = candidate / mode_dir(entry) / "SKILL.md"
     strip_read_before_work_token(path, token)
     assert any(
         f"marketer entry missing dependency/recovery {token}: {entry}" in e for e in errors(candidate)
@@ -230,7 +235,7 @@ def test_entry_missing_dependency_token_fails(candidate, entry, token):
 @pytest.mark.parametrize("entry", ENTRIES)
 @pytest.mark.parametrize("label, needle, replacement", RECOVERY_BREAKS)
 def test_entry_missing_recovery_condition_fails(candidate, entry, label, needle, replacement):
-    path = candidate / entry / "SKILL.md"
+    path = candidate / mode_dir(entry) / "SKILL.md"
     doc = path.read_text(encoding="utf-8")
     pattern = re.compile(r"\s+".join(re.escape(word) for word in needle.split()))
     doc, count = pattern.subn(replacement, doc, count=1)
@@ -247,7 +252,7 @@ def test_entry_missing_recovery_condition_fails(candidate, entry, label, needle,
     ("plan-marketer", "strategy check", "strategy.md"),
 ])
 def test_entry_unlinking_own_detail_fails(candidate, entry, label, filename):
-    path = candidate / entry / "SKILL.md"
+    path = candidate / mode_dir(entry) / "SKILL.md"
     doc = path.read_text(encoding="utf-8")
     needle = f"[{label}](references/{filename})"
     assert needle in doc
@@ -257,7 +262,7 @@ def test_entry_unlinking_own_detail_fails(candidate, entry, label, filename):
 
 @pytest.mark.parametrize("entry", ENTRIES)
 def test_entry_unlinking_shared_browsing_fails(candidate, entry):
-    path = candidate / entry / "SKILL.md"
+    path = candidate / mode_dir(entry) / "SKILL.md"
     doc = path.read_text(encoding="utf-8")
     needle = "[browsing](../references/browsing.md)"
     assert needle in doc
@@ -267,7 +272,7 @@ def test_entry_unlinking_shared_browsing_fails(candidate, entry):
 
 @pytest.mark.parametrize("entry", ENTRIES)
 def test_entry_unlinking_shared_platform_route_fails(candidate, entry):
-    path = candidate / entry / "SKILL.md"
+    path = candidate / mode_dir(entry) / "SKILL.md"
     doc = path.read_text(encoding="utf-8")
     needle = "[Zenn](../references/platforms/zenn.md)"
     assert needle in doc
@@ -277,7 +282,7 @@ def test_entry_unlinking_shared_platform_route_fails(candidate, entry):
 
 @pytest.mark.parametrize("entry", ENTRIES)
 def test_unexpected_entry_child_fails(candidate, entry):
-    stray = candidate / entry / "notes.md"
+    stray = candidate / mode_dir(entry) / "notes.md"
     stray.write_text("# Stray\n")
     assert any(f"unexpected marketer entry child: {entry}/notes.md" in e for e in errors(candidate))
 
@@ -357,7 +362,7 @@ def test_direct_client_discovery_and_bounded_requests():
     assert "A product need not exist at intake" in kernel
     assert "not mandatory consecutive stages" in kernel
     assert "A short question finishes in one reply" in kernel
-    discovery = text("plan-marketer/references/discovery.md")
+    discovery = text("plan/references/discovery.md")
     assert "absent offer is a valid starting state" in discovery
     assert "actual purchase" in discovery
     assert "No automatic outreach" in discovery
@@ -375,17 +380,17 @@ def test_kernel_and_entries_never_operate_a_service():
         for retired in ("save package", "remote-save approval relay", "Commission a clear released unit",
                         "[parts]", "saved-draft QA", "save-approved"):
             assert retired not in body, (doc, retired)
-    review = text("review-marketer/SKILL.md")
+    review = text("review/SKILL.md")
     assert "This is advice" in review and "a clean review is not acceptance" in review
     assert "their editors, which you never open" in review
-    content = text("review-marketer/references/content.md")
+    content = text("review/references/content.md")
     assert "Do not score prose craft, shorten, strengthen, add urgency or run a humanizer" in content
     assert "never a legality guarantee" in content
     assert "never probe a publish, schedule or share control" in content
-    plan = text("plan-marketer/SKILL.md")
+    plan = text("plan/SKILL.md")
     assert "Marketer starts none of them" in plan
     assert "brief for the client to commission" in plan
-    campaign = text("plan-marketer/references/campaign.md")
+    campaign = text("plan/references/campaign.md")
     assert "brief it can commission from Writer or Creator" in campaign
 
 
@@ -447,11 +452,11 @@ def test_record_keeps_strategy_and_outlasting_lessons():
 
 
 def test_measurement_does_not_turn_missing_data_into_success():
-    measure = text("analyze-marketer/references/measurement.md")
+    measure = text("analyze/references/measurement.md")
     for state in ("measured zero", "not measured", "retrieval failed", "not comparable"):
         assert state in measure
     assert "Prefer the tools, which need no browser and no lease" in measure
-    analysis = text("analyze-marketer/SKILL.md")
+    analysis = text("analyze/SKILL.md")
     assert "Sparse data remains inconclusive" in analysis
     assert "No universal sample count" in analysis
     assert "Zero changes is legitimate" in analysis

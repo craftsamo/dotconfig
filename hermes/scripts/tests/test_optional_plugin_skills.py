@@ -23,7 +23,7 @@ class LocalPluginSkillsTest(unittest.TestCase):
         patch = mock.patch.object(validator, "HERMES_ROOT", self.root)
         patch.start()
         self.addCleanup(patch.stop)
-        self.profile = self.root / "profiles/assistant/skills/assistant-pipeline"
+        self.profile = self.root / "profiles/assistant/skills/pipeline"
         self.profile.mkdir(parents=True)
         self.reference = self.profile / "SKILL.md"
         self.reference.write_text(f"Load {CALL} first.\n", encoding="utf-8")

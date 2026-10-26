@@ -62,7 +62,7 @@ Card is one image subject with four leaves: create/generate/edit/analyze-card.
 Destinations are values of one subject (OG, social, headers, thumbnails, title
 cards, X pair/carousel and custom WxH), not a menu or a new profile. The shared
 `scripts/card.py` owns file-spec rendering/fit/measurement and consumes the
-canonical `create/card/references/destination/` front matter and `styles/*.md`
+canonical `card/create/references/destination/` front matter and `styles/*.md`
 CSS blocks. Generate's style references are backdrop prompt prose only, never
 duplicated CSS. Exact text is font-rendered after generation, never drawn by the
 model. Generate needs explicit current-work user budget approval before paid
@@ -91,7 +91,7 @@ relabel an agent choice as human approval.
 
 ## Kit family
 
-`image-creator-pipeline/<verb>/kit/` carries all five verbs. The family is
+`profiles/image-creator/skills/pipeline/<verb>/kit/` carries all five verbs. The family is
 game props and UI images, not website components or 3D mesh files. `contents`
 is a comma-list; explicit `items` is the whole list, replacing defaults. State
 variants are named items and count toward the generation budget.

@@ -18,14 +18,13 @@ metadata:
 
 <ReadBeforeWork>
 
-This technic adds to `verify-researcher` and never replaces it. Require the
+This technic adds to the verify mode and never replaces it. Require the
 full-body kernel (`skill_view(name="researcher-pipeline")`), the verify entry
-(`skill_view(name="verify-researcher")`), the current stage reference
-(`skill_view(name="researcher-pipeline", file_path="references/<stage>.md")`)
-and this body in current context, not a past load or summary. If unchanged is
-returned while the earlier body is unavailable, use read_file on
-`${HERMES_SKILL_DIR}/SKILL.md` and the kernel's canonical
-`${HERMES_SKILL_DIR}/../../researcher-pipeline/SKILL.md`; stop the affected
+of the current stage (`skill_view(name="<stage>-verify")`, with
+`<stage>` being `plan` or `build`) and this body in current context, not a
+past load or summary. If unchanged is returned while the earlier body is
+unavailable, use read_file on `${HERMES_SKILL_DIR}/SKILL.md` and the kernel's
+canonical `${HERMES_SKILL_DIR}/../../pipeline/SKILL.md`; stop the affected
 action if they stay unavailable. Selecting this technic is not the
 caller's release and never widens the agreed scope or budget.
 

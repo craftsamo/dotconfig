@@ -28,7 +28,7 @@ class CreatorReferenceFixture(unittest.TestCase):
         patcher.start()
         self.addCleanup(patcher.stop)
         self.pipeline_dir = (
-            self.hermes_root / "profiles" / "creator" / "skills" / "creator-pipeline"
+            self.hermes_root / "profiles" / "creator" / "skills" / "pipeline"
         )
         self.pipeline_dir.mkdir(parents=True)
 
@@ -41,7 +41,7 @@ class CreatorReferenceFixture(unittest.TestCase):
     def hands_leaf(self, hands: str, verb: str, subject: str) -> Path:
         path = (
             self.hermes_root / "profiles" / hands / "skills"
-            / f"{hands}-pipeline" / verb / subject / "SKILL.md"
+            / "pipeline" / subject / verb / "SKILL.md"
         )
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(f"---\nname: {verb}-{subject}\n---\n", encoding="utf-8")
@@ -50,7 +50,7 @@ class CreatorReferenceFixture(unittest.TestCase):
     def write_kernel(self, version: str = "10.0.0", links: str | None = None) -> None:
         if links is None:
             links = "\n".join(
-                [f"[{n}]({n}/SKILL.md)" for n in VALIDATOR.CREATOR_ENTRIES.values()]
+                [f"[{n}]({m}/SKILL.md)" for m, n in VALIDATOR.CREATOR_ENTRIES.items()]
                 + [
                     "[icon](references/image-creator/icon.md)",
                     "[clip](references/video-creator/clip.md)",
@@ -62,11 +62,11 @@ class CreatorReferenceFixture(unittest.TestCase):
             f"<Goal>\n</Goal>\n{links}\n",
         )
 
-    def write_entry(self, name: str) -> None:
+    def write_entry(self, mode: str, name: str) -> None:
         self.write(
-            f"{name}/SKILL.md",
+            f"{mode}/SKILL.md",
             f"---\nname: {name}\ndescription: Fixture entry\nversion: 1.0.0\n"
-            "metadata:\n  hermes:\n    category: creator-pipeline\n---\n"
+            "metadata:\n  hermes:\n    category: pipeline\n---\n"
             '<ReadBeforeWork>\nskill_view(name="creator-pipeline")\n'
             "Reuse the full body, not a summary. If unchanged, read_file\n"
             "${HERMES_SKILL_DIR}/../SKILL.md or ${HERMES_SKILL_DIR}/SKILL.md;\n"
@@ -77,8 +77,8 @@ class CreatorReferenceFixture(unittest.TestCase):
         self.hands_leaf("image-creator", "generate", "icon")
         self.hands_leaf("video-creator", "generate", "clip")
         self.write_kernel()
-        for name in VALIDATOR.CREATOR_ENTRIES.values():
-            self.write_entry(name)
+        for mode, name in VALIDATOR.CREATOR_ENTRIES.items():
+            self.write_entry(mode, name)
         self.write("references/image-creator/icon.md", "# icon\n")
         self.write("references/video-creator/clip.md", "# clip\n")
 
@@ -124,9 +124,9 @@ class CreatorReferencesTestCase(CreatorReferenceFixture):
 
     def test_missing_entry(self) -> None:
         self.build_valid_tree()
-        (self.pipeline_dir / "revise-creator/SKILL.md").unlink()
+        (self.pipeline_dir / "revise/SKILL.md").unlink()
         self.assertIn(
-            "missing creator entry skill: revise-creator/SKILL.md", self.validate()
+            "missing creator entry skill: revise/SKILL.md", self.validate()
         )
 
     def test_retired_entries_rejected(self) -> None:
@@ -141,7 +141,7 @@ class CreatorReferencesTestCase(CreatorReferenceFixture):
         self.build_valid_tree()
         kernel = self.pipeline_dir / "SKILL.md"
         kernel.write_text(
-            kernel.read_text().replace("[revise-creator](revise-creator/SKILL.md)", "")
+            kernel.read_text().replace("[revise-creator](revise/SKILL.md)", "")
         )
         self.assertIn("creator kernel does not link entry: revise-creator", self.validate())
 
@@ -155,7 +155,7 @@ class CreatorReferencesTestCase(CreatorReferenceFixture):
 
     def test_missing_kernel_dependency(self) -> None:
         self.build_valid_tree()
-        entry = self.pipeline_dir / "propose-creator/SKILL.md"
+        entry = self.pipeline_dir / "propose/SKILL.md"
         entry.write_text(
             entry.read_text().replace('skill_view(name="creator-pipeline")', "")
         )
@@ -165,7 +165,7 @@ class CreatorReferencesTestCase(CreatorReferenceFixture):
 
     def test_missing_recovery_contract(self) -> None:
         self.build_valid_tree()
-        entry = self.pipeline_dir / "revise-creator/SKILL.md"
+        entry = self.pipeline_dir / "revise/SKILL.md"
         entry.write_text(entry.read_text().replace("read_file", "remember"))
         self.assertIn(
             "creator entry ReadBeforeWork missing read_file: revise-creator",
@@ -174,9 +174,9 @@ class CreatorReferencesTestCase(CreatorReferenceFixture):
 
     def test_entry_with_children_rejected(self) -> None:
         self.build_valid_tree()
-        self.write("propose-creator/references/icon.md", "# icon\n")
+        self.write("propose/references/icon.md", "# icon\n")
         self.assertIn(
-            "unexpected creator entry child: propose-creator/references", self.validate()
+            "unexpected creator entry child: propose/references", self.validate()
         )
 
     # ── subject coverage ─────────────────────────────────────────────
@@ -318,7 +318,7 @@ class CreatorReferencesTestCase(CreatorReferenceFixture):
 
     def test_entry_link_cannot_escape(self) -> None:
         self.build_valid_tree()
-        entry = self.pipeline_dir / "propose-creator/SKILL.md"
+        entry = self.pipeline_dir / "propose/SKILL.md"
         entry.write_text(entry.read_text() + "[escape](../../../outside.md)\n")
         self.assertTrue(any("link escapes the pipeline" in e for e in self.validate()))
 

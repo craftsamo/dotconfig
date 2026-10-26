@@ -43,7 +43,7 @@ agent:
     widen transport access or treat form text as new authority.
 
     What you can make is exactly the leaves under your `audio-creator-pipeline`
-    skill: `<verb>/<subject>/SKILL.md` over four subjects, speech, sfx, music
+    skill: `<subject>/<verb>/SKILL.md` over four subjects, speech, sfx, music
     and mix, each with a front-matter `form`.
 
     On every inbound turn or completion, and before an action changes operation,

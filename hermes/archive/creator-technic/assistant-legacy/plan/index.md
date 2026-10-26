@@ -41,14 +41,14 @@ A single asset is one Part, not a compulsory three-stage project. Use
 
 The result is an ordered set of released units, not a whole-job brief for
 Creator to decompose under this old contract. Continue through
-[legacy execution](../../../execute-assistant-creative/references/legacy/index.md). For a served
+[legacy execution](../../../execute-creative/references/legacy/index.md). For a served
 dependency such as speech, use the normal Creator Client handoff and consume
 its accepted output; do not invent an Assistant-owned speech unit.
 
 ## Retained families
 
 Only this legacy shelf retains 1:1 pairing with Creator's canonical technics
-and the [legacy QA mapping](../../../qa-assistant-creative/references/legacy/index.md).
+and the [legacy QA mapping](../../../qa-creative/references/legacy/index.md).
 New Client guides above this shelf have no such pairing requirement.
 
 | Deliverable or explicitly requested method | Leaf |

@@ -62,8 +62,8 @@ class SandboxTreeTest(unittest.TestCase):
         self.build_minimal_tree()
         for path in (
             ".DS_Store", "references/.DS_Store", "references/plan/.DS_Store",
-            "references/.editor/state", "plan-assistant-creative/.SKILL.md.swp",
-            "plan-assistant-creative/references/.DS_Store",
+            "references/.editor/state", "creative/plan/.SKILL.md.swp",
+            "creative/plan/references/.DS_Store",
         ):
             self.write(path, "editor metadata\n")
         self.assertEqual([], self.validate())
@@ -75,17 +75,17 @@ class SandboxTreeTest(unittest.TestCase):
         outside = tempfile.TemporaryDirectory()
         self.addCleanup(outside.cleanup)
         target = Path(outside.name) / "entry"
-        entry = self.root / "qa-assistant-search"
+        entry = self.root / "search" / "qa"
         entry.rename(target)
         entry.symlink_to(target)
         self.assertEqual(
-            ["assistant pipeline must not contain symlinks: qa-assistant-search"],
+            ["assistant pipeline must not contain symlinks: search/qa"],
             self.validate(),
         )
 
     def test_rejects_symlinks_in_references_and_hidden_directories(self) -> None:
         self.build_minimal_tree()
-        for rel in (".editor", "plan-assistant-writing/references/linked.md"):
+        for rel in (".editor", "writing/plan/references/linked.md"):
             with self.subTest(path=rel):
                 path = self.root / rel
                 path.parent.mkdir(parents=True, exist_ok=True)
@@ -101,13 +101,13 @@ class SandboxTreeTest(unittest.TestCase):
 
     def test_rejects_capability_dir_in_chat(self) -> None:
         self.build_minimal_tree()
-        self.write("chat-assistant/references/creative/index.md", "# nope\n")
+        self.write("chat/references/creative/index.md", "# nope\n")
         errors = self.validate()
         self.assertTrue(any("no nesting below entry references" in e for e in errors), errors)
 
     def test_rejects_unrouted_leaf(self) -> None:
         self.build_minimal_tree()
-        self.write("execute-assistant-creative/references/pixel-art.md", "# pixel\n")
+        self.write("creative/execute/references/pixel-art.md", "# pixel\n")
         errors = self.validate()
         self.assertTrue(any("does not route references/pixel-art.md" in e for e in errors), errors)
 
@@ -117,10 +117,10 @@ class SandboxTreeTest(unittest.TestCase):
 
     def test_rejects_missing_qa_contract(self) -> None:
         self.build_minimal_tree()
-        (self.root / "qa-assistant-writing/references/prose.md").unlink()
+        (self.root / "writing/qa/references/prose.md").unlink()
         errors = self.validate()
         self.assertTrue(
-            any("qa-assistant-writing/references/prose.md" in e for e in errors), errors
+            any("writing/qa/references/prose.md" in e for e in errors), errors
         )
 
 
@@ -129,20 +129,21 @@ class SandboxTreeTest(unittest.TestCase):
         self.assertEqual(19, len(VALIDATOR.ASSISTANT_ENTRIES))
         for name in VALIDATOR.ASSISTANT_ENTRIES:
             with self.subTest(name=name):
-                skill = self.root / name / "SKILL.md"
+                rel = VALIDATOR.assistant_entry_rel(name).as_posix()
+                skill = self.root / rel / "SKILL.md"
                 text = skill.read_text()
                 skill.unlink()
-                self.assertTrue(any(f"missing assistant entry skill: {name}/" in e for e in self.validate()))
+                self.assertTrue(any(f"missing assistant entry skill: {rel}/SKILL.md" in e for e in self.validate()))
                 skill.write_text(text)
 
     def test_rejects_extra_skill_roots_even_in_fixtures(self) -> None:
         self.build_minimal_tree()
         for rel in (
-            "plan-assistant-unknown/SKILL.md",
+            "plan-unknown/SKILL.md",
             "tests/fixtures/SKILL.md",
             "references/plan/SKILL.md",
-            "plan-assistant-writing/references/fixtures/SKILL.md",
-            "execute-assistant-creative/references/tests/SKILL.md",
+            "writing/plan/references/fixtures/SKILL.md",
+            "creative/execute/references/tests/SKILL.md",
         ):
             with self.subTest(rel=rel):
                 self.write(rel, "---\nname: unexpected\n---\n")
@@ -160,7 +161,7 @@ class SandboxTreeTest(unittest.TestCase):
     def test_rejects_old_layout(self) -> None:
         self.build_minimal_tree()
         for rel in ("references/chat/index.md", "references/plan/engineering/index.md",
-                    "plan-assistant-writing/references/index.md"):
+                    "writing/plan/references/index.md"):
             self.write(rel, "# Old index\n")
         errors = self.validate()
         self.assertTrue(any("unexpected shared reference: references/chat" in e for e in errors))
@@ -169,72 +170,73 @@ class SandboxTreeTest(unittest.TestCase):
 
     def test_entry_metadata_is_required(self) -> None:
         self.build_minimal_tree()
-        original = entry_text("plan-assistant-engineering")
+        original = entry_text("plan-engineering")
         for old, new, diagnostic in (
-            ("name: plan-assistant-engineering", "name: wrong", "frontmatter name"),
+            ("name: plan-engineering", "name: wrong", "frontmatter name"),
             ("version: 1.0.0", "version: ''", "version must be a nonempty string"),
-            ("category: assistant-pipeline", "category: orchestration", "category must be assistant-pipeline"),
+            ("category: pipeline", "category: orchestration", "category must be pipeline"),
             ("Plan engineering entry.", "General engineering plan.", "description must frontload"),
         ):
             with self.subTest(diagnostic=diagnostic):
                 self.assertIn(old, original)
-                self.write("plan-assistant-engineering/SKILL.md", original.replace(old, new))
+                self.write("engineering/plan/SKILL.md", original.replace(old, new))
                 self.assertTrue(any(diagnostic in e for e in self.validate()))
 
     def test_entry_version_is_not_pinned_to_initial_release(self) -> None:
         self.build_minimal_tree()
-        original = entry_text("plan-assistant-engineering")
+        original = entry_text("plan-engineering")
         for version in ("1.0.1", "2.0.0", "3.0.0-beta.1"):
             with self.subTest(version=version):
-                self.write("plan-assistant-engineering/SKILL.md", original.replace("version: 1.0.0", f"version: {version}"))
+                self.write("engineering/plan/SKILL.md", original.replace("version: 1.0.0", f"version: {version}"))
                 self.assertEqual([], self.validate())
 
     def test_read_before_work_dependencies_cannot_be_removed(self) -> None:
         self.build_minimal_tree()
-        original = entry_text("plan-assistant-engineering")
+        original = entry_text("plan-engineering")
         for token in (
             'skill_view(name="assistant-pipeline")',
             'skill_view(name="assistant-pipeline", file_path="references/plan/index.md")',
             "<ReadBeforeWork>", "full body", "Reuse", "not a past summary", "unchanged",
-            "read_file", "stop", "${HERMES_SKILL_DIR}/../SKILL.md",
-            "${HERMES_SKILL_DIR}/../references/plan/index.md",
+            "read_file", "stop", "${HERMES_SKILL_DIR}/../../SKILL.md",
+            "${HERMES_SKILL_DIR}/../../references/plan/index.md",
         ):
             with self.subTest(token=token):
                 self.assertIn(token, original)
-                self.write("plan-assistant-engineering/SKILL.md", original.replace(token, ""))
+                self.write("engineering/plan/SKILL.md", original.replace(token, ""))
                 self.assertTrue(self.validate(), token)
 
     def test_portable_fallbacks_pass_without_hardcoded_home(self) -> None:
         self.build_minimal_tree()
         for name, (mode, _) in VALIDATOR.ASSISTANT_ENTRIES.items():
-            text = (self.root / name / "SKILL.md").read_text()
-            self.assertIn("${HERMES_SKILL_DIR}/../SKILL.md", text)
+            text = (self.root / VALIDATOR.assistant_entry_rel(name) / "SKILL.md").read_text()
+            up = "../" if mode == "chat" else "../../"
+            self.assertIn(f"${{HERMES_SKILL_DIR}}/{up}SKILL.md", text)
             self.assertNotIn("~/.hermes", text)
             if mode != "chat":
-                self.assertIn(f"${{HERMES_SKILL_DIR}}/../references/{mode}/index.md", text)
+                self.assertIn(f"${{HERMES_SKILL_DIR}}/{up}references/{mode}/index.md", text)
         self.assertEqual([], self.validate())
 
     def test_hardcoded_home_does_not_replace_portable_fallback(self) -> None:
         self.build_minimal_tree()
-        text = entry_text("plan-assistant-engineering").replace(
-            "${HERMES_SKILL_DIR}/../",
-            "~/.hermes/profiles/assistant/skills/assistant-pipeline/",
+        text = entry_text("plan-engineering").replace(
+            "${HERMES_SKILL_DIR}/../../",
+            "~/.hermes/profiles/assistant/skills/pipeline/",
         )
-        self.write("plan-assistant-engineering/SKILL.md", text)
+        self.write("engineering/plan/SKILL.md", text)
         errors = self.validate()
-        self.assertTrue(any("missing canonical fallback ${HERMES_SKILL_DIR}/../SKILL.md" in e for e in errors))
-        self.assertTrue(any("missing canonical fallback ${HERMES_SKILL_DIR}/../references/plan/index.md" in e for e in errors))
+        self.assertTrue(any("missing canonical fallback ${HERMES_SKILL_DIR}/../../SKILL.md" in e for e in errors))
+        self.assertTrue(any("missing canonical fallback ${HERMES_SKILL_DIR}/../../references/plan/index.md" in e for e in errors))
 
     def test_chat_requires_kernel_without_shared_chat_mode(self) -> None:
         self.build_minimal_tree()
         self.assertFalse((self.root / "references/chat").exists())
-        path = self.root / "chat-assistant/SKILL.md"
+        path = self.root / "chat/SKILL.md"
         path.write_text(path.read_text().replace('skill_view(name="assistant-pipeline")', ""))
         self.assertTrue(any("missing dependency" in e and "chat-assistant" in e for e in self.validate()))
 
     def test_missing_chat_and_shared_files(self) -> None:
         self.build_minimal_tree()
-        (self.root / "chat-assistant/references/lookups.md").unlink()
+        (self.root / "chat/references/lookups.md").unlink()
         (self.root / "references/execute/resident-sessions.md").unlink()
         errors = self.validate()
         self.assertTrue(any("missing chat reference" in e for e in errors))
@@ -245,7 +247,7 @@ class SandboxTreeTest(unittest.TestCase):
         for mode, prefix in (("plan", "plan"), ("execute", "execute"), ("quality-assurance", "qa")):
             path = self.root / "references" / mode / "index.md"
             original = path.read_text()
-            name = f"{prefix}-assistant-writing"
+            name = f"{prefix}-writing"
             with self.subTest(mode=mode):
                 path.write_text(original.replace(name, ""))
                 self.assertTrue(any(f"shared {mode} index does not route {name}" in e for e in self.validate()))
@@ -255,24 +257,24 @@ class SandboxTreeTest(unittest.TestCase):
                 ):
                     path.write_text(original + "\n" + call)
                     self.assertTrue(any("must not recursively load" in e for e in self.validate()))
-                path.write_text(original + f"\n[entry](../../{name}/SKILL.md)")
+                path.write_text(original + f"\n[entry](../../writing/{prefix}/SKILL.md)")
                 self.assertEqual([], self.validate())
 
     def test_chat_reference_floor_and_no_creative_legacy_shelf(self) -> None:
         self.build_minimal_tree()
-        self.write("chat-assistant/references/extra.md", "# Extra\n")
+        self.write("chat/references/extra.md", "# Extra\n")
         errors = self.validate()
         self.assertTrue(any("unexpected chat reference" in e for e in errors))
-        self.write("execute-assistant-creative/references/legacy/index.md", "# Retired shelf\n")
+        self.write("creative/execute/references/legacy/index.md", "# Retired shelf\n")
         self.assertTrue(any("no nesting below entry references" in e for e in self.validate()))
 
     def test_markdown_links_are_confined_in_every_domain(self) -> None:
         self.build_minimal_tree()
         for cap in VALIDATOR.EXPECTED_CAPABILITIES:
-            rel = f"plan-assistant-{cap}/SKILL.md"
+            rel = f"{cap}/plan/SKILL.md"
             original = (self.root / rel).read_text()
             for link, diagnostic in (("references/missing.md", "link is broken"),
-                                     ("../../outside.md", "link escapes the pipeline")):
+                                     ("../../../outside.md", "link escapes the pipeline")):
                 with self.subTest(cap=cap, link=link):
                     self.write(rel, original + f"\n[bad]({link})\n")
                     self.assertTrue(any(diagnostic in e and rel in e for e in self.validate()))
@@ -286,8 +288,8 @@ class AssistantAlignmentIsolationTest(unittest.TestCase):
         for capability in ("writing", "research", "search"):
             with self.subTest(capability=capability), tempfile.TemporaryDirectory() as tmp:
                 root = Path(tmp)
-                plan = root / f"plan-assistant-{capability}" / "references"
-                qa = root / f"qa-assistant-{capability}" / "references"
+                plan = root / capability / "plan" / "references"
+                qa = root / capability / "qa" / "references"
                 plan.mkdir(parents=True)
                 qa.mkdir(parents=True)
                 (plan / "synthetic.md").write_text("QA `synthetic-contract`\n")
@@ -308,8 +310,8 @@ class AssistantAlignmentIsolationTest(unittest.TestCase):
     def test_engineering_uses_call_time_pipeline(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            plan = root / "plan-assistant-engineering/references"
-            qa = root / "qa-assistant-engineering/references"
+            plan = root / "engineering/plan/references"
+            qa = root / "engineering/qa/references"
             plan.mkdir(parents=True)
             qa.mkdir(parents=True)
             (plan / "synthetic.md").write_text("# Client guide\n")
@@ -326,9 +328,9 @@ class AssistantAlignmentIsolationTest(unittest.TestCase):
 
     def test_entry_helper_explicit_and_call_time_roots(self) -> None:
         with mock.patch.object(VALIDATOR, "ASSISTANT_PIPELINE", Path("candidate")):
-            self.assertEqual(Path("candidate/qa-assistant-writing"),
+            self.assertEqual(Path("candidate/writing/qa"),
                              VALIDATOR.assistant_entry_dir("quality-assurance", "writing"))
-            self.assertEqual(Path("explicit/chat-assistant"),
+            self.assertEqual(Path("explicit/chat"),
                              VALIDATOR.assistant_entry_dir("chat", pipeline=Path("explicit")))
             with self.assertRaises(ValueError):
                 VALIDATOR.assistant_entry_dir("plan", "unknown")
@@ -337,7 +339,7 @@ class AssistantAlignmentIsolationTest(unittest.TestCase):
 class AssistantCrossProfileStructureTest(unittest.TestCase):
     def test_pipeline_matches_this_checkout_s_workers_and_hands(self) -> None:
         public = SCRIPT.parents[1]
-        pipeline = public / "profiles/assistant/skills/assistant-pipeline"
+        pipeline = public / "profiles/assistant/skills/pipeline"
         self.assertTrue(pipeline.is_dir(), f"assistant pipeline missing: {pipeline}")
         self.assertFalse(pipeline.is_symlink(), f"assistant pipeline must be tracked here: {pipeline}")
         with mock.patch.object(VALIDATOR, "ASSISTANT_PIPELINE", pipeline), mock.patch.object(
@@ -348,11 +350,11 @@ class AssistantCrossProfileStructureTest(unittest.TestCase):
             for capability in ("creative", "engineering", "writing", "research", "search"):
                 getattr(VALIDATOR, f"validate_{capability}_alignment")(errors)
             for profile in VALIDATOR.WORKER_PROFILES:
-                kernel = public / "profiles" / profile / "skills" / f"{profile}-pipeline/SKILL.md"
+                kernel = public / "profiles" / profile / "skills" / "pipeline/SKILL.md"
                 self.assertTrue(kernel.is_file(), f"public worker kernel missing: {kernel}")
             hands_leaves = {}
             for profile in VALIDATOR.HANDS_PROFILES:
-                hands_pipeline = public / "profiles" / profile / "skills" / f"{profile}-pipeline"
+                hands_pipeline = public / "profiles" / profile / "skills" / "pipeline"
                 self.assertTrue(hands_pipeline.is_dir(), f"public hands pipeline missing: {hands_pipeline}")
                 hands_leaves[profile] = VALIDATOR.validate_hands_leaves(hands_pipeline, profile, errors)
             VALIDATOR.validate_hands_subjects(hands_leaves, errors)
@@ -387,9 +389,9 @@ class GitBoundarySymlinkTest(unittest.TestCase):
         self._tmp = tempfile.TemporaryDirectory()
         root = Path(self._tmp.name)
         self.overlay = root / "private"
-        (self.overlay / "skills" / "assistant-pipeline").mkdir(parents=True)
+        (self.overlay / "skills" / "pipeline").mkdir(parents=True)
         self.overlay_link = root / "overlay-link"
-        self.overlay_link.symlink_to(self.overlay / "skills" / "assistant-pipeline")
+        self.overlay_link.symlink_to(self.overlay / "skills" / "pipeline")
         self._original = VALIDATOR.PRIVATE_OVERLAY
         VALIDATOR.PRIVATE_OVERLAY = self.overlay
         # A path outside the repository keeps the learned check green.
@@ -414,7 +416,7 @@ class GitBoundarySymlinkTest(unittest.TestCase):
     def test_skill_root_rejects_overlay_link(self) -> None:
         skills = Path(self._tmp.name) / "skills"
         skills.mkdir()
-        (skills / "assistant-pipeline").symlink_to(self.overlay / "skills" / "assistant-pipeline")
+        (skills / "pipeline").symlink_to(self.overlay / "skills" / "pipeline")
         errors: list[str] = []
         VALIDATOR.validate_allowed_skill_roots(skills, set(), errors)
         self.assertTrue(any("must not contain symlinks" in e for e in errors), errors)
@@ -429,7 +431,7 @@ class AssistantPrivateTechnicTest(unittest.TestCase):
         root = Path(self._tmp.name).resolve()
         self.overlay = root / "private"
         self.technic = self.overlay / "hermes/profiles/assistant/skills/technic"
-        self.pipeline = self.overlay / "hermes/profiles/assistant/skills/assistant-pipeline"
+        self.pipeline = self.overlay / "hermes/profiles/assistant/skills/pipeline"
         self.pipeline.mkdir(parents=True)
         self.profile = root / "public/profiles/assistant"
         (self.profile / "skills/learned").mkdir(parents=True)
@@ -804,8 +806,8 @@ class LearnedPlacementTest(unittest.TestCase):
         for profile in VALIDATOR.HANDS_PROFILES:
             source = VALIDATOR.HERMES_ROOT / "profiles" / profile
             target = root / "profiles" / profile
-            shutil.copytree(source / "skills" / f"{profile}-pipeline",
-                            target / "skills" / f"{profile}-pipeline")
+            shutil.copytree(source / "skills" / "pipeline",
+                            target / "skills" / "pipeline")
             shutil.copy2(source / "config.example.yaml", target / "config.example.yaml")
         # Learned skills live in the profile HOME, beside the links into the tree.
         home = Path(directory.name) / ".hermes"
@@ -826,7 +828,7 @@ class LearnedPlacementTest(unittest.TestCase):
 
 
 class HandsLeafTest(unittest.TestCase):
-    """Creator hands v3: `<verb>/<subject>/SKILL.md` leaves with a form."""
+    """Creator hands v3: `<subject>/<verb>/SKILL.md` leaves with a form."""
 
     LEAF = (
         "---\n"
@@ -850,7 +852,7 @@ class HandsLeafTest(unittest.TestCase):
 
     def setUp(self) -> None:
         self._tmp = tempfile.TemporaryDirectory()
-        self.root = Path(self._tmp.name) / "image-creator-pipeline"
+        self.root = Path(self._tmp.name) / "pipeline"
         self.root.mkdir()
         (self.root / "SKILL.md").write_text(
             "---\nname: image-creator-pipeline\nmetadata:\n  hermes:\n"
@@ -890,50 +892,50 @@ class HandsLeafTest(unittest.TestCase):
         return leaves, errors
 
     def test_valid_leaf_passes(self) -> None:
-        self.leaf("generate/icon", "generate-icon")
+        self.leaf("icon/generate", "generate-icon")
         leaves, errors = self.validate()
         self.assertEqual([], errors)
         self.assertEqual(["generate-icon"], sorted(leaves))
 
     def test_root_support_dirs_are_not_leaves(self) -> None:
-        self.leaf("generate/icon", "generate-icon")
+        self.leaf("icon/generate", "generate-icon")
         (self.root / "scripts").mkdir()
         (self.root / "scripts" / "helper.sh").write_text("#!/bin/sh\n")
         _, errors = self.validate()
         self.assertEqual([], errors)
 
     def test_rejects_unknown_verb(self) -> None:
-        self.leaf("render/icon", "render-icon")
+        self.leaf("icon/render", "render-icon")
         _, errors = self.validate()
         self.assertTrue(any("hands verb must be one of" in e for e in errors), errors)
 
     def test_rejects_leaf_at_wrong_depth(self) -> None:
-        self.leaf("generate/icon/app", "generate-icon-app")
+        self.leaf("icon/generate/app", "generate-icon-app")
         _, errors = self.validate()
-        self.assertTrue(any("<verb>/<subject>/SKILL.md" in e for e in errors), errors)
+        self.assertTrue(any("<subject>/<verb>/SKILL.md" in e for e in errors), errors)
 
     def test_rejects_name_path_mismatch(self) -> None:
-        self.leaf("generate/icon", "generate-logo")
+        self.leaf("icon/generate", "generate-logo")
         _, errors = self.validate()
         self.assertTrue(
             any("frontmatter name must be generate-icon" in e for e in errors), errors
         )
 
     def test_rejects_wrong_hands_and_cost(self) -> None:
-        self.leaf("generate/icon", "generate-icon", hands="video-creator", cost="cheap")
+        self.leaf("icon/generate", "generate-icon", hands="video-creator", cost="cheap")
         _, errors = self.validate()
         self.assertTrue(any("hands must be image-creator" in e for e in errors), errors)
         self.assertTrue(any("cost must be one of" in e for e in errors), errors)
 
     def test_rejects_form_without_note_or_required_flag(self) -> None:
         form = "      what_for: {{label: x}}\n"
-        self.leaf("generate/icon", "generate-icon", form=form, styles=())
+        self.leaf("icon/generate", "generate-icon", form=form, styles=())
         _, errors = self.validate()
         self.assertTrue(any("carry a `note` field" in e for e in errors), errors)
         self.assertTrue(any("must set required" in e for e in errors), errors)
 
     def test_rejects_unbacked_style_option(self) -> None:
-        self.leaf("generate/icon", "generate-icon", styles=())
+        self.leaf("icon/generate", "generate-icon", styles=())
         _, errors = self.validate()
         self.assertTrue(
             any("no references/styles/pixel.md" in e for e in errors), errors
@@ -944,7 +946,7 @@ class HandsLeafTest(unittest.TestCase):
             "      what_for: {{required: true, type: blob}}\n"
             "      note: {{required: false}}\n"
         )
-        self.leaf("generate/icon", "generate-icon", form=form, styles=())
+        self.leaf("icon/generate", "generate-icon", form=form, styles=())
         _, errors = self.validate()
         self.assertTrue(any("unknown type 'blob'" in e for e in errors), errors)
 
@@ -953,7 +955,7 @@ class HandsLeafTest(unittest.TestCase):
             "      contents: {{required: true, options: [buttons, panels]}}\n"
             "      note: {{required: false}}\n"
         )
-        path = self.leaf("generate/kit", "generate-kit", form=form, styles=())
+        path = self.leaf("kit/generate", "generate-kit", form=form, styles=())
         refs = path.parent / "references" / "contents"
         refs.mkdir(parents=True)
         (refs / "buttons.md").write_text("# buttons\n")
@@ -968,7 +970,7 @@ class HandsLeafTest(unittest.TestCase):
             "      pack: {{required: true, options: [custom]}}\n"
             "      note: {{required: false}}\n"
         )
-        self.leaf("generate/kit", "generate-kit", form=form, styles=())
+        self.leaf("kit/generate", "generate-kit", form=form, styles=())
         self.assertEqual([], self.validate()[1])
 
     def test_reference_options_cannot_escape_directory(self) -> None:
@@ -976,7 +978,7 @@ class HandsLeafTest(unittest.TestCase):
             "      style: {{required: true, options: ['../outside']}}\n"
             "      note: {{required: false}}\n"
         )
-        self.leaf("generate/kit", "generate-kit", form=form, styles=())
+        self.leaf("kit/generate", "generate-kit", form=form, styles=())
         self.assertTrue(any("reference option must be a slug" in e for e in self.validate()[1]))
 
     def test_subjects_unique_across_hands(self) -> None:
@@ -1000,7 +1002,7 @@ class HandsLeafTest(unittest.TestCase):
             "      note: {{required: false}}\n"
         )
         self.leaf(
-            "generate/speech",
+            "speech/generate",
             "generate-speech",
             hands="audio-creator",
             cost="free",

@@ -5,7 +5,7 @@ from pathlib import Path
 
 
 HERMES = Path(__file__).resolve().parents[2]
-PIPELINE = HERMES / "profiles/writer/skills/writer-pipeline"
+PIPELINE = HERMES / "profiles/writer/skills/pipeline"
 ACCEPTANCE = PIPELINE / "references/acceptance"
 
 

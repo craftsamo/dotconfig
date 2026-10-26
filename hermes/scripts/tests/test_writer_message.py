@@ -6,7 +6,7 @@ import pytest
 import hermes_yaml as yaml
 
 
-PIPELINE = Path(__file__).resolve().parents[2] / "profiles/writer/skills/writer-pipeline"
+PIPELINE = Path(__file__).resolve().parents[2] / "profiles/writer/skills/pipeline"
 CHANNELS = ["email", "chat", "notification", "ui", "error"]
 CRAFT = {
     "email": ("subject", "sender stance", "requested reply", "refusal"),
@@ -26,7 +26,7 @@ def content(path):
 
 @pytest.mark.parametrize("verb", ["write", "edit", "analyze"])
 def test_message_form_and_channel_references(verb):
-    root = PIPELINE / verb / "message"
+    root = PIPELINE / "message" / verb
     text = (root / "SKILL.md").read_text()
     assert text.index("---", 3) + 3 < 4000
     data = yaml.safe_load(text.split("---", 2)[1])
@@ -61,13 +61,13 @@ def test_message_form_and_channel_references(verb):
 def test_message_routing_does_not_capture_other_capabilities():
     kernel = content(PIPELINE / "SKILL.md")
     for verb in ("write", "edit", "analyze"):
-        assert f"]({verb}/message/SKILL.md)" in kernel
+        assert f"](message/{verb}/SKILL.md)" in kernel
     assert "Social posts and promotional mail are separate subjects" in kernel
     assert "not contact resolution, system diagnosis, interface implementation or sending" in kernel
 
 
 def test_write_preserves_stance_and_protects_reports():
-    text = content(PIPELINE / "write/message/SKILL.md")
+    text = content(PIPELINE / "message/write/SKILL.md")
     assert "Politeness or warmth must not add an apology" in text
     assert "both the body and report" in text
     assert "Do not invent HTML comment hiding" in text
@@ -75,7 +75,7 @@ def test_write_preserves_stance_and_protects_reports():
 
 
 def test_edit_does_not_change_outcome_or_untouched_fields():
-    text = content(PIPELINE / "edit/message/SKILL.md")
+    text = content(PIPELINE / "message/edit/SKILL.md")
     assert '"result unknown" into "not sent"' in text
     assert "including untouched fields" in text
     assert "do not overwrite the source without authorization" in text.lower()
@@ -83,7 +83,7 @@ def test_edit_does_not_change_outcome_or_untouched_fields():
 
 
 def test_analysis_reports_readings_not_motives_or_replies():
-    text = content(PIPELINE / "analyze/message/SKILL.md")
+    text = content(PIPELINE / "message/analyze/SKILL.md")
     assert "do not require a full writing brief" in text.lower()
     assert "Do not claim to know how the recipient feels" in text
     assert "Do not compose an unsolicited reply" in text
@@ -92,7 +92,7 @@ def test_analysis_reports_readings_not_motives_or_replies():
 
 @pytest.mark.parametrize("verb", ["write", "edit", "analyze"])
 def test_error_guidance_does_not_invent_recovery_or_safety(verb):
-    text = content(PIPELINE / verb / "message/references/error.md").lower()
+    text = content(PIPELINE / "message" / verb / "references/error.md").lower()
     assert "retry" in text and "evidence" in text
     assert "result" in text or "non-delivery" in text
     assert "secret" in text or "sensitive" in text
@@ -101,7 +101,7 @@ def test_error_guidance_does_not_invent_recovery_or_safety(verb):
 @pytest.mark.parametrize("channel", CHANNELS)
 def test_channel_references_are_operation_specific(channel):
     texts = {
-        (PIPELINE / verb / f"message/references/{channel}.md").read_text()
+        (PIPELINE / "message" / verb / f"references/{channel}.md").read_text()
         for verb in ("write", "edit", "analyze")
     }
     assert len(texts) == 3
@@ -110,7 +110,7 @@ def test_channel_references_are_operation_specific(channel):
 @pytest.mark.parametrize("verb", ["write", "edit", "analyze"])
 @pytest.mark.parametrize("channel", CHANNELS)
 def test_message_craft_has_grounded_examples_and_operation_boundaries(verb, channel):
-    reference = PIPELINE / verb / f"message/references/{channel}.md"
+    reference = PIPELINE / "message" / verb / f"references/{channel}.md"
     raw = reference.read_text()
     text = " ".join(raw.split()).lower()
     assert 40 <= len(raw.splitlines()) <= 90

@@ -13,7 +13,7 @@ registered for the Assistant as `workspace-registry:workspace-registry`.
 ## Boundaries
 
 - Keep the shared layout and draft rules in the Assistant pipeline's
-  [workspace layout reference](~/.hermes/profiles/assistant/skills/assistant-pipeline/references/workspace-layout.md).
+  [workspace layout reference](~/.hermes/profiles/assistant/skills/pipeline/references/workspace-layout.md).
   Read that reference when locating work or handling files; this skill does
   not choose a Group, adopt drafts or authorize repository creation.
 - Do not use the registry during an inbound A2A request. The tool refuses

@@ -33,13 +33,15 @@ agent:
     Operating contract - searcher (retrieval specialist):
 
     On every caller, resume or completion turn and before an action whose
-    mode, stage or scope changes midturn, select lookup-searcher, sweep-searcher or
-    hunt-searcher from the available skill index and its current Plan / Build
-    stage. Before every stage, require the full searcher-pipeline kernel, selected
-    entry and the kernel's references/<stage>.md: use skill_view for each
-    missing body. Reuse only full bodies present in current context, not a past
-    load, summary or root preload. The kernel owns released-unit discipline,
-    the runtime, retrieval floors and routing; modes and stages own procedures.
+    mode, stage or scope changes midturn, select the mode (lookup, sweep or
+    hunt) and its current Plan / Build stage, and load that stage's entry
+    (<stage>-<mode>) from the available skill index. Before every
+    stage, require the full searcher-pipeline kernel and the selected stage
+    entry: use skill_view for each missing body. Reuse only full bodies
+    present in current context, not a past load, summary or root preload. The
+    kernel owns released-unit discipline, the runtime, retrieval floors,
+    routing and the Plan / Build mechanics; each mode's stage entries own what
+    the stage means for that kind of retrieval.
     When the brief names a technic or its purpose matches a row of the kernel's
     references/capabilities.md, load that technic too: it adds a purpose's brief
     fields, sources and checks to its mode and never replaces the mode.

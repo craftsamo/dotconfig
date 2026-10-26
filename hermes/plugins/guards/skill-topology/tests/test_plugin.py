@@ -92,14 +92,14 @@ class ManagedSkillWriteGuardTest(unittest.TestCase):
         cls.plugin.PRIVATE_ROOT = cls.fixture_root / "private/hermes"
         cls.managed = str(
             cls.plugin.MANAGED_ROOT
-            / "profiles/image-creator/skills/image-creator-pipeline/create/emoji/scripts/text-emoji.sh"
+            / "profiles/image-creator/skills/pipeline/emoji/create/scripts/text-emoji.sh"
         )
         cls.learned = str(cls.plugin.MANAGED_ROOT / "profiles/image-creator/skills/learned/x/SKILL.md")
         cls.skills = cls.plugin.MANAGED_ROOT / "profiles/image-creator/skills"
         cls.skills.mkdir(parents=True)
         cls.alias = cls.fixture_root / "home-alias"
         cls.alias.symlink_to(cls.plugin.MANAGED_ROOT, target_is_directory=True)
-        cls.script = str(cls.skills / "image-creator-pipeline/create/emoji/scripts/propose.py")
+        cls.script = str(cls.skills / "pipeline/emoji/create/scripts/propose.py")
 
     def guard(self, tool_name: str, **args: Any) -> Any:
         return self.plugin._guard_managed_skill_writes(tool_name=tool_name, args=args)
@@ -131,7 +131,7 @@ class ManagedSkillWriteGuardTest(unittest.TestCase):
         self.assertIsNone(self.guard("write_file", path="/tmp/emoji/items.tsv", content="x"))
 
     def test_symlinked_hermes_home_path_resolves_to_managed(self) -> None:
-        home = self.alias / "profiles/image-creator/skills/image-creator-pipeline/SKILL.md"
+        home = self.alias / "profiles/image-creator/skills/pipeline/SKILL.md"
         self.assertEqual(self.guard("write_file", path=str(home), content="x")["action"], "block")
 
     def test_terminal_redirect_into_managed_root_is_blocked(self) -> None:
@@ -306,7 +306,7 @@ class ManagedSkillWriteGuardTest(unittest.TestCase):
         self.assertEqual(self.guard("terminal", command=f"command -v rm > {self.managed}")["action"], "block")
 
     def test_explicit_working_directory_and_spaced_paths(self) -> None:
-        relative = "image-creator-pipeline/create/emoji/file with spaces.txt"
+        relative = "pipeline/emoji/create/file with spaces.txt"
         for key in ("cwd", "workdir"):
             for command in (f"rm '{relative}'", f"cp /tmp/in '{relative}'", f"echo x > '{relative}'"):
                 with self.subTest(key=key, command=command):
@@ -356,7 +356,7 @@ class ManagedSkillWriteGuardTest(unittest.TestCase):
 
     def test_literal_tilde_and_shell_expanded_home_are_distinct(self) -> None:
         with patch.dict("os.environ", {"HOME": str(self.alias)}):
-            target = "~/profiles/image-creator/skills/image-creator-pipeline/SKILL.md"
+            target = "~/profiles/image-creator/skills/pipeline/SKILL.md"
             self.assertEqual(self.guard("terminal", command=f"rm {target}")["action"], "block")
             self.assertIsNone(self.guard("terminal", command=f"rm '{target}'", workdir="/tmp"))
             self.assertIsNone(self.guard("terminal", command=f'rm "{target}"', workdir="/tmp"))
@@ -545,8 +545,8 @@ class ManagedSkillWriteGuardTest(unittest.TestCase):
             f"cat <(rm {self.managed})",
             f"env -S 'rm {self.managed}'",
             f"sudo -s 'rm {self.managed}'",
-            f"sudo -D {self.skills} rm image-creator-pipeline/SKILL.md",
-            f"cd {self.skills} && rm image-creator-pipeline/SKILL.md",
+            f"sudo -D {self.skills} rm pipeline/SKILL.md",
+            f"cd {self.skills} && rm pipeline/SKILL.md",
             f"(rm {self.managed})",
             f"echo x > '{self.managed}",
             f"cat <<EOF > {self.managed}\nx\nEOF",
@@ -591,11 +591,11 @@ class PrivateOverlaySkillWriteGuardTest(unittest.TestCase):
         cls.plugin.PRIVATE_ROOT = root / "private/hermes"
         cls.public_skills = cls.plugin.MANAGED_ROOT / "profiles/assistant/skills"
         cls.private_skills = cls.plugin.PRIVATE_ROOT / "profiles/assistant/skills"
-        for directory in (cls.public_skills / "assistant-pipeline",
+        for directory in (cls.public_skills / "pipeline",
                           cls.private_skills / "technic/example",
                           cls.plugin.PRIVATE_ROOT / "skills/workspaces"):
             directory.mkdir(parents=True)
-        cls.pipeline = cls.public_skills / "assistant-pipeline"
+        cls.pipeline = cls.public_skills / "pipeline"
         cls.technic = str(cls.private_skills / "technic/example/SKILL.md")
 
     def guard(self, tool_name: str, **args: Any) -> Any:

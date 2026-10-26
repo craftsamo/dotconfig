@@ -8,12 +8,12 @@ import hermes_yaml as yaml
 
 
 HERMES = Path(__file__).resolve().parents[2]
-PIPELINE = HERMES / "profiles/writer/skills/writer-pipeline"
+PIPELINE = HERMES / "profiles/writer/skills/pipeline"
 
 
 @pytest.mark.parametrize("verb", ["write", "edit", "analyze"])
 def test_post_form_survives_discovery_window(verb):
-    path = PIPELINE / verb / "post/SKILL.md"
+    path = PIPELINE / "post" / verb / "SKILL.md"
     text = path.read_text()
     header = text.split("---", 2)[1]
     assert text.index("---", 3) + 3 < 4000
@@ -34,7 +34,7 @@ def test_post_form_survives_discovery_window(verb):
 def test_post_family_is_routed_without_generic_fallback():
     kernel = (PIPELINE / "SKILL.md").read_text()
     for verb in ("write", "edit", "analyze"):
-        assert f"]({verb}/post/SKILL.md)" in kernel
+        assert f"](post/{verb}/SKILL.md)" in kernel
     assert (PIPELINE / "consult-writer/SKILL.md").is_file()
     assert "If no installed leaf fits, return the unsupported scope" in kernel
 
@@ -43,16 +43,16 @@ def test_post_policy_does_not_expand_tools_or_publish():
     config = yaml.safe_load((HERMES / "profiles/writer/config.example.yaml").read_text())
     assert "terminal" not in config["toolsets"]
     assert "a2a" not in config["toolsets"]
-    source = (PIPELINE / "analyze/post/SKILL.md").read_text()
+    source = (PIPELINE / "post/analyze/SKILL.md").read_text()
     assert "not revised post" in source
     assert "not as a" in source and "new post" in source
     assert "Never change the" in source and "source" in source
 
 
 def test_marketer_review_never_stands_in_for_writer_acceptance():
-    root = HERMES / "profiles/marketer/skills/marketer-pipeline"
-    review = " ".join((root / "review-marketer/SKILL.md").read_text().split())
-    content = " ".join((root / "review-marketer/references/content.md").read_text().split())
+    root = HERMES / "profiles/marketer/skills/pipeline"
+    review = " ".join((root / "review/SKILL.md").read_text().split())
+    content = " ".join((root / "review/references/content.md").read_text().split())
     assert "a clean review is not acceptance" in review
     assert "neither repairs the target" in review
     assert "the shared writing contract it applies to Writer's work is not repeated here" in content
@@ -65,7 +65,7 @@ def test_marketer_review_never_stands_in_for_writer_acceptance():
     ("instagram", ("C10", "I10", "Ground floor only", "alt", "fictional inspection record")),
 ])
 def test_post_reference_craft_coverage(verb, platform, anchors):
-    path = PIPELINE / verb / f"post/references/{platform}.md"
+    path = PIPELINE / "post" / verb / f"references/{platform}.md"
     text = path.read_text()
     flat = " ".join(text.split())
     assert len(text.splitlines()) <= 90
@@ -104,7 +104,7 @@ def test_post_reference_craft_coverage(verb, platform, anchors):
 
 @pytest.mark.parametrize("platform", ["x", "instagram"])
 def test_post_destination_tables_and_documentary_checks_survive(platform):
-    text = (PIPELINE / "write/post/references" / f"{platform}.md").read_text()
+    text = (PIPELINE / "post/write/references" / f"{platform}.md").read_text()
     assert "Documentary check: 2026-09-08. No logged-in composer test was performed." in text
     assert "| Expression | Draft representation |" in text
     assert "Markdown" in text
