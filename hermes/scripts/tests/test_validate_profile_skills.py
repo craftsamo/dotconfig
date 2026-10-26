@@ -139,7 +139,7 @@ class SandboxTreeTest(unittest.TestCase):
     def test_rejects_extra_skill_roots_even_in_fixtures(self) -> None:
         self.build_minimal_tree()
         for rel in (
-            "plan-assistant-unknown/SKILL.md",
+            "plan-unknown/SKILL.md",
             "tests/fixtures/SKILL.md",
             "references/plan/SKILL.md",
             "writing/plan/references/fixtures/SKILL.md",
@@ -170,9 +170,9 @@ class SandboxTreeTest(unittest.TestCase):
 
     def test_entry_metadata_is_required(self) -> None:
         self.build_minimal_tree()
-        original = entry_text("plan-assistant-engineering")
+        original = entry_text("plan-engineering")
         for old, new, diagnostic in (
-            ("name: plan-assistant-engineering", "name: wrong", "frontmatter name"),
+            ("name: plan-engineering", "name: wrong", "frontmatter name"),
             ("version: 1.0.0", "version: ''", "version must be a nonempty string"),
             ("category: pipeline", "category: orchestration", "category must be pipeline"),
             ("Plan engineering entry.", "General engineering plan.", "description must frontload"),
@@ -184,7 +184,7 @@ class SandboxTreeTest(unittest.TestCase):
 
     def test_entry_version_is_not_pinned_to_initial_release(self) -> None:
         self.build_minimal_tree()
-        original = entry_text("plan-assistant-engineering")
+        original = entry_text("plan-engineering")
         for version in ("1.0.1", "2.0.0", "3.0.0-beta.1"):
             with self.subTest(version=version):
                 self.write("engineering/plan/SKILL.md", original.replace("version: 1.0.0", f"version: {version}"))
@@ -192,7 +192,7 @@ class SandboxTreeTest(unittest.TestCase):
 
     def test_read_before_work_dependencies_cannot_be_removed(self) -> None:
         self.build_minimal_tree()
-        original = entry_text("plan-assistant-engineering")
+        original = entry_text("plan-engineering")
         for token in (
             'skill_view(name="assistant-pipeline")',
             'skill_view(name="assistant-pipeline", file_path="references/plan/index.md")',
@@ -218,7 +218,7 @@ class SandboxTreeTest(unittest.TestCase):
 
     def test_hardcoded_home_does_not_replace_portable_fallback(self) -> None:
         self.build_minimal_tree()
-        text = entry_text("plan-assistant-engineering").replace(
+        text = entry_text("plan-engineering").replace(
             "${HERMES_SKILL_DIR}/../../",
             "~/.hermes/profiles/assistant/skills/pipeline/",
         )
@@ -247,7 +247,7 @@ class SandboxTreeTest(unittest.TestCase):
         for mode, prefix in (("plan", "plan"), ("execute", "execute"), ("quality-assurance", "qa")):
             path = self.root / "references" / mode / "index.md"
             original = path.read_text()
-            name = f"{prefix}-assistant-writing"
+            name = f"{prefix}-writing"
             with self.subTest(mode=mode):
                 path.write_text(original.replace(name, ""))
                 self.assertTrue(any(f"shared {mode} index does not route {name}" in e for e in self.validate()))

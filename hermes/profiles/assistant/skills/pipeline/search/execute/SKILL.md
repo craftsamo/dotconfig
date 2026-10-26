@@ -1,5 +1,5 @@
 ---
-name: execute-assistant-search
+name: execute-search
 description: "Execute search: release retrieval units and source handoffs. Supervise resident sessions, including a multi-hop hunt; searchers never issue verdicts."
 version: 1.0.0
 author: CraftSamo

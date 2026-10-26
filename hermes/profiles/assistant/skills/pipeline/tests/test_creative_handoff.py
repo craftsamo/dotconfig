@@ -189,7 +189,7 @@ class CreativeHandoffTest(unittest.TestCase):
         self.assertIn("Plan -> Execute -> Deliver", root)
         self.assertIn("Other domains' QA is unchanged", root)
         self.assertIn("Stay in Execute on normal completion", execute)
-        self.assertIn("do not load `qa-assistant-creative`", execute)
+        self.assertIn("do not load `qa-creative`", execute)
         self.assertIn("A required failure still blocks final readiness and dependent use", execute)
         self.assertIn("attach the actual file when supported", execute)
         self.assertIn("composition and progression", execute)

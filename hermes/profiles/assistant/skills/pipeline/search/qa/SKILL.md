@@ -1,5 +1,5 @@
 ---
-name: qa-assistant-search
+name: qa-search
 description: "QA search: open sources and verify retrieval coverage. Gate lookup, sweep and hunt findings before handoff; do not infer coverage or silently resolve questions for researcher."
 version: 1.0.0
 author: CraftSamo

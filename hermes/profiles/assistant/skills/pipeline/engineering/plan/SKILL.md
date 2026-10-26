@@ -1,5 +1,5 @@
 ---
-name: plan-assistant-engineering
+name: plan-engineering
 description: "Plan engineering: brief OpenCode on the user's intent and bring its proposals back, in Phases the user approves one at a time. New products agree capabilities, screens and data (HTML mocks) before a roadmap. Grounded in OpenCode plan, design, debug and review runs; no technical decomposition of your own; tracking on GitHub only when the user chooses it."
 version: 2.0.0
 author: CraftSamo

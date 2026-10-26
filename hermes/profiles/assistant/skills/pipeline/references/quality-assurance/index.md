@@ -87,12 +87,12 @@ another domain is needed; do not recursively reload the selected entry.
 
 | Capability | Contracts |
 | --- | --- |
-| creative (explicit user inspection only) | [qa-assistant-creative](../../creative/qa/SKILL.md) - bounded findings; ordinary delivery stays in Execute |
-| writing | [qa-assistant-writing](../../writing/qa/SKILL.md) — per-unit gate (outline / full) + prose / script contracts |
-| engineering | [qa-assistant-engineering](../../engineering/qa/SKILL.md) — scope, evidence, independent OpenCode review, rendered-UI baseline + inspection / acceptance |
-| research | [qa-assistant-research](../../research/qa/SKILL.md) — sources, verdicts, inference |
-| search | [qa-assistant-search](../../search/qa/SKILL.md) — per-unit gate + lookup / sweep / hunt contracts |
-| marketing | [qa-assistant-marketing](../../marketing/qa/SKILL.md) — Marketer advice checked, own acceptance, exact save consent, reopened unpublished draft |
+| creative (explicit user inspection only) | [qa-creative](../../creative/qa/SKILL.md) - bounded findings; ordinary delivery stays in Execute |
+| writing | [qa-writing](../../writing/qa/SKILL.md) — per-unit gate (outline / full) + prose / script contracts |
+| engineering | [qa-engineering](../../engineering/qa/SKILL.md) — scope, evidence, independent OpenCode review, rendered-UI baseline + inspection / acceptance |
+| research | [qa-research](../../research/qa/SKILL.md) — sources, verdicts, inference |
+| search | [qa-search](../../search/qa/SKILL.md) — per-unit gate + lookup / sweep / hunt contracts |
+| marketing | [qa-marketing](../../marketing/qa/SKILL.md) — Marketer advice checked, own acceptance, exact save consent, reopened unpublished draft |
 
 Selection rules:
 

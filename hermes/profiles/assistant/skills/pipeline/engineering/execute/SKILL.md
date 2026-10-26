@@ -1,5 +1,5 @@
 ---
-name: execute-assistant-engineering
+name: execute-engineering
 description: "Execute engineering: drive each approved Phase through an OpenCode build run to its PR (one PR or stack layer), reporting each step. One approval per Phase; a tracked job's issues mirrored by you; no merge or deployment under the implementation grant, and no edits of your own."
 version: 2.0.0
 author: CraftSamo

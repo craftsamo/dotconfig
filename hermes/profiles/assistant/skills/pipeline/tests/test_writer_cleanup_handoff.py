@@ -40,7 +40,7 @@ class WriterCleanupHandoffTest(unittest.TestCase):
         self.assertIn("explicitly released outline is an artifact", gate)
 
     def test_old_lint_and_assess_routes_are_absent(self):
-        for area in ("plan-assistant-writing", "execute-assistant-writing", "qa-assistant-writing"):
+        for area in ("plan-writing", "execute-writing", "qa-writing"):
             for path in (ROOT / area).rglob("*.md"):
                 body = path.read_text()
                 for retired in (

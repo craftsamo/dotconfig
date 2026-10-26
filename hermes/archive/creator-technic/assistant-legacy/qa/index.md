@@ -4,7 +4,7 @@ Use ONLY for explicitly user-requested inspection of a Creator-confirmed legacy
 family. The [requested inspection](../../SKILL.md) scope and
 [common QA floor](../../../references/quality-assurance/index.md) apply, without
 an automatic revision loop. Normal work uses
-[legacy delivery](../../../execute-assistant-creative/references/legacy/index.md),
+[legacy delivery](../../../execute-creative/references/legacy/index.md),
 not these per-unit inspections.
 
 Each contract is read-only inspection against the released unit. For a

@@ -70,7 +70,7 @@ ASSISTANT_ENTRY_PREFIXES = {
 ASSISTANT_ENTRIES = {
     "chat-assistant": ("chat", None),
     **{
-        f"{prefix}-assistant-{capability}": (mode, capability)
+        f"{prefix}-{capability}": (mode, capability)
         for mode, prefix in ASSISTANT_ENTRY_PREFIXES.items()
         for capability in EXPECTED_CAPABILITIES
     },
@@ -96,7 +96,7 @@ REQUIRED_QA_CONTRACTS = {
     "search": {"lookup.md", "sweep.md", "hunt.md"},
     "writing": {"prose.md", "script.md"},
 }
-# Files beside the subject references in execute-assistant-creative's references/
+# Files beside the subject references in execute-creative's references/
 # that are not hands subjects.
 COMMISSIONING_SHARED_REFERENCES = {"media-ops.md"}
 
@@ -164,7 +164,7 @@ def assistant_entry_dir(
     """Resolve an entry against the current root, never an import-time path."""
     name = (
         "chat-assistant" if mode == "chat" and capability is None
-        else f"{ASSISTANT_ENTRY_PREFIXES.get(mode)}-assistant-{capability}"
+        else f"{ASSISTANT_ENTRY_PREFIXES.get(mode)}-{capability}"
     )
     if name not in ASSISTANT_ENTRIES:
         raise ValueError(f"unknown assistant entry: {mode}/{capability}")
@@ -251,7 +251,7 @@ def validate_assistant_pipeline(errors: list[str]) -> int:
             if entry_mode == mode and not re.search(rf"(?<![\w-]){re.escape(name)}(?![\w-])", text):
                 errors.append(f"shared {mode} index does not route {name}")
         if any(
-            re.search(r"(?:chat-assistant|(?:plan|execute|qa)-assistant-[a-z]+)", call)
+            re.search(r"(?:chat-assistant|(?:plan|execute|qa)-[a-z]+)", call)
             for call in re.findall(r"skill_view\s*\([^)]*\)", text, re.S)
         ):
             errors.append(f"shared {mode} index must not recursively load an entry")
@@ -1448,7 +1448,7 @@ def validate_hands_routing(
     hands_leaves: dict[str, dict[str, Path]], errors: list[str]
 ) -> None:
     """Every installed hands subject has exactly one Assistant commissioning
-    reference (execute-assistant-creative's references/<subject>.md) and every
+    reference (execute-creative's references/<subject>.md) and every
     installed leaf is named in it, so no leaf is unreachable from the
     commissioning side; a reference for a subject no hands serves is an
     orphan. Paths are derived from the current ASSISTANT_PIPELINE global at
@@ -1690,7 +1690,7 @@ def validate_creator_references(pipeline_dir: Path, errors: list[str]) -> None:
 
 # ── Creative Client references ───────────────────────────────────────────
 #
-# The plain-language guides in plan-assistant-creative's references/ carry no
+# The plain-language guides in plan-creative's references/ carry no
 # parity with the hands: a guide's name need not equal a hands subject, and an
 # absent guide does not mean a capability is unavailable. Paths are derived
 # from the current ASSISTANT_PIPELINE global at call time so tests can patch it.

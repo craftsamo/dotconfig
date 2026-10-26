@@ -1,5 +1,5 @@
 ---
-name: qa-assistant-marketing
+name: qa-marketing
 description: "QA marketing: check Marketer's advice, your own acceptance and the reopened unpublished draft. A clean review is not acceptance; a saved draft is not publication or marketing success."
 version: 1.0.0
 author: CraftSamo

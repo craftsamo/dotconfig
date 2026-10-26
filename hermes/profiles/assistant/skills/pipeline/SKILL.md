@@ -114,7 +114,7 @@ Step 4  Deliver    verified result in the front-door persona
 Classification, location, and mode selection are silent unless a material
 ambiguity requires `clarify`. A request flows Plan → Execute → QA →
 Deliver; trivial requests and your own work live in Chat. Creative production is the
-exception: Plan -> Execute -> Deliver. `qa-assistant-creative` is only for an
+exception: Plan -> Execute -> Deliver. `qa-creative` is only for an
 explicit user inspection request, never a routine stage on returned media.
 Execute owns thin delivery checks and preserves producer failures/unknowns; the
 user judges the creative direction. Do not recreate routine QA through learned
@@ -123,8 +123,8 @@ skills or by asking the hands for another inspection. Other domains' QA is uncha
 **Entry selection** — on every user turn and specialist notification, select
 the relevant entry from the available skills. Re-evaluate before an action
 whose mode, domain or scope changed within the turn. Chat uses
-`chat-assistant`; the other modes use `plan-assistant-<domain>`,
-`execute-assistant-<domain>` or `qa-assistant-<domain>`, for engineering,
+`chat-assistant`; the other modes use `plan-<domain>`,
+`execute-<domain>` or `qa-<domain>`, for engineering,
 creative, writing, research, search and marketing. A short approval follows
 the recorded job state; it does not start a new plan. Select all applicable
 domains for mixed work, not one merely because it was loaded first.
@@ -145,7 +145,7 @@ deduplication with alternate paths or artificial ranges. In raw file text,
 `${HERMES_SKILL_DIR}` means the directory containing that document's owning
 `SKILL.md`, not the directory of whichever skill was loaded last.
 
-Creative starts with `plan-assistant-creative`: Assistant concretizes visual
+Creative starts with `plan-creative`: Assistant concretizes visual
 intent with deliverable-first guides and conditional reference research. For
 new authored video it owns intent and acceptance; the producer designs the
 storyboard the user approves. The hands own
@@ -233,7 +233,7 @@ Execution tiers. Pick by **context dependence**, not by size:
 | --- | --- | --- |
 | `inline` | conversation, a quick lookup, a received message to interpret or answer, a work report, workspace data ops, cron registration; medium parallel lookups via `delegate_task` | `chat-assistant` |
 | `resident` | **default for all heavy work** — creation, writing, deep research: anything where you expect to see the result and give feedback | `references/execute/resident-sessions.md` |
-| `opencode` | code: repository investigation, diagnosis, review, implementation and PR delivery, run by OpenCode while you supervise | `execute-assistant-engineering` |
+| `opencode` | code: repository investigation, diagnosis, review, implementation and PR delivery, run by OpenCode while you supervise | `execute-engineering` |
 
 When uncertain between inline and resident, start inline and promote.
 Never do heavy work in your own turn: media generation and long research go
@@ -255,9 +255,9 @@ references/
   execute/                       common Execute procedure and transport
   quality-assurance/index.md     common QA floor
 chat/                            chat-assistant: inline procedure and its references
-<domain>/plan/                   plan-assistant-<domain> and its references
-<domain>/execute/                execute-assistant-<domain> and its references
-<domain>/qa/                     qa-assistant-<domain> and its references
+<domain>/plan/                   plan-<domain> and its references
+<domain>/execute/                execute-<domain> and its references
+<domain>/qa/                     qa-<domain> and its references
 ```
 
 - **One mode/domain = one discoverable entry**, at `<domain>/<mode>/SKILL.md`
@@ -285,7 +285,7 @@ chat/                            chat-assistant: inline procedure and its refere
 - Ack a dispatch (resident turn started) in one short
   persona line, then end the turn. Completions arrive as notifications.
 - Never paste raw specialist output. For creative, use direct delivery in
-   `execute-assistant-creative`; otherwise verify per
+   `execute-creative`; otherwise verify per
    `references/quality-assurance/index.md`. Summarize and send the actual
    artifact/text with its limitations, not only internal paths.
 - Report autonomous in-plan decisions in one line each; relay everything

@@ -1,5 +1,5 @@
 ---
-name: plan-assistant-writing
+name: plan-writing
 description: "Plan writing: prose, documents, scripts and storyboards. Frame the client brief, released units and sources; use Writer consultation for decisions, not media production, artifact acceptance or publishing."
 version: 1.0.0
 author: CraftSamo

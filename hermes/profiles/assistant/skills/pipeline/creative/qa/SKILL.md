@@ -1,6 +1,6 @@
 ---
-name: qa-assistant-creative
-description: "QA creative: inspect ONLY on explicit user request. Return bounded findings against the named criteria, without automatic revision. Ordinary hands completions use execute-assistant-creative for direct delivery."
+name: qa-creative
+description: "QA creative: inspect ONLY on explicit user request. Return bounded findings against the named criteria, without automatic revision. Ordinary hands completions use execute-creative for direct delivery."
 version: 1.0.0
 author: CraftSamo
 license: MIT

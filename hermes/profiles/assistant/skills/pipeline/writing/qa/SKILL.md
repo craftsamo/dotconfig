@@ -1,5 +1,5 @@
 ---
-name: qa-assistant-writing
+name: qa-writing
 description: "QA writing: apply the shared requester acceptance contract. Load Writer acceptance and the selected family branch; missing instructions block acceptance, never a generic review or self-report pass."
 version: 1.0.0
 author: CraftSamo

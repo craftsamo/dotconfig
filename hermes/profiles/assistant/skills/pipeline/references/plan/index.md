@@ -30,7 +30,7 @@ answer). Plan conversationally, backward from the goal:
    state what you're about to do and proceed unless stopped. A new product
    or a build of several PRs is the exception: engineering agrees it in
    stages and approves each Phase before its build
-   (`plan-assistant-engineering`).
+   (`plan-engineering`).
 
 Do not repeat approval of the same plan. This does not waive a capability's
 later exact-proposal, preview, upload or Publish gate, or authorize an
@@ -62,9 +62,9 @@ entry whose full instructions are already available.
 
 | Capability | File | Owns |
 | --- | --- | --- |
-| engineering | [plan-assistant-engineering](../../engineering/plan/SKILL.md) | The user's intent relayed to OpenCode, its proposals relayed back, the decision log, approval per Phase |
-| creative | [plan-assistant-creative](../../creative/plan/SKILL.md) | Client outcome, optional reference research, grants and acceptance criteria; Creator proposes directions and the hands produce |
-| writing | [plan-assistant-writing](../../writing/plan/SKILL.md) | type decisions, unit decomposition (outline / piece), sources |
-| research | [plan-assistant-research](../../research/plan/SKILL.md) | purpose and constraints through the primary Client; Researcher proposal and agreement |
-| search | [plan-assistant-search](../../search/plan/SKILL.md) | purpose and constraints; Searcher-proposed retrieval scope, coverage and units for agreement |
-| marketing | [plan-assistant-marketing](../../marketing/plan/SKILL.md) | strategy questions to Marketer; Writer/hands units, destination and exact remote-save consent planned by you |
+| engineering | [plan-engineering](../../engineering/plan/SKILL.md) | The user's intent relayed to OpenCode, its proposals relayed back, the decision log, approval per Phase |
+| creative | [plan-creative](../../creative/plan/SKILL.md) | Client outcome, optional reference research, grants and acceptance criteria; Creator proposes directions and the hands produce |
+| writing | [plan-writing](../../writing/plan/SKILL.md) | type decisions, unit decomposition (outline / piece), sources |
+| research | [plan-research](../../research/plan/SKILL.md) | purpose and constraints through the primary Client; Researcher proposal and agreement |
+| search | [plan-search](../../search/plan/SKILL.md) | purpose and constraints; Searcher-proposed retrieval scope, coverage and units for agreement |
+| marketing | [plan-marketing](../../marketing/plan/SKILL.md) | strategy questions to Marketer; Writer/hands units, destination and exact remote-save consent planned by you |

@@ -1,5 +1,5 @@
 ---
-name: execute-assistant-research
+name: execute-research
 description: "Execute research: supervise proposal agreement, Build and self-check through the consuming primary. Accept conclusions independently; never call Researcher directly."
 version: 1.0.0
 author: CraftSamo

@@ -111,8 +111,8 @@ agent:
 
     On each user turn and completion notification, and BEFORE an action changing
     mode, domain or scope midturn, select the applicable entry from the available
-    skill index: `chat-assistant`, `plan-assistant-*`, `execute-assistant-*` or
-    `qa-assistant-*`. Reuse full instruction bodies currently present in context,
+    skill index: `chat-assistant`, `plan-<domain>`, `execute-<domain>` or
+    `qa-<domain>`. Reuse full instruction bodies currently present in context,
     not a past load or summary. If needed, read the selected entry with skill_view,
     the `assistant-pipeline` kernel, its mode-common procedure and relevant details.
     Root preload is not proof that these dependencies are present. An approval-only
@@ -152,7 +152,7 @@ agent:
     ### Quality gate
 
     Creative production uses Plan -> Execute -> direct delivery from the
-    commissioned hands. qa-assistant-creative is only for an explicit
+    commissioned hands. qa-creative is only for an explicit
     user inspection request, never a completion stage. Forward producer checks,
     failures, unknowns and spend; attach a viewable candidate promptly. Do not
     repeat visual looks or probes, load learned verification for another gate,
@@ -162,7 +162,7 @@ agent:
 
     For other domains, you are the quality gate. Every specialist deliverable —
     a session reply — is a candidate until you verified the actual artifact per
-    the selected qa-assistant-* entry, common QA and relevant details: files at
+    the selected qa-<domain> entry, common QA and relevant details: files at
     durable paths, vision on images/frames, ffprobe on av media, read the prose,
     spot-check sources.
     Defects go back to the same session as itemized feedback turns. Deliver only
