@@ -23,7 +23,7 @@ GUIDE_BODY = (
 
 class CreativeClientReferencesTestCase(unittest.TestCase):
     """Creative alignment: the plain-language guides directly under
-    plan-assistant-creative/references/ must carry the four client-facing
+    creative/plan/references/ must carry the four client-facing
     headings; local document references (Markdown links and backtick paths)
     are checked, confined to the pipeline root, and never point at a retired
     shelf (including the removed legacy shelf). Every fixture is synthetic,
@@ -42,7 +42,7 @@ class CreativeClientReferencesTestCase(unittest.TestCase):
             / "profiles"
             / "assistant"
             / "skills"
-            / "assistant-pipeline"
+            / "pipeline"
         )
         self.pipeline_dir.mkdir(parents=True)
         pipeline_patcher = mock.patch.object(
@@ -59,21 +59,21 @@ class CreativeClientReferencesTestCase(unittest.TestCase):
 
     def build_valid_tree(self) -> None:
         self.write(
-            "plan-assistant-creative/SKILL.md",
+            "creative/plan/SKILL.md",
             "Routes [reference-research](references/reference-research.md) and "
             "[raster-guide](references/raster-guide.md).\n",
         )
         self.write(
-            "plan-assistant-creative/references/reference-research.md",
+            "creative/plan/references/reference-research.md",
             "# reference research\n",
         )
-        self.write("plan-assistant-creative/references/raster-guide.md", GUIDE_BODY)
+        self.write("creative/plan/references/raster-guide.md", GUIDE_BODY)
         self.write(
-            "execute-assistant-creative/SKILL.md",
+            "creative/execute/SKILL.md",
             "See [media-ops](references/media-ops.md).\n",
         )
-        self.write("execute-assistant-creative/references/media-ops.md", "# media ops\n")
-        self.write("execute-assistant-creative/references/card.md", "# card\n")
+        self.write("creative/execute/references/media-ops.md", "# media ops\n")
+        self.write("creative/execute/references/card.md", "# card\n")
 
     def validate(self) -> list[str]:
         errors: list[str] = []
@@ -86,26 +86,26 @@ class CreativeClientReferencesTestCase(unittest.TestCase):
 
     def test_guide_name_need_not_equal_a_hands_subject(self) -> None:
         self.build_valid_tree()
-        self.write("plan-assistant-creative/references/free-name.md", GUIDE_BODY)
+        self.write("creative/plan/references/free-name.md", GUIDE_BODY)
         self.assertEqual([], self.validate())
 
     def test_reference_research_excluded_from_guide_heading_check(self) -> None:
         self.build_valid_tree()
         self.write(
-            "plan-assistant-creative/references/reference-research.md", "# no headings\n"
+            "creative/plan/references/reference-research.md", "# no headings\n"
         )
         self.assertEqual([], self.validate())
 
     def test_incomplete_guide_reported(self) -> None:
-        self.write("plan-assistant-creative/SKILL.md", "bad.md")
-        self.write("plan-assistant-creative/references/bad.md", "# incomplete guide")
+        self.write("creative/plan/SKILL.md", "bad.md")
+        self.write("creative/plan/references/bad.md", "# incomplete guide")
         errors = self.validate()
         self.assertTrue(any("creative guide missing heading" in e for e in errors))
 
     def test_missing_client_sections_reported(self) -> None:
         self.build_valid_tree()
         self.write(
-            "plan-assistant-creative/references/raster-guide.md",
+            "creative/plan/references/raster-guide.md",
             "## Use\n\nBody.\n\n## References\n\nBody.\n\n## Acceptance\n\nBody.\n",
         )
         errors = self.validate()
@@ -120,16 +120,16 @@ class CreativeClientReferencesTestCase(unittest.TestCase):
     def test_template_paths_are_not_concrete_links(self) -> None:
         self.build_valid_tree()
         self.write(
-            "plan-assistant-creative/references/reference-research.md",
+            "creative/plan/references/reference-research.md",
             "Template: `../<deliverable>.md`; actual: `raster-guide.md#units`.",
         )
         self.assertEqual([], self.validate())
 
     def test_reference_names_can_contain_retired_words(self) -> None:
         self.build_valid_tree()
-        self.write("plan-assistant-creative/references/facial-expressions.md", "# example")
+        self.write("creative/plan/references/facial-expressions.md", "# example")
         self.write(
-            "plan-assistant-creative/references/reference-research.md",
+            "creative/plan/references/reference-research.md",
             "See `facial-expressions.md`.",
         )
         errors: list[str] = []
@@ -139,7 +139,7 @@ class CreativeClientReferencesTestCase(unittest.TestCase):
     def test_stale_relative_backtick_path_fails(self) -> None:
         self.build_valid_tree()
         self.write(
-            "plan-assistant-creative/references/reference-research.md",
+            "creative/plan/references/reference-research.md",
             "# r\n\nSee `../../execute/creative/index.md`.\n",
         )
         errors = self.validate()
@@ -150,7 +150,7 @@ class CreativeClientReferencesTestCase(unittest.TestCase):
     def test_escape_path_rejected(self) -> None:
         self.build_valid_tree()
         self.write(
-            "plan-assistant-creative/references/reference-research.md",
+            "creative/plan/references/reference-research.md",
             "# r\n\nSee `../../../../../../outside/index.md`.\n",
         )
         errors = self.validate()
@@ -162,7 +162,7 @@ class CreativeClientReferencesTestCase(unittest.TestCase):
     def test_retired_shelf_reference_rejected(self) -> None:
         self.build_valid_tree()
         self.write(
-            "plan-assistant-creative/references/raster-guide.md",
+            "creative/plan/references/raster-guide.md",
             GUIDE_BODY + "\nSee `../expressions/mood.md` for the old palette.\n",
         )
         errors = self.validate()
@@ -175,9 +175,9 @@ class CreativeClientReferencesTestCase(unittest.TestCase):
 
     def test_legacy_shelf_reference_rejected(self) -> None:
         self.build_valid_tree()
-        self.write("plan-assistant-creative/references/legacy/raster-image.md", "# r\n")
+        self.write("creative/plan/references/legacy/raster-image.md", "# r\n")
         self.write(
-            "plan-assistant-creative/references/raster-guide.md",
+            "creative/plan/references/raster-guide.md",
             GUIDE_BODY + "\nSee `legacy/raster-image.md`.\n",
         )
         errors = self.validate()
@@ -191,7 +191,7 @@ class CreativeClientReferencesTestCase(unittest.TestCase):
     def test_produced_artifact_filenames_are_not_treated_as_references(self) -> None:
         self.build_valid_tree()
         self.write(
-            "plan-assistant-creative/references/raster-guide.md",
+            "creative/plan/references/raster-guide.md",
             GUIDE_BODY + "\nThe deliverable is written to `proposal.md`.\n",
         )
         self.assertEqual([], self.validate())
@@ -199,14 +199,14 @@ class CreativeClientReferencesTestCase(unittest.TestCase):
     def test_code_output_paths_are_not_document_references(self) -> None:
         self.build_valid_tree()
         self.write(
-            "plan-assistant-creative/references/raster-guide.md",
+            "creative/plan/references/raster-guide.md",
             GUIDE_BODY + "\n```sh\ncommand --out `OUTPUT/report.md`\n```\n",
         )
         self.assertEqual([], self.validate())
 
     def test_runtime_fallback_paths_are_not_relative_document_links(self) -> None:
         self.build_valid_tree()
-        path = self.pipeline_dir / "plan-assistant-creative/SKILL.md"
+        path = self.pipeline_dir / "creative/plan/SKILL.md"
         path.write_text(path.read_text() + '\nUse read_file on '
                         '`${HERMES_SKILL_DIR}/../references/plan/index.md`.\n')
         self.assertEqual([], self.validate())
@@ -214,15 +214,15 @@ class CreativeClientReferencesTestCase(unittest.TestCase):
     def test_skill_md_mentions_are_not_treated_as_references(self) -> None:
         self.build_valid_tree()
         self.write(
-            "plan-assistant-creative/references/raster-guide.md",
-            GUIDE_BODY + "\nSee `image-creator-pipeline/generate/icon/SKILL.md`.\n",
+            "creative/plan/references/raster-guide.md",
+            GUIDE_BODY + "\nSee `pipeline/icon/generate/SKILL.md`.\n",
         )
         self.assertEqual([], self.validate())
 
     def test_valid_markdown_link_and_backtick_reference_pass(self) -> None:
         self.build_valid_tree()
         self.write(
-            "plan-assistant-creative/references/raster-guide.md",
+            "creative/plan/references/raster-guide.md",
             GUIDE_BODY
             + "\nSee [research](reference-research.md) and `reference-research.md`.\n",
         )

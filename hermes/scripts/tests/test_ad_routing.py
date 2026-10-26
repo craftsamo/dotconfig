@@ -19,9 +19,9 @@ assert VALIDATOR_SPEC and VALIDATOR_SPEC.loader
 VALIDATOR = importlib.util.module_from_spec(VALIDATOR_SPEC)
 VALIDATOR_SPEC.loader.exec_module(VALIDATOR)
 
-VIDEO_PIPELINE = HERMES_ROOT / "profiles" / "video-creator" / "skills" / "video-creator-pipeline"
-CREATE_AD = VIDEO_PIPELINE / "create" / "ad" / "SKILL.md"
-ANALYZE_AD = VIDEO_PIPELINE / "analyze" / "ad" / "SKILL.md"
+VIDEO_PIPELINE = HERMES_ROOT / "profiles" / "video-creator" / "skills" / "pipeline"
+CREATE_AD = VIDEO_PIPELINE / "ad" / "create" / "SKILL.md"
+ANALYZE_AD = VIDEO_PIPELINE / "ad" / "analyze" / "SKILL.md"
 
 
 # ── leaf validator: names, verbs, shared "ad" subject within one hands ──────
@@ -53,7 +53,7 @@ class LeafValidatorTest(unittest.TestCase):
         errors: list[str] = []
         VALIDATOR.validate_hands_subjects(
             {"video-creator": {"create-ad": CREATE_AD},
-             "image-creator": {"generate-ad": Path("/fake/image-creator/generate/ad/SKILL.md")}},
+             "image-creator": {"generate-ad": Path("/fake/image-creator/ad/generate/SKILL.md")}},
             errors)
         self.assertEqual(1, len(errors))
         self.assertIn("ad", errors[0])
@@ -64,7 +64,7 @@ class LeafValidatorTest(unittest.TestCase):
         errors: list[str] = []
         leaves_by_profile: dict[str, dict[str, Path]] = {}
         for profile_dir in (HERMES_ROOT / "profiles").iterdir():
-            pipeline = profile_dir / "skills" / f"{profile_dir.name}-pipeline"
+            pipeline = profile_dir / "skills" / "pipeline"
             if not pipeline.is_dir():
                 continue
             sub_errors: list[str] = []
@@ -77,9 +77,9 @@ class LeafValidatorTest(unittest.TestCase):
 
 # ── commissioning + video-creator config/pipeline describe create-ad / analyze-ad ─
 
-ASSISTANT_CREATIVE = (HERMES_ROOT / "profiles/assistant/skills/assistant-pipeline/"
-                      "execute-assistant-creative")
-CREATOR_PIPELINE = HERMES_ROOT / "profiles/creator/skills/creator-pipeline"
+ASSISTANT_CREATIVE = (HERMES_ROOT / "profiles/assistant/skills/pipeline/"
+                      "creative/execute")
+CREATOR_PIPELINE = HERMES_ROOT / "profiles/creator/skills/pipeline"
 
 
 class CommissioningAndVideoConfigTest(unittest.TestCase):
@@ -151,8 +151,8 @@ class CommissioningAndVideoConfigTest(unittest.TestCase):
         profiles_md = " ".join((HERMES_ROOT / "docs" / "hands" / "video.md").read_text().split())
         self.assertIn("A generated ad is not a leaf", profiles_md)
         self.assertNotIn("generate-ad` is planned", profiles_md)
-        leaves = {p.parent.name for p in (HERMES_ROOT / "profiles/video-creator/skills/video-creator-pipeline")
-                  .glob("generate/*/SKILL.md")}
+        leaves = {p.parent.parent.name for p in (HERMES_ROOT / "profiles/video-creator/skills/pipeline")
+                  .glob("*/generate/SKILL.md")}
         self.assertNotIn("ad", leaves)
 
 

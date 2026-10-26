@@ -26,7 +26,7 @@ def _leaves(*triples: tuple[str, str, str]) -> dict[str, dict[str, Path]]:
     result: dict[str, dict[str, Path]] = {}
     for profile, subject, name in triples:
         verb = name.split("-", 1)[0]
-        result.setdefault(profile, {})[name] = Path(f"/fake/{profile}/{verb}/{subject}/SKILL.md")
+        result.setdefault(profile, {})[name] = Path(f"/fake/{profile}/{subject}/{verb}/SKILL.md")
     return result
 
 
@@ -39,7 +39,7 @@ class HandsRoutingSandboxTest(unittest.TestCase):
         self.root = Path(self._tmp.name)
         self._original_root = VALIDATOR.ASSISTANT_PIPELINE
         VALIDATOR.ASSISTANT_PIPELINE = self.root
-        self.refs = self.root / "execute-assistant-creative/references"
+        self.refs = self.root / "creative/execute/references"
         self.refs.mkdir(parents=True, exist_ok=True)
 
     def tearDown(self) -> None:
@@ -136,13 +136,13 @@ class HandsRuntimeDiscoveryTest(unittest.TestCase):
     the runtime discovery cutoff."""
 
     def _installed_leaves(self, profile: str) -> dict[str, Path]:
-        pipeline = VALIDATOR.HERMES_ROOT / "profiles" / profile / "skills" / f"{profile}-pipeline"
+        pipeline = VALIDATOR.HERMES_ROOT / "profiles" / profile / "skills" / "pipeline"
         leaves: dict[str, Path] = {}
         for path in sorted(pipeline.rglob("SKILL.md")):
             rel = path.relative_to(pipeline)
             if len(rel.parts) != 3:
                 continue
-            verb, subject, _ = rel.parts
+            subject, verb, _ = rel.parts
             leaves[f"{verb}-{subject}"] = path
         return leaves
 
@@ -153,7 +153,7 @@ class HandsRuntimeDiscoveryTest(unittest.TestCase):
 
         for profile in VALIDATOR.HANDS_PROFILES:
             with self.subTest(profile=profile):
-                pipeline = VALIDATOR.HERMES_ROOT / "profiles" / profile / "skills" / f"{profile}-pipeline"
+                pipeline = VALIDATOR.HERMES_ROOT / "profiles" / profile / "skills" / "pipeline"
                 expected = self._installed_leaves(profile)
                 self.assertTrue(expected, f"{profile} must have installed hands leaves to discover")
                 with patch.object(skills_tool, search_dirs_name(), return_value=search_dirs_result(pipeline)), \

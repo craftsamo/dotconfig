@@ -23,7 +23,7 @@ import pytest
 np = pytest.importorskip("numpy", reason="needs numpy, absent from the Hermes test environment")
 
 HERMES = Path(__file__).resolve().parents[2]
-SCRIPTS = HERMES / "profiles/audio-creator/skills/audio-creator-pipeline/scripts"
+SCRIPTS = HERMES / "profiles/audio-creator/skills/pipeline/scripts"
 SCRIPT = SCRIPTS / "mix-media.py"
 MUSIC_SCRIPT = SCRIPTS / "music-media.py"
 RATE = 48000

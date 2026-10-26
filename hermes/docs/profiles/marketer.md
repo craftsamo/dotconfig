@@ -21,8 +21,8 @@ allowlist is in [specialist-calls](./specialist-calls.md).
 
 Marketer keeps `marketer-pipeline` as its kernel and three independent
 entry skills beneath it, outside `references/`: `plan-marketer`,
-`review-marketer` and `analyze-marketer`. Each entry's `SKILL.md` owns its mode
-procedure and lists its local details. Plan holds discovery, positioning,
+`review-marketer` and `analyze-marketer`, each at `pipeline/<mode>/SKILL.md`.
+Each entry's `SKILL.md` owns its mode procedure and lists its local details. Plan holds discovery, positioning,
 offer, channels, campaign and the strategy check; Review holds the content
 review lenses (purpose, platform fit, claims, legal/rights triage, media) as
 advice, never acceptance; Analyze holds measurement and interpretation. Shared

@@ -24,7 +24,7 @@ the stages.
    leaves only once the job is confirmed legacy (voiceover → a
    Creator brief for audio-creator's `generate-speech`, approved
    script required
-   (`../../../execute-assistant-creative/SKILL.md` "Hands-served families"); music
+   (`../../../execute-creative/SKILL.md` "Hands-served families"); music
    bed → an existing track or separately approved Creator-brokered music
    delivery, consumed as a finished input; lettering →
    deterministic composition). Fix each part's decision surface
@@ -33,13 +33,13 @@ the stages.
 2. **Name the edges** — which parts feed which (the voice part's
    duration constrains scene timing; the anchor part precedes the
    batch). Independent parts may run in parallel
-   (`../../../execute-assistant-creative/references/legacy/index.md`); dependent parts wait for
+   (`../../../execute-creative/references/legacy/index.md`); dependent parts wait for
    the upstream part to pass your QA.
 3. **End with assembly** — one `media-assembly.md` unit whose edit
    spec you fix and whose inputs are exclusively QA-passed part
    paths. A package without a final render (article + images) needs
    no assembly unit — delivery packaging is yours
-   (`../../../execute-assistant-creative/references/media-ops.md`).
+   (`../../../execute-creative/references/media-ops.md`).
 4. **Budget per unit** — each part gets its own `Budget:` line;
    the composite's cost is presented to the user as the sum, per
    stage, at the one approval.

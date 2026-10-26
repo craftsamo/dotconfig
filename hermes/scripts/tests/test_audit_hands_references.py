@@ -16,7 +16,7 @@ SCRIPT = Path(__file__).resolve().parents[1] / "audit-hands-references.py"
 HERMES_ROOT = SCRIPT.parents[1]
 REPO_ROOT = HERMES_ROOT.parent
 REAL_CARD_ROOT = (
-    HERMES_ROOT / "profiles" / "image-creator" / "skills" / "image-creator-pipeline"
+    HERMES_ROOT / "profiles" / "image-creator" / "skills" / "pipeline"
 )
 
 SPEC = importlib.util.spec_from_file_location("audit_hands_references", SCRIPT)
@@ -85,13 +85,13 @@ class FixtureTreeCase(unittest.TestCase):
         self._tmp.cleanup()
 
     def profile_pipeline(self, profile: str = "image-creator") -> Path:
-        return self.root / "hermes" / "profiles" / profile / "skills" / f"{profile}-pipeline"
+        return self.root / "hermes" / "profiles" / profile / "skills" / "pipeline"
 
     def write_leaf(
         self, verb: str, subject: str, form_yaml: str, profile: str = "image-creator",
         name: str | None = None,
     ) -> Path:
-        leaf_dir = self.profile_pipeline(profile) / verb / subject
+        leaf_dir = self.profile_pipeline(profile) / subject / verb
         skill = leaf_dir / "SKILL.md"
         write(skill, skill_frontmatter(name or f"{verb}-{subject}", form_yaml))
         return leaf_dir
@@ -107,7 +107,7 @@ class ReferenceCatalogTest(FixtureTreeCase):
             "      style:\n        required: true\n        options: [alpha, beta]\n",
         )
         write(
-            self.profile_pipeline() / "create/widget/references/styles/alpha.md",
+            self.profile_pipeline() / "widget/create/references/styles/alpha.md",
             "# alpha\ncontent\n",
         )
         # beta.md intentionally absent.
@@ -121,10 +121,10 @@ class ReferenceCatalogTest(FixtureTreeCase):
             "      style:\n        required: true\n        options: [alpha]\n",
         )
         write(
-            self.profile_pipeline() / "create/widget/references/styles/alpha.md",
+            self.profile_pipeline() / "widget/create/references/styles/alpha.md",
             "# alpha\ncontent\n",
         )
-        skill = self.profile_pipeline() / "create/widget/SKILL.md"
+        skill = self.profile_pipeline() / "widget/create/SKILL.md"
         skill.write_text(
             skill.read_text().replace(
                 "<Procedure>\nfixture",
@@ -140,10 +140,10 @@ class ReferenceCatalogTest(FixtureTreeCase):
             "create", "widget",
             "      style:\n        required: true\n        options: [alpha]\n",
         )
-        base = self.profile_pipeline() / "create/widget/references/styles"
+        base = self.profile_pipeline() / "widget/create/references/styles"
         write(base / "alpha.md", "# alpha\ncontent\n")
         write(base / "unused.md", "# unused\ncontent\n")
-        skill = self.profile_pipeline() / "create/widget/SKILL.md"
+        skill = self.profile_pipeline() / "widget/create/SKILL.md"
         skill.write_text(
             skill.read_text().replace(
                 "<Procedure>\nfixture",
@@ -163,10 +163,10 @@ class ReferenceCatalogTest(FixtureTreeCase):
             "create", "widget",
             "      style:\n        required: true\n        options: [alpha]\n",
         )
-        base = self.profile_pipeline() / "create/widget/references"
+        base = self.profile_pipeline() / "widget/create/references"
         write(base / "styles/alpha.md", "# alpha\ncontent\n")
         write(base / "spec.md", "# spec\nshared bounded contract, not a catalog file\n")
-        skill = self.profile_pipeline() / "create/widget/SKILL.md"
+        skill = self.profile_pipeline() / "widget/create/SKILL.md"
         skill.write_text(
             skill.read_text().replace(
                 "<Procedure>\nfixture",
@@ -221,9 +221,9 @@ class ReferenceCatalogTest(FixtureTreeCase):
             "      theme:\n        required: true\n        options: [dawn]\n",
         )
         write(
-            self.profile_pipeline() / "create/widget/references/themes/dawn.md", "# dawn\n"
+            self.profile_pipeline() / "widget/create/references/themes/dawn.md", "# dawn\n"
         )
-        skill = self.profile_pipeline() / "create/widget/SKILL.md"
+        skill = self.profile_pipeline() / "widget/create/SKILL.md"
         skill.write_text(
             skill.read_text().replace(
                 "<Procedure>\nfixture",
@@ -239,7 +239,7 @@ class ReferenceCatalogTest(FixtureTreeCase):
             "create", "widget",
             "      style:\n        required: true\n        options: [alpha]\n",
         )
-        write(self.profile_pipeline() / "create/widget/references/styles/alpha.md", "   \n")
+        write(self.profile_pipeline() / "widget/create/references/styles/alpha.md", "   \n")
         findings = AUDIT.audit(self.root, None)
         codes = {(f["severity"], f["code"]) for f in findings.items}
         self.assertIn(("error", "empty-catalog-file"), codes)
@@ -249,7 +249,7 @@ class ReferenceCatalogTest(FixtureTreeCase):
             "create", "widget",
             "      style:\n        required: true\n        options: [alpha]\n",
         )
-        write(self.profile_pipeline() / "create/widget/references/styles/alpha.md", "# alpha\n")
+        write(self.profile_pipeline() / "widget/create/references/styles/alpha.md", "# alpha\n")
         findings = AUDIT.audit(self.root, None)
         codes = {(f["severity"], f["code"]) for f in findings.items}
         self.assertIn(("warning", "missing-body-link"), codes)
@@ -259,8 +259,8 @@ class ReferenceCatalogTest(FixtureTreeCase):
             "create", "widget",
             "      style:\n        required: true\n        options: [alpha]\n",
         )
-        write(self.profile_pipeline() / "create/widget/references/styles/alpha.md", "# alpha\n")
-        skill = self.profile_pipeline() / "create/widget/SKILL.md"
+        write(self.profile_pipeline() / "widget/create/references/styles/alpha.md", "# alpha\n")
+        skill = self.profile_pipeline() / "widget/create/SKILL.md"
         skill.write_text(
             skill.read_text().replace(
                 "<Procedure>\nfixture",
@@ -272,7 +272,7 @@ class ReferenceCatalogTest(FixtureTreeCase):
         self.assertEqual([], findings.items)
 
     def test_malformed_yaml_frontmatter_is_error_not_crash(self) -> None:
-        leaf_dir = self.profile_pipeline() / "create/widget"
+        leaf_dir = self.profile_pipeline() / "widget/create"
         write(
             leaf_dir / "SKILL.md",
             "---\nname: create-widget\nmetadata: [broken\n---\n<Procedure>\n</Procedure>\n",
@@ -284,7 +284,7 @@ class ReferenceCatalogTest(FixtureTreeCase):
         )
 
     def test_missing_frontmatter_fence_is_error_not_crash(self) -> None:
-        leaf_dir = self.profile_pipeline() / "create/widget"
+        leaf_dir = self.profile_pipeline() / "widget/create"
         write(leaf_dir / "SKILL.md", "no frontmatter here at all\n")
         findings = AUDIT.audit(self.root, None)
         self.assertEqual(
@@ -303,7 +303,7 @@ class ReferenceCatalogTest(FixtureTreeCase):
             "create", "widget",
             "      style:\n        required: true\n        options: [alpha]\n",
         )
-        backing = self.profile_pipeline() / "create/widget/references/styles/alpha.md"
+        backing = self.profile_pipeline() / "widget/create/references/styles/alpha.md"
         backing.parent.mkdir(parents=True, exist_ok=True)
         backing.write_bytes(b"\xff\xfe\x00invalid utf-8 for testing decode failure\xff")
         findings = AUDIT.audit(self.root, None)
@@ -311,7 +311,7 @@ class ReferenceCatalogTest(FixtureTreeCase):
         self.assertIn(("error", "unreadable-backing-file"), codes)
 
     def test_leaf_with_undecodable_frontmatter_is_error_not_crash(self) -> None:
-        leaf_dir = self.profile_pipeline() / "create/widget"
+        leaf_dir = self.profile_pipeline() / "widget/create"
         skill = leaf_dir / "SKILL.md"
         skill.parent.mkdir(parents=True, exist_ok=True)
         skill.write_bytes(b"---\nname: create-widget\n\xff\xfe---\n")
@@ -344,9 +344,9 @@ class ReferenceCatalogTest(FixtureTreeCase):
             "      style:\n        required: true\n        options: [flat]\n",
         )
         write(
-            self.profile_pipeline() / "create/icon/references/styles/flat.md", "# flat\n"
+            self.profile_pipeline() / "icon/create/references/styles/flat.md", "# flat\n"
         )
-        skill = self.profile_pipeline() / "create/icon/SKILL.md"
+        skill = self.profile_pipeline() / "icon/create/SKILL.md"
         skill.write_text(
             skill.read_text().replace(
                 "<Procedure>\nfixture",
@@ -367,7 +367,7 @@ class ReferenceCatalogTest(FixtureTreeCase):
 class LeafFlagTest(FixtureTreeCase):
     def test_rejects_missing_directory(self) -> None:
         with self.assertRaises(AUDIT.InvalidInvocation):
-            AUDIT.audit(self.root, "hermes/profiles/image-creator/skills/image-creator-pipeline/create/nope")
+            AUDIT.audit(self.root, "hermes/profiles/image-creator/skills/pipeline/nope/create")
 
     def test_rejects_directory_outside_root(self) -> None:
         outside = Path(self._tmp.name).parent
@@ -378,9 +378,9 @@ class LeafFlagTest(FixtureTreeCase):
         self.write_leaf(
             "create", "widget", "      style:\n        required: true\n        options: [alpha]\n"
         )
-        # A dir one level too shallow (verb only, no subject/SKILL.md).
+        # A dir one level too shallow (subject only, no verb/SKILL.md).
         with self.assertRaises(AUDIT.InvalidInvocation):
-            AUDIT.audit(self.root, "hermes/profiles/image-creator/skills/image-creator-pipeline/create")
+            AUDIT.audit(self.root, "hermes/profiles/image-creator/skills/pipeline/widget")
 
     def test_scopes_to_one_leaf(self) -> None:
         self.write_leaf(
@@ -390,11 +390,11 @@ class LeafFlagTest(FixtureTreeCase):
             "create", "gadget", "      style:\n        required: true\n        options: [alpha]\n"
         )
         findings = AUDIT.audit(
-            self.root, "hermes/profiles/image-creator/skills/image-creator-pipeline/create/widget"
+            self.root, "hermes/profiles/image-creator/skills/pipeline/widget/create"
         )
         # Only widget's missing-backed-option is reported, not gadget's.
         self.assertTrue(
-            all("create/widget" in f["path"] for f in findings.items), findings.items
+            all("widget/create" in f["path"] for f in findings.items), findings.items
         )
 
 
@@ -406,7 +406,7 @@ class CliTest(FixtureTreeCase):
         self.write_leaf(
             "create", "widget", "      style:\n        required: true\n        options: [alpha]\n"
         )
-        write(self.profile_pipeline() / "create/widget/references/styles/alpha.md", "# alpha\n")
+        write(self.profile_pipeline() / "widget/create/references/styles/alpha.md", "# alpha\n")
         result = run_cli("--root", str(self.root), "--json")
         self.assertEqual(0, result.returncode, result.stderr)
         payload = json.loads(result.stdout)
@@ -450,7 +450,7 @@ class CliTest(FixtureTreeCase):
         self.write_leaf(
             "create", "widget", "      style:\n        required: true\n        options: [alpha]\n"
         )
-        write(self.profile_pipeline() / "create/widget/references/styles/alpha.md", "# alpha\n")
+        write(self.profile_pipeline() / "widget/create/references/styles/alpha.md", "# alpha\n")
         result = run_cli("--root", str(self.root))
         self.assertEqual(0, result.returncode, result.stdout)
 
@@ -476,8 +476,8 @@ class CardAdapterTest(FixtureTreeCase):
         self.write_leaf(
             "create", "icon", "      style:\n        required: true\n        options: [flat]\n"
         )
-        write(self.profile_pipeline() / "create/icon/references/styles/flat.md", "# flat\n")
-        skill = self.profile_pipeline() / "create/icon/SKILL.md"
+        write(self.profile_pipeline() / "icon/create/references/styles/flat.md", "# flat\n")
+        skill = self.profile_pipeline() / "icon/create/SKILL.md"
         skill.write_text(
             skill.read_text().replace(
                 "<Procedure>\nfixture",
@@ -495,7 +495,7 @@ class CardAdapterTest(FixtureTreeCase):
             name="create-card",
         )
         write(
-            self.profile_pipeline() / "create/card/references/destination/og.md",
+            self.profile_pipeline() / "card/create/references/destination/og.md",
             "---\nwidth: 1200\nheight: 630\nstatus: authoring-default\n---\n# og\n",
         )
         findings = AUDIT.audit(self.root, None)
@@ -510,8 +510,8 @@ class CardAdapterTest(FixtureTreeCase):
             name="create-card",
         )
         shutil.copyfile(
-            REAL_CARD_ROOT / "create/card/references/destination/og.md",
-            write(self.profile_pipeline() / "create/card/references/destination/og.md", ""),
+            REAL_CARD_ROOT / "card/create/references/destination/og.md",
+            write(self.profile_pipeline() / "card/create/references/destination/og.md", ""),
         )
         findings = AUDIT.audit(self.root, None)
         self.assertEqual(
@@ -526,7 +526,7 @@ class CardAdapterTest(FixtureTreeCase):
             name="create-card",
         )
         write(
-            self.profile_pipeline() / "create/card/references/destination/og.md",
+            self.profile_pipeline() / "card/create/references/destination/og.md",
             "---\nwidth: 1200\nstatus: authoring-default\n---\n# og missing height\n",
         )
         findings = AUDIT.audit(self.root, None)
@@ -541,7 +541,7 @@ class CardAdapterTest(FixtureTreeCase):
             name="create-card",
         )
         write(
-            self.profile_pipeline() / "create/card/references/destination/og.md",
+            self.profile_pipeline() / "card/create/references/destination/og.md",
             "---\nwidth: 1200\nwidth: 1201\nheight: 630\nstatus: authoring-default\n---\n# og\n",
         )
         findings = AUDIT.audit(self.root, None)
@@ -556,7 +556,7 @@ class CardAdapterTest(FixtureTreeCase):
             name="create-card",
         )
         write(
-            self.profile_pipeline() / "create/card/references/destination/x-post.md",
+            self.profile_pipeline() / "card/create/references/destination/x-post.md",
             "---\nwidth: 1200\nheight: 675\nstatus: authoring-default\n"
             "display_width_css_px: 360\n---\n# missing display_gap_css_px\n",
         )
@@ -572,7 +572,7 @@ class CardAdapterTest(FixtureTreeCase):
             name="create-card",
         )
         write(
-            self.profile_pipeline() / "create/card/references/destination/x-carousel.md",
+            self.profile_pipeline() / "card/create/references/destination/x-carousel.md",
             # tiles > max_tiles: descending, invalid range.
             "---\nwidth: 900\nheight: 1125\nstatus: authoring-default\n"
             "tiles: 4\nmax_tiles: 3\ntile: portrait\ntile_options: portrait|square\n---\n# bad\n",
@@ -596,7 +596,7 @@ class CardAdapterTest(FixtureTreeCase):
             name="create-card",
         )
         write(
-            self.profile_pipeline() / "create/card/references/destination/x-carousel.md",
+            self.profile_pipeline() / "card/create/references/destination/x-carousel.md",
             "---\nwidth: 900\nheight: 1125\nstatus: authoring-default\n"
             "tiles: 3\nmax_tiles: 9\ntile: portrait\ntile_options: portrait|square\n---\n# bad\n",
         )
@@ -628,8 +628,8 @@ class CardAdapterTest(FixtureTreeCase):
             name="create-card",
         )
         shutil.copyfile(
-            REAL_CARD_ROOT / "create/card/references/styles/glass.md",
-            write(self.profile_pipeline() / "create/card/references/styles/glass.md", ""),
+            REAL_CARD_ROOT / "card/create/references/styles/glass.md",
+            write(self.profile_pipeline() / "card/create/references/styles/glass.md", ""),
         )
         findings = AUDIT.audit(self.root, None)
         self.assertEqual(
@@ -644,7 +644,7 @@ class CardAdapterTest(FixtureTreeCase):
             name="create-card",
         )
         write(
-            self.profile_pipeline() / "create/card/references/styles/broken.md",
+            self.profile_pipeline() / "card/create/references/styles/broken.md",
             "# broken\n\n```css\n.unsupported-selector { color: red; }\n```\n",
         )
         findings = AUDIT.audit(self.root, None)
@@ -660,7 +660,7 @@ class CardAdapterTest(FixtureTreeCase):
         )
         # Prose, not a CSS fence at all: must not be run through css_style().
         write(
-            self.profile_pipeline() / "generate/card/references/styles/broken.md",
+            self.profile_pipeline() / "card/generate/references/styles/broken.md",
             "# broken\n\nJust backdrop prompt direction, no CSS block here.\n",
         )
         findings = AUDIT.audit(self.root, None)
@@ -680,11 +680,11 @@ class CardAdapterTest(FixtureTreeCase):
             name="generate-card",
         )
         shutil.copyfile(
-            REAL_CARD_ROOT / "create/card/references/styles/glass.md",
+            REAL_CARD_ROOT / "card/create/references/styles/glass.md",
             write(create / "references/styles/glass.md", ""),
         )
         write(
-            self.profile_pipeline() / "generate/card/references/styles/other.md", "# other\n"
+            self.profile_pipeline() / "card/generate/references/styles/other.md", "# other\n"
         )
         findings = AUDIT.audit(self.root, None)
         codes = {f["code"] for f in findings.items if f["severity"] == "error"}
@@ -698,7 +698,7 @@ class CardAdapterTest(FixtureTreeCase):
             name="create-card",
         )
         shutil.copyfile(
-            REAL_CARD_ROOT / "create/card/references/styles/glass.md",
+            REAL_CARD_ROOT / "card/create/references/styles/glass.md",
             write(create / "references/styles/glass.md", ""),
         )
         # No generate-card leaf at all: a whole-tree scan must not stay
@@ -717,7 +717,7 @@ class CardAdapterTest(FixtureTreeCase):
             name="create-card",
         )
         shutil.copyfile(
-            REAL_CARD_ROOT / "create/card/references/styles/glass.md",
+            REAL_CARD_ROOT / "card/create/references/styles/glass.md",
             write(create / "references/styles/glass.md", ""),
         )
         # generate-card exists but its form carries no style field at all
@@ -737,8 +737,8 @@ class CardAdapterTest(FixtureTreeCase):
         self.write_leaf(
             "create", "icon", "      style:\n        required: true\n        options: [flat]\n"
         )
-        write(self.profile_pipeline() / "create/icon/references/styles/flat.md", "# flat\n")
-        skill = self.profile_pipeline() / "create/icon/SKILL.md"
+        write(self.profile_pipeline() / "icon/create/references/styles/flat.md", "# flat\n")
+        skill = self.profile_pipeline() / "icon/create/SKILL.md"
         skill.write_text(
             skill.read_text().replace(
                 "<Procedure>\nfixture",
@@ -759,7 +759,7 @@ class CardAdapterTest(FixtureTreeCase):
             name="create-card",
         )
         shutil.copyfile(
-            REAL_CARD_ROOT / "create/card/references/styles/glass.md",
+            REAL_CARD_ROOT / "card/create/references/styles/glass.md",
             write(create / "references/styles/glass.md", ""),
         )
         # No generate-card leaf at all in this tree: parity cannot be
@@ -767,7 +767,7 @@ class CardAdapterTest(FixtureTreeCase):
         # explicitly rather than stay silent (which would read as "passed").
         findings = AUDIT.audit(
             self.root,
-            "hermes/profiles/image-creator/skills/image-creator-pipeline/create/card",
+            "hermes/profiles/image-creator/skills/pipeline/card/create",
         )
         codes = {(f["severity"], f["code"]) for f in findings.items}
         self.assertIn(("warning", "card-style-parity-unverified"), codes)
@@ -781,8 +781,8 @@ class CardAdapterTest(FixtureTreeCase):
             name="create-card",
         )
         shutil.copyfile(
-            REAL_CARD_ROOT / "create/card/references/styles/glass.md",
-            write(self.profile_pipeline() / "create/card/references/styles/glass.md", ""),
+            REAL_CARD_ROOT / "card/create/references/styles/glass.md",
+            write(self.profile_pipeline() / "card/create/references/styles/glass.md", ""),
         )
         AUDIT.audit(self.root, None)
         self.assertFalse((pipeline / "scripts" / "__pycache__").exists())
@@ -859,7 +859,7 @@ class RealTreeTest(unittest.TestCase):
     def test_real_card_leaf_scoped(self) -> None:
         findings = AUDIT.audit(
             REPO_ROOT,
-            "hermes/profiles/image-creator/skills/image-creator-pipeline/create/card",
+            "hermes/profiles/image-creator/skills/pipeline/card/create",
         )
         errors = [f for f in findings.items if f["severity"] == "error"]
         self.assertEqual([], errors)

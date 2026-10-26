@@ -12,8 +12,8 @@ metadata:
 
 # OpenCode through the `opencode_*` tools
 
-The engineering entries (`plan-assistant-engineering`,
-`execute-assistant-engineering`, `qa-assistant-engineering`) own what to ask
+The engineering entries (`plan-engineering`,
+`execute-engineering`, `qa-engineering`) own what to ask
 for, when the user's approval is needed and how a result is accepted. This
 skill owns how the tools behave. Never call raw `opencode` commands or the
 OpenCode API from the terminal, and never substitute another coding agent to

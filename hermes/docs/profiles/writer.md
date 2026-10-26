@@ -5,7 +5,7 @@ Writer leaves and routing, the six families, craft and editorial QA, and the Jap
 ## Writer leaves
 
 Writer's production surface is 18 leaves at
-`writer-pipeline/<write|edit|analyze>/<subject>/SKILL.md`, category `writing`,
+`profiles/writer/skills/pipeline/<write|edit|analyze>/<subject>/SKILL.md`, category `writing`,
 across six families: post, article, document, message, copy and script. Each
 leaf has a named output and owns its form, Procedure, QA and Report
 (`validate_writer_leaves` checks the shape without changing Creator hands'
@@ -26,7 +26,7 @@ the requester, never a generic fallback or restored review pipeline. Keep new fa
 - Humanizer is explicit-request only for every leaf, and no legacy
   four-pass/lint inspection runs in addition to a leaf's checks.
 
-Pre-draft advice uses `writer-pipeline/consult-writer/SKILL.md`, one independent
+Pre-draft advice uses `profiles/writer/skills/pipeline/consult-writer/SKILL.md`, one independent
 non-production direct child — not a fourth production verb or form. It produces
 or approves no draft, may propose bounds but not present them as actual
 producer requirements or measured evidence, and executes no writing workflow.
@@ -48,7 +48,7 @@ the user publishes. Analyze never publishes or silently rewrites its target.
 
 ## Writer article family
 
-Article leaves live under `writer-pipeline/<write|edit|analyze>/article/`, with
+Article leaves live under `profiles/writer/skills/pipeline/<write|edit|analyze>/article/`, with
 destination-format references that distinguish source drafts from destination
 rendering (Zenn Markdown, X Article rich text, unspecified blog engines). A note
 source is written in the `note` tool's Markdown dialect, which the requester
@@ -81,7 +81,7 @@ requested factual checks are never waived by proofreading scope.
 
 ## Writer document family
 
-Document leaves live under `writer-pipeline/<write|edit|analyze>/document/`,
+Document leaves live under `profiles/writer/skills/pipeline/<write|edit|analyze>/document/`,
 including briefs named documentation or business-document. Formats are local
 form options, not new profiles. Factual release notes are documents;
 promotional announcements remain copy.
@@ -97,7 +97,7 @@ constitution or fixed-count rules; provenance is in `agents/README.md`.
 
 ## Writer message family
 
-Message leaves live under `writer-pipeline/<write|edit|analyze>/message/`, for
+Message leaves live under `profiles/writer/skills/pipeline/<write|edit|analyze>/message/`, for
 email, chat, notification, UI and error wording — not sending or system
 diagnosis. A custom channel follows its supplied constraints. Social posts and
 promotional mail retain their separate subjects.
@@ -115,7 +115,7 @@ sending and integration need their own authorized owner.
 
 ## Writer copy family
 
-Copy lives under `writer-pipeline/<write|edit|analyze>/copy/` for landing pages,
+Copy lives under `profiles/writer/skills/pipeline/<write|edit|analyze>/copy/` for landing pages,
 promotional mail and announcements; existing marketing-copy briefs select these
 leaves. Ordinary correspondence, X/Instagram posts and factual release notes
 retain their own families.
@@ -135,7 +135,7 @@ local shortening or a humanizer rewrite.
 
 ## Writer script family
 
-Script leaves live at `writer-pipeline/<write|edit|analyze>/script/`, covering
+Script leaves live at `profiles/writer/skills/pipeline/<write|edit|analyze>/script/`, covering
 narration, comic, storyboard, screenplay and slide scripts; custom contracts are
 accepted as supplied. The actual producer contract decides units, fields and
 limits — never impose genre-wide counts or timing. An outline remains an
@@ -180,7 +180,7 @@ release, never a silent reset of an unresolved finding. User, production and
 Publish approvals remain separate.
 
 The canonical requester contract is public at
-`profiles/writer/skills/writer-pipeline/references/acceptance/{index,prose,script}.md`
+`profiles/writer/skills/pipeline/references/acceptance/{index,prose,script}.md`
 and is not copied elsewhere. Assistant's private QA files are thin adapters;
 caller external skill roots must expose Writer's pipeline for name-based reads
 (default's filesystem fallback: see [topology](../topology.md) "Default is the

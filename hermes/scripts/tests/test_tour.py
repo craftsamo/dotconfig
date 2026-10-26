@@ -24,7 +24,7 @@ from unittest.mock import patch
 from PIL import Image, ImageDraw, ImageFont
 
 ROOT = Path(__file__).resolve().parents[2]
-SCRIPT = ROOT / "profiles/video-creator/skills/video-creator-pipeline/create/tour/scripts/tour.py"
+SCRIPT = ROOT / "profiles/video-creator/skills/pipeline/tour/create/scripts/tour.py"
 spec = importlib.util.spec_from_file_location("tour", SCRIPT)
 tour = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(tour)
@@ -175,11 +175,11 @@ class TourTest(unittest.TestCase):
         import hermes_yaml as yaml
         video = yaml.safe_load((ROOT / "profiles/video-creator/config.example.yaml").read_text())
         self.assertNotIn("tts", video["toolsets"])
-        commission = (ROOT / "profiles/assistant/skills/assistant-pipeline/execute-assistant-creative/references/tour.md").read_text()
+        commission = (ROOT / "profiles/assistant/skills/pipeline/creative/execute/references/tour.md").read_text()
         self.assertIn("## Leaves", commission)
         self.assertIn("| `create-tour` |", commission)
         self.assertIn('target="video-creator", message=<the text>, kind="work"', commission)
-        advisor = (ROOT / "profiles/creator/skills/creator-pipeline/references/video-creator/tour.md").read_text()
+        advisor = (ROOT / "profiles/creator/skills/pipeline/references/video-creator/tour.md").read_text()
         self.assertIn("create-tour", advisor)
         self.assertFalse((ROOT / "profiles/creator/skills/technic/creator-html-motion").exists())
 

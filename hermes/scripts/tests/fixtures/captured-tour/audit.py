@@ -10,7 +10,7 @@ from types import SimpleNamespace
 
 import numpy as np
 
-LEAF = Path(__file__).resolve().parents[4] / "profiles/video-creator/skills/video-creator-pipeline/create/tour"
+LEAF = Path(__file__).resolve().parents[4] / "profiles/video-creator/skills/pipeline/tour/create"
 sys.path.insert(0, str(LEAF / "scripts"))
 import authored
 import footage

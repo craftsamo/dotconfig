@@ -17,7 +17,7 @@ Use the tool schema for arguments; do not replace the tool with a terminal
   symlink targets, and does not create, move or delete files.
 - Shared placement, draft/canon status, promotion and deletion rules belong
   to the Assistant pipeline's
-  [workspace layout reference](~/.hermes/profiles/assistant/skills/assistant-pipeline/references/workspace-layout.md).
+  [workspace layout reference](~/.hermes/profiles/assistant/skills/pipeline/references/workspace-layout.md).
   Read that reference for file handling and approval decisions; this skill
   does not execute those operations or grant their permission.
 - Do not call the tool for an inbound A2A request. It refuses those requests;

@@ -9,10 +9,10 @@ import sys
 from pathlib import Path
 
 HERMES_ROOT = Path(__file__).resolve().parents[2]
-PIPELINE = HERMES_ROOT / "profiles" / "image-creator" / "skills" / "image-creator-pipeline"
-LEAF = PIPELINE / "generate" / "illustration"
+PIPELINE = HERMES_ROOT / "profiles" / "image-creator" / "skills" / "pipeline"
+LEAF = PIPELINE / "illustration" / "generate"
 SKILL = LEAF / "SKILL.md"
-SIBLINGS = [PIPELINE / "generate" / "card" / "SKILL.md"]
+SIBLINGS = [PIPELINE / "card" / "generate" / "SKILL.md"]
 
 _spec = importlib.util.spec_from_file_location(
     "validate_profile_skills", HERMES_ROOT / "scripts" / "validate-profile-skills.py"

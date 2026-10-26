@@ -83,7 +83,7 @@ is `.` (launch / task workspace) except the assistant's `~/Workspaces`.
 | **researcher**    | depth modes investigate / compare / verify / advise; serves creator/marketer only (not Assistant directly), cards refused               | — (A2A receive-only) | served (a2a :9906)    |
 | **searcher**      | retrieval modes lookup / sweep / hunt; resident sessions only, cards refused                                                            | — (specialist)       | served (no platforms) |
 | **creator**       | the Assistant's creative advisor: directions and located revisions; never produces or commissions ([creator.md](./profiles/creator.md)) | — (Assistant only)   | served (a2a :9903)    |
-| **image-creator** | still-image hands: runs one `<verb>/<subject>` leaf from a filled form; answers only the Assistant                                      | — (A2A receive-only) | served (a2a :9907)    |
+| **image-creator** | still-image hands: runs one `<subject>/<verb>` leaf from a filled form; answers only the Assistant                                      | — (A2A receive-only) | served (a2a :9907)    |
 | **video-creator** | video hands: runs video leaves from approved forms; answers only the Assistant                                                          | — (A2A receive-only) | served (a2a :9908)    |
 | **audio-creator** | audio hands: speech, sfx, music (instrumental only) and mix (finished sources, never synthesis); no claims of listening                 | — (A2A receive-only) | served (a2a :9909)    |
 | **writer**        | reader-facing prose and producer-facing scripts from released units; draft-only, never publishes; serves the assistant                  | — (A2A receive-only) | served (a2a :9905)    |
@@ -142,7 +142,7 @@ Agreement, specialist self-check and caller acceptance remain distinct gates.
 default and assistant are the two faces of the same front door: identical
 workflow behavior (assistant runs its own `assistant-pipeline`; default runs the
 thin `default-pipeline` adapter over the assistant tree at
-`~/.hermes/profiles/assistant/skills/assistant-pipeline/`), the same worker
+`~/.hermes/profiles/assistant/skills/pipeline/`), the same worker
 roster, the same media-full-delegation rule. The differences: platform (CLI vs
 Telegram gateway), persona (default stays **neutral** — every `--clone` inherits
 its `config.yaml`, so voice/character stays out), and assistant-only surface
@@ -160,7 +160,7 @@ production leaves are not imposed on default's menu or its clones. In raw conten
 `${HERMES_SKILL_DIR}` is the owning child's directory, never the adapter's or
 whichever skill was last loaded. When `writer-pipeline` is unavailable by name,
 requester QA reads the documented
-`~/.hermes/profiles/writer/skills/writer-pipeline/references/acceptance/index.md`
+`~/.hermes/profiles/writer/skills/pipeline/references/acceptance/index.md`
 and selected `prose.md`/`script.md` with `read_file`, for inspection only. Do not
 expose Writer's production leaves to solve a reference lookup.
 
@@ -206,11 +206,11 @@ Three per-profile layers, kept separate:
 
 - **skills/** — detailed, on-demand playbooks. Ownership types, placement,
   `learned/` creates and the `learned/` → `technic/` promotion:
-  [ops/skills.md](ops/skills.md) "Skill placement" and "Skills". A worker has one tracked
-  `<profile>-pipeline/` plus tracked, directly selectable `technic/` leaves; the
-  assistant owns `assistant-pipeline/` and reads private technics through
-  `skills.external_dirs`; default owns only the thin `default-pipeline/`
-  adapter. A plugin's own tool mechanics ship inside the plugin as
+  [ops/skills.md](ops/skills.md) "Skill placement" and "Skills". Every profile's root skill
+  (`<profile>-pipeline`) is one tracked `pipeline/` directory; a worker adds
+  tracked, directly selectable `technic/` leaves, the assistant reads private
+  technics through `skills.external_dirs`, and default's `skills/pipeline/` is only
+  the thin adapter. A plugin's own tool mechanics ship inside the plugin as
   `<plugin>:<skill>`. Pinned Telegram topics bind no skill (see
   [assistant.md](./profiles/assistant.md) "Pinned Telegram topics"). Each
   profile's pipeline and modes are in its doc under [`profiles/`](./profiles/)
@@ -218,7 +218,7 @@ Three per-profile layers, kept separate:
   - assistant → heavy tool-bound creative entries (`comfyui`,
     `touchdesigner-mcp`, `manim-video`, `ascii-video`) sit in `skills.disabled`:
     media production is the hands'. It reads the three hands pipelines for their
-    forms; the commissioning references live in `execute-assistant-creative`
+    forms; the commissioning references live in `execute-creative`
     ([`broker.md`](./broker.md)).
   - creator has no technics. It reads the hands pipelines read-only for forms
     and option references, plus curated `media-craft-*` and HyperFrames

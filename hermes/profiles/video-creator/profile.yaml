@@ -2,7 +2,7 @@ description: "Video-creator is one of the Assistant's media hands: it produces s
   video clips, short generated MVs, authored ads, bounded task-local authored UI tours
   and bounded local-authored explainer videos, from a filled form the Assistant sends it, using
   exactly the leaves under its video-creator-pipeline skill
-  (<verb>/<subject>: create | generate | edit | source | analyze). Reached
+  (<subject>/<verb>: create | generate | edit | source | analyze). Reached
   only by the Assistant, over A2A for short free leaves or in a resident session
   for metered or long ones (always work for create-tour, create-ad,
   analyze-ad and create-explainer-video). Tour modes recreate,

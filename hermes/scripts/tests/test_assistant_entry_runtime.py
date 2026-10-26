@@ -37,16 +37,24 @@ import pytest
 DOMAINS = ("engineering", "creative", "writing", "research", "search", "marketing")
 MODES = {"plan": "plan", "execute": "execute", "qa": "quality-assurance"}
 ENTRIES = {"chat-assistant"} | {
-    f"{mode}-assistant-{domain}" for mode in MODES for domain in DOMAINS
+    f"{mode}-{domain}" for mode in MODES for domain in DOMAINS
 }
 EXPECTED = ENTRIES | {"assistant-pipeline"}
+
+
+def entry_dir(name):
+    if name == "chat-assistant":
+        return "chat"
+    mode, _, domain = name.partition("-")
+    return f"{domain}/{mode}"
+
 ALLOW = {"skills_list", "skill_view", "read_file"}
 CASES = (
     "discovery", "entry_reads", "contained_paths", "writer_present",
     "writer_missing_skill", "writer_missing_file", "dedup_reset",
     "proactive_prune", "index_cache", "relocation",
 )
-TREE = Path("hermes/profiles/assistant/skills/assistant-pipeline")
+TREE = Path("hermes/profiles/assistant/skills/pipeline")
 
 
 @pytest.mark.parametrize("case", CASES)
@@ -157,7 +165,7 @@ def _child(case, sandbox, candidate_tree, source):
             stack.enter_context(patch.object(socket, name, deny_network))
 
         skills = home / ".hermes/skills"
-        tree = skills / "assistant-pipeline"
+        tree = skills / "pipeline"
         for path in candidate_tree.rglob("*.md"):
             assert not path.is_symlink() and path.resolve().is_relative_to(candidate_tree)
             target = tree / path.relative_to(candidate_tree)
@@ -228,10 +236,10 @@ def _child(case, sandbox, candidate_tree, source):
             visible = rows(prompt)
             assert len(visible) == 20 and set(visible) == EXPECTED
             assert len(set(visible.values())) == 20
-            assert "ONLY on explicit user request" in visible["qa-assistant-creative"]
+            assert "ONLY on explicit user request" in visible["qa-creative"]
             for name, desc in visible.items():
                 assert 0 < len(desc) <= 60
-                path = tree / ("SKILL.md" if name == "assistant-pipeline" else f"{name}/SKILL.md")
+                path = tree / ("SKILL.md" if name == "assistant-pipeline" else f"{entry_dir(name)}/SKILL.md")
                 fm, _ = su.parse_frontmatter(path.read_text(encoding="utf-8"))
                 assert desc == su.extract_skill_description(fm)
                 if name in ENTRIES:
@@ -258,7 +266,7 @@ def _child(case, sandbox, candidate_tree, source):
                 # Direct child loads do not auto-load dependencies. Read them explicitly,
                 # exactly as a caller following each entry's declared dependency calls.
                 for name in sorted(ENTRIES):
-                    path = tree / name / "SKILL.md"
+                    path = tree / entry_dir(name) / "SKILL.md"
                     payload = json.loads(st.skill_view(name))
                     body_matches(payload, path, rendered=True)
                     assert payload["skill_dir"] == str(path.parent)
@@ -295,8 +303,8 @@ def _child(case, sandbox, candidate_tree, source):
                 assert result.get("success") is False
 
             elif case.startswith("writer_"):
-                qa = view("qa-assistant-writing")
-                body_matches(qa, tree / "qa-assistant-writing/SKILL.md", rendered=True)
+                qa = view("qa-writing")
+                body_matches(qa, tree / "writing/qa/SKILL.md", rendered=True)
                 calls = re.findall(r'skill_view\(name="([^"]+)", file_path="([^"]+)"\)', qa["content"])
                 writer_calls = [(name, path) for name, path in calls if name == "writer-pipeline"]
                 assert writer_calls, "QA must declare a Writer acceptance dependency"
@@ -320,7 +328,7 @@ def _child(case, sandbox, candidate_tree, source):
                     assert set(rows(index())) == EXPECTED | {"writer-pipeline"}
                     for branch in ("prose", "script"):
                         relative = f"references/{branch}.md"
-                        body_matches(view("qa-assistant-writing", relative), tree / "qa-assistant-writing" / relative)
+                        body_matches(view("qa-writing", relative), tree / "writing/qa" / relative)
                 else:
                     for name, relative in writer_calls:
                         result = view(name, relative)
@@ -426,7 +434,7 @@ def _child(case, sandbox, candidate_tree, source):
                     assert set(rows(index())) == EXPECTED
                     assert {s["name"] for s in find_all_skills()} == EXPECTED
                     for name in sorted(ENTRIES):
-                        target = moved_home / "skills/assistant-pipeline" / name / "SKILL.md"
+                        target = moved_home / "skills/pipeline" / entry_dir(name) / "SKILL.md"
                         result = view(name, task="moved-namespace-only")
                         body_matches(result, target, rendered=True)
                         assert result["skill_dir"] == str(target.parent)

@@ -14,7 +14,7 @@ import pytest
 
 pytestmark = pytest.mark.skipif(os.environ.get("THREE_GRAPHICS_NATIVE_TEST") != "1", reason="opt-in native graphics test")
 HERE = Path(__file__).resolve().parent
-PIPELINE = HERE.parents[1] / "profiles/video-creator/skills/video-creator-pipeline"
+PIPELINE = HERE.parents[1] / "profiles/video-creator/skills/pipeline"
 
 
 def module(name, path):
@@ -78,7 +78,7 @@ def test_native_other_html_leaves(tmp_path, kind):
     source = minimal(root, kind)
     samples = [{"at": at, "expect": "Synthetic time and graphics state"} for at in (0, .5, 1, 2 - 1 / 30)]
     if kind == "tour":
-        leaf = module("native_three_tour", PIPELINE / "create/tour/scripts/authored.py")
+        leaf = module("native_three_tour", PIPELINE / "tour/create/scripts/authored.py")
         form = leaf.form_model({"what_for": "Synthetic walkthrough", "audience": "Maintainer", "duration": 2,
             "graphics": g.MODE, "screen_mode": "recreate", "fidelity": "simplified", "intro": "none", "outro": "none", "preview": "no"})
         proposal = root / "proposal-v1.md"
@@ -95,7 +95,7 @@ def test_native_other_html_leaves(tmp_path, kind):
         leaf.snapshot(SimpleNamespace(project=str(root / "project"), out=str(root / "preview")))
         result = leaf.render(SimpleNamespace(project=str(root / "project"), approved_preview=str(root / "preview"), out=str(root / "final")))
     else:
-        leaf = module("native_three_explainer", PIPELINE / "create/explainer-video/scripts/explainer.py")
+        leaf = module("native_three_explainer", PIPELINE / "explainer-video/create/scripts/explainer.py")
         spec = {"version": 1, "renderer": "hyperframes", "graphics": g.MODE, "topic": "Synthetic spatial change",
             "audience": "Maintainer", "learning_goal": "See a surface boundary", "theme": "workbench", "style": "flat-vector",
             "direction": "mechanism", "duration": 2, "aspect": "16:9", "must_keep": "Synthetic check", "pending": [],

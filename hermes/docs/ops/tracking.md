@@ -11,8 +11,8 @@ Part of the Hermes mechanics docs — entry: [`README.md`](../../README.md).
 
 **Tracked:** root `config.example.yaml` / `mcp.json` / `.no-bundled-skills`; per profile
 `config.example.yaml`, `profile.yaml`,
-`.no-bundled-skills`, `skills/<profile>-pipeline/` and `skills/technic/`,
-`scripts/`; every `SOUL.example.md`; `skills/default-pipeline/`; `plugins/`
+`.no-bundled-skills`, `skills/pipeline/` and `skills/technic/`,
+`scripts/`; every `SOUL.example.md`; `skills/pipeline/`; `plugins/`
 source; `launchd/`; `engines/`; `scripts/`; docs.
 
 **Not here at all:** everything Hermes writes. `~/.hermes` and each profile
@@ -33,9 +33,9 @@ roster additions, the workspace registry's local integration) is read from
 `~/.hermes/plugin-data/<plugin>/`, never beside the source. Never commit
 secrets, state or host-rendered plists (`~/Library/LaunchAgents/…`).
 
-**Skill ownership follows the directory type.** Shared `default-pipeline/` and
-every worker's `<profile>-pipeline/` and `technic/` are maintainer-owned and
-tracked normally, and so is the assistant's `assistant-pipeline/`. What must
+**Skill ownership follows the directory type.** Shared `skills/pipeline/` and
+every profile's `pipeline/` and `technic/` are maintainer-owned and
+tracked normally. What must
 stay private lives in the overlay repo instead: the assistant's private technic
 shelf, the real `config.yaml` files (root and every profile) and the real
 `SOUL.md` files; commit those there.
@@ -81,11 +81,11 @@ tracked ones into the repo (clearing the real files) before linking:
    mkdir -p ~/ghq/github.com/craftsamo/dotconfig/hermes/profiles/<name>/skills
    mv ~/.hermes/profiles/<name>/{profile.yaml,mcp.json} \
       ~/ghq/github.com/craftsamo/dotconfig/hermes/profiles/<name>/
-   mv ~/.hermes/profiles/<name>/skills/<name>-pipeline \
+   mv ~/.hermes/profiles/<name>/skills/pipeline \
       ~/ghq/github.com/craftsamo/dotconfig/hermes/profiles/<name>/skills/
    ```
    `skills/` itself stays in HOME (`learned/` lives there); only the managed
-   `<name>-pipeline/` and `technic/` move. Commit a `SOUL.example.md` persona
+   `pipeline/` and `technic/` move. Commit a `SOUL.example.md` persona
    template and move the real `SOUL.md` into the private overlay
    (`hermes/profiles/<name>/SOUL.md` there). Commit the config as
    `config.example.yaml` and move the real `config.yaml` into the overlay

@@ -20,7 +20,7 @@ SCRIPT = (
     / "profiles"
     / "image-creator"
     / "skills"
-    / "image-creator-pipeline"
+    / "pipeline"
     / "scripts"
     / "mascot-fit.sh"
 )

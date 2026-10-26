@@ -1,5 +1,5 @@
 """Tests for the `create-pixel-art` leaf: front matter contract and the
-`pixel.py` draw/check commands (profiles/image-creator/.../create/pixel-art)."""
+`pixel.py` draw/check commands (profiles/image-creator/.../pixel-art/create)."""
 
 from __future__ import annotations
 
@@ -14,8 +14,8 @@ from pathlib import Path
 import pytest
 
 HERMES_ROOT = Path(__file__).resolve().parents[2]
-PIPELINE = HERMES_ROOT / "profiles" / "image-creator" / "skills" / "image-creator-pipeline"
-LEAF = PIPELINE / "create" / "pixel-art"
+PIPELINE = HERMES_ROOT / "profiles" / "image-creator" / "skills" / "pipeline"
+LEAF = PIPELINE / "pixel-art" / "create"
 SKILL = LEAF / "SKILL.md"
 SCRIPT = LEAF / "scripts" / "pixel.py"
 

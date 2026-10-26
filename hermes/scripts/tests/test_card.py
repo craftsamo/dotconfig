@@ -10,7 +10,7 @@ import unittest
 from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[2]
-HELPER = ROOT / "profiles/image-creator/skills/image-creator-pipeline/scripts/card.py"
+HELPER = ROOT / "profiles/image-creator/skills/pipeline/scripts/card.py"
 MODULE = importlib.util.spec_from_file_location("card", HELPER)
 card = importlib.util.module_from_spec(MODULE)
 MODULE.loader.exec_module(card)
@@ -291,29 +291,29 @@ class CardTests(unittest.TestCase):
 
     def test_card_routing_and_generation_contracts(self):
         # Static contracts, NOT a live LLM handoff or provider-call test.
-        routing = (ROOT / "profiles/assistant/skills/assistant-pipeline/execute-assistant-creative/references/card.md").read_text()
+        routing = (ROOT / "profiles/assistant/skills/pipeline/creative/execute/references/card.md").read_text()
         for verb in ("create", "generate", "edit", "analyze"):
             name = verb + "-card"
-            leaf = card.ROOT / verb / "card/SKILL.md"
+            leaf = card.ROOT / "card" / verb / "SKILL.md"
             body = leaf.read_text()
             self.assertIn("name: " + name, body)
             for tag in ("<Procedure>", "<QA>", "<Report>"):
                 self.assertIn(tag, body)
             self.assertIn("| `" + name + "` |", routing)
-        generated = (card.ROOT / "generate/card/SKILL.md").read_text()
+        generated = (card.ROOT / "card/generate/SKILL.md").read_text()
         for phrase in ("explicit budget approval", "current work conversation", "BEFORE calling",
                        "never reset spent calls", "3 variant", "1 corrective", "No hardcoded 21:9"):
             self.assertIn(phrase, generated)
-        for reference in (card.ROOT / "generate/card/references/styles").glob("*.md"):
+        for reference in (card.ROOT / "card/generate/references/styles").glob("*.md"):
             self.assertNotIn("```css", reference.read_text())
         # create/generate share one named style vocabulary: CSS on one side, backdrop prose on the other.
         for verb in ("create", "generate"):
-            text = (card.ROOT / verb / "card/SKILL.md").read_text()
+            text = (card.ROOT / "card" / verb / "SKILL.md").read_text()
             options = next(line for line in text.splitlines() if "options: [glass" in line)
             self.assertEqual(options.split("[", 1)[1].rstrip("]").split(", "), list(STYLES))
             for style in STYLES:
-                self.assertTrue((card.ROOT / verb / "card/references/styles" / (style + ".md")).is_file())
-        advisor = (ROOT / "profiles/creator/skills/creator-pipeline/references/image-creator/card.md").read_text()
+                self.assertTrue((card.ROOT / "card" / verb / "references/styles" / (style + ".md")).is_file())
+        advisor = (ROOT / "profiles/creator/skills/pipeline/references/image-creator/card.md").read_text()
         for verb in ("create", "generate", "edit", "analyze"):
             self.assertIn(verb + "-card", advisor)
         self.assertFalse((ROOT / "profiles/creator/skills/technic/creator-text-card").exists())

@@ -8,7 +8,7 @@ import hermes_yaml as yaml
 
 
 HERMES = Path(__file__).resolve().parents[2]
-PIPELINE = HERMES / "profiles/writer/skills/writer-pipeline"
+PIPELINE = HERMES / "profiles/writer/skills/pipeline"
 FORMATS = ["narration", "comic", "storyboard", "screenplay", "slide-script"]
 
 
@@ -18,7 +18,7 @@ def content(path):
 
 @pytest.mark.parametrize("verb", ["write", "edit", "analyze"])
 def test_script_form_and_local_references(verb):
-    root = PIPELINE / verb / "script"
+    root = PIPELINE / "script" / verb
     text = (root / "SKILL.md").read_text()
     assert text.index("---", 3) + 3 < 4000
     data = yaml.safe_load(text.split("---", 2)[1])
@@ -52,7 +52,7 @@ def test_script_form_and_local_references(verb):
 def test_kernel_routes_scripts_without_legacy_inspection():
     kernel = content(PIPELINE / "SKILL.md")
     for verb in ("write", "edit", "analyze"):
-        assert f"]({verb}/script/SKILL.md)" in kernel
+        assert f"](script/{verb}/SKILL.md)" in kernel
     assert "Do not run the legacy script/inspection workflow" in kernel
     assert "An analysis is a report, not a new script" in kernel
     assert "Production scripts retain their legacy" not in kernel
@@ -68,7 +68,7 @@ def test_consultation_does_not_reintroduce_legacy_script_limits():
 
 
 def test_write_separates_spoken_text_and_exports():
-    text = content(PIPELINE / "write/script/SKILL.md")
+    text = content(PIPELINE / "script/write/SKILL.md")
     assert "the input file contains only intended words" in text
     assert "no heading, speaker label, Markdown fence, stage direction or QA receipt" in text
     assert "separate same-stem `.production.md`" in text
@@ -78,7 +78,7 @@ def test_write_separates_spoken_text_and_exports():
 
 
 def test_edit_preserves_ids_and_invalidates_stale_evidence():
-    text = content(PIPELINE / "edit/script/SKILL.md")
+    text = content(PIPELINE / "script/edit/SKILL.md")
     assert "never speak that marker or compact/reuse the IDs" in text
     assert "old-to-new mapping accepted by the requester and consumer" in text
     assert "including untouched units" in text
@@ -89,7 +89,7 @@ def test_edit_preserves_ids_and_invalidates_stale_evidence():
 
 
 def test_analysis_is_a_report_not_new_production():
-    text = content(PIPELINE / "analyze/script/SKILL.md")
+    text = content(PIPELINE / "script/analyze/SKILL.md")
     assert "does not require a complete writing brief" in text
     assert "Description need not invent faults" in text
     assert "This report needs no new scenes, dialogue, speaker roster, raw speech file" in text
@@ -99,7 +99,7 @@ def test_analysis_is_a_report_not_new_production():
 
 @pytest.mark.parametrize("verb", ["write", "edit", "analyze"])
 def test_narration_does_not_treat_estimated_timing_as_performance(verb):
-    text = content(PIPELINE / verb / "script/references/narration.md").lower()
+    text = content(PIPELINE / "script" / verb / "references/narration.md").lower()
     assert "words" in text and "notes" in text
     assert "timing" in text or "duration" in text
     assert "synthesis" in text or "production" in text
@@ -107,7 +107,7 @@ def test_narration_does_not_treat_estimated_timing_as_performance(verb):
 
 
 def test_assistant_commissions_raw_approved_words_not_the_analysis():
-    path = HERMES / "profiles/assistant/skills/assistant-pipeline/execute-assistant-creative/references/speech.md"
+    path = HERMES / "profiles/assistant/skills/pipeline/creative/execute/references/speech.md"
     text = content(path)
     assert "`write-script` or `edit-script`" in text
     assert "an `analyze-script` report is not a speech part" in text
@@ -119,7 +119,7 @@ def test_assistant_commissions_raw_approved_words_not_the_analysis():
 @pytest.mark.parametrize("fmt", FORMATS)
 def test_format_references_are_operation_specific(fmt):
     texts = {
-        (PIPELINE / verb / f"script/references/{fmt}.md").read_text()
+        (PIPELINE / "script" / verb / f"references/{fmt}.md").read_text()
         for verb in ("write", "edit", "analyze")
     }
     assert len(texts) == 3
@@ -134,7 +134,7 @@ def test_format_references_are_operation_specific(fmt):
     ("slide-script", ("SL10", "East branch", "April", "May", "chart", "Duration")),
 ])
 def test_script_reference_craft_coverage(verb, fmt, anchors):
-    path = PIPELINE / verb / f"script/references/{fmt}.md"
+    path = PIPELINE / "script" / verb / f"references/{fmt}.md"
     text = path.read_text()
     flat = " ".join(text.split())
     assert len(text.splitlines()) <= 90

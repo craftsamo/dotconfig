@@ -40,7 +40,7 @@ SCRIPT = (
     / "profiles"
     / "audio-creator"
     / "skills"
-    / "audio-creator-pipeline"
+    / "pipeline"
     / "scripts"
     / "speech-media.py"
 )

@@ -90,13 +90,13 @@ a real file: it prints `WARN … not overwriting` and skips.
 | -------------------------------- | ------------------------------------------------------------------------------------------------------------- |
 | `config.yaml`, `SOUL.md`         | link to the private overlay; seeded from the examples without it                                              |
 | `mcp.json`, `.no-bundled-skills` | link to `hermes/<file>`                                                                                       |
-| `skills/`                        | real dir: `default-pipeline` → `hermes/skills/default-pipeline`; `learned/` and Hermes' bookkeeping beside it |
+| `skills/`                        | real dir: `pipeline` → `hermes/skills/pipeline`; `learned/` and Hermes' bookkeeping beside it |
 | `plugins/<group>/`               | real dirs: each `<name>` → `hermes/plugins/<group>/<name>`; the overlay's plugins beside them                 |
 
 For every `hermes/profiles/<name>/`, `install.sh` wires the same pieces into
 `~/.hermes/profiles/<name>/`: `config.yaml` and `SOUL.md` as above;
 `profile.yaml`, `mcp.json` and `.no-bundled-skills` as links; `skills/` as a
-real directory holding `<name>-pipeline` and `technic` links (learned skills
+real directory holding `pipeline` and `technic` links (learned skills
 land beside them); `scripts/` as a real directory of **copies** (Hermes' cron
 scheduler resolves a script and the directory to their real paths and refuses
 a script outside the directory, so a link cannot serve; the repo is the
@@ -118,12 +118,12 @@ config.example.yaml    default profile: models, providers, toolsets; the real co
 mcp.json               MCP servers ({} = none)
 SOUL.example.md        persona template; the real SOUL.md is private and untracked
 setup.sh               installs the binary only
-skills/                default-pipeline/ (shared) and learned/ (runtime-authored, ignored)
+skills/                pipeline/ (shared) and learned/ (runtime-authored, ignored)
 plugins/               grouped plugins: messaging/ social/ web3/ orchestration/ workspace/
                        guards/ inspection/ and the media families (image_gen/ video_gen/
                        audio_gen/ tts/ transcription/); _shared/ dirs are code, not plugins
 profiles/<name>/       one HERMES_HOME each: config.example.yaml, profile.yaml, SOUL.example.md,
-                       skills/<name>-pipeline/, scripts/ (see docs/ops/skills.md)
+                       skills/pipeline/, scripts/ (see docs/ops/skills.md)
 launchd/               LaunchAgent templates and launcher scripts
 engines/               hash-locked pins for the local engines (TTS, SFX, scraping, ...) and
                        the screen-listen helper's Swift source

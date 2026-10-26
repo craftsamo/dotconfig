@@ -6,7 +6,7 @@
 """Validate Hermes skill topology, metadata, routing, and Git ownership.
 
 The assistant profile owns a kernel and 19 flat, selectable entry skills
-under profiles/assistant/skills/assistant-pipeline/. Each entry owns its
+under profiles/assistant/skills/pipeline/. Each entry owns its
 references; only common phase references remain beside the kernel.
 The `default-pipeline` skill in the shared
 skills/ dir is a thin CLI adapter over that tree. This validator checks the
@@ -34,7 +34,7 @@ REPO_ROOT = HERMES_ROOT.parent
 # skills it writes itself (learned/) beside them — never inside the repository.
 HERMES_HOME_ROOT = Path.home() / ".hermes"
 ASSISTANT_PIPELINE = (
-    HERMES_ROOT / "profiles" / "assistant" / "skills" / "assistant-pipeline"
+    HERMES_ROOT / "profiles" / "assistant" / "skills" / "pipeline"
 )
 WORKER_PROFILES = (
     "researcher",
@@ -44,7 +44,7 @@ WORKER_PROFILES = (
     "marketer",
 )
 # Creator's hands (docs/hands/overview.md "Creator hands"): receive-only A2A
-# producers whose skills are `<hands>-pipeline/<verb>/<subject>/SKILL.md`
+# producers whose skills are `pipeline/<subject>/<verb>/SKILL.md`
 # leaves, one deliverable and one form each. Add a profile here when its
 # skeleton lands; subjects must stay unique across every listed hands.
 HANDS_PROFILES = ("image-creator", "video-creator", "audio-creator")
@@ -70,7 +70,7 @@ ASSISTANT_ENTRY_PREFIXES = {
 ASSISTANT_ENTRIES = {
     "chat-assistant": ("chat", None),
     **{
-        f"{prefix}-assistant-{capability}": (mode, capability)
+        f"{prefix}-{capability}": (mode, capability)
         for mode, prefix in ASSISTANT_ENTRY_PREFIXES.items()
         for capability in EXPECTED_CAPABILITIES
     },
@@ -96,7 +96,7 @@ REQUIRED_QA_CONTRACTS = {
     "search": {"lookup.md", "sweep.md", "hunt.md"},
     "writing": {"prose.md", "script.md"},
 }
-# Files beside the subject references in execute-assistant-creative/references/
+# Files beside the subject references in execute-creative's references/
 # that are not hands subjects.
 COMMISSIONING_SHARED_REFERENCES = {"media-ops.md"}
 
@@ -149,17 +149,26 @@ def rel_pipeline(path: Path) -> str:
     return path.relative_to(ASSISTANT_PIPELINE).as_posix()
 
 
+def assistant_entry_rel(name: str) -> Path:
+    """Where an entry lives under the pipeline: ``chat/`` for the Chat entry, else
+    ``<domain>/<mode dir>/`` (``plan``, ``execute``, ``qa``)."""
+    mode, capability = ASSISTANT_ENTRIES[name]
+    if capability is None:
+        return Path("chat")
+    return Path(capability) / ASSISTANT_ENTRY_PREFIXES[mode]
+
+
 def assistant_entry_dir(
     mode: str, capability: str | None = None, pipeline: Path | None = None
 ) -> Path:
     """Resolve an entry against the current root, never an import-time path."""
     name = (
         "chat-assistant" if mode == "chat" and capability is None
-        else f"{ASSISTANT_ENTRY_PREFIXES.get(mode)}-assistant-{capability}"
+        else f"{ASSISTANT_ENTRY_PREFIXES.get(mode)}-{capability}"
     )
     if name not in ASSISTANT_ENTRIES:
         raise ValueError(f"unknown assistant entry: {mode}/{capability}")
-    return (ASSISTANT_PIPELINE if pipeline is None else pipeline) / name
+    return (ASSISTANT_PIPELINE if pipeline is None else pipeline) / assistant_entry_rel(name)
 
 
 def validate_index_routes(directory: Path, errors: list[str]) -> None:
@@ -196,14 +205,23 @@ def validate_assistant_pipeline(errors: list[str]) -> int:
         return 0
     validate_skill(skill, "assistant-pipeline", errors, expected_category="orchestration")
 
-    allowed = {("SKILL.md",)} | {(name, "SKILL.md") for name in ASSISTANT_ENTRIES}
+    allowed = {("SKILL.md",)} | {
+        (*assistant_entry_rel(name).parts, "SKILL.md") for name in ASSISTANT_ENTRIES
+    }
     for child in sorted(ASSISTANT_PIPELINE.iterdir()):
         if child.name.startswith("."):
             continue
         if child.name == "tests" and child.is_dir():
             continue
-        if child.name not in {"SKILL.md", "references", *ASSISTANT_ENTRIES}:
+        if child.name not in {"SKILL.md", "references", "chat", *EXPECTED_CAPABILITIES}:
             errors.append(f"unexpected assistant pipeline child: {child.name}")
+        elif child.name in EXPECTED_CAPABILITIES:
+            # A domain directory only groups its mode entries; nothing else lives there.
+            for grandchild in sorted(child.iterdir()):
+                if grandchild.name.startswith("."):
+                    continue
+                if grandchild.name not in ASSISTANT_ENTRY_PREFIXES.values():
+                    errors.append(f"unexpected assistant pipeline child: {rel_pipeline(grandchild)}")
 
     references = ASSISTANT_PIPELINE / "references"
     shared_files = {
@@ -233,18 +251,18 @@ def validate_assistant_pipeline(errors: list[str]) -> int:
             if entry_mode == mode and not re.search(rf"(?<![\w-]){re.escape(name)}(?![\w-])", text):
                 errors.append(f"shared {mode} index does not route {name}")
         if any(
-            re.search(r"(?:chat-assistant|(?:plan|execute|qa)-assistant-[a-z]+)", call)
+            re.search(r"(?:chat-assistant|(?:plan|execute|qa)-[a-z]+)", call)
             for call in re.findall(r"skill_view\s*\([^)]*\)", text, re.S)
         ):
             errors.append(f"shared {mode} index must not recursively load an entry")
 
     for name, (mode, capability) in sorted(ASSISTANT_ENTRIES.items()):
-        entry = ASSISTANT_PIPELINE / name
+        entry = ASSISTANT_PIPELINE / assistant_entry_rel(name)
         entry_skill = entry / "SKILL.md"
         if not entry_skill.is_file():
-            errors.append(f"missing assistant entry skill: {name}/SKILL.md")
+            errors.append(f"missing assistant entry skill: {rel_pipeline(entry_skill)}")
             continue
-        validate_skill(entry_skill, name, errors, expected_category="assistant-pipeline")
+        validate_skill(entry_skill, name, errors, expected_category="pipeline")
         data = frontmatter(entry_skill)
         version = data.get("version")
         if not isinstance(version, str) or not version.strip():
@@ -284,8 +302,9 @@ def validate_assistant_pipeline(errors: list[str]) -> int:
         ):
             if not re.search(pattern, block, re.I):
                 errors.append(f"assistant entry ReadBeforeWork missing {label}: {name}")
+        up = "../" * len(assistant_entry_rel(name).parts)
         for path in paths:
-            canonical = f"${{HERMES_SKILL_DIR}}/../{path}"
+            canonical = f"${{HERMES_SKILL_DIR}}/{up}{path}"
             if canonical not in block:
                 errors.append(f"assistant entry missing canonical fallback {canonical}: {name}")
         for child in sorted(entry.iterdir()):
@@ -381,8 +400,8 @@ def untracked_managed_files() -> list[str]:
             "--others",
             "--exclude-standard",
             "--",
-            "hermes/skills/default-pipeline/**",
-            "hermes/profiles/*/skills/*-pipeline/**",
+            "hermes/skills/pipeline/**",
+            "hermes/profiles/*/skills/pipeline/**",
             "hermes/profiles/*/skills/technic/**",
             "hermes/plugins/**/skills/**",
             "hermes/plugins/guards/skill-topology/**",
@@ -766,7 +785,7 @@ def validate_worker(
     profile_root = HERMES_ROOT / "profiles" / profile
     skills = profile_root / "skills"
     pipeline_name = f"{profile}-pipeline"
-    pipeline_dir = skills / pipeline_name
+    pipeline_dir = skills / "pipeline"
     pipeline = pipeline_dir / "SKILL.md"
     technic_dir = skills / "technic"
     learned_dir = learned_root(profile)
@@ -792,12 +811,12 @@ def validate_worker(
 
     learned, learned_roots = validate_learned_skills(learned_dir, errors)
 
-    allowed = {(pipeline_name, "SKILL.md")}
+    allowed = {("pipeline", "SKILL.md")}
     allowed.update(("technic", name, "SKILL.md") for name in leaves)
     creator_entries: set[str] = set()
     if profile == "creator" and pipeline.is_file() and (_pipeline_major_version(frontmatter(pipeline)) or 0) >= 9:
         creator_entries = set(CREATOR_ENTRIES.values())
-        allowed.update((pipeline_name, name, "SKILL.md") for name in creator_entries)
+        allowed.update(("pipeline", mode, "SKILL.md") for mode in CREATOR_ENTRIES)
         for name in creator_entries & (leaves.keys() | learned.keys()):
             errors.append(f"duplicate creator entry name: {name}")
     writing: dict[str, Path] = {}
@@ -853,19 +872,36 @@ def validate_worker(
 
 
 STAGES = ("plan", "build")
-STAGE_SECTIONS = ("## Output template", "## Verification", "## Handoff")
-MODE_SECTIONS = ("## Plan", "## Build", "## Output template", "## Verification", "## Handoff")
+# What each stage entry of a mode carries: Plan proposes, Build delivers and checks.
+STAGE_ENTRY_SECTIONS = {
+    "plan": ("## Plan", "## Handoff"),
+    "build": ("## Build", "## Output template", "## Verification", "## Handoff"),
+}
 # One shared reference per chain the evm and solana tools read, and one for the venue the hyperliquid
 # tool reads, like Marketer's per-service ones.
 PLATFORMS = ("evm", "solana", "hyperliquid")
 
 SEARCHER_MODES = ("lookup", "sweep", "hunt")
-SEARCHER_ENTRIES = tuple(f"{mode}-searcher" for mode in SEARCHER_MODES)
 # Searcher also reads the public social services, one reference per service beside the chains.
 SEARCHER_PLATFORMS = ("x", "youtube", "note", "substack") + PLATFORMS
-SEARCHER_SHARED_REFERENCES = (
-    {f"{stage}.md" for stage in STAGES} | {f"platforms/{p}.md" for p in SEARCHER_PLATFORMS}
-    | {"capabilities.md"})
+SEARCHER_SHARED_REFERENCES = {f"platforms/{p}.md" for p in SEARCHER_PLATFORMS} | {"capabilities.md"}
+
+RESEARCHER_MODES = ("investigate", "compare", "verify", "advise")
+RESEARCHER_SHARED_REFERENCES = {"gather.md", "capabilities.md"} | {f"platforms/{p}.md" for p in PLATFORMS}
+
+
+def stage_entry_name(role: str, mode: str, stage: str) -> str:
+    """The declared name of ``pipeline/<mode>/<stage>/SKILL.md``."""
+    return f"{stage}-{mode}"
+
+
+def stage_entries(role: str, modes: tuple[str, ...]) -> dict[str, tuple[str, str]]:
+    """``{declared name: (mode, stage)}`` for every stage entry of the role."""
+    return {stage_entry_name(role, mode, stage): (mode, stage) for mode in modes for stage in STAGES}
+
+
+SEARCHER_ENTRIES = stage_entries("searcher", SEARCHER_MODES)
+RESEARCHER_ENTRIES = stage_entries("researcher", RESEARCHER_MODES)
 
 
 def _pipeline_documents(pipeline_dir: Path) -> set[str]:
@@ -879,104 +915,126 @@ def _pipeline_documents(pipeline_dir: Path) -> set[str]:
     }
 
 
-def _validate_stage_references(pipeline_dir: Path, role: str, kernel_text: str, shared: set[str],
-                               errors: list[str]) -> None:
-    """The kernel links every shared reference; each stage reference owns its sections."""
+def _validate_stage_entries(
+    role: str, modes: tuple[str, ...], platforms: tuple[str, ...], shared: set[str],
+    pipeline_dir: Path, errors: list[str], *, build_requires: tuple[str, ...] = (),
+) -> dict[str, Path]:
+    """One kernel owning the Plan and Build mechanics in its own ``<Plan>`` / ``<Build>`` sections, and
+    per mode one entry per stage at ``pipeline/<mode>/<stage>/SKILL.md`` named ``<mode>-<stage>-<role>``.
+    A Plan entry reads supplied material only; a Build entry links every platform reference and the
+    technic capabilities, and whatever *build_requires* names in its ReadBeforeWork."""
+    entries: dict[str, Path] = {}
+    links = [path for path in pipeline_dir.rglob("*") if path.is_symlink()]
+    for path in sorted(links):
+        errors.append(f"{role} pipeline must not contain symlinks: {path}")
+    if links:
+        return entries
+
+    expected = {"SKILL.md"} | {f"{mode}/{stage}/SKILL.md" for mode, stage in stage_entries(role, modes).values()}
+    expected.update(f"references/{name}" for name in shared)
+    found = _pipeline_documents(pipeline_dir)
+    for path in sorted(expected - found):
+        errors.append(f"missing {role} document: {path}")
+    for path in sorted(found - expected):
+        errors.append(f"unexpected {role} document: {path}")
+
+    kernel = pipeline_dir / "SKILL.md"
+    kernel_text = kernel.read_text(encoding="utf-8") if kernel.is_file() else ""
     for name in sorted(shared):
         if f"(references/{name})" not in kernel_text:
             errors.append(f"{role} kernel does not link reference: {name}")
     for stage in STAGES:
-        path = pipeline_dir / "references" / f"{stage}.md"
-        if path.is_file():
-            body = path.read_text(encoding="utf-8")
-            for section in STAGE_SECTIONS:
-                if section not in body:
-                    errors.append(f"{role} stage reference missing {section}: {stage}.md")
+        tag = stage.capitalize()
+        if f"<{tag}>" not in kernel_text or f"</{tag}>" not in kernel_text:
+            errors.append(f"{role} kernel must own the <{tag}> stage")
+    if role == "researcher" and "<Method>" not in kernel_text:
+        errors.append("researcher kernel's Build stage must own the <Method>")
+
+    for name, (mode, stage) in sorted(stage_entries(role, modes).items()):
+        path = pipeline_dir / mode / stage / "SKILL.md"
+        if not path.is_file():
+            continue
+        entries[name] = path
+        validate_skill(path, name, errors, expected_category="pipeline")
+        data = frontmatter(path)
+        description = data.get("description")
+        if not isinstance(description, str) or not 1 <= len(description.strip()) <= 1024:
+            errors.append(f"{role} entry needs a description: {name}")
+        elif not re.match(rf"^{mode}\b.*\b{stage}\b", description, re.I | re.S):
+            errors.append(f"{role} description must frontload {mode} and name the {stage} stage: {name}")
+        if not isinstance(data.get("version"), str) or not data["version"].strip():
+            errors.append(f"{role} entry needs a version: {name}")
+        raw = path.read_text(encoding="utf-8")
+        if raw.find("\n---", 4) not in range(4, 4000):
+            errors.append(f"{role} frontmatter exceeds discovery prefix: {name}")
+        text = raw.split("\n---\n", 1)[-1]
+        if f"({mode}/{stage}/SKILL.md)" not in kernel_text:
+            errors.append(f"{role} kernel does not route {name}")
+        block = re.search(r"<ReadBeforeWork>(.*?)</ReadBeforeWork>", text, re.S)
+        before = " ".join(block.group(1).split()) if block else ""
+        required = [
+            f'skill_view(name="{role}-pipeline")', f'skill_view(name="{name}")',
+            f"<{stage.capitalize()}>",
+            "${HERMES_SKILL_DIR}/../../SKILL.md", "${HERMES_SKILL_DIR}/SKILL.md",
+            "read_file", "next_offset", "stop", "current context", "past load",
+        ]
+        if stage == "build":
+            required.extend(build_requires)
+        for token in required:
+            if token not in before:
+                errors.append(f"{role} entry missing dependency/recovery {token}: {name}")
+        if not re.search(r"(reuse|require).*full.?bod", before, re.I):
+            errors.append(f"{role} entry missing full-body reuse contract: {name}")
+        for section in STAGE_ENTRY_SECTIONS[stage]:
+            if section not in text:
+                errors.append(f"{role} entry missing {section}: {name}")
+        other = "build" if stage == "plan" else "plan"
+        if f"(../{other}/SKILL.md)" not in text:
+            errors.append(f"{role} entry does not link its {other} stage: {name}")
+        if "(../../references/capabilities.md)" not in text:
+            errors.append(f"{role} entry does not link the technic capabilities: {name}")
+        if stage == "build":
+            for platform in platforms:
+                if f"(../../references/platforms/{platform}.md)" not in text:
+                    errors.append(f"{role} entry does not link platform reference {platform}: {name}")
+        elif "references/platforms/" in text or "references/gather.md" in text:
+            errors.append(f"{role} plan entry reads supplied material only: {name}")
+
+    for doc in sorted(pipeline_dir.rglob("*.md")):
+        body = doc.read_text(encoding="utf-8")
+        if "goal_mode" in body:
+            errors.append(f"{role} has no goal_mode loop: {doc}")
+        if doc.name != "SKILL.md" and "name" in frontmatter(doc):
+            errors.append(f"{role} reference must not declare a skill name: {doc}")
+        for link, target in markdown_links(doc):
+            if not target.resolve().is_relative_to(pipeline_dir.resolve()):
+                errors.append(f"{role} link escapes pipeline: {link} in {doc}")
+            elif not target.is_file():
+                errors.append(f"broken {role} link: {link} in {doc}")
+    return entries
 
 
 def validate_searcher_entries(pipeline_dir: Path, errors: list[str]) -> dict[str, Path]:
-    """Three retrieval modes over one kernel; Plan and Build are shared stages."""
-    entries: dict[str, Path] = {}
-    links = [path for path in pipeline_dir.rglob("*") if path.is_symlink()]
-    if links:
-        for path in sorted(links):
-            errors.append(f"searcher pipeline must not contain symlinks: {path}")
-        return entries
+    """Three retrieval modes over one kernel, each with a Plan and a Build entry."""
+    return _validate_stage_entries(
+        "searcher", SEARCHER_MODES, SEARCHER_PLATFORMS, SEARCHER_SHARED_REFERENCES, pipeline_dir, errors)
 
-    expected = {"SKILL.md"} | {f"{name}/SKILL.md" for name in SEARCHER_ENTRIES}
-    expected.update(f"references/{name}" for name in SEARCHER_SHARED_REFERENCES)
-    found = _pipeline_documents(pipeline_dir)
-    for path in sorted(expected - found):
-        errors.append(f"missing searcher instruction: {path}")
-    for path in sorted(found - expected):
-        errors.append(f"unexpected searcher instruction: {path}")
 
-    kernel = pipeline_dir / "SKILL.md"
-    kernel_text = kernel.read_text(encoding="utf-8") if kernel.is_file() else ""
-    _validate_stage_references(pipeline_dir, "searcher", kernel_text, SEARCHER_SHARED_REFERENCES, errors)
-    for name in SEARCHER_ENTRIES:
-        entry = pipeline_dir / name / "SKILL.md"
-        if not entry.is_file():
-            continue
-        entries[name] = entry
-        validate_skill(entry, name, errors, expected_category="searcher-pipeline")
-        data = frontmatter(entry)
-        version = data.get("version")
-        if not isinstance(version, str) or not version.strip():
-            errors.append(f"searcher entry version must be a nonempty string: {name}")
-        description = data.get("description", "")
-        mode = name.split("-", 1)[0]
-        if not isinstance(description, str) or not re.match(rf"^{mode}\b", description, re.I):
-            errors.append(f"searcher description must frontload {mode}: {name}")
-        raw = entry.read_text(encoding="utf-8")
-        if raw.find("\n---", 4) not in range(4, 4000):
-            errors.append(f"searcher frontmatter exceeds 4000-character discovery prefix: {name}")
-        text = raw.split("\n---\n", 1)[-1]
-        read_before = re.search(r"<ReadBeforeWork>(.*?)</ReadBeforeWork>", text, re.S)
-        block = " ".join(read_before.group(1).split()) if read_before else ""
-        for required in (
-            'skill_view(name="searcher-pipeline")',
-            'file_path="references/<stage>.md"',
-            "${HERMES_SKILL_DIR}/../SKILL.md", "${HERMES_SKILL_DIR}/SKILL.md",
-            "${HERMES_SKILL_DIR}/../references/<stage>.md",
-            "full-body", "current context", "not a past load or summary",
-            "unchanged", "earlier body is unavailable", "read_file", "next_offset",
-            "stop", "caller's release",
-        ):
-            if required not in block:
-                errors.append(f"searcher entry ReadBeforeWork missing {required}: {name}")
-        for section in MODE_SECTIONS:
-            if section not in text:
-                errors.append(f"searcher entry missing {section}: {name}")
-        if f"({name}/SKILL.md)" not in kernel_text:
-            errors.append(f"searcher kernel does not route {name}")
-        for stage in STAGES:
-            if f"(../references/{stage}.md)" not in text:
-                errors.append(f"searcher entry does not link stage reference {stage}: {name}")
-        for platform in SEARCHER_PLATFORMS:
-            if f"(../references/platforms/{platform}.md)" not in text:
-                errors.append(f"searcher entry does not link platform reference {platform}: {name}")
-        if "(../references/capabilities.md)" not in text:
-            errors.append(f"searcher entry does not link the technic capabilities: {name}")
-
-    for path in sorted(pipeline_dir.rglob("*.md")):
-        if "goal_mode" in path.read_text(encoding="utf-8"):
-            errors.append(f"searcher has no goal_mode loop: {path}")
-        if path.name != "SKILL.md" and "name" in frontmatter(path):
-            errors.append(f"searcher reference must not declare a skill name: {path}")
-        for link, target in markdown_links(path):
-            if not target.is_relative_to(pipeline_dir.resolve()):
-                errors.append(f"searcher link escapes pipeline: {link} in {path}")
-            elif not target.is_file():
-                errors.append(f"broken searcher link: {link} in {path}")
-    return entries
+def validate_researcher_entries(pipeline_dir: Path, errors: list[str]) -> dict[str, Path]:
+    """Four research modes over one kernel, each with a Plan and a Build entry; gathering stays shared."""
+    return _validate_stage_entries(
+        "researcher", RESEARCHER_MODES, PLATFORMS, RESEARCHER_SHARED_REFERENCES, pipeline_dir, errors,
+        build_requires=(
+            'skill_view(name="researcher-pipeline", file_path="references/gather.md")',
+            "${HERMES_SKILL_DIR}/../../references/gather.md",
+        ))
 
 
 def validate_mode_technics(role: str, modes: tuple[str, ...], pipeline_dir: Path,
                            technics: dict[str, Path], errors: list[str]) -> None:
-    """A technic is a purpose recipe on one of the role's modes: it names that mode, loads it with the
-    kernel, and the capability row routes it to the same mode. The generic worker check pairs rows with
-    directories."""
+    """A technic is a purpose recipe on one of the role's modes: it names that mode, loads its stage
+    entries with the kernel, and the capability row routes it to the same mode. The generic worker
+    check pairs rows with directories."""
     rows: dict[str, str] = {}
     capabilities = pipeline_dir / "references" / "capabilities.md"
     if capabilities.is_file():
@@ -999,9 +1057,9 @@ def validate_mode_technics(role: str, modes: tuple[str, ...], pipeline_dir: Path
         read_before = re.search(r"<ReadBeforeWork>(.*?)</ReadBeforeWork>", raw, re.S)
         block = " ".join(read_before.group(1).split()) if read_before else ""
         for required in (
-            f'skill_view(name="{role}-pipeline")', f'skill_view(name="{mode}-{role}")',
-            'file_path="references/<stage>.md"', "${HERMES_SKILL_DIR}/SKILL.md",
-            f"${{HERMES_SKILL_DIR}}/../../{role}-pipeline/SKILL.md", "never replaces",
+            f'skill_view(name="{role}-pipeline")', f'skill_view(name="<stage>-{mode}")',
+            "${HERMES_SKILL_DIR}/SKILL.md",
+            "${HERMES_SKILL_DIR}/../../pipeline/SKILL.md", "never replaces",
             "current context", "read_file", "caller's release",
         ):
             if required not in block:
@@ -1021,97 +1079,13 @@ def validate_researcher_technics(pipeline_dir: Path, technics: dict[str, Path], 
     validate_mode_technics("researcher", RESEARCHER_MODES, pipeline_dir, technics, errors)
 
 
-RESEARCHER_MODES = ("investigate", "compare", "verify", "advise")
-RESEARCHER_ENTRIES = {f"{mode}-researcher" for mode in RESEARCHER_MODES}
-RESEARCHER_SHARED_REFERENCES = (
-    {"gather.md", "capabilities.md"} | {f"{stage}.md" for stage in STAGES}
-    | {f"platforms/{p}.md" for p in PLATFORMS})
-
-
-def validate_researcher_entries(pipeline_dir: Path, errors: list[str]) -> dict[str, Path]:
-    """Four research modes over one kernel; the stages and gathering stay shared."""
-    entries: dict[str, Path] = {}
-    for path in pipeline_dir.rglob("*"):
-        if path.is_symlink():
-            errors.append(f"researcher pipeline must not contain symlinks: {path}")
-    if any(path.is_symlink() for path in pipeline_dir.rglob("*")):
-        return entries
-    expected = {"SKILL.md"} | {f"{name}/SKILL.md" for name in RESEARCHER_ENTRIES}
-    expected.update(f"references/{name}" for name in RESEARCHER_SHARED_REFERENCES)
-    found = _pipeline_documents(pipeline_dir)
-    for path in sorted(expected - found):
-        errors.append(f"missing researcher document: {path}")
-    for path in sorted(found - expected):
-        errors.append(f"unexpected researcher document: {path}")
-    kernel = pipeline_dir / "SKILL.md"
-    kernel_text = kernel.read_text(encoding="utf-8") if kernel.is_file() else ""
-    _validate_stage_references(pipeline_dir, "researcher", kernel_text, RESEARCHER_SHARED_REFERENCES, errors)
-    build = pipeline_dir / "references/build.md"
-    if build.is_file() and "<Method>" not in build.read_text(encoding="utf-8"):
-        errors.append("researcher build stage must own the <Method>")
-    for name in sorted(RESEARCHER_ENTRIES):
-        path = pipeline_dir / name / "SKILL.md"
-        if not path.is_file():
-            continue
-        entries[name] = path
-        validate_skill(path, name, errors, expected_category="researcher-pipeline")
-        data = frontmatter(path)
-        description = data.get("description")
-        if not isinstance(description, str) or not 1 <= len(description.strip()) <= 1024:
-            errors.append(f"researcher entry needs a description: {name}")
-        elif not re.match(rf"^{name.split('-', 1)[0]}\b", description, re.I):
-            errors.append(f"researcher description must frontload {name.split('-', 1)[0]}: {name}")
-        if not isinstance(data.get("version"), str) or not data["version"].strip():
-            errors.append(f"researcher entry needs a version: {name}")
-        text = path.read_text(encoding="utf-8")
-        if text.find("\n---", 4) not in range(4, 4000):
-            errors.append(f"researcher frontmatter exceeds discovery prefix: {name}")
-        if f"({name}/SKILL.md)" not in kernel_text:
-            errors.append(f"researcher kernel does not route {name}")
-        block = re.search(r"<ReadBeforeWork>(.*?)</ReadBeforeWork>", text, re.S)
-        before = " ".join(block.group(1).split()) if block else ""
-        for required in (
-            'skill_view(name="researcher-pipeline")',
-            'skill_view(name="researcher-pipeline", file_path="references/gather.md")',
-            'file_path="references/<stage>.md"',
-            "${HERMES_SKILL_DIR}/../SKILL.md",
-            "${HERMES_SKILL_DIR}/../references/gather.md",
-            "${HERMES_SKILL_DIR}/../references/<stage>.md",
-            "${HERMES_SKILL_DIR}/SKILL.md",
-            "read_file", "next_offset", "stop",
-        ):
-            if required not in before:
-                errors.append(f"researcher entry missing dependency/recovery {required}: {name}")
-        if not re.search(r"reuse.*full.*(?:context|body)", before, re.I):
-            errors.append(f"researcher entry missing full-body reuse contract: {name}")
-        for section in MODE_SECTIONS:
-            if section not in text:
-                errors.append(f"researcher entry missing {section}: {name}")
-        for stage in STAGES:
-            if f"(../references/{stage}.md)" not in text:
-                errors.append(f"researcher entry does not link stage reference {stage}: {name}")
-        for platform in PLATFORMS:
-            if f"(../references/platforms/{platform}.md)" not in text:
-                errors.append(f"researcher entry does not link platform reference {platform}: {name}")
-        if "(../references/capabilities.md)" not in text:
-            errors.append(f"researcher entry does not link the technic capabilities: {name}")
-    for doc in sorted(pipeline_dir.rglob("*.md")):
-        if doc.is_symlink() or not doc.resolve().is_relative_to(pipeline_dir.resolve()):
-            errors.append(f"researcher document escapes pipeline: {doc}")
-            continue
-        if doc.name != "SKILL.md" and "name" in frontmatter(doc):
-            errors.append(f"researcher reference must not declare a skill name: {doc}")
-        for link, target in markdown_links(doc):
-            if not target.resolve().is_relative_to(pipeline_dir.resolve()) or not target.is_file():
-                errors.append(f"broken/escaping researcher link: {doc.name}: {link}")
-    return entries
-
-
+# Keyed by the entry's mode directory (pipeline/<mode>/SKILL.md); its declared
+# name is <mode>-marketer.
 MARKETER_ENTRY_REFERENCES = {
-    "plan-marketer": {"discovery.md", "positioning.md", "offer.md", "channels.md", "campaign.md",
-                      "strategy.md"},
-    "review-marketer": {"content.md"},
-    "analyze-marketer": {"measurement.md"},
+    "plan": {"discovery.md", "positioning.md", "offer.md", "channels.md", "campaign.md",
+             "strategy.md"},
+    "review": {"content.md"},
+    "analyze": {"measurement.md"},
 }
 MARKETER_SHARED_REFERENCES = {
     "platforms/x.md", "platforms/substack.md", "platforms/note.md",
@@ -1160,18 +1134,19 @@ def validate_marketer_references(pipeline_dir: Path, errors: list[str]) -> dict[
     for name in sorted(found - MARKETER_REFERENCE_FILES):
         errors.append(f"unexpected marketer reference: {name}")
 
-    for name in MARKETER_ENTRY_REFERENCES:
-        entry = pipeline_dir / name / "SKILL.md"
+    for mode in MARKETER_ENTRY_REFERENCES:
+        name = f"{mode}-marketer"
+        entry = pipeline_dir / mode / "SKILL.md"
         if not entry.is_file():
             errors.append(f"missing marketer entry skill: {name}")
             continue
         entries[name] = entry
-        validate_skill(entry, name, errors, expected_category="marketer-pipeline")
+        validate_skill(entry, name, errors, expected_category="pipeline")
         data = frontmatter(entry)
         if not isinstance(data.get("version"), str) or not data["version"].strip():
             errors.append(f"marketer entry version must be a nonempty string: {name}")
         description = data.get("description", "")
-        prefix = f"{name.split('-', 1)[0]} marketing"
+        prefix = f"{mode} marketing"
         if not isinstance(description, str) or not description.lower().startswith(prefix):
             errors.append(f"marketer entry description must frontload {prefix}: {name}")
         text = entry.read_text(encoding="utf-8")
@@ -1217,8 +1192,9 @@ def validate_marketer_references(pipeline_dir: Path, errors: list[str]) -> dict[
     for name in sorted(MARKETER_SHARED_REFERENCES):
         if (references / name).resolve() not in root_links:
             errors.append(f"marketer root does not link reference: {name}")
-    for name, names in MARKETER_ENTRY_REFERENCES.items():
-        entry = pipeline_dir / name / "SKILL.md"
+    for mode, names in MARKETER_ENTRY_REFERENCES.items():
+        name = f"{mode}-marketer"
+        entry = pipeline_dir / mode / "SKILL.md"
         if entry.resolve() not in root_links:
             errors.append(f"marketer root does not route entry: {name}")
         if entry.is_file():
@@ -1283,10 +1259,10 @@ def validate_writer_leaves(pipeline_dir: Path, errors: list[str]) -> dict[str, P
         rel = path.relative_to(pipeline_dir)
         if rel.parts in (("SKILL.md",), ("consult-writer", "SKILL.md")):
             continue
-        if len(rel.parts) != 3 or rel.parts[0] not in WRITER_VERBS:
-            errors.append(f"writer leaf must sit at write|edit|analyze/<subject>/SKILL.md: {path}")
+        if len(rel.parts) != 3 or rel.parts[1] not in WRITER_VERBS:
+            errors.append(f"writer leaf must sit at <subject>/write|edit|analyze/SKILL.md: {path}")
             continue
-        verb, subject, _ = rel.parts
+        subject, verb, _ = rel.parts
         if not HANDS_NAME.fullmatch(subject):
             errors.append(f"writer subject must be a slug: {path}")
             continue
@@ -1357,7 +1333,7 @@ def validate_writer_leaves(pipeline_dir: Path, errors: list[str]) -> dict[str, P
 # One leaf = one deliverable = one form. The front matter is the ONLY
 # representation of the leaf's contract (no generated index, no preset
 # layer), so it is what gets validated: the path names the leaf
-# (`<verb>/<subject>` ⇒ `name: <verb>-<subject>`), the verb is one of the
+# (`<subject>/<verb>` ⇒ `name: <verb>-<subject>`), the verb is one of the
 # closed set, the cost class is declared, and the form is a dict of fields
 # each carrying `required`. A `style` field's options must be backed by
 # `references/styles/<option>.md`; every leaf carries a `note` escape
@@ -1417,7 +1393,7 @@ def validate_hands_form(
 def validate_hands_leaves(
     pipeline_dir: Path, profile: str, errors: list[str]
 ) -> dict[str, Path]:
-    """Validate every `<verb>/<subject>/SKILL.md` under a hands pipeline root
+    """Validate every `<subject>/<verb>/SKILL.md` under a hands pipeline root
     and return name -> path. Support dirs (references/assets/scripts) of
     the root itself are not leaf roots."""
     leaves: dict[str, Path] = {}
@@ -1427,10 +1403,10 @@ def validate_hands_leaves(
             continue
         if len(rel.parts) != 3:
             errors.append(
-                f"hands leaf must sit at <verb>/<subject>/SKILL.md: {path}"
+                f"hands leaf must sit at <subject>/<verb>/SKILL.md: {path}"
             )
             continue
-        verb, subject, _ = rel.parts
+        subject, verb, _ = rel.parts
         if verb not in HANDS_VERBS:
             errors.append(f"hands verb must be one of {'|'.join(HANDS_VERBS)}: {path}")
             continue
@@ -1472,7 +1448,7 @@ def validate_hands_routing(
     hands_leaves: dict[str, dict[str, Path]], errors: list[str]
 ) -> None:
     """Every installed hands subject has exactly one Assistant commissioning
-    reference (execute-assistant-creative/references/<subject>.md) and every
+    reference (execute-creative's references/<subject>.md) and every
     installed leaf is named in it, so no leaf is unreachable from the
     commissioning side; a reference for a subject no hands serves is an
     orphan. Paths are derived from the current ASSISTANT_PIPELINE global at
@@ -1481,7 +1457,7 @@ def validate_hands_routing(
     subjects: dict[str, str] = {}
     for profile, leaves in hands_leaves.items():
         for name, path in leaves.items():
-            subjects.setdefault(path.parent.name, profile)
+            subjects.setdefault(path.parent.parent.name, profile)
     present = (
         {p.stem for p in refs.glob("*.md") if p.name not in COMMISSIONING_SHARED_REFERENCES}
         if refs.is_dir() else set()
@@ -1494,7 +1470,7 @@ def validate_hands_routing(
         errors.append(f"commissioning reference has no hands subject: {subject}.md")
     for profile, leaves in hands_leaves.items():
         for name, path in sorted(leaves.items()):
-            ref = refs / f"{path.parent.name}.md"
+            ref = refs / f"{path.parent.parent.name}.md"
             if ref.is_file() and not re.search(
                 rf"(?<![\w-]){re.escape(name)}(?![\w-])", ref.read_text(encoding="utf-8")
             ):
@@ -1507,7 +1483,7 @@ def validate_hands(profile: str, errors: list[str]) -> tuple[dict[str, Path], in
     profile_root = HERMES_ROOT / "profiles" / profile
     skills = profile_root / "skills"
     pipeline_name = f"{profile}-pipeline"
-    pipeline_dir = skills / pipeline_name
+    pipeline_dir = skills / "pipeline"
     pipeline = pipeline_dir / "SKILL.md"
     learned_dir = learned_root(profile)
 
@@ -1521,9 +1497,9 @@ def validate_hands(profile: str, errors: list[str]) -> tuple[dict[str, Path], in
     leaves = validate_hands_leaves(pipeline_dir, profile, errors)
     learned, learned_roots = validate_learned_skills(learned_dir, errors)
 
-    allowed = {(pipeline_name, "SKILL.md")}
+    allowed = {("pipeline", "SKILL.md")}
     allowed.update(
-        (pipeline_name, *path.relative_to(pipeline_dir).parts) for path in leaves.values()
+        ("pipeline", *path.relative_to(pipeline_dir).parts) for path in leaves.values()
     )
     allowed.update(learned_roots)
     validate_allowed_skill_roots(skills, allowed, errors)
@@ -1564,11 +1540,11 @@ def _pipeline_major_version(data: dict[str, Any]) -> int | None:
 
 def collect_hands_subjects() -> dict[str, set[str]]:
     """Subjects (deduped across verbs) served by each hands profile, read
-    from `<hands>-pipeline/<verb>/<subject>/SKILL.md` below HERMES_ROOT."""
+    from `<hands>/skills/pipeline/<subject>/<verb>/SKILL.md` below HERMES_ROOT."""
     subjects: dict[str, set[str]] = {}
     for profile in HANDS_PROFILES:
         pipeline_dir = (
-            HERMES_ROOT / "profiles" / profile / "skills" / f"{profile}-pipeline"
+            HERMES_ROOT / "profiles" / profile / "skills" / "pipeline"
         )
         found: set[str] = set()
         if pipeline_dir.is_dir():
@@ -1578,7 +1554,7 @@ def collect_hands_subjects() -> dict[str, set[str]]:
                     continue
                 if len(rel.parts) != 3:
                     continue
-                verb, subject, _ = rel.parts
+                subject, verb, _ = rel.parts
                 if verb not in HANDS_VERBS:
                     continue
                 found.add(subject)
@@ -1623,6 +1599,7 @@ def validate_creator_reference_links(
             errors.append(f"creator reference link is broken: {link} in {rel_doc}")
 
 
+# Mode directory (pipeline/<mode>/SKILL.md) -> the entry's declared name.
 CREATOR_ENTRIES = {
     "propose": "propose-creator",
     "revise": "revise-creator",
@@ -1643,12 +1620,12 @@ def validate_creator_references(pipeline_dir: Path, errors: list[str]) -> None:
     kernel_links = {target for _, target in markdown_links(pipeline)}
     validate_creator_reference_links(pipeline, pipeline_dir, errors)
 
-    for name in CREATOR_ENTRIES.values():
-        index = pipeline_dir / name / "SKILL.md"
+    for mode, name in CREATOR_ENTRIES.items():
+        index = pipeline_dir / mode / "SKILL.md"
         if not index.is_file():
-            errors.append(f"missing creator entry skill: {name}/SKILL.md")
+            errors.append(f"missing creator entry skill: {mode}/SKILL.md")
             continue
-        validate_skill(index, name, errors, expected_category="creator-pipeline")
+        validate_skill(index, name, errors, expected_category="pipeline")
         if _pipeline_major_version(frontmatter(index)) is None:
             errors.append(f"invalid creator entry version: {name}")
         if not str(frontmatter(index).get("description", "")).strip():
@@ -1668,12 +1645,12 @@ def validate_creator_references(pipeline_dir: Path, errors: list[str]) -> None:
                 errors.append(f"creator entry ReadBeforeWork missing {required}: {name}")
         for child in index.parent.iterdir():
             if not child.name.startswith(".") and child.name != "SKILL.md":
-                errors.append(f"unexpected creator entry child: {name}/{child.name}")
+                errors.append(f"unexpected creator entry child: {mode}/{child.name}")
         validate_creator_reference_links(index, pipeline_dir, errors)
 
     for child in pipeline_dir.iterdir():
         if not child.name.startswith(".") and child.name not in {
-            "SKILL.md", "references", *CREATOR_ENTRIES.values()
+            "SKILL.md", "references", *CREATOR_ENTRIES
         }:
             errors.append(f"unexpected creator pipeline child: {child.name}")
 
@@ -1713,7 +1690,7 @@ def validate_creator_references(pipeline_dir: Path, errors: list[str]) -> None:
 
 # ── Creative Client references ───────────────────────────────────────────
 #
-# The plain-language guides in plan-assistant-creative/references/ carry no
+# The plain-language guides in plan-creative's references/ carry no
 # parity with the hands: a guide's name need not equal a hands subject, and an
 # absent guide does not mean a capability is unavailable. Paths are derived
 # from the current ASSISTANT_PIPELINE global at call time so tests can patch it.
@@ -2005,8 +1982,8 @@ def validate_assistant(errors: list[str]) -> tuple[int, int, int]:
             technics[name] = path
     learned, learned_roots = validate_learned_skills(learned_dir, errors)
 
-    allowed: set[tuple[str, ...]] = {("assistant-pipeline", "SKILL.md")}
-    allowed.update(("assistant-pipeline", name, "SKILL.md") for name in ASSISTANT_ENTRIES)
+    allowed: set[tuple[str, ...]] = {("pipeline", "SKILL.md")}
+    allowed.update(("pipeline", *assistant_entry_rel(name).parts, "SKILL.md") for name in ASSISTANT_ENTRIES)
     allowed.update(("technic", name, "SKILL.md") for name in technics)
     allowed.update(learned_roots)
     validate_allowed_skill_roots(skills, allowed, errors)
@@ -2148,7 +2125,7 @@ def validate_assistant_private_technics(
 
 def validate_shared(errors: list[str]) -> tuple[int, int]:
     skills = HERMES_ROOT / "skills"
-    default_pipeline = skills / "default-pipeline"
+    default_pipeline = skills / "pipeline"
     learned_dir = learned_root("default")
 
     managed: dict[str, Path] = {}
@@ -2166,7 +2143,7 @@ def validate_shared(errors: list[str]) -> tuple[int, int]:
 
     learned, learned_roots = validate_learned_skills(learned_dir, errors)
 
-    allowed = {("default-pipeline", "SKILL.md")}
+    allowed = {("pipeline", "SKILL.md")}
     allowed.update(learned_roots)
     validate_allowed_skill_roots(skills, allowed, errors)
     validate_git_boundary([default_pipeline], learned_dir, errors)

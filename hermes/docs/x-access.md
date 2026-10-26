@@ -23,7 +23,7 @@ sends DMs. Read it when changing the plugin or its caps. Common rules:
 | How a profile reads X: actions, both budgets, verifying posts, media, the user's own numbers, recovery | the `x-access:x-twitter` plugin skill (`plugins/social/x-access/skills/x-twitter/`)                                                  | Assistant, Marketer, Searcher |
 | The post and X Article draft exceptions in the browser                                                 | the `x-access:x-twitter-drafts` plugin skill (`plugins/social/x-access/skills/x-twitter-drafts/`); registered for the Assistant only | Assistant                     |
 | When the Assistant uses it in Chat                                                                     | the Assistant's private Chat reference `x.md`                                                                                        | Assistant                     |
-| How Marketer reads ranking, results and conversations                                                  | `marketer-pipeline/references/x-ranking.md`                                                                                          | Marketer                      |
+| How Marketer reads ranking, results and conversations                                                  | `profiles/marketer/skills/pipeline/references/x-ranking.md`                                                                                          | Marketer                      |
 
 [twscrape](https://github.com/vladkens/twscrape) calls the GraphQL endpoints
 the x.com web app uses, signed in with a browser session's `auth_token` and

@@ -17,7 +17,7 @@ HANDS = ("image-creator", "video-creator", "audio-creator")
 
 
 def pipeline(profile):
-    return ROOT / f"profiles/{profile}/skills/{profile}-pipeline"
+    return ROOT / f"profiles/{profile}/skills/pipeline"
 
 
 def text(path):
@@ -111,7 +111,7 @@ def test_hands_owner_context_offline_mechanical(profile):
         "If skill_view returns unchanged but the earlier body is unavailable",
         "use read_file on the canonical document",
         "`${HERMES_SKILL_DIR}/SKILL.md`",
-        "`${HERMES_SKILL_DIR}/<verb>/<subject>/SKILL.md`",
+        "`${HERMES_SKILL_DIR}/<subject>/<verb>/SKILL.md`",
         "references resolve from that leaf's directory",
         "document's owning skill root, not the last loaded skill",
         "Follow next_offset for a genuinely truncated read",
@@ -127,7 +127,7 @@ def test_hands_owner_context_offline_mechanical(profile):
 def test_optional_hyperframes_fallback_offline_mechanical(leaf):
     root = pipeline("video-creator")
     policy = compact(text(root / "references/hyperframes.md"))
-    document = text(root / f"create/{leaf}/SKILL.md")
+    document = text(root / f"{leaf}/create/SKILL.md")
     assert "hyperframes.md" in document
     assert "Optional advisory references retain their existing fallback" in block(
         text(root / "SKILL.md"), "InstructionContext",

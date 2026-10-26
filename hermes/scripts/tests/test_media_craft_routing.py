@@ -20,7 +20,7 @@ PROFILE_CRAFT = {
 
 
 def pipeline(profile):
-    return HERMES / "profiles" / profile / "skills" / f"{profile}-pipeline"
+    return HERMES / "profiles" / profile / "skills" / "pipeline"
 
 
 @pytest.mark.parametrize("profile", PROFILE_CRAFT)
@@ -48,10 +48,10 @@ def test_conditional_craft_routes_cover_subjects(profile):
             assert f"media-craft-{suffix}" in knowledge
         assert not (root / "references/craft.md").exists()
         for mode in ("propose", "revise"):
-            entry = (root / f"{mode}-creator/SKILL.md").read_text()
+            entry = (root / f"{mode}/SKILL.md").read_text()
             assert "media-craft-direction" in entry
             assert "../references/craft.md" not in entry
-        revise = (root / "revise-creator/SKILL.md").read_text()
+        revise = (root / "revise/SKILL.md").read_text()
         for suffix in ("visual", "motion", "audio"):
             assert f"media-craft-{suffix}" in revise
         return
@@ -63,7 +63,7 @@ def test_conditional_craft_routes_cover_subjects(profile):
     leaves = list(root.glob("*/*/SKILL.md"))
     assert leaves
     for leaf in leaves:
-        assert leaf.parent.name in policy
+        assert leaf.parent.parent.name in policy
     kernel = " ".join((root / "SKILL.md").read_text().split())
     assert "Require the full kernel, selected leaf and required reference bodies in current context" in kernel
 
@@ -153,7 +153,7 @@ def test_missing_and_ambiguous_knowledge_fail_without_hiding_producer(craft_stor
 
 
 def test_every_hands_subject_has_behavioral_cases():
-    subjects = {leaf.parent.name for profile in PROFILE_CRAFT if profile != "creator"
+    subjects = {leaf.parent.parent.name for profile in PROFILE_CRAFT if profile != "creator"
                 for leaf in pipeline(profile).glob("*/*/SKILL.md")}
     cases = [case for path in (ROOT / "agents/tests").glob("media-craft-*-cases.json")
              for case in json.loads(path.read_text())]

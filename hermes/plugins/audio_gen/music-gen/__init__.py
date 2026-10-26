@@ -28,7 +28,7 @@ MODEL = "fal-ai/stable-audio-3/medium/text-to-audio"
 PRICE_PER_AUDIO = 0.0376  # Published estimate, not an invoice; 2026-09-08.
 MAX_BYTES = 32 * 1024 * 1024
 HERMES = Path(__file__).resolve().parents[3]
-PLAN_SCRIPT = HERMES / "profiles/audio-creator/skills/audio-creator-pipeline/scripts/music_plan.py"
+PLAN_SCRIPT = HERMES / "profiles/audio-creator/skills/pipeline/scripts/music_plan.py"
 BUSY_MESSAGE = "local runtime busy; retry later; no new attempt was recorded"
 
 

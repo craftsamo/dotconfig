@@ -10,7 +10,7 @@ import pytest
 import hermes_yaml as yaml
 
 ROOT = Path(__file__).resolve().parents[2]
-PIPELINE = ROOT / "profiles/video-creator/skills/video-creator-pipeline"
+PIPELINE = ROOT / "profiles/video-creator/skills/pipeline"
 spec = importlib.util.spec_from_file_location("three_graphics_test", PIPELINE / "scripts/three_graphics.py")
 graphics = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(graphics)
@@ -53,7 +53,7 @@ def test_omitted_mode_preserves_old_behavior():
 
 @pytest.mark.parametrize("subject", ["tour", "ad", "explainer-video"])
 def test_graphics_option_fits_runtime_discovery_prefix(subject):
-    prefix = (PIPELINE / "create" / subject / "SKILL.md").read_text()[:4000]
+    prefix = (PIPELINE / subject / "create" / "SKILL.md").read_text()[:4000]
     assert prefix.count("---") >= 2, "frontmatter exceeds Hermes discovery prefix"
     metadata = yaml.safe_load(prefix.split("---", 2)[1])
     assert metadata["metadata"]["hermes"]["form"]["graphics"]["options"] == [graphics.MODE]

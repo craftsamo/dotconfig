@@ -1,4 +1,5 @@
 import importlib.util
+import re
 import shutil
 from pathlib import Path
 from unittest.mock import Mock
@@ -8,16 +9,21 @@ import hermes_yaml as yaml
 
 
 HERMES = Path(__file__).resolve().parents[2]
-PIPELINE = HERMES / "profiles/searcher/skills/searcher-pipeline"
+PIPELINE = HERMES / "profiles/searcher/skills/pipeline"
 TECHNIC = HERMES / "profiles/searcher/skills/technic"
 spec = importlib.util.spec_from_file_location("searcher_topology", HERMES / "scripts/validate-profile-skills.py")
 validator = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(validator)
 
 MODES = ("lookup", "sweep", "hunt")
-ENTRIES = tuple(f"{mode}-searcher" for mode in MODES)
 STAGES = ("plan", "build")
-SHARED = {f"references/{stage}.md" for stage in STAGES}
+STAGE_SECTIONS = {"plan": ("## Plan", "## Handoff"),
+                  "build": ("## Build", "## Output template", "## Verification", "## Handoff")}
+# {declared name: (mode, stage)} and the path of each entry under the pipeline.
+STAGE_ENTRIES = {f"{stage}-{mode}": (mode, stage) for mode in MODES for stage in STAGES}
+ENTRIES = tuple(STAGE_ENTRIES)
+ENTRY_PATHS = {name: f"{mode}/{stage}/SKILL.md" for name, (mode, stage) in STAGE_ENTRIES.items()}
+RETIRED_ENTRIES = tuple(f"{mode}-searcher/SKILL.md" for mode in MODES)
 SERVICES = ("x", "youtube", "note", "substack", "evm", "solana", "hyperliquid")
 PLATFORMS = {f"references/platforms/{p}.md" for p in SERVICES}
 CAPABILITIES = "references/capabilities.md"
@@ -28,36 +34,40 @@ def flat(path):
     return " ".join(Path(path).read_text().split())
 
 
+def kernel_section(tag):
+    """The flattened text of the kernel's <Plan> or <Build> section."""
+    body = (PIPELINE / "SKILL.md").read_text()
+    match = re.search(rf"<{tag}>(.*?)</{tag}>", body, re.S)
+    assert match, tag
+    return " ".join(match.group(1).split())
+
+
 def test_exact_entries_and_owned_procedures():
     errors = []
     found = validator.validate_searcher_entries(PIPELINE, errors)
     assert not errors
     assert set(found) == set(ENTRIES)
     assert {p.relative_to(PIPELINE).as_posix() for p in PIPELINE.rglob("*.md")} == {
-        "SKILL.md", *(f"{name}/SKILL.md" for name in ENTRIES), *SHARED, *PLATFORMS, CAPABILITIES,
+        "SKILL.md", *ENTRY_PATHS.values(), *PLATFORMS, CAPABILITIES,
     }
-    for name in ENTRIES:
+    for name, (mode, stage) in STAGE_ENTRIES.items():
         text = found[name].read_text()
-        for section in ("## Plan", "## Build", "## Output template", "## Verification", "## Handoff"):
+        for section in STAGE_SECTIONS[stage]:
             assert section in text, (name, section)
-        assert text.index("<ReadBeforeWork>") < text.index("# " + name.split("-")[0].title())
+        other = "build" if stage == "plan" else "plan"
+        assert f"(../{other}/SKILL.md)" in text
+        assert text.index("<ReadBeforeWork>") < text.index("# " + mode.title())
         assert text.index("\n---\n", 4) < 4000
-        for stage in STAGES:
-            assert f"(../references/{stage}.md)" in text
-    for name, marker in (("lookup-searcher", "### Steps"), ("sweep-searcher", "### Measurement variant"),
-                         ("hunt-searcher", "### Hop loop")):
+    for name, marker in (("build-lookup", "### Steps"), ("build-sweep", "### Measurement variant"),
+                         ("build-hunt", "### Hop loop")):
         assert marker in found[name].read_text()
-    for relative in SHARED:
-        body = (PIPELINE / relative).read_text()
-        assert not body.startswith("---")
-        for section in ("## Output template", "## Verification", "## Handoff"):
-            assert section in body
     root = (PIPELINE / "SKILL.md").read_text()
-    assert "version: 11.0.0" in root and root.index("\n---\n", 4) < 4000
+    assert "version: 12.0.0" in root and root.index("\n---\n", 4) < 4000
     assert "<Procedure>" not in root
-    for name in ENTRIES:
-        assert f"({name}/SKILL.md)" in root
-    for relative in SHARED | PLATFORMS | {CAPABILITIES}:
+    assert "<Plan>" in root and "<Build>" in root
+    for relative in ENTRY_PATHS.values():
+        assert f"({relative})" in root
+    for relative in PLATFORMS | {CAPABILITIES}:
         assert f"({relative})" in root
 
 
@@ -66,15 +76,16 @@ def test_profile_selection_contract_and_unchanged_tool_surface():
     prompt = " ".join(config["agent"]["system_prompt"].split())
     assert "first message is the brief" not in prompt.lower()
     assert "Purpose alone is not execution authority" in prompt
-    for name in ENTRIES:
-        assert name in prompt
-    for gone in ("plan-searcher", "build-searcher", "qa-searcher"):
+    assert "<stage>-<mode>" in prompt
+    for gone in ("plan-searcher", "build-searcher", "qa-searcher",
+                 *(f"{mode}-searcher" for mode in MODES), "references/<stage>.md"):
         assert gone not in prompt
     for phrase in (
         "every caller, resume or completion turn", "midturn",
         "full searcher-pipeline kernel", "not a past load, summary or root preload",
         "unchanged", "earlier body is unavailable", "read_file", "next_offset",
-        "stop the affected search", "caller's release", "references/<stage>.md",
+        "stop the affected search", "caller's release",
+        "Plan / Build mechanics",
     ):
         assert phrase in prompt
     assert "Workflow v5" not in prompt
@@ -109,63 +120,83 @@ def test_kernel_keeps_release_boundaries():
         body = path.read_text()
         assert "goal_mode" not in body and "kanban_complete" not in body, path.name
     for name in ENTRIES:
-        block = (PIPELINE / name / "SKILL.md").read_text().split("</ReadBeforeWork>", 1)[0]
+        block = (PIPELINE / ENTRY_PATHS[name]).read_text().split("</ReadBeforeWork>", 1)[0]
         assert "Direct entry requires" in block and "card gate" not in block
         block = " ".join(block.split())
         assert "does not restart coverage or the frontier, reset a budget" in block
         assert "caller's release" in block
-        assert "${HERMES_SKILL_DIR}/../references/<stage>.md" in block
+        assert "${HERMES_SKILL_DIR}/../../SKILL.md" in block
 
 
 @pytest.fixture
 def candidate(tmp_path):
-    return Path(shutil.copytree(PIPELINE, tmp_path / "searcher-pipeline"))
+    return Path(shutil.copytree(PIPELINE, tmp_path / "pipeline"))
 
 
-@pytest.mark.parametrize("relative", (*(f"{name}/SKILL.md" for name in ENTRIES),
-                                      *sorted(SHARED | PLATFORMS | {CAPABILITIES})))
+@pytest.mark.parametrize("relative", (*ENTRY_PATHS.values(), *sorted(PLATFORMS | {CAPABILITIES})))
 def test_missing_instruction_fails(candidate, relative):
     (candidate / relative).unlink()
     errors = []
     validator.validate_searcher_entries(candidate, errors)
-    assert f"missing searcher instruction: {relative}" in errors
+    assert f"missing searcher document: {relative}" in errors
 
 
 @pytest.mark.parametrize("token", (
-    'skill_view(name="searcher-pipeline")', 'file_path="references/<stage>.md"',
-    "${HERMES_SKILL_DIR}/../SKILL.md", "not a past load or summary", "read_file", "next_offset", "stop",
-    "full-body", "current context", "unchanged", "earlier body is unavailable",
-    "${HERMES_SKILL_DIR}/SKILL.md", "${HERMES_SKILL_DIR}/../references/<stage>.md",
-    "caller's release",
+    'skill_view(name="searcher-pipeline")', "past load", "read_file", "next_offset", "stop",
+    "current context", "${HERMES_SKILL_DIR}/../../SKILL.md", "${HERMES_SKILL_DIR}/SKILL.md",
 ))
 @pytest.mark.parametrize("name", ENTRIES)
 def test_direct_entry_cannot_drop_dependency_or_recovery(candidate, token, name):
-    entry = candidate / name / "SKILL.md"
+    entry = candidate / ENTRY_PATHS[name]
     entry.write_text(entry.read_text().replace(token, "removed"))
     errors = []
     validator.validate_searcher_entries(candidate, errors)
-    assert f"searcher entry ReadBeforeWork missing {token}: {name}" in errors
+    assert f"searcher entry missing dependency/recovery {token}: {name}" in errors
+
+
+@pytest.mark.parametrize("name", ENTRIES)
+def test_direct_entry_cannot_drop_its_own_name_or_stage_tag(candidate, name):
+    mode, stage = STAGE_ENTRIES[name]
+    entry = candidate / ENTRY_PATHS[name]
+    for token in (f'skill_view(name="{name}")', f"<{stage.capitalize()}>"):
+        entry.write_text(entry.read_text().replace(token, "removed"))
+    errors = []
+    validator.validate_searcher_entries(candidate, errors)
+    for token in (f'skill_view(name="{name}")', f"<{stage.capitalize()}>"):
+        assert f"searcher entry missing dependency/recovery {token}: {name}" in errors
+
+
+@pytest.mark.parametrize("name", ENTRIES)
+def test_direct_entry_cannot_drop_the_full_body_reuse_contract(candidate, name):
+    entry = candidate / ENTRY_PATHS[name]
+    entry.write_text(entry.read_text().replace("full-body", "removed"))
+    errors = []
+    validator.validate_searcher_entries(candidate, errors)
+    assert f"searcher entry missing full-body reuse contract: {name}" in errors
 
 
 @pytest.mark.parametrize("replacement, expected", (
-    (("name: lookup-searcher", "name: alternate-lookup"), "frontmatter name must be lookup-searcher"),
-    (("category: searcher-pipeline", "category: technic"), "metadata.hermes.category must be searcher-pipeline"),
-    (("Lookup specific facts", "Generic specific facts"), "searcher description must frontload lookup"),
-    (("version: 1.0.0", "version: ''"), "searcher entry version must be a nonempty string"),
+    (("name: build-lookup", "name: alternate-lookup"), "frontmatter name must be build-lookup"),
+    (("category: pipeline", "category: technic"), "metadata.hermes.category must be pipeline"),
+    (("Lookup, Build stage", "Generic, Build stage"), "searcher description must frontload lookup"),
+    (("Lookup, Build stage", "Lookup, final stage"), "searcher description must frontload lookup and name the build stage"),
+    (("version: 1.0.0", "version: ''"), "searcher entry needs a version"),
 ))
 def test_entry_metadata_is_validated(candidate, replacement, expected):
-    entry = candidate / "lookup-searcher/SKILL.md"
-    entry.write_text(entry.read_text().replace(*replacement))
+    entry = candidate / "lookup/build/SKILL.md"
+    text = entry.read_text()
+    assert replacement[0] in text
+    entry.write_text(text.replace(*replacement))
     errors = []
     validator.validate_searcher_entries(candidate, errors)
     assert any(expected in error for error in errors)
 
 
 @pytest.mark.parametrize("relative", (
-    "references/lookup.md", "tests/fixture/SKILL.md", "fourth-searcher/SKILL.md",
-    "lookup-searcher/references/notes.txt", "sweep-searcher/scripts/probe.sh",
-    "plan-searcher/SKILL.md", "build-searcher/SKILL.md", "qa-searcher/SKILL.md",
-    "lookup-searcher/references/lookup.md", ".editor/SKILL.md",
+    "references/lookup.md", "references/plan.md", "references/build.md", "tests/fixture/SKILL.md",
+    "fourth/plan/SKILL.md", "lookup/plan/notes.txt", "sweep/build/scripts/probe.sh",
+    "lookup/SKILL.md", "plan-searcher/SKILL.md", "build-searcher/SKILL.md", "qa-searcher/SKILL.md",
+    *RETIRED_ENTRIES, "lookup-searcher/references/lookup.md", ".editor/SKILL.md",
 ))
 def test_old_alias_or_unexpected_instruction_fails(candidate, relative):
     path = candidate / relative
@@ -173,11 +204,11 @@ def test_old_alias_or_unexpected_instruction_fails(candidate, relative):
     path.write_text("# Not an authorized instruction\n")
     errors = []
     validator.validate_searcher_entries(candidate, errors)
-    assert f"unexpected searcher instruction: {relative}" in errors
+    assert f"unexpected searcher document: {relative}" in errors
 
 
 def test_incidental_dotfiles_do_not_change_topology(candidate):
-    for relative in (".DS_Store", "lookup-searcher/.SKILL.md.swp", ".editor/state"):
+    for relative in (".DS_Store", "lookup/build/.SKILL.md.swp", ".editor/state"):
         path = candidate / relative
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text("Editor metadata\n")
@@ -186,21 +217,21 @@ def test_incidental_dotfiles_do_not_change_topology(candidate):
     assert not errors
 
 
-@pytest.mark.parametrize("relative", ("SKILL.md", "hunt-searcher/SKILL.md", "references/build.md"))
+@pytest.mark.parametrize("relative", ("SKILL.md", "hunt/build/SKILL.md", "hunt/plan/SKILL.md"))
 def test_goal_mode_cannot_return_without_cards(candidate, relative):
     path = candidate / relative
     path.write_text(path.read_text() + "\nEach judge turn is one hop under goal_mode.\n")
     errors = []
     validator.validate_searcher_entries(candidate, errors)
-    assert any("has no goal_mode" in error and path.name in error for error in errors)
+    assert any("has no goal_mode" in error and str(path) in error for error in errors)
 
 
 @pytest.mark.parametrize("link, expected", (
     ("missing.md", "broken searcher link"),
-    ("../../outside.md", "searcher link escapes pipeline"),
+    ("../../../outside.md", "searcher link escapes pipeline"),
 ))
 def test_links_are_contained_and_real(candidate, link, expected):
-    entry = candidate / "lookup-searcher/SKILL.md"
+    entry = candidate / "lookup/build/SKILL.md"
     entry.write_text(entry.read_text() + f"\n[bad]({link})\n")
     errors = []
     validator.validate_searcher_entries(candidate, errors)
@@ -208,7 +239,7 @@ def test_links_are_contained_and_real(candidate, link, expected):
 
 
 def test_nested_symlink_cannot_hide_instructions(candidate):
-    (candidate / "hidden").symlink_to(candidate / "lookup-searcher", target_is_directory=True)
+    (candidate / "hidden").symlink_to(candidate / "lookup", target_is_directory=True)
     errors = []
     assert validator.validate_searcher_entries(candidate, errors) == {}
     assert any("searcher pipeline must not contain symlinks" in error for error in errors)
@@ -217,7 +248,7 @@ def test_nested_symlink_cannot_hide_instructions(candidate):
 @pytest.mark.parametrize("name", ENTRIES)
 def test_worker_wires_entries_and_detects_learned_collision(tmp_path, monkeypatch, name):
     skills = tmp_path / "profiles/searcher/skills"
-    shutil.copytree(PIPELINE, skills / "searcher-pipeline")
+    shutil.copytree(PIPELINE, skills / "pipeline")
     shutil.copytree(TECHNIC, skills / "technic")
     monkeypatch.setattr(validator, "HERMES_ROOT", tmp_path)
     # Learned skills live in the profile HOME, beside the links into the tree.
@@ -232,6 +263,7 @@ def test_worker_wires_entries_and_detects_learned_collision(tmp_path, monkeypatc
     monkeypatch.setattr(validator, "validate_plugin_enabled", plugins)
     errors = []
     assert validator.validate_worker("searcher", errors) == (len(ENTRIES) + len(TECHNICS), 0)
+    assert len(ENTRIES) == 6
     assert not errors
     boundary.assert_called_once()
     plugins.assert_called_once()
@@ -245,36 +277,47 @@ def test_worker_wires_entries_and_detects_learned_collision(tmp_path, monkeypatc
 
 @pytest.mark.parametrize("name", ENTRIES)
 def test_frontmatter_must_fit_runtime_prefix(candidate, name):
-    entry = candidate / name / "SKILL.md"
+    entry = candidate / ENTRY_PATHS[name]
     entry.write_text(entry.read_text().replace("author: CraftSamo", "padding: " + "x" * 4000 + "\nauthor: CraftSamo"))
     errors = []
     validator.validate_searcher_entries(candidate, errors)
-    assert any("4000" in error or "4,000" in error for error in errors)
+    assert f"searcher frontmatter exceeds discovery prefix: {name}" in errors
 
 
 @pytest.mark.parametrize("name", ENTRIES)
 @pytest.mark.parametrize("section", ("## Plan", "## Build", "## Output template", "## Verification", "## Handoff"))
-def test_mode_must_own_every_stage_section(candidate, name, section):
-    entry = candidate / name / "SKILL.md"
+def test_stage_entry_must_own_its_stage_sections(candidate, name, section):
+    _, stage = STAGE_ENTRIES[name]
+    entry = candidate / ENTRY_PATHS[name]
     entry.write_text(entry.read_text().replace(f"\n{section}\n", "\n## Removed\n"))
     errors = []
     validator.validate_searcher_entries(candidate, errors)
-    assert f"searcher entry missing {section}: {name}" in errors
+    message = f"searcher entry missing {section}: {name}"
+    assert (message in errors) == (section in STAGE_SECTIONS[stage])
 
 
-@pytest.mark.parametrize("stage", STAGES)
-@pytest.mark.parametrize("section", ("## Output template", "## Verification", "## Handoff"))
-def test_stage_reference_owns_its_sections(candidate, stage, section):
-    ref = candidate / f"references/{stage}.md"
-    ref.write_text(ref.read_text().replace(section, "## Removed"))
+@pytest.mark.parametrize("tag", ("Plan", "Build"))
+def test_kernel_must_own_both_stages(candidate, tag):
+    root = candidate / "SKILL.md"
+    root.write_text(root.read_text().replace(f"</{tag}>", ""))
     errors = []
     validator.validate_searcher_entries(candidate, errors)
-    assert f"searcher stage reference missing {section}: {stage}.md" in errors
+    assert f"searcher kernel must own the <{tag}> stage" in errors
+
+
+@pytest.mark.parametrize("tag", ("Plan", "Build"))
+def test_kernel_stage_owns_its_mechanics(tag):
+    text = kernel_section(tag)
+    if tag == "Plan":
+        assert "Plan's reply uses this template:" in text and "Agreement needed:" in text
+    else:
+        for phrase in ("Checked:", "Unmet:", "Unverified:", "Budget / continuity:", "**Check.**"):
+            assert phrase in text
 
 
 def test_declared_policy_not_model_routing_compliance():
     root = flat(PIPELINE / "SKILL.md")
-    plan, build = (flat(PIPELINE / f"references/{stage}.md") for stage in STAGES)
+    plan, build = kernel_section("Plan"), kernel_section("Build")
     for phrase in (
         "no reset, new grant or replay", "Fields or transport",
     ):
@@ -291,9 +334,9 @@ def test_declared_policy_not_model_routing_compliance():
     ):
         assert phrase.lower() in plan.lower()
     assert "same scope and remaining budget" in build
-    assert "expansion goes to [Plan](plan.md) and client agreement" in build
+    assert "expansion goes to Plan and client agreement" in build
     assert "caller final acceptance or a new self numeric score" in build
-    assert "## Check" in build and "as Build's last step" in build and "is Unmet, not a pass" in build
+    assert "**Check.**" in build and "as Build's last step" in build and "is Unmet, not a pass" in build
     assert not (PIPELINE / "references/qa.md").exists()
     assert "Interpreted as:" in build and "direct settled briefs" in build
     assert "valid cards" not in build
@@ -301,15 +344,15 @@ def test_declared_policy_not_model_routing_compliance():
 
 
 @pytest.mark.parametrize("name", ENTRIES)
-def test_kernel_must_route_every_mode(candidate, name):
+def test_kernel_must_route_every_stage_entry(candidate, name):
     root = candidate / "SKILL.md"
-    root.write_text(root.read_text().replace(f"({name}/SKILL.md)", ""))
+    root.write_text(root.read_text().replace(f"({ENTRY_PATHS[name]})", ""))
     errors = []
     validator.validate_searcher_entries(candidate, errors)
     assert f"searcher kernel does not route {name}" in errors
 
 
-@pytest.mark.parametrize("relative", sorted(SHARED | PLATFORMS | {CAPABILITIES}))
+@pytest.mark.parametrize("relative", sorted(PLATFORMS | {CAPABILITIES}))
 def test_kernel_must_link_every_shared_reference(candidate, relative):
     root = candidate / "SKILL.md"
     root.write_text(root.read_text().replace(f"({relative})", ""))
@@ -319,29 +362,40 @@ def test_kernel_must_link_every_shared_reference(candidate, relative):
 
 
 @pytest.mark.parametrize("name", ENTRIES)
-@pytest.mark.parametrize("stage", STAGES)
-def test_mode_must_link_every_stage(candidate, name, stage):
-    entry = candidate / name / "SKILL.md"
-    entry.write_text(entry.read_text().replace(f"(../references/{stage}.md)", ""))
+def test_stage_entry_must_link_its_sibling_stage(candidate, name):
+    _, stage = STAGE_ENTRIES[name]
+    other = "build" if stage == "plan" else "plan"
+    entry = candidate / ENTRY_PATHS[name]
+    entry.write_text(entry.read_text().replace(f"(../{other}/SKILL.md)", ""))
     errors = []
     validator.validate_searcher_entries(candidate, errors)
-    assert f"searcher entry does not link stage reference {stage}: {name}" in errors
+    assert f"searcher entry does not link its {other} stage: {name}" in errors
 
 
-@pytest.mark.parametrize("name", ENTRIES)
+@pytest.mark.parametrize("name", [n for n in ENTRIES if STAGE_ENTRIES[n][1] == "build"])
 @pytest.mark.parametrize("platform", SERVICES)
-def test_mode_must_link_every_service(candidate, name, platform):
-    entry = candidate / name / "SKILL.md"
-    entry.write_text(entry.read_text().replace(f"(../references/platforms/{platform}.md)", ""))
+def test_build_entry_must_link_every_service(candidate, name, platform):
+    entry = candidate / ENTRY_PATHS[name]
+    entry.write_text(entry.read_text().replace(f"(../../references/platforms/{platform}.md)", ""))
     errors = []
     validator.validate_searcher_entries(candidate, errors)
     assert f"searcher entry does not link platform reference {platform}: {name}" in errors
 
 
+@pytest.mark.parametrize("name", [n for n in ENTRIES if STAGE_ENTRIES[n][1] == "plan"])
+@pytest.mark.parametrize("reference", ("references/platforms/x.md", "references/gather.md"))
+def test_plan_entry_reads_supplied_material_only(candidate, name, reference):
+    entry = candidate / ENTRY_PATHS[name]
+    entry.write_text(entry.read_text() + f"\nSee {reference}.\n")
+    errors = []
+    validator.validate_searcher_entries(candidate, errors)
+    assert f"searcher plan entry reads supplied material only: {name}" in errors
+
+
 @pytest.mark.parametrize("name", ENTRIES)
 def test_mode_must_link_the_technic_capabilities(candidate, name):
-    entry = candidate / name / "SKILL.md"
-    entry.write_text(entry.read_text().replace("(../references/capabilities.md)", ""))
+    entry = candidate / ENTRY_PATHS[name]
+    entry.write_text(entry.read_text().replace("(../../references/capabilities.md)", ""))
     errors = []
     validator.validate_searcher_entries(candidate, errors)
     assert f"searcher entry does not link the technic capabilities: {name}" in errors
@@ -367,7 +421,8 @@ def test_chain_reads_are_retrieval_without_verdicts():
     assert "`state_unread`" in evm and "zero address is unset" in evm and "`block`" in evm
     assert "`slot`" in solana
     for name in ENTRIES:
-        assert "with the check against this entry's Verification" in flat(PIPELINE / name / "SKILL.md")
+        if STAGE_ENTRIES[name][1] == "build":
+            assert "with the check against this entry's Verification" in flat(PIPELINE / ENTRY_PATHS[name])
     assert "latest 50 signatures" in solana and "no paging" in solana
     assert "`program`" in solana and "slot" in solana
     root = flat(PIPELINE / "SKILL.md")
@@ -410,10 +465,10 @@ def test_x_reference_keeps_x_search_first_and_names_the_account_read():
 
 def technic_candidate(tmp_path):
     skills = tmp_path / "skills"
-    shutil.copytree(PIPELINE, skills / "searcher-pipeline")
+    shutil.copytree(PIPELINE, skills / "pipeline")
     shutil.copytree(TECHNIC, skills / "technic")
     leaves = {path.parent.name: path for path in (skills / "technic").glob("*/SKILL.md")}
-    return skills / "searcher-pipeline", leaves
+    return skills / "pipeline", leaves
 
 
 def test_technics_are_routed_to_their_mode():
@@ -435,7 +490,7 @@ def test_technics_are_routed_to_their_mode():
 
 @pytest.mark.parametrize("name", sorted(TECHNICS))
 @pytest.mark.parametrize("token", ('skill_view(name="searcher-pipeline")', "never replaces", "caller's release",
-                                   "${HERMES_SKILL_DIR}/../../searcher-pipeline/SKILL.md"))
+                                   "${HERMES_SKILL_DIR}/../../pipeline/SKILL.md"))
 def test_technic_cannot_drop_its_mode_or_recovery(tmp_path, name, token):
     pipeline, leaves = technic_candidate(tmp_path)
     leaves[name].write_text(leaves[name].read_text().replace(token, "removed"))
@@ -444,11 +499,23 @@ def test_technic_cannot_drop_its_mode_or_recovery(tmp_path, name, token):
     assert f"searcher technic ReadBeforeWork missing {token}: {name}" in errors
 
 
+@pytest.mark.parametrize("name", sorted(TECHNICS))
+def test_technic_loads_the_stage_entries_of_its_mode(tmp_path, name):
+    pipeline, leaves = technic_candidate(tmp_path)
+    token = f'skill_view(name="<stage>-{TECHNICS[name]}")'
+    assert token in leaves[name].read_text()
+    leaves[name].write_text(leaves[name].read_text().replace(token, "removed"))
+    errors = []
+    validator.validate_searcher_technics(pipeline, leaves, errors)
+    assert f"searcher technic ReadBeforeWork missing {token}: {name}" in errors
+    assert 'file_path="references/<stage>.md"' not in leaves[name].read_text()
+
+
 def test_technic_mode_must_match_its_capability_row(tmp_path):
     pipeline, leaves = technic_candidate(tmp_path)
     path = leaves["release-digest"]
     path.write_text(path.read_text().replace("mode: sweep", "mode: hunt").replace(
-        'skill_view(name="sweep-searcher")', 'skill_view(name="hunt-searcher")'))
+        'skill_view(name="<stage>-sweep")', 'skill_view(name="<stage>-hunt")'))
     errors = []
     validator.validate_searcher_technics(pipeline, leaves, errors)
     assert errors == ["searcher capability row routes release-digest to another mode than hunt"]
@@ -480,7 +547,7 @@ def test_public_footprint_keeps_its_floors():
 
 
 def test_the_assistant_names_every_technic_with_its_unit():
-    caller = (HERMES / "profiles/assistant/skills/assistant-pipeline/plan-assistant-search/SKILL.md").read_text()
+    caller = (HERMES / "profiles/assistant/skills/pipeline/search/plan/SKILL.md").read_text()
     rows = {}
     for line in caller.splitlines():
         cells = [cell.strip() for cell in line.strip("|").split("|")]

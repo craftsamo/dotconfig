@@ -19,7 +19,7 @@ from unittest import mock
 import hermes_yaml as yaml
 
 HERMES_ROOT = Path(__file__).resolve().parents[2]
-PIPELINE = HERMES_ROOT / "profiles" / "audio-creator" / "skills" / "audio-creator-pipeline"
+PIPELINE = HERMES_ROOT / "profiles" / "audio-creator" / "skills" / "pipeline"
 SCRIPT = PIPELINE / "scripts" / "speech-media.py"
 
 try:
@@ -40,7 +40,7 @@ speech_media = load_module()
 
 class ProsodyContract(unittest.TestCase):
     def test_leaf_offers_prosody_as_a_measurement_only(self):
-        text = (PIPELINE / "analyze" / "speech" / "SKILL.md").read_text()
+        text = (PIPELINE / "speech" / "analyze" / "SKILL.md").read_text()
         meta = yaml.safe_load(text.split("---", 2)[1])
         field = meta["metadata"]["hermes"]["form"]["prosody"]
         self.assertEqual((field["required"], field["options"]), (False, ["yes", "no"]))

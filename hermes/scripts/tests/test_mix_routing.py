@@ -1,7 +1,7 @@
 """Routing/topology tests for the Mix subject on the audio-creator profile.
 
 Mix places already-finished sources on a shared timeline: create/edit/analyze
-only (no generate/mix - it never synthesizes audio). It reuses the existing
+only (no mix/generate - it never synthesizes audio). It reuses the existing
 speech/sfx/music toolsets/plugins and adds none of its own.
 """
 
@@ -14,7 +14,7 @@ from unittest.mock import patch
 import hermes_yaml as yaml
 
 HERMES_ROOT = Path(__file__).resolve().parents[2]
-PIPELINE = HERMES_ROOT / "profiles" / "audio-creator" / "skills" / "audio-creator-pipeline"
+PIPELINE = HERMES_ROOT / "profiles" / "audio-creator" / "skills" / "pipeline"
 
 
 class MixRoutingTest(unittest.TestCase):
@@ -26,15 +26,15 @@ class MixRoutingTest(unittest.TestCase):
 
     def test_mix_has_create_edit_analyze_leaves_and_no_generate(self) -> None:
         for verb in ("create", "edit", "analyze"):
-            self.assertTrue((PIPELINE / verb / "mix" / "SKILL.md").is_file())
-        self.assertFalse((PIPELINE / "generate" / "mix").exists())
+            self.assertTrue((PIPELINE / "mix" / verb / "SKILL.md").is_file())
+        self.assertFalse((PIPELINE / "mix" / "generate").exists())
 
     def test_mix_frontmatter_closes_before_the_4000_char_discovery_cutoff(self) -> None:
         """Hermes discovery truncates before parsing YAML; an incomplete closing fence
         falls back to the parent directory name, collapsing every mix leaf into one
         generic 'mix' skill despite the topology validator passing."""
         for verb in ("create", "edit", "analyze"):
-            text = (PIPELINE / verb / "mix" / "SKILL.md").read_text(encoding="utf-8")
+            text = (PIPELINE / "mix" / verb / "SKILL.md").read_text(encoding="utf-8")
             fence = text.index("---", 3)
             self.assertLess(fence, 4000, f"{verb}/mix frontmatter fence must close within 4000 chars")
 
@@ -43,13 +43,13 @@ class MixRoutingTest(unittest.TestCase):
 
         expected_names = {"create": "create-mix", "edit": "edit-mix", "analyze": "analyze-mix"}
         for verb, expected_name in expected_names.items():
-            text = (PIPELINE / verb / "mix" / "SKILL.md").read_text(encoding="utf-8")
+            text = (PIPELINE / "mix" / verb / "SKILL.md").read_text(encoding="utf-8")
             frontmatter, _ = parse_frontmatter(text[:4000])
             self.assertEqual(expected_name, frontmatter.get("name"))
 
     def test_mix_leaves_declare_free_cost_and_hands_metadata(self) -> None:
         for verb in ("create", "edit", "analyze"):
-            text = (PIPELINE / verb / "mix" / "SKILL.md").read_text(encoding="utf-8")
+            text = (PIPELINE / "mix" / verb / "SKILL.md").read_text(encoding="utf-8")
             frontmatter = yaml.safe_load(text.split("---", 2)[1])
             metadata = frontmatter["metadata"]["hermes"]
             self.assertEqual("hands", metadata["category"])

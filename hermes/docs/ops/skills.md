@@ -9,7 +9,7 @@ Part of the Hermes mechanics docs — entry: [`README.md`](../../README.md).
 
 `~/.hermes/skills` and each profile's `skills/` are real machine-local
 directories holding one link per tracked entry of this repo
-(`default-pipeline`, `<profile>-pipeline`, `technic`); `learned/` and Hermes'
+(`pipeline`, `technic`); `learned/` and Hermes'
 bookkeeping sit beside those links, never in the repo. Nothing inside the
 repo's skill trees is a link. `scripts/validate-profile-skills.py` enforces
 the placement rules below. How an
@@ -19,11 +19,11 @@ entry skill is loaded at runtime is in [`../topology.md`](../topology.md)
 
 ## Skill placement
 
-Shared `skills/` holds only `default-pipeline/` (and, in `~/.hermes/skills`,
+Shared `skills/` holds only `pipeline/` (and, in `~/.hermes/skills`,
 the `learned/` Hermes writes); every other skill lives under its profile's
 `skills/`.
 
-- **One root pipeline skill per worker**, `<profile>-pipeline` (lifecycle +
+- **One root pipeline skill per worker**, `<profile>-pipeline` in `pipeline/` (lifecycle +
   capability router, auto-loaded by its operating contract). Entry and leaf
   shapes per profile are in the per-profile docs ([`../profiles/`](../profiles/)).
   Researcher and Searcher share `references/{plan,build}.md` stages across
@@ -49,7 +49,7 @@ skills=` in its summary) and `skills list` does not show them;
   private technic shelf, `config.yaml` and `SOUL.md` live in the overlay; see
   [`tracking.md`](./tracking.md) "Tracked vs ignored"). Its pinned Telegram
   topics bind no skill; their contracts are `channel_prompts` entries. Its tests
-  (`assistant-pipeline/tests/`) read the private `config.yaml` only through an
+  (`profiles/assistant/skills/pipeline/tests/`) read the private `config.yaml` only through an
   explicit `HERMES_PRIVATE_ROOT`.
 - **The Assistant's private technic shelf** holds knowledge that must not be
   public — account names, businesses and people the pipeline routes to by name
@@ -95,7 +95,7 @@ skills=` in its summary) and `skills list` does not show them;
   it back). A seeded `SKILL.md` fails `validate-profile-skills.py` with
   `unexpected skill root`. So **after every `hermes update`**, run the validator
   and delete any category directory under `profiles/*/skills/` that is not
-  `<profile>-pipeline`, `technic` or `learned`; the skills stay readable via
+  `pipeline`, `technic` or `learned`; the skills stay readable via
   `skills.external_dirs`.
 - **Private and shared stores.** The data-skill cluster of the private working
   area lives in the private overlay and is read through `skills.external_dirs`

@@ -21,7 +21,7 @@ RETIRED_ENTRIES = ("plan-creator", "build-creator", "qa-creator")
 
 
 def pipeline(profile):
-    return ROOT / f"profiles/{profile}/skills/{profile}-pipeline"
+    return ROOT / f"profiles/{profile}/skills/pipeline"
 
 
 def text(path):
@@ -44,7 +44,7 @@ def creator_config():
 
 @pytest.mark.parametrize("entry", ENTRIES)
 def test_creator_direct_entry_contract_offline_mechanical(entry):
-    document = text(pipeline("creator") / entry / "SKILL.md")
+    document = text(pipeline("creator") / entry.split("-", 1)[0] / "SKILL.md")
     context = block(document, "ReadBeforeWork")
     assert ENTRIES[entry] in document
     assert document.index("</ReadBeforeWork>") < document.index(ENTRIES[entry])
@@ -66,7 +66,7 @@ def test_creator_direct_entry_contract_offline_mechanical(entry):
     ):
         assert required in context, required
     kernel = text(pipeline("creator") / "SKILL.md")
-    assert kernel.count(f"({entry}/SKILL.md)") >= 1
+    assert kernel.count(f"({entry.split('-', 1)[0]}/SKILL.md)") >= 1
     assert not (pipeline("creator") / entry / "references").exists()
 
 
@@ -82,8 +82,8 @@ def test_creator_references_point_back_to_kernel():
 
 def test_creator_is_a_read_only_advisor_offline_mechanical():
     kernel = compact(text(pipeline("creator") / "SKILL.md"))
-    propose = compact(text(pipeline("creator") / "propose-creator/SKILL.md"))
-    revise = compact(text(pipeline("creator") / "revise-creator/SKILL.md"))
+    propose = compact(text(pipeline("creator") / "propose/SKILL.md"))
+    revise = compact(text(pipeline("creator") / "revise/SKILL.md"))
     assert "Creator is an advisor" in kernel
     assert "The Assistant is the only client" in kernel
     assert "never its `<Procedure>`" in kernel
@@ -117,9 +117,9 @@ def test_creator_turn_selection_and_retired_paths():
         assert required in prompt, required
     skills = ROOT / "profiles/creator/skills"
     for entry in RETIRED_ENTRIES:
-        assert not (skills / "creator-pipeline" / entry).exists()
+        assert not (skills / "pipeline" / entry).exists()
     for retired in ("capabilities.md", "craft.md", "legacy"):
-        assert not (skills / "creator-pipeline/references" / retired).exists()
+        assert not (skills / "pipeline/references" / retired).exists()
     assert not any(p.is_file() and p.name != ".gitkeep" for p in (skills / "technic").rglob("*"))
     for path in skills.rglob("*.md"):
         body = text(path)
@@ -143,7 +143,7 @@ def test_creator_config_has_no_generation_or_hands_reach():
     assert not config.get("platforms", {}).get("telegram")
     external = [str(p) for p in config["skills"]["external_dirs"]]
     for hands in ("image-creator", "video-creator", "audio-creator"):
-        assert f"~/.hermes/profiles/{hands}/skills/{hands}-pipeline" in external
+        assert f"~/.hermes/profiles/{hands}/skills/pipeline" in external
 
 
 def test_creator_names_motion_by_feel_and_tell():
@@ -152,7 +152,7 @@ def test_creator_names_motion_by_feel_and_tell():
     kernel = compact(text(pipeline("creator") / "SKILL.md"))
     assert 'skill_view(name="motion-vocabulary")' in kernel
     assert "the `references/video/` builds are the producer's" in kernel
-    propose = compact(text(pipeline("creator") / "propose-creator/SKILL.md"))
-    revise = compact(text(pipeline("creator") / "revise-creator/SKILL.md"))
+    propose = compact(text(pipeline("creator") / "propose/SKILL.md"))
+    revise = compact(text(pipeline("creator") / "revise/SKILL.md"))
     for body in (propose, revise):
         assert "Feel column" in body and "tell" in body

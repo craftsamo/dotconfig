@@ -18,15 +18,14 @@ metadata:
 
 <ReadBeforeWork>
 
-This technic adds to `lookup-searcher` and never replaces it. Require the
+This technic adds to the lookup mode and never replaces it. Require the
 full-body kernel (`skill_view(name="searcher-pipeline")`), the lookup entry
-(`skill_view(name="lookup-searcher")`), the current stage reference
-(`skill_view(name="searcher-pipeline", file_path="references/<stage>.md")`)
-and this body in current context, not a past load or summary. If unchanged is
-returned while the earlier body is unavailable, use read_file on
-`${HERMES_SKILL_DIR}/SKILL.md` and the kernel's canonical
-`${HERMES_SKILL_DIR}/../../searcher-pipeline/SKILL.md`; stop the affected action
-if they stay unavailable. Selecting this technic is not the caller's release
+of the current stage (`skill_view(name="<stage>-lookup")`, with
+`<stage>` being `plan` or `build`) and this body in current context, not a
+past load or summary. If unchanged is returned while the earlier body is
+unavailable, use read_file on `${HERMES_SKILL_DIR}/SKILL.md` and the kernel's
+canonical `${HERMES_SKILL_DIR}/../../pipeline/SKILL.md`; stop the affected
+action if they stay unavailable. Selecting this technic is not the caller's release
 and never widens the agreed scope or cap.
 
 </ReadBeforeWork>

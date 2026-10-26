@@ -6,8 +6,8 @@ import pytest
 import hermes_yaml as yaml
 
 
-PIPELINE = Path(__file__).resolve().parents[2] / "profiles/writer/skills/writer-pipeline"
-MARKETER = PIPELINE.parents[2] / "marketer/skills/marketer-pipeline"
+PIPELINE = Path(__file__).resolve().parents[2] / "profiles/writer/skills/pipeline"
+MARKETER = PIPELINE.parents[2] / "marketer/skills/pipeline"
 DESTINATIONS = ["landing-page", "email", "announcement"]
 CRAFT = {
     "landing-page": (
@@ -25,7 +25,7 @@ def content(path):
 
 @pytest.mark.parametrize("verb", ["write", "edit", "analyze"])
 def test_copy_forms_and_local_references(verb):
-    root = PIPELINE / verb / "copy"
+    root = PIPELINE / "copy" / verb
     text = (root / "SKILL.md").read_text()
     assert text.index("---", 3) + 3 < 4000
     data = yaml.safe_load(text.split("---", 2)[1])
@@ -59,15 +59,15 @@ def test_copy_forms_and_local_references(verb):
 def test_copy_routing_and_script_boundary():
     kernel = content(PIPELINE / "SKILL.md")
     for verb in ("write", "edit", "analyze"):
-        assert f"]({verb}/copy/SKILL.md)" in kernel
+        assert f"](copy/{verb}/SKILL.md)" in kernel
     assert "Existing marketing-copy briefs select this family" in kernel
     assert "Ordinary correspondence, social posts and factual release notes" in kernel
-    assert "](write/script/SKILL.md)" in kernel
-    assert (PIPELINE / "write/script/SKILL.md").is_file()
+    assert "](script/write/SKILL.md)" in kernel
+    assert (PIPELINE / "script/write/SKILL.md").is_file()
 
 
 def test_write_does_not_manufacture_proof_or_an_action():
-    text = content(PIPELINE / "write/copy/SKILL.md")
+    text = content(PIPELINE / "copy/write/SKILL.md")
     assert "do not force a CTA into every announcement" in text
     assert "Do not invent proof or silently weaken a mandatory promise" in text
     assert "Omit an optional proof slot when no evidence exists" in text
@@ -76,7 +76,7 @@ def test_write_does_not_manufacture_proof_or_an_action():
 
 
 def test_edit_preserves_protected_and_untouched_terms():
-    text = content(PIPELINE / "edit/copy/SKILL.md")
+    text = content(PIPELINE / "copy/edit/SKILL.md")
     assert "including untouched fields" in text
     assert "both requested and supported" in text
     assert "If protected text conflicts with evidence, return that conflict" in text
@@ -85,7 +85,7 @@ def test_edit_preserves_protected_and_untouched_terms():
 
 
 def test_analysis_is_not_new_copy_or_a_performance_verdict():
-    text = content(PIPELINE / "analyze/copy/SKILL.md")
+    text = content(PIPELINE / "copy/analyze/SKILL.md")
     assert "do not require a full writing brief" in text.lower()
     assert "Description need not find defects" in text
     assert "it needs no new headline" in text
@@ -95,7 +95,7 @@ def test_analysis_is_not_new_copy_or_a_performance_verdict():
 
 
 def test_marketer_advises_on_copy_without_writing_or_accepting_it():
-    review = content(MARKETER / "review-marketer/references/content.md")
+    review = content(MARKETER / "review/references/content.md")
     assert "Do not score prose craft, shorten, strengthen, add urgency or run a humanizer" in review
     assert "let the client return it to the producer" in review
     assert "PASONA" not in review
@@ -103,7 +103,7 @@ def test_marketer_advises_on_copy_without_writing_or_accepting_it():
     prompt = " ".join(config["agent"]["system_prompt"].split())
     assert "never a replacement manuscript" in prompt
     assert "references/acceptance/index.md" not in prompt
-    assert "writer-pipeline" not in str(config["skills"]["external_dirs"])
+    assert "writer/skills/pipeline" not in str(config["skills"]["external_dirs"])
     kernel = content(MARKETER / "SKILL.md")
     assert "Writer authors post/article/copy/script text and Creator makes media" in kernel
     assert "never a substitute public manuscript" in kernel
@@ -113,7 +113,7 @@ def test_marketer_advises_on_copy_without_writing_or_accepting_it():
 @pytest.mark.parametrize("destination", DESTINATIONS)
 def test_references_are_operation_specific(destination):
     texts = {
-        (PIPELINE / verb / f"copy/references/{destination}.md").read_text()
+        (PIPELINE / "copy" / verb / f"references/{destination}.md").read_text()
         for verb in ("write", "edit", "analyze")
     }
     assert len(texts) == 3
@@ -122,7 +122,7 @@ def test_references_are_operation_specific(destination):
 @pytest.mark.parametrize("verb", ["write", "edit", "analyze"])
 @pytest.mark.parametrize("destination", DESTINATIONS)
 def test_copy_craft_has_grounded_examples_and_operation_boundaries(verb, destination):
-    reference = PIPELINE / verb / f"copy/references/{destination}.md"
+    reference = PIPELINE / "copy" / verb / f"references/{destination}.md"
     raw = reference.read_text()
     text = " ".join(raw.split()).lower()
     assert 40 <= len(raw.splitlines()) <= 90

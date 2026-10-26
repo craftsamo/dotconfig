@@ -18,7 +18,7 @@ from pathlib import Path
 
 
 HERMES = Path(__file__).resolve().parents[2]
-PIPELINE = HERMES / "profiles/searcher/skills/searcher-pipeline"
+PIPELINE = HERMES / "profiles/searcher/skills/pipeline"
 PLUGIN = HERMES / "plugins/orchestration/specialist-call/__init__.py"
 
 spec = importlib.util.spec_from_file_location("specialist_call_reliability", PLUGIN)
@@ -64,19 +64,25 @@ def test_kernel_and_prompt_say_reading_is_allowed_while_writing_is_not():
     assert "Social platforms are read-only" not in prompt
 
 
+def kernel_build() -> str:
+    match = re.search(r"<Build>(.*?)</Build>", (PIPELINE / "SKILL.md").read_text(), re.S)
+    assert match
+    return " ".join(match.group(1).split())
+
+
 def test_build_separates_the_turn_budget_from_a_reason_to_stop():
-    text = flat(PIPELINE / "references/build.md")
+    text = kernel_build()
     for phrase in ("`Turn budget:` line is the time left in the turn, not a reason to stop",
                    "never call the budget spent when it is not",
                    "durable path the brief names",
                    "Never claim a commit or a save that did not happen",
                    "a checkpoint here is a saved file, not a Git commit"):
         assert phrase in text
-    assert "the stop reason is true" in text
+    assert "A stop needs a true reason" in text and "the stop reason is true" in text
 
 
 def test_qa_treats_an_untrue_stop_as_unmet():
-    text = flat(PIPELINE / "references/build.md")
+    text = kernel_build()
     assert "Check the stop reason too" in text and "is Unmet, not a pass" in text
 
 
