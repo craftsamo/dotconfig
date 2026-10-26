@@ -40,7 +40,7 @@
         // On a limit a session reaches these last, after the subscription
         // and the credit lanes, in the order listed.
         "claudeAccounts": {
-          "sub": "Sub OAuth"
+          "main": "Main OAuth"
         }
       }
     }
@@ -463,21 +463,21 @@
     // real model (modelID) and inherit its variants, limits and prices.
     "anthropic": {
       "models": {
-        "claude-fable-5-1-sub": {
+        "claude-fable-5-1-main": {
           "modelID": "claude-fable-5-1",
-          "name": "Claude Fable 5.1 (Sub OAuth)",
+          "name": "Claude Fable 5.1 (Main OAuth)",
         },
-        "claude-opus-5-5-sub": {
+        "claude-opus-5-5-main": {
           "modelID": "claude-opus-5-5",
-          "name": "Claude Opus 5.5 (Sub OAuth)",
+          "name": "Claude Opus 5.5 (Main OAuth)",
         },
-        "claude-sonnet-5-5-sub": {
+        "claude-sonnet-5-5-main": {
           "modelID": "claude-sonnet-5-5",
-          "name": "Claude Sonnet 5.5 (Sub OAuth)",
+          "name": "Claude Sonnet 5.5 (Main OAuth)",
         },
-        "claude-haiku-5-5-sub": {
+        "claude-haiku-5-5-main": {
           "modelID": "claude-haiku-5-5",
-          "name": "Claude Haiku 5.5 (Sub OAuth)",
+          "name": "Claude Haiku 5.5 (Main OAuth)",
         },
       },
     },
