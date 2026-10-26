@@ -12,7 +12,7 @@ answer). Plan conversationally, backward from the goal:
    genuinely uncertain, open the relevant resident session early and ask
    for a feasibility read or a cheap sample (see the capability plan
    file). For engineering, ground the plan in the repo with an OpenCode
-   plan run (`../../plan-assistant-engineering/SKILL.md`).
+   plan run (`../../engineering/plan/SKILL.md`).
 3. **Decompose to tiers** — split the work into stages and assign each a
    tier. Everything that is not light is a resident
    session; the rest stays inline. If a stage mixes concerns, decompose
@@ -62,9 +62,9 @@ entry whose full instructions are already available.
 
 | Capability | File | Owns |
 | --- | --- | --- |
-| engineering | [plan-assistant-engineering](../../plan-assistant-engineering/SKILL.md) | The user's intent relayed to OpenCode, its proposals relayed back, the decision log, approval per Phase |
-| creative | [plan-assistant-creative](../../plan-assistant-creative/SKILL.md) | Client outcome, optional reference research, grants and acceptance criteria; Creator proposes directions and the hands produce |
-| writing | [plan-assistant-writing](../../plan-assistant-writing/SKILL.md) | type decisions, unit decomposition (outline / piece), sources |
-| research | [plan-assistant-research](../../plan-assistant-research/SKILL.md) | purpose and constraints through the primary Client; Researcher proposal and agreement |
-| search | [plan-assistant-search](../../plan-assistant-search/SKILL.md) | purpose and constraints; Searcher-proposed retrieval scope, coverage and units for agreement |
-| marketing | [plan-assistant-marketing](../../plan-assistant-marketing/SKILL.md) | strategy questions to Marketer; Writer/hands units, destination and exact remote-save consent planned by you |
+| engineering | [plan-assistant-engineering](../../engineering/plan/SKILL.md) | The user's intent relayed to OpenCode, its proposals relayed back, the decision log, approval per Phase |
+| creative | [plan-assistant-creative](../../creative/plan/SKILL.md) | Client outcome, optional reference research, grants and acceptance criteria; Creator proposes directions and the hands produce |
+| writing | [plan-assistant-writing](../../writing/plan/SKILL.md) | type decisions, unit decomposition (outline / piece), sources |
+| research | [plan-assistant-research](../../research/plan/SKILL.md) | purpose and constraints through the primary Client; Researcher proposal and agreement |
+| search | [plan-assistant-search](../../search/plan/SKILL.md) | purpose and constraints; Searcher-proposed retrieval scope, coverage and units for agreement |
+| marketing | [plan-assistant-marketing](../../marketing/plan/SKILL.md) | strategy questions to Marketer; Writer/hands units, destination and exact remote-save consent planned by you |

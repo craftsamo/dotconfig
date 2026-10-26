@@ -78,7 +78,7 @@ class LeafValidatorTest(unittest.TestCase):
 # ── commissioning + video-creator config/pipeline describe create-ad / analyze-ad ─
 
 ASSISTANT_CREATIVE = (HERMES_ROOT / "profiles/assistant/skills/pipeline/"
-                      "execute-assistant-creative")
+                      "creative/execute")
 CREATOR_PIPELINE = HERMES_ROOT / "profiles/creator/skills/pipeline"
 
 

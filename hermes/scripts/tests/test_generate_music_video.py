@@ -35,7 +35,7 @@ MUSIC_VIDEO_SKILL = MUSIC_VIDEO_LEAF_DIR / "SKILL.md"
 CREATOR_PIPELINE = VALIDATOR.HERMES_ROOT / "profiles" / "creator" / "skills" / "pipeline"
 COMMISSIONING = (
     VALIDATOR.HERMES_ROOT / "profiles" / "assistant" / "skills" / "pipeline"
-    / "execute-assistant-creative"
+    / "creative" / "execute"
 )
 
 

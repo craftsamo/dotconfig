@@ -32,9 +32,9 @@ The single source of truth is the assistant's tree:
 ```
 ~/.hermes/profiles/assistant/skills/pipeline/
   SKILL.md
-  chat-assistant/SKILL.md
-  {plan,execute,qa}-assistant-<domain>/SKILL.md
-  <entry>/references/                 # entry-owned details, creative legacy
+  chat/SKILL.md                       # chat-assistant
+  <domain>/{plan,execute,qa}/SKILL.md # {plan,execute,qa}-assistant-<domain>
+  <entry dir>/references/             # entry-owned details, creative legacy
   references/plan/index.md
   references/execute/{index,resident-sessions}.md
   references/quality-assurance/index.md
@@ -42,16 +42,18 @@ The single source of truth is the assistant's tree:
 
 Use `read_file` on the known root's `SKILL.md` for the common contract
 and tier litmus. Discover available mode/domain entries
-with a bounded filesystem listing of that root's immediate child directories
-and their `SKILL.md` files, using the same names as the root map:
-`chat-assistant` and `plan-assistant-*` / `execute-assistant-*` /
-`qa-assistant-*` for engineering, creative, writing, research, search and
-marketing. Do not generate another index or add these 19 skills to default's
-`skills.external_dirs`; clones must not inherit an expanded skill menu.
+with a bounded filesystem listing of that root: `chat/SKILL.md`, and under
+each domain directory (engineering, creative, writing, research, search,
+marketing) the `plan/`, `execute/` and `qa/` directories' `SKILL.md`. Each
+declares the same name as the root map: `chat-assistant` and
+`plan-assistant-<domain>` / `execute-assistant-<domain>` /
+`qa-assistant-<domain>`. Do not generate another index or add these 19 skills
+to default's `skills.external_dirs`; clones must not inherit an expanded
+skill menu.
 
 On each user turn and completion, and BEFORE an action changing mode, domain
 or scope midturn, select the applicable entry from that filesystem index.
-Read its `<entry>/SKILL.md`, the kernel and required mode-common procedure,
+Read its `SKILL.md`, the kernel and required mode-common procedure,
 then relevant details. Reuse full instruction bodies currently in context,
 not a past load or summary; root preload does not prove dependencies present.
 An approval-only reply follows existing job state and scope, never restarts
@@ -61,8 +63,8 @@ delta below overrides it.
 Use `read_file` for Assistant files even when their names are hidden from
 CLI `skill_view`. Translate dependency calls to canonical paths under the
 known root: `assistant-pipeline` means its root `SKILL.md`, its `file_path`
-is root-relative, and an entry name means `<entry>/SKILL.md` with entry-relative
-details. Never follow a literal skill-name call that cannot resolve here.
+is root-relative, and an entry name means that entry's `SKILL.md`
+(`chat/SKILL.md`, or `<domain>/<mode>/SKILL.md`) with entry-relative details. Never follow a literal skill-name call that cannot resolve here.
 In raw child content, `${HERMES_SKILL_DIR}` resolves to THAT owning child's
 directory, not default-pipeline or the Assistant root; references retain their
 owning skill's base. Follow `next_offset` to finish a truncated document.

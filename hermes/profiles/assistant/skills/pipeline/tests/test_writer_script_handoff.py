@@ -14,8 +14,8 @@ def text(path):
 
 class WriterScriptHandoffTest(unittest.TestCase):
     def test_plan_routes_script_operations_and_actual_consumer(self):
-        plan = text("plan-assistant-writing/references/script.md")
-        index = text("plan-assistant-writing/SKILL.md")
+        plan = text("writing/plan/references/script.md")
+        index = text("writing/plan/SKILL.md")
         self.assertIn("QA `script`", plan)
         for verb in ("write", "edit", "analyze"):
             self.assertIn(f"`{verb}-script`", plan)
@@ -49,7 +49,7 @@ class WriterScriptHandoffTest(unittest.TestCase):
         self.assertIn("descriptions need not invent faults", analysis)
 
     def test_execution_preserves_approved_payload_and_timing_limits(self):
-        execution = text("execute-assistant-writing/SKILL.md")
+        execution = text("writing/execute/SKILL.md")
         for verb in ("write", "edit", "analyze"):
             self.assertIn(f"`{verb}-script`", execution)
         self.assertIn("approved raw spoken file, never a structured master", execution)

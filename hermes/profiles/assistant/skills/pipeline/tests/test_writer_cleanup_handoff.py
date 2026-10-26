@@ -30,9 +30,9 @@ class WriterCleanupHandoffTest(unittest.TestCase):
         self.assertNotIn("writer-pipeline", disabled)
 
     def test_consultation_is_decision_input_not_an_artifact_gate(self):
-        for path in ("plan-assistant-writing/SKILL.md", "execute-assistant-writing/SKILL.md"):
+        for path in ("writing/plan/SKILL.md", "writing/execute/SKILL.md"):
             self.assertIn("consult-writer", text(path))
-        self.assertIn("requested sizing", text("plan-assistant-writing/SKILL.md"))
+        self.assertIn("requested sizing", text("writing/plan/SKILL.md"))
         gate = public_text("index.md")
         self.assertIn("not an artifact release or a writing-QA pass", gate)
         self.assertIn("It needs no manuscript path", gate)

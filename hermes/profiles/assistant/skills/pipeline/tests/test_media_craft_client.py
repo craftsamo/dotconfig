@@ -23,15 +23,15 @@ class MediaCraftClientTests(unittest.TestCase):
 
     def test_plan_and_qa_read_specific_direction_knowledge(self):
         for entry, reference in (
-            ("plan-assistant-creative", "reference-interpretation.md"),
-            ("qa-assistant-creative", "critique-revision.md"),
+            ("creative/plan", "reference-interpretation.md"),
+            ("creative/qa", "critique-revision.md"),
         ):
             text = (PIPELINE / entry / "SKILL.md").read_text()
             self.assertIn('skill_view(name="media-craft-direction")', text)
             self.assertIn(f"references/{reference}", text)
             self.assertIn("read_file", text)
             self.assertIn("current", text)
-        execute = (PIPELINE / "execute-assistant-creative/SKILL.md").read_text()
+        execute = (PIPELINE / "creative/execute/SKILL.md").read_text()
         execute = " ".join(execute.split())
         self.assertIn("Never compute, refresh or invent a hash", execute)
         self.assertIn("An approved study is not an approved final", execute)

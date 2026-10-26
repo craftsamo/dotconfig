@@ -39,7 +39,7 @@ class HandsRoutingSandboxTest(unittest.TestCase):
         self.root = Path(self._tmp.name)
         self._original_root = VALIDATOR.ASSISTANT_PIPELINE
         VALIDATOR.ASSISTANT_PIPELINE = self.root
-        self.refs = self.root / "execute-assistant-creative/references"
+        self.refs = self.root / "creative/execute/references"
         self.refs.mkdir(parents=True, exist_ok=True)
 
     def tearDown(self) -> None:

@@ -29,7 +29,7 @@ brand rules, exclusions, inputs, references and what each is for); the producer
 designs the storyboard, which Assistant relays for the user's approval. When the
 look is open, Creator proposes named directions that travel in the form's fields
 and `note`, never a design ([creator.md](./creator.md)). Static UI images use the
-Plan entry's `plan-assistant-creative/references/ui-design.md`. The hands keep
+Plan entry's `plan-assistant-creative`'s `references/ui-design.md`. The hands keep
 their own proposal and preview approvals.
 
 ## Creative early delivery candidate
@@ -60,9 +60,10 @@ The `assistant-pipeline` root is tracked in this repository like every other
 pipeline. Names of private accounts, businesses and people stay on the private
 technic shelf, which the entries reach by skill name only. The root owns
 lifecycle, grants and delivery policy; its 19 independent child skills are
-`chat-assistant` plus `{plan,execute,qa}-assistant-<domain>` for engineering,
-creative, writing, research, search and marketing. Each child's `SKILL.md` owns
-its mode/domain index. No entry lives below the parent's `references/`, which
+`chat-assistant` (at `pipeline/chat/`) plus `{plan,execute,qa}-assistant-<domain>`
+(at `pipeline/<domain>/{plan,execute,qa}/`) for engineering, creative,
+writing, research, search and marketing. A domain directory only groups its
+three entries; each child's `SKILL.md` owns its mode/domain index. No entry lives below the parent's `references/`, which
 holds only `plan/index.md`, `execute/{index,resident-sessions}.md` and
 `quality-assurance/index.md`. No aliases, generated index, new overlay/symlink
 install mapping or default `skills.external_dirs` expansion.

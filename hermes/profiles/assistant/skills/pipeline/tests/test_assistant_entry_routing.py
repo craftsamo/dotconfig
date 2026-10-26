@@ -17,9 +17,16 @@ ENTRIES = {"chat-assistant": ("chat", None)} | {
 }
 
 
+def entry_dir(name):
+    if name == "chat-assistant":
+        return "chat"
+    mode, _, domain = name.partition("-assistant-")
+    return f"{domain}/{mode}"
+
+
 class AssistantEntryRoutingTest(unittest.TestCase):
     def document(self, name):
-        text = (ROOT / name / "SKILL.md").read_text(encoding="utf-8")
+        text = (ROOT / entry_dir(name) / "SKILL.md").read_text(encoding="utf-8")
         self.assertTrue(text.startswith("---\n"), name)
         _, frontmatter, body = text.split("---\n", 2)
         blocks = re.findall(r"<ReadBeforeWork>(.*?)</ReadBeforeWork>", body, re.S)
@@ -27,7 +34,9 @@ class AssistantEntryRoutingTest(unittest.TestCase):
         return yaml.safe_load(frontmatter), body, " ".join(blocks[0].split())
 
     def test_all_19_entries_have_actual_discovery_metadata(self):
-        self.assertEqual({p.parent.name for p in ROOT.glob("*/SKILL.md")}, set(ENTRIES))
+        self.assertEqual({p.parent.relative_to(ROOT).as_posix()
+                          for p in list(ROOT.glob("*/SKILL.md")) + list(ROOT.glob("*/*/SKILL.md"))},
+                         {entry_dir(name) for name in ENTRIES})
         prefixes = set()
         for name, (mode, capability) in ENTRIES.items():
             with self.subTest(entry=name):
@@ -95,9 +104,10 @@ class AssistantEntryRoutingTest(unittest.TestCase):
         for name, (mode, _) in ENTRIES.items():
             with self.subTest(entry=name):
                 _, _, contract = self.document(name)
-                fallback = "`${HERMES_SKILL_DIR}/../SKILL.md`"
+                up = "../" if mode == "chat" else "../../"
+                fallback = f"`${{HERMES_SKILL_DIR}}/{up}SKILL.md`"
                 if mode != "chat":
-                    fallback += f" and `${{HERMES_SKILL_DIR}}/../references/{mode}/index.md`"
+                    fallback += f" and `${{HERMES_SKILL_DIR}}/{up}references/{mode}/index.md`"
                 self.assertIn("If a tool returns unchanged while the earlier body is unavailable, "
                               "use read_file on " + fallback + ".", contract)
                 self.assertIn("Recover this entry and its own references from ${HERMES_SKILL_DIR} likewise.",
@@ -119,7 +129,7 @@ class AssistantEntryRoutingTest(unittest.TestCase):
             self.assertTrue(shared, shared_path)
             for name in ENTRIES:
                 with self.subTest(entry=name, shared=shared_path.relative_to(ROOT)):
-                    for path in (ROOT / name).rglob("*.md"):
+                    for path in (ROOT / entry_dir(name)).rglob("*.md"):
                         self.assertNotIn(shared, " ".join(path.read_text(encoding="utf-8").split()), path)
 
     def test_tests_do_not_introduce_discoverable_skills(self):

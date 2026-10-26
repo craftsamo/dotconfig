@@ -20,7 +20,7 @@ HERMES_ROOT = Path(__file__).resolve().parents[2]
 VIDEO = HERMES_ROOT / "profiles/video-creator/skills/pipeline"
 LEAF = VIDEO / "create/story"
 CREATOR = HERMES_ROOT / "profiles/creator"
-COMMISSION = HERMES_ROOT / "profiles/assistant/skills/pipeline/execute-assistant-creative/references/story.md"
+COMMISSION = HERMES_ROOT / "profiles/assistant/skills/pipeline/creative/execute/references/story.md"
 ADVISOR = CREATOR / "skills/pipeline/references/video-creator/story.md"
 
 spec = importlib.util.spec_from_file_location("create_story", LEAF / "scripts/story.py")

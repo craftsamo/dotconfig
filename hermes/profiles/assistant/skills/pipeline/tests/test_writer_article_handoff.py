@@ -14,7 +14,7 @@ def text(path):
 
 class WriterArticleHandoffTest(unittest.TestCase):
     def test_plan_names_article_leaves_and_existing_qa(self):
-        plan = text("plan-assistant-writing/references/article.md")
+        plan = text("writing/plan/references/article.md")
         self.assertIn("QA `prose`", plan)
         for verb in ("write", "edit", "analyze"):
             self.assertIn(f"`{verb}-article`", plan)
@@ -33,11 +33,11 @@ class WriterArticleHandoffTest(unittest.TestCase):
         self.assertIn("not call it publication-ready", prose)
         self.assertIn("Never delete a marker", prose)
         self.assertIn("Article analysis (analyze-article)", prose)
-        execution = text("execute-assistant-writing/SKILL.md")
+        execution = text("writing/execute/SKILL.md")
         self.assertIn("unresolved asset/editor dependencies intact", execution)
 
     def test_article_client_guide_separates_decisions_and_reference_evidence(self):
-        plan = text("plan-assistant-writing/references/article.md")
+        plan = text("writing/plan/references/article.md")
         for heading in ("Use", "Client decisions", "References", "Acceptance"):
             self.assertIn(f"## {heading}", plan)
         self.assertIn("Keep editorial decisions here", plan)
@@ -48,14 +48,14 @@ class WriterArticleHandoffTest(unittest.TestCase):
         self.assertNotIn("asset_policy", plan)
 
     def test_bounded_article_work_does_not_restart_new_writing(self):
-        plan = text("plan-assistant-writing/references/article.md")
+        plan = text("writing/plan/references/article.md")
         self.assertIn("`scope: proofread`", plan)
         self.assertIn("`scope: wording`", plan)
         self.assertIn("no new outline, tone samples, reader research", plan)
         self.assertIn("scope that conflicts with the request needs clarification", plan)
-        index = text("plan-assistant-writing/SKILL.md")
+        index = text("writing/plan/SKILL.md")
         self.assertIn("does not require every new-writing decision", index)
-        execution = text("execute-assistant-writing/SKILL.md")
+        execution = text("writing/execute/SKILL.md")
         self.assertIn("existing text as its unit", execution)
         self.assertIn("Accept a checked no-change result", execution)
 

@@ -175,7 +175,7 @@ class TourTest(unittest.TestCase):
         import hermes_yaml as yaml
         video = yaml.safe_load((ROOT / "profiles/video-creator/config.example.yaml").read_text())
         self.assertNotIn("tts", video["toolsets"])
-        commission = (ROOT / "profiles/assistant/skills/pipeline/execute-assistant-creative/references/tour.md").read_text()
+        commission = (ROOT / "profiles/assistant/skills/pipeline/creative/execute/references/tour.md").read_text()
         self.assertIn("## Leaves", commission)
         self.assertIn("| `create-tour` |", commission)
         self.assertIn('target="video-creator", message=<the text>, kind="work"', commission)

@@ -13,11 +13,11 @@ import unittest
 from _pair import PUBLIC_ROOT
 
 ROOT = Path(__file__).resolve().parents[1]
-PLAN_ENTRY = ROOT / "plan-assistant-creative/SKILL.md"
+PLAN_ENTRY = ROOT / "creative/plan/SKILL.md"
 PLAN = PLAN_ENTRY.parent / "references"
-EXECUTE_ENTRY = ROOT / "execute-assistant-creative/SKILL.md"
+EXECUTE_ENTRY = ROOT / "creative/execute/SKILL.md"
 EXECUTE = EXECUTE_ENTRY.parent / "references"
-QA_ENTRY = ROOT / "qa-assistant-creative/SKILL.md"
+QA_ENTRY = ROOT / "creative/qa/SKILL.md"
 QA = QA_ENTRY.parent / "references"
 GUIDES = {
     "icon", "emoji", "mascot", "reimagine", "kit", "card", "clip",
@@ -124,12 +124,12 @@ class CreativeHandoffTest(unittest.TestCase):
 
     def test_hands_reference_catalog_routes_to_engineering(self):
         plan = text(PLAN_ENTRY)
-        self.assertIn("(../plan-assistant-engineering/references/existing-change.md)", plan)
+        self.assertIn("(../../engineering/plan/references/existing-change.md)", plan)
         self.assertIn("Producing media stays with the hands", plan)
         self.assertIn("Assessing, adding to, or improving managed hands reference catalogs", plan)
         self.assertIn("whether the user wants an asset or a managed reference change", plan)
         self.assertIn("not by words such as card, icon, style or reference alone", plan)
-        target = (ROOT / "plan-assistant-engineering/references/existing-change.md").resolve()
+        target = (ROOT / "engineering/plan/references/existing-change.md").resolve()
         self.assertTrue(target.is_file(), target)
 
     def test_dependencies_and_publish_are_not_duplicated(self):
@@ -195,7 +195,7 @@ class CreativeHandoffTest(unittest.TestCase):
         self.assertIn("composition and progression", execute)
         ops = text(EXECUTE / "media-ops.md")
         self.assertIn("No separate QA acceptance is required before showing a candidate", ops)
-        self.assertNotIn("qa-assistant-creative/SKILL.md", ops)
+        self.assertNotIn("creative/qa/SKILL.md", ops)
         self.assertIn("only for an explicit user inspection request", qa)
         self.assertIn("Do not dispatch repairs from this inspection", qa)
 

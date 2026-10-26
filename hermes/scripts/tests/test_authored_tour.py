@@ -235,7 +235,7 @@ def test_reference_fields_are_open_ended():
 
 
 def test_assistant_commissions_authored_tours_and_creator_only_advises():
-    commission = (ROOT / "profiles/assistant/skills/pipeline/execute-assistant-creative/references/tour.md").read_text()
+    commission = (ROOT / "profiles/assistant/skills/pipeline/creative/execute/references/tour.md").read_text()
     assert "| `create-tour` |" in commission
     assert 'kind="work"' in commission
     assert "task-local" in commission and "Explicit none is the only omission instruction" in commission

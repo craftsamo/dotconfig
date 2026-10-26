@@ -25,7 +25,7 @@ class WorkspaceLayoutOwnershipTest(unittest.TestCase):
 
     def test_file_disposition_refs_read_the_public_layout_explicitly(self):
         layout = "~/.hermes/profiles/assistant/skills/pipeline/references/workspace-layout.md"
-        refs = [ROOT / "chat-assistant" / "references" / f"{name}.md" for name in ("signal", "whatsapp", "x", "discord")]
+        refs = [ROOT / "chat" / "references" / f"{name}.md" for name in ("signal", "whatsapp", "x", "discord")]
         refs.append(REPO / "hermes/plugins/messaging/telegram-access/skills/telegram-account/SKILL.md")
         for ref in refs:
             text = " ".join(ref.read_text(encoding="utf-8").split())
@@ -36,9 +36,9 @@ class WorkspaceLayoutOwnershipTest(unittest.TestCase):
     def test_registry_users_read_the_plugin_skill_explicitly(self):
         call = 'skill_view(name="workspace-registry:workspace-registry")'
         refs = [LAYOUT,
-                ROOT / "chat-assistant" / "references" / "workspace-ops.md",
-                ROOT / "chat-assistant" / "references" / "message-reply.md",
-                ROOT / "execute-assistant-engineering" / "references" / "github-ops.md"]
+                ROOT / "chat" / "references" / "workspace-ops.md",
+                ROOT / "chat" / "references" / "message-reply.md",
+                ROOT / "engineering" / "execute" / "references" / "github-ops.md"]
         for ref in refs:
             text = " ".join(ref.read_text(encoding="utf-8").split())
             self.assertIn(call, text, ref.name)

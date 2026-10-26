@@ -31,16 +31,16 @@ class NoteRouting(unittest.TestCase):
         self.assertIn("preview", texts["note-com-drafts"])
 
     def test_chat_loads_the_skills_and_keeps_no_mechanics(self):
-        kernel = (ROOT / "chat-assistant/SKILL.md").read_text()
+        kernel = (ROOT / "chat/SKILL.md").read_text()
         self.assertIn('skill_view(name="note-access:note-com")', kernel)
-        reference = (ROOT / "chat-assistant/references/note.md").read_text()
+        reference = (ROOT / "chat/references/note.md").read_text()
         for name in ("note-com", "note-com-format", "note-com-drafts"):
             self.assertIn(f'skill_view(name="note-access:{name}")', reference)
         for mechanic in ("`base`", "note-block", "UNCERTAIN", "20 MB"):
             self.assertNotIn(mechanic, reference)
 
     def test_marketing_saves_every_destination_itself(self):
-        execute = " ".join((ROOT / "execute-assistant-marketing/SKILL.md").read_text().split())
+        execute = " ".join((ROOT / "marketing/execute/SKILL.md").read_text().split())
         for route in ('skill_view(name="x-access:x-twitter-drafts", file_path="references/post-draft.md")',
                       'skill_view(name="x-access:x-twitter-drafts", file_path="references/article-draft.md")',
                       'skill_view(name="substack-access:substack-drafts")',
@@ -49,7 +49,7 @@ class NoteRouting(unittest.TestCase):
         self.assertNotIn("save-package", execute)
         self.assertNotIn("files[].sha256", execute)
         self.assertIn("Never use Marketer's browser or another login profile", execute)
-        plan = " ".join((ROOT / "plan-assistant-marketing/SKILL.md").read_text().split())
+        plan = " ".join((ROOT / "marketing/plan/SKILL.md").read_text().split())
         self.assertIn("Marketer is the strategy advisor", plan)
         self.assertIn("You own the execution plan", plan)
         self.assertNotIn("Marketer operates its existing browser profile", plan)
