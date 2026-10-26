@@ -24,7 +24,7 @@ load it too.
 - **One exception: YouTube Studio in the browser**, only for channel settings
   the API cannot change (name, handle, picture, banner, links, contact email,
   home-tab layout, upload defaults), one setting per `clarify` yes. Procedure:
-  `references/studio.md`. Anything the tool can do goes through the tool.
+  `skill_view(name="youtube-access:configure-studio")`. Anything the tool can do goes through the tool.
 - **Writes wait for approval.** Every write shows a card naming the channel
   and the change. A denial or a timeout means it did not happen; never repeat
   a denied call unchanged. In cron, a single query or an inbound A2A request

@@ -1,6 +1,6 @@
 ---
 name: hyperliquid
-description: "Use for reading Hyperliquid (perps, spot and builder-deployed perp dexs, mainnet or testnet): markets, candles, funding, the order book, an account's positions, balances, fills and orders, a post-trade review, a candles-and-funding dataset, or a backtest of a trend rule set with walk-forward validation. Reads only."
+description: "Use for reading Hyperliquid (perps, spot and builder perp dexs, mainnet or testnet): markets, candles, funding, the order book, an account's positions, balances, fills and orders, a post-trade review, a dataset or a backtest. Reads only."
 version: 1.1.0
 author: CraftSamo
 license: MIT

@@ -21,7 +21,7 @@ import sys
 PROFILES = {"assistant"}
 # Skill -> the profiles it is registered for. A skill is read-only to Hermes (not editable through
 # skill_manage); a profile that cannot do what a skill describes is not given it.
-SKILLS = {"discord-account": set(PROFILES)}
+SKILLS = {"discord-account": set(PROFILES), "collect-history": set(PROFILES), "manage-roles": set(PROFILES)}
 TOOLSET = "discord_access"
 TOOL = "discord_account"
 LIMIT = 60000

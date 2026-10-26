@@ -239,7 +239,7 @@ def test_the_genuine_check_refuses_a_write_in_this_headless_test_run(tmp_path, m
 
 
 def test_the_skill_reaches_only_the_assistant():
-    for profile, names in (("assistant", {"google-sheets"}), ("marketer", set()), ("creator", set())):
+    for profile, names in (("assistant", {"google-sheets", "run-apps-script"}), ("marketer", set()), ("creator", set())):
         ctx = Ctx(profile)
         plugin.register(ctx)
         assert set(ctx.skills) == names

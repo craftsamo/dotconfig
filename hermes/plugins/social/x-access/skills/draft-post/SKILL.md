@@ -1,7 +1,27 @@
+---
+name: draft-post
+description: "Use only when the user asked, in this conversation, for an X post or thread to be saved as a draft in the browser. Nothing is ever published."
+version: 1.0.0
+author: CraftSamo
+license: MIT
+metadata:
+  hermes:
+    tags: [x, twitter, post-draft, browser]
+---
+
 # Saving an X post draft in the browser
 
-The second sanctioned browser use on x.com, beside the Article editor. It
+One of the two exceptions to `x-access:x-twitter`'s rule that the browser
+stays off x.com, beside the Article editor (`x-access:draft-article`). It
 writes into the user's main account, so the conditions are strict.
+
+- Read first, write second. Load `x-access:x-twitter` for the `x` tool's
+  mechanics: reading the user's own posts before drafting in their voice, and
+  proving after the save that nothing went out.
+- Publishing, scheduling, posting, replying, liking, following, DMs and
+  account pages stay the user's, whatever the page offers.
+- A browser step is not a way around a tool limit. Anything the `x` tool can
+  read goes through the tool.
 
 ## When
 

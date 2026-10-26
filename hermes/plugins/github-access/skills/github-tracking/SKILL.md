@@ -1,13 +1,12 @@
 ---
 name: github-tracking
-description: "Use to change GitHub Issues and Projects boards for the user: setting up a board (standard fields and views, a repository link, a Waiting status), capturing work as drafts, noting progress, moving Status, turning a draft into an issue, creating and relating issues (parent, sub-issues, blocked-by, milestone), the body shapes of a parent and of an execution unit, commenting and closing. Covers proposing to track work on GitHub, batching changes onto one approval card, and what each tier (own / shared / other) needs before a write."
+description: "Use to change GitHub Issues and Projects boards for the user: setting up a board, drafts, Status, issues and how they relate, comments, closing, or proposing to track work on GitHub. Reading is github-access:github."
 version: 1.0.0
 author: CraftSamo
 license: MIT
 metadata:
   hermes:
     tags: [github, issues, projects, board, tracking, draft, approval]
-    category: technic
 ---
 
 # Changing Issues and boards through `github_change`

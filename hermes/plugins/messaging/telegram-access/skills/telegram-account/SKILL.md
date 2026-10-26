@@ -1,13 +1,12 @@
 ---
 name: telegram-account
-description: "Use for any work in the user's own Telegram account through telegram_account: reading chats, groups and channels, searching, saving a message's file, the sync list of supergroups and channels, or sending an approved message or workspace file. Not for the chat where the user talks to you (that is the gateway's bot)."
+description: "Use for any work in the user's own Telegram account through telegram_account: reading chats, groups and channels, searching, saving a file, the sync list, or sending an approved message or file. Not for the chat where the user talks to you."
 version: 1.0.0
 author: CraftSamo
 license: MIT
 metadata:
   hermes:
     tags: [telegram, telegram_account, messaging, files]
-    category: technic
 ---
 
 # Telegram through the `telegram_account` tool

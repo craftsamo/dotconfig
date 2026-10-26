@@ -6,7 +6,8 @@ mirrors, or the sub-account's cookies), the sub-account's caps and
 `verify`'s own, which action to read with, verifying posts, media, the
 user's own numbers and recovery. The two browser tasks on x.com, saving a
 post draft and finishing an X Article draft (each one the user asked for),
-are `skill_view(name="x-access:x-twitter-drafts")`. This file holds only
+are `skill_view(name="x-access:draft-post")` and
+`skill_view(name="x-access:draft-article")`. This file holds only
 what is particular to Chat.
 
 ## What stays in Chat

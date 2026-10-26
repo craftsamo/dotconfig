@@ -45,7 +45,8 @@ tool_preview = _load("hermes_tool_preview", Path(__file__).resolve().parents[2] 
 PROFILES = set(ya.PROFILE_ACTIONS)
 # Skill -> the profiles it is registered for. A skill is read-only to Hermes (not editable through
 # skill_manage); a profile that cannot do what a skill describes is not given it.
-SKILLS = {"youtube": set(PROFILES), "youtube-manage": {p for p in PROFILES if set(ya.WRITES) & set(ya.actions_for(p))}}
+MANAGERS = {p for p in PROFILES if set(ya.WRITES) & set(ya.actions_for(p))}
+SKILLS = {"youtube": set(PROFILES), "youtube-manage": MANAGERS, "configure-studio": MANAGERS}
 SKILL_HINT = ' For anything past a single lookup, first load skill_view(name="youtube-access:youtube").'
 
 READ_DESCRIPTION = (
