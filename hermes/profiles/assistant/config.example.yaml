@@ -34,6 +34,7 @@ toolsets:
 - skills
 - todo
 - memory
+- session_search
 - clarify
 - delegation
 - cronjob
@@ -936,6 +937,7 @@ platform_toolsets:
   - skills
   - todo
   - memory
+  - session_search
   - clarify
   - delegation
   - cronjob
@@ -958,6 +960,7 @@ platform_toolsets:
   - skills
   - todo
   - memory
+  - session_search
   - clarify
   - delegation
   - cronjob
@@ -980,6 +983,7 @@ platform_toolsets:
   - skills
   - todo
   - memory
+  - session_search
   - clarify
   - delegation
   - cronjob
