@@ -49,22 +49,22 @@ tier the wording agreed first.
 1. Gather the background: read what the job touches that you can reach
    (the conversation, the synced messages and sheets, the repository
    inventory, OpenCode's plan) and note each fact's source.
-2. When the agreed board does not exist yet, make it first, in a call of its
-   own: `board_create` with its owner, title and `link_repo` the repository.
+2. When the agreed board does not exist yet, make it first, as the tracking
+   skill's "Setting up a board" says.
 3. Write the parent issue and every sub-issue (and the operational drafts)
-   into one Markdown file in the job directory. On a `shared` or `other`
-   tier ask with `clarify`, the file in its `context`; on `own` the card is
-   enough.
-4. One `github_change` list: the parent first, then a sub-issue per Phase
-   with `parent: "$1"` and `blocked_by` the one before (`"$2"`, `"$3"`, …:
-   an issue an earlier change of the same list creates), each with
-   `board_fields`; the drafts with it. One card shows the whole plan.
+   into one Markdown file in the job directory, agreed with the user as the
+   tracking skill's "Before writing, by tier" says for the target's tier.
+4. One `github_change` list, the parent first and a sub-issue per Phase
+   that names it as `parent` and the one before as `blocked_by`, each with
+   `board_fields`, the drafts with it; the tracking skill's "Recipes" show
+   the shape. One card shows the whole plan.
 5. Propose the **mandate**: `routine`, boards = the job's board, repos = its
    repository, parent = the parent issue (so it covers that issue tree and
    nothing else in the repository), until the job is expected to be
-   delivered (at most 30 days). Creating issues, commenting and closing still
-   ask, unless the user's own private board and repository are all the job
-   touches and the user wants those covered too.
+   delivered, within the term the tracking skill's "Mandates" allows.
+   Creating issues, commenting and closing still ask, unless the user's own
+   private board and repository are all the job touches and the user wants
+   those covered too.
 6. Record the parent issue, the board and the mandate id in the decision
    log: a new session finds the job's GitHub record from there.
 
