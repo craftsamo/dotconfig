@@ -797,7 +797,7 @@ def validate_worker(
     creator_entries: set[str] = set()
     if profile == "creator" and pipeline.is_file() and (_pipeline_major_version(frontmatter(pipeline)) or 0) >= 9:
         creator_entries = set(CREATOR_ENTRIES.values())
-        allowed.update(("pipeline", name, "SKILL.md") for name in creator_entries)
+        allowed.update(("pipeline", mode, "SKILL.md") for mode in CREATOR_ENTRIES)
         for name in creator_entries & (leaves.keys() | learned.keys()):
             errors.append(f"duplicate creator entry name: {name}")
     writing: dict[str, Path] = {}
@@ -1107,11 +1107,13 @@ def validate_researcher_entries(pipeline_dir: Path, errors: list[str]) -> dict[s
     return entries
 
 
+# Keyed by the entry's mode directory (pipeline/<mode>/SKILL.md); its declared
+# name is <mode>-marketer.
 MARKETER_ENTRY_REFERENCES = {
-    "plan-marketer": {"discovery.md", "positioning.md", "offer.md", "channels.md", "campaign.md",
-                      "strategy.md"},
-    "review-marketer": {"content.md"},
-    "analyze-marketer": {"measurement.md"},
+    "plan": {"discovery.md", "positioning.md", "offer.md", "channels.md", "campaign.md",
+             "strategy.md"},
+    "review": {"content.md"},
+    "analyze": {"measurement.md"},
 }
 MARKETER_SHARED_REFERENCES = {
     "platforms/x.md", "platforms/substack.md", "platforms/note.md",
@@ -1160,8 +1162,9 @@ def validate_marketer_references(pipeline_dir: Path, errors: list[str]) -> dict[
     for name in sorted(found - MARKETER_REFERENCE_FILES):
         errors.append(f"unexpected marketer reference: {name}")
 
-    for name in MARKETER_ENTRY_REFERENCES:
-        entry = pipeline_dir / name / "SKILL.md"
+    for mode in MARKETER_ENTRY_REFERENCES:
+        name = f"{mode}-marketer"
+        entry = pipeline_dir / mode / "SKILL.md"
         if not entry.is_file():
             errors.append(f"missing marketer entry skill: {name}")
             continue
@@ -1171,7 +1174,7 @@ def validate_marketer_references(pipeline_dir: Path, errors: list[str]) -> dict[
         if not isinstance(data.get("version"), str) or not data["version"].strip():
             errors.append(f"marketer entry version must be a nonempty string: {name}")
         description = data.get("description", "")
-        prefix = f"{name.split('-', 1)[0]} marketing"
+        prefix = f"{mode} marketing"
         if not isinstance(description, str) or not description.lower().startswith(prefix):
             errors.append(f"marketer entry description must frontload {prefix}: {name}")
         text = entry.read_text(encoding="utf-8")
@@ -1217,8 +1220,9 @@ def validate_marketer_references(pipeline_dir: Path, errors: list[str]) -> dict[
     for name in sorted(MARKETER_SHARED_REFERENCES):
         if (references / name).resolve() not in root_links:
             errors.append(f"marketer root does not link reference: {name}")
-    for name, names in MARKETER_ENTRY_REFERENCES.items():
-        entry = pipeline_dir / name / "SKILL.md"
+    for mode, names in MARKETER_ENTRY_REFERENCES.items():
+        name = f"{mode}-marketer"
+        entry = pipeline_dir / mode / "SKILL.md"
         if entry.resolve() not in root_links:
             errors.append(f"marketer root does not route entry: {name}")
         if entry.is_file():
@@ -1623,6 +1627,7 @@ def validate_creator_reference_links(
             errors.append(f"creator reference link is broken: {link} in {rel_doc}")
 
 
+# Mode directory (pipeline/<mode>/SKILL.md) -> the entry's declared name.
 CREATOR_ENTRIES = {
     "propose": "propose-creator",
     "revise": "revise-creator",
@@ -1643,10 +1648,10 @@ def validate_creator_references(pipeline_dir: Path, errors: list[str]) -> None:
     kernel_links = {target for _, target in markdown_links(pipeline)}
     validate_creator_reference_links(pipeline, pipeline_dir, errors)
 
-    for name in CREATOR_ENTRIES.values():
-        index = pipeline_dir / name / "SKILL.md"
+    for mode, name in CREATOR_ENTRIES.items():
+        index = pipeline_dir / mode / "SKILL.md"
         if not index.is_file():
-            errors.append(f"missing creator entry skill: {name}/SKILL.md")
+            errors.append(f"missing creator entry skill: {mode}/SKILL.md")
             continue
         validate_skill(index, name, errors, expected_category="pipeline")
         if _pipeline_major_version(frontmatter(index)) is None:
@@ -1668,12 +1673,12 @@ def validate_creator_references(pipeline_dir: Path, errors: list[str]) -> None:
                 errors.append(f"creator entry ReadBeforeWork missing {required}: {name}")
         for child in index.parent.iterdir():
             if not child.name.startswith(".") and child.name != "SKILL.md":
-                errors.append(f"unexpected creator entry child: {name}/{child.name}")
+                errors.append(f"unexpected creator entry child: {mode}/{child.name}")
         validate_creator_reference_links(index, pipeline_dir, errors)
 
     for child in pipeline_dir.iterdir():
         if not child.name.startswith(".") and child.name not in {
-            "SKILL.md", "references", *CREATOR_ENTRIES.values()
+            "SKILL.md", "references", *CREATOR_ENTRIES
         }:
             errors.append(f"unexpected creator pipeline child: {child.name}")
 

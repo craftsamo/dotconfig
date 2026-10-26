@@ -95,7 +95,7 @@ def test_analysis_is_not_new_copy_or_a_performance_verdict():
 
 
 def test_marketer_advises_on_copy_without_writing_or_accepting_it():
-    review = content(MARKETER / "review-marketer/references/content.md")
+    review = content(MARKETER / "review/references/content.md")
     assert "Do not score prose craft, shorten, strengthen, add urgency or run a humanizer" in review
     assert "let the client return it to the producer" in review
     assert "PASONA" not in review

@@ -68,7 +68,7 @@ This is advice. The client owns acceptance under its own contract and the
 remote-save consent; a clean review is not acceptance, and Marketer neither
 repairs the target nor tells the client a defect is acceptable to save.
 A no-findings review is a legitimate result. Whether the piece will work
-belongs to [Analyze](../analyze-marketer/SKILL.md) after it runs, never a
+belongs to [Analyze](../analyze/SKILL.md) after it runs, never a
 reason to waive a finding now. A strategy someone else wrote is checked with
-[plan's strategy check](../plan-marketer/references/strategy.md) after loading
-[plan-marketer](../plan-marketer/SKILL.md).
+[plan's strategy check](../plan/references/strategy.md) after loading
+[plan-marketer](../plan/SKILL.md).

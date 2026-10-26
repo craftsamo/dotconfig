@@ -52,8 +52,8 @@ block with 2-4 options and a recommendation.
 
 | Entry | Load | When |
 | --- | --- | --- |
-| Propose | [propose-creator](propose-creator/SKILL.md) | intent with an open look, field or reference to interpret |
-| Revise | [revise-creator](revise-creator/SKILL.md) | the user's feedback on a storyboard, draft, preview or delivery |
+| Propose | [propose-creator](propose/SKILL.md) | intent with an open look, field or reference to interpret |
+| Revise | [revise-creator](revise/SKILL.md) | the user's feedback on a storyboard, draft, preview or delivery |
 
 Select the entry on each inbound turn or completion and before a change of
 entry, subject or scope; loading never restarts work or grants anything. Direct

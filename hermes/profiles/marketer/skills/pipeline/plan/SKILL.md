@@ -65,7 +65,7 @@ conversation.
    what to provide; [channels](references/channels.md) for where/how to reach people;
    [campaign](references/campaign.md) for a bounded sequence of pieces or tests.
 3. Gather enough evidence to choose a next action: the read-only tools, the
-   client's own numbers through [Analyze](../analyze-marketer/SKILL.md) when they
+   client's own numbers through [Analyze](../analyze/SKILL.md) when they
    decide the answer, and Researcher for depth evidence or claim checks
    (purpose, consumer, constraints and budget; agree its proposed scope within
    your existing grant, and escalate new spend to your client). Opening an

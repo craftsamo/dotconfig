@@ -48,10 +48,10 @@ def test_conditional_craft_routes_cover_subjects(profile):
             assert f"media-craft-{suffix}" in knowledge
         assert not (root / "references/craft.md").exists()
         for mode in ("propose", "revise"):
-            entry = (root / f"{mode}-creator/SKILL.md").read_text()
+            entry = (root / f"{mode}/SKILL.md").read_text()
             assert "media-craft-direction" in entry
             assert "../references/craft.md" not in entry
-        revise = (root / "revise-creator/SKILL.md").read_text()
+        revise = (root / "revise/SKILL.md").read_text()
         for suffix in ("visual", "motion", "audio"):
             assert f"media-craft-{suffix}" in revise
         return

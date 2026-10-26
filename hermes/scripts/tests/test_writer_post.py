@@ -51,8 +51,8 @@ def test_post_policy_does_not_expand_tools_or_publish():
 
 def test_marketer_review_never_stands_in_for_writer_acceptance():
     root = HERMES / "profiles/marketer/skills/pipeline"
-    review = " ".join((root / "review-marketer/SKILL.md").read_text().split())
-    content = " ".join((root / "review-marketer/references/content.md").read_text().split())
+    review = " ".join((root / "review/SKILL.md").read_text().split())
+    content = " ".join((root / "review/references/content.md").read_text().split())
     assert "a clean review is not acceptance" in review
     assert "neither repairs the target" in review
     assert "the shared writing contract it applies to Writer's work is not repeated here" in content

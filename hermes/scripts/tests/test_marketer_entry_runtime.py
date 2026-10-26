@@ -196,7 +196,7 @@ def _child(case, sandbox, candidate_tree, source):
             assert len(visible) == 4 and set(visible) == EXPECTED and len(set(visible.values())) == 4
             for name, desc in visible.items():
                 assert 0 < len(desc) <= 60
-                path = tree / ("SKILL.md" if name == "marketer-pipeline" else f"{name}/SKILL.md")
+                path = tree / ("SKILL.md" if name == "marketer-pipeline" else f"{name.split('-', 1)[0]}/SKILL.md")
                 fm, _ = su.parse_frontmatter(path.read_text(encoding="utf-8"))
                 assert desc == su.extract_skill_description(fm)
                 assert "skill" not in desc.lower(), "Split entry must not describe itself as a generic skill"
@@ -207,12 +207,12 @@ def _child(case, sandbox, candidate_tree, source):
             return prompt
 
         def phase_turn(entry, task):
-            body_matches(view(entry, task=task), tree / entry / "SKILL.md", rendered=True)
+            body_matches(view(entry, task=task), tree / entry.split("-", 1)[0] / "SKILL.md", rendered=True)
             own_ref = OWN_REF.get(entry)
             if own_ref is None:
                 return None
             own_view = view(entry, own_ref, task)
-            body_matches(own_view, tree / entry / own_ref)
+            body_matches(own_view, tree / entry.split("-", 1)[0] / own_ref)
             return own_view
 
         try:
@@ -295,7 +295,7 @@ def _child(case, sandbox, candidate_tree, source):
                 task = "isolated-recovery"
                 root_path = tree / "SKILL.md"
                 child_ref = OWN_REF["review-marketer"]
-                child_path = tree / "review-marketer" / child_ref
+                child_path = tree / "review" / child_ref
 
                 body_matches(view("marketer-pipeline", task=task), root_path, rendered=True)
                 body_matches(view("review-marketer", child_ref, task), child_path)

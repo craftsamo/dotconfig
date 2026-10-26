@@ -37,7 +37,7 @@ only when the Assistant says so, never inferred from message shape.
 ### Entries
 
 `creator-pipeline` is the kernel; its two independent entries sit outside
-`references/`:
+`references/`, at `pipeline/<mode>/SKILL.md`:
 
 | Entry             | Input                                                                                                                              | Returns                             |
 | ----------------- | ---------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------- |

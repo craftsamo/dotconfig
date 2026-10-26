@@ -25,7 +25,7 @@ quota accounting or its write path. Common rules:
 | How a profile reads YouTube: budget, read actions, recovery                                                               | the `youtube-access:youtube` plugin skill (`plugins/social/youtube-access/skills/youtube/`)                                                  | Assistant, Marketer, Searcher |
 | How the Assistant changes it: write actions, approvals, recovery, Studio settings, starting a channel                     | the `youtube-access:youtube-manage` plugin skill (`plugins/social/youtube-access/skills/youtube-manage/`); registered for the Assistant only | Assistant                     |
 | When the Assistant uses it in Chat                                                                                        | the Assistant's private Chat reference `youtube.md`                                                                                          | Assistant                     |
-| When Marketer reads with it                                                                                               | Marketer's prompt and `analyze-marketer/references/measurement.md`                                                                           | Marketer                      |
+| When Marketer reads with it                                                                                               | Marketer's prompt and `analyze/references/measurement.md` under `marketer-pipeline`                                                                           | Marketer                      |
 
 Two back ends, one tool. The YouTube Data API v3 and the YouTube Analytics API
 v2 run in Hermes' own Python (the `google` extra) as one of the user's

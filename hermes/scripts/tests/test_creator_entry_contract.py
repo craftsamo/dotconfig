@@ -44,7 +44,7 @@ def creator_config():
 
 @pytest.mark.parametrize("entry", ENTRIES)
 def test_creator_direct_entry_contract_offline_mechanical(entry):
-    document = text(pipeline("creator") / entry / "SKILL.md")
+    document = text(pipeline("creator") / entry.split("-", 1)[0] / "SKILL.md")
     context = block(document, "ReadBeforeWork")
     assert ENTRIES[entry] in document
     assert document.index("</ReadBeforeWork>") < document.index(ENTRIES[entry])
@@ -66,7 +66,7 @@ def test_creator_direct_entry_contract_offline_mechanical(entry):
     ):
         assert required in context, required
     kernel = text(pipeline("creator") / "SKILL.md")
-    assert kernel.count(f"({entry}/SKILL.md)") >= 1
+    assert kernel.count(f"({entry.split('-', 1)[0]}/SKILL.md)") >= 1
     assert not (pipeline("creator") / entry / "references").exists()
 
 
@@ -82,8 +82,8 @@ def test_creator_references_point_back_to_kernel():
 
 def test_creator_is_a_read_only_advisor_offline_mechanical():
     kernel = compact(text(pipeline("creator") / "SKILL.md"))
-    propose = compact(text(pipeline("creator") / "propose-creator/SKILL.md"))
-    revise = compact(text(pipeline("creator") / "revise-creator/SKILL.md"))
+    propose = compact(text(pipeline("creator") / "propose/SKILL.md"))
+    revise = compact(text(pipeline("creator") / "revise/SKILL.md"))
     assert "Creator is an advisor" in kernel
     assert "The Assistant is the only client" in kernel
     assert "never its `<Procedure>`" in kernel
@@ -152,7 +152,7 @@ def test_creator_names_motion_by_feel_and_tell():
     kernel = compact(text(pipeline("creator") / "SKILL.md"))
     assert 'skill_view(name="motion-vocabulary")' in kernel
     assert "the `references/video/` builds are the producer's" in kernel
-    propose = compact(text(pipeline("creator") / "propose-creator/SKILL.md"))
-    revise = compact(text(pipeline("creator") / "revise-creator/SKILL.md"))
+    propose = compact(text(pipeline("creator") / "propose/SKILL.md"))
+    revise = compact(text(pipeline("creator") / "revise/SKILL.md"))
     for body in (propose, revise):
         assert "Feel column" in body and "tell" in body

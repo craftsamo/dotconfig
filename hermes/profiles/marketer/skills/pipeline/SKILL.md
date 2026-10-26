@@ -60,9 +60,9 @@ evidence; user approval chooses an option, not proof it will work.
 
 | Mode | Load | When |
 | --- | --- | --- |
-| Plan | [plan-marketer](plan-marketer/SKILL.md) | Goal, direction, audience, offer, channel or campaign advice |
-| Review | [review-marketer](review-marketer/SKILL.md) | Marketing findings on a content candidate, a draft or a published piece |
-| Analyze | [analyze-marketer](analyze-marketer/SKILL.md) | Collect and interpret results and recommend the next decision |
+| Plan | [plan-marketer](plan/SKILL.md) | Goal, direction, audience, offer, channel or campaign advice |
+| Review | [review-marketer](review/SKILL.md) | Marketing findings on a content candidate, a draft or a published piece |
+| Analyze | [analyze-marketer](analyze/SKILL.md) | Collect and interpret results and recommend the next decision |
 
 These are entry modes, not mandatory consecutive stages. A result analysis need
 not create a plan; a review need not restart strategy. Artifact quality and
