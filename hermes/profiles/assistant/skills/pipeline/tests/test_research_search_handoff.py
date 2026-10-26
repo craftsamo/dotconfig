@@ -55,7 +55,7 @@ class ResearchSearchHandoffTest(unittest.TestCase):
             role = domain + "er"
             public = public_pipeline(domain)
             for phase in ("plan", "qa"):
-                caller = ROOT / f"{phase}-assistant-{domain}"
+                caller = ROOT / domain / phase
                 self.assertEqual({p.stem for p in (caller / "references").glob("*.md")}, set(units))
                 for unit in units:
                     with self.subTest(domain=domain, phase=phase, unit=unit):
@@ -86,7 +86,7 @@ class ResearchSearchHandoffTest(unittest.TestCase):
 
     def test_purpose_first_agreement_and_explicit_direct_build_both_survive(self):
         for domain in UNITS:
-            caller = text(ROOT / f"plan-assistant-{domain}" / "SKILL.md")
+            caller = text(ROOT / domain / "plan" / "SKILL.md")
             public = kernel_stage(domain, "Plan")
             for token in ("purpose", "consumer", "constraints", "budget", "durable path",
                           "Client", "agreement", "Build"):
@@ -104,7 +104,7 @@ class ResearchSearchHandoffTest(unittest.TestCase):
 
     def test_preliminary_build_has_separate_main_agreement_and_existing_handle(self):
         for domain in UNITS:
-            caller = text(ROOT / f"plan-assistant-{domain}" / "SKILL.md")
+            caller = text(ROOT / domain / "plan" / "SKILL.md")
             public = kernel_stage(domain, "Plan")
             for token in ("no unapproved external search", "bounded preliminary Build",
                           "scope, output, budget and stop condition", "separate agreement",
@@ -115,7 +115,7 @@ class ResearchSearchHandoffTest(unittest.TestCase):
             self.assertRegex(public, r"(?:agree the main work|Do not silently release the main work)")
 
     def test_search_is_resident_only_on_both_sides(self):
-        raw = (ROOT / "execute-assistant-search/SKILL.md").read_text(encoding="utf-8")
+        raw = (ROOT / "search/execute/SKILL.md").read_text(encoding="utf-8")
         caller = " ".join(raw.split())
         public = text(public_pipeline("search") / "SKILL.md")
         self.assertIn("No detailed prebuilt spec is required to start Plan", caller)
@@ -123,7 +123,7 @@ class ResearchSearchHandoffTest(unittest.TestCase):
         for gone in (*RETIRED_SEARCH_CARDS, "goal_mode", "goal_max_turns"):
             self.assertNotIn(gone, caller)
             self.assertNotIn(gone, public)
-        for path in ROOT.glob("*-assistant-search/**/*.md"):
+        for path in (ROOT / "search").rglob("*.md"):
             for gone in (*RETIRED_SEARCH_CARDS, "goal_mode", "goal_max_turns"):
                 self.assertNotIn(gone, path.read_text(encoding="utf-8"), path.name)
         for marker in ("STATE:", "DECISION(Q<n>):", "AUTHORITY+:", "SCHEDULED: until=",
@@ -131,7 +131,7 @@ class ResearchSearchHandoffTest(unittest.TestCase):
             self.assertNotIn(marker, public)
 
     def test_research_stays_indirect_with_authorized_one_shot_and_resident_work(self):
-        caller = text(ROOT / "execute-assistant-research/SKILL.md")
+        caller = text(ROOT / "research/execute/SKILL.md")
         public = text(public_pipeline("research") / "SKILL.md")
         for token in ("creator", "marketer", "primary", "spec-gap", "granularity"):
             self.assertIn(token, caller)
@@ -141,7 +141,7 @@ class ResearchSearchHandoffTest(unittest.TestCase):
         self.assertIn('`kind="inquiry"` alone is not authorization', caller)
         self.assertIn('resident `kind="work"`', caller)
         for phase in ("plan", "execute"):
-            contract = text(ROOT / f"{phase}-assistant-research/SKILL.md")
+            contract = text(ROOT / "research" / phase / "SKILL.md")
             self.assertIn("The primary owns and continues the Researcher work handle and `conversation_id`", contract)
             self.assertIn("Assistant uses only its own PRIMARY work handle", contract)
             self.assertIn("Assistant never holds or uses the Researcher conversation", contract)
@@ -161,7 +161,7 @@ class ResearchSearchHandoffTest(unittest.TestCase):
 
     def test_self_check_never_replaces_requester_acceptance(self):
         for domain in UNITS:
-            caller = text(ROOT / f"qa-assistant-{domain}/SKILL.md")
+            caller = text(ROOT / domain / "qa" / "SKILL.md")
             public = kernel_stage(domain, "Build")
             self.assertIn("agreed proposal or explicitly released settled brief", caller)
             self.assertIn("self-check, not an external pass", caller)
@@ -171,12 +171,12 @@ class ResearchSearchHandoffTest(unittest.TestCase):
             self.assertIn("remaining budget", public)
             self.assertIn("Plan", public)
             self.assertNotIn(public, caller)
-            for path in (ROOT / f"qa-assistant-{domain}/references").glob("*.md"):
+            for path in (ROOT / domain / "qa" / "references").glob("*.md"):
                 entry = public_pipeline(domain) / MODES[domain][path.stem] / "build/SKILL.md"
                 verification = entry.read_text(encoding="utf-8")
                 verification = verification.split("\n## Verification", 1)[1].split("\n## Handoff", 1)[0]
                 self.assertNotIn(" ".join(verification.split()), text(path))
-        research = text(ROOT / "qa-assistant-research/SKILL.md")
+        research = text(ROOT / "research/qa/SKILL.md")
         self.assertIn("require the primary-relayed agreed research proposal/scope", research)
         self.assertIn("questions, done criteria, source policy, budget and approved changes", research)
         self.assertIn("explicitly authorized original settled brief only while unchanged", research)
@@ -190,8 +190,12 @@ class ResearchSearchHandoffTest(unittest.TestCase):
         phases |= {f"{stage}-{mode}" for domain in UNITS for mode in MODES[domain].values()
                    for stage in STAGES}
         phases |= {f"{phase}-{domain}er" for domain in UNITS for phase in STAGES}
-        self.assertEqual(len(list(ROOT.glob("*/SKILL.md"))), 19)
-        self.assertTrue(phases.isdisjoint(p.parent.name for p in ROOT.glob("*/SKILL.md")))
+        entries = [*ROOT.glob("*/SKILL.md"), *ROOT.glob("*/*/SKILL.md")]
+        self.assertEqual(len(entries), 19)
+        declared = {re.search(r"^name:\s*(\S+)", p.read_text(encoding="utf-8"), re.M).group(1)
+                    for p in entries}
+        self.assertEqual(len(declared), 19)
+        self.assertTrue(phases.isdisjoint(declared))
         for path in [ROOT / "SKILL.md", *ROOT.glob("references/*/index.md")]:
             self.assertFalse(phases.intersection(re.findall(r'skill_view\(name="([^"]+)"', text(path))))
             self.assertNotIn("skills.external_dirs", text(path))
@@ -199,7 +203,7 @@ class ResearchSearchHandoffTest(unittest.TestCase):
     def test_caller_resource_paths_resolve_from_the_actual_owning_entry(self):
         for domain in UNITS:
             for phase in ("plan", "execute", "qa"):
-                entry = ROOT / f"{phase}-assistant-{domain}"
+                entry = ROOT / domain / phase
                 for path in entry.rglob("*.md"):
                     raw = path.read_text(encoding="utf-8")
                     for target in re.findall(r"`([^`\n]+\.md)`", raw):

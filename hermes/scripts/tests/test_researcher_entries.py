@@ -523,7 +523,7 @@ def _technic_rows(text):
 
 
 @pytest.mark.parametrize("caller", (
-    "assistant/skills/pipeline/plan-assistant-research/SKILL.md",
+    "assistant/skills/pipeline/research/plan/SKILL.md",
     "marketer/skills/pipeline/SKILL.md",
 ))
 def test_callers_name_every_technic_with_its_unit(caller):

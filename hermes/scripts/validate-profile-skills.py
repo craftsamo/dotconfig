@@ -96,7 +96,7 @@ REQUIRED_QA_CONTRACTS = {
     "search": {"lookup.md", "sweep.md", "hunt.md"},
     "writing": {"prose.md", "script.md"},
 }
-# Files beside the subject references in execute-assistant-creative/references/
+# Files beside the subject references in execute-assistant-creative's references/
 # that are not hands subjects.
 COMMISSIONING_SHARED_REFERENCES = {"media-ops.md"}
 
@@ -149,6 +149,15 @@ def rel_pipeline(path: Path) -> str:
     return path.relative_to(ASSISTANT_PIPELINE).as_posix()
 
 
+def assistant_entry_rel(name: str) -> Path:
+    """Where an entry lives under the pipeline: ``chat/`` for the Chat entry, else
+    ``<domain>/<mode dir>/`` (``plan``, ``execute``, ``qa``)."""
+    mode, capability = ASSISTANT_ENTRIES[name]
+    if capability is None:
+        return Path("chat")
+    return Path(capability) / ASSISTANT_ENTRY_PREFIXES[mode]
+
+
 def assistant_entry_dir(
     mode: str, capability: str | None = None, pipeline: Path | None = None
 ) -> Path:
@@ -159,7 +168,7 @@ def assistant_entry_dir(
     )
     if name not in ASSISTANT_ENTRIES:
         raise ValueError(f"unknown assistant entry: {mode}/{capability}")
-    return (ASSISTANT_PIPELINE if pipeline is None else pipeline) / name
+    return (ASSISTANT_PIPELINE if pipeline is None else pipeline) / assistant_entry_rel(name)
 
 
 def validate_index_routes(directory: Path, errors: list[str]) -> None:
@@ -196,14 +205,23 @@ def validate_assistant_pipeline(errors: list[str]) -> int:
         return 0
     validate_skill(skill, "assistant-pipeline", errors, expected_category="orchestration")
 
-    allowed = {("SKILL.md",)} | {(name, "SKILL.md") for name in ASSISTANT_ENTRIES}
+    allowed = {("SKILL.md",)} | {
+        (*assistant_entry_rel(name).parts, "SKILL.md") for name in ASSISTANT_ENTRIES
+    }
     for child in sorted(ASSISTANT_PIPELINE.iterdir()):
         if child.name.startswith("."):
             continue
         if child.name == "tests" and child.is_dir():
             continue
-        if child.name not in {"SKILL.md", "references", *ASSISTANT_ENTRIES}:
+        if child.name not in {"SKILL.md", "references", "chat", *EXPECTED_CAPABILITIES}:
             errors.append(f"unexpected assistant pipeline child: {child.name}")
+        elif child.name in EXPECTED_CAPABILITIES:
+            # A domain directory only groups its mode entries; nothing else lives there.
+            for grandchild in sorted(child.iterdir()):
+                if grandchild.name.startswith("."):
+                    continue
+                if grandchild.name not in ASSISTANT_ENTRY_PREFIXES.values():
+                    errors.append(f"unexpected assistant pipeline child: {rel_pipeline(grandchild)}")
 
     references = ASSISTANT_PIPELINE / "references"
     shared_files = {
@@ -239,10 +257,10 @@ def validate_assistant_pipeline(errors: list[str]) -> int:
             errors.append(f"shared {mode} index must not recursively load an entry")
 
     for name, (mode, capability) in sorted(ASSISTANT_ENTRIES.items()):
-        entry = ASSISTANT_PIPELINE / name
+        entry = ASSISTANT_PIPELINE / assistant_entry_rel(name)
         entry_skill = entry / "SKILL.md"
         if not entry_skill.is_file():
-            errors.append(f"missing assistant entry skill: {name}/SKILL.md")
+            errors.append(f"missing assistant entry skill: {rel_pipeline(entry_skill)}")
             continue
         validate_skill(entry_skill, name, errors, expected_category="pipeline")
         data = frontmatter(entry_skill)
@@ -284,8 +302,9 @@ def validate_assistant_pipeline(errors: list[str]) -> int:
         ):
             if not re.search(pattern, block, re.I):
                 errors.append(f"assistant entry ReadBeforeWork missing {label}: {name}")
+        up = "../" * len(assistant_entry_rel(name).parts)
         for path in paths:
-            canonical = f"${{HERMES_SKILL_DIR}}/../{path}"
+            canonical = f"${{HERMES_SKILL_DIR}}/{up}{path}"
             if canonical not in block:
                 errors.append(f"assistant entry missing canonical fallback {canonical}: {name}")
         for child in sorted(entry.iterdir()):
@@ -1429,7 +1448,7 @@ def validate_hands_routing(
     hands_leaves: dict[str, dict[str, Path]], errors: list[str]
 ) -> None:
     """Every installed hands subject has exactly one Assistant commissioning
-    reference (execute-assistant-creative/references/<subject>.md) and every
+    reference (execute-assistant-creative's references/<subject>.md) and every
     installed leaf is named in it, so no leaf is unreachable from the
     commissioning side; a reference for a subject no hands serves is an
     orphan. Paths are derived from the current ASSISTANT_PIPELINE global at
@@ -1671,7 +1690,7 @@ def validate_creator_references(pipeline_dir: Path, errors: list[str]) -> None:
 
 # ── Creative Client references ───────────────────────────────────────────
 #
-# The plain-language guides in plan-assistant-creative/references/ carry no
+# The plain-language guides in plan-assistant-creative's references/ carry no
 # parity with the hands: a guide's name need not equal a hands subject, and an
 # absent guide does not mean a capability is unavailable. Paths are derived
 # from the current ASSISTANT_PIPELINE global at call time so tests can patch it.
@@ -1964,7 +1983,7 @@ def validate_assistant(errors: list[str]) -> tuple[int, int, int]:
     learned, learned_roots = validate_learned_skills(learned_dir, errors)
 
     allowed: set[tuple[str, ...]] = {("pipeline", "SKILL.md")}
-    allowed.update(("pipeline", name, "SKILL.md") for name in ASSISTANT_ENTRIES)
+    allowed.update(("pipeline", *assistant_entry_rel(name).parts, "SKILL.md") for name in ASSISTANT_ENTRIES)
     allowed.update(("technic", name, "SKILL.md") for name in technics)
     allowed.update(learned_roots)
     validate_allowed_skill_roots(skills, allowed, errors)

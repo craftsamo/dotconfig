@@ -13,7 +13,7 @@ def text(path):
 
 class VisualDesignContractTest(unittest.TestCase):
     def test_assistant_carries_complete_design_and_creator_does_not_bind_it(self):
-        skill = text(ROOT / "assistant/skills/pipeline/execute-assistant-creative/SKILL.md")
+        skill = text(ROOT / "assistant/skills/pipeline/creative/execute/SKILL.md")
         for phrase in ("never add form keys", "accept a silently flattened substitute",
                        "Authored video gets intent only; the producer writes the storyboard"):
             self.assertIn(phrase, skill)

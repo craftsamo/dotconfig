@@ -17,7 +17,7 @@ LEAF = VIDEO / "create/promotion"
 VOCABULARY = HERMES_ROOT.parent / "agents/skills/motion-vocabulary/references"
 CREATOR = HERMES_ROOT / "profiles/creator"
 ADVISOR = CREATOR / "skills/pipeline/references/video-creator/promotion.md"
-COMMISSION = HERMES_ROOT / "profiles/assistant/skills/pipeline/execute-assistant-creative/references/promotion.md"
+COMMISSION = HERMES_ROOT / "profiles/assistant/skills/pipeline/creative/execute/references/promotion.md"
 
 spec = importlib.util.spec_from_file_location("promotion", LEAF / "scripts/promotion.py")
 motion = importlib.util.module_from_spec(spec)

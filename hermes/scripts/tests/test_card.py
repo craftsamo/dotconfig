@@ -291,7 +291,7 @@ class CardTests(unittest.TestCase):
 
     def test_card_routing_and_generation_contracts(self):
         # Static contracts, NOT a live LLM handoff or provider-call test.
-        routing = (ROOT / "profiles/assistant/skills/pipeline/execute-assistant-creative/references/card.md").read_text()
+        routing = (ROOT / "profiles/assistant/skills/pipeline/creative/execute/references/card.md").read_text()
         for verb in ("create", "generate", "edit", "analyze"):
             name = verb + "-card"
             leaf = card.ROOT / verb / "card/SKILL.md"

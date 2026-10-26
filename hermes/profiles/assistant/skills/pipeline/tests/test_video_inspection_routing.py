@@ -41,11 +41,11 @@ class VideoInspectionRouting(unittest.TestCase):
             self.assertIn(step, body)
 
     def test_entries_load_the_technic(self):
-        for entry in ("execute-assistant-creative/SKILL.md", "chat-assistant/SKILL.md"):
+        for entry in ("creative/execute/SKILL.md", "chat/SKILL.md"):
             self.assertIn(LOAD, flat(ROOT / entry), entry)
-        self.assertIn("`video-inspection`", flat(ROOT / "plan-assistant-creative/references/explainer-video.md"))
-        self.assertIn("`video-inspection`", flat(ROOT / "qa-assistant-creative/SKILL.md"))
-        self.assertIn("`video-inspection`", flat(ROOT / "execute-assistant-creative/references/explainer-video.md"))
+        self.assertIn("`video-inspection`", flat(ROOT / "creative/plan/references/explainer-video.md"))
+        self.assertIn("`video-inspection`", flat(ROOT / "creative/qa/SKILL.md"))
+        self.assertIn("`video-inspection`", flat(ROOT / "creative/execute/references/explainer-video.md"))
 
     def test_owners_and_transports(self):
         text = flat(TECHNIC / "SKILL.md")
@@ -83,7 +83,7 @@ class VideoInspectionRouting(unittest.TestCase):
             self.assertIn(rule, text)
 
     def test_the_picture_leaf_is_commissioned_and_bounded(self):
-        commission = flat(ROOT / "execute-assistant-creative/references/explainer-video.md")
+        commission = flat(ROOT / "creative/execute/references/explainer-video.md")
         self.assertIn("`analyze-explainer-video`", commission)
         self.assertIn('kind="work")`, one conversation per video', commission)
         self.assertIn("`remote_analysis` defaults to no", commission)

@@ -14,8 +14,8 @@ def text(path):
 
 class WriterCopyHandoffTest(unittest.TestCase):
     def test_plan_routes_three_copy_leaves(self):
-        plan = text("plan-assistant-writing/references/copy.md")
-        index = text("plan-assistant-writing/SKILL.md")
+        plan = text("writing/plan/references/copy.md")
+        index = text("writing/plan/SKILL.md")
         self.assertIn("QA `prose`", plan)
         for verb in ("write", "edit", "analyze"):
             self.assertIn(f"`{verb}-copy`", plan)
@@ -24,7 +24,7 @@ class WriterCopyHandoffTest(unittest.TestCase):
         self.assertIn("custom destination", plan)
 
     def test_adjacent_families_and_conditional_action(self):
-        plan = text("plan-assistant-writing/references/copy.md")
+        plan = text("writing/plan/references/copy.md")
         for reference in ("post.md", "message.md", "documentation.md"):
             self.assertIn(f"`{reference}`", plan)
         self.assertIn("An awareness announcement need not have a CTA", plan)
@@ -32,7 +32,7 @@ class WriterCopyHandoffTest(unittest.TestCase):
         self.assertIn("other social platforms keep marketing Execute's existing drafting contract", plan)
 
     def test_marketing_controller_releases_accepted_copy_parts(self):
-        execution = text("execute-assistant-marketing/SKILL.md")
+        execution = text("marketing/execute/SKILL.md")
         for verb in ("write", "edit", "analyze"):
             self.assertIn(f"{verb}-copy", execution)
         self.assertIn("independent writing QA", execution)
@@ -66,7 +66,7 @@ class WriterCopyHandoffTest(unittest.TestCase):
         self.assertIn("scripts still use `script.md`", prose)
 
     def test_part_handoff_is_verbatim_after_independent_acceptance(self):
-        execution = text("execute-assistant-writing/SKILL.md")
+        execution = text("writing/execute/SKILL.md")
         for verb in ("write", "edit", "analyze"):
             self.assertIn(f"`{verb}-copy`", execution)
         self.assertIn("consumer after independent writing QA", execution)

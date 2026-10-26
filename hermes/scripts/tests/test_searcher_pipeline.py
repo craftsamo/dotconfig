@@ -547,7 +547,7 @@ def test_public_footprint_keeps_its_floors():
 
 
 def test_the_assistant_names_every_technic_with_its_unit():
-    caller = (HERMES / "profiles/assistant/skills/pipeline/plan-assistant-search/SKILL.md").read_text()
+    caller = (HERMES / "profiles/assistant/skills/pipeline/search/plan/SKILL.md").read_text()
     rows = {}
     for line in caller.splitlines():
         cells = [cell.strip() for cell in line.strip("|").split("|")]

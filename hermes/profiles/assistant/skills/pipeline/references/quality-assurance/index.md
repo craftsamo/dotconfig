@@ -7,9 +7,9 @@ output in those domains.
 The capability contract decides what the reply represents. Creative advice,
 analysis findings and proposal/preview stops do not imply missing final media.
 Creative production goes
-directly through `../../execute-assistant-creative/SKILL.md`; do not apply this
+directly through `../../creative/execute/SKILL.md`; do not apply this
 inspection floor or feedback loop to ordinary completions. Only an explicit user
-inspection request selects `../../qa-assistant-creative/SKILL.md`, whose bounded
+inspection request selects `../../creative/qa/SKILL.md`, whose bounded
 findings contract replaces the automatic revise loop below. Producer checks,
 failed/unknown disclosure, approvals and permissions are not waived.
 
@@ -87,12 +87,12 @@ another domain is needed; do not recursively reload the selected entry.
 
 | Capability | Contracts |
 | --- | --- |
-| creative (explicit user inspection only) | [qa-assistant-creative](../../qa-assistant-creative/SKILL.md) - bounded findings; ordinary delivery stays in Execute |
-| writing | [qa-assistant-writing](../../qa-assistant-writing/SKILL.md) — per-unit gate (outline / full) + prose / script contracts |
-| engineering | [qa-assistant-engineering](../../qa-assistant-engineering/SKILL.md) — scope, evidence, independent OpenCode review, rendered-UI baseline + inspection / acceptance |
-| research | [qa-assistant-research](../../qa-assistant-research/SKILL.md) — sources, verdicts, inference |
-| search | [qa-assistant-search](../../qa-assistant-search/SKILL.md) — per-unit gate + lookup / sweep / hunt contracts |
-| marketing | [qa-assistant-marketing](../../qa-assistant-marketing/SKILL.md) — Marketer advice checked, own acceptance, exact save consent, reopened unpublished draft |
+| creative (explicit user inspection only) | [qa-assistant-creative](../../creative/qa/SKILL.md) - bounded findings; ordinary delivery stays in Execute |
+| writing | [qa-assistant-writing](../../writing/qa/SKILL.md) — per-unit gate (outline / full) + prose / script contracts |
+| engineering | [qa-assistant-engineering](../../engineering/qa/SKILL.md) — scope, evidence, independent OpenCode review, rendered-UI baseline + inspection / acceptance |
+| research | [qa-assistant-research](../../research/qa/SKILL.md) — sources, verdicts, inference |
+| search | [qa-assistant-search](../../search/qa/SKILL.md) — per-unit gate + lookup / sweep / hunt contracts |
+| marketing | [qa-assistant-marketing](../../marketing/qa/SKILL.md) — Marketer advice checked, own acceptance, exact save consent, reopened unpublished draft |
 
 Selection rules:
 

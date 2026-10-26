@@ -107,7 +107,7 @@ def test_narration_does_not_treat_estimated_timing_as_performance(verb):
 
 
 def test_assistant_commissions_raw_approved_words_not_the_analysis():
-    path = HERMES / "profiles/assistant/skills/pipeline/execute-assistant-creative/references/speech.md"
+    path = HERMES / "profiles/assistant/skills/pipeline/creative/execute/references/speech.md"
     text = content(path)
     assert "`write-script` or `edit-script`" in text
     assert "an `analyze-script` report is not a speech part" in text

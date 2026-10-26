@@ -30,7 +30,7 @@ class AudioCreatorRoutingTest(unittest.TestCase):
         )
         cls.commissioning = (
             HERMES_ROOT / "profiles" / "assistant" / "skills" / "pipeline"
-            / "execute-assistant-creative"
+            / "creative" / "execute"
         )
 
     def test_root_allowlist_and_assistant_is_the_client(self) -> None:

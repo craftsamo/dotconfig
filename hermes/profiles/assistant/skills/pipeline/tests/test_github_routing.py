@@ -20,9 +20,9 @@ def flat(path: Path) -> str:
 
 class GithubRouting(unittest.TestCase):
     def test_chat_routes_github_requests_to_the_skills(self):
-        kernel = flat(ROOT / "chat-assistant/SKILL.md")
+        kernel = flat(ROOT / "chat/SKILL.md")
         self.assertIn("`references/github.md`", kernel)
-        reference = flat(ROOT / "chat-assistant/references/github.md")
+        reference = flat(ROOT / "chat/references/github.md")
         for name in SKILLS:
             self.assertIn(f'skill_view(name="github-access:{name}")', reference)
         self.assertIn('skill_view(name="github")', reference)
@@ -35,12 +35,12 @@ class GithubRouting(unittest.TestCase):
         self.assertIn("the card is the user's go, so do not ask first", reference)
 
     def test_engineering_reads_ci_and_merges_through_the_tools(self):
-        qa = flat(ROOT / "qa-assistant-engineering/SKILL.md")
+        qa = flat(ROOT / "engineering/qa/SKILL.md")
         self.assertIn("`github_pr` `view`", qa)
-        acceptance = flat(ROOT / "qa-assistant-engineering/references/acceptance.md")
+        acceptance = flat(ROOT / "engineering/qa/references/acceptance.md")
         self.assertIn("`github_pr` `view`", acceptance.split("Only when the user separately asks")[0])
         self.assertIn(MERGE, acceptance)
-        ops = flat(ROOT / "execute-assistant-engineering/references/github-ops.md")
+        ops = flat(ROOT / "engineering/execute/references/github-ops.md")
         for name in ("`pr_create`", "`run_rerun`", "`release_publish`", "`workflow_dispatch`",
                      'skill_view(name="github-access:github-repo")', MERGE,
                      'skill_view(name="github", file_path="references/history-repair.md")'):

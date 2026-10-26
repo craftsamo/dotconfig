@@ -15,9 +15,9 @@ def text(path):
 
 class WriterPostHandoffTest(unittest.TestCase):
     def test_post_plan_has_existing_qa_contract(self):
-        plan = text("plan-assistant-writing/references/post.md")
+        plan = text("writing/plan/references/post.md")
         self.assertIn("QA `prose`", plan)
-        self.assertIn("`references/post.md`", text("plan-assistant-writing/SKILL.md"))
+        self.assertIn("`references/post.md`", text("writing/plan/SKILL.md"))
         for verb in ("write", "edit", "analyze"):
             self.assertIn(f"`{verb}-post`", plan)
 
@@ -36,17 +36,17 @@ class WriterPostHandoffTest(unittest.TestCase):
         self.assertNotIn("japanese-writing/scripts/", gate)
 
     def test_campaign_releases_writer_dependency_first(self):
-        campaign = text("plan-assistant-marketing/references/campaign.md")
+        campaign = text("marketing/plan/references/campaign.md")
         self.assertIn("You release those as Writer/hands units, independently accept them", campaign)
-        execute = text("execute-assistant-marketing/SKILL.md")
+        execute = text("marketing/execute/SKILL.md")
         self.assertIn("findings go back to the same Writer", execute)
         self.assertIn("independent writing QA", execute)
 
     def test_all_writing_plan_qa_mappings_resolve(self):
-        for leaf in (ROOT / "plan-assistant-writing/references").glob("*.md"):
+        for leaf in (ROOT / "writing/plan/references").glob("*.md"):
             match = re.search(r"QA `([a-z-]+)`", leaf.read_text())
             self.assertIsNotNone(match, leaf)
-            self.assertTrue((ROOT / "qa-assistant-writing/references" / f"{match[1]}.md").is_file())
+            self.assertTrue((ROOT / "writing/qa/references" / f"{match[1]}.md").is_file())
 
 
 if __name__ == "__main__":

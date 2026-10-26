@@ -19,7 +19,7 @@ def text(path):
 
 class WriterScoringTest(unittest.TestCase):
     def test_scoring_has_one_definition_inside_existing_gate(self):
-        directory = ROOT / "qa-assistant-writing"
+        directory = ROOT / "writing" / "qa"
         self.assertEqual({p.relative_to(directory).as_posix()
                           for p in directory.rglob("*.md")},
                          {"SKILL.md", "references/prose.md", "references/script.md"})
@@ -59,7 +59,7 @@ class WriterScoringTest(unittest.TestCase):
             self.assertIn(f"| {name} |", prose)
 
     def test_revision_budget_and_latest_candidate_are_explicit(self):
-        execution = text("execute-assistant-writing/SKILL.md")
+        execution = text("writing/execute/SKILL.md")
         rubric = public_text("index.md")
         self.assertIn("at most two corrective returns per released unit", rubric)
         self.assertIn("does not reset the budget", rubric)
@@ -92,8 +92,8 @@ class WriterScoringTest(unittest.TestCase):
 
     def test_private_adapter_points_at_public_source_and_blocks_on_failure(self):
         for name in ("index.md", "prose.md", "script.md"):
-            adapter_path = ("qa-assistant-writing/SKILL.md" if name == "index.md"
-                            else f"qa-assistant-writing/references/{name}")
+            adapter_path = ("writing/qa/SKILL.md" if name == "index.md"
+                            else f"writing/qa/references/{name}")
             adapter = text(adapter_path)
             self.assertIn(
                 'skill_view(name="writer-pipeline", '
@@ -101,12 +101,12 @@ class WriterScoringTest(unittest.TestCase):
             self.assertIn("BLOCKED", adapter)
             self.assertIn("do not copy", adapter.lower())
         # None of the moved rubric text is duplicated locally anymore.
-        index_adapter = text("qa-assistant-writing/SKILL.md")
+        index_adapter = text("writing/qa/SKILL.md")
         self.assertNotIn("| Naturalness |", index_adapter)
         self.assertNotIn("at most two corrective returns", index_adapter)
-        prose_adapter = text("qa-assistant-writing/references/prose.md")
+        prose_adapter = text("writing/qa/references/prose.md")
         self.assertNotIn("30 satisfied respondents", prose_adapter)
-        script_adapter = text("qa-assistant-writing/references/script.md")
+        script_adapter = text("writing/qa/references/script.md")
         self.assertNotIn("Narration | Spoken order", script_adapter)
 
 

@@ -1,7 +1,7 @@
 # Execute mode — run the approved plan on its tier
 
 - **inline** — do it now in this turn; `delegate_task` for parallel
-  lookups (`../../chat-assistant/references/lookups.md`).
+  lookups (`../../chat/references/lookups.md`).
 - **resident** — start or reuse the specialist session per
   `resident-sessions.md`. The first turn carries the SessionBrief; later
   turns carry feedback, approvals, and course corrections. Relay
@@ -28,18 +28,18 @@ navigation for a changed domain, not a loop that reloads that entry.
 
 | Profile | Sweet spot | Capability file |
 | --- | --- | --- |
-| creator | Creative advisor: directions for an open look and named changes from vague feedback (consulted from execute-assistant-creative) | [execute-assistant-creative](../../execute-assistant-creative/SKILL.md) |
-| image-creator / video-creator / audio-creator | Media production from filled forms | [execute-assistant-creative](../../execute-assistant-creative/SKILL.md); Client brief, scoped grants and proposal relay |
-| writer | text deliverables from released units: reader-facing prose and producer-facing scripts (台本, 絵コンテ); drafts only, never publishes | [execute-assistant-writing](../../execute-assistant-writing/SKILL.md) |
-| researcher | purpose-led depth proposal, agreed Build and self-check through the consuming primary; analysis, verification and guidance | [execute-assistant-research](../../execute-assistant-research/SKILL.md) |
-| searcher | purpose-led retrieval proposal, agreed Build and self-check; lookups, sweeps and hunts, all resident | [execute-assistant-search](../../execute-assistant-search/SKILL.md) |
-| marketer | strategy advisor: offer discovery, positioning, campaigns, review findings and outcome analysis; never commissions parts or saves drafts | [execute-assistant-marketing](../../execute-assistant-marketing/SKILL.md): you commission, accept and save the service draft after exact remote-save consent; no publishing |
+| creator | Creative advisor: directions for an open look and named changes from vague feedback (consulted from execute-assistant-creative) | [execute-assistant-creative](../../creative/execute/SKILL.md) |
+| image-creator / video-creator / audio-creator | Media production from filled forms | [execute-assistant-creative](../../creative/execute/SKILL.md); Client brief, scoped grants and proposal relay |
+| writer | text deliverables from released units: reader-facing prose and producer-facing scripts (台本, 絵コンテ); drafts only, never publishes | [execute-assistant-writing](../../writing/execute/SKILL.md) |
+| researcher | purpose-led depth proposal, agreed Build and self-check through the consuming primary; analysis, verification and guidance | [execute-assistant-research](../../research/execute/SKILL.md) |
+| searcher | purpose-led retrieval proposal, agreed Build and self-check; lookups, sweeps and hunts, all resident | [execute-assistant-search](../../search/execute/SKILL.md) |
+| marketer | strategy advisor: offer discovery, positioning, campaigns, review findings and outcome analysis; never commissions parts or saves drafts | [execute-assistant-marketing](../../marketing/execute/SKILL.md): you commission, accept and save the service draft after exact remote-save consent; no publishing |
 
 The profile is the execution contract (model, tools, standing prompt);
 its pipeline skill auto-loads in every session and routes
 internally by its own contract — describe WHAT you need, not which internal
 mode. Engineering is not a specialist: you drive OpenCode runs directly per
-[execute-assistant-engineering](../../execute-assistant-engineering/SKILL.md),
+[execute-assistant-engineering](../../engineering/execute/SKILL.md),
 and the code work runs in OpenCode, not in your turn.
 Media never gets improvised by the assistant, whatever the tier;
 text and analysis may stay inline only when genuinely light.

@@ -254,13 +254,14 @@ references/
   plan/index.md                  common Plan procedure
   execute/                       common Execute procedure and transport
   quality-assurance/index.md     common QA floor
-chat-assistant/                  inline procedure and its references
-plan-assistant-<domain>/         planning entry and its references
-execute-assistant-<domain>/      execution entry and its references
-qa-assistant-<domain>/           acceptance entry and its references
+chat/                            chat-assistant: inline procedure and its references
+<domain>/plan/                   plan-assistant-<domain> and its references
+<domain>/execute/                execute-assistant-<domain> and its references
+<domain>/qa/                     qa-assistant-<domain> and its references
 ```
 
-- **One mode/domain = one discoverable entry.** Keep child skills outside
+- **One mode/domain = one discoverable entry**, at `<domain>/<mode>/SKILL.md`
+  (`<domain>/` itself is only a directory). Keep child skills outside
   `references/`, where Hermes would exclude them from discovery. Their
   `SKILL.md` contains the former domain index, not a wrapper around another
   hidden index. Common mode files apply to the selected entry; their routing
@@ -313,7 +314,7 @@ qa-assistant-<domain>/           acceptance entry and its references
   consent. Marketing is service-draft-only; no agent publishes, schedules or
   sends on the user's behalf. Old Publish/P1 grants do not authorize new work.
 - Parking time-deferred work in chat memory instead of a cron job
-  (`chat-assistant/references/cron.md`).
+  (`chat/references/cron.md`).
 - Polling sessions; status checks are user-initiated only.
 - Re-running a form-filling interview for an obvious request, or asking
   more than one `clarify` at a time.

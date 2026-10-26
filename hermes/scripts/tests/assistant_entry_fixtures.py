@@ -28,8 +28,9 @@ def entry_text(name, routes=()):
         "full body is missing, use read_file on the canonical paths below;\n"
         "stop if unavailable.\n"
     )
+    up = "../" if phase == "chat" else "../../"
     body += "\n".join(
-        f"${{HERMES_SKILL_DIR}}/../{path}" for path in paths
+        f"${{HERMES_SKILL_DIR}}/{up}{path}" for path in paths
     )
     body += "\n</ReadBeforeWork>\n" + "\n".join(routes) + "\n"
     return "---\n" + yaml.safe_dump(data, sort_keys=False) + "---\n" + body
@@ -48,18 +49,19 @@ def build_assistant_tree(write, validator):
             write(f"references/{phase}/{filename}", "# Common\n")
         for cap in CAPABILITIES:
             name = f"{prefix}-assistant-{cap}"
+            entry = f"{cap}/{prefix}"
             routes = []
             if prefix == "qa":
                 names = validator.REQUIRED_QA_CONTRACTS.get(cap, set())
                 for filename in names:
-                    write(f"{name}/references/{filename}", "# Contract\n")
+                    write(f"{entry}/references/{filename}", "# Contract\n")
                 routes = [f"references/{filename}" for filename in sorted(names)]
-            write(f"{name}/SKILL.md", entry_text(name, routes))
+            write(f"{entry}/SKILL.md", entry_text(name, routes))
     chat_files = ("workspace-ops.md", "message-reply.md", "cron.md", "lookups.md", "whatsapp.md",
                   "signal.md", "discord.md", "telegram.md", "x.md", "note.md", "substack.md",
                   "youtube.md", "google.md", "web3.md", "github.md")
-    write("chat-assistant/SKILL.md", entry_text(
+    write("chat/SKILL.md", entry_text(
         "chat-assistant", [f"references/{filename}" for filename in chat_files]
     ))
     for filename in chat_files:
-        write(f"chat-assistant/references/{filename}", "# Chat\n")
+        write(f"chat/references/{filename}", "# Chat\n")
