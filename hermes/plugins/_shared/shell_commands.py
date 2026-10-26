@@ -76,6 +76,13 @@ SWITCHES = {
     "npx": {"-y", "--yes", "-q", "--quiet", "--no-install", "--no"},
     "pnpm": {"-r", "--recursive", "-w", "--workspace-root", "-s", "--silent", "--shell-mode"},
 }
+# In a project: its task runners, and the package runners that run its own dependencies' binaries
+# (never a download: dlx, pnpx, uvx, or npx with -y or --package).
+ENTRY_NAMES = {"nps", "make", "just", "task", "turbo", "nx", "lerna"}
+LOCAL_RUNNERS = {"npx", "bunx"}
+LOCAL_EXEC = {("pnpm", "exec"), ("yarn", "exec"), ("npm", "exec"), ("npm", "x"), ("bun", "x"), ("bun", "exec")}
+_NODE_BIN = re.compile(r"^(?:\./)?node_modules/\.bin/[^/]+$")
+MOVES = {"cd", "pushd", "popd"}
 # Commands that may run what they are fed, beside interpreters and shells reading a file or input.
 EXECUTORS = {"parallel", "source", "."}
 # awk reads records as data; its program runs commands only through system(), a pipe or getline.
@@ -452,14 +459,50 @@ def _awk_program(texts: list[str]) -> str | None:
     return ""
 
 
+def _relative(text: str) -> bool:
+    """A path inside the working directory: relative, never climbing out, not a dependency's bin."""
+    parts = text.split("/")
+    return (bool(text) and not text.startswith(("/", "-", "~")) and "/" in text and ".." not in parts
+            and "node_modules" not in parts)
+
+
+def _entry(head: str, name: str) -> bool:
+    return name in ENTRY_NAMES or _relative(head)
+
+
+def _project_script(words: list[_Word], shell: bool) -> bool:
+    """A shell or an interpreter running a script file of the project, read from its own path:
+    a shell only in file mode (not -c or -s), an interpreter only with the script first."""
+    if shell:
+        how, operand = _shell_input(words)
+        return how == "file" and operand.clean and _relative(operand.text)
+    return len(words) > 1 and words[1].clean and _relative(words[1].text)
+
+
+def _moves(text: str) -> bool:
+    return text in ("-C", "--dir", "--prefix", "--cwd", "--chdir") or \
+        text.startswith(("--dir=", "--prefix=", "--cwd=", "--chdir=")) or (text.startswith("-C") and len(text) > 2)
+
+
+def _fetches(texts: list[str]) -> bool:
+    """A package runner told to fetch a package rather than use the project's own."""
+    return any(t in ("-y", "--yes", "-p", "--package") or t.startswith("--package=") for t in texts)
+
+
 def _reads_input(word: _Word) -> bool:
     return not word.clean or word.text in ("-", "/dev/stdin") or word.text.startswith("/dev/fd/")
 
 
 class _Reader:
-    def __init__(self, names, fallback: re.Pattern):
+    def __init__(self, names, fallback: re.Pattern, project: bool = False, local=None):
         self.names = {name.lower() for name in names}
         self.fallback = fallback
+        # In a project (project_place): its own entry points and scripts run, and ``local(name)``
+        # says a CLI is one of its own dependencies, run through its package manager.
+        self.project = project
+        self.local = local if project and local else (lambda name: False)
+        self.local_used = False
+        self.moves = 0  # changes of directory: a dependency counts only where the project is
         self.budget = [BUDGET, False]
         # A data command's mention passes only while nothing on the line runs what it is fed:
         # `echo 'gcloud x' | python3 -W ignore`, `echo gcloud | xargs -I CMD CMD auth`; a command
@@ -506,13 +549,13 @@ class _Reader:
         read as one (`MSG="don't"`) runs nothing by being assigned; using it as a command name later
         is an expansion, which this reader does not follow. Reading it leaves the line's other
         marks as they were: a value is not run by being assigned."""
-        marks = (self.executor, self.unknown, self.data_mention, self.budget[1])
+        marks = (self.executor, self.unknown, self.data_mention, self.budget[1], self.moves, self.local_used)
         try:
             return self.line(text, depth + 1)
         except Unreadable:
             return False
         finally:
-            self.executor, self.unknown, self.data_mention, self.budget[1] = marks
+            self.executor, self.unknown, self.data_mention, self.budget[1], self.moves, self.local_used = marks
 
     def mentioned(self, words: list[_Word], herestrings=()) -> bool:
         """A command not known to treat its arguments (or here-strings) as data, naming a CLI in
@@ -521,15 +564,16 @@ class _Reader:
             raise Unreadable("a CLI named in the arguments of a command not known to be data")
         return False
 
-    def follow(self, words: list[_Word], depth: int, wrapper: str = "") -> bool:
-        """The command a wrapper runs, at each place its flags leave open."""
+    def follow(self, words: list[_Word], depth: int, wrapper: str = "", runner: bool = False) -> bool:
+        """The command a wrapper runs, at each place its flags leave open. ``runner``: a package
+        manager runs it from the project's own dependencies (pnpm exec), not a download."""
         texts = [w.text for w in words]
         at = _positions(texts, SWITCHES.get(wrapper, ()))
         if not at:
             self.unknown = True  # `sudo -s` with no command runs a shell on its input
-        return any(self.argv(words[j:], depth + 1) for j in at)
+        return any(self.argv(words[j:], depth + 1, runner=runner) for j in at)
 
-    def argv(self, words: list[_Word], depth: int, herestrings=()) -> bool:
+    def argv(self, words: list[_Word], depth: int, herestrings=(), runner: bool = False) -> bool:
         self.budget[0] -= 1
         if depth > DEPTH or self.budget[0] < 0:
             raise Unreadable("nested too deep")
@@ -547,7 +591,22 @@ class _Reader:
         name = _name(head.text)
         texts = [w.text for w in rest]
         if name in self.names:
+            # Only the bare name a package manager resolves from the project's dependencies, or
+            # their bin path: never a path elsewhere or a version to fetch (`wrangler@3`).
+            local = (runner and head.text == name) or _NODE_BIN.match(head.text)
+            if local and self.local(name):
+                self.local_used = True
+                return False
             return True
+        if name in MOVES or (name in set(MANAGERS) | {"env"} and any(_moves(t) for t in texts)):
+            self.moves += 1  # cd, or `pnpm -C dir`, `npm --prefix dir`, `env -C dir`
+        runs_code = name in SHELLS or bool(INTERPRETERS.match(name))  # also as ./bin/sh
+        if self.project and ((not runs_code and _entry(head.text, name)) or
+                             (runs_code and _project_script(words, name in SHELLS))):
+            # The project's own entry point or script (`nps setup.google`, `./scripts/deploy.sh`,
+            # `node scripts/setup.mjs`): not a command this reader does not know, though a CLI
+            # named in its arguments is still judged strictly.
+            return self.mentioned(rest, herestrings)
         if name in EXECUTORS or INTERPRETERS.match(name):
             self.executor = True
         if name in SHELLS:
@@ -614,19 +673,25 @@ class _Reader:
             for t in texts:
                 if t.startswith("--call="):
                     return self.line(t.split("=", 1)[1], depth + 1)
-            return self.follow(rest, depth, "npx" if name in RUNNERS else name)
+            local = name in LOCAL_RUNNERS and not _fetches(texts)
+            return self.follow(rest, depth, "npx" if name in RUNNERS else name, runner=local)
         if name in MANAGERS and not (name == "bun" and any(t in ("-e", "--eval", "-p", "--print") for t in texts)):
             for t in texts:
                 if t.startswith("--call="):
                     return self.line(t.split("=", 1)[1], depth + 1)
-            for j in _positions(texts, SWITCHES.get(name, ())):
+            # A flag's value may stand before the command (`pnpm --filter web exec …`): a manager's own
+            # command among the candidates is the one it runs.
+            at = _positions(texts, SWITCHES.get(name, ()))
+            for j in at:
                 if texts[j] in MANAGERS[name]:
-                    return self.follow(rest[j + 1:], depth, "npx")
+                    local = (name, texts[j]) in LOCAL_EXEC and not _fetches(texts)
+                    return self.follow(rest[j + 1:], depth, "npx", runner=local)
                 if texts[j] in MANAGER_COMMANDS:
                     return False
+            for j in at:
                 if name not in BARE_BIN:
                     return self.mentioned(rest)
-                if self.argv(rest[j:], depth + 1):
+                if self.argv(rest[j:], depth + 1, runner=True):
                     return True
             return False
         if INTERPRETERS.match(name):
@@ -659,15 +724,21 @@ class _Reader:
         return False
 
 
-def runs(command: str, names, fallback: re.Pattern) -> bool:
+def runs(command: str, names, fallback: re.Pattern, project: bool = False, local=None, moves: int = 0) -> bool:
     """Whether the shell line ``command`` may run a program named in ``names``.
 
     ``fallback`` is the caller's strict pattern, searched over the whole line when the line holds a
     form this reader cannot follow, or names a CLI in the arguments of a command not known to treat
-    them as data."""
-    reader = _Reader(names, fallback)
+    them as data. ``project``: the line runs in one of the user's project repositories
+    (project_place), where the project's own entry points and scripts pass and ``local(name)``
+    tells a CLI that is one of its own dependencies, which may run through its package manager.
+    ``moves``: the changes of directory that place itself accounts for (a leading ``cd``); a
+    dependency run after any other change of directory counts as the CLI run."""
+    reader = _Reader(names, fallback, project, local)
     try:
         if reader.line(command):
+            return True
+        if reader.local_used and reader.moves > moves:
             return True
         if reader.data_mention and reader.runs_fed_input():
             raise Unreadable("a mention on a line that also runs what it is fed")
