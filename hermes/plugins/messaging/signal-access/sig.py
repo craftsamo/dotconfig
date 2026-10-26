@@ -48,19 +48,22 @@ def _load_shared(name: str):
     return sys.modules[key]
 
 
-def _load_card():
-    if "hermes_card" not in sys.modules:
-        spec = importlib.util.spec_from_file_location("hermes_card", HERE.parents[1] / "_shared" / "card.py")
+def _load_common(name: str):
+    """A module of plugins/_shared/ (every plugin's), as opposed to messaging's own _shared/."""
+    key = f"hermes_{name}"
+    if key not in sys.modules:
+        spec = importlib.util.spec_from_file_location(key, HERE.parents[1] / "_shared" / f"{name}.py")
         module = importlib.util.module_from_spec(spec)
-        sys.modules["hermes_card"] = module
+        sys.modules[key] = module
         spec.loader.exec_module(module)
-    return sys.modules["hermes_card"]
+    return sys.modules[key]
 
 
 store = _load("store")
 rpc = _load("rpc")
 archives = _load_shared("archive_check")
-cards = _load_card()
+cards = _load_common("card")
+shell_commands = _load_common("shell_commands")
 
 ACTIONS = ("status", "chats", "messages", "search", "context", "contacts", "check", "media", "send")
 WRITES = {"send"}
@@ -130,8 +133,10 @@ FAILURE_NOT_SENT = {"UNREGISTERED_FAILURE": "not on Signal any more",
                     "RATE_LIMIT_FAILURE": "Signal is rate limiting this account; try again later",
                     "INVALID_PRE_KEY_FAILURE": "Signal refused the recipient's keys"}
 
-# Ways around the tool: the CLI as a command word, the state directory, the agent and its env,
+# Ways around the tool: the CLI where a command runs it (shell_commands; `_CLI`, the name as a word
+# anywhere, judges a line that cannot be read that way), the state directory, the agent and its env,
 # and Signal Desktop's own database.
+CLIS = ("signal-cli",)
 _CLI = re.compile(r"(?:^|[\s;&|()`'\"=])(?:[^\s;&|()`'\"]*/)?signal-cli(?=$|[\s;&|()`'\"])")
 _PATHS = re.compile(r"hermes-signal|signal-cli\.sock|share/signal-cli|signal-sync|local\.signal\.sync"
                     r"|signal-access-sync|signal-access\.sync|signal-access-launchctl"
@@ -1086,7 +1091,7 @@ def bypass(tool: str, args) -> str | None:
     args = args if isinstance(args, dict) else {}
     if tool == "terminal":
         command = args.get("command")
-        if isinstance(command, str) and _CLI.search(command):
+        if isinstance(command, str) and shell_commands.runs(command, CLIS, _CLI):
             return BYPASS_MESSAGE
         if any(_PATHS.search(text) or _ENGINE.search(text) for text in _strings(args)):
             return BYPASS_MESSAGE

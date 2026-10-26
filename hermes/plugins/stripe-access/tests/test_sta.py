@@ -366,6 +366,7 @@ def test_the_terminal_cannot_go_around_the_tool(command):
     "git commit -m 'note the stripe fee was high'", "open https://dashboard.stripe.com/test/payments",
     "ls ./stripe-cli", "cat notes/stripe.md", "echo 'stripes and dots' | wc -w",
     "npm view stripe version", "grep -En '(stripe |solid )' patterns.txt",
+    "grep -n 'stripe listen --forward-to' docs/dev.md", "echo \"stripe customers list\" >> notes.md",
     # metadata only, or another project's item
     "secret ls -p hermes --json", "secret show STRIPE_WORK -p hermes", "secret get API_TOKEN -p shop",
     "secret get HERMES_TOKEN -p hermes-tools",

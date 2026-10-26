@@ -32,17 +32,19 @@ from datetime import date, datetime, timedelta, timezone
 HERE = Path(__file__).resolve().parent
 
 
-def _load_card():
-    if "hermes_card" not in sys.modules:
+def _load_shared(name):
+    key = f"hermes_{name}"
+    if key not in sys.modules:
         import importlib.util
-        spec = importlib.util.spec_from_file_location("hermes_card", HERE.parent / "_shared" / "card.py")
+        spec = importlib.util.spec_from_file_location(key, HERE.parent / "_shared" / f"{name}.py")
         module = importlib.util.module_from_spec(spec)
-        sys.modules["hermes_card"] = module
+        sys.modules[key] = module
         spec.loader.exec_module(module)
-    return sys.modules["hermes_card"]
+    return sys.modules[key]
 
 
-cards = _load_card()
+cards = _load_shared("card")
+shell_commands = _load_shared("shell_commands")
 
 READS = ("status", "account", "zones", "dns_records", "zone_settings", "analytics", "workers", "pages", "r2", "kv",
          "d1", "tunnels", "email_routing")
@@ -105,24 +107,27 @@ BYPASS_MESSAGE = (
     "CLIs' logins (~/.wrangler/config, ~/.cloudflared) or the tool's state (~/.cloudflare-access). Use the "
     "cloudflare tool; storing a token is the user's job, and deploying code is a job for the project's own "
     "tooling outside Hermes.")
-# The Cloudflare CLIs: as the command itself (after a separator, a wrapper such as sudo or env, or a package
-# runner such as npx or pnpm exec), or anywhere with a command that uses the account after it (`bash -c
-# "wrangler deploy"`). Mentions that run nothing (`grep wrangler package.json`, `brew install cloudflared`)
-# stay allowed.
+# The Cloudflare CLIs, where a command runs them: directly, behind a wrapper such as sudo or env, inside
+# `bash -c`, or through a package runner such as npx or pnpm exec (shell_commands). Mentions that run nothing
+# (`grep wrangler package.json`, `grep -n 'wrangler deploy' docs/x.md`, `brew install cloudflared`) stay
+# allowed. `_CLI_TEXT` judges a line that cannot be read that way: the command itself after a separator,
+# a wrapper or a runner, or the CLI anywhere with a command that uses the account after it.
+CLIS = ("wrangler", "cloudflared", "flarectl")
 _RUNNER = r"(?:npx|bunx|pnpx|(?:pnpm|npm|yarn|bun)\s+(?:exec|dlx|x)|yarn)\s+(?:-\S+\s+)*"
 _CLIS = r"(?:wrangler|cloudflared|flarectl)(?:@\S*)?"   # a package runner may pin a version: wrangler@4
 _CLI_COMMANDS = (r"login|logout|whoami|deploy|publish|delete|rollback|versions|deployments|secret|secrets-store|kv"
                  r"|r2|d1|pages|tail|queues|hyperdrive|vectorize|dispatch-namespace|ai|workflows|triggers"
                  r"|pipelines|containers|cert|mtls-certificate|dev|tunnel|access|service|zone|dns|user|firewall"
                  r"|pagerules")
+_CLI_TEXT = re.compile(
+    r"(?:^|[;&|`\n]|\$\()\s*(?:(?:sudo|env|command|exec|nohup|time|xargs)\s+(?:-\S+\s+|\w+=\S*\s+)*)*"
+    r"(?:" + _RUNNER + r")?(?:\S*/)?" + _CLIS + r"(?=\s|$)"
+    r"|(?:^|[\s;&|()`'\"=/])" + _CLIS + r"(?:\s+-{1,2}[A-Za-z][\w-]*(?:[=\s]+(?!-)\S+)?)*\s+(?:" + _CLI_COMMANDS
+    + r")\b", re.IGNORECASE)
 _TERMINAL = re.compile(
     r"(?<![\w-])cloudflare-access(?![\w-])|(?<!\w)cloudflare_access(?!\w)|api\.cloudflare\.com"
     r"|\bcf(?:ut|at|k)_[A-Za-z0-9_-]{8,}|\b(?:CLOUDFLARE|CF)_API_(?:TOKEN|KEY)\b|\bX-Auth-Key\b"
     r"|\.cloudflared(?![\w-])|\.wrangler/config\b"
-    r"|(?:^|[;&|`\n]|\$\()\s*(?:(?:sudo|env|command|exec|nohup|time|xargs)\s+(?:-\S+\s+|\w+=\S*\s+)*)*"
-    r"(?:" + _RUNNER + r")?(?:\S*/)?" + _CLIS + r"(?=\s|$)"
-    r"|(?:^|[\s;&|()`'\"=/])" + _CLIS + r"(?:\s+-{1,2}[A-Za-z][\w-]*(?:[=\s]+(?!-)\S+)?)*\s+(?:" + _CLI_COMMANDS
-    + r")\b"
     r"|\bimport\s+cloudflare\b|\bfrom\s+cloudflare(?:\.\w+)*\s+import\b|\bfrom\s+['\"]cloudflare['\"]"
     r"|\bimport\s*\(\s*['\"]cloudflare['\"]|\brequire\s*\(?\s*['\"]cloudflare['\"]|github\.com/cloudflare/cloudflare-go"
     # The tokens' names are free, and a read that leaves out the scope searches the one named after the working
@@ -2345,6 +2350,9 @@ def bypass(tool: str, args) -> str | None:
     A pattern match on the call's text, not a sandbox."""
     args = args if isinstance(args, dict) else {}
     if tool == "terminal":
+        command = args.get("command")
+        if isinstance(command, str) and shell_commands.runs(command, CLIS, _CLI_TEXT):
+            return BYPASS_MESSAGE
         if any(_TERMINAL.search(text) for text in _strings(args)):
             return BYPASS_MESSAGE
     elif tool in FILE_TOOLS:

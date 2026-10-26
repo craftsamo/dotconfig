@@ -641,6 +641,8 @@ def test_the_guard_blocks_ways_around_the_tool(command):
     "grep wrangler package.json", "brew install cloudflared", "cat wrangler.toml", "npm view wrangler version",
     "dig example.com", "curl https://www.cloudflarestatus.com/api/v2/status.json", "secret ls -p hermes",
     "secret show CLOUDFLARE_WORK -p hermes", "ls .wrangler/state", "git log --grep cloudflare",
+    "grep -n 'wrangler deploy' docs/deploy.md", "grep -En 'wrangler (pages|d1)' package.json | head",
+    "echo \"run wrangler login first\"", "npm run deploy",
 ])
 def test_the_guard_leaves_ordinary_commands_alone(command):
     assert cfa.bypass("terminal", {"command": command}) is None
