@@ -162,9 +162,10 @@ Hermes account paying, which needs a little gas on that chain), `chain`,
    an opening fee too; the card shows both and what arrives at least.
 
 Into the user's own Hermes account both run at once; into anyone else's each
-asks on its card. Circle credits the account within about a minute: confirm
-it with `balances` / `state` before anything else, and never send the burn
-twice. On testnet Circle credits only accounts that exist on Hyperliquid
+asks on its card. The first deposit into an account that has none is small,
+and confirmed before the rest follows. Circle credits the account within
+about a minute: confirm it with `balances` / `state` before anything else,
+and never send the burn twice. On testnet Circle credits only accounts that exist on Hyperliquid
 mainnet, at most 1000 USDC: the quote refuses others. Nothing is ever sent to
 Hyperliquid's legacy bridge; the testnet faucet's mock USDC is a separate
 source, for accounts with a mainnet deposit.
