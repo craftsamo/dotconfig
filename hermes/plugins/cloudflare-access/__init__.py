@@ -348,7 +348,7 @@ def register(ctx):
     schema = {"name": TOOL, "description": description, "parameters": {
         "type": "object", "properties": properties, "required": ["action"], "additionalProperties": False}}
     ctx.register_tool(name=TOOL, toolset=TOOLSET, handler=make_handler(profile), description=description,
-                      schema=schema)
+                      schema=schema, emoji="🌐")
     tool_preview.enums(TOOL, schema, "action", "report")
     ctx.register_hook("pre_tool_call", make_gate(profile))
     register_skills(ctx, profile)

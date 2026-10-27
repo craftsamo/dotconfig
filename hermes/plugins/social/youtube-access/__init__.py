@@ -388,7 +388,7 @@ def register(ctx):
         return
     schema = schema_for(profile)
     ctx.register_tool(name=TOOL, toolset=TOOLSET, handler=lambda args, **kwargs: handle(profile, args, **kwargs),
-                      description=schema["description"], schema=schema)
+                      description=schema["description"], schema=schema, emoji="▶️")
     tool_preview.enums(TOOL, schema, "action")
     ctx.register_hook("pre_tool_call", lambda **kwargs: gate(profile, **kwargs))
     if writes_for(profile):

@@ -133,7 +133,7 @@ def register(ctx):
     if ctx.profile_name not in PROFILES:
         return
     ctx.register_tool(name="workspace_drafts", toolset="workspace_drafts", handler=workspace_drafts,
-                      description=DESCRIPTION,
+                      description=DESCRIPTION, emoji="📝",
                       schema={"name": "workspace_drafts", "description": DESCRIPTION, "parameters": {
                           "type": "object", "properties": PROPERTIES, "required": ["action"],
                           "additionalProperties": False}})

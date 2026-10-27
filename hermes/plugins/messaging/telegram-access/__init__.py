@@ -242,7 +242,7 @@ def register(ctx):
     schema = {"name": TOOL, "description": DESCRIPTION, "parameters": {
         "type": "object", "properties": PROPERTIES, "required": ["action"], "additionalProperties": False}}
     ctx.register_tool(name=TOOL, toolset=TOOLSET, handler=telegram_account, description=DESCRIPTION,
-                      schema=schema)
+                      schema=schema, emoji="✈️")
     tool_preview.enums(TOOL, schema, "action")
     ctx.register_hook("pre_tool_call", gate)
     register_skills(ctx, ctx.profile_name)

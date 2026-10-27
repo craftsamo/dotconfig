@@ -186,6 +186,7 @@ def register_skills(ctx, profile):
 def register(ctx):
     if ctx.profile_name not in PROFILES:
         return
-    ctx.register_tool(name=TOOL, toolset=TOOL, handler=screen_listen, description=DESCRIPTION, schema=SCHEMA)
+    ctx.register_tool(name=TOOL, toolset=TOOL, handler=screen_listen, description=DESCRIPTION, schema=SCHEMA,
+                      emoji="🎧")
     tool_preview.enums(TOOL, SCHEMA, "action")
     register_skills(ctx, ctx.profile_name)

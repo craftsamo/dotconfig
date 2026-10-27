@@ -2,7 +2,7 @@
 
 Nothing here is secret or per-run. Roles are data: a role names an installed
 OpenCode agent, one of two policies, and optionally a model, an alternate model,
-whether the caller's own model is allowed, and a short note.
+whether the caller's own model is allowed, a short note and a progress-line emoji.
 """
 
 from __future__ import annotations
@@ -24,11 +24,14 @@ POLICIES = ("read-only", "write")
 # judging or building what it then accepts itself; `allow` is a maintainer's choice.
 CALLER_MODEL_MODES = ("refuse", "allow")
 DEFAULT_ROLES = {
-    "plan": {"agent": "plan", "policy": "read-only"},
-    "review": {"agent": "review", "policy": "read-only"},
-    "debug": {"agent": "debug", "policy": "read-only"},
-    "build": {"agent": "build", "policy": "write"},
+    "plan": {"agent": "plan", "policy": "read-only", "emoji": "📝"},
+    "review": {"agent": "review", "policy": "read-only", "emoji": "👀"},
+    "debug": {"agent": "debug", "policy": "read-only", "emoji": "🐛"},
+    "build": {"agent": "build", "policy": "write", "emoji": "🔨"},
 }
+# The progress-line emoji of a role that names none of its own.
+POLICY_EMOJI = {"read-only": "👀", "write": "🔨"}
+EMOJI_LIMIT = 16
 DEFAULT_WAIT_TIMEOUT = 3300
 MAX_WAIT_TIMEOUT = 5400
 ROLE_NAME = re.compile(r"[a-z][a-z0-9_]{0,23}\Z")
@@ -57,8 +60,10 @@ def pinned(value):
 def _role(name, raw):
     if not ROLE_NAME.fullmatch(name):
         raise ValueError(f"{KEY}.roles: {name!r} is not a role name (lowercase letters, digits, _)")
-    if not isinstance(raw, dict) or set(raw) - {"agent", "policy", "model", "alternate", "caller_model", "note"}:
-        raise ValueError(f"{KEY}.roles.{name} takes agent, policy, model, alternate, caller_model and note only")
+    if not isinstance(raw, dict) or set(raw) - {"agent", "policy", "model", "alternate", "caller_model", "note",
+                                                 "emoji"}:
+        raise ValueError(f"{KEY}.roles.{name} takes agent, policy, model, alternate, caller_model, note and "
+                         "emoji only")
     agent, policy = raw.get("agent"), raw.get("policy")
     if not isinstance(agent, str) or not AGENT_NAME.fullmatch(agent):
         raise ValueError(f"{KEY}.roles.{name}.agent must be an OpenCode agent name")
@@ -82,7 +87,17 @@ def _role(name, raw):
         if not isinstance(note, str) or len(note) > NOTE_LIMIT:
             raise ValueError(f"{KEY}.roles.{name}.note must be text of at most {NOTE_LIMIT} characters")
         role["note"] = note
+    emoji = raw.get("emoji")
+    if emoji is not None:
+        if not isinstance(emoji, str) or not 0 < len(emoji) <= EMOJI_LIMIT or any(c.isspace() for c in emoji):
+            raise ValueError(f"{KEY}.roles.{name}.emoji must be a short symbol without spaces")
+        role["emoji"] = emoji
     return role
+
+
+def emoji(role):
+    """The progress-line emoji of a role: its own, else its policy's."""
+    return role.get("emoji") or POLICY_EMOJI[role["policy"]]
 
 
 def roles(home):

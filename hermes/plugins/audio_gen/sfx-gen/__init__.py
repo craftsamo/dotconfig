@@ -384,11 +384,15 @@ def generate(args, **kwargs):
         return json.dumps({"success": False, "error": message, "job_dir": str(path) if path else None})
 
 
+TOOL_EMOJI = {"sfx_engines": "🎛️", "sfx_generate": "💥"}
+
+
 def register(ctx):
     if ctx.profile_name != "audio-creator":
         return
     for schema, handler in ((CATALOG_SCHEMA, catalog), (GENERATE_SCHEMA, generate)):
         ctx.register_tool(name=schema["name"], toolset="sfx_gen", schema=schema,
-                          handler=handler, description=schema["description"])
+                          handler=handler, description=schema["description"],
+                          emoji=TOOL_EMOJI[schema["name"]])
         if schema is GENERATE_SCHEMA:
             tool_preview.enums(schema["name"], schema, "action")

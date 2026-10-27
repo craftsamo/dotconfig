@@ -781,6 +781,7 @@ def _reap_later(proc):
     threading.Thread(target=proc.wait, name="specialist-runner-reaper", daemon=True).start()
 
 
+TOOL_EMOJI = {"specialist_call": "📞", "specialist_session": "⏳"}
 DETACHED_NOTE = ("Running detached. Collect it with specialist_session(action='wait') before this turn ends: "
                  "a one-shot caller that exits takes its runners down with it.")
 
@@ -1207,7 +1208,7 @@ def register(ctx):
                   "parameters": {"type": "object", "properties": properties,
                                  "required": required, "additionalProperties": False}}
         ctx.register_tool(name=name, toolset="specialist", handler=scoped(handler), description=description,
-                          schema=schema)
+                          schema=schema, emoji=TOOL_EMOJI[name])
         if name == "specialist_call":
             tool_preview.install(name, _call_preview, schema, ("kind",))
         else:
