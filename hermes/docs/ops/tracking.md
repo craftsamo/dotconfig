@@ -12,8 +12,8 @@ Part of the Hermes mechanics docs — entry: [`README.md`](../../README.md).
 **Tracked:** root `config.example.yaml` / `mcp.json` / `.no-bundled-skills`; per profile
 `config.example.yaml`, `profile.yaml`,
 `.no-bundled-skills`, `skills/pipeline/` and `skills/technic/`,
-`scripts/`, `cron.d/`; every `SOUL.example.md`; `skills/pipeline/`; `plugins/`
-source; `launchd/`; `engines/`; `scripts/`; docs.
+`scripts/`, `cron.d/`, `webhook.d/`; every `SOUL.example.md`; `skills/pipeline/`;
+`plugins/` source; `launchd/`; `engines/`; `scripts/`; docs.
 
 **Not here at all:** everything Hermes writes. `~/.hermes` and each profile
 home are real machine-local directories holding links into this tree
@@ -21,8 +21,10 @@ home are real machine-local directories holding links into this tree
 `memories/`, `sessions/`, `state.db*`, `cron/`, …), the real `config.yaml` and
 `SOUL.md` (the private overlay's, linked from HOME), `learned/` and the skill
 bookkeeping (`.usage.json*`, `.curator_*`, `.hub/`, seeded categories), a
-profile's `adhoc/` scripts, its own `cron.d/` directories and the wrappers
-cron-sync generates all land beside the links, outside the repository.
+profile's `adhoc/` scripts, its own `cron.d/` and `webhook.d/` directories,
+the wrappers the syncs generate and the root home's
+`webhook_subscriptions.json` all land beside the links, outside the
+repository.
 
 **Ignored** (see [`.gitignore`](../../../.gitignore)): the runtime-state names
 above, as a safety net for a `HERMES_HOME` pointed at this tree by mistake;
@@ -135,3 +137,7 @@ rule never to re-link it or re-add it with `skip-worktree`, and why, is in
   `profiles/*/scripts/cron/` in HOME, outside the repository. Promoting a
   local job into a repository is the same move as `learned/ → technic/`
   ([cron.md "Public, private, local"](cron.md#public-private-local)).
+- An inbound webhook route follows the same shape: `profiles/<p>/webhook.d/<name>/`,
+  derived by `scripts/webhook-sync.py` into the root home's
+  `webhook_subscriptions.json`, which is never tracked (it is the runtime's
+  store and may hold a route's own secret) ([webhook.md](webhook.md)).
