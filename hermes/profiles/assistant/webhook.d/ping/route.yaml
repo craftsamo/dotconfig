@@ -1,0 +1,3 @@
+mode: notify
+prompt: "webhook ping: {message} (event {event_type})"
+deliver: telegram
