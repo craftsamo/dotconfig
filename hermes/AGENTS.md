@@ -192,9 +192,12 @@ skills.
   covers `agent.restart_after_turn_timeout` (the gateway lets running turns
   finish first) and never falls back to a kill; keep it that way, and raise
   `RESTART_WAIT` with that timeout.
-- Changes to code that runs inside the gateway (e.g. the Assistant-side
-  `specialist_call` kind validation) need a gateway restart; runner, handoff
-  and OpenCode-plugin changes apply on the next resident turn.
+- Changes to code that runs inside the gateway need a gateway restart: every
+  plugin a resident turn calls, the OpenCode plugin and the Assistant-side
+  `specialist_call` kind validation included, since resident turns run in the
+  gateway and a plugin's modules load once per process. Runner and handoff
+  script changes apply on the next resident turn
+  ([docs/ops/plugins.md](docs/ops/plugins.md)).
 
 ## Skills
 
