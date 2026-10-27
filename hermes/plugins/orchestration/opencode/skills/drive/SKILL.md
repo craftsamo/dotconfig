@@ -30,9 +30,9 @@ One tool per role: `opencode_run_plan`, `opencode_run_review`,
 (read-only in the repository; it writes HTML mocks and diagrams into
 `output_dir` only, for the person to open) and `opencode_run_build` (write).
 Each takes `(directory?, session_id?, message, model?, variant?, fork?,
-timeout?, output_dir?)`; build also takes `approval` and `issue_approval`.
-Which roles exist is configuration: a role missing from your tools is not
-configured.
+timeout?, output_dir?, issue?)`; build also takes `approval`,
+`untracked_reason` and `issue_approval`. Which roles exist is configuration: a
+role missing from your tools is not configured.
 
 - **New session:** `directory` is an absolute Git worktree root (not a
   subdirectory). Keep the returned `session_id` and pass it on every later
@@ -49,37 +49,50 @@ configured.
   started in: a session that moved elsewhere (it can move itself) is refused at
   its next turn, as is one bound before repositories were recorded.
   To work in another repository, start a new session and paste what it needs.
+- **`issue`** (`owner/repo#N`) names the issue a run works on: the run reads
+  it with its own tools as the specification (where the brief and the issue
+  disagree, the issue wins), and it is told which PR closes it (`Closes #N`
+  on the layer that completes the issue, `Refs #N` on any other). Pass it on
+  the plan turn of a unit; it is bound to the session, a fork inherits it,
+  and every result and `opencode_session list` row names it. Pass it again
+  only to change it. A build needs the session's issue or `untracked_reason`
+  (below); without either it is refused before anything runs.
 - **Plan → Build on one session.** Plan on the default checkout; nothing needs
   a task branch yet. Once the user approves, put the idle session into a
-  worktree of its own with `opencode_session workspace` (`session_id`, `branch`
-  such as `task/short-name`, optional `base`): the plugin fetches, creates the
-  worktree and branch from the remote default branch (`base=head` starts from
-  the current commit; without a remote or a known default branch it refuses and
-  you pass `head`), moves the session there and renames it. A `warning` in the
-  result means the fetch failed and the base is as of the last fetch. Then
-  `opencode_run_build` with the same `session_id` and `approval` switches
-  agent, model and policy while OpenCode keeps the whole investigation and
-  proposal in context. Do not create the worktree or branch yourself, and
-  never ask OpenCode to move itself. A new session knows nothing: point it at
-  the decision log and the plan files in the job directory.
-- **A plan of several Phases** (Phase N = one reviewable layer: one PR, or one
-  layer of a native stack) keeps the approved plan session as the trunk and
-  forks it for each Phase: `opencode_session fork` of the trunk, `workspace` on
-  the fork (`base=head` from the previous Phase's branch when it builds on an
-  unmerged layer), a plan turn for that Phase's steps (Phase N.m), then its
-  build on the fork. The fork inherits the investigation and the approved
-  roadmap but not the previous Phase's long build history; what earlier Phases
-  built is in Git. Give each Phase its own `output_dir` (`<job>/phase-N`).
+  worktree of its own with `opencode_session workspace` (`session_id`, optional
+  `branch`, optional `base`): the plugin fetches, creates the worktree and
+  branch from the remote default branch (`base=head` starts from the current
+  commit; without a remote or a known default branch it refuses and you pass
+  `head`), moves the session there and renames it. A session bound to an issue
+  gets `task/issue-N` unless you name the branch; one bound to none needs
+  `branch` (`task/short-name`). A `warning` in the result means the fetch
+  failed and the base is as of the last fetch. Then `opencode_run_build` with
+  the same `session_id` and `approval` switches agent, model and policy while
+  OpenCode keeps the whole investigation and proposal in context. Do not
+  create the worktree or branch yourself, and never ask OpenCode to move
+  itself. A new session knows nothing: point it at the issue, the decision log
+  and the plan files in the job directory.
+- **A roadmap of several units** (a unit = one issue = one PR or one native
+  stack that lands once; Phase N = one layer of it, Phase N.m its steps)
+  keeps the approved plan session as the trunk and forks it for each unit:
+  `opencode_session fork` of the trunk, `workspace` on the fork (`base=head`
+  from the previous unit's branch when it builds on an unmerged one), a plan
+  turn for that unit with its `issue`, then its build on the fork. The fork
+  inherits the investigation and the approved roadmap but not the previous
+  unit's long build history; what earlier units built is in Git. Give each
+  unit its own `output_dir` (`<job>/issue-N`).
 - **`fork=true`** copies the entire history of `session_id` and runs on the
-  copy: for a Phase, parallel variants or an independent diagnosis. A fork
+  copy: for a unit, parallel variants or an independent diagnosis. A fork
   starts in the parent's worktree; give it its own with `workspace`. Fork an
   approved plan before its build to keep the clean plan to return to or to try
   a second approach.
 - **`approval`** quotes the user's explicit, scoped implementation decision as
   text — never a boolean, never your own words. Quote it on every build turn.
+  `untracked_reason` quotes the user's words that exclude this job from GitHub
+  (then no `issue`); it is bound to the session like an issue is.
   `issue_approval` separately quotes an explicit request to manage this job in
-  Issues. Both are records of the operating contract, not authentication, and
-  neither is shown to the run: the ruleset holds the grant, so the message
+  Issues. All are records of the operating contract, not authentication, and
+  none is shown to the run: the ruleset holds the grant, so the message
   never opens by reporting the approval. The Assistant's engineering pipeline
   never passes `issue_approval`: it changes Issues, boards, pull requests and
   merges itself through its GitHub tools, and a build only reads Issues.
@@ -134,10 +147,12 @@ An explicit choice binds the rest of that session.
   `messages` reads recent messages (truncated).
 - `interrupt` stops the run and its subagents. It never rolls back Git,
   pushes, PRs or data already changed.
-- `fork` copies an idle session. `workspace` (`branch`, optional `base`) moves
-  an idle session into a new worktree on a new task branch of its own
-  repository; it refuses a running session, a protected or existing branch and
-  an existing path, and undoes itself if the service refuses the move.
+- `fork` copies an idle session. `workspace` (optional `branch`, optional
+  `base`) moves an idle session into a new worktree on a new task branch of
+  its own repository (`task/issue-N` for a session bound to an issue, else the
+  `branch` you name); it refuses a running session, a protected or existing
+  branch and an existing path, and undoes itself if the service refuses the
+  move.
 
 `opencode_instructions(action, session_id, key?, value?)` lists, sets or
 removes durable instructions (`hermes.<name>`) announced to the agent at its

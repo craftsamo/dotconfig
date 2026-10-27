@@ -58,8 +58,17 @@ PERMISSION_ID = re.compile(r"per_[A-Za-z0-9_-]{1,64}\Z")
 FORM_ID = re.compile(r"frm_[A-Za-z0-9_-]{1,64}\Z")
 ENTRY_KEY = re.compile(r"hermes\.[a-z0-9._-]{1,48}\Z")
 DECISIONS = ("once", "reject")
-RUN_ARGS = {"directory", "session_id", "message", "model", "variant", "fork", "timeout", "output_dir"}
-WRITE_ARGS = {"approval", "issue_approval"}
+RUN_ARGS = {"directory", "session_id", "message", "model", "variant", "fork", "timeout", "output_dir", "issue"}
+WRITE_ARGS = {"approval", "issue_approval", "untracked_reason"}
+# The issue a run works on, `owner/repo#N`: the spec it reads and the one its completing
+# PR closes. It is bound to the session (a fork inherits it), so a build on a session
+# that planned an issue needs that issue or the caller's stated reason for none.
+ISSUE_REF = re.compile(r"[A-Za-z0-9](?:[A-Za-z0-9._-]{0,98})/[A-Za-z0-9._-]{1,100}#[1-9][0-9]{0,8}\Z")
+
+
+def issue_ref(value):
+    """`owner/repo#N` or None: the one spelling of an issue the plugin binds and re-checks."""
+    return value if isinstance(value, str) and ISSUE_REF.fullmatch(value) and ".." not in value else None
 NOTE_KEY = "hermes.note"
 DEFAULT_NOTE = (
     "No one is at the terminal: requests reach you through Hermes, which also answers your permission "
@@ -78,6 +87,12 @@ REPORT_NOTE = (
 # A write run learns whether Issue writes are granted here rather than by trying one.
 ISSUE_NOTE = {True: "Managing this job in Issues is granted.",
               False: "Issue writes are not granted for this job: leave Issues as they are."}
+# The issue is the spec; the brief adds what this turn hands back. Which PR closes it
+# follows from the stack: only the layer that completes the issue's scope.
+ISSUE_REF_NOTE = (
+    "This run's issue is `{issue}`: read it with your own tools as the specification before planning or "
+    "changing anything, and where the brief and the issue disagree the issue wins. A PR that completes its "
+    "scope says `Closes #{number}`; a PR that is one layer of it says `Refs #{number}`.")
 # The brief, the decision log and the Phase plan are this run's working context; what
 # reaches the repository is read by people who have none of it.
 PUBLISHED_NOTE = (
@@ -228,12 +243,14 @@ def _agent(name, where):
 # Starting a turn
 
 
-def _instructions(role, output=None, issues=False):
+def _instructions(role, output=None, issues=False, issue=None):
     """The operating note. The approval is the caller's record (validated in `_prepare`,
     never consulted to authorize) and the ruleset enforces it, so neither it nor the output
     directory is added to the prompt."""
     read_only = role["policy"] == "read-only"
     text = DEFAULT_NOTE + " " + SHELL_NOTE + " " + (READ_ONLY_NOTE if read_only else ISSUE_NOTE[bool(issues)] + " " + PUBLISHED_NOTE)
+    if issue:
+        text += " " + ISSUE_REF_NOTE.format(issue=issue, number=issue.rsplit("#", 1)[1])
     if output:
         text += " " + OUTPUT_NOTE.format(path=output)
         text += " " + (REPORT_NOTE if read_only else PROGRESS_NOTE.format(path=str(Path(output) / progress.FILE)))
@@ -245,11 +262,17 @@ def _prepare(home, owner, role_name, role, settings, args, kwargs):
     ruleset and verify the service applied them. Sends no prompt."""
     writing = role["policy"] == "write"
     approval, issue_approval = args.get("approval"), args.get("issue_approval")
-    for key, value in (("approval", approval), ("issue_approval", issue_approval)):
+    for key, value in (("approval", approval), ("issue_approval", issue_approval),
+                       ("untracked_reason", args.get("untracked_reason"))):
         if key in args and (not isinstance(value, str) or not value.strip()):
-            raise ValueError(f"{key} must quote the Client's scoped approval, never a boolean")
+            raise ValueError(f"{key} must quote the Client's words, never a boolean")
     if writing and not approval:
-        raise ValueError("A write run requires the Client's explicit implementation approval")
+        raise ValueError("A write run requires the Client's explicit implementation approval: pass approval= "
+                         "quoting their approving words")
+    if "issue" in args and not issue_ref(args["issue"]):
+        raise ValueError("issue must be owner/repo#N")
+    if "issue" in args and "untracked_reason" in args:
+        raise ValueError("issue and untracked_reason exclude each other")
     if "fork" in args and type(args["fork"]) is not bool:
         raise ValueError("fork must be boolean")
     fork = bool(args.get("fork"))
@@ -288,9 +311,23 @@ def _prepare(home, owner, role_name, role, settings, args, kwargs):
         raise ValueError(f"The session's stored output_dir is no longer valid ({exc}); pass output_dir") from None
     if output and (output == directory or output.startswith(directory + os.sep)):
         raise ValueError("output_dir must lie outside the worktree")
+    # The issue follows the session: a stored one is service metadata, so it is checked
+    # again. A build without one needs the Client's reason, which is then bound too.
+    issue = args["issue"] if "issue" in args else meta.get("issue")
+    if issue is not None and not issue_ref(issue):
+        raise ValueError("The session's stored issue is not owner/repo#N; pass issue")
+    untracked = args.get("untracked_reason") or (None if issue else meta.get("untracked_reason"))
+    if not isinstance(untracked, str) or not untracked.strip():
+        untracked = None
+    if "untracked_reason" in args:
+        issue = None
+    if writing and not issue and not untracked:
+        raise ValueError("A build works on an issue: pass issue=owner/repo#N (the unit's issue, Fixed), or "
+                         "untracked_reason= quoting the Client's words that exclude this job from GitHub")
     return {"output": output, "writing": writing, "fork": fork, "chosen": chosen or meta.get("selection") or {},
             "explicit": bool(chosen), "sid": sid, "directory": directory, "branch": branch, "repo": repo,
             "protected": protected, "approval": approval, "issue_approval": issue_approval,
+            "issue": issue, "untracked": untracked,
             "read_roots": tuple(settings.get("read_roots", ())),
             # The latest build approval stays on the session as the record of its grant; the
             # prompt no longer carries it.
@@ -324,7 +361,9 @@ def _setup(home, owner, role_name, role, plan, kwargs):
               "repo": plan["repo"],
               **({"selection": plan["chosen"]} if plan["chosen"] else {}),
               **({"output_dir": plan["output"]} if plan["output"] else {}),
-              **({"approval": plan["record"]} if plan.get("record") else {})}
+              **({"approval": plan["record"]} if plan.get("record") else {}),
+              **({"issue": plan["issue"]} if plan.get("issue") else {}),
+              **({"untracked_reason": plan["untracked"]} if plan.get("untracked") and not plan.get("issue") else {})}
     metadata = {"hermes": hermes}
     if sid and plan["fork"]:
         sid = api.data(turn.call("post", "/api/session/{sid}/fork", {}, sid=sid))["id"]
@@ -366,7 +405,7 @@ def _put_note(sid, note):
 
 def _admit(sid, role, message, plan):
     text = message
-    note = _instructions(role, plan["output"], plan["issue_approval"])
+    note = _instructions(role, plan["output"], plan["issue_approval"], plan.get("issue"))
     if not _put_note(sid, note):
         text = note + "\n\n" + text
     try:
@@ -562,6 +601,7 @@ def _listing(args, owner):
                 continue
             model = item.get("model") or {}
             rows.append({"session_id": item.get("id"), "role": meta.get("role"), "branch": meta.get("branch"),
+                         **({"issue": meta["issue"]} if meta.get("issue") else {}),
                          "directory": turn.directory_of(item), "agent": item.get("agent"),
                          "engine": (f"{model.get('providerID')}/{model['id']}"
                                     + (f"#{model['variant']}" if model.get("variant") else "")) if model.get("id")
@@ -679,7 +719,8 @@ def opencode_session(args, **kwargs):
                 raise ValueError("This resident turn is reconcile-only; inspect and stop, never change a session")
             with _starting(home, policy.worktree(turn.directory_of(info))):
                 return json.dumps(workspace.create(sid=sid, info=info, meta=meta, args=args,
-                                                   settings=config.load(home), policy=policy, turn=turn))
+                                                   settings=config.load(home), policy=policy, turn=turn,
+                                                   issue_ref=issue_ref))
         raise ValueError("Use status/list/wait/steer/interrupt/messages/diff/fork/workspace")
     except Exception as exc:
         return json.dumps({"error": str(exc)})
@@ -897,11 +938,17 @@ def _run_properties(role):
         "output_dir": {"type": "string", "description": "Existing job directory under a Workspaces .agent/ draft, "
                                                        "outside the worktree, that the run may write results to "
                                                        "(reports, screenshots); kept for later turns of the session"},
+        "issue": {"type": "string", "description": "The issue this run works on, owner/repo#N: the run reads it as "
+                                                   "the spec and its completing PR closes it; bound to the session "
+                                                   "and inherited by its forks, so pass it once (again to change it)"},
     }
     if role["policy"] == "write":
         properties["approval"] = {"type": "string", "description": "The Client's explicit scoped implementation "
                                                                    "approval, quoted; recorded, not shown to the run"}
         properties["issue_approval"] = {"type": "string", "description": "Quoted Client approval for Issue writes"}
+        properties["untracked_reason"] = {"type": "string", "description": "Only for a job the Client excluded from "
+                                                                           "GitHub: their words saying so, quoted. A "
+                                                                           "build needs issue or this"}
     return properties
 
 
@@ -1005,7 +1052,8 @@ def register(ctx):
     add("opencode_session", opencode_session, {
         "action": {"type": "string", "enum": ["list", "status", "wait", "steer", "interrupt", "messages", "diff",
                                               "fork", "workspace"]},
-        "branch": {"type": "string", "description": "workspace only: the new task branch, e.g. task/short-name"},
+        "branch": {"type": "string", "description": "workspace only: the new task branch, e.g. task/short-name; "
+                                                    "a session bound to an issue defaults to task/issue-N"},
         "base": {"type": "string", "enum": list(workspace.BASES),
                  "description": "workspace only: default (fetched remote default branch, the default) or head"},
         "session_id": {"type": "string"},

@@ -51,11 +51,18 @@ def fixture(tmp_path, monkeypatch):
     return home, directory.resolve(), owner, fake
 
 
+ISSUE = "octo/example#12"
+
+
 def run(role="plan", directory=None, **kwargs):
+    """A build works on an issue: the helper supplies one unless the test names the issue
+    or the Client's reason itself (`issue=None` leaves both out)."""
     args = dict(message=MESSAGE)
     if directory:
         args["directory"] = str(directory)
-    args.update(kwargs)
+    if role == "build" and "issue" not in kwargs and "untracked_reason" not in kwargs:
+        args["issue"] = ISSUE
+    args.update({k: v for k, v in kwargs.items() if v is not None})
     return json.loads(plugin.opencode_run(role, args))
 
 
@@ -183,6 +190,80 @@ def test_output_dir_opens_one_draft_directory_and_outlives_the_turn(fixture, tmp
     inside = directory / ".agent/job"
     inside.mkdir(parents=True)
     assert "outside the worktree" in run("plan", directory, output_dir=str(inside))["error"]
+
+
+def test_the_issue_is_bound_to_the_session_and_read_as_the_spec(fixture, tmp_path):
+    home, directory, _, fake = fixture
+    configure(home, "  roles:\n    plan: {agent: plan, policy: read-only}\n    build: {agent: build, policy: write}\n")
+    with_root(home, tmp_path / "wt")
+    for bad in ("12", "#12", "octo/example", "octo/example#0", "octo/example#abc", "o/r#1 x", "o/r#1`", "o/../r#1",
+                "/r#1", True):
+        assert "owner/repo#N" in run("plan", directory, issue=bad)["error"], bad
+    for good in ("octo/.github#3", "my-org/my.repo_x#99", "1digit/2start#1"):
+        assert plugin.issue_ref(good) == good, good
+    assert "Unexpected" in run("plan", directory, untracked_reason="x")["error"], "the reason belongs to write roles"
+    planned = run("plan", directory, issue="octo/example#12")
+    sid = planned["session_id"]
+    assert planned["issue"] == "octo/example#12", "the record names the issue"
+    assert session("list")["sessions"][0]["issue"] == "octo/example#12", "so does the session row"
+    assert fake.sessions[sid]["metadata"]["hermes"]["issue"] == "octo/example#12"
+    note = fake.entries[sid]["hermes.note"]
+    assert "This run's issue is `octo/example#12`" in note and "`Closes #12`" in note and "`Refs #12`" in note
+    assert fake.prompts[-1][1] == MESSAGE, "the issue travels in the note, not the prompt"
+    assert "This run's issue" not in plugin._instructions({"policy": "read-only"}), "no issue, no sentence"
+    forked = session("fork", sid)["session_id"]
+    assert fake.sessions[forked]["metadata"]["hermes"]["issue"] == "octo/example#12", "a fork inherits it"
+    out = session("workspace", forked, base="head")
+    assert out["branch"] == "task/issue-12" and out["issue"] == "octo/example#12", "the branch defaults to the issue"
+    fake.directory = out["directory"]
+    built = run("build", session_id=forked, issue=None, approval="Client: build it")
+    assert built["status"] == "completed" and built["issue"] == "octo/example#12", \
+        "a build on a session that planned the issue needs no issue argument"
+    moved = run("build", session_id=forked, issue="octo/example#13", approval="Client: build it")
+    assert moved["issue"] == "octo/example#13" and fake.sessions[forked]["metadata"]["hermes"]["issue"] == \
+        "octo/example#13", "passing it again changes it"
+    fake.sessions[forked]["metadata"]["hermes"]["issue"] = "nonsense#abc"
+    assert "stored issue" in run("build", session_id=forked, issue=None, approval="Client: build it")["error"], \
+        "stored metadata is checked again"
+    spoiled = session("fork", sid)["session_id"]
+    fake.sessions[spoiled]["metadata"]["hermes"]["issue"] = "nonsense#abc"
+    assert "stored issue" in session("workspace", spoiled, base="head")["error"], \
+        "a workspace never names a branch after a stored issue it would refuse"
+
+
+def test_a_build_without_an_issue_needs_the_clients_reason(fixture, tmp_path):
+    home, directory, _, fake = fixture
+    configure(home, "  roles:\n    plan: {agent: plan, policy: read-only}\n    build: {agent: build, policy: write}\n")
+    with_root(home, tmp_path / "wt")
+    sid = run("plan", directory)["session_id"]
+    assert "branch is required" in session("workspace", sid, base="head")["error"], \
+        "no issue, no default branch name"
+    out = session("workspace", sid, branch="task/free", base="head")
+    assert "issue" not in out
+    fake.directory = out["directory"]
+    refused = run("build", session_id=sid, issue=None, approval="Client: build it")
+    assert "pass issue=owner/repo#N" in refused["error"] and "untracked_reason=" in refused["error"]
+    assert len(fake.prompts) == 1, "the refused build sent nothing"
+    assert "exclude each other" in run("build", session_id=sid, issue="octo/example#1", untracked_reason="no issue",
+                                       approval="Client: build it")["error"]
+    assert "Client's words" in run("build", session_id=sid, untracked_reason=" ", approval="Client: build it")["error"]
+    built = run("build", session_id=sid, untracked_reason="Client: no issue for this one", approval="Client: build it")
+    assert built["status"] == "completed" and "issue" not in built
+    assert fake.sessions[sid]["metadata"]["hermes"]["untracked_reason"] == "Client: no issue for this one"
+    assert "This run's issue" not in fake.entries[sid]["hermes.note"]
+    again = run("build", session_id=sid, issue=None, approval="Client: build it")
+    assert again["status"] == "completed", "the reason is bound to the session like the issue"
+    child = session("fork", sid)["session_id"]
+    fake.directory = session("workspace", child, branch="task/free-2", base="head")["directory"]
+    assert run("build", session_id=child, issue=None, approval="Client: build it")["status"] == "completed", \
+        "a fork inherits the reason"
+    fake.sessions[sid]["metadata"]["hermes"]["untracked_reason"] = " "
+    fake.directory = out["directory"]
+    assert "pass issue=owner/repo#N" in run("build", session_id=sid, issue=None, approval="Client: build it")["error"], \
+        "a blank stored reason is no reason"
+    tracked = run("build", session_id=sid, issue="octo/example#2", approval="Client: build it")
+    assert tracked["issue"] == "octo/example#2"
+    assert "untracked_reason" not in fake.sessions[sid]["metadata"]["hermes"], "an issue replaces the reason"
 
 
 def test_write_run_needs_approval_and_a_task_branch(fixture):
@@ -637,7 +718,7 @@ def test_workspace_moves_an_idle_plan_into_a_new_task_branch_worktree(fixture, t
     assert stored["metadata"]["hermes"]["owner"] == owner and stored["metadata"]["hermes"]["repo"]
     # The same session now builds on the new branch, in its own worktree (the fake serves one place).
     fake.directory = str(target.resolve())
-    built = json.loads(plugin.opencode_run("build", dict(message="go", session_id=sid, approval="ok, build it")))
+    built = run("build", message="go", session_id=sid, approval="ok, build it")
     assert built["status"] == "completed" and built["branch"] == "task/login" and built["session_id"] == sid
 
 
@@ -775,12 +856,12 @@ def test_the_live_configuration_checkout_is_planned_in_but_only_built_in_a_workt
     sid = run("plan", directory)["session_id"]
     subprocess.run(["git", "-C", str(directory), "switch", "-q", "-c", "feature"], check=True, capture_output=True)
     fake.sessions[sid]["metadata"]["hermes"]["branch"] = "feature"
-    refused = json.loads(plugin.opencode_run("build", dict(message="go", session_id=sid, approval="ok")))
+    refused = run("build", message="go", session_id=sid, approval="ok")
     assert "live Hermes configuration checkout" in refused["error"]
     assert "live Hermes configuration checkout" in preflight(directory, phase="build")["issues"][0]["what"]
     out = session("workspace", sid, branch="task/cfg", base="head")
     fake.directory = out["directory"]
-    built = json.loads(plugin.opencode_run("build", dict(message="go", session_id=sid, approval="ok")))
+    built = run("build", message="go", session_id=sid, approval="ok")
     assert built["status"] == "completed" and built["branch"] == "task/cfg"
 
 
@@ -1595,7 +1676,9 @@ def test_roles_become_tools(fixture, monkeypatch):
                                   "opencode_preflight"}
     build = context.tools["opencode_run_build"]["schema"]["parameters"]
     plan = context.tools["opencode_run_plan"]["schema"]["parameters"]
-    assert {"approval", "issue_approval"} <= set(build["properties"]) and "approval" not in plan["properties"]
+    assert {"approval", "issue_approval", "untracked_reason"} <= set(build["properties"])
+    assert not ({"approval", "untracked_reason"} & set(plan["properties"]))
+    assert "issue" in build["properties"] and "issue" in plan["properties"]
     assert build["required"] == ["message"] and build["additionalProperties"] is False
     assert all(t["toolset"] == "opencode" for t in context.tools.values())
     assert "read-only" in context.tools["opencode_run_plan"]["description"]

@@ -105,11 +105,11 @@ approved and before the first unit's build:
 | A new session resumes the job | the parent issue from the decision log, read fresh with `github_issue` `view` before any report |
 | The user supplies an existing issue to track | one goal that lands once is the unit itself (Fixed from the plan); a goal of several units is the parent. On `shared` or `other` its body stays as it is, and the plan goes into sub-issues and comments |
 
-**OpenCode reads; you write.** A brief names the issue a run works on
-(`owner/repo#N`) so the run reads it with its own tools, and the build is told
-which issue its completing PR closes. Never pass `issue_approval`: a build
-does not write Issues or boards. What a run reports is mirrored to GitHub by
-you, after you have read it.
+**OpenCode reads; you write.** The run's `issue` argument (`owner/repo#N`)
+names the issue it works on: the run reads it with its own tools, and the
+build is told which issue its completing PR closes. Never pass
+`issue_approval`: a build does not write Issues or boards. What a run reports
+is mirrored to GitHub by you, after you have read it.
 
 ## Repository lifecycle
 
