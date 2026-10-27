@@ -1,6 +1,6 @@
 ---
 name: manage-tracking
-description: "Use to change GitHub Issues and Projects boards for the user: setting up a board, drafts, Status, issues and how they relate, comments, closing, or proposing to track work on GitHub. Reading is github-access:read-tracking."
+description: "Use to change GitHub Issues and Projects boards for the user: setting up a board, drafts, Status, issues and how they relate, comments, closing, or filing a job's plan on GitHub. Reading is github-access:read-tracking."
 version: 1.0.0
 author: CraftSamo
 license: MIT
@@ -19,14 +19,15 @@ made.
 
 - **Only the tool.** Every change goes through `github_change`. The terminal
   path (`gh issue …`, `gh project …`, `gh api`) is blocked.
-- **Tracking is the user's choice.** Put work on GitHub when the user asked
-  for it, or after proposing it and hearing yes. Size, length or a job's
-  type never decides it alone. Propose it only for a roadmap of several
-  Phases or a hand-over to other people, once per job: one sentence naming
-  the board (and the repository, if issues) it would go on. Operational work
+- **A repository job is recorded; other work when asked.** Work that
+  changes a repository goes on GitHub as its plan is approved: each
+  execution unit an issue, Fixed before it is built, on the board that
+  resolves for the repository (the engineering entries say when). The user
+  excludes a job in their own words, and then nothing of it is written;
+  size, length or a job's type never excludes it alone. Operational work
   around a repository the job touches (its hosting, DNS, domain, a contract, a
   hand-over item) belongs to that job and goes on the same board as drafts;
-  other work goes on GitHub only when the user asks.
+  work outside any repository goes on GitHub only when the user asks.
 - **One card per list.** Gather the changes of one step into one
   `github_change` call: the card shows each target with its tier and one line
   per change. A list that fits a mandate in force runs without one; the
@@ -146,10 +147,10 @@ test `## Target` / `## Cases` / `## Pass criteria`.
 
 ## Setting up a board
 
-When `github_board` `resolve` finds no board on any route, the tracking you
-propose includes making one: name its owner and title in the same sentence
-(the organization for a repository the team shares, else the user's own,
-titled `Roadmap`), and make it only after the user agrees.
+When `github_board` `resolve` finds no board on any route, the plan you put
+to the user includes making one: name its owner and title in the same
+sentence (the organization for a repository the team shares, else the user's
+own, titled `Roadmap`), and make it only after the user agrees.
 
 - **Make it:** `board_create` with `owner` (`"@me"` or the organization),
   `title` (default `Roadmap`) and `link_repo` (the repository, so its board
@@ -211,13 +212,18 @@ put items on it in the next.
   outline as layers. Settle the decisions with the user (on a `shared` or
   `other` target, agree the words as "Before writing" says), then
   `issue_edit` the whole body to Fixed (the outline a checklist, the open
-  decisions gone) and `item_set` `Status` `In Progress`. Only then a build.
-  OpenCode never writes the issue: a plan proposes the body, a build reads
-  it and reports a slice that will not fit as a question.
+  decisions gone) and `item_set` `Status` `In Progress`; the first unit
+  under a parent moves the parent to `In Progress` in the same list. Only
+  then a build. OpenCode never writes the issue: a plan proposes the body, a
+  build reads it and reports a slice that will not fit as a question.
 - **Work moves:** tick an outline line with its PR `#n` by `issue_edit`
   `body` (read it, change the checkbox, send it whole) or add a step with
   `append_body`; a decision or a hand-over is an `issue_comment`. When the
-  unit's last PR lands, `item_set` `Status` `Done`.
+  unit's last PR lands, `item_set` `Status` `Done`. When the parent's last
+  unit is Done, its acceptance is checked, it is closed and set `Done` too.
+- **Waiting on someone outside:** a dated `issue_comment` on the parent and
+  `item_set` `Status` `Waiting`; when it resumes, another dated comment and
+  back to `In Progress`.
 - **Close:** `issue_close` with a reason (`completed`, `not planned`,
   `duplicate`) and a `comment` saying why; when a PR's merge already closed
   it, only move the board's Status. Closing an issue does not move Status.
@@ -226,9 +232,9 @@ put items on it in the next.
 
 ## Mandates
 
-A mandate lets a bounded kind of change skip its card. Propose one when
-tracking is agreed for work that will update GitHub often (a build ticking
-steps, Status moving through a week): one sentence naming the boards and
+A mandate lets a bounded kind of change skip its card. Propose one when a
+job's plan is filed and the work will update GitHub often (layers ticked as
+their PRs open, Status moving through a week): one sentence naming the boards and
 repositories, the classes, and how many days (the work's expected end, at
 most 30). Never propose one to get past a card the user just denied.
 

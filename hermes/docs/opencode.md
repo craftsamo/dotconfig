@@ -33,21 +33,26 @@ checkout effective at once, so it plans there read-only and builds only in the
 task worktree `opencode_session workspace` creates; the plugin refuses a write
 run in the live checkout. Cutover stays the person's decision.
 
-| Relationship                 | Owner of decisions                                                                  |
-| ---------------------------- | ----------------------------------------------------------------------------------- |
-| User with the Assistant      | What people can do and see, what is stored, scope, cost, the approval of each Phase |
-| Assistant with OpenCode      | The brief (what and why), the stage's goal, the decision log, acceptance evidence   |
-| OpenCode with its own agents | Technical design, methods, exploration, testing, review, commit and PR splitting    |
+| Relationship                 | Owner of decisions                                                                 |
+| ---------------------------- | ---------------------------------------------------------------------------------- |
+| User with the Assistant      | What people can do and see, what is stored, scope, cost, the approval of each unit |
+| Assistant with OpenCode      | The brief (what and why), the stage's goal, the decision log, acceptance evidence  |
+| OpenCode with its own agents | Technical design, methods, exploration, testing, review, commit and PR splitting   |
 
-A plan of several Phases (Phase N = one reviewable layer: one PR, or one layer
-of a native stack) is approved as a roadmap, then each Phase's steps
-(Phase N.m) before that Phase's build; one approval releases that Phase through
-QA, task-branch push and PR delivery; never merge, deployment, repository
-creation or default-branch push. A job the user chose to track on GitHub is
-mirrored to its issues by the Assistant ([github-access.md](./github-access.md));
-a run reads the issue its brief names, and the Assistant does not pass
-`issue_approval` (the plugin keeps it for a caller that does want a build to
-write Issues through `gh`).
+Work is planned in execution units: one goal that lands in one merge (one PR
+or one native stack), one issue on GitHub. Inside a unit, Phase N is one
+reviewable layer (one PR, or one layer of the stack) and Phase N.m its
+checkpoint steps. A roadmap of several units is approved whole, then each
+unit's plan before that unit's build; one approval releases that unit, all
+its layers, through QA, task-branch push and PR delivery; never merge,
+deployment, repository creation or default-branch push. Every repository job
+is recorded on GitHub unless the user excludes it: the roadmap's approval
+files the parent and its units, a unit's approval makes its issue Fixed and
+In Progress before the build, and the Assistant mirrors the run to it
+([github-access.md](./github-access.md),
+[decision](./decisions/issue-driven-engineering.md)); a run reads the issue
+its brief names, and the Assistant does not pass `issue_approval` (the plugin
+keeps it for a caller that does want a build to write Issues through `gh`).
 
 ## The plugin
 

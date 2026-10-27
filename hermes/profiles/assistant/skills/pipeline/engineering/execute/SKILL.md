@@ -1,6 +1,6 @@
 ---
 name: execute-engineering
-description: "Execute engineering: drive each approved Phase through an OpenCode build run to its PR (one PR or stack layer), reporting each step. One approval per Phase; a tracked job's issues mirrored by you; no merge or deployment under the implementation grant, and no edits of your own."
+description: "Execute engineering: drive each approved unit through an OpenCode build run to its PR or stack, reporting each step. One approval per unit; its issue Fixed and In Progress before the build and mirrored by you; no merge or deployment under the implementation grant, and no edits of your own."
 version: 2.0.0
 author: CraftSamo
 license: MIT
@@ -47,71 +47,82 @@ user's chosen control. Running a project's existing setup or deploy script at
 the user's request changes no code: that is Chat's "A project's own tooling",
 not something to send to OpenCode.
 
-1. **Give the Phase its ground.** The plan ran read-only on the default
-   checkout. For a single-PR job, `opencode_session workspace` (`session_id`,
-   `branch` such as `task/short-name`) moves that idle plan session into a
-   worktree of its own on a new task branch. For a roadmap of Phases, the
+1. **Fix the unit's issue.** The unit's approval makes its issue Fixed and
+   In Progress before anything else, as
+   [github-ops.md](references/github-ops.md) "Starting" and its table say: the
+   body rewritten with the decisions folded in and the layers as a checklist,
+   read once by Writer, agreed on a `shared` or `other` tier, then written;
+   the Status moved. A job the user excluded from GitHub skips this step.
+2. **Give the unit its ground.** The plan ran read-only on the default
+   checkout. For a single-unit job, `opencode_session workspace` (`session_id`,
+   `branch` such as `task/issue-12-short-name`) moves that idle plan session
+   into a worktree of its own on a new task branch. For a roadmap, the
    approved plan session stays the trunk: `opencode_session fork` it for each
-   Phase and give the fork its worktree with `workspace` (`base=head` from the
-   previous Phase's branch when this Phase stacks on an unmerged layer). Never
+   unit and give the fork its worktree with `workspace` (`base=head` from the
+   previous unit's branch when this unit stacks on an unmerged one). Never
    create the branch or worktree by hand and never ask OpenCode to move itself.
    Then `opencode_preflight(directory, phase="build")`: an `error` stops the
    build, uncommitted paths are worth a line to the user. Independent jobs need
    separate worktrees and disjoint scope; concurrency is not a reason to split
    one job.
-2. **Build the approved Phase.** Call `opencode_run_build` on that session with
-   `approval` quoting the user's approving words for this Phase (never your own
-   paraphrase) and `output_dir` set to the Phase's own directory
-   (`<job>/phase-N`), where the run keeps its step list in `progress.md`. The
-   message is a short brief in plain prose: the Phase to build, what changed
-   since the plan and why (the user's words inside your sentences where their
-   wording matters), and the path of the decision log; the session already
-   holds the plan, and its tools enforce the rules. Ask for outcomes (the
-   checks' actual results, how the user can try it), not methods. Ask for a closer review of an area, in a sentence, only where the user's stake
-   is high (who can see what, stored data, money). A session that was not the
-   plan session or its fork starts with no memory: point it at the decision log
-   and the plan files in the job directory. When a run stops on a usage limit,
-   rerun on the role's alternate from `opencode_catalog models` (read the diff
-   first); other model choices stay OpenCode's defaults.
-3. **One Phase's approval releases that Phase through PR delivery**, including
-   the task-branch push and PR creation (a stack layer's publication
-   included): no release per step. Let OpenCode sequence its own steps.
-   Respect an explicit narrower grant (local commit only, no push, one file):
-   put it once with `opencode_instructions`, still through the ordinary build
-   tool, and verify it afterwards in Git. The next Phase starts only with its
-   own approval.
-4. **Hand-backs.** Act on each notification that brings a new state; one for a
+3. **Build the approved unit.** Call `opencode_run_build` on that session with
+   `approval` quoting the user's approving words for this unit (never your own
+   paraphrase) and `output_dir` set to the unit's own directory
+   (`<job>/issue-N`), where the run keeps its step list in `progress.md`. The
+   message is a short brief in plain prose: the unit to build and its issue
+   (`owner/repo#N`, which the run reads as the spec and whose completing PR
+   closes it), what changed since the plan and why (the user's words inside
+   your sentences where their wording matters), and the path of the decision
+   log; the session already holds the plan, and its tools enforce the rules.
+   Ask for outcomes (the checks' actual results, how the user can try it),
+   not methods. Ask for a closer review of an area, in a sentence, only where
+   the user's stake is high (who can see what, stored data, money). A session
+   that was not the plan session or its fork starts with no memory: point it
+   at the issue, the decision log and the plan files in the job directory.
+   When a run stops on a usage limit, rerun on the role's alternate from
+   `opencode_catalog models` (read the diff first); other model choices stay
+   OpenCode's defaults.
+4. **One unit's approval releases that unit through PR delivery**, every
+   layer of it, including the task-branch pushes and the PRs (a stack's
+   publication included): no release per layer or step. Let OpenCode sequence
+   its own steps. Respect an explicit narrower grant (local commit only, no
+   push, one file): put it once with `opencode_instructions`, still through
+   the ordinary build tool, and verify it afterwards in Git. The next unit
+   starts only with its own approval.
+5. **Hand-backs.** Act on each notification that brings a new state; one for a
    state you already read and reported is `[SILENT]`. Report progress as
    `opencode:drive`'s "Progress" says: each finished step in one line, a
    blocked step at once. A pending request is answered as `opencode:answer`
-   says; here the user's approved scope is this Phase's build and its PR
+   says; here the user's approved scope is this unit's build and its PR
    delivery, the task-branch push included (also as a force push with lease
    after the build rebased the branch onto its base), and a PR title or body
    that names a Phase, a decision number, the tools or agents that did the
    work, a local path or this machine's or account's state goes back as a
-   defect before the push, never through. A technical question goes back as
-   the run's own call; take changes to what people can do or see, stored
-   data, cost or scope to the user. A model or variant the user prefers goes
-   in the run's own arguments; a refused name is reported back, never a
-   reason to stall the job.
-5. **Accept or correct.** Check the delivered work and PR against
+   defect before the push, never through. A PR that is not the unit's last
+   layer says `Refs #N`; only the completing one says `Closes #N`. A
+   technical question goes back as the run's own call; take changes to what
+   people can do or see, stored data, cost or scope to the user. A model or
+   variant the user prefers goes in the run's own arguments; a refused name
+   is reported back, never a reason to stall the job.
+6. **Accept or correct.** Check the delivered work and PR against
    [Client QA](../qa/SKILL.md). Send concrete defects to
    the same build session as a further turn under the same approval; repeat
    until accepted or a scope decision is needed.
-6. **Deliver** per the kernel: what people can do now and how to try it, what
+7. **Deliver** per the kernel: what people can do now and how to try it, what
    was requested vs done, actual verification, the PR URL, unmet or unverified
    criteria, risks, and resume handles (worktree, branch, session ids). With
-   Phases left, add the next Phase's plan for the user's approval.
+   units left, add the next unit's plan for the user's approval.
 
-A question about tracking the job on GitHub, also one the user raises
+A question about the job's record on GitHub, also one the user raises
 mid-job, is answered from [github-ops.md](references/github-ops.md)
 "Tracking a job on GitHub", read before you answer.
-For a job the user chose to track on GitHub, you mirror the run to its
-issues with `github_change` as [github-ops.md](references/github-ops.md)
-says: the Phase's sub-issue Fixed at approval, each finished step ticked, its
-Status moved. OpenCode only reads the issue named in the brief; never pass
-`issue_approval`, since a build does not write Issues. Without tracking, a
-supplied Issue URL remains a read-only spec and no Issue or board changes.
+You mirror the run to the job's issues with `github_change` as
+[github-ops.md](references/github-ops.md) says: the unit's issue Fixed and In
+Progress at approval, each layer ticked when its PR is up, its Status moved
+when it lands. OpenCode only reads the issue named in the brief; never pass
+`issue_approval`, since a build does not write Issues. For a job the user
+excluded from GitHub, a supplied Issue URL remains a read-only spec and no
+Issue or board changes.
 
 Unknown completion is not proof that work failed: read the run as
 `opencode:drive`'s "Results" says before another turn, and never switch to
@@ -128,7 +139,7 @@ message is still a brief that points at the log rather than retelling the
 job. A message carrying `[truncated]` or an elided path is a
 defect on your side.
 
-[github-ops.md](references/github-ops.md) defines tracking on GitHub,
+[github-ops.md](references/github-ops.md) defines the job's record on GitHub,
 repository lifecycle and the separate user-gated merge boundary. OpenCode never
 merges, deploys or pushes the default branch. A plan/review-only request ends
 with its answer; do not turn it into implementation because a fix looks easy.

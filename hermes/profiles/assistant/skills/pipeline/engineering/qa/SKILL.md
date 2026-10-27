@@ -1,6 +1,6 @@
 ---
 name: qa-engineering
-description: "QA engineering: accept outcomes against PR and worktree evidence, with an independent OpenCode review for risky changes and baseline comparison for rendered UI. Acceptance grants no merge or deployment, and touches Issues only to close out a job the user chose to track."
+description: "QA engineering: accept outcomes against PR and worktree evidence, with an independent OpenCode review for risky changes and baseline comparison for rendered UI. Acceptance grants no merge or deployment; the unit's issue and board close out only after a merge the user asked for."
 version: 2.0.0
 author: CraftSamo
 license: MIT
@@ -84,6 +84,6 @@ evidence. An unresolved required check is not a pass. A plan, diagnosis or
 review is accepted for the requested answer, without demanding a PR.
 
 [acceptance.md](references/acceptance.md) covers PR completion, separately
-requested merge and a tracked job's close-out. Passing this QA does not
-authorize merge or deployment, and it updates Issues or a board only for a
-job the user chose to track.
+requested merge and the unit's close-out on GitHub. Passing this QA does not
+authorize merge or deployment, and it updates no Issue or board for a job
+the user excluded from GitHub.
