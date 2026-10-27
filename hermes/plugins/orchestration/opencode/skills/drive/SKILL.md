@@ -155,7 +155,10 @@ alias model, marked `stop_of` in the catalog) and the Console credit lanes
 one refuses, and a continuing turn keeps the stop the session is on; the
 result's `engine` names it. Do not pass `model=` to move a session back: name
 a model only to choose a different one, and after a limit on every stop use
-the role's alternate.
+the role's alternate. `opencode_catalog funding` shows where each login's
+windows and each lane's balance stand, for reporting, not for choosing a
+stop before a run; a login or lane with `fresh` false is a reading too old
+to rely on, so say so.
 
 ## Session tools
 
@@ -192,10 +195,11 @@ describe the worktree's OpenCode. `service` describes the running service:
 version, process, paths, the `opencode` command, and `environment.kind`.
 When that is `hermes-minimal`, one of these tools started the service and the
 person's own sessions run without their shell's variables until they restart
-it (`opencode service restart`): tell them. `plugins`, `mcp` (servers and
-whether each is connected), `config` (each loaded configuration file as its
-path, keys and the names it defines; never a value) and `locations` read the
-rest; `info` is the service's own `/api/info`. These answer what OpenCode is
+it (`opencode service restart`): tell them. `providers` lists each provider's
+activation and which one it is a stop of; `funding` is above. `plugins`,
+`mcp` (servers and whether each is connected), `config` (each loaded
+configuration file as its path, keys and the names it defines; never a value)
+and `locations` read the rest; `info` is the service's own `/api/info`. These answer what OpenCode is
 set up with; what a tool does or how a plugin behaves is read from the
 configuration repository by a read-only run.
 

@@ -204,6 +204,12 @@ class Fake:
                     {"type": "document", "path": f"{self.directory}/opencode.jsonc", "info": {"references": []}}]
         if parts == ["debug", "location"]:
             return [{"directory": self.directory}, {"directory": "/elsewhere"}]
+        if parts == ["provider"]:
+            assert query.get("location[directory]") == self.directory
+            return {"data": [{"id": "openai", "name": "OpenAI", "activation": "enabled", "settings": {"k": "v"}},
+                             {"id": "anthropic-credit-team", "canonical": "anthropic", "activation": "enabled"},
+                             {"id": "anthropic", "name": "Anthropic", "activation": "enabled"},
+                             {"id": "xai", "name": "xAI", "activation": "auto"}, "junk"]}
         if parts == ["model"]:
             return {"data": self.models}
         if parts == ["agent"]:

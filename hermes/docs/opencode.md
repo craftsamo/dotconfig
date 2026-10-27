@@ -380,7 +380,14 @@ would move the session back, to be refused again and to pay a prompt-cache
 rewrite; a model named this turn still moves it, and a different model is sent
 as wanted. An alias or a lane of the caller's own model is the caller's own
 too. The catalog marks such entries `stop_of`, and a lane is offered as
-`model=` only when its provider is in `allowed_providers`.
+`model=` only when its provider is in `allowed_providers`. `opencode_catalog
+providers` reads each provider's activation and `canonical`; `funding` reads
+Quota's export (`~/.cache/opencode/quota-export.json`, the same file the
+preflight plugin reads, with its freshness rule) as a board of every saved
+login's windows and every lane's balance estimate, with the reading's age and
+never its connection ids. The Assistant decides nothing from it before a run:
+the service moves a session itself, and the board tells the person where the
+limits stand.
 
 **Hand-back.** A live caller gets the current state at once. Only while that
 state is `running` it also gets a notifier process, launched through the terminal
