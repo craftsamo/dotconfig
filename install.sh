@@ -503,10 +503,13 @@ echo "[hermes]"
 #   * Copied, not linked: a profile's scripts/ (cron's real-path rule; see
 #     copy_entries). The wrappers cron-sync generates (scripts/cron/) and the
 #     adhoc/ scripts a profile writes for itself land beside the copies.
-#   * A profile's cron.d/ is an entry root: each tracked job directory is
-#     linked beside the ones the private overlay links and the real ones the
-#     profile writes for itself; cron-sync (run last, below) turns the whole
-#     set into the profile's jobs.json (hermes/docs/ops/cron.md).
+#   * A profile's cron.d/ and webhook.d/ are entry roots: each tracked job or
+#     route directory is linked beside the ones the private overlay links and
+#     the real ones the profile writes for itself; cron-sync and webhook-sync
+#     (run last, below) turn the whole set into the profile's jobs.json and
+#     the root home's webhook_subscriptions.json (hermes/docs/ops/cron.md,
+#     hermes/docs/ops/webhook.md). The wrappers webhook-sync generates land
+#     in scripts/webhook/ beside cron's.
 #   * Owned at HOME, never linked through the repo: config.yaml and SOUL.md
 #     (the private overlay links its own straight into ~/.hermes; without it
 #     they are seeded from the tracked examples). Hermes rewrites config.yaml
@@ -524,6 +527,7 @@ done < <(git -C "$DOTFILES" ls-files -z -- hermes/plugins | tr '\0' '\n' | cut -
 for p in "$DOTFILES"/hermes/profiles/*/; do
   [ -d "$p/skills" ] && ENTRY_ROOTS+=("hermes/profiles/$(basename "$p")/skills")
   [ -d "$p/cron.d" ] && ENTRY_ROOTS+=("hermes/profiles/$(basename "$p")/cron.d")
+  [ -d "$p/webhook.d" ] && ENTRY_ROOTS+=("hermes/profiles/$(basename "$p")/webhook.d")
 done
 
 seed_or_adopt "$HOME/.hermes/config.yaml" hermes/config.yaml hermes/config.example.yaml
@@ -548,6 +552,7 @@ for p in "$DOTFILES"/hermes/profiles/*/; do
   [ -d "$p/scripts" ] && copy_entries "hermes/profiles/$n/scripts" "$h/scripts"
   [ -d "$p/skills" ]  && link_entries "hermes/profiles/$n/skills" "$h/skills"
   [ -d "$p/cron.d" ]  && link_entries "hermes/profiles/$n/cron.d" "$h/cron.d"
+  [ -d "$p/webhook.d" ] && link_entries "hermes/profiles/$n/webhook.d" "$h/webhook.d"
   [ -f "$p/.no-bundled-skills" ] && link "$p/.no-bundled-skills" "$h/.no-bundled-skills"
   link "$HOME/.hermes/plugins" "$h/plugins"
 done
@@ -580,14 +585,18 @@ if [ -x "$PRIVATE_DOTCONFIG/install.sh" ]; then
   DOTCONFIG="$DOTFILES" "$PRIVATE_DOTCONFIG/install.sh" || status=1
 fi
 
-# Cron jobs: once every cron.d/ holds its links (this tree's above, the
-# overlay's just now), derive each profile's jobs.json from them. Needs the
-# Hermes runtime (its cron API does the writes); without one the links are in
-# place and the next run with Hermes installed catches up.
+# Cron jobs and webhook routes: once every cron.d/ and webhook.d/ holds its
+# links (this tree's above, the overlay's just now), derive each profile's
+# jobs.json and the root home's webhook subscriptions from them. Needs the
+# Hermes runtime (its own APIs do the writes); without one the links are in
+# place and the next run with Hermes installed catches up. Cron first: a
+# `job` route names a cron.d job of its profile.
 echo "[cron]"
 hermes_python="$DOTFILES/bin/hermes-python"
 if "$hermes_python" --print >/dev/null 2>&1; then
   "$hermes_python" "$DOTFILES/hermes/scripts/cron-sync.py" || status=1
+  echo "[webhook]"
+  "$hermes_python" "$DOTFILES/hermes/scripts/webhook-sync.py" || status=1
 else
   echo "  skipped: no Hermes runtime (hermes-python); run ./install.sh again after hermes/setup.sh"
 fi

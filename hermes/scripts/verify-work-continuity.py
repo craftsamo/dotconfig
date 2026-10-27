@@ -59,6 +59,9 @@ PUBLIC_PYTEST_FILES = (
     # must still load on this runtime.
     "hermes/scripts/tests/test_cron_sync.py",
     "hermes/scripts/tests/test_cron_manifests.py",
+    # Every derived webhook record must still pass the runtime's own route checks.
+    "hermes/scripts/tests/test_webhook_sync.py",
+    "hermes/scripts/tests/test_webhook_manifests.py",
     "hermes/scripts/tests/test_resident_turn.py",
     "hermes/scripts/tests/test_researcher_entries.py",
     "hermes/scripts/tests/test_audio_creator_routing.py",
@@ -179,6 +182,11 @@ def build_plan(runtime: Path, private: Path, python: Path) -> list[dict]:
         dict(
             name="cron-sync --check",
             argv=[str(python), str(HERMES_ROOT / "scripts/cron-sync.py"), "--check"],
+            cwd=HERMES_ROOT, env=env,
+        ),
+        dict(
+            name="webhook-sync --check",
+            argv=[str(python), str(HERMES_ROOT / "scripts/webhook-sync.py"), "--check"],
             cwd=HERMES_ROOT, env=env,
         ),
         dict(
