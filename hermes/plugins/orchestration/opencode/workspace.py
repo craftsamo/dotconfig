@@ -43,8 +43,22 @@ def _run(directory, *args, timeout=30):
     return proc.stdout.strip()
 
 
+def default_branch(meta, issue_ref):
+    """`task/issue-<N>` for a session bound to an issue, else nothing: the branch is then
+    the caller's to name. The stored issue is service metadata, checked like a new one."""
+    if meta.get("issue") is None:
+        return None
+    issue = issue_ref(meta["issue"])
+    if not issue:
+        raise ValueError("The session's stored issue is not owner/repo#N; start the next turn with issue= to rebind it")
+    return "task/issue-" + issue.rsplit("#", 1)[1]
+
+
 def branch_name(value, source, policy):
     """A new, safe task-branch name: not protected, not the default branch, not existing."""
+    if value is None:
+        raise ValueError("branch is required for a session bound to no issue: a plain git branch name such as "
+                         "task/short-name")
     if not isinstance(value, str) or not BRANCH.fullmatch(value) or ".." in value or value.endswith((".lock", "/", ".")):
         raise ValueError("branch must be a plain git branch name such as task/short-name")
     _run(source, "check-ref-format", "--branch", value)
@@ -93,7 +107,7 @@ def _start(source, base, policy):
     return ref, fetched
 
 
-def create(*, sid, info, meta, args, settings, policy, turn):
+def create(*, sid, info, meta, args, settings, policy, turn, issue_ref):
     """Create the worktree, move the idle session into it and rebind it. Returns the new place."""
     if sid in turn.active():
         raise ValueError("Move a session when it is idle, not while it runs")
@@ -109,7 +123,7 @@ def create(*, sid, info, meta, args, settings, policy, turn):
         raise ValueError("The session is no longer in the repository it was bound to; start a new session")
     if meta.get("branch") != policy.branch(source, False)[0]:
         raise ValueError("Worktree branch changed; start a new session after inspection")
-    branch = branch_name(args.get("branch"), source, policy)
+    branch = branch_name(args["branch"] if "branch" in args else default_branch(meta, issue_ref), source, policy)
     root = Path(settings["worktree_root"]).resolve()
     target = target_path(root, repository_name(source, repo), branch)
     if target.exists():
@@ -146,7 +160,8 @@ def create(*, sid, info, meta, args, settings, policy, turn):
             with contextlib.suppress(Exception):
                 _run(source, "branch", "-D", branch)
         raise
-    result = {"session_id": sid, "directory": str(target), "branch": branch, "base": start, "moved_from": source}
+    result = {"session_id": sid, "directory": str(target), "branch": branch, "base": start, "moved_from": source,
+              **({"issue": meta["issue"]} if meta.get("issue") else {})}
     if fetched is False:
         result["warning"] = f"fetching origin failed: {start} is as of the last fetch"
     return result

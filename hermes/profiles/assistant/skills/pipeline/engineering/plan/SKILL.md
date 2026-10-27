@@ -113,6 +113,8 @@ leave install, gateway restarts and the cutover to the person.
    approval). Run `opencode_run_plan` with a brief of what the user wants and
    why, the stage's goal and the log, and keep **what the user decided** apart from **what anyone
    proposed** (yours included) so OpenCode never treats a guess as a decision.
+   A unit's plan turn passes its `issue` (`owner/repo#N`): the run reads it as
+   the spec, and the session keeps it for the build.
    Name the kind of work (bug, refactor, performance, rebuild), not the method:
    OpenCode's own approach skills carry it. A diagnosis uses
    `opencode_run_debug`; a review of someone's change uses `opencode_run_review`.

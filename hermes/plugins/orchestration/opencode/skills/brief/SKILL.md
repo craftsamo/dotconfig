@@ -55,11 +55,16 @@ for things that are a list (claim numbers, repositories to compare).
 - **Leave out** what the session already holds (its earlier turns, the plan it
   wrote), what its tools, ruleset and operating note already carry (prohibited
   commands, commit rules, push and merge limits, how to write commands, where
-  the report goes), and how to do the work (commands, steps, file lists, retry
-  counts, a report template): spelling those out narrows the model and buys
-  nothing. Name the outcome you need ("make clear where checked fact ends and
-  inference begins"), not its layout. Never paste its global instructions or
-  whole skill bodies into a prompt.
+  the report goes, which issue the run works on and which PR closes it: the
+  `issue` argument puts that in the note), and how to do the work (commands,
+  steps, file lists, retry counts, a report template): spelling those out
+  narrows the model and buys nothing. Name the outcome you need ("make clear
+  where checked fact ends and inference begins"), not its layout. Never paste
+  its global instructions or whole skill bodies into a prompt.
+- **The issue is the spec.** A fact the run needs (a date, a promise, a
+  measurement, who holds a key) goes into the issue before the turn, with its
+  source; the message then says only what this turn hands back. A message
+  that supplies facts the issue lacks is the sign the issue is not Fixed yet.
 - **One request to several repositories:** write the shared brief once in the
   job directory, then give each run its path and a sentence of its own.
 - **A constraint the tools do not enforce** and that must hold for the whole

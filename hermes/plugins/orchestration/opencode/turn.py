@@ -286,6 +286,8 @@ def describe(sid, info, status, *, turn=None, found=(), extra=None):
     model = info.get("model") or {}
     record = {"session_id": sid, "role": meta.get("role"), "directory": directory_of(info),
               "branch": meta.get("branch"), "agent": info.get("agent"), "status": status}
+    if meta.get("issue"):
+        record["issue"] = meta["issue"]
     if model.get("id"):
         record["engine"] = f"{model.get('providerID')}/{model['id']}" + (f"#{model['variant']}"
                                                                           if model.get("variant") else "")

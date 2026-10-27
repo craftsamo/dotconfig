@@ -51,7 +51,7 @@ files the parent and its units, a unit's approval makes its issue Fixed and
 In Progress before the build, and the Assistant mirrors the run to it
 ([github-access.md](./github-access.md),
 [decision](./decisions/issue-driven-engineering.md)); a run reads the issue
-its brief names, and the Assistant does not pass `issue_approval` (the plugin
+bound to it (the `issue` argument, below), and the Assistant does not pass `issue_approval` (the plugin
 keeps it for a caller that does want a build to write Issues through `gh`).
 
 ## The plugin
@@ -104,7 +104,20 @@ plainly (no `NAME=value` prefix, status wrapper or launcher such as `npx`), and
 a read-only role's note also asks it to batch commands. A write run's note says
 whether Issue writes are granted, so it learns that before trying one. A write run with an
 output directory is also asked to keep its Phase steps in `progress.md` there
-(below); a person's own sessions never are. Hermes sits in the person's seat: a
+(below); a person's own sessions never are.
+
+**The issue a run works on.** `issue` (`owner/repo#N`) on any run binds the
+unit's issue to the session (`metadata.hermes.issue`, inherited by a fork,
+reported in every result and session row); the note then names it as the
+specification the run reads with its own tools and says which PR closes it
+(`Closes #N` on the completing layer, `Refs #N` on any other). It is checked
+like the other bound values and re-sent on every turn. A build is refused
+before anything runs unless the session has an issue or the caller passes
+`untracked_reason`, the user's words excluding the job from GitHub, which is
+bound in the issue's place; passing an issue later replaces it. Why a plugin
+argument rather than a sentence in the brief: the brief is free text the
+caller can forget under a compaction, and the branch, the PR references and
+the record the Assistant mirrors all hang on this one value. Hermes sits in the person's seat: a
 question the agent asks and a permission it needs arrive as `waiting` and are
 answered with `opencode_request`. The Assistant's `design` role runs a
 read-only OpenCode `design` agent that writes HTML mocks and diagrams into the
@@ -117,7 +130,8 @@ verifies the service applied them before the prompt. A plan is read-only and
 runs on the default checkout. A build refuses a default-branch worktree, so
 after the Client's approval `opencode_session workspace` gives the idle plan
 session a worktree of its own: the plugin fetches and runs
-`git worktree add --no-track -b <branch>` from the fetched remote default branch
+`git worktree add --no-track -b <branch>` (`task/issue-N` for a session bound
+to an issue unless the caller names the branch) from the fetched remote default branch
 (`base=head` starts from the current commit) under `opencode.worktree_root` as
 `<root>/<repository name on origin, else the main checkout's directory
 name>/<branch with / as ->`, moves the session there with the service's `move`

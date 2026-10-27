@@ -23,7 +23,9 @@ Every issue body passes through one Writer round before the user or GitHub
 sees it: proofreading, and the gaps a reader would find in it as a spec.
 
 Issues and boards are written by the Assistant through `github_change`; an
-OpenCode run reads the issue its brief names.
+OpenCode run reads the issue bound to its session (the `issue` argument of
+`opencode_run_*`), and a build is refused until the session has one or the
+caller passes the user's words excluding the job.
 
 ## Why
 

@@ -54,8 +54,9 @@ not something to send to OpenCode.
    read once by Writer, agreed on a `shared` or `other` tier, then written;
    the Status moved. A job the user excluded from GitHub skips this step.
 2. **Give the unit its ground.** The plan ran read-only on the default
-   checkout. For a single-unit job, `opencode_session workspace` (`session_id`,
-   `branch` such as `task/issue-12-short-name`) moves that idle plan session
+   checkout. For a single-unit job, `opencode_session workspace` (`session_id`;
+   the branch is `task/issue-N` from the session's `issue`, or `branch` such as
+   `task/short-name` for an excluded job) moves that idle plan session
    into a worktree of its own on a new task branch. For a roadmap, the
    approved plan session stays the trunk: `opencode_session fork` it for each
    unit and give the fork its worktree with `workspace` (`base=head` from the
@@ -69,9 +70,11 @@ not something to send to OpenCode.
    `approval` quoting the user's approving words for this unit (never your own
    paraphrase) and `output_dir` set to the unit's own directory
    (`<job>/issue-N`), where the run keeps its step list in `progress.md`. The
-   message is a short brief in plain prose: the unit to build and its issue
-   (`owner/repo#N`, which the run reads as the spec and whose completing PR
-   closes it), what changed since the plan and why (the user's words inside
+   session carries the unit's `issue` from its plan turn (the run reads it as
+   the spec and its completing PR closes it); an excluded job passes
+   `untracked_reason` quoting the user's words instead, and a build with
+   neither is refused. The message is a short brief in plain prose: the unit
+   to build, what changed since the plan and why (the user's words inside
    your sentences where their wording matters), and the path of the decision
    log; the session already holds the plan, and its tools enforce the rules.
    Ask for outcomes (the checks' actual results, how the user can try it),
@@ -119,7 +122,7 @@ mid-job, is answered from [github-ops.md](references/github-ops.md)
 You mirror the run to the job's issues with `github_change` as
 [github-ops.md](references/github-ops.md) says: the unit's issue Fixed and In
 Progress at approval, each layer ticked when its PR is up, its Status moved
-when it lands. OpenCode only reads the issue named in the brief; never pass
+when it lands. OpenCode only reads the issue bound to its session; never pass
 `issue_approval`, since a build does not write Issues. For a job the user
 excluded from GitHub, a supplied Issue URL remains a read-only spec and no
 Issue or board changes.
