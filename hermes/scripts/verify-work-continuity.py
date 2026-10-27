@@ -54,6 +54,11 @@ PUBLIC_PYTEST_FILES = (
     "hermes/scripts/tests/test_searcher_reliability.py",
     "hermes/scripts/tests/test_validate_profile_skills.py",
     "hermes/scripts/tests/test_work_continuity.py",
+    # The cron-sync marker must survive the runtime's own update path (an upstream that dropped
+    # unknown job fields would silently orphan every tracked job), and every tracked manifest
+    # must still load on this runtime.
+    "hermes/scripts/tests/test_cron_sync.py",
+    "hermes/scripts/tests/test_cron_manifests.py",
     "hermes/scripts/tests/test_resident_turn.py",
     "hermes/scripts/tests/test_researcher_entries.py",
     "hermes/scripts/tests/test_audio_creator_routing.py",
@@ -167,6 +172,13 @@ def build_plan(runtime: Path, private: Path, python: Path) -> list[dict]:
         dict(
             name="validate-profile-skills --all --strict-git",
             argv=[str(python), str(HERMES_ROOT / "scripts/validate-profile-skills.py"), "--all", "--strict-git"],
+            cwd=HERMES_ROOT, env=env,
+        ),
+        # Read-only: the live profiles' jobs.json must already match their cron.d/ links (a
+        # pending change there means an install.sh run is owed before the cutover).
+        dict(
+            name="cron-sync --check",
+            argv=[str(python), str(HERMES_ROOT / "scripts/cron-sync.py"), "--check"],
             cwd=HERMES_ROOT, env=env,
         ),
         dict(
