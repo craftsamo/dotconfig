@@ -177,8 +177,19 @@ removes durable instructions (`hermes.<name>`) announced to the agent at its
 next step. `hermes.note` is the operating note every run starts with; use
 another key for a constraint that must outlast one message.
 
-`opencode_catalog(what, directory?)` reads `models`, `agents`, `skills`,
-`commands`, `vcs` or `info`; it changes nothing.
+`opencode_catalog(what, directory?)` reads what OpenCode offers and how it
+runs; it changes nothing. `models` is above; `agents` lists primaries and
+subagents alike (`mode` tells them apart); `skills`, `commands` and `vcs`
+describe the worktree's OpenCode. `service` describes the running service:
+version, process, paths, the `opencode` command, and `environment.kind`.
+When that is `hermes-minimal`, one of these tools started the service and the
+person's own sessions run without their shell's variables until they restart
+it (`opencode service restart`): tell them. `plugins`, `mcp` (servers and
+whether each is connected), `config` (each loaded configuration file as its
+path, keys and the names it defines; never a value) and `locations` read the
+rest; `info` is the service's own `/api/info`. These answer what OpenCode is
+set up with; what a tool does or how a plugin behaves is read from the
+configuration repository by a read-only run.
 
 `opencode_preflight(directory, phase?, output_dir?)` checks readiness in one
 read-only call: the service and its version, each role's agent and model (and
