@@ -77,6 +77,28 @@ in either spelling (`local/<engine>`, `$HERMES_LOCAL/<engine>`).
   with a host-generated cookie key. Hermes engine ports run `1010x`; pick the
   next free one for a new engine, never a common development port.
 
+### Webhook tunnel
+
+`launchd/cloudflared-launchctl.sh {install,restart,status,uninstall}` keeps a
+Cloudflare Tunnel connector (`local.hermes.cloudflared.tunnel`) running, so a
+public hostname reaches the gateway's loopback webhook listener on `:8644`
+([webhook.md](webhook.md)). The tunnel is a dashboard-managed one (Zero Trust
+→ Networks → Tunnels): the dashboard, or the cloudflare-access plugin's
+`tunnel_route`, says which hostname maps to `http://127.0.0.1:8644`, and the
+hostname never enters a tracked file (it is the private overlay's to know).
+This machine holds only the connector token, the Keychain item
+`CLOUDFLARE_TUNNEL_TOKEN` of project `hermes`, scope `cloudflare-access`,
+stored with `secret set … --no-stage -D TOKEN`; `install` refuses without it
+and `scripts/cloudflared-run.sh` reads it at every start and hands it to
+`cloudflared` through its `TUNNEL_TOKEN` environment, never on a command line.
+`cloudflared` itself comes from Homebrew and is told not to self-update under
+launchd (`--no-autoupdate`); `status` reads its readiness on
+`127.0.0.1:20241/ready` (`CLOUDFLARED_METRICS_PORT` overrides). Route the
+hostname to the webhook path prefix (`/p/<profile>/webhooks/`) rather than the
+whole origin when the dashboard allows: the listener answers every unsigned
+POST with a 4xx anyway, but the health and profile-ingress paths need not be
+public.
+
 ### Account sync agents
 
 Each keeps a local mirror of the user's own account current for its plugin and

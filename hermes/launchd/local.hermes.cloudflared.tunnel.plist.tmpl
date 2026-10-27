@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <!-- cloudflared-launchctl.sh renders the __PLACEHOLDERS__ before loading. -->
+  <key>Label</key>
+  <string>local.hermes.cloudflared.tunnel</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>__HOME__/.config/hermes/launchd/bin/hermes-cloudflared-tunnel</string>
+    <string>/bin/sh</string>
+    <string>__HOME__/.config/hermes/scripts/cloudflared-run.sh</string>
+  </array>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>__HOME__/.config/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+    <key>TUNNEL_METRICS</key>
+    <string>127.0.0.1:__METRICS_PORT__</string>
+  </dict>
+
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <!-- The network may still be coming up at login; a failed run retries after this. -->
+  <key>ThrottleInterval</key>
+  <integer>30</integer>
+  <key>ProcessType</key>
+  <string>Background</string>
+
+  <key>StandardOutPath</key>
+  <string>__HOME__/Library/Logs/cloudflared-tunnel.log</string>
+  <key>StandardErrorPath</key>
+  <string>__HOME__/Library/Logs/cloudflared-tunnel.log</string>
+</dict>
+</plist>
