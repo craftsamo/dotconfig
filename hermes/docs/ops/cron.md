@@ -39,10 +39,12 @@ it) is Hermes' and is never written by the sync.
 Hermes runs only a script inside `<HERMES_HOME>/scripts/`, by real path, so
 `run.sh` is reached through a wrapper cron-sync generates at
 `scripts/cron/<name>.sh`. The wrapper exports the owning profile's home as
-`HERMES_HOME` before execing the script: a `run.sh` reads its profile from
-`$HERMES_HOME` and finds code by its own real path (which is inside the
-repository, never inside a profile). Changes to `run.sh` apply at the next
-tick; nothing is copied.
+`HERMES_HOME` and execs `$HERMES_HOME/cron.d/<name>/run.sh` — the link, so
+no checkout path is written anywhere and a moved checkout needs only the
+installer's relink. A `run.sh` reads its profile from `$HERMES_HOME` and
+finds code by its own real path (`cd "$(dirname "$0")" && pwd -P`, which
+resolves the link into the repository, never into a profile). Changes to
+`run.sh` apply at the next tick; nothing is copied.
 
 ## cron-sync
 
