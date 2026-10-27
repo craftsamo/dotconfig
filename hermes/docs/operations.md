@@ -91,10 +91,11 @@ Per-profile files in `hermes/profiles/<name>/`, symlinked by `install.sh`
 (tracked unless noted): `config.yaml` (private overlay, seeded from the
 tracked `config.example.yaml`), `profile.yaml` (holds the routing `description`),
 `SOUL.md` (untracked; seeded from the tracked `SOUL.example.md`), `skills/`,
-`cron.d/` (the tracked jobs, [`ops/cron.md`](ops/cron.md)),
-`.no-bundled-skills` (`mcp.json` when present). `cron/`
-is never linked or tracked — Hermes owns it machine-local, derived from
-`cron.d/`. Everything outside
+`cron.d/` (the tracked jobs, [`ops/cron.md`](ops/cron.md)), `webhook.d/` (the
+tracked inbound routes, [`ops/webhook.md`](ops/webhook.md)),
+`.no-bundled-skills` (`mcp.json` when present). `cron/` and the root home's
+`webhook_subscriptions.json` are never linked or tracked — Hermes owns them
+machine-local, derived from `cron.d/` and `webhook.d/`. Everything outside
 the symlink set stays untracked (inert `~/.hermes/kanban.db`, `kanban/`,
 `workspace/`, `auth.json`, `.env`, `memories/`, `sessions/`, `state.db*`);
 adoption steps are in [`ops/tracking.md`](ops/tracking.md) "Tracking a profile".
