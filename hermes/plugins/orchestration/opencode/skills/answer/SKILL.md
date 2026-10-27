@@ -78,14 +78,23 @@ follows comes to you as a request.
   `git push --force-with-lease origin HEAD:refs/heads/<task branch>`,
   `git_publish` and `gh stack push` included), shell history rewrites, branch
   moves, package downloaders (`npm exec`, `pnpm dlx`), anything naming
-  `deploy`, `publish`, `secret`, `--remote` or `--prod`, per-command git
-  configuration (`git -c`) and Issue writes without `issue_approval` come
-  back to you as requests, also behind a prefix or a wrapper such as `env` or
-  `sh -c`.
+  `deploy`, `publish`, `secret`, `--remote` or `--prod` and per-command git
+  configuration (`git -c`) come back to you as requests, also behind a
+  prefix or a wrapper such as `env` or `sh -c`.
+- **The run's own GitHub writes** (`gh_issue_update`, `gh_project_item_set`)
+  never wait for you: under the session's `mandate` the plugin answers them
+  against the mandate at the write (`opencode:drive` "mandate"), and without
+  one the ruleset denies them. One that still reaches you, any other Issue or
+  board write tool (`gh_issue_create`, `gh_issue_comment`, `gh_issue_relate`,
+  `gh_issue_develop`, `gh_project_*`) and a shell `gh issue create|edit|
+  comment|reopen` are outside the mandate: `once` is refused, so `reject`
+  it with the reason and make the change yourself through `github_change`
+  when it is wanted. An Issue or board write runs on a card or inside a
+  mandate, never on your approval of a run.
 - **Denied outright**, however spelled, and never yours to approve: every
   other force push, protected-branch pushes, merges, `gh api`, Project
-  writes, git config and remote rewrites, `gh` aliases and extensions, edits
-  under `.git/` or the global git and gh config, and secret reads. A
-  read-only run is denied the requests above as well.
+  writes through the shell, git config and remote rewrites, `gh` aliases
+  and extensions, edits under `.git/` or the global git and gh config, and
+  secret reads. A read-only run is denied the requests above as well.
 - A build refuses a worktree another OpenCode session is running in (a
   person's included); read-only runs may run alongside.

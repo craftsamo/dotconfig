@@ -214,8 +214,9 @@ put items on it in the next.
   `issue_edit` the whole body to Fixed (the outline a checklist, the open
   decisions gone) and `item_set` `Status` `In Progress`; the first unit
   under a parent moves the parent to `In Progress` in the same list. Only
-  then a build. OpenCode never writes the issue: a plan proposes the body, a
-  build reads it and reports a slice that will not fit as a question.
+  then a build. OpenCode never writes the issue's plan: a plan proposes the
+  body, a build reads it and reports a slice that will not fit as a
+  question; under the mandate ("Mandates") a build ticks its own layers.
 - **Work moves:** tick an outline line with its PR `#n` by `issue_edit`
   `body` (read it, change the checkbox, send it whole) or add a step with
   `append_body`; a decision or a hand-over is an `issue_comment`. When the
@@ -248,6 +249,9 @@ most 30). Never propose one to get past a card the user just denied.
   done or the user asks. A mandate ends on its own at its last day.
 - A list inside a mandate also runs where nobody is present (a cron job), so
   a scheduled job that updates GitHub needs one, and only for what it does.
+- An OpenCode build given the mandate's id writes its own issue's state under
+  it (a ticked layer, its Status to In Progress), each write checked against
+  the mandate as it happens; the engineering entries say when to pass it.
 
 ## Replacing issues
 

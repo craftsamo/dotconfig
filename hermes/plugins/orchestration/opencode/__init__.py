@@ -46,6 +46,7 @@ progress = _load("hermes_opencode_progress", _HERE / "progress.py")
 inventory = _load("hermes_opencode_history", _HERE / "history.py")
 preflight = _load("hermes_opencode_preflight", _HERE / "preflight.py")
 workspace = _load("hermes_opencode_workspace", _HERE / "workspace.py")
+ghwrite = _load("hermes_opencode_ghwrite", _HERE / "ghwrite.py")
 tool_preview = _load("hermes_tool_preview", _HERE.parents[1] / "_shared" / "tool_preview.py")
 turn_env = _load("hermes_turn_env", _HERE.parents[1] / "_shared" / "turn_env.py")
 
@@ -59,7 +60,8 @@ FORM_ID = re.compile(r"frm_[A-Za-z0-9_-]{1,64}\Z")
 ENTRY_KEY = re.compile(r"hermes\.[a-z0-9._-]{1,48}\Z")
 DECISIONS = ("once", "reject")
 RUN_ARGS = {"directory", "session_id", "message", "model", "variant", "fork", "timeout", "output_dir", "issue"}
-WRITE_ARGS = {"approval", "issue_approval", "untracked_reason"}
+WRITE_ARGS = {"approval", "issue_approval", "untracked_reason", "mandate"}
+MANDATE_ID = re.compile(r"m[0-9a-f]{8}\Z")
 # The issue a run works on, `owner/repo#N`: the spec it reads and the one its completing
 # PR closes. It is bound to the session (a fork inherits it), so a build on a session
 # that planned an issue needs that issue or the caller's stated reason for none.
@@ -87,6 +89,14 @@ REPORT_NOTE = (
 # A write run learns whether Issue writes are granted here rather than by trying one.
 ISSUE_NOTE = {True: "Managing this job in Issues is granted.",
               False: "Issue writes are not granted for this job: leave Issues as they are."}
+# Under a mandate the build keeps its own issue's execution state; the mandate, checked
+# at each write, is what refuses, and a refusal is reported rather than worked around.
+MANDATE_NOTE = (
+    "Your issue's execution state is yours to keep: `gh_issue_update` on `{issue}` for its body (tick a layer's "
+    "line with its PR number when that PR is up, append a step) and `gh_project_item_set` to set its board item's "
+    "Status to In Progress when you start. Each such write is checked against the job's mandate as it runs; a "
+    "refusal names why, and goes in your final reply for Hermes to act on. Nothing else on GitHub is yours: no "
+    "other issue, no closing, no comment, no label, no milestone, no other Status.")
 # The issue is the spec; the brief adds what this turn hands back. Which PR closes it
 # follows from the stack: only the layer that completes the issue's scope.
 ISSUE_REF_NOTE = (
@@ -243,18 +253,33 @@ def _agent(name, where):
 # Starting a turn
 
 
-def _instructions(role, output=None, issues=False, issue=None):
+def _instructions(role, output=None, issues=False, issue=None, mandate=False):
     """The operating note. The approval is the caller's record (validated in `_prepare`,
     never consulted to authorize) and the ruleset enforces it, so neither it nor the output
     directory is added to the prompt."""
     read_only = role["policy"] == "read-only"
-    text = DEFAULT_NOTE + " " + SHELL_NOTE + " " + (READ_ONLY_NOTE if read_only else ISSUE_NOTE[bool(issues)] + " " + PUBLISHED_NOTE)
+    if read_only:
+        grant = READ_ONLY_NOTE
+    elif mandate and issue:
+        grant = MANDATE_NOTE.format(issue=issue) + " " + PUBLISHED_NOTE
+    else:
+        grant = ISSUE_NOTE[bool(issues)] + " " + PUBLISHED_NOTE
+    text = DEFAULT_NOTE + " " + SHELL_NOTE + " " + grant
     if issue:
         text += " " + ISSUE_REF_NOTE.format(issue=issue, number=issue.rsplit("#", 1)[1])
     if output:
         text += " " + OUTPUT_NOTE.format(path=output)
         text += " " + (REPORT_NOTE if read_only else PROGRESS_NOTE.format(path=str(Path(output) / progress.FILE)))
     return text + (("\n\n" + role["note"]) if role.get("note") else "")
+
+
+def _mandates_in_force(home):
+    """Ids of the GitHub mandates in force for this profile, read from github-access's store."""
+    try:
+        _, mandate = ghwrite.modules()
+        return {m["id"] for m in mandate.active(home)}
+    except Exception as exc:
+        raise ValueError(f"the GitHub mandates could not be read ({exc})") from None
 
 
 def _prepare(home, owner, role_name, role, settings, args, kwargs):
@@ -324,10 +349,31 @@ def _prepare(home, owner, role_name, role, settings, args, kwargs):
     if writing and not issue and not untracked:
         raise ValueError("A build works on an issue: pass issue=owner/repo#N (the unit's issue, Fixed), or "
                          "untracked_reason= quoting the Client's words that exclude this job from GitHub")
+    # The mandate under which a build may write its own issue's state (ghwrite). One
+    # passed now must be in force and go with an issue; a stored one is read again on a
+    # write turn and dropped when it lapsed or the issue went (the ruleset then denies
+    # the writes, and the note says so); a read-only turn opens nothing and ignores it.
+    mandate_id = args.get("mandate")
+    dropped = None
+    if "mandate" in args:
+        if not isinstance(mandate_id, str) or not MANDATE_ID.fullmatch(mandate_id):
+            raise ValueError("mandate must be the id of a GitHub mandate in force (github_mandate list)")
+        if not issue:
+            raise ValueError("mandate goes with issue: a build writes only its own issue's state under it")
+        if mandate_id not in _mandates_in_force(home):
+            raise ValueError(f"mandate {mandate_id} is not in force; github_mandate list shows the current ones")
+    elif isinstance(meta.get("mandate"), str):
+        stored = meta["mandate"]
+        if not writing:
+            mandate_id = stored if issue else None  # kept on the binding; the next build checks it
+        elif issue and MANDATE_ID.fullmatch(stored) and stored in _mandates_in_force(home):
+            mandate_id = stored
+        else:
+            dropped = stored
     return {"output": output, "writing": writing, "fork": fork, "chosen": chosen or meta.get("selection") or {},
             "explicit": bool(chosen), "sid": sid, "directory": directory, "branch": branch, "repo": repo,
             "protected": protected, "approval": approval, "issue_approval": issue_approval,
-            "issue": issue, "untracked": untracked,
+            "issue": issue, "untracked": untracked, "mandate": mandate_id, "dropped_mandate": dropped,
             "read_roots": tuple(settings.get("read_roots", ())),
             # The latest build approval stays on the session as the record of its grant; the
             # prompt no longer carries it.
@@ -354,7 +400,8 @@ def _setup(home, owner, role_name, role, plan, kwargs):
     tmp = (server.get("paths") or {}).get("tmp") if isinstance(server, dict) else None
     ruleset = policy.rules(role["policy"], plan["issue_approval"], plan["protected"], tmp=tmp, person_denies=person,
                            output=plan["output"], branch=plan["branch"], gh_aliases=policy.gh_aliases(),
-                           read_roots=plan.get("read_roots", ()))
+                           read_roots=plan.get("read_roots", ()),
+                           mandate=bool(plan.get("mandate") and plan.get("issue")))
     model = models.engine(role, plan["chosen"], info, directory,
                           models.caller_models(home, kwargs.get("session_id")))
     hermes = {"v": 2, "profile": home.name, "owner": owner, "role": role_name, "branch": plan["branch"],
@@ -363,7 +410,8 @@ def _setup(home, owner, role_name, role, plan, kwargs):
               **({"output_dir": plan["output"]} if plan["output"] else {}),
               **({"approval": plan["record"]} if plan.get("record") else {}),
               **({"issue": plan["issue"]} if plan.get("issue") else {}),
-              **({"untracked_reason": plan["untracked"]} if plan.get("untracked") and not plan.get("issue") else {})}
+              **({"untracked_reason": plan["untracked"]} if plan.get("untracked") and not plan.get("issue") else {}),
+              **({"mandate": plan["mandate"]} if plan.get("mandate") and plan.get("issue") else {})}
     metadata = {"hermes": hermes}
     if sid and plan["fork"]:
         sid = api.data(turn.call("post", "/api/session/{sid}/fork", {}, sid=sid))["id"]
@@ -405,7 +453,8 @@ def _put_note(sid, note):
 
 def _admit(sid, role, message, plan):
     text = message
-    note = _instructions(role, plan["output"], plan["issue_approval"], plan.get("issue"))
+    note = _instructions(role, plan["output"], plan["issue_approval"], plan.get("issue"),
+                         mandate=bool(plan.get("mandate") and plan.get("issue")))
     if not _put_note(sid, note):
         text = note + "\n\n" + text
     try:
@@ -467,21 +516,40 @@ def _arm(home, live, sid, out, kwargs):
     return {**out, "process_session_id": process, "note": " ".join(filter(None, [out.get("note"), message]))}
 
 
+def _decider(home, sid):
+    """The run's own GitHub writes answered in the caller's place (ghwrite): the session's
+    binding is read once, at the first request, so a wait that meets none costs nothing."""
+    cache = {}
+
+    def decide(request):
+        if not ghwrite.ours(request):
+            return None, None
+        if "meta" not in cache:
+            try:
+                cache["meta"] = turn.hermes_meta(turn.session_info(sid))
+            except (api.ApiError, api.Unavailable):
+                return None, None
+        decision, reason = ghwrite.verdict(home, cache["meta"], request)
+        _diagnose(home, sid, f"gh write {request.get('action')} {request.get('id')}: {decision} ({reason})")
+        return decision, reason
+    return decide
+
+
 def _handoff(home, live, sid, kwargs, limit=None, answered=()):
     """A blocking caller (CLI/resident) waits for the hand-back; a live caller gets the
     current state at once and, while the run is still going, a notifier process. After a
     reply (`answered`) a live caller first waits a few seconds for the run's next state."""
     if live and answered:
         settle = min(REPLY_SETTLE, turn.wait_limit(home, _lenient(home), limit))
-        record = turn.await_turn(sid, settle, poll=REPLY_POLL, ignore=set(answered))
+        record = turn.await_turn(sid, settle, poll=REPLY_POLL, ignore=set(answered), decide=_decider(home, sid))
         if record.get("status") == "running":
             record = {k: v for k, v in record.items() if k != "timed_out"}
             record["note"] = turn.note(record)
         return _arm(home, live, sid, _keep_report(home, record), kwargs)
     if live:
-        return _arm(home, live, sid, _keep_report(home, turn.snapshot(sid)), kwargs)
+        return _arm(home, live, sid, _keep_report(home, turn.snapshot(sid, decide=_decider(home, sid))), kwargs)
     return _keep_report(home, turn.await_turn(sid, turn.wait_limit(home, _lenient(home), limit),
-                                              ignore=set(answered)))
+                                              ignore=set(answered), decide=_decider(home, sid)))
 
 
 REPORT_NAME = re.compile(r"[^A-Za-z0-9._-]+")
@@ -573,7 +641,13 @@ def opencode_run(role_name, args, **kwargs):
             if failed:
                 return json.dumps(failed)
         try:
-            return json.dumps(_handoff(home, live, sid, kwargs, requested))
+            out = _handoff(home, live, sid, kwargs, requested)
+            if plan.get("dropped_mandate"):
+                out["mandate_dropped"] = plan["dropped_mandate"]
+                out["note"] = " ".join(filter(None, [out.get("note"), (
+                    f"The session's mandate {plan['dropped_mandate']} is no longer in force (or the issue went): "
+                    "the build writes nothing on GitHub this turn; pass mandate= to bind a current one.")]))
+            return json.dumps(out)
         except Exception as exc:
             # The turn is running in OpenCode: hand back its id, never a bare error.
             return json.dumps({"session_id": sid, "status": "running",
@@ -676,7 +750,8 @@ def opencode_session(args, **kwargs):
         if action == "status":
             # A read that finds the run still going re-arms its notifier: the one that woke
             # the caller (a pause, a heartbeat) has ended, and nothing else would follow.
-            return json.dumps(_arm(home, live, sid, _keep_report(home, turn.snapshot(sid)), kwargs))
+            return json.dumps(_arm(home, live, sid, _keep_report(home, turn.snapshot(sid, decide=_decider(home, sid))),
+                                   kwargs))
         if action == "wait":
             requested = args.get("timeout")
             if requested is not None and (type(requested) is not int or requested < 1):
@@ -685,7 +760,8 @@ def opencode_session(args, **kwargs):
             if type(through) is not bool:
                 raise ValueError("through_retry must be boolean")
             limit = turn.wait_limit(home, _lenient(home), requested)
-            settled = _keep_report(home, turn.await_turn(sid, limit, through_retry=through))
+            settled = _keep_report(home, turn.await_turn(sid, limit, through_retry=through,
+                                                         decide=_decider(home, sid)))
             return json.dumps(_arm(home, live, sid, settled, kwargs))
         if action == "steer":
             text = args.get("message")
@@ -738,6 +814,14 @@ def _answer(value):
 REPLY_FIELDS = ("request_id", "decision", "reason", "answer")
 
 
+def _shell_issue_write(item):
+    """A shell request that writes an Issue (`gh issue create|edit|comment|reopen`), which asks
+    without `issue_approval`; the caller may reject it, never approve it."""
+    return item.get("action") == "shell" and any(
+        policy.matches(pattern, resource, shell=True)
+        for pattern in policy.ISSUE_WRITES for resource in item.get("resources") or [] if isinstance(resource, str))
+
+
 def _reply_plan(found, entry):
     """One validated reply as (item, route, segments, body); sends nothing."""
     if not isinstance(entry, dict) or set(entry) - set(REPLY_FIELDS):
@@ -753,6 +837,12 @@ def _reply_plan(found, entry):
         if not PERMISSION_ID.fullmatch(request_id) or decision not in DECISIONS:
             raise ValueError("decision must be once or reject (never always: it saves a project-wide approval "
                              "people's own sessions would inherit)")
+        if decision == "once" and (ghwrite.github_write(item) or _shell_issue_write(item)):
+            # An Issue or board write runs only on a card or inside a mandate; the caller's
+            # `once` is neither. One the mandate covers was answered already; the rest are
+            # the caller's own to make, through github-access.
+            raise ValueError(f"{item['action']} is an Issue or board write outside the run's mandate: reject it "
+                             "(and make the change yourself through github_change if it is wanted)")
         body = {"decision": decision, **({"message": reason} if reason else {})}
         return item, "post", "/api/session/{sid}/permission/{per}/reply", {"per": request_id}, body
     if not FORM_ID.fullmatch(request_id):
@@ -949,6 +1039,11 @@ def _run_properties(role):
         properties["untracked_reason"] = {"type": "string", "description": "Only for a job the Client excluded from "
                                                                            "GitHub: their words saying so, quoted. A "
                                                                            "build needs issue or this"}
+        properties["mandate"] = {"type": "string", "description": "The id of the GitHub mandate in force for the "
+                                                                  "job (github_mandate list). With it the build may "
+                                                                  "tick its own issue's body, move its Status and "
+                                                                  "link its task branch, each checked against the "
+                                                                  "mandate at the write; bound to the session"}
     return properties
 
 
@@ -1163,7 +1258,8 @@ def _notify(home_arg, sid):
             watch = progress.Watch(meta, PROGRESS_SETTLE)
     # A provider retry already reached the caller in the run call's own state; returning on it
     # again would only wake the caller with what it has just read.
-    record = turn.await_turn(sid, NOTIFY_LIMIT, through_retry=True, poll=NOTIFY_POLL, watch=watch)
+    record = turn.await_turn(sid, NOTIFY_LIMIT, through_retry=True, poll=NOTIFY_POLL, watch=watch,
+                             decide=_decider(home, sid))
     return _keep_report(home, record)
 
 
