@@ -549,6 +549,12 @@ done
 # (no [workspaces] section: the ~/Workspaces AGENTS.md doctrine is personal
 # and lives in the private overlay, whose install.sh links it into place.)
 
+# ~/.gitconfig holds the person's identity, never this tree's. It must exist:
+# without it `git config --global` writes into ~/.config/git/config, the
+# tracked git/config.
+echo "[git]"
+seed_or_adopt "$HOME/.gitconfig" git/gitconfig git/gitconfig.example
+
 echo "[zsh]"
 link "$DOTFILES/zsh/env.zsh"    "$HOME/.zshenv"
 link "$DOTFILES/zsh/config.zsh" "$HOME/.zshrc"
