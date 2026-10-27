@@ -66,7 +66,21 @@ def _worktree(directory, phase, policy, turn):
     return issues, branch
 
 
-def check(*, settings, caller, args, lookup_agent, api, config, models, policy, turn):
+def _environment(info, environment):
+    """A service the plugin's own client started runs every session, the person's own
+    included, without their shell's variables; that is worth a line before a run."""
+    if environment is None:
+        return []
+    with contextlib.suppress(Exception):
+        kind, _ = environment.environment_kind(info.get("pid") if isinstance(info, dict) else None)
+        if kind == environment.HERMES_MINIMAL:
+            return [_issue("warn", "the OpenCode service runs with Hermes' minimal environment, not the person's "
+                                   "shell: their own sessions lack their shell's variables until they restart it "
+                                   "(opencode service restart)")]
+    return []
+
+
+def check(*, settings, caller, args, lookup_agent, api, config, models, policy, turn, environment=None):
     """The findings for `args` (directory, phase, output_dir)."""
     unknown = set(args) - {"directory", "phase", "output_dir"}
     if unknown:
@@ -83,6 +97,7 @@ def check(*, settings, caller, args, lookup_agent, api, config, models, policy, 
         return {"ok": False, "issues": [_issue("error", f"OpenCode service unreachable: {exc}")]}
     if version != MEASURED_VERSION:
         issues.append(_issue("warn", f"OpenCode {version}; this plugin was measured on {MEASURED_VERSION}"))
+    issues += _environment(info, environment)
     issues += _roles(settings, caller, directory, lookup_agent, models, api, config)
     found, branch = _worktree(directory, phase, policy, turn)
     issues += found

@@ -149,6 +149,17 @@ runs on another listed model, as the QA entry says). A name outside the list
 is refused, never substituted: report it and ask, without stopping the job.
 An explicit choice binds the rest of that session.
 
+A Claude model has several stops: the active login, another saved login (an
+alias model, marked `stop_of` in the catalog) and the Console credit lanes
+(providers of their own). OpenCode moves a session between them itself when
+one refuses, and a continuing turn keeps the stop the session is on; the
+result's `engine` names it. Do not pass `model=` to move a session back: name
+a model only to choose a different one, and after a limit on every stop use
+the role's alternate. `opencode_catalog funding` shows where each login's
+windows and each lane's balance stand, for reporting, not for choosing a
+stop before a run; a login or lane with `fresh` false is a reading too old
+to rely on, so say so.
+
 ## Session tools
 
 `opencode_session(action, session_id?, …)` works on your sessions.
@@ -177,8 +188,20 @@ removes durable instructions (`hermes.<name>`) announced to the agent at its
 next step. `hermes.note` is the operating note every run starts with; use
 another key for a constraint that must outlast one message.
 
-`opencode_catalog(what, directory?)` reads `models`, `agents`, `skills`,
-`commands`, `vcs` or `info`; it changes nothing.
+`opencode_catalog(what, directory?)` reads what OpenCode offers and how it
+runs; it changes nothing. `models` is above; `agents` lists primaries and
+subagents alike (`mode` tells them apart); `skills`, `commands` and `vcs`
+describe the worktree's OpenCode. `service` describes the running service:
+version, process, paths, the `opencode` command, and `environment.kind`.
+When that is `hermes-minimal`, one of these tools started the service and the
+person's own sessions run without their shell's variables until they restart
+it (`opencode service restart`): tell them. `providers` lists each provider's
+activation and which one it is a stop of; `funding` is above. `plugins`,
+`mcp` (servers and whether each is connected), `config` (each loaded
+configuration file as its path, keys and the names it defines; never a value)
+and `locations` read the rest; `info` is the service's own `/api/info`. These answer what OpenCode is
+set up with; what a tool does or how a plugin behaves is read from the
+configuration repository by a read-only run.
 
 `opencode_preflight(directory, phase?, output_dir?)` checks readiness in one
 read-only call: the service and its version, each role's agent and model (and
@@ -186,6 +209,8 @@ alternate), the worktree and branch. Healthy is one `summary` line; otherwise
 only `issues` (`error` blocks, `warn` informs). Run it with `phase=plan` before
 the first plan run and with `phase=build` before a build: that one also needs a
 task branch, no session running in the worktree, and reports uncommitted paths.
+A `warn` that the service runs with Hermes' minimal environment goes to the
+person as above; it blocks nothing.
 
 `opencode_history(action, …)` reads OpenCode's own session history across all
 projects, the person's TUI sessions included, without launching anything:

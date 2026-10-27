@@ -787,6 +787,10 @@ def test_callers_own_models_are_refused_for_every_role(fixture):
     pinned = run("plan", directory)
     assert "your own model" in pinned["error"], pinned
     assert "your own model" in run("plan", directory, model="anthropic/claude-opus-5-5-fast")["error"]
+    assert "your own model" in run("plan", directory, model="anthropic/claude-opus-5-5-main")["error"], \
+        "another login's alias of the model is the same model"
+    assert "allowed_providers" in run("plan", directory, model="anthropic-credit-team/claude-opus-5-5")["error"], \
+        "a credit lane is a provider of its own: the caller names it only when it is allowed"
     ok = run("plan", directory, model="openai/gpt-6-sol", variant="high")
     assert ok["status"] == "completed" and ok["engine"] == "openai/gpt-6-sol#high"
     models.observe(session_id="hermes-1", model="claude-fable-5-1", provider="anthropic")
@@ -865,6 +869,22 @@ def test_preflight_for_a_build_needs_a_task_branch_and_a_free_worktree(fixture):
     fake.sessions["ses_busy"] = {"id": "ses_busy", "location": {"directory": str(directory)}}
     busy = preflight(directory, phase="build")
     assert busy["ok"] is False and "ses_busy" in " ".join(i["what"] for i in busy["issues"])
+
+
+def test_preflight_warns_when_the_service_runs_with_the_minimal_environment(fixture, monkeypatch):
+    _, directory, _, fake = fixture
+    fake.pid = 4242
+    monkeypatch.setattr(plugin.environment, "_ps", lambda args: "x PATH=/usr/bin HOME=/h\n" if args[0] == "-Eww"
+                        else None)
+    out = preflight(directory)
+    assert out["ok"] is True
+    [issue] = out["issues"]
+    assert issue["level"] == "warn" and "minimal environment" in issue["what"]
+    monkeypatch.setattr(plugin.environment, "_ps", lambda args: "x PATH=/usr/bin HOME=/h TMUX=/t\n"
+                        if args[0] == "-Eww" else None)
+    assert "issues" not in preflight(directory)
+    monkeypatch.setattr(plugin.environment, "_ps", lambda args: None)
+    assert "issues" not in preflight(directory), "an unreadable environment is no finding"
 
 
 def test_preflight_rejects_bad_arguments(fixture):
@@ -1182,7 +1202,7 @@ def test_catalog_lists_models_defaults_and_your_own(fixture, monkeypatch):
     names = [m["model"] for m in listed["models"]]
     assert "xai/grok-4.7" not in names and "openai/gpt-image-3" not in names
     assert {m["model"] for m in listed["models"] if m.get("yours")} == {
-        "anthropic/claude-opus-5-5", "anthropic/claude-opus-5-5-fast"}
+        "anthropic/claude-opus-5-5", "anthropic/claude-opus-5-5-fast", "anthropic/claude-opus-5-5-main"}
     sol = next(m for m in listed["models"] if m["model"] == "openai/gpt-6.1-sol")
     assert sol["variants"] == ["medium", "high"] and sol["context"] == 400000
     assert sol["cost_per_mtok"] == {"input": 2, "output": 10}
@@ -1197,9 +1217,258 @@ def test_catalog_reads_agents_skills_vcs_and_refuses_the_rest(fixture):
     assert all("permissions" not in a for a in agents)
     skills = json.loads(plugin.opencode_catalog({"what": "skills", "directory": str(directory)}))["skills"]
     assert skills == [{"id": "git-commit", "name": "git-commit", "description": "d"}]
-    assert json.loads(plugin.opencode_catalog({"what": "info"})) == {"version": "2.1.2"}
-    assert "what must be" in json.loads(plugin.opencode_catalog({"what": "config"}))["error"]
+    assert json.loads(plugin.opencode_catalog({"what": "info"})) == {"info": {
+        "version": "2.1.2", "urls": ["http://127.0.0.1:4096"], "paths": {"tmp": "/tmp/fake-opencode"},
+        "capabilities": {"persistentPty": True}}}
+    assert "what must be" in json.loads(plugin.opencode_catalog({"what": "tools"}))["error"]
     assert "Unexpected" in json.loads(plugin.opencode_catalog({"what": "info", "x": 1}))["error"]
+
+
+def catalog(what, directory=None):
+    args = {"what": what, **({"directory": str(directory)} if directory else {})}
+    return json.loads(plugin.opencode_catalog(args))
+
+
+def test_catalog_describes_plugins_mcp_and_locations(fixture):
+    _, directory, _, _ = fixture
+    assert catalog("plugins", directory)["plugins"] == [
+        {"id": "opencode.tool.read", "source": "builtin", "status": "active", "features": ["server"]},
+        {"id": "custom-tools", "source": "local", "status": "active", "path": "/cfg/plugins/custom-tools.ts",
+         "features": ["server"]}]
+    assert catalog("mcp", directory)["mcp"] == [{"name": "context7", "status": "connected"},
+                                                {"name": "blender", "status": "disabled"}]
+    assert catalog("locations")["locations"] == [str(directory), "/elsewhere"]
+
+
+def test_catalog_reduces_config_sources_to_their_shape(fixture):
+    """Paths, key names and the names a file defines; never a value (a header, a key, an option)."""
+    _, directory, _, _ = fixture
+    out = catalog("config", directory)
+    assert "SECRET" not in json.dumps(out)
+    sources = out["config"]
+    assert sources[0] == {
+        "type": "document", "path": "/cfg/opencode.jsonc",
+        "keys": ["$schema", "agents", "mcp", "permissions", "plugins", "providers"],
+        "agents": ["build", "plan"],
+        "plugins": ["@x/quota@5", "./lib/fallback", "https://git.example/…", None, None],
+        "mcp": {"context7": {"type": "remote"}, "blender": {"type": "local", "disabled": True}},
+        "providers": ["anthropic"], "permissions_count": 2}
+    assert sources[1] == {"type": "directory", "path": "/cfg", "keys": []}
+    assert sources[2] == {"type": "document", "path": f"{directory}/opencode.jsonc", "keys": ["references"]}
+
+
+def test_a_continuing_turn_keeps_the_stop_the_service_moved_the_session_to(fixture):
+    """OpenCode moves a session to a credit lane or another login of the same model on a
+    limit; re-sending the configured spelling would move it back, so a continuing turn
+    keeps the stop unless the caller names a model this turn."""
+    home, directory, _, fake = fixture
+    sid = run("plan", directory)["session_id"]
+    fake.sessions[sid]["model"] = {"providerID": "anthropic-credit-team", "id": "claude-opus-5-5", "variant": "high"}
+    out = run("plan", session_id=sid)
+    assert out["engine"] == "anthropic-credit-team/claude-opus-5-5#high"
+    assert fake.sessions[sid]["model"] == {"providerID": "anthropic-credit-team", "id": "claude-opus-5-5",
+                                           "variant": "high"}
+    # A role switch keeps the stop and takes the new role's variant.
+    moved = run("build", session_id=sid, approval="yes")
+    assert moved.get("engine") == "anthropic-credit-team/claude-opus-5-5#medium", moved
+    fake.sessions[sid]["model"] = {"providerID": "anthropic", "id": "claude-opus-5-5-main", "variant": "high"}
+    assert run("plan", session_id=sid)["engine"] == "anthropic/claude-opus-5-5-main#high"
+    # A variant alone changes the effort, not the stop.
+    assert "variant requires a model" in run("plan", session_id=sid, variant="medium")["error"]
+    configure(home, "  roles:\n    plan: {agent: plan, policy: read-only, model: 'anthropic/claude-opus-5-5#high'}\n")
+    assert run("plan", session_id=sid, variant="medium")["engine"] == "anthropic/claude-opus-5-5-main#medium"
+    # A stop that lacks the wanted variant is left for the wanted model (the medium the
+    # last turn chose is bound to the session).
+    lane = next(m for m in fake.models if m["providerID"] == "anthropic-credit-team")
+    lane["variants"] = [{"id": "low"}]
+    fake.sessions[sid]["model"] = {"providerID": "anthropic-credit-team", "id": "claude-opus-5-5", "variant": "low"}
+    out = run("plan", session_id=sid)
+    assert out.get("engine") == "anthropic/claude-opus-5-5#medium", out
+    lane["variants"] = [{"id": "high"}, {"id": "medium"}]
+    configure(home, "")
+    # A model named this turn moves it; another model altogether is sent as wanted.
+    assert run("plan", session_id=sid, model="anthropic/claude-opus-5-5", variant="high")["engine"] == \
+        "anthropic/claude-opus-5-5#high"
+    fake.sessions[sid]["model"] = {"providerID": "anthropic-credit-team", "id": "claude-opus-5-5", "variant": "high"}
+    assert run("plan", session_id=sid, model="openai/gpt-6-sol", variant="high")["engine"] == "openai/gpt-6-sol#high"
+    fake.sessions[sid]["model"] = {"providerID": "anthropic-credit-team", "id": "claude-opus-5-5", "variant": "high"}
+    assert run("plan", session_id=sid)["engine"] == "openai/gpt-6-sol#high", "an explicit choice binds the session"
+
+
+def test_keep_stop_falls_back_to_the_wanted_model(fixture):
+    _, directory, _, _ = fixture
+    wanted = {"providerID": "anthropic", "id": "claude-opus-5-5", "variant": "high"}
+    assert models.keep_stop(None, wanted, str(directory)) == wanted
+    assert models.keep_stop({"id": "x"}, wanted, str(directory)) == wanted
+    assert models.keep_stop({"providerID": "nowhere", "id": "claude-opus-5-5"}, wanted, str(directory)) == wanted, \
+        "a stop the catalog does not list is not trusted"
+    assert models.keep_stop({"providerID": "openai", "id": "gpt-6-sol"}, wanted, str(directory)) == wanted
+
+
+def test_catalog_models_name_the_stops_and_providers_their_canonical(fixture):
+    home, directory, _, _ = fixture
+    configure(home, "model:\n  default: claude-opus-5-5\n")
+    listed = {m["model"]: m for m in json.loads(plugin.opencode_catalog({"what": "models"}))["models"]}
+    assert listed["anthropic/claude-opus-5-5-main"]["stop_of"] == "anthropic/claude-opus-5-5"
+    assert listed["anthropic/claude-opus-5-5-main"]["yours"] is True
+    assert "stop_of" not in listed["anthropic/claude-opus-5-5"]
+    assert "anthropic-credit-team/claude-opus-5-5" not in listed, "lanes outside allowed_providers are not offered"
+    assert catalog("providers", directory)["providers"] == [
+        {"id": "anthropic", "name": "Anthropic", "activation": "enabled"},
+        {"id": "anthropic-credit-team", "canonical": "anthropic", "activation": "enabled"},
+        {"id": "openai", "name": "OpenAI", "activation": "enabled"},
+        {"id": "xai", "name": "xAI", "activation": "auto"}]
+
+
+EXPORT = {
+    "version": 2, "exportedAt": 1_000_000, "providers": {
+        "anthropic": {"status": "ok", "fetchedAt": 999_990, "entries": [
+            {"name": "[Claude Sub OAuth] (active) 5h", "resultType": "quota", "sourceId": "cred_SECRET1",
+             "window": "5h", "resetAt": 1_003_600, "percentRemaining": 77},
+            {"name": "[Claude Sub OAuth] (active) Weekly", "resultType": "quota", "sourceId": "cred_SECRET1",
+             "window": "Weekly", "resetAt": 1_300_000, "percentRemaining": 82},
+            {"name": "[Claude Sub OAuth] (active) Fable Weekly", "resultType": "quota", "sourceId": "cred_SECRET1",
+             "resetAt": 1_300_000, "percentRemaining": 73},
+            {"name": "[Claude Main OAuth] 5h", "resultType": "quota", "sourceId": "cred_SECRET2",
+             "window": "5h", "resetAt": 1_003_600, "percentRemaining": 0},
+            {"name": "[Claude Main OAuth] Weekly", "resultType": "quota", "sourceId": "cred_SECRET2",
+             "window": "Weekly", "resetAt": 1_300_000, "percentRemaining": 40}]},
+        "openai": {"status": "ok", "fetchedAt": 999_000, "entries": [
+            {"name": "[OpenAI] (Plus) 5h", "resultType": "rate_limit", "sourceId": "cred_SECRET3",
+             "window": "5h", "resetAt": 900_000, "percentRemaining": 89}]},
+        "xai": {"status": "unavailable"},
+        "quota-providers": {"status": "ok", "fetchedAt": 999_990, "entries": [
+            {"name": "Anthropic Team Credit Credit", "resultType": "budget", "sourceId": "anthropic-credit-team",
+             "resetAt": 1_200_000, "renderType": "percent", "percentRemaining": 0},
+            {"name": "Anthropic Team Credit Pace", "resultType": "usage", "sourceId": "anthropic-credit-team",
+             "renderType": "value", "value": "$14/day"},
+            {"name": "Anthropic Main Credit Credit", "resultType": "budget", "sourceId": "anthropic-credit-main",
+             "resetAt": 1_400_000, "renderType": "percent", "percentRemaining": 35}]}}}
+
+
+def test_funding_board_shows_each_stop_without_its_connection_id(fixture, tmp_path, monkeypatch):
+    path = tmp_path / "quota-export.json"
+    path.write_text(json.dumps(EXPORT))
+    monkeypatch.setattr(plugin.funding, "export_path", lambda: path)
+    monkeypatch.setattr(plugin.funding, "_now", lambda: 1_000_100)
+    out = catalog("funding")["funding"]
+    assert "SECRET" not in json.dumps(out)
+    assert out["export_age_seconds"] == 100 and out["exported"].startswith("1970-01-12")
+    stops = {s["provider"]: s for s in out["stops"]}
+    assert set(stops) == {"anthropic", "anthropic-credit-team", "anthropic-credit-main", "openai"}
+    claude = stops["anthropic"]
+    assert claude["kind"] == "subscription"
+    sub, main = claude["accounts"]
+    assert sub["label"] == "Claude Sub OAuth" and sub["active"] is True and "empty" not in sub
+    assert sub["fresh"] is True, "fetched 110 seconds ago"
+    assert sub["windows"]["5h"] == {"remaining_percent": 77, "resets": "1970-01-12T14:46:40+00:00"}
+    assert sub["other"]["Fable Weekly"]["remaining_percent"] == 73
+    assert main["label"] == "Claude Main OAuth" and "active" not in main
+    assert main["empty"] is True and main["windows"]["5h"]["empty"] is True, "one empty window empties the login"
+    plus = stops["openai"]["accounts"][0]
+    assert plus["fresh"] is False, "fetched over six minutes ago with nothing empty"
+    assert plus["plan"] == "Plus" and plus["windows"]["5h"]["past_reset"] is True and "empty" not in plus["windows"]["5h"]
+    team = stops["anthropic-credit-team"]
+    assert team["kind"] == "credit-lane" and team["empty"] is True and team["fresh"] is True
+    assert team["balance"] == {"remaining_percent": 0, "empty": True, "expires": "1970-01-14T21:20:00+00:00"}
+    assert team["figures"] == {"Pace": "$14/day"}
+    assert stops["anthropic-credit-main"]["balance"]["remaining_percent"] == 35
+    assert "empty" not in stops["anthropic-credit-main"]
+    # An empty window holds at any age, until its reset passes; a lane's reading goes stale like any other.
+    monkeypatch.setattr(plugin.funding, "_now", lambda: 1_002_000)
+    stops = {s["provider"]: s for s in catalog("funding")["funding"]["stops"]}
+    main = stops["anthropic"]["accounts"][1]
+    assert main["empty"] is True and main["fresh"] is True
+    assert stops["anthropic"]["accounts"][0]["fresh"] is False
+    assert stops["anthropic-credit-team"]["fresh"] is True and stops["anthropic-credit-main"]["fresh"] is False
+    monkeypatch.setattr(plugin.funding, "_now", lambda: 1_004_000)
+    main = {s["provider"]: s for s in catalog("funding")["funding"]["stops"]}["anthropic"]["accounts"][1]
+    assert "empty" not in main and main["windows"]["5h"]["past_reset"] is True and main["fresh"] is False
+
+
+def test_funding_names_a_missing_or_malformed_export(fixture, tmp_path, monkeypatch):
+    path = tmp_path / "quota-export.json"
+    monkeypatch.setattr(plugin.funding, "export_path", lambda: path)
+    assert "no Quota export" in catalog("funding")["error"]
+    path.write_text("{not json")
+    assert "could not be read" in catalog("funding")["error"]
+    path.write_text(json.dumps({"providers": []}))
+    assert "not a Quota export" in catalog("funding")["error"]
+    path.write_text(json.dumps({"providers": {"anthropic": {"status": "ok", "entries": [{"name": 3}, "x"]},
+                                              "openai": {"status": "partial", "entries": [
+                                                  {"name": "[OpenAI] Weekly", "window": "Weekly",
+                                                   "percentRemaining": 5, "sourceId": "cred_SECRET"}]}}}))
+    out = catalog("funding")["funding"]
+    assert out["exported"] is None and "SECRET" not in json.dumps(out)
+    [plus] = out["stops"]
+    assert plus["provider"] == "openai" and plus["accounts"][0]["fresh"] is False, "no fetch time: not fresh"
+    assert plus["accounts"][0]["windows"]["Weekly"] == {"remaining_percent": 5}
+
+
+def test_catalog_shapes_degrade_on_malformed_replies():
+    environment = plugin.environment
+    for body in (None, "text", 7, {"data": None}, {"data": {"a": 1}}, [None, 3, "x"]):
+        assert environment.plugins(body) == [] and environment.mcp(body) == []
+        assert environment.locations(body) == [] and environment.config_sources(body) == []
+    assert environment.info(None) == {}
+    assert environment.info({"version": 2, "pid": "7", "urls": "x", "paths": [1], "capabilities": {"a": {}}}) == {
+        "capabilities": {}}
+    assert environment.config_sources([{"type": 1, "path": None, "info": "not a dict"}]) == [
+        {"type": None, "path": None}]
+    assert environment.config_sources([{"type": "document", "path": "/p", "info": {
+        "mcp": {"servers": {"a": "not a dict", 3: {}}}, "agents": "x", "plugins": "x"}}]) == [
+        {"type": "document", "path": "/p", "keys": ["agents", "mcp", "plugins"], "mcp": {}}]
+    assert environment.process("4242") == {} and environment.process(-1) == {}
+    assert environment.environment_kind(None) == ("unknown", 0)
+
+
+def ps_of(answers):
+    """A `ps` whose answers are keyed by the option that names the column(s) asked."""
+    def _ps(args):
+        return answers.get(args[1] if args[0] == "-o" else args[0])
+    return _ps
+
+
+def test_catalog_service_describes_the_process_without_reading_values(fixture, monkeypatch):
+    _, _, _, fake = fixture
+    environment = plugin.environment
+    fake.pid = 4242
+    monkeypatch.setattr(environment, "_ps", ps_of({
+        "ppid=,lstart=,comm=": "    1 Mon Oct 26 21:53:56 2026     /opt/opencode/bin/opencode\n",
+        "-Eww": "opencode serve --service PATH=/usr/bin HOME=/Users/p TMUX=/x,1 TERM_PROGRAM=ghostty "
+                "SOME_API_KEY=SECRET LC_ALL=C PWD=/Users/p\n"}))
+    monkeypatch.setattr(environment, "paths", lambda: {"data": "/Users/p/.local/share/opencode"})
+    monkeypatch.setattr(environment, "client", lambda: {"command": "/Users/p/.config/bin/opencode"})
+    out = catalog("service")["service"]
+    assert "SECRET" not in json.dumps(out) and "SOME_API_KEY" not in json.dumps(out)
+    assert out == {
+        "version": "2.1.2", "urls": ["http://127.0.0.1:4096"],
+        "process": {"pid": 4242, "parent_pid": 1, "started": "Mon Oct 26 21:53:56 2026",
+                    "executable": "/opt/opencode/bin/opencode"},
+        "environment": {"kind": "person-shell", "names_beyond_minimal": 3},
+        "paths": {"data": "/Users/p/.local/share/opencode"},
+        "client": {"command": "/Users/p/.config/bin/opencode"}}
+
+
+def test_catalog_service_tells_a_minimal_environment_and_an_unreadable_one(fixture, monkeypatch):
+    _, _, _, fake = fixture
+    environment = plugin.environment
+    monkeypatch.setattr(environment, "paths", lambda: {})
+    monkeypatch.setattr(environment, "client", lambda: {})
+    fake.pid = 4242
+    monkeypatch.setattr(environment, "_ps", ps_of({
+        "ppid=,lstart=,comm=": "  1 Mon Oct 26 21:53:56 2026 /opt/opencode\n",
+        "-Eww": "opencode serve --service --port=1 PATH=/usr/bin HOME=/Users/p LANG=C XDG_DATA_DIRS=/x "
+                "PWD=/Users/p _=/x OPENCODE_SERVER_PASSWORD=SECRET\n"}))
+    out = catalog("service")["service"]
+    assert out["environment"] == {"kind": "hermes-minimal"}, \
+        "an option, the system's names and OpenCode's own do not make a person's shell"
+    assert out["paths"] == {"tmp": "/tmp/fake-opencode"}, "the service's own paths when the command fails"
+    monkeypatch.setattr(environment, "_ps", lambda args: None)
+    out = catalog("service")["service"]
+    assert out["environment"] == {"kind": "unknown"} and "process" not in out
+    fake.pid = None
+    assert catalog("service")["service"]["environment"] == {"kind": "unknown"}
 
 
 # ---------------------------------------------------------------- session tool

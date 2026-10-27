@@ -86,6 +86,41 @@ def catalog(directory):
     return api.data(api.call("get", api.path("/api/model", api.location(directory))), list)
 
 
+def identity(entry):
+    """The real provider and model behind a catalog entry. An alias model names its
+    real one as `modelID` and a provider that is a stop of another (a Console credit
+    lane) names it as `canonical`, so every stop of one model shares an identity."""
+    return (entry.get("canonical") or entry.get("providerID"), entry.get("modelID") or entry.get("id"))
+
+
+def _entry(entries, model):
+    return next((m for m in entries if m.get("providerID") == model.get("providerID") and m.get("id") == model.get("id")),
+                None)
+
+
+def keep_stop(current, wanted, directory):
+    """The model a continuing turn sends: the session's current one when it is another
+    stop of the wanted model (OpenCode moved it there on a limit, and sending the wanted
+    spelling back would move it again and pay a refused request and a cache rewrite);
+    the wanted one otherwise, variant included."""
+    if not isinstance(current, dict) or not current.get("id") or not current.get("providerID"):
+        return wanted
+    if (current["providerID"], current["id"]) == (wanted["providerID"], wanted["id"]):
+        return wanted
+    entries = catalog(directory)
+    now, want = _entry(entries, current), _entry(entries, wanted)
+    if now is None or want is None or identity(now) != identity(want):
+        return wanted
+    # The stop must be able to run this turn as the wanted model was checked to: a lane
+    # may lack a variant the subscription offers.
+    variant = wanted.get("variant")
+    variants = [v.get("id") for v in now.get("variants") or [] if isinstance(v, dict)]
+    if (now.get("capabilities") or {}).get("tools") is not True or now.get("enabled") is False or \
+            (variant and variant not in variants):
+        return wanted
+    return {"providerID": current["providerID"], "id": current["id"], **({"variant": variant} if variant else {})}
+
+
 def engine(role, chosen, info, directory, caller=frozenset()):
     """The provider model reference for this turn.
 
@@ -108,9 +143,10 @@ def engine(role, chosen, info, directory, caller=frozenset()):
             raise ValueError(f"OpenCode agent {info.get('id')} pins no model and none is configured")
     if variant is not None and not config.VARIANT_NAME.fullmatch(variant):
         raise ValueError("Invalid OpenCode variant")
+    refused = (f"{provider}/{model} is your own model, so it would judge or build what you then "
+               "check yourself; pass model= another one from opencode_catalog models (no run launched)")
     if model_key(model) in caller and role.get("caller_model") != "allow":
-        raise ValueError(f"{provider}/{model} is your own model, so it would judge or build what you then "
-                         "check yourself; pass model= another one from opencode_catalog models (no run launched)")
+        raise ValueError(refused)
     entry = None
     for attempt in range(2):
         # The catalog is per location (project config may add providers) and can
@@ -122,6 +158,9 @@ def engine(role, chosen, info, directory, caller=frozenset()):
         time.sleep(CATALOG_RETRY)
     if entry is None:
         raise ValueError(f"OpenCode does not offer {provider}/{model}; no run launched")
+    # An alias (another login's spelling of the same model) is the caller's own too.
+    if model_key(identity(entry)[1]) in caller and role.get("caller_model") != "allow":
+        raise ValueError(refused)
     if (entry.get("capabilities") or {}).get("tools") is not True or entry.get("enabled") is False:
         raise ValueError(f"OpenCode model {provider}/{model} cannot run an agent (no tool use); no run launched")
     variants = [v.get("id") for v in entry.get("variants") or [] if isinstance(v, dict)]
@@ -152,16 +191,21 @@ def listing(settings, roles, caller):
                 (entry.get("capabilities") or {}).get("tools") is not True:
             continue
         cost = (entry.get("cost") or [{}])[0] or {}
+        real = identity(entry)
         out.append({
             "model": f"{entry['providerID']}/{entry['id']}", "name": entry.get("name"),
             "variants": [v.get("id") for v in entry.get("variants") or [] if isinstance(v, dict)],
             "context": (entry.get("limit") or {}).get("context"),
             "cost_per_mtok": {k: cost.get(k) for k in ("input", "output")} if cost else None,
-            **({"yours": True} if model_key(entry["id"]) in caller else {})})
+            **({"stop_of": f"{real[0]}/{real[1]}"} if real != (entry["providerID"], entry["id"]) else {}),
+            **({"yours": True} if model_key(entry["id"]) in caller or model_key(real[1]) in caller else {})})
     alternates = {name: role["alternate"] for name, role in sorted(roles.items()) if role.get("alternate")}
     allowing = sorted(name for name, role in roles.items() if role.get("caller_model") == "allow")
     return {"allowed_providers": allowed, "defaults": defaults, "alternates": alternates,
             "allow_yours": allowing, "models": sorted(out, key=lambda m: m["model"]),
             "note": "Pass model= (and optionally variant= from its variants) to an opencode_run_<role> tool. "
                     "Models marked yours are your own and are refused, except for the roles in allow_yours. "
-                    "After a limit error, rerun on that role's alternate (pass it as model= and variant=)."}
+                    "A model with stop_of is the same model served from another login or a credit lane; "
+                    "OpenCode moves a session between such stops itself on a limit, and a continuing turn "
+                    "keeps the stop it is on. After a limit error on every stop, rerun on that role's "
+                    "alternate (pass it as model= and variant=)."}

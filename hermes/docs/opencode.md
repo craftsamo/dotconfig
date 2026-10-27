@@ -200,7 +200,31 @@ edit there until it hands back.
 **Readiness.** `opencode_preflight(directory, phase)` is the one read-only
 check before a run. It reads no quota (the quota plugin's data is only as fresh
 as an open TUI), so a limit is met as a failed turn and answered with the role's
-`alternate` (see Models).
+`alternate` (see Models). It warns when the service runs with the plugin's
+minimal environment (below), since that is the one state of the service the
+Assistant can cause and the person would not notice.
+
+**What OpenCode runs with.** `opencode_catalog` reads the service's shape, so
+the Assistant can say how OpenCode is set up without a run: `agents` (primaries
+and subagents, told apart by `mode`), `skills`, `commands`, `plugins` (id,
+source, status), `mcp` (servers and connection status), `config` (every
+configuration source the service loaded for the worktree, reduced to its path,
+top-level keys and the agent, plugin, MCP server and provider names it defines;
+`environment.py` never returns a value from a file, since a config carries MCP
+headers, plugin options and provider settings), `locations` (loaded
+directories), `info` (`/api/info` whole) and `service`. `service` adds what
+the API does not say: the process behind the pid (`ps`: parent, start time,
+executable), the paths `opencode debug paths` reports, the `opencode` command
+the plugin's clients resolve to, and `environment.kind`, read from the names
+in the process environment alone (`ps -E`, never a value): `person-shell` when
+any name beyond the plugin's `ENV_NAMES` and the system's own is present,
+`hermes-minimal` when none is, `unknown` when `ps` cannot show it. The
+distinction matters because `opencode api` starts the service when none runs
+and the service keeps its starter's environment for every later session: a
+service the plugin started serves the person's own sessions without their
+shell's variables (their tool keys among them) until they restart it. The API
+lists no tools, so which tools a run has is read from the configuration
+repository by a read-only run, not from the catalog.
 
 **Output directory.** A run may take `output_dir`: an existing job directory
 inside a Workspaces draft (`.agent/`), outside the worktree and spelled without
@@ -341,6 +365,29 @@ tiers and dated snapshots count as the same model.
 A role may name an `alternate` (`provider/model[#variant]`). Nothing switches by
 itself: after a turn fails with a `limit` provider error the Assistant reruns on
 it. A read-only role simply reruns; for a write role the diff is read first.
+
+**Stops of one model.** The person's OpenCode serves a Claude model from several
+places: the active subscription login, another saved login through an alias
+model (`claude-<model>-main`), and the Console credit lanes
+(`anthropic-credit-*`, providers of their own); on a window limit the
+preflight plugin moves a session between them itself, same model and variant
+(`opencode/README.md` "Console credit lanes"). The service names the identity
+behind each: an alias carries `modelID`, a lane provider `canonical`
+(`models.identity`). The plugin keeps to that: a continuing turn that does not
+name a model keeps the stop the session is on when it is another stop of the
+wanted model (`models.keep_stop`), since re-sending the configured spelling
+would move the session back, to be refused again and to pay a prompt-cache
+rewrite; a model named this turn still moves it, and a different model is sent
+as wanted. An alias or a lane of the caller's own model is the caller's own
+too. The catalog marks such entries `stop_of`, and a lane is offered as
+`model=` only when its provider is in `allowed_providers`. `opencode_catalog
+providers` reads each provider's activation and `canonical`; `funding` reads
+Quota's export (`~/.cache/opencode/quota-export.json`, the same file the
+preflight plugin reads, with its freshness rule) as a board of every saved
+login's windows and every lane's balance estimate, with the reading's age and
+never its connection ids. The Assistant decides nothing from it before a run:
+the service moves a session itself, and the board tells the person where the
+limits stand.
 
 **Hand-back.** A live caller gets the current state at once. Only while that
 state is `running` it also gets a notifier process, launched through the terminal
