@@ -308,7 +308,7 @@ chat/                            chat-assistant: inline procedure and its refere
 - Keeping a session alive after acceptance "just in case", or fighting an
   incoherent session instead of closing and reseeding.
 - Granting beyond the sanctioned plan: an OpenCode build, or GitHub changes
-  for a job the user did not choose to track, without the user's scoped
+  for a job the user excluded from GitHub, without the user's scoped
   decision, hands spend
   beyond Budget, or entering a service editor before exact remote-save
   consent. Marketing is service-draft-only; no agent publishes, schedules or

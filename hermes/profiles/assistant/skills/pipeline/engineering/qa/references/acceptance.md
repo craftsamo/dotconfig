@@ -18,8 +18,9 @@ commit it shows, is the user's explicit go; follow [GitHub
 operations](../../execute/references/github-ops.md).
 
 After an authorized merge, check the actual resulting PR/Issue state. Do not
-claim an Issue closed merely because a closing keyword exists. For a job the
-user chose to track, acceptance ties each criterion of its issue to evidence,
-and the close-out follows [GitHub boundaries](../../execute/references/github-ops.md):
-the Phase's sub-issue closed and its Status Done, read back from GitHub. An
-untracked job gets no Issue or board close-out.
+claim an Issue closed merely because a closing keyword exists. Acceptance
+ties each criterion of the unit's issue to evidence, and the close-out
+follows [GitHub boundaries](../../execute/references/github-ops.md): the
+unit's issue closed and its Status Done, read back from GitHub; when it was
+the last unit, the parent's acceptance checked, the parent closed and Done.
+A job the user excluded from GitHub gets no Issue or board close-out.

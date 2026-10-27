@@ -91,6 +91,9 @@ type V2Context = {
   tool: {
     transform(callback: (editor: { add(tool: Record<string, unknown>): void }) => void): Promise<unknown>
   }
+  permission?: {
+    assert(input: { sessionID: string; action: string; resources: string[]; metadata?: Record<string, unknown>; message?: string }): Promise<void>
+  }
 }
 
 async function gitToplevel(directory: string): Promise<string> {
@@ -159,6 +162,11 @@ async function setup(ctx: V2Context) {
                 return undefined
               }
             },
+            // The host's gate, bound to the calling session: a tool that writes
+            // outside the worktree asserts through it (lib/custom-tools/github/gate.ts).
+            permission: ctx.permission
+              ? { assert: (input) => ctx.permission!.assert({ sessionID: context.sessionID, ...input }) }
+              : undefined,
           }
           return { content: await spec.execute(input, toolContext) }
         },

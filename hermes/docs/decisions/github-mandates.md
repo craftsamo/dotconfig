@@ -16,6 +16,14 @@ repository's settings or visibility, a merge, a published release, a workflow
 run) is never covered, on any tier. A mandate is never made by another
 mandate, and revoking one ends it at once.
 
+The same mandate covers an OpenCode build's writes to its own issue (its
+body, its board Status; `docs/opencode.md` "A build's own writes"): the
+run's permission request is turned into the `github_change` it amounts to
+and checked against the mandate at the write, exactly as the Assistant's own
+list would be. A build never writes another issue, closes, comments or
+creates under it, and the Assistant cannot approve a run's GitHub write in
+the mandate's place.
+
 ## Why
 
 - A tracked engineering job ticks a step or moves a Status many times a day;

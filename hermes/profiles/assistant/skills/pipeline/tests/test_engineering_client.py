@@ -27,8 +27,10 @@ class EngineeringClientTests(unittest.TestCase):
         self.assertIn("a plan is read-only, so it needs no task branch or worktree", text)
         self.assertIn("opencode_preflight", text)
         self.assertIn("Planning consent alone does not authorize implementation", text)
-        self.assertIn("Tracking a job on GitHub is the user's choice", text)
-        self.assertIn("Duration, complexity or multiple PRs never decide it alone", text)
+        self.assertIn("A repository job is recorded on GitHub as it is planned", text)
+        self.assertIn("The user excludes a job from GitHub in their own words", text)
+        self.assertIn("Duration, size or a fix the user calls small never excludes it on their own", text)
+        self.assertNotIn("Tracking a job on GitHub is the user's choice", text)
 
     def test_messages_to_opencode_are_prose_briefs_not_relays_or_methods(self):
         text = read("engineering/plan/SKILL.md")
@@ -73,12 +75,58 @@ class EngineeringClientTests(unittest.TestCase):
     def test_new_products_agree_capabilities_screens_and_data_before_a_roadmap(self):
         text = read("engineering/plan/references/new-product.md")
         self.assertIn("opencode_run_design", text)
-        for stage in ("1. Purpose and use", "2. Capabilities, screens and data", "3. Roadmap", "4. Each Phase"):
+        for stage in ("1. Purpose and use", "2. Capabilities, screens and data", "3. Roadmap", "4. Each unit"):
             self.assertIn(f"## {stage}", text)
         plan = read("engineering/plan/SKILL.md")
-        self.assertIn("Phase N is one reviewable layer: one PR, or one layer of a native stack", plan)
-        self.assertIn("Its approval releases that Phase only", plan)
+        self.assertIn("Phase N is one reviewable layer: one PR, or one layer of the stack", plan)
+        self.assertIn("Its approval releases that unit only, all of its layers", plan)
         self.assertIn("never round away what changes for people", read("references/plan/index.md"))
+
+    def test_the_unit_is_the_issue_and_a_layer_never_is(self):
+        plan = read("engineering/plan/SKILL.md")
+        self.assertIn("## Units and Phases", plan)
+        self.assertIn("A unit is one goal that delivers on its own", plan)
+        self.assertIn("one PR or one native stack of PRs that lands in one merge, and on GitHub it is one issue", plan)
+        self.assertIn("a layer is never an issue of its own", plan)
+        self.assertIn("fork it for each unit", plan)
+        ops = read("engineering/execute/references/github-ops.md")
+        self.assertIn("a sub-issue per unit", ops)
+        self.assertNotIn("sub-issue per Phase", ops)
+        self.assertIn("its layers as a `- [ ]` checklist", ops)
+        self.assertIn("A finished step (a progress notification) | nothing on GitHub: steps live in `progress.md`", ops)
+        self.assertIn("A layer's PR is up | its checklist line ticked with the PR's `#n`", ops)
+        read_skill = " ".join((ROOT.parents[3] / "plugins/github-access/skills/read-tracking/SKILL.md")
+                              .read_text().split())
+        self.assertIn("a layer (what the engineering entries call a Phase) is a line of the unit's checklist",
+                      read_skill)
+        product = read("engineering/plan/references/new-product.md")
+        self.assertIn("## 4. Each unit", product)
+        self.assertNotIn("Each Phase", product)
+
+    def test_parent_status_follows_its_units(self):
+        ops = read("engineering/execute/references/github-ops.md")
+        self.assertIn("The parent, if still Todo, In Progress with it", ops)
+        self.assertIn("back to In Progress with a dated note when it resumes", ops)
+        self.assertIn("All units accepted | the parent's acceptance checked against the evidence, then closed; "
+                      "Status Done; the mandate revoked", ops)
+        manage = " ".join((ROOT.parents[3] / "plugins/github-access/skills/manage-tracking/SKILL.md")
+                          .read_text().split())
+        self.assertIn("the first unit under a parent moves the parent to `In Progress` in the same list", manage)
+        self.assertIn("When the parent's last unit is Done, its acceptance is checked, it is closed and set `Done` too",
+                      manage)
+        self.assertIn("**Waiting on someone outside:**", manage)
+        qa = read("engineering/qa/references/acceptance.md")
+        self.assertIn("when it was the last unit, the parent's acceptance checked, the parent closed and Done", qa)
+
+    def test_writer_reads_every_issue_body_once(self):
+        ops = read("engineering/execute/references/github-ops.md")
+        self.assertIn("**Writer reads it once.**", ops)
+        self.assertIn("one `specialist_call` to `writer`", ops)
+        self.assertIn("what it finds unclear as a spec", ops)
+        self.assertIn("one round, not a second proofreading", ops)
+        self.assertIn("a brief never carries facts the issue lacks", ops)
+        execute = read("engineering/execute/SKILL.md")
+        self.assertIn("read once by Writer", execute)
 
     def test_the_worktree_comes_after_approval_through_the_plugin(self):
         text = read("engineering/execute/SKILL.md")
@@ -89,51 +137,83 @@ class EngineeringClientTests(unittest.TestCase):
 
     def test_one_release_per_phase_and_no_edits_of_your_own(self):
         text = read("engineering/execute/SKILL.md")
-        self.assertIn("One Phase's approval releases that Phase through PR delivery", text)
-        self.assertIn("The next Phase starts only with its own approval", text)
+        self.assertIn("One unit's approval releases that unit through PR delivery", text)
+        self.assertIn("The next unit starts only with its own approval", text)
+        self.assertIn("**Fix the unit's issue.**", text)
+        self.assertIn("A job the user excluded from GitHub skips this step", text)
+        self.assertIn("the branch is `task/issue-N` from the session's `issue`", text)
+        self.assertIn("The session carries the unit's `issue` from its plan turn", text)
+        self.assertIn("an excluded job passes `untracked_reason` quoting the user's words instead", text)
+        self.assertIn("Pass the job's `mandate` (its id from the decision log) so the build ticks its own issue's "
+                      "layers and moves its Status as it goes", text)
+        self.assertIn("A build under the job's `mandate` ticks its own issue's layers and moves its Status itself, "
+                      "inside the mandate; without one you tick them", text)
+        ops = read("engineering/execute/references/github-ops.md")
+        self.assertIn("**OpenCode reads; you write the plan, the build its own state.**", ops)
+        self.assertIn("Everything else on GitHub stays yours: the parent and the other issues", ops)
+        plan = read("engineering/plan/SKILL.md")
+        self.assertIn("A unit's plan turn passes its `issue` (`owner/repo#N`)", plan)
+        self.assertIn("only the completing one says `Closes #N`", text)
         self.assertIn("progress.md", text)
         self.assertIn("Never edit, commit or push target code yourself", text)
         self.assertIn("quoting the user's approving words", text)
-        self.assertIn("never pass `issue_approval`", text)
+        self.assertIn("Never pass `issue_approval`", text)
         self.assertIn("a supplied Issue URL remains a read-only spec and no Issue or board changes", text)
+        self.assertIn("For a job the user excluded from GitHub", text)
         self.assertIn("a refused name is reported back", text)
         self.assertIn("`[truncated]`", text)
         self.assertIn("not instructions", text)
 
-    def test_a_tracked_job_is_written_by_the_assistant_and_read_by_opencode(self):
+    def test_a_jobs_record_is_written_by_the_assistant_and_read_by_opencode(self):
         text = read("engineering/execute/references/github-ops.md")
-        self.assertIn("You, through `github_change` (github-access), only for a job the user chose to track", text)
+        self.assertIn("You, through `github_change` (github-access), as the record of every repository job (below) "
+                      "unless the user excluded it; a build writes only its own issue's state, under the job's "
+                      "mandate (below)", text)
+        self.assertIn("The task branch reaches the issue through the PR's `Closes`/`Refs`, never a linked branch",
+                      text)
         self.assertIn('skill_view(name="github-access:manage-tracking")', text)
-        self.assertIn("Never pass `issue_approval`: a build does not write Issues or boards", text)
-        self.assertIn("one sub-issue per Phase", text)
+        self.assertIn("Never pass `issue_approval`.", text)
+        self.assertIn("**The default.** A repository job is recorded on GitHub: its units are issues, Fixed before "
+                      "they are built", text)
+        self.assertIn("Nothing else excludes it: not the job's size, nor a fix the user calls small", text)
         self.assertIn("Propose the **mandate**: `routine`", text)
         self.assertIn("never the user's quotes", text)
-        self.assertIn("only with the roadmap of a job of several Phases or when others will pick the work up", text)
         self.assertIn("The job's operational work around its repository", text)
         self.assertIn("parent = the parent issue (so it covers that issue tree and nothing else", text)
         self.assertIn("Record the parent issue, the board and the mandate id in the decision log", text)
-        self.assertIn("without one, nothing until the next row", text)
+        self.assertIn("(with a mandate at once, else with the unit's delivery)", text)
         for event in ("The roadmap changes", "The job is dropped", "The job pauses on someone outside",
                       "A new session resumes the job", "The user supplies an existing issue to track"):
             self.assertIn(event, text)
+        self.assertIn("one goal that lands once is the unit itself (Fixed from the plan); a goal of several units "
+                      "is the parent", text)
         plan = read("engineering/plan/SKILL.md")
         self.assertIn("Operational work around a repository (hosting, DNS, a domain, a contract, a hand-over item)",
                       plan)
         qa = read("engineering/qa/references/acceptance.md")
-        self.assertIn("An untracked job gets no Issue or board close-out", qa)
+        self.assertIn("A job the user excluded from GitHub gets no Issue or board close-out", qa)
 
-    def test_tracking_is_proposed_with_the_roadmap_in_its_real_shape(self):
+    def test_the_record_is_filed_with_the_roadmap_in_its_real_shape(self):
         plan = read("engineering/plan/SKILL.md")
-        self.assertIn("carries the tracking proposal in the same question", plan)
+        self.assertIn("The roadmap question also names where the job will be recorded on GitHub", plan)
         self.assertIn('skill_view(name="github-access:manage-tracking")` first', plan)
-        self.assertIn("a parent issue with one sub-issue per Phase", plan)
+        self.assertIn("a parent issue with one sub-issue per unit", plan)
+        self.assertIn("file it on GitHub before the first unit's plan is Fixed", plan)
         ops = read("engineering/execute/references/github-ops.md")
-        self.assertIn("When the user raises tracking or a board themselves, at any point of the job, the answer "
+        self.assertIn("once the roadmap (or the single unit) is approved and before the first unit's build", ops)
+        self.assertIn("When the user raises the board or the issues themselves, at any point of the job, the answer "
                       "is this same shape", ops)
         self.assertIn("never a board of Phase items, columns or update rules you design anew", ops)
         execute = read("engineering/execute/SKILL.md")
-        self.assertIn("A question about tracking the job on GitHub, also one the user raises mid-job, is answered "
+        self.assertIn("A question about the job's record on GitHub, also one the user raises mid-job, is answered "
                       "from", execute)
+        manage = " ".join((ROOT.parents[3] / "plugins/github-access/skills/manage-tracking/SKILL.md")
+                          .read_text().split())
+        self.assertIn("**A repository job is recorded; other work when asked.**", manage)
+        self.assertIn("size, length or a job's type never excludes it alone", manage)
+        config = " ".join((ROOT.parents[1] / "config.example.yaml").read_text().split())
+        self.assertIn("Every repository job is recorded on GitHub, each unit an issue Fixed before its build, "
+                      "unless the user excludes the job", config)
 
     def test_plan_archetypes_still_have_acceptance_rows(self):
         names = {p.stem for p in (ROOT / "engineering/plan/references").glob("*.md")}

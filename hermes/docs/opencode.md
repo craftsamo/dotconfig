@@ -33,21 +33,26 @@ checkout effective at once, so it plans there read-only and builds only in the
 task worktree `opencode_session workspace` creates; the plugin refuses a write
 run in the live checkout. Cutover stays the person's decision.
 
-| Relationship                 | Owner of decisions                                                                  |
-| ---------------------------- | ----------------------------------------------------------------------------------- |
-| User with the Assistant      | What people can do and see, what is stored, scope, cost, the approval of each Phase |
-| Assistant with OpenCode      | The brief (what and why), the stage's goal, the decision log, acceptance evidence   |
-| OpenCode with its own agents | Technical design, methods, exploration, testing, review, commit and PR splitting    |
+| Relationship                 | Owner of decisions                                                                 |
+| ---------------------------- | ---------------------------------------------------------------------------------- |
+| User with the Assistant      | What people can do and see, what is stored, scope, cost, the approval of each unit |
+| Assistant with OpenCode      | The brief (what and why), the stage's goal, the decision log, acceptance evidence  |
+| OpenCode with its own agents | Technical design, methods, exploration, testing, review, commit and PR splitting   |
 
-A plan of several Phases (Phase N = one reviewable layer: one PR, or one layer
-of a native stack) is approved as a roadmap, then each Phase's steps
-(Phase N.m) before that Phase's build; one approval releases that Phase through
-QA, task-branch push and PR delivery; never merge, deployment, repository
-creation or default-branch push. A job the user chose to track on GitHub is
-mirrored to its issues by the Assistant ([github-access.md](./github-access.md));
-a run reads the issue its brief names, and the Assistant does not pass
-`issue_approval` (the plugin keeps it for a caller that does want a build to
-write Issues through `gh`).
+Work is planned in execution units: one goal that lands in one merge (one PR
+or one native stack), one issue on GitHub. Inside a unit, Phase N is one
+reviewable layer (one PR, or one layer of the stack) and Phase N.m its
+checkpoint steps. A roadmap of several units is approved whole, then each
+unit's plan before that unit's build; one approval releases that unit, all
+its layers, through QA, task-branch push and PR delivery; never merge,
+deployment, repository creation or default-branch push. Every repository job
+is recorded on GitHub unless the user excludes it: the roadmap's approval
+files the parent and its units, a unit's approval makes its issue Fixed and
+In Progress before the build, and the Assistant mirrors the run to it
+([github-access.md](./github-access.md),
+[decision](./decisions/issue-driven-engineering.md)); a run reads the issue
+bound to it (the `issue` argument, below), and the Assistant does not pass `issue_approval` (the plugin
+keeps it for a caller that does want a build to write Issues through `gh`).
 
 ## The plugin
 
@@ -99,7 +104,44 @@ plainly (no `NAME=value` prefix, status wrapper or launcher such as `npx`), and
 a read-only role's note also asks it to batch commands. A write run's note says
 whether Issue writes are granted, so it learns that before trying one. A write run with an
 output directory is also asked to keep its Phase steps in `progress.md` there
-(below); a person's own sessions never are. Hermes sits in the person's seat: a
+(below); a person's own sessions never are.
+
+**The issue a run works on.** `issue` (`owner/repo#N`) on any run binds the
+unit's issue to the session (`metadata.hermes.issue`, inherited by a fork,
+reported in every result and session row); the note then names it as the
+specification the run reads with its own tools and says which PR closes it
+(`Closes #N` on the completing layer, `Refs #N` on any other). It is checked
+like the other bound values and re-sent on every turn. A build is refused
+before anything runs unless the session has an issue or the caller passes
+`untracked_reason`, the user's words excluding the job from GitHub, which is
+bound in the issue's place; passing an issue later replaces it. Why a plugin
+argument rather than a sentence in the brief: the brief is free text the
+caller can forget under a compaction, and the branch, the PR references and
+the record the Assistant mirrors all hang on this one value.
+
+**A build's own writes to its issue.** The OpenCode `gh_issue_*` and
+`gh_project_*` write tools assert a permission before they write (the tool id
+as the action, the targets as resources, what they will change as metadata;
+`opencode/lib/custom-tools/github/gate.ts`), and the session ruleset denies
+them all by name. A build run bound to an issue and to a GitHub `mandate`
+(the id of one in force, `github_mandate list`; bound to the session like the
+issue, kept by a read-only turn, dropped by a build when it lapsed) has two
+of them ask instead (`policy.RUN_GH_WRITES`): ticking its own issue's body,
+and setting its own issue's board Status to In Progress. `ghwrite.py` answers
+those requests in the caller's place while a wait, a status read or the
+notifier polls: the request is turned into the `github_change` it amounts
+to, github-access's planner reads the targets fresh and the mandate is
+checked again at the write (`mandate.still_fits`), so the mandate's own
+bounds, not this plugin's reading of the request, decide. Anything else
+(another issue, a title, a close, a comment, a label, Done or any other
+Status, a board the mandate does not name, no mandate) is rejected with the
+reason, and an Issue or board write that still reaches the caller, through
+a tool or the shell, can only be rejected: `opencode_request` refuses `once`
+on it, since such a write runs on a card or inside a mandate and the
+caller's approval is neither ([decision](./decisions/github-mandates.md)). A
+linked branch (`gh_issue_develop`) stays denied: a PR from one closes the
+issue on its first merge, past the stack's `Refs`/`Closes`, and GitHub links
+the task branch to the issue through the PR anyway. Hermes sits in the person's seat: a
 question the agent asks and a permission it needs arrive as `waiting` and are
 answered with `opencode_request`. The Assistant's `design` role runs a
 read-only OpenCode `design` agent that writes HTML mocks and diagrams into the
@@ -112,7 +154,8 @@ verifies the service applied them before the prompt. A plan is read-only and
 runs on the default checkout. A build refuses a default-branch worktree, so
 after the Client's approval `opencode_session workspace` gives the idle plan
 session a worktree of its own: the plugin fetches and runs
-`git worktree add --no-track -b <branch>` from the fetched remote default branch
+`git worktree add --no-track -b <branch>` (`task/issue-N` for a session bound
+to an issue unless the caller names the branch) from the fetched remote default branch
 (`base=head` starts from the current commit) under `opencode.worktree_root` as
 `<root>/<repository name on origin, else the main checkout's directory
 name>/<branch with / as ->`, moves the session there with the service's `move`
