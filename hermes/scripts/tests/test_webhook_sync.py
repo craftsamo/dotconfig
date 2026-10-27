@@ -255,12 +255,45 @@ def test_prune_removes_orphans_and_never_an_unmanaged_route(root: Path, tmp_path
 
 
 def test_a_broken_manifest_is_reported_and_its_route_left_alone(root: Path):
-    d = write_route(root, "assistant", "gh-push", NOTIFY)
+    d = write_route(root, "assistant", "gh-push", NOTIFY, filter_script="#!/bin/sh\ncat\n")
     sync(root)
+    wrapper = root / "profiles" / "assistant" / "scripts" / "webhook" / "gh-push.sh"
+    assert wrapper.is_file()
     (d / S.MANIFEST_FILE).write_text("mode: [", encoding="utf-8")
     plan, done = sync(root)
     assert plan.errors and plan.errors[0].startswith("assistant/gh-push:") and done == []
     assert plan.orphan_disable == [] and records(root)["gh-push"]["enabled"] is True
+    # The record still names the wrapper, so the wrapper stays too.
+    assert wrapper.is_file() and plan.wrappers == []
+
+
+def test_a_sync_with_nothing_to_do_leaves_the_file_untouched(root: Path):
+    write_route(root, "assistant", "gh-push", NOTIFY)
+    sync(root)
+    path = root / S.SUBSCRIPTIONS_FILE
+    before = (path.stat().st_mtime_ns, path.stat().st_ino, path.read_bytes())
+    sync(root)
+    assert (path.stat().st_mtime_ns, path.stat().st_ino, path.read_bytes()) == before
+
+
+def test_the_plan_is_built_on_the_records_the_write_sees(root: Path, monkeypatch):
+    """A subscription made between a sync's read and its write (hermes webhook subscribe, the
+    dashboard) is neither clobbered nor indexed after it is gone: the plan is built inside the
+    writer's lock, on what it just read."""
+    write_route(root, "assistant", "gh-push", NOTIFY)
+    store = S._store()
+    original = store._mutate_subscriptions
+
+    def racing(mutate):
+        def with_intruder(subs):
+            subs["late"] = {"prompt": "x", "secret": "s", "deliver": "log"}  # another writer, just before us
+            return mutate(subs)
+        return original(with_intruder)
+
+    monkeypatch.setattr(store, "_mutate_subscriptions", racing)
+    _plan, done = sync(root)
+    assert done == ["created gh-push (assistant, local)"]
+    assert set(records(root)) == {"gh-push", "late"}
 
 
 # ---------------------------------------------------------------------------
