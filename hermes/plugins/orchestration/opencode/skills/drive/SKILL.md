@@ -88,8 +88,9 @@ configuration: a role missing from your tools is not configured.
   a second approach.
 - **`approval`** quotes the user's explicit, scoped implementation decision as
   text — never a boolean, never your own words. Quote it on every build turn.
-  `untracked_reason` quotes the user's words that exclude this job from GitHub
-  (then no `issue`); it is bound to the session like an issue is.
+  `untracked_reason` quotes the user's words that exclude this job from GitHub,
+  or that choose no record of their own for a job on someone else's
+  repository (then no `issue`); it is bound to the session like an issue is.
   `issue_approval` separately quotes an explicit request to manage this job in
   Issues. All are records of the operating contract, not authentication, and
   none is shown to the run: the ruleset holds the grant, so the message

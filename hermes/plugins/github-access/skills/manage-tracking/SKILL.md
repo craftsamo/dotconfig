@@ -19,15 +19,22 @@ made.
 
 - **Only the tool.** Every change goes through `github_change`. The terminal
   path (`gh issue …`, `gh project …`, `gh api`) is blocked.
-- **A repository job is recorded; other work when asked.** Work that
-  changes a repository goes on GitHub as its plan is approved: each
-  execution unit an issue, Fixed before it is built, on the board that
-  resolves for the repository (the engineering entries say when). The user
-  excludes a job in their own words, and then nothing of it is written;
-  size, length or a job's type never excludes it alone. Operational work
-  around a repository the job touches (its hosting, DNS, domain, a contract, a
-  hand-over item) belongs to that job and goes on the same board as drafts;
-  work outside any repository goes on GitHub only when the user asks.
+- **A job on the user's own repository is recorded; other work when asked.**
+  Work that changes a repository the user owns or belongs to (`own`, `shared`) goes on
+  GitHub as its plan is approved: each execution unit an issue, Fixed before
+  it is built, on the board that resolves for the repository (the
+  engineering entries say when). The user excludes a job in their own
+  words, and then nothing of it is written; size, length or a job's type
+  never excludes it alone. Operational work around a repository the job
+  touches (its hosting, DNS, domain, a contract, a hand-over item) belongs
+  to that job and goes on the same board as drafts; work outside any
+  repository goes on GitHub only when the user asks.
+- **Someone else's tracker is not the user's plan.** An `other` repository
+  takes only what its own conventions ask for (a bug report, the issue its
+  template wants before a PR), each on its card: never a parent, a unit's
+  body, a Status or a progress comment, and never a mandate. The user's own
+  record of work there lives on their fork or their own board, when they
+  ask for one.
 - **One card per list.** Gather the changes of one step into one
   `github_change` call: the card shows each target with its tier and one line
   per change. A list that fits a mandate in force runs without one; the

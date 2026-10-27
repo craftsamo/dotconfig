@@ -52,7 +52,10 @@ not something to send to OpenCode.
    [github-ops.md](references/github-ops.md) "Starting" and its table say: the
    body rewritten with the decisions folded in and the layers as a checklist,
    read once by Writer, agreed on a `shared` or `other` tier, then written;
-   the Status moved. A job the user excluded from GitHub skips this step.
+   the Status moved. A job the user excluded from GitHub skips this step, and
+   so does one on someone else's repository with no issue on the user's fork
+   (an upstream issue is read, never Fixed by you); both pass the user's words
+   as `untracked_reason` in step 3.
 2. **Give the unit its ground.** The plan ran read-only on the default
    checkout. For a single-unit job, `opencode_session workspace` (`session_id`;
    the branch is `task/issue-N` from the session's `issue`, or `branch` such as
@@ -63,7 +66,11 @@ not something to send to OpenCode.
    previous unit's branch when this unit stacks on an unmerged one). Never
    create the branch or worktree by hand and never ask OpenCode to move itself.
    Then `opencode_preflight(directory, phase="build")`: an `error` stops the
-   build, uncommitted paths are worth a line to the user. Independent jobs need
+   build, uncommitted paths are worth a line to the user. On someone else's
+   repository the checkout's `origin` must be the user's fork (ask the plan
+   turn to name it and the upstream it tracks); an `origin` that is the
+   upstream itself goes to the user before the build, since its pushes land
+   there. Independent jobs need
    separate worktrees and disjoint scope; concurrency is not a reason to split
    one job.
 3. **Build the approved unit.** Call `opencode_run_build` on that session with

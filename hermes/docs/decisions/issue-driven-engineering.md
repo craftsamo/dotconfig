@@ -6,12 +6,19 @@ entries (`profiles/assistant/skills/pipeline/engineering/`)
 
 ## Decision
 
-A job that changes a repository is recorded on GitHub as it is planned, not
-on request: the roadmap's approval files a parent issue with one sub-issue
-per execution unit (a single-unit job files one issue), each unit's approval
-makes its issue Fixed and In Progress before its build, and the Assistant
-mirrors the run to it. The user excludes a job in their own words, and that
-exclusion is the only thing that keeps a job off GitHub.
+A job that changes a repository the user owns or belongs to is recorded on
+GitHub as it is planned, not on request: the roadmap's approval files a
+parent issue with one sub-issue per execution unit (a single-unit job files
+one issue), each unit's approval makes its issue Fixed and In Progress before
+its build, and the Assistant mirrors the run to it. The user excludes a job
+in their own words, and that exclusion is the only thing that keeps such a
+job off GitHub.
+
+Someone else's repository (an open-source project, a client's) is outside
+the default: its tracker takes only what its own conventions ask for, on a
+card each time, and the user's record of the job, if they want one, lives on
+their fork or their own board. The plan of a job is never written where
+people the user cannot name read it as the project's business.
 
 The unit of planning and of GitHub is the **execution unit**: one goal told by
 what people can do once it lands, implemented by one PR or one native stack
@@ -45,6 +52,13 @@ Done, closing and comments stay the Assistant's.
 - A rule the profile must keep (Writer reads the body, facts go into the
   issue first) belongs in its skill; the Assistant's memory is bounded and
   not reloaded on a compaction.
+- The default "every job is an issue" read literally would file the user's
+  internal plan in an open-source project's tracker, and the board fallback
+  (`Roadmap` of the user) would carry a one-off upstream fix. A public
+  repository, the user's own included, is read by anyone: its issues still
+  hold the plan, but as facts about the code, with what the plan rests on
+  (the user's business, customers, accounts) kept in the decision log
+  (`github-ops.md` "The record").
 
 ## Do not
 
@@ -53,3 +67,5 @@ Done, closing and comments stay the Assistant's.
 - File an issue per PR layer, or put a status line, a Phase number or a
   parent reference into a body: relations and Status carry those.
 - Let a brief carry a fact the issue lacks; put it in the issue first.
+- File a parent, a unit or a progress comment in a repository the user does
+  not own or belong to, or name such a repository in a mandate's scope.

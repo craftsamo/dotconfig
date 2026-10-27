@@ -5,7 +5,7 @@
 | Code, commits, task-branch push, PR creation | An OpenCode build run you drive, within explicit implementation approval |
 | A PR for a branch already pushed that the user names | You, through `github_change` `pr_create` (`skill_view(name="github-access:manage-pr")`), when the user asks; never for a branch a build run made, whose PR comes from that run |
 | A PR's text, labels, reviewers, attachments (screenshots), ready / draft, closing | You, through `github_change` (`skill_view(name="github-access:manage-pr")`), when the user asks; each attached file with their yes |
-| Issues and boards | You, through `github_change` (github-access), as the record of every repository job (below) unless the user excluded it; a build writes only its own issue's state, under the job's mandate (below) |
+| Issues and boards | You, through `github_change` (github-access), as the record of every job on a repository the user owns or belongs to (below) unless the user excluded it; someone else's repository gets only what its conventions ask (below); a build writes only its own issue's state, under the job's mandate (below) |
 | Repo creation and settings, labels, milestones, branch protection, clone, workspace registry | Assistant, when separately requested/approved; GitHub changes through `github_change` (`skill_view(name="github-access:manage-repo")`) |
 | CI: why a run failed, re-running it | You read it (`github_repo` `run`); a real failure goes back to the build session. A re-run (`run_rerun`) when the user asks, or proposed by you only for a failure that looks transient; its card is their go |
 | Merge | Assistant, only when the user asks, after readiness checks: `pr_merge`, whose card is their go; method and message as `skill_view(name="github", file_path="references/merge.md")` says |
@@ -24,19 +24,38 @@ Read `skill_view(name="github-access:read-tracking")` and
 `skill_view(name="github-access:manage-tracking")` before the first GitHub
 change of a job.
 
-**The default.** A repository job is recorded on GitHub: its units are
-issues, Fixed before they are built, on the board `github_board` `resolve`
-names for the repository. The user excludes a job in their own words; that
-goes in the decision log, and the job then gets no Issue or board change
-(a supplied Issue URL stays a read-only spec). Nothing else excludes it:
-not the job's size, nor a fix the user calls small. When no board resolves,
-the roadmap question proposes making one (its owner and title), as the
-tracking skill's "Setting up a board" says. The job's operational work
-around its repository (hosting, DNS, a domain, a contract, a hand-over
-item) is part of it: drafts on the same board. When the user raises the
-board or the issues themselves, at any point of the job, the answer is this
-same shape, after reading the tracking skill: never a board of Phase items,
-columns or update rules you design anew.
+**The default.** A job on a repository the user owns or belongs to (tier
+`own` or `shared`, read with `github_repo` `view`) is recorded on GitHub:
+its units are issues, Fixed before they are built, on the board
+`github_board` `resolve` names for the repository. The user excludes a job
+in their own words; that goes in the decision log, and the job then gets no
+Issue or board change (a supplied Issue URL stays a read-only spec). Nothing
+else excludes it: not the job's size, nor a fix the user calls small. When
+no board resolves, the roadmap question proposes making one (its owner and
+title), as the tracking skill's "Setting up a board" says. The job's
+operational work around its repository (hosting, DNS, a domain, a contract,
+a hand-over item) is part of it: drafts on the same board. When the user
+raises the board or the issues themselves, at any point of the job, the
+answer is this same shape, after reading the tracking skill: never a board
+of Phase items, columns or update rules you design anew.
+
+**Someone else's repository** (tier `other`: an open-source project, a
+client's or a colleague's repository the user does not own or belong to) is
+not the user's to plan in. Its tracker takes only what its own conventions
+ask for (`CONTRIBUTING`, an issue or PR template: a bug report before a fix,
+a discussion first), each on its own card with the wording agreed as the
+tracking skill's "Before writing, by tier" says; never a parent issue, a
+unit's Fixed body, layers, a Status or a comment that reports your
+progress. An upstream issue the work answers is the run's `issue`, read as
+the spec and closed by the PR as that project's convention has it; you
+never edit it, and no mandate reaches it. The user's own record of such a
+job, when they want one, is on their side: an issue on their fork (then that
+is the run's `issue`, Fixed as usual) or a draft on their own board; the
+roadmap question asks which, or none, and a none, in the user's words, is the
+build's `untracked_reason`. The build pushes to the user's fork, never to the
+upstream: [Execute](../SKILL.md) step 2 checks the checkout's `origin`
+before the build. A bug report alone, with no fix asked for, is Chat's one
+issue on its card, not a job.
 
 **The record.** GitHub holds the plan; the job directory keeps what is
 private: the decision log with the user's own words, mocks, reports and each
@@ -45,7 +64,13 @@ facts linked to their sources as the read skill's "Background" says, never
 the user's quotes. What only you can know (a promise made in a message, a
 date, a measurement you took, who holds a key) goes into the issue before
 OpenCode reads it, with its source; a brief never carries facts the issue
-lacks. On a `shared` or `other` tier the wording is agreed first.
+lacks. On a `shared` or `other` tier the wording is agreed first, and
+everything written there (the Fixed body, its ticks, the PR text) is read by
+people you cannot name: a public repository's readers are anyone. Nothing
+about the user's business, customers, accounts, other people or this machine
+goes there, even where it is true and would help; what the user wants kept
+stays in the decision log, as the read skill's "Which links a body may
+carry" draws the line.
 
 **Writer reads it once.** Before an issue body (a parent, a unit at Draft,
 a unit rewritten to Fixed) goes to the user or GitHub, one `specialist_call`

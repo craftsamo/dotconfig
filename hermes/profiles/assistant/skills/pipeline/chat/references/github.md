@@ -38,7 +38,10 @@ go, so do not ask first and then raise the card.
   PR from that run.
 - **Tracking a job's work** on a board belongs to the engineering pipeline
   (its GitHub operations); a single draft or issue the user asks for stays
-  here.
+  here. A bug report to someone else's repository is one issue there, in its
+  template, on its card, with the wording agreed first: no draft on the
+  user's board, no parent, and no fix unless the user asks for one (then it
+  is engineering, on the user's fork).
 - **Merging** only the pull request the user named, after reading where it
   stands and saying it in the reply; the card is their go.
 
