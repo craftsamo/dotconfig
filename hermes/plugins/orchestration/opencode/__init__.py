@@ -48,6 +48,7 @@ preflight = _load("hermes_opencode_preflight", _HERE / "preflight.py")
 workspace = _load("hermes_opencode_workspace", _HERE / "workspace.py")
 ghwrite = _load("hermes_opencode_ghwrite", _HERE / "ghwrite.py")
 environment = _load("hermes_opencode_environment", _HERE / "environment.py")
+funding = _load("hermes_opencode_funding", _HERE / "funding.py")
 tool_preview = _load("hermes_tool_preview", _HERE.parents[1] / "_shared" / "tool_preview.py")
 turn_env = _load("hermes_turn_env", _HERE.parents[1] / "_shared" / "turn_env.py")
 
@@ -949,7 +950,7 @@ CATALOG = {
     "agents": ("/api/agent", True), "skills": ("/api/skill", True), "commands": ("/api/command", True),
     "vcs": ("/api/vcs/status", True), "info": ("/api/info", False), "service": ("/api/info", False),
     "plugins": ("/api/plugin", True), "mcp": ("/api/mcp", True), "config": ("/api/config", True),
-    "locations": ("/api/debug/location", False),
+    "locations": ("/api/debug/location", False), "providers": ("/api/provider", True),
 }
 CATALOG_KEYS = {
     "agents": ("id", "mode", "hidden", "description", "model"),
@@ -961,6 +962,7 @@ CATALOG_KEYS = {
 CATALOG_SHAPES = {
     "info": environment.info, "service": environment.service, "plugins": environment.plugins,
     "mcp": environment.mcp, "config": environment.config_sources, "locations": environment.locations,
+    "providers": funding.providers,
 }
 
 
@@ -974,8 +976,11 @@ def opencode_catalog(args, **kwargs):
             settings = config.load(home)
             return json.dumps(models.listing(settings, settings["roles"], models.caller_models(
                 home, kwargs.get("session_id"))))
+        if what == "funding":
+            export, problem = funding.read_export()
+            return json.dumps({"funding": funding.board(export)} if export else {"error": problem})
         if what not in CATALOG:
-            raise ValueError("what must be one of models, " + ", ".join(CATALOG))
+            raise ValueError("what must be one of models, funding, " + ", ".join(CATALOG))
         route, located = CATALOG[what]
         query = None
         if located:
@@ -1214,17 +1219,21 @@ def register(ctx):
         "Durable instructions attached to one of your OpenCode sessions, announced to the agent at its next step "
         "boundary. Keys are hermes.<name>; hermes.note is the operating note every run starts with.")
     add("opencode_catalog", opencode_catalog, {
-        "what": {"type": "string", "enum": ["models", *CATALOG]},
+        "what": {"type": "string", "enum": ["models", "funding", *CATALOG]},
         "directory": {"type": "string", "description": "Absolute worktree root for agents, skills, commands, vcs, "
-                                                       "plugins, mcp, config (a project's own config adds to them)"},
+                                                       "plugins, mcp, config, providers (a project's own config "
+                                                       "adds to them)"},
     }, ["what"],
         "Read what OpenCode offers and how it runs (read-only). models lists what an opencode_run_<role> tool "
         "accepts as model= with variants, context, cost, each role's default and your own models (refused); "
         "a model marked stop_of is the same model from another login or a credit lane. "
         "agents includes subagents (mode subagent). service describes the running service: version, process, "
         "whether its environment came from the person's shell or from Hermes' minimal one, its paths and the "
-        "opencode command. plugins, mcp (servers and connection status), config (each loaded config file as its "
-        "path, keys and the names it defines; never values) and locations (loaded directories) read the rest.")
+        "opencode command. providers lists each provider's activation and which one it is a stop of. funding "
+        "shows where a request can be served from and what each stop holds: every saved login's usage windows "
+        "and every credit lane's balance, from OpenCode Quota's export, with its age. plugins, mcp (servers and "
+        "connection status), config (each loaded config file as its path, keys and the names it defines; never "
+        "values) and locations (loaded directories) read the rest.")
     add("opencode_preflight", opencode_preflight, {
         "directory": {"type": "string", "description": "Absolute Git worktree root"},
         "phase": {"type": "string", "enum": list(preflight.PHASES), "description": "plan (default) or build"},

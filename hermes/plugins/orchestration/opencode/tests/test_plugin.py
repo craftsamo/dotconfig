@@ -1305,7 +1305,7 @@ def test_keep_stop_falls_back_to_the_wanted_model(fixture):
     assert models.keep_stop({"providerID": "openai", "id": "gpt-6-sol"}, wanted, str(directory)) == wanted
 
 
-def test_catalog_models_name_the_stops(fixture):
+def test_catalog_models_name_the_stops_and_providers_their_canonical(fixture):
     home, directory, _, _ = fixture
     configure(home, "model:\n  default: claude-opus-5-5\n")
     listed = {m["model"]: m for m in json.loads(plugin.opencode_catalog({"what": "models"}))["models"]}
@@ -1313,6 +1313,96 @@ def test_catalog_models_name_the_stops(fixture):
     assert listed["anthropic/claude-opus-5-5-main"]["yours"] is True
     assert "stop_of" not in listed["anthropic/claude-opus-5-5"]
     assert "anthropic-credit-team/claude-opus-5-5" not in listed, "lanes outside allowed_providers are not offered"
+    assert catalog("providers", directory)["providers"] == [
+        {"id": "anthropic", "name": "Anthropic", "activation": "enabled"},
+        {"id": "anthropic-credit-team", "canonical": "anthropic", "activation": "enabled"},
+        {"id": "openai", "name": "OpenAI", "activation": "enabled"},
+        {"id": "xai", "name": "xAI", "activation": "auto"}]
+
+
+EXPORT = {
+    "version": 2, "exportedAt": 1_000_000, "providers": {
+        "anthropic": {"status": "ok", "fetchedAt": 999_990, "entries": [
+            {"name": "[Claude Sub OAuth] (active) 5h", "resultType": "quota", "sourceId": "cred_SECRET1",
+             "window": "5h", "resetAt": 1_003_600, "percentRemaining": 77},
+            {"name": "[Claude Sub OAuth] (active) Weekly", "resultType": "quota", "sourceId": "cred_SECRET1",
+             "window": "Weekly", "resetAt": 1_300_000, "percentRemaining": 82},
+            {"name": "[Claude Sub OAuth] (active) Fable Weekly", "resultType": "quota", "sourceId": "cred_SECRET1",
+             "resetAt": 1_300_000, "percentRemaining": 73},
+            {"name": "[Claude Main OAuth] 5h", "resultType": "quota", "sourceId": "cred_SECRET2",
+             "window": "5h", "resetAt": 1_003_600, "percentRemaining": 0},
+            {"name": "[Claude Main OAuth] Weekly", "resultType": "quota", "sourceId": "cred_SECRET2",
+             "window": "Weekly", "resetAt": 1_300_000, "percentRemaining": 40}]},
+        "openai": {"status": "ok", "fetchedAt": 999_000, "entries": [
+            {"name": "[OpenAI] (Plus) 5h", "resultType": "rate_limit", "sourceId": "cred_SECRET3",
+             "window": "5h", "resetAt": 900_000, "percentRemaining": 89}]},
+        "xai": {"status": "unavailable"},
+        "quota-providers": {"status": "ok", "fetchedAt": 999_990, "entries": [
+            {"name": "Anthropic Team Credit Credit", "resultType": "budget", "sourceId": "anthropic-credit-team",
+             "resetAt": 1_200_000, "renderType": "percent", "percentRemaining": 0},
+            {"name": "Anthropic Team Credit Pace", "resultType": "usage", "sourceId": "anthropic-credit-team",
+             "renderType": "value", "value": "$14/day"},
+            {"name": "Anthropic Main Credit Credit", "resultType": "budget", "sourceId": "anthropic-credit-main",
+             "resetAt": 1_400_000, "renderType": "percent", "percentRemaining": 35}]}}}
+
+
+def test_funding_board_shows_each_stop_without_its_connection_id(fixture, tmp_path, monkeypatch):
+    path = tmp_path / "quota-export.json"
+    path.write_text(json.dumps(EXPORT))
+    monkeypatch.setattr(plugin.funding, "export_path", lambda: path)
+    monkeypatch.setattr(plugin.funding, "_now", lambda: 1_000_100)
+    out = catalog("funding")["funding"]
+    assert "SECRET" not in json.dumps(out)
+    assert out["export_age_seconds"] == 100 and out["exported"].startswith("1970-01-12")
+    stops = {s["provider"]: s for s in out["stops"]}
+    assert set(stops) == {"anthropic", "anthropic-credit-team", "anthropic-credit-main", "openai"}
+    claude = stops["anthropic"]
+    assert claude["kind"] == "subscription"
+    sub, main = claude["accounts"]
+    assert sub["label"] == "Claude Sub OAuth" and sub["active"] is True and "empty" not in sub
+    assert sub["fresh"] is True, "fetched 110 seconds ago"
+    assert sub["windows"]["5h"] == {"remaining_percent": 77, "resets": "1970-01-12T14:46:40+00:00"}
+    assert sub["other"]["Fable Weekly"]["remaining_percent"] == 73
+    assert main["label"] == "Claude Main OAuth" and "active" not in main
+    assert main["empty"] is True and main["windows"]["5h"]["empty"] is True, "one empty window empties the login"
+    plus = stops["openai"]["accounts"][0]
+    assert plus["fresh"] is False, "fetched over six minutes ago with nothing empty"
+    assert plus["plan"] == "Plus" and plus["windows"]["5h"]["past_reset"] is True and "empty" not in plus["windows"]["5h"]
+    team = stops["anthropic-credit-team"]
+    assert team["kind"] == "credit-lane" and team["empty"] is True and team["fresh"] is True
+    assert team["balance"] == {"remaining_percent": 0, "empty": True, "expires": "1970-01-14T21:20:00+00:00"}
+    assert team["figures"] == {"Pace": "$14/day"}
+    assert stops["anthropic-credit-main"]["balance"]["remaining_percent"] == 35
+    assert "empty" not in stops["anthropic-credit-main"]
+    # An empty window holds at any age, until its reset passes; a lane's reading goes stale like any other.
+    monkeypatch.setattr(plugin.funding, "_now", lambda: 1_002_000)
+    stops = {s["provider"]: s for s in catalog("funding")["funding"]["stops"]}
+    main = stops["anthropic"]["accounts"][1]
+    assert main["empty"] is True and main["fresh"] is True
+    assert stops["anthropic"]["accounts"][0]["fresh"] is False
+    assert stops["anthropic-credit-team"]["fresh"] is True and stops["anthropic-credit-main"]["fresh"] is False
+    monkeypatch.setattr(plugin.funding, "_now", lambda: 1_004_000)
+    main = {s["provider"]: s for s in catalog("funding")["funding"]["stops"]}["anthropic"]["accounts"][1]
+    assert "empty" not in main and main["windows"]["5h"]["past_reset"] is True and main["fresh"] is False
+
+
+def test_funding_names_a_missing_or_malformed_export(fixture, tmp_path, monkeypatch):
+    path = tmp_path / "quota-export.json"
+    monkeypatch.setattr(plugin.funding, "export_path", lambda: path)
+    assert "no Quota export" in catalog("funding")["error"]
+    path.write_text("{not json")
+    assert "could not be read" in catalog("funding")["error"]
+    path.write_text(json.dumps({"providers": []}))
+    assert "not a Quota export" in catalog("funding")["error"]
+    path.write_text(json.dumps({"providers": {"anthropic": {"status": "ok", "entries": [{"name": 3}, "x"]},
+                                              "openai": {"status": "partial", "entries": [
+                                                  {"name": "[OpenAI] Weekly", "window": "Weekly",
+                                                   "percentRemaining": 5, "sourceId": "cred_SECRET"}]}}}))
+    out = catalog("funding")["funding"]
+    assert out["exported"] is None and "SECRET" not in json.dumps(out)
+    [plus] = out["stops"]
+    assert plus["provider"] == "openai" and plus["accounts"][0]["fresh"] is False, "no fetch time: not fresh"
+    assert plus["accounts"][0]["windows"]["Weekly"] == {"remaining_percent": 5}
 
 
 def test_catalog_shapes_degrade_on_malformed_replies():
