@@ -26,6 +26,16 @@ export type ToolContext = {
   signal?: AbortSignal
   /** The calling session's metadata (V2 only; Hermes keeps its binding under `hermes`). */
   sessionMetadata?(): Promise<Record<string, unknown> | undefined>
+  /**
+   * The runtime's permission gate (V2 only). A tool that writes outside the
+   * worktree asserts before the write, with the tool id as `action`, the
+   * GitHub targets as `resources` and what it is about to change as
+   * `metadata`; the session's ruleset allows, denies, or asks whoever drives
+   * the session. Rejects (throws) when the write may not go ahead.
+   */
+  permission?: {
+    assert(input: { action: string; resources: string[]; metadata?: Record<string, unknown>; message?: string }): Promise<void>
+  }
   /** OpenCode's worktree inventory for the calling session's project (V2 only). */
   worktrees?: {
     /** Re-reads the worktrees on disk into the inventory, as the TUI's refresh does. */

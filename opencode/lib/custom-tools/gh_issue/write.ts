@@ -1,13 +1,15 @@
 import { tool } from "../define"
 import { runGh, runGhJson } from "../exec"
 import { addIssueToBoard, applyKind, assertWritable, getIssue, parseIssueRef, resolveRepo, sameName, withRepo } from "../github"
+import { assertWrite } from "../github/gate"
 import { relateIssue } from "./relate"
 
 /**
  * Writes to issues. Guards, since custom tools bypass the shell permission
- * gates: a write needs write permission on the repository (reported, not
- * guessed), a repository the viewer does not own is flagged `foreign` in the
- * result, closing needs a reason, and nothing here deletes.
+ * gates: every write first passes the session's own gate (`../github/gate`),
+ * then needs write permission on the repository (reported, not guessed); a
+ * repository the viewer does not own is flagged `foreign` in the result,
+ * closing needs a reason, and nothing here deletes.
  */
 
 /** A milestone by title; created when absent and `create` is set. */
@@ -49,6 +51,11 @@ export const create = tool({
     const cwd = context.worktree
     const repo = await resolveRepo(args.repo, cwd)
     assertWritable(repo)
+    await assertWrite(context, "gh_issue_create", [repo.nameWithOwner], {
+      op: "issue_create", repo: repo.nameWithOwner, title: args.title, body: args.body ?? "", kind: args.kind ?? null,
+      labels: args.labels ?? [], assignees: args.assignees ?? [], milestone: args.milestone ?? null, parent: args.parent ?? null,
+      blocked_by: args.blockedBy ?? [], project: args.addToProject ? (args.project ?? null) : undefined, fields: args.fields ?? null,
+    })
     const argv = withRepo(["issue", "create", "--title", args.title, "--body", args.body ?? ""], repo.nameWithOwner)
     for (const l of args.labels ?? []) argv.push("--label", l)
     for (const a of args.assignees ?? []) argv.push("--assignee", a)
@@ -117,6 +124,9 @@ export const update = tool({
     const changed: string[] = []
     if (args.state === "closed" && !args.reason) throw new Error("Closing needs `reason`: completed, not planned or duplicate.")
     if (args.body !== undefined && args.appendBody !== undefined) throw new Error("Pass body or appendBody, not both.")
+    // What the write changes, in the shape a driver can judge: only the parts passed.
+    const { issue: _issue, repo: _repo, createMilestone: _create, ...change } = args
+    await assertWrite(context, "gh_issue_update", [`${r}#${n}`], { op: "issue_edit", repo: r, number: ref.number, ...change })
 
     const edit = withRepo(["issue", "edit", n], r)
     const untouched = edit.length
@@ -173,6 +183,7 @@ export const comment = tool({
     const ref = parseIssueRef(args.issue)
     const repo = await resolveRepo(ref.repo ?? args.repo, context.worktree)
     assertWritable(repo)
+    await assertWrite(context, "gh_issue_comment", [`${repo.nameWithOwner}#${ref.number}`], { op: "issue_comment", repo: repo.nameWithOwner, number: ref.number, body: args.body })
     const out = await runGh(withRepo(["issue", "comment", String(ref.number), "--body", args.body], repo.nameWithOwner), context.worktree)
     return JSON.stringify({ ok: true, repo: repo.nameWithOwner, foreign: repo.foreign, issue: ref.number, url: out.trim() || null })
   },
