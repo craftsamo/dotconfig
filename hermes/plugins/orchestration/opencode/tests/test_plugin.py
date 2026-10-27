@@ -1,5 +1,6 @@
 import importlib.util
 import json
+import os
 from pathlib import Path
 import re
 import subprocess
@@ -1004,6 +1005,66 @@ def test_workspace_runs_no_repository_hook_and_leaks_no_secret(fixture, tmp_path
 
 def workspace_env():
     return plugin.workspace.git_env()
+
+
+def commit_as_the_service(directory):
+    """Commit the way an OpenCode run does: no GIT_* identity in its environment."""
+    env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
+    subprocess.run(["git", "-C", str(directory), "commit", "--allow-empty", "-q", "-m", "run"], check=True,
+                   capture_output=True, env=env)
+    return subprocess.run(["git", "-C", str(directory), "log", "-1", "--format=%an <%ae>|%cn <%ce>"],
+                          capture_output=True, text=True, env=env).stdout.strip()
+
+
+def test_workspace_commits_as_the_gateway_identity_in_that_worktree_only(fixture, tmp_path, monkeypatch):
+    home, directory, _, fake = fixture
+    with_root(home, tmp_path / "wt")
+    monkeypatch.setenv("GIT_AUTHOR_NAME", "Hermes Agent")
+    monkeypatch.setenv("GIT_AUTHOR_EMAIL", "agent@example.invalid")
+    for key, value in (("user.name", "Person"), ("user.email", "person@example.invalid")):
+        subprocess.run(["git", "-C", str(directory), "config", key, value], check=True)
+    sid = run("plan", directory)["session_id"]
+    out = session("workspace", sid, branch="task/a", base="head")
+    assert out["commit_identity"] == "Hermes Agent <agent@example.invalid>"
+    assert commit_as_the_service(out["directory"]) == "Hermes Agent <agent@example.invalid>|" \
+                                                      "Hermes Agent <agent@example.invalid>"
+    assert commit_as_the_service(directory) == "Person <person@example.invalid>|Person <person@example.invalid>", \
+        "the checkout it came from keeps its identity"
+
+
+def test_workspace_without_a_gateway_identity_leaves_commits_to_git_config(fixture, tmp_path, monkeypatch):
+    home, directory, _, fake = fixture
+    with_root(home, tmp_path / "wt")
+    for name in ("GIT_AUTHOR_NAME", "GIT_AUTHOR_EMAIL", "GIT_COMMITTER_NAME", "GIT_COMMITTER_EMAIL"):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("GIT_AUTHOR_NAME", "Name Without Email")
+    monkeypatch.setenv("GIT_COMMITTER_EMAIL", "email-without-name@example.invalid")
+    sid = run("plan", directory)["session_id"]
+    out = session("workspace", sid, branch="task/a", base="head")
+    assert "commit_identity" not in out, "halves of two pairs are not an identity"
+    assert subprocess.run(["git", "-C", str(directory), "config", "--get", "extensions.worktreeConfig"],
+                          capture_output=True).returncode == 1, "the repository config is left alone"
+    monkeypatch.setenv("GIT_COMMITTER_NAME", "Committer")
+    sid2 = run("plan", directory)["session_id"]
+    out = session("workspace", sid2, branch="task/b", base="head")
+    assert out["commit_identity"] == "Committer <email-without-name@example.invalid>"
+
+
+def test_workspace_rolls_back_when_the_identity_cannot_be_written(fixture, tmp_path, monkeypatch):
+    home, directory, _, fake = fixture
+    with_root(home, tmp_path / "wt")
+    monkeypatch.setenv("GIT_AUTHOR_NAME", "Hermes Agent")
+    monkeypatch.setenv("GIT_AUTHOR_EMAIL", "agent@example.invalid")
+
+    def refuse(*args):
+        raise ValueError("git config failed")
+    monkeypatch.setattr(plugin.workspace, "set_identity", refuse)
+    sid = run("plan", directory)["session_id"]
+    assert "git config failed" in session("workspace", sid, branch="task/a", base="head")["error"]
+    assert fake.sessions[sid]["location"]["directory"] == str(directory)
+    assert not (tmp_path / "wt" / "work tree" / "task-a").exists()
+    assert subprocess.run(["git", "-C", str(directory), "branch", "--list", "task/a"], capture_output=True,
+                          text=True).stdout.strip() == ""
 
 
 def test_workspace_refuses_a_session_that_moved_or_was_bound_before_repositories_were_recorded(fixture, tmp_path):
