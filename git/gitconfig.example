@@ -1,0 +1,7 @@
+# ~/.gitconfig: who you are and other personal settings. install.sh seeds it
+# once from git/gitconfig.example and never tracks it, so edit it freely. Git
+# reads it after ~/.config/git/config, and `git config --global` writes here.
+#
+# [user]
+# 	name = Your Name
+# 	email = you@example.com
