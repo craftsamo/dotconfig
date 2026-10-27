@@ -185,17 +185,20 @@ the user, and the unit's PR or stack with how to try it.
 
 ## Tracking
 
-A repository job is recorded on GitHub as it is planned: the roadmap's
-approval files it (a parent issue with one sub-issue per unit, drafts for the
-work outside the code, on the board `github_board` `resolve` names for the
-repository, or the one issue of a single-unit job), and each unit's issue is
-Fixed before its build. The user excludes a job from GitHub in their own
-words ("track this nowhere", "no issue for this"); record that in the log,
-and then no Issue or board changes for that job. Duration, size or a fix the
-user calls small never excludes it on their own: a small fix is one issue
-with one layer. The shape and the order of writing are
-[GitHub boundaries](../execute/references/github-ops.md) "Tracking a job on
-GitHub"; you write it and OpenCode reads it. A supplied Issue URL is a
+A job on a repository the user owns or belongs to is recorded on GitHub as
+it is planned: the roadmap's approval files it (a parent issue with one
+sub-issue per unit, drafts for the work outside the code, on the board
+`github_board` `resolve` names for the repository, or the one issue of a
+single-unit job), and each unit's issue is Fixed before its build. The user
+excludes a job from GitHub in their own words ("track this nowhere", "no
+issue for this"); record that in the log, and then no Issue or board changes
+for that job. Duration, size or a fix the user calls small never excludes it
+on their own: a small fix is one issue with one layer. Someone else's
+repository (an open-source project, a client's) is never planned in; the
+roadmap question asks where the user's own record goes, as
+[GitHub boundaries](../execute/references/github-ops.md) "Someone else's
+repository" says. The shape and the order of writing are the same file's
+"Tracking a job on GitHub"; you write it and OpenCode reads it. A supplied Issue URL is a
 specification, not permission to edit it. Existing session ids can be handed
 over as context, but old grants need reconciliation, not adoption.
 
