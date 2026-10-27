@@ -76,6 +76,19 @@ def _runtime():
     return upstream, job_args, scan
 
 
+def _absolute_schedule(schedule: str) -> str:
+    """``in 30m`` is a one-shot relative to now: a manifest must hold the instant it means, or
+    every sync would move it. The runtime's own parser supplies that instant."""
+    if not schedule.lower().startswith("in "):
+        return schedule
+    from cron.jobs import parse_schedule
+    try:
+        parsed = parse_schedule(schedule)
+    except ValueError as exc:
+        raise ManageError(str(exc)) from exc
+    return str(parsed["run_at"])
+
+
 def _checked_script(rel: Optional[str], job_args) -> Optional[str]:
     rel = job_args._normalize_optional_job_value(rel)
     if not rel:
@@ -110,7 +123,7 @@ def build_spec(a: dict[str, Any], sync) -> tuple[dict[str, Any], Optional[str]]:
     upstream, job_args, scan = _runtime()
     if a.get("pinned"):
         raise ManageError("a job's model pin is set by hand (`hermes cron edit --pin`), never from a chat")
-    schedule = (a.get("schedule") or "").strip()
+    schedule = _absolute_schedule((a.get("schedule") or "").strip())
     if not schedule:
         raise ManageError("schedule is required for create")
     no_agent = bool(a.get("no_agent"))
@@ -235,19 +248,44 @@ def create(a: dict[str, Any], home: Path, sync) -> str:
         raise ManageError(str(exc)) from exc
     plan, _done = sync.sync_home(home, check=False, prune=False)
     job = _job_for(name, home, sync)
-    if plan.failed() or job is None:
-        sync.remove_local(home, name)
-        raise ManageError("; ".join(plan.errors + plan.conflicts) or f"{name}: the sync made no job")
+    own, others = _split_findings(plan, name)
+    if own or job is None:
+        # Only this manifest's failure undoes the create; another manifest's problem is reported.
+        sync.drop_local(home, name)
+        raise ManageError("; ".join(own) or f"{name}: the sync made no job")
     upstream._notify_provider_jobs_changed_safe()
     message = f"Cron job '{name}' created as {sync.MANIFEST_DIR}/{name}/."
     if not job.get("enabled", True):
         message += " Created PAUSED — resume to schedule, or explicitly run now."
-    return _dumps({
+    result = {
         "success": True, "job_id": job["id"], "name": name, "skills": job.get("skills", []),
         "schedule": job.get("schedule_display"), "deliver": job.get("deliver", "local"),
         "next_run_at": job.get("next_run_at"), "job": _format(job, job_args), "manifest": str(directory),
         "message": message, **_liveness(job_args),
-    })
+    }
+    if others:
+        result["warnings"] = others
+    return _dumps(result)
+
+
+def _split_findings(plan, name: str) -> tuple[list[str], list[str]]:
+    """A sync's errors and conflicts: the ones about ``name`` and the rest."""
+    findings = plan.errors + plan.conflicts
+    own = [f for f in findings if f.startswith(f"{name}:")]
+    return own, [f for f in findings if f not in own]
+
+
+def _set_paused(name: str, home: Path, sync, paused: bool) -> None:
+    """Keep the manifest's `paused` in step with a pause or resume the agent asks for, so the
+    next sync does not undo it: `paused: true` on a pause, no key on a resume (a later hand
+    pause then stays a hand pause)."""
+    manifest_file = home / sync.MANIFEST_DIR / name / sync.MANIFEST_FILE
+    spec = sync.yaml.safe_load(manifest_file.read_text(encoding="utf-8")) or {}
+    if paused:
+        spec["paused"] = True
+    else:
+        spec.pop("paused", None)
+    manifest_file.write_text(sync.yaml.safe_dump(spec, sort_keys=False, allow_unicode=True), encoding="utf-8")
 
 
 def _merge_update(spec: dict[str, Any], run_text: Optional[str], a: dict[str, Any],
@@ -260,7 +298,7 @@ def _merge_update(spec: dict[str, Any], run_text: Optional[str], a: dict[str, An
     if a.get("name") is not None and slug(a["name"]) != spec.get("_name"):
         raise ManageError("a job is its directory: to rename it, remove it and create it again")
     if a.get("schedule"):
-        spec["schedule"] = a["schedule"].strip()
+        spec["schedule"] = _absolute_schedule(a["schedule"].strip())
     if a.get("prompt") is not None:
         prompt = _checked_prompt(a["prompt"], scan)
         spec.pop("prompt", None)
@@ -353,11 +391,15 @@ def update(job: dict[str, Any], a: dict[str, Any], home: Path, sync) -> str:
             run_file.chmod(0o755)
         raise ManageError(str(exc)) from exc
     plan, _done = sync.sync_home(home, check=False, prune=False)
-    if plan.failed():
-        raise ManageError("; ".join(plan.errors + plan.conflicts))
+    own, others = _split_findings(plan, name)
+    if own:
+        raise ManageError("; ".join(own))
     upstream._notify_provider_jobs_changed_safe()
     updated = _job_for(name, home, sync) or job
-    return _dumps({"success": True, "job": _format(updated, job_args), "manifest": str(directory)})
+    result = {"success": True, "job": _format(updated, job_args), "manifest": str(directory)}
+    if others:
+        result["warnings"] = others
+    return _dumps(result)
 
 
 def remove(job: dict[str, Any], home: Path, sync) -> str:
@@ -409,6 +451,8 @@ def handle(args: dict[str, Any], home: Path, sync, **kw: Any) -> str:
             return update(job, args, home, sync)
         if action == "remove" and source == "local":
             return remove(job, home, sync)
+        if source == "local":  # pause / resume: the manifest follows, then the runtime acts
+            _set_paused(job[sync.MARKER]["manifest"], home, sync, action == "pause")
         return upstream._cronjob_handler(args, **kw)
     except ManageError as exc:
         return _error(str(exc))
