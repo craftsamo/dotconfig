@@ -90,5 +90,5 @@ def register(ctx):
         "type": "object", "properties": schema_properties(actions),
         "required": ["action", "path"], "additionalProperties": False}}
     ctx.register_tool(name=TOOL, toolset=TOOL, handler=make_handler(profile), description=DESCRIPTION,
-                      schema=schema)
+                      schema=schema, emoji="🔬")
     tool_preview.enums(TOOL, schema, "action")

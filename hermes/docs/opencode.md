@@ -90,11 +90,12 @@ the tools refuse delegated subagents.
 
 **Roles are configuration.** `opencode.roles` maps a role name to an installed
 OpenCode agent, a policy (`read-only` or `write`), and optionally a model
-(`provider/model[#variant]`) and a note. Each becomes an `opencode_run_<role>`
-tool; with no `roles` the four defaults apply (plan, review and debug
-read-only, build write). The agents are the person's own modes — there are no
-hidden primaries and no operating contract beyond a short `hermes.note`
-instruction entry. The prompt is the caller's message exactly as written:
+(`provider/model[#variant]`), a note and an `emoji` for the progress line (a
+role without one shows 👀 when read-only, 🔨 when it writes). Each becomes an
+`opencode_run_<role>` tool; with no `roles` the four defaults apply (plan,
+review and debug read-only, build write). The agents are the person's own
+modes — there are no hidden primaries and no operating contract beyond a short
+`hermes.note` instruction entry. The prompt is the caller's message exactly as written:
 everything mechanical (the operating note, the output directory, where a report
 goes) travels in that entry, which the service announces as session
 instructions, so the user message a person reads in the session is the brief alone;

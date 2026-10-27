@@ -2241,6 +2241,19 @@ def test_configured_roles_replace_the_defaults(fixture, monkeypatch):
     assert config.roles(home) == {"audit": {"agent": "review", "policy": "read-only", "note": "Check licences too."}}
 
 
+def test_every_tool_has_an_emoji_and_a_role_names_its_own(fixture, monkeypatch):
+    home, _, _, _ = fixture
+    defaults = register(monkeypatch, home).tools
+    assert {name: defaults[f"opencode_run_{name}"]["emoji"] for name in ("plan", "review", "debug", "build")} == {
+        "plan": "📝", "review": "👀", "debug": "🐛", "build": "🔨"}
+    assert defaults["opencode_request"]["emoji"] == "❓"
+    assert all(tool["emoji"] for tool in defaults.values())
+    configure(home, "  roles:\n    design: {agent: plan, policy: read-only, emoji: '🎨'}\n"
+                    "    audit: {agent: review, policy: read-only}\n    ship: {agent: build, policy: write}\n")
+    tools = register(monkeypatch, home).tools
+    assert [tools[f"opencode_run_{name}"]["emoji"] for name in ("design", "audit", "ship")] == ["🎨", "👀", "🔨"]
+
+
 def test_a_broken_roles_block_keeps_the_default_tools(fixture, monkeypatch):
     home, _, _, _ = fixture
     configure(home, "  roles:\n    Bad Name: {agent: x, policy: write}\n")
@@ -2270,6 +2283,9 @@ def test_a_role_note_is_part_of_the_session_instruction(fixture):
     ("  roles:\n    a: {agent: plan, policy: write, model: 'a/b#bad variant'}\n", "provider/model"),
     ("  roles:\n    a: {agent: plan, policy: write, alternate: nope}\n", "alternate"),
     ("  roles:\n    a: {agent: plan, policy: write, caller_model: maybe}\n", "caller_model"),
+    ("  roles:\n    a: {agent: plan, policy: write, emoji: ''}\n", "emoji"),
+    ("  roles:\n    a: {agent: plan, policy: write, emoji: 'two words'}\n", "emoji"),
+    ("  roles:\n    a: {agent: plan, policy: write, emoji: 7}\n", "emoji"),
     ("  roles:\n    a: {agent: plan, policy: write, alternate: 'xai/grok-4.7'}\n", "allowed_providers"),
     ("  worktree_root: relative/dir\n", "worktree_root"),
     ("  worktree_root: '/tmp/*'\n", "worktree_root"),

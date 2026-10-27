@@ -55,6 +55,9 @@ turn_env = _load("hermes_turn_env", _HERE.parents[1] / "_shared" / "turn_env.py"
 PROFILES = {"assistant"}
 # The tool mechanics skill reaches only the profiles that will drive OpenCode.
 SKILLS = {"brief": {"assistant"}, "drive": {"assistant"}, "answer": {"assistant"}}
+# Progress-line emoji; an opencode_run_<role> tool takes its role's (config.emoji).
+TOOL_EMOJI = {"opencode_session": "🧑‍💻", "opencode_request": "❓", "opencode_instructions": "📌",
+              "opencode_catalog": "📚", "opencode_preflight": "🩺", "opencode_history": "🕰️"}
 TOPIC_FIELDS = ("PLATFORM", "SOURCE", "PROFILE", "KEY", "CHAT_ID", "THREAD_ID", "USER_ID")
 SESSION_ID = re.compile(r"ses_[A-Za-z0-9_-]+\Z")
 PERMISSION_ID = re.compile(r"per_[A-Za-z0-9_-]{1,64}\Z")
@@ -1156,16 +1159,16 @@ def register(ctx):
 
     schemas = {}
 
-    def add(name, handler, properties, required, description):
+    def add(name, handler, properties, required, description, emoji=None):
         schemas[name] = {"name": name, "description": description, "parameters": {
             "type": "object", "properties": properties, "required": required, "additionalProperties": False}}
         ctx.register_tool(name=name, toolset="opencode", handler=scoped(handler), description=description,
-                          schema=schemas[name])
+                          schema=schemas[name], emoji=emoji or TOOL_EMOJI[name])
 
     ctx.register_hook("post_api_request", models.observe)
     for name, role in config.roles(home).items():
         add(f"opencode_run_{name}", lambda args, _name=name, **kw: opencode_run(_name, args, **kw),
-            _run_properties(role), ["message"], _run_description(name, role))
+            _run_properties(role), ["message"], _run_description(name, role), config.emoji(role))
     add("opencode_session", opencode_session, {
         "action": {"type": "string", "enum": ["list", "status", "wait", "steer", "interrupt", "messages", "diff",
                                               "fork", "workspace"]},

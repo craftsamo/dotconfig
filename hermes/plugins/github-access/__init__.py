@@ -341,6 +341,8 @@ def github_mandate(args, **kwargs):
 
 HANDLERS = {"github_issue": github_issue, "github_board": github_board, "github_repo": github_repo,
             "github_pr": github_pr, "github_change": github_change, "github_mandate": github_mandate}
+EMOJI = {"github_issue": "🎫", "github_board": "📋", "github_repo": "🐙", "github_pr": "🔀", "github_change": "✏️",
+         "github_mandate": "📜"}
 
 
 def gate(**kwargs):
@@ -435,7 +437,7 @@ def register(ctx):
             "type": "object", "properties": properties, "required": REQUIRED[name],
             "additionalProperties": False}}
         ctx.register_tool(name=name, toolset=TOOLSET, handler=HANDLERS[name], description=description,
-                          schema=schema)
+                          schema=schema, emoji=EMOJI[name])
         _install_preview(name, schema)
     ctx.register_hook("pre_tool_call", gate)
     register_skills(ctx, ctx.profile_name)
