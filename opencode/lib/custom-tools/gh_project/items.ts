@@ -2,6 +2,7 @@ import { tool } from "../define"
 import { runGh, runGhJson } from "../exec"
 import { addUrlToProject, applyFields, applyKind, getFields, getItem, graphql, listItems, lit, parseIssueRef, projectById, resolveRepo, sameName, type Item } from "../github"
 import { ensureMilestone } from "../gh_issue/write"
+import { assertWrite } from "../github/gate"
 import { assertUpdatable, resolveBoard } from "./board"
 
 /**
@@ -74,13 +75,16 @@ export const item_add = tool({
     if (args.url && args.title) throw new Error("Pass url or title, not both.")
     const { project, route, repo } = await resolveBoard(args, cwd)
     assertUpdatable(project)
+    const board = `${project.owner.login}/${project.number}`
     if (args.url) {
       const ref = parseIssueRef(args.url, repo?.nameWithOwner)
       if (!ref.repo) throw new Error("A bare issue number needs `repo` or a repository in the working tree.")
       const url = /^https?:/.test(args.url.trim()) ? args.url.trim() : `https://github.com/${ref.repo}/issues/${ref.number}`
+      await assertWrite(context, "gh_project_item_add", [board, `${ref.repo}#${ref.number}`], { op: "item_add", project: board, content: `${ref.repo}#${ref.number}`, fields: args.fields ?? null })
       const r = await addUrlToProject(project, route, url, args.fields, cwd)
       return JSON.stringify({ ok: true, kind: "content", url, ...r }, null, 2)
     }
+    await assertWrite(context, "gh_project_item_add", [board], { op: "draft_add", project: board, title: args.title, body: args.body ?? "", fields: args.fields ?? null })
     const argv = ["project", "item-create", String(project.number), "--owner", project.owner.login, "--title", args.title!, "--format", "json"]
     if (args.body) argv.push("--body", args.body)
     const created = await runGhJson(argv, cwd)
@@ -108,6 +112,12 @@ export const item_set = tool({
     const { projectId, item } = await getItem(args.item, cwd)
     const project = await projectById(projectId, cwd)
     assertUpdatable(project)
+    const board = `${project.owner.login}/${project.number}`
+    const content = item.content && item.content.type !== "DraftIssue" ? `${item.content.repo}#${item.content.number}` : null
+    await assertWrite(context, "gh_project_item_set", content ? [board, content] : [board], {
+      op: "item_set", project: board, item: args.item, content, content_type: item.content?.type ?? null,
+      fields: args.fields ?? null, clear: args.clear ?? [], title: args.title, body: args.body, append_body: args.appendBody, archived: args.archived,
+    })
     const changed: string[] = []
     const values: Record<string, string | null> = { ...(args.fields ?? {}) }
     for (const name of args.clear ?? []) values[name] = null
@@ -154,7 +164,12 @@ export const item_promote = tool({
     if (!repo.canWrite) throw new Error(`No write permission on ${repo.nameWithOwner} (viewer permission: ${repo.permission ?? "none"}).`)
     const { projectId, item } = await getItem(args.item, cwd)
     if (item.content?.type !== "DraftIssue") throw new Error(`Item ${args.item} is not a draft (${item.content?.type ?? "no content"}).`)
-    assertUpdatable(await projectById(projectId, cwd))
+    const project = await projectById(projectId, cwd)
+    assertUpdatable(project)
+    await assertWrite(context, "gh_project_item_promote", [`${project.owner.login}/${project.number}`, repo.nameWithOwner], {
+      op: "draft_promote", project: `${project.owner.login}/${project.number}`, item: args.item, repo: repo.nameWithOwner, title: item.content.title,
+      kind: args.kind ?? null, labels: args.labels ?? [], milestone: args.milestone ?? null,
+    })
     const mutation = `mutation{convertProjectV2DraftIssueItemToIssue(input:{itemId:${lit(args.item)},repositoryId:${lit(repo.id)}}){item{id content{... on Issue{number url}}}}}`
     const data = await graphql(mutation, {}, cwd)
     const issue = data?.convertProjectV2DraftIssueItemToIssue?.item?.content
