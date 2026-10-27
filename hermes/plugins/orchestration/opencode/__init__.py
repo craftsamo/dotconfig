@@ -47,6 +47,8 @@ inventory = _load("hermes_opencode_history", _HERE / "history.py")
 preflight = _load("hermes_opencode_preflight", _HERE / "preflight.py")
 workspace = _load("hermes_opencode_workspace", _HERE / "workspace.py")
 ghwrite = _load("hermes_opencode_ghwrite", _HERE / "ghwrite.py")
+environment = _load("hermes_opencode_environment", _HERE / "environment.py")
+funding = _load("hermes_opencode_funding", _HERE / "funding.py")
 tool_preview = _load("hermes_tool_preview", _HERE.parents[1] / "_shared" / "tool_preview.py")
 turn_env = _load("hermes_turn_env", _HERE.parents[1] / "_shared" / "turn_env.py")
 
@@ -371,7 +373,8 @@ def _prepare(home, owner, role_name, role, settings, args, kwargs):
         else:
             dropped = stored
     return {"output": output, "writing": writing, "fork": fork, "chosen": chosen or meta.get("selection") or {},
-            "explicit": bool(chosen), "sid": sid, "directory": directory, "branch": branch, "repo": repo,
+            # A model named this turn moves the session; a variant alone does not.
+            "explicit": "model" in chosen, "sid": sid, "directory": directory, "branch": branch, "repo": repo,
             "protected": protected, "approval": approval, "issue_approval": issue_approval,
             "issue": issue, "untracked": untracked, "mandate": mandate_id, "dropped_mandate": dropped,
             "read_roots": tuple(settings.get("read_roots", ())),
@@ -419,6 +422,10 @@ def _setup(home, owner, role_name, role, plan, kwargs):
         current = turn.session_info(sid)
         if not policy.same_dir(turn.directory_of(current), directory):
             raise ValueError("The saved OpenCode session belongs to another directory")
+        if not plan["explicit"]:
+            # The service moves a session to another stop of its model on a limit; only
+            # a model the caller names this turn moves it back.
+            model = models.keep_stop(current.get("model"), model, directory)
         turn.call("post", "/api/session/{sid}/agent", {"agent": role["agent"]}, sid=sid)
         turn.call("post", "/api/session/{sid}/model", {"model": model}, sid=sid)
         turn.call("patch", "/api/session/{sid}", {"permissions": ruleset, "metadata": {
@@ -937,14 +944,25 @@ def opencode_instructions(args, **kwargs):
         return json.dumps({"error": str(exc)})
 
 
+# what -> (route, located). A located route is read at the worktree (a project's
+# config adds to it); the rest describe the service itself.
 CATALOG = {
     "agents": ("/api/agent", True), "skills": ("/api/skill", True), "commands": ("/api/command", True),
-    "vcs": ("/api/vcs/status", True), "info": ("/api/info", False),
+    "vcs": ("/api/vcs/status", True), "info": ("/api/info", False), "service": ("/api/info", False),
+    "plugins": ("/api/plugin", True), "mcp": ("/api/mcp", True), "config": ("/api/config", True),
+    "locations": ("/api/debug/location", False), "providers": ("/api/provider", True),
 }
 CATALOG_KEYS = {
     "agents": ("id", "mode", "hidden", "description", "model"),
     "skills": ("id", "name", "description"),
     "commands": ("id", "name", "description"),
+}
+# Replies shaped by environment.py: the service's own description, never a value from
+# a configuration file or a process environment.
+CATALOG_SHAPES = {
+    "info": environment.info, "service": environment.service, "plugins": environment.plugins,
+    "mcp": environment.mcp, "config": environment.config_sources, "locations": environment.locations,
+    "providers": funding.providers,
 }
 
 
@@ -958,15 +976,18 @@ def opencode_catalog(args, **kwargs):
             settings = config.load(home)
             return json.dumps(models.listing(settings, settings["roles"], models.caller_models(
                 home, kwargs.get("session_id"))))
+        if what == "funding":
+            export, problem = funding.read_export()
+            return json.dumps({"funding": funding.board(export)} if export else {"error": problem})
         if what not in CATALOG:
-            raise ValueError("what must be one of models, " + ", ".join(CATALOG))
+            raise ValueError("what must be one of models, funding, " + ", ".join(CATALOG))
         route, located = CATALOG[what]
         query = None
         if located:
             query = api.location(policy.worktree(directory))
         body = turn.call("get", route, query=query)
-        if what == "info":
-            return json.dumps({k: body.get(k) for k in ("version",) if isinstance(body, dict)})
+        if what in CATALOG_SHAPES:
+            return json.dumps({what: CATALOG_SHAPES[what](body)})
         items = body.get("data") if isinstance(body, dict) else body
         if isinstance(items, list):
             keys = CATALOG_KEYS.get(what)
@@ -982,7 +1003,8 @@ def opencode_preflight(args, **kwargs):
         home, owner, live = _scope()
         return json.dumps(preflight.check(
             settings=config.load(home), caller=models.caller_models(home, kwargs.get("session_id")), args=args,
-            lookup_agent=_agent, api=api, config=config, models=models, policy=policy, turn=turn))
+            lookup_agent=_agent, api=api, config=config, models=models, policy=policy, turn=turn,
+            environment=environment))
     except Exception as exc:
         return json.dumps({"error": str(exc)})
 
@@ -1197,11 +1219,21 @@ def register(ctx):
         "Durable instructions attached to one of your OpenCode sessions, announced to the agent at its next step "
         "boundary. Keys are hermes.<name>; hermes.note is the operating note every run starts with.")
     add("opencode_catalog", opencode_catalog, {
-        "what": {"type": "string", "enum": ["models", "agents", "skills", "commands", "vcs", "info"]},
-        "directory": {"type": "string", "description": "Absolute worktree root for agents, skills, commands, vcs"},
+        "what": {"type": "string", "enum": ["models", "funding", *CATALOG]},
+        "directory": {"type": "string", "description": "Absolute worktree root for agents, skills, commands, vcs, "
+                                                       "plugins, mcp, config, providers (a project's own config "
+                                                       "adds to them)"},
     }, ["what"],
-        "Read what OpenCode offers (read-only). models lists what an opencode_run_<role> tool accepts as model= "
-        "with variants, context, cost, each role's default and your own models (refused).")
+        "Read what OpenCode offers and how it runs (read-only). models lists what an opencode_run_<role> tool "
+        "accepts as model= with variants, context, cost, each role's default and your own models (refused); "
+        "a model marked stop_of is the same model from another login or a credit lane. "
+        "agents includes subagents (mode subagent). service describes the running service: version, process, "
+        "whether its environment came from the person's shell or from Hermes' minimal one, its paths and the "
+        "opencode command. providers lists each provider's activation and which one it is a stop of. funding "
+        "shows where a request can be served from and what each stop holds: every saved login's usage windows "
+        "and every credit lane's balance, from OpenCode Quota's export, with its age. plugins, mcp (servers and "
+        "connection status), config (each loaded config file as its path, keys and the names it defines; never "
+        "values) and locations (loaded directories) read the rest.")
     add("opencode_preflight", opencode_preflight, {
         "directory": {"type": "string", "description": "Absolute Git worktree root"},
         "phase": {"type": "string", "enum": list(preflight.PHASES), "description": "plan (default) or build"},
