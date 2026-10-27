@@ -11,6 +11,7 @@ import importlib.util
 import io
 import json
 import stat
+import subprocess
 import sys
 from pathlib import Path
 
@@ -140,8 +141,19 @@ def test_sync_creates_marked_jobs_and_executable_wrappers_at_the_real_script(hom
     assert j["enabled"] and j["next_run_at"]
     wrapper = home / "scripts" / "cron" / "snap.sh"
     assert wrapper.stat().st_mode & stat.S_IXUSR
-    assert f'exec "{(run / S.RUN_SCRIPT).resolve()}" "$@"' in wrapper.read_text()
-    assert "do not edit" in wrapper.read_text()
+    text = wrapper.read_text()
+    assert f'exec "{(run / S.RUN_SCRIPT).resolve()}" "$@"' in text and "do not edit" in text
+    # The wrapper names the owning profile for the script it execs.
+    assert 'HERMES_HOME="$(cd "$(dirname "$0")/../.." && pwd)"' in text and "export HERMES_HOME" in text
+
+
+def test_the_wrapper_hands_the_script_its_profile_home(home: Path):
+    write_job(home, "who", {"schedule": "1h", "mode": "no_agent"},
+              run='#!/bin/sh\nprintf "%s" "$HERMES_HOME"\n')
+    sync(home)
+    out = subprocess.run([str(home / "scripts" / "cron" / "who.sh")], capture_output=True, text=True,
+                         env={"PATH": "/usr/bin:/bin"}, check=True).stdout
+    assert Path(out).resolve() == home.resolve()
 
 
 def test_a_second_sync_changes_nothing_and_check_reports_in_sync(home: Path, capsys):
