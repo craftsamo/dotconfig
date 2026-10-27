@@ -197,6 +197,8 @@ alternate), the worktree and branch. Healthy is one `summary` line; otherwise
 only `issues` (`error` blocks, `warn` informs). Run it with `phase=plan` before
 the first plan run and with `phase=build` before a build: that one also needs a
 task branch, no session running in the worktree, and reports uncommitted paths.
+A `warn` that the service runs with Hermes' minimal environment goes to the
+person as above; it blocks nothing.
 
 `opencode_history(action, …)` reads OpenCode's own session history across all
 projects, the person's TUI sessions included, without launching anything:

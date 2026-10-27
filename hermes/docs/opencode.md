@@ -200,7 +200,9 @@ edit there until it hands back.
 **Readiness.** `opencode_preflight(directory, phase)` is the one read-only
 check before a run. It reads no quota (the quota plugin's data is only as fresh
 as an open TUI), so a limit is met as a failed turn and answered with the role's
-`alternate` (see Models).
+`alternate` (see Models). It warns when the service runs with the plugin's
+minimal environment (below), since that is the one state of the service the
+Assistant can cause and the person would not notice.
 
 **What OpenCode runs with.** `opencode_catalog` reads the service's shape, so
 the Assistant can say how OpenCode is set up without a run: `agents` (primaries

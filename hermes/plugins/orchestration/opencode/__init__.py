@@ -993,7 +993,8 @@ def opencode_preflight(args, **kwargs):
         home, owner, live = _scope()
         return json.dumps(preflight.check(
             settings=config.load(home), caller=models.caller_models(home, kwargs.get("session_id")), args=args,
-            lookup_agent=_agent, api=api, config=config, models=models, policy=policy, turn=turn))
+            lookup_agent=_agent, api=api, config=config, models=models, policy=policy, turn=turn,
+            environment=environment))
     except Exception as exc:
         return json.dumps({"error": str(exc)})
 
