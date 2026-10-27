@@ -182,6 +182,13 @@ def protected_pushes(name):
 TOOL_DENY = ("git_worktree",)
 READ_ONLY_DENY_TOOLS = ("git_commit", "git_stage_hunks", "git_verify_commits", "git_rebase", "git_stack",
                         "git_publish", "gh_pr_meta", "gh_pr_meta_apply")
+# The run's own execution state on GitHub: its issue's body and its board Status. Each
+# tool asserts a permission with what it will change before it writes; with a mandate
+# bound to the session these ask (ghwrite answers them inside the mandate), every other
+# GitHub write stays denied. A linked branch (gh_issue_develop) is not among them: a PR
+# from one closes the issue on its first merge, past the Refs/Closes scheme, and the
+# PR's own closing reference already links the branch to the issue.
+RUN_GH_WRITES = ("gh_issue_update", "gh_project_item_set")
 PROJECT_WRITES = (
     "github_project_create", "github_project_field_ensure", "github_project_item_add",
     "github_project_item_set", "github_project_item_note", "github_project_item_promote",
@@ -274,13 +281,16 @@ def spellings(paths):
 
 
 def rules(policy, issue_approval, protected, *, tmp=None, person_denies=(), output=None, branch=None,
-          gh_aliases=(), read_roots=()):
+          gh_aliases=(), read_roots=(), mandate=False):
     """The session ruleset for one run, ordered broad to narrow under last-match
     evaluation. Its caller-chosen allows are the output directory and, in a
     read-only run, the configured `read_roots` (source checkouts), which the
     person's own outside-path denies still override. `branch` is a write run's
     task branch, whose own lease push asks rather than being denied; each of
-    `gh_aliases` asks like a branch switch."""
+    `gh_aliases` asks like a branch switch. With `mandate` (a write run bound to
+    a GitHub mandate) the run's own GitHub state writes (`RUN_GH_WRITES`) ask
+    instead of being denied: each one is answered inside the mandate or left
+    for the caller, who may only reject it."""
     person = [d for d in person_denies if d.get("effect") == "deny"]
     scratch, readable = directories(tmp)
     out = [rule("external_directory", "*", "ask")]
@@ -335,7 +345,9 @@ def rules(policy, issue_approval, protected, *, tmp=None, person_denies=(), outp
     out += [rule("shell", pattern, "deny") for pattern in deny]
     if policy == "write" and branch and not branch.startswith("detached:") and branch not in protected:
         out += [rule("shell", command, "ask") for command in lease_pushes(branch)]
-    out += [rule(name, "*", "deny") for name in PROJECT_WRITES + TOOL_DENY]
+    opened = set(RUN_GH_WRITES) if policy == "write" and mandate else set()
+    out += [rule(name, "*", "deny") for name in PROJECT_WRITES + TOOL_DENY if name not in opened]
+    out += [rule(name, "*", "ask") for name in RUN_GH_WRITES if name in opened]
     # A person's own denies are re-stated last, so an agent's broad allow (build's
     # `shell: *`) never reopens `sudo` or `secret get`. Their `external_directory`
     # denies went in above the scratch-dir allows instead.

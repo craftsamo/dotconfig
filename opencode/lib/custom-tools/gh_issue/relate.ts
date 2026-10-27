@@ -1,6 +1,7 @@
 import { tool } from "../define"
 import { exec } from "../exec"
 import { assertWritable, getIssue, parseIssueRef, resolveRepo, sameName, type IssueBrief, type RepoContext } from "../github"
+import { assertWrite } from "../github/gate"
 
 /**
  * Hierarchy (parent / sub-issues) and dependencies (blocked by / blocking),
@@ -137,6 +138,7 @@ export const relate = tool({
     const repo = await resolveRepo(ref.repo ?? args.repo, context.worktree)
     assertWritable(repo)
     const { issue: _i, repo: _r, ...input } = args
+    await assertWrite(context, "gh_issue_relate", [`${repo.nameWithOwner}#${ref.number}`], { op: "issue_relate", repo: repo.nameWithOwner, number: ref.number, ...input })
     const result = await relateIssue(repo, ref.number, input, context.worktree)
     return JSON.stringify({ ok: true, repo: repo.nameWithOwner, foreign: repo.foreign, issue: ref.number, ...result }, null, 2)
   },

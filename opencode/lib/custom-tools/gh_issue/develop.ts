@@ -1,6 +1,7 @@
 import { tool } from "../define"
 import { exec, runGh } from "../exec"
 import { assertWritable, getIssue, parseIssueRef, resolveRepo } from "../github"
+import { assertWrite } from "../github/gate"
 
 /**
  * Linked development branches over `gh issue develop`. A PR from such a
@@ -56,6 +57,9 @@ export const develop = tool({
       })
     }
     const target = branchRepo?.nameWithOwner ?? r
+    await assertWrite(context, "gh_issue_develop", [`${r}#${ref.number}`, target], {
+      op: "issue_develop", repo: r, number: ref.number, branch: args.branch ?? null, base: args.base ?? null, branch_repo: target,
+    })
     if (args.base && !(await remoteBranchExists(args.base, target, cwd))) {
       throw new Error(`Base branch "${args.base}" not found on ${target}; gh issue develop would silently fall back to the default branch.`)
     }

@@ -10,8 +10,8 @@ mock, a spec, a schema) is recorded in the decision log and skipped.
 | --- | --- | --- |
 | 1. Purpose and use | nothing yet, or a short `plan` turn on an existing repository | Who uses it, for what, a first real use; in their words |
 | 2. Capabilities, screens, data | `opencode_run_design` writes HTML mocks and diagrams into the job directory | Opens the HTML, corrects it, answers what only they can decide |
-| 3. Roadmap | `opencode_run_plan`: stack, hosting and the Phases (each one PR or stack layer) | Approves the order and content of the Phases |
-| 4. Each Phase | a fork of the plan trunk plans that Phase's steps, then builds it | Approves the Phase, then tries what it delivers |
+| 3. Roadmap | `opencode_run_plan`: stack, hosting and the units (each one PR or one stack that lands once) | Approves the order and content of the units; they are filed on GitHub |
+| 4. Each unit | a fork of the plan trunk plans that unit's layers, its issue is Fixed, then it builds | Approves the unit, then tries what it delivers |
 
 ## 1. Purpose and use
 
@@ -45,19 +45,20 @@ chose. Technical structure is not shown or asked here.
 ## 3. Roadmap
 
 On a plan session (a new one, pointed at the design directory and the log),
-ask OpenCode for the technical plan and the Phases: each Phase one PR or stack
-layer, with what people can do when it lands and how the user will try it, the
-first one letting the user try the main flow end to end. Show the Phases whole
-and get the user's approval of the roadmap; hosting, paid services and the
-first deployment are separate approvals.
+ask OpenCode for the technical plan and the units: each unit one PR or one
+stack that lands once, with what people can do when it lands and how the user
+will try it, the first one letting the user try the main flow end to end. Show
+the units whole and get the user's approval of the roadmap, then file it on
+GitHub as the entry's "Tracking" says; hosting, paid services and the first
+deployment are separate approvals.
 
-## 4. Each Phase
+## 4. Each unit
 
-Follow the Phases section of the entry: a fork of the trunk per Phase, its
-steps shown and approved before its build, progress reported per step, and
-its PR delivered with how to try it, together with the next Phase's plan for
-approval.
+Follow the "Units and Phases" section of the entry: a fork of the trunk per
+unit, its layers shown and approved before its build (its issue Fixed), progress
+reported per step, and its PR or stack delivered with how to try it, together
+with the next unit's plan for approval.
 
-Acceptance: each Phase's PR delivers what its plan said people can do, shown
+Acceptance: each unit's PR delivers what its plan said people can do, shown
 the way the user will try it, and its screens match the approved mock or the
 difference is explained by a later decision.

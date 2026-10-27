@@ -1,6 +1,6 @@
 ---
 name: plan-engineering
-description: "Plan engineering: brief OpenCode on the user's intent and bring its proposals back, in Phases the user approves one at a time. New products agree capabilities, screens and data (HTML mocks) before a roadmap. Grounded in OpenCode plan, design, debug and review runs; no technical decomposition of your own; tracking on GitHub only when the user chooses it."
+description: "Plan engineering: brief OpenCode on the user's intent and bring its proposals back, as execution units the user approves one at a time. New products agree capabilities, screens and data (HTML mocks) before a roadmap. Grounded in OpenCode plan, design, debug and review runs; no technical decomposition of your own; each unit is an issue on GitHub before its build unless the user excludes the job."
 version: 2.0.0
 author: CraftSamo
 license: MIT
@@ -84,8 +84,8 @@ question; you never read or edit target code yourself.
 | Bug, failing test, incident | `debug`; a fix is a separate approval |
 | Review of someone's change | `review` on a fresh session |
 | New product, or a feature that adds screens or stored data | [new-product.md](references/new-product.md): purpose, then capabilities, screens and data as HTML mocks (`design`), then the Phases |
-| Other feature, change, refactor, migration, performance | `plan`, then `build` on the same session (a fork of it per Phase when there are several) |
-| Typo, one config value | a short `plan` turn, `workspace`, then `build`; the user's one-line go is the approval |
+| Other feature, change, refactor, migration, performance | `plan`, then `build` on the same session (a fork of it per unit when the roadmap has several) |
+| Typo, one config value | a short `plan` turn, its one issue (Fixed from that turn), `workspace`, then `build`; the user's one-line go is the approval |
 | New repository | [bootstrap.md](references/bootstrap.md), then plan on the clone |
 | Script or small automation | a repository job like any other; you register the cron job or other Hermes-side wiring afterwards |
 | Operational work around a repository (hosting, DNS, a domain, a contract, a hand-over item) | no run unless the repository's code or config changes: the steps happen in the services and with the people involved; part of that repository's job, and a draft on its board when the job is tracked ([GitHub boundaries](../execute/references/github-ops.md)) |
@@ -113,6 +113,8 @@ leave install, gateway restarts and the cutover to the person.
    approval). Run `opencode_run_plan` with a brief of what the user wants and
    why, the stage's goal and the log, and keep **what the user decided** apart from **what anyone
    proposed** (yours included) so OpenCode never treats a guess as a decision.
+   A unit's plan turn passes its `issue` (`owner/repo#N`): the run reads it as
+   the spec, and the session keeps it for the build.
    Name the kind of work (bug, refactor, performance, rebuild), not the method:
    OpenCode's own approach skills carry it. A diagnosis uses
    `opencode_run_debug`; a review of someone's change uses `opencode_run_review`.
@@ -122,42 +124,54 @@ leave install, gateway restarts and the cutover to the person.
    using OpenCode's own "decide" list in plain words, each with its
    recommendation. Do not invent questions about methods or conventions, and
    do not settle technical choices yourself: send them back as OpenCode's call.
-5. **Approval.** For work of several Phases, the user approves the roadmap
-   (below), then each Phase's steps before that Phase's build; for a single
-   PR, one approval. Planning consent alone does not authorize implementation.
-   Record the user's approving words in the log: Build quotes them as
-   `approval`. A roadmap of several Phases, or work others will pick up,
-   carries the tracking proposal in the same question (below): read
-   `skill_view(name="github-access:manage-tracking")` first, so the proposal
-   names its real shape.
-6. **Release** the approved Phase through PR delivery under
+5. **Approval.** For a roadmap of several units, the user approves the
+   roadmap (below), then each unit's plan before that unit's build; for a
+   single unit, one approval. Planning consent alone does not authorize
+   implementation. Record the user's approving words in the log: Build quotes
+   them as `approval`. The roadmap question also names where the job will be
+   recorded on GitHub (the board, the parent issue and its units, or the one
+   issue), as "Tracking" below says: read
+   `skill_view(name="github-access:manage-tracking")` first, so it names its
+   real shape. Once the roadmap is approved, file it on GitHub before the
+   first unit's plan is Fixed, as
+   [GitHub boundaries](../execute/references/github-ops.md) "Starting" says.
+6. **Release** the approved unit through PR delivery under
    [Execute](../execute/SKILL.md). Keep the approved plan
-   session as the trunk and fork it for each Phase.
+   session as the trunk and fork it for each unit.
 
 Planning, diagnosis or review may finish with an answer and no code or PR.
 A confirmed bug is not implementation approval.
 
-## Phases
+## Units and Phases
 
-Phase N is one reviewable layer: one PR, or one layer of a native stack when
-there are several, in stack order. Phase N.m are its steps, each ending in a
-verified checkpoint commit. OpenCode writes both in its own task-list form
-(work that ends in no PR keeps its own plain steps).
+Work is planned in **execution units**. A unit is one goal that delivers on
+its own, told by what people can do once it lands; it is implemented by one
+PR or one native stack of PRs that lands in one merge, and on GitHub it is
+one issue (`github-access:read-tracking` "Parent and execution unit"). A job
+is one unit, or a roadmap of several.
 
-- **Roadmap.** Ask OpenCode for the Phases in order, each with what people can
+Inside a unit, Phase N is one reviewable layer: one PR, or one layer of the
+stack when there are several, in stack order. Phase N.m are its steps, each
+ending in a verified checkpoint commit. OpenCode writes both in its own
+task-list form (work that ends in no PR keeps its own plain steps). The
+layers are the unit's plan; a layer is never an issue of its own.
+
+- **Roadmap.** Ask OpenCode for the units in order, each with what people can
   do once it lands, what it changes in screens and stored data, and how the
-  user will try it. Put the first Phase where the user can try the main flow
+  user will try it. Put the first unit where the user can try the main flow
   end to end, however plain. Show the roadmap whole; its approval covers the
-  order and content of the Phases, not their builds.
-- **Before each Phase.** On a fork of the trunk, ask OpenCode for that Phase's
-  steps against what is now built. Show the user what they will be able to do
+  order and content of the units, not their builds.
+- **Before each unit.** On a fork of the trunk, ask OpenCode for that unit's
+  plan against what is now built: its layers, the open decisions resolved
+  with a recommendation each. Show the user what they will be able to do
   afterwards, what changes in screens and data, any decision only they can
-  make, and how to try it, with the step list folded. Nothing to decide is one
-  question: go ahead with this Phase. Its approval releases that Phase only.
-- **A change of plan** (a Phase that turns out wrong, a new wish) goes back to
-  the roadmap with the user; the next Phase's plan picks it up.
+  make, and how to try it, with the layer list folded. Nothing to decide is
+  one question: go ahead with this unit. Its approval releases that unit only,
+  all of its layers.
+- **A change of plan** (a unit that turns out wrong, a new wish) goes back to
+  the roadmap with the user; the next unit's plan picks it up.
 
-The roadmap and each Phase's plan are written in OpenCode's reply, which the
+The roadmap and each unit's plan are written in OpenCode's reply, which the
 job directory keeps; the words, headings and layout you show
 the user are yours (voice and format come from the persona). A light job
 (typo, one value) is three lines: outcome, what it touches, one check. The
@@ -166,21 +180,24 @@ to. Models are OpenCode's own defaults; name one only when you depart from it
 (an alternate after a limit error).
 
 During a build, report as `opencode:drive`'s "Progress" says: each
-finished Phase step in one line, at once when one is blocked or the run needs
-the user, and the Phase's PR with how to try it.
+finished step in one line, at once when one is blocked or the run needs
+the user, and the unit's PR or stack with how to try it.
 
-Tracking a job on GitHub is the user's choice: propose it once, and only with
-the roadmap of a job of several Phases or when others will pick the work up,
-and record the answer in the log. Duration, complexity or multiple PRs never
-decide it alone. The proposal is one sentence of what it would be: the board,
-a parent issue with one sub-issue per Phase (and drafts for the work outside
-the code), and a routine mandate so ticking steps needs no card. A yes starts
-it before Phase 1's build, as
-[GitHub boundaries](../execute/references/github-ops.md)
-"Starting" says; you write it and OpenCode reads it.
-A supplied Issue URL is a specification, not permission to edit it. Existing
-session ids can be handed over as context, but old grants need
-reconciliation, not adoption.
+## Tracking
+
+A repository job is recorded on GitHub as it is planned: the roadmap's
+approval files it (a parent issue with one sub-issue per unit, drafts for the
+work outside the code, on the board `github_board` `resolve` names for the
+repository, or the one issue of a single-unit job), and each unit's issue is
+Fixed before its build. The user excludes a job from GitHub in their own
+words ("track this nowhere", "no issue for this"); record that in the log,
+and then no Issue or board changes for that job. Duration, size or a fix the
+user calls small never excludes it on their own: a small fix is one issue
+with one layer. The shape and the order of writing are
+[GitHub boundaries](../execute/references/github-ops.md) "Tracking a job on
+GitHub"; you write it and OpenCode reads it. A supplied Issue URL is a
+specification, not permission to edit it. Existing session ids can be handed
+over as context, but old grants need reconciliation, not adoption.
 
 ## Client guides
 

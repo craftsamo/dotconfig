@@ -230,6 +230,43 @@ describe("gh_issue_develop", () => {
   })
 })
 
+describe("the session's permission gate", () => {
+  const gated = (gate: "record" | "deny" | "hermes") => (name: string, args: Record<string, unknown>, rules: GhRule[]) => {
+    const f = fixture()
+    fixtures.push(f)
+    return runWithFakeGh(f, { module: "gh_issue", name, args, gate }, rules)
+  }
+  const rules = [...repoContext(REPO), { re: "^issue edit 5 --repo me/web --body tick", out: "" }]
+
+  test("a write asserts with the tool id, the issue and what it changes before gh runs", () => {
+    const res = gated("record")("update", { issue: "5", repo: REPO, body: "tick" }, rules)
+    expect(res.ok).toBe(true)
+    expect(res.asserted).toEqual([{ action: "gh_issue_update", resources: [`${REPO}#5`], metadata: { op: "issue_edit", repo: REPO, number: 5, body: "tick" }, message: undefined }])
+    expect(res.calls.some((c) => c.startsWith("issue edit"))).toBe(true)
+  })
+
+  test("a refused assertion stops the write before gh runs", () => {
+    const res = gated("deny")("update", { issue: "5", repo: REPO, body: "tick" }, rules)
+    expect(res.ok).toBe(false)
+    expect(res.error).toMatch(/permission denied/)
+    expect(res.calls.some((c) => c.startsWith("issue edit"))).toBe(false)
+  })
+
+  test("a session driven by Hermes gets no write on a runtime without the gate", () => {
+    const res = gated("hermes")("update", { issue: "5", repo: REPO, body: "tick" }, rules)
+    expect(res.ok).toBe(false)
+    expect(res.error).toMatch(/driven by Hermes/)
+    expect(res.calls.some((c) => c.startsWith("issue edit"))).toBe(false)
+    const develop = gated("record")("develop", { issue: "8", repo: REPO, branch: "task/issue-8", base: "main" }, [
+      ...repoContext(REPO),
+      ...issueDetail({ repo: REPO, number: 8 }),
+      { re: "^api repos/me/web/branches/main", out: "{}" },
+      { re: "^issue develop 8 --repo me/web --name task/issue-8 --base main", out: "github.com/me/web/tree/task/issue-8\n" },
+    ])
+    expect(develop.asserted).toEqual([{ action: "gh_issue_develop", resources: [`${REPO}#8`, REPO], metadata: { op: "issue_develop", repo: REPO, number: 8, branch: "task/issue-8", base: "main", branch_repo: REPO }, message: undefined }])
+  })
+})
+
 describe("project resolution through gh_issue_create", () => {
   test("falls through linked → org → user and reports the routes considered", () => {
     const res = call("create", { title: "x", repo: ORG_REPO, addToProject: true }, [

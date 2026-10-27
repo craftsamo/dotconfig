@@ -65,9 +65,9 @@ const RUN_TOOL = join(import.meta.dir, "run-tool.ts")
  */
 export function runWithFakeGh(
   f: Fixture,
-  tool: { module: string; name: string; args?: Record<string, unknown> },
+  tool: { module: string; name: string; args?: Record<string, unknown>; gate?: "record" | "deny" | "hermes" },
   rules: GhRule[],
-): { ok: boolean; out?: any; error?: string; calls: string[] } {
+): { ok: boolean; out?: any; error?: string; asserted: any[]; calls: string[] } {
   const bin = join(f.root, "bin")
   mkdirSync(bin, { recursive: true })
   const log = join(f.root, "gh-calls.log")

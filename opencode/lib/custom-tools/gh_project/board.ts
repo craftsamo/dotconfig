@@ -1,5 +1,6 @@
 import { tool } from "../define"
 import { exec, runGh, runGhJson } from "../exec"
+import { assertWrite } from "../github/gate"
 import {
   DEFAULT_TITLE,
   ensureField,
@@ -104,6 +105,7 @@ export const link = tool({
     const linked = (data?.repository?.projectsV2?.nodes ?? []).some((p: any) => p.id === project.id)
     const want = !args.unlink
     if (linked === want) return JSON.stringify({ ok: true, unchanged: true, linked: want, project: `${project.owner.login}/${project.number}`, repo: repo.nameWithOwner })
+    await assertWrite(context, "gh_project_link", [`${project.owner.login}/${project.number}`, repo.nameWithOwner], { op: "board_link", project: `${project.owner.login}/${project.number}`, repo: repo.nameWithOwner, unlink: !want })
     await runGh(["project", want ? "link" : "unlink", String(project.number), "--owner", project.owner.login, "--repo", repo.nameWithOwner], cwd)
     return JSON.stringify({ ok: true, unchanged: false, linked: want, project: `${project.owner.login}/${project.number}`, repo: repo.nameWithOwner })
   },
@@ -161,6 +163,7 @@ export const create = tool({
     const login = args.owner.trim() === "@me" ? await viewerLogin(cwd) : args.owner.trim()
     const existing = await projectsByTitle(login, title, cwd)
     if (existing.length > 1) throw new Error(`${existing.length} open projects titled "${title}" for ${login}; rename or close the extra ones first.`)
+    await assertWrite(context, "gh_project_create", [login], { op: "board_create", owner: login, title, template: args.template ?? null, link_repo: args.linkRepo ?? null, reuse: Boolean(existing[0]) })
     let project: Project | null = existing[0] ?? null
     let createdNew = false
     let copiedFrom: string | null = null
@@ -228,6 +231,7 @@ export const field_ensure = tool({
       const m = o.match(/^(.*?):([A-Z]+)$/)
       return m ? { name: m[1], color: m[2] } : { name: o }
     })
+    await assertWrite(context, "gh_project_field_ensure", [`${project.owner.login}/${project.number}`], { op: "field_ensure", project: `${project.owner.login}/${project.number}`, name: args.name, data_type: args.dataType, options: args.options ?? [] })
     const r = await ensureField(project, await getFields(project.id, cwd), { name: args.name, dataType: args.dataType, options }, cwd)
     return JSON.stringify({ ok: true, project: `${project.owner.login}/${project.number}`, route, field: args.name, created: r.created, addedOptions: r.addedOptions })
   },
@@ -249,6 +253,7 @@ export const view_ensure = tool({
     const cwd = context.worktree
     const { project, route } = await resolveBoard(args, cwd)
     assertUpdatable(project)
+    await assertWrite(context, "gh_project_view_ensure", [`${project.owner.login}/${project.number}`], { op: "view_ensure", project: `${project.owner.login}/${project.number}`, name: args.name, layout: args.layout, filter: args.filter ?? null })
     const r = await ensureView(project, { name: args.name, layout: args.layout, filter: args.filter, visibleFields: args.visibleFields }, cwd)
     return JSON.stringify({ ok: true, project: `${project.owner.login}/${project.number}`, route, ...r })
   },
