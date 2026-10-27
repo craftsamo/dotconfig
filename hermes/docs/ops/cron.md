@@ -91,11 +91,18 @@ the job is restamped `repo`, nothing else changes. Until the real directory is
 deleted, `install.sh` warns that it will not overwrite it — that warning is the
 signal.
 
-A profile adds or removes its own jobs through `cron-sync add` / `remove`
-(the `add` spec is JSON on stdin), never by writing `jobs.json`; a one-shot
-that has fired is cleared, with its directory, by `cron-sync prune-completed`.
-How the Assistant does this in a chat: the `cron.md` reference of its Chat
-pipeline.
+A profile adds or removes its own jobs through `cronjob_manage`, the tool it
+has always used: the `guards/cron-manifests` plugin replaces the built-in one
+under the same name and schema ([plugins.md "Guards"](plugins.md#guards)), so
+`create` writes the directory and derives the job, `update` rewrites it,
+`remove` deletes it with the job, and a repository's job is refused with a
+message that names the repository. A script the agent names (a path under the
+profile's `scripts/`, as the runtime takes it) is run from a generated
+`run.sh`. The same is possible by hand with `cron-sync add` / `remove` (the
+`add` spec is JSON on stdin); nothing ever writes `jobs.json` directly. A
+one-shot that has fired is cleared, with its directory, by
+`cron-sync prune-completed`. What the Assistant tells the user about each
+kind: the `cron.md` reference of its Chat pipeline.
 
 ## Cutover from hand-registered jobs
 

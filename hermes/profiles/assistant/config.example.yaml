@@ -1052,7 +1052,10 @@ plugins:
   - stripe-access
   - cloudflare-access
   - cascade
+  - cron-manifests
   entries:
+    guards/cron-manifests:
+      allow_tool_override: true
     web/cascade:
       settings:
         search:
