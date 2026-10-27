@@ -1,11 +1,9 @@
-[user]
-	email = 191232103+craftsamo@users.noreply.github.com
-	name = CraftSamo
+# Settings anyone can use. Who commits (user.name, user.email) and other
+# personal settings belong in ~/.gitconfig (see gitconfig.example), which git
+# reads after this file and where `git config --global` writes.
 
 [diff]
   tool = vimdiff
 
 [difftool]
   prompt = false
-[url "git@github.com:"]
-	insteadOf = https://github.com/
