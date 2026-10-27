@@ -85,6 +85,25 @@ def repository_name(source, repo):
     return name or Path(repo).parent.name
 
 
+def commit_identity():
+    """The gateway's own commit name and email, or None when it has none.
+
+    The shared OpenCode service runs with its starter's environment, never the
+    gateway's, so a run's commits would otherwise carry the person's identity."""
+    for role in ("AUTHOR", "COMMITTER"):
+        name, email = os.environ.get(f"GIT_{role}_NAME"), os.environ.get(f"GIT_{role}_EMAIL")
+        if name and email:
+            return name, email
+    return None
+
+
+def set_identity(source, target, identity):
+    """Pin the identity in the new worktree's own config, leaving every other checkout as it was."""
+    _run(source, "config", "--local", "extensions.worktreeConfig", "true")
+    _run(target, "config", "--worktree", "user.name", identity[0])
+    _run(target, "config", "--worktree", "user.email", identity[1])
+
+
 def target_path(root, name, branch):
     """<root>/<repository name>/<branch with / as ->."""
     return Path(root) / name / branch.replace("/", "-")
@@ -134,6 +153,9 @@ def create(*, sid, info, meta, args, settings, policy, turn, issue_ref):
     try:
         _run(source, "worktree", "add", "--no-track", "-b", branch, str(target), start)
         created = True
+        identity = commit_identity()
+        if identity:
+            set_identity(source, target, identity)
         # The service must be given the real path: moved to a symlinked spelling
         # (/var for /private/var) it files the worktree outside its project, and
         # snapshots and diffs stop working (measured on 2.0.23).
@@ -162,6 +184,8 @@ def create(*, sid, info, meta, args, settings, policy, turn, issue_ref):
         raise
     result = {"session_id": sid, "directory": str(target), "branch": branch, "base": start, "moved_from": source,
               **({"issue": meta["issue"]} if meta.get("issue") else {})}
+    if identity:
+        result["commit_identity"] = f"{identity[0]} <{identity[1]}>"
     if fetched is False:
         result["warning"] = f"fetching origin failed: {start} is as of the last fetch"
     return result

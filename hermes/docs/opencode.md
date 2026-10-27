@@ -173,6 +173,17 @@ the same layout and base, so change the two together; a run's ruleset denies
 fork prunes nothing and shares the parent's worktree; give it its own with
 `workspace` as well.
 
+**Commit identity.** The shared service keeps its starter's environment, never
+the gateway's, so a run would commit as the person's global identity. When the
+gateway's environment holds a complete identity pair (`GIT_AUTHOR_NAME` and
+`GIT_AUTHOR_EMAIL`, else both `GIT_COMMITTER_*`), `workspace` writes it as the
+new worktree's own `user.name` / `user.email` (`git config --worktree`) and
+reports it as `commit_identity`; every commit, amend and rebase in that worktree
+then carries it, while the person's other checkouts keep theirs. This turns on
+the repository's `extensions.worktreeConfig`, which stays on after the worktree
+is removed or rolled back; it only lets each worktree read a config file of its
+own. Without a complete pair nothing is written.
+
 **One repository per session.** `session_move` is a tool the agent reaches
 through `execute`; it asks no permission and takes any session id, so an agent
 can move itself (or another session) anywhere. The binding therefore records the
