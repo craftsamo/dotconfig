@@ -198,6 +198,37 @@ def test_create_paused_holds_the_job(home: Path):
     assert not job["enabled"] and spec_of(home, "held")["paused"] is True
 
 
+def test_pause_and_resume_keep_the_manifest_in_step_so_a_sync_does_not_undo_them(home: Path):
+    out = call({"action": "create", "schedule": "1h", "name": "held", "prompt": "p", "paused": True}, home)
+    assert call({"action": "resume", "job_id": out["job_id"]}, home)["success"]
+    assert "paused" not in spec_of(home, "held") and jobs(home)[0]["enabled"]
+    S.sync_home(home, check=False, prune=False)
+    assert jobs(home)[0]["enabled"]
+    assert call({"action": "pause", "job_id": out["job_id"], "reason": "later"}, home)["success"]
+    assert spec_of(home, "held")["paused"] is True and not jobs(home)[0]["enabled"]
+    S.sync_home(home, check=False, prune=False)
+    assert not jobs(home)[0]["enabled"]
+
+
+def test_a_relative_one_shot_is_stored_as_its_instant(home: Path):
+    out = call({"action": "create", "schedule": "in 30m", "name": "soon", "prompt": "p"}, home)
+    assert out["success"], out
+    stored = spec_of(home, "soon")["schedule"]
+    assert "T" in stored and not stored.startswith("in ")
+    [job] = jobs(home)
+    assert job["schedule"]["kind"] == "once" and job["repeat"]["times"] == 1
+    plan, done = S.sync_home(home, check=False, prune=False)
+    assert done == []  # the instant is fixed: nothing to re-derive
+
+
+def test_another_manifest_s_trouble_is_a_warning_not_a_failed_create(home: Path):
+    (home / S.MANIFEST_DIR / "broken").mkdir()
+    (home / S.MANIFEST_DIR / "broken" / S.MANIFEST_FILE).write_text("mode: [", encoding="utf-8")
+    out = call({"action": "create", "schedule": "1h", "name": "fine", "prompt": "p"}, home)
+    assert out["success"] and out["warnings"] and out["warnings"][0].startswith("broken:")
+    assert [j["name"] for j in jobs(home)] == ["fine"]
+
+
 # ---------------------------------------------------------------------------
 # update / remove / pause on local, repository and unmanaged jobs
 # ---------------------------------------------------------------------------

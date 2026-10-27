@@ -42,7 +42,8 @@ ADDENDUM = (
     "\n\nA job you create is kept as cron.d/<name>/ in this profile (job.yaml, and run.sh when it "
     "runs a script); `name` becomes that directory, so give one. A job tracked in a repository "
     "cannot be updated, paused or removed here — say so to the user; one made before manifests "
-    "existed can be removed but not updated. Model pins are never set from a chat.")
+    "existed can be removed but not updated. A relative one-shot (`in 30m`) is stored as the "
+    "instant it means. Model pins are never set from a chat.")
 
 
 def schema():
