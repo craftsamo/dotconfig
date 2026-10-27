@@ -142,18 +142,22 @@ def test_sync_creates_marked_jobs_and_executable_wrappers_at_the_real_script(hom
     wrapper = home / "scripts" / "cron" / "snap.sh"
     assert wrapper.stat().st_mode & stat.S_IXUSR
     text = wrapper.read_text()
-    assert f'exec "{(run / S.RUN_SCRIPT).resolve()}" "$@"' in text and "do not edit" in text
+    # Reached through the manifest's path under the home, never a checkout path baked in.
+    assert 'exec "$HERMES_HOME/cron.d/snap/run.sh" "$@"' in text and "do not edit" in text
+    assert str(run) not in text
     # The wrapper names the owning profile for the script it execs.
     assert 'HERMES_HOME="$(cd "$(dirname "$0")/../.." && pwd)"' in text and "export HERMES_HOME" in text
 
 
-def test_the_wrapper_hands_the_script_its_profile_home(home: Path):
+def test_the_wrapper_hands_the_script_its_profile_home(home: Path, tmp_path: Path):
     write_job(home, "who", {"schedule": "1h", "mode": "no_agent"},
-              run='#!/bin/sh\nprintf "%s" "$HERMES_HOME"\n')
+              run='#!/bin/sh\nprintf "%s\\n%s" "$HERMES_HOME" "$(cd "$(dirname "$0")" && pwd -P)"\n',
+              link_from=tmp_path / "repo")
     sync(home)
     out = subprocess.run([str(home / "scripts" / "cron" / "who.sh")], capture_output=True, text=True,
-                         env={"PATH": "/usr/bin:/bin"}, check=True).stdout
-    assert Path(out).resolve() == home.resolve()
+                         env={"PATH": "/usr/bin:/bin"}, check=True).stdout.splitlines()
+    assert Path(out[0]).resolve() == home.resolve()
+    assert Path(out[1]) == (tmp_path / "repo" / "who").resolve()  # pwd -P still finds the checkout
 
 
 def test_a_second_sync_changes_nothing_and_check_reports_in_sync(home: Path, capsys):
@@ -250,6 +254,26 @@ def test_paused_in_the_manifest_is_honoured_both_ways(home: Path):
     assert done == ["resumed snap"] and job(home, "snap")["enabled"]
 
 
+def test_dropping_paused_from_the_manifest_lifts_the_pause_the_sync_made(home: Path):
+    write_job(home, "snap", {"schedule": "1h", "mode": "no_agent", "paused": True})
+    sync(home)
+    (home / S.MANIFEST_DIR / "snap" / S.MANIFEST_FILE).write_text(
+        S.yaml.safe_dump({"schedule": "1h", "mode": "no_agent"}), encoding="utf-8")
+    plan, done = sync(home)
+    assert done == ["resumed snap"] and job(home, "snap")["enabled"]
+
+
+def test_two_jobs_with_one_marker_are_a_conflict_left_to_a_person(home: Path):
+    write_job(home, "snap", {"schedule": "1h", "mode": "no_agent"})
+    sync(home)
+    with jobs_api.use_cron_store(home):
+        twin = jobs_api.create_job(None, "1h", name="snap", script="x.sh", no_agent=True)
+        jobs_api.update_job(twin["id"], {S.MARKER: {"manifest": "snap", "source": "local", "synced_at": "x"}})
+    plan, done = sync(home)
+    assert plan.conflicts and "2 jobs carry its marker" in plan.conflicts[0]
+    assert done == [] and plan.orphan_pause == [] and len(jobs_of(home)) == 2
+
+
 def test_a_hand_pause_is_kept_unless_the_manifest_says_otherwise(home: Path):
     write_job(home, "snap", {"schedule": "1h", "mode": "no_agent"})
     sync(home)
@@ -341,7 +365,7 @@ def test_a_linked_manifest_is_repo_and_a_moved_one_is_restamped(home: Path, tmp_
     sync(home)
     assert job(home, "snap")[S.MARKER]["source"] == "repo"
     wrapper = (home / "scripts" / "cron" / "snap.sh").read_text()
-    assert str((repo / "snap" / S.RUN_SCRIPT).resolve()) in wrapper
+    assert str(repo) not in wrapper  # the checkout is reached through the link, never named
     # Promotion in reverse: the link becomes a real directory (a local copy).
     link = home / S.MANIFEST_DIR / "snap"
     link.unlink()
