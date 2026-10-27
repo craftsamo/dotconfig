@@ -429,6 +429,20 @@ Contract: [docs/opencode.md](docs/opencode.md). When editing
   answers from the process environment only where the turn runs in the CLI
   process; reading `RESIDENT_*` from `os.environ` directly inside a gateway reads
   the gateway's own, possibly stale, values.
+- **A run's GitHub write runs on the tool's own permission assertion, never
+  on the caller's `once`.** The `gh_issue_*` / `gh_project_*` tools assert
+  before they write (`opencode/lib/custom-tools/github/gate.ts`; a Hermes-bound
+  session on a runtime without the gate gets no write), the ruleset denies
+  them by name, and only `policy.RUN_GH_WRITES` ask, only under a bound
+  `mandate`; `ghwrite.py` answers those by rebuilding the `github_change`
+  and re-checking the mandate at the write (`mandate.still_fits`), and
+  `opencode_request` refuses `once` on any Issue or board write, a shell
+  `gh issue …` included. Widening `RUN_GH_WRITES` (a linked branch closes the
+  issue on its first merge; a title, Done or a comment are the Assistant's),
+  answering from the request alone, or letting the caller approve one
+  reopens card-less GitHub writes
+  ([decision](docs/decisions/github-mandates.md)). `ghwrite` reaches
+  github-access by `parents[2]`: moving either plugin breaks it.
 - **The caller's own model is refused unless the role allows it
   (`caller_model: allow`).** The `post_api_request` hook records the model the
   caller last answered with, and `models.model_key` folds speed tiers and

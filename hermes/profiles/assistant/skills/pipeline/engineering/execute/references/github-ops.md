@@ -5,7 +5,7 @@
 | Code, commits, task-branch push, PR creation | An OpenCode build run you drive, within explicit implementation approval |
 | A PR for a branch already pushed that the user names | You, through `github_change` `pr_create` (`skill_view(name="github-access:manage-pr")`), when the user asks; never for a branch a build run made, whose PR comes from that run |
 | A PR's text, labels, reviewers, attachments (screenshots), ready / draft, closing | You, through `github_change` (`skill_view(name="github-access:manage-pr")`), when the user asks; each attached file with their yes |
-| Issues and boards | You, through `github_change` (github-access), as the record of every repository job (below) unless the user excluded it; never an OpenCode run |
+| Issues and boards | You, through `github_change` (github-access), as the record of every repository job (below) unless the user excluded it; a build writes only its own issue's state, under the job's mandate (below) |
 | Repo creation and settings, labels, milestones, branch protection, clone, workspace registry | Assistant, when separately requested/approved; GitHub changes through `github_change` (`skill_view(name="github-access:manage-repo")`) |
 | CI: why a run failed, re-running it | You read it (`github_repo` `run`); a real failure goes back to the build session. A re-run (`run_rerun`) when the user asks, or proposed by you only for a failure that looks transient; its card is their go |
 | Merge | Assistant, only when the user asks, after readiness checks: `pr_merge`, whose card is their go; method and message as `skill_view(name="github", file_path="references/merge.md")` says |
@@ -91,7 +91,7 @@ approved and before the first unit's build:
 | A roadmap | a parent issue (the outcome, the acceptance) with one sub-issue per unit (what people can do once it lands, how to try it), each blocked by the one before, every one Todo; a milestone when the user names a date or release |
 | A unit's approval | its issue's body becomes Fixed: the decisions folded in, its layers as a `- [ ]` checklist, open decisions gone; Status In Progress. The parent, if still Todo, In Progress with it |
 | A finished step (a progress notification) | nothing on GitHub: steps live in `progress.md` |
-| A layer's PR is up | its checklist line ticked with the PR's `#n` (with a mandate at once, else with the unit's delivery) |
+| A layer's PR is up | its checklist line ticked with the PR's `#n`: by the build itself when it runs under the job's `mandate` (below), else by you (with a mandate at once, else with the unit's delivery) |
 | An accepted, merged unit | its issue closed (by the last PR's closing reference, else `issue_close` `completed`); Status Done |
 | All units accepted | the parent's acceptance checked against the evidence, then closed; Status Done; the mandate revoked |
 
@@ -105,11 +105,20 @@ approved and before the first unit's build:
 | A new session resumes the job | the parent issue from the decision log, read fresh with `github_issue` `view` before any report |
 | The user supplies an existing issue to track | one goal that lands once is the unit itself (Fixed from the plan); a goal of several units is the parent. On `shared` or `other` its body stays as it is, and the plan goes into sub-issues and comments |
 
-**OpenCode reads; you write.** The run's `issue` argument (`owner/repo#N`)
-names the issue it works on: the run reads it with its own tools, and the
-build is told which issue its completing PR closes. Never pass
-`issue_approval`: a build does not write Issues or boards. What a run reports
-is mirrored to GitHub by you, after you have read it.
+**OpenCode reads; you write the plan, the build its own state.** The run's
+`issue` argument (`owner/repo#N`) names the issue it works on: the run reads
+it with its own tools, and the build is told which issue its completing PR
+closes. A build that runs with the job's `mandate` (its id, from step 5)
+writes its own issue's execution state itself, each write checked against the
+mandate as it happens: it ticks the issue's layers as their PRs open and sets
+the issue's Status to In Progress (`skill_view(name="opencode:drive")`
+"mandate"). Everything else on GitHub stays yours: the parent and the other
+issues, Done and every other Status, comments, closing, drafts, the board
+itself. The task branch reaches the issue through the PR's `Closes`/`Refs`,
+never a linked branch. Never pass `issue_approval`.
+What a run reports beyond its own state is mirrored to GitHub by you, after
+you have read it; a write of the run's that the mandate rejected comes back
+in its report and is yours to make or not.
 
 ## Repository lifecycle
 

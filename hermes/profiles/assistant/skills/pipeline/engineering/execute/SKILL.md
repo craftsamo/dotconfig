@@ -73,7 +73,9 @@ not something to send to OpenCode.
    session carries the unit's `issue` from its plan turn (the run reads it as
    the spec and its completing PR closes it); an excluded job passes
    `untracked_reason` quoting the user's words instead, and a build with
-   neither is refused. The message is a short brief in plain prose: the unit
+   neither is refused. Pass the job's `mandate` (its id from the decision
+   log) so the build ticks its own issue's layers and moves its Status as it
+   goes. The message is a short brief in plain prose: the unit
    to build, what changed since the plan and why (the user's words inside
    your sentences where their wording matters), and the path of the decision
    log; the session already holds the plan, and its tools enforce the rules.
@@ -119,13 +121,13 @@ not something to send to OpenCode.
 A question about the job's record on GitHub, also one the user raises
 mid-job, is answered from [github-ops.md](references/github-ops.md)
 "Tracking a job on GitHub", read before you answer.
-You mirror the run to the job's issues with `github_change` as
+You write the job's plan to GitHub with `github_change` as
 [github-ops.md](references/github-ops.md) says: the unit's issue Fixed and In
-Progress at approval, each layer ticked when its PR is up, its Status moved
-when it lands. OpenCode only reads the issue bound to its session; never pass
-`issue_approval`, since a build does not write Issues. For a job the user
-excluded from GitHub, a supplied Issue URL remains a read-only spec and no
-Issue or board changes.
+Progress at approval, its Status Done when it lands, the parent and the rest.
+A build under the job's `mandate` ticks its own issue's layers and moves its
+Status itself, inside the mandate; without one you tick them. Never pass
+`issue_approval`. For a job the user excluded from GitHub, a supplied Issue
+URL remains a read-only spec and no Issue or board changes.
 
 Unknown completion is not proof that work failed: read the run as
 `opencode:drive`'s "Results" says before another turn, and never switch to

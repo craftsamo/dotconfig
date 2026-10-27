@@ -144,13 +144,20 @@ class EngineeringClientTests(unittest.TestCase):
         self.assertIn("the branch is `task/issue-N` from the session's `issue`", text)
         self.assertIn("The session carries the unit's `issue` from its plan turn", text)
         self.assertIn("an excluded job passes `untracked_reason` quoting the user's words instead", text)
+        self.assertIn("Pass the job's `mandate` (its id from the decision log) so the build ticks its own issue's "
+                      "layers and moves its Status as it goes", text)
+        self.assertIn("A build under the job's `mandate` ticks its own issue's layers and moves its Status itself, "
+                      "inside the mandate; without one you tick them", text)
+        ops = read("engineering/execute/references/github-ops.md")
+        self.assertIn("**OpenCode reads; you write the plan, the build its own state.**", ops)
+        self.assertIn("Everything else on GitHub stays yours: the parent and the other issues", ops)
         plan = read("engineering/plan/SKILL.md")
         self.assertIn("A unit's plan turn passes its `issue` (`owner/repo#N`)", plan)
         self.assertIn("only the completing one says `Closes #N`", text)
         self.assertIn("progress.md", text)
         self.assertIn("Never edit, commit or push target code yourself", text)
         self.assertIn("quoting the user's approving words", text)
-        self.assertIn("never pass `issue_approval`", text)
+        self.assertIn("Never pass `issue_approval`", text)
         self.assertIn("a supplied Issue URL remains a read-only spec and no Issue or board changes", text)
         self.assertIn("For a job the user excluded from GitHub", text)
         self.assertIn("a refused name is reported back", text)
@@ -160,9 +167,12 @@ class EngineeringClientTests(unittest.TestCase):
     def test_a_jobs_record_is_written_by_the_assistant_and_read_by_opencode(self):
         text = read("engineering/execute/references/github-ops.md")
         self.assertIn("You, through `github_change` (github-access), as the record of every repository job (below) "
-                      "unless the user excluded it; never an OpenCode run", text)
+                      "unless the user excluded it; a build writes only its own issue's state, under the job's "
+                      "mandate (below)", text)
+        self.assertIn("The task branch reaches the issue through the PR's `Closes`/`Refs`, never a linked branch",
+                      text)
         self.assertIn('skill_view(name="github-access:manage-tracking")', text)
-        self.assertIn("Never pass `issue_approval`: a build does not write Issues or boards", text)
+        self.assertIn("Never pass `issue_approval`.", text)
         self.assertIn("**The default.** A repository job is recorded on GitHub: its units are issues, Fixed before "
                       "they are built", text)
         self.assertIn("Nothing else excludes it: not the job's size, nor a fix the user calls small", text)

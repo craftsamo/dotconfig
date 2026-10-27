@@ -117,7 +117,31 @@ before anything runs unless the session has an issue or the caller passes
 bound in the issue's place; passing an issue later replaces it. Why a plugin
 argument rather than a sentence in the brief: the brief is free text the
 caller can forget under a compaction, and the branch, the PR references and
-the record the Assistant mirrors all hang on this one value. Hermes sits in the person's seat: a
+the record the Assistant mirrors all hang on this one value.
+
+**A build's own writes to its issue.** The OpenCode `gh_issue_*` and
+`gh_project_*` write tools assert a permission before they write (the tool id
+as the action, the targets as resources, what they will change as metadata;
+`opencode/lib/custom-tools/github/gate.ts`), and the session ruleset denies
+them all by name. A build run bound to an issue and to a GitHub `mandate`
+(the id of one in force, `github_mandate list`; bound to the session like the
+issue, kept by a read-only turn, dropped by a build when it lapsed) has two
+of them ask instead (`policy.RUN_GH_WRITES`): ticking its own issue's body,
+and setting its own issue's board Status to In Progress. `ghwrite.py` answers
+those requests in the caller's place while a wait, a status read or the
+notifier polls: the request is turned into the `github_change` it amounts
+to, github-access's planner reads the targets fresh and the mandate is
+checked again at the write (`mandate.still_fits`), so the mandate's own
+bounds, not this plugin's reading of the request, decide. Anything else
+(another issue, a title, a close, a comment, a label, Done or any other
+Status, a board the mandate does not name, no mandate) is rejected with the
+reason, and an Issue or board write that still reaches the caller, through
+a tool or the shell, can only be rejected: `opencode_request` refuses `once`
+on it, since such a write runs on a card or inside a mandate and the
+caller's approval is neither ([decision](./decisions/github-mandates.md)). A
+linked branch (`gh_issue_develop`) stays denied: a PR from one closes the
+issue on its first merge, past the stack's `Refs`/`Closes`, and GitHub links
+the task branch to the issue through the PR anyway. Hermes sits in the person's seat: a
 question the agent asks and a permission it needs arrive as `waiting` and are
 answered with `opencode_request`. The Assistant's `design` role runs a
 read-only OpenCode `design` agent that writes HTML mocks and diagrams into the

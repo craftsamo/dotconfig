@@ -266,6 +266,181 @@ def test_a_build_without_an_issue_needs_the_clients_reason(fixture, tmp_path):
     assert "untracked_reason" not in fake.sessions[sid]["metadata"]["hermes"], "an issue replaces the reason"
 
 
+class FakeGitHubAccess:
+    """github-access's planner and mandate store as ghwrite reaches them: the plan is the
+    change itself, and the mandate answers what the test says."""
+
+    def __init__(self, in_force=("m12345678",), fits=None, refuse=None):
+        self.in_force, self.fits_reason, self.refuse = list(in_force), fits, refuse
+        self.planned, self.checked = [], []
+
+    def plan(self, args):
+        if self.refuse:
+            raise ValueError(self.refuse)
+        self.planned.append(args)
+        return {"steps": [{"change": c, "class": "routine", "targets": []} for c in args["changes"]],
+                "targets": [], "tier": "shared", "classes": ["routine"]}
+
+    def active(self, home):
+        return [{"id": m, "classes": ["routine"]} for m in self.in_force]
+
+    def still_fits(self, home, mandate_id, planned):
+        self.checked.append((mandate_id, planned))
+        if mandate_id not in self.in_force:
+            return f"mandate {mandate_id} is no longer in force"
+        return self.fits_reason
+
+
+def with_github_access(monkeypatch, **kwargs):
+    fake = FakeGitHubAccess(**kwargs)
+    monkeypatch.setattr(plugin.ghwrite, "modules", lambda: (fake, fake))
+    return fake
+
+
+def mandated_build(fixture, monkeypatch, tmp_path, **kwargs):
+    """A plan bound to an issue, moved to its worktree, ready for a build under a mandate."""
+    home, directory, _, fake = fixture
+    configure(home, "  roles:\n    plan: {agent: plan, policy: read-only}\n    build: {agent: build, policy: write}\n")
+    with_root(home, tmp_path / "wt")
+    access = with_github_access(monkeypatch, **kwargs)
+    sid = run("plan", directory, issue=ISSUE)["session_id"]
+    fake.directory = session("workspace", sid, base="head")["directory"]
+    return sid, access
+
+
+def test_a_build_under_a_mandate_writes_its_own_issues_state_without_the_caller(fixture, monkeypatch, tmp_path):
+    home, directory, _, fake = fixture
+    sid, access = mandated_build(fixture, monkeypatch, tmp_path)
+    fake.asks["tick"] = dict(action="gh_issue_update", resources=[ISSUE],
+                             metadata={"op": "issue_edit", "repo": "octo/example", "number": 12, "body": "- [x] layer 1 #20"})
+    fake.asks["status"] = dict(action="gh_project_item_set", resources=["octo/1", ISSUE],
+                               metadata={"op": "item_set", "project": "octo/1", "item": "PVTI_1", "content": ISSUE,
+                                         "content_type": "Issue", "fields": {"Status": "In Progress"}, "clear": []})
+    fake.scripts[sid] = ["ask:tick", "ask:status", "finish"]
+    built = run("build", session_id=sid, approval="Client: build it", mandate="m12345678")
+    assert built["status"] == "completed", built
+    assert fake.sessions[sid]["metadata"]["hermes"]["mandate"] == "m12345678"
+    note = fake.entries[sid]["hermes.note"]
+    assert "Your issue's execution state is yours to keep" in note and plugin.ISSUE_NOTE[False] not in note
+    assert [r[1] for r in fake.replies] == [{"decision": "once", "message": "inside mandate m12345678"}] * 2
+    assert access.planned == [{"changes": [{"op": "issue_edit", "issue": ISSUE, "body": "- [x] layer 1 #20"}]},
+                              {"changes": [{"op": "item_set", "item": "PVTI_1", "fields": {"Status": "In Progress"}}]}]
+    assert [m for m, _ in access.checked] == ["m12345678", "m12345678"], "every write is checked at the write"
+    rules = fake.sessions[sid]["permissions"]
+    for name in plugin.policy.RUN_GH_WRITES:
+        assert policy.decide(rules, name, "*") == "ask", name
+    for name in ("gh_issue_create", "gh_issue_comment", "gh_issue_develop", "gh_project_item_promote",
+                 "gh_project_create"):
+        assert policy.decide(rules, name, "*") == "deny", name
+    forked = session("fork", sid)["session_id"]
+    assert fake.sessions[forked]["metadata"]["hermes"]["mandate"] == "m12345678", "a fork inherits the mandate"
+    assert run("plan", session_id=forked)["status"] == "completed"
+    assert fake.sessions[forked]["metadata"]["hermes"]["mandate"] == "m12345678", "a read-only turn keeps it"
+    # A status read that meets the run's own write answers it too, and reports the run going on.
+    fake.active.add(sid)
+    fake.ask(sid, **fake.asks["tick"])
+    seen = session("status", sid)
+    assert seen["status"] == "running" and "pending" not in seen, seen
+    assert fake.replies[-1][1] == {"decision": "once", "message": "inside mandate m12345678"}
+    fake.active.discard(sid)
+
+
+def test_a_write_outside_the_mandate_or_the_runs_issue_is_rejected_or_left_to_the_caller(fixture, monkeypatch, tmp_path):
+    home, directory, _, fake = fixture
+    sid, access = mandated_build(fixture, monkeypatch, tmp_path, fits="octo/other is outside the mandate")
+    fake.asks["other"] = dict(action="gh_issue_update", resources=["octo/example#13"],
+                              metadata={"op": "issue_edit", "repo": "octo/example", "number": 13, "body": "x"})
+    fake.asks["close"] = dict(action="gh_issue_update", resources=[ISSUE],
+                              metadata={"op": "issue_edit", "repo": "octo/example", "number": 12, "state": "closed",
+                                        "reason": "completed"})
+    fake.asks["archive"] = dict(action="gh_project_item_set", resources=["octo/1", ISSUE],
+                                metadata={"op": "item_set", "project": "octo/1", "item": "PVTI_1", "content": ISSUE,
+                                          "fields": {"Status": "Done"}, "clear": [], "archived": True})
+    fake.asks["done"] = dict(action="gh_project_item_set", resources=["octo/1", ISSUE],
+                             metadata={"op": "item_set", "project": "octo/1", "item": "PVTI_1", "content": ISSUE,
+                                       "fields": {"Status": "Done"}, "clear": []})
+    fake.asks["unfit"] = dict(action="gh_issue_update", resources=[ISSUE],
+                              metadata={"op": "issue_edit", "repo": "octo/example", "number": 12, "body": "tick"})
+    fake.asks["comment"] = dict(action="gh_issue_comment", resources=[ISSUE],
+                                metadata={"op": "issue_comment", "repo": "octo/example", "number": 12, "body": "hi"})
+    fake.scripts[sid] = ["ask:other", "ask:close", "ask:archive", "ask:done", "ask:unfit", "ask:comment", "finish"]
+    paused = run("build", session_id=sid, approval="Client: build it", mandate="m12345678")
+    assert paused["status"] == "waiting", paused
+    reasons = [r[1] for r in fake.replies]
+    assert all(r["decision"] == "reject" for r in reasons) and len(reasons) == 5
+    assert "is not the run's issue" in reasons[0]["message"]
+    assert "only its issue's body, not reason, state" in reasons[1]["message"]
+    assert "moves only its issue's Status" in reasons[2]["message"]
+    assert "Status to In Progress only, not 'Done'" in reasons[3]["message"]
+    assert reasons[4]["message"] == "octo/other is outside the mandate"
+    assert access.planned == [{"changes": [{"op": "issue_edit", "issue": ISSUE, "body": "tick"}]}], \
+        "only a write of the run's own state reaches the planner"
+    item = paused["pending"][0]
+    assert item["action"] == "gh_issue_comment" and item["metadata"]["op"] == "issue_comment"
+    refused = request("reply", sid, request_id=item["id"], decision="once")
+    assert "Issue or board write outside the run's mandate" in refused["error"]
+    assert len(fake.replies) == 5, "the refused once sent nothing"
+    done = request("reply", sid, request_id=item["id"], decision="reject", reason="the Assistant comments")
+    assert done["status"] == "completed"
+    # The same for an Issue write through the shell, which asks without issue_approval.
+    fake.asks["shell"] = dict(action="shell", resources=["gh issue comment 12 --body hi"], save=[])
+    fake.scripts[sid] = ["ask:shell", "finish"]
+    paused = run("build", session_id=sid, approval="Client: build it")
+    assert paused["status"] == "waiting" and paused["pending"][0]["action"] == "shell"
+    assert "Issue or board write" in request("reply", sid, request_id=paused["pending"][0]["id"], decision="once")["error"]
+    assert request("reply", sid, request_id=paused["pending"][0]["id"], decision="reject")["status"] == "completed"
+
+
+def test_the_mandate_argument_is_checked_and_a_run_without_one_writes_nothing(fixture, monkeypatch, tmp_path):
+    home, directory, _, fake = fixture
+    sid, access = mandated_build(fixture, monkeypatch, tmp_path)
+    for bad, message in (("nope", "id of a GitHub mandate"), ("m00000000", "not in force"), (True, "id of a GitHub")):
+        assert message in run("build", session_id=sid, approval="Client: build it", mandate=bad)["error"], bad
+    assert "mandate goes with issue" in run("build", directory, untracked_reason="no issue", approval="Client: go",
+                                            mandate="m12345678")["error"]
+    fake.asks["tick"] = dict(action="gh_issue_update", resources=[ISSUE],
+                             metadata={"op": "issue_edit", "repo": "octo/example", "number": 12, "body": "tick"})
+    fake.scripts[sid] = ["ask:tick", "finish"]
+    built = run("build", session_id=sid, approval="Client: build it")
+    assert built["status"] == "completed", built
+    assert policy.decide(fake.sessions[sid]["permissions"], "gh_issue_update", "*") == "deny", \
+        "without a mandate the ruleset never raises the request"
+    assert [r[1] for r in fake.replies] == [{"decision": "reject",
+                                            "message": "the session is bound to no mandate; the Assistant writes the issue"}]
+    assert not access.planned
+    fake.sessions[sid]["metadata"]["hermes"]["mandate"] = "m00000000"
+    fake.scripts[sid] = ["finish"]
+    lapsed = run("build", session_id=sid, approval="Client: build it")
+    assert lapsed["status"] == "completed" and lapsed["mandate_dropped"] == "m00000000", lapsed
+    assert "no longer in force" in lapsed["note"]
+    assert "mandate" not in fake.sessions[sid]["metadata"]["hermes"], "a stored mandate that lapsed is dropped"
+    assert policy.decide(fake.sessions[sid]["permissions"], "gh_issue_update", "*") == "deny"
+    assert plugin.ISSUE_NOTE[False] in fake.entries[sid]["hermes.note"]
+
+
+def test_ghwrite_names_every_github_write_the_policy_knows():
+    assert (plugin.ghwrite.GITHUB_ACCESS / "mandate.py").is_file() and (plugin.ghwrite.GITHUB_ACCESS / "changes.py").is_file()
+    # The changes ghwrite rebuilds are the real planner's shapes: its key check accepts them.
+    changes, _ = plugin.ghwrite.modules()
+    meta = {"issue": ISSUE, "mandate": "m12345678"}
+    for request in (
+            {"kind": "permission", "action": "gh_issue_update",
+             "metadata": {"op": "issue_edit", "repo": "Octo/Example", "number": 12, "appendBody": "- [ ] more"}},
+            {"kind": "permission", "action": "gh_project_item_set",
+             "metadata": {"op": "item_set", "project": "octo/1", "item": "PVTI_1", "content": "Octo/Example#12",
+                          "fields": {"Status": "in progress"}}}):
+        change, why = plugin.ghwrite.change_for(request, meta)
+        assert change and why is None, request
+        assert changes._check(dict(change)) == change
+    assert plugin.ghwrite.change_for({"kind": "permission", "action": "gh_issue_update",
+                                      "metadata": {"op": "issue_edit", "repo": "octo/example", "number": 12,
+                                                   "title": "renamed"}}, meta)[0] is None, "a title is not state"
+    assert set(plugin.ghwrite.GH_WRITES) == {n for n in policy.PROJECT_WRITES if n.startswith("gh_")}
+    assert set(plugin.ghwrite.RUN_GH_WRITES) == set(policy.RUN_GH_WRITES) < set(plugin.ghwrite.GH_WRITES)
+    person = {"kind": "permission", "action": "external_directory"}
+    assert not plugin.ghwrite.ours(person) and not plugin.ghwrite.github_write(person)
+
+
 def test_write_run_needs_approval_and_a_task_branch(fixture):
     _, directory, _, fake = fixture
     assert "approval" in run("build", directory)["error"]
@@ -1676,7 +1851,7 @@ def test_roles_become_tools(fixture, monkeypatch):
                                   "opencode_preflight"}
     build = context.tools["opencode_run_build"]["schema"]["parameters"]
     plan = context.tools["opencode_run_plan"]["schema"]["parameters"]
-    assert {"approval", "issue_approval", "untracked_reason"} <= set(build["properties"])
+    assert {"approval", "issue_approval", "untracked_reason", "mandate"} <= set(build["properties"])
     assert not ({"approval", "untracked_reason"} & set(plan["properties"]))
     assert "issue" in build["properties"] and "issue" in plan["properties"]
     assert build["required"] == ["message"] and build["additionalProperties"] is False

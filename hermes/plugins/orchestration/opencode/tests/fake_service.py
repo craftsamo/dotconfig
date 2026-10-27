@@ -33,7 +33,7 @@ class Fake:
         self.active, self.requests, self.forms = set(), [], []
         self.replies, self.answers, self.cancelled = [], [], []
         self.steers, self.prompts, self.calls, self.scripts = [], [], [], {}
-        self.agents = {}
+        self.asks, self.agents = {}, {}
         self.down = False
         self.note_refused = False
         self.move_refused, self.moves, self.patch_error = False, [], None
@@ -86,10 +86,12 @@ class Fake:
             last["retry"] = {"attempt": attempt, "at": self.clock + 60_000,
                              "error": {"type": "provider.error", "message": message}}
 
-    def ask(self, sid, action="external_directory", resources=("/elsewhere/*",), save=("/elsewhere/*",)):
+    def ask(self, sid, action="external_directory", resources=("/elsewhere/*",), save=("/elsewhere/*",),
+            metadata=None):
         with self.lock:
             request = {"id": f"per_{len(self.requests) + len(self.replies)}x", "sessionID": sid, "action": action,
-                       "resources": list(resources), "save": list(save)}
+                       "resources": list(resources), "save": list(save),
+                       **({"metadata": metadata} if metadata is not None else {})}
             self.requests.append(request)
             return request
 
@@ -136,6 +138,10 @@ class Fake:
             self.retry(sid, message, int(attempt))
         elif step == "ask-permission":
             self.ask(sid)
+            script.insert(0, "wait-reply")
+        elif step.startswith("ask:"):
+            # A request the test prepared in `asks` (a tool's own assertion, metadata and all).
+            self.ask(sid, **self.asks[step[4:]])
             script.insert(0, "wait-reply")
         elif step == "ask-question":
             self.question(sid)
