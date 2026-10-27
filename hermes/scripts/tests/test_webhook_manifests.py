@@ -6,6 +6,7 @@ Git (the wrapper execs it by path), and nothing in it may be a secret or a conve
 from __future__ import annotations
 
 import importlib.util
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -52,11 +53,14 @@ def test_a_manifest_directory_holds_only_its_route():
 
 def test_a_tracked_manifest_holds_no_secret_and_no_chat():
     """A route's secret is the gateway's global one (a Keychain item); a chat id names a
-    person's conversation. Neither belongs in a repository (the validator refuses `secret`
-    outright; `deliver_extra` is what a private overlay's manifest may carry)."""
+    person's conversation. Neither belongs in a repository: the validator refuses `secret`
+    outright, and here `deliver` must be a bare platform (its home channel) with no
+    `deliver_extra` — the `telegram:<chat>` forms are the private overlay's."""
     for d in manifest_dirs():
         spec = S.yaml.safe_load((d / S.MANIFEST_FILE).read_text(encoding="utf-8")) or {}
         assert "secret" not in spec and "deliver_extra" not in spec, d
+        deliver = spec.get("deliver")
+        assert deliver is None or re.fullmatch(r"[a-z_]+", deliver), (d, deliver)
 
 
 def test_the_repository_tracks_at_least_one_manifest():

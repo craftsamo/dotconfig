@@ -26,9 +26,15 @@ injects ([install.md](install.md)). The runtime accepts GitHub's
 `X-Hub-Signature-256`, GitLab's token, Svix / Standard Webhooks, Linear, and
 its own generic `X-Webhook-Signature-V2` (HMAC-SHA256 of `<timestamp>.<body>`
 with `X-Webhook-Timestamp`), all against that one secret. A route carries no
-secret of its own, so a manifest holds nothing a repository must not. Stripe's
-signature is not among the accepted ones: a Stripe event needs an intermediary
-that verifies it and re-signs.
+secret of its own, so a manifest holds nothing a repository must not — and
+without `WEBHOOK_SECRET` in the gateway's environment the listener skips every
+such route with a log warning (`[webhook] Dynamic route … skipped`), which is
+how a missing Keychain item shows. Stripe's signature is not among the
+accepted ones: a Stripe event needs an intermediary that verifies it and
+re-signs.
+
+webhook-sync walks `profiles/*/webhook.d/`; the root profile keeps `default`
+neutral and tracks no routes of its own.
 
 The listener is loopback only. A public hostname reaches it through a tunnel
 run as a service ([services.md "Webhook tunnel"](services.md#webhook-tunnel));
@@ -55,11 +61,11 @@ so two profiles cannot track the same name. `route.yaml`:
 | `skills`            | Skills loaded before the prompt (`agent` only).                                                                                                                                                                                                                                                                                                  |
 | `deliver`           | Where the message or the result goes: `telegram`, `discord`, `slack`, `github_comment`, `log` (the default for `agent`; `notify` needs a real target). A bare platform is its home channel.                                                                                                                                                      |
 | `deliver_extra`     | `chat_id`, `thread_id` / `message_thread_id` for the delivery (a private overlay's manifest only: a chat id names a person's conversation).                                                                                                                                                                                                      |
-| `mirror_to_session` | `agent`: also append the delivered text to the target chat's session, so a reply there has it in context.                                                                                                                                                                                                                                        |
+| `mirror_to_session` | `notify` and `agent`: also append the delivered text to the target chat's session, so a reply there has it in context.                                                                                                                                                                                                                           |
 | `cron_job`          | `job` only: the name of a `cron.d/` directory of the same profile (webhook-sync checks it exists).                                                                                                                                                                                                                                               |
 | `coalesce`          | The runtime's debounce block for rapid same-entity events, passed through.                                                                                                                                                                                                                                                                       |
 | `toolsets`          | `agent`: the toolset allowlist of the run (a manifest-only key by the runtime's design: a route cannot grant itself tools from a chat).                                                                                                                                                                                                          |
-| `paused`            | `true` writes the route disabled (the listener answers 403); absent or `false` enables it.                                                                                                                                                                                                                                                       |
+| `paused`            | `true` writes the route disabled (the listener answers 403); absent or `false` enables it. The manifest owns the switch: a route turned off in the dashboard is on again at the next sync.                                                                                                                                                       |
 
 What each mode means for the person: `notify` is a line in the Inbox; `agent`
 is an unattended run whose report lands in a chat (the runtime classes a

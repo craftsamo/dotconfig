@@ -63,8 +63,10 @@ KNOWN_KEYS = frozenset({
     "mode", "events", "filters", "prompt", "skills", "deliver", "deliver_extra", "cron_job",
     "mirror_to_session", "coalesce", "toolsets", "paused",
 })
-# The record fields a manifest owns; the runtime's own (description, created_at, enabled by the
-# dashboard) and the marker are left alone.
+# The record fields a manifest owns, `enabled` included: a route is on unless its manifest says
+# `paused` (a dashboard switch-off is undone by the next sync, as a hand edit of a cron job is).
+# The runtime's own fields (description, created_at, a secret of its own) and the marker are
+# left alone.
 DEFINITION_FIELDS = (
     "profile", "events", "filters", "prompt", "skills", "deliver", "deliver_extra", "deliver_only",
     "cron_job", "script", "mirror_to_session", "coalesce", "toolsets", "enabled",
@@ -246,8 +248,16 @@ def wrapper_text(route: Route) -> str:
     return lib.wrapper_text("webhook-sync", MANIFEST_DIR, route.name, route.filter_script.name)
 
 
-def sync_wrappers(home: Path, routes: list[Route], write: bool) -> list[str]:
+def sync_wrappers(home: Path, routes: list[Route], broken: set[str], write: bool) -> list[str]:
+    """Write a wrapper per route with a filter and drop the ones nothing names. A manifest that
+    failed to load (``broken``) keeps whatever wrapper it has: its record is left as it was, and
+    that record may still name the wrapper."""
     wanted = {f"{r.name}.sh": wrapper_text(r) for r in routes if r.filter_script}
+    directory = home / "scripts" / WRAPPER_DIR
+    for name in broken:
+        existing = directory / f"{name}.sh"
+        if existing.is_file() and existing.name not in wanted:
+            wanted[existing.name] = existing.read_text(encoding="utf-8")
     return lib.sync_wrappers(home, WRAPPER_DIR, wanted, write)
 
 
@@ -346,7 +356,7 @@ def build_plan(routes: list[Route], errors: list[str], records: dict[str, dict[s
         marker = record[MARKER]
         if marker.get("source") != route.source or marker.get("profile") != route.profile:
             plan.restamp.append(route)
-    failed = {e.split(":", 1)[0].split("/", 1)[-1] for e in errors}
+    failed = _broken_names(errors)
     for manifest, key in by_manifest.items():
         if manifest in failed:
             continue  # a manifest that failed to load is not gone
@@ -449,18 +459,45 @@ def load_all(root: Path, only: Optional[str] = None) -> tuple[list[Route], list[
     return routes, errors, homes
 
 
+def _broken_names(errors: list[str]) -> set[str]:
+    """The manifest names in a list of ``<profile>/<name>: …`` errors."""
+    return {e.split(":", 1)[0].split("/", 1)[-1] for e in errors}
+
+
 def sync_root(root: Path, *, check: bool, prune: bool) -> tuple[Plan, Optional[list[str]]]:
     """Reconcile every profile's ``webhook.d/`` into the root home's subscriptions. Under
-    ``check`` nothing is written and the plan says what would be."""
+    ``check`` nothing is written and the plan says what would be; otherwise the plan is built and
+    applied under the writer's lock, on the records it just read, so a subscription made or
+    removed meanwhile (``hermes webhook subscribe``, the dashboard) is neither clobbered nor
+    indexed after it is gone."""
     root = root.expanduser().resolve()
     routes, errors, homes = load_all(root)
-    plan = build_plan(routes, errors, load_records(root), prune=prune)
+    broken = _broken_names(errors)
+    wrappers: list[str] = []
     for profile, home in homes:
-        plan.wrappers.extend(sync_wrappers(home, [r for r in routes if r.profile == profile], write=not check))
+        wrappers.extend(sync_wrappers(home, [r for r in routes if r.profile == profile], broken, write=not check))
     if check:
+        plan = build_plan(routes, errors, load_records(root), prune=prune)
+        plan.wrappers = wrappers
         return plan, None
     now = _now()
-    done = mutate_records(root, lambda subs: apply_plan(plan, subs, now)) if plan.pending() else []
+    applied: dict[str, Any] = {}
+
+    class _Unchanged(Exception):
+        """Nothing to apply: leave the file as it is (a rewrite would make the listener re-read it)."""
+
+    def run(subs: dict[str, dict[str, Any]]) -> list[str]:
+        applied["plan"] = plan = build_plan(routes, errors, subs, prune=prune)
+        if not (plan.create or plan.update or plan.restamp or plan.orphan_disable or plan.orphan_remove):
+            raise _Unchanged
+        return apply_plan(plan, subs, now)
+
+    try:
+        done = mutate_records(root, run)
+    except _Unchanged:
+        done = []
+    plan = applied["plan"]
+    plan.wrappers = wrappers
     return plan, done
 
 
