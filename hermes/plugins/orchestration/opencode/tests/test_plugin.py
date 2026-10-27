@@ -867,6 +867,22 @@ def test_preflight_for_a_build_needs_a_task_branch_and_a_free_worktree(fixture):
     assert busy["ok"] is False and "ses_busy" in " ".join(i["what"] for i in busy["issues"])
 
 
+def test_preflight_warns_when_the_service_runs_with_the_minimal_environment(fixture, monkeypatch):
+    _, directory, _, fake = fixture
+    fake.pid = 4242
+    monkeypatch.setattr(plugin.environment, "_ps", lambda args: "x PATH=/usr/bin HOME=/h\n" if args[0] == "-Eww"
+                        else None)
+    out = preflight(directory)
+    assert out["ok"] is True
+    [issue] = out["issues"]
+    assert issue["level"] == "warn" and "minimal environment" in issue["what"]
+    monkeypatch.setattr(plugin.environment, "_ps", lambda args: "x PATH=/usr/bin HOME=/h TMUX=/t\n"
+                        if args[0] == "-Eww" else None)
+    assert "issues" not in preflight(directory)
+    monkeypatch.setattr(plugin.environment, "_ps", lambda args: None)
+    assert "issues" not in preflight(directory), "an unreadable environment is no finding"
+
+
 def test_preflight_rejects_bad_arguments(fixture):
     _, directory, _, _ = fixture
     assert "phase must be" in preflight(directory, phase="ship")["error"]
