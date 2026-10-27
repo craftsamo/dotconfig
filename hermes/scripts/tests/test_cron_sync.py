@@ -395,6 +395,23 @@ def test_write_local_validates_before_leaving_anything_behind(home: Path):
     assert done[0].startswith("paused orphan job")
 
 
+def test_thread_title_names_the_thread_a_continuable_delivery_opens(home: Path):
+    """A field the runtime learns from a local patch, so it is set through update_job (any key)
+    and a stock runtime merely carries it."""
+    write_job(home, "fix", {"schedule": "0 0 29 2 *", "mode": "prompt", "prompt": "Fix it.",
+                            "attach_to_session": True, "thread_title": "  Dependency\nfix "})
+    sync(home)
+    assert job(home, "fix")["thread_title"] == "Dependency fix"
+    (home / S.MANIFEST_DIR / "fix" / S.MANIFEST_FILE).write_text(S.yaml.safe_dump({
+        "schedule": "0 0 29 2 *", "mode": "prompt", "prompt": "Fix it.", "attach_to_session": True}),
+        encoding="utf-8")
+    _plan, done = sync(home)
+    assert done == ["updated fix: thread_title"] and job(home, "fix").get("thread_title") is None
+    write_job(home, "snap", {"schedule": "1h", "mode": "no_agent", "thread_title": "x"})
+    _manifests, errors = S.load_manifests(home)
+    assert len(errors) == 1 and "thread_title" in errors[0]
+
+
 def test_a_local_manifest_carries_the_conversation_and_the_agent_fields(home: Path):
     write_job(home, "gate", {
         "schedule": "*/15 * * * *", "mode": "prompt", "prompt": "Follow the gate report.",
