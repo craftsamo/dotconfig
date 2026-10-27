@@ -366,6 +366,22 @@ A role may name an `alternate` (`provider/model[#variant]`). Nothing switches by
 itself: after a turn fails with a `limit` provider error the Assistant reruns on
 it. A read-only role simply reruns; for a write role the diff is read first.
 
+**Stops of one model.** The person's OpenCode serves a Claude model from several
+places: the active subscription login, another saved login through an alias
+model (`claude-<model>-main`), and the Console credit lanes
+(`anthropic-credit-*`, providers of their own); on a window limit the
+preflight plugin moves a session between them itself, same model and variant
+(`opencode/README.md` "Console credit lanes"). The service names the identity
+behind each: an alias carries `modelID`, a lane provider `canonical`
+(`models.identity`). The plugin keeps to that: a continuing turn that does not
+name a model keeps the stop the session is on when it is another stop of the
+wanted model (`models.keep_stop`), since re-sending the configured spelling
+would move the session back, to be refused again and to pay a prompt-cache
+rewrite; a model named this turn still moves it, and a different model is sent
+as wanted. An alias or a lane of the caller's own model is the caller's own
+too. The catalog marks such entries `stop_of`, and a lane is offered as
+`model=` only when its provider is in `allowed_providers`.
+
 **Hand-back.** A live caller gets the current state at once. Only while that
 state is `running` it also gets a notifier process, launched through the terminal
 tool with completion notification, for the next hand-back; any other state is

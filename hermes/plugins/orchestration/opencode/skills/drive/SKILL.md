@@ -149,6 +149,14 @@ runs on another listed model, as the QA entry says). A name outside the list
 is refused, never substituted: report it and ask, without stopping the job.
 An explicit choice binds the rest of that session.
 
+A Claude model has several stops: the active login, another saved login (an
+alias model, marked `stop_of` in the catalog) and the Console credit lanes
+(providers of their own). OpenCode moves a session between them itself when
+one refuses, and a continuing turn keeps the stop the session is on; the
+result's `engine` names it. Do not pass `model=` to move a session back: name
+a model only to choose a different one, and after a limit on every stop use
+the role's alternate.
+
 ## Session tools
 
 `opencode_session(action, session_id?, …)` works on your sessions.

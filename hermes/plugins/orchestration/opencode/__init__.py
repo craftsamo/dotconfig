@@ -372,7 +372,8 @@ def _prepare(home, owner, role_name, role, settings, args, kwargs):
         else:
             dropped = stored
     return {"output": output, "writing": writing, "fork": fork, "chosen": chosen or meta.get("selection") or {},
-            "explicit": bool(chosen), "sid": sid, "directory": directory, "branch": branch, "repo": repo,
+            # A model named this turn moves the session; a variant alone does not.
+            "explicit": "model" in chosen, "sid": sid, "directory": directory, "branch": branch, "repo": repo,
             "protected": protected, "approval": approval, "issue_approval": issue_approval,
             "issue": issue, "untracked": untracked, "mandate": mandate_id, "dropped_mandate": dropped,
             "read_roots": tuple(settings.get("read_roots", ())),
@@ -420,6 +421,10 @@ def _setup(home, owner, role_name, role, plan, kwargs):
         current = turn.session_info(sid)
         if not policy.same_dir(turn.directory_of(current), directory):
             raise ValueError("The saved OpenCode session belongs to another directory")
+        if not plan["explicit"]:
+            # The service moves a session to another stop of its model on a limit; only
+            # a model the caller names this turn moves it back.
+            model = models.keep_stop(current.get("model"), model, directory)
         turn.call("post", "/api/session/{sid}/agent", {"agent": role["agent"]}, sid=sid)
         turn.call("post", "/api/session/{sid}/model", {"model": model}, sid=sid)
         turn.call("patch", "/api/session/{sid}", {"permissions": ruleset, "metadata": {
@@ -1214,7 +1219,8 @@ def register(ctx):
                                                        "plugins, mcp, config (a project's own config adds to them)"},
     }, ["what"],
         "Read what OpenCode offers and how it runs (read-only). models lists what an opencode_run_<role> tool "
-        "accepts as model= with variants, context, cost, each role's default and your own models (refused). "
+        "accepts as model= with variants, context, cost, each role's default and your own models (refused); "
+        "a model marked stop_of is the same model from another login or a credit lane. "
         "agents includes subagents (mode subagent). service describes the running service: version, process, "
         "whether its environment came from the person's shell or from Hermes' minimal one, its paths and the "
         "opencode command. plugins, mcp (servers and connection status), config (each loaded config file as its "
