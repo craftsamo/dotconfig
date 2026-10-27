@@ -119,7 +119,7 @@ def register(ctx):
     schema = {"name": "hermes_history", "description": DESCRIPTION, "parameters": {
         "type": "object", "properties": PROPERTIES, "required": ["action"], "additionalProperties": False}}
     ctx.register_tool(name="hermes_history", toolset="session_history", handler=hermes_history,
-                      description=DESCRIPTION, schema=schema)
+                      description=DESCRIPTION, schema=schema, emoji="🕰️")
     tool_preview.enums("hermes_history", schema, "action")
     ctx.register_command("activity", activity_command,
                          description="AI activity for OpenCode and Hermes (today, week, month or N days)",

@@ -119,7 +119,7 @@ def register(ctx):
     if ctx.profile_name not in PROFILES:
         return
     ctx.register_tool(name="workspace_repos", toolset="workspace_repos", handler=workspace_repos,
-                      description=DESCRIPTION,
+                      description=DESCRIPTION, emoji="📦",
                       schema={"name": "workspace_repos", "description": DESCRIPTION, "parameters": {
                           "type": "object", "properties": PROPERTIES, "required": ["action"],
                           "additionalProperties": False}})
