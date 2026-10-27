@@ -45,8 +45,10 @@ reviewable layer (one PR, or one layer of the stack) and Phase N.m its
 checkpoint steps. A roadmap of several units is approved whole, then each
 unit's plan before that unit's build; one approval releases that unit, all
 its layers, through QA, task-branch push and PR delivery; never merge,
-deployment, repository creation or default-branch push. Every repository job
-is recorded on GitHub unless the user excludes it: the roadmap's approval
+deployment, repository creation or default-branch push. Every job on a
+repository the user owns or belongs to is recorded on GitHub unless the user
+excludes it (someone else's repository gets only what its conventions ask;
+the user's own record goes on their fork or board): the roadmap's approval
 files the parent and its units, a unit's approval makes its issue Fixed and
 In Progress before the build, and the Assistant mirrors the run to it
 ([github-access.md](./github-access.md),
@@ -113,8 +115,9 @@ specification the run reads with its own tools and says which PR closes it
 (`Closes #N` on the completing layer, `Refs #N` on any other). It is checked
 like the other bound values and re-sent on every turn. A build is refused
 before anything runs unless the session has an issue or the caller passes
-`untracked_reason`, the user's words excluding the job from GitHub, which is
-bound in the issue's place; passing an issue later replaces it. Why a plugin
+`untracked_reason`, the user's words excluding the job from GitHub (or
+choosing no record of their own for a job on someone else's repository),
+which is bound in the issue's place; passing an issue later replaces it. Why a plugin
 argument rather than a sentence in the brief: the brief is free text the
 caller can forget under a compaction, and the branch, the PR references and
 the record the Assistant mirrors all hang on this one value.
