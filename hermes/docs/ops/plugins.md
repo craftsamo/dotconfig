@@ -133,3 +133,11 @@ user keys.
   (the `context` field, delivered and verified before the card) and stands down
   with a warning on a runtime without it. Enabled where `clarify` is allowed:
   the Assistant and Marketer.
+- **guards/cron-manifests** replaces the built-in `cronjob_manage` (same name
+  and schema; `plugins.entries."guards/cron-manifests".allow_tool_override:
+true` is required, or Hermes keeps its own tool) so a job the agent creates
+  is a `cron.d/<name>/` directory of its profile that cron-sync turns into the
+  job, an update rewrites that directory, a removal deletes it with the job,
+  and a job tracked in a repository is refused. `list` and `run` are the
+  runtime's. Enabled where the `cronjob` toolset is: the Assistant. Contract:
+  [`cron.md`](./cron.md).

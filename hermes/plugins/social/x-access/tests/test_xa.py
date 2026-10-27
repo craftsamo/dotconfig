@@ -406,13 +406,18 @@ def test_the_cron_entry_is_silent_unless_something_is_broken(isolated, home, cap
     assert xa.cli(["posts", str(home)]) == 2
 
 
-def test_the_cron_script_runs_the_engine_for_its_own_profile():
-    script = ROOT.parents[2] / "profiles/assistant/scripts/x-snapshot.sh"
+def test_the_cron_manifest_runs_the_engine_for_its_own_profile():
+    manifest = ROOT.parents[2] / "profiles/assistant/cron.d/x-snapshot"
+    spec = (manifest / "job.yaml").read_text()
+    assert "mode: no_agent" in spec and "deliver: telegram" in spec
+    script = manifest / "run.sh"
     text = script.read_text()
     assert script.stat().st_mode & 0o111
-    assert 'home=$(cd "$(dirname "$0")/.." && pwd)' in text and "${HERMES_HOME" not in text
-    assert (script.parent / "../../../plugins/social/x-access/xa.py").resolve() == ROOT / "xa.py"
-    assert '"$engine" snapshot "$home"' in text and "--no-agent" in text
+    # The profile home is the one the cron-sync wrapper exports, never derived from this path
+    # (which is inside the repository, not a profile).
+    assert 'home="$HERMES_HOME"' in text
+    assert (script.parent / "../../../../plugins/social/x-access/xa.py").resolve() == ROOT / "xa.py"
+    assert '"$engine" snapshot "$home"' in text
 
 
 def test_the_ledger_is_pruned_once_large(monkeypatch):

@@ -1,0 +1,8 @@
+name: cron-manifests
+version: 1.0.0
+description: >-
+  Replaces the built-in cronjob_manage so a job the agent creates is a
+  cron.d/<name>/ directory of its profile (job.yaml, run.sh) that cron-sync
+  turns into the job, and a job tracked in a repository cannot be changed
+  from a chat. Needs plugins.entries."guards/cron-manifests".allow_tool_override.
+kind: standalone

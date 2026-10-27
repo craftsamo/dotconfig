@@ -20,7 +20,7 @@ sends DMs. Read it when changing the plugin or its caps. Common rules:
 | One twscrape read per call in the engine venv; reads the cookies                                       | `plugins/social/x-access/bridge.py`                                                                                                                 | all                           |
 | `x` tool and the `pre_tool_call` hook (toolset `x_access`)                                             | `plugins/social/x-access/__init__.py`                                                                                                               | Assistant, Marketer           |
 | Engine venv                                                                                            | `scripts/x-access.sh`, `engines/twscrape/`                                                                                                          | people                        |
-| How a profile reads X: actions, both budgets, verifying posts, media, the user's own numbers, recovery | the `x-access:read` plugin skill (`plugins/social/x-access/skills/read/`)                                                                 | Assistant, Marketer, Searcher |
+| How a profile reads X: actions, both budgets, verifying posts, media, the user's own numbers, recovery | the `x-access:read` plugin skill (`plugins/social/x-access/skills/read/`)                                                                           | Assistant, Marketer, Searcher |
 | The post and X Article draft exceptions in the browser                                                 | the `x-access:draft-post` and `x-access:draft-article` plugin skills (`plugins/social/x-access/skills/draft-*/`); registered for the Assistant only | Assistant                     |
 | When the Assistant uses it in Chat                                                                     | the Assistant's private Chat reference `x.md`                                                                                                       | Assistant                     |
 | How Marketer reads ranking, results and conversations                                                  | `profiles/marketer/skills/pipeline/references/x-ranking.md`                                                                                         | Marketer                      |
@@ -89,14 +89,13 @@ protected main account is refused (the ledger holds public posts only; `user`
 never caches a protected account's id, which would skip that check). The file is
 size-capped, trimmed from the oldest end by the next snapshot.
 
-The ledger is filled on a schedule: the Assistant's `no_agent` cron job
-`x-snapshot` runs `profiles/assistant/scripts/x-snapshot.sh` every six hours
-(no model turn; the script header has the `cron create` command). The script
-calls the engine directly with the profile home taken from its own path, never
-`$HERMES_HOME`, which the multiplex gateway may set to another profile. It
+The ledger is filled on a schedule: the Assistant's tracked cron job
+`profiles/assistant/cron.d/x-snapshot/` runs its `run.sh` every six hours with
+no model turn (`mode: no_agent`; the job is installed by cron-sync like every
+tracked job, [ops/cron.md](ops/cron.md)). The script calls the engine directly
+with the profile home the cron-sync wrapper hands it in `HERMES_HOME`. It
 prints nothing on success or on a pause (the next run catches up) and exits
-nonzero on a real failure, so Hermes alerts on Telegram. Like every cron job
-([ops/tracking.md "Cron"](ops/tracking.md)) the job entry itself is machine-local.
+nonzero on a real failure, so Hermes alerts on Telegram.
 
 `insights` never contacts X. It compares posts of the last `days` at one age
 (`at` = 6, 24 or 48 hours) and flags groups under five posts as inconclusive.
@@ -189,5 +188,5 @@ Service-specific steps; the rest is in [shared setup](access-common.md#setup-sha
    `secret set X_READER_COOKIES -p hermes --scope x-reader -D COOKIE` and paste
    `auth_token=…; ct0=…` at the hidden prompt.
 4. Set `x_access.main_handle` in the Assistant's and Marketer's `config.yaml`,
-   enable the plugin in both and restart the gateway.
-5. Create the `x-snapshot` cron job ([Metrics](#metrics)).
+   enable the plugin in both and restart the gateway. The `x-snapshot` job
+   ([Metrics](#metrics)) is already installed by `install.sh`.

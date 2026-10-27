@@ -64,10 +64,19 @@ skills.
   example, so a worktree without the overlay still passes. A change to a
   profile's behavior goes into the example and the private copy in the same
   paired change; the example is also what a person without the overlay gets.
-- **`cron/` is not in this repo.** Never re-link it and never re-add it with
-  `skip-worktree` (that hid new jobs and broke branch switches). A missing
-  `jobs.json` reads as zero jobs, silently — back it up before touching the
-  directory. See [docs/ops/tracking.md "Cron"](docs/ops/tracking.md).
+- **`cron/` is not in this repo; a tracked job is a `cron.d/<name>/`
+  directory.** Never re-link `cron/` and never re-add it with `skip-worktree`
+  (that hid new jobs and broke branch switches). A missing `jobs.json` reads
+  as zero jobs, silently — back it up before touching the directory. A job
+  worth keeping is `profiles/<p>/cron.d/<name>/` (`job.yaml` + `run.sh`),
+  which `install.sh` links and `scripts/cron-sync.py` turns into the job;
+  never register one with `hermes cron create` or quote that command in a
+  script header or README (a test refuses it). A `run.sh` reads its profile
+  from `$HERMES_HOME` (the wrapper exports it), never from its own path,
+  which is inside the repository. The sync keys on the `managed` marker, a
+  field the runtime does not know: the continuity check proves it survives
+  `update_job`, so re-check it after a re-pin. See
+  [docs/ops/cron.md](docs/ops/cron.md).
 - **Managed skills never get `skip-worktree`**: their changes must stay visible
   in `git status`. Ownership by directory type and the `learned/` → `technic/`
   promotion step: [docs/ops/tracking.md "Tracked vs ignored"](docs/ops/tracking.md).
