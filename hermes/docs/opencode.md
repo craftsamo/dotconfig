@@ -202,6 +202,28 @@ check before a run. It reads no quota (the quota plugin's data is only as fresh
 as an open TUI), so a limit is met as a failed turn and answered with the role's
 `alternate` (see Models).
 
+**What OpenCode runs with.** `opencode_catalog` reads the service's shape, so
+the Assistant can say how OpenCode is set up without a run: `agents` (primaries
+and subagents, told apart by `mode`), `skills`, `commands`, `plugins` (id,
+source, status), `mcp` (servers and connection status), `config` (every
+configuration source the service loaded for the worktree, reduced to its path,
+top-level keys and the agent, plugin, MCP server and provider names it defines;
+`environment.py` never returns a value from a file, since a config carries MCP
+headers, plugin options and provider settings), `locations` (loaded
+directories), `info` (`/api/info` whole) and `service`. `service` adds what
+the API does not say: the process behind the pid (`ps`: parent, start time,
+executable), the paths `opencode debug paths` reports, the `opencode` command
+the plugin's clients resolve to, and `environment.kind`, read from the names
+in the process environment alone (`ps -E`, never a value): `person-shell` when
+any name beyond the plugin's `ENV_NAMES` and the system's own is present,
+`hermes-minimal` when none is, `unknown` when `ps` cannot show it. The
+distinction matters because `opencode api` starts the service when none runs
+and the service keeps its starter's environment for every later session: a
+service the plugin started serves the person's own sessions without their
+shell's variables (their tool keys among them) until they restart it. The API
+lists no tools, so which tools a run has is read from the configuration
+repository by a read-only run, not from the catalog.
+
 **Output directory.** A run may take `output_dir`: an existing job directory
 inside a Workspaces draft (`.agent/`), outside the worktree and spelled without
 wildcards. The session ruleset allows `external_directory` for exactly that

@@ -1197,9 +1197,110 @@ def test_catalog_reads_agents_skills_vcs_and_refuses_the_rest(fixture):
     assert all("permissions" not in a for a in agents)
     skills = json.loads(plugin.opencode_catalog({"what": "skills", "directory": str(directory)}))["skills"]
     assert skills == [{"id": "git-commit", "name": "git-commit", "description": "d"}]
-    assert json.loads(plugin.opencode_catalog({"what": "info"})) == {"version": "2.1.2"}
-    assert "what must be" in json.loads(plugin.opencode_catalog({"what": "config"}))["error"]
+    assert json.loads(plugin.opencode_catalog({"what": "info"})) == {"info": {
+        "version": "2.1.2", "urls": ["http://127.0.0.1:4096"], "paths": {"tmp": "/tmp/fake-opencode"},
+        "capabilities": {"persistentPty": True}}}
+    assert "what must be" in json.loads(plugin.opencode_catalog({"what": "tools"}))["error"]
     assert "Unexpected" in json.loads(plugin.opencode_catalog({"what": "info", "x": 1}))["error"]
+
+
+def catalog(what, directory=None):
+    args = {"what": what, **({"directory": str(directory)} if directory else {})}
+    return json.loads(plugin.opencode_catalog(args))
+
+
+def test_catalog_describes_plugins_mcp_and_locations(fixture):
+    _, directory, _, _ = fixture
+    assert catalog("plugins", directory)["plugins"] == [
+        {"id": "opencode.tool.read", "source": "builtin", "status": "active", "features": ["server"]},
+        {"id": "custom-tools", "source": "local", "status": "active", "path": "/cfg/plugins/custom-tools.ts",
+         "features": ["server"]}]
+    assert catalog("mcp", directory)["mcp"] == [{"name": "context7", "status": "connected"},
+                                                {"name": "blender", "status": "disabled"}]
+    assert catalog("locations")["locations"] == [str(directory), "/elsewhere"]
+
+
+def test_catalog_reduces_config_sources_to_their_shape(fixture):
+    """Paths, key names and the names a file defines; never a value (a header, a key, an option)."""
+    _, directory, _, _ = fixture
+    out = catalog("config", directory)
+    assert "SECRET" not in json.dumps(out)
+    sources = out["config"]
+    assert sources[0] == {
+        "type": "document", "path": "/cfg/opencode.jsonc",
+        "keys": ["$schema", "agents", "mcp", "permissions", "plugins", "providers"],
+        "agents": ["build", "plan"],
+        "plugins": ["@x/quota@5", "./lib/fallback", "https://git.example/…", None, None],
+        "mcp": {"context7": {"type": "remote"}, "blender": {"type": "local", "disabled": True}},
+        "providers": ["anthropic"], "permissions_count": 2}
+    assert sources[1] == {"type": "directory", "path": "/cfg", "keys": []}
+    assert sources[2] == {"type": "document", "path": f"{directory}/opencode.jsonc", "keys": ["references"]}
+
+
+def test_catalog_shapes_degrade_on_malformed_replies():
+    environment = plugin.environment
+    for body in (None, "text", 7, {"data": None}, {"data": {"a": 1}}, [None, 3, "x"]):
+        assert environment.plugins(body) == [] and environment.mcp(body) == []
+        assert environment.locations(body) == [] and environment.config_sources(body) == []
+    assert environment.info(None) == {}
+    assert environment.info({"version": 2, "pid": "7", "urls": "x", "paths": [1], "capabilities": {"a": {}}}) == {
+        "capabilities": {}}
+    assert environment.config_sources([{"type": 1, "path": None, "info": "not a dict"}]) == [
+        {"type": None, "path": None}]
+    assert environment.config_sources([{"type": "document", "path": "/p", "info": {
+        "mcp": {"servers": {"a": "not a dict", 3: {}}}, "agents": "x", "plugins": "x"}}]) == [
+        {"type": "document", "path": "/p", "keys": ["agents", "mcp", "plugins"], "mcp": {}}]
+    assert environment.process("4242") == {} and environment.process(-1) == {}
+    assert environment.environment_kind(None) == ("unknown", 0)
+
+
+def ps_of(answers):
+    """A `ps` whose answers are keyed by the option that names the column(s) asked."""
+    def _ps(args):
+        return answers.get(args[1] if args[0] == "-o" else args[0])
+    return _ps
+
+
+def test_catalog_service_describes_the_process_without_reading_values(fixture, monkeypatch):
+    _, _, _, fake = fixture
+    environment = plugin.environment
+    fake.pid = 4242
+    monkeypatch.setattr(environment, "_ps", ps_of({
+        "ppid=,lstart=,comm=": "    1 Mon Oct 26 21:53:56 2026     /opt/opencode/bin/opencode\n",
+        "-Eww": "opencode serve --service PATH=/usr/bin HOME=/Users/p TMUX=/x,1 TERM_PROGRAM=ghostty "
+                "SOME_API_KEY=SECRET LC_ALL=C PWD=/Users/p\n"}))
+    monkeypatch.setattr(environment, "paths", lambda: {"data": "/Users/p/.local/share/opencode"})
+    monkeypatch.setattr(environment, "client", lambda: {"command": "/Users/p/.config/bin/opencode"})
+    out = catalog("service")["service"]
+    assert "SECRET" not in json.dumps(out) and "SOME_API_KEY" not in json.dumps(out)
+    assert out == {
+        "version": "2.1.2", "urls": ["http://127.0.0.1:4096"],
+        "process": {"pid": 4242, "parent_pid": 1, "started": "Mon Oct 26 21:53:56 2026",
+                    "executable": "/opt/opencode/bin/opencode"},
+        "environment": {"kind": "person-shell", "names_beyond_minimal": 3},
+        "paths": {"data": "/Users/p/.local/share/opencode"},
+        "client": {"command": "/Users/p/.config/bin/opencode"}}
+
+
+def test_catalog_service_tells_a_minimal_environment_and_an_unreadable_one(fixture, monkeypatch):
+    _, _, _, fake = fixture
+    environment = plugin.environment
+    monkeypatch.setattr(environment, "paths", lambda: {})
+    monkeypatch.setattr(environment, "client", lambda: {})
+    fake.pid = 4242
+    monkeypatch.setattr(environment, "_ps", ps_of({
+        "ppid=,lstart=,comm=": "  1 Mon Oct 26 21:53:56 2026 /opt/opencode\n",
+        "-Eww": "opencode serve --service --port=1 PATH=/usr/bin HOME=/Users/p LANG=C XDG_DATA_DIRS=/x "
+                "PWD=/Users/p _=/x OPENCODE_SERVER_PASSWORD=SECRET\n"}))
+    out = catalog("service")["service"]
+    assert out["environment"] == {"kind": "hermes-minimal"}, \
+        "an option, the system's names and OpenCode's own do not make a person's shell"
+    assert out["paths"] == {"tmp": "/tmp/fake-opencode"}, "the service's own paths when the command fails"
+    monkeypatch.setattr(environment, "_ps", lambda args: None)
+    out = catalog("service")["service"]
+    assert out["environment"] == {"kind": "unknown"} and "process" not in out
+    fake.pid = None
+    assert catalog("service")["service"]["environment"] == {"kind": "unknown"}
 
 
 # ---------------------------------------------------------------- session tool

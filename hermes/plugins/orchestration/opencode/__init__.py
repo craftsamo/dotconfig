@@ -47,6 +47,7 @@ inventory = _load("hermes_opencode_history", _HERE / "history.py")
 preflight = _load("hermes_opencode_preflight", _HERE / "preflight.py")
 workspace = _load("hermes_opencode_workspace", _HERE / "workspace.py")
 ghwrite = _load("hermes_opencode_ghwrite", _HERE / "ghwrite.py")
+environment = _load("hermes_opencode_environment", _HERE / "environment.py")
 tool_preview = _load("hermes_tool_preview", _HERE.parents[1] / "_shared" / "tool_preview.py")
 turn_env = _load("hermes_turn_env", _HERE.parents[1] / "_shared" / "turn_env.py")
 
@@ -937,14 +938,24 @@ def opencode_instructions(args, **kwargs):
         return json.dumps({"error": str(exc)})
 
 
+# what -> (route, located). A located route is read at the worktree (a project's
+# config adds to it); the rest describe the service itself.
 CATALOG = {
     "agents": ("/api/agent", True), "skills": ("/api/skill", True), "commands": ("/api/command", True),
-    "vcs": ("/api/vcs/status", True), "info": ("/api/info", False),
+    "vcs": ("/api/vcs/status", True), "info": ("/api/info", False), "service": ("/api/info", False),
+    "plugins": ("/api/plugin", True), "mcp": ("/api/mcp", True), "config": ("/api/config", True),
+    "locations": ("/api/debug/location", False),
 }
 CATALOG_KEYS = {
     "agents": ("id", "mode", "hidden", "description", "model"),
     "skills": ("id", "name", "description"),
     "commands": ("id", "name", "description"),
+}
+# Replies shaped by environment.py: the service's own description, never a value from
+# a configuration file or a process environment.
+CATALOG_SHAPES = {
+    "info": environment.info, "service": environment.service, "plugins": environment.plugins,
+    "mcp": environment.mcp, "config": environment.config_sources, "locations": environment.locations,
 }
 
 
@@ -965,8 +976,8 @@ def opencode_catalog(args, **kwargs):
         if located:
             query = api.location(policy.worktree(directory))
         body = turn.call("get", route, query=query)
-        if what == "info":
-            return json.dumps({k: body.get(k) for k in ("version",) if isinstance(body, dict)})
+        if what in CATALOG_SHAPES:
+            return json.dumps({what: CATALOG_SHAPES[what](body)})
         items = body.get("data") if isinstance(body, dict) else body
         if isinstance(items, list):
             keys = CATALOG_KEYS.get(what)
@@ -1197,11 +1208,16 @@ def register(ctx):
         "Durable instructions attached to one of your OpenCode sessions, announced to the agent at its next step "
         "boundary. Keys are hermes.<name>; hermes.note is the operating note every run starts with.")
     add("opencode_catalog", opencode_catalog, {
-        "what": {"type": "string", "enum": ["models", "agents", "skills", "commands", "vcs", "info"]},
-        "directory": {"type": "string", "description": "Absolute worktree root for agents, skills, commands, vcs"},
+        "what": {"type": "string", "enum": ["models", *CATALOG]},
+        "directory": {"type": "string", "description": "Absolute worktree root for agents, skills, commands, vcs, "
+                                                       "plugins, mcp, config (a project's own config adds to them)"},
     }, ["what"],
-        "Read what OpenCode offers (read-only). models lists what an opencode_run_<role> tool accepts as model= "
-        "with variants, context, cost, each role's default and your own models (refused).")
+        "Read what OpenCode offers and how it runs (read-only). models lists what an opencode_run_<role> tool "
+        "accepts as model= with variants, context, cost, each role's default and your own models (refused). "
+        "agents includes subagents (mode subagent). service describes the running service: version, process, "
+        "whether its environment came from the person's shell or from Hermes' minimal one, its paths and the "
+        "opencode command. plugins, mcp (servers and connection status), config (each loaded config file as its "
+        "path, keys and the names it defines; never values) and locations (loaded directories) read the rest.")
     add("opencode_preflight", opencode_preflight, {
         "directory": {"type": "string", "description": "Absolute Git worktree root"},
         "phase": {"type": "string", "enum": list(preflight.PHASES), "description": "plan (default) or build"},

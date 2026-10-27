@@ -39,6 +39,8 @@ class Fake:
         self.move_refused, self.moves, self.patch_error = False, [], None
         self.prompt_error = None
         self.drop_permissions = False
+        # The service's pid as `/api/info` reports it; none by default, so nothing asks `ps`.
+        self.pid = None
         self.clock = 1_000_000
         tools = {"capabilities": {"tools": True}, "enabled": True}
         self.models = [
@@ -171,7 +173,32 @@ class Fake:
 
     def _route(self, method, parts, query, data):
         if parts == ["info"]:
-            return {"version": "2.1.2", "paths": {"tmp": "/tmp/fake-opencode"}}
+            return {"version": "2.1.2", "urls": ["http://127.0.0.1:4096"], "paths": {"tmp": "/tmp/fake-opencode"},
+                    "capabilities": {"persistentPty": True}, **({"pid": self.pid} if self.pid else {})}
+        if parts == ["plugin"]:
+            assert query.get("location[directory]") == self.directory
+            return {"data": [
+                {"id": "opencode.tool.read", "source": {"type": "builtin"}, "features": {"server": True},
+                 "state": {"status": "active"}},
+                {"id": "custom-tools", "source": {"type": "local", "path": "/cfg/plugins/custom-tools.ts"},
+                 "features": {"server": True, "tui": False}, "state": {"status": "active"}}]}
+        if parts == ["mcp"]:
+            assert query.get("location[directory]") == self.directory
+            return {"data": [{"name": "context7", "status": {"status": "connected"}, "integrationID": "mcp_x"},
+                             {"name": "blender", "status": {"status": "disabled"}}]}
+        if parts == ["config"]:
+            assert query.get("location[directory]") == self.directory
+            return [{"type": "document", "path": "/cfg/opencode.jsonc", "info": {
+                        "$schema": "s", "permissions": [{}, {}], "agents": {"plan": {}, "build": {}},
+                        "plugins": ["@x/quota@5", {"package": "./lib/fallback", "options": {"token": "SECRET"}},
+                                    "https://user:SECRET@git.example/x.git?token=SECRET", 7, "bad spec"],
+                        "mcp": {"servers": {"context7": {"type": "remote", "url": "u", "headers": {"k": "SECRET"}},
+                                            "blender": {"type": "local", "command": ["x"], "disabled": True}}},
+                        "providers": {"anthropic": {"options": {"apiKey": "SECRET"}}}}},
+                    {"type": "directory", "path": "/cfg", "info": {}},
+                    {"type": "document", "path": f"{self.directory}/opencode.jsonc", "info": {"references": []}}]
+        if parts == ["debug", "location"]:
+            return [{"directory": self.directory}, {"directory": "/elsewhere"}]
         if parts == ["model"]:
             return {"data": self.models}
         if parts == ["agent"]:
