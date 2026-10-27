@@ -55,7 +55,10 @@ directories are in [`../../AGENTS.md`](../../AGENTS.md) "Skills".
   plugin logs `tool preview … not installed` and the lines fall back to
   Hermes' own, while the tools keep working. A change applies at the next
   gateway restart. `display.tool_progress: verbose` still prints every
-  argument.
+  argument. The line's leading emoji is the `emoji=` each plugin passes to
+  `register_tool` (an OpenCode run tool takes its role's, see
+  [opencode.md](../opencode.md)); without one Hermes shows ⚙️ in a chat and ⚡
+  in the CLI, and `test_plugin_tool_emojis.py` refuses that.
 
 ### Media stack
 

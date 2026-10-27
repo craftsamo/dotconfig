@@ -245,7 +245,8 @@ skills.
   `plugins/_shared/tool_preview.py` right after `register_tool`. Without one,
   Hermes previews the first argument named `query`, `text`, `path` or `name`,
   so a message body, a search or a local path lands in the chat as written.
-  A preview shows only schema-declared choices, never free text
+  A preview shows only schema-declared choices, never free text, and the
+  call passes its own `emoji=` (a test refuses one without)
   ([docs/ops/plugins.md](docs/ops/plugins.md) "Progress lines").
 - **A plugin's mechanics skill ships inside the plugin, in a directory named
   `skills/`.** `plugins/<group>/<name>/skills/<skill>/SKILL.md` is registered

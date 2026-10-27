@@ -498,6 +498,7 @@ def gcloud(args, **kwargs):
 
 HANDLERS = {"google_sheets": google_sheets, "google_gmail": google_gmail, "google_drive": google_drive,
             "gcloud": gcloud}
+EMOJI = {"google_sheets": "📊", "google_gmail": "📧", "google_drive": "📁", "gcloud": "☁️"}
 
 
 def gate(**kwargs):
@@ -547,7 +548,7 @@ def register(ctx):
             "type": "object", "properties": properties, "required": REQUIRED[name],
             "additionalProperties": False}}
         ctx.register_tool(name=name, toolset=TOOLSET, handler=HANDLERS[name], description=description,
-                          schema=schema)
+                          schema=schema, emoji=EMOJI[name])
         if name != "gcloud":
             tool_preview.enums(name, schema, "action")
     ctx.register_hook("pre_tool_call", gate)

@@ -506,6 +506,7 @@ def register(ctx) -> None:
         schema=CHARACTER_VOICES_SCHEMA,
         handler=_character_voices,
         description=CHARACTER_VOICES_SCHEMA["description"],
+        emoji="🎭",
     )
     ctx.register_tool(
         name="character_text_to_speech",
@@ -513,5 +514,6 @@ def register(ctx) -> None:
         schema=CHARACTER_TTS_SCHEMA,
         handler=_character_text_to_speech,
         description=CHARACTER_TTS_SCHEMA["description"],
+        emoji="🗣️",
     )
     tool_preview.fixed("character_text_to_speech", "speech")

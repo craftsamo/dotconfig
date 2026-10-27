@@ -398,6 +398,7 @@ def register(ctx) -> None:
     def gate(**kwargs):
         return check(profile, **kwargs)
 
-    ctx.register_tool(name=TOOL, toolset=TOOLSET, handler=handler, description=schema["description"], schema=schema)
+    ctx.register_tool(name=TOOL, toolset=TOOLSET, handler=handler, description=schema["description"], schema=schema,
+                      emoji="📈")
     tool_preview.enums("hyperliquid", schema, "action", "kind")
     ctx.register_hook("pre_tool_call", gate)

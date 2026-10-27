@@ -79,9 +79,9 @@ chains = _load("hermes_web3_chains", HERE / "chains.py")
 guard = _load("hermes_web3_guard", HERE / "guard.py")
 tool_preview = _load("hermes_tool_preview", Path(__file__).resolve().parents[2] / "_shared" / "tool_preview.py")
 
-FAMILY = {"evm": {"tool": "evm", "toolset": "evm_access", "chains": list(chains.EVM),
+FAMILY = {"evm": {"tool": "evm", "toolset": "evm_access", "emoji": "🔷", "chains": list(chains.EVM),
                   "skill": "evm-access:read", "wallet_skill": "evm-access:manage-wallets"},
-          "solana": {"tool": "solana", "toolset": "solana_access", "chains": list(chains.SOLANA),
+          "solana": {"tool": "solana", "toolset": "solana_access", "emoji": "☀️", "chains": list(chains.SOLANA),
                      "skill": "solana-access:read", "wallet_skill": "solana-access:wallet"}}
 
 READ_HELP = {
@@ -521,6 +521,6 @@ def register(ctx, family: str) -> None:
         return check(family, profile, **kwargs)
 
     ctx.register_tool(name=FAMILY[family]["tool"], toolset=FAMILY[family]["toolset"], handler=handler,
-                      description=schema["description"], schema=schema)
+                      description=schema["description"], schema=schema, emoji=FAMILY[family]["emoji"])
     tool_preview.enums(FAMILY[family]["tool"], schema, "action", "kind")
     ctx.register_hook("pre_tool_call", gate)

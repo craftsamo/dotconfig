@@ -297,7 +297,7 @@ def register(ctx):
     )
     text = {"type": "string", "maxLength": INPUT_LIMIT}
     ctx.register_tool(
-        name="writing_inspect", toolset="writing-inspection", description=description,
+        name="writing_inspect", toolset="writing-inspection", description=description, emoji="🖋️",
         handler=lambda args, **kwargs: _inspect(args, profile, **kwargs),
         schema={"name": "writing_inspect", "description": description, "parameters": {
             "type": "object", "additionalProperties": False, "required": ["text"],
