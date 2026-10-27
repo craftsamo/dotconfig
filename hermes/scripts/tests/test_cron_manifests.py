@@ -50,6 +50,13 @@ def test_a_manifest_directory_holds_only_its_job():
         assert extra == [], f"{d}: {extra}"
 
 
+def test_a_tracked_manifest_names_no_conversation():
+    """`origin` is the chat a profile's own job was asked in: machine-local by nature."""
+    for d in manifest_dirs():
+        spec = S.yaml.safe_load((d / S.MANIFEST_FILE).read_text(encoding="utf-8")) or {}
+        assert not (set(spec) & S.LOCAL_ONLY_KEYS), d
+
+
 def test_the_repository_tracks_at_least_one_manifest():
     """x-snapshot is the first; a repository with none would leave the install path untested."""
     assert any(d.name == "x-snapshot" for d in manifest_dirs())

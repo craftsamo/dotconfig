@@ -49,12 +49,16 @@ MODES = ("no_agent", "prompt", "monitor")
 NAME_RE = re.compile(r"^[a-z0-9][a-z0-9._-]*$")
 KNOWN_KEYS = frozenset({
     "schedule", "mode", "prompt", "skills", "deliver", "failure_deliver", "repeat", "paused",
-    "monitor_url", "workdir",
+    "monitor_url", "workdir", "context_from", "enabled_toolsets", "attach_to_session", "origin",
 })
+# Keys only a profile's own (local) manifest may carry: they name the conversation the job was
+# asked in, so a tracked manifest never holds them (test_cron_manifests refuses it).
+LOCAL_ONLY_KEYS = frozenset({"origin"})
 # The job-record fields a manifest owns; everything else (run state, counters, origin) is Hermes'.
 DEFINITION_FIELDS = (
     "schedule", "no_agent", "script", "monitor_script", "monitor_url", "prompt", "skills",
-    "deliver", "failure_deliver", "repeat", "workdir",
+    "deliver", "failure_deliver", "repeat", "workdir", "context_from", "enabled_toolsets",
+    "attach_to_session",
 )
 
 
@@ -97,6 +101,9 @@ class Manifest:
             "failure_deliver": spec.get("failure_deliver"),
             "repeat": spec.get("repeat"),
             "workdir": spec.get("workdir"),
+            "context_from": list(spec["context_from"]) if spec.get("context_from") else None,
+            "enabled_toolsets": list(spec["enabled_toolsets"]) if spec.get("enabled_toolsets") is not None else None,
+            "attach_to_session": spec.get("attach_to_session"),
         }
 
 
@@ -177,11 +184,27 @@ def validate_spec(name: str, spec: Any, run_script: Optional[Path]) -> dict[str,
         if not isinstance(repeat, int) or isinstance(repeat, bool) or repeat < 1:
             raise ManifestError(f"{name}: `repeat` must be a positive integer")
         clean["repeat"] = repeat
-    paused = spec.get("paused")
-    if paused is not None:
-        if not isinstance(paused, bool):
-            raise ManifestError(f"{name}: `paused` must be true or false")
-        clean["paused"] = paused
+    for key in ("paused", "attach_to_session"):
+        value = spec.get(key)
+        if value is not None:
+            if not isinstance(value, bool):
+                raise ManifestError(f"{name}: `{key}` must be true or false")
+            clean[key] = value
+    for key in ("context_from", "enabled_toolsets"):
+        value = spec.get(key)
+        if value is not None:
+            if not isinstance(value, list) or not all(isinstance(s, str) and s.strip() for s in value):
+                raise ManifestError(f"{name}: `{key}` must be a list of non-empty strings")
+            clean[key] = [s.strip() for s in value]  # [] is kept: an explicit zero-tool allowlist
+    if mode == "no_agent" and (clean.get("context_from") or clean.get("enabled_toolsets") is not None
+                               or clean.get("attach_to_session") is not None):
+        raise ManifestError(
+            f"{name}: mode no_agent runs no model; drop `context_from`, `enabled_toolsets`, `attach_to_session`")
+    origin = spec.get("origin")
+    if origin is not None:
+        if not isinstance(origin, dict) or not origin.get("platform") or not origin.get("chat_id"):
+            raise ManifestError(f"{name}: `origin` must be a mapping with `platform` and `chat_id`")
+        clean["origin"] = {k: (None if v is None else str(v)) for k, v in origin.items()}
     return clean
 
 
@@ -318,6 +341,9 @@ def _stored_definition(job: dict[str, Any]) -> dict[str, Any]:
         "failure_deliver": job.get("failure_deliver") or None,
         "repeat": (job.get("repeat") or {}).get("times"),
         "workdir": job.get("workdir") or None,
+        "context_from": list(job["context_from"]) if job.get("context_from") else None,
+        "enabled_toolsets": list(job["enabled_toolsets"]) if job.get("enabled_toolsets") is not None else None,
+        "attach_to_session": job.get("attach_to_session"),
     }
 
 
@@ -401,6 +427,8 @@ def apply_plan(plan: Plan, jobs_api, now: str) -> list[str]:
             deliver=d["deliver"], skills=d["skills"], script=d["script"], no_agent=d["no_agent"],
             monitor_script=d["monitor_script"], monitor_url=d["monitor_url"],
             failure_deliver=d["failure_deliver"], workdir=d["workdir"],
+            context_from=d["context_from"], enabled_toolsets=d["enabled_toolsets"],
+            attach_to_session=d["attach_to_session"], origin=manifest.spec.get("origin"),
         )
         if manifest.paused is True:
             kwargs.update(paused=True, paused_reason=MANIFEST_PAUSE_REASON)
@@ -567,6 +595,25 @@ def remove_local(home: Path, name: str) -> Path:
         raise ManifestError(f"{name}: no such local job")
     shutil.rmtree(directory)
     return directory
+
+
+def drop_local(home: Path, name: str) -> Optional[str]:
+    """Remove a local job for good: its directory and its managed job (output included),
+    without touching any other orphan. Returns the removed job's id, if it had one."""
+    home = home.expanduser().resolve()
+    remove_local(home, name)
+
+    def run(jobs_api):
+        for job in jobs_api.load_jobs():
+            marker = job.get(MARKER)
+            if isinstance(marker, dict) and marker.get("manifest") == name:
+                jobs_api.remove_job(job["id"])
+                return job["id"]
+        return None
+
+    job_id = _with_home(home, run)
+    sync_wrappers(home, load_manifests(home)[0], write=True)
+    return job_id
 
 
 # ---------------------------------------------------------------------------

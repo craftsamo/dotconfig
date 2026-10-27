@@ -371,6 +371,53 @@ def test_write_local_validates_before_leaving_anything_behind(home: Path):
     assert done[0].startswith("paused orphan job")
 
 
+def test_a_local_manifest_carries_the_conversation_and_the_agent_fields(home: Path):
+    write_job(home, "gate", {
+        "schedule": "*/15 * * * *", "mode": "prompt", "prompt": "Follow the gate report.",
+        "deliver": "origin", "attach_to_session": True, "enabled_toolsets": ["skills"],
+        "context_from": ["self"],
+        "origin": {"platform": "telegram", "chat_id": "-100", "thread_id": "7", "chat_name": None},
+    })
+    sync(home)
+    j = job(home, "gate")
+    assert j["origin"] == {"platform": "telegram", "chat_id": "-100", "thread_id": "7", "chat_name": None}
+    assert j["deliver"] == "origin" and j["attach_to_session"] is True
+    assert j["enabled_toolsets"] == ["skills"] and j["context_from"] == ["self"]
+    plan, done = sync(home)
+    assert done == []
+    (home / S.MANIFEST_DIR / "gate" / S.MANIFEST_FILE).write_text(S.yaml.safe_dump({
+        "schedule": "*/15 * * * *", "mode": "prompt", "prompt": "Follow the gate report.",
+        "deliver": "origin", "enabled_toolsets": [], "origin": {"platform": "telegram", "chat_id": "-100"},
+    }), encoding="utf-8")
+    plan, done = sync(home)
+    assert done == ["updated gate: attach_to_session, context_from, enabled_toolsets"]
+    assert job(home, "gate")["enabled_toolsets"] == []  # an explicit zero-tool allowlist survives
+
+
+@pytest.mark.parametrize("spec,message", [
+    ({"schedule": "1h", "mode": "no_agent", "enabled_toolsets": ["x"]}, "runs no model"),
+    ({"schedule": "1h", "mode": "prompt", "prompt": "p", "origin": {"platform": "telegram"}}, "`origin` must be"),
+    ({"schedule": "1h", "mode": "prompt", "prompt": "p", "context_from": "self"}, "list of non-empty"),
+    ({"schedule": "1h", "mode": "prompt", "prompt": "p", "attach_to_session": "yes"}, "true or false"),
+])
+def test_the_agent_fields_are_checked(home: Path, spec, message):
+    write_job(home, "a", spec)
+    _manifests, errors = S.load_manifests(home)
+    assert len(errors) == 1 and message in errors[0], errors
+
+
+def test_drop_local_removes_the_directory_and_only_its_job(home: Path, tmp_path: Path):
+    write_job(home, "mine", {"schedule": "1h", "mode": "no_agent"})
+    write_job(home, "other", {"schedule": "1h", "mode": "no_agent"})
+    sync(home)
+    (home / S.MANIFEST_DIR / "other").rename(tmp_path / "parked")  # an orphan that must stay
+    mine_id = job(home, "mine")["id"]
+    assert S.drop_local(home, "mine") == mine_id
+    assert not (home / S.MANIFEST_DIR / "mine").exists()
+    assert not (home / "scripts" / "cron" / "mine.sh").exists()
+    assert [j["name"] for j in jobs_of(home)] == ["other"]
+
+
 def test_remove_local_refuses_a_repository_job(home: Path, tmp_path: Path):
     write_job(home, "snap", {"schedule": "1h", "mode": "no_agent"}, link_from=tmp_path / "repo")
     with pytest.raises(S.ManifestError, match="repository job"):
