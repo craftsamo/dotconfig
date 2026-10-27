@@ -12,7 +12,7 @@ Part of the Hermes mechanics docs — entry: [`README.md`](../../README.md).
 **Tracked:** root `config.example.yaml` / `mcp.json` / `.no-bundled-skills`; per profile
 `config.example.yaml`, `profile.yaml`,
 `.no-bundled-skills`, `skills/pipeline/` and `skills/technic/`,
-`scripts/`; every `SOUL.example.md`; `skills/pipeline/`; `plugins/`
+`scripts/`, `cron.d/`; every `SOUL.example.md`; `skills/pipeline/`; `plugins/`
 source; `launchd/`; `engines/`; `scripts/`; docs.
 
 **Not here at all:** everything Hermes writes. `~/.hermes` and each profile
@@ -21,8 +21,8 @@ home are real machine-local directories holding links into this tree
 `memories/`, `sessions/`, `state.db*`, `cron/`, …), the real `config.yaml` and
 `SOUL.md` (the private overlay's, linked from HOME), `learned/` and the skill
 bookkeeping (`.usage.json*`, `.curator_*`, `.hub/`, seeded categories), a
-profile's `adhoc/` scripts and the overlay's generated cron wrappers all land
-beside the links, outside the repository.
+profile's `adhoc/` scripts, its own `cron.d/` directories and the wrappers
+cron-sync generates all land beside the links, outside the repository.
 
 **Ignored** (see [`.gitignore`](../../../.gitignore)): the runtime-state names
 above, as a safety net for a `HERMES_HOME` pointed at this tree by mistake;
@@ -124,12 +124,14 @@ rule never to re-link it or re-add it with `skip-worktree`, and why, is in
 [`../../AGENTS.md`](../../AGENTS.md) "Repository and install".
 
 - A missing `jobs.json` is read as **zero jobs, silently**, and nothing
-  recreates it — back it up before touching that directory.
-- The private `local-*` schedules are re-creatable from the `hermes cron create`
-  commands in the private overlay's README. Hermes' scheduler only runs a script
-  resolving inside `<HERMES_HOME>/scripts`, so the overlay's `install.sh`
-  generates the ignored `profiles/*/scripts/local-*.sh` wrappers.
-- Throwaway scripts a profile writes for its own jobs go in the ignored
-  `profiles/*/scripts/adhoc/` and are referenced as `adhoc/<name>`; only
-  scripts meant to be maintained sit directly in `scripts/` and get tracked.
-  Deleting a job does not delete its `adhoc/` script — prune by hand.
+  recreates it on its own — back it up before touching that directory. What
+  does recreate the tracked jobs is `install.sh`: every job worth keeping is a
+  `profiles/<p>/cron.d/<name>/` directory in this repository or the private
+  overlay, and `scripts/cron-sync.py` derives `jobs.json` from the links
+  `install.sh` places ([cron.md](cron.md)). A job's definition is never a
+  `hermes cron create` command quoted in a header or a README.
+- A profile's own jobs are real directories beside those links, written
+  through `cron-sync add`; the wrappers cron-sync generates land in
+  `profiles/*/scripts/cron/` in HOME, outside the repository. Promoting a
+  local job into a repository is the same move as `learned/ → technic/`
+  ([cron.md "Public, private, local"](cron.md#public-private-local)).

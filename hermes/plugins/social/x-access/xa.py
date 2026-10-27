@@ -1457,7 +1457,7 @@ def _run(action: str, args: dict, home: Path | None, profile: str | None) -> dic
 
 # --- scheduled snapshot -------------------------------------------------------------------------
 #
-# The Assistant's no_agent cron job (profiles/assistant/scripts/x-snapshot.sh) runs
+# The Assistant's no_agent cron job (profiles/assistant/cron.d/x-snapshot/run.sh) runs
 # ``xa.py snapshot <hermes_home>``. Hermes delivers a no_agent job's stdout and alerts on a nonzero
 # exit, so a recorded snapshot prints nothing; a pause (cap, rate limit, another read running) is
 # skipped silently because the next run catches up; anything else fails loudly.
