@@ -809,12 +809,41 @@ def test_gmail_get_prefers_plain_text_and_lists_attachments(tmp_path, monkeypatc
                 {"mimeType": "multipart/alternative", "parts": [
                     {"mimeType": "text/plain", "body": {"data": b64("plain body")}},
                     {"mimeType": "text/html", "body": {"data": b64("<p>html</p>")}}]},
-                {"mimeType": "application/pdf", "filename": "a.pdf", "body": {"size": 10}}]}}
+                {"partId": "1", "mimeType": "application/pdf", "filename": "a.pdf", "body": {"size": 10}}]}}
     services(monkeypatch, gmail=api)
     result = access.gmail(tmp_path, {"action": "get", "id": "m1"})
     assert result["body"] == "plain body" and result["subject"] == "Hi"
-    assert result["attachments"] == [{"filename": "a.pdf", "mime_type": "application/pdf", "size": 10}]
+    assert result["attachments"] == [{"part": "1", "filename": "a.pdf", "mime_type": "application/pdf",
+                                      "size": 10}]
     assert "untrusted" in result["note"]
+
+
+def test_gmail_attachment_saves_the_listed_part_read_only(tmp_path, monkeypatch):
+    api = mock.MagicMock()
+    api.users().messages().get().execute.return_value = {
+        "id": "m1", "payload": {"partId": "", "mimeType": "multipart/mixed", "parts": [
+            {"partId": "0", "mimeType": "text/plain", "body": {"data": b64("see attached")}},
+            {"partId": "1", "mimeType": "text/csv", "filename": "../stmt:2026-10.csv",
+             "body": {"attachmentId": "volatile", "size": 9}},
+            {"partId": "2", "mimeType": "text/plain", "filename": "inline.txt",
+             "body": {"data": b64("inline"), "size": 6}}]}}
+    api.users().messages().attachments().get().execute.return_value = {"data": b64("date,amt\n")}
+    calls = services(monkeypatch, gmail=api)
+    first = access.gmail(tmp_path, {"action": "attachment", "id": "m1", "part": "1"})
+    assert first["path"] == str(access.download_dir(tmp_path) / "_stmt_2026-10.csv")
+    assert Path(first["path"]).read_bytes() == b"date,amt\n" and first["size"] == 9
+    assert api.users().messages().attachments().get.call_args.kwargs == {
+        "userId": "me", "messageId": "m1", "id": "volatile"}
+    assert "untrusted" in first["note"]
+    inline = access.gmail(tmp_path, {"action": "attachment", "id": "m1", "part": "2", "name": "x.txt"})
+    assert Path(inline["path"]).name == "x.txt" and Path(inline["path"]).read_bytes() == b"inline"
+    assert calls == [("gmail", access.GMAIL_READ)] * 2
+    assert access.approval_request("google_gmail", {"action": "attachment", "id": "m1", "part": "1"}) is None
+    for part in ("0", "9"):
+        with pytest.raises(access.AccessError, match="no attachment"):
+            access.gmail(tmp_path, {"action": "attachment", "id": "m1", "part": part})
+    with pytest.raises(access.AccessError, match="part"):
+        access.gmail(tmp_path, {"action": "attachment", "id": "m1"})
 
 
 def test_html_only_mail_is_reduced_to_text():
