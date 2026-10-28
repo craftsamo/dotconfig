@@ -21,6 +21,7 @@ a profile sees only its `config.yaml`, `SOUL.md` and skills.
 | install, link, track a profile, move files                   | [`docs/ops/install.md`](docs/ops/install.md), [`docs/ops/tracking.md`](docs/ops/tracking.md)                   |
 | add or change a scheduled (cron) job                         | [`docs/ops/cron.md`](docs/ops/cron.md)                                                                         |
 | receive a webhook from an outside service                    | [`docs/ops/webhook.md`](docs/ops/webhook.md)                                                                   |
+| write a report a script posts to Telegram                    | [`docs/ops/telegram-markdown.md`](docs/ops/telegram-markdown.md)                                               |
 | add or change skills; why a worker command is refused        | [`docs/ops/skills.md`](docs/ops/skills.md)                                                                     |
 | enable or configure a plugin                                 | [`docs/ops/plugins.md`](docs/ops/plugins.md)                                                                   |
 | run or repair a LaunchAgent, a launcher or an engine script  | [`docs/ops/services.md`](docs/ops/services.md)                                                                 |
