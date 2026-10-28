@@ -6,8 +6,9 @@
 # When nothing is to be done or said that line is {"wakeAgent": false} and no model runs; otherwise
 # it lists the exact hyperliquid quotes the rules call for, and the Assistant follows the
 # hyperliquid-access:run-strategy skill. It never signs or reads a key. Contract:
-# docs/hyperliquid.md "Strategies". The job lives in the machine-local cron; the
-# hyperliquid-access:configure-strategy skill's "Running it" section has the cronjob call.
+# docs/hyperliquid.md "Strategies". The job is the profile's tracked cron.d/hl-strategy-gate
+# (docs/ops/cron.md), kept beside the private config since its delivery names a topic; its run.sh
+# execs this script where install.sh copied it.
 
 set -u
 
