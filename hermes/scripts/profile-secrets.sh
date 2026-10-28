@@ -18,10 +18,12 @@
 #      is fine). Only the assistant runs a bot: messaging keys left in another
 #      profile's layer are dropped.
 #
-# assistant only: TELEGRAM_CRON_THREAD_ID is derived from the persisted Inbox
-# topic id in the assistant config (same awk as the old gateway launcher) so
-# bare `deliver: telegram` cron jobs land in the Inbox topic. A missing id
-# yields the literal `disabled`, which fails fast instead of misrouting.
+# assistant only: TELEGRAM_CRON_THREAD_ID and TELEGRAM_HOME_CHANNEL_THREAD_ID
+# are derived from the persisted Inbox topic id in the assistant config (same
+# awk as the old gateway launcher) so bare `deliver: telegram` cron jobs and
+# webhook routes land in the Inbox topic. A missing id yields the literal
+# `disabled` for cron, which fails fast instead of misrouting, and no home
+# thread at all.
 #
 # Notes:
 #   - `secret env` prints `export KEY='value'` lines; Hermes' parser accepts
@@ -95,7 +97,14 @@ if [ "$PROFILE" = "assistant" ]; then
   fi
   case "${INBOX_THREAD_ID:-}" in
     ''|*[!0-9]*) echo "TELEGRAM_CRON_THREAD_ID=disabled" ;;
-    *) echo "TELEGRAM_CRON_THREAD_ID=$INBOX_THREAD_ID" ;;
+    *)
+      echo "TELEGRAM_CRON_THREAD_ID=$INBOX_THREAD_ID"
+      # The home channel itself is the Inbox topic, so every bare `telegram`
+      # delivery that resolves through it — a webhook route's, a restart
+      # notice — lands there too, not in the chat's root (the lobby in topic
+      # mode, where the person cannot reply).
+      echo "TELEGRAM_HOME_CHANNEL_THREAD_ID=$INBOX_THREAD_ID"
+      ;;
   esac
 fi
 
