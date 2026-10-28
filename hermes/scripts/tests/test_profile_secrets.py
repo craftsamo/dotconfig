@@ -32,3 +32,20 @@ def test_every_worker_accepts_localhost_peers(tmp_path, profile):
 @pytest.mark.parametrize("profile", ["assistant", "default"])
 def test_the_assistant_and_the_root_profile_do_not(tmp_path, profile):
     assert GRANT not in run(profile, tmp_path)
+
+
+def test_the_inbox_topic_is_the_cron_thread_and_the_home_channel_thread(tmp_path):
+    """Both bare `deliver: telegram` cron jobs and webhook routes land in the Inbox: the first
+    through the cron thread, the second through the home channel's thread."""
+    config = tmp_path / ".hermes" / "profiles" / "assistant" / "config.yaml"
+    config.parent.mkdir(parents=True)
+    config.write_text("platforms:\n  telegram:\n    extra:\n      dm_topics:\n      - chat_id: '1'\n"
+                      "        topics:\n        - name: Inbox\n          thread_id: 4242\n", encoding="utf-8")
+    lines = run("assistant", tmp_path)
+    assert "TELEGRAM_CRON_THREAD_ID=4242" in lines and "TELEGRAM_HOME_CHANNEL_THREAD_ID=4242" in lines
+
+
+def test_without_an_inbox_cron_fails_closed_and_the_home_channel_keeps_no_thread(tmp_path):
+    lines = run("assistant", tmp_path)
+    assert "TELEGRAM_CRON_THREAD_ID=disabled" in lines
+    assert not any(line.startswith("TELEGRAM_HOME_CHANNEL_THREAD_ID=") for line in lines)
