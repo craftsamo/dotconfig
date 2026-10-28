@@ -2132,9 +2132,9 @@
       "resource": "japanese-*",
       "effect": "allow"
     },
-    // The Claude desktop app syncs its skills into ~/.agents/skills/synced/,
-    // which OpenCode reads through ~/.claude/skills. These need tools only
-    // that app has (its browser, Claude in Chrome, computer use, connectors,
+    // Claude Code syncs claude.ai skills into ~/.claude/skills/synced/,
+    // which OpenCode reads as a compatibility source. These need tools only
+    // the Claude app has (its browser, Claude in Chrome, computer use, connectors,
     // memory), so deny hides them from the model instead of failing.
     {
       "action": "skill",
