@@ -170,7 +170,10 @@ OBJECT_OPS_DESCRIPTION = (
     "rebuilt from it), chart_type (not to or from PIE), title ('' removes), legend, stacked, "
     "header; chart_move: chart plus at, new_sheet, width, height; chart_delete. info lists charts. "
     "pivot: pivot (range = source with its header row; pivot_rows / pivot_columns = column "
-    "letters, pivot_values = [{column, summarize SUM|COUNTA|COUNT|AVERAGE|MAX|MIN|…}], "
+    "letters, or {column, group: YEAR_MONTH|YEAR|MONTH|DAY_OF_WEEK|… for a date column, sort: "
+    "ASCENDING|DESCENDING, label, totals}; pivot_values = [{column, summarize "
+    "SUM|COUNTA|COUNT|AVERAGE|MAX|MIN|…, name} or {formula: '=SUMPRODUCT((Kind=\"out\")*Amount)' "
+    "over the source's header names, summarize CUSTOM (whole group) | SUM (per row), name}], "
     "pivot_filters = [{column, show: [values]}]; goes on a new tab (title, default 'Pivot table "
     "N') unless at = a cell, which overwrites what it fills and asks each time); pivot_delete: at = "
     "the anchor cell (get_format over an area reports pivot_tables).")
