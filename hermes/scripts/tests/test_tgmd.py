@@ -69,6 +69,22 @@ def test_heading_and_bold():
     assert T.bold("1.5x") == r"**1\.5x**"
 
 
+def test_the_other_inline_pieces():
+    assert T.italic("a_b") == r"*a\_b*" and T.strike("a_b") == r"~~a\_b~~" and T.spoiler("x|y") == r"||x\|y||"
+
+
+def test_code_and_fence_escape_nothing_but_keep_their_own_delimiter_out():
+    assert T.code("a`b_c\nd") == "`a'b_c d`"
+    assert T.fence("x\n```\ny", "sh") == "```sh\nx\n'''\ny\n```"
+
+
+def test_quote_lists_and_tasks():
+    assert T.quote("a_b", T.bold("c")) == "> a\\_b\n> **c**"
+    assert T.ul(["a.", "#b"]) == "- a\\.\n- \\#b"
+    assert T.ol(["a", T.link("m", "u")]) == "1. a\n2. [m](u)"
+    assert T.task(["open_1", ("done (2)", True)]) == "- [ ] open\\_1\n- [x] done \\(2\\)"
+
+
 SHORT = "# r\n\n| a | c |\n| :--- | :--- |\n| b | d |\n"
 LONG = SHORT + "\n<details><summary>s</summary>\n\n" + "x" * 200 + "\n\n</details>\n"
 
@@ -98,6 +114,10 @@ def test_cli_table_details_clamp_and_esc():
     assert run("clamp", "--limit", "4", "--attach", "/f", stdin="ab\n\n<details>\nz\n</details>\n") == \
         "ab\n\nFull report:\nMEDIA:/f\n"
     assert run("esc", stdin="a*b\n") == "a\\*b\n"
+    assert run("task", stdin="[x] done\nopen_1\n") == "- [x] done\n- [ ] open\\_1\n"
+    assert run("list", "--ordered", stdin="a\nb\n") == "1. a\n2. b\n"
+    assert run("quote", stdin="a\n\nb\n") == "> a\n> b\n"
+    assert run("fence", "--lang", "sh", stdin="ls\n") == "```sh\nls\n```\n"
 
 
 # --- against the runtime's adapter -------------------------------------------------------------
@@ -109,10 +129,19 @@ def tg():
     return adapter.TelegramAdapter.__new__(adapter.TelegramAdapter)  # class-level regexes only
 
 
-def test_a_table_or_details_selects_the_rich_path_and_prose_does_not(tg):
+def test_a_table_details_or_task_list_selects_the_rich_path_and_prose_does_not(tg):
     assert tg._needs_rich_rendering(T.table(["a", "b"], [["c", "d"]]))
     assert tg._needs_rich_rendering(T.details("t", "p"))
-    assert not tg._needs_rich_rendering(f"{T.heading('h')}\n\n- {T.esc('a_b')}")
+    assert tg._needs_rich_rendering(T.task(["a"]))
+    for prose in (f"{T.heading('h')}\n\n{T.ul(['a_b'])}", T.quote("q"), T.fence("x"), f"{T.bold('b')} {T.code('c')}"):
+        assert not tg._needs_rich_rendering(prose), prose
+
+
+def test_the_plain_path_keeps_code_and_fence_bodies_as_written(tg):
+    """On the plain path the adapter protects code spans and fences and escapes only a backslash
+    inside them, so an unescaped body is right there too."""
+    out = tg.format_message(f"{T.code('a_b.c')}\n{T.fence('x_y')}")
+    assert "`a_b.c`" in out and "x_y" in out
 
 
 def test_escaped_brackets_in_details_would_make_the_adapter_skip_rich(tg):
