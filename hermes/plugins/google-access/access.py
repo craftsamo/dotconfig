@@ -2795,6 +2795,10 @@ LEGENDS = {"BOTTOM": "BOTTOM_LEGEND", "TOP": "TOP_LEGEND", "LEFT": "LEFT_LEGEND"
            "NONE": "NO_LEGEND"}
 SUMMARIES = {"SUM", "COUNTA", "COUNT", "COUNTUNIQUE", "AVERAGE", "MAX", "MIN", "MEDIAN", "PRODUCT", "STDEV",
              "VAR"}
+# The date parts a pivot row or column may bucket a date column by (the API's DateTimeRule types).
+DATE_GROUPS = {"YEAR", "YEAR_MONTH", "YEAR_QUARTER", "YEAR_MONTH_DAY", "QUARTER", "MONTH", "DAY_OF_MONTH",
+               "DAY_OF_WEEK", "DAY_OF_YEAR", "DAY_MONTH", "HOUR", "HOUR_MINUTE", "HOUR_MINUTE_AMPM", "MINUTE",
+               "SECOND"}
 CHART_SIZE = (600, 371)  # Sheets' own default
 CHART_FIELDS = ("sheets(properties(sheetId,title,index),charts(chartId,spec,position))")
 PIVOT_FIELDS = "sheets(properties(sheetId,title,index))"
@@ -2817,6 +2821,28 @@ def _letters(raw: dict, key: str, grid: dict) -> list[int]:
     for index in indices:
         _inside(index, grid, key)
     return indices
+
+
+def _pivot_groups(raw: dict, key: str, grid: dict) -> list[dict]:
+    """pivot_rows / pivot_columns: each a column letter, or {column, group, sort, label, totals} for a
+    column bucketed by a date part, sorted descending, titled, or without its total."""
+    items = raw.get(key, [])
+    if not isinstance(items, list) or len(items) > 20:
+        raise AccessError(f"{key} is an array of up to 20 column letters or {{column, group, sort, label, totals}}")
+    groups = []
+    for item in items:
+        if not isinstance(item, dict):
+            item = {"column": item}
+        elif "column" not in item or set(item) - {"column", "group", "sort", "label", "totals"}:
+            raise AccessError(f"each of {key} is a column letter or {{column, group: YEAR_MONTH|…, sort: "
+                              "ASCENDING|DESCENDING, label, totals}")
+        index = _letter(item["column"], key)
+        _inside(index, grid, key)
+        groups.append({"index": index, "group": _choice(item, "group", DATE_GROUPS) if "group" in item else None,
+                       "sort": _choice(item, "sort", {"ASCENDING", "DESCENDING"}, "ASCENDING"),
+                       "label": _str(item, "label", required=False) if "label" in item else None,
+                       "totals": _flag(item, "totals") if "totals" in item else True})
+    return groups
 
 
 def _chart_look(op: dict, raw: dict) -> list[str]:
@@ -2923,18 +2949,28 @@ def _normalize_objects(name: str, raw: dict, here: bool = False) -> dict:
         grid = op["grid"]
         if "startColumnIndex" not in grid:
             raise AccessError("a pivot table's source is a block or whole columns with its header row")
-        op["rows"] = _letters(raw, "pivot_rows", grid)
-        op["columns"] = _letters(raw, "pivot_columns", grid)
+        op["rows"] = _pivot_groups(raw, "pivot_rows", grid)
+        op["columns"] = _pivot_groups(raw, "pivot_columns", grid)
         values = raw.get("pivot_values", [])
         if not isinstance(values, list) or len(values) > 20:
-            raise AccessError("pivot_values is up to 20 {column, summarize}")
+            raise AccessError("pivot_values is up to 20 {column, summarize} or {formula, name}")
         op["values"] = []
         for item in values:
-            if not isinstance(item, dict) or "column" not in item or set(item) - {"column", "summarize"}:
-                raise AccessError("each pivot value is {column: 'D', summarize: SUM|COUNTA|AVERAGE|…}")
+            if not isinstance(item, dict) or ("column" in item) == ("formula" in item) \
+                    or set(item) - {"column", "formula", "summarize", "name"}:
+                raise AccessError("each pivot value is {column: 'D', summarize: SUM|COUNTA|AVERAGE|…, name} or "
+                                  "{formula: '=…', summarize: CUSTOM|SUM|…, name}")
+            name = _str(item, "name", required=False) if "name" in item else None
+            if "formula" in item:
+                formula = _str(item, "formula")
+                if not formula.startswith("="):
+                    raise AccessError("a pivot value's formula starts with = and names the source's columns by "
+                                      "their header, like =SUM(Amount)")
+                op["values"].append((formula, _choice(item, "summarize", SUMMARIES | {"CUSTOM"}, "CUSTOM"), name))
+                continue
             index = _letter(item["column"], "pivot_values")
             _inside(index, grid, "pivot_values")
-            op["values"].append((index, _choice(item, "summarize", SUMMARIES, "SUM")))
+            op["values"].append((index, _choice(item, "summarize", SUMMARIES, "SUM"), name))
         filters = raw.get("pivot_filters", [])
         if not isinstance(filters, list) or len(filters) > 20:
             raise AccessError("pivot_filters is up to 20 {column, show}")
@@ -2956,9 +2992,13 @@ def _normalize_objects(name: str, raw: dict, here: bool = False) -> dict:
         words = []
         for key, label in (("rows", "rows"), ("columns", "columns")):
             if op[key]:
-                words.append(f"{label} {', '.join(column_letters(i) for i in op[key])}")
+                words.append(f"{label} " + ", ".join(
+                    column_letters(g["index"]) + (f" by {g['group'].lower().replace('_', ' ')}" if g["group"] else "")
+                    + (" descending" if g["sort"] == "DESCENDING" else "") for g in op[key]))
         if op["values"]:
-            words.append("values " + ", ".join(f"{how} of {column_letters(i)}" for i, how in op["values"]))
+            words.append("values " + ", ".join(
+                (f"{how} of {column_letters(what)}" if isinstance(what, int) else f"formula {_cell(what, '', TAB_CLIP)}")
+                + (f" as \"{_cell(name, '', TAB_CLIP)}\"" if name else "") for what, how, name in op["values"]))
         for index, show in op["filters"]:
             words.append(f"only {column_letters(index)} in ({_few(show)})")
         if op["at"]:
@@ -3135,10 +3175,23 @@ def _object_requests(ops: list[dict], meta: dict, pivot=None, **_) -> list[dict]
             table = {"source": source, "valueLayout": "HORIZONTAL"}
             for key, field in (("rows", "rows"), ("columns", "columns")):
                 if op[key]:
-                    table[field] = [{"sourceColumnOffset": i - first, "showTotals": True, "sortOrder": "ASCENDING"}
-                                    for i in op[key]]
+                    table[field] = []
+                    for g in op[key]:
+                        group = {"sourceColumnOffset": g["index"] - first, "showTotals": g["totals"],
+                                 "sortOrder": g["sort"]}
+                        if g["group"]:
+                            group["groupRule"] = {"dateTimeRule": {"type": g["group"]}}
+                        if g["label"]:
+                            group["label"] = g["label"]
+                        table[field].append(group)
             if op["values"]:
-                table["values"] = [{"sourceColumnOffset": i - first, "summarizeFunction": how} for i, how in op["values"]]
+                table["values"] = []
+                for what, how, name in op["values"]:
+                    value = ({"formula": what} if isinstance(what, str) else {"sourceColumnOffset": what - first})
+                    value["summarizeFunction"] = how
+                    if name:
+                        value["name"] = name
+                    table["values"].append(value)
             if op["filters"]:
                 table["filterSpecs"] = [{"columnOffsetIndex": i - first, "filterCriteria": {"visibleValues": show}}
                                         for i, show in op["filters"]]
