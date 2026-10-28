@@ -49,14 +49,16 @@ that lacks a scope, reads the Keychain again, so a new `gaccess auth` or
 `revoke` reaches the running gateway without a restart. `revoke` fails unless
 the item is confirmed gone.
 
-Drive downloads go to `google_access.download_dir`, never inside the state
-directory, which the guard below keeps out of reach. Downloads create their
-file name exclusively, never overwriting and never writing through a symlink at
-that name.
+Drive downloads and saved Gmail attachments go to `google_access.download_dir`,
+never inside the state directory, which the guard below keeps out of reach.
+Downloads create their file name exclusively, never overwriting and never
+writing through a symlink at that name. An attachment is named by the part
+`get` lists it under, never by Gmail's attachment id, which changes on every
+fetch.
 
-The scopes are the whole capability: Gmail can be searched, read and sent from,
-never relabelled or deleted; Drive can be searched and downloaded, and receives
-uploads, but no existing file is changed, shared or deleted (`drive.file` only
+The scopes are the whole capability: Gmail can be searched, read (attachments
+saved too) and sent from, never relabelled or deleted; Drive can be searched
+and downloaded, and receives uploads, but no existing file is changed, shared or deleted (`drive.file` only
 covers files this tool created, so an upload's `parent` must be such a folder
 or it fails). gcloud runs with its own login, so Hermes never reads or switches
 the user's `~/.config/gcloud`; there is no default project and every
