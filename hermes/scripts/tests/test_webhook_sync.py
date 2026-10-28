@@ -95,7 +95,7 @@ def test_each_mode_derives_the_runtime_route_shape(root: Path):
     r = records(root)
     assert r["gh-push"]["deliver_only"] is True and r["gh-push"]["deliver"] == "telegram"
     assert r["gh-push"]["prompt"] == "push on {repository.full_name}" and r["gh-push"]["events"] == ["push"]
-    assert r["gh-push"]["cron_job"] is None and r["gh-push"]["profile"] == "assistant" and r["gh-push"]["enabled"]
+    assert "cron_job" not in r["gh-push"] and r["gh-push"]["profile"] == "assistant" and r["gh-push"]["enabled"]
     assert r["gh-pr"]["deliver_only"] is False and r["gh-pr"]["skills"] == ["review"]
     assert r["gh-pr"]["mirror_to_session"] is True
     assert r["gh-alert"]["cron_job"] == "fix" and r["gh-alert"]["deliver"] == "log"
@@ -121,6 +121,35 @@ def test_the_runtime_accepts_every_derived_record(root: Path):
     for name, record in records(root).items():
         adapter._validate_route(name, record)
         assert adapter._dynamic_route_allowed(name, record), name
+        # No key holds null: the runtime reads a missing key with a default, and an explicit
+        # null reached `.items()` on the first notify delivery (deliver_extra).
+        assert None not in record.values(), (name, record)
+        adapter._render_delivery_extra(record.get("deliver_extra", {}), {"message": "x"})
+
+
+def test_a_null_the_file_already_holds_is_drift_and_is_removed(root: Path):
+    write_route(root, "assistant", "r", NOTIFY)
+    sync(root)
+    S.mutate_records(root, lambda subs: subs["r"].update({"deliver_extra": None, "cron_job": None}))
+    plan, done = sync(root, check=True)
+    assert [u for _r, u in plan.update] == [{"deliver_extra": None, "cron_job": None}]
+    _plan, done = sync(root)
+    assert done == ["updated r: cron_job, deliver_extra"]
+    assert None not in records(root)["r"].values()
+    plan, done = sync(root)
+    assert done == [] and not plan.pending()
+
+
+def test_a_cleared_optional_field_leaves_the_record_rather_than_turning_null(root: Path):
+    d = write_route(root, "assistant", "r", {**NOTIFY, "deliver_extra": {"chat_id": "1"},
+                                              "coalesce": {"key": "repository.full_name", "window_seconds": 5}})
+    sync(root)
+    assert "deliver_extra" in records(root)["r"] and "coalesce" in records(root)["r"]
+    (d / S.MANIFEST_FILE).write_text(S.yaml.safe_dump(NOTIFY), encoding="utf-8")
+    _plan, done = sync(root)
+    assert done == ["updated r: coalesce, deliver_extra"]
+    r = records(root)["r"]
+    assert "deliver_extra" not in r and "coalesce" not in r and None not in r.values()
 
 
 def test_a_second_sync_changes_nothing(root: Path):
@@ -197,7 +226,7 @@ def test_dropping_the_filter_drops_the_wrapper(root: Path):
     (d / "filter.sh").unlink()
     plan, done = sync(root)
     assert done == ["updated gh-pr: script"] and plan.wrappers == ["drop wrapper scripts/webhook/gh-pr.sh"]
-    assert records(root)["gh-pr"]["script"] is None
+    assert "script" not in records(root)["gh-pr"]
     assert not (root / "profiles" / "assistant" / "scripts" / "webhook" / "gh-pr.sh").exists()
 
 

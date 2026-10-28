@@ -94,9 +94,12 @@ class Route:
         return f"{WRAPPER_DIR}/{self.name}.sh"
 
     def definition(self) -> dict[str, Any]:
-        """The record fields this manifest asks for, in the runtime's route shape."""
+        """The record fields this manifest asks for, in the runtime's route shape. Optional
+        fields are None when the manifest has none; ``record()`` leaves those out of the file,
+        since the runtime reads a missing key with a default but trips over an explicit null
+        (``deliver_extra: null`` reached ``.items()``)."""
         spec = self.spec
-        record: dict[str, Any] = {
+        return {
             "profile": self.profile,
             "events": list(spec.get("events") or []),
             "filters": spec.get("filters"),
@@ -112,7 +115,10 @@ class Route:
             "toolsets": spec.get("toolsets"),
             "enabled": not self.paused,
         }
-        return record
+
+    def record(self) -> dict[str, Any]:
+        """``definition()`` as written to the file: no key holds null."""
+        return {k: v for k, v in self.definition().items() if v is not None}
 
 
 # ---------------------------------------------------------------------------
@@ -310,7 +316,12 @@ def _stored_definition(record: dict[str, Any]) -> dict[str, Any]:
 
 def _diff(route: Route, record: dict[str, Any]) -> dict[str, Any]:
     desired, stored = route.definition(), _stored_definition(record)
-    return {key: desired[key] for key in DEFINITION_FIELDS if desired[key] != stored[key]}
+    updates = {key: desired[key] for key in DEFINITION_FIELDS if desired[key] != stored[key]}
+    # A key the record holds as null is drift too: the runtime trips over it, and the update
+    # path removes it (apply_plan writes no null).
+    updates.update({key: None for key in DEFINITION_FIELDS
+                    if key in record and record[key] is None and desired[key] is None})
+    return updates
 
 
 def build_plan(routes: list[Route], errors: list[str], records: dict[str, dict[str, Any]], *,
@@ -371,10 +382,11 @@ def build_plan(routes: list[Route], errors: list[str], records: dict[str, dict[s
 def apply_plan(plan: Plan, subscriptions: dict[str, dict[str, Any]], now: str) -> list[str]:
     done: list[str] = []
     for route in plan.create:
-        subscriptions[route.name] = {**route.definition(), MARKER: _marker(route, now)}
+        subscriptions[route.name] = {**route.record(), MARKER: _marker(route, now)}
         done.append(f"created {route.name} ({route.profile}, {route.source})")
     for route, updates in plan.update:
-        subscriptions[route.name] = {**subscriptions[route.name], **updates, MARKER: _marker(route, now)}
+        merged = {**subscriptions[route.name], **updates, MARKER: _marker(route, now)}
+        subscriptions[route.name] = {k: v for k, v in merged.items() if v is not None}  # a cleared field goes, never null
         done.append(f"updated {route.name}: {', '.join(sorted(updates))}")
     for route in plan.restamp:
         subscriptions[route.name] = {**subscriptions[route.name], MARKER: _marker(route, now)}
