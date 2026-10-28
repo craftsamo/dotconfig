@@ -58,6 +58,7 @@ Each doc then holds only its own deltas.
 | [Install](./docs/ops/install.md)               | installing the binary, secrets mechanics, the tailnet dashboard, capabilities and dependencies |
 | [Tracking](./docs/ops/tracking.md)             | what is tracked vs ignored, profiles and adopting one, cron                                    |
 | [Cron](./docs/ops/cron.md)                     | tracked jobs as `cron.d/<name>/` directories, cron-sync, orphans and adoption, local jobs      |
+| [Webhooks](./docs/ops/webhook.md)              | tracked inbound routes as `webhook.d/<name>/` directories, the listener, webhook-sync          |
 | [Skills](./docs/ops/skills.md)                 | skill placement, skills, worker terminal approvals                                             |
 | [Plugins](./docs/ops/plugins.md)               | enabling plugins, groups, media-stack configuration                                            |
 | [Services](./docs/ops/services.md)             | LaunchAgents, launchers, engine scripts, work continuity                                       |

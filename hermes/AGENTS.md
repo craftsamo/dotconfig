@@ -77,6 +77,21 @@ skills.
   field the runtime does not know: the continuity check proves it survives
   `update_job`, so re-check it after a re-pin. See
   [docs/ops/cron.md](docs/ops/cron.md).
+- **A tracked inbound webhook is a `webhook.d/<name>/` directory** of its
+  profile (`route.yaml` + optional `filter.sh|.py`), the same shape; never a
+  `hermes webhook subscribe` command quoted anywhere, and never a `secret`
+  in the manifest (every POST is checked against the gateway's one
+  `WEBHOOK_SECRET`, a Keychain item; a tracked-manifests test refuses the
+  key). `scripts/webhook-sync.py` derives every profile's `webhook.d/` into
+  the **root** home's `webhook_subscriptions.json` — the one listener is the
+  root profile's and a served profile's routes answer under `/p/<profile>/`;
+  never give a profile a `platforms.webhook` of its own (a second listener
+  cannot bind). The derived record carries the same `managed` marker, and the
+  continuity check hands every record to the runtime's own route checks. A
+  route that must open a thread of its own is `mode: job` on a `cron.d/` job
+  with `attach_to_session` and a never-coming schedule (`0 0 29 2 *`), not a
+  paused one (an event cannot fire a paused job). See
+  [docs/ops/webhook.md](docs/ops/webhook.md).
 - **Managed skills never get `skip-worktree`**: their changes must stay visible
   in `git status`. Ownership by directory type and the `learned/` → `technic/`
   promotion step: [docs/ops/tracking.md "Tracked vs ignored"](docs/ops/tracking.md).
