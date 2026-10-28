@@ -113,22 +113,22 @@ few contract-defined exceptions such as a transfer to the user's own address).
 Nothing publishes, schedules or sends where nobody can approve. Mechanics live
 in the plugin skills; the contract in the linked doc.
 
-| Service                               | Toolset                       | Notes                                                                                                                     | Contract                                        |
-| ------------------------------------- | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- |
-| Google Sheets, Gmail, Drive, `gcloud` | `google_access`               | terminal path around it is blocked                                                                                        | [google-access.md](../google-access.md)         |
-| WhatsApp                              | `whatsapp_access`             | local mirror                                                                                                              | [whatsapp-access.md](../whatsapp-access.md)     |
-| Signal                                | `signal_access`               | mirror keeps expired messages, drops deleted-for-everyone                                                                 | [signal-access.md](../signal-access.md)         |
-| Discord (user account, not the bot)   | `discord_access`              | one engine holds the token                                                                                                | [discord-access.md](../discord-access.md)       |
-| Telegram (user account, not the bot)  | `telegram_access`             | a sync agent alone holds the session                                                                                      | [telegram-access.md](../telegram-access.md)     |
-| X                                     | `x_access`                    | read-only; browser stays off x.com except two saved-draft tasks (`x-access:draft-post`, `x-access:draft-article`); Marketer shares the tool   | [x-access.md](../x-access.md)                   |
-| note.com                              | `note_access`                 | drafts only, never publishes; browser stays off note                                                                      | [note-access.md](../note-access.md)             |
-| Substack                              | `substack_access`             | Marketer reads only                                                                                                       | [substack-access.md](../substack-access.md)     |
-| YouTube                               | `youtube_access`              | Marketer reads only; non-API settings via Studio after a `clarify`                                                        | [youtube-access.md](../youtube-access.md)       |
-| EVM / Solana                          | `evm_access`, `solana_access` | reads shared with Researcher, Searcher, Marketer; wallet actions the Assistant's alone                                    | [web3.md](../web3.md)                           |
-| Hyperliquid                           | `hyperliquid_access`          | reads shared with Researcher, Searcher, Marketer; trading the Assistant's alone, increases on a card                      | [hyperliquid.md](../hyperliquid.md)             |
-| Stripe                                | `stripe_access`               | live or test per call; reads shared with Researcher, Marketer; every change on a card, refunds and invoices ask each time | [stripe-access.md](../stripe-access.md)         |
-| Cloudflare                            | `cloudflare_access`           | reads shared with Researcher, Marketer; changes on a card; deletes, publishing and weakening ask each time                | [cloudflare-access.md](../cloudflare-access.md) |
-| This Mac's audio (Discord app)        | `screen_listen`               | one allowed app's output: minutes transcribed, or a session kept as a file; no account, no API, no card                   | [screen-listen.md](../screen-listen.md)         |
+| Service                               | Toolset                       | Notes                                                                                                                                       | Contract                                        |
+| ------------------------------------- | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- |
+| Google Sheets, Gmail, Drive, `gcloud` | `google_access`               | terminal path around it is blocked                                                                                                          | [google-access.md](../google-access.md)         |
+| WhatsApp                              | `whatsapp_access`             | local mirror                                                                                                                                | [whatsapp-access.md](../whatsapp-access.md)     |
+| Signal                                | `signal_access`               | mirror keeps expired messages, drops deleted-for-everyone                                                                                   | [signal-access.md](../signal-access.md)         |
+| Discord (user account, not the bot)   | `discord_access`              | one engine holds the token                                                                                                                  | [discord-access.md](../discord-access.md)       |
+| Telegram (user account, not the bot)  | `telegram_access`             | a sync agent alone holds the session                                                                                                        | [telegram-access.md](../telegram-access.md)     |
+| X                                     | `x_access`                    | read-only; browser stays off x.com except two saved-draft tasks (`x-access:draft-post`, `x-access:draft-article`); Marketer shares the tool | [x-access.md](../x-access.md)                   |
+| note.com                              | `note_access`                 | drafts only, never publishes; browser stays off note                                                                                        | [note-access.md](../note-access.md)             |
+| Substack                              | `substack_access`             | Marketer reads only                                                                                                                         | [substack-access.md](../substack-access.md)     |
+| YouTube                               | `youtube_access`              | Marketer reads only; non-API settings via Studio after a `clarify`                                                                          | [youtube-access.md](../youtube-access.md)       |
+| EVM / Solana                          | `evm_access`, `solana_access` | reads shared with Researcher, Searcher, Marketer; wallet actions the Assistant's alone                                                      | [web3.md](../web3.md)                           |
+| Hyperliquid                           | `hyperliquid_access`          | reads shared with Researcher, Searcher, Marketer; trading the Assistant's alone, increases on a card                                        | [hyperliquid.md](../hyperliquid.md)             |
+| Stripe                                | `stripe_access`               | live or test per call; reads shared with Researcher, Marketer; every change on a card, refunds and invoices ask each time                   | [stripe-access.md](../stripe-access.md)         |
+| Cloudflare                            | `cloudflare_access`           | reads shared with Researcher, Marketer; changes on a card; deletes, publishing and weakening ask each time                                  | [cloudflare-access.md](../cloudflare-access.md) |
+| This Mac's audio (Discord app)        | `screen_listen`               | one allowed app's output: minutes transcribed, or a session kept as a file; no account, no API, no card                                     | [screen-listen.md](../screen-listen.md)         |
 
 Marketing work is the Assistant's to execute, with Marketer as its strategy
 advisor ([marketer.md](./marketer.md)): the marketing entries consult Marketer on
@@ -149,12 +149,14 @@ chat-wide rule the topic still needs. The validator
 (`validate_assistant_dm_topics`) rejects any topic carrying a `skill:` key and
 any `dm_topics` list without a topic literally named `Inbox`.
 
-- **Inbox** receives system cron output and starts no work: its contract fixes
-  the tier to `inline`, and work that needs action hands off to a new ad-hoc
-  topic, which inherits the chat-wide binding and owns the sessions. Jobs keep
-  bare `deliver: telegram`; `scripts/profile-secrets.sh` derives
-  `TELEGRAM_CRON_THREAD_ID` from the topic literally named `Inbox`, so renaming
-  it makes every such job fail closed.
+- **Inbox** receives system cron output and webhook notices and starts no
+  work: its contract fixes the tier to `inline`, and work that needs action
+  hands off to a new ad-hoc topic, which inherits the chat-wide binding and
+  owns the sessions. Jobs and routes keep bare `deliver: telegram`;
+  `scripts/profile-secrets.sh` derives `TELEGRAM_CRON_THREAD_ID` and
+  `TELEGRAM_HOME_CHANNEL_THREAD_ID` from the topic literally named `Inbox`
+  (the home channel is that topic), so renaming it makes every such job fail
+  closed and sends every bare delivery to the chat's root.
 
 Pin a topic only when Hermes must find it by name or it needs a contract of its
 own. The bot creates every pinned topic, so the user cannot rename it in the
