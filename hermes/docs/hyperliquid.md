@@ -443,10 +443,13 @@ this section owns what the code holds to.
   one account each close the other's position when their own rules say so,
   and a second strategy on a market (another rule kind, another interval)
   runs on another Hermes account.
-- **The gate** (`hl_gate.py`, a cron `script` with an agent; the scheduler
-  runs its wrapper from the copy `install.sh` keeps in the profile's
-  `scripts/`, so the wrapper takes the runtime home from its own parent and
-  finds the engine in the repository through the home's `plugins` tree) reads each
+- **The gate** (`hl_gate.py`, a cron `script` with an agent: the profile's
+  tracked `cron.d/hl-strategy-gate` job ([ops/cron.md](ops/cron.md)), kept
+  beside the private config since its delivery names a topic; its `run.sh`
+  execs `hl-strategy-gate.sh` from the copy `install.sh` keeps in the
+  profile's `scripts/`, so that script takes the runtime home from its own
+  parent and finds the engine in the repository through the home's `plugins`
+  tree) reads each
   active spec's account, open orders and newest completed candles through
   `/info`, and lists, under the account and its address (the run's reads
   take the address: it has no other way to it), intents: the exact `hyperliquid` quote arguments, each
@@ -621,6 +624,7 @@ signer's process and that every increase shows its card.
    then restart the gateway.
 3. To trade, a Hermes wallet ([web3.md](web3.md) "Setup") with USDC on the
    venue, on the network the user means ("Deposits").
-4. To run strategies, the Assistant's machine-local cron job with
-   `script: hl-strategy-gate.sh` and only the `hyperliquid_access` and
-   `skills` toolsets; `configure-strategy`'s "Running it" has the call.
+4. To run strategies, the Assistant's tracked `cron.d/hl-strategy-gate` job
+   (`hl-strategy-gate.sh` with only the `hyperliquid_access` and `skills`
+   toolsets, reporting into the strategies' topic), which the install
+   derives; `configure-strategy`'s "Running it" says what it holds.
