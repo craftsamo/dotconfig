@@ -13,18 +13,19 @@ per message by its content (``docs/ops/telegram-markdown.md``):
   such a message (a counterparty, an address, a category name) must be escaped by the
   producer, or an ``_``, ``*``, ``|`` or ``#`` in it becomes markup.
 
-This module is the second path's toolkit: ``esc`` for a dynamic inline string, ``table`` and
-``details`` for the two constructs that select the path, ``link`` / ``bold`` / ``heading`` for
-the inline pieces around them, and ``clamp`` to keep a long report inside one message with the
-rest attached as a file. Stdlib only, importable by path:
+This module is the second path's toolkit: ``esc`` for a dynamic inline string; ``table``,
+``details`` and ``task`` for the constructs that select the path; ``link`` / ``bold`` / ``italic``
+/ ``strike`` / ``spoiler`` / ``code`` / ``heading`` for the inline pieces, ``quote`` / ``fence`` /
+``ul`` / ``ol`` for the blocks around them; and ``clamp`` to keep a long report inside one message
+with the rest attached as a file. Stdlib only, importable by path:
 
     import importlib.util, os
     _spec = importlib.util.spec_from_file_location(
         "tgmd", os.environ.get("TGMD_PATH", os.path.expanduser("~/.config/hermes/scripts/tgmd.py")))
     tgmd = importlib.util.module_from_spec(_spec); _spec.loader.exec_module(tgmd)
 
-or run as a command from a shell wrapper (``tgmd table``, ``tgmd details``, ``tgmd clamp``,
-``tgmd esc``; ``--help`` lists them).
+or run as a command from a shell wrapper (``tgmd table``, ``tgmd details``, ``tgmd task``,
+``tgmd list``, ``tgmd quote``, ``tgmd fence``, ``tgmd clamp``, ``tgmd esc``; ``--help`` lists them).
 """
 
 from __future__ import annotations
@@ -70,6 +71,33 @@ def bold(text) -> Raw:
     return Raw(f"**{esc(text)}**")
 
 
+def italic(text) -> Raw:
+    return Raw(f"*{esc(text)}*")
+
+
+def strike(text) -> Raw:
+    return Raw(f"~~{esc(text)}~~")
+
+
+def spoiler(text) -> Raw:
+    """``||text||``; its pipes make it unfit for a table cell."""
+    return Raw(f"||{esc(text)}||")
+
+
+def code(text) -> Raw:
+    """Inline code: nothing inside is escaped (a backslash would show), so a backtick in the text,
+    which would end the span, becomes a straight quote; line breaks become spaces."""
+    flat = ("" if text is None else str(text)).replace("\r", " ").replace("\n", " ").replace("`", "'")
+    return Raw(f"`{flat}`")
+
+
+def fence(text, lang: str = "") -> Raw:
+    """A code block; nothing inside is escaped, and a backtick fence inside the text, which would end
+    the block, becomes three straight quotes."""
+    body = ("" if text is None else str(text)).replace("```", "\'\'\'").strip("\n")
+    return Raw(f"```{lang}\n{body}\n```")
+
+
 def link(label, url) -> Raw:
     """``[label](url)``; a character that would end the link or the table row holding it (a space,
     a parenthesis, a pipe, an angle bracket) is percent-encoded in the URL."""
@@ -80,6 +108,30 @@ def link(label, url) -> Raw:
 def heading(text, level: int = 2) -> Raw:
     """``## text``; the plain path shows it bold, the rich one as a heading."""
     return Raw(f"{'#' * max(1, min(6, level))} {esc(text)}")
+
+
+def quote(*lines) -> Raw:
+    """A blockquote, one ``> `` line per argument (each escaped unless ``Raw``). A collapsible block
+    is ``details``: the quote that folds is MarkdownV2's alone, and the rich path does not read it."""
+    return Raw("\n".join(f"> {esc(line)}" for line in lines))
+
+
+def ul(items: Iterable) -> Raw:
+    """A bullet list, each item escaped unless ``Raw``."""
+    return Raw("\n".join(f"- {esc(item)}" for item in items))
+
+
+def ol(items: Iterable) -> Raw:
+    """A numbered list, each item escaped unless ``Raw``."""
+    return Raw("\n".join(f"{n}. {esc(item)}" for n, item in enumerate(items, 1)))
+
+
+def task(items: Iterable) -> Raw:
+    """A task list: an item is a string (open) or a ``(text, done)`` pair. Selects the rich path."""
+    def one(item):
+        text, done = (item, False) if isinstance(item, str) else (item[0], bool(item[1]))
+        return f"- [{'x' if done else ' '}] {esc(text)}"
+    return Raw("\n".join(one(item) for item in items))
 
 
 def table(headers: Sequence, rows: Iterable[Sequence], aligns: Optional[Sequence[str]] = None) -> Raw:
@@ -153,6 +205,20 @@ def _cli_details(args) -> str:
     return details(args.title, *[line for line in sys.stdin.read().splitlines()])
 
 
+def _cli_lines(args) -> str:
+    lines = [line for line in sys.stdin.read().splitlines() if line.strip()]
+    if args.command == "task":
+        return task([(line[4:], line[:3].lower() == "[x]") if line[:3] in ("[ ]", "[x]", "[X]") else line
+                     for line in lines])
+    if args.command == "quote":
+        return quote(*lines)
+    return ol(lines) if args.ordered else ul(lines)
+
+
+def _cli_fence(args) -> str:
+    return fence(sys.stdin.read(), args.lang)
+
+
 def _cli_clamp(args) -> str:
     return clamp(sys.stdin.read(), args.limit, args.attach, args.note)
 
@@ -171,6 +237,16 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     p = sub.add_parser("details", help="lines on stdin -> collapsible block")
     p.add_argument("--title", required=True)
     p.set_defaults(fn=_cli_details)
+    p = sub.add_parser("task", help="lines on stdin ('[x] done' or 'open') -> task list")
+    p.set_defaults(fn=_cli_lines)
+    p = sub.add_parser("list", help="lines on stdin -> bullet list")
+    p.add_argument("--ordered", action="store_true", help="numbered instead")
+    p.set_defaults(fn=_cli_lines)
+    p = sub.add_parser("quote", help="lines on stdin -> blockquote")
+    p.set_defaults(fn=_cli_lines)
+    p = sub.add_parser("fence", help="text on stdin -> code block")
+    p.add_argument("--lang", default="")
+    p.set_defaults(fn=_cli_fence)
     p = sub.add_parser("clamp", help="a report on stdin -> one message, the rest attached")
     p.add_argument("--limit", type=int, default=DEFAULT_LIMIT)
     p.add_argument("--attach", help="file to attach as MEDIA: when the report is cut")

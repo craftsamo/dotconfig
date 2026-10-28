@@ -33,23 +33,29 @@ every dynamic string in it must be escaped.** `scripts/tgmd.py` does that.
 Stdlib only, loaded by path (`~/.config/hermes/scripts/tgmd.py`, or
 `TGMD_PATH`), also a command for a shell wrapper. The pieces:
 
-| Helper                                                     | Gives                                                                                                                                                                                                                          |
-| ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `esc(text)`                                                | a dynamic inline string with every markup character escaped and line breaks flattened; a `Raw` passes through                                                                                                                  |
-| `table(headers, rows, aligns=None)`                        | a pipe table, every cell escaped unless `Raw`; refuses one column (the adapter reads that as prose) and a row of another width                                                                                                 |
-| `details(title, *parts)`                                   | a `<details>` block; each string part one paragraph on one line, a `Raw` part (a `table`) as is, blank lines around each, no math marker in any of them                                                                        |
-| `link(label, url)`, `bold(text)`, `heading(text, level=2)` | the inline pieces, as `Raw` so a table cell or a details paragraph takes them unescaped; a `Raw` joined into a string is a plain string again — wrap it (`Raw(f"{bold(x)} …")`) before handing it to a helper                  |
-| `clamp(text, limit=3800, attach=None, note=…)`             | the report when it fits `limit` UTF-8 bytes; otherwise its head up to the first `<details>` (cut again at the last line that fits when that is still too long), `note`, and a `MEDIA:<path>` line so the full file rides along |
+| Helper                                                                                                      | Gives                                                                                                                                                                                                                                                             |
+| ----------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `esc(text)`                                                                                                 | a dynamic inline string with every markup character escaped and line breaks flattened; a `Raw` passes through                                                                                                                                                     |
+| `table(headers, rows, aligns=None)`                                                                         | a pipe table, every cell escaped unless `Raw`; refuses one column (the adapter reads that as prose) and a row of another width                                                                                                                                    |
+| `details(title, *parts)`                                                                                    | a `<details>` block; each string part one paragraph on one line, a `Raw` part (a `table`) as is, blank lines around each, no math marker in any of them                                                                                                           |
+| `link(label, url)`, `bold(text)`, `italic(text)`, `strike(text)`, `spoiler(text)`, `heading(text, level=2)` | the inline pieces, as `Raw` so a table cell or a details paragraph takes them unescaped; a `Raw` joined into a string is a plain string again — wrap it (`Raw(f"{bold(x)} …")`) before handing it to a helper. A `spoiler` cannot sit in a table cell (its pipes) |
+| `code(text)`, `fence(text, lang="")`                                                                        | inline code and a code block: nothing inside is escaped (a backslash would show), so a backtick that would end the span becomes a straight quote                                                                                                                  |
+| `quote(*lines)`, `ul(items)`, `ol(items)`                                                                   | a blockquote, a bullet list, a numbered list; each line or item escaped unless `Raw`. The quote never folds: a collapsible block is `details` (the folding quote is MarkdownV2's alone, and the rich path does not read it)                                       |
+| `task(items)`                                                                                               | a task list; an item is a string (open) or `(text, done)`. Selects the rich path                                                                                                                                                                                  |
+| `clamp(text, limit=3800, attach=None, note=…)`                                                              | the report when it fits `limit` UTF-8 bytes; otherwise its head up to the first `<details>` (cut again at the last line that fits when that is still too long), `note`, and a `MEDIA:<path>` line so the full file rides along                                    |
 
 Command form, for a `run.sh`: `tgmd table --header A,B --align l,r` (TSV
-rows on stdin), `tgmd details --title T` (lines on stdin), `tgmd clamp
---limit N --attach <file>`, `tgmd esc`.
+rows on stdin), `tgmd details --title T`, `tgmd task` (`[x] done` / `open`
+lines), `tgmd list [--ordered]`, `tgmd quote` (lines on stdin), `tgmd fence
+--lang sh` (text on stdin), `tgmd clamp --limit N --attach <file>`, `tgmd esc`.
 
 A producer that emits a table or a `<details>` builds every dynamic string
 through `esc` (or lets `table` / `details` do it) and writes its fixed text
 plain; a producer that emits prose only writes plain Markdown and never
 escapes. A webhook route's `prompt` template is prose: it is written plain,
-and the substituted fields are escaped by the adapter.
+and the substituted fields are escaped by the adapter. The inline and block
+pieces are for inside such a message: on the plain path the adapter
+escapes once more, and the backslashes they carry show.
 
 ## What the rich parser trips on
 
