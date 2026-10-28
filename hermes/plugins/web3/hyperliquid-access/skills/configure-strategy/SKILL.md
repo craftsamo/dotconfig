@@ -208,23 +208,28 @@ First run on testnet when the user agrees: a spec on testnet with a small
 mandate, one run of the gate, one entry and its stop, then a close. On
 mainnet, the first deposit is small (the trade skill's "Depositing").
 
-One cron job serves every strategy; create it once (`cronjob` `list` first),
-after confirming the schedule with the user:
+One cron job serves every strategy, and it is already there: the profile's
+tracked `cron.d/hl-strategy-gate` job (`cronjob` `list` shows it as
+`hl-strategy-gate`). Never create a second one, and never create it anew:
+its definition is a file of the configuration, not a `cronjob` call. What it
+holds:
 
 - `schedule`: `*/15 * * * *` (the gate acts once per completed bar; the extra
   runs catch a missed one).
-- `script`: `hl-strategy-gate.sh`.
+- the gate script, `hl-strategy-gate.sh`.
 - `enabled_toolsets`: `["hyperliquid_access", "skills"]` — nothing else.
 - `prompt`: `Hyperliquid strategy gate. Load
   skill_view(name="hyperliquid-access:run-strategy") and follow it on the
   gate report above. Act only on its intents.`
-- `attach_to_session`: `true`. Leave `deliver` out.
+- `attach_to_session`: `true`, and `deliver` naming the topic the strategies
+  are discussed in.
 
-Create it from the topic the user asked in: the job records that topic as its
-origin, its reports land there, and with `attach_to_session` they join that
+Its reports land in that topic, and with `attach_to_session` they join the
 topic's conversation, so a reply there ("why was BTC skipped?", "stop it")
-finds the report in context. Never deliver it to Inbox, which starts no work.
-Each run itself is a fresh session of its own, without that conversation. To
-move the reports, delete the job and create it again from the new topic.
+finds the report in context. It never reports to Inbox, which starts no
+work. Each run itself is a fresh session of its own, without that
+conversation. To move the reports to another topic the job's definition
+changes, which is the person's edit: say so rather than deleting or
+recreating the job.
 
 When the gate has nothing to do or say, no model runs at all.
