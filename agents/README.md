@@ -35,9 +35,13 @@ writes a real copy into both directories; `install.sh` leaves real entries in
 `~/.claude/skills` alone. A skill installed only into the shared root reaches
 Claude Code at the next `install.sh` run.
 
-OpenCode V2 still reads `~/.claude/skills` as a compatibility source and has
-no way to exclude it yet (anomalyco/opencode#36990), so
+OpenCode V2 still reads `~/.claude/skills` as a compatibility source, so
 `opencode/opencode.jsonc` denies the synced skills that cannot work there.
+`OPENCODE_DISABLE_CLAUDE_CODE` would drop the whole `~/.claude` source, but
+only the shared background service reads it, and the service keeps the
+environment of whichever client started it. The Hermes OpenCode plugin starts
+it with a minimal environment, so the variable would silently stop applying;
+the deny holds however the service was started.
 
 ## Who reads what
 
