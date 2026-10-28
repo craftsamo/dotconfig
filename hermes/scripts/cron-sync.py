@@ -18,39 +18,48 @@ Hermes' scheduler runs only a script inside ``<HERMES_HOME>/scripts`` (real path
 so each ``run.sh`` is reached through a generated wrapper ``scripts/cron/<name>.sh``.
 
 Run on ``hermes-python`` (the runtime's ``cron.jobs`` API does the writes under its lock).
+The shape every manifest kind shares (names, sources, wrappers, the marker) is ``manifestlib``.
 """
 
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
-import os
-import re
 import shutil
-import stat
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Optional
 
-try:  # Hermes' own YAML reader (its runtime and test interpreter ship no PyYAML)
-    import hermes_yaml as yaml
-except ImportError:
-    import yaml
+
+def _load_sibling(name: str, filename: str):
+    if name not in sys.modules:
+        spec = importlib.util.spec_from_file_location(name, Path(__file__).resolve().parent / filename)
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[name] = module
+        spec.loader.exec_module(module)
+    return sys.modules[name]
+
+
+lib = _load_sibling("hermes_manifestlib", "manifestlib.py")
+yaml = lib.yaml
+ManifestError = lib.ManifestError
+MARKER = lib.MARKER
+NAME_RE = lib.NAME_RE
 
 MANIFEST_DIR = "cron.d"
 MANIFEST_FILE = "job.yaml"
 RUN_SCRIPT = "run.sh"
 WRAPPER_DIR = "cron"
-MARKER = "managed"
 ORPHAN_REASON = "cron-sync: manifest removed"
 MANIFEST_PAUSE_REASON = "cron-sync: paused by manifest"
 OWN_PAUSE_REASONS = frozenset({ORPHAN_REASON, MANIFEST_PAUSE_REASON})
 MODES = ("no_agent", "prompt", "monitor")
-NAME_RE = re.compile(r"^[a-z0-9][a-z0-9._-]*$")
 KNOWN_KEYS = frozenset({
     "schedule", "mode", "prompt", "skills", "deliver", "failure_deliver", "repeat", "paused",
     "monitor_url", "workdir", "context_from", "enabled_toolsets", "attach_to_session", "origin",
+    "thread_title",
 })
 # Keys only a profile's own (local) manifest may carry: they name the conversation the job was
 # asked in, so a tracked manifest never holds them (test_cron_manifests refuses it).
@@ -59,12 +68,8 @@ LOCAL_ONLY_KEYS = frozenset({"origin"})
 DEFINITION_FIELDS = (
     "schedule", "no_agent", "script", "monitor_script", "monitor_url", "prompt", "skills",
     "deliver", "failure_deliver", "repeat", "workdir", "context_from", "enabled_toolsets",
-    "attach_to_session",
+    "attach_to_session", "thread_title",
 )
-
-
-class ManifestError(ValueError):
-    """A manifest that cannot become a job; the message names the manifest and the reason."""
 
 
 @dataclass
@@ -105,6 +110,7 @@ class Manifest:
             "context_from": list(spec["context_from"]) if spec.get("context_from") else None,
             "enabled_toolsets": list(spec["enabled_toolsets"]) if spec.get("enabled_toolsets") is not None else None,
             "attach_to_session": spec.get("attach_to_session"),
+            "thread_title": spec.get("thread_title"),
         }
 
 
@@ -112,20 +118,14 @@ class Manifest:
 # Manifests
 # ---------------------------------------------------------------------------
 
-def _text(value: Any, key: str, name: str) -> Optional[str]:
-    if value is None:
-        return None
-    if not isinstance(value, str):
-        raise ManifestError(f"{name}: `{key}` must be a string")
-    return value.strip() or None
+_text = lib.text_field
 
 
 def validate_spec(name: str, spec: Any, run_script: Optional[Path]) -> dict[str, Any]:
     """Check one manifest's shape against the invariants Hermes enforces at create time (and a
     few this layout adds), so a broken manifest fails here with its name rather than at the
     runtime's API with a job id. Returns the cleaned spec."""
-    if not NAME_RE.match(name):
-        raise ManifestError(f"{name}: directory name must match {NAME_RE.pattern}")
+    lib.check_name(name)
     if not isinstance(spec, dict):
         raise ManifestError(f"{name}: {MANIFEST_FILE} must be a mapping")
     unknown = sorted(set(spec) - KNOWN_KEYS)
@@ -144,11 +144,7 @@ def validate_spec(name: str, spec: Any, run_script: Optional[Path]) -> dict[str,
         raise ManifestError(f"{name}: `mode` must be one of {', '.join(MODES)}")
     clean["mode"] = mode
     prompt = _text(spec.get("prompt"), "prompt", name)
-    skills = spec.get("skills")
-    if skills is not None:
-        if not isinstance(skills, list) or not all(isinstance(s, str) and s.strip() for s in skills):
-            raise ManifestError(f"{name}: `skills` must be a list of non-empty strings")
-        skills = [s.strip() for s in skills]
+    skills = lib.string_list(spec.get("skills"), "skills", name)
     monitor_url = _text(spec.get("monitor_url"), "monitor_url", name)
     if mode == "no_agent":
         if run_script is None:
@@ -168,8 +164,6 @@ def validate_spec(name: str, spec: Any, run_script: Optional[Path]) -> dict[str,
                 raise ManifestError(f"{name}: `monitor_url` must be http(s)")
         elif monitor_url:
             raise ManifestError(f"{name}: `monitor_url` belongs to mode monitor")
-    if run_script is not None and not run_script.stat().st_mode & stat.S_IXUSR:
-        raise ManifestError(f"{name}: {RUN_SCRIPT} must be executable (chmod +x)")
     if prompt:
         clean["prompt"] = prompt
     if skills:
@@ -180,27 +174,27 @@ def validate_spec(name: str, spec: Any, run_script: Optional[Path]) -> dict[str,
         value = _text(spec.get(key), key, name)
         if value:
             clean[key] = value
+    thread_title = _text(spec.get("thread_title"), "thread_title", name)
+    if thread_title:
+        clean["thread_title"] = " ".join(thread_title.split())  # a forum topic name is one line
     repeat = spec.get("repeat")
     if repeat is not None:
         if not isinstance(repeat, int) or isinstance(repeat, bool) or repeat < 1:
             raise ManifestError(f"{name}: `repeat` must be a positive integer")
         clean["repeat"] = repeat
     for key in ("paused", "attach_to_session"):
-        value = spec.get(key)
+        value = lib.bool_field(spec.get(key), key, name)
         if value is not None:
-            if not isinstance(value, bool):
-                raise ManifestError(f"{name}: `{key}` must be true or false")
             clean[key] = value
     for key in ("context_from", "enabled_toolsets"):
-        value = spec.get(key)
+        value = lib.string_list(spec.get(key), key, name)
         if value is not None:
-            if not isinstance(value, list) or not all(isinstance(s, str) and s.strip() for s in value):
-                raise ManifestError(f"{name}: `{key}` must be a list of non-empty strings")
-            clean[key] = [s.strip() for s in value]  # [] is kept: an explicit zero-tool allowlist
+            clean[key] = value  # [] is kept: an explicit zero-tool allowlist
     if mode == "no_agent" and (clean.get("context_from") or clean.get("enabled_toolsets") is not None
-                               or clean.get("attach_to_session") is not None):
+                               or clean.get("attach_to_session") is not None or clean.get("thread_title")):
         raise ManifestError(
-            f"{name}: mode no_agent runs no model; drop `context_from`, `enabled_toolsets`, `attach_to_session`")
+            f"{name}: mode no_agent runs no model; drop `context_from`, `enabled_toolsets`, "
+            "`attach_to_session`, `thread_title`")
     origin = spec.get("origin")
     if origin is not None:
         if not isinstance(origin, dict) or not origin.get("platform") or not origin.get("chat_id"):
@@ -211,33 +205,20 @@ def validate_spec(name: str, spec: Any, run_script: Optional[Path]) -> dict[str,
 
 def load_manifest(directory: Path) -> Manifest:
     name = directory.name
-    manifest_file = directory / MANIFEST_FILE
-    if not manifest_file.is_file():
-        raise ManifestError(f"{name}: no {MANIFEST_FILE}")
-    try:
-        spec = yaml.safe_load(manifest_file.read_text(encoding="utf-8"))
-    except yaml.YAMLError as exc:
-        raise ManifestError(f"{name}: {MANIFEST_FILE} is not valid YAML: {exc}") from exc
-    run_script = directory / RUN_SCRIPT
-    run = run_script.resolve() if run_script.is_file() else None
+    spec = lib.read_spec(directory, MANIFEST_FILE)
+    run = lib.executable_script(directory, RUN_SCRIPT)
     clean = validate_spec(name, spec, run)
-    source = "repo" if directory.is_symlink() else "local"
-    return Manifest(name=name, path=directory, source=source, spec=clean, run_script=run)
+    return Manifest(name=name, path=directory, source=lib.source_of(directory), spec=clean, run_script=run)
 
 
 def load_manifests(home: Path) -> tuple[list[Manifest], list[str]]:
     """Every manifest under ``<home>/cron.d``, plus the errors of the ones that cannot load (a
     broken manifest never blocks the others, and never pauses its job as an orphan)."""
-    root = home / MANIFEST_DIR
     manifests: list[Manifest] = []
     errors: list[str] = []
-    if not root.is_dir():
-        return manifests, errors
-    for child in sorted(root.iterdir()):
-        if child.name.startswith("."):
-            continue
-        if not child.is_dir():
-            errors.append(f"{child.name}: not a directory (every entry of {MANIFEST_DIR}/ is a job)")
+    for child, error in lib.iter_manifest_dirs(home / MANIFEST_DIR, "job"):
+        if error:
+            errors.append(error)
             continue
         try:
             manifests.append(load_manifest(child))
@@ -251,45 +232,16 @@ def load_manifests(home: Path) -> tuple[list[Manifest], list[str]]:
 # ---------------------------------------------------------------------------
 
 def wrapper_text(name: str) -> str:
-    """The wrapper lives at ``<home>/scripts/cron/<name>.sh``, so it is the one party that knows
-    which profile owns the job: it names that home in ``HERMES_HOME`` for the script, whatever
-    the gateway's own process environment says under multiplex, and reaches the script through
-    the manifest's path under that home (a link for a repository job), so no checkout path is
-    baked in and a moved checkout needs only the installer's relink."""
-    return (
-        "#!/bin/sh\n"
-        f"# Generated by cron-sync from {MANIFEST_DIR}/{name}/{RUN_SCRIPT} — do not edit.\n"
-        'HERMES_HOME="$(cd "$(dirname "$0")/../.." && pwd)"\n'
-        "export HERMES_HOME\n"
-        f'exec "$HERMES_HOME/{MANIFEST_DIR}/{name}/{RUN_SCRIPT}" "$@"\n'
-    )
+    """``scripts/cron/<name>.sh``: exports the owning profile's home and execs the manifest's
+    run.sh under it (``manifestlib.wrapper_text``)."""
+    return lib.wrapper_text("cron-sync", MANIFEST_DIR, name, RUN_SCRIPT)
 
 
 def sync_wrappers(home: Path, manifests: list[Manifest], write: bool) -> list[str]:
     """Write ``scripts/cron/<name>.sh`` for every manifest with a run script and drop the ones
     no manifest names any more. Returns the changes (made, or pending under --check)."""
-    changes: list[str] = []
-    wrapper_dir = home / "scripts" / WRAPPER_DIR
-    wanted: dict[str, str] = {
-        f"{m.name}.sh": wrapper_text(m.name) for m in manifests if m.run_script
-    }
-    for filename, text in wanted.items():
-        path = wrapper_dir / filename
-        if path.is_file() and path.read_text(encoding="utf-8") == text and path.stat().st_mode & stat.S_IXUSR:
-            continue
-        changes.append(f"wrapper {path.relative_to(home)}")
-        if write:
-            wrapper_dir.mkdir(parents=True, exist_ok=True)
-            path.write_text(text, encoding="utf-8")
-            path.chmod(0o755)
-    if wrapper_dir.is_dir():
-        for path in sorted(wrapper_dir.glob("*.sh")):
-            if path.name in wanted:
-                continue
-            changes.append(f"drop wrapper {path.relative_to(home)}")
-            if write:
-                path.unlink()
-    return changes
+    wanted = {f"{m.name}.sh": wrapper_text(m.name) for m in manifests if m.run_script}
+    return lib.sync_wrappers(home, WRAPPER_DIR, wanted, write)
 
 
 # ---------------------------------------------------------------------------
@@ -327,7 +279,7 @@ def _runtime():
 
 
 def _marker(manifest: Manifest, now: str) -> dict[str, str]:
-    return {"manifest": manifest.name, "source": manifest.source, "synced_at": now}
+    return lib.marker(manifest.name, manifest.source, now)
 
 
 def _stored_definition(job: dict[str, Any]) -> dict[str, Any]:
@@ -347,6 +299,7 @@ def _stored_definition(job: dict[str, Any]) -> dict[str, Any]:
         "context_from": list(job["context_from"]) if job.get("context_from") else None,
         "enabled_toolsets": list(job["enabled_toolsets"]) if job.get("enabled_toolsets") is not None else None,
         "attach_to_session": job.get("attach_to_session"),
+        "thread_title": job.get("thread_title") or None,
     }
 
 
@@ -446,7 +399,12 @@ def apply_plan(plan: Plan, jobs_api, now: str) -> list[str]:
         if manifest.paused is True:
             kwargs.update(paused=True, paused_reason=MANIFEST_PAUSE_REASON)
         job = jobs_api.create_job(**kwargs)
-        jobs_api.update_job(job["id"], {MARKER: _marker(manifest, now)})
+        # thread_title is a field the pinned runtime learns from a local patch; set through the
+        # update path (any key) so a stock runtime still creates the job and merely ignores it.
+        stamp: dict[str, Any] = {MARKER: _marker(manifest, now)}
+        if d["thread_title"]:
+            stamp["thread_title"] = d["thread_title"]
+        jobs_api.update_job(job["id"], stamp)
         done.append(f"created {manifest.name} ({job['id']}, {manifest.source})")
     for manifest, job, updates in plan.update:
         jobs_api.update_job(job["id"], {**updates, MARKER: _marker(manifest, now)})
@@ -496,13 +454,12 @@ def _with_home(home: Path, fn: Callable[[Any], Any]) -> Any:
     """Run ``fn(jobs_api)`` with the runtime pointed at ``home``: its cron store and the
     ``HERMES_HOME`` the rest of the runtime reads, without touching the process environment."""
     jobs_api = _runtime()
-    from hermes_constants import reset_hermes_home_override, set_hermes_home_override
-    token = set_hermes_home_override(home)
-    try:
+
+    def run():
         with jobs_api.use_cron_store(home):
             return fn(jobs_api)
-    finally:
-        reset_hermes_home_override(token)
+
+    return lib.with_home(home, run)
 
 
 def sync_home(home: Path, *, check: bool, prune: bool) -> tuple[Plan, Optional[list[str]]]:
@@ -578,8 +535,7 @@ def write_local(home: Path, name: str, spec: dict[str, Any], run_script: Optiona
     directory = home / MANIFEST_DIR / name
     if directory.exists() or directory.is_symlink():
         raise ManifestError(f"{name}: already exists in {MANIFEST_DIR}/")
-    if not NAME_RE.match(name):
-        raise ManifestError(f"{name}: directory name must match {NAME_RE.pattern}")
+    lib.check_name(name)
     if not isinstance(spec, dict):
         raise ManifestError(f"{name}: spec must be a mapping")
     directory.mkdir(parents=True)
@@ -633,26 +589,16 @@ def drop_local(home: Path, name: str) -> Optional[str]:
 # CLI
 # ---------------------------------------------------------------------------
 
-def hermes_dir() -> Path:
-    return Path(os.environ.get("HERMES_DIR") or "~/.hermes").expanduser()
+hermes_dir = lib.hermes_dir
 
 
 def profile_homes(args: argparse.Namespace) -> list[Path]:
-    if args.home:
-        return [Path(args.home)]
-    if args.profile:
-        return [hermes_dir() / "profiles" / args.profile]
-    root = hermes_dir() / "profiles"
-    if not root.is_dir():
-        return []
-    return sorted(p for p in root.iterdir() if (p / MANIFEST_DIR).is_dir())
+    return lib.profile_homes(args, MANIFEST_DIR)
 
 
 def main(argv: Optional[list[str]] = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n", 1)[0])
-    scope = parser.add_mutually_exclusive_group()
-    scope.add_argument("--profile", help="a profile under $HERMES_DIR/profiles (default: all with cron.d/)")
-    scope.add_argument("--home", help="a HERMES_HOME directory")
+    lib.add_scope_arguments(parser, MANIFEST_DIR)
     parser.add_argument("--check", action="store_true", help="sync: report what would change; write nothing")
     parser.add_argument("--prune", action="store_true", help="sync: remove orphan jobs instead of pausing them")
     sub = parser.add_subparsers(dest="command")

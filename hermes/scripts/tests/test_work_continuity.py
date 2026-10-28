@@ -46,17 +46,17 @@ class CommandPlanTest(unittest.TestCase):
 
     def test_exact_scopes_no_dot_no_forbidden(self) -> None:
         plan = V.build_plan(self.runtime, self.private, self.python)
-        self.assertEqual(5, len(plan))
+        self.assertEqual(6, len(plan))
         names = [stage["name"] for stage in plan]
         self.assertEqual(
-            ["validate-profile-skills --all --strict-git", "cron-sync --check", "public pytest",
-             "assistant unittest", "runtime pytest"],
+            ["validate-profile-skills --all --strict-git", "cron-sync --check", "webhook-sync --check",
+             "public pytest", "assistant unittest", "runtime pytest"],
             names,
         )
-        cron_stage = plan[1]
-        self.assertEqual(["--check"], cron_stage["argv"][2:])  # read-only: never a sync
-        public_stage = plan[2]
-        runtime_stage = plan[4]
+        for sync_stage in plan[1:3]:
+            self.assertEqual(["--check"], sync_stage["argv"][2:])  # read-only: never a sync
+        public_stage = plan[3]
+        runtime_stage = plan[5]
         self.assertEqual(list(V.PUBLIC_PYTEST_FILES), [
             a for a in public_stage["argv"] if a.startswith("hermes/")
         ])
@@ -65,7 +65,7 @@ class CommandPlanTest(unittest.TestCase):
         ])
         for stage in plan:
             self.assertNotIn(".", stage["argv"])
-        assistant_stage = plan[3]
+        assistant_stage = plan[4]
         self.assertEqual(str(V.PUBLIC_ROOT / V.ASSISTANT_TESTS), assistant_stage["argv"][-1])
         self.assertEqual(V.PUBLIC_ROOT, assistant_stage["cwd"])
         self.assertEqual(str(self.private), assistant_stage["env"]["HERMES_PRIVATE_ROOT"])
@@ -73,7 +73,7 @@ class CommandPlanTest(unittest.TestCase):
 
     def test_checkout_names_are_not_a_command_policy(self) -> None:
         plan = V.build_plan(Path("/tmp/download-cache/runtime"), Path("/tmp/restart-review/private"), self.python)
-        self.assertEqual(5, len(plan))
+        self.assertEqual(6, len(plan))
 
     def test_env_prefix_and_smoke_vars_stripped(self) -> None:
         with patch.dict("os.environ", {"CARD_SMOKE_DIR": "/x", "CARD_AUTHORED_SMOKE_DIR": "/y"}):

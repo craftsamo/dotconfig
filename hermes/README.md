@@ -20,6 +20,7 @@ a profile sees only its `config.yaml`, `SOUL.md` and skills.
 | understand how the agents fit together and what each does    | [`PROFILES.md`](./PROFILES.md) — index of the design docs in [`docs/`](./docs/)                                |
 | install, link, track a profile, move files                   | [`docs/ops/install.md`](docs/ops/install.md), [`docs/ops/tracking.md`](docs/ops/tracking.md)                   |
 | add or change a scheduled (cron) job                         | [`docs/ops/cron.md`](docs/ops/cron.md)                                                                         |
+| receive a webhook from an outside service                    | [`docs/ops/webhook.md`](docs/ops/webhook.md)                                                                   |
 | add or change skills; why a worker command is refused        | [`docs/ops/skills.md`](docs/ops/skills.md)                                                                     |
 | enable or configure a plugin                                 | [`docs/ops/plugins.md`](docs/ops/plugins.md)                                                                   |
 | run or repair a LaunchAgent, a launcher or an engine script  | [`docs/ops/services.md`](docs/ops/services.md)                                                                 |
@@ -55,7 +56,10 @@ the configs still load, but some parts fail silently or not at all:
 - scope-keyed audio handling ([`docs/hands/audio.md`](docs/hands/audio.md));
 - room for a plugin's approval card past the 500-unit reason cut, without
   which a long card (a stack merge with several layers) is refused
-  ([`docs/access-common.md`](docs/access-common.md) "Card shape").
+  ([`docs/access-common.md`](docs/access-common.md) "Card shape");
+- a cron job's `thread_title` and a run's `[TITLE: …]` line, which name the
+  thread a continuable delivery opens; without the patch every such thread
+  is `Hermes — <job name>` ([`docs/ops/cron.md`](docs/ops/cron.md)).
 
 The base is a `pin/main-<date>` branch: upstream `main` fixed at one commit,
 the first parent at the root of `local`. `origin/main` moves on past it and is
@@ -98,10 +102,12 @@ For every `hermes/profiles/<name>/`, `install.sh` wires the same pieces into
 `~/.hermes/profiles/<name>/`: `config.yaml` and `SOUL.md` as above;
 `profile.yaml`, `mcp.json` and `.no-bundled-skills` as links; `skills/` as a
 real directory holding `pipeline` and `technic` links (learned skills
-land beside them); `cron.d/` as a real directory holding one link per tracked
-job directory (the overlay's and the profile's own jobs beside them; the
-installer's last step derives `cron/jobs.json` from the whole set,
-[`docs/ops/cron.md`](docs/ops/cron.md)); `scripts/` as a real directory of
+land beside them); `cron.d/` and `webhook.d/` as real directories holding one
+link per tracked job or route directory (the overlay's and the profile's own
+beside them; the installer's last steps derive `cron/jobs.json` and the root
+home's `webhook_subscriptions.json` from the whole set,
+[`docs/ops/cron.md`](docs/ops/cron.md), [`docs/ops/webhook.md`](docs/ops/webhook.md));
+`scripts/` as a real directory of
 **copies** (Hermes' cron scheduler resolves a script and the directory to
 their real paths and refuses a script outside the directory, so a link cannot
 serve; the repo is the source, re-run `install.sh` after editing); and
@@ -128,7 +134,8 @@ plugins/               grouped plugins: messaging/ social/ web3/ orchestration/ 
                        audio_gen/ tts/ transcription/); _shared/ dirs are code, not plugins
 profiles/<name>/       one HERMES_HOME each: config.example.yaml, profile.yaml, SOUL.example.md,
                        skills/pipeline/, scripts/ (see docs/ops/skills.md), cron.d/<job>/
-                       (tracked cron jobs, see docs/ops/cron.md)
+                       (tracked cron jobs, see docs/ops/cron.md), webhook.d/<route>/
+                       (tracked webhook routes, see docs/ops/webhook.md)
 launchd/               LaunchAgent templates and launcher scripts
 engines/               hash-locked pins for the local engines (TTS, SFX, scraping, ...) and
                        the screen-listen helper's Swift source
@@ -161,6 +168,9 @@ Run from `~/.config/hermes`.
   profile's `cron/jobs.json` from its `cron.d/` links (`install.sh` runs it
   last); `--check` reports pending changes and writes nothing
   ([`docs/ops/cron.md`](docs/ops/cron.md)).
+- `../bin/hermes-python scripts/webhook-sync.py [--check]` — the same for
+  every profile's `webhook.d/` links into the root home's
+  `webhook_subscriptions.json` ([`docs/ops/webhook.md`](docs/ops/webhook.md)).
 
 **Validation and tests**
 

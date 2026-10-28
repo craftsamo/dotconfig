@@ -598,6 +598,18 @@ gateway:
   trust_recent_files: true
   trust_recent_files_seconds: 600
   multiplex_profiles: true
+# The one inbound webhook listener (the root profile's; a served profile's
+# routes answer under /p/<profile>/webhooks/<name>). Loopback only: a tunnel
+# brings the public hostname to it (hermes/docs/ops/webhook.md). The routes
+# are derived from every profile's webhook.d/ into webhook_subscriptions.json
+# by webhook-sync, never written here, and the HMAC secret every POST is
+# checked against arrives as WEBHOOK_SECRET from the Keychain `hermes` layer.
+platforms:
+  webhook:
+    enabled: true
+    extra:
+      host: 127.0.0.1
+      port: 8644
 streaming:
   enabled: false
   transport: auto

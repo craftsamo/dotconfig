@@ -29,6 +29,21 @@ ones that have a directory:
 
 A job keeps its name: to rename one, remove it and create it again.
 
+## A job that opens its own topic
+
+Create it with `attach_to_session: true` and `deliver: telegram:<chat id>`
+(the chat, no thread): each delivery then opens a new Telegram topic, seeded
+with the brief, and a reply there continues with context. A bare
+`deliver: telegram` goes to the Inbox topic instead and opens none. The
+topic is named `Hermes — <name>` unless the run's output contains one line
+`[TITLE: …]` (stripped before delivery): put one there when the run knows a
+better name than the job does ("Dependabot #12 critical: lodash").
+
+Webhooks are not yours to register: a route that fires a job is a tracked
+`webhook.d/` directory in a repository, and the job it names keeps a schedule
+that never comes round (`0 0 29 2 *`), never `paused` (an event cannot fire a
+paused job).
+
 ## Job scripts you write
 
 A job's `script` (or `monitor`) is a path inside
