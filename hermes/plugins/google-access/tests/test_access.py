@@ -2125,6 +2125,26 @@ def test_pivot_tables_on_a_new_tab_or_at_a_cell():
     assert at["updateCells"]["start"] == {"sheetId": 0, "rowIndex": 0, "columnIndex": 10}
 
 
+def test_pivot_groups_by_date_part_and_values_by_formula():
+    op = {"op": "pivot", "range": "Tasks!B:E", "at": "Main!A1",
+          "pivot_rows": [{"column": "C", "group": "YEAR_MONTH", "sort": "DESCENDING", "label": "Month"}],
+          "pivot_columns": [{"column": "D", "totals": False}],
+          "pivot_values": [{"column": "E", "name": "Spent"},
+                           {"formula": '=SUMPRODUCT((Kind="out")*Amount)', "name": "Out"},
+                           {"formula": "=Amount*2", "summarize": "SUM"}]}
+    (at,) = object_requests("pivot", op)
+    pivot = at["updateCells"]["rows"][0]["values"][0]["pivotTable"]
+    assert pivot["rows"] == [{"sourceColumnOffset": 1, "showTotals": True, "sortOrder": "DESCENDING",
+                              "groupRule": {"dateTimeRule": {"type": "YEAR_MONTH"}}, "label": "Month"}]
+    assert pivot["columns"] == [{"sourceColumnOffset": 2, "showTotals": False, "sortOrder": "ASCENDING"}]
+    assert pivot["values"] == [{"sourceColumnOffset": 3, "summarizeFunction": "SUM", "name": "Spent"},
+                               {"formula": '=SUMPRODUCT((Kind="out")*Amount)', "summarizeFunction": "CUSTOM",
+                                "name": "Out"},
+                               {"formula": "=Amount*2", "summarizeFunction": "SUM"}]
+    card = access.approval_request("google_sheets", objects("pivot", op))[0]
+    assert "rows C by year month descending; columns D; values SUM of E as \"Spent\", formula =SUMPRODUCT(" in card
+
+
 def test_deleting_a_pivot_table_checks_its_anchor():
     seen = []
 
@@ -2153,6 +2173,10 @@ def test_deleting_a_pivot_table_checks_its_anchor():
     ("pivot", {"op": "pivot", "range": "A1:C9", "pivot_rows": ["F"]}, "outside the range"),
     ("pivot", {"op": "pivot", "range": "A1:C9", "pivot_values": [{"column": "B", "summarize": "TOTAL"}]},
      "summarize must be one of"),
+    ("pivot", {"op": "pivot", "range": "A1:C9", "pivot_values": [{"formula": "SUM(B)"}]}, "starts with ="),
+    ("pivot", {"op": "pivot", "range": "A1:C9", "pivot_values": [{"column": "B", "formula": "=B"}]}, "each pivot value"),
+    ("pivot", {"op": "pivot", "range": "A1:C9", "pivot_rows": [{"column": "A", "group": "WEEK"}]}, "group must be one of"),
+    ("pivot", {"op": "pivot", "range": "A1:C9", "pivot_rows": [{"group": "YEAR"}]}, "column letter or"),
     ("pivot", {"op": "pivot", "range": "A1:C9", "pivot_rows": ["A"], "at": "Z1", "title": "x"}, "takes no title")])
 def test_malformed_chart_and_pivot_ops_are_refused(action, op, message):
     with pytest.raises(access.AccessError, match=message):
