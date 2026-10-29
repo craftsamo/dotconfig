@@ -87,7 +87,7 @@ class MixRoutingTest(unittest.TestCase):
         """Mix is deterministic local placement/gain/fade/sum, cost: free throughout -
         it shares no runtime with SFX/Music's Stable Audio install and adds nothing new."""
         toolsets = set(self.audio["toolsets"])
-        expected = {"terminal", "file", "tts", "sfx_gen", "music_gen", "skills", "memory"}
+        expected = {"terminal", "file", "tts", "sfx_gen", "music_gen", "audio_analyze", "skills", "memory"}
         self.assertEqual(expected, toolsets)
         for forbidden in ("mix", "mix_gen"):
             self.assertNotIn(forbidden, toolsets)

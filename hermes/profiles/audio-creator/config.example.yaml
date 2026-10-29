@@ -25,6 +25,7 @@ toolsets:
   - tts
   - sfx_gen
   - music_gen
+  - audio_analyze
   - skills
   - memory
 max_concurrent_sessions:
@@ -820,6 +821,7 @@ paste_collapse_char_threshold: 2000
 _config_version: 51
 platform_toolsets:
   cli:
+    - audio_analyze
     - connections
     - file
     - memory
@@ -832,6 +834,7 @@ platform_toolsets:
   telegram: []
   discord: []
   a2a:
+    - audio_analyze
     - connections
     - file
     - memory
@@ -844,6 +847,7 @@ platform_toolsets:
 plugins:
   enabled:
     - character-voice
+    - audio-analyze
     - irodori-tts
     - qwen3-tts
     - tts-fallback

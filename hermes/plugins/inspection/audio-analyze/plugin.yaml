@@ -1,0 +1,9 @@
+name: audio-analyze
+version: 1.0.0
+description: >-
+  Adds audio_analyze: one recording, whole, goes to an audio-capable model on
+  config-driven backends tried in order (default: OpenRouter / Google Gemini
+  Flash), which answers about speech, speakers, tone, music and other sounds
+  with no local transcription first. Configure the backends via the top-level
+  audio_analyze: section in config.yaml.
+kind: standalone

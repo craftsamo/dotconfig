@@ -119,6 +119,11 @@ metadata:
   never call a delivery too excited, flat or unnatural from them. An accent
   candidate says the pitch differed from the dictionary, never that the
   reading is wrong.
+- A remote listen is not part of this leaf. Only when the commission's note
+  asks for the whole file to be heard by a model may `audio_analyze` send it
+  (it leaves this machine); quote that answer apart from the findings, as the
+  model's listening with the backend it names, never as a measurement or a
+  PASS, and report its spend when that backend is paid.
 - No finding without named measurements or a disclosed limitation. No new
   speech, normalization, trim or output file is allowed during analysis,
   except the analysis WAV in scratch and the `prosody.md` copied under a
