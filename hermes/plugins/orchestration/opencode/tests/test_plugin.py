@@ -1869,7 +1869,8 @@ def test_session_ruleset_holds_no_broad_allow_but_worktree_edits():
     posture, so an allow here would reopen what a subagent denies itself. The one
     exception is a write run's edits inside its worktree."""
     scratch, readable = policy.directories("/tmp/fake-opencode")
-    narrow = set(scratch + readable + policy.references()) | set(policy.SAMPLE_READS) | set(policy.STACK_READS)
+    narrow = (set(scratch + readable + policy.references()) | set(policy.SAMPLE_READS) | set(policy.STACK_READS)
+              | set(policy.DEPENDABOT_ALERT_READS))
     for kind in config.POLICIES:
         for issue in (None, "granted"):
             rules = policy.rules(kind, issue, {"main"}, tmp="/tmp/fake-opencode", branch="topic")
@@ -1986,7 +1987,44 @@ def test_read_only_session_reopens_nothing_a_reviewer_denies():
     rules = posture + policy.rules("read-only", None, {"main"}, branch="topic", gh_aliases=("co",))
     for command in ("git push origin topic", "git -C . diff --ext-diff", "git -c diff.external=x diff", "ls"):
         assert policy.decide(rules, "shell", command) == "deny", command
-    assert not [r for r in policy.rules("read-only", None, {"main"}) if r["action"] == "shell" and r["effect"] != "deny"]
+    assert {r["resource"] for r in policy.rules("read-only", None, {"main"})
+            if r["action"] == "shell" and r["effect"] != "deny"} == set(policy.DEPENDABOT_ALERT_READS)
+
+
+def test_dependabot_alert_reads_are_allowed_while_gh_api_writes_stay_denied():
+    for kind in config.POLICIES:
+        rules = fakes.agent_info("build")["permissions"] + policy.rules(kind, None, {"main"}, branch="topic")
+        for command in (
+            'gh api --paginate "/repos/o/r/dependabot/alerts?state=open&per_page=100" --jq \'.[] | {n:.number, sev:.security_advisory.severity}\'',
+            'gh api --paginate "/repos/o/r/dependabot/alerts?state=open&per_page=100" --jq .',
+            "gh api --paginate '/repos/o/r/dependabot/alerts?state=open&per_page=100' --jq .",
+            "gh api --paginate /repos/o/r/dependabot/alerts --jq .",
+            "gh api repos/o/r/dependabot/alerts?state=open --jq .",
+            "gh api /repos/o/r/dependabot/alerts/121",
+        ):
+            assert policy.decide(rules, "shell", command) == "allow", (kind, command)
+        for command in (
+            'gh api -X PATCH "/repos/o/r/dependabot/alerts/121" -f state=dismissed',
+            "gh api /repos/o/r/dependabot/alerts/121 -X PATCH -f state=dismissed",
+            "gh api /repos/o/r/dependabot/alerts/121 --method PATCH -f state=dismissed",
+            "gh api /repos/o/r/dependabot/alerts/121 -f state=dismissed",
+            "gh api /repos/o/r/dependabot/alerts/121 -F state=dismissed",
+            "gh api /repos/o/r/dependabot/alerts/121 --field state=dismissed",
+            "gh api /repos/o/r/dependabot/alerts/121 --raw-field state=dismissed",
+            "gh api /repos/o/r/dependabot/alerts/121 --input body.json",
+            "gh api /repos/o/r/dependabot/alerts/121 -H 'X-HTTP-Method-Override: PATCH'",
+            "gh api /repos/o/r/dependabot/alerts/121 --header 'X-HTTP-Method-Override: PATCH'",
+            "gh api /repos/o/r/dependabot/alerts/121 --hostname example.com",
+            "gh api /repos/o/r/dependabot/alerts/../issues",
+            "gh api /repos/o/r/dependabot/alerts/%2e%2e/issues",
+            "gh api /repos/o/r/dependabot/alerts; gh pr merge 1",
+            "gh api /repos/o/r/dependabot/alerts && git push --force origin topic",
+            "gh api /repos/o/r/dependabot/alerts; rm -rf /tmp/x",
+            "gh api /repos/o/r/dependabot/alerts || sh",
+            "gh api /repos/o/r/issues",
+            "gh api graphql -f query=...",
+        ):
+            assert policy.decide(rules, "shell", command) == "deny", (kind, command)
 
 
 def test_read_roots_open_reading_to_read_only_runs_only(tmp_path):

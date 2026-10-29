@@ -128,12 +128,40 @@ ISSUE_WRITES = _all(*(command("gh", "issue", verb) for verb in ("create", "edit"
 GH_BRANCH_MOVES = command("gh", "pr", "checkout")
 # `git diff/log/show --output=<file>` writes a file.
 READ_ONLY_DENY_SHELL = contains("git", "--output", open_end=True)
+# `gh` has no dedicated Dependabot subcommand, so `resolve-dependabot-alerts`
+# reads alerts through `gh api`. These narrow GET spellings are placed before
+# `HARD_DENY_SHELL` (which drops its `gh api` entry into `GH_API_DENY` right
+# before them), so every other hard deny (`gh pr merge`, `git push --force`, …)
+# still comes after them and wins on a compound command, while `GH_API_WRITE_SPELLED`
+# denies any method/body flag, header/host override or traversal on `gh api`.
+GH_API_DENY = command("gh", "api")
+DEPENDABOT_ALERT_READS = (
+    "gh api /repos/*/*/dependabot/alerts*",
+    "gh api repos/*/*/dependabot/alerts*",
+    'gh api "/repos/*/*/dependabot/alerts*"*',
+    'gh api "repos/*/*/dependabot/alerts*"*',
+    "gh api '/repos/*/*/dependabot/alerts*'*",
+    "gh api 'repos/*/*/dependabot/alerts*'*",
+    "gh api --paginate /repos/*/*/dependabot/alerts*",
+    "gh api --paginate repos/*/*/dependabot/alerts*",
+    'gh api --paginate "/repos/*/*/dependabot/alerts*"*',
+    'gh api --paginate "repos/*/*/dependabot/alerts*"*',
+    "gh api --paginate '/repos/*/*/dependabot/alerts*'*",
+    "gh api --paginate 'repos/*/*/dependabot/alerts*'*",
+)
+GH_API_WRITE_SPELLED = tuple(
+    f"{lead}gh?api*{flag}*" for lead in _COMMAND_LEADS
+    for flag in (" -X", "\t-X", " --method", "\t--method", " -f", "\t-f", " -F", "\t-F",
+                 " --field", "\t--field", " --raw-field", "\t--raw-field", " --input", "\t--input",
+                 " -H", "\t-H", " --header", "\t--header", " --hostname", "\t--hostname", "..", "%2e", "%2E",
+                 ";", "&&", "||", "\n", "`", "$(")
+)
 # Never, for any policy or subagent: the caller cannot approve these either.
 HARD_DENY_SHELL = _all(
     # GitHub writes no run makes.
     command("gh", "pr", "merge"), command("gh", "stack", "merge"), command("gh", "stack", "unstack"),
     *(command("gh", "repo", verb) for verb in ("create", "delete", "edit", "rename", "archive", "sync")),
-    command("gh", "api"), command("gh", "project"), command("gh", "auth"), command("gh", "secret"),
+    command("gh", "project"), command("gh", "auth"), command("gh", "secret"),
     command("gh", "issue", "delete"), command("gh", "issue", "close"),
     # An alias or an extension runs any command past these rules.
     *(command("gh", "alias", verb) for verb in ("set", "import", "delete")),
@@ -341,6 +369,9 @@ def rules(policy, issue_approval, protected, *, tmp=None, person_denies=(), outp
         out += [rule("shell", pattern, "ask") for pattern in risky_git]
         if not issue_approval:
             out += [rule("shell", pattern, "ask") for pattern in ISSUE_WRITES]
+    out += [rule("shell", pattern, "deny") for pattern in GH_API_DENY]
+    out += [rule("shell", pattern, "allow") for pattern in DEPENDABOT_ALERT_READS]
+    out += [rule("shell", pattern, "deny") for pattern in GH_API_WRITE_SPELLED]
     deny = HARD_DENY_SHELL + _all(*(protected_pushes(name) for name in sorted(protected)))
     out += [rule("shell", pattern, "deny") for pattern in deny]
     if policy == "write" and branch and not branch.startswith("detached:") and branch not in protected:

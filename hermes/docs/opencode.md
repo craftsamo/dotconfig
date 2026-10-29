@@ -262,7 +262,7 @@ secrets unreadable, pushes, shell history rewrites, branch moves
 the person's agent rules), anything naming `deploy`, `publish`, `secret`,
 `--remote` or `--prod` (a project's task runner can reach those past every other
 rule; a best-effort list) and ungranted Issue writes as asks, the hard denies (force and protected-branch
-pushes, merges, `gh api`, Project writes, git config, remote rewrites, `gh`
+pushes, merges, `gh api` except GET reads of `/repos/*/*/dependabot/alerts*`, Project writes, git config, remote rewrites, `gh`
 aliases and extensions, edits under `.git/`), and last the person's own denies
 read from the built-in `build` agent, so a broad allow never reopens `sudo` or
 `secret get`. OpenCode checks each command as written, environment prefixes,
