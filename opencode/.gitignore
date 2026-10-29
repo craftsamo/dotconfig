@@ -2,3 +2,8 @@
 node_modules
 package-lock.json
 bun.lock
+# opencode-antigravity-auth state: written into the machine-local
+# ~/.config/opencode, ignored here in case it ever lands in the repo
+antigravity-accounts.json
+antigravity-accounts.json.*.tmp
+antigravity-logs/

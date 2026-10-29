@@ -14,18 +14,19 @@ link. Installed from the `anomalyco/tap/opencode-v2` formula (see the
 
 ## User-managed content
 
-| Path              | Purpose                                                 |
-| ----------------- | ------------------------------------------------------- |
-| `opencode.jsonc`  | main configuration (models, permissions, MCP, ...)      |
-| `cli.json`        | terminal UI preferences (theme, keybinds, session view) |
-| `AGENTS.md`       | global instructions, loaded into every session          |
-| `agents/`         | custom agents / subagents (`*.md`)                      |
-| `commands/`       | custom slash commands (`*.md`)                          |
-| `plugins/`        | local plugins (`*.ts`), auto-discovered                 |
-| `lib/`            | code imported by plugins (not scanned by OpenCode)      |
-| `skills/`         | opencode-only skills (`<name>/SKILL.md`)                |
-| `package.json`    | plugin dependencies, installed by `install.sh --deps`   |
-| `opencode-quota/` | quota plugin settings (`quota-toast.jsonc`)             |
+| Path               | Purpose                                                 |
+| ------------------ | ------------------------------------------------------- |
+| `opencode.jsonc`   | main configuration (models, permissions, MCP, ...)      |
+| `cli.json`         | terminal UI preferences (theme, keybinds, session view) |
+| `AGENTS.md`        | global instructions, loaded into every session          |
+| `agents/`          | custom agents / subagents (`*.md`)                      |
+| `commands/`        | custom slash commands (`*.md`)                          |
+| `plugins/`         | local plugins (`*.ts`), auto-discovered                 |
+| `lib/`             | code imported by plugins (not scanned by OpenCode)      |
+| `skills/`          | opencode-only skills (`<name>/SKILL.md`)                |
+| `package.json`     | plugin dependencies, installed by `install.sh --deps`   |
+| `opencode-quota/`  | quota plugin settings (`quota-toast.jsonc`)             |
+| `antigravity.json` | Antigravity plugin settings (updater off, one account)  |
 
 A fresh clone needs `./install.sh --deps` once: OpenCode 2 does not install
 config-directory dependencies, and without `node_modules/zod` the custom-tools
@@ -733,6 +734,28 @@ A move to a credit lane (see above) therefore pays one full write.
   when set (metered). Quota shows the pool in the footer and `/quota`
   (`enabledProviders` includes `xai`), and the launch selector reads its
   weekly row like the other subscriptions.
+- **Google Antigravity** (Gemini and Claude on an Antigravity plan): the
+  `opencode-antigravity-auth` plugin's Google OAuth login,
+  `opencode auth login google`, choosing "Google OAuth (Antigravity)". Its
+  models are `google/antigravity-*`; they appear only after a login (the
+  plugin lists what the account's plan serves, cached for an hour) and are
+  picked by hand: no specialist route or credit lane uses them, and the
+  plugin's `google_search` tool is denied for every agent, since it would
+  spend the same login from any model. Google's Antigravity terms forbid
+  third-party clients, and Google has banned accounts for it (Antigravity,
+  Gemini CLI and Code Assist together; a second strike is permanent), so log
+  in with an account you can afford to lose. Besides the OpenCode
+  credential, the plugin keeps its account pool, refresh tokens included, in
+  `antigravity-accounts.json` beside the links in `~/.config/opencode` (never
+  in this repo; `.gitignore` covers it anyway); back it up before moving
+  machines. `/antigravity` (`/ag`) shows the accounts, their quota and reset
+  times. `antigravity.json` turns off the plugin's self-update, which would
+  otherwise rewrite the pinned version in a V1 config. In its V1 login menu,
+  never choose "Configure models in opencode.json": it rewrites
+  `opencode.jsonc` through the link as plain JSON, dropping every comment.
+  The first start after a version bump installs the package (about ten
+  seconds), and a CLI command run meanwhile can fail with "Location plugins
+  did not finish activating"; run it again.
 
 `opencode auth list` shows the stored logins; `opencode auth switch` picks
 another one. Credentials live in OpenCode's database, not in `auth.json`.

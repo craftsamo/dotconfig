@@ -10,6 +10,14 @@
     // Pinned: the 2.x line is a prerelease and tracks OpenCode 2's beta
     // plugin API. Bump deliberately and re-test a login and a refresh.
     "@ex-machina/opencode-anthropic-auth@2.0.0-next.6",
+    // Gemini and Claude on a Google Antigravity plan through a Google OAuth
+    // login (`opencode auth login google`, "Google OAuth (Antigravity)"); its
+    // models are google/antigravity-*, picked by hand only. Google's
+    // Antigravity terms forbid third-party clients and have banned accounts
+    // for it (a second strike is permanent): an accepted risk, so log in with
+    // an account you can lose. Pinned; antigravity.json turns off its own
+    // updater. Bump deliberately and re-test a login and a request.
+    "opencode-antigravity-auth@2.1.2",
     // Usage limits in the TUI and /quota. Reads the Anthropic login above;
     // opencode-quota/quota-toast.jsonc keeps it off Claude Code's Keychain.
     // 6.x drops project quota-toast.jsonc and the init/update CLI: stay on 5.
@@ -2428,6 +2436,14 @@
       "action": "web_ui_check",
       "resource": "*",
       "effect": "allow"
+    },
+    // Google Search from opencode-antigravity-auth. Every session gets it,
+    // whatever its model, and it spends the Antigravity login: Antigravity
+    // is used only where a google/antigravity-* model is picked by hand.
+    {
+      "action": "google_search",
+      "resource": "*",
+      "effect": "deny"
     },
   ],
   // Hard denies that no agent rule, saved "Allow always" or project config can
