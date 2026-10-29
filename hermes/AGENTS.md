@@ -180,6 +180,11 @@ skills.
   names (`ANTHROPIC_CREDIT_*`) are what the `anthropic` pool reads: renaming one
   empties that entry, in the root `auth.json` and in any per-profile copy.
   Details: [docs/models-auth.md "Console credit lanes"](docs/models-auth.md).
+- **`antigravity` is picked by hand, and its client secret is a Keychain
+  item.** Never name it in a `fallback_providers` chain or a `model:` (every
+  request is a third-party use Google's terms forbid, and a chain sends it
+  unattended), and never put `ANTIGRAVITY_OAUTH_CLIENT_SECRET`'s value in the
+  repo, whole or split ([decision](docs/decisions/antigravity-provider.md)).
 - **A new Claude model is not covered until checked.** Before adopting one,
   read its breaking changes against the mandatory-thinking and
   no-forced-`tool_choice` substring lists (unknown ids default to "disable

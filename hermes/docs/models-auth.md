@@ -300,6 +300,55 @@ differs (native Anthropic sends no `thinking`/`output_config`, Codex defaults to
 `medium`, OpenRouter to `medium` enabled): a T1 left unspecified while its
 fallbacks run `medium`. **Set `agent.*` keys per profile, always.**
 
+### Google Antigravity
+
+`antigravity` is a model provider this repo ships as a plugin
+(`plugins/model-providers/antigravity`, discovered in every profile with no
+`plugins.enabled` entry): Gemini and Claude on a Google Antigravity plan, through
+a Google OAuth login sent straight to Antigravity's Cloud Code endpoint, the
+way OpenCode's `opencode-antigravity-auth` does (why a plugin and not the `agy`
+CLI or a runtime patch: [decision](./decisions/antigravity-provider.md)).
+
+- **Picked by hand only.** No `fallback_providers` chain or `model:` names it,
+  in the examples or the private configs; select it per session
+  (`hermes --provider antigravity -m <id>`, or `/model`). The provider is
+  `hidden`, so pickers offer it only once a login exists.
+- **Google's terms forbid it.** The Antigravity terms call third-party access
+  a breach and Google has suspended accounts for it (Antigravity, Gemini CLI
+  and Code Assist together; a second violation is permanent). Sign in only
+  with an account whose Antigravity access you can afford to lose.
+- **Login.** `hermes auth add antigravity [--label <name>]`, from `default`
+  like every OAuth login. Each login adds one row to the `antigravity` pool
+  with its refresh token, the account's email and its Cloud Code project
+  (found at login: `loadCodeAssist`, then `onboardUser` for an account with no
+  project yet). The pool refreshes and rotates the rows as it does Anthropic's.
+  The redirect is `http://localhost:51121/oauth-callback`, the only one the
+  Antigravity client allows, so port 51121 must be free during a login. Google
+  wants the client secret on every token request: it is a public value of the
+  Antigravity client, kept in the `hermes` Keychain layer as
+  `ANTIGRAVITY_OAUTH_CLIENT_SECRET` (`secret set ANTIGRAVITY_OAUTH_CLIENT_SECRET
+-p hermes`) rather than in the repository; without it a login or a refresh
+  fails with `oauth_client_secret_missing`.
+- **What a request looks like.** Every request carries the Antigravity
+  client's identity: its user agent (version read once per process from
+  Antigravity's release manifest), `requestType: agent`, and the Antigravity
+  preamble at the head of the system prompt, before the profile's own. Claude
+  models get the Gemini-shaped body Antigravity expects (snake-case thinking
+  budget, reduced tool schemas and wire-safe tool names that the client maps
+  back). Gemini ids with an effort suffix (`gemini-3.8-flash-high`) keep that
+  effort; `agent.reasoning_effort` sets the rest.
+- **Models.** The account's model list (`fetchAvailableModels`) is read at
+  login and saved per profile home (`cache/antigravity/catalog.json`); a
+  request refreshes it in the background once it is an hour old. The model
+  picker shows that list (a short fixed list until one exists), and context
+  and output limits come from it, else from the family's usual values (Gemini
+  1M in, 65,536 out; Claude and others 200K in, 64,000 out).
+- **It leans on runtime internals.** The client subclasses the runtime's
+  native Gemini client and reuses its request builder and response
+  translation, and the login reuses the PKCE helper's private pieces. A re-pin
+  that renames them breaks this provider alone; its tests (part of the plugin
+  suite the continuity check runs) are where that shows.
+
 ## Authentication inheritance
 
 `auth.json` is per-profile, **but** a named profile with no entry for a provider
