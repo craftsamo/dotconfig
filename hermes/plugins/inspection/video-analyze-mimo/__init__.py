@@ -1,4 +1,4 @@
-"""video-analyze-mimo — pin video analysis to a config-driven backend.
+"""video-analyze-mimo — pin video analysis to config-driven backends.
 
 The built-in ``video_analyze`` tool resolves through ``auxiliary.vision``. That
 coupling is a problem here: pinning ``auxiliary.vision`` to a video-capable model
@@ -7,23 +7,23 @@ coupling is a problem here: pinning ``auxiliary.vision`` to a video-capable mode
 native image vision.
 
 This plugin overrides ``video_analyze`` (``override=True``, same name/toolset) so
-video understanding goes **directly** to an explicit provider+model via
-``async_call_llm(provider=…, model=…)`` — bypassing ``auxiliary.vision``
-entirely. With that decoupling, ``auxiliary.vision`` can stay ``auto`` and images
+video understanding goes **directly** to the listed provider+model backends, and
+to no other — bypassing ``auxiliary.vision`` entirely. With that decoupling, ``auxiliary.vision`` can stay ``auto`` and images
 route natively to whichever main tier is active (codex/copilot/mimo), while video
 always lands on a video-capable backend.
 
-Backend is config-driven via a top-level ``video_analyze:`` section in
+Backends are config-driven via a top-level ``video_analyze:`` section in
 ``config.yaml`` (preserved across Hermes' config rewrites because ``_deep_merge``
-keeps user-only keys and ``save_config`` writes the full dict)::
+keeps user-only keys and ``save_config`` writes the full dict), tried in order
+(``plugins/_shared/media_backends.py``)::
 
     video_analyze:
-      provider: openrouter
-      model: xiaomi/mimo-v2.5      # e.g. minimax/minimax-m3
+      backends:
+        - {provider: openrouter, model: xiaomi/mimo-v2.5}
 
-Defaults to OpenRouter / xiaomi/mimo-v2.5 when the section is absent. The chain
-mirrors the build-a-hermes-plugin tool pattern; credentials come from the
-Keychain shim (``OPENROUTER_API_KEY``).
+The single form (``provider`` / ``model``) still works, and OpenRouter /
+xiaomi/mimo-v2.5 is the default when the section is absent. Credentials come
+from the Keychain shim (``OPENROUTER_API_KEY``) or the backend's own login.
 """
 
 from __future__ import annotations
@@ -50,9 +50,9 @@ def _shared(name, filename):
 
 
 tool_preview = _shared("hermes_tool_preview", "tool_preview.py")
+media_backends = _shared("hermes_media_backends", "media_backends.py")
 
-_DEFAULT_PROVIDER = "openrouter"
-_DEFAULT_MODEL = "xiaomi/mimo-v2.5"
+_DEFAULT_BACKEND = ("openrouter", "xiaomi/mimo-v2.5")
 
 _PROMPT = (
     "Fully describe and explain everything happening in this video, including "
@@ -61,24 +61,13 @@ _PROMPT = (
 )
 
 
-def _resolve_backend() -> tuple[str, str]:
-    """Read provider/model from config.yaml ``video_analyze:`` (with defaults)."""
-    try:
-        from hermes_cli.config import cfg_get, load_config
-
-        cfg = load_config()
-        provider = cfg_get(cfg, "video_analyze", "provider", default=_DEFAULT_PROVIDER)
-        model = cfg_get(cfg, "video_analyze", "model", default=_DEFAULT_MODEL)
-    except Exception as exc:  # noqa: BLE001 — never fail resolution
-        logger.debug("video-analyze-mimo: config read failed (%s); using defaults", exc)
-        provider, model = _DEFAULT_PROVIDER, _DEFAULT_MODEL
-    return (str(provider or _DEFAULT_PROVIDER).strip(),
-            str(model or _DEFAULT_MODEL).strip())
+def _backends() -> list[tuple[str, str]]:
+    """The ``video_analyze:`` backends of the active profile's config, in order."""
+    return media_backends.configured_backends("video_analyze", _DEFAULT_BACKEND)
 
 
 async def _video_analyze_mimo(args: Dict[str, Any], **_kw: Any) -> str:
-    """Analyze a video via an explicit, config-driven provider+model."""
-    from agent.auxiliary_client import async_call_llm, extract_content_or_reasoning
+    """Analyze a video on the first configured backend that answers."""
     from hermes_constants import get_hermes_dir
     from tools.registry import tool_error
     from tools.vision_tools import (
@@ -93,7 +82,7 @@ async def _video_analyze_mimo(args: Dict[str, Any], **_kw: Any) -> str:
     video_url = args.get("video_url", "") or ""
     question = args.get("question", "") or ""
     full_prompt = _PROMPT.format(question=question)
-    provider, model = _resolve_backend()
+    backends = _backends()
 
     temp_video_path = None
     should_cleanup = True
@@ -142,26 +131,19 @@ async def _video_analyze_mimo(args: Dict[str, Any], **_kw: Any) -> str:
                 ],
             }
         ]
-        call_kwargs = dict(
-            provider=provider,
-            model=model,
-            messages=messages,
-            temperature=0.1,
-            max_tokens=4000,
-            timeout=180,
-        )
-        response = await async_call_llm(**call_kwargs)
-        analysis = extract_content_or_reasoning(response)
-        if not analysis:
-            logger.warning("video-analyze-mimo: empty response, retrying once")
-            response = await async_call_llm(**call_kwargs)
-            analysis = extract_content_or_reasoning(response)
-
+        result = await media_backends.analyze(backends, messages)
+        reply = {"success": True, "analysis": result["analysis"],
+                 "provider": result["provider"], "model": result["model"]}
+        if result["failed"]:
+            reply["failed_backends"] = result["failed"]
+        return json.dumps(reply, indent=2, ensure_ascii=False)
+    except media_backends.AllBackendsFailed as exc:
+        logger.error("video-analyze-mimo: every backend failed: %s", exc)
         return json.dumps(
             {
-                "success": True,
-                "analysis": analysis or "The video could not be analyzed.",
-                "model": model,
+                "success": False,
+                "error": "No backend could analyze the video; nothing is known about its content.",
+                "failed_backends": exc.failures,
             },
             indent=2,
             ensure_ascii=False,
@@ -172,10 +154,6 @@ async def _video_analyze_mimo(args: Dict[str, Any], **_kw: Any) -> str:
             {
                 "success": False,
                 "error": f"Error analyzing video: {exc}",
-                "analysis": (
-                    "There was a problem analyzing the video "
-                    f"(provider={provider}, model={model}). Error: {exc}"
-                ),
             },
             indent=2,
             ensure_ascii=False,

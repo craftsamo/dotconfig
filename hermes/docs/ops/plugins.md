@@ -78,10 +78,19 @@ user keys.
 - **video_gen/video-fallback** (`backend`): `vid-xai-fal` (Grok Imagine → FAL),
   `vid-fal-xai`.
 - **inspection/video-analyze-mimo** (`standalone`): overrides `video_analyze`
-  with a fixed, config-driven backend (`video_analyze: {provider, model}`), so
-  `auxiliary.vision` can stay `auto` and images route natively to the main
-  model. **Pinning `auxiliary.vision` to a video-capable model disables the main
-  model's native image vision.**
+  with config-driven backends, so `auxiliary.vision` can stay `auto` and images
+  route natively to the main model. **Pinning `auxiliary.vision` to a
+  video-capable model disables the main model's native image vision.** The
+  whole video goes to `video_analyze.backends` (a list of `{provider, model}`,
+  tried in order; the single `{provider, model}` form and the OpenRouter MiMo
+  default still read), through `plugins/_shared/media_backends.py`: an error,
+  or a reply with no text after one retry, moves to the next backend, and the
+  result names the backend that answered and the ones that failed. Each
+  backend is called directly, not through `async_call_llm`, whose capacity
+  fallback would send the video to a provider the list does not name. A reply
+  that is only reasoning counts as no answer, since a model that never saw the
+  video describes one anyway; when every backend fails, the tool says so
+  rather than returning a guess.
 - **inspection/media-inspect** (`standalone`): the `media_inspect` tool for
   Creator and the Assistant (`probe`, `frames`, `sheet`; each profile is offered
   its own action list). It never writes next to the input: output goes to a

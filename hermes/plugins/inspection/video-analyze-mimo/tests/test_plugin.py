@@ -7,7 +7,7 @@ import os
 import tempfile
 import unittest
 from pathlib import Path
-from types import ModuleType
+from types import ModuleType, SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock, patch
 
@@ -30,6 +30,10 @@ class FakeContext:
 
     def register_tool(self, *, name: str, **kwargs: Any) -> None:
         self.tools[name] = kwargs
+
+
+def _reply(text: str) -> Any:
+    return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content=text))])
 
 
 def _forbidden_call(*_args: Any, **_kwargs: Any) -> Any:
@@ -77,7 +81,7 @@ class VideoAnalyzeMimoInvalidInputTest(unittest.IsolatedAsyncioTestCase):
 
     async def _run_forbidding_network(self, args: dict[str, Any]) -> dict[str, Any]:
         with patch("tools.vision_tools._download_media", new=AsyncMock(side_effect=_forbidden_call)), \
-             patch("agent.auxiliary_client.async_call_llm", new=AsyncMock(side_effect=_forbidden_call)):
+             patch.object(self.plugin.media_backends, "direct_call", new=AsyncMock(side_effect=_forbidden_call)):
             result = await self.plugin._video_analyze_mimo(args)
         return json.loads(result)
 
@@ -110,18 +114,17 @@ class VideoAnalyzeMimoRemoteVideoTest(unittest.IsolatedAsyncioTestCase):
         real_download_signature = inspect.signature(_download_media)
 
         video_url = "https://example.com/clip.mp4"
-        fake_response = object()
+        fake_response = _reply("a description")
 
         async def fake_download_media(url: str, destination: Path, max_retries: int, **kwargs: Any) -> Path:
             return destination
 
-        with patch.object(self.plugin, "_resolve_backend", return_value=("openrouter", "test-model")), \
+        with patch.object(self.plugin, "_backends", return_value=[("openrouter", "test-model")]), \
              patch("tools.vision_tools._validate_image_url_async", new=AsyncMock(return_value=True)), \
              patch("tools.vision_tools._download_media", new=AsyncMock(side_effect=fake_download_media)) as mock_download, \
              patch("tools.vision_tools._detect_video_mime_type", return_value="video/mp4"), \
              patch("tools.vision_tools._video_to_base64_data_url", return_value="data:video/mp4;base64,AA=="), \
-             patch("agent.auxiliary_client.async_call_llm", new=AsyncMock(return_value=fake_response)) as mock_llm, \
-             patch("agent.auxiliary_client.extract_content_or_reasoning", return_value="a description"):
+             patch.object(self.plugin.media_backends, "direct_call", new=AsyncMock(return_value=fake_response)) as mock_llm:
             result = await self.plugin._video_analyze_mimo(
                 {"video_url": video_url, "question": "what happens?"}
             )
@@ -164,16 +167,15 @@ class VideoAnalyzeMimoLocalFileTest(unittest.IsolatedAsyncioTestCase):
         cls.plugin = load_plugin()
 
     async def test_local_file_bypasses_downloader_and_is_kept(self) -> None:
-        fake_response = object()
+        fake_response = _reply("local description")
         with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as handle:
             handle.write(b"fake-video-bytes")
             local_path = Path(handle.name)
 
         try:
-            with patch.object(self.plugin, "_resolve_backend", return_value=("openrouter", "test-model")), \
+            with patch.object(self.plugin, "_backends", return_value=[("openrouter", "test-model")]), \
                  patch("tools.vision_tools._download_media", new=AsyncMock(side_effect=_forbidden_call)) as mock_download, \
-                 patch("agent.auxiliary_client.async_call_llm", new=AsyncMock(return_value=fake_response)) as mock_llm, \
-                 patch("agent.auxiliary_client.extract_content_or_reasoning", return_value="local description"):
+                 patch.object(self.plugin.media_backends, "direct_call", new=AsyncMock(return_value=fake_response)) as mock_llm:
                 result = await self.plugin._video_analyze_mimo(
                     {"video_url": str(local_path), "question": "what happens?"}
                 )
@@ -193,19 +195,52 @@ class VideoAnalyzeMimoLocalFileTest(unittest.IsolatedAsyncioTestCase):
     async def test_downloaded_temp_file_cleanup_guard_does_not_raise_when_missing(self) -> None:
         # The remote branch's temp path never materializes when the downloader is mocked; the
         # handler's cleanup guard must tolerate that (checks .exists() before unlink()).
-        with patch.object(self.plugin, "_resolve_backend", return_value=("openrouter", "test-model")), \
+        with patch.object(self.plugin, "_backends", return_value=[("openrouter", "test-model")]), \
              patch("tools.vision_tools._validate_image_url_async", new=AsyncMock(return_value=True)), \
              patch("tools.vision_tools._download_media", new=AsyncMock(return_value=None)), \
              patch("tools.vision_tools._detect_video_mime_type", return_value="video/mp4"), \
              patch("tools.vision_tools._video_to_base64_data_url", return_value="data:video/mp4;base64,AA=="), \
-             patch("agent.auxiliary_client.async_call_llm", new=AsyncMock(return_value=object())), \
-             patch("agent.auxiliary_client.extract_content_or_reasoning", return_value="ok"):
+             patch.object(self.plugin.media_backends, "direct_call", new=AsyncMock(return_value=_reply("ok"))):
             result = await self.plugin._video_analyze_mimo(
                 {"video_url": "https://example.com/clip.mp4", "question": "what happens?"}
             )
 
         parsed = json.loads(result)
         self.assertTrue(parsed["success"])
+
+
+class VideoAnalyzeMimoBackendOrderTest(unittest.IsolatedAsyncioTestCase):
+    """Backends are tried in the configured order; the result says which one answered."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.plugin = load_plugin()
+
+    async def _run(self, side_effect: Any) -> tuple[dict[str, Any], AsyncMock]:
+        with tempfile.NamedTemporaryFile(suffix=".mp4") as handle:
+            handle.write(b"fake-video-bytes")
+            handle.flush()
+            with patch.object(self.plugin, "_backends", return_value=[("provider-a", "model-a"), ("openrouter", "mimo")]), \
+                 patch.object(self.plugin.media_backends, "direct_call", new=AsyncMock(side_effect=side_effect)) as mock_llm:
+                result = await self.plugin._video_analyze_mimo({"video_url": handle.name, "question": "what?"})
+        return json.loads(result), mock_llm
+
+    async def test_a_failing_first_backend_hands_over_to_the_next(self) -> None:
+        parsed, mock_llm = await self._run([RuntimeError("HTTP 429"), _reply("from mimo")])
+        self.assertTrue(parsed["success"])
+        self.assertEqual((parsed["provider"], parsed["model"], parsed["analysis"]), ("openrouter", "mimo", "from mimo"))
+        self.assertEqual(parsed["failed_backends"][0]["provider"], "provider-a")
+        self.assertEqual(parsed["failed_backends"][0]["error"], "RuntimeError HTTP 429")
+        self.assertEqual([c.kwargs["provider"] for c in mock_llm.call_args_list], ["provider-a", "openrouter"])
+        sent = mock_llm.call_args_list[0].kwargs["messages"][0]["content"]
+        self.assertEqual([p["type"] for p in sent], ["text", "video_url"])
+
+    async def test_no_answer_from_any_backend_is_a_failure_not_a_guess(self) -> None:
+        parsed, _ = await self._run([RuntimeError("down"), _reply(""), _reply("")])
+        self.assertFalse(parsed["success"])
+        self.assertNotIn("analysis", parsed)
+        self.assertEqual([f["provider"] for f in parsed["failed_backends"]], ["provider-a", "openrouter"])
+        self.assertEqual(parsed["failed_backends"][1]["error"], "the reply had no text")
 
 
 if __name__ == "__main__":
