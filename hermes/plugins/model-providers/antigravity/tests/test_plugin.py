@@ -185,6 +185,19 @@ def test_claude_without_thinking_caps_output_and_sends_no_thinking():
     assert len(body["request"]["systemInstruction"]["parts"]) == 1
 
 
+def test_claude_output_cap_follows_the_model_limit_it_is_given():
+    request = _gemini_request("claude-opus-5-5-high", tools=None, messages=HISTORY[:2])
+    unbounded, _ = wire.envelope(request, model="claude-opus-5-5-high", project="p", messages=HISTORY[:2],
+                                 output_cap=128000)
+    assert unbounded["request"]["generationConfig"]["maxOutputTokens"] == 128000
+    asked, _ = wire.envelope(request, model="claude-opus-5-5-high", project="p", messages=HISTORY[:2],
+                             max_tokens=200000, output_cap=128000)
+    assert asked["request"]["generationConfig"]["maxOutputTokens"] == 128000
+    smaller, _ = wire.envelope(request, model="claude-opus-5-5-high", project="p", messages=HISTORY[:2],
+                               max_tokens=9000, output_cap=128000)
+    assert smaller["request"]["generationConfig"]["maxOutputTokens"] == 9000
+
+
 def test_gemini_envelope_keeps_a_real_signature_and_fills_a_missing_one():
     real = "s" * 60
     messages = [HISTORY[1], {"role": "assistant", "content": "", "tool_calls": [
@@ -306,6 +319,23 @@ def test_client_streams_text_thoughts_and_tool_calls(monkeypatch):
     calls = [tc for d in deltas for tc in (d.tool_calls or [])]
     assert calls and calls[0].function.name == "mcp.files.read"
     assert chunks[-1].choices[0].finish_reason == "tool_calls"
+
+
+def test_client_asks_claude_for_the_catalog_output_limit(monkeypatch):
+    seen = {}
+
+    def handler(request):
+        seen["body"] = json.loads(request.content)
+        return httpx.Response(200, json={"response": {"candidates": [
+            {"content": {"role": "model", "parts": [{"text": "OK"}]}, "finishReason": "STOP"}]}})
+
+    client = _client(handler, monkeypatch)
+    control._remember([{"id": "claude-sonnet-5-5-low", "name": "Sonnet", "context": 1000000, "output": 128000}],
+                      control.time.time())
+    client.chat.completions.create(model="claude-sonnet-5-5-low", messages=HISTORY[:2])
+    assert seen["body"]["request"]["generationConfig"]["maxOutputTokens"] == 128000
+    client.chat.completions.create(model="claude-sonnet-4-6", messages=HISTORY[:2])  # not in the catalog
+    assert seen["body"]["request"]["generationConfig"]["maxOutputTokens"] == wire.CLAUDE_MAX_OUTPUT
 
 
 def test_a_rate_limit_carries_the_server_retry_delay(monkeypatch):
