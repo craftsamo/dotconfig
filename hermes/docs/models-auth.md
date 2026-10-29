@@ -344,6 +344,13 @@ CLI or a runtime patch: [decision](./decisions/antigravity-provider.md)).
   and output limits come from it, else from the family's usual values (Gemini
   1M in, 65,536 out; Claude and others 200K in, 64,000 out). A Claude request
   asks for that output limit unless the caller asks for less.
+- **Quota.** `/usage` reads the same model list, which carries each model's
+  remaining share and reset time, and shows one line per quota the models
+  share (models on one quota report the same share and reset time). A share
+  the reply leaves out counts as spent. The read refreshes
+  the saved list too. When Google wants the account verified
+  (`VALIDATION_REQUIRED`), `/usage` says so instead of a quota; the check is
+  done in a browser signed in to that account.
 - **It leans on runtime internals.** The client subclasses the runtime's
   native Gemini client and reuses its request builder and response
   translation, and the login reuses the PKCE helper's private pieces. A re-pin

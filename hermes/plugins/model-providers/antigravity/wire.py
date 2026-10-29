@@ -403,13 +403,25 @@ def _duration_seconds(text: Any) -> float | None:
     return sum(float(value) * scale[unit] for value, unit in parts)
 
 
-def retry_delay(body_text: str) -> float | None:
-    """Seconds to wait from a Google error body: ``RetryInfo.retryDelay``, else ``quotaResetDelay``."""
+def _error_details(body_text: str) -> list[dict[str, Any]]:
     try:
         error = (json.loads(body_text or "{}") or {}).get("error") or {}
     except (ValueError, AttributeError):
-        return None
-    details = [d for d in error.get("details") or [] if isinstance(d, dict)] if isinstance(error, dict) else []
+        return []
+    return [d for d in error.get("details") or [] if isinstance(d, dict)] if isinstance(error, dict) else []
+
+
+def error_reason(body_text: str) -> str:
+    """The ``google.rpc.ErrorInfo`` reason of a Google error body (``VALIDATION_REQUIRED``), else ``""``."""
+    for detail in _error_details(body_text):
+        if str(detail.get("@type") or "").endswith("google.rpc.ErrorInfo") and detail.get("reason"):
+            return str(detail["reason"])
+    return ""
+
+
+def retry_delay(body_text: str) -> float | None:
+    """Seconds to wait from a Google error body: ``RetryInfo.retryDelay``, else ``quotaResetDelay``."""
+    details = _error_details(body_text)
     for detail in details:
         if str(detail.get("@type") or "").endswith("google.rpc.RetryInfo"):
             if (seconds := _duration_seconds(detail.get("retryDelay"))) is not None:
@@ -474,3 +486,36 @@ def parse_catalog(payload: Any) -> list[dict[str, Any]]:
             "images": info.get("supportsImages") is not False,
         })
     return catalog
+
+
+_EFFORT_LABEL = re.compile(r"\s*\((?:minimal|low|medium|high)\)\s*$", re.IGNORECASE)
+
+
+def _remaining(quota: dict[str, Any]) -> float:
+    # The field is left out once it reaches zero, as protobuf JSON omits defaults.
+    value = quota.get("remainingFraction")
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or value != value:
+        return 0.0
+    return min(max(float(value), 0.0), 1.0)
+
+
+def quota_groups(payload: Any) -> list[dict[str, Any]]:
+    """The selectable models of a ``fetchAvailableModels`` reply, grouped by the quota they share.
+
+    Models drawing on one quota report the same remaining fraction and reset time, so each
+    distinct pair is one group: ``{"label", "remaining" (0..1), "reset" (RFC 3339 or "")}``,
+    in the catalog's order, the label listing the models without their effort suffix.
+    """
+    models = payload.get("models") if isinstance(payload, dict) and isinstance(payload.get("models"), dict) else {}
+    groups: dict[tuple[float, str], dict[str, Any]] = {}
+    for entry in parse_catalog(payload):
+        quota = (models.get(entry["id"]) or {}).get("quotaInfo")
+        if not isinstance(quota, dict):
+            continue
+        remaining, reset = _remaining(quota), str(quota.get("resetTime") or "")
+        group = groups.setdefault((remaining, reset), {"names": [], "remaining": remaining, "reset": reset})
+        name = _EFFORT_LABEL.sub("", entry["name"]) or entry["id"]
+        if name not in group["names"]:
+            group["names"].append(name)
+    return [{"label": ", ".join(g["names"]), "remaining": g["remaining"], "reset": g["reset"]}
+            for g in groups.values()]

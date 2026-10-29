@@ -1,4 +1,4 @@
-"""Antigravity's control plane: client version, project discovery, the model catalog.
+"""Antigravity's control plane: client version, project discovery, the model catalog and quota.
 
 Each account's Cloud Code project is found once at login and stored on its pool row; a token
 whose row cannot be read here (another profile's copy, a row added elsewhere) is discovered again
@@ -11,6 +11,7 @@ import hashlib
 import hmac
 import json
 import logging
+import os
 import re
 import threading
 import time
@@ -86,12 +87,21 @@ def _headers(access_token: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {access_token}", "Content-Type": "application/json", "User-Agent": user_agent()}
 
 
+class ControlError(RuntimeError):
+    """A control-plane call refused: its HTTP status and Google's ``ErrorInfo`` reason, if any."""
+
+    def __init__(self, method: str, status: int, reason: str = "") -> None:
+        super().__init__(f"Antigravity {method} returned HTTP {status}" + (f" ({reason})" if reason else ""))
+        self.status = status
+        self.reason = reason
+
+
 def _post(base_url: str, method: str, access_token: str, body: dict[str, Any], *, timeout: float,
           headers: dict[str, str] | None = None) -> dict[str, Any]:
     response = httpx.post(f"{base_url.rstrip('/')}/v1internal:{method}", json=body,
                           headers=headers or _headers(access_token), timeout=timeout)
     if response.status_code != 200:
-        raise RuntimeError(f"Antigravity {method} returned HTTP {response.status_code}")
+        raise ControlError(method, response.status_code, wire.error_reason(response.text))
     payload = response.json()
     return payload if isinstance(payload, dict) else {}
 
@@ -187,7 +197,8 @@ def project_for(access_token: str, base_url: str = wire.DAILY_ENDPOINT) -> str:
 #
 # The account's model list, kept on disk under the profile's home so a new process (and the
 # model picker, which reads the profile's ``fallback_models``) knows the models and their limits
-# without a request. A request refreshes it in the background once it is an hour old.
+# without a request. A request refreshes it in the background once it is an hour old, and so
+# does a quota read, which comes from the same reply.
 
 CATALOG_MAX_AGE = 3600.0
 _refreshing = threading.Event()
@@ -218,23 +229,38 @@ def _load_cached() -> None:
         return
 
 
-def fetch_catalog(access_token: str, base_url: str = wire.DAILY_ENDPOINT, *, timeout: float = 10.0) -> list[dict[str, Any]]:
+def _available_models(access_token: str, base_url: str, timeout: float) -> dict[str, Any]:
     project = project_for(access_token, base_url)
-    payload = _post(base_url, "fetchAvailableModels", access_token, {"project": project} if project else {}, timeout=timeout)
-    catalog = wire.parse_catalog(payload)
-    if not catalog:
-        return catalog
+    return _post(base_url, "fetchAvailableModels", access_token, {"project": project} if project else {}, timeout=timeout)
+
+
+def fetch_catalog(access_token: str, base_url: str = wire.DAILY_ENDPOINT, *, timeout: float = 10.0) -> list[dict[str, Any]]:
+    catalog = wire.parse_catalog(_available_models(access_token, base_url, timeout))
+    if catalog:
+        _save_catalog(catalog)
+    return catalog
+
+
+def fetch_quota(access_token: str, base_url: str = wire.DAILY_ENDPOINT, *, timeout: float = 8.0) -> list[dict[str, Any]]:
+    """The account's quota groups (``wire.quota_groups``); the same reply refreshes the saved catalog."""
+    payload = _available_models(access_token, base_url, timeout)
+    if catalog := wire.parse_catalog(payload):
+        _save_catalog(catalog)
+    return wire.quota_groups(payload)
+
+
+def _save_catalog(catalog: list[dict[str, Any]]) -> None:
     fetched_at = time.time()
     _remember(catalog, fetched_at)
     try:
         path = _catalog_path()
         path.parent.mkdir(parents=True, exist_ok=True)
-        tmp = path.with_suffix(".tmp")
+        # A usage read and a request may save at once; each writer gets its own temporary file.
+        tmp = path.with_name(f"{path.name}.{os.getpid()}.{threading.get_ident()}.tmp")
         tmp.write_text(json.dumps({"fetched_at": fetched_at, "models": catalog}), encoding="utf-8")
         tmp.replace(path)
     except Exception as exc:
         logger.debug("antigravity: catalog not saved: %s", exc)
-    return catalog
 
 
 def refresh_in_background(access_token: str, base_url: str = wire.DAILY_ENDPOINT) -> None:
