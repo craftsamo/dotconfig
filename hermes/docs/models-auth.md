@@ -342,7 +342,8 @@ CLI or a runtime patch: [decision](./decisions/antigravity-provider.md)).
   request refreshes it in the background once it is an hour old. The model
   picker shows that list (a short fixed list until one exists), and context
   and output limits come from it, else from the family's usual values (Gemini
-  1M in, 65,536 out; Claude and others 200K in, 64,000 out).
+  1M in, 65,536 out; Claude and others 200K in, 64,000 out). A Claude request
+  asks for that output limit unless the caller asks for less.
 - **It leans on runtime internals.** The client subclasses the runtime's
   native Gemini client and reuses its request builder and response
   translation, and the login reuses the PKCE helper's private pieces. A re-pin

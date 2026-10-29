@@ -340,24 +340,25 @@ def _system_instruction(request: dict[str, Any], extra: str = "") -> None:
     request["systemInstruction"] = {"role": "user", "parts": parts}
 
 
-def _claude_max_output(max_tokens: Any, thinking: dict[str, Any] | None) -> int:
+def _claude_max_output(max_tokens: Any, thinking: dict[str, Any] | None, cap: int) -> int:
     try:
         requested = int(max_tokens)
     except (TypeError, ValueError):
         requested = 0
     budget = int((thinking or {}).get("thinking_budget") or 0) if (thinking or {}).get("include_thoughts") else 0
     if requested <= 0 or requested <= budget:
-        return CLAUDE_MAX_OUTPUT
-    return min(requested, CLAUDE_MAX_OUTPUT)
+        return cap
+    return min(requested, cap)
 
 
 def envelope(
     request: dict[str, Any], *, model: str, project: str, messages: list[dict[str, Any]],
-    claude_thinking: dict[str, Any] | None = None, max_tokens: Any = None,
+    claude_thinking: dict[str, Any] | None = None, max_tokens: Any = None, output_cap: int | None = None,
 ) -> tuple[dict[str, Any], dict[str, str]]:
     """Wrap a Gemini request for ``v1internal``; returns ``(body, wire tool name → original)``.
 
-    *request* is what ``build_gemini_request`` returned; it is not modified.
+    *request* is what ``build_gemini_request`` returned; it is not modified. *output_cap* is the
+    model's output limit from the account's catalog (``CLAUDE_MAX_OUTPUT`` when unknown).
     """
     request = copy.deepcopy(request)
     contents = request.setdefault("contents", [])
@@ -371,7 +372,7 @@ def envelope(
         generation.pop("thinkingConfig", None)
         if claude_thinking:
             generation["thinkingConfig"] = dict(claude_thinking)
-        generation["maxOutputTokens"] = _claude_max_output(max_tokens, claude_thinking)
+        generation["maxOutputTokens"] = _claude_max_output(max_tokens, claude_thinking, output_cap or CLAUDE_MAX_OUTPUT)
         if claude_thinking and claude_thinking.get("include_thoughts") and request.get("tools"):
             extra_instruction = INTERLEAVED_HINT
     else:
