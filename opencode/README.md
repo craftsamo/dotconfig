@@ -736,10 +736,15 @@ A move to a credit lane (see above) therefore pays one full write.
   weekly row like the other subscriptions.
 - **Google Antigravity** (Gemini and Claude on an Antigravity plan): the
   `opencode-antigravity-auth` plugin's Google OAuth login,
-  `opencode auth login google`, choosing "Google OAuth (Antigravity)". Its
-  models are `google/antigravity-*`; they appear only after a login (the
-  plugin lists what the account's plan serves, cached for an hour) and are
-  picked by hand: no specialist route or credit lane uses them, and the
+  `opencode auth login google`, choosing "Google OAuth (Antigravity)". After
+  approving, the browser lands on a `localhost:51121` page that does not
+  load; paste that page's full address into the prompt (the code alone lacks
+  the state). Its models are `google/antigravity-*`. The plugin lists what
+  the account's plan serves (cached for an hour), but reads that list only
+  when it starts with a saved account; until then the picker shows a short
+  fixed list that may name models the plan does not offer, so run
+  `opencode reload` after the first login. They are picked by hand: no
+  specialist route or credit lane uses them, and the
   plugin's `google_search` tool is denied for every agent, since it would
   spend the same login from any model. Google's Antigravity terms forbid
   third-party clients, and Google has banned accounts for it (Antigravity,
@@ -748,10 +753,16 @@ A move to a credit lane (see above) therefore pays one full write.
   credential, the plugin keeps its account pool, refresh tokens included, in
   `antigravity-accounts.json` beside the links in `~/.config/opencode` (never
   in this repo; `.gitignore` covers it anyway); back it up before moving
-  machines. `/antigravity` (`/ag`) shows the accounts, their quota and reset
-  times. `antigravity.json` turns off the plugin's self-update, which would
-  otherwise rewrite the pinned version in a V1 config. In its V1 login menu,
-  never choose "Configure models in opencode.json": it rewrites
+  machines. `/antigravity` (`/ag`) manages the accounts and shows their quota
+  and reset times, but the pinned version fails there with "Expected JSON
+  value" while an account has no saved quota, which a new account never
+  has. OpenCode Quota does not cover these models either (its `google-agy`
+  provider reads another plugin's login). When Google answers 403 "Verify
+  your account" (`VALIDATION_REQUIRED`), the plugin disables the account:
+  complete Google's check in a browser signed in to it, then log in again,
+  which enables it. `antigravity.json` turns off the plugin's self-update,
+  which would otherwise rewrite the pinned version in a V1 config. In its V1
+  login menu, never choose "Configure models in opencode.json": it rewrites
   `opencode.jsonc` through the link as plain JSON, dropping every comment.
   The first start after a version bump installs the package (about ten
   seconds), and a CLI command run meanwhile can fail with "Location plugins
