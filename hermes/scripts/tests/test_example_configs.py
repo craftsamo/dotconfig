@@ -18,6 +18,8 @@ import pytest
 HERMES = Path(__file__).resolve().parents[2]
 CONFIGS = sorted(HERMES.glob("profiles/*/config.example.yaml")) + [HERMES / "config.example.yaml"]
 PATCH_ONLY_PROVIDERS = {"anthropic-oauth"}
+# A client Google's terms forbid, picked by hand only (docs/decisions/antigravity-provider.md).
+HAND_PICKED_PROVIDERS = {"antigravity", "google-antigravity"}
 
 
 def _load(config: Path) -> dict:
@@ -52,6 +54,19 @@ def test_every_profile_has_an_example():
 def test_example_names_no_patch_only_provider(config):
     found = [f"{where}: {name}" for where, name in _providers(_load(config)) if name in PATCH_ONLY_PROVIDERS]
     assert not found, "a stock runtime does not know these providers; keep them in the private config: " + "; ".join(found)
+
+
+@pytest.mark.parametrize("config", CONFIGS, ids=_id)
+def test_example_names_no_hand_picked_provider(config):
+    found = [f"{where}: {name}" for where, name in _providers(_load(config))
+             if name.strip().lower() in HAND_PICKED_PROVIDERS]
+    assert not found, "these providers are picked by hand, never named in a config: " + "; ".join(found)
+
+
+def test_the_hand_picked_check_catches_an_alias_in_any_case():
+    document = {"model": {"provider": "Google-Antigravity"}, "fallback_providers": [{"provider": "anthropic"}]}
+    assert [name for _, name in _providers(document) if name.strip().lower() in HAND_PICKED_PROVIDERS] == [
+        "Google-Antigravity"]
 
 
 @pytest.mark.parametrize("config", CONFIGS, ids=_id)

@@ -313,6 +313,17 @@ CLI or a runtime patch: [decision](./decisions/antigravity-provider.md)).
   in the examples or the private configs; select it per session
   (`hermes --provider antigravity -m <id>`, or `/model`). The provider is
   `hidden`, so pickers offer it only once a login exists.
+  `test_example_configs.py` refuses it in an example.
+- **A named profile keeps its own copy of the rows.** The runtime writes a
+  refreshed row back to `default` only for single-use grants, and Google's
+  refresh token is reusable, so the first refresh in a named profile saves
+  the `antigravity` rows into that profile's `auth.json`, which then shadows
+  `default`'s. Both copies keep working; after a new login, an added account or
+  a removed one in `default`, drop the profile's copy: remove each of its
+  labels (`hermes -p <profile> auth remove antigravity <label>`), and once its
+  own list is empty it reads `default`'s rows again. Only run this on a profile
+  whose `auth.json` holds `antigravity` rows: elsewhere it removes nothing from
+  `default` and can write the remaining rows into the profile as a new copy.
 - **Google's terms forbid it.** The Antigravity terms call third-party access
   a breach and Google has suspended accounts for it (Antigravity, Gemini CLI
   and Code Assist together; a second violation is permanent). Sign in only
