@@ -36,8 +36,12 @@ directories are in [`../../AGENTS.md`](../../AGENTS.md) "Skills".
   registry engines; a local overlay may add more), `guards/` (topology and Worker guards),
   `inspection/` (vision window, video analysis, media and writing inspection,
   listening to an app's audio),
-  and the media families `image_gen/`, `video_gen/`, `audio_gen/`, `tts/`,
-  `transcription/`. `google-access` and `hermes-achievements` (upstream writes
+  the media families `image_gen/`, `video_gen/`, `audio_gen/`, `tts/`,
+  `transcription/`, and `model-providers/` (inference providers: `antigravity`,
+  [`../models-auth.md`](../models-auth.md) "Google Antigravity"). A
+  model-provider plugin needs no `plugins.enabled` entry: Hermes' provider
+  discovery imports every one under `model-providers/` in every profile, and it
+  is used only where a config or a session selects its provider. `google-access` and `hermes-achievements` (upstream writes
   its data to a fixed path; per-machine, ignored) stay at the top level. A
   directory with no `plugin.yaml` (`_shared/`) is code, not a plugin.
 - **Progress lines.** For a tool with no preview of its own, Hermes shows the

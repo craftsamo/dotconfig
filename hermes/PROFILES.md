@@ -75,4 +75,5 @@ look arbitrary:
 [Explainer structure approval](./docs/decisions/explainer-structure-approval.md) ·
 [Storyboard vocabulary stays rule-free](./docs/decisions/storyboard-vocabulary-rule-free.md) ·
 [Hyperliquid strategies](./docs/decisions/hyperliquid-strategies.md) ·
-[Hyperliquid breaker](./docs/decisions/hyperliquid-breaker.md).
+[Hyperliquid breaker](./docs/decisions/hyperliquid-breaker.md) ·
+[Antigravity provider](./docs/decisions/antigravity-provider.md).
