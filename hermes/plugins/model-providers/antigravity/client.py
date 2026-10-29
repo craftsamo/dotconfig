@@ -137,7 +137,8 @@ class AntigravityClient(GeminiNativeClient):
         project = control.project_for(self.api_key, self.base_url)
         control.refresh_in_background(self.api_key, self.base_url)
         body, names = wire.envelope(request, model=model, project=project, messages=messages,
-                                    claude_thinking=thinking if claude else None, max_tokens=max_tokens)
+                                    claude_thinking=thinking if claude else None, max_tokens=max_tokens,
+                                    output_cap=control.limits(model)[1] if claude else None)
         url = f"{self.base_url}/v1internal:"
         if stream:
             return self._stream(model, f"{url}streamGenerateContent?alt=sse", body, names, timeout)

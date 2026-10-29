@@ -185,6 +185,19 @@ def test_claude_without_thinking_caps_output_and_sends_no_thinking():
     assert len(body["request"]["systemInstruction"]["parts"]) == 1
 
 
+def test_claude_output_cap_follows_the_model_limit_it_is_given():
+    request = _gemini_request("claude-opus-5-5-high", tools=None, messages=HISTORY[:2])
+    unbounded, _ = wire.envelope(request, model="claude-opus-5-5-high", project="p", messages=HISTORY[:2],
+                                 output_cap=128000)
+    assert unbounded["request"]["generationConfig"]["maxOutputTokens"] == 128000
+    asked, _ = wire.envelope(request, model="claude-opus-5-5-high", project="p", messages=HISTORY[:2],
+                             max_tokens=200000, output_cap=128000)
+    assert asked["request"]["generationConfig"]["maxOutputTokens"] == 128000
+    smaller, _ = wire.envelope(request, model="claude-opus-5-5-high", project="p", messages=HISTORY[:2],
+                               max_tokens=9000, output_cap=128000)
+    assert smaller["request"]["generationConfig"]["maxOutputTokens"] == 9000
+
+
 def test_gemini_envelope_keeps_a_real_signature_and_fills_a_missing_one():
     real = "s" * 60
     messages = [HISTORY[1], {"role": "assistant", "content": "", "tool_calls": [
@@ -306,6 +319,23 @@ def test_client_streams_text_thoughts_and_tool_calls(monkeypatch):
     calls = [tc for d in deltas for tc in (d.tool_calls or [])]
     assert calls and calls[0].function.name == "mcp.files.read"
     assert chunks[-1].choices[0].finish_reason == "tool_calls"
+
+
+def test_client_asks_claude_for_the_catalog_output_limit(monkeypatch):
+    seen = {}
+
+    def handler(request):
+        seen["body"] = json.loads(request.content)
+        return httpx.Response(200, json={"response": {"candidates": [
+            {"content": {"role": "model", "parts": [{"text": "OK"}]}, "finishReason": "STOP"}]}})
+
+    client = _client(handler, monkeypatch)
+    control._remember([{"id": "claude-sonnet-5-5-low", "name": "Sonnet", "context": 1000000, "output": 128000}],
+                      control.time.time())
+    client.chat.completions.create(model="claude-sonnet-5-5-low", messages=HISTORY[:2])
+    assert seen["body"]["request"]["generationConfig"]["maxOutputTokens"] == 128000
+    client.chat.completions.create(model="claude-sonnet-4-6", messages=HISTORY[:2])  # not in the catalog
+    assert seen["body"]["request"]["generationConfig"]["maxOutputTokens"] == wire.CLAUDE_MAX_OUTPUT
 
 
 def test_a_rate_limit_carries_the_server_retry_delay(monkeypatch):
@@ -466,6 +496,129 @@ def test_a_stale_catalog_is_refreshed_once_in_the_background(monkeypatch):
     control._remember([{"id": "gemini-3-flash", "context": 1, "output": 1}], control.time.time())
     control.refresh_in_background("tok")
     assert len(started) == 1  # fresh catalog: nothing to do
+
+
+QUOTA_REPLY = {
+    "models": {
+        "claude-opus-5-5-high": {"displayName": "Claude Opus 5.5 (High)",
+                                 "quotaInfo": {"remainingFraction": 0.75, "resetTime": "2026-10-29T18:38:00Z"}},
+        "claude-sonnet-5-5-low": {"displayName": "Claude Sonnet 5.5 (Low)",
+                                  "quotaInfo": {"remainingFraction": 0.75, "resetTime": "2026-10-29T18:38:00Z"}},
+        "claude-sonnet-5-5-high": {"displayName": "Claude Sonnet 5.5 (High)",
+                                   "quotaInfo": {"remainingFraction": 0.75, "resetTime": "2026-10-29T18:38:00Z"}},
+        "gemini-3.8-flash-low": {"displayName": "Gemini 3.8 Flash (Low)",
+                                 "quotaInfo": {"resetTime": "2026-10-29T18:37:57Z"}},
+        "gemini-4-argon-high": {"displayName": "Gemini 4 Argon (High)",
+                                "quotaInfo": {"remainingFraction": 1, "resetTime": "2026-11-05T13:43:59Z"}},
+        "chat_20706": {"quotaInfo": {"remainingFraction": 1}},
+    },
+    "agentModelSorts": [{"groups": [{"modelIds": [
+        "gemini-4-argon-high", "gemini-3.8-flash-low", "claude-opus-5-5-high", "claude-sonnet-5-5-low",
+        "claude-sonnet-5-5-high"]}]}],
+}
+
+
+def test_quota_groups_follow_the_quota_the_models_share():
+    groups = wire.quota_groups(QUOTA_REPLY)
+    assert groups == [
+        {"label": "Gemini 4 Argon", "remaining": 1.0, "reset": "2026-11-05T13:43:59Z"},
+        {"label": "Gemini 3.8 Flash", "remaining": 0.0, "reset": "2026-10-29T18:37:57Z"},  # omitted = spent
+        {"label": "Claude Opus 5.5, Claude Sonnet 5.5", "remaining": 0.75, "reset": "2026-10-29T18:38:00Z"},
+    ]
+    assert wire.quota_groups({}) == [] and wire.quota_groups(None) == []
+
+
+def test_error_reason_reads_the_error_info():
+    body = {"error": {"code": 403, "status": "PERMISSION_DENIED", "details": [
+        {"@type": "type.googleapis.com/google.rpc.ErrorInfo", "reason": "VALIDATION_REQUIRED",
+         "metadata": {"validation_url": "https://accounts.google.com/x"}}]}}
+    assert wire.error_reason(json.dumps(body)) == "VALIDATION_REQUIRED"
+    assert wire.error_reason("{}") == "" and wire.error_reason("not json") == ""
+
+
+def test_a_refused_control_call_carries_its_status_and_reason(monkeypatch):
+    body = {"error": {"details": [{"@type": "type.googleapis.com/google.rpc.ErrorInfo", "reason": "VALIDATION_REQUIRED"}]}}
+    _posts(monkeypatch, [(403, body)])
+    with pytest.raises(control.ControlError) as raised:
+        control._post(wire.DAILY_ENDPOINT, "fetchAvailableModels", "tok", {}, timeout=1.0)
+    assert raised.value.status == 403 and raised.value.reason == "VALIDATION_REQUIRED"
+    assert isinstance(raised.value, RuntimeError)
+
+
+def test_a_quota_read_also_refreshes_the_saved_catalog(monkeypatch):
+    monkeypatch.setattr(control, "project_for", lambda token, base=None: "proj")
+    calls = _posts(monkeypatch, [(200, QUOTA_REPLY)])
+    assert [g["label"] for g in control.fetch_quota("tok")][0] == "Gemini 4 Argon"
+    assert calls[0][0] == "fetchAvailableModels" and calls[0][1] == {"project": "proj"}
+    assert control.model_ids()[0] == "gemini-4-argon-high"
+    assert control._catalog_path().exists()
+
+
+def test_usage_shows_one_line_per_quota(monkeypatch):
+    from agent.account_usage import render_account_usage_lines
+
+    seen = {}
+
+    def fake_quota(token, base_url):
+        seen["token"], seen["base"] = token, base_url
+        return wire.quota_groups(QUOTA_REPLY)
+
+    monkeypatch.setattr(control, "fetch_quota", fake_quota)
+    snapshot = PLUGIN.antigravity.fetch_account_usage(api_key="tok", base_url=wire.DAILY_ENDPOINT + "/v1")
+    assert seen == {"token": "tok", "base": wire.DAILY_ENDPOINT}
+    assert snapshot.provider == "antigravity" and snapshot.available
+    assert [(w.label, w.used_percent, w.scope) for w in snapshot.windows] == [
+        ("Gemini 4 Argon", 0.0, "model"), ("Gemini 3.8 Flash", 100.0, "model"),
+        ("Claude Opus 5.5, Claude Sonnet 5.5", 25.0, "model")]
+    assert snapshot.windows[0].reset_at.isoformat() == "2026-11-05T13:43:59+00:00"
+    lines = render_account_usage_lines(snapshot)
+    assert lines[0].endswith("Antigravity quota")
+    assert lines[4].startswith("Claude Opus 5.5, Claude Sonnet 5.5: 75% remaining (25% used) • resets ")
+
+
+def test_usage_says_when_google_wants_the_account_verified(monkeypatch):
+    def refused(token, base_url):
+        raise control.ControlError("fetchAvailableModels", 403, "VALIDATION_REQUIRED")
+
+    monkeypatch.setattr(control, "fetch_quota", refused)
+    snapshot = PLUGIN.antigravity.fetch_account_usage(api_key="tok")
+    assert not snapshot.available and "verify this account" in snapshot.unavailable_reason
+    assert "accounts.google.com" not in snapshot.unavailable_reason
+
+    def other(token, base_url):
+        raise control.ControlError("fetchAvailableModels", 500)
+
+    monkeypatch.setattr(control, "fetch_quota", other)
+    with pytest.raises(control.ControlError):  # /usage itself turns this into "no usage shown"
+        PLUGIN.antigravity.fetch_account_usage(api_key="tok")
+
+
+def test_usage_explains_an_empty_quota_reply(monkeypatch):
+    monkeypatch.setattr(control, "fetch_quota", lambda token, base_url: [])
+    snapshot = PLUGIN.antigravity.fetch_account_usage(api_key="tok")
+    assert not snapshot.available and snapshot.unavailable_reason == PLUGIN.NO_QUOTA_MESSAGE
+
+
+def test_concurrent_catalog_saves_use_their_own_temporary_files(monkeypatch):
+    import threading
+
+    entry = {"id": "gemini-3-flash", "name": "Flash", "context": 1, "output": 1, "images": True}
+    threads = [threading.Thread(target=control._save_catalog, args=([entry],)) for _ in range(8)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+    path = control._catalog_path()
+    assert json.loads(path.read_text(encoding="utf-8"))["models"] == [entry]
+    assert list(path.parent.glob("*.tmp")) == []
+
+
+def test_usage_without_a_login_shows_nothing(monkeypatch):
+    import hermes_cli.runtime_provider as runtime_provider
+
+    monkeypatch.setattr(runtime_provider, "resolve_runtime_provider", lambda **kwargs: {"api_key": ""})
+    monkeypatch.setattr(control, "fetch_quota", lambda *a: pytest.fail("no request expected"))
+    assert PLUGIN.antigravity.fetch_account_usage() is None
 
 
 def test_manifest_version_is_strict_and_has_a_floor():
