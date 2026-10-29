@@ -1,0 +1,7 @@
+name: antigravity
+version: 1.0.0
+description: >-
+  Google Antigravity as the `antigravity` model provider: Gemini and Claude on
+  an Antigravity plan through a Google OAuth login in the credential pool,
+  sent straight to Antigravity's Cloud Code endpoint.
+kind: model-provider
