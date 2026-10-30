@@ -111,7 +111,7 @@ guard that project; this mount adds no guard of its own.
    for up to a minute, until the mount sees the folder.
 5. A Group that already has a real `assets/` directory is reported, never
    moved: `launchd/workspaces-drive-launchctl.sh migrate <Tree>/<Group>`
-   copies it to Drive and checks the copy by hash (`cryptcheck` for encrypted
+   copies it to Drive (empty folders included) and checks the copy by hash (`cryptcheck` for encrypted
    trees), sets the directory aside as `<dir>.migrating` and puts the link in
    its place (from then on a new open of the path reaches Drive), refuses
    while `lsof` finds a file of the set-aside directory still open, waits

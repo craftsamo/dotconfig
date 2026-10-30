@@ -223,7 +223,11 @@ $links"
     remote=$(wsd_remote "$tree" "$group/$dir")
     count=$(find "$here" -type f ! -name '._*' ! -name .DS_Store | wc -l | tr -d ' ')
     echo "copying $tree/$group/$dir ($count files, $(du -sh "$here" | cut -f1)) to Drive"
-    wsd_rclone copy "$here" "$remote" --exclude '._*' --exclude .DS_Store --progress --stats-one-line
+    # The folder itself and empty subfolders too: rclone copies files only,
+    # and an empty Group directory would otherwise leave its link dangling.
+    wsd_rclone mkdir "$remote"
+    wsd_rclone copy "$here" "$remote" --exclude '._*' --exclude .DS_Store --create-empty-src-dirs \
+      --progress --stats-one-line
     check_copy "$here" "$remote"
     MIG_HERE=$here
     MIG_ASIDE=$aside
