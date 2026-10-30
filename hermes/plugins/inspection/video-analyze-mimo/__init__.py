@@ -54,10 +54,12 @@ media_backends = _shared("hermes_media_backends", "media_backends.py")
 
 _DEFAULT_BACKEND = ("openrouter", "xiaomi/mimo-v2.5")
 
+# The question comes first: an answer that runs long is cut at its end, and the description is
+# what can be spared.
 _PROMPT = (
-    "Fully describe and explain everything happening in this video, including "
-    "visual content, motion, audio cues, text overlays, and scene transitions. "
-    "Then answer the following question:\n\n{question}"
+    "Watch the whole video. First answer the following question completely. Then briefly describe "
+    "what happens in the video, including visual content, motion, audio cues, text overlays and "
+    "scene transitions, with approximate timestamps.\n\nQuestion:\n{question}"
 )
 
 
@@ -131,9 +133,13 @@ async def _video_analyze_mimo(args: Dict[str, Any], **_kw: Any) -> str:
                 ],
             }
         ]
-        result = await media_backends.analyze(backends, messages)
+        result = await media_backends.analyze(backends, messages,
+                                              max_tokens=media_backends.configured_max_tokens("video_analyze"))
         reply = {"success": True, "analysis": result["analysis"],
                  "provider": result["provider"], "model": result["model"]}
+        if result.get("truncated"):
+            reply["truncated"] = True
+            reply["note"] = media_backends.TRUNCATED_NOTE
         if result["failed"]:
             reply["failed_backends"] = result["failed"]
         return json.dumps(reply, indent=2, ensure_ascii=False)
