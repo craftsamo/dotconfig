@@ -99,6 +99,14 @@ whole origin when the dashboard allows: the listener answers every unsigned
 POST with a 4xx anyway, but the health and profile-ingress paths need not be
 public.
 
+### Workspaces Drive mount
+
+`launchd/workspaces-drive-launchctl.sh {setup,install,restart,status,links,migrate,uninstall}`
+keeps `local.hermes.workspaces-drive.mount` running: an rclone nfsmount of a
+Google Drive folder at `~/Workspaces/.drive`, which each Group's `assets/`
+links into. Design, settings and credentials:
+[workspaces-drive.md](workspaces-drive.md).
+
 ### Account sync agents
 
 Each keeps a local mirror of the user's own account current for its plugin and
