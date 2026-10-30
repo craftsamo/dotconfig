@@ -2,22 +2,26 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-  <!-- workspaces-drive-launchctl.sh renders the __PLACEHOLDERS__ before loading. -->
+  <!-- `ws-drive install` renders the __PLACEHOLDERS__ before loading. -->
   <key>Label</key>
   <string>local.hermes.workspaces-drive.mount</string>
 
+  <!-- The workspace-drive plugin's engine on Hermes' own Python, which holds macOS's
+       network-volume permission (a shell that launchd starts is refused the mount). -->
   <key>ProgramArguments</key>
   <array>
     <string>__HOME__/.config/hermes/launchd/bin/hermes-workspaces-drive-mount</string>
-    <string>/bin/sh</string>
-    <string>__HOME__/.config/hermes/scripts/workspaces-drive-run.sh</string>
+    <string>__PYTHON__</string>
+    <string>-I</string>
+    <string>__ENGINE__</string>
+    <string>run</string>
   </array>
 
   <key>EnvironmentVariables</key>
   <dict>
     <key>PATH</key>
     <string>/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
-    <!-- The runtime root install ran with; every other setting comes from its settings.env. -->
+    <!-- The runtime root install ran with. -->
     <key>HERMES_LOCAL</key>
     <string>__HERMES_LOCAL__</string>
   </dict>
