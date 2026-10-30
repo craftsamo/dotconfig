@@ -24,6 +24,7 @@ toolsets:
   - web
   - vision
   - video
+  - audio_analyze
   - skills
   - memory
   - delegation
@@ -691,6 +692,7 @@ paste_collapse_char_threshold: 2000
 _config_version: 51
 platform_toolsets:
   cli:
+    - audio_analyze
     - cloudflare_access
     - connections
     - delegation
@@ -708,6 +710,7 @@ platform_toolsets:
   telegram: []
   discord: []
   a2a:
+    - audio_analyze
     - cloudflare_access
     - connections
     - delegation
@@ -728,6 +731,7 @@ video_analyze:
 plugins:
   enabled:
     - video-analyze-mimo
+    - audio-analyze
     - skill-topology
     - evm-access
     - solana-access

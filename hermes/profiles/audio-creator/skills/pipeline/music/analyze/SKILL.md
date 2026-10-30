@@ -84,6 +84,11 @@ metadata:
   overlap. Similarities are not calibrated probabilities; inversions,
   extensions and rapid chord changes are not verified. Unavailable is not a
   tool failure and does not authorize a remote fallback or invented chords.
+- A remote listen is not part of this leaf. Only when the commission's note
+  asks for the whole file to be heard by a model may `audio_analyze` send it
+  (it leaves this machine); quote that answer apart from the findings, as the
+  model's listening with the backend it names, never as a measurement, and
+  report its spend when that backend is paid.
 - No finding without a named measurement/candidate set or an explicitly
   disclosed limitation; never fabricate a number the estimator did not
   actually return.

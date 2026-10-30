@@ -48,7 +48,7 @@ class AudioCreatorRoutingTest(unittest.TestCase):
         self.assertEqual(["researcher", "searcher"], self.creator["specialist_call"]["resident_targets"])
 
     def test_toolsets_are_exact_allowlist_no_broad_grants(self) -> None:
-        expected = {"terminal", "file", "tts", "sfx_gen", "music_gen", "skills", "memory"}
+        expected = {"terminal", "file", "tts", "sfx_gen", "music_gen", "audio_analyze", "skills", "memory"}
         self.assertEqual(expected, set(self.audio["toolsets"]))
         self.assertNotIn("no_mcp", self.audio["toolsets"])
         platform_toolsets = self.audio["platform_toolsets"]
@@ -63,7 +63,8 @@ class AudioCreatorRoutingTest(unittest.TestCase):
 
     def test_plugins_enable_tts_and_character_voice_not_on_creator(self) -> None:
         audio_plugins = set(self.audio["plugins"]["enabled"])
-        for plugin in ("character-voice", "irodori-tts", "qwen3-tts", "tts-fallback", "sfx-gen", "music-gen", "skill-topology"):
+        for plugin in ("character-voice", "irodori-tts", "qwen3-tts", "tts-fallback", "sfx-gen", "music-gen", "skill-topology",
+                       "audio-analyze"):
             self.assertIn(plugin, audio_plugins)
         creator_plugins = set(self.creator["plugins"]["enabled"])
         self.assertNotIn("character-voice", creator_plugins)

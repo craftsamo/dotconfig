@@ -41,6 +41,7 @@ toolsets:
 - computer_use
 - specialist
 - media_inspect
+- audio_analyze
 - screen_listen
 - workspace_registry
 - hyperliquid_access
@@ -928,6 +929,7 @@ _config_version: 29
 platform_toolsets:
   cli:
   - media_inspect
+  - audio_analyze
   - screen_listen
   - workspace_registry
   - web
@@ -951,6 +953,7 @@ platform_toolsets:
   - no_mcp
   telegram:
   - media_inspect
+  - audio_analyze
   - screen_listen
   - workspace_registry
   - web
@@ -974,6 +977,7 @@ platform_toolsets:
   - no_mcp
   discord:
   - media_inspect
+  - audio_analyze
   - screen_listen
   - workspace_registry
   - web
@@ -1047,6 +1051,7 @@ plugins:
   - skill-topology
   - clarify-context
   - media-inspect
+  - audio-analyze
   - screen-listen
   - hyperliquid-access
   - stripe-access
