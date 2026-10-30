@@ -21,19 +21,27 @@ which under ``create_dir`` nests ``learned/learned/<name>``. A
 flat and ``operations[]`` creates; any other category passes through.
 
 The remaining policy: maintainer-owned skill files are read-only at
-runtime. ``write_file`` / ``patch`` / ``skill_manage`` edits and terminal
-writes that resolve into a tracked skill root (``<repo>/hermes/**/skills/…``
-outside ``learned/``) are blocked. A hands leaf's procedure that no longer
-matches the runtime is REPORTED in the reply ("reported, never patched: the
-tree is the maintainer's"); on 2026-09-05 image-creator patched
-``text-emoji.sh`` in place instead, and the fix it chose was not the one
-the maintainer wanted.
+runtime. ``write_file`` / ``patch`` and terminal writes that resolve into a
+tracked skill root (``<repo>/hermes/**/skills/…`` outside ``learned/``) are
+blocked. A hands leaf's procedure that no longer matches the runtime is
+REPORTED in the reply ("reported, never patched: the tree is the
+maintainer's"); on 2026-09-05 image-creator patched ``text-emoji.sh`` in
+place instead, and the fix it chose was not the one the maintainer wanted.
 
-The private overlay (the ``private-dotconfig`` checkout) owns maintainer skill trees too
-— the Assistant's private ``technic/`` shelf — and they resolve outside
-this repo, so its ``hermes/profiles/*/skills/…``
-(outside ``learned/``) is guarded the same way. Its shared
-``hermes/skills/`` cluster is not in scope here.
+The private overlay (the ``private-dotconfig`` checkout) owns maintainer
+skill trees too — the Assistant's private ``technic/`` shelf, its shared
+``hermes/skills/`` cluster, the skills its plugins ship — and they resolve
+outside this repo, so its ``hermes/**/skills/…`` (outside ``learned/``) is
+guarded the same way.
+
+``skill_manage`` names its target by skill name, not path, and resolves it
+across ``skills.external_dirs`` — the upstream checkout's and
+``~/.agents/skills`` included. So every edit (anything but ``create``, flat
+or inside ``operations[]``) is resolved with the tool's own lookup and
+allowed only when the skill lives under the profile's ``skills.create_dir``
+(``learned/``); the post-turn background review edits by name, and a path
+check alone let it rewrite the private shelf. A lookup that cannot run
+fails closed.
 
 Terminal checks cover literal redirects and known mutators, not arbitrary
 program behavior or persistent shell state. This is a topology guard, not a
@@ -53,8 +61,7 @@ from typing import Any, NamedTuple
 LEARNED_CATEGORY = "learned"
 MANAGED_ROOT = Path(__file__).resolve().parents[3]  # <repo>/hermes
 # Private overlay counterpart: the sibling ghq checkout the real config.yaml files
-# name in skills.external_dirs (nothing links it into this tree); only
-# profiles/*/skills count.
+# name in skills.external_dirs (nothing links it into this tree).
 PRIVATE_ROOT = Path.home() / "ghq" / "github.com" / "craftsamo" / "private-dotconfig" / "hermes"
 _FILE_WRITE_TOOLS = {"write_file", "patch"}
 _MUTATORS = {"cp", "mv", "rm", "chmod", "truncate", "tee", "sed"}
@@ -338,13 +345,12 @@ def _terminal_managed_path(token: _ShellToken, cwd: Path | None, destructive: bo
         raise _UnresolvedWrite("unresolvable write target") from exc
     if _is_managed(str(path)):
         return str(path)
-    for root, profiles_only in _managed_roots():
+    for root in _managed_roots():
         if destructive and root.is_relative_to(path):
             return str(path)
         if path.is_relative_to(root):
             parts = path.relative_to(root).parts
-            if (parts and parts[-1] == "skills" and "skills" not in parts[:-1]
-                    and (not profiles_only or parts[:1] == ("profiles",))):
+            if parts and parts[-1] == "skills" and "skills" not in parts[:-1]:
                 return str(path)
             if destructive and (not parts or parts == ("profiles",) or
                                 (len(parts) == 2 and parts[0] == "profiles")):
@@ -368,7 +374,7 @@ def _has_managed_reference(command: str, cwd: Path | None) -> bool:
             value = os.path.expanduser(value)
             path = ((cwd or Path("/")) / value).resolve()
             # Include managed containers, but not arbitrary ancestors such as /tmp.
-            destructive = any(path.is_relative_to(root) for root, _ in _managed_roots())
+            destructive = any(path.is_relative_to(root) for root in _managed_roots())
             if _terminal_managed_path(_ShellToken(value), cwd, destructive=destructive):
                 return True
         except (OSError, RuntimeError, ValueError):
@@ -426,15 +432,15 @@ def _guard_terminal(command: str, args: Mapping) -> dict[str, str] | None:
         }
 
 
-def _managed_roots() -> list[tuple[Path, bool]]:
-    """``(root, profiles_only)`` for this repo and the private overlay."""
-    roots = [(MANAGED_ROOT.resolve(), False)]
+def _managed_roots() -> list[Path]:
+    """The ``hermes/`` trees of this repo and of the private overlay."""
+    roots = [MANAGED_ROOT.resolve()]
     try:
         private = PRIVATE_ROOT.resolve()
     except (OSError, RuntimeError, ValueError):
         return roots
-    if all(private != root for root, _ in roots):
-        roots.append((private, True))
+    if private not in roots:
+        roots.append(private)
     return roots
 
 
@@ -444,13 +450,11 @@ def _is_managed(path_text: str) -> bool:
         resolved = Path(os.path.expanduser(path_text)).resolve()
     except (OSError, RuntimeError, ValueError):
         return False
-    for root, profiles_only in _managed_roots():
+    for root in _managed_roots():
         try:
             parts = resolved.relative_to(root).parts
         except ValueError:
             continue
-        if profiles_only and parts[:1] != ("profiles",):
-            return False
         if "skills" not in parts:
             return False
         after = parts[parts.index("skills") + 1:]
@@ -462,11 +466,69 @@ def _block(path_text: str) -> dict[str, str]:
     return {
         "action": "block",
         "message": (
-            f"{path_text} is a maintainer-owned skill file. A procedure that no "
+            f"{path_text} is maintainer-owned. A procedure that no "
             "longer matches the runtime is REPORTED in your reply, never patched; "
             "runtime-authored skills belong under learned/."
         ),
     }
+
+
+def _resolve_skill_dir(name: str) -> Path | None:
+    """The directory ``skill_manage`` would edit for ``name``: the tool's own lookup."""
+    from tools.skill_manager_tool import _find_skill
+
+    found = _find_skill(name)
+    return Path(found["path"]) if found else None
+
+
+def _skill_create_dir() -> Path | None:
+    """The active profile's ``skills.create_dir`` (``learned/``), or None when unset."""
+    from agent.skill_utils import get_skill_create_dir
+
+    return get_skill_create_dir()
+
+
+def _skill_manage_edit_targets(args: Mapping) -> list[str]:
+    """Skill names a call edits: every action but ``create``, flat or batched."""
+    operations = args.get("operations")
+    if operations is None:
+        ops: list[Any] = [args]
+    elif isinstance(operations, list):
+        ops = operations  # The tool lets a batch override the flat fields.
+    else:
+        return []  # The tool refuses a malformed batch itself.
+    names: list[str] = []
+    for op in ops:
+        if not isinstance(op, Mapping) or op.get("action") == "create":
+            continue
+        name = op.get("name") or args.get("name")
+        if isinstance(name, str) and name and name not in names:
+            names.append(name)
+    return names
+
+
+def _guard_skill_manage_edits(args: Mapping) -> dict[str, str] | None:
+    """Allow ``skill_manage`` edits only to skills under ``skills.create_dir``."""
+    names = _skill_manage_edit_targets(args)
+    if not names:
+        return None
+    try:
+        create_dir = _skill_create_dir()
+        writable = create_dir.resolve() if create_dir is not None else None
+        for name in names:
+            skill_dir = _resolve_skill_dir(name)
+            if skill_dir is None:
+                continue  # The tool reports a skill it cannot find.
+            resolved = skill_dir.resolve()
+            if writable is None or not resolved.is_relative_to(writable):
+                return _block(f"Skill '{name}' ({resolved})")
+    except Exception as exc:  # noqa: BLE001 - an unknown target must not be written.
+        return {
+            "action": "block",
+            "message": f"Could not resolve which skill skill_manage would edit ({exc}); "
+                       "maintainer-owned skills are read-only, so the edit is refused.",
+        }
+    return None
 
 
 def _guard_managed_skill_writes(**kwargs: Any) -> dict[str, str] | None:
@@ -488,13 +550,13 @@ def _guard_managed_skill_writes(**kwargs: Any) -> dict[str, str] | None:
         return None
 
     if tool_name == "skill_manage":
-        if args.get("action") == "create":
+        if args.get("action") == "create" and args.get("operations") is None:
             return None
         for key in ("name", "path", "file_path"):
             value = args.get(key)
             if isinstance(value, str) and "/" in value and _is_managed(value):
                 return _block(value)
-        return None
+        return _guard_skill_manage_edits(args)
 
     if tool_name == "terminal":
         command = args.get("command")

@@ -76,6 +76,16 @@ skills=` in its summary) and `skills list` does not show them;
   does not do this placement; it only drops a redundant `category: learned`,
   which would otherwise nest `learned/learned/<name>`. The validator accepts one
   category level on every profile, hands included.
+- **Runtime edits stay in `learned/` too.** `skill_manage` finds the skill it
+  edits by name across every `skills.external_dirs` root, and upstream lets it
+  edit whatever it finds — the post-turn background review improves skills in
+  place that way. The `skill-topology` plugin resolves each edit (every action
+  but `create`, flat or in `operations[]`) with the tool's own lookup and
+  refuses it unless the skill lives under the profile's `skills.create_dir`, so
+  this repo's trees, the private overlay, the upstream clone and
+  `~/.agents/skills` are read-only at runtime. A procedure that no longer fits
+  is reported in the reply; a lesson worth keeping is promoted by a person
+  ([`tracking.md`](./tracking.md) "Promoting a learned skill").
 - **Bundled skills stay out of the repo.** Seeding is disabled:
   `hermes skills opt-out --remove` writes a `.no-bundled-skills` marker, tracked
   here and linked by `install.sh` so the opt-out reproduces on a fresh machine.
