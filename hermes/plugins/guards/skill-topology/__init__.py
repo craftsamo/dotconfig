@@ -21,19 +21,27 @@ which under ``create_dir`` nests ``learned/learned/<name>``. A
 flat and ``operations[]`` creates; any other category passes through.
 
 The remaining policy: maintainer-owned skill files are read-only at
-runtime. ``write_file`` / ``patch`` / ``skill_manage`` edits and terminal
-writes that resolve into a tracked skill root (``<repo>/hermes/**/skills/…``
-outside ``learned/``) are blocked. A hands leaf's procedure that no longer
-matches the runtime is REPORTED in the reply ("reported, never patched: the
-tree is the maintainer's"); on 2026-09-05 image-creator patched
-``text-emoji.sh`` in place instead, and the fix it chose was not the one
-the maintainer wanted.
+runtime. ``write_file`` / ``patch`` and terminal writes that resolve into a
+tracked skill root (``<repo>/hermes/**/skills/…`` outside ``learned/``) are
+blocked. A hands leaf's procedure that no longer matches the runtime is
+REPORTED in the reply ("reported, never patched: the tree is the
+maintainer's"); on 2026-09-05 image-creator patched ``text-emoji.sh`` in
+place instead, and the fix it chose was not the one the maintainer wanted.
 
 The private overlay (the ``private-dotconfig`` checkout) owns maintainer
 skill trees too — the Assistant's private ``technic/`` shelf, its shared
 ``hermes/skills/`` cluster, the skills its plugins ship — and they resolve
 outside this repo, so its ``hermes/**/skills/…`` (outside ``learned/``) is
 guarded the same way.
+
+``skill_manage`` names its target by skill name, not path, and resolves it
+across ``skills.external_dirs`` — the upstream checkout's and
+``~/.agents/skills`` included. So every edit (anything but ``create``, flat
+or inside ``operations[]``) is resolved with the tool's own lookup and
+allowed only when the skill lives under the profile's ``skills.create_dir``
+(``learned/``); the post-turn background review edits by name, and a path
+check alone let it rewrite the private shelf. A lookup that cannot run
+fails closed.
 
 Terminal checks cover literal redirects and known mutators, not arbitrary
 program behavior or persistent shell state. This is a topology guard, not a
@@ -458,11 +466,69 @@ def _block(path_text: str) -> dict[str, str]:
     return {
         "action": "block",
         "message": (
-            f"{path_text} is a maintainer-owned skill file. A procedure that no "
+            f"{path_text} is maintainer-owned. A procedure that no "
             "longer matches the runtime is REPORTED in your reply, never patched; "
             "runtime-authored skills belong under learned/."
         ),
     }
+
+
+def _resolve_skill_dir(name: str) -> Path | None:
+    """The directory ``skill_manage`` would edit for ``name``: the tool's own lookup."""
+    from tools.skill_manager_tool import _find_skill
+
+    found = _find_skill(name)
+    return Path(found["path"]) if found else None
+
+
+def _skill_create_dir() -> Path | None:
+    """The active profile's ``skills.create_dir`` (``learned/``), or None when unset."""
+    from agent.skill_utils import get_skill_create_dir
+
+    return get_skill_create_dir()
+
+
+def _skill_manage_edit_targets(args: Mapping) -> list[str]:
+    """Skill names a call edits: every action but ``create``, flat or batched."""
+    operations = args.get("operations")
+    if operations is None:
+        ops: list[Any] = [args]
+    elif isinstance(operations, list):
+        ops = operations  # The tool lets a batch override the flat fields.
+    else:
+        return []  # The tool refuses a malformed batch itself.
+    names: list[str] = []
+    for op in ops:
+        if not isinstance(op, Mapping) or op.get("action") == "create":
+            continue
+        name = op.get("name") or args.get("name")
+        if isinstance(name, str) and name and name not in names:
+            names.append(name)
+    return names
+
+
+def _guard_skill_manage_edits(args: Mapping) -> dict[str, str] | None:
+    """Allow ``skill_manage`` edits only to skills under ``skills.create_dir``."""
+    names = _skill_manage_edit_targets(args)
+    if not names:
+        return None
+    try:
+        create_dir = _skill_create_dir()
+        writable = create_dir.resolve() if create_dir is not None else None
+        for name in names:
+            skill_dir = _resolve_skill_dir(name)
+            if skill_dir is None:
+                continue  # The tool reports a skill it cannot find.
+            resolved = skill_dir.resolve()
+            if writable is None or not resolved.is_relative_to(writable):
+                return _block(f"Skill '{name}' ({resolved})")
+    except Exception as exc:  # noqa: BLE001 - an unknown target must not be written.
+        return {
+            "action": "block",
+            "message": f"Could not resolve which skill skill_manage would edit ({exc}); "
+                       "maintainer-owned skills are read-only, so the edit is refused.",
+        }
+    return None
 
 
 def _guard_managed_skill_writes(**kwargs: Any) -> dict[str, str] | None:
@@ -484,13 +550,13 @@ def _guard_managed_skill_writes(**kwargs: Any) -> dict[str, str] | None:
         return None
 
     if tool_name == "skill_manage":
-        if args.get("action") == "create":
+        if args.get("action") == "create" and args.get("operations") is None:
             return None
         for key in ("name", "path", "file_path"):
             value = args.get(key)
             if isinstance(value, str) and "/" in value and _is_managed(value):
                 return _block(value)
-        return None
+        return _guard_skill_manage_edits(args)
 
     if tool_name == "terminal":
         command = args.get("command")
