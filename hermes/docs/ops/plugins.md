@@ -146,10 +146,13 @@ user keys.
 ### Guards
 
 - **guards/skill-topology** blocks runtime writes into maintainer skill trees
-  (here and in the private overlay's `hermes/profiles/*/skills/`, both outside
-  `learned/`). It does not intercept dashboard direct-create APIs or arbitrary
-  terminal/file writes — the validator catches those after the fact
-  ([`skills.md`](./skills.md) "Skills").
+  (any `skills/` path outside `learned/`, here and in the private overlay)
+  through file tools and literal terminal writes, and refuses every
+  `skill_manage` edit whose skill, resolved by name with the tool's own
+  lookup, is not under the profile's `skills.create_dir` — a lookup that
+  cannot run fails closed. It does not intercept the dashboard editor, the
+  `/skills approve` replay or arbitrary program writes — the validator catches
+  those after the fact ([`skills.md`](./skills.md) "Skills").
 - **guards/clarify-context** refuses a `clarify` whose subject the user has not
   seen: nothing visible since their last message and no question `context`, or
   `MEDIA:` tags in a reply of the current turn that the question's `context`

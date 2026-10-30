@@ -645,5 +645,154 @@ class PrivateOverlaySkillWriteGuardTest(unittest.TestCase):
                 self.assertIsNone(self.guard("terminal", command=f"echo x > {path}"))
 
 
+class SkillManageNamedEditGuardTest(unittest.TestCase):
+    """skill_manage names its target; only skills under skills.create_dir may change."""
+
+    def setUp(self) -> None:
+        self.plugin = load_plugin()
+        temporary = tempfile.TemporaryDirectory(prefix="skill-topology-named-")
+        self.addCleanup(temporary.cleanup)
+        root = Path(temporary.name).resolve()
+        self.plugin.MANAGED_ROOT = root / "hermes"
+        self.plugin.PRIVATE_ROOT = root / "private/hermes"
+        home = root / "home"
+        self.create_dir = home / "skills/learned"
+        self.skills = {
+            "mine": self.create_dir / "mine",
+            "notes": self.plugin.PRIVATE_ROOT / "profiles/assistant/skills/technic/notes",
+            "cluster": self.plugin.PRIVATE_ROOT / "skills/workspaces/projects/cluster",
+            "upstream": root / "upstream/skills/apple/upstream",
+            "other-learned": root / "other/skills/learned/other-learned",
+        }
+        for skill in self.skills.values():
+            skill.mkdir(parents=True)
+            (skill / "SKILL.md").write_text("---\nname: x\n---\n")
+        # A managed link in the profile's own skill root still resolves to the shelf.
+        (home / "skills/technic").symlink_to(self.skills["notes"].parent, target_is_directory=True)
+        self.skills["linked"] = home / "skills/technic/notes"
+        # A link placed inside learned/ that points out of it is not learned.
+        (self.create_dir / "escaped").symlink_to(self.skills["upstream"], target_is_directory=True)
+        self.skills["escaped"] = self.create_dir / "escaped"
+        self.lookups: list[str] = []
+
+        def resolve(name: str) -> Path | None:
+            self.lookups.append(name)
+            return self.skills.get(name)
+
+        self.plugin._resolve_skill_dir = resolve
+        self.plugin._skill_create_dir = lambda: self.create_dir
+
+    def guard(self, **args: Any) -> Any:
+        return self.plugin._guard_managed_skill_writes(tool_name="skill_manage", args=args)
+
+    def assertBlocked(self, result: Any, name: str) -> None:
+        self.assertIsNotNone(result)
+        self.assertEqual("block", result["action"])
+        self.assertIn(f"Skill '{name}'", result["message"])
+
+    def test_flat_edits_by_bare_name_are_blocked(self) -> None:
+        for name in ("notes", "cluster", "upstream", "other-learned", "linked", "escaped"):
+            for action, extra in (("patch", {"old_string": "a", "new_string": "b"}),
+                                  ("patch", {"content": "x"}),
+                                  ("edit", {"content": "x"}),
+                                  ("write_file", {"file_path": "references/new.md", "file_content": "x"}),
+                                  ("remove_file", {"file_path": "references/old.md"}),
+                                  ("delete", {})):
+                with self.subTest(name=name, action=action):
+                    self.assertBlocked(self.guard(action=action, name=name, **extra), name)
+
+    def test_batched_edits_are_blocked(self) -> None:
+        result = self.guard(operations=[
+            {"action": "write_file", "name": "notes", "file_path": "references/new.md", "file_content": "x"},
+        ])
+        self.assertBlocked(result, "notes")
+        result = self.guard(name="cluster", operations=[
+            {"action": "patch", "old_string": "a", "new_string": "b", "file_path": "references/x.md"},
+        ])
+        self.assertBlocked(result, "cluster")
+
+    def test_one_managed_target_blocks_the_whole_batch(self) -> None:
+        result = self.guard(operations=[
+            {"action": "create", "name": "fresh", "content": "x"},
+            {"action": "patch", "name": "mine", "old_string": "a", "new_string": "b"},
+            {"action": "patch", "name": "notes", "old_string": "a", "new_string": "b"},
+        ])
+        self.assertBlocked(result, "notes")
+
+    def test_learned_skills_stay_editable(self) -> None:
+        self.assertIsNone(self.guard(action="patch", name="mine", old_string="a", new_string="b"))
+        self.assertIsNone(self.guard(action="delete", name="mine"))
+        self.assertIsNone(self.guard(operations=[
+            {"action": "patch", "name": "mine", "old_string": "a", "new_string": "b"},
+            {"action": "write_file", "name": "mine", "file_path": "references/new.md", "file_content": "x"},
+        ]))
+
+    def test_create_dir_reached_through_a_link_is_still_learned(self) -> None:
+        alias = self.create_dir.parent.parent.parent / "home-alias"
+        alias.symlink_to(self.create_dir.parent.parent, target_is_directory=True)
+        self.plugin._skill_create_dir = lambda: alias / "skills/learned"
+        self.assertIsNone(self.guard(action="patch", name="mine", old_string="a", new_string="b"))
+        self.assertBlocked(self.guard(action="patch", name="notes", old_string="a", new_string="b"), "notes")
+
+    def test_creates_and_unknown_names_are_left_to_the_tool(self) -> None:
+        self.assertIsNone(self.guard(action="create", name="notes", content="x"))
+        self.assertIsNone(self.guard(operations=[{"action": "create", "name": "fresh", "content": "x"}]))
+        self.assertEqual([], self.lookups, "a create is never resolved")
+        self.assertIsNone(self.guard(action="patch", name="missing", old_string="a", new_string="b"))
+        self.assertIsNone(self.guard(operations="not a list"))
+        self.assertIsNone(self.guard(operations=[]))
+
+    def test_an_unavailable_lookup_fails_closed(self) -> None:
+        def broken(name: str) -> Path | None:
+            raise ImportError("no skill_manager_tool")
+
+        self.plugin._resolve_skill_dir = broken
+        for args in ({"action": "patch", "name": "mine", "old_string": "a", "new_string": "b"},
+                     {"operations": [{"action": "write_file", "name": "mine", "file_path": "references/x.md",
+                                      "file_content": "x"}]}):
+            with self.subTest(args=args):
+                result = self.guard(**args)
+                self.assertEqual("block", result["action"])
+                self.assertIn("Could not resolve", result["message"])
+
+    def test_an_unset_create_dir_leaves_nothing_editable(self) -> None:
+        self.plugin._skill_create_dir = lambda: None
+        self.assertBlocked(self.guard(action="patch", name="mine", old_string="a", new_string="b"), "mine")
+
+
+class SkillManageRuntimeLookupTest(unittest.TestCase):
+    """The guard reaches the runtime's own lookup by the names it imports."""
+
+    def test_runtime_lookup_resolves_external_and_learned_skills(self) -> None:
+        try:
+            from agent import skill_utils
+            from tools import skill_manager_tool  # noqa: F401
+        except ImportError as exc:
+            self.skipTest(f"Hermes runtime not importable: {exc}")
+        plugin = load_plugin()
+        temporary = tempfile.TemporaryDirectory(prefix="skill-topology-runtime-")
+        self.addCleanup(temporary.cleanup)
+        root = Path(temporary.name).resolve()
+        home, shelf = root / "home", root / "shelf"
+        for skill in (home / "skills/learned/mine", shelf / "shelf-notes"):
+            skill.mkdir(parents=True)
+            (skill / "SKILL.md").write_text(f"---\nname: {skill.name}\ndescription: x\n---\n")
+        (home / "config.yaml").write_text(
+            f"skills:\n  external_dirs:\n    - {shelf}\n  create_dir: skills/learned\n")
+        clear = getattr(skill_utils, "_external_dirs_cache_clear", lambda: None)
+        clear()
+        self.addCleanup(clear)
+        with patch.dict("os.environ", {"HERMES_HOME": str(home)}):
+            clear()
+            blocked = plugin._guard_managed_skill_writes(tool_name="skill_manage", args={"operations": [
+                {"action": "write_file", "name": "shelf-notes", "file_path": "references/new.md",
+                 "file_content": "x"}]})
+            allowed = plugin._guard_managed_skill_writes(tool_name="skill_manage", args={"operations": [
+                {"action": "patch", "name": "mine", "old_string": "a", "new_string": "b"}]})
+        self.assertEqual("block", blocked["action"])
+        self.assertIn("Skill 'shelf-notes'", blocked["message"])
+        self.assertIsNone(allowed)
+
+
 if __name__ == "__main__":
     unittest.main()
