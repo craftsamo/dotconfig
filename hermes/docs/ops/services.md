@@ -101,10 +101,11 @@ public.
 
 ### Workspaces Drive mount
 
-`launchd/workspaces-drive-launchctl.sh {setup,install,restart,status,links,migrate,uninstall}`
-keeps `local.hermes.workspaces-drive.mount` running: an rclone nfsmount of a
-Google Drive folder at `~/Workspaces/.drive`, which each Group's `assets/`
-links into. Design, settings and credentials:
+`ws-drive {setup,install,restart,status,links,move,restore,uninstall}` (the
+workspace-drive plugin's engine) keeps `local.hermes.workspaces-drive.mount`
+running: an rclone nfsmount of a Google Drive folder at `~/Workspaces/.drive`,
+which each Group's `assets/` and every moved folder links into. Design, layout
+and credentials:
 [workspaces-drive.md](workspaces-drive.md).
 
 ### Account sync agents

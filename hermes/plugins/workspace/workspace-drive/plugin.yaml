@@ -1,0 +1,4 @@
+name: workspace-drive
+version: 1.0.0
+description: Group folders under ~/Workspaces kept in Google Drive behind links into an rclone mount (the ws-drive engine and its LaunchAgent).
+kind: standalone
