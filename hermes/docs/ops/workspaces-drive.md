@@ -107,7 +107,8 @@ guard that project; this mount adds no guard of its own.
 4. `launchd/workspaces-drive-launchctl.sh install` — loads the agent and waits
    for the mount. Each maintenance pass then gives every Group a link for each
    of `WSD_LINK_DIRS`, creating the folder on Drive; a Group created later gets
-   its link at the next pass (or run `links`).
+   its link at the next pass (or run `links`). A new link can read as missing
+   for up to a minute, until the mount sees the folder.
 5. A Group that already has a real `assets/` directory is reported, never
    moved: `launchd/workspaces-drive-launchctl.sh migrate <Tree>/<Group>`
    copies it to Drive and checks the copy by hash (`cryptcheck` for encrypted
@@ -151,5 +152,14 @@ for these reasons:
 
 macOS keeps extended attributes it cannot store on NFS in AppleDouble files
 (`._<name>`), one per file it creates; the maintenance pass deletes them, and
-`.DS_Store` files, through the mount. Symlinks are not kept on Drive, so
-`migrate` refuses a directory that holds any.
+`.DS_Store` files, on Drive for good (not into its trash). Symlinks are not
+kept on Drive, so `migrate` refuses a directory that holds any.
+
+The mount is a network volume to macOS's privacy protection: a program that
+launchd starts reaches it only if it holds that permission (Network Volumes
+or Full Disk Access under Privacy & Security), and `/bin/sh` started by
+launchd is refused with "Operation not permitted". So the maintenance pass
+never goes through the mount: it creates Group folders with `rclone mkdir`
+and sweeps with `rclone delete`, and the mount sees both through Drive's
+change feed. Whatever reads or writes the Group links from a LaunchAgent,
+the gateway included, needs that permission for its own program.

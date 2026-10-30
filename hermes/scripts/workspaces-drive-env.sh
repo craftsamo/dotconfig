@@ -146,7 +146,10 @@ wsd_with_lock() {
 }
 
 # Give every Group of every tree its Drive directories as links into the
-# mount. A missing directory is created on Drive and linked; a correct link is
+# mount. Both helpers below reach Drive through rclone, never through the
+# mount: macOS refuses a shell that launchd started any access to a network
+# volume, and the mount picks the change up from Drive's change feed.
+# A missing directory is created on Drive and linked; a correct link is
 # left alone; a real local directory or a link elsewhere is reported, never
 # moved (migration is its own command). Prints one line per change or finding.
 # --check reports what would be linked and changes nothing; --quiet (the
@@ -180,7 +183,8 @@ wsd_links() {
         elif [ -n "$check" ]; then
           echo "would link: $tree/$group/$dir"
         else
-          mkdir -p "$WSD_MOUNT/$tree/$group/$dir" || { echo "failed: could not create $tree/$group/$dir on Drive"; found=1; continue; }
+          wsd_rclone mkdir "$(wsd_remote "$tree" "$group/$dir")" ||
+            { echo "failed: could not create $tree/$group/$dir on Drive"; found=1; continue; }
           ln -s "$want" "$here"
           echo "linked: $tree/$group/$dir -> $want"
         fi
@@ -191,9 +195,10 @@ wsd_links() {
 }
 
 # AppleDouble (._*) and .DS_Store files: macOS writes them for extended
-# attributes the NFS server cannot keep; removed through the mount so the
-# mount's own cache stays right.
+# attributes the NFS server cannot keep. Deleted on Drive for good (not to its
+# trash, which they would fill), across every tree.
 wsd_sweep() {
   wsd_mounted || return 0
-  find "$WSD_MOUNT" \( -name '._*' -o -name .DS_Store \) -type f -delete 2>/dev/null || true
+  wsd_rclone delete "$(wsd_combine)" --include '._*' --include .DS_Store \
+    --drive-use-trash=false --fast-list -q 2>/dev/null || true
 }

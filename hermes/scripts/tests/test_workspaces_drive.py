@@ -42,6 +42,7 @@ case "$sub" in
   rcd)
     for arg do case "$arg" in unix://*) sock=${arg#unix://} ;; esac; done
     exec nc -lU "$sock" ;;
+  mkdir) mkdir -p "$HOME/Workspaces/.drive/$(drive_path "$a1")" ;;
   copy)
     dest="$HOME/Workspaces/.drive/$(drive_path "$a2")"
     mkdir -p "$dest" && cp -R "$a1/." "$dest/" ;;
@@ -250,8 +251,22 @@ def test_links_make_relative_links_and_leave_real_directories(home: Path):
     assert os.readlink(ws / "Personal" / "Notes" / "assets") == "../../.drive/Personal/Notes/assets"
     assert (ws / "Projects" / "Beta" / "assets").is_dir() and not (ws / "Projects" / "Beta" / "assets").is_symlink()
     assert "local: Projects/Beta/assets is a real directory" in done.stdout
+    # Folders are made on Drive through rclone, never through the mount (which
+    # macOS refuses to a shell that launchd started).
+    calls = (home / ".rclone-calls").read_text()
+    assert "mkdir wsdrive-drive:Workspaces/Projects/Alpha/assets" in calls
+    assert "mkdir wsdrive-crypt:Personal/Notes/assets" in calls
     again = run(home, LAUNCHCTL, "links")
     assert "linked:" not in again.stdout
+
+
+def test_the_sweep_deletes_appledouble_files_on_drive_not_into_its_trash(home: Path):
+    set_up(home)
+    script = f'. "{HERMES}/scripts/workspaces-drive-env.sh"; wsd_sweep'
+    subprocess.run(["sh", "-c", script], env=env(home), check=True)
+    call = (home / ".rclone-calls").read_text().splitlines()[-1]
+    assert " delete :combine,upstreams=" in call
+    assert "--include ._* --include .DS_Store --drive-use-trash=false" in call
 
 
 def test_links_refuse_while_unmounted(home: Path):
