@@ -27,6 +27,7 @@ a profile sees only its `config.yaml`, `SOUL.md` and skills.
 | run or repair a LaunchAgent, a launcher or an engine script  | [`docs/ops/services.md`](docs/ops/services.md)                                                                 |
 | set up local text-to-speech, speech-to-text or audio tooling | [`docs/ops/tts-engines.md`](docs/ops/tts-engines.md), [`docs/ops/audio-tooling.md`](docs/ops/audio-tooling.md) |
 | change web search or the browser                             | [`docs/ops/web-search.md`](docs/ops/web-search.md), [`docs/ops/browser.md`](docs/ops/browser.md)               |
+| keep Group assets in Google Drive instead of on the disk     | [`docs/ops/workspaces-drive.md`](docs/ops/workspaces-drive.md)                                                 |
 | change models, authentication or secrets                     | [`docs/models-auth.md`](docs/models-auth.md)                                                                   |
 | see why a decision was made                                  | [`docs/decisions/`](docs/decisions/)                                                                           |
 
