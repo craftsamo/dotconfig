@@ -51,7 +51,8 @@ pipeline's capability registry when applicable, pin an agent-created source
 against curator writes with `hermes -p <profile> curator pin <name>`, then
 commit it normally. An assistant skill that must stay private moves to the
 private technic shelf instead and is committed in the overlay repo; no pin is
-needed there, because the curator never touches `external_dirs` skills. Move,
+needed there, because the curator skips `external_dirs` skills and
+`skill-topology` refuses every runtime edit outside `learned/`. Move,
 never copy: the same name in `learned/` and the shelf makes `skill_view`
 refuse it as ambiguous.
 
