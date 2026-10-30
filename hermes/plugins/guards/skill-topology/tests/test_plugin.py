@@ -626,10 +626,20 @@ class PrivateOverlaySkillWriteGuardTest(unittest.TestCase):
             fresh.PRIVATE_ROOT,
         )
 
+    def test_private_shared_cluster_and_plugin_skills_are_blocked(self) -> None:
+        for path in (self.plugin.PRIVATE_ROOT / "skills/workspaces/x/SKILL.md",
+                     self.plugin.PRIVATE_ROOT / "skills/workspaces/x/scripts/cli",
+                     self.plugin.PRIVATE_ROOT / "plugins/workspace/example/skills/ledger/SKILL.md"):
+            with self.subTest(path=path):
+                self.assertEqual(self.guard("write_file", path=str(path), content="x")["action"], "block")
+                self.assertEqual(self.guard("terminal", command=f"echo x > {path}")["action"], "block")
+        self.assertEqual(
+            self.guard("terminal", command=f"rm -rf {self.plugin.PRIVATE_ROOT / 'skills'}")["action"], "block")
+
     def test_private_learned_and_non_skill_paths_stay_writable(self) -> None:
         for path in (self.private_skills / "learned/x/SKILL.md",
                      self.plugin.PRIVATE_ROOT / "profiles/assistant/notes.txt",
-                     self.plugin.PRIVATE_ROOT / "skills/workspaces/x/SKILL.md"):
+                     self.plugin.PRIVATE_ROOT / "plugins/workspace/example/notes.txt"):
             with self.subTest(path=path):
                 self.assertIsNone(self.guard("write_file", path=str(path), content="x"))
                 self.assertIsNone(self.guard("terminal", command=f"echo x > {path}"))
