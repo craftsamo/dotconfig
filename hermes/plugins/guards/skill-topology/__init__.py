@@ -29,11 +29,11 @@ tree is the maintainer's"); on 2026-09-05 image-creator patched
 ``text-emoji.sh`` in place instead, and the fix it chose was not the one
 the maintainer wanted.
 
-The private overlay (the ``private-dotconfig`` checkout) owns maintainer skill trees too
-— the Assistant's private ``technic/`` shelf — and they resolve outside
-this repo, so its ``hermes/profiles/*/skills/…``
-(outside ``learned/``) is guarded the same way. Its shared
-``hermes/skills/`` cluster is not in scope here.
+The private overlay (the ``private-dotconfig`` checkout) owns maintainer
+skill trees too — the Assistant's private ``technic/`` shelf, its shared
+``hermes/skills/`` cluster, the skills its plugins ship — and they resolve
+outside this repo, so its ``hermes/**/skills/…`` (outside ``learned/``) is
+guarded the same way.
 
 Terminal checks cover literal redirects and known mutators, not arbitrary
 program behavior or persistent shell state. This is a topology guard, not a
@@ -53,8 +53,7 @@ from typing import Any, NamedTuple
 LEARNED_CATEGORY = "learned"
 MANAGED_ROOT = Path(__file__).resolve().parents[3]  # <repo>/hermes
 # Private overlay counterpart: the sibling ghq checkout the real config.yaml files
-# name in skills.external_dirs (nothing links it into this tree); only
-# profiles/*/skills count.
+# name in skills.external_dirs (nothing links it into this tree).
 PRIVATE_ROOT = Path.home() / "ghq" / "github.com" / "craftsamo" / "private-dotconfig" / "hermes"
 _FILE_WRITE_TOOLS = {"write_file", "patch"}
 _MUTATORS = {"cp", "mv", "rm", "chmod", "truncate", "tee", "sed"}
@@ -338,13 +337,12 @@ def _terminal_managed_path(token: _ShellToken, cwd: Path | None, destructive: bo
         raise _UnresolvedWrite("unresolvable write target") from exc
     if _is_managed(str(path)):
         return str(path)
-    for root, profiles_only in _managed_roots():
+    for root in _managed_roots():
         if destructive and root.is_relative_to(path):
             return str(path)
         if path.is_relative_to(root):
             parts = path.relative_to(root).parts
-            if (parts and parts[-1] == "skills" and "skills" not in parts[:-1]
-                    and (not profiles_only or parts[:1] == ("profiles",))):
+            if parts and parts[-1] == "skills" and "skills" not in parts[:-1]:
                 return str(path)
             if destructive and (not parts or parts == ("profiles",) or
                                 (len(parts) == 2 and parts[0] == "profiles")):
@@ -368,7 +366,7 @@ def _has_managed_reference(command: str, cwd: Path | None) -> bool:
             value = os.path.expanduser(value)
             path = ((cwd or Path("/")) / value).resolve()
             # Include managed containers, but not arbitrary ancestors such as /tmp.
-            destructive = any(path.is_relative_to(root) for root, _ in _managed_roots())
+            destructive = any(path.is_relative_to(root) for root in _managed_roots())
             if _terminal_managed_path(_ShellToken(value), cwd, destructive=destructive):
                 return True
         except (OSError, RuntimeError, ValueError):
@@ -426,15 +424,15 @@ def _guard_terminal(command: str, args: Mapping) -> dict[str, str] | None:
         }
 
 
-def _managed_roots() -> list[tuple[Path, bool]]:
-    """``(root, profiles_only)`` for this repo and the private overlay."""
-    roots = [(MANAGED_ROOT.resolve(), False)]
+def _managed_roots() -> list[Path]:
+    """The ``hermes/`` trees of this repo and of the private overlay."""
+    roots = [MANAGED_ROOT.resolve()]
     try:
         private = PRIVATE_ROOT.resolve()
     except (OSError, RuntimeError, ValueError):
         return roots
-    if all(private != root for root, _ in roots):
-        roots.append((private, True))
+    if private not in roots:
+        roots.append(private)
     return roots
 
 
@@ -444,13 +442,11 @@ def _is_managed(path_text: str) -> bool:
         resolved = Path(os.path.expanduser(path_text)).resolve()
     except (OSError, RuntimeError, ValueError):
         return False
-    for root, profiles_only in _managed_roots():
+    for root in _managed_roots():
         try:
             parts = resolved.relative_to(root).parts
         except ValueError:
             continue
-        if profiles_only and parts[:1] != ("profiles",):
-            return False
         if "skills" not in parts:
             return False
         after = parts[parts.index("skills") + 1:]
