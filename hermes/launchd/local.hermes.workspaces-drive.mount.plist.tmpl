@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <!-- workspaces-drive-launchctl.sh renders the __PLACEHOLDERS__ before loading. -->
+  <key>Label</key>
+  <string>local.hermes.workspaces-drive.mount</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>__HOME__/.config/hermes/launchd/bin/hermes-workspaces-drive-mount</string>
+    <string>/bin/sh</string>
+    <string>__HOME__/.config/hermes/scripts/workspaces-drive-run.sh</string>
+  </array>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    <!-- The runtime root install ran with; every other setting comes from its settings.env. -->
+    <key>HERMES_LOCAL</key>
+    <string>__HERMES_LOCAL__</string>
+  </dict>
+
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <!-- A server that died leaves its mount for deadtimeout (30 s) before it is dropped. -->
+  <key>ThrottleInterval</key>
+  <integer>30</integer>
+  <key>ProcessType</key>
+  <string>Background</string>
+
+  <key>StandardOutPath</key>
+  <string>__HOME__/Library/Logs/workspaces-drive-mount.log</string>
+  <key>StandardErrorPath</key>
+  <string>__HOME__/Library/Logs/workspaces-drive-mount.log</string>
+</dict>
+</plist>
