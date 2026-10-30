@@ -31,8 +31,8 @@ class FakeContext:
         self.tools[name] = kwargs
 
 
-def _reply(text: str) -> Any:
-    return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content=text))])
+def _reply(text: str, finish_reason: str = "stop") -> Any:
+    return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content=text), finish_reason=finish_reason)])
 
 
 def _run(args: dict[str, Any], llm: AsyncMock, backends=(("provider-a", "model-a"), ("openrouter", "flash"))) -> dict:
@@ -91,6 +91,15 @@ def test_no_answer_anywhere_is_a_failure_not_a_guess(tmp_path):
     parsed = _run({"audio_url": str(recording), "question": "q"}, AsyncMock(return_value=_reply("")))
     assert not parsed["success"] and "nothing is known" in parsed["error"]
     assert [f["provider"] for f in parsed["failed_backends"]] == ["provider-a", "openrouter"]
+
+
+def test_an_answer_cut_off_everywhere_comes_back_marked_truncated(tmp_path):
+    recording = tmp_path / "a.wav"
+    recording.write_bytes(b"x")
+    parsed = _run({"audio_url": str(recording), "question": "q"},
+                  AsyncMock(return_value=_reply("overview only", finish_reason="length")))
+    assert parsed["success"] and parsed["truncated"] is True and "unknown" in parsed["note"]
+    assert parsed["provider"] == "provider-a" and parsed["failed_backends"][0]["provider"] == "openrouter"
 
 
 @pytest.mark.parametrize("args, fragment", [
