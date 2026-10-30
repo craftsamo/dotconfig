@@ -359,6 +359,19 @@ def test_migrate_keeps_the_local_copy_when_the_check_fails(home: Path):
     assert assets.is_dir() and not assets.is_symlink() and (assets / "a.png").read_text() == "a"
 
 
+def test_migrate_creates_the_folder_on_drive_even_when_it_is_empty(home: Path):
+    set_up(home)
+    assets = home / "Workspaces" / "Projects" / "Alpha" / "assets"
+    (assets / "empty-sub").mkdir(parents=True)
+    done = run(home, LAUNCHCTL, "migrate", "Projects/Alpha")
+    assert done.returncode == 0, done.stderr
+    assert assets.is_symlink() and (home / "Workspaces" / ".drive" / "Projects" / "Alpha" / "assets").is_dir()
+    calls = (home / ".rclone-calls").read_text().splitlines()
+    mkdir = next(i for i, c in enumerate(calls) if c.endswith("mkdir wsdrive-drive:Workspaces/Projects/Alpha/assets"))
+    copy = next(i for i, c in enumerate(calls) if " copy " in c)
+    assert mkdir < copy and "--create-empty-src-dirs" in calls[copy]
+
+
 def test_migrate_rolls_back_when_the_original_changed_after_the_copy(home: Path):
     set_up(home)
     (home / ".second-check-fails").write_text("")
