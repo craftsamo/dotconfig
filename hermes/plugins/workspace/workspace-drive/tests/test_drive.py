@@ -638,6 +638,35 @@ def test_the_run_loop_refuses_a_mount_point_holding_files(home: Path):
     assert done.returncode == 78 and "not empty" in done.stderr
 
 
+def test_the_run_loop_drops_a_stale_mount_before_touching_its_folder(home: Path):
+    set_up(home)
+    # A dead mount answers no stat: here the mount point is not a folder until diskutil drops it.
+    drive_dir = home / "Workspaces" / ".drive"
+    drive_dir.rmdir()
+    drive_dir.write_text("stale")
+    (home / ".config" / "bin" / "diskutil").write_text(
+        '#!/bin/sh\nrm -f "$HOME/.mounted" "$HOME/Workspaces/.drive"\nmkdir "$HOME/Workspaces/.drive"\n')
+    proc = subprocess.Popen([sys.executable, str(DRIVE), "run"], env=env(home), stdout=subprocess.PIPE,
+                            stderr=subprocess.PIPE, text=True)
+    deadline = time.time() + 15
+    while not (any(" nfsmount " in c for c in calls(home)) and (home / ".mounted").exists()) \
+            and time.time() < deadline:
+        time.sleep(0.1)
+    time.sleep(1)
+    proc.send_signal(signal.SIGTERM)
+    out, err = proc.communicate(timeout=40)
+    assert proc.returncode == 0, err
+    assert "mounted" in out and drive_dir.is_dir()
+
+
+def test_the_run_loop_waits_when_a_stale_mount_will_not_let_go(home: Path):
+    set_up(home)
+    (home / ".config" / "bin" / "diskutil").write_text("#!/bin/sh\nexit 1\n")
+    done = run(home, "run")
+    assert done.returncode == 1 and "did not let go" in done.stderr
+    assert not any(" nfsmount " in c for c in calls(home))
+
+
 def test_the_run_loop_refuses_before_setup(home: Path):
     done = run(home, "run")
     assert done.returncode == 78 and "ws-drive setup" in done.stderr

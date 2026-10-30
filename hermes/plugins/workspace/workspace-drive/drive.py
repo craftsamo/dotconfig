@@ -214,8 +214,12 @@ def mounted() -> bool:
 
 
 def force_unmount() -> None:
-    if subprocess.run(["diskutil", "unmount", "force", str(MOUNT)], capture_output=True).returncode:
-        subprocess.run(["umount", "-f", str(MOUNT)], capture_output=True)
+    for command in (["diskutil", "unmount", "force", str(MOUNT)], ["umount", "-f", str(MOUNT)]):
+        try:
+            if subprocess.run(command, capture_output=True).returncode == 0:
+                return
+        except OSError:
+            continue
 
 
 def wait_mounted(seconds: int) -> None:
@@ -1201,10 +1205,15 @@ def run_agent() -> int:
         if problem:
             print(f"workspaces-drive: {problem}", file=sys.stderr)
             return 78
-    MOUNT.mkdir(parents=True, exist_ok=True)
-    CACHE.mkdir(parents=True, exist_ok=True)
+    # A mount left by a server that died answers nothing, not even a stat of its mount point:
+    # drop it before touching the folder.
     if mounted():
         force_unmount()
+    if mounted():
+        print(f"workspaces-drive: a stale mount at {MOUNT} did not let go yet; trying again", file=sys.stderr)
+        return 1
+    MOUNT.mkdir(parents=True, exist_ok=True)
+    CACHE.mkdir(parents=True, exist_ok=True)
     if any(MOUNT.iterdir()):
         # Written to the local disk while nothing was mounted; mounting over it would hide it.
         print(f"workspaces-drive: {MOUNT} is not empty while unmounted; move its contents away first", file=sys.stderr)
