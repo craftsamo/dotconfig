@@ -15,7 +15,12 @@ that is only reasoning (the model never saw the media, or gave up) is not an ana
 An answer cut off at the output limit (``finish_reason == "length"``) also moves on: a thinking
 model spends its output budget on hidden thoughts first, so a small cap returns the opening of an
 answer with ``success`` and the questions unanswered. It is returned, marked ``truncated``, only
-when no backend answers in full.
+when no backend answers in full. The cap is ``MAX_OUTPUT_TOKENS`` unless the section sets its own
+``max_tokens`` (a positive integer), for a recording long enough to need more::
+
+    audio_analyze:
+      max_tokens: 32768
+      backends: [...]
 """
 
 from __future__ import annotations
@@ -52,15 +57,36 @@ def backends_from(section: Any, default: Backend) -> list[Backend]:
     return list(dict.fromkeys(pairs)) or [default]
 
 
+def max_tokens_from(section: Any) -> int:
+    """The section's ``max_tokens`` when it is a positive integer, else ``MAX_OUTPUT_TOKENS``."""
+    value = section.get("max_tokens") if isinstance(section, dict) else None
+    if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+        return MAX_OUTPUT_TOKENS
+    return value
+
+
+def _section(section: str) -> Any:
+    from hermes_cli.config import load_config
+
+    return (load_config() or {}).get(section)
+
+
 def configured_backends(section: str, default: Backend) -> list[Backend]:
     """``backends_from`` for the active profile's ``config.yaml`` section; the default when unreadable."""
     try:
-        from hermes_cli.config import load_config
-
-        return backends_from((load_config() or {}).get(section), default)
+        return backends_from(_section(section), default)
     except Exception as exc:  # noqa: BLE001 - a config problem must not break the tool
         logger.debug("media_backends: %s config read failed (%s); using the default", section, exc)
         return [default]
+
+
+def configured_max_tokens(section: str) -> int:
+    """``max_tokens_from`` for the active profile's ``config.yaml`` section; the default when unreadable."""
+    try:
+        return max_tokens_from(_section(section))
+    except Exception as exc:  # noqa: BLE001 - a config problem must not break the tool
+        logger.debug("media_backends: %s config read failed (%s); using the default cap", section, exc)
+        return MAX_OUTPUT_TOKENS
 
 
 def answer_text(response: Any) -> str:

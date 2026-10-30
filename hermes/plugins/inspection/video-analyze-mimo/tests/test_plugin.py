@@ -216,11 +216,12 @@ class VideoAnalyzeMimoBackendOrderTest(unittest.IsolatedAsyncioTestCase):
     def setUpClass(cls) -> None:
         cls.plugin = load_plugin()
 
-    async def _run(self, side_effect: Any) -> tuple[dict[str, Any], AsyncMock]:
+    async def _run(self, side_effect: Any, section: Any = None) -> tuple[dict[str, Any], AsyncMock]:
         with tempfile.NamedTemporaryFile(suffix=".mp4") as handle:
             handle.write(b"fake-video-bytes")
             handle.flush()
             with patch.object(self.plugin, "_backends", return_value=[("provider-a", "model-a"), ("openrouter", "mimo")]), \
+                 patch.object(self.plugin.media_backends, "_section", return_value=section), \
                  patch.object(self.plugin.media_backends, "direct_call", new=AsyncMock(side_effect=side_effect)) as mock_llm:
                 result = await self.plugin._video_analyze_mimo({"video_url": handle.name, "question": "what?"})
         return json.loads(result), mock_llm
@@ -249,6 +250,12 @@ class VideoAnalyzeMimoBackendOrderTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(parsed["failed_backends"][0]["error"], "the answer was cut off at the output limit")
         prompt = mock_llm.call_args_list[0].kwargs["messages"][0]["content"][0]["text"]
         self.assertLess(prompt.index("answer the following question"), prompt.index("describe"))
+
+    async def test_the_output_cap_comes_from_the_section_or_the_default(self) -> None:
+        _, mock_llm = await self._run([_reply("ok")])
+        self.assertEqual(mock_llm.call_args.kwargs["max_tokens"], self.plugin.media_backends.MAX_OUTPUT_TOKENS)
+        _, mock_llm = await self._run([_reply("ok")], section={"max_tokens": 32768})
+        self.assertEqual(mock_llm.call_args.kwargs["max_tokens"], 32768)
 
     async def test_an_answer_cut_off_everywhere_comes_back_marked_truncated(self) -> None:
         parsed, _ = await self._run([_reply("part a", finish_reason="length"), _reply("part b", finish_reason="length")])
