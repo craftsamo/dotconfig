@@ -93,9 +93,11 @@ user keys.
   rather than returning a guess. An answer cut off at the output limit is a
   failure too: a thinking model spends the cap on hidden thoughts first, so a
   small cap returns the opening of an answer as a success. The cap (16,384
-  tokens) leaves room for those thoughts, the prompt asks the question before
-  the description, and a partial answer comes back, marked `truncated`, only
-  when no backend answered in full.
+  tokens; a section's own `max_tokens` overrides it) leaves room for those
+  thoughts, the prompt asks the question before the description, and a partial
+  answer comes back, marked `truncated`, only when no backend answered in full.
+  A higher cap does not buy a longer answer once the 180 s request timeout is
+  the limit.
 - **inspection/audio-analyze** (`standalone`): the `audio_analyze` tool for the
   Assistant, researcher and audio-creator. One recording (a local file or an
   http(s) URL; wav, mp3, m4a, aac, ogg, opus, flac or aiff, up to 14 MiB)

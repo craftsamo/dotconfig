@@ -138,7 +138,8 @@ async def _audio_analyze(args: Dict[str, Any], **_kw: Any) -> str:
             {"type": "input_audio", "input_audio": {"data": base64.b64encode(path.read_bytes()).decode("ascii"),
                                                     "format": fmt}},
         ]}]
-        result = await media_backends.analyze(_backends(), messages)
+        result = await media_backends.analyze(_backends(), messages,
+                                              max_tokens=media_backends.configured_max_tokens("audio_analyze"))
         reply = {"success": True, "analysis": result["analysis"],
                  "provider": result["provider"], "model": result["model"]}
         if result.get("truncated"):

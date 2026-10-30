@@ -141,6 +141,23 @@ def test_the_output_cap_leaves_room_for_hidden_thinking():
     assert seen["max_tokens"] == mb.MAX_OUTPUT_TOKENS >= 16384
 
 
+def test_a_section_may_set_its_own_output_cap():
+    assert mb.max_tokens_from({"max_tokens": 32768, "backends": []}) == 32768
+    for unset in (None, {}, {"max_tokens": 0}, {"max_tokens": -1}, {"max_tokens": "65536"},
+                  {"max_tokens": True}, {"max_tokens": 1.5}):
+        assert mb.max_tokens_from(unset) == mb.MAX_OUTPUT_TOKENS
+
+
+def test_an_unreadable_config_keeps_the_default_cap(monkeypatch):
+    import hermes_cli.config as config
+
+    monkeypatch.setattr(config, "load_config", lambda: (_ for _ in ()).throw(OSError("gone")))
+    assert mb.configured_max_tokens("audio_analyze") == mb.MAX_OUTPUT_TOKENS
+    monkeypatch.setattr(config, "load_config", lambda: {"audio_analyze": {"max_tokens": 40000}})
+    assert mb.configured_max_tokens("audio_analyze") == 40000
+    assert mb.configured_max_tokens("video_analyze") == mb.MAX_OUTPUT_TOKENS
+
+
 def test_no_answer_anywhere_raises_with_every_failure():
     call, _ = _calls(RuntimeError("down"), reply(""), reply(""))
     with pytest.raises(mb.AllBackendsFailed) as raised:
