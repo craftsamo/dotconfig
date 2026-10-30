@@ -129,11 +129,25 @@ class AntigravityClient(GeminiNativeClient):
         extra = extra_body if isinstance(extra_body, dict) else {}
         thinking = extra.get("thinking_config") or extra.get("thinkingConfig")
         claude = wire.is_claude(model)
+        # A model that gets a question about media it never received answers it anyway, with a
+        # made-up description, so audio or video that cannot be sent stops the request instead.
+        media = wire.media_part_count(messages)
+        if media and claude:
+            raise GeminiAPIError("Claude on Antigravity takes images only; send audio or video to a Gemini model.",
+                                 code="antigravity_media_unsupported")
+        if media and wire.unreadable_media_count(messages):
+            raise GeminiAPIError("An audio or video part carries no data or data that is not base64; nothing was sent.",
+                                 code="antigravity_media_unreadable")
+        if media:
+            messages = wire.media_as_inline(messages)
         request = build_gemini_request(
             messages=messages, tools=tools, tool_choice=tool_choice, temperature=temperature, max_tokens=max_tokens,
             top_p=top_p, stop=stop, thinking_config=None if claude else thinking,
             response_format=response_format or extra.get("response_format"), model=model, tools_as_json_schema=claude,
         )
+        if wire.inline_media_count(request) < media:
+            raise GeminiAPIError("Audio or video parts were dropped while building the request; nothing was sent.",
+                                 code="antigravity_media_dropped")
         project = control.project_for(self.api_key, self.base_url)
         control.refresh_in_background(self.api_key, self.base_url)
         body, names = wire.envelope(request, model=model, project=project, messages=messages,

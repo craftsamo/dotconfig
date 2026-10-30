@@ -222,6 +222,55 @@ def test_envelope_does_not_modify_the_request_it_was_given():
     assert json.dumps(request, sort_keys=True) == before
 
 
+VIDEO = "data:video/mp4;base64," + "AAAA"
+AUDIO_B64 = "UklGRg=="
+
+
+def test_media_parts_are_reshaped_as_inline_data_urls():
+    messages = [{"role": "user", "content": [
+        {"type": "text", "text": "what happens?"},
+        {"type": "video_url", "video_url": {"url": VIDEO}},
+        {"type": "input_audio", "input_audio": {"data": AUDIO_B64, "format": "WAV"}},
+        {"type": "input_audio", "input_audio": {"data": "data:audio/ogg;base64,T2dn"}},
+        {"type": "file", "file": {"file_data": "data:audio/mpeg;base64,SUQz", "filename": "a.mp3"}},
+        {"type": "file", "file": {"file_data": "data:application/pdf;base64,JVBE"}},
+        {"type": "video_url", "video_url": {"url": "https://example.com/v.mp4"}},
+    ]}, {"role": "assistant", "content": "plain"}]
+    before = json.dumps(messages, sort_keys=True)
+    reshaped = wire.media_as_inline(messages)
+    assert json.dumps(messages, sort_keys=True) == before  # the input is untouched
+    parts = reshaped[0]["content"]
+    assert [p.get("image_url", {}).get("url") for p in parts[1:5]] == [
+        VIDEO, f"data:audio/wav;base64,{AUDIO_B64}", "data:audio/ogg;base64,T2dn", "data:audio/mpeg;base64,SUQz"]
+    assert parts[0] == messages[0]["content"][0]
+    assert parts[5] == messages[0]["content"][5] and parts[6] == messages[0]["content"][6]  # not audio/video data
+    assert reshaped[1] is messages[1]
+
+
+def test_audio_formats_spelled_as_mime_types_get_the_declared_subtype():
+    def url(fmt):
+        reshaped = wire.media_as_inline([{"role": "user", "content": [
+            {"type": "input_audio", "input_audio": {"data": AUDIO_B64, "format": fmt}}]}])
+        return reshaped[0]["content"][0]["image_url"]["url"].split(";", 1)[0]
+    assert [url(f) for f in ("audio/wav", "x-wav", "MP3", "m4a")] == [
+        "data:audio/wav", "data:audio/wav", "data:audio/mp3", "data:audio/m4a"]
+
+
+def test_only_user_messages_are_reshaped():
+    tool = {"role": "tool", "tool_call_id": "c1", "content": [{"type": "video_url", "video_url": {"url": VIDEO}}]}
+    assistant = {"role": "assistant", "content": [{"type": "video_url", "video_url": {"url": VIDEO}}]}
+    assert wire.media_as_inline([tool, assistant]) == [tool, assistant]
+    assert wire.media_part_count([tool, assistant]) == 0
+
+
+def test_the_runtime_inlines_an_image_url_part_with_its_own_mime_type():
+    # media_as_inline relies on this: if the runtime starts checking for image/*, this fails first.
+    request = build_gemini_request(messages=[{"role": "user", "content": [
+        {"type": "text", "text": "x"}, {"type": "image_url", "image_url": {"url": VIDEO}}]}], model="gemini-3-flash")
+    inline = [p["inlineData"] for c in request["contents"] for p in c["parts"] if "inlineData" in p]
+    assert inline == [{"mimeType": "video/mp4", "data": "AAAA"}]
+
+
 def test_session_id_is_stable_for_one_conversation_and_differs_across_them():
     first = wire.session_id(HISTORY, model="m", project="p")
     assert first == wire.session_id(HISTORY + [{"role": "user", "content": "more"}], model="m", project="p")
@@ -319,6 +368,55 @@ def test_client_streams_text_thoughts_and_tool_calls(monkeypatch):
     calls = [tc for d in deltas for tc in (d.tool_calls or [])]
     assert calls and calls[0].function.name == "mcp.files.read"
     assert chunks[-1].choices[0].finish_reason == "tool_calls"
+
+
+MEDIA_MESSAGES = [{"role": "user", "content": [
+    {"type": "text", "text": "describe"},
+    {"type": "video_url", "video_url": {"url": VIDEO}},
+    {"type": "input_audio", "input_audio": {"data": AUDIO_B64, "format": "wav"}}]}]
+
+
+def _ok_handler(seen):
+    def handler(request):
+        seen.append(json.loads(request.content))
+        return httpx.Response(200, json={"response": {"candidates": [
+            {"content": {"role": "model", "parts": [{"text": "OK"}]}, "finishReason": "STOP"}]}})
+    return handler
+
+
+def test_client_sends_audio_and_video_inline_to_gemini(monkeypatch):
+    seen = []
+    _client(_ok_handler(seen), monkeypatch).chat.completions.create(
+        model="gemini-3.8-flash-medium", messages=MEDIA_MESSAGES)
+    assert [p["inlineData"]["mimeType"] for p in _parts(seen[0]) if "inlineData" in p] == ["video/mp4", "audio/wav"]
+
+
+def test_media_for_claude_is_refused_before_any_request(monkeypatch):
+    seen = []
+    client = _client(_ok_handler(seen), monkeypatch)
+    with pytest.raises(GeminiAPIError, match="images only") as raised:
+        client.chat.completions.create(model="claude-sonnet-5-5-low", messages=MEDIA_MESSAGES)
+    assert raised.value.code == "antigravity_media_unsupported" and seen == []
+    client.chat.completions.create(model="claude-sonnet-5-5-low", messages=HISTORY[:2])  # no media: as before
+    assert len(seen) == 1
+
+
+def test_media_the_builder_drops_stops_the_request(monkeypatch):
+    seen = []
+    client = _client(_ok_handler(seen), monkeypatch)
+    monkeypatch.setattr(wire, "media_as_inline", lambda messages: messages)  # as if the runtime stopped inlining
+    with pytest.raises(GeminiAPIError, match="dropped") as raised:
+        client.chat.completions.create(model="gemini-3.8-flash-medium", messages=MEDIA_MESSAGES)
+    assert raised.value.code == "antigravity_media_dropped" and seen == []
+
+
+def test_a_media_part_that_is_not_base64_stops_the_request(monkeypatch):
+    seen = []
+    broken = [{"role": "user", "content": [{"type": "text", "text": "x"},
+                                           {"type": "video_url", "video_url": {"url": "data:video/mp4;base64,@@@@"}}]}]
+    with pytest.raises(GeminiAPIError, match="not base64") as raised:
+        _client(_ok_handler(seen), monkeypatch).chat.completions.create(model="gemini-3.8-flash-medium", messages=broken)
+    assert raised.value.code == "antigravity_media_unreadable" and seen == []
 
 
 def test_client_asks_claude_for_the_catalog_output_limit(monkeypatch):
