@@ -7,6 +7,8 @@ thinking config, the tool schemas, tool-call ids and thought signatures. Everyth
 
 from __future__ import annotations
 
+import base64
+import binascii
 import copy
 import hashlib
 import json
@@ -338,6 +340,87 @@ def _system_instruction(request: dict[str, Any], extra: str = "") -> None:
     if extra:
         parts.append({"text": extra})
     request["systemInstruction"] = {"role": "user", "parts": parts}
+
+
+_MEDIA_PREFIXES = ("audio/", "video/")
+# input_audio formats spelled other ways than the subtypes Antigravity's model list declares.
+_AUDIO_FORMATS = {"x-wav": "wav", "wave": "wav", "vnd.wave": "wav", "mpeg3": "mp3", "x-m4a": "m4a"}
+
+
+def _media_data_url(part: dict[str, Any]) -> str:
+    """The ``data:`` URL of an audio or video content part (``video_url``, ``input_audio``, ``file``)."""
+    kind = part.get("type")
+    if kind == "video_url":
+        url = (part.get("video_url") or {}).get("url") if isinstance(part.get("video_url"), dict) else ""
+    elif kind == "input_audio":
+        audio = part.get("input_audio") if isinstance(part.get("input_audio"), dict) else {}
+        data = str(audio.get("data") or "")
+        fmt = str(audio.get("format") or "").strip().lower().removeprefix("audio/")
+        fmt = _AUDIO_FORMATS.get(fmt, fmt)
+        url = data if data.startswith("data:") else (f"data:audio/{fmt};base64,{data}" if data and fmt else "")
+    elif kind == "file":
+        url = (part.get("file") or {}).get("file_data") if isinstance(part.get("file"), dict) else ""
+    else:
+        return ""
+    url = str(url or "")
+    mime = url[5:].split(";", 1)[0].split(",", 1)[0].lower() if url.startswith("data:") else ""
+    return url if mime.startswith(_MEDIA_PREFIXES) and ";base64," in url else ""
+
+
+def _user_parts(message: Any) -> list[Any]:
+    if not isinstance(message, dict) or message.get("role") != "user" or not isinstance(message.get("content"), list):
+        return []
+    return message["content"]
+
+
+def media_part_count(messages: list[dict[str, Any]]) -> int:
+    """How many audio or video data parts the user messages of *messages* carry."""
+    return sum(1 for message in messages for part in _user_parts(message)
+               if isinstance(part, dict) and _media_data_url(part))
+
+
+def unreadable_media_count(messages: list[dict[str, Any]]) -> int:
+    """How many of those parts carry no data or data that is not valid base64."""
+    def unreadable(url: str) -> bool:
+        try:
+            return not base64.b64decode(url.split(",", 1)[1], validate=True)
+        except (binascii.Error, ValueError):
+            return True
+    return sum(1 for message in messages for part in _user_parts(message)
+               if isinstance(part, dict) and (url := _media_data_url(part)) and unreadable(url))
+
+
+def inline_media_count(request: dict[str, Any]) -> int:
+    """How many audio or video ``inlineData`` parts a built Gemini request carries."""
+    return sum(1 for content in request.get("contents") or [] for part in content.get("parts") or []
+               if str((part.get("inlineData") or {}).get("mimeType") or "").lower().startswith(_MEDIA_PREFIXES))
+
+
+def media_as_inline(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """*messages* with audio and video data parts in the one shape the runtime inlines for Gemini.
+
+    The runtime's Gemini request builder turns an ``image_url`` part carrying a ``data:`` URL into
+    ``inlineData`` with that URL's own MIME type, and drops ``video_url``, ``input_audio`` and
+    ``file`` parts. Gemini on Antigravity takes audio and video inline, so those parts of user
+    messages are re-shaped here; tool results and assistant turns are left as they are, as are other
+    parts (the input is not modified).
+    """
+    result = []
+    for message in messages:
+        content = _user_parts(message)
+        if not content:
+            result.append(message)
+            continue
+        parts, changed = [], False
+        for part in content:
+            url = _media_data_url(part) if isinstance(part, dict) else ""
+            if url:
+                parts.append({"type": "image_url", "image_url": {"url": url}})
+                changed = True
+            else:
+                parts.append(part)
+        result.append({**message, "content": parts} if changed else message)
+    return result
 
 
 def _claude_max_output(max_tokens: Any, thinking: dict[str, Any] | None, cap: int) -> int:

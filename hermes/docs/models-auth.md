@@ -348,6 +348,16 @@ CLI or a runtime patch: [decision](./decisions/antigravity-provider.md)).
   budget, reduced tool schemas and wire-safe tool names that the client maps
   back). Gemini ids with an effort suffix (`gemini-3.8-flash-high`) keep that
   effort; `agent.reasoning_effort` sets the rest.
+- **Audio and video go to Gemini inline.** In a user message, a `video_url`,
+  `input_audio` or `file` part carrying an audio or video `data:` URL is
+  re-shaped into the one form the runtime's Gemini request builder inlines
+  (it drops those parts otherwise); tool results and assistant turns are left
+  as they are. A request whose media cannot all be sent is refused before
+  anything leaves: audio or video for a Claude model (Claude on Antigravity
+  takes images only), a part that is not base64, or a part the builder dropped.
+  A model asked about media it never received answers anyway, with a made-up
+  description, so dropping one silently is the failure to avoid. The data rides
+  in the request body, so a long recording or video should be trimmed first.
 - **Models.** The account's model list (`fetchAvailableModels`) is read at
   login and saved per profile home (`cache/antigravity/catalog.json`); a
   request refreshes it in the background once it is an hour old. The model
