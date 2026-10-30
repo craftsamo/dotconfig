@@ -98,11 +98,11 @@ def test_candidate_topology_and_always_on_contract():
         assert token in prompt.lower()
     assert "artifact-vs-brief quality verdicts" in prompt
     assert "terminal" not in config["toolsets"]
-    assert set(config["toolsets"]) == {"file", "web", "vision", "video", "skills", "memory", "delegation",
-                                       "evm_access", "solana_access", "hyperliquid_access", "stripe_access",
-                                       "cloudflare_access"}
+    assert set(config["toolsets"]) == {"file", "web", "vision", "video", "audio_analyze", "skills", "memory",
+                                       "delegation", "evm_access", "solana_access", "hyperliquid_access",
+                                       "stripe_access", "cloudflare_access"}
     assert {"evm-access", "solana-access", "hyperliquid-access", "stripe-access",
-            "cloudflare-access"} <= set(config["plugins"]["enabled"])
+            "cloudflare-access", "audio-analyze"} <= set(config["plugins"]["enabled"])
     for platform in ("cli", "a2a"):
         assert set(config["platform_toolsets"][platform]) == set(config["toolsets"]) | {"no_mcp", "connections"}
     assert config["platform_toolsets"]["telegram"] == []
