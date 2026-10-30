@@ -492,7 +492,7 @@ def sweep() -> None:
 
 # --- move and restore ---------------------------------------------------------------------
 
-def move(arg: str, say=print) -> dict:
+def move(arg: str, say=print, expect: str | None = None) -> dict:
     """Copy a local folder to Drive, check the copy by hash, set the folder aside and put its
     link in its place (from then on a new open of the path reaches Drive), refuse while a file
     of the set-aside folder is still open, wait until the mount lists every file, check the
@@ -501,6 +501,7 @@ def move(arg: str, say=print) -> dict:
     rel, here = folder(arg)
     with links_lock():
         recover(say)
+        check_expected("move", rel, expect)
         if is_our_link(here):
             raise DriveError(f"{rel} is already on Drive")
         if here.is_symlink() or not here.is_dir():
@@ -508,13 +509,7 @@ def move(arg: str, say=print) -> dict:
         aside = sibling(here, ".migrating")
         if os.path.lexists(aside):
             raise DriveError(f"{rel_of(aside)} already exists; move it away first")
-        for top, dirs, files in os.walk(here):
-            if ".git" in dirs or ".git" in files:
-                raise DriveError(f"{rel} holds a Git repository ({rel_of(Path(top))}), which stays on this Mac")
-            found = [n for n in dirs + files if os.path.islink(os.path.join(top, n))]
-            if found:
-                raise DriveError(f"{rel} holds links, which Drive cannot keep; resolve them first: "
-                                 + ", ".join(rel_of(Path(top) / n) for n in found[:5]))
+        check_movable(rel, here)
         require_mounted()
         require_lsof()
         tree, rest = rel.split("/", 1)
@@ -554,6 +549,52 @@ def move(arg: str, say=print) -> dict:
     return {"path": rel, "files": count, "bytes": size}
 
 
+def check_movable(rel: str, here: Path) -> None:
+    for top, dirs, files in os.walk(here):
+        if ".git" in dirs or ".git" in files:
+            raise DriveError(f"{rel} holds a Git repository ({rel_of(Path(top))}), which stays on this Mac")
+        found = [n for n in dirs + files if os.path.islink(os.path.join(top, n))]
+        if found:
+            raise DriveError(f"{rel} holds links, which Drive cannot keep; resolve them first: "
+                             + ", ".join(rel_of(Path(top) / n) for n in found[:5]))
+
+
+def plan(kind: str, arg: str) -> dict:
+    """What a move or restore would do, checked as far as it can be without starting: the tool's
+    approval card shows it, and the tool reads it again before queueing the work. A restore is
+    counted through the mount (names and sizes only, nothing is downloaded)."""
+    rel, here = folder(arg)
+    tree = rel.split("/", 1)[0]
+    if kind == "move":
+        if is_our_link(here):
+            raise DriveError(f"{rel} is already on Drive")
+        if here.is_symlink() or not here.is_dir():
+            raise DriveError(f"{rel} is not a folder on this Mac")
+        if os.path.lexists(sibling(here, ".migrating")):
+            raise DriveError(f"{rel}.migrating already exists; a person has to look at it first")
+        check_movable(rel, here)
+        count, size = tally(here)
+    elif kind == "restore":
+        if not is_our_link(here):
+            raise DriveError(f"{rel} is not a folder on Drive (no link of this mount there)")
+        require_mounted()
+        count, size = tally(MOUNT / rel)
+    else:
+        raise DriveError("kind is move or restore")
+    return {"kind": kind, "path": rel, "encrypted": TREES[tree] == "crypt", "files": count, "bytes": size}
+
+
+def plan_digest(p: dict) -> str:
+    """The fingerprint of what an approval card showed; the work runs only while it still holds."""
+    return hashlib.sha256(json.dumps(p, sort_keys=True).encode()).hexdigest()
+
+
+def check_expected(kind: str, rel: str, expect: str | None) -> None:
+    """Under the lock, refuse work whose folder no longer matches what was approved."""
+    if expect and plan_digest(plan(kind, rel)) != expect:
+        raise DriveError(f"{rel} changed after the {kind} was approved; nothing was done. Ask again")
+
+
 def wait_listed(path: Path, count: int, rel: str) -> None:
     """The mount learns of a copy from Drive's change feed (about a minute), at the latest when
     its directory listings expire (DIR_CACHE_TIME)."""
@@ -580,7 +621,7 @@ def undo_move(here: Path, aside: Path, say=print) -> None:
         say(f"rolled back: {rel_of(here)} is on this Mac again; its copy on Drive is kept")
 
 
-def restore(arg: str, say=print) -> dict:
+def restore(arg: str, say=print, expect: str | None = None) -> dict:
     """Copy a moved folder from Drive into a staging folder beside its link, check it by hash
     against Drive both ways, refuse while a file of it is open through the mount, replace the
     link with the folder, check again (so nothing written to Drive in between is lost), and
@@ -590,6 +631,7 @@ def restore(arg: str, say=print) -> dict:
         recover(say)
         if not is_our_link(here):
             raise DriveError(f"{rel} is not a folder on Drive (no link of this mount there)")
+        check_expected("restore", rel, expect)
         staging = sibling(here, ".restoring")
         if os.path.lexists(staging):
             raise DriveError(f"{rel_of(staging)} already exists; move it away first")
@@ -702,6 +744,189 @@ def recover(say=print) -> list[str]:
     return done
 
 
+# --- the queue ----------------------------------------------------------------------------
+# The workspace-drive tool never moves anything itself: after its approval card it leaves a
+# request in QUEUE, and the LaunchAgent runs each request as its own `move` / `restore` process,
+# one at a time, so a move outlives a gateway restart and only the agent reads the Keychain.
+# A request's outcome lands in JOBS as <id>.json; <id>.request marks the one running.
+
+QUEUE = STATE / "queue"
+JOBS = STATE / "jobs"
+QUEUE_POLL = float(os.environ.get("WSD_QUEUE_POLL") or 3)
+JOB_KEEP = 30 * 86400
+
+
+def _write_json(path: Path, data: dict) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(".tmp")
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w") as f:
+        f.write(json.dumps(data, ensure_ascii=False))
+    os.replace(tmp, path)
+
+
+def _read_json(path: Path) -> dict | None:
+    try:
+        return json.loads(path.read_text())
+    except (OSError, ValueError):
+        return None
+
+
+def enqueue(kind: str, arg: str, origin: str = "", expect: str | None = None) -> dict:
+    """Queue a move or restore for the agent; refuses one the agent cannot take (no mount, the
+    same folder already queued or running) and, with expect, one whose folder no longer matches
+    the approved plan. The job carries that fingerprint, so it runs only while it still holds."""
+    import fcntl
+
+    if not mounted():
+        raise DriveError(f"the mount is not up at {MOUNT}; the user restarts it (ws-drive restart)")
+    request = plan(kind, arg)
+    digest = plan_digest(request)
+    if expect and digest != expect:
+        raise DriveError(f"{request['path']} changed after the {kind} was approved; nothing was queued. Ask again")
+    private_state()
+    fd = os.open(STATE / "queue.lock", os.O_RDWR | os.O_CREAT, 0o600)
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX)
+        for pending in [*QUEUE.glob("*.json"), *JOBS.glob("*.request")]:
+            other = _read_json(pending) or {}
+            if other.get("path") == request["path"]:
+                raise DriveError(f"{request['path']} already has a {other.get('kind')} queued or running")
+        job = f"{time.strftime('%Y%m%d-%H%M%S')}-{secrets.token_hex(3)}"
+        entry = {"id": job, "kind": kind, "path": request["path"], "files": request["files"],
+                 "bytes": request["bytes"], "expect": digest, "origin": origin, "queued": int(time.time())}
+        _write_json(QUEUE / f"{job}.json", entry)
+    finally:
+        os.close(fd)
+    return entry
+
+
+def jobs_view(recent: int = 5) -> dict:
+    queued = sorted((e for e in map(_read_json, QUEUE.glob("*.json")) if e), key=lambda e: e.get("queued", 0))
+    running = [e for e in map(_read_json, JOBS.glob("*.request")) if e]
+    done = sorted((e for e in map(_read_json, JOBS.glob("*.json")) if e), key=lambda e: e.get("finished", 0))
+    return {"queued": queued, "running": running, "recent": done[-recent:][::-1]}
+
+
+def _log_lines(path: Path) -> list[str]:
+    try:
+        return [l.strip() for l in path.read_text(errors="replace").splitlines() if l.strip()]
+    except OSError:
+        return []
+
+
+def outcome(job: str) -> dict | None:
+    return _read_json(JOBS / f"{job}.json")
+
+
+def wait_job(job: str, timeout: float) -> int:
+    """Wait for a queued job's outcome and print one line about it (the tool's watcher)."""
+    deadline = time.monotonic() + timeout
+    while (result := outcome(job)) is None:
+        if time.monotonic() >= deadline:
+            print(f"workspace_drive: job {job} is still queued or running; workspace_drive status shows its outcome")
+            return 2
+        time.sleep(5)
+    verb = {"move": "moved to Drive", "restore": "brought back from Drive"}.get(result.get("kind"), "done")
+    if result.get("status") == "done":
+        print(f"workspace_drive: {result.get('path')} {verb} ({result.get('files', '?')} files).")
+        return 0
+    print(f"workspace_drive: the {result.get('kind')} of {result.get('path')} did not finish "
+          f"({result.get('status')}): {result.get('message')}")
+    return 1
+
+
+class Runner:
+    """The agent's queue worker: one job at a time, each its own process, stopped (and so rolled
+    back) when the agent stops."""
+
+    def __init__(self, stop: threading.Event):
+        self.stop = stop
+        self.child: subprocess.Popen | None = None
+        self.lock = threading.Lock()
+
+    def halt(self, wait: float = 60) -> None:
+        with self.lock:
+            child = self.child
+        if child is not None and child.poll() is None:
+            child.terminate()
+            try:
+                child.wait(timeout=wait)
+            except subprocess.TimeoutExpired:
+                child.kill()
+
+    def serve(self) -> None:
+        if JOBS.is_dir() and any(JOBS.glob("*.request")):
+            # A job an earlier agent was running: wait until nothing holds the lock, then record
+            # what its log says (the journal has settled the folder itself).
+            while lock_busy() and not self.stop.is_set():
+                self.stop.wait(QUEUE_POLL)
+            for orphan in JOBS.glob("*.request"):
+                entry = _read_json(orphan) or {"id": orphan.stem}
+                lines = _log_lines(JOBS / f"{entry.get('id', orphan.stem)}.log")
+                if lines and lines[-1].startswith(("moved:", "restored:")):
+                    self._finish(entry, "done", 0, lines[-1])
+                else:
+                    self._finish(entry, "interrupted", None, "the agent stopped while it ran; the folder was put "
+                                                             "back or finished (workspace_drive status)")
+        while not self.stop.is_set():
+            try:
+                if not self._one():
+                    self.stop.wait(QUEUE_POLL)
+            except Exception as exc:  # noqa: BLE001 - keep serving, report the cause
+                print(f"workspaces-drive: queue: {exc}", file=sys.stderr)
+                self.stop.wait(QUEUE_POLL)
+
+    def _one(self) -> bool:
+        requests = sorted(QUEUE.glob("*.json"))
+        if not requests:
+            return False
+        entry = _read_json(requests[0])
+        running = JOBS / f"{requests[0].stem}.request"
+        JOBS.mkdir(parents=True, exist_ok=True)
+        os.replace(requests[0], running)
+        if not entry or entry.get("kind") not in ("move", "restore"):
+            self._finish(entry or {"id": requests[0].stem}, "failed", None, "unreadable request")
+            return True
+        log = JOBS / f"{entry['id']}.log"
+        with open(log, "w") as out:
+            argv = [sys.executable, "-I", str(Path(__file__)), entry["kind"], entry["path"]]
+            if entry.get("expect"):
+                argv += ["--expect", entry["expect"]]
+            child = subprocess.Popen(argv, stdin=subprocess.DEVNULL, stdout=out, stderr=subprocess.STDOUT)
+            with self.lock:
+                self.child = child
+            print(f"workspaces-drive: job {entry['id']}: {entry['kind']} {entry['path']}")
+            while child.poll() is None:
+                if self.stop.is_set():
+                    self.halt()
+                    break
+                self.stop.wait(1)
+            code = child.wait()
+            with self.lock:
+                self.child = None
+        if code == 75 and not self.stop.is_set():
+            os.replace(running, QUEUE / f"{entry['id']}.json")   # the lock was busy: try again shortly
+            self.stop.wait(30)
+            return True
+        lines = _log_lines(log)
+        message = lines[-1].removeprefix("ws-drive: ") if lines else ""
+        status = "done" if code == 0 else ("stopped" if self.stop.is_set() else "failed")
+        self._finish(entry, status, code, message)
+        return True
+
+    def _finish(self, entry: dict, status: str, code, message: str) -> None:
+        job = entry.get("id", "unknown")
+        _write_json(JOBS / f"{job}.json", {**entry, "status": status, "exit": code, "message": message,
+                                           "finished": int(time.time())})
+        (JOBS / f"{job}.request").unlink(missing_ok=True)
+        print(f"workspaces-drive: job {job}: {status}" + (f": {message}" if message else ""))
+        cutoff = time.time() - JOB_KEEP
+        for old in JOBS.glob("*"):
+            if old.suffix in (".json", ".log") and old.stat().st_mtime < cutoff:
+                old.unlink(missing_ok=True)
+
+
 # --- status -------------------------------------------------------------------------------
 
 def scan() -> dict:
@@ -761,7 +986,7 @@ def agent_state() -> dict:
 def status_data() -> dict:
     data = {"agent": agent_state(), "mounted": mounted(), "mount": str(MOUNT),
             "cache_bytes": cache_size(), "cache_limit": CACHE_MAX_SIZE, "busy": lock_busy(),
-            "interrupted": journal_entries(), **scan()}
+            "interrupted": journal_entries(), "jobs": jobs_view(), **scan()}
     data["would_link"] = []
     if data["mounted"]:
         data["would_link"] = [l.split(": ", 1)[1] for l in links(check=True, quiet=True, relink=False)]
@@ -788,6 +1013,12 @@ def status_text(data: dict) -> str:
     lines += [f"leftover: {p}" for p in data["leftovers"]
               if not any(p.startswith(e.get("path", "") + ".") for e in data["interrupted"])]
     lines += [f"would link: {p}" for p in data["would_link"]]
+    jobs = data["jobs"]
+    lines += [f"running: {e.get('kind')} {e.get('path')} (job {e.get('id')})" for e in jobs["running"]]
+    lines += [f"queued: {e.get('kind')} {e.get('path')} (job {e.get('id')})" for e in jobs["queued"]]
+    lines += [f"last: {e.get('kind')} {e.get('path')}: {e.get('status')}"
+              + (f" ({e.get('message')})" if e.get("status") != "done" and e.get("message") else "")
+              for e in jobs["recent"]]
     return "\n".join(lines)
 
 
@@ -984,11 +1215,14 @@ def run_agent() -> int:
         "--dir-cache-time", DIR_CACHE_TIME, "--drive-skip-shortcuts", "-o", NFS_OPTIONS),
         stdin=subprocess.DEVNULL)
     stop = threading.Event()
+    runner = Runner(stop)
     for sig in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP):
         signal.signal(sig, lambda *_: stop.set())
 
     def halt(code: int) -> int:
+        # A move or restore in flight rolls back on its own stop, and needs the mount to do so.
         stop.set()
+        runner.halt()
         if proc.poll() is None:
             proc.terminate()
             try:
@@ -1009,12 +1243,13 @@ def run_agent() -> int:
         stop.wait(0.5)
     print(f"workspaces-drive: mounted {MOUNT}")
     threading.Thread(target=maintain, args=(stop,), daemon=True).start()
+    threading.Thread(target=runner.serve, daemon=True).start()
     while proc.poll() is None and not stop.is_set():
         stop.wait(1)
     if stop.is_set():
         return halt(0)
-    stop.set()
-    return proc.returncode or 1
+    print("workspaces-drive: rclone stopped; launchd starts the agent again", file=sys.stderr)
+    return halt(proc.returncode or 1)
 
 
 def maintain(stop: threading.Event) -> None:
@@ -1054,11 +1289,18 @@ def main(argv=None) -> int:
     sub.add_parser("restart").add_argument("--force", action="store_true")
     sub.add_parser("status").add_argument("--json", action="store_true")
     sub.add_parser("links").add_argument("--check", action="store_true")
-    sub.add_parser("move").add_argument("path")
-    sub.add_parser("restore").add_argument("path")
+    for name in ("move", "restore"):
+        command = sub.add_parser(name)
+        command.add_argument("path")
+        command.add_argument("--expect", help=argparse.SUPPRESS)
+    waiting = sub.add_parser("wait", help="wait for a job the workspace_drive tool queued")
+    waiting.add_argument("job")
+    waiting.add_argument("--timeout", type=float, default=6 * 3600)
     args = parser.parse_args(argv)
     if args.action == "run":
         return run_agent()
+    if args.action == "wait":
+        return wait_job(args.job, args.timeout)
     # A stop (Ctrl-C, a terminal closing, a kill) unwinds like an error, so a move or restore
     # in flight puts everything back.
     signal.signal(signal.SIGTERM, _stop_on_signal)
@@ -1081,9 +1323,9 @@ def main(argv=None) -> int:
                 lines += links(check=args.check)
             print("\n".join(lines) if lines else "nothing to link")
         elif args.action == "move":
-            move(args.path, say=lambda line: print(line, flush=True))
+            move(args.path, say=lambda line: print(line, flush=True), expect=args.expect)
         elif args.action == "restore":
-            restore(args.path, say=lambda line: print(line, flush=True))
+            restore(args.path, say=lambda line: print(line, flush=True), expect=args.expect)
     except Busy as exc:
         print(f"ws-drive: {exc}", file=sys.stderr)
         return 75

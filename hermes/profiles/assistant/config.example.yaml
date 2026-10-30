@@ -44,6 +44,7 @@ toolsets:
 - audio_analyze
 - screen_listen
 - workspace_registry
+- workspace_drive
 - hyperliquid_access
 - stripe_access
 - cloudflare_access
@@ -932,6 +933,7 @@ platform_toolsets:
   - audio_analyze
   - screen_listen
   - workspace_registry
+  - workspace_drive
   - web
   - browser
   - terminal
@@ -956,6 +958,7 @@ platform_toolsets:
   - audio_analyze
   - screen_listen
   - workspace_registry
+  - workspace_drive
   - web
   - browser
   - terminal
@@ -980,6 +983,7 @@ platform_toolsets:
   - audio_analyze
   - screen_listen
   - workspace_registry
+  - workspace_drive
   - web
   - browser
   - terminal
@@ -1043,6 +1047,7 @@ screen_listen:
 plugins:
   enabled:
   - workspace-registry
+  - workspace-drive
   - specialist-call
   - irodori-tts
   - qwen3-tts

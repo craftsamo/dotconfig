@@ -33,6 +33,9 @@
   <!-- A server that died leaves its mount for deadtimeout (30 s) before it is dropped. -->
   <key>ThrottleInterval</key>
   <integer>30</integer>
+  <!-- A stop lets a move or restore in flight roll back before the mount goes. -->
+  <key>ExitTimeOut</key>
+  <integer>90</integer>
   <key>ProcessType</key>
   <string>Background</string>
 
