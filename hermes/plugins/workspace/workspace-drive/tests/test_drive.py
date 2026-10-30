@@ -666,6 +666,83 @@ def test_the_run_loop_mounts_links_and_stops_on_term(home: Path):
     assert not (home / ".mounted").exists()
 
 
+# --- the queue the workspace_drive tool feeds ----------------------------------------------
+
+def test_a_queued_move_runs_in_the_agent_and_wait_reports_it(home: Path):
+    local = set_up(home)
+    data = make(home / "Workspaces" / "Projects" / "Alpha" / "data", {"a.csv": "a"})
+    queued = call(home, "print(drive.enqueue('move', 'Projects/Alpha/data', origin='assistant')['id'])")
+    assert queued.returncode == 0, queued.stderr
+    job = queued.stdout.strip()
+    (home / ".mounted").unlink()
+    proc = subprocess.Popen([sys.executable, str(DRIVE), "run"], env=env(home, WSD_QUEUE_POLL="0.2"),
+                            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    result = local / "jobs" / f"{job}.json"
+    deadline = time.time() + 30
+    while not result.exists() and time.time() < deadline:
+        time.sleep(0.2)
+    try:
+        assert result.exists(), "the agent did not run the queued move"
+    finally:
+        proc.send_signal(signal.SIGTERM)
+        proc.communicate(timeout=60)
+    outcome = json.loads(result.read_text())
+    assert outcome["status"] == "done" and outcome["message"].startswith("moved: Projects/Alpha/data")
+    assert os.readlink(data) == "../../.drive/Projects/Alpha/data"
+    assert not list((local / "queue").glob("*.json")) and not list((local / "jobs").glob("*.request"))
+    waited = run(home, "wait", job)
+    assert waited.returncode == 0 and "Projects/Alpha/data moved to Drive (1 files)" in waited.stdout
+
+
+def test_a_job_whose_folder_changed_after_approval_is_refused(home: Path):
+    set_up(home)
+    data = make(home / "Workspaces" / "Projects" / "Alpha" / "data", {"a.csv": "a"})
+    queued = call(home, "e = drive.enqueue('move', 'Projects/Alpha/data'); print(e['expect'])")
+    assert queued.returncode == 0, queued.stderr
+    (data / "big.bin").write_text("added while it waited")
+    done = run(home, "move", "Projects/Alpha/data", "--expect", queued.stdout.strip())
+    assert done.returncode == 1 and "changed after the move was approved" in done.stderr
+    assert data.is_dir() and not data.is_symlink() and not any(" copy " in c for c in calls(home))
+    stale = call(home, "drive.enqueue('move', 'Projects/Alpha/data', expect='0' * 64)")
+    assert stale.returncode != 0 and "changed after the move was approved; nothing was queued" in stale.stderr
+
+
+def test_enqueue_refuses_without_the_mount_and_twice_for_one_folder(home: Path):
+    set_up(home, mounted=False)
+    make(home / "Workspaces" / "Projects" / "Alpha" / "data", {"a.csv": "a"})
+    code = "drive.enqueue('move', 'Projects/Alpha/data')"
+    assert "not up" in call(home, code).stderr
+    (home / ".mounted").write_text("")
+    assert call(home, code).returncode == 0
+    assert "already has a move queued" in call(home, code).stderr
+
+
+def test_wait_reports_a_failed_job_and_gives_up_after_its_timeout(home: Path):
+    local = set_up(home)
+    jobs = local / "jobs"
+    jobs.mkdir()
+    (jobs / "j1.json").write_text(json.dumps({"id": "j1", "kind": "move", "path": "Projects/Alpha/data",
+                                              "status": "failed", "message": "files are open"}))
+    failed = run(home, "wait", "j1")
+    assert failed.returncode == 1 and "did not finish (failed): files are open" in failed.stdout
+    pending = run(home, "wait", "j2", "--timeout", "0")
+    assert pending.returncode == 2 and "still queued or running" in pending.stdout
+
+
+def test_a_job_the_agent_was_running_when_it_stopped_is_settled_from_its_log(home: Path):
+    local = set_up(home)
+    jobs = local / "jobs"
+    jobs.mkdir()
+    for job, last in (("done1", "moved: Projects/Alpha/data -> Drive (3 files)"), ("cut1", "copying Projects/B/x")):
+        (jobs / f"{job}.request").write_text(json.dumps({"id": job, "kind": "move", "path": "Projects/Alpha/data"}))
+        (jobs / f"{job}.log").write_text(f"copying\n{last}\n")
+    done = call(home, "import threading; e = threading.Event(); e.set(); drive.Runner(e).serve()")
+    assert done.returncode == 0, done.stderr
+    assert json.loads((jobs / "done1.json").read_text())["status"] == "done"
+    assert json.loads((jobs / "cut1.json").read_text())["status"] == "interrupted"
+    assert not list(jobs.glob("*.request"))
+
+
 def test_the_launchers_are_executable_in_git():
     root = HERMES.parent
     paths = ["bin/ws-drive", "hermes/launchd/bin/hermes-workspaces-drive-mount"]

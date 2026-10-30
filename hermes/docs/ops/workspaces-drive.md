@@ -42,9 +42,11 @@ over anything written into it meanwhile.
 | Piece                                                                           | Home                                                                                                        |
 | ------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
 | Engine: setup, LaunchAgent, links, move, restore, status, the agent's run loop  | `plugins/workspace/workspace-drive/drive.py` (stdlib only)                                                  |
+| Hermes tool `workspace_drive`, its approval gate and bypass guard               | `plugins/workspace/workspace-drive/__init__.py`, skill `skills/manage/`                                     |
 | Command for a person (`ws-drive`), on Hermes' own Python                        | `bin/ws-drive`                                                                                              |
 | LaunchAgent `local.hermes.workspaces-drive.mount`                               | `launchd/local.hermes.workspaces-drive.mount.plist.tmpl`, entry `launchd/bin/hermes-workspaces-drive-mount` |
 | Encrypted rclone config, cache, the links lock, the journal of interrupted work | `$HERMES_LOCAL/workspaces-drive/` (`rclone.conf`, `cache/`, `links.lock`, `journal/`)                       |
+| The tool's queued requests and their outcomes                                   | `$HERMES_LOCAL/workspaces-drive/` (`queue/`, `jobs/`)                                                       |
 | Config password, crypt password and salt, optional OAuth client                 | Keychain, project `hermes`, scope `workspaces-drive`                                                        |
 
 ## Layout
@@ -161,6 +163,39 @@ work, which the next pass then undoes).
 `status` (`--json` for tools) lists the agent, the mount, the cache size, the
 folders on Drive, the `assets/` kept here, foreign links, interrupted work and
 what a links pass would add, without changing anything.
+
+## The Hermes tool
+
+`workspace_drive` (toolset `workspace_drive`, plugin `workspace-drive`) is how
+Hermes works with this mount. Every profile the plugin is enabled in may call
+`status`; a profile other than the Assistant sees only `Projects/`. Only the
+Assistant may call `move` and `restore`, and inbound A2A requests get nothing.
+
+- **Approval.** A `pre_tool_call` hook builds an approval card for every move
+  and restore: the folder, its file count and size, whether Drive keeps it
+  encrypted, and what happens to the local copy. A call that would fail (a
+  folder the layout keeps here, the mount down) is blocked without asking, and
+  where no person can answer the card (cron, YOLO, a single query) nothing is
+  queued. An "always" answer never covers the next move. The handler counts
+  the folder again and queues nothing when it changed since the card.
+- **Queue.** The approved call only writes a request into `queue/`. The
+  LaunchAgent runs each request, one at a time, as its own `move` or `restore`
+  process (the same code as `ws-drive`), so a move outlives a gateway restart
+  and only the agent reads the Keychain. Stopping the agent stops the running
+  job, which rolls back. The outcome lands in `jobs/<id>.json`, kept 30 days;
+  a job a busy lock held back is retried.
+- **Notification.** The tool starts a background watcher (`drive.py wait
+<id>`) whose one-line outcome Hermes reports to the conversation; when the
+  watcher is gone, `status` lists queued, running and recent jobs.
+- **Guard.** The same hook blocks terminal, code and file calls that would go
+  around the tool: `ws-drive`'s changing commands, `drive.py` with them,
+  rclone with the mount's remotes, the Keychain items, the state folder, the
+  LaunchAgent and `~/Workspaces/.drive` itself. Reading and writing a folder on
+  Drive at its usual path stays open. A pattern match on the call's text, not
+  a sandbox.
+
+The Assistant's playbook is the `workspace-drive:manage` skill; the rules of
+the working area it works in are `~/Workspaces/AGENTS.md`.
 
 ## NFS behaviour
 
