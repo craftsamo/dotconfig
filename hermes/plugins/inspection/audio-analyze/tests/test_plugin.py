@@ -93,6 +93,16 @@ def test_no_answer_anywhere_is_a_failure_not_a_guess(tmp_path):
     assert [f["provider"] for f in parsed["failed_backends"]] == ["provider-a", "openrouter"]
 
 
+def test_the_question_is_asked_before_the_description(tmp_path):
+    recording = tmp_path / "a.wav"
+    recording.write_bytes(b"x")
+    llm = AsyncMock(return_value=_reply("answer"))
+    _run({"audio_url": str(recording), "question": "what is misread?"}, llm)
+    prompt = llm.call_args.kwargs["messages"][0]["content"][0]["text"]
+    assert prompt.index("answer the following question") < prompt.index("describe")
+    assert prompt.endswith("what is misread?")
+
+
 def test_an_answer_cut_off_everywhere_comes_back_marked_truncated(tmp_path):
     recording = tmp_path / "a.wav"
     recording.write_bytes(b"x")

@@ -247,6 +247,8 @@ class VideoAnalyzeMimoBackendOrderTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual((parsed["provider"], parsed["analysis"]), ("openrouter", "full"))
         self.assertNotIn("truncated", parsed)
         self.assertEqual(parsed["failed_backends"][0]["error"], "the answer was cut off at the output limit")
+        prompt = mock_llm.call_args_list[0].kwargs["messages"][0]["content"][0]["text"]
+        self.assertLess(prompt.index("answer the following question"), prompt.index("describe"))
 
     async def test_an_answer_cut_off_everywhere_comes_back_marked_truncated(self) -> None:
         parsed, _ = await self._run([_reply("part a", finish_reason="length"), _reply("part b", finish_reason="length")])

@@ -54,10 +54,12 @@ media_backends = _shared("hermes_media_backends", "media_backends.py")
 
 _DEFAULT_BACKEND = ("openrouter", "xiaomi/mimo-v2.5")
 
+# The question comes first: an answer that runs long is cut at its end, and the description is
+# what can be spared.
 _PROMPT = (
-    "Fully describe and explain everything happening in this video, including "
-    "visual content, motion, audio cues, text overlays, and scene transitions. "
-    "Then answer the following question:\n\n{question}"
+    "Watch the whole video. First answer the following question completely. Then briefly describe "
+    "what happens in the video, including visual content, motion, audio cues, text overlays and "
+    "scene transitions, with approximate timestamps.\n\nQuestion:\n{question}"
 )
 
 

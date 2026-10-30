@@ -53,10 +53,12 @@ MAX_AUDIO_BYTES = 14 * 1024 * 1024
 FORMATS = {".wav": "wav", ".mp3": "mp3", ".m4a": "m4a", ".aac": "aac", ".ogg": "ogg", ".oga": "ogg",
            ".opus": "ogg", ".flac": "flac", ".aiff": "aiff", ".aif": "aiff"}
 
+# The question comes first: an answer that runs long is cut at its end, and the description is
+# what can be spared.
 _PROMPT = (
-    "Listen to the whole recording. Describe what is said (who speaks and how many voices, in the "
-    "language spoken), the tone, and any music or other sounds, with approximate timestamps. Then "
-    "answer the following question:\n\n{question}"
+    "Listen to the whole recording. First answer the following question completely. Then briefly "
+    "describe what is said (who speaks and how many voices, in the language spoken), the tone, and "
+    "any music or other sounds, with approximate timestamps.\n\nQuestion:\n{question}"
 )
 
 AUDIO_ANALYZE_SCHEMA = {
