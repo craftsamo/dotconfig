@@ -15,8 +15,9 @@ spec.loader.exec_module(mb)
 DEFAULT = ("openrouter", "xiaomi/mimo-v2.5")
 
 
-def reply(content, reasoning=None):
-    return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content=content, reasoning=reasoning))])
+def reply(content, reasoning=None, finish_reason="stop"):
+    return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content=content, reasoning=reasoning),
+                                                    finish_reason=finish_reason)])
 
 
 def test_backends_are_read_in_order_without_duplicates():
@@ -110,6 +111,34 @@ def test_an_error_summary_keeps_type_status_and_a_short_first_line():
 
     assert mb._summary(HTTPError("not found\nhttps://example.com/v1?key=secret")) == "HTTPError HTTP 404 not found"
     assert len(mb._summary(RuntimeError("x" * 500))) <= len("RuntimeError ") + 120
+
+
+def test_an_answer_cut_off_at_the_output_limit_moves_on_without_a_retry():
+    call, seen = _calls(reply("overview, then noth", finish_reason="length"), reply("full answer"))
+    result = asyncio.run(mb.analyze([("a", "1"), ("b", "2")], [], call=call))
+    assert seen == [("a", "1"), ("b", "2")]
+    assert (result["provider"], result["analysis"], result["truncated"]) == ("b", "full answer", False)
+    assert result["failed"] == [{"provider": "a", "model": "1", "error": "the answer was cut off at the output limit"}]
+
+
+def test_when_nothing_answers_in_full_the_first_partial_answer_comes_back_marked():
+    call, _ = _calls(reply("first part", finish_reason="length"), RuntimeError("down"),
+                     reply("second part", finish_reason="MAX_TOKENS"))
+    result = asyncio.run(mb.analyze([("a", "1"), ("b", "2"), ("c", "3")], [], call=call))
+    assert (result["provider"], result["analysis"], result["truncated"]) == ("a", "first part", True)
+    assert [f["provider"] for f in result["failed"]] == ["b", "c"]
+
+
+def test_the_output_cap_leaves_room_for_hidden_thinking():
+    call, _ = _calls(reply("ok"))
+    seen = {}
+
+    async def spy(**kwargs):
+        seen.update(kwargs)
+        return await call(**kwargs)
+
+    asyncio.run(mb.analyze([("a", "1")], [], call=spy))
+    assert seen["max_tokens"] == mb.MAX_OUTPUT_TOKENS >= 16384
 
 
 def test_no_answer_anywhere_raises_with_every_failure():

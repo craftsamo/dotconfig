@@ -134,6 +134,9 @@ async def _video_analyze_mimo(args: Dict[str, Any], **_kw: Any) -> str:
         result = await media_backends.analyze(backends, messages)
         reply = {"success": True, "analysis": result["analysis"],
                  "provider": result["provider"], "model": result["model"]}
+        if result.get("truncated"):
+            reply["truncated"] = True
+            reply["note"] = media_backends.TRUNCATED_NOTE
         if result["failed"]:
             reply["failed_backends"] = result["failed"]
         return json.dumps(reply, indent=2, ensure_ascii=False)

@@ -32,8 +32,8 @@ class FakeContext:
         self.tools[name] = kwargs
 
 
-def _reply(text: str) -> Any:
-    return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content=text))])
+def _reply(text: str, finish_reason: str = "stop") -> Any:
+    return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content=text), finish_reason=finish_reason)])
 
 
 def _forbidden_call(*_args: Any, **_kwargs: Any) -> Any:
@@ -241,6 +241,18 @@ class VideoAnalyzeMimoBackendOrderTest(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("analysis", parsed)
         self.assertEqual([f["provider"] for f in parsed["failed_backends"]], ["provider-a", "openrouter"])
         self.assertEqual(parsed["failed_backends"][1]["error"], "the reply had no text")
+
+    async def test_an_answer_cut_off_at_the_output_limit_hands_over_to_the_next(self) -> None:
+        parsed, mock_llm = await self._run([_reply("overview, then noth", finish_reason="length"), _reply("full")])
+        self.assertEqual((parsed["provider"], parsed["analysis"]), ("openrouter", "full"))
+        self.assertNotIn("truncated", parsed)
+        self.assertEqual(parsed["failed_backends"][0]["error"], "the answer was cut off at the output limit")
+
+    async def test_an_answer_cut_off_everywhere_comes_back_marked_truncated(self) -> None:
+        parsed, _ = await self._run([_reply("part a", finish_reason="length"), _reply("part b", finish_reason="length")])
+        self.assertTrue(parsed["success"] and parsed["truncated"])
+        self.assertEqual(parsed["analysis"], "part a")
+        self.assertIn("unknown", parsed["note"])
 
 
 if __name__ == "__main__":

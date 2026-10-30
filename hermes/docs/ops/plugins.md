@@ -90,7 +90,11 @@ user keys.
   fallback would send the video to a provider the list does not name. A reply
   that is only reasoning counts as no answer, since a model that never saw the
   video describes one anyway; when every backend fails, the tool says so
-  rather than returning a guess.
+  rather than returning a guess. An answer cut off at the output limit is a
+  failure too: a thinking model spends the cap on hidden thoughts first, so a
+  small cap returns the opening of an answer as a success. The cap (16,384
+  tokens) leaves room for those thoughts, and a partial answer comes back,
+  marked `truncated`, only when no backend answered in full.
 - **inspection/audio-analyze** (`standalone`): the `audio_analyze` tool for the
   Assistant, researcher and audio-creator. One recording (a local file or an
   http(s) URL; wav, mp3, m4a, aac, ogg, opus, flac or aiff, up to 14 MiB)

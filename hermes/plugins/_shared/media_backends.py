@@ -11,6 +11,11 @@ section with neither falls back to the tool's default: the media goes to the lis
 nowhere else. ``analyze`` tries the backends in order:
 an error moves on to the next one, and so does an answer with no text after one retry. A reply
 that is only reasoning (the model never saw the media, or gave up) is not an analysis.
+
+An answer cut off at the output limit (``finish_reason == "length"``) also moves on: a thinking
+model spends its output budget on hidden thoughts first, so a small cap returns the opening of an
+answer with ``success`` and the questions unanswered. It is returned, marked ``truncated``, only
+when no backend answers in full.
 """
 
 from __future__ import annotations
@@ -21,6 +26,13 @@ from typing import Any, Awaitable, Callable, Optional
 logger = logging.getLogger(__name__)
 
 Backend = tuple[str, str]
+
+# Room for a thinking model's hidden thoughts and the answer: thoughts count against the cap, and
+# a medium-effort Gemini spent nearly 4,000 tokens thinking about a 2.5-minute recording.
+MAX_OUTPUT_TOKENS = 16384
+
+TRUNCATED_NOTE = ("The answer stops at the output limit on every backend: whatever comes after the cut, "
+                  "including any question not yet answered, is unknown, not 'none found'.")
 
 
 def _pair(entry: Any) -> Optional[Backend]:
@@ -63,6 +75,15 @@ def answer_text(response: Any) -> str:
     return str(content or "").strip()
 
 
+def was_cut_off(response: Any) -> bool:
+    """True when the reply stopped at the output limit rather than ending on its own."""
+    try:
+        reason = response.choices[0].finish_reason
+    except (AttributeError, IndexError, TypeError):
+        return False
+    return str(reason or "").lower() in ("length", "max_tokens")
+
+
 class AllBackendsFailed(RuntimeError):
     def __init__(self, failures: list[dict[str, str]]) -> None:
         super().__init__("; ".join(f"{f['provider']}/{f['model']}: {f['error']}" for f in failures))
@@ -93,18 +114,22 @@ def _summary(exc: Exception) -> str:
 
 async def analyze(
     backends: list[Backend], messages: list[dict[str, Any]], *,
-    call: Optional[Callable[..., Awaitable[Any]]] = None, max_tokens: int = 4000, timeout: float = 180,
+    call: Optional[Callable[..., Awaitable[Any]]] = None, max_tokens: int = MAX_OUTPUT_TOKENS,
+    timeout: float = 180,
 ) -> dict[str, Any]:
-    """The first backend's answer that has text: ``{"provider", "model", "analysis", "failed"}``.
+    """The first backend's complete answer: ``{"provider", "model", "analysis", "failed", "truncated"}``.
 
-    ``failed`` lists the backends tried before it, each with its error. Raises ``AllBackendsFailed``
-    when none answers. Each backend is called on its own (``direct_call``), never through a path
-    that may hand the media to a provider the list does not name.
+    ``failed`` lists the backends tried before it, each with its error. When every backend fails
+    but one answered in part, that first partial answer is returned with ``truncated`` set (and is
+    left out of ``failed``); with no text at all, raises ``AllBackendsFailed``. Each backend is
+    called on its own (``direct_call``), never through a path that may hand the media to a provider
+    the list does not name.
     """
     call = call or direct_call
     failures: list[dict[str, str]] = []
+    partial: Optional[dict[str, Any]] = None
     for provider, model in backends:
-        text, error = "", ""
+        text, error, cut_off = "", "", False
         for _ in range(2):  # an empty reply gets one more try on the same backend
             try:
                 response = await call(provider=provider, model=model, messages=messages, temperature=0.1,
@@ -113,10 +138,20 @@ async def analyze(
                 error = _summary(exc)
                 break
             if text := answer_text(response):
+                cut_off = was_cut_off(response)
                 break
             error = "the reply had no text"
+        if text and not cut_off:
+            return {"provider": provider, "model": model, "analysis": text, "failed": failures,
+                    "truncated": False}
         if text:
-            return {"provider": provider, "model": model, "analysis": text, "failed": failures}
+            error = "the answer was cut off at the output limit"
         logger.warning("media_backends: %s/%s failed (%s); trying the next backend", provider, model, error)
-        failures.append({"provider": provider, "model": model, "error": error})
+        failure = {"provider": provider, "model": model, "error": error}
+        failures.append(failure)
+        if text and partial is None:
+            partial = {"provider": provider, "model": model, "analysis": text, "failure": failure}
+    if partial is not None:
+        return {"provider": partial["provider"], "model": partial["model"], "analysis": partial["analysis"],
+                "failed": [f for f in failures if f is not partial["failure"]], "truncated": True}
     raise AllBackendsFailed(failures)
