@@ -39,7 +39,7 @@ Virality != truth. A high search rank is not reliability.
   run (a handful of URL fetches, a definition check).
 - **Heavy breadth beyond your runtime** (link harvesting, enumerations,
   exhaustive multi-hop hunts, reads of X, YouTube, note or Substack) is a
-  search unit your orchestrator — the advisor client (creator, marketer or
+  search unit your orchestrator — the assistant or the advisor client (creator, marketer or
   another) — releases
   to Searcher directly. Ask for it instead of grinding it yourself: describe
   the retrieval need, floor counts, per-item fields and, when one fits,

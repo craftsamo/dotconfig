@@ -13,11 +13,11 @@ marketer; it is their only outbound path (the raw `a2a_*` tools stay off, see
 [topology](../topology.md) "Toolsets"). Each caller has an explicit
 `specialist_call.resident_targets` allowlist:
 
-| Caller    | Targets                                                                                                                   |
-| --------- | ------------------------------------------------------------------------------------------------------------------------- |
-| assistant | creator, marketer, writer, image-creator, video-creator, audio-creator; searcher resident-only. Never researcher directly |
-| creator   | researcher; searcher resident-only                                                                                        |
-| marketer  | researcher; searcher resident-only (keeps inbound A2A for its clients)                                                    |
+| Caller    | Targets                                                                                                    |
+| --------- | ---------------------------------------------------------------------------------------------------------- |
+| assistant | creator, marketer, writer, researcher, image-creator, video-creator, audio-creator; searcher resident-only |
+| creator   | researcher; searcher resident-only                                                                         |
+| marketer  | researcher; searcher resident-only (keeps inbound A2A for its clients)                                     |
 
 A caller may call a target only when both the plugin's roster and the caller's
 `resident_targets` name it: the roster is code (`TARGETS`), so editing a

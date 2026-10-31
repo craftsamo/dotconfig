@@ -43,13 +43,14 @@ evidence-based on top, per unit. Searcher retrieval gates through
 
 Use the agreed proposal or explicitly released settled brief as the acceptance
 baseline, including approved changes, scope and budget. A Plan proposal is not
-a researched conclusion. For purpose-first work, require the primary-relayed
+a researched conclusion. For purpose-first work routed through a primary, require the primary-relayed
 agreed research proposal/scope: questions, done criteria, source policy, budget
 and approved changes (explicitly none when unchanged). The primary owns that
 agreement; Assistant must not reconstruct it from the original purpose.
+For direct calls, Assistant agrees the proposal directly and retains the baseline.
 Alternatively use the explicitly authorized original settled brief only while
 unchanged. Missing relayed baseline or authorized original settled brief means
-unverified: request the missing baseline as a spec-gap through the primary.
+unverified: request the missing baseline as a spec-gap through the primary (or directly from Researcher).
 No acceptance from purpose alone, conclusions alone or specialist self-QA.
 Researcher's specialist self-check, Build's last step, is a self-check, not an
 external pass: the immediate primary Client independently accepts its evidence,
@@ -75,7 +76,7 @@ specialist self-check procedure here or relax any scoring, criteria or correctio
 5. **Verdict** — pass → accept; the conclusion becomes a part
    (`../execute/SKILL.md`) or the delivery. Fail →
    itemized, scope-anchored feedback through the same route the
-   unit traveled (the consuming primary's session or peer request).
+   unit traveled (the direct researcher conversation or the consuming primary's session/peer request).
 
 ## Contract files
 
@@ -90,6 +91,6 @@ specialist self-check procedure here or relax any scoring, criteria or correctio
 
 A part fails its CONSUMER's needs (a ledger your QA pass cannot
 adjudicate from, guidance the writer cannot act on without the
-sources) → the defect returns through the consuming primary's same
+sources) → the defect returns through the direct researcher conversation or the consuming primary's same
 conversation as a normal feedback turn when the brief asked for it,
 or to Plan as a spec gap when it did not; the consumer never re-researches.

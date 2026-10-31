@@ -15,5 +15,5 @@ in-turn with `delegate_task`.
 - Wrong for: anything needing follow-up questions to the same child
   (resident session), durable retrieval with a coverage claim — sweeps
   and hunts are searcher units (`../../search/plan/SKILL.md`) — or
-  depth/synthesis (through the consuming primary, never a direct researcher
-  session; `../../research/execute/SKILL.md`).
+  depth/synthesis (supervised researcher units, direct or through a primary;
+  `../../research/execute/SKILL.md`).
