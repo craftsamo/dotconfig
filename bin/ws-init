@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# ws-init — give this machine the Workspaces skeleton its layout describes:
+# the root, every area, .inbox/ and .agent/, and an empty workspace registry
+# when there is none. Creates only what is missing; install.sh runs it.
+#
+#   ws-init            create what is missing
+#   ws-init --check    report what would be created, change nothing
+#   ws-init --json     the result as JSON
+#
+# The code is shared by the Hermes workspace plugins (hermes/plugins/_shared/
+# workspace_init.py). Contract: hermes/docs/workspace-layout.md.
+# Override: WS_INIT_CLI, WORKSPACES_LAYOUT, WORKSPACES_ROOT.
+set -euo pipefail
+
+cli="${WS_INIT_CLI:-$HOME/.config/hermes/plugins/_shared/workspace_init.py}"
+if [[ ! -f $cli ]]; then
+  echo "ws-init: cannot find $cli (set WS_INIT_CLI)" >&2
+  exit 127
+fi
+exec python3 "$cli" "$@"

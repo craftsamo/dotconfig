@@ -40,14 +40,32 @@ and at the root (`.agent/`, `.inbox/`, `.registry/`) is a fixed convention of
 the tools, not part of the layout; the Assistant's
 `pipeline/references/workspace-layout.md` describes it.
 
+## First run
+
+`install.sh` runs `ws-init` after the private overlay, so a machine with only
+the public checkout gets a working `~/Workspaces` too. It creates, each only
+when missing:
+
+- the root and every area of the layout;
+- `.inbox/` and `.agent/` at the root;
+- an empty workspace registry (`.registry/`, the tables `wsreg init` writes).
+
+The root and the sensitive areas it creates are private to the user (`0700`);
+an existing folder keeps its mode and contents. It never creates a Group, an
+`AGENTS.md` (the private overlay links its own, and a real file there would
+block that link) or any data, and it refuses, rather than replaces, a file
+where a folder should be. A second run changes nothing; `ws-init --check`
+reports what it would create.
+
 ## Pieces
 
-| Piece                                       | Home                                  | Reader                  |
-| ------------------------------------------- | ------------------------------------- | ----------------------- |
-| Reader (`load()`, the defaults, validation) | `plugins/_shared/workspace_layout.py` | plugins, launchers      |
-| Launcher printing the layout in force       | `../bin/ws-layout`                    | people, shell functions |
-| The same rules for OpenCode's tools         | `../opencode/lib/workspace-layout.ts` | OpenCode custom tools   |
-| A machine's own layout (optional)           | `~/.config/workspaces/layout.json`    | all                     |
+| Piece                                       | Home                                                  | Reader                  |
+| ------------------------------------------- | ----------------------------------------------------- | ----------------------- |
+| Reader (`load()`, the defaults, validation) | `plugins/_shared/workspace_layout.py`                 | plugins, launchers      |
+| Launcher printing the layout in force       | `../bin/ws-layout`                                    | people, shell functions |
+| The same rules for OpenCode's tools         | `../opencode/lib/workspace-layout.ts`                 | OpenCode custom tools   |
+| The skeleton on a fresh machine (`ws-init`) | `plugins/_shared/workspace_init.py`, `../bin/ws-init` | `install.sh`, people    |
+| A machine's own layout (optional)           | `~/.config/workspaces/layout.json`                    | all                     |
 
 The reader is stdlib only and runs on the system Python 3.9 too, because the
 `ws-*` launchers run `python3` from `PATH`. It reads the file on every call,

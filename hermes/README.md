@@ -34,7 +34,7 @@ a profile sees only its `config.yaml`, `SOUL.md` and skills.
 
 ```sh
 ~/.config/hermes/setup.sh      # the binary (idempotent; ghq + PM do the rest)
-~/ghq/github.com/craftsamo/dotconfig/install.sh   # the ~/.hermes/ links (re-run after adding files)
+~/ghq/github.com/craftsamo/dotconfig/install.sh   # the ~/.hermes/ links and the ~/Workspaces skeleton (re-run after adding files)
 hermes --version               # verify
 ```
 
