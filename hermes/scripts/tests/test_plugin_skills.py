@@ -60,7 +60,6 @@ EXPECTED = {
     "github-access": {"read-tracking": {"assistant"}, "manage-tracking": {"assistant"}, "manage-repo": {"assistant"},
                       "manage-pr": {"assistant"}},
     "workspace/workspace-drafts": {"inventory": {"assistant"}},
-    "workspace/workspace-drive": {"manage": {"assistant"}},
     "workspace/workspace-registry": {"manage": {"assistant"}},
     "messaging/discord-access": {
         "account": {"assistant"},
