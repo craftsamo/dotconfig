@@ -27,6 +27,7 @@ from __future__ import annotations
 import argparse
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, time, timedelta, timezone
+import importlib.util
 import json
 import os
 from pathlib import Path
@@ -39,7 +40,6 @@ ACTIONS = ("summary", "prs", "issues", "commits")
 PERIODS = {"today": 1, "week": 7, "month": 30}
 MAX_DAYS = 365
 COMMIT_LIMIT = 300
-AREAS = ("Projects", "Personal")
 FLAGS = ("broken", "not-git", "no-remote", "remote-missing", "shared-origin", "dirty", "unpushed",
          "no-upstream", "behind", "detached", "stash", "worktrees", "read-only")
 ATTENTION = ("broken", "not-git", "no-remote", "remote-missing", "shared-origin", "dirty", "unpushed",
@@ -55,8 +55,29 @@ GITHUB = re.compile(r"(?:git@github\.com:|ssh://git@github\.com/|https://github\
                     r"([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+?)(?:\.git)?/?\Z")
 
 
+def _layout_module():
+    """The shared Workspaces layout reader (plugins/_shared/workspace_layout.py), loaded by path."""
+    name = "hermes_workspace_layout"
+    if name not in sys.modules:
+        path = Path(__file__).resolve().parents[2] / "_shared" / "workspace_layout.py"
+        spec = importlib.util.spec_from_file_location(name, path)
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[name] = module
+        spec.loader.exec_module(module)
+    return sys.modules[name]
+
+
+workspace_layout = _layout_module()
+
+
 def default_root():
-    return Path(os.environ.get("WORKSPACES_ROOT") or Path.home() / "Workspaces")
+    """The Workspaces root in force (the layout file, WORKSPACES_ROOT, else ~/Workspaces)."""
+    return workspace_layout.load().root
+
+
+def areas():
+    """The areas of Groups, in the layout's order."""
+    return workspace_layout.load().names
 
 
 # --------------------------------------------------------------------------
@@ -76,7 +97,7 @@ def _git(repo, *args):
 
 def _entries(root):
     """(group, path) for every entry of <Area>/<Group>/github/."""
-    for area in AREAS:
+    for area in areas():
         try:
             groups = sorted(p for p in (root / area).iterdir()
                             if p.is_dir() and not p.is_symlink() and not p.name.startswith("."))

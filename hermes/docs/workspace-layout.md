@@ -55,3 +55,11 @@ other `_shared` modules.
 
 `ws-layout` prints the resolved layout as JSON; `--root`, `--areas`,
 `--projects` and `--path` print one value each for shell use.
+
+## Who reads it
+
+| Reader                                    | Uses                                                                     |
+| ----------------------------------------- | ------------------------------------------------------------------------ |
+| Draft scanner (`workspace-drafts`)        | the root, and every area's Groups for their `.agent/`                    |
+| Repository scanner (`workspace-repos`)    | the root, and every area's Groups for their `github/`                    |
+| Workspace registry (`workspace-registry`) | the root (unless `WSREG_ROOT`), and the projects area for project Groups |
