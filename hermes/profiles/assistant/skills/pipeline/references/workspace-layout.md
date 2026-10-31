@@ -3,6 +3,25 @@
 Shared rules for locating work under `~/Workspaces` and for handling drafts.
 This reference owns these facts; other documents point here.
 
+## Areas
+
+The root and its top-level areas come from this machine's workspace layout, not
+from this text. The defaults are `~/Workspaces` with two areas, and the rest of
+this reference uses their names:
+
+- `Projects` — the **projects** area: the one area whose Groups the workspace
+  registry knows as projects (code, repos, project docs and data).
+- `Personal` — a **personal** area marked **sensitive**: personal data and
+  automation.
+
+A machine may name them differently or add personal areas. Run `ws-layout` in
+the terminal to see the root and every area with its role and whether it is
+sensitive, and read every `Projects/` or `Personal/` below as "the projects
+area" or "a personal area". Treat every area marked sensitive the way this text
+treats `Personal/`. `~/Workspaces/AGENTS.md`, when present, may name this
+machine's areas too. Never create, rename or move an area: that is the user's
+change to the layout.
+
 ## Map
 
 - `Projects/<Group>/` — flat canonical groups for project code and material. An

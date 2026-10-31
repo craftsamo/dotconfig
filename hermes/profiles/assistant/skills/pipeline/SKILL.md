@@ -167,7 +167,10 @@ Sort the request by where its work lives:
 | Unassigned or intentionally cross-group drafts, inbox triage | **cross-cutting** (`~/Workspaces/.agent/`, `~/Workspaces/.inbox/`) |
 | Pure conversation / emotion / opinion / no workspace | **neither** |
 
-Decide silently; surface only if ambiguous enough to merit a `clarify`.
+`Projects` and `Personal` are the default names of the projects area and the
+sensitive personal area; `ws-layout` shows this machine's, and the reference in
+Step2Locate says how to read them. Decide silently; surface only if ambiguous
+enough to merit a `clarify`.
 
 </Step1Classify>
 
