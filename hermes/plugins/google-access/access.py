@@ -51,11 +51,13 @@ import random
 import re
 import shlex
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
 import threading
 import time
+import unicodedata
 from email.message import EmailMessage
 from pathlib import Path
 
@@ -3735,14 +3737,17 @@ def drive(home, args: dict) -> dict:
             "size": path.stat().st_size}
 
 
-def _upload_source(args: dict) -> tuple[Path, bool]:
-    """The file to upload, resolved, and whether it lies in a sensitive area of the Workspaces
-    layout (plugins/_shared/workspace_layout.py). Only files under the layout's root go up: outside
-    it nothing says whether a file is sensitive, and a layout that cannot be read uploads nothing."""
-    path = Path(os.path.expanduser(_str(args, "path")))
-    if not path.is_file():
-        raise AccessError(f"not a file: {path}")
-    real = path.resolve()
+def _area_key(name: str) -> str:
+    # macOS folders ignore case and Unicode normalization, so `personal/` is the Personal area:
+    # names compare that way, or a path spelled otherwise would read as outside every area and
+    # go up unencrypted.
+    return unicodedata.normalize("NFC", name).casefold()
+
+
+def _classify(real: Path, links: int) -> bool:
+    """Whether a file, by its real path, lies in a sensitive area of the Workspaces layout
+    (plugins/_shared/workspace_layout.py). Only files under the layout's root go up: outside it
+    nothing says whether a file is sensitive, and a layout that cannot be read uploads nothing."""
     if _PATHS.search(str(real)):
         raise AccessError("refusing to upload a credential or Google-access state file")
     try:
@@ -3753,12 +3758,31 @@ def _upload_source(args: dict) -> tuple[Path, bool]:
         parts = real.relative_to(layout.root.resolve()).parts
     except ValueError:
         raise AccessError(f"only files under the Workspaces root ({layout.root}) are uploaded; move or "
-                          f"copy {path.name} there first") from None
-    # Folders on macOS ignore case, so `personal/` is the Personal area: match its name that way, or
-    # a path spelled in other case would read as outside every area and go up unencrypted.
-    top = parts[0].casefold() if len(parts) > 1 else None
-    sensitive = any(a.sensitive and a.name.casefold() == top for a in layout.areas)
-    return real, sensitive
+                          f"copy {real.name} there first") from None
+    top = _area_key(parts[0]) if len(parts) > 1 else None
+    sensitive = any(a.sensitive and _area_key(a.name) == top for a in layout.areas)
+    # A hard link has no one real path: another name of the same file may lie in a sensitive area.
+    if links > 1 and not sensitive:
+        raise AccessError(f"{real.name} has other hard links, one of which may lie in a sensitive area; "
+                          "upload a copy instead")
+    return sensitive
+
+
+def _upload_source(args: dict) -> tuple[Path, bool]:
+    """The file to upload, resolved, and whether it is sensitive: what the approval card shows.
+    The upload judges the file again by the one it opens (_drive_upload)."""
+    path = Path(os.path.expanduser(_str(args, "path")))
+    if not path.is_file():
+        raise AccessError(f"not a file: {path}")
+    real = path.resolve()
+    return real, _classify(real, real.stat().st_nlink)
+
+
+def _fd_path(fd: int) -> Path:
+    """The path of an open file as the kernel knows it now, links and renames included."""
+    if hasattr(fcntl, "F_GETPATH"):
+        return Path(os.fsdecode(fcntl.fcntl(fd, fcntl.F_GETPATH, bytes(1024)).split(b"\0", 1)[0]))
+    return Path(os.readlink(f"/proc/self/fd/{fd}"))
 
 
 def _upload_name(args: dict, path: Path, sensitive: bool) -> str:
@@ -3768,31 +3792,45 @@ def _upload_name(args: dict, path: Path, sensitive: bool) -> str:
 
 
 def _drive_upload(home, args: dict) -> dict:
-    from googleapiclient.http import MediaFileUpload
-    path, sensitive = _upload_source(args)
-    name = _upload_name(args, path, sensitive)
-    body = {"name": name}
+    from googleapiclient.http import MediaIoBaseUpload
+    path, _ = _upload_source(args)
     parent = _str(args, "parent", required=False)
-    if parent:
-        body["parents"] = [parent]
     with contextlib.ExitStack() as stack:
+        # Open first, then judge the file by where the open one really is, and send only what was
+        # read through it: a link or folder swapped in after the check cannot change which bytes
+        # go up, and a link at the name itself is refused.
+        try:
+            fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
+        except OSError as exc:
+            raise AccessError(f"cannot open {path.name} for upload: {exc.strerror}") from None
+        clear = stack.enter_context(os.fdopen(fd, "rb"))
+        info = os.fstat(fd)
+        if not stat.S_ISREG(info.st_mode):
+            raise AccessError(f"not a file: {path}")
+        real = _fd_path(fd)
+        sensitive = _classify(real, info.st_nlink)
+        body = {"name": _upload_name(args, real, sensitive)}
+        if parent:
+            body["parents"] = [parent]
         if sensitive:
             # Encrypted before anything reaches Google; the clear file is only ever read by age.
             keys = recipients()
             folder = Path(stack.enter_context(tempfile.TemporaryDirectory(prefix="gaccess-")))
-            source = folder / "upload.age"
-            argv = [arg for key in keys for arg in ("-r", key)] + ["-o", str(source), str(path)]
-            done = _age("age", argv)
-            if done.returncode or not source.is_file():
+            sealed = folder / "upload.age"
+            done = _age("age", [arg for key in keys for arg in ("-r", key)] + ["-o", str(sealed)],
+                        stdin=clear)
+            if done.returncode or not sealed.is_file():
                 raise AccessError("age could not encrypt the file, so nothing was uploaded: "
                                   + done.stderr.decode(errors="replace").strip()[:200])
+            source = stack.enter_context(open(sealed, "rb"))
             mime = "application/octet-stream"  # a content type would say what the file is
         else:
-            source = path
-            mime = _str(args, "mime_type", required=False) or mimetypes.guess_type(path.name)[0] or \
+            source = clear
+            mime = _str(args, "mime_type", required=False) or mimetypes.guess_type(real.name)[0] or \
                 "application/octet-stream"
         api = _service(home, "drive", "v3", DRIVE_FILE)
-        media = MediaFileUpload(str(source), mimetype=mime, resumable=source.stat().st_size > 5 * 1024 * 1024)
+        size = os.fstat(source.fileno()).st_size
+        media = MediaIoBaseUpload(source, mimetype=mime, resumable=size > 5 * 1024 * 1024)
         made = _google(lambda: api.files().create(body=body, media_body=media,
                                                   fields="id,name,mimeType,webViewLink").execute())
     result = {"ok": True, "status": "uploaded", "file": made}
@@ -3847,13 +3885,15 @@ def recipients() -> list[str]:
     return found
 
 
-def _age(tool: str, argv: list[str], data: bytes | None = None) -> subprocess.CompletedProcess:
-    """Run age or age-keygen with nothing of this process's environment but a minimal PATH."""
+def _age(tool: str, argv: list[str], data: bytes | None = None, stdin=None) -> subprocess.CompletedProcess:
+    """Run age or age-keygen on ``data`` or an open ``stdin``, with nothing of this process's
+    environment but a minimal PATH."""
     binary = shutil.which(tool)
     if not binary:
         raise AccessError(f"{tool} is not installed (`brew install age`)")
     env = {"PATH": "/usr/bin:/bin", "HOME": str(Path.home()), "LC_ALL": "C"}
-    feed = {"input": data} if data is not None else {"stdin": subprocess.DEVNULL}
+    feed = {"input": data} if data is not None else \
+        {"stdin": stdin if stdin is not None else subprocess.DEVNULL}
     try:
         return subprocess.run([binary, *argv], capture_output=True, env=env, timeout=AGE_TIMEOUT, **feed)
     except subprocess.TimeoutExpired:

@@ -505,14 +505,14 @@ def test_upload_knows_a_sensitive_area_whatever_its_spelling(tmp_path):
 
 
 def _capture_upload(monkeypatch):
-    """A Drive API and MediaFileUpload that keep what would have been sent."""
+    """A Drive API and MediaIoBaseUpload that keep what would have been sent, and from where."""
     http = pytest.importorskip("googleapiclient.http")
     sent = {}
 
-    def media(path, mimetype, resumable):
-        sent.update(path=path, mime=mimetype, data=Path(path).read_bytes())
+    def media(fd, mimetype, resumable):
+        sent.update(path=fd.name, mime=mimetype, data=fd.read())
         return "media"
-    monkeypatch.setattr(http, "MediaFileUpload", media)
+    monkeypatch.setattr(http, "MediaIoBaseUpload", media)
     api = mock.MagicMock()
     api.files().create().execute.return_value = {"id": "u1"}
     services(monkeypatch, drive=api)
@@ -575,6 +575,70 @@ def test_a_plain_file_goes_up_as_it_is(tmp_path, encryption, monkeypatch):
     api, sent = _capture_upload(monkeypatch)
     result = access.drive(tmp_path, {"action": "upload", "path": str(report)})
     assert "encrypted" not in result and sent["data"] == b"a,b\n" and sent["mime"] == "text/csv"
+
+
+def test_a_hard_link_to_a_sensitive_file_is_not_a_plain_file(tmp_path, monkeypatch):
+    secret = _file(tmp_path / "Personal" / "Budget" / "data" / "2026.csv")
+    alias = tmp_path / "Projects" / "Acme" / "2026.csv"
+    alias.parent.mkdir(parents=True)
+    os.link(secret, alias)
+    api, sent = _capture_upload(monkeypatch)
+    with pytest.raises(access.AccessError, match="hard links"):
+        access.approval_request("google_drive", {"action": "upload", "path": str(alias)})
+    with pytest.raises(access.AccessError, match="hard links"):
+        access.drive(tmp_path, {"action": "upload", "path": str(alias)})
+    assert not sent
+
+
+def test_an_area_name_matches_in_either_unicode_form(tmp_path, monkeypatch):
+    import unicodedata
+    layout = tmp_path / "layout.json"
+    layout.write_text(json.dumps({"areas": [{"name": "Work", "role": "projects"},
+                                            {"name": unicodedata.normalize("NFC", "Kakeibo-é"),
+                                             "role": "personal", "sensitive": True}]}))
+    monkeypatch.setenv("WORKSPACES_LAYOUT", str(layout))
+    decomposed = _file(tmp_path / unicodedata.normalize("NFD", "Kakeibo-é") / "G" / "a.csv")
+    assert access._upload_source({"path": str(decomposed)})[1] is True
+
+
+@needs_age
+def test_a_swap_after_the_check_cannot_send_a_sensitive_file_in_the_clear(tmp_path, keychain, monkeypatch):
+    access._add_recipient(access._recipient_of(_keygen()), "test")
+    secret = _file(tmp_path / "Personal" / "Budget" / "2026.csv", b"secret-rows")
+    plain = _file(tmp_path / "Projects" / "Acme" / "r.csv", b"plain")
+    real_open = os.open
+
+    def swap_then_open(where):
+        """Run `where` right before the upload opens its file (once; other opens pass through)."""
+        pending = [where]
+
+        def opener(path, flags, *rest, **kw):
+            if pending and str(path) == str(plain.resolve()):
+                pending.pop()()
+            return real_open(path, flags, *rest, **kw)
+        monkeypatch.setattr(access.os, "open", opener)
+
+    # The file itself becomes a link to the sensitive one: the open refuses to follow it.
+    def link_the_file():
+        plain.unlink()
+        plain.symlink_to(secret)
+    swap_then_open(link_the_file)
+    api, sent = _capture_upload(monkeypatch)
+    with pytest.raises(access.AccessError, match="cannot open"):
+        access.drive(tmp_path, {"action": "upload", "path": str(plain)})
+    assert not sent
+    # Its folder becomes a link into the sensitive area: what is opened is judged, and encrypted.
+    plain.unlink()
+    _file(plain, b"plain")
+
+    def link_the_folder():
+        moved = tmp_path / "Projects" / "Acme-old"
+        (tmp_path / "Projects" / "Acme").rename(moved)
+        (tmp_path / "Projects" / "Acme").symlink_to(tmp_path / "Personal" / "Budget")
+        (tmp_path / "Personal" / "Budget" / "r.csv").write_bytes(b"secret-rows")
+    swap_then_open(link_the_folder)
+    result = access.drive(tmp_path, {"action": "upload", "path": str(plain)})
+    assert result["encrypted"]["recipients"] == 1 and b"secret-rows" not in sent["data"]
 
 
 def test_the_layout_file_decides_root_and_sensitive_areas(tmp_path, monkeypatch):
@@ -1130,13 +1194,13 @@ def test_drive_upload_uses_the_app_file_scope(tmp_path, monkeypatch):
     report.write_text("a,b\n")
     api = mock.MagicMock()
     api.files().create().execute.return_value = {"id": "u1", "name": "r.csv"}
-    monkeypatch.setattr(http, "MediaFileUpload", lambda path, mimetype, resumable: (path, mimetype))
+    monkeypatch.setattr(http, "MediaIoBaseUpload", lambda fd, mimetype, resumable: (fd.read(), mimetype))
     calls = services(monkeypatch, drive=api)
     result = access.drive(tmp_path, {"action": "upload", "path": str(report), "parent": "folder"})
     assert result["status"] == "uploaded"
     kwargs = api.files().create.call_args.kwargs
     assert kwargs["body"] == {"name": "r.csv", "parents": ["folder"]}
-    assert kwargs["media_body"] == (str(report.resolve()), "text/csv")
+    assert kwargs["media_body"] == (b"a,b\n", "text/csv")
     assert calls == [("drive", access.DRIVE_FILE)]
 
 
