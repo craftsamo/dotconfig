@@ -40,9 +40,6 @@ brew "ffmpeg"    # audio conversion for TTS / voice (all platforms)
 brew "portaudio" # CLI voice mode: microphone input + playback (sounddevice)
 brew "opus"      # Discord voice channel codec
 
-# --- Hermes Agent: Workspaces Drive mount (hermes/docs/ops/workspaces-drive.md) ---
-brew "rclone" # nfsmount of the Drive folder that holds Group assets
-
 # --- Hermes Agent: contextual-image-gen skill (image / SVG tooling) ---
 brew "imagemagick" # magick/convert: resize, crop, .ico, composite, format convert
 brew "webp"        # cwebp: WebP encoding for size-capped exports
