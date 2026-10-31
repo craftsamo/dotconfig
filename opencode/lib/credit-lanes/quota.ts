@@ -5,10 +5,10 @@ export type QuotaEntry =
   | {
       kind: "percent"
       name: string
-      resultType: "budget"
+      resultType: "budget" | "quota"
       percentRemaining: number
       label: string
-      right: string
+      right?: string
       resetTimeIso?: string
       observedAtIso: string
     }

@@ -184,6 +184,46 @@ describe("handler", () => {
     ).toBe(200)
     expect((await handler("GET", "/nope", "Bearer t")).status).toBe(404)
   })
+  test("serves and caches custom routes alongside credit lanes", async () => {
+    let routeRuns = 0
+    const { handler, tick } = make({
+      tokenFor: (provider: string) =>
+        provider === "google-antigravity" ? "ag-token" : undefined,
+      routes: {
+        "google-antigravity": async () => {
+          routeRuns++
+          return {
+            version: "quota-v1" as const,
+            entries: [
+              {
+                kind: "percent" as const,
+                name: "Gemini Pro",
+                resultType: "quota" as const,
+                percentRemaining: 80,
+                label: "Pro:",
+                observedAtIso: NOW.toISOString(),
+              },
+            ],
+          }
+        },
+      },
+    })
+    expect(
+      (await handler("GET", "/google-antigravity", undefined)).status,
+    ).toBe(401)
+    const first = await handler(
+      "GET",
+      "/google-antigravity",
+      "Bearer ag-token",
+    )
+    expect(first.status).toBe(200)
+    expect((first.body as any).entries[0].name).toBe("Gemini Pro")
+    await handler("GET", "/google-antigravity", "Bearer ag-token")
+    expect(routeRuns).toBe(1)
+    tick(CACHE_MS + 1)
+    await handler("GET", "/google-antigravity", "Bearer ag-token")
+    expect(routeRuns).toBe(2)
+  })
 })
 
 describe("listen", () => {
