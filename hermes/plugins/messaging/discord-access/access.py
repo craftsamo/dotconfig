@@ -1991,7 +1991,8 @@ def sync_suggest(args: dict) -> dict:
 # that folder's token to the handler, which consumes it once. Exactly the bytes the user approved
 # are sent, whatever happens to the originals afterwards.
 
-DEFAULT_ATTACH_ROOT = Path.home() / "Workspaces"
+# Pins the default attach root (tests); unset, it is the workspace layout's root, read at each use.
+DEFAULT_ATTACH_ROOT = None
 MAX_FILES = 10
 FILE_LIMIT = 10 * 1024 * 1024    # Discord's upload limit for an account without Nitro
 OUTBOX_TTL = 24 * 3600
@@ -2021,7 +2022,17 @@ def attach_roots(home: Path | None) -> list[Path]:
     if isinstance(configured, str):
         configured = [configured]
     roots = [Path(r.strip()).expanduser() for r in configured or [] if isinstance(r, str) and r.strip()]
-    return [r.resolve() for r in roots or [DEFAULT_ATTACH_ROOT]]
+    return [r.resolve() for r in roots or [default_attach_root()]]
+
+
+def default_attach_root() -> Path:
+    """DEFAULT_ATTACH_ROOT when pinned, else the workspace layout's root; never a guess."""
+    if DEFAULT_ATTACH_ROOT is not None:
+        return Path(DEFAULT_ATTACH_ROOT)
+    try:
+        return _load("hermes_workspace_layout", HERE.parents[1] / "_shared" / "workspace_layout.py").load().root
+    except ValueError as exc:       # LayoutError
+        raise DiscordError(f"cannot tell where the workspace is: {exc}") from None
 
 
 def _human(size: int) -> str:
@@ -2035,7 +2046,7 @@ def _requested(args: dict, home: Path | None) -> tuple[list[Path], list[Path]]:
     """(attach roots, the requested paths made absolute); no file is touched."""
     raw = args.get("files")
     if raw in (None, "", []):
-        return attach_roots(home), []
+        return [], []           # no file, so no root to check against
     if isinstance(raw, str):
         raw = [raw]
     if not isinstance(raw, list) or not all(isinstance(f, str) and f.strip() for f in raw):

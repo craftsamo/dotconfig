@@ -15,8 +15,11 @@ records, local integrations and historical data migration scripts are not.
 `bin/wsreg` loads this engine from the same dotconfig checkout. No private
 overlay is required. Initialize your own empty records with `wsreg init`, then
 add people/projects through the CLI or the Assistant's `workspace_registry`
-tool. `WSREG_ROOT` sets the Workspaces root; `WSREG_DIR` overrides only the data
-directory. Neither setting belongs in tracked configuration with real values.
+tool. The Workspaces root and the area project Groups live in (`Projects` by
+default) come from the [workspace layout](../../../docs/workspace-layout.md);
+`WSREG_ROOT` overrides the root for the registry alone, `WSREG_DIR` only the
+data directory. Neither setting belongs in tracked configuration with real
+values.
 
 ## Files
 
@@ -72,8 +75,8 @@ casefold, collapsed spaces; handles also drop `@` and `t.me/`, `x.com/`,
 
 ### Derived, never stored
 
-- `dir_path` of a project: `~/Workspaces/Projects/<id>` when that directory
-  exists, else null.
+- `dir_path` of a project: `~/Workspaces/Projects/<id>` (the layout's projects
+  area) when that directory exists, else null.
 - `ghq_path` of a repo: `$GHQ_ROOT` (default `~/ghq`) `/<host>/<owner>/<name>`.
   The column holds only an override that differs from that default.
 - `link_path`: `<dir_path>/github/<name>`; `has_agents_md`: the clone has an

@@ -203,8 +203,30 @@ def primary_first(items, col):
     return sorted(items, key=lambda x: (not x["is_primary"], x[col]))
 
 
+def _layout_module():
+    """The shared Workspaces layout reader (plugins/_shared/workspace_layout.py), loaded by path."""
+    name = "hermes_workspace_layout"
+    if name not in sys.modules:
+        path = Path(__file__).resolve().parents[2] / "_shared" / "workspace_layout.py"
+        spec = importlib.util.spec_from_file_location(name, path)
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[name] = module
+        spec.loader.exec_module(module)
+    return sys.modules[name]
+
+
+workspace_layout = _layout_module()
+
+
 def default_root() -> Path:
-    return Path(os.environ.get("WSREG_ROOT") or Path.home() / "Workspaces").expanduser()
+    """$WSREG_ROOT (staging), else the Workspaces root in force."""
+    env = os.environ.get("WSREG_ROOT")
+    return Path(env).expanduser() if env else workspace_layout.load().root
+
+
+def projects_area() -> str:
+    """The area project Groups live in: the layout's one area with role projects."""
+    return workspace_layout.load().projects.name
 
 
 def data_dir(root) -> Path:
@@ -228,6 +250,8 @@ class Registry:
     def __init__(self, root):
         self.root = Path(root).expanduser()
         self.dir = data_dir(self.root)
+        # Read once, so one operation never mixes areas if the layout file changes meanwhile.
+        self.projects_area = projects_area()
         self.t = {name: [] for name in TABLES}
         self.load_errors = []
         self.before_errs = []
@@ -313,8 +337,11 @@ class Registry:
         return before - len(self.t[table])
 
     # ---- derived paths
+    def projects_dir(self) -> Path:
+        return self.root / self.projects_area
+
     def dir_path(self, project_id):
-        d = self.root / "Projects" / project_id
+        d = self.projects_dir() / project_id
         return str(d) if d.is_dir() else None
 
     def default_ghq(self, repo):
@@ -415,14 +442,14 @@ class Registry:
         axes = {r["axis"] for r in self.t["tag_axes"]}
         for axis in sorted({r["axis"] for r in self.t["project_tags"]} - axes):
             warns.append(f"project_tags: axis {axis!r} has no row in tag_axes.csv")
-        pdir = self.root / "Projects"
+        pdir = self.projects_dir()
         if pdir.is_dir():
             for d in sorted(pdir.iterdir()):
                 if d.is_dir() and not d.name.startswith(".") and d.name not in projects:
-                    warns.append(f"Projects/{d.name} has no registry row")
+                    warns.append(f"{pdir.name}/{d.name} has no registry row")
         for r in projects.values():
             if r["kind"] == "external" and self.dir_path(r["id"]):
-                warns.append(f"projects[{r['id']}]: kind external but Projects/{r['id']} exists")
+                warns.append(f"projects[{r['id']}]: kind external but {pdir.name}/{r['id']} exists")
         return errs, warns
 
 
@@ -836,7 +863,8 @@ def a_link_repo(reg, a):
         raise RegistryError(f"no repo {name!r} in {project}")
     link = reg.link_path(row)
     if not link:
-        raise RegistryError(f"project {project} has no directory Projects/{project}; cannot place a symlink")
+        raise RegistryError(f"project {project} has no directory {reg.projects_area}/{project}; "
+                            "cannot place a symlink")
     ghq = reg.ghq_path(row)
     base = Path(reg.dir_path(project)) / "github"
     if Path(link).parent != base or (ghq and not Path(ghq).is_absolute()):
@@ -968,8 +996,9 @@ def a_rename(reg, a):
         for r in reg.t["projects"]:
             if r["organization_id"] == old:
                 r["organization_id"] = new
-        if (reg.root / "Projects" / old).is_dir():
-            note = f"the directory Projects/{old} was not moved; rename it to Projects/{new}"
+        area = reg.projects_area
+        if (reg.root / area / old).is_dir():
+            note = f"the directory {area}/{old} was not moved; rename it to {area}/{new}"
     out = {"renamed": {"from": old, "to": new}, "note": note}
     if problem:
         out["warnings"] = [problem]
@@ -981,19 +1010,19 @@ DIRLESS_KINDS = ("org", "external")
 
 
 def a_group_create(reg, a):
-    """Projects/<id>/{github,docs,data} + a seeded AGENTS.md + the registry row, in that order
-    only after the row is known to be valid. Existing directories and AGENTS.md are kept."""
+    """<projects area>/<id>/{github,docs,data} + a seeded AGENTS.md + the registry row, in that
+    order only after the row is known to be valid. Existing directories and AGENTS.md are kept."""
     pid = need(a, "id")
     out = a_project_set(reg, a)
     row = reg.project(pid)
     if row["kind"] in DIRLESS_KINDS:
-        raise RegistryError(f"a {row['kind']} project has no Projects/ directory; use project_set")
+        raise RegistryError(f"a {row['kind']} project has no {reg.projects_area}/ directory; use project_set")
     errs, _ = reg.check()
     added = [e for e in errs if e not in reg.before_errs]
     if added:
         raise RegistryError("change rejected: " + "; ".join(added))
-    base = reg.root / "Projects" / pid
-    if base.parent.resolve() != (reg.root / "Projects").resolve():
+    base = reg.projects_dir() / pid
+    if base.parent.resolve() != reg.projects_dir().resolve():
         raise RegistryError(f"refusing to create {base}")
     made = []
     for sub in ("github", "docs", "data"):

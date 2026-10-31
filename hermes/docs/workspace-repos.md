@@ -7,8 +7,9 @@ the scanner or its `/repos` command. Part of the Hermes design docs — index:
 
 ## What counts as a repository
 
-Every entry of `~/Workspaces/<Area>/<Group>/github/` (Area is `Projects` or
-`Personal`), usually a symlink to a `~/ghq` clone. The Group is the directory
+Every entry of `~/Workspaces/<Area>/<Group>/github/` (the areas and the root of
+the [workspace layout](workspace-layout.md)), usually a symlink to a `~/ghq`
+clone. The Group is the directory
 above `github/`; the GitHub repository is the one `origin` points at.
 
 ## Shape

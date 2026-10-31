@@ -55,3 +55,17 @@ other `_shared` modules.
 
 `ws-layout` prints the resolved layout as JSON; `--root`, `--areas`,
 `--projects` and `--path` print one value each for shell use.
+
+## Who reads it
+
+| Reader                                    | Uses                                                                      |
+| ----------------------------------------- | ------------------------------------------------------------------------- |
+| Draft scanner (`workspace-drafts`)        | the root, and every area's Groups for their `.agent/`                     |
+| Repository scanner (`workspace-repos`)    | the root, and every area's Groups for their `github/`                     |
+| Workspace registry (`workspace-registry`) | the root (unless `WSREG_ROOT`), and the projects area for project Groups  |
+| Signal, Telegram, WhatsApp senders        | the root, as the only place files are sent from                           |
+| Discord, note, Substack, YouTube          | the root, as the attach root when the profile sets no `attach_roots`      |
+| screen-listen                             | `.inbox/recordings` under the root, when the profile sets no `record_dir` |
+
+Where the root bounds what may be sent or attached, it is read at each send,
+and an invalid layout refuses the send instead of falling back.

@@ -160,13 +160,63 @@ def _load(name, path):
     return m
 
 
-def test_the_defaults_are_what_the_workspace_tools_use_today():
-    """Characterization: until each tool reads the layout, its own names must equal the defaults."""
-    defaults = tuple(a["name"] for a in wl.DEFAULT["areas"])
+BOUNDARIES = [
+    ("messaging/signal-access/sig.py", "send_root", "SignalError"),
+    ("messaging/telegram-access/tg.py", "send_root", "TelegramError"),
+    ("messaging/whatsapp-access/wa.py", "send_root", "WhatsAppError"),
+    ("messaging/discord-access/access.py", "default_attach_root", "DiscordError"),
+    ("social/note-access/na.py", "default_attach_root", "NoteError"),
+    ("social/substack-access/sa.py", "default_attach_root", "SubstackError"),
+    ("social/youtube-access/ya.py", "default_attach_root", "YouTubeError"),
+]
+
+
+@pytest.fixture(scope="module")
+def boundary_modules():
+    """Each sender's engine, loaded once (their imports are heavy); the layout is read per call."""
+    return {path: _load(f"layout_boundary_{i}", PLUGINS / path) for i, (path, _, _) in enumerate(BOUNDARIES)}
+
+
+@pytest.mark.parametrize("path, getter, error", BOUNDARIES)
+def test_what_a_message_may_attach_follows_the_layout_root(isolated, boundary_modules, path, getter, error):
+    """Unpinned, the send and attach boundary is the layout's root; an invalid layout refuses the
+    send instead of falling back to a guessed folder."""
+    module = boundary_modules[path]
+    write(isolated, {"root": str(isolated / "Elsewhere")})
+    assert getattr(module, getter)() == isolated / "Elsewhere"
+    write(isolated, {"root": "relative"})
+    with pytest.raises(getattr(module, error), match="cannot tell where the workspace is"):
+        getattr(module, getter)()
+
+
+def test_recordings_default_to_the_layout_inbox(isolated):
+    record = _load("layout_record", PLUGINS / "inspection" / "screen-listen" / "record.py")
+    write(isolated, {"root": str(isolated / "W")})
+    assert record.default_record_dir() == isolated / "W" / ".inbox" / "recordings"
+
+
+def test_the_workspace_tools_follow_the_layout(isolated, monkeypatch):
+    """The draft and repository scanners walk the layout's areas under its root, and the registry
+    places project Groups in its projects area."""
+    root = isolated / "W"
+    write(isolated, {"root": str(root), "areas": [{"name": "Clients", "role": "projects"},
+                                                   {"name": "Home", "role": "personal", "sensitive": True}]})
+    (root / "Clients" / "Acme" / ".agent" / "20260101-plan").mkdir(parents=True)
+    (root / "Home" / "Budget" / "github" / "ledger").mkdir(parents=True)
+    (root / "Projects" / "Old" / ".agent" / "20260101-stale").mkdir(parents=True)   # not an area here
     drafts = _load("layout_drafts", PLUGINS / "workspace" / "workspace-drafts" / "drafts.py")
     repos = _load("layout_repos", PLUGINS / "workspace" / "workspace-repos" / "repos.py")
-    assert tuple(drafts.AREAS) == defaults and tuple(repos.AREAS) == defaults
-    registry = (PLUGINS / "workspace" / "workspace-registry" / "registry.py").read_text(encoding="utf-8")
-    projects = next(a["name"] for a in wl.DEFAULT["areas"] if a["role"] == "projects")
-    assert f'"{projects}"' in registry
-    assert wl.DEFAULT["root"] == "~/Workspaces"
+    registry = _load("layout_registry", PLUGINS / "workspace" / "workspace-registry" / "registry.py")
+    assert drafts.default_root() == root and repos.default_root() == root
+    found, _ = drafts.scan()
+    assert [d["group"] for d in found] == ["Clients/Acme"]
+    assert [group for group, _ in repos._entries(root)] == ["Home/Budget"]
+    monkeypatch.delenv("WSREG_ROOT", raising=False)
+    assert registry.default_root() == root and registry.projects_area() == "Clients"
+    reg = registry.Registry(root)
+    assert reg.dir_path("Acme") == str(root / "Clients" / "Acme")
+    # One registry keeps the area it started with, even if the file changes meanwhile.
+    write(isolated, {"root": str(root), "areas": [{"name": "Work", "role": "projects"}]})
+    assert reg.projects_dir() == root / "Clients" and registry.projects_area() == "Work"
+    monkeypatch.setenv("WSREG_ROOT", str(isolated / "staging"))
+    assert registry.default_root() == isolated / "staging"
