@@ -60,6 +60,25 @@ def workspaces(tmp_path, monkeypatch):
     return tmp_path
 
 
+needs_age = pytest.mark.skipif(not (access.shutil.which("age") and access.shutil.which("age-keygen")),
+                               reason="age is not installed")
+
+
+@pytest.fixture(autouse=True)
+def encryption(tmp_path_factory, monkeypatch):
+    """Recipients in a folder of the test's own (never this machine's); `gaccess encryption init`
+    sees a terminal."""
+    folder = tmp_path_factory.mktemp("plugin-data") / "google-access"
+    monkeypatch.setattr(access, "ENCRYPTION_DIR", folder)
+    monkeypatch.setattr(access, "_interactive", lambda: True)
+    return folder
+
+
+def _keygen():
+    made = access._age("age-keygen", []).stdout.decode()
+    return access.AGE_SECRET.search(made).group(0)
+
+
 def token(home, scopes=access.SCOPES):
     """Store a token for the profile home in the (fake) Keychain."""
     access._vault_write(home, dict(TOKEN, scopes=list(scopes)))
@@ -485,12 +504,77 @@ def test_upload_knows_a_sensitive_area_whatever_its_spelling(tmp_path):
     assert access._upload_source({"path": str(_file(tmp_path / "Personal.txt"))})[1] is False
 
 
-def test_a_sensitive_file_is_not_uploaded_in_the_clear(tmp_path):
+def _capture_upload(monkeypatch):
+    """A Drive API and MediaFileUpload that keep what would have been sent."""
+    http = pytest.importorskip("googleapiclient.http")
+    sent = {}
+
+    def media(path, mimetype, resumable):
+        sent.update(path=path, mime=mimetype, data=Path(path).read_bytes())
+        return "media"
+    monkeypatch.setattr(http, "MediaFileUpload", media)
+    api = mock.MagicMock()
+    api.files().create().execute.return_value = {"id": "u1"}
+    services(monkeypatch, drive=api)
+    return api, sent
+
+
+def test_a_sensitive_file_without_a_key_is_never_uploaded(tmp_path, encryption, monkeypatch):
     secret = _file(tmp_path / "Personal" / "Budget" / "data" / "2026.csv")
-    with pytest.raises(access.AccessError, match="sensitive area"):
+    api, sent = _capture_upload(monkeypatch)
+    with pytest.raises(access.AccessError, match="gaccess encryption init"):
         access.approval_request("google_drive", {"action": "upload", "path": str(secret)})
-    with pytest.raises(access.AccessError, match="sensitive area"):
+    with pytest.raises(access.AccessError, match="gaccess encryption init"):
         access.drive(tmp_path, {"action": "upload", "path": str(secret)})
+    assert not sent and not api.files().create.call_args.kwargs
+
+
+@needs_age
+def test_a_sensitive_file_goes_up_encrypted(tmp_path, keychain, encryption, monkeypatch):
+    identity = _keygen()
+    access._add_recipient(access._recipient_of(identity), "test")
+    backup = _keygen()
+    access._add_recipient(access._recipient_of(backup), "kept elsewhere")
+    secret = _file(tmp_path / "Personal" / "Budget" / "data" / "2026.csv", b"date,amount\n2026-10-01,42\n")
+    args = {"action": "upload", "path": str(secret), "mime_type": "text/csv"}
+    reason, _ = access.approval_request("google_drive", args)
+    assert "As: 2026.csv.age" in reason and "Encrypted: with age to 2 keys (sensitive area)" in reason
+    api, sent = _capture_upload(monkeypatch)
+    result = access.drive(tmp_path, args)
+    assert result["encrypted"] == {"with": "age", "recipients": 2}
+    assert api.files().create.call_args.kwargs["body"] == {"name": "2026.csv.age"}
+    assert sent["mime"] == "application/octet-stream" and b"2026-10-01" not in sent["data"]
+    assert not Path(sent["path"]).parent.exists()  # the encrypted copy is gone once sent
+    for key in (identity, backup):  # either key opens it
+        keyfile = tmp_path / "key.txt"
+        keyfile.write_text(key + "\n")
+        opened = access._age("age", ["-d", "-i", str(keyfile)], sent["data"])
+        assert opened.returncode == 0 and opened.stdout == secret.read_bytes()
+    # A name given without .age still gets it; one with it is kept.
+    access.drive(tmp_path, dict(args, name="budget"))
+    assert api.files().create.call_args.kwargs["body"] == {"name": "budget.age"}
+    access.drive(tmp_path, dict(args, name="budget.age"))
+    assert api.files().create.call_args.kwargs["body"] == {"name": "budget.age"}
+
+
+@needs_age
+def test_without_age_a_sensitive_file_is_not_uploaded(tmp_path, keychain, encryption, monkeypatch):
+    access._add_recipient(access._recipient_of(_keygen()), "test")
+    secret = _file(tmp_path / "Personal" / "Budget" / "data" / "2026.csv")
+    api, sent = _capture_upload(monkeypatch)
+    monkeypatch.setattr(access.shutil, "which", lambda name: None)
+    with pytest.raises(access.AccessError, match="age is not installed"):
+        access.drive(tmp_path, {"action": "upload", "path": str(secret)})
+    assert not sent
+
+
+def test_a_plain_file_goes_up_as_it_is(tmp_path, encryption, monkeypatch):
+    report = _file(tmp_path / "Projects" / "Acme" / "docs" / "r.csv", b"a,b\n")
+    reason, _ = access.approval_request("google_drive", {"action": "upload", "path": str(report)})
+    assert "Encrypted" not in reason and "As: r.csv" in reason
+    api, sent = _capture_upload(monkeypatch)
+    result = access.drive(tmp_path, {"action": "upload", "path": str(report)})
+    assert "encrypted" not in result and sent["data"] == b"a,b\n" and sent["mime"] == "text/csv"
 
 
 def test_the_layout_file_decides_root_and_sensitive_areas(tmp_path, monkeypatch):
@@ -507,23 +591,6 @@ def test_the_layout_file_decides_root_and_sensitive_areas(tmp_path, monkeypatch)
 
 
 # --- encryption keys ------------------------------------------------------------------------------
-
-needs_age = pytest.mark.skipif(not (access.shutil.which("age") and access.shutil.which("age-keygen")),
-                               reason="age is not installed")
-
-
-@pytest.fixture
-def encryption(tmp_path_factory, monkeypatch):
-    folder = tmp_path_factory.mktemp("plugin-data") / "google-access"
-    monkeypatch.setattr(access, "ENCRYPTION_DIR", folder)
-    monkeypatch.setattr(access, "_interactive", lambda: True)
-    return folder
-
-
-def _keygen():
-    made = access._age("age-keygen", []).stdout.decode()
-    return access.AGE_SECRET.search(made).group(0)
-
 
 @needs_age
 def test_init_stores_the_key_once_and_shows_it_once(tmp_path, keychain, encryption, capsys):
