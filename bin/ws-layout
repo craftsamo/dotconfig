@@ -7,6 +7,7 @@
 #   ws-layout --areas         the area names, one a line
 #   ws-layout --projects      the area project Groups live in
 #   ws-layout --path          the layout file read (or that would be)
+#   ws-layout --lines         for shells: root, projects area, then every area
 #
 # The code is shared by the Hermes workspace plugins (hermes/plugins/_shared/
 # workspace_layout.py). Contract: hermes/docs/workspace-layout.md.

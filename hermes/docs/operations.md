@@ -12,7 +12,8 @@ Secondary profiles never run their own gateway (never use
 tracked, machine-agnostic files in `hermes/launchd/`:
 
 - **`bin/hermes-gateway-multiplex`** — the launcher. Sets its own `PATH` (a
-  LaunchAgent can start with a stripped one), `cd`s to `~/Workspaces`, logs to
+  LaunchAgent can start with a stripped one), `cd`s to the Workspaces root
+  ([workspace layout](workspace-layout.md); `~/Workspaces` by default), logs to
   `~/.hermes/logs/gateway-multiplex.log`, `eval`s the `global` + `hermes`
   Keychain layers (minus messaging keys) into the process env for raw-env
   readers and subprocess inheritance — the scope-aware keys come per profile
