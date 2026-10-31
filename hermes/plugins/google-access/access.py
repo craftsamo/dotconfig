@@ -53,6 +53,7 @@ import shlex
 import shutil
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 from email.message import EmailMessage
@@ -3760,29 +3761,44 @@ def _upload_source(args: dict) -> tuple[Path, bool]:
     return real, sensitive
 
 
-def _upload_path(args: dict) -> Path:
-    path, sensitive = _upload_source(args)
-    if sensitive:
-        raise AccessError(f"{path.name} is in a sensitive area of the Workspaces layout; such files "
-                          "are not uploaded")
-    return path
+def _upload_name(args: dict, path: Path, sensitive: bool) -> str:
+    """The Drive file name; an encrypted file's always ends in .age."""
+    name = _str(args, "name", required=False) or path.name
+    return name if not sensitive or name.endswith(".age") else name + ".age"
 
 
 def _drive_upload(home, args: dict) -> dict:
     from googleapiclient.http import MediaFileUpload
-    path = _upload_path(args)
-    name = _str(args, "name", required=False) or path.name
-    mime = _str(args, "mime_type", required=False) or mimetypes.guess_type(path.name)[0] or \
-        "application/octet-stream"
+    path, sensitive = _upload_source(args)
+    name = _upload_name(args, path, sensitive)
     body = {"name": name}
     parent = _str(args, "parent", required=False)
     if parent:
         body["parents"] = [parent]
-    api = _service(home, "drive", "v3", DRIVE_FILE)
-    media = MediaFileUpload(str(path), mimetype=mime, resumable=path.stat().st_size > 5 * 1024 * 1024)
-    made = _google(lambda: api.files().create(body=body, media_body=media,
-                                              fields="id,name,mimeType,webViewLink").execute())
-    return {"ok": True, "status": "uploaded", "file": made}
+    with contextlib.ExitStack() as stack:
+        if sensitive:
+            # Encrypted before anything reaches Google; the clear file is only ever read by age.
+            keys = recipients()
+            folder = Path(stack.enter_context(tempfile.TemporaryDirectory(prefix="gaccess-")))
+            source = folder / "upload.age"
+            argv = [arg for key in keys for arg in ("-r", key)] + ["-o", str(source), str(path)]
+            done = _age("age", argv)
+            if done.returncode or not source.is_file():
+                raise AccessError("age could not encrypt the file, so nothing was uploaded: "
+                                  + done.stderr.decode(errors="replace").strip()[:200])
+            mime = "application/octet-stream"  # a content type would say what the file is
+        else:
+            source = path
+            mime = _str(args, "mime_type", required=False) or mimetypes.guess_type(path.name)[0] or \
+                "application/octet-stream"
+        api = _service(home, "drive", "v3", DRIVE_FILE)
+        media = MediaFileUpload(str(source), mimetype=mime, resumable=source.stat().st_size > 5 * 1024 * 1024)
+        made = _google(lambda: api.files().create(body=body, media_body=media,
+                                                  fields="id,name,mimeType,webViewLink").execute())
+    result = {"ok": True, "status": "uploaded", "file": made}
+    if sensitive:
+        result["encrypted"] = {"with": "age", "recipients": len(keys)}
+    return result
 
 
 # --- encryption -----------------------------------------------------------------------------------
@@ -4412,12 +4428,16 @@ def approval_request(tool: str, args: dict, home=None) -> tuple[str, str] | None
     elif tool == "google_drive":
         if _action(args, DRIVE_ACTIONS) not in DRIVE_WRITES:
             return None
-        path = _upload_path(args)
+        path, sensitive = _upload_source(args)
+        # Refused here, not after the card: a sensitive file with no key set up never goes up.
+        keys = recipients() if sensitive else []
         effect = ((cards.CAUTION, "Into a folder others may share") if args.get("parent")
                   else (cards.SAFE, "Into My Drive, private to you"))
         reason = _fitted("Google Drive", "Upload a file", effect,
                          [("File", f"{path} ({cards.human(path.stat().st_size)})"),
-                          ("As", cards.line(args.get("name") or path.name, 200)),
+                          ("As", cards.line(_upload_name(args, path, sensitive), 200)),
+                          ("Encrypted", f"with age to {len(keys)} key{'s' if len(keys) != 1 else ''} "
+                                        "(sensitive area)" if sensitive else None),
                           ("Into", cards.line(args.get("parent") or "My Drive", 200))])
     elif tool == "gcloud":
         argv, read_only = gcloud_plan(args)
