@@ -160,6 +160,41 @@ def _load(name, path):
     return m
 
 
+BOUNDARIES = [
+    ("messaging/signal-access/sig.py", "send_root", "SignalError"),
+    ("messaging/telegram-access/tg.py", "send_root", "TelegramError"),
+    ("messaging/whatsapp-access/wa.py", "send_root", "WhatsAppError"),
+    ("messaging/discord-access/access.py", "default_attach_root", "DiscordError"),
+    ("social/note-access/na.py", "default_attach_root", "NoteError"),
+    ("social/substack-access/sa.py", "default_attach_root", "SubstackError"),
+    ("social/youtube-access/ya.py", "default_attach_root", "YouTubeError"),
+]
+
+
+@pytest.fixture(scope="module")
+def boundary_modules():
+    """Each sender's engine, loaded once (their imports are heavy); the layout is read per call."""
+    return {path: _load(f"layout_boundary_{i}", PLUGINS / path) for i, (path, _, _) in enumerate(BOUNDARIES)}
+
+
+@pytest.mark.parametrize("path, getter, error", BOUNDARIES)
+def test_what_a_message_may_attach_follows_the_layout_root(isolated, boundary_modules, path, getter, error):
+    """Unpinned, the send and attach boundary is the layout's root; an invalid layout refuses the
+    send instead of falling back to a guessed folder."""
+    module = boundary_modules[path]
+    write(isolated, {"root": str(isolated / "Elsewhere")})
+    assert getattr(module, getter)() == isolated / "Elsewhere"
+    write(isolated, {"root": "relative"})
+    with pytest.raises(getattr(module, error), match="cannot tell where the workspace is"):
+        getattr(module, getter)()
+
+
+def test_recordings_default_to_the_layout_inbox(isolated):
+    record = _load("layout_record", PLUGINS / "inspection" / "screen-listen" / "record.py")
+    write(isolated, {"root": str(isolated / "W")})
+    assert record.default_record_dir() == isolated / "W" / ".inbox" / "recordings"
+
+
 def test_the_workspace_tools_follow_the_layout(isolated, monkeypatch):
     """The draft and repository scanners walk the layout's areas under its root, and the registry
     places project Groups in its projects area."""

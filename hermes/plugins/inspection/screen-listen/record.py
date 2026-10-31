@@ -39,7 +39,9 @@ def _sibling(name: str):
 
 listen = _sibling("listen")
 
-DEFAULT_RECORD_DIR = Path.home() / "Workspaces" / ".inbox" / "recordings"
+# Pins the default recording folder (tests); unset, it is .inbox/recordings under the workspace
+# layout's root, read at each recording.
+DEFAULT_RECORD_DIR = None
 DEFAULT_MINUTES = 180
 MAX_MINUTES = 240            # the helper's own cap
 START_WAIT = 20              # seconds for the helper to report its pid (a consent dialog takes longer: timeout)
@@ -56,9 +58,23 @@ TITLE = re.compile(r"[^a-z0-9]+")
 RECENT = 20
 
 
+def default_record_dir() -> Path:
+    """DEFAULT_RECORD_DIR when pinned, else <workspace root>/.inbox/recordings."""
+    if DEFAULT_RECORD_DIR is not None:
+        return Path(DEFAULT_RECORD_DIR)
+    key = "hermes_workspace_layout"
+    if key not in sys.modules:
+        spec = importlib.util.spec_from_file_location(
+            key, Path(__file__).resolve().parents[2] / "_shared" / "workspace_layout.py")
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[key] = module
+        spec.loader.exec_module(module)
+    return sys.modules[key].load().root / ".inbox" / "recordings"
+
+
 def record_dir(home) -> Path:
     configured = listen.profile_config(home).get("record_dir")
-    root = Path(configured).expanduser() if isinstance(configured, str) and configured.strip() else DEFAULT_RECORD_DIR
+    root = Path(configured).expanduser() if isinstance(configured, str) and configured.strip() else default_record_dir()
     root.mkdir(parents=True, exist_ok=True)
     os.chmod(root, 0o700)
     return root
