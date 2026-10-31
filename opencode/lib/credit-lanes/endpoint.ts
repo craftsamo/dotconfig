@@ -1,33 +1,25 @@
 import { createServer, type Server } from "node:http"
 import type { AddressInfo } from "node:net"
 import type { Summary } from "./core"
-import { toQuotaV1 } from "./quota"
+import { toQuotaV1, type QuotaEntry } from "./quota"
 
 export const DEFAULT_PORT = 47631
 export const CACHE_MS = 30_000
 
 export type Reply = { status: number; body: unknown }
+export type QuotaV1Envelope = { version: "quota-v1"; entries: QuotaEntry[] }
 
-// Serves one lane per path (`/<provider id>`) as an OpenCode Quota `quota-v1`
-// envelope. Collection is cached and shared between concurrent requests so a
-// busy UI cannot fan out into many `opencode stats` runs.
-export function createHandler(options: {
-  collect: () => Promise<Summary[]>
-  now?: () => Date
-  // The bearer token a lane's request must carry, if any.
-  tokenFor?: (provider: string) => string | undefined
-}) {
-  const now = options.now ?? (() => new Date())
-  let cached: { at: number; summaries: Summary[] } | undefined
-  let inflight: Promise<Summary[]> | undefined
-
-  const summaries = async () => {
-    if (cached && now().getTime() - cached.at < CACHE_MS)
-      return cached.summaries
-    inflight ??= options
-      .collect()
+function cachedCall<T>(
+  run: () => Promise<T>,
+  now: () => Date,
+): () => Promise<T> {
+  let cached: { at: number; value: T } | undefined
+  let inflight: Promise<T> | undefined
+  return async () => {
+    if (cached && now().getTime() - cached.at < CACHE_MS) return cached.value
+    inflight ??= run()
       .then((value) => {
-        cached = { at: now().getTime(), summaries: value }
+        if (value !== undefined) cached = { at: now().getTime(), value }
         return value
       })
       .finally(() => {
@@ -35,6 +27,27 @@ export function createHandler(options: {
       })
     return inflight
   }
+}
+
+// Serves one lane per path (`/<provider id>`) as an OpenCode Quota `quota-v1`
+// envelope. Collection is cached and shared between concurrent requests so a
+// busy UI cannot fan out into many `opencode stats` or quota runs.
+export function createHandler(options: {
+  collect: () => Promise<Summary[]>
+  now?: () => Date
+  // The bearer token a lane's request must carry, if any.
+  tokenFor?: (provider: string) => string | undefined
+  // Extra quota-v1 routes served on the same loopback port (e.g. Antigravity).
+  routes?: Record<string, () => Promise<QuotaV1Envelope | undefined>>
+}) {
+  const now = options.now ?? (() => new Date())
+  const summaries = cachedCall(options.collect, now)
+  const extraRoutes = Object.fromEntries(
+    Object.entries(options.routes ?? {}).map(([key, fn]) => [
+      key,
+      cachedCall(fn, now),
+    ]),
+  )
 
   return async (
     method: string | undefined,
@@ -50,6 +63,16 @@ export function createHandler(options: {
     const token = options.tokenFor?.(provider)
     if (token && authorization !== `Bearer ${token}`)
       return { status: 401, body: { error: "unauthorized" } }
+    const customRoute = extraRoutes[provider]
+    if (customRoute) {
+      try {
+        const body = await customRoute()
+        if (!body) return { status: 404, body: { error: "unknown lane" } }
+        return { status: 200, body }
+      } catch {
+        return { status: 503, body: { error: "unavailable" } }
+      }
+    }
     try {
       const found = (await summaries()).find(
         (s) => s.lane.provider === provider,

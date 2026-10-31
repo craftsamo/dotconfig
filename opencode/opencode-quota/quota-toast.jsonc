@@ -31,6 +31,20 @@
       "apiKeyEnv": "ANTHROPIC_CREDIT_SUB_ACCOUNT_KEY",
       "url": "http://127.0.0.1:47631/anthropic-credit-sub",
     },
+    // Google Antigravity (`opencode-antigravity-auth` on provider `google`).
+    // Quota's built-in `google-agy` reads another plugin's login, so the same
+    // loopback server queries the active Antigravity OAuth connection's
+    // `fetchAvailableModels` and groups its quota into Gemini Pro, Gemini
+    // Flash and Claude. `providers.google.settings.apiKey` supplies the local
+    // bearer sentinel.
+    {
+      "id": "google-antigravity",
+      "providerId": "google",
+      "label": "Antigravity",
+      "mode": "remote-api",
+      "format": "quota-v1",
+      "url": "http://127.0.0.1:47631/google-antigravity",
+    },
   ],
   "formatStyle": "allWindows",
   // How long Quota reuses a provider's result: the sidebar refreshes every 60 s
