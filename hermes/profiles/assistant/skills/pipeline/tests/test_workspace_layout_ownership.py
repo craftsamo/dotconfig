@@ -17,6 +17,17 @@ class WorkspaceLayoutOwnershipTest(unittest.TestCase):
                        "workspace_drafts", "Promotion is the only way into canon", "`legacy`"):
             self.assertIn(needle, text)
 
+    def test_areas_come_from_the_machine_layout_not_the_text(self):
+        """The default names stay readable, but the reference says how to learn this machine's
+        areas and which of them are sensitive, and the kernel points there."""
+        text = " ".join(LAYOUT.read_text(encoding="utf-8").split())
+        for needle in ("## Areas", "`ws-layout`", "**projects** area", "**sensitive**",
+                       "Treat every area marked sensitive the way this text treats `Personal/`",
+                       "Never create, rename or move an area"):
+            self.assertIn(needle, text)
+        kernel = " ".join((ROOT / "SKILL.md").read_text(encoding="utf-8").split())
+        self.assertIn("`ws-layout` shows this machine's", kernel)
+
     def test_kernel_requires_reading_the_reference_explicitly(self):
         text = (ROOT / "SKILL.md").read_text(encoding="utf-8")
         self.assertIn("read_file", text)
