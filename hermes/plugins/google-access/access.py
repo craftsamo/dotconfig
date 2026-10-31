@@ -3676,13 +3676,14 @@ def _safe_name(name: str) -> str:
     return cleaned or "download"
 
 
-def _reserve(path: Path) -> tuple[Path, int]:
-    """Create the first free name exclusively (never overwriting, never through a symlink)."""
+def _reserve(path: Path, mode: int = 0o644, dir_fd: int | None = None) -> tuple[Path, int]:
+    """Create the first free name exclusively (never overwriting, never through a symlink); with
+    ``dir_fd``, ``path`` is a name inside that open folder."""
     flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
     for n in range(1, 1000):
         candidate = path if n == 1 else path.with_name(f"{path.stem} ({n}){path.suffix}")
         try:
-            return candidate, os.open(candidate, flags, 0o644)
+            return candidate, os.open(candidate, flags, mode, dir_fd=dir_fd)
         except FileExistsError:
             continue
     raise AccessError(f"too many files named {path.name} in {path.parent}")
@@ -3711,6 +3712,8 @@ def drive(home, args: dict) -> dict:
         return {"ok": True, "file": meta}
     from googleapiclient.http import MediaIoBaseDownload
     mime = meta.get("mimeType", "")
+    if args.get("decrypt_to"):
+        return _download_decrypted(home, files, fid, meta, args)
     export = _str(args, "export_mime", required=False)
     name = _safe_name(_str(args, "name", required=False) or meta.get("name", fid))
     if mime.startswith("application/vnd.google-apps."):
@@ -3737,6 +3740,67 @@ def drive(home, args: dict) -> dict:
             "size": path.stat().st_size}
 
 
+def _decrypt_folder(args: dict) -> tuple[int, Path]:
+    """The open folder a decrypted file is written into, and its real path: an existing folder
+    inside a Group of a sensitive area, judged by the folder actually opened."""
+    target = Path(os.path.expanduser(_str(args, "decrypt_to")))
+    if not target.is_dir():
+        raise AccessError(f"decrypt_to must be an existing folder: {target}")
+    try:
+        fd = os.open(target.resolve(), os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    except OSError as exc:
+        raise AccessError(f"cannot open {target}: {exc.strerror}") from None
+    try:
+        real = _fd_path(fd)
+        parts, sensitive = _placed(real)
+        if not sensitive or len(parts) < 2:
+            raise AccessError("decrypt_to must be a folder inside a Group of a sensitive area of the "
+                              "Workspaces layout (`ws-layout` shows them): a decrypted file stays there")
+    except BaseException:
+        os.close(fd)
+        raise
+    return fd, real
+
+
+def _download_decrypted(home, files, fid: str, meta: dict, args: dict) -> dict:
+    """Download a .age file and write it decrypted into decrypt_to; the encrypted copy is kept
+    only in a private temporary folder, and the secret key reaches age on its stdin."""
+    from googleapiclient.http import MediaIoBaseDownload
+    drive_name = meta.get("name") or ""
+    if meta.get("mimeType", "").startswith("application/vnd.google-apps.") or not drive_name.endswith(".age"):
+        raise AccessError(f"{drive_name or fid} is not an encrypted upload (a .age file); download it "
+                          "without decrypt_to")
+    folder_fd, folder = _decrypt_folder(args)
+    with contextlib.ExitStack() as stack:
+        stack.callback(os.close, folder_fd)
+        identity = _stored_identity(home)
+        if identity is None:
+            raise AccessError(f"no secret key in this Keychain ({AGE_IDENTITY}); the user puts the kept "
+                              "copy back with `gaccess encryption restore`")
+        scratch = Path(stack.enter_context(tempfile.TemporaryDirectory(prefix="gaccess-")))
+        sealed = scratch / "download.age"
+        with open(sealed, "wb") as handle:
+            downloader = MediaIoBaseDownload(handle, files.get_media(fileId=fid))
+            done = False
+            while not done:
+                _, done = _google(downloader.next_chunk)
+        name = Path(_safe_name(_str(args, "name", required=False) or drive_name[:-len(".age")]))
+        made, out = _reserve(name, mode=0o600, dir_fd=folder_fd)
+        try:
+            try:
+                done = _age("age", ["-d", "-i", "-", str(sealed)], (identity + "\n").encode(), stdout=out)
+            finally:
+                os.close(out)
+            if done.returncode:
+                raise AccessError("age could not decrypt the file (encrypted to another key?), so nothing "
+                                  "was written: " + done.stderr.decode(errors="replace").strip()[:200])
+        except BaseException:
+            os.unlink(made, dir_fd=folder_fd)
+            raise
+        size = os.stat(made, dir_fd=folder_fd).st_size
+    return {"ok": True, "status": "decrypted", "file_id": fid, "path": str(folder / made), "size": size}
+
+
 def _area_key(name: str) -> str:
     # macOS folders ignore case and Unicode normalization, so `personal/` is the Personal area:
     # names compare that way, or a path spelled otherwise would read as outside every area and
@@ -3744,23 +3808,29 @@ def _area_key(name: str) -> str:
     return unicodedata.normalize("NFC", name).casefold()
 
 
-def _classify(real: Path, links: int) -> bool:
-    """Whether a file, by its real path, lies in a sensitive area of the Workspaces layout
-    (plugins/_shared/workspace_layout.py). Only files under the layout's root go up: outside it
-    nothing says whether a file is sensitive, and a layout that cannot be read uploads nothing."""
-    if _PATHS.search(str(real)):
-        raise AccessError("refusing to upload a credential or Google-access state file")
+def _placed(real: Path) -> tuple[tuple, bool]:
+    """Where a real path lies under the root of the Workspaces layout (plugins/_shared/
+    workspace_layout.py): its parts below the root, and whether its area is sensitive. Outside the
+    root nothing says whether a file is sensitive, and a layout that cannot be read moves nothing."""
     try:
         layout = workspace_layout.load()
     except workspace_layout.LayoutError as exc:
-        raise AccessError(f"the Workspaces layout cannot be read, so nothing is uploaded: {exc}") from None
+        raise AccessError(f"the Workspaces layout cannot be read, so nothing is moved: {exc}") from None
     try:
         parts = real.relative_to(layout.root.resolve()).parts
     except ValueError:
-        raise AccessError(f"only files under the Workspaces root ({layout.root}) are uploaded; move or "
-                          f"copy {real.name} there first") from None
-    top = _area_key(parts[0]) if len(parts) > 1 else None
-    sensitive = any(a.sensitive and _area_key(a.name) == top for a in layout.areas)
+        raise AccessError(f"only files under the Workspaces root ({layout.root}) are uploaded or "
+                          f"decrypted; {real.name} is outside it") from None
+    top = _area_key(parts[0]) if parts else None
+    return parts, any(a.sensitive and _area_key(a.name) == top for a in layout.areas)
+
+
+def _classify(real: Path, links: int) -> bool:
+    """Whether a file to upload, by its real path, lies in a sensitive area (_placed)."""
+    if _PATHS.search(str(real)):
+        raise AccessError("refusing to upload a credential or Google-access state file")
+    parts, sensitive = _placed(real)
+    sensitive = sensitive and len(parts) > 1  # a file named like an area at the root is in none
     # A hard link has no one real path: another name of the same file may lie in a sensitive area.
     if links > 1 and not sensitive:
         raise AccessError(f"{real.name} has other hard links, one of which may lie in a sensitive area; "
@@ -3885,17 +3955,19 @@ def recipients() -> list[str]:
     return found
 
 
-def _age(tool: str, argv: list[str], data: bytes | None = None, stdin=None) -> subprocess.CompletedProcess:
-    """Run age or age-keygen on ``data`` or an open ``stdin``, with nothing of this process's
-    environment but a minimal PATH."""
+def _age(tool: str, argv: list[str], data: bytes | None = None, stdin=None,
+         stdout=None) -> subprocess.CompletedProcess:
+    """Run age or age-keygen on ``data`` or an open ``stdin``, into an open ``stdout`` or captured,
+    with nothing of this process's environment but a minimal PATH."""
     binary = shutil.which(tool)
     if not binary:
         raise AccessError(f"{tool} is not installed (`brew install age`)")
     env = {"PATH": "/usr/bin:/bin", "HOME": str(Path.home()), "LC_ALL": "C"}
     feed = {"input": data} if data is not None else \
         {"stdin": stdin if stdin is not None else subprocess.DEVNULL}
+    out = {"stdout": stdout, "stderr": subprocess.PIPE} if stdout is not None else {"capture_output": True}
     try:
-        return subprocess.run([binary, *argv], capture_output=True, env=env, timeout=AGE_TIMEOUT, **feed)
+        return subprocess.run([binary, *argv], env=env, timeout=AGE_TIMEOUT, **feed, **out)
     except subprocess.TimeoutExpired:
         raise AccessError(f"{tool} did not finish in time") from None
 
