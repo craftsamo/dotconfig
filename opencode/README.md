@@ -756,9 +756,15 @@ A move to a credit lane (see above) therefore pays one full write.
   machines. `/antigravity` (`/ag`) manages the accounts and shows their quota
   and reset times, but the pinned version fails there with "Expected JSON
   value" while an account has no saved quota, which a new account never
-  has. OpenCode Quota does not cover these models either (its `google-agy`
-  provider reads another plugin's login). When Google answers 403 "Verify
-  your account" (`VALIDATION_REQUIRED`), the plugin disables the account:
+  has. OpenCode Quota's built-in `google-agy` provider reads another
+  plugin's login, so `plugins/credit-lanes.ts` (`lib/credit-lanes/antigravity.ts`)
+  also serves `/google-antigravity` on the same `127.0.0.1:47631` loopback
+  endpoint: it resolves the active `google` Antigravity OAuth connection,
+  queries `fetchAvailableModels`, and reports the `Gemini Pro`, `Gemini Flash`
+  and `Claude` pools to `quotaProviders` in `opencode-quota/quota-toast.jsonc`
+  (`providers.google.settings.apiKey` supplies the local bearer sentinel, which
+  the Antigravity transport strips on real requests). When Google answers 403
+  "Verify your account" (`VALIDATION_REQUIRED`), the plugin disables the account:
   complete Google's check in a browser signed in to it, then log in again,
   which enables it. `antigravity.json` turns off the plugin's self-update,
   which would otherwise rewrite the pinned version in a V1 config. In its V1
