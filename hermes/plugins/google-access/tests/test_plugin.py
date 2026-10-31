@@ -36,6 +36,15 @@ def empty_keychain(tmp_path_factory, monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def workspaces(tmp_path, tmp_path_factory, monkeypatch):
+    """The test's own directory is the Workspaces root, under the default layout, and no
+    encryption key of this machine is read."""
+    monkeypatch.setenv("WORKSPACES_LAYOUT", str(tmp_path / "no-layout.json"))
+    monkeypatch.setenv("WORKSPACES_ROOT", str(tmp_path))
+    monkeypatch.setattr(plugin.access, "ENCRYPTION_DIR", tmp_path_factory.mktemp("plugin-data"))
+
+
+@pytest.fixture(autouse=True)
 def person_present(monkeypatch):
     monkeypatch.setattr(plugin.human_gate, "no_human", lambda: None)  # a person is there to answer cards
 

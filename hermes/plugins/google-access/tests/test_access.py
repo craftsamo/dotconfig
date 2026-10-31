@@ -1,5 +1,6 @@
 import base64
 import importlib.util
+import io
 import json
 import os
 from email import message_from_bytes
@@ -48,6 +49,34 @@ esac
     access._CREDS.clear()
     yield SimpleNamespace(items=items, log=log, script=script)
     access._CREDS.clear()
+
+
+@pytest.fixture(autouse=True)
+def workspaces(tmp_path, monkeypatch):
+    """The test's own directory is the Workspaces root, under the default layout (never this
+    machine's layout file)."""
+    monkeypatch.setenv("WORKSPACES_LAYOUT", str(tmp_path / "no-layout.json"))
+    monkeypatch.setenv("WORKSPACES_ROOT", str(tmp_path))
+    return tmp_path
+
+
+needs_age = pytest.mark.skipif(not (access.shutil.which("age") and access.shutil.which("age-keygen")),
+                               reason="age is not installed")
+
+
+@pytest.fixture(autouse=True)
+def encryption(tmp_path_factory, monkeypatch):
+    """Recipients in a folder of the test's own (never this machine's); `gaccess encryption init`
+    sees a terminal."""
+    folder = tmp_path_factory.mktemp("plugin-data") / "google-access"
+    monkeypatch.setattr(access, "ENCRYPTION_DIR", folder)
+    monkeypatch.setattr(access, "_interactive", lambda: True)
+    return folder
+
+
+def _keygen():
+    made = access._age("age-keygen", []).stdout.decode()
+    return access.AGE_SECRET.search(made).group(0)
 
 
 def token(home, scopes=access.SCOPES):
@@ -439,6 +468,345 @@ def test_drive_upload_asks_and_refuses_credentials(tmp_path):
         access.approval_request("google_drive", {"action": "upload", "path": str(state)})
 
 
+def _file(path, data=b"x"):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(data)
+    return path
+
+
+def test_upload_takes_only_files_under_the_workspaces_root(tmp_path, tmp_path_factory, monkeypatch):
+    for inside in (tmp_path / "Projects" / "Acme" / "docs" / "a.pdf", tmp_path / ".inbox" / "google" / "b.pdf",
+                   tmp_path / "loose.txt"):
+        assert access._upload_source({"path": str(_file(inside))}) == (inside.resolve(), False)
+    outside = _file(tmp_path_factory.mktemp("elsewhere") / "c.pdf")
+    with pytest.raises(access.AccessError, match="only files under the Workspaces root"):
+        access.approval_request("google_drive", {"action": "upload", "path": str(outside)})
+    # A link inside the root is judged by what it points at.
+    link = tmp_path / "Projects" / "link.pdf"
+    link.symlink_to(outside)
+    with pytest.raises(access.AccessError, match="only files under the Workspaces root"):
+        access._upload_source({"path": str(link)})
+
+
+def test_upload_knows_a_sensitive_area_whatever_its_spelling(tmp_path):
+    secret = _file(tmp_path / "Personal" / "Budget" / "data" / "2026.csv")
+    assert access._upload_source({"path": str(secret)}) == (secret.resolve(), True)
+    # macOS folders ignore case: personal/ is still the Personal area.
+    other_case = tmp_path / "personal" / "Budget" / "data" / "2026.csv"
+    if other_case.is_file():
+        assert access._upload_source({"path": str(other_case)})[1] is True
+    # A link from a plain area into a sensitive one is the sensitive file.
+    link = tmp_path / "Projects" / "budget.csv"
+    link.parent.mkdir(parents=True)
+    link.symlink_to(secret)
+    assert access._upload_source({"path": str(link)})[1] is True
+    # A file named like an area at the root is not inside it.
+    assert access._upload_source({"path": str(_file(tmp_path / "Personal.txt"))})[1] is False
+
+
+def _capture_upload(monkeypatch):
+    """A Drive API and MediaIoBaseUpload that keep what would have been sent, and from where."""
+    http = pytest.importorskip("googleapiclient.http")
+    sent = {}
+
+    def media(fd, mimetype, resumable):
+        sent.update(path=fd.name, mime=mimetype, data=fd.read())
+        return "media"
+    monkeypatch.setattr(http, "MediaIoBaseUpload", media)
+    api = mock.MagicMock()
+    api.files().create().execute.return_value = {"id": "u1"}
+    services(monkeypatch, drive=api)
+    return api, sent
+
+
+def test_a_sensitive_file_without_a_key_is_never_uploaded(tmp_path, encryption, monkeypatch):
+    secret = _file(tmp_path / "Personal" / "Budget" / "data" / "2026.csv")
+    api, sent = _capture_upload(monkeypatch)
+    with pytest.raises(access.AccessError, match="gaccess encryption init"):
+        access.approval_request("google_drive", {"action": "upload", "path": str(secret)})
+    with pytest.raises(access.AccessError, match="gaccess encryption init"):
+        access.drive(tmp_path, {"action": "upload", "path": str(secret)})
+    assert not sent and not api.files().create.call_args.kwargs
+
+
+@needs_age
+def test_a_sensitive_file_goes_up_encrypted(tmp_path, keychain, encryption, monkeypatch):
+    identity = _keygen()
+    access._add_recipient(access._recipient_of(identity), "test")
+    backup = _keygen()
+    access._add_recipient(access._recipient_of(backup), "kept elsewhere")
+    secret = _file(tmp_path / "Personal" / "Budget" / "data" / "2026.csv", b"date,amount\n2026-10-01,42\n")
+    args = {"action": "upload", "path": str(secret), "mime_type": "text/csv"}
+    reason, _ = access.approval_request("google_drive", args)
+    assert "As: 2026.csv.age" in reason and "Encrypted: with age to 2 keys (sensitive area)" in reason
+    api, sent = _capture_upload(monkeypatch)
+    result = access.drive(tmp_path, args)
+    assert result["encrypted"] == {"with": "age", "recipients": 2}
+    assert api.files().create.call_args.kwargs["body"] == {"name": "2026.csv.age"}
+    assert sent["mime"] == "application/octet-stream" and b"2026-10-01" not in sent["data"]
+    assert not Path(sent["path"]).parent.exists()  # the encrypted copy is gone once sent
+    for key in (identity, backup):  # either key opens it
+        keyfile = tmp_path / "key.txt"
+        keyfile.write_text(key + "\n")
+        opened = access._age("age", ["-d", "-i", str(keyfile)], sent["data"])
+        assert opened.returncode == 0 and opened.stdout == secret.read_bytes()
+    # A name given without .age still gets it; one with it is kept.
+    access.drive(tmp_path, dict(args, name="budget"))
+    assert api.files().create.call_args.kwargs["body"] == {"name": "budget.age"}
+    access.drive(tmp_path, dict(args, name="budget.age"))
+    assert api.files().create.call_args.kwargs["body"] == {"name": "budget.age"}
+
+
+@needs_age
+def test_without_age_a_sensitive_file_is_not_uploaded(tmp_path, keychain, encryption, monkeypatch):
+    access._add_recipient(access._recipient_of(_keygen()), "test")
+    secret = _file(tmp_path / "Personal" / "Budget" / "data" / "2026.csv")
+    api, sent = _capture_upload(monkeypatch)
+    monkeypatch.setattr(access.shutil, "which", lambda name: None)
+    with pytest.raises(access.AccessError, match="age is not installed"):
+        access.drive(tmp_path, {"action": "upload", "path": str(secret)})
+    assert not sent
+
+
+def test_a_plain_file_goes_up_as_it_is(tmp_path, encryption, monkeypatch):
+    report = _file(tmp_path / "Projects" / "Acme" / "docs" / "r.csv", b"a,b\n")
+    reason, _ = access.approval_request("google_drive", {"action": "upload", "path": str(report)})
+    assert "Encrypted" not in reason and "As: r.csv" in reason
+    api, sent = _capture_upload(monkeypatch)
+    result = access.drive(tmp_path, {"action": "upload", "path": str(report)})
+    assert "encrypted" not in result and sent["data"] == b"a,b\n" and sent["mime"] == "text/csv"
+
+
+def test_a_hard_link_to_a_sensitive_file_is_not_a_plain_file(tmp_path, monkeypatch):
+    secret = _file(tmp_path / "Personal" / "Budget" / "data" / "2026.csv")
+    alias = tmp_path / "Projects" / "Acme" / "2026.csv"
+    alias.parent.mkdir(parents=True)
+    os.link(secret, alias)
+    api, sent = _capture_upload(monkeypatch)
+    with pytest.raises(access.AccessError, match="hard links"):
+        access.approval_request("google_drive", {"action": "upload", "path": str(alias)})
+    with pytest.raises(access.AccessError, match="hard links"):
+        access.drive(tmp_path, {"action": "upload", "path": str(alias)})
+    assert not sent
+
+
+def test_an_area_name_matches_in_either_unicode_form(tmp_path, monkeypatch):
+    import unicodedata
+    layout = tmp_path / "layout.json"
+    layout.write_text(json.dumps({"areas": [{"name": "Work", "role": "projects"},
+                                            {"name": unicodedata.normalize("NFC", "Kakeibo-é"),
+                                             "role": "personal", "sensitive": True}]}))
+    monkeypatch.setenv("WORKSPACES_LAYOUT", str(layout))
+    decomposed = _file(tmp_path / unicodedata.normalize("NFD", "Kakeibo-é") / "G" / "a.csv")
+    assert access._upload_source({"path": str(decomposed)})[1] is True
+
+
+@needs_age
+def test_a_swap_after_the_check_cannot_send_a_sensitive_file_in_the_clear(tmp_path, keychain, monkeypatch):
+    access._add_recipient(access._recipient_of(_keygen()), "test")
+    secret = _file(tmp_path / "Personal" / "Budget" / "2026.csv", b"secret-rows")
+    plain = _file(tmp_path / "Projects" / "Acme" / "r.csv", b"plain")
+    real_open = os.open
+
+    def swap_then_open(where):
+        """Run `where` right before the upload opens its file (once; other opens pass through)."""
+        pending = [where]
+
+        def opener(path, flags, *rest, **kw):
+            if pending and str(path) == str(plain.resolve()):
+                pending.pop()()
+            return real_open(path, flags, *rest, **kw)
+        monkeypatch.setattr(access.os, "open", opener)
+
+    # The file itself becomes a link to the sensitive one: the open refuses to follow it.
+    def link_the_file():
+        plain.unlink()
+        plain.symlink_to(secret)
+    swap_then_open(link_the_file)
+    api, sent = _capture_upload(monkeypatch)
+    with pytest.raises(access.AccessError, match="cannot open"):
+        access.drive(tmp_path, {"action": "upload", "path": str(plain)})
+    assert not sent
+    # Its folder becomes a link into the sensitive area: what is opened is judged, and encrypted.
+    plain.unlink()
+    _file(plain, b"plain")
+
+    def link_the_folder():
+        moved = tmp_path / "Projects" / "Acme-old"
+        (tmp_path / "Projects" / "Acme").rename(moved)
+        (tmp_path / "Projects" / "Acme").symlink_to(tmp_path / "Personal" / "Budget")
+        (tmp_path / "Personal" / "Budget" / "r.csv").write_bytes(b"secret-rows")
+    swap_then_open(link_the_folder)
+    result = access.drive(tmp_path, {"action": "upload", "path": str(plain)})
+    assert result["encrypted"]["recipients"] == 1 and b"secret-rows" not in sent["data"]
+
+
+# --- decrypting downloads -------------------------------------------------------------------------
+
+def _serve_download(monkeypatch, name, data, mime="application/octet-stream"):
+    """A Drive file `f1` named `name` whose content is `data`."""
+    http = pytest.importorskip("googleapiclient.http")
+    api = mock.MagicMock()
+    api.files().get().execute.return_value = {"id": "f1", "name": name, "mimeType": mime}
+
+    class Downloader:
+        def __init__(self, handle, request):
+            self.handle = handle
+
+        def next_chunk(self):
+            self.handle.write(data)
+            return None, True
+    monkeypatch.setattr(http, "MediaIoBaseDownload", Downloader)
+    services(monkeypatch, drive=api)
+    return api
+
+
+def _sealed(identity, data):
+    return access._age("age", ["-r", access._recipient_of(identity)], data).stdout
+
+
+@needs_age
+def test_a_downloaded_age_file_is_decrypted_into_a_sensitive_group(tmp_path, keychain, monkeypatch):
+    identity = _keygen()
+    access._store_identity(tmp_path, identity)
+    _serve_download(monkeypatch, "2026.csv.age", _sealed(identity, b"date,amount\n"))
+    target = tmp_path / "Personal" / "Budget" / "data"
+    target.mkdir(parents=True)
+    first = access.drive(tmp_path, {"action": "download", "file_id": "f1", "decrypt_to": str(target)})
+    assert first["status"] == "decrypted" and first["path"] == str(target / "2026.csv")
+    made = Path(first["path"])
+    assert made.read_bytes() == b"date,amount\n" and made.stat().st_mode & 0o777 == 0o600
+    second = access.drive(tmp_path, {"action": "download", "file_id": "f1", "decrypt_to": str(target)})
+    assert second["path"] == str(target / "2026 (2).csv")
+    named = access.drive(tmp_path, {"action": "download", "file_id": "f1", "decrypt_to": str(target),
+                                    "name": "budget.csv"})
+    assert named["path"] == str(target / "budget.csv")
+    # Nothing, encrypted or clear, is left in the download folder.
+    assert not access.download_dir(tmp_path).exists() or not any(access.download_dir(tmp_path).iterdir())
+    # The secret key went to age on stdin, never in an argument the log would show.
+    assert identity not in keychain.log.read_text()
+
+
+@needs_age
+def test_decrypt_to_is_only_a_folder_inside_a_sensitive_group(tmp_path, tmp_path_factory, keychain, monkeypatch):
+    identity = _keygen()
+    access._store_identity(tmp_path, identity)
+    _serve_download(monkeypatch, "2026.csv.age", _sealed(identity, b"rows"))
+    plain = tmp_path / "Projects" / "Acme"
+    plain.mkdir(parents=True)
+    group = tmp_path / "Personal" / "Budget"
+    group.mkdir(parents=True)
+    (group / "link").symlink_to(plain)
+    outside = tmp_path_factory.mktemp("elsewhere")
+    for where, why in ((plain, "sensitive area"), (tmp_path / "Personal", "sensitive area"),
+                       (group / "link", "sensitive area"), (outside, "outside it"),
+                       (group / "missing", "existing folder"), (tmp_path / ".inbox", "sensitive area")):
+        (tmp_path / ".inbox").mkdir(exist_ok=True)
+        with pytest.raises(access.AccessError, match=why):
+            access.drive(tmp_path, {"action": "download", "file_id": "f1", "decrypt_to": str(where)})
+    assert not any(plain.iterdir()) and not any(outside.iterdir())
+
+
+@needs_age
+def test_only_an_encrypted_upload_is_decrypted_and_only_with_its_key(tmp_path, keychain, monkeypatch):
+    group = tmp_path / "Personal" / "Budget"
+    group.mkdir(parents=True)
+    args = {"action": "download", "file_id": "f1", "decrypt_to": str(group)}
+    _serve_download(monkeypatch, "report.pdf", b"%PDF")
+    with pytest.raises(access.AccessError, match="not an encrypted upload"):
+        access.drive(tmp_path, args)
+    _serve_download(monkeypatch, "Plan.age", b"", mime="application/vnd.google-apps.document")
+    with pytest.raises(access.AccessError, match="not an encrypted upload"):
+        access.drive(tmp_path, args)
+    _serve_download(monkeypatch, "2026.csv.age", _sealed(_keygen(), b"rows"))
+    with pytest.raises(access.AccessError, match="gaccess encryption restore"):
+        access.drive(tmp_path, args)
+    access._store_identity(tmp_path, _keygen())  # another key than the file's
+    with pytest.raises(access.AccessError, match="could not decrypt"):
+        access.drive(tmp_path, args)
+    assert not any(group.iterdir())
+
+
+def test_the_layout_file_decides_root_and_sensitive_areas(tmp_path, monkeypatch):
+    layout = tmp_path / "layout.json"
+    layout.write_text(json.dumps({"root": str(tmp_path / "W"), "areas": [
+        {"name": "Clients", "role": "projects"}, {"name": "Home", "role": "personal", "sensitive": True},
+        {"name": "Notes", "role": "personal"}]}))
+    monkeypatch.setenv("WORKSPACES_LAYOUT", str(layout))
+    monkeypatch.delenv("WORKSPACES_ROOT")
+    assert access._upload_source({"path": str(_file(tmp_path / "W" / "Home" / "G" / "a"))})[1] is True
+    assert access._upload_source({"path": str(_file(tmp_path / "W" / "Notes" / "G" / "a"))})[1] is False
+    with pytest.raises(access.AccessError, match="only files under"):
+        access._upload_source({"path": str(_file(tmp_path / "Personal" / "G" / "a"))})
+
+
+# --- encryption keys ------------------------------------------------------------------------------
+
+@needs_age
+def test_init_stores_the_key_once_and_shows_it_once(tmp_path, keychain, encryption, capsys):
+    assert access.main(["--home", str(tmp_path), "encryption", "init"]) == 0
+    out = capsys.readouterr().out
+    identity = (keychain.items / access.AGE_IDENTITY).read_text().strip()
+    assert access.AGE_SECRET.fullmatch(identity) and identity in out
+    stored = [line for line in keychain.log.read_text().splitlines() if line.startswith("set ")]
+    assert len(stored) == 1 and "-D AGE IDENTITY" in stored[0] and "--no-env" in stored[0] and "--new" in stored[0]
+    assert access.recipients() == [access._recipient_of(identity)]
+    assert (encryption / access.RECIPIENTS_FILE).stat().st_mode & 0o777 == 0o600
+    # A second run keeps the key, never shows it again, and puts a lost public key back.
+    (encryption / access.RECIPIENTS_FILE).unlink()
+    assert access.main(["--home", str(tmp_path), "encryption", "init"]) == 0
+    out = capsys.readouterr().out
+    assert "already set up" in out and identity not in out
+    assert (keychain.items / access.AGE_IDENTITY).read_text().strip() == identity
+    assert access.recipients() == [access._recipient_of(identity)]
+
+
+@needs_age
+def test_init_outside_a_terminal_makes_no_key(tmp_path, keychain, encryption, monkeypatch, capsys):
+    monkeypatch.setattr(access, "_interactive", lambda: False)
+    assert access.main(["--home", str(tmp_path), "encryption", "init"]) == 2
+    assert not (keychain.items / access.AGE_IDENTITY).exists()
+    assert not (encryption / access.RECIPIENTS_FILE).exists()
+
+
+@needs_age
+def test_restore_puts_back_a_kept_key_but_never_replaces_one(tmp_path, keychain, encryption, monkeypatch):
+    kept, other = _keygen(), _keygen()
+    monkeypatch.setattr(access.sys, "stdin", io.StringIO("not a key\n"))
+    assert access.main(["--home", str(tmp_path), "encryption", "restore"]) == 2
+    monkeypatch.setattr(access.sys, "stdin", io.StringIO(kept + "\n"))
+    assert access.main(["--home", str(tmp_path), "encryption", "restore"]) == 0
+    assert (keychain.items / access.AGE_IDENTITY).read_text().strip() == kept
+    assert access.recipients() == [access._recipient_of(kept)]
+    monkeypatch.setattr(access.sys, "stdin", io.StringIO(other + "\n"))
+    assert access.main(["--home", str(tmp_path), "encryption", "restore"]) == 1
+    assert (keychain.items / access.AGE_IDENTITY).read_text().strip() == kept
+
+
+@needs_age
+def test_add_recipient_takes_only_age_public_keys(tmp_path, encryption):
+    with pytest.raises(access.AccessError, match="not set up"):
+        access.recipients()
+    backup = access._recipient_of(_keygen())
+    assert access.main(["--home", str(tmp_path), "encryption", "add-recipient", "age1nope"]) == 1
+    assert access.main(["--home", str(tmp_path), "encryption", "add-recipient", backup, "--label", "kept"]) == 0
+    assert access.main(["--home", str(tmp_path), "encryption", "add-recipient", backup]) == 0
+    assert access.recipients() == [backup]
+    assert f"# kept\n{backup}\n" in (encryption / access.RECIPIENTS_FILE).read_text()
+    (encryption / access.RECIPIENTS_FILE).write_text(backup + "\nAGE-SECRET-KEY-1oops\n")
+    with pytest.raises(access.AccessError, match="line 2 is not an age recipient"):
+        access.recipients()
+
+
+def test_an_unreadable_layout_uploads_nothing(tmp_path, monkeypatch):
+    broken = tmp_path / "layout.json"
+    broken.write_text("{not json")
+    monkeypatch.setenv("WORKSPACES_LAYOUT", str(broken))
+    report = _file(tmp_path / "Projects" / "Acme" / "r.pdf")
+    with pytest.raises(access.AccessError, match="layout cannot be read"):
+        access.approval_request("google_drive", {"action": "upload", "path": str(report)})
+
+
 @pytest.mark.parametrize("tool,args", [
     ("google_gmail", {"action": "send ", "to": ["a@example.com"], "subject": "s", "body": "b"}),
     ("google_sheets", {"action": " clear", "spreadsheet_id": "s", "range": "A1"}),
@@ -481,7 +849,9 @@ def test_long_reasons_fit_what_the_chat_shows():
     "secret get GOOGLE_OAUTH_ASSISTANT -p hermes --scope google-access",
     "security find-generic-password -s secret.hermes/google-access -w",
     "security dump-keychain -d ~/Library/Keychains/login.keychain-db",
-    "secret export -p hermes --format json"])
+    "secret export -p hermes --format json",
+    "secret get GOOGLE_ACCESS_AGE_IDENTITY -p hermes", "age -d -i <(echo AGE-SECRET-KEY-1QQQ) f.age",
+    "cat ~/.hermes/plugin-data/google-access/age-recipients.txt"])
 def test_terminal_bypass_is_blocked(command):
     assert access.bypass("terminal", {"command": command}) == access.BYPASS_MESSAGE
 
@@ -910,13 +1280,13 @@ def test_drive_upload_uses_the_app_file_scope(tmp_path, monkeypatch):
     report.write_text("a,b\n")
     api = mock.MagicMock()
     api.files().create().execute.return_value = {"id": "u1", "name": "r.csv"}
-    monkeypatch.setattr(http, "MediaFileUpload", lambda path, mimetype, resumable: (path, mimetype))
+    monkeypatch.setattr(http, "MediaIoBaseUpload", lambda fd, mimetype, resumable: (fd.read(), mimetype))
     calls = services(monkeypatch, drive=api)
     result = access.drive(tmp_path, {"action": "upload", "path": str(report), "parent": "folder"})
     assert result["status"] == "uploaded"
     kwargs = api.files().create.call_args.kwargs
     assert kwargs["body"] == {"name": "r.csv", "parents": ["folder"]}
-    assert kwargs["media_body"] == (str(report.resolve()), "text/csv")
+    assert kwargs["media_body"] == (b"a,b\n", "text/csv")
     assert calls == [("drive", access.DRIVE_FILE)]
 
 

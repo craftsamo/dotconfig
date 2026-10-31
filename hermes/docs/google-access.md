@@ -8,13 +8,13 @@ Hermes design docs — index: [`PROFILES.md`](../PROFILES.md).
 
 ## Shape
 
-| Piece                                                                                                                    | Home                                                                                           | Reader    |
-| ------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------- | --------- |
-| Engine, approval rule, bypass guard, setup CLI                                                                           | `plugins/google-access/access.py`                                                              | all       |
-| `google_sheets`, `google_gmail`, `google_drive`, `gcloud` tools and the `pre_tool_call` hook (toolset `google_access`)   | `plugins/google-access/__init__.py`                                                            | Assistant |
-| Setup launcher                                                                                                           | `../bin/gaccess` (runs on `hermes-python`)                                                     | people    |
+| Piece                                                                                                                    | Home                                                                             | Reader    |
+| ------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------- | --------- |
+| Engine, approval rule, bypass guard, setup CLI                                                                           | `plugins/google-access/access.py`                                                | all       |
+| `google_sheets`, `google_gmail`, `google_drive`, `gcloud` tools and the `pre_tool_call` hook (toolset `google_access`)   | `plugins/google-access/__init__.py`                                              | Assistant |
+| Setup launcher                                                                                                           | `../bin/gaccess` (runs on `hermes-python`)                                       | people    |
 | How the Assistant works a sheet: reads, guarded writes, approvals, formatting, checking the look, recovery, sheet design | the `google-access:sheets` plugin skill (`plugins/google-access/skills/sheets/`) | Assistant |
-| When the Assistant uses the tools in Chat, and Gmail, Drive and gcloud                                                   | the Assistant's private Chat reference `google.md`                                             | Assistant |
+| When the Assistant uses the tools in Chat, and Gmail, Drive and gcloud                                                   | the Assistant's private Chat reference `google.md`                               | Assistant |
 
 The engine uses the Google client libraries of Hermes' own runtime (the
 `google` extra `setup.sh` installs) and the `gcloud` binary on `PATH`. The
@@ -25,11 +25,13 @@ every Workspace scope at once and keeps one unscoped token.
 
 One Google account per profile, kept outside every repository:
 
-| State              | Home                                                                             | Content                                                                                                                             |
-| ------------------ | -------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| OAuth token        | Keychain item `GOOGLE_OAUTH_<PROFILE>` (project `hermes`, scope `google-access`) | refresh token, client id and secret, granted scopes: `spreadsheets`, `gmail.readonly`, `gmail.send`, `drive.readonly`, `drive.file` |
-| `gcloud/`          | `~/.hermes/profiles/<profile>/google-access/`                                    | Hermes' own gcloud configuration (`CLOUDSDK_CONFIG`)                                                                                |
-| `token.generation` | the same directory                                                               | no secret: a random mark rewritten each time the token is stored                                                                    |
+| State                | Home                                                                             | Content                                                                                                                             |
+| -------------------- | -------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| OAuth token          | Keychain item `GOOGLE_OAUTH_<PROFILE>` (project `hermes`, scope `google-access`) | refresh token, client id and secret, granted scopes: `spreadsheets`, `gmail.readonly`, `gmail.send`, `drive.readonly`, `drive.file` |
+| `gcloud/`            | `~/.hermes/profiles/<profile>/google-access/`                                    | Hermes' own gcloud configuration (`CLOUDSDK_CONFIG`)                                                                                |
+| `token.generation`   | the same directory                                                               | no secret: a random mark rewritten each time the token is stored                                                                    |
+| age secret key       | Keychain item `GOOGLE_ACCESS_AGE_IDENTITY` (same project and scope)              | the key sensitive files are encrypted to on Drive; one for every profile, kind `AGE IDENTITY`, stored `--no-env`                    |
+| `age-recipients.txt` | `~/.hermes/plugin-data/google-access/`                                           | no secret: the public keys those files are encrypted to                                                                             |
 
 The token sits in a Keychain scope no Hermes profile receives
 ([secret scoping](access-common.md#secret-scoping)); the engine reads it with
@@ -64,6 +66,48 @@ or it fails). gcloud runs with its own login, so Hermes never reads or switches
 the user's `~/.config/gcloud`; there is no default project and every
 project-scoped call names one.
 
+## Sensitive files
+
+A Drive upload takes only a file under the root of the
+[Workspaces layout](workspace-layout.md), resolved through links: outside it
+nothing says whether the file is sensitive, and a layout that cannot be read
+uploads nothing. A file in an area the layout marks `sensitive` goes up
+encrypted with [age](https://age-encryption.org) to every public key in
+`age-recipients.txt`; the plugin keeps no list of area names. Area names match
+without case or Unicode normalization, as macOS folders do, so `personal/` is
+the `Personal` area.
+
+- The upload opens the file first (never through a link at its name), judges
+  it by where the open file really is, and sends only what it reads through
+  that file, so a link or folder swapped in after the approval cannot send a
+  sensitive file in the clear. A plain file with other hard links is refused:
+  another of its names may lie in a sensitive area.
+
+- The encrypted copy is made in a private temporary folder and removed once
+  sent. Its Drive name ends in `.age` (a given `name` gets it too) and its
+  content type is `application/octet-stream`, so neither says what the file
+  is; the name itself is not hidden.
+- No caller can turn encryption off. When no key is set up or `age` is
+  missing, the upload is refused before its card.
+- An upload reads only the public keys. The secret key is one Keychain item
+  for every profile, of a kind the web3 wallet never reads, and stored
+  `--no-env`, so `secret env` never puts it into an environment.
+- `download` with `decrypt_to` brings a `.age` file back: the folder must
+  exist inside a Group of a sensitive area, judged by the folder actually
+  opened. The encrypted copy stays in a private temporary folder, the secret
+  key is read from the Keychain only then and reaches age on its stdin, and
+  the file is written without `.age`, owner-only and never over another.
+  Nothing clear passes through the download folder; a `.age` file downloaded
+  without `decrypt_to` lands there still encrypted.
+- Any of the keys also opens a file by hand: `age -d -i <key file>
+<name>.age`. The secret key `gaccess encryption init` shows once is the copy
+  to keep outside this Mac; `add-recipient` adds another public key, such as a
+  backup key kept elsewhere, for uploads from then on.
+- Other ways out are not covered: a `gcloud storage cp` of a sensitive file
+  still goes up as it is, on its own card.
+
+Why age, the Keychain and these names: [decision](decisions/drive-upload-encryption.md).
+
 ## Approval
 
 The hook decides before a tool runs; the rule is `approval_request` in
@@ -73,7 +117,8 @@ cards have the [shared shape](access-common.md#card-shape): `Gmail · Send an
 email` with ⚠️ (delivered at once, it cannot be unsent), the recipients, the
 subject and the body under its own heading, cut with the rest counted;
 `Google Drive · Upload a file` with ✅ into My Drive or ⚠️ into a folder that
-may be shared; `gcloud · Run a command` with 🚨 and the full command, which is
+may be shared, and for a sensitive file the `.age` name and an `Encrypted`
+line with the number of keys; `gcloud · Run a command` with 🚨 and the full command, which is
 never cut — a command too long for the card is refused. A card whose facts do
 not fit (too many recipients) is refused too.
 
@@ -149,7 +194,8 @@ not fit (too many recipients) is refused too.
   (except `auth list`), `config` (except reads), `init`, `components`, and the
   flags `--account`, `--configuration`, `--project` (use the parameter),
   `--flags-file`, `--impersonate-service-account`, `--log-http`; a Drive upload
-  of a credential file.
+  of a credential file, of a file outside the Workspaces root, or of a
+  sensitive file with no key set up.
 
 ## Where a write may run
 
@@ -164,8 +210,9 @@ The same hook blocks terminal commands that run `gcloud`, `gsutil`, `bq` or
 `gaccess`, and terminal or file-tool calls whose command, working directory or
 path names the upstream Workspace scripts, `CLOUDSDK_*`, `~/.config/gcloud`,
 this plugin's state directory (only the plugin source under `plugins/`
-excepted), its Keychain item or scope, or a whole-Keychain read
-(`dump-keychain`, `secret export`). Patterns: `CLIS` (read by command
+excepted), its Keychain items or scope, the text of an age secret key
+(`AGE-SECRET-KEY-`), or a whole-Keychain read (`dump-keychain`,
+`secret export`). Patterns: `CLIS` (read by command
 position, with `_CLI` for a line that cannot be read that way) and `_PATHS` in
 `plugins/google-access/access.py`. A project's own tooling (`nps setup.google`,
 a deploy script) may still run, and the gcloud it calls uses the user's own
@@ -188,8 +235,17 @@ Once per account, in a terminal:
    client JSON is not kept (the stored token carries the client id and secret).
 3. `gaccess gcloud-login` — `gcloud auth login` into the profile's
    configuration.
-4. `gaccess check`.
+4. `gaccess encryption init` — makes the age key for
+   [sensitive files](#sensitive-files) (once per machine, not per profile):
+   the secret key goes into the Keychain and is shown once; keep that copy
+   outside this Mac (a password manager). A second run changes nothing but a
+   lost public key. Optionally `gaccess encryption add-recipient age1… --label
+…` adds another public key.
+5. `gaccess check`.
 
+`gaccess encryption restore` puts a kept secret key back into the Keychain (a
+new Mac, a lost Keychain), never over another one: files already uploaded can
+only be opened with the key they were encrypted to.
 `gaccess revoke` revokes the Google token and removes it from the Keychain.
 `--profile NAME` sets up another profile, which also needs the plugin's
 `PROFILES` and its own `plugins.enabled` and `platform_toolsets` entries.

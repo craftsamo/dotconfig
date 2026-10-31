@@ -72,7 +72,18 @@ Reads are fine in cron.
   sheet's values or look, use `google_sheets` (`get`, `snapshot`) instead of
   downloading it.
 - `upload` copies a local file into My Drive or into a folder this tool
-  created; another folder fails. Upload only files under `~/Workspaces`.
+  created; another folder fails. It takes only files under the Workspaces
+  root; copy a file from elsewhere into the right Group first.
+- A file in a sensitive area (`Personal/` by default; `ws-layout` shows which)
+  always goes up encrypted, as `<name>.age`, and only the user's key opens it.
+  Say so before uploading: whoever the user means to share it with cannot
+  read it on Drive. When the upload is refused because no key is set up, the
+  user runs `gaccess encryption init` in a terminal; never upload the file
+  another way (a copy outside the area, `gcloud storage cp`).
+- To bring a `.age` file back readable, `download` it with `decrypt_to` = the
+  folder of the Group it belongs in (inside a sensitive area); it is written
+  there without `.age`. Never decrypt it anywhere else, and do not download it
+  to the inbox to open it: there it stays encrypted.
 - Existing Drive files are never changed, shared or deleted. Say so and leave
   it to the user.
 
