@@ -215,6 +215,56 @@ describe("createAntigravityCollector", () => {
     expect(await otherMethod()).toBeUndefined()
   })
 
+  test("falls back to listed saved OAuth connections when active() is unset", async () => {
+    const collect = createAntigravityCollector(
+      {
+        integration: {
+          get: async () => ({
+            data: {
+              connections: [
+                { type: "credential", id: "conn-saved", method: "oauth" },
+              ],
+            },
+          }),
+          connection: {
+            active: async () => undefined,
+            resolve: async () => ({
+              type: "oauth",
+              methodID: "antigravity",
+              access: "access-saved",
+              refresh: "refresh-saved||proj-saved",
+            }),
+          },
+        },
+      },
+      {
+        now: () => NOW,
+        readAccounts: async () => [],
+        fetch: (async (input: RequestInfo | URL) => {
+          const url = String(input)
+          if (url === `${ANTIGRAVITY_ENDPOINT}/v1internal:fetchAvailableModels`) {
+            return new Response(
+              JSON.stringify({
+                models: {
+                  "gemini-4-argon-high": {
+                    quotaInfo: { remainingFraction: 0.9 },
+                  },
+                },
+              }),
+              { status: 200 },
+            )
+          }
+          return new Response("", { status: 500 })
+        }) as typeof globalThis.fetch,
+      },
+    )
+    const res = await collect()
+    expect(res?.entries[0]).toMatchObject({
+      name: "Gemini Pro",
+      percentRemaining: 90,
+    })
+  })
+
   test("uses packed managedProjectId when present and fetches quota", async () => {
     const calls: Array<{ url: string; body?: string; ua?: string | null }> = []
     const collect = createAntigravityCollector(

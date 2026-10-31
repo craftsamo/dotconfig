@@ -35,14 +35,16 @@
     // Quota's built-in `google-agy` reads another plugin's login, so the same
     // loopback server queries the active Antigravity OAuth connection's
     // `fetchAvailableModels` and groups its quota into Gemini Pro, Gemini
-    // Flash and Claude. `providers.google.settings.apiKey` supplies the local
-    // bearer sentinel.
+    // Flash and Claude. `plugins/credit-lanes.ts` sets `ANTIGRAVITY_QUOTA_TOKEN`
+    // in-process so `providers.google` needs no `apiKey` (which would shadow
+    // the OAuth connection).
     {
       "id": "google-antigravity",
       "providerId": "google",
       "label": "Antigravity",
       "mode": "remote-api",
       "format": "quota-v1",
+      "apiKeyEnv": "ANTIGRAVITY_QUOTA_TOKEN",
       "url": "http://127.0.0.1:47631/google-antigravity",
     },
   ],
