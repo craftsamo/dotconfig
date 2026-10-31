@@ -1,5 +1,6 @@
 import base64
 import importlib.util
+import io
 import json
 import os
 from email import message_from_bytes
@@ -505,6 +506,81 @@ def test_the_layout_file_decides_root_and_sensitive_areas(tmp_path, monkeypatch)
         access._upload_source({"path": str(_file(tmp_path / "Personal" / "G" / "a"))})
 
 
+# --- encryption keys ------------------------------------------------------------------------------
+
+needs_age = pytest.mark.skipif(not (access.shutil.which("age") and access.shutil.which("age-keygen")),
+                               reason="age is not installed")
+
+
+@pytest.fixture
+def encryption(tmp_path_factory, monkeypatch):
+    folder = tmp_path_factory.mktemp("plugin-data") / "google-access"
+    monkeypatch.setattr(access, "ENCRYPTION_DIR", folder)
+    monkeypatch.setattr(access, "_interactive", lambda: True)
+    return folder
+
+
+def _keygen():
+    made = access._age("age-keygen", []).stdout.decode()
+    return access.AGE_SECRET.search(made).group(0)
+
+
+@needs_age
+def test_init_stores_the_key_once_and_shows_it_once(tmp_path, keychain, encryption, capsys):
+    assert access.main(["--home", str(tmp_path), "encryption", "init"]) == 0
+    out = capsys.readouterr().out
+    identity = (keychain.items / access.AGE_IDENTITY).read_text().strip()
+    assert access.AGE_SECRET.fullmatch(identity) and identity in out
+    stored = [line for line in keychain.log.read_text().splitlines() if line.startswith("set ")]
+    assert len(stored) == 1 and "-D AGE IDENTITY" in stored[0] and "--no-env" in stored[0] and "--new" in stored[0]
+    assert access.recipients() == [access._recipient_of(identity)]
+    assert (encryption / access.RECIPIENTS_FILE).stat().st_mode & 0o777 == 0o600
+    # A second run keeps the key, never shows it again, and puts a lost public key back.
+    (encryption / access.RECIPIENTS_FILE).unlink()
+    assert access.main(["--home", str(tmp_path), "encryption", "init"]) == 0
+    out = capsys.readouterr().out
+    assert "already set up" in out and identity not in out
+    assert (keychain.items / access.AGE_IDENTITY).read_text().strip() == identity
+    assert access.recipients() == [access._recipient_of(identity)]
+
+
+@needs_age
+def test_init_outside_a_terminal_makes_no_key(tmp_path, keychain, encryption, monkeypatch, capsys):
+    monkeypatch.setattr(access, "_interactive", lambda: False)
+    assert access.main(["--home", str(tmp_path), "encryption", "init"]) == 2
+    assert not (keychain.items / access.AGE_IDENTITY).exists()
+    assert not (encryption / access.RECIPIENTS_FILE).exists()
+
+
+@needs_age
+def test_restore_puts_back_a_kept_key_but_never_replaces_one(tmp_path, keychain, encryption, monkeypatch):
+    kept, other = _keygen(), _keygen()
+    monkeypatch.setattr(access.sys, "stdin", io.StringIO("not a key\n"))
+    assert access.main(["--home", str(tmp_path), "encryption", "restore"]) == 2
+    monkeypatch.setattr(access.sys, "stdin", io.StringIO(kept + "\n"))
+    assert access.main(["--home", str(tmp_path), "encryption", "restore"]) == 0
+    assert (keychain.items / access.AGE_IDENTITY).read_text().strip() == kept
+    assert access.recipients() == [access._recipient_of(kept)]
+    monkeypatch.setattr(access.sys, "stdin", io.StringIO(other + "\n"))
+    assert access.main(["--home", str(tmp_path), "encryption", "restore"]) == 1
+    assert (keychain.items / access.AGE_IDENTITY).read_text().strip() == kept
+
+
+@needs_age
+def test_add_recipient_takes_only_age_public_keys(tmp_path, encryption):
+    with pytest.raises(access.AccessError, match="not set up"):
+        access.recipients()
+    backup = access._recipient_of(_keygen())
+    assert access.main(["--home", str(tmp_path), "encryption", "add-recipient", "age1nope"]) == 1
+    assert access.main(["--home", str(tmp_path), "encryption", "add-recipient", backup, "--label", "kept"]) == 0
+    assert access.main(["--home", str(tmp_path), "encryption", "add-recipient", backup]) == 0
+    assert access.recipients() == [backup]
+    assert f"# kept\n{backup}\n" in (encryption / access.RECIPIENTS_FILE).read_text()
+    (encryption / access.RECIPIENTS_FILE).write_text(backup + "\nAGE-SECRET-KEY-1oops\n")
+    with pytest.raises(access.AccessError, match="line 2 is not an age recipient"):
+        access.recipients()
+
+
 def test_an_unreadable_layout_uploads_nothing(tmp_path, monkeypatch):
     broken = tmp_path / "layout.json"
     broken.write_text("{not json")
@@ -556,7 +632,9 @@ def test_long_reasons_fit_what_the_chat_shows():
     "secret get GOOGLE_OAUTH_ASSISTANT -p hermes --scope google-access",
     "security find-generic-password -s secret.hermes/google-access -w",
     "security dump-keychain -d ~/Library/Keychains/login.keychain-db",
-    "secret export -p hermes --format json"])
+    "secret export -p hermes --format json",
+    "secret get GOOGLE_ACCESS_AGE_IDENTITY -p hermes", "age -d -i <(echo AGE-SECRET-KEY-1QQQ) f.age",
+    "cat ~/.hermes/plugin-data/google-access/age-recipients.txt"])
 def test_terminal_bypass_is_blocked(command):
     assert access.bypass("terminal", {"command": command}) == access.BYPASS_MESSAGE
 

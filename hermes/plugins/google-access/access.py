@@ -6,7 +6,11 @@ repository:
 
   Keychain     the OAuth refresh token for the narrow SCOPES below, one item per profile
                (``GOOGLE_OAUTH_<PROFILE>``, project hermes, scope google-access, a scope no
-               Hermes profile receives); access tokens stay in memory
+               Hermes profile receives); access tokens stay in memory; and the age secret key
+               sensitive files are encrypted to on Drive (``GOOGLE_ACCESS_AGE_IDENTITY``, one for
+               every profile, never injected into an environment)
+  ~/.hermes/plugin-data/google-access/age-recipients.txt
+               the public keys those files are encrypted to
   <HERMES_HOME>/google-access/gcloud/
                the profile's own gcloud configuration (``CLOUDSDK_CONFIG``), so Hermes never
                reads or changes the user's ``~/.config/gcloud``
@@ -24,6 +28,9 @@ Which calls change something, and therefore need a human approval, is decided he
   gaccess gcloud-login              `gcloud auth login` into the profile's own configuration
   gaccess revoke                    revoke the token and remove it from the Keychain
   gaccess paths                     where the state lives
+  gaccess encryption init           make the age key sensitive files go to Drive encrypted to
+  gaccess encryption restore        put a kept secret key back into the Keychain
+  gaccess encryption add-recipient  also encrypt to another public key (a copy kept elsewhere)
 Options: --profile NAME (default assistant) or --home HERMES_HOME.
 """
 
@@ -159,7 +166,7 @@ _CLI = re.compile(r"(?:^|[\s;&|()`'\"=])(?:[^\s;&|()`'\"]*/)?(?:gcloud|gsutil|bq
 # Downloads therefore live outside it.
 _PATHS = re.compile(r"(?<!plugins/)google-access|google-workspace/scripts|google_api\.py"
                     r"|CLOUDSDK_|\.config/gcloud|google_token\.json|google_client_secret\.json"
-                    r"|GOOGLE_OAUTH|dump-keychain|\bsecret\s+export\b")
+                    r"|GOOGLE_OAUTH|GOOGLE_ACCESS_AGE|AGE-SECRET-KEY|dump-keychain|\bsecret\s+export\b")
 FILE_TOOLS = {"read_file", "write_file", "patch", "search_files"}
 BYPASS_MESSAGE = (
     "Google (Sheets, Gmail, Drive) and gcloud run only through the google_sheets, google_gmail, "
@@ -256,12 +263,14 @@ def vault_name(home) -> str:
     return "GOOGLE_OAUTH_" + (re.sub(r"[^A-Z0-9]+", "_", name.upper()).strip("_") or "DEFAULT")
 
 
-def _secret(home, command: str, extra: tuple = (), value: str | None = None) -> subprocess.CompletedProcess:
+def _secret(home, command: str, extra: tuple = (), value: str | None = None,
+            name: str | None = None) -> subprocess.CompletedProcess:
+    """Run the secret CLI on one item of this plugin's scope: the profile's token, or ``name``."""
     if not os.access(SECRET, os.X_OK):
         raise AccessError(f"the secret CLI is missing at {SECRET}")
     folder = state_dir(home)
     folder.mkdir(mode=0o700, parents=True, exist_ok=True)
-    argv = [str(SECRET), command, vault_name(home), "-p", VAULT_PROJECT, "--scope", VAULT_SCOPE, *extra]
+    argv = [str(SECRET), command, name or vault_name(home), "-p", VAULT_PROJECT, "--scope", VAULT_SCOPE, *extra]
     feed = {"input": value + "\n"} if value is not None else {"stdin": subprocess.DEVNULL}
     if value is not None:
         argv.append("--stdin")
@@ -3776,6 +3785,200 @@ def _drive_upload(home, args: dict) -> dict:
     return {"ok": True, "status": "uploaded", "file": made}
 
 
+# --- encryption -----------------------------------------------------------------------------------
+#
+# A file in a sensitive area of the Workspaces layout goes to Drive encrypted with age, to every
+# recipient (public key) in the recipients file: this Mac's own and any the user adds for a copy
+# kept elsewhere. The matching identity (secret key) is one Keychain item shared by every profile,
+# stored --no-env so `secret env` never injects it; an upload reads only the public recipients. The
+# user sets it up in a terminal: `gaccess encryption init | restore | add-recipient`.
+
+AGE_IDENTITY = "GOOGLE_ACCESS_AGE_IDENTITY"
+# Never MNEMONIC or PRIVATE KEY: the web3 wallet takes every item of those kinds for a wallet.
+AGE_KIND = "AGE IDENTITY"
+ENCRYPTION_DIR = Path.home() / ".hermes" / "plugin-data" / "google-access"
+RECIPIENTS_FILE = "age-recipients.txt"
+AGE_RECIPIENT = re.compile(r"age1[02-9ac-hj-np-z]{58}")
+AGE_SECRET = re.compile(r"AGE-SECRET-KEY-1[02-9AC-HJ-NP-Z]{58}")
+AGE_TIMEOUT = 600
+NOT_ENCRYPTING = ("encryption of sensitive files is not set up; the user runs `gaccess encryption init` "
+                  "once in a terminal (see docs/google-access.md)")
+
+
+def recipients_path() -> Path:
+    return ENCRYPTION_DIR / RECIPIENTS_FILE
+
+
+def recipients() -> list[str]:
+    """Every age recipient an encrypted upload is for; AccessError when none is set up."""
+    path = recipients_path()
+    try:
+        text = path.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        raise AccessError(NOT_ENCRYPTING) from None
+    except OSError as exc:
+        raise AccessError(f"cannot read {path}: {exc}") from None
+    found = []
+    for number, line in enumerate(text.splitlines(), 1):
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        if not AGE_RECIPIENT.fullmatch(line):
+            raise AccessError(f"{path} line {number} is not an age recipient (age1…); fix or remove it")
+        found.append(line)
+    if not found:
+        raise AccessError(NOT_ENCRYPTING)
+    return found
+
+
+def _age(tool: str, argv: list[str], data: bytes | None = None) -> subprocess.CompletedProcess:
+    """Run age or age-keygen with nothing of this process's environment but a minimal PATH."""
+    binary = shutil.which(tool)
+    if not binary:
+        raise AccessError(f"{tool} is not installed (`brew install age`)")
+    env = {"PATH": "/usr/bin:/bin", "HOME": str(Path.home()), "LC_ALL": "C"}
+    feed = {"input": data} if data is not None else {"stdin": subprocess.DEVNULL}
+    try:
+        return subprocess.run([binary, *argv], capture_output=True, env=env, timeout=AGE_TIMEOUT, **feed)
+    except subprocess.TimeoutExpired:
+        raise AccessError(f"{tool} did not finish in time") from None
+
+
+def _recipient_of(identity: str) -> str:
+    done = _age("age-keygen", ["-y"], (identity + "\n").encode())
+    out = done.stdout.decode(errors="replace").strip()
+    if done.returncode or not AGE_RECIPIENT.fullmatch(out):
+        raise AccessError("age-keygen could not derive the public key of the identity")
+    return out
+
+
+def _check_recipient(recipient: str) -> None:
+    if not AGE_RECIPIENT.fullmatch(recipient):
+        raise AccessError(f"not an age recipient (age1… of 62 characters): {recipient!r}")
+    if _age("age", ["-r", recipient], b"").returncode:
+        raise AccessError(f"age refuses the recipient {recipient}")
+
+
+def _add_recipient(recipient: str, label: str) -> bool:
+    """Append a recipient to the file (made owner-only); False when it is already there."""
+    path = recipients_path()
+    try:
+        text = path.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        text = "# age recipients for google_drive uploads of sensitive files (gaccess encryption)\n"
+    if recipient in (line.strip() for line in text.splitlines()):
+        return False
+    label = " ".join(label.split())
+    text = text.rstrip("\n") + "\n" + (f"# {label}\n" if label else "") + recipient + "\n"
+    path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    tmp = path.with_name(path.name + ".tmp")
+    tmp.write_text(text, encoding="utf-8")
+    tmp.chmod(0o600)
+    os.replace(tmp, path)
+    return True
+
+
+def _stored_identity(home) -> str | None:
+    """The identity in the Keychain; None only when there is no item."""
+    proc = _secret(home, "get", name=AGE_IDENTITY)
+    value = proc.stdout.strip()
+    if proc.returncode != 0 or not value:
+        if _secret(home, "show", name=AGE_IDENTITY).returncode == 0:
+            raise AccessError(f"{AGE_IDENTITY} is in the Keychain but could not be read (is the keychain locked?)")
+        return None
+    if not AGE_SECRET.fullmatch(value):
+        raise AccessError(f"{AGE_IDENTITY} in the Keychain is not an age identity")
+    return value
+
+
+def _store_identity(home, identity: str) -> None:
+    """Store a new identity; never over an existing one (files encrypted to it would be lost)."""
+    proc = _secret(home, "set", ("-D", AGE_KIND, "-j", "google-access age identity (gaccess encryption)",
+                                 "--no-env", "--new"), value=identity, name=AGE_IDENTITY)
+    if proc.returncode != 0:
+        raise AccessError(f"could not store {AGE_IDENTITY} in the Keychain: {proc.stderr.strip()[:200]}")
+    if _stored_identity(home) != identity:
+        raise AccessError(f"{AGE_IDENTITY} did not read back as stored; check the Keychain before uploading")
+
+
+def _interactive() -> bool:
+    return sys.stdin.isatty() and sys.stdout.isatty()
+
+
+def _cmd_encryption_init(home: Path) -> int:
+    existing = _stored_identity(home)
+    if existing:
+        added = _add_recipient(_recipient_of(existing), "this Mac (Keychain " + AGE_IDENTITY + ")")
+        print(f"already set up: {AGE_IDENTITY} is in the Keychain; "
+              + (f"its public key was missing from {recipients_path()} and is added"
+                 if added else f"{recipients_path()} lists its public key"))
+        return 0
+    if not _interactive():
+        print("gaccess: run `gaccess encryption init` in a terminal: the new secret key is shown once, "
+              "for you to keep a copy outside this Mac", file=sys.stderr)
+        return 2
+    made = _age("age-keygen", [])
+    found = AGE_SECRET.search(made.stdout.decode(errors="replace"))
+    if made.returncode or not found:
+        raise AccessError("age-keygen did not make a key")
+    identity = found.group(0)
+    recipient = _recipient_of(identity)
+    _store_identity(home, identity)
+    _add_recipient(recipient, "this Mac (Keychain " + AGE_IDENTITY + ")")
+    print(f"stored the secret key in the Keychain ({AGE_IDENTITY}, project {VAULT_PROJECT}, scope {VAULT_SCOPE})")
+    print(f"public key {recipient} is in {recipients_path()}")
+    print("\nKeep a copy of this secret key outside this Mac (a password manager). Without it, files "
+          "uploaded encrypted cannot be read if this Mac's Keychain is lost. It is not shown again.\n")
+    print(identity)
+    return 0
+
+
+def _cmd_encryption_restore(home: Path) -> int:
+    if sys.stdin.isatty():
+        import getpass
+        value = getpass.getpass("secret key (AGE-SECRET-KEY-1…): ")
+    else:
+        value = sys.stdin.readline()
+    identity = value.strip()
+    if not AGE_SECRET.fullmatch(identity):
+        print("gaccess: that is not an age secret key (AGE-SECRET-KEY-1…)", file=sys.stderr)
+        return 2
+    existing = _stored_identity(home)
+    if existing and existing != identity:
+        print(f"gaccess: {AGE_IDENTITY} already holds another key; files encrypted to it would become "
+              "unreadable, so it is not replaced", file=sys.stderr)
+        return 1
+    recipient = _recipient_of(identity)
+    if not existing:
+        _store_identity(home, identity)
+    _add_recipient(recipient, "this Mac (Keychain " + AGE_IDENTITY + ")")
+    print(f"{AGE_IDENTITY} is in the Keychain; public key {recipient} is in {recipients_path()}")
+    return 0
+
+
+def _cmd_encryption_add(recipient: str, label: str) -> int:
+    recipient = recipient.strip()
+    _check_recipient(recipient)
+    if _add_recipient(recipient, label):
+        print(f"added {recipient} to {recipients_path()}; uploads from now on are encrypted to it too")
+    else:
+        print(f"{recipient} is already in {recipients_path()}")
+    return 0
+
+
+def _encryption_status(home: Path) -> str:
+    try:
+        listed = recipients()
+    except AccessError as exc:
+        return f"not set up ({exc})" if str(exc) != NOT_ENCRYPTING else \
+            "not set up: sensitive files cannot be uploaded (run `gaccess encryption init`)"
+    held = _secret(home, "show", name=AGE_IDENTITY).returncode == 0
+    age = shutil.which("age")
+    return (f"{len(listed)} recipient(s) in {recipients_path()}; secret key "
+            + (f"in the Keychain ({AGE_IDENTITY})" if held else "not in this Keychain (downloads cannot decrypt)")
+            + ("" if age else "; age is not installed"))
+
+
 # --- gcloud ---------------------------------------------------------------------------------------
 
 def gcloud_plan(args: dict) -> tuple[list[str], bool]:
@@ -4314,6 +4517,10 @@ def _cmd_check(home: Path) -> int:
     except AccessError as exc:
         print(f"google: {exc}")
         status = 1
+    try:
+        print(f"encryption: {_encryption_status(home)}")
+    except AccessError as exc:
+        print(f"encryption: {exc}")
     config_dir = gcloud_config_dir(home)
     if not config_dir.is_dir():
         print("gcloud: not logged in (run `gaccess gcloud-login`)")
@@ -4379,6 +4586,13 @@ def main(argv=None) -> int:
     sub.add_parser("gcloud-login", help="gcloud auth login into the profile's own configuration")
     sub.add_parser("revoke", help="revoke the token and remove it from the Keychain")
     sub.add_parser("paths", help="where the state and downloads live")
+    enc = sub.add_parser("encryption", help="the age key Drive uploads of sensitive files are encrypted to")
+    enc_sub = enc.add_subparsers(dest="encryption", required=True)
+    enc_sub.add_parser("init", help="make the key: secret key into the Keychain, shown once to keep a copy")
+    enc_sub.add_parser("restore", help="put a kept secret key back into the Keychain (read from stdin)")
+    add = enc_sub.add_parser("add-recipient", help="also encrypt to another public key (age1…)")
+    add.add_argument("recipient")
+    add.add_argument("--label", default="", help="a note written above it in the recipients file")
     ns = parser.parse_args(argv)
     home = _home_from(ns)
     if not home.is_dir():
@@ -4393,9 +4607,17 @@ def main(argv=None) -> int:
             return _cmd_gcloud_login(home)
         if ns.command == "revoke":
             return _cmd_revoke(home)
+        if ns.command == "encryption":
+            if ns.encryption == "init":
+                return _cmd_encryption_init(home)
+            if ns.encryption == "restore":
+                return _cmd_encryption_restore(home)
+            return _cmd_encryption_add(ns.recipient, ns.label)
         print(json.dumps({"token": f"Keychain {vault_name(home)} (project {VAULT_PROJECT}, scope {VAULT_SCOPE})",
                           "gcloud_config": str(gcloud_config_dir(home)),
-                          "downloads": str(download_dir(home))}, indent=2))
+                          "downloads": str(download_dir(home)),
+                          "encryption_key": f"Keychain {AGE_IDENTITY} (project {VAULT_PROJECT}, scope {VAULT_SCOPE})",
+                          "encryption_recipients": str(recipients_path())}, indent=2))
         return 0
     except AccessError as exc:
         print(f"gaccess: {exc}", file=sys.stderr)
