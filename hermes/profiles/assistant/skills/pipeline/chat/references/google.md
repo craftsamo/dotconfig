@@ -80,6 +80,10 @@ Reads are fine in cron.
   read it on Drive. When the upload is refused because no key is set up, the
   user runs `gaccess encryption init` in a terminal; never upload the file
   another way (a copy outside the area, `gcloud storage cp`).
+- To bring a `.age` file back readable, `download` it with `decrypt_to` = the
+  folder of the Group it belongs in (inside a sensitive area); it is written
+  there without `.age`. Never decrypt it anywhere else, and do not download it
+  to the inbox to open it: there it stays encrypted.
 - Existing Drive files are never changed, shared or deleted. Say so and leave
   it to the user.
 

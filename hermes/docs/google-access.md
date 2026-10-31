@@ -92,10 +92,17 @@ the `Personal` area.
 - An upload reads only the public keys. The secret key is one Keychain item
   for every profile, of a kind the web3 wallet never reads, and stored
   `--no-env`, so `secret env` never puts it into an environment.
-- Any of the keys opens a file: `age -d -i <key file> <name>.age`. The secret
-  key `gaccess encryption init` shows once is the copy to keep outside this
-  Mac; `add-recipient` adds another public key, such as a backup key kept
-  elsewhere, for uploads from then on.
+- `download` with `decrypt_to` brings a `.age` file back: the folder must
+  exist inside a Group of a sensitive area, judged by the folder actually
+  opened. The encrypted copy stays in a private temporary folder, the secret
+  key is read from the Keychain only then and reaches age on its stdin, and
+  the file is written without `.age`, owner-only and never over another.
+  Nothing clear passes through the download folder; a `.age` file downloaded
+  without `decrypt_to` lands there still encrypted.
+- Any of the keys also opens a file by hand: `age -d -i <key file>
+<name>.age`. The secret key `gaccess encryption init` shows once is the copy
+  to keep outside this Mac; `add-recipient` adds another public key, such as a
+  backup key kept elsewhere, for uploads from then on.
 - Other ways out are not covered: a `gcloud storage cp` of a sensitive file
   still goes up as it is, on its own card.
 
