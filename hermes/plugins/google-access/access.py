@@ -69,6 +69,7 @@ def _load_shared(name):
 cards = _load_shared("card")
 shell_commands = _load_shared("shell_commands")
 project_place = _load_shared("project_place")
+workspace_layout = _load_shared("workspace_layout")
 
 SHEETS = "https://www.googleapis.com/auth/spreadsheets"
 GMAIL_READ = "https://www.googleapis.com/auth/gmail.readonly"
@@ -3724,13 +3725,38 @@ def drive(home, args: dict) -> dict:
             "size": path.stat().st_size}
 
 
-def _upload_path(args: dict) -> Path:
+def _upload_source(args: dict) -> tuple[Path, bool]:
+    """The file to upload, resolved, and whether it lies in a sensitive area of the Workspaces
+    layout (plugins/_shared/workspace_layout.py). Only files under the layout's root go up: outside
+    it nothing says whether a file is sensitive, and a layout that cannot be read uploads nothing."""
     path = Path(os.path.expanduser(_str(args, "path")))
     if not path.is_file():
         raise AccessError(f"not a file: {path}")
-    if _PATHS.search(str(path.resolve())):
+    real = path.resolve()
+    if _PATHS.search(str(real)):
         raise AccessError("refusing to upload a credential or Google-access state file")
-    return path.resolve()
+    try:
+        layout = workspace_layout.load()
+    except workspace_layout.LayoutError as exc:
+        raise AccessError(f"the Workspaces layout cannot be read, so nothing is uploaded: {exc}") from None
+    try:
+        parts = real.relative_to(layout.root.resolve()).parts
+    except ValueError:
+        raise AccessError(f"only files under the Workspaces root ({layout.root}) are uploaded; move or "
+                          f"copy {path.name} there first") from None
+    # Folders on macOS ignore case, so `personal/` is the Personal area: match its name that way, or
+    # a path spelled in other case would read as outside every area and go up unencrypted.
+    top = parts[0].casefold() if len(parts) > 1 else None
+    sensitive = any(a.sensitive and a.name.casefold() == top for a in layout.areas)
+    return real, sensitive
+
+
+def _upload_path(args: dict) -> Path:
+    path, sensitive = _upload_source(args)
+    if sensitive:
+        raise AccessError(f"{path.name} is in a sensitive area of the Workspaces layout; such files "
+                          "are not uploaded")
+    return path
 
 
 def _drive_upload(home, args: dict) -> dict:
