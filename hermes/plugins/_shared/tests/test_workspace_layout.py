@@ -139,6 +139,8 @@ def test_the_cli_prints_the_layout(isolated):
     assert run_cli(isolated, "--areas").stdout.split() == ["Projects", "Personal"]
     assert run_cli(isolated, "--projects").stdout.strip() == "Projects"
     assert run_cli(isolated, "--path").stdout.strip() == str(isolated / ".config" / "workspaces" / "layout.json")
+    assert run_cli(isolated, "--lines").stdout.split("\n")[:-1] == [str(isolated / "Workspaces"), "Projects",
+                                                                    "Projects", "Personal"]
     write(isolated, {"root": "nope"})
     bad = run_cli(isolated, "--root")
     assert bad.returncode == 1 and "absolute" in bad.stderr

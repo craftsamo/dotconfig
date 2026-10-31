@@ -52,7 +52,12 @@ HERMES_AGENT_DIR="${HERMES_AGENT_DIR:-$HOME/ghq/github.com/NousResearch/hermes-a
 mkdir -p "$HOME/.hermes/logs"
 exec >>"$HOME/.hermes/logs/gateway-multiplex.log" 2>&1
 
-cd "$HOME/Workspaces" 2>/dev/null || cd "$HOME"
+# The Workspaces root from the shared layout (docs/workspace-layout.md); ~/Workspaces when it
+# cannot be read, and $HOME when that is missing too.
+WORKSPACES_DIR=$(hermes-python "$HOME/.config/hermes/plugins/_shared/workspace_layout.py" --root 2>/dev/null) \
+  || WORKSPACES_DIR="$HOME/Workspaces"
+cd "$WORKSPACES_DIR" 2>/dev/null || cd "$HOME"
+unset WORKSPACES_DIR
 
 eval "$(secret env -p global)"
 # The hermes layer minus the messaging keys: with a TELEGRAM_/DISCORD_ token in

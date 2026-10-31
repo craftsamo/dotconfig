@@ -2,6 +2,7 @@ import { existsSync, lstatSync, mkdirSync, realpathSync } from "fs"
 import { homedir, tmpdir } from "os"
 import { delimiter, dirname, isAbsolute, join, relative, resolve, sep } from "path"
 import { tool, type ToolContext } from "./define"
+import { loadLayout } from "../workspace-layout"
 
 /**
  * Rendered web UI checks.
@@ -84,14 +85,19 @@ export function resolveOut(input: { hermesOutput?: string; worktree: string; ses
   return target
 }
 
-/** The baseline directory: an existing directory under ~/Workspaces, read only. */
-export function resolveBaseline(value: string, home = process.env.HOME || homedir()): string {
+/** The baseline directory: an existing directory under the Workspaces root (the layout's), read only. */
+export function resolveBaseline(
+  value: string,
+  home = process.env.HOME || homedir(),
+  env: Record<string, string | undefined> = process.env,
+): string {
   const expanded = value.startsWith("~/") ? join(home, value.slice(2)) : value
   if (!isAbsolute(expanded)) throw new Error("baseline must be an absolute path (or start with ~/)")
   if (!existsSync(expanded)) throw new Error(`baseline directory does not exist: ${expanded} (no approved baseline yet)`)
   const target = real(expanded)
-  if (!inside(target, real(join(home, "Workspaces")))) {
-    throw new Error(`baseline must lie under ~/Workspaces: ${target}`)
+  const root = loadLayout({ ...env, HOME: home }, home).root
+  if (!inside(target, real(root))) {
+    throw new Error(`baseline must lie under the Workspaces root (~/Workspaces unless the layout says otherwise, now ${root}): ${target}`)
   }
   return target
 }

@@ -74,7 +74,22 @@ describe("resolveBaseline", () => {
   test("refuses a missing, relative or outside directory", () => {
     expect(() => resolveBaseline(join(home, "Workspaces/none"), home)).toThrow(/no approved baseline yet/)
     expect(() => resolveBaseline("Workspaces/x", home)).toThrow(/absolute/)
-    expect(() => resolveBaseline(root, home)).toThrow(/under ~\/Workspaces/)
+    expect(() => resolveBaseline(root, home)).toThrow(/under the Workspaces root/)
+  })
+
+  test("follows the workspace layout's root, and refuses on an invalid layout", () => {
+    const other = join(root, "elsewhere-home")
+    const baseline = join(other, "Work/Clients/G/assets/ui-baseline/repo")
+    mkdirSync(baseline, { recursive: true })
+    mkdirSync(join(other, ".config/workspaces"), { recursive: true })
+    const layout = join(other, ".config/workspaces/layout.json")
+    writeFileSync(layout, JSON.stringify({ root: "~/Work" }))
+    const env = { HOME: other }
+    expect(resolveBaseline("~/Work/Clients/G/assets/ui-baseline/repo", other, env)).toBe(baseline)
+    mkdirSync(join(other, "Workspaces/x"), { recursive: true })
+    expect(() => resolveBaseline(join(other, "Workspaces/x"), other, env)).toThrow(/under the Workspaces root/)
+    writeFileSync(layout, JSON.stringify({ root: "relative" }))
+    expect(() => resolveBaseline(baseline, other, env)).toThrow(/absolute/)
   })
 })
 

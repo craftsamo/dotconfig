@@ -451,7 +451,9 @@ Three questions, three owners:
   needs no command permission, and because it also bypasses OpenCode's rules it
   enforces its own: it writes only into the run's output directory or OpenCode's
   scratch directory, never the worktree, loads only local or private-network
-  pages, reads a baseline only from under `~/Workspaces`, and runs its Node child
+  pages, reads a baseline only from under the Workspaces root (the
+  [workspace layout](workspace-layout.md)'s, read by
+  `opencode/lib/workspace-layout.ts`), and runs its Node child
   with a minimal environment.
 - **Agreement with the approved look** — given `baseline` (a
   `ui-baseline/<repo>/` directory under `~/Workspaces`, outside the

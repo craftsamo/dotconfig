@@ -168,6 +168,8 @@ def main(argv=None) -> int:
     show.add_argument("--areas", action="store_true", help="the area names, one a line")
     show.add_argument("--projects", action="store_true", help="the area project Groups live in")
     show.add_argument("--path", action="store_true", help="the layout file read (or that would be)")
+    show.add_argument("--lines", action="store_true",
+                      help="for shells, one call: the root, the projects area, then every area, one a line")
     args = parser.parse_args(argv)
     if args.path:
         print(config_path())
@@ -183,6 +185,8 @@ def main(argv=None) -> int:
         print("\n".join(layout.names))
     elif args.projects:
         print(layout.projects.name)
+    elif args.lines:
+        print("\n".join([str(layout.root), layout.projects.name, *layout.names]))
     else:
         print(json.dumps(layout.as_dict(), ensure_ascii=False, indent=2))
     return 0

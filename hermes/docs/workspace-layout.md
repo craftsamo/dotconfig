@@ -46,6 +46,7 @@ the tools, not part of the layout; the Assistant's
 | ------------------------------------------- | ------------------------------------- | ----------------------- |
 | Reader (`load()`, the defaults, validation) | `plugins/_shared/workspace_layout.py` | plugins, launchers      |
 | Launcher printing the layout in force       | `../bin/ws-layout`                    | people, shell functions |
+| The same rules for OpenCode's tools         | `../opencode/lib/workspace-layout.ts` | OpenCode custom tools   |
 | A machine's own layout (optional)           | `~/.config/workspaces/layout.json`    | all                     |
 
 The reader is stdlib only and runs on the system Python 3.9 too, because the
@@ -54,18 +55,27 @@ so a change applies without a restart. Siblings load it by path like the
 other `_shared` modules.
 
 `ws-layout` prints the resolved layout as JSON; `--root`, `--areas`,
-`--projects` and `--path` print one value each for shell use.
+`--projects` and `--path` print one value each for shell use, and `--lines`
+prints the root, the projects area and every area in one call.
+
+`opencode/lib/workspace-layout.ts` applies the same rules for OpenCode's tools
+(TypeScript cannot load the Python reader); its test runs both on the same
+files and compares the result, so a rule changed in one fails until the other
+follows.
 
 ## Who reads it
 
-| Reader                                    | Uses                                                                      |
-| ----------------------------------------- | ------------------------------------------------------------------------- |
-| Draft scanner (`workspace-drafts`)        | the root, and every area's Groups for their `.agent/`                     |
-| Repository scanner (`workspace-repos`)    | the root, and every area's Groups for their `github/`                     |
-| Workspace registry (`workspace-registry`) | the root (unless `WSREG_ROOT`), and the projects area for project Groups  |
-| Signal, Telegram, WhatsApp senders        | the root, as the only place files are sent from                           |
-| Discord, note, Substack, YouTube          | the root, as the attach root when the profile sets no `attach_roots`      |
-| screen-listen                             | `.inbox/recordings` under the root, when the profile sets no `record_dir` |
+| Reader                                        | Uses                                                                                     |
+| --------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| Draft scanner (`workspace-drafts`)            | the root, and every area's Groups for their `.agent/`                                    |
+| Repository scanner (`workspace-repos`)        | the root, and every area's Groups for their `github/`                                    |
+| Workspace registry (`workspace-registry`)     | the root (unless `WSREG_ROOT`), and the projects area for project Groups                 |
+| Signal, Telegram, WhatsApp senders            | the root, as the only place files are sent from                                          |
+| Discord, note, Substack, YouTube              | the root, as the attach root when the profile sets no `attach_roots`                     |
+| screen-listen                                 | `.inbox/recordings` under the root, when the profile sets no `record_dir`                |
+| Gateway launcher (`hermes-gateway-multiplex`) | the root as the working directory (`~/Workspaces`, then `$HOME`, when unreadable)        |
+| OpenCode `web_ui`                             | the root, as the only place an approved screenshot baseline is read from                 |
+| zsh `fzf_change_directory`                    | the root, every area's Groups, the projects area's `github/` links (`ws-layout --lines`) |
 
 Where the root bounds what may be sent or attached, it is read at each send,
 and an invalid layout refuses the send instead of falling back.
