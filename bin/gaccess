@@ -6,6 +6,9 @@
 #   gaccess check                                 token, granted scopes, gcloud account
 #   gaccess revoke                                revoke the Google token, remove it from the Keychain
 #   gaccess paths                                 where the state lives
+#   gaccess encryption init                       make the age key sensitive files go to Drive encrypted to
+#   gaccess encryption restore                    put a kept secret key back into the Keychain
+#   gaccess encryption add-recipient age1…        also encrypt to another public key
 #   gaccess --profile NAME …                      another profile (default assistant)
 #
 # The code lives in the Hermes google-access plugin (hermes/plugins/google-access/
