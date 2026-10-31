@@ -340,9 +340,10 @@ DRIVE_DESCRIPTION = (
     "The user's own Google Drive. search (query = words in names or contents; raw_query=true to "
     "pass Drive query syntax), get (file_id: metadata), download (file_id; Google Docs and Slides "
     "export to PDF and Sheets to XLSX unless export_mime is given; the file lands in the profile's "
-    "download folder and the local path is returned), upload (path of a local file, optional name, "
-    "mime_type, parent folder id; default My Drive). Existing Drive files are never changed, "
-    "shared or deleted. " + APPROVAL.format("upload"))
+    "download folder and the local path is returned), upload (path of a file under the Workspaces "
+    "root, optional name, mime_type, parent folder id; default My Drive; a file in a sensitive "
+    "area goes up encrypted with age as <name>.age, always, and is refused when no key is set up). "
+    "Existing Drive files are never changed, shared or deleted. " + APPROVAL.format("upload"))
 
 GCLOUD_DESCRIPTION = (
     "Run the gcloud CLI as the user's Google account, in Hermes' own gcloud configuration. "
@@ -418,7 +419,7 @@ SCHEMAS = {
         "file_id": {"type": "string"},
         "export_mime": {"type": "string", "description": "download: export type for Google-native files"},
         "name": {"type": "string", "description": "download: local file name; upload: Drive file name"},
-        "path": {"type": "string", "description": "upload: local file path"},
+        "path": {"type": "string", "description": "upload: local file path under the Workspaces root"},
         "mime_type": {"type": "string", "description": "upload: content type (guessed by default)"},
         "parent": {"type": "string", "description": "upload: Drive folder id"},
     }),

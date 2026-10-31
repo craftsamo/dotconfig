@@ -77,4 +77,5 @@ look arbitrary:
 [Storyboard vocabulary stays rule-free](./docs/decisions/storyboard-vocabulary-rule-free.md) ·
 [Hyperliquid strategies](./docs/decisions/hyperliquid-strategies.md) ·
 [Hyperliquid breaker](./docs/decisions/hyperliquid-breaker.md) ·
-[Antigravity provider](./docs/decisions/antigravity-provider.md).
+[Antigravity provider](./docs/decisions/antigravity-provider.md) ·
+[Drive upload encryption](./docs/decisions/drive-upload-encryption.md).
