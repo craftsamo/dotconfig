@@ -74,7 +74,14 @@ nothing says whether the file is sensitive, and a layout that cannot be read
 uploads nothing. A file in an area the layout marks `sensitive` goes up
 encrypted with [age](https://age-encryption.org) to every public key in
 `age-recipients.txt`; the plugin keeps no list of area names. Area names match
-without case, as macOS folders do, so `personal/` is the `Personal` area.
+without case or Unicode normalization, as macOS folders do, so `personal/` is
+the `Personal` area.
+
+- The upload opens the file first (never through a link at its name), judges
+  it by where the open file really is, and sends only what it reads through
+  that file, so a link or folder swapped in after the approval cannot send a
+  sensitive file in the clear. A plain file with other hard links is refused:
+  another of its names may lie in a sensitive area.
 
 - The encrypted copy is made in a private temporary folder and removed once
   sent. Its Drive name ends in `.age` (a given `name` gets it too) and its
