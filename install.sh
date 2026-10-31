@@ -557,9 +557,6 @@ for p in "$DOTFILES"/hermes/profiles/*/; do
   link "$HOME/.hermes/plugins" "$h/plugins"
 done
 
-# (no [workspaces] section: the ~/Workspaces AGENTS.md doctrine is personal
-# and lives in the private overlay, whose install.sh links it into place.)
-
 # ~/.gitconfig holds the person's identity, never this tree's. It must exist:
 # without it `git config --global` writes into ~/.config/git/config, the
 # tracked git/config.
@@ -583,6 +580,17 @@ PRIVATE_DOTCONFIG="${PRIVATE_DOTCONFIG:-$(dirname "$DOTFILES")/private-dotconfig
 if [ -x "$PRIVATE_DOTCONFIG/install.sh" ]; then
   echo "[private overlay]"
   DOTCONFIG="$DOTFILES" "$PRIVATE_DOTCONFIG/install.sh" || status=1
+fi
+
+# The ~/Workspaces skeleton its layout describes (hermes/docs/workspace-layout.md):
+# the root, every area, .inbox/, .agent/ and an empty registry, each only when
+# missing. After the overlay, so its layout file and AGENTS.md links are in
+# place; the AGENTS.md doctrine itself stays the overlay's.
+echo "[workspaces]"
+if python3 -c '' >/dev/null 2>&1; then     # not just the Xcode stub that only offers an install
+  python3 "$DOTFILES/hermes/plugins/_shared/workspace_init.py" || status=1
+else
+  echo "  skipped: no python3 on PATH (run ws-init once it is)"
 fi
 
 # Cron jobs and webhook routes: once every cron.d/ and webhook.d/ holds its

@@ -13,7 +13,8 @@ records, local integrations and historical data migration scripts are not.
 ## Setup
 
 `bin/wsreg` loads this engine from the same dotconfig checkout. No private
-overlay is required. Initialize your own empty records with `wsreg init`, then
+overlay is required. The dotconfig `install.sh` (through `ws-init`) creates
+empty records when there are none; `wsreg init` does the same by hand. Then
 add people/projects through the CLI or the Assistant's `workspace_registry`
 tool. The Workspaces root and the area project Groups live in (`Projects` by
 default) come from the [workspace layout](../../../docs/workspace-layout.md);

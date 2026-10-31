@@ -1032,6 +1032,20 @@ video_gen:
 video_analyze:
   provider: openrouter
   model: xiaomi/mimo-v2.5
+google_access:
+  download_dir: ~/Workspaces/.inbox/google
+signal_access:
+  download_dir: ~/Workspaces/.inbox/signal
+whatsapp_access:
+  download_dir: ~/Workspaces/.inbox/whatsapp
+discord_access:
+  download_dir: ~/Workspaces/.inbox/discord
+telegram_access:
+  download_dir: ~/Workspaces/.inbox/telegram
+x_access:
+  download_dir: ~/Workspaces/.inbox/x
+youtube_access:
+  download_dir: ~/Workspaces/.inbox/youtube
 screen_listen:
   apps:
     discord: com.hnc.Discord
