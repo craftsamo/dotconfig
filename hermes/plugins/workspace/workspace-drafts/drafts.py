@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import argparse
 from datetime import date, datetime
+import importlib.util
 import json
 import os
 from pathlib import Path
@@ -41,7 +42,6 @@ ACTIONS = ("summary", "list", "inbox")
 LAYOUTS = ("current", "legacy", "all")
 FLAGS = ("stale", "misnamed", "legacy")
 SORTS = ("idle", "size", "name", "started")
-AREAS = ("Projects", "Personal")
 LEGACY_ROOT = (".scratch", ".deliverables", ".notes")
 LEGACY_GROUP = ("scratch", "deliverables", "notes")
 IGNORED = {"AGENTS.md", ".DS_Store"}
@@ -55,8 +55,29 @@ DEFAULT_INBOX_STALE_DAYS = 7
 MAX_LIMIT = 1000
 
 
+def _layout_module():
+    """The shared Workspaces layout reader (plugins/_shared/workspace_layout.py), loaded by path."""
+    name = "hermes_workspace_layout"
+    if name not in sys.modules:
+        path = Path(__file__).resolve().parents[2] / "_shared" / "workspace_layout.py"
+        spec = importlib.util.spec_from_file_location(name, path)
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[name] = module
+        spec.loader.exec_module(module)
+    return sys.modules[name]
+
+
+workspace_layout = _layout_module()
+
+
 def default_root():
-    return Path(os.environ.get("WORKSPACES_ROOT") or Path.home() / "Workspaces")
+    """The Workspaces root in force (the layout file, WORKSPACES_ROOT, else ~/Workspaces)."""
+    return workspace_layout.load().root
+
+
+def areas():
+    """The areas of Groups, in the layout's order."""
+    return workspace_layout.load().names
 
 
 def started_on(name):
@@ -132,7 +153,7 @@ def _areas(root):
     yield UNASSIGNED, "current", root / ".agent"
     for name in LEGACY_ROOT:
         yield UNASSIGNED, "legacy", root / name
-    for area in AREAS:
+    for area in areas():
         for group in sorted(p for p in _jobs(root / area)
                             if p.is_dir() and not p.is_symlink() and not p.name.startswith(".")):
             yield f"{area}/{group.name}", "current", group / ".agent"

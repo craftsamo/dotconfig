@@ -37,6 +37,9 @@ class LauncherTest(unittest.TestCase):
             bin_dir.mkdir()
             for name in ("registry.py", "wsreg"):
                 shutil.copy2(HERE / name, plugin / name)
+            shared = public / "hermes/plugins/_shared"
+            shared.mkdir()
+            shutil.copy2(HERE.parents[1] / "_shared" / "workspace_layout.py", shared)
             shutil.copy2(PUBLIC / "bin/wsreg", bin_dir / "wsreg")
             entry = home / "wsreg"
             entry.symlink_to(bin_dir / "wsreg")

@@ -505,7 +505,8 @@ def download_dir(home: Path | None) -> Path:
     return (Path(home) if home else Path.home() / ".hermes") / "youtube-downloads"
 
 
-DEFAULT_ATTACH_ROOT = Path.home() / "Workspaces"
+# Pins the default attach root (tests); unset, it is the workspace layout's root, read at each use.
+DEFAULT_ATTACH_ROOT = None
 SENSITIVE_DIRS = {".git", ".ssh", ".gnupg", ".aws", ".config", "keychains"}
 
 
@@ -515,7 +516,24 @@ def attach_roots(home: Path | None) -> list[Path]:
     if isinstance(configured, str):
         configured = [configured]
     roots = [Path(r.strip()).expanduser() for r in configured or [] if isinstance(r, str) and r.strip()]
-    return [r.resolve() for r in roots or [DEFAULT_ATTACH_ROOT]]
+    return [r.resolve() for r in roots or [default_attach_root()]]
+
+
+def default_attach_root() -> Path:
+    """DEFAULT_ATTACH_ROOT when pinned, else the workspace layout's root; never a guess."""
+    if DEFAULT_ATTACH_ROOT is not None:
+        return Path(DEFAULT_ATTACH_ROOT)
+    if "hermes_workspace_layout" not in sys.modules:
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("hermes_workspace_layout",
+                                                      HERE.parents[1] / "_shared" / "workspace_layout.py")
+        module = importlib.util.module_from_spec(spec)
+        sys.modules["hermes_workspace_layout"] = module
+        spec.loader.exec_module(module)
+    try:
+        return sys.modules["hermes_workspace_layout"].load().root
+    except ValueError as exc:       # LayoutError
+        raise YouTubeError(f"cannot tell where the workspace is: {exc}") from None
 
 
 def local_file(args: dict, key: str, types: dict, home: Path | None, limit: int | None = None) -> Path:

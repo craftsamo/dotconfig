@@ -23,10 +23,13 @@ class PeerChecksTest(unittest.TestCase):
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
         self.base = Path(tmp.name)
-        self.plugin = self.base / "plugin"
-        self.plugin.mkdir()
+        # The plugin's place in the tree, so it finds the shared layout reader as installed.
+        self.plugin = self.base / "plugins" / "workspace" / "workspace-registry"
+        self.plugin.mkdir(parents=True)
         for name in ("registry.py", "wsreg"):
             shutil.copy2(HERE / name, self.plugin / name)
+        (self.base / "plugins" / "_shared").mkdir()
+        shutil.copy2(HERE.parents[1] / "_shared" / "workspace_layout.py", self.base / "plugins" / "_shared")
         spec = importlib.util.spec_from_file_location("registry_peer_test", self.plugin / "registry.py")
         self.engine = importlib.util.module_from_spec(spec)
         sys.modules[spec.name] = self.engine

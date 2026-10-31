@@ -34,7 +34,8 @@ Stdlib only, loaded by path, so the tool, the launcher and cron run the same cod
 
 ## What it reports
 
-- Areas: `~/Workspaces/.agent/`, each `{Projects,Personal}/<Group>/.agent/`, and
+- Areas: `~/Workspaces/.agent/`, each `<Area>/<Group>/.agent/` (the areas and
+  the root of the [workspace layout](workspace-layout.md)), and
   the earlier layout (root `.scratch/`, `.deliverables/`, `.notes/`; in-Group
   `.agent/{scratch,deliverables,notes}/`) as `layout: legacy`. The legacy
   locations stay in the scan so that a job still finishing there, or anything

@@ -341,7 +341,7 @@ def test_attach_roots_come_from_the_profile_config(tmp_path):
     home.mkdir()
     (home / "config.yaml").write_text("discord_access:\n  attach_roots: [~/Inbox, /tmp/x]\n")
     assert access.attach_roots(home) == [(Path.home() / "Inbox").resolve(), Path("/tmp/x").resolve()]
-    assert access.attach_roots(None) == [access.DEFAULT_ATTACH_ROOT.resolve()]
+    assert access.attach_roots(None) == [access.default_attach_root().resolve()]
 
 
 def test_files_are_checked(ws, tmp_path, monkeypatch):
