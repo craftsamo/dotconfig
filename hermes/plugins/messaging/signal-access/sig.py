@@ -81,8 +81,9 @@ CHECK_TIMEOUT = 45
 SEND_TIMEOUT = 120          # signal-cli uploads attachments inside the call
 APPROVAL_TTL = 900          # a gate record older than this does not cover a send
 
-# Files: only from the user's workspace, real paths, a few at a time.
-SEND_ROOT = Path.home() / "Workspaces"
+# Files: only from the user's workspace, real paths, a few at a time. SEND_ROOT pins the root
+# (tests); unset, it is the workspace layout's root, read at each send.
+SEND_ROOT = None
 FILES_MAX = 10
 FILES_BYTES_MAX = 100 * 1024 * 1024
 # Places in the workspace that hold keys, settings or bookkeeping, and names of key files.
@@ -694,13 +695,24 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
+def send_root() -> Path:
+    """The workspace root files are sent from: SEND_ROOT when pinned, else the layout's root."""
+    if SEND_ROOT is not None:
+        return Path(SEND_ROOT)
+    try:
+        return _load_common("workspace_layout").load().root
+    except ValueError as exc:       # LayoutError: never guess the boundary
+        raise SignalError(f"cannot tell where the workspace is: {exc}") from None
+
+
 def check_file(given: str) -> dict:
     """One file to send: a real regular file inside the workspace, not a key, archive or program."""
     if not isinstance(given, str) or not given.strip():
         raise SignalError("files must be paths of files in ~/Workspaces")
-    root = Path(os.path.realpath(SEND_ROOT))
+    base = send_root()
+    root = Path(os.path.realpath(base))
     raw = Path(given.strip()).expanduser()
-    path = raw if raw.is_absolute() else Path(SEND_ROOT) / raw
+    path = raw if raw.is_absolute() else base / raw
     real = Path(os.path.realpath(path))
     if real != root and root not in real.parents:
         raise SignalError(f"refused: {given!r} is outside ~/Workspaces (links that lead out count as outside); "

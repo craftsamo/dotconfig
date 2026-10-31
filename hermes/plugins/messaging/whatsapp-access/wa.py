@@ -715,7 +715,9 @@ def media_download(account: str, args: dict, home: Path | None) -> dict:
 
 STATE_ENV = "HERMES_WHATSAPP_STATE"
 DEFAULT_STATE = Path.home() / ".local" / "state" / "hermes-whatsapp"
-SEND_ROOT = Path.home() / "Workspaces"
+# SEND_ROOT pins the root files are sent from (tests); unset, it is the workspace layout's root,
+# read at each send.
+SEND_ROOT = None
 FILES_MAX = 10
 FILES_BYTES_MAX = 100 * 1024 * 1024        # in all; wacli's own cap is 100 MiB per file
 FILE_TIMEOUT = 180                         # wacli's deadline for one file (upload + send)
@@ -787,15 +789,26 @@ def _requested(args: dict) -> list[Path]:
     if len(raw) > FILES_MAX:
         raise WhatsAppError(f"at most {FILES_MAX} files per send")
     out = []
+    base = send_root()
     for given in raw:
         path = Path(given.strip()).expanduser()
-        out.append(path if path.is_absolute() else SEND_ROOT / path)
+        out.append(path if path.is_absolute() else base / path)
     return out
+
+
+def send_root() -> Path:
+    """The workspace root files are sent from: SEND_ROOT when pinned, else the layout's root."""
+    if SEND_ROOT is not None:
+        return Path(SEND_ROOT)
+    try:
+        return _load_common("workspace_layout").load().root
+    except ValueError as exc:       # LayoutError: never guess the boundary
+        raise WhatsAppError(f"cannot tell where the workspace is: {exc}") from None
 
 
 def _placed(real: Path) -> str:
     """Where a real path sits under ~/Workspaces; raises when it may not be sent."""
-    root = Path(os.path.realpath(SEND_ROOT))
+    root = Path(os.path.realpath(send_root()))
     if root not in real.parents:
         raise WhatsAppError(f"refused: {real.name!r} is outside ~/Workspaces (links that lead out count as "
                             "outside); copy the file into the workspace first")
