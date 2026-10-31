@@ -32,6 +32,8 @@ def test_existing_group_and_nested_job_paths_are_explicit(profile):
         assert value not in text
     assert "never reject or relocate" in text
     assert "beneath an existing parent" in text
+    # A machine whose workspace layout names other areas still gets its Groups accepted.
+    assert "a Group in any of its areas" in text
 
 
 @pytest.mark.parametrize("profile", HANDS)

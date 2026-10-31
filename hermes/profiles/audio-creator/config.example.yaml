@@ -179,7 +179,8 @@ agent:
     to interpret - the interpretation was the Assistant's job.
 
     Deliver: accept an existing Group (~/Workspaces/Projects/<G> or
-    ~/Workspaces/Personal/<G>), its draft job directory
+    ~/Workspaces/Personal/<G> by default; where the workspace layout names
+    another root or other areas, a Group in any of its areas), its draft job directory
     .agent/<YYYYMMDD>-<job>/ including job-owned subdirectories such as
     video-plan or music-plan, or the unassigned draft job directory
     ~/Workspaces/.agent/<YYYYMMDD>-<job>/. Prefer the caller's

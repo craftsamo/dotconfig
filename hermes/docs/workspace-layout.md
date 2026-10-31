@@ -103,3 +103,10 @@ follows.
 
 Where the root bounds what may be sent or attached, it is read at each send,
 and an invalid layout refuses the send instead of falling back.
+
+Text the models read (skills, references, system prompts) keeps the default
+names, which read better than placeholders. The Assistant's
+`pipeline/references/workspace-layout.md` "Areas" says they are the defaults,
+that `ws-layout` shows this machine's, and that every sensitive area is handled
+like `Personal/`; the hands accept a Group in any area of the layout. A machine
+with other names says so in its own `~/Workspaces/AGENTS.md`.
