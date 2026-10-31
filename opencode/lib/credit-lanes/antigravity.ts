@@ -4,6 +4,7 @@ import { join } from "node:path"
 import type { QuotaEntry } from "./quota"
 
 export const ANTIGRAVITY_QUOTA_ID = "google-antigravity"
+export const ANTIGRAVITY_QUOTA_TOKEN_ENV = "ANTIGRAVITY_QUOTA_TOKEN"
 export const ANTIGRAVITY_QUOTA_TOKEN = "antigravity-quota"
 export const ANTIGRAVITY_ENDPOINT =
   "https://daily-cloudcode-pa.googleapis.com"
@@ -52,6 +53,9 @@ export type OAuthCredential = {
 }
 export type IntegrationContext = {
   integration?: {
+    get?(input: {
+      integrationID: string
+    }): Promise<{ data?: { connections?: readonly Connection[] } } | undefined>
     connection?: {
       active(providerID: string): Promise<Connection | undefined>
       resolve(connection: Connection): Promise<OAuthCredential | undefined>
@@ -373,21 +377,32 @@ export function createAntigravityCollector(
     return ANTIGRAVITY_DEFAULT_PROJECT_ID
   }
 
+  const resolveCredential = async (): Promise<OAuthCredential | undefined> => {
+    const valid = (c: OAuthCredential | undefined): c is OAuthCredential =>
+      c?.type === "oauth" &&
+      (c.methodID === "antigravity" || c.methodID === "oauth") &&
+      typeof c.access === "string" &&
+      c.access.length > 0
+
+    const active = await ctx.integration?.connection?.active("google")
+    if (active?.type === "credential" && active.method === "oauth") {
+      const resolved = await ctx.integration?.connection?.resolve(active)
+      if (valid(resolved)) return resolved
+    }
+    const listed = await ctx.integration?.get?.({ integrationID: "google" })
+    for (const conn of listed?.data?.connections ?? []) {
+      if (conn?.type !== "credential" || conn.method !== "oauth") continue
+      const resolved = await ctx.integration?.connection?.resolve(conn)
+      if (valid(resolved)) return resolved
+    }
+    return undefined
+  }
+
   return async (): Promise<
     { version: "quota-v1"; entries: QuotaEntry[] } | undefined
   > => {
-    const connection = await ctx.integration?.connection?.active("google")
-    if (connection?.type !== "credential" || connection.method !== "oauth")
-      return undefined
-    const credential = await ctx.integration?.connection?.resolve(connection)
-    if (
-      credential?.type !== "oauth" ||
-      (credential.methodID !== "antigravity" &&
-        credential.methodID !== "oauth") ||
-      typeof credential.access !== "string" ||
-      !credential.access
-    )
-      return undefined
+    const credential = await resolveCredential()
+    if (!credential?.access) return undefined
 
     const userAgent = hubUserAgent(await getVersion())
     const project = await resolveProject(

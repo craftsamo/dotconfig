@@ -1,6 +1,7 @@
 import {
   ANTIGRAVITY_QUOTA_ID,
   ANTIGRAVITY_QUOTA_TOKEN,
+  ANTIGRAVITY_QUOTA_TOKEN_ENV,
   createAntigravityCollector,
   type IntegrationContext,
 } from "../lib/credit-lanes/antigravity"
@@ -11,6 +12,12 @@ import {
   serve,
 } from "../lib/credit-lanes/endpoint"
 
+// Local bearer sentinel shared in-process with OpenCode Quota's remote-api
+// resolver (`apiKeyEnv: "ANTIGRAVITY_QUOTA_TOKEN"` in quota-toast.jsonc), so
+// `providers.google` stays untouched and never shadows the Antigravity OAuth
+// connection.
+process.env[ANTIGRAVITY_QUOTA_TOKEN_ENV] ||= ANTIGRAVITY_QUOTA_TOKEN
+
 /**
  * Serves the Console credit lane balance and the Antigravity quota on
  * 127.0.0.1 for OpenCode Quota's custom remote providers (see
@@ -20,6 +27,7 @@ import {
  * Nothing here touches the history database.
  */
 async function setup(ctx: IntegrationContext = {}) {
+  process.env[ANTIGRAVITY_QUOTA_TOKEN_ENV] ||= ANTIGRAVITY_QUOTA_TOKEN
   const port = Number(process.env.CREDIT_LANES_PORT) || DEFAULT_PORT
   const handler = createHandler({
     collect: () => collect(),
@@ -29,7 +37,8 @@ async function setup(ctx: IntegrationContext = {}) {
     // Quota sends the lane's own key (or Antigravity's local sentinel) as the
     // bearer token; answer only that.
     tokenFor: (provider) => {
-      if (provider === ANTIGRAVITY_QUOTA_ID) return ANTIGRAVITY_QUOTA_TOKEN
+      if (provider === ANTIGRAVITY_QUOTA_ID)
+        return process.env[ANTIGRAVITY_QUOTA_TOKEN_ENV] || ANTIGRAVITY_QUOTA_TOKEN
       const name = loadLanes().find(
         (lane) => lane.provider === provider,
       )?.keyEnv

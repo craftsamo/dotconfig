@@ -540,16 +540,6 @@
         "claude-haiku-5-5": {},
       },
     },
-    // Local bearer sentinel so OpenCode Quota's `google-antigravity` remote-api
-    // provider (`opencode-quota/quota-toast.jsonc`) can query the loopback
-    // endpoint in `plugins/credit-lanes.ts` without a Keychain secret. The
-    // Antigravity plugin replaces the key with the account's OAuth token and
-    // strips `x-goog-api-key` on every model request.
-    "google": {
-      "settings": {
-        "apiKey": "antigravity-quota",
-      },
-    },
   },
   "permissions": [
     {
