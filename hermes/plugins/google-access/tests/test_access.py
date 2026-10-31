@@ -641,6 +641,92 @@ def test_a_swap_after_the_check_cannot_send_a_sensitive_file_in_the_clear(tmp_pa
     assert result["encrypted"]["recipients"] == 1 and b"secret-rows" not in sent["data"]
 
 
+# --- decrypting downloads -------------------------------------------------------------------------
+
+def _serve_download(monkeypatch, name, data, mime="application/octet-stream"):
+    """A Drive file `f1` named `name` whose content is `data`."""
+    http = pytest.importorskip("googleapiclient.http")
+    api = mock.MagicMock()
+    api.files().get().execute.return_value = {"id": "f1", "name": name, "mimeType": mime}
+
+    class Downloader:
+        def __init__(self, handle, request):
+            self.handle = handle
+
+        def next_chunk(self):
+            self.handle.write(data)
+            return None, True
+    monkeypatch.setattr(http, "MediaIoBaseDownload", Downloader)
+    services(monkeypatch, drive=api)
+    return api
+
+
+def _sealed(identity, data):
+    return access._age("age", ["-r", access._recipient_of(identity)], data).stdout
+
+
+@needs_age
+def test_a_downloaded_age_file_is_decrypted_into_a_sensitive_group(tmp_path, keychain, monkeypatch):
+    identity = _keygen()
+    access._store_identity(tmp_path, identity)
+    _serve_download(monkeypatch, "2026.csv.age", _sealed(identity, b"date,amount\n"))
+    target = tmp_path / "Personal" / "Budget" / "data"
+    target.mkdir(parents=True)
+    first = access.drive(tmp_path, {"action": "download", "file_id": "f1", "decrypt_to": str(target)})
+    assert first["status"] == "decrypted" and first["path"] == str(target / "2026.csv")
+    made = Path(first["path"])
+    assert made.read_bytes() == b"date,amount\n" and made.stat().st_mode & 0o777 == 0o600
+    second = access.drive(tmp_path, {"action": "download", "file_id": "f1", "decrypt_to": str(target)})
+    assert second["path"] == str(target / "2026 (2).csv")
+    named = access.drive(tmp_path, {"action": "download", "file_id": "f1", "decrypt_to": str(target),
+                                    "name": "budget.csv"})
+    assert named["path"] == str(target / "budget.csv")
+    # Nothing, encrypted or clear, is left in the download folder.
+    assert not access.download_dir(tmp_path).exists() or not any(access.download_dir(tmp_path).iterdir())
+    # The secret key went to age on stdin, never in an argument the log would show.
+    assert identity not in keychain.log.read_text()
+
+
+@needs_age
+def test_decrypt_to_is_only_a_folder_inside_a_sensitive_group(tmp_path, tmp_path_factory, keychain, monkeypatch):
+    identity = _keygen()
+    access._store_identity(tmp_path, identity)
+    _serve_download(monkeypatch, "2026.csv.age", _sealed(identity, b"rows"))
+    plain = tmp_path / "Projects" / "Acme"
+    plain.mkdir(parents=True)
+    group = tmp_path / "Personal" / "Budget"
+    group.mkdir(parents=True)
+    (group / "link").symlink_to(plain)
+    outside = tmp_path_factory.mktemp("elsewhere")
+    for where, why in ((plain, "sensitive area"), (tmp_path / "Personal", "sensitive area"),
+                       (group / "link", "sensitive area"), (outside, "outside it"),
+                       (group / "missing", "existing folder"), (tmp_path / ".inbox", "sensitive area")):
+        (tmp_path / ".inbox").mkdir(exist_ok=True)
+        with pytest.raises(access.AccessError, match=why):
+            access.drive(tmp_path, {"action": "download", "file_id": "f1", "decrypt_to": str(where)})
+    assert not any(plain.iterdir()) and not any(outside.iterdir())
+
+
+@needs_age
+def test_only_an_encrypted_upload_is_decrypted_and_only_with_its_key(tmp_path, keychain, monkeypatch):
+    group = tmp_path / "Personal" / "Budget"
+    group.mkdir(parents=True)
+    args = {"action": "download", "file_id": "f1", "decrypt_to": str(group)}
+    _serve_download(monkeypatch, "report.pdf", b"%PDF")
+    with pytest.raises(access.AccessError, match="not an encrypted upload"):
+        access.drive(tmp_path, args)
+    _serve_download(monkeypatch, "Plan.age", b"", mime="application/vnd.google-apps.document")
+    with pytest.raises(access.AccessError, match="not an encrypted upload"):
+        access.drive(tmp_path, args)
+    _serve_download(monkeypatch, "2026.csv.age", _sealed(_keygen(), b"rows"))
+    with pytest.raises(access.AccessError, match="gaccess encryption restore"):
+        access.drive(tmp_path, args)
+    access._store_identity(tmp_path, _keygen())  # another key than the file's
+    with pytest.raises(access.AccessError, match="could not decrypt"):
+        access.drive(tmp_path, args)
+    assert not any(group.iterdir())
+
+
 def test_the_layout_file_decides_root_and_sensitive_areas(tmp_path, monkeypatch):
     layout = tmp_path / "layout.json"
     layout.write_text(json.dumps({"root": str(tmp_path / "W"), "areas": [
