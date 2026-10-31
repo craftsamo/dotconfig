@@ -33,6 +33,7 @@ stable, so a pointer such as `docs/topology.md "Toolsets"` keeps resolving.
 | [Models, authentication and secrets](./docs/models-auth.md)                                  | model and fallback chains, Console credit lanes, authentication inheritance, secrets layering                 |
 | [Gateway and tracking](./docs/operations.md)                                                 | the gateway LaunchAgent mechanics and what is tracked                                                         |
 | [Session history](./docs/session-history.md)                                                 | reading past OpenCode and Hermes sessions                                                                     |
+| [Workspace layout](./docs/workspace-layout.md)                                               | where the Workspaces root is and which areas it holds                                                         |
 | [Workspace drafts](./docs/workspace-drafts.md), [Workspace repos](./docs/workspace-repos.md) | the read-only workspace reports                                                                               |
 | [Screen listen](./docs/screen-listen.md)                                                     | hearing what an allowed app (Discord) plays on this Mac: the helper, its consent, bounds and the STT handoff  |
 
