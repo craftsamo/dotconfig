@@ -8,14 +8,14 @@ craft; its Plan proposes exact claims and source requirements for Client
 agreement against your purpose and supplied material.
 
 Researcher unit `fact-check` · QA `fact-check` · units: one fixed
-claims list per unit, released inside the consuming primary's brief
+claims list per unit, released directly or inside the consuming primary's brief
 once every decision below is agreed for Build
 (`../../execute/SKILL.md`).
 
 ## Agree before Build
 
 These are proposal choices, not required inputs for a purpose-first Plan.
-The caller may author them fully; otherwise Researcher proposes them through
+The caller may author them fully; otherwise Researcher proposes them directly or through
 the consuming primary. Follow the parent entry's agreement and preliminary
 Build gates; retain same-role unit boundaries.
 

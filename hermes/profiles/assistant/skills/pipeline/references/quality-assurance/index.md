@@ -15,8 +15,8 @@ failed/unknown disclosure, approvals and permissions are not waived.
 
 Research/search acceptance uses the agreed proposal or explicitly released
 settled brief, not a planning reply mistaken for findings. Specialist QA is a
-self-check, never requester independent acceptance; for Researcher the immediate
-primary accepts the research and Assistant still gates its returned deliverable.
+self-check, never requester independent acceptance; for Researcher, Assistant independently
+accepts direct research, or gates the deliverable returned by the immediate primary.
 Existing per-unit criteria and correction limits remain in force. Search
 gap-filling retains its domain-specific protocol rather than changing transport.
 

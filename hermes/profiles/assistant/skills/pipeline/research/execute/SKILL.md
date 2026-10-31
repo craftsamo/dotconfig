@@ -1,6 +1,6 @@
 ---
 name: execute-research
-description: "Execute research: supervise proposal agreement, Build and self-check through the consuming primary. Accept conclusions independently; never call Researcher directly."
+description: "Execute research: agree proposals, supervise Build and self-check directly or through the consuming primary. Accept conclusions independently."
 version: 1.0.0
 author: CraftSamo
 license: MIT
@@ -38,15 +38,20 @@ Bounded preliminary depth discovery is allowed only after primary agreement;
 enumerations, surveys and exhaustive hunts remain Searcher dependencies — yours
 to release, or the consuming primary's within the budget you granted it, in
 which case it relays Searcher's coverage statement and spend with the baseline.
-**The researcher is not your peer**: you never start researcher
-sessions. Research is consumed through
-the peers whose peer the researcher is — creator or marketer —
-inside their own work. Code-level evidence (what a repository actually does)
+**Calling Researcher**: call researcher directly for standalone research
+deliverables (evidence-pack, tradeoff-matrix, fact-check, guidance); route
+through creator or marketer when grounding their own creative or marketing work.
+Code-level evidence (what a repository actually does)
 comes from an OpenCode plan run, not from Researcher.
 
-## Routing through peers
+## Routing: direct or through peers
 
-Send purpose, consumer, constraints, budget and durable path, or your explicitly
+For standalone research, call Researcher directly via `specialist_call`: kind="inquiry"
+for short bounded consultation (A2A), or kind="work" (resident) for planning dialogue,
+complex framing or metered work. Assistant is Researcher's immediate Client, agrees
+the proposal within existing authority, and independently accepts conclusions.
+
+When research grounds media or marketing work, send purpose, consumer, constraints, budget and durable path, or your explicitly
 authorized settled brief (`../plan/references`), to the consuming
 primary: the marketer
 verifies public claims against sources, the creator grounds factual
@@ -57,7 +62,7 @@ or out-of-scope decisions through you. Researcher's Build ends with a specialist
 self-check; the primary independently accepts conclusions and returns its own
 deliverable for your acceptance. Self-QA is not an external pass.
 
-Require the primary to return the agreed research proposal/scope alongside
+When routing through a primary, require the primary to return the agreed research proposal/scope alongside
 conclusions: questions, done criteria, source policy, budget and approved changes
 (explicitly none when unchanged). The primary owns this agreement; Assistant
 uses the relayed baseline for acceptance, never reconstructs it from purpose.
@@ -65,15 +70,13 @@ An explicitly authorized original settled brief is the alternative baseline
 when it remains unchanged. Missing baseline means unverified: request it as a
 spec-gap through the primary before acceptance.
 
-A bounded authorized researcher inquiry may be one-shot over the primary's
-configured peer route; `kind="inquiry"` alone is not authorization. An explicitly
+A bounded authorized researcher inquiry may be one-shot (directly over A2A or via the primary's
+configured peer route); `kind="inquiry"` alone is not authorization. An explicitly
 authorized settled brief goes directly to Build without unnecessary reapproval.
 Complex proposal/approval back-and-forth uses resident `kind="work"`.
-The primary owns and continues the Researcher work handle and `conversation_id`.
-Assistant uses only its own PRIMARY work handle for `specialist_call` messages
-and `specialist_session` lifecycle; Assistant never holds or uses the Researcher
-conversation. Ask the primary to relay proposals, agreements, baselines and
-feedback, never contact Researcher directly. Do not invent proposal state tooling.
+When calling directly, Assistant owns and continues the Researcher work handle and `conversation_id`.
+When routing through a primary, that primary owns and continues the Researcher work handle and `conversation_id`;
+Assistant uses only its own PRIMARY work handle for `specialist_call` messages with that primary.
 Fields or transport choice never release work. Plan permits no unapproved
 search: a bounded preliminary Build needs agreement, followed by its result
 and separate agreement on the refined main proposal before main Build.
@@ -101,9 +104,8 @@ consumer never reaches into the researcher's session:
 
 ## Pitfalls
 
-- Starting a researcher session —
-  the direct assistant→researcher path is closed; route through the
-  consuming primary.
+- Calling Researcher directly for work that grounds creator or marketer output —
+  route that work through the consuming primary so it owns the baseline and media grounding.
 - Sending heavy breadth retrieval through this path: enumerations and hunts are
   search units. This does not prohibit agreed bounded preliminary depth discovery.
 - Deep analysis inline — it floods your own context.

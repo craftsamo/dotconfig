@@ -12,7 +12,7 @@ Process topology, the multiplex gateway and A2A peer graph, delegation layers, t
           │                │       process, hosted by default)
           └──────┬─────────┘
                  │                        peer graph (specialist_call; A2A = localhost HTTP):
-        ┌────────┼──────────────────┐       assistant → creator marketer writer (+ resident searcher)
+        ┌────────┼──────────────────┐       assistant → creator marketer writer researcher (+ resident searcher)
         │ resident sessions         │                   + image-creator video-creator audio-creator
         │ delegate_task             │       creator   → researcher (+ resident searcher)
         │                           │       marketer  → researcher (+ resident searcher)
@@ -31,7 +31,7 @@ writer, researcher and the three hands serve inbound A2A but initiate nothing;
 searcher has no A2A endpoint. Heavy interactive work runs in **resident sessions** (a
 persistent `hermes -p <specialist> chat` started by `specialist_call(kind="work")`
 and supervised turn by turn); short `kind="inquiry"` requests use configured A2A
-peers. This grants assistant no direct researcher access and gives the hands no
+peers. Hands have no
 delegation tools. Allowlists, completion, ownership and failure handling:
 [specialist-calls](./profiles/specialist-calls.md). Work where conversation adds
 nothing runs as a cron job.
@@ -80,7 +80,7 @@ is `.` (launch / task workspace) except the assistant's `~/Workspaces`.
 | ----------------- | --------------------------------------------------------------------------------------------------------------------------------------- | -------------------- | --------------------- |
 | **default**       | CLI front door — assistant's CLI counterpart (neutral persona); hosts the multiplex gateway                                             | CLI                  | host                  |
 | **assistant**     | primary: messaging front door, non-creative quality gate, GitHub bookkeeping; drives OpenCode ([opencode.md](./opencode.md))            | Telegram + Discord   | served                |
-| **researcher**    | depth modes investigate / compare / verify / advise; serves creator/marketer only (not Assistant directly), cards refused               | — (A2A receive-only) | served (a2a :9906)    |
+| **researcher**    | depth modes investigate / compare / verify / advise; serves assistant/creator/marketer, cards refused                                   | — (A2A receive-only) | served (a2a :9906)    |
 | **searcher**      | retrieval modes lookup / sweep / hunt; resident sessions only, cards refused                                                            | — (specialist)       | served (no platforms) |
 | **creator**       | the Assistant's creative advisor: directions and located revisions; never produces or commissions ([creator.md](./profiles/creator.md)) | — (Assistant only)   | served (a2a :9903)    |
 | **image-creator** | still-image hands: runs one `<subject>/<verb>` leaf from a filled form; answers only the Assistant                                      | — (A2A receive-only) | served (a2a :9907)    |

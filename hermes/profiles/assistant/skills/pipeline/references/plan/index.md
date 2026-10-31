@@ -54,7 +54,7 @@ stay with the Client. Consultation authorizes no external search: a preliminary
 Build needs bounded agreement, then its result and separate main-proposal
 agreement. An explicitly authorized settled brief can enter Build directly;
 filled fields or transport kind are not authorization. The domain entries own
-these gates; research still travels through creator or marketer.
+these gates; research travels directly to researcher, or through creator/marketer when grounding their work.
 
 This is the common procedure for the selected entry, not another dispatch
 step. The table is navigation when the domain changes; do not reload an
@@ -65,6 +65,6 @@ entry whose full instructions are already available.
 | engineering | [plan-engineering](../../engineering/plan/SKILL.md) | The user's intent relayed to OpenCode, its proposals relayed back, the decision log, approval per unit, each unit an issue before its build |
 | creative | [plan-creative](../../creative/plan/SKILL.md) | Client outcome, optional reference research, grants and acceptance criteria; Creator proposes directions and the hands produce |
 | writing | [plan-writing](../../writing/plan/SKILL.md) | type decisions, unit decomposition (outline / piece), sources |
-| research | [plan-research](../../research/plan/SKILL.md) | purpose and constraints through the primary Client; Researcher proposal and agreement |
+| research | [plan-research](../../research/plan/SKILL.md) | purpose and constraints directly or through primary Client; Researcher proposal and agreement |
 | search | [plan-search](../../search/plan/SKILL.md) | purpose and constraints; Searcher-proposed retrieval scope, coverage and units for agreement |
 | marketing | [plan-marketing](../../marketing/plan/SKILL.md) | strategy questions to Marketer; Writer/hands units, destination and exact remote-save consent planned by you |
