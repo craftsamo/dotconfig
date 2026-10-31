@@ -31,7 +31,7 @@ navigation for a changed domain, not a loop that reloads that entry.
 | creator | Creative advisor: directions for an open look and named changes from vague feedback (consulted from execute-creative) | [execute-creative](../../creative/execute/SKILL.md) |
 | image-creator / video-creator / audio-creator | Media production from filled forms | [execute-creative](../../creative/execute/SKILL.md); Client brief, scoped grants and proposal relay |
 | writer | text deliverables from released units: reader-facing prose and producer-facing scripts (台本, 絵コンテ); drafts only, never publishes | [execute-writing](../../writing/execute/SKILL.md) |
-| researcher | purpose-led depth proposal, agreed Build and self-check through the consuming primary; analysis, verification and guidance | [execute-research](../../research/execute/SKILL.md) |
+| researcher | purpose-led depth proposal, agreed Build and self-check directly or through the consuming primary; analysis, verification and guidance | [execute-research](../../research/execute/SKILL.md) |
 | searcher | purpose-led retrieval proposal, agreed Build and self-check; lookups, sweeps and hunts, all resident | [execute-search](../../search/execute/SKILL.md) |
 | marketer | strategy advisor: offer discovery, positioning, campaigns, review findings and outcome analysis; never commissions parts or saves drafts | [execute-marketing](../../marketing/execute/SKILL.md): you commission, accept and save the service draft after exact remote-save consent; no publishing |
 
@@ -51,8 +51,8 @@ then Client agreement releases Build and specialist self-check before requester
 independent acceptance. Explicitly authorized settled briefs may enter Build
 directly. Keep proposal/approval messages in the existing work conversation;
 transport kind and filled fields alone grant nothing. A bounded authorized
-researcher inquiry may be one-shot through the consuming primary; complex
-back-and-forth stays resident. No direct Assistant-to-Researcher route is added.
+researcher inquiry may be one-shot (directly over A2A or through the consuming primary); complex
+back-and-forth stays resident. Standalone research calls Researcher directly; grounding calls route through creator/marketer.
 
 ## Mechanics leaves
 

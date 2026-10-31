@@ -13,7 +13,7 @@ work you are about to release, so it stays in the loop.
 ## Agree before Build
 
 These are proposal choices, not required inputs for a purpose-first Plan.
-The caller may author them fully; otherwise Researcher proposes them through
+The caller may author them fully; otherwise Researcher proposes them directly or through
 the consuming primary. Follow the parent entry's agreement and preliminary
 Build gates; retain same-role unit boundaries.
 

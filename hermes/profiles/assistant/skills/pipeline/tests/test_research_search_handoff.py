@@ -130,26 +130,25 @@ class ResearchSearchHandoffTest(unittest.TestCase):
                        "kanban_complete"):
             self.assertNotIn(marker, public)
 
-    def test_research_stays_indirect_with_authorized_one_shot_and_resident_work(self):
+    def test_research_supports_direct_and_consuming_primary_with_authorized_one_shot_and_resident_work(self):
         caller = text(ROOT / "research/execute/SKILL.md")
         public = text(public_pipeline("research") / "SKILL.md")
         for token in ("creator", "marketer", "primary", "spec-gap", "granularity"):
             self.assertIn(token, caller)
             self.assertIn(token, public)
-        self.assertIn("you never start researcher sessions", caller)
+        self.assertIn("call researcher directly for standalone research", caller)
         self.assertIn("bounded authorized researcher inquiry may be one-shot", caller)
         self.assertIn('`kind="inquiry"` alone is not authorization', caller)
         self.assertIn('resident `kind="work"`', caller)
         for phase in ("plan", "execute"):
             contract = text(ROOT / "research" / phase / "SKILL.md")
-            self.assertIn("The primary owns and continues the Researcher work handle and `conversation_id`", contract)
+            self.assertIn("When calling directly, Assistant owns and continues the Researcher work handle and `conversation_id`", contract)
             self.assertIn("Assistant uses only its own PRIMARY work handle", contract)
-            self.assertIn("Assistant never holds or uses the Researcher conversation", contract)
             self.assertNotIn("Use the existing work handle", contract)
             self.assertNotIn("work handle: `specialist_call` messages retain", contract)
             self.assertIn("heavy breadth", contract)
             self.assertIn("bounded preliminary depth discovery", contract.lower())
-        self.assertIn("Require the primary to return the agreed research proposal/scope alongside conclusions", caller)
+        self.assertIn("When routing through a primary, require the primary to return the agreed research proposal/scope alongside conclusions", caller)
         self.assertIn("questions, done criteria, source policy, budget and approved changes", caller)
         self.assertIn("Missing baseline means unverified", caller)
         self.assertIn("spec-gap through the primary before acceptance", caller)

@@ -1,6 +1,6 @@
 ---
 name: plan-research
-description: "Plan research: bring purpose and constraints through the consuming primary, then agree the Researcher proposal. Preserve caller-authored briefs; retrieval-only work belongs to search."
+description: "Plan research: agree the Researcher proposal directly or through a consuming primary. Preserve caller-authored briefs; retrieval-only work belongs to search."
 version: 1.0.0
 author: CraftSamo
 license: MIT
@@ -33,11 +33,12 @@ Read only applicable detail references below.
 # Research — plan
 
 **The Client owns purpose and agreement; Researcher proposes the research.**
-Send purpose, consumer, constraints, budget and durable path through creator
-or marketer. A purpose-first session/peer request starts specialist
+Send purpose, consumer, constraints, budget and durable path directly to researcher
+for standalone research deliverables, or through creator or marketer when grounding
+their own work. A purpose-first session/peer request starts specialist
 Plan without a prebuilt detailed spec. Researcher proposes questions, options,
 criteria, exact claims, source policy, exclusions, done conditions, output and
-ordered same-role units. The immediate primary Client agrees within already
+ordered same-role units. The immediate Client agrees within already
 granted discretion; escalate material human-only or out-of-scope decisions.
 Assistant retains overall orchestration and cross-role dependencies, not the
 researcher's gathering strategy, trust scoring or corroboration mechanics.
@@ -64,10 +65,9 @@ media) built on a conclusion is writer/creator work consuming it.
 
 A question that is really several questions, or a matrix whose option
 set keeps growing, is a **granularity finding** — decompose, never
-stretch the unit. No research unit is released to the
-researcher directly: the purpose or settled unit travels inside the brief of the
-consuming primary — creator or marketer — whose peer the
-researcher is (`../execute/SKILL.md`).
+stretch the unit. Standalone research units are released directly to
+researcher; units grounding creative or marketing work travel inside the brief of the
+consuming primary — creator or marketer (`../execute/SKILL.md`).
 
 ## Proposal and agreement core
 
@@ -107,13 +107,13 @@ discovery is needed, Researcher may propose a bounded preliminary Build with
 scope, output, budget and stop condition. The primary Client must agree first;
 after Build and its specialist self-check, the primary inspects the result and
 gives separate agreement on the refined main proposal within its grant.
-Preliminary agreement never releases main work. The primary owns and continues
-the Researcher work handle and `conversation_id`. Assistant uses only its own
-PRIMARY work handle for `specialist_call` messages and `specialist_session`
-lifecycle; Assistant never holds or uses the Researcher conversation. The primary
-relays the agreed baseline and findings per `../execute/SKILL.md`;
-Assistant requests missing material through that primary, not Researcher.
-No new proposal state tool is needed. A researched consultation still needs bounded execution
+Preliminary agreement never releases main work. When calling directly, Assistant
+owns and continues the Researcher work handle and `conversation_id`, managing lifecycle
+with `specialist_session`. When routed through creator or marketer, that consuming primary owns and continues the Researcher
+work handle, and Assistant uses only its own PRIMARY work handle for `specialist_call`
+messages with that primary; the primary relays the agreed baseline and findings per
+`../execute/SKILL.md`. Missing material is requested through the direct conversation or
+that primary. No new proposal state tool is needed. A researched consultation still needs bounded execution
 authorization; a planning proposal is not a verified conclusion.
 
 ## Leaves — pick by unit
@@ -131,7 +131,7 @@ mapping.
 ## Technics — recurring purposes
 
 Researcher keeps a recipe for some recurring purposes. Name it in the brief
-you send through creator or marketer (`technic: <name>`); Researcher loads it
+you send directly or through creator/marketer (`technic: <name>`); Researcher loads it
 on top of the unit's mode, so the brief adds only the table's fields to the
 unit's core above. The unit, its QA contract and release stay those of the
 mode. A purpose no row fits is an ordinary unit.

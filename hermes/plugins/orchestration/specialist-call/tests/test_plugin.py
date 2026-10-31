@@ -113,10 +113,25 @@ def test_routes_pins_and_never_upgrades_inquiry(caller):
     assert len(calls) == before
 
 
-@pytest.mark.parametrize("target", ["researcher", "assistant", "default", "../creator", "http://localhost", "creator/../../writer"])
+@pytest.mark.parametrize("target", ["assistant", "default", "../creator", "http://localhost", "creator/../../writer"])
 def test_target_policy(caller, target):
     assert "error" in call(target)
     assert not caller[1]
+
+
+def test_assistant_can_call_researcher_resident_and_inquiry(caller):
+    home, calls = caller
+    res = call("researcher", kind="work")
+    assert res["status"] == "completed" and res["backend"] == "resident"
+    # without a2a_agents entry, inquiry falls back to resident
+    res_inquiry = call("researcher", kind="inquiry")
+    assert res_inquiry["status"] == "completed" and res_inquiry["backend"] == "resident"
+    # with a2a_agents entry, inquiry dispatches over a2a
+    config = yaml.safe_load((home / "config.yaml").read_text())
+    config["a2a_agents"]["researcher"] = {"url": "http://127.0.0.1:9906", "timeout": 2}
+    (home / "config.yaml").write_text(yaml.safe_dump(config))
+    a2a_res = call("researcher", kind="inquiry")
+    assert a2a_res["status"] == "completed" and a2a_res["backend"] == "a2a"
 
 
 @pytest.fixture
@@ -649,11 +664,11 @@ def test_the_roster_is_read_once_so_a_later_write_widens_nothing(caller, tmp_pat
     local = tmp_path / "local_targets.json"
     monkeypatch.setattr(p, "LOCAL_TARGETS", local)
     config = yaml.safe_load((home / "config.yaml").read_text())
-    config["specialist_call"]["resident_targets"].append("researcher")
+    config["specialist_call"]["resident_targets"].append("advisor")
     (home / "config.yaml").write_text(yaml.safe_dump(config))
-    local.write_text(json.dumps({"assistant": ["researcher"]}))  # written while the process runs
-    assert "not permitted" in call("researcher", kind="work")["error"]
-    assert not calls and p._local_targets() == {"assistant": {"researcher"}}  # only a reload would read it
+    local.write_text(json.dumps({"assistant": ["advisor"]}))  # written while the process runs
+    assert "not permitted" in call("advisor", kind="work")["error"]
+    assert not calls and p._local_targets() == {"assistant": {"advisor"}}  # only a reload would read it
 
 
 def test_the_local_roster_lives_in_the_root_home_plugin_data():

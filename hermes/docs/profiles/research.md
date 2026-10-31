@@ -63,14 +63,16 @@ Admiralty/SIFT source scoring, verbatim exact claims, durable claim ledgers,
 evidence gaps and Review gates remain; research self-check is neither caller
 acceptance, artifact-vs-brief craft QA nor the caller's final decision.
 
-Assistant reaches Researcher only through an advisor — Creator, Marketer, or
+Assistant reaches Researcher directly for standalone research deliverables,
+or through an advisor — Creator, Marketer, or
 an advisor kept in the private overlay ([specialist-calls.md](./specialist-calls.md))
-— its existing peers/session owners; no new direct peer. The consuming primary owns
+— when grounding their work. When routed through a primary, that consuming primary owns
 the Researcher conversation and must relay the agreed baseline (questions, done
 criteria, source policy, budget and approved changes) with conclusions. A
 missing baseline stays unverified: Assistant requests it through that primary,
 never reconstructs acceptance from purpose alone and never continues the
-Researcher handle itself. Assistant's separate research/search Plan and QA
+Researcher handle itself. When calling directly, Assistant owns the conversation
+and agrees the baseline directly. Assistant's separate research/search Plan and QA
 references keep their seven deliverable names (`evidence-pack`,
 `tradeoff-matrix`, `fact-check`, `guidance`; `lookup`, `sweep`, `hunt`), which
 map to the investigate, compare, verify and advise modes and to Searcher's
