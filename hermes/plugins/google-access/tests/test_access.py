@@ -50,6 +50,15 @@ esac
     access._CREDS.clear()
 
 
+@pytest.fixture(autouse=True)
+def workspaces(tmp_path, monkeypatch):
+    """The test's own directory is the Workspaces root, under the default layout (never this
+    machine's layout file)."""
+    monkeypatch.setenv("WORKSPACES_LAYOUT", str(tmp_path / "no-layout.json"))
+    monkeypatch.setenv("WORKSPACES_ROOT", str(tmp_path))
+    return tmp_path
+
+
 def token(home, scopes=access.SCOPES):
     """Store a token for the profile home in the (fake) Keychain."""
     access._vault_write(home, dict(TOKEN, scopes=list(scopes)))
@@ -437,6 +446,72 @@ def test_drive_upload_asks_and_refuses_credentials(tmp_path):
     state.write_text("x")
     with pytest.raises(access.AccessError, match="credential"):
         access.approval_request("google_drive", {"action": "upload", "path": str(state)})
+
+
+def _file(path, data=b"x"):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(data)
+    return path
+
+
+def test_upload_takes_only_files_under_the_workspaces_root(tmp_path, tmp_path_factory, monkeypatch):
+    for inside in (tmp_path / "Projects" / "Acme" / "docs" / "a.pdf", tmp_path / ".inbox" / "google" / "b.pdf",
+                   tmp_path / "loose.txt"):
+        assert access._upload_source({"path": str(_file(inside))}) == (inside.resolve(), False)
+    outside = _file(tmp_path_factory.mktemp("elsewhere") / "c.pdf")
+    with pytest.raises(access.AccessError, match="only files under the Workspaces root"):
+        access.approval_request("google_drive", {"action": "upload", "path": str(outside)})
+    # A link inside the root is judged by what it points at.
+    link = tmp_path / "Projects" / "link.pdf"
+    link.symlink_to(outside)
+    with pytest.raises(access.AccessError, match="only files under the Workspaces root"):
+        access._upload_source({"path": str(link)})
+
+
+def test_upload_knows_a_sensitive_area_whatever_its_spelling(tmp_path):
+    secret = _file(tmp_path / "Personal" / "Budget" / "data" / "2026.csv")
+    assert access._upload_source({"path": str(secret)}) == (secret.resolve(), True)
+    # macOS folders ignore case: personal/ is still the Personal area.
+    other_case = tmp_path / "personal" / "Budget" / "data" / "2026.csv"
+    if other_case.is_file():
+        assert access._upload_source({"path": str(other_case)})[1] is True
+    # A link from a plain area into a sensitive one is the sensitive file.
+    link = tmp_path / "Projects" / "budget.csv"
+    link.parent.mkdir(parents=True)
+    link.symlink_to(secret)
+    assert access._upload_source({"path": str(link)})[1] is True
+    # A file named like an area at the root is not inside it.
+    assert access._upload_source({"path": str(_file(tmp_path / "Personal.txt"))})[1] is False
+
+
+def test_a_sensitive_file_is_not_uploaded_in_the_clear(tmp_path):
+    secret = _file(tmp_path / "Personal" / "Budget" / "data" / "2026.csv")
+    with pytest.raises(access.AccessError, match="sensitive area"):
+        access.approval_request("google_drive", {"action": "upload", "path": str(secret)})
+    with pytest.raises(access.AccessError, match="sensitive area"):
+        access.drive(tmp_path, {"action": "upload", "path": str(secret)})
+
+
+def test_the_layout_file_decides_root_and_sensitive_areas(tmp_path, monkeypatch):
+    layout = tmp_path / "layout.json"
+    layout.write_text(json.dumps({"root": str(tmp_path / "W"), "areas": [
+        {"name": "Clients", "role": "projects"}, {"name": "Home", "role": "personal", "sensitive": True},
+        {"name": "Notes", "role": "personal"}]}))
+    monkeypatch.setenv("WORKSPACES_LAYOUT", str(layout))
+    monkeypatch.delenv("WORKSPACES_ROOT")
+    assert access._upload_source({"path": str(_file(tmp_path / "W" / "Home" / "G" / "a"))})[1] is True
+    assert access._upload_source({"path": str(_file(tmp_path / "W" / "Notes" / "G" / "a"))})[1] is False
+    with pytest.raises(access.AccessError, match="only files under"):
+        access._upload_source({"path": str(_file(tmp_path / "Personal" / "G" / "a"))})
+
+
+def test_an_unreadable_layout_uploads_nothing(tmp_path, monkeypatch):
+    broken = tmp_path / "layout.json"
+    broken.write_text("{not json")
+    monkeypatch.setenv("WORKSPACES_LAYOUT", str(broken))
+    report = _file(tmp_path / "Projects" / "Acme" / "r.pdf")
+    with pytest.raises(access.AccessError, match="layout cannot be read"):
+        access.approval_request("google_drive", {"action": "upload", "path": str(report)})
 
 
 @pytest.mark.parametrize("tool,args", [
