@@ -57,6 +57,12 @@ block that link) or any data, and it refuses, rather than replaces, a file
 where a folder should be. A second run changes nothing; `ws-init --check`
 reports what it would create.
 
+The Assistant's example configuration sends what it receives to
+`~/Workspaces/.inbox/<source>/` (`download_dir` of each access plugin,
+`screen_listen.record_dir`), inside the folder files may be sent from, so a
+received file can be passed on as is. Those are profile settings, not the
+layout: a machine with another root sets them in its own `config.yaml`.
+
 ## Pieces
 
 | Piece                                       | Home                                                  | Reader                  |

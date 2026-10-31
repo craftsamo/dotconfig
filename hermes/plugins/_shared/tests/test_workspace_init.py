@@ -144,6 +144,20 @@ def test_an_invalid_layout_creates_nothing(home):
     assert list(home.iterdir()) == [home / ".config"]
 
 
+def test_the_example_assistant_receives_files_into_the_inbox():
+    """What the Assistant downloads lands in the default root's .inbox/<source>/, inside the folder
+    files may be sent from, so a received file can be passed on without copying it first."""
+    yaml = pytest.importorskip("hermes_yaml")     # the runtime's loader, as test_example_configs uses
+    example = HERE.parents[2] / "profiles" / "assistant" / "config.example.yaml"
+    config = yaml.safe_load(example.read_text(encoding="utf-8"))
+    sources = {"google_access": "google", "signal_access": "signal", "whatsapp_access": "whatsapp",
+               "discord_access": "discord", "telegram_access": "telegram", "x_access": "x",
+               "youtube_access": "youtube"}
+    for key, folder in sources.items():
+        assert config[key]["download_dir"] == f"~/Workspaces/.inbox/{folder}", key
+    assert config["screen_listen"]["record_dir"] == "~/Workspaces/.inbox/recordings"
+
+
 @pytest.mark.skipif(not Path("/usr/bin/python3").exists(), reason="no system python")
 def test_the_launcher_runs_it_on_the_system_interpreter(home):
     """The whole run, registry included, on the system's python3 (3.9 on macOS)."""
