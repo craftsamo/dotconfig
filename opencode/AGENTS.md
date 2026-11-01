@@ -69,9 +69,11 @@ a verified checkpoint commit. Work that ends in no PR keeps Phase = dependency
 wave, {m} = reference id within the phase (no ordering implied). Do not hide a
 layer's substance in one line: the reply says what each step delivers, while
 an item's `<task>` stays a few words in the user's language, so it fits the
-sidebar. `Phase{N}.{m}` is the conversation's name for the work: it never
-enters a branch name, commit subject, PR title or body (git-pullrequest
-`<Audience>`).
+sidebar. Carry what the investigation found into the reply — the files each
+step touches, the existing file to follow, and the command that verifies it —
+so Build writes specs from the plan instead of investigating again.
+`Phase{N}.{m}` is the conversation's name for the work: it never enters a
+branch name, commit subject, PR title or body (git-pullrequest `<Audience>`).
 
 The todo list is the session's execution queue, kept by the primary agent; a
 subagent reports back instead of keeping one. After registering it, call
@@ -245,6 +247,14 @@ below explore-max, then the ChatGPT window, then Claude) so normal
 exploration does not inherit the primary's model. Use the default `explore`
 subagent only when the primary model is specifically needed for the
 exploration.
+
+Read directly when the files are known and a few reads answer the question;
+delegate when the location is unknown, the trace spans many files, or the
+reading would fill the primary's context. Before investigating a plan, list
+the open questions whose answers decide the design. Send the independent ones
+together, one specialist per question; ask in sequence when one answer
+reframes another. Check a specialist's report by confirming the facts a
+decision rests on, not by redoing the investigation.
 
 </ExplorationDelegation>
 
