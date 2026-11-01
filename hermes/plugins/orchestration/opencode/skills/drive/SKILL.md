@@ -147,7 +147,9 @@ model of yours is refused for a role unless the catalog lists that role under
 (a build runs its own reviewer, and an acceptance review of your own job
 runs on another listed model, as the QA entry says). A name outside the list
 is refused, never substituted: report it and ask, without stopping the job.
-An explicit choice binds the rest of that session.
+An explicit choice binds its role on that session and its forks: a later turn
+of the same role keeps it, and a turn of another role runs on that role's own
+default unless it names a model.
 
 A Claude model has several stops: the active login, another saved login (an
 alias model, marked `stop_of` in the catalog) and the Console credit lanes

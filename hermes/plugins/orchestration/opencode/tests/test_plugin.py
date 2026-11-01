@@ -1195,9 +1195,54 @@ def test_model_choice_is_any_catalog_model_of_an_allowed_provider(fixture):
     first = run("plan", directory, model="openai/gpt-6-sol", variant="high")
     assert first["engine"] == "openai/gpt-6-sol#high"
     sid = first["session_id"]
-    assert run("plan", session_id=sid)["engine"] == "openai/gpt-6-sol#high", "an explicit choice binds the session"
+    assert run("plan", session_id=sid)["engine"] == "openai/gpt-6-sol#high", "an explicit choice binds that role on the session"
     assert run("plan", session_id=sid, model="openai/gpt-6.1-sol", variant="medium")["engine"] == \
         "openai/gpt-6.1-sol#medium"
+
+
+def test_an_explicit_choice_binds_only_the_role_that_made_it(fixture):
+    _, directory, _, fake = fixture
+    first = run("plan", directory, model="openai/gpt-6-sol", variant="high")
+    assert first["engine"] == "openai/gpt-6-sol#high"
+    sid = first["session_id"]
+    built = run("build", session_id=sid, approval="Client: build it")
+    assert built["engine"] == "anthropic/claude-opus-5-5#medium"
+    assert run("plan", session_id=sid)["engine"] == "openai/gpt-6-sol#high"
+    forked = run("plan", session_id=sid, fork=True)
+    assert forked["engine"] == "openai/gpt-6-sol#high"
+    forked_sid = forked["session_id"]
+    assert run("build", session_id=forked_sid, approval="Client: build it")["engine"] == "anthropic/claude-opus-5-5#medium"
+    forked_sid2 = session("fork", sid)["session_id"]
+    assert run("plan", session_id=forked_sid2)["engine"] == "openai/gpt-6-sol#high"
+    assert run("build", session_id=forked_sid2, approval="Client: build it")["engine"] == "anthropic/claude-opus-5-5#medium"
+
+
+def test_a_legacy_selection_is_dropped(fixture):
+    _, directory, _, fake = fixture
+    sid = run("plan", directory)["session_id"]
+    hermes = fake.sessions[sid]["metadata"]["hermes"]
+    hermes.pop("selections", None)
+    hermes["selection"] = {"model": "openai/gpt-6-sol", "variant": "high"}
+    hermes["role"] = "plan"
+    res = run("plan", session_id=sid)
+    assert res["engine"] == "anthropic/claude-opus-5-5#high"
+    hermes_after = fake.sessions[sid]["metadata"]["hermes"]
+    assert "selection" not in hermes_after
+    assert "selections" not in hermes_after
+
+
+def test_stored_selections_are_checked_again(fixture):
+    _, directory, _, fake = fixture
+    sid = run("plan", directory)["session_id"]
+    fake.sessions[sid]["metadata"]["hermes"]["selections"] = {
+        "plan": {"model": "x"}, "review": "junk", "5": {"model": "openai/gpt-6-sol"}
+    }
+    out = run("plan", session_id=sid)
+    assert out["engine"] == "anthropic/claude-opus-5-5#high"
+    fake.sessions[sid]["metadata"]["hermes"]["selections"] = {"plan": {"model": "xai/grok-4.7"}}
+    out = run("plan", session_id=sid)
+    assert out["engine"] == "anthropic/claude-opus-5-5#high"
+    assert "plan" not in fake.sessions[sid]["metadata"]["hermes"].get("selections", {})
 
 
 def test_configured_role_model_carries_its_variant(fixture):
@@ -1305,7 +1350,7 @@ def test_a_continuing_turn_keeps_the_stop_the_service_moved_the_session_to(fixtu
     fake.sessions[sid]["model"] = {"providerID": "anthropic-credit-team", "id": "claude-opus-5-5", "variant": "high"}
     assert run("plan", session_id=sid, model="openai/gpt-6-sol", variant="high")["engine"] == "openai/gpt-6-sol#high"
     fake.sessions[sid]["model"] = {"providerID": "anthropic-credit-team", "id": "claude-opus-5-5", "variant": "high"}
-    assert run("plan", session_id=sid)["engine"] == "openai/gpt-6-sol#high", "an explicit choice binds the session"
+    assert run("plan", session_id=sid)["engine"] == "openai/gpt-6-sol#high", "an explicit choice binds that role on the session"
 
 
 def test_keep_stop_falls_back_to_the_wanted_model(fixture):
