@@ -139,6 +139,26 @@ describe("EmptyLanes", () => {
       new Set([LANE.provider]),
     )
   })
+  test("a refusal holds the lane a day, whatever the checkpoint then says", () => {
+    const lanes = new EmptyLanes()
+    const rolled = state(0, "rolled")
+    // A $0 carried forward is due at once; a refusal makes it wait a day.
+    lanes.tried(LANE.provider, AT + 1)
+    lanes.refused(LANE.provider, AT + 1)
+    const later = AT + 1 + TRY_SETTLED_MS
+    expect(lanes.scan(book(rolled), later).skip).toEqual(
+      new Set([LANE.provider]),
+    )
+    expect(lanes.scan(book(rolled), AT + 1 + EMPTY_PROBE_MS).due).toEqual(
+      new Set([LANE.provider]),
+    )
+    // A refusal without a try (any request) counts the same.
+    const other = new EmptyLanes()
+    other.refused(LANE.provider, AT + 1)
+    expect(other.scan(book(rolled), AT + 2).skip).toEqual(
+      new Set([LANE.provider]),
+    )
+  })
   test("a state it cannot read passes over nothing", () => {
     const lanes = new EmptyLanes()
     const broken: any = {

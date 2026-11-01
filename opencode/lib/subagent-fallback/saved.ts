@@ -3,12 +3,14 @@ import { homedir } from "node:os"
 import { dirname, join } from "node:path"
 
 // What the preflight keeps across restarts, in epoch ms: when each lane's
-// cooldown ends, and when a lane known empty had its daily try. Beside the
-// credit-lane state; nothing here is a secret. Without it a restart forgets
-// both and costs a rejected request per lane.
+// cooldown ends, when a lane known empty had its daily try, and when a lane
+// last refused a request for its balance. Beside the credit-lane state;
+// nothing here is a secret. Without it a restart forgets them and costs a
+// rejected request per lane.
 export type Saved = {
   cooldowns: Record<string, number>
   probed: Record<string, number>
+  refused: Record<string, number>
 }
 export type SavedStore = {
   load(): Saved
@@ -43,9 +45,13 @@ export function fileStore(path = savedPath()): SavedStore {
     load() {
       try {
         const raw = JSON.parse(readFileSync(path, "utf8")) as Partial<Saved>
-        return { cooldowns: times(raw.cooldowns), probed: times(raw.probed) }
+        return {
+          cooldowns: times(raw.cooldowns),
+          probed: times(raw.probed),
+          refused: times(raw.refused),
+        }
       } catch {
-        return { cooldowns: {}, probed: {} }
+        return { cooldowns: {}, probed: {}, refused: {} }
       }
     },
     save(saved) {

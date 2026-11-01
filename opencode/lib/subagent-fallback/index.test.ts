@@ -82,7 +82,7 @@ async function fixture() {
     // The balance estimate's lanes and state (none: no lane is known empty).
     laneBook: undefined as LaneBook | undefined,
     // What the plugin keeps across restarts.
-    saved: { cooldowns: {}, probed: {} } as Saved,
+    saved: { cooldowns: {}, probed: {}, refused: {} } as Saved,
     // Calls of Quota's RPC, and what a check does (none: unavailable).
     rpcCalls: [] as { id: string; input: unknown }[],
     quotaCheck: undefined as (() => Promise<unknown>) | undefined,
@@ -1718,6 +1718,43 @@ describe("Console credit lanes", () => {
       to: sel(on(MAIN, OPUS_HIGH)),
     })
     expect(env.reads).toBe(2)
+  })
+  test("a ChatGPT role launched on a lane does not sit out a limit on the subscription it falls back to", async () => {
+    const { env, inst } = await laned()
+    env.quota.openai = 0
+    await inst.run({ agent: "debugger", prompt: "fixture", background: true })
+    expect(env.originals[0].model).toBe(sel(on(MAIN, OPUS_HIGH)))
+    // OpenCode puts the session on the model it is switched to.
+    const follow = () => {
+      env.sessions.get("ses_child")!.model = env.switches.at(-1)!.model
+    }
+    await retry(inst, "ses_child", on(MAIN, OPUS_HIGH), CREDIT)
+    follow()
+    await retry(inst, "ses_child", on(SUB, OPUS_HIGH), CREDIT)
+    follow()
+    expect(env.switches.at(-1)!.model).toEqual(OPUS_HIGH)
+    // Nowhere left: it stops, so the parent relaunches it through the
+    // preflight, which knows which window is spent.
+    const e = await retry(inst, "ses_child", OPUS_HIGH, LIMIT, LONG)
+    expect(e.decision).toEqual({ retry: false })
+    // One that was not launched on a lane still keeps the native policy.
+    specialist(env, "ses_dbg", "debugger")
+    const f = await retry(inst, "ses_dbg", SONNET, LIMIT, LONG)
+    expect(f.decision).toEqual(LONG)
+  })
+  test("a lane that refused a request stays known empty when the next lane's checkpoint carries it forward", async () => {
+    const { env, inst } = await laned()
+    specialist(env)
+    // Both $0 carried forward: each is tried at once, and refuses.
+    env.laneBook = emptyMain("rolled")
+    env.laneBook.state[SUB] = structuredClone(env.laneBook.state[MAIN])
+    await inst.run()
+    expect(env.originals[0].model).toBe(sel(on(MAIN)))
+    await retry(inst, "ses_lane", on(MAIN), CREDIT)
+    // Sub's empty checkpoint re-bases Main as an estimate again.
+    env.now += TRY_SETTLED_MS + 61 * 60_000
+    await inst.run()
+    expect(env.originals[1].model).toBe(sel(on(SUB)))
   })
   test("with every lane empty a spent ChatGPT role takes its alternate on the subscription, marked", async () => {
     const { env, inst } = await laned()
