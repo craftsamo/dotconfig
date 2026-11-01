@@ -42,7 +42,9 @@ export type LaunchDecision =
   | { kind: "default" | "fallback" | "credits"; model: ModelRef }
   | { kind: "stop"; reason: string }
 
-// Quota's default refresh is five minutes; allow the export's next UI refresh.
+// Quota checks a provider when something asks (the TUI's sidebar, /quota, a
+// model turn, a limit), at most every providers.checking.minIntervalMs (two
+// minutes here, five by default). This allows the default and a missed check.
 export const QUOTA_MAX_AGE_MS = 6 * 60_000
 
 export const REASON_SOURCE_ACCOUNT =

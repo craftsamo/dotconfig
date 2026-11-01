@@ -58,7 +58,7 @@ export async function setupPreflight(
     return loginSubscription(ctx, account)
   }
   // Subscription window limits protected children hit, kept for the wait
-  // asked: the Quota export is rewritten on the TUI's own schedule, so the
+  // asked: the Quota export is rewritten only at Quota's next check, so the
   // parent's relaunch would otherwise bounce back to the same window. Each
   // Claude login is its own window.
   const limited = new Cooldowns(
