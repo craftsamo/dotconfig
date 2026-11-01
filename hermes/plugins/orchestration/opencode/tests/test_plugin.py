@@ -1159,6 +1159,376 @@ def test_workspace_refuses_an_existing_branch_and_an_existing_path(fixture, tmp_
     assert "already exists" in session("workspace", sid, branch="task/b")["error"]
 
 
+def git(directory, *args):
+    return subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@t", "-C", str(directory), *args],
+                          check=True, capture_output=True, text=True).stdout.strip()
+
+
+def branches(directory):
+    return git(directory, "branch", "--format=%(refname:short)").split()
+
+
+def built(fixture, tmp_path, branch="task/a"):
+    """A plan session moved by `workspace` into a worktree off origin/main, with one commit of work."""
+    home, directory, _, fake = fixture
+    with_root(home, tmp_path / "wt")
+    add_origin(directory, tmp_path)
+    sid = run("plan", directory)["session_id"]
+    target = Path(session("workspace", sid, branch=branch)["directory"])
+    git(target, "commit", "--allow-empty", "-m", "work")
+    return sid, target
+
+
+def land(target):
+    """The branch reaches origin's default branch by a fast-forward (an ancestor of origin/main)."""
+    git(target, "push", "-q", "origin", "HEAD:main")
+
+
+def merged_as(monkeypatch, *pulls):
+    monkeypatch.setattr(plugin.workspace, "merged_pulls", lambda source, branch: list(pulls))
+
+
+def pull(target, number=7, **kwargs):
+    return {"number": number, "head_sha": git(target, "rev-parse", "HEAD"), "fork": False, "stack": None, **kwargs}
+
+
+def assert_untouched(fixture, sid, target, branch="task/a"):
+    _, directory, _, fake = fixture
+    assert target.is_dir() and branch in branches(directory)
+    assert fake.sessions[sid]["location"]["directory"] == str(target)
+    assert len(fake.moves) == 1, "only the move into the worktree"
+
+
+def test_cleanup_moves_the_sessions_back_removes_the_worktree_and_deletes_the_landed_branch(fixture, tmp_path):
+    home, directory, owner, fake = fixture
+    sid, target = built(fixture, tmp_path)
+    land(target)
+    title = fake.sessions[sid]["title"]
+    out = session("cleanup", sid)
+    assert out == {"session_id": sid, "removed": str(target), "moved_to": str(directory), "moved_sessions": [sid],
+                   "left_behind": 0, "branches_deleted": ["task/a"], "branches_kept": []}
+    assert fake.moves[-1] == (sid, str(directory))
+    stored = fake.sessions[sid]
+    assert stored["location"]["directory"] == str(directory) and stored["title"] == title
+    assert stored["metadata"]["hermes"]["branch"] == "topic" and stored["metadata"]["hermes"]["owner"] == owner
+    assert stored["metadata"]["hermes"]["repo"] == str(directory / ".git")
+    assert not target.exists() and not target.parent.exists(), "the repository folder goes with its last worktree"
+    assert (tmp_path / "wt").is_dir() and branches(directory) == ["topic"]
+    assert git(directory, "worktree", "list", "--porcelain").count("worktree ") == 1
+
+
+def test_cleanup_moves_only_the_callers_sessions_and_counts_the_others(fixture, tmp_path):
+    home, directory, _, fake = fixture
+    sid, target = built(fixture, tmp_path)
+    land(target)
+    twin = session("fork", sid)["session_id"]
+    fake.sessions["ses_foreign"] = {**fake.sessions[sid], "id": "ses_foreign",
+                                    "metadata": {"hermes": {"owner": {"profile": "x"}}}}
+    fake.sessions["ses_plain"] = {"id": "ses_plain", "location": {"directory": str(target)}}
+    out = session("cleanup", sid)
+    assert sorted(out["moved_sessions"]) == sorted([sid, twin]) and out["left_behind"] == 2
+    assert fake.sessions[twin]["location"]["directory"] == str(directory)
+    assert fake.sessions[twin]["metadata"]["hermes"]["branch"] == "topic"
+    for other in ("ses_foreign", "ses_plain"):
+        assert fake.sessions[other]["location"]["directory"] == str(target), "not the caller's: left where it is"
+
+
+def test_cleanup_accepts_a_squash_merge_only_when_the_pull_request_head_is_the_branch_tip(fixture, tmp_path,
+                                                                                          monkeypatch):
+    home, directory, _, fake = fixture
+    sid, target = built(fixture, tmp_path)
+    merged_as(monkeypatch, pull(target, head_sha="0" * 40))
+    assert "another commit" in session("cleanup", sid)["error"]
+    merged_as(monkeypatch, pull(target, fork=True))
+    assert "has not landed" in session("cleanup", sid)["error"], "a fork's branch of the same name proves nothing"
+    assert_untouched(fixture, sid, target)
+    merged_as(monkeypatch, pull(target))
+    out = session("cleanup", sid)
+    assert out["branches_deleted"] == ["task/a"] and not target.exists()
+    assert fake.sessions[sid]["location"]["directory"] == str(directory)
+
+
+def test_cleanup_refuses_unlanded_work_and_an_unreadable_github_changing_nothing(fixture, tmp_path, monkeypatch):
+    sid, target = built(fixture, tmp_path)
+    error = session("cleanup", sid)["error"]
+    assert "has not landed" in error and "nothing was moved or removed" in error and "origin/main" in error
+
+    def unreadable(source, branch):
+        raise RuntimeError("boom")
+    monkeypatch.setattr(plugin.workspace, "merged_pulls", unreadable)
+    assert "GitHub could not be read: boom" in session("cleanup", sid)["error"]
+    assert_untouched(fixture, sid, target)
+    land(target)
+    out = session("cleanup", sid)
+    assert out["branches_deleted"] == ["task/a"] and "GitHub could not be read (boom)" in out["warning"]
+
+
+def test_cleanup_refuses_what_is_not_safe_to_remove_changing_nothing(fixture, tmp_path, monkeypatch):
+    home, directory, _, fake = fixture
+    sid, target = built(fixture, tmp_path)
+    land(target)
+    (target / "a.txt").write_text("x")
+    (target / "b.txt").write_text("y")
+    error = session("cleanup", sid)["error"]
+    assert "2 changed path(s)" in error and "commit or discard" in error
+    (target / "a.txt").unlink()
+    (target / "b.txt").unlink()
+    fake.active.add(sid)
+    assert "idle" in session("cleanup", sid)["error"]
+    fake.active.discard(sid)
+    fake.sessions["ses_busy"] = {"id": "ses_busy", "location": {"directory": str(target)}}
+    fake.active.add("ses_busy")
+    assert "ses_busy" in session("cleanup", sid)["error"]
+    fake.active.discard("ses_busy")
+    fake.sessions["ses_foreign"] = {**fake.sessions[sid], "id": "ses_foreign",
+                                    "metadata": {"hermes": {"owner": {"profile": "x"}}}}
+    assert "not bound" in session("cleanup", "ses_foreign")["error"]
+    monkeypatch.setattr(plugin.turn_env, "gateway_client_runtime", lambda: False)  # the CLI runs the turn
+    monkeypatch.setenv("RESIDENT_TURN_KIND", "reconcile")
+    assert "reconcile-only" in session("cleanup", sid)["error"]
+    monkeypatch.delenv("RESIDENT_TURN_KIND")
+    assert_untouched(fixture, sid, target)
+    assert session("cleanup", sid)["removed"] == str(target), "and once it is safe, it goes"
+
+
+def test_cleanup_refuses_the_main_checkout_another_branch_and_a_directory_outside_the_root(fixture, tmp_path):
+    home, directory, _, fake = fixture
+    sid, target = built(fixture, tmp_path)
+    land(target)
+    here = run("plan", directory)["session_id"]
+    assert "main checkout" in session("cleanup", here)["error"]
+    outside = tmp_path / "outside"
+    git(directory, "worktree", "add", "-q", "-b", "other", str(outside))
+    fake.sessions[here]["location"] = {"directory": str(outside.resolve())}
+    fake.sessions[here]["metadata"]["hermes"]["branch"] = "other"
+    assert "outside opencode.worktree_root" in session("cleanup", here)["error"]
+    fake.sessions[here]["metadata"]["hermes"]["branch"] = "task/a"
+    assert "branch changed" in session("cleanup", here)["error"]
+    fake.sessions[sid]["metadata"]["hermes"].pop("repo")
+    assert "before repository binding" in session("cleanup", sid)["error"]
+    assert target.is_dir() and outside.is_dir() and len(fake.moves) == 1
+
+
+def test_cleanup_never_cleans_up_a_default_or_protected_branch(fixture, tmp_path):
+    home, directory, _, fake = fixture
+    with_root(home, tmp_path / "wt")
+    add_origin(directory, tmp_path)
+    git(directory, "branch", "main")
+    target = tmp_path / "wt" / "work tree" / "main"
+    git(directory, "worktree", "add", "-q", str(target), "main")
+    sid = run("plan", directory)["session_id"]
+    fake.sessions[sid]["location"] = {"directory": str(target.resolve())}
+    fake.sessions[sid]["metadata"]["hermes"]["branch"] = "main"
+    assert "protected or default" in session("cleanup", sid)["error"]
+    assert target.is_dir() and fake.moves == []
+
+
+def test_cleanup_deletes_only_the_landed_layers_of_the_merged_stack(fixture, tmp_path, monkeypatch):
+    home, directory, _, fake = fixture
+    sid, target = built(fixture, tmp_path)
+    land(target)
+
+    def commit_on(name):
+        sha = git(directory, "commit-tree", "origin/main^{tree}", "-p", "origin/main", "-m", name)
+        git(directory, "branch", name, sha)
+        return sha
+
+    git(directory, "branch", "task/layer-landed", "task/a")
+    git(directory, "branch", "task/layer-elsewhere", "task/a")
+    git(directory, "worktree", "add", "-q", str(tmp_path / "elsewhere"), "task/layer-elsewhere")
+    squashed, unlanded = commit_on("task/layer-squashed"), commit_on("task/layer-open")
+    commit_on("task/layer-forked")
+    commit_on("task/unrelated")
+
+    def layer(position, name, state="merged", head_sha=None, head_repo="o/r"):
+        return {"position": position, "number": position, "state": state, "head_sha": head_sha, "head": name,
+                "head_repo": head_repo, "repo": "o/r"}
+    stack = {"number": 1, "layers": [
+        layer(1, "task/layer-landed"), layer(2, "task/layer-squashed", head_sha=squashed),
+        layer(3, "task/layer-elsewhere"), layer(4, "task/layer-open", "open", unlanded),
+        layer(5, "task/layer-forked", head_sha=git(directory, "rev-parse", "task/layer-forked"), head_repo="x/r"),
+        layer(6, "task/gone"), layer(7, "task/a"), layer(8, "main")]}
+    merged_as(monkeypatch, pull(target, stack=stack))
+    out = session("cleanup", sid)
+    assert out["branches_deleted"] == ["task/a", "task/layer-landed", "task/layer-squashed"]
+    assert out["branches_kept"] == [
+        {"branch": "task/layer-elsewhere", "reason": f"checked out in {(tmp_path / 'elsewhere').resolve()}"},
+        {"branch": "task/layer-open", "reason": "its work has not landed on the default branch"}]
+    assert {"task/layer-forked", "task/unrelated", "task/layer-elsewhere", "task/layer-open"} <= set(branches(directory))
+    assert "task/layer-landed" not in branches(directory) and "task/layer-squashed" not in branches(directory)
+
+
+def test_cleanup_rolls_the_moved_sessions_back_when_a_later_one_cannot_move(fixture, tmp_path):
+    home, directory, _, fake = fixture
+    sid, target = built(fixture, tmp_path)
+    land(target)
+    twin = session("fork", sid)["session_id"]
+    real = fake._route
+
+    def route(method, parts, query, data):
+        if parts == ["session", sid, "move"] and data["directory"] == str(directory):
+            raise fake.api.ApiError(400, "DestinationUnavailableError", "no such directory")
+        return real(method, parts, query, data)
+    fake._route = route
+    assert "no such directory" in session("cleanup", sid)["error"]
+    assert fake.moves[-3:] == [(twin, str(directory)), (sid, str(target)), (twin, str(target))], \
+        "the moved session goes back, and so does the one whose move itself failed"
+    assert fake.sessions[twin]["location"]["directory"] == str(target)
+    assert fake.sessions[twin]["metadata"]["hermes"]["branch"] == "task/a", "and is bound as before"
+    assert fake.sessions[sid]["location"]["directory"] == str(target)
+    assert target.is_dir() and "task/a" in branches(directory)
+
+
+def test_cleanup_moves_a_session_back_when_it_cannot_be_rebound(fixture, tmp_path):
+    home, directory, _, fake = fixture
+    sid, target = built(fixture, tmp_path)
+    land(target)
+    fake.patch_error = fake.api.Unavailable("service dropped the update")
+    assert "error" in session("cleanup", sid)
+    assert fake.moves[-1] == (sid, str(target)) and fake.sessions[sid]["location"]["directory"] == str(target)
+    assert target.is_dir() and "task/a" in branches(directory)
+
+
+def test_cleanup_refuses_a_locked_worktree_before_moving_anything(fixture, tmp_path):
+    home, directory, _, fake = fixture
+    sid, target = built(fixture, tmp_path)
+    land(target)
+    git(directory, "worktree", "lock", "--reason", "on a stick", str(target))
+    assert "The worktree is locked: on a stick" in session("cleanup", sid)["error"]
+    assert_untouched(fixture, sid, target)
+
+
+def test_cleanup_puts_the_sessions_back_when_git_will_not_remove_the_worktree(fixture, tmp_path, monkeypatch):
+    home, directory, _, fake = fixture
+    sid, target = built(fixture, tmp_path)
+    land(target)
+    twin = session("fork", sid)["session_id"]
+    real = plugin.workspace._run
+
+    def run_git(source, *args, **kwargs):
+        if args[:2] == ("worktree", "remove"):
+            raise ValueError("git worktree remove failed: Device busy")
+        return real(source, *args, **kwargs)
+    monkeypatch.setattr(plugin.workspace, "_run", run_git)
+    error = session("cleanup", sid)["error"]
+    assert "Device busy" in error and "nothing was removed" in error and "retried" in error
+    for moved in (sid, twin):
+        assert fake.sessions[moved]["location"]["directory"] == str(target)
+        assert fake.sessions[moved]["metadata"]["hermes"]["branch"] == "task/a", "bound as before"
+    assert target.is_dir() and "task/a" in branches(directory)
+    monkeypatch.setattr(plugin.workspace, "_run", real)
+    assert session("cleanup", sid)["removed"] == str(target), "and it can be retried"
+
+
+def test_cleanup_keeps_a_branch_that_moved_after_the_landed_check(fixture, tmp_path, monkeypatch):
+    home, directory, _, fake = fixture
+    sid, target = built(fixture, tmp_path)
+    land(target)
+    git(directory, "branch", "task/layer", "task/a")
+    stack = {"number": 1, "layers": [{"position": 1, "number": 8, "state": "merged", "head": "task/layer",
+                                      "head_sha": git(target, "rev-parse", "HEAD"), "head_repo": "o/r",
+                                      "repo": "o/r"}]}
+    merged_as(monkeypatch, pull(target, stack=stack))
+    real = plugin.workspace._run
+    late = {}
+
+    def run_git(source, *args, **kwargs):
+        if args[:2] == ("update-ref", "-d") and args[2] not in late:
+            # Someone commits to the branch between the check and the deletion.
+            late[args[2]] = git(source, "commit-tree", args[2] + "^{tree}", "-p", args[2], "-m", "late")
+            git(source, "update-ref", args[2], late[args[2]])
+        return real(source, *args, **kwargs)
+    monkeypatch.setattr(plugin.workspace, "_run", run_git)
+    out = session("cleanup", sid)
+    assert out["branches_deleted"] == []
+    assert out["branches_kept"] == [{"branch": name, "reason": "it moved after the landed check"}
+                                    for name in ("task/a", "task/layer")]
+    for name, sha in late.items():
+        assert git(directory, "rev-parse", name) == sha, "the late commit survives"
+    assert set(late) == {"refs/heads/task/a", "refs/heads/task/layer"}
+
+
+def test_cleanup_warns_when_the_fetch_fails_and_decides_from_the_last_fetch(fixture, tmp_path):
+    home, directory, _, fake = fixture
+    sid, target = built(fixture, tmp_path)
+    land(target)
+    git(directory, "remote", "set-url", "origin", str(tmp_path / "gone.git"))
+    out = session("cleanup", sid)
+    assert "fetching origin failed" in out["warning"] and out["branches_deleted"] == ["task/a"]
+
+
+def test_cleanup_runs_no_repository_hook(fixture, tmp_path):
+    home, directory, _, fake = fixture
+    sid, target = built(fixture, tmp_path)
+    land(target)
+    leak = tmp_path / "leak.txt"
+    for name in ("pre-push", "post-checkout", "reference-transaction"):
+        (directory / ".git" / "hooks" / name).write_text(f"#!/bin/sh\nenv > '{leak}'\n")
+        (directory / ".git" / "hooks" / name).chmod(0o755)
+    assert session("cleanup", sid)["branches_deleted"] == ["task/a"]
+    assert not leak.exists()
+
+
+def layer_node(position, number, branch):
+    return {"position": position, "pullRequest": {
+        "number": number, "state": "MERGED", "headRefOid": f"sha{number}", "headRefName": branch,
+        "headRepository": {"nameWithOwner": "o/r"}, "repository": {"nameWithOwner": "o/r"}}}
+
+
+def answer_graphql(monkeypatch, data):
+    """github-access's GraphQL transport, answering `data`; returns the requests it was asked."""
+    asked = []
+    reads = plugin.workspace._load("hermes_github_access_pr_reads",
+                                   plugin.workspace.GITHUB_ACCESS / "access_pr.py")
+
+    def lookup(query, variables=None):
+        asked.append((query, variables))
+        return data
+    monkeypatch.setattr(reads.access, "lookup", lookup)
+    return asked
+
+
+@pytest.mark.parametrize("url, repo", [
+    ("git@github.com:o/r.git", ("o", "r")), ("https://github.com/o/r", ("o", "r")),
+    ("https://tok@github.com/o/r.git", ("o", "r")), ("ssh://git@github.com/o/r.git", ("o", "r"))])
+def test_merged_pulls_reads_the_origin_repository_connection_through_github_access(fixture, monkeypatch, url, repo):
+    _, directory, _, _ = fixture
+    git(directory, "remote", "add", "origin", url)
+    stack = {"number": 9, "size": 2, "baseRefName": "main",
+             "entries": {"nodes": [layer_node(1, 4, "task/a"), layer_node(2, 5, "task/b")]}}
+    asked = answer_graphql(monkeypatch, {"repository": {"pullRequests": {"nodes": [
+        {"number": 4, "headRefName": "task/a", "headRefOid": "sha4", "isCrossRepository": False, "stack": stack,
+         "stackEntry": {"position": 1}},
+        {"number": 6, "headRefName": "task/a", "headRefOid": "sha6", "isCrossRepository": True, "stack": None,
+         "stackEntry": None},
+        {"number": 5, "headRefName": "task/a-other", "headRefOid": "sha5", "isCrossRepository": False}]}}})
+    found = plugin.workspace.merged_pulls(directory, "task/a")
+    assert [(p["number"], p["head_sha"], p["fork"]) for p in found] == [(4, "sha4", False), (6, "sha6", True)]
+    assert [(l["number"], l["head"], l["state"], l["head_sha"], l["head_repo"], l["repo"])
+            for l in found[0]["stack"]["layers"]] == [(4, "task/a", "merged", "sha4", "o/r", "o/r"),
+                                                      (5, "task/b", "merged", "sha5", "o/r", "o/r")]
+    assert found[1]["stack"] is None
+    [(query, variables)] = asked
+    assert variables == {"owner": repo[0], "name": repo[1], "branch": "task/a"}
+    assert "pullRequests(headRefName:$branch,states:MERGED" in query and "search" not in query
+
+
+def test_merged_pulls_raises_for_a_repository_it_cannot_see(fixture, monkeypatch):
+    _, directory, _, _ = fixture
+    git(directory, "remote", "add", "origin", "git@github.com:o/r.git")
+    answer_graphql(monkeypatch, {"repository": None})
+    with pytest.raises(ValueError, match="not found or not visible"):
+        plugin.workspace.merged_pulls(directory, "task/a")
+
+
+def test_merged_pulls_reads_nothing_without_a_github_origin(fixture, tmp_path, monkeypatch):
+    _, directory, _, _ = fixture
+    monkeypatch.setattr(plugin.workspace, "_load", lambda name, path: pytest.fail("no GitHub read expected"))
+    assert plugin.workspace.merged_pulls(directory, "task/a") == []
+    add_origin(directory, tmp_path)
+    assert plugin.workspace.merged_pulls(directory, "task/a") == []
+
+
 def test_a_session_that_moved_itself_into_another_repository_is_refused(fixture, tmp_path):
     home, directory, _, fake = fixture
     sid = run("plan", directory)["session_id"]
@@ -2428,6 +2798,7 @@ def previews(fixture, monkeypatch):
     ("opencode_run_plan", {"message": "Try again", "session_id": "ses_a", "fork": True}, "fork"),
     ("opencode_session", {"action": "steer", "session_id": "ses_a", "message": "stop editing docs"}, "steer"),
     ("opencode_session", {"action": "workspace", "branch": "task/secret-client"}, "workspace"),
+    ("opencode_session", {"action": "cleanup", "session_id": "ses_a"}, "cleanup"),
     ("opencode_instructions", {"action": "put", "session_id": "ses_a", "key": "hermes.note", "value": "x"},
      "put hermes.note"),
     ("opencode_instructions", {"action": "put", "session_id": "ses_a", "key": "Not A Key", "value": "x"}, "put"),

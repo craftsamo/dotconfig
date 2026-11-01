@@ -1,9 +1,11 @@
-"""Give an idle session a task-branch worktree of its own repository.
+"""Give an idle session a task-branch worktree of its own repository, and take it back.
 
 A plan runs read-only on the default checkout. Once the Client approves, the
 session moves into a fresh worktree on a new branch, so the build continues the
-same conversation where it may edit. The plugin does this itself, in plain Git
-and the service's `move` route: a session can also move itself (`session_move`
+same conversation where it may edit. Once that work has landed on the default
+branch, `cleanup` moves the caller's sessions back to the main checkout and removes
+the worktree and the task branches that landed. The plugin does this itself, in plain
+Git and the service's `move` route: a session can also move itself (`session_move`
 asks no permission), so the repository the session may work in is fixed here and
 checked on every turn (see `__init__._prepare`).
 
@@ -15,14 +17,25 @@ this process holds the gateway's secrets.
 from __future__ import annotations
 
 import contextlib
+import importlib.util
 import os
 from pathlib import Path
 import re
 import subprocess
+import sys
 
 BRANCH = re.compile(r"[A-Za-z0-9][A-Za-z0-9._/-]{0,99}\Z")
 BASES = ("default", "head")
 FETCH_TIMEOUT = 60
+GITHUB_ACCESS = Path(__file__).resolve().parents[2] / "github-access"
+GITHUB_ORIGIN = re.compile(r"(?:https?://(?:[^@/]+@)?|ssh://git@|git@)github\.com[:/]([\w.-]+)/([\w.-]+?)(?:\.git)?/?\Z",
+                           re.I)
+SESSION_PAGES = 5
+MERGED_QUERY = (
+    "query($owner:String!,$name:String!,$branch:String!){repository(owner:$owner,name:$name){"
+    "pullRequests(headRefName:$branch,states:MERGED,first:20){nodes{number headRefName headRefOid "
+    "isCrossRepository stack{number size baseRefName entries(first:100){nodes{position pullRequest{number state "
+    "headRefOid headRefName headRepository{nameWithOwner} repository{nameWithOwner}}}}} stackEntry{position}}}}}")
 # What locating git, its config and an ssh agent for a fetch needs; nothing else passes.
 ENV_NAMES = {"PATH", "HOME", "USER", "LOGNAME", "SHELL", "LANG", "TERM", "TMPDIR", "TZ", "SSH_AUTH_SOCK"}
 ENV_PREFIXES = ("LC_", "XDG_")
@@ -188,4 +201,228 @@ def create(*, sid, info, meta, args, settings, policy, turn, issue_ref):
         result["commit_identity"] = f"{identity[0]} <{identity[1]}>"
     if fetched is False:
         result["warning"] = f"fetching origin failed: {start} is as of the last fetch"
+    return result
+
+
+def _load(name, path):
+    if name not in sys.modules:
+        spec = importlib.util.spec_from_file_location(name, path)
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[name] = module
+        spec.loader.exec_module(module)
+    return sys.modules[name]
+
+
+def merged_pulls(source, branch):
+    """The merged pull requests of origin's GitHub repository whose head branch is `branch`, read through
+    github-access: number, head commit, whether from a fork, and native stack. Empty without a GitHub origin.
+    Raises when GitHub cannot be read."""
+    try:
+        match = GITHUB_ORIGIN.fullmatch(_run(source, "remote", "get-url", "origin"))
+    except ValueError:
+        return []
+    if not match:
+        return []
+    reads = _load("hermes_github_access_pr_reads", GITHUB_ACCESS / "access_pr.py")
+    # The repository's own pull request connection, not `search`: its index trails a fresh merge.
+    data = reads.access.lookup(MERGED_QUERY, {"owner": match.group(1), "name": match.group(2), "branch": branch})
+    if not data.get("repository"):
+        raise ValueError(f"{match.group(1)}/{match.group(2)} not found or not visible to the viewer")
+    nodes = (data["repository"].get("pullRequests") or {}).get("nodes") or []
+    return [{"number": node["number"], "head_sha": node["headRefOid"], "fork": bool(node.get("isCrossRepository")),
+             "stack": reads.stack(node)} for node in nodes if node and node.get("headRefName") == branch]
+
+
+def _succeeds(source, *args):
+    try:
+        _run(source, *args)
+    except ValueError:
+        return False
+    return True
+
+
+def _worktrees(source):
+    """Every worktree of the repository as {path, branch, bare, locked}, its main checkout first. `locked` is
+    None, or the lock's reason (empty when it has none)."""
+    found = []
+    for block in _run(source, "worktree", "list", "--porcelain").split("\n\n"):
+        lines = block.splitlines()
+        if lines and lines[0].startswith("worktree "):
+            branch = next((line[len("branch refs/heads/"):] for line in lines if line.startswith("branch refs/heads/")),
+                          None)
+            lock = next((line[len("locked"):].strip() for line in lines if line == "locked" or line.startswith("locked ")),
+                        None)
+            found.append({"path": lines[0][len("worktree "):], "branch": branch, "bare": "bare" in lines,
+                          "locked": lock})
+    return found
+
+
+def _on_default(source, tip, default):
+    return bool(default) and _succeeds(source, "merge-base", "--is-ancestor", tip, default)
+
+
+def _sessions_in(directory, policy, turn):
+    """The sessions the service files under this worktree, from any profile or person."""
+    found, cursor = [], None
+    for _ in range(SESSION_PAGES):
+        page = turn.call("get", "/api/session",
+                         query={"limit": 200, "order": "desc", "directory": directory, "cursor": cursor})
+        found += [item for item in turn.api.data(page, list) if policy.same_dir(turn.directory_of(item), directory)]
+        cursor = (page.get("cursor") or {}).get("next") if isinstance(page, dict) else None
+        if not cursor:
+            return found
+    raise ValueError("too many sessions in this worktree to move them all back")
+
+
+def _checked(meta, worktree, policy):
+    """The worktree's branch and the branches never to delete, once the session's binding holds."""
+    repo = policy.common_dir(worktree)
+    if not meta.get("repo"):
+        raise ValueError("This session was bound before repository binding; start a new session")
+    if meta["repo"] != repo:
+        raise ValueError("The session is no longer in the repository it was bound to; start a new session")
+    branch, protected = policy.branch(worktree, False)
+    if meta.get("branch") != branch:
+        raise ValueError("Worktree branch changed; start a new session after inspection")
+    if branch.startswith("detached:"):
+        raise ValueError("The worktree is on a detached HEAD, not a task branch")
+    return branch, protected
+
+
+def cleanup(*, sid, info, meta, owner, settings, policy, turn):
+    """Once the worktree's branch has landed on the default branch, move the caller's sessions in it back to
+    the main checkout, remove the worktree and delete the task branches that landed. Refuses, moving and
+    removing nothing, when the work has not landed or the worktree holds anything that is not safely gone."""
+    if sid in turn.active():
+        raise ValueError("Clean up a session's worktree when it is idle, not while it runs")
+    worktree = policy.worktree(turn.directory_of(info))
+    running = turn.running_in(worktree, policy.same_dir)
+    if running:
+        raise ValueError("A session is running in this worktree (" + ", ".join(running) + "); wait for it to stop")
+    branch, protected = _checked(meta, worktree, policy)
+    entries = _worktrees(worktree)
+    if not entries or entries[0]["bare"]:
+        raise ValueError("The repository has no main checkout to move the sessions back to")
+    main = str(Path(entries[0]["path"]).resolve())
+    if policy.same_dir(worktree, main):
+        raise ValueError("The session is in the repository's main checkout, not in a task worktree")
+    locked = next((e["locked"] for e in entries if policy.same_dir(e["path"], worktree)), None)
+    if locked is not None:
+        raise ValueError("The worktree is locked" + (f": {locked}" if locked else "") + "; unlock it first")
+    root = Path(settings["worktree_root"]).resolve()
+    if root not in Path(worktree).parents:
+        raise ValueError("The session's worktree lies outside opencode.worktree_root; it was not made by workspace")
+    changed = _run(worktree, "status", "--porcelain", "--untracked-files=normal").splitlines()
+    if changed:
+        raise ValueError(f"The worktree has {len(changed)} changed path(s); commit or discard them first")
+    default = policy.default_ref(main)
+    protected = {*protected, *policy.PROTECTED_BRANCHES, *([default.removeprefix("origin/")] if default else [])}
+    if branch in protected:
+        raise ValueError(f"{branch} is a protected or default branch; its worktree is not cleaned up here")
+
+    warnings = []
+    if "origin" in _run(main, "remote").splitlines():
+        try:
+            _run(main, "fetch", "--quiet", "--prune", "origin", timeout=FETCH_TIMEOUT)
+        except Exception:
+            warnings.append("fetching origin failed: the landed check is as of the last fetch")
+        default = policy.default_ref(main)
+    tip = _run(main, "rev-parse", "--verify", "refs/heads/" + branch)
+    try:
+        pulls, unread = merged_pulls(main, branch), None
+    except Exception as exc:
+        pulls, unread = [], str(exc)[:200]
+    own = next((p for p in pulls if not p["fork"] and p["head_sha"] == tip), None)
+    if not own and not _on_default(main, tip, default):
+        why = [f"GitHub could not be read: {unread}"] if unread else []
+        if any(not p["fork"] for p in pulls):
+            why.append("a pull request from this branch was merged at another commit, so commits came after the merge")
+        elif not unread:
+            why.append(f"it is not in {default} and no merged pull request from it was found" if default
+                       else "the default branch is unknown here and no merged pull request from it was found")
+        raise ValueError(f"the work has not landed on the default branch yet; nothing was moved or removed ({'; '.join(why)})")
+    if unread:
+        warnings.append(f"GitHub could not be read ({unread}): stacked layers were not considered")
+
+    sessions = _sessions_in(worktree, policy, turn)
+    if sid not in [item.get("id") for item in sessions]:
+        sessions.append(info)
+    mine = [item for item in sessions if turn.hermes_meta(item).get("owner") == owner]
+    target = policy.branch(main, False)[0]
+    moved = []
+
+    def put_back():
+        # Best effort: a move may have landed, so no session is left bound to the wrong place.
+        for item in reversed(moved):
+            with contextlib.suppress(Exception):
+                turn.call("post", "/api/session/{sid}/move", {"directory": worktree}, sid=item["id"])
+            with contextlib.suppress(Exception):
+                turn.call("patch", "/api/session/{sid}", {"metadata": item.get("metadata") or {}}, sid=item["id"])
+
+    try:
+        for item in mine:
+            # Listed before the call: a move that raised may still have landed.
+            moved.append(item)
+            turn.call("post", "/api/session/{sid}/move", {"directory": main}, sid=item["id"])
+            now = turn.session_info(item["id"])
+            if not policy.same_dir(turn.directory_of(now), main):
+                raise ValueError("OpenCode did not move the session to the main checkout")
+            turn.call("patch", "/api/session/{sid}", {
+                "metadata": {**(now.get("metadata") or {}), "hermes": {**turn.hermes_meta(now), "branch": target}}},
+                sid=item["id"])
+    except Exception:
+        put_back()
+        raise
+
+    try:
+        _run(main, "worktree", "remove", worktree)
+    except ValueError as exc:
+        put_back()
+        raise ValueError(f"{exc}; nothing was removed and the sessions are back in the worktree, so cleanup can be "
+                         "retried") from None
+    if Path(worktree).parent != root:
+        with contextlib.suppress(OSError):
+            Path(worktree).parent.rmdir()
+
+    deleted, kept = [], []
+
+    def delete(name, expected):
+        """Delete the branch only if it still points at the commit the landed check read."""
+        try:
+            _run(main, "update-ref", "-d", "refs/heads/" + name, expected)
+        except ValueError as exc:
+            try:
+                now = _run(main, "rev-parse", "--verify", "refs/heads/" + name)
+            except ValueError:
+                now = expected
+            kept.append({"branch": name, "reason": "it moved after the landed check" if now != expected else str(exc)})
+        else:
+            deleted.append(name)
+
+    delete(branch, tip)
+    checked_out = {entry["branch"]: entry["path"] for entry in _worktrees(main) if entry["branch"]}
+    for layer in ((own or {}).get("stack") or {}).get("layers") or []:
+        name = layer.get("head")
+        if (layer.get("number") == own["number"] or name == branch or not isinstance(name, str)
+                or not BRANCH.fullmatch(name) or ".." in name or name.endswith((".lock", "/", "."))
+                or not layer.get("head_repo") or str(layer["head_repo"]).lower() != str(layer.get("repo")).lower()):
+            continue
+        try:
+            layer_tip = _run(main, "rev-parse", "--verify", "refs/heads/" + name)
+        except ValueError:
+            continue
+        if name in protected:
+            kept.append({"branch": name, "reason": "a protected or default branch"})
+        elif name in checked_out:
+            kept.append({"branch": name, "reason": f"checked out in {checked_out[name]}"})
+        elif _on_default(main, layer_tip, default) or (layer.get("state") == "merged"
+                                                       and layer.get("head_sha") == layer_tip):
+            delete(name, layer_tip)
+        else:
+            kept.append({"branch": name, "reason": "its work has not landed on the default branch"})
+
+    result = {"session_id": sid, "removed": worktree, "moved_to": main, "moved_sessions": [i["id"] for i in moved],
+              "left_behind": len(sessions) - len(mine), "branches_deleted": deleted, "branches_kept": kept}
+    if warnings:
+        result["warning"] = "; ".join(warnings)
     return result

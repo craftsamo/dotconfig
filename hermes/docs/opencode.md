@@ -181,6 +181,25 @@ the same layout and base, so change the two together; a run's ruleset denies
 fork prunes nothing and shares the parent's worktree; give it its own with
 `workspace` as well.
 
+**Cleanup after the merge.** `opencode_session cleanup` is the inverse, and
+the only way such a worktree goes away (the run's `git_worktree` stays
+denied). It changes nothing unless the session is idle, nothing else runs in
+the worktree, the binding still holds, the worktree is clean and lies under
+`opencode.worktree_root`, and the task branch has landed: an ancestor of the
+fetched default branch, or the head commit of a merged, non-fork pull request
+of that branch, read through github-access (a squash merge leaves no
+ancestry, and a name alone could match an older branch). It then moves the
+caller's sessions in the worktree back to the main checkout and rebinds their
+branch, so their history stays readable, removes the worktree without
+`--force` and deletes the task branch, plus any layer of the same merged
+stack that landed by the same rule and is checked out nowhere, each only if
+it still points at the tip that was checked. A locked worktree is refused up
+front. Sessions bound to someone else stay where they are and are counted; a
+failed move or removal puts the moved sessions back, so the call can be
+retried. The landed rule is the one
+`opencode/lib/worktrees/strategy.ts` uses for `git_worktree remove`; change
+the two together.
+
 **Commit identity.** The shared service keeps its starter's environment, never
 the gateway's, so a run would commit as the person's global identity. When the
 gateway's environment holds a complete identity pair (`GIT_AUTHOR_NAME` and
