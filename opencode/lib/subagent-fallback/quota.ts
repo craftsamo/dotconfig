@@ -34,8 +34,60 @@ const record = (v: unknown): v is Record<string, unknown> =>
 const finite = (v: unknown): v is number =>
   typeof v === "number" && Number.isFinite(v)
 
-// Consume Quota 5's public v2 JSON (unchanged through 5.0.3), not provider responses or human text.
-// sourceId is the OpenCode credential connection ID; never combine logins.
+type Row = Record<string, unknown>
+
+// A provider-reported percentage of a 5h or weekly window. Only those decide
+// launch preference: plans differ (ChatGPT may lack 5h; xAI has only the
+// weekly pool), and monthly credit and code-review rows aren't shared chat
+// quota. Claude and xAI report quota; ChatGPT reported rate_limit in Quota 5.
+const chatWindow = (row: unknown): row is Row =>
+  record(row) &&
+  ["quota", "rate_limit"].includes(String(row.resultType)) &&
+  row.authority === "provider_reported" &&
+  row.acquisitionMethod === "remote_api" &&
+  row.renderType === "percent" &&
+  (row.window === "5h" || row.window === "Weekly")
+
+// Quota 5 (v2): sourceId is the OpenCode credential connection ID.
+const v2Rows = (entries: unknown[], account: AccountProof): Row[] =>
+  entries.filter(
+    (row): row is Row =>
+      chatWindow(row) && row.sourceId === account.connectionID,
+  )
+
+// The rows Quota 6 keeps per window, by id. A Claude model-specific window
+// (Fable) is weekly too, so the window alone no longer singles them out.
+const V3_IDS: Readonly<Record<string, readonly string[]>> = {
+  anthropic: ["anthropic.five_hour", "anthropic.weekly"],
+  openai: ["openai.five_hour", "openai.weekly"],
+  xai: ["xai.credits"],
+}
+
+// Quota 6 (v3) exports no connection ID: a row's `account` is the login's
+// label (with a plan after it in parentheses, as ChatGPT has), or nothing for
+// a login without one. The integration's only login owns every row; another
+// needs a label no other login has. Two rows for one window are two logins
+// Quota cannot tell apart, which proves nothing.
+function v3Rows(entries: unknown[], account: AccountProof): Row[] {
+  const ids = V3_IDS[account.providerID] ?? []
+  const windows = entries.filter(
+    (row): row is Row => chatWindow(row) && ids.includes(String(row.id)),
+  )
+  const label = account.label
+  const own = account.sole
+    ? windows
+    : label
+      ? windows.filter(
+          (row) =>
+            typeof row.account === "string" &&
+            (row.account === label || row.account.startsWith(`${label} (`)),
+        )
+      : []
+  return new Set(own.map((row) => row.id)).size === own.length ? own : []
+}
+
+// Consume Quota's public JSON (v2 from Quota 5, v3 from Quota 6), not
+// provider responses or human text. Never combine logins.
 export function readQuota(
   snapshot: unknown,
   account: AccountProof | undefined,
@@ -45,7 +97,7 @@ export function readQuota(
   if (
     !account ||
     !record(snapshot) ||
-    snapshot.version !== 2 ||
+    (snapshot.version !== 2 && snapshot.version !== 3) ||
     !record(snapshot.providers)
   )
     return unknown()
@@ -60,22 +112,10 @@ export function readQuota(
   const observedAt = provider.fetchedAt * 1000
   if (now < observedAt) return unknown()
   const fresh = now - observedAt <= QUOTA_MAX_AGE_MS
-  const rows = provider.entries.filter(
-    (row) =>
-      record(row) &&
-      row.sourceId === account.connectionID &&
-      // Claude and xAI export quota; ChatGPT exports the same windows as
-      // rate_limit.
-      ["quota", "rate_limit"].includes(String(row.resultType)) &&
-      row.authority === "provider_reported" &&
-      row.acquisitionMethod === "remote_api" &&
-      row.renderType === "percent" &&
-      // Only the 5h and weekly windows decide launch preference. Plans differ
-      // (ChatGPT may lack 5h; xAI has only the weekly pool), and
-      // model-specific, monthly credit and code-review rows aren't shared
-      // chat quota.
-      (row.window === "5h" || row.window === "Weekly"),
-  ) as Record<string, unknown>[]
+  const rows =
+    snapshot.version === 2
+      ? v2Rows(provider.entries, account)
+      : v3Rows(provider.entries, account)
   if (!rows.length) return unknown()
   if (
     rows.some(
