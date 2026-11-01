@@ -410,8 +410,10 @@ Gemini Flash on Antigravity and moves a refused step to the next one
 same routes; that is accepted, unlike a Hermes model chain naming Antigravity
 ([decision](./decisions/antigravity-provider.md)). So a subagent's limit retry
 is not handed back at once: it waits like any other retry until its third
-attempt, and the note says to wait through it or name another subagent, since
-`model=` changes only the run's own model. A limit on the run's own model still
+attempt, and the note says to wait through it or, if it keeps failing, to tell
+the run as a fact that the route is unavailable and leave the way around it to
+the run, since `model=` changes only the run's own model and choosing a
+subagent is the run's own call. A limit on the run's own model still
 hands back at once.
 
 **Hand-back.** A live caller gets the current state at once. Only while that
