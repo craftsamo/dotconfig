@@ -35,6 +35,9 @@ branch. Delegate board operations and issue body formats to
 - Ephemeral within-session steps → the session's todo list (`todowrite`), not the board.
 - Cross-cutting companion: layer it on any scenario playbook (new-feature,
   rebuild-migration, …) once the work is worth persisting.
+- A run Hermes commissions → not this skill's loop: Hermes plans the work on
+  GitHub and places the session, and the operating note decides what is
+  yours there (`AGENTS.md` `<SessionLocation>`).
 
 </WhenToUse>
 

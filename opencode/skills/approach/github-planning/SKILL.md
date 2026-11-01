@@ -37,6 +37,10 @@ and PR creation to `git-pullrequest`.
 - Within-session steps → the session's todo list (`todowrite`), never an issue.
 - A companion to any scenario playbook (new-feature, rebuild-migration, …)
   once the work is worth persisting.
+- A run Hermes commissions → not this skill's loop: Hermes plans the work on
+  GitHub and places the session, and the operating note decides what is
+  yours there (`AGENTS.md` `<SessionLocation>`); open PRs with the
+  `Closes`/`Refs` it names.
 
 </WhenToUse>
 
