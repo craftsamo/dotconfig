@@ -91,8 +91,8 @@ one merge follow "Stacks and chains" below.
   review). Bypassing it is the user's own act in GitHub's page: say plainly
   that no CI would run on the merged commit.
 - **Building layered work:** the build run creates the stack from the start,
-  or links an existing chain without touching branches (brief it with
-  [history-repair](history-repair.md) "Linking a chain"). Check `stack` on
+  or links an existing chain without touching branches (commission it as
+  [history-repair](history-repair.md) "Linking a chain" says). Check `stack` on
   the newest PR after each layer is reported, not only at the end.
 
 ## BEHIND is not a conflict

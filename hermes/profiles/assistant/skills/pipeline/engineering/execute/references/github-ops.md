@@ -175,8 +175,10 @@ its top layer: merging a layer also lands the open layers below it. After the
 merge, verify actual state with `github_pr` `view`. If further stacked work was requested,
 tell the build session what changed so it can propose the appropriate update;
 do not grant history rewriting implicitly: with the user's explicit go, you
-copy the steps of
-`skill_view(name="github", file_path="references/history-repair.md")` into
-the build's brief (a build run cannot load your skills). Close the unit's
+commission the repair from a build as
+`skill_view(name="github", file_path="references/history-repair.md")`
+describes it: the outcome, the conditions it must meet afterwards and the
+evidence to hand back, never its commands (a build run cannot load your
+skills, and the method is its own). Close the unit's
 issue and move the board as the table above says, never for a job the user
 excluded.

@@ -36,6 +36,6 @@ the work in front of you; each stands alone.
 | Merging a pull request the user asked to merge: method and message, stacks and chains, BEHIND, a wrong squash message, tidying branches after | [merge](references/merge.md) |
 | A commit message, PR title or body that lands where outsiders read it: what must not be in it, and rewriting it safely | [text-hygiene](references/text-hygiene.md) |
 | Waiting for CI, and telling a red run caused by the code from one caused by the infrastructure | [ci](references/ci.md) |
-| A repair that rewrites history or force-pushes, as steps for a build run | [history-repair](references/history-repair.md) |
+| A repair that rewrites history or force-pushes, commissioned from a build run as outcomes | [history-repair](references/history-repair.md) |
 
 A new kind of GitHub convention gets a reference of its own and a row here.
