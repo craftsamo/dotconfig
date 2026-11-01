@@ -38,6 +38,8 @@ done means, and a close that says why.
   repository yet → `gh-projects`.
 - Open or update a PR, decide `Refs` vs `Closes` → `git-pullrequest`.
 - Within-session step tracking → the session's todo list (`todowrite`), never an issue.
+- A run Hermes commissions → its operating note, not this skill, decides
+  which issue writes are yours (`AGENTS.md` `<SessionLocation>`).
 
 </WhenToUse>
 

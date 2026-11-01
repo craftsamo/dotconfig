@@ -23,6 +23,8 @@ issue, no local file, no issue-tracker churn.
 - For the planning workflow that feeds the board (epic vs single item, phasing,
   the promote → branch → PR lifecycle), see the `approach-github-projects`
   skill.
+- A run Hermes commissions → its operating note, not this skill, decides
+  which board writes are yours (`AGENTS.md` `<SessionLocation>`).
 
 </WhenToUse>
 

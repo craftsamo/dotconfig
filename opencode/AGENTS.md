@@ -41,7 +41,12 @@ Create a task worktree with `git_worktree` (`action: create`), not
 The move applies at a safe boundary, so do the destination work in a later
 call. Do not move the session to aim a subagent at a worktree; pass that
 path to the worker instead. Rename the current session once, when its title
-is still generic.
+is still generic. A run Hermes commissions (its operating note opens "Hermes
+is the client commissioning this work") never creates, moves to or removes a
+worktree, since Hermes places its session and tidies the worktree after the
+merge, and does on GitHub only what that note grants: where a skill says to
+link a branch, comment on, close or create an issue or set a board Status,
+the note decides.
 
 </SessionLocation>
 
