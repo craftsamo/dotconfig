@@ -39,24 +39,124 @@
         // A project's own agent file for a routed role (reviewer, verifier,
         // ...) loses its model to the route; its prompt and permissions stay.
         "pinModels": true,
-        // Console credit lanes, in spending order (see the providers below).
-        // Specialists try them before the subscription; the primary moves to
-        // them when the subscription hits a window limit. [] turns it off.
-        // A key whose grant expires on someone else's schedule goes first.
+        // Console credit lanes (see the providers below): the providers a
+        // route's step can run a Claude model on. [] turns them off.
         "creditLanes": [
           "anthropic-credit-team",
           "anthropic-credit-main",
           "anthropic-credit-sub"
         ],
-        // Other saved Claude Pro/Max logins: model-ID suffix → login label
+        // Saved Claude Pro/Max logins: model-ID suffix → login label
         // (`opencode auth list`). An alias model of the anthropic provider
-        // (see providers below) runs on the login its suffix names; the plain
-        // models run on the active login. Applies with enabled: false too.
-        // On a limit a session reaches these last, after the subscription
-        // and the credit lanes, in the order listed.
+        // (see providers below) runs on the login its suffix names, whichever
+        // login is active; the plain models run on the active one. Applies
+        // with enabled: false too.
         "claudeAccounts": {
+          "sub": "Sub OAuth",
           "main": "Main OAuth"
-        }
+        },
+        // Each specialist's steps, tried in order at launch: models as
+        // /models names them. The provider says where one runs: a credit lane
+        // above, a claudeAccounts login by its alias suffix, or else the
+        // provider's active login. A model whose window Quota reports spent
+        // is passed over; a step that cannot run at all (no login, not in the
+        // catalog) too. A session already running moves, on an empty balance
+        // or a window limit, through the steps that run the same model. The
+        // first step's model is the one the agent file names.
+        "routes": {
+          "explore-max": [
+            "openai/gpt-6.1-sol#xhigh",
+            "anthropic-credit-team/claude-opus-5-5#xhigh",
+            "anthropic-credit-main/claude-opus-5-5#xhigh",
+            "anthropic-credit-sub/claude-opus-5-5#xhigh",
+            "anthropic/claude-opus-5-5-sub#xhigh",
+            "anthropic/claude-opus-5-5-main#xhigh"
+          ],
+          "explore-high": [
+            "openai/gpt-6.1-sol-fast#high",
+            "anthropic-credit-team/claude-sonnet-5-5#high",
+            "anthropic-credit-main/claude-sonnet-5-5#high",
+            "anthropic-credit-sub/claude-sonnet-5-5#high",
+            "anthropic/claude-sonnet-5-5-sub#high",
+            "anthropic/claude-sonnet-5-5-main#high"
+          ],
+          "explore-medium": [
+            "openai/gpt-6.1-sol-fast#medium",
+            "anthropic-credit-team/claude-sonnet-5-5#medium",
+            "anthropic-credit-main/claude-sonnet-5-5#medium",
+            "anthropic-credit-sub/claude-sonnet-5-5#medium",
+            "anthropic/claude-sonnet-5-5-sub#medium",
+            "anthropic/claude-sonnet-5-5-main#medium"
+          ],
+          "reviewer": [
+            "anthropic-credit-team/claude-sonnet-5-5#medium",
+            "anthropic-credit-main/claude-sonnet-5-5#medium",
+            "anthropic-credit-sub/claude-sonnet-5-5#medium",
+            "anthropic/claude-sonnet-5-5-sub#medium",
+            "anthropic/claude-sonnet-5-5-main#medium",
+            "openai/gpt-6.1-sol#medium"
+          ],
+          "worker": [
+            "anthropic-credit-team/claude-sonnet-5-5#low",
+            "anthropic-credit-main/claude-sonnet-5-5#low",
+            "anthropic-credit-sub/claude-sonnet-5-5#low",
+            "anthropic/claude-sonnet-5-5-sub#low",
+            "anthropic/claude-sonnet-5-5-main#low",
+            "openai/gpt-6.1-sol#low"
+          ],
+          "explore-spark": [
+            "openai/gpt-6-luna-fast#low",
+            "anthropic-credit-team/claude-haiku-5-5#low",
+            "anthropic-credit-main/claude-haiku-5-5#low",
+            "anthropic-credit-sub/claude-haiku-5-5#low",
+            "anthropic/claude-haiku-5-5-sub#low",
+            "anthropic/claude-haiku-5-5-main#low"
+          ],
+          "explore-small": [
+            "openai/gpt-6-luna#low",
+            "anthropic-credit-team/claude-haiku-5-5#low",
+            "anthropic-credit-main/claude-haiku-5-5#low",
+            "anthropic-credit-sub/claude-haiku-5-5#low",
+            "anthropic/claude-haiku-5-5-sub#low",
+            "anthropic/claude-haiku-5-5-main#low"
+          ],
+          "verifier": [
+            "openai/gpt-6-luna#low",
+            "anthropic-credit-team/claude-haiku-5-5#low",
+            "anthropic-credit-main/claude-haiku-5-5#low",
+            "anthropic-credit-sub/claude-haiku-5-5#low",
+            "anthropic/claude-haiku-5-5-sub#low",
+            "anthropic/claude-haiku-5-5-main#low"
+          ],
+          "debugger": [
+            "openai/gpt-6.1-sol#high",
+            "anthropic-credit-team/claude-opus-5-5#high",
+            "anthropic-credit-main/claude-opus-5-5#high",
+            "anthropic-credit-sub/claude-opus-5-5#high",
+            "anthropic/claude-opus-5-5-sub#high",
+            "anthropic/claude-opus-5-5-main#high"
+          ],
+          "reviewer-deep": [
+            "openai/gpt-6.1-sol#high",
+            "anthropic-credit-team/claude-opus-5-5#high",
+            "anthropic-credit-main/claude-opus-5-5#high",
+            "anthropic-credit-sub/claude-opus-5-5#high",
+            "anthropic/claude-opus-5-5-sub#high",
+            "anthropic/claude-opus-5-5-main#high"
+          ],
+          "searcher-deep": ["xai/grok-4.7#medium", "openai/gpt-6.1-sol#medium"],
+          "searcher": ["xai/grok-4.7#low", "openai/gpt-6.1-sol#low"]
+        },
+        // Where the primary session moves, in order, when its login hits a
+        // window limit or a lane runs dry: models left as "*". Only a Claude
+        // model moves, and it keeps its model and variant.
+        "primaryRoute": [
+          "anthropic/*-main",
+          "anthropic/*-sub",
+          "anthropic-credit-team/*",
+          "anthropic-credit-main/*",
+          "anthropic-credit-sub/*"
+        ]
       }
     }
   ],
@@ -472,12 +572,28 @@
         },
       },
     },
-    // The second Claude login (claudeAccounts above). The login plugin
+    // The saved Claude logins (claudeAccounts above). The login plugin
     // rewrites requests of provider anthropic only, so another login cannot
     // be a provider of its own: these aliases sit under anthropic, send the
     // real model (modelID) and inherit its variants, limits and prices.
     "anthropic": {
       "models": {
+        "claude-fable-5-1-sub": {
+          "modelID": "claude-fable-5-1",
+          "name": "Claude Fable 5.1 (Sub OAuth)",
+        },
+        "claude-opus-5-5-sub": {
+          "modelID": "claude-opus-5-5",
+          "name": "Claude Opus 5.5 (Sub OAuth)",
+        },
+        "claude-sonnet-5-5-sub": {
+          "modelID": "claude-sonnet-5-5",
+          "name": "Claude Sonnet 5.5 (Sub OAuth)",
+        },
+        "claude-haiku-5-5-sub": {
+          "modelID": "claude-haiku-5-5",
+          "name": "Claude Haiku 5.5 (Sub OAuth)",
+        },
         "claude-fable-5-1-main": {
           "modelID": "claude-fable-5-1",
           "name": "Claude Fable 5.1 (Main OAuth)",
