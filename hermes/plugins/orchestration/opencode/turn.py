@@ -42,7 +42,7 @@ NO_OUTCOME_GRACE = 30
 # How long an unreachable service is retried before the outcome is called unknown.
 UNREACHABLE_GRACE = 120
 # How often a wait looks for a provider retry, and from which attempt a retry that
-# is not a usage/rate limit (a 502, an overload) hands back.
+# is not the run's own limit (a 502, an overload, or a subagent's limit) hands back.
 RETRY_POLL = 10.0
 RETRY_HANDBACK_ATTEMPTS = 3
 DEFAULT_TOOL_TIMEOUT = 420
@@ -248,8 +248,10 @@ def retrying(root_sid, start, running_sessions, cache):
 
 
 def actionable(retry):
-    """A retry worth the caller's decision: a limit at once, anything else after a few attempts."""
-    return bool(retry) and (retry.get("kind") == "limit" or (retry.get("attempt") or 0) >= RETRY_HANDBACK_ATTEMPTS)
+    """A retry worth the caller's decision: the run's own limit at once, a subagent's or anything
+    else after a few attempts."""
+    return bool(retry) and ((retry.get("kind") == "limit" and not retry.get("subagent"))
+                            or (retry.get("attempt") or 0) >= RETRY_HANDBACK_ATTEMPTS)
 
 
 def failure(sid, start):
@@ -321,11 +323,17 @@ def note(record):
                 "notification.")
     if status == "running" and record.get("retrying"):
         retry = record["retrying"]
-        who = "a subagent of the run" if retry.get("subagent") else "the run"
-        return (f"OpenCode keeps retrying {retry.get('model') or 'the model'} for {who} after: "
-                f"{retry.get('message')} (attempt {retry.get('attempt')}). Wait on (opencode_session wait with "
-                "through_retry) if it should recover soon; otherwise interrupt it and run again on the same session "
-                "with model= another one from opencode_catalog models.")
+        model = retry.get("model") or "the model"
+        message, attempt = retry.get("message"), retry.get("attempt")
+        if retry.get("subagent"):
+            return (f"OpenCode keeps retrying {model} for a subagent of the run after: {message} "
+                    f"(attempt {attempt}). The person's OpenCode moves a limited subagent to its route's next step "
+                    "itself, so wait on (opencode_session wait with through_retry); model= changes only the run's own "
+                    "model, never a subagent's. If it keeps failing, interrupt it and run again on the same session "
+                    "with a message that names another subagent.")
+        return (f"OpenCode keeps retrying {model} for the run after: {message} (attempt {attempt}). "
+                "Wait on (opencode_session wait with through_retry) if it should recover soon; otherwise interrupt "
+                "it and run again on the same session with model= another one from opencode_catalog models.")
     if status == "running":
         return ("Still running. Wait again, steer, or interrupt; never start another turn on this session while "
                 "it runs.")

@@ -298,9 +298,11 @@ which session — a subagent's model can be the limited one). Decide then: wait
 (`wait` with `through_retry`) if it should recover soon; otherwise `interrupt`
 and run the same session again with `model=` another engine from
 `opencode_catalog models`. For a build, read the diff first and continue from
-what is there. A limited subagent model needs the message to name another
-subagent. An auth problem is OpenCode's own login: tell the user. Never loop on
-the same limited model.
+what is there. A subagent's limit hands back only from its third attempt: the
+person's OpenCode moves a limited subagent to the next step of its route
+itself, so wait through it; `model=` never changes a subagent's model, so if
+it keeps failing, the message must name another subagent. An auth problem is
+OpenCode's own login: tell the user. Never loop on the same limited model.
 
 ## Boundaries
 
