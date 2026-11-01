@@ -1,6 +1,6 @@
 """The github technic works through the GitHub tools: its entry routes every reference, nothing the
-Assistant reads in it is a gh command its terminal guard blocks, and history surgery stays in the
-one reference written for a build run."""
+Assistant reads in it is a gh command its terminal guard blocks, and history surgery is commissioned
+from a build run as outcomes and conditions, never as commands."""
 
 import importlib.util
 import re
@@ -56,15 +56,20 @@ class GithubTechnic(unittest.TestCase):
                 self.assertEqual([c for c in commands if blocked(c)], [])
                 self.assertIsNone(re.search(r"\bgh\s+(?:api|stack)\b", text))
 
-    def test_history_surgery_is_only_in_the_build_brief(self):
+    def test_history_surgery_is_commissioned_as_outcomes_never_as_commands(self):
         brief = flat(self.references[BUILD_BRIEF])
         self.assertIn("none of it is the Assistant's to run", brief)
         self.assertIn("explicit go", brief)
-        for surgery in ("--force-with-lease", "filter-repo"):
-            self.assertIn(surgery, brief)
-            for name, text in {"SKILL.md": self.entry, **self.references}.items():
-                if name != BUILD_BRIEF:
-                    self.assertNotIn(surgery, text, name)
+        self.assertIn("How it gets there, which commands and in what order, is the run's", brief)
+        self.assertIn("never main or any other branch", brief)
+        self.assertIn("ends with a verified result the user pushes, never a push of the run's", brief)
+        self.assertIn("checked before anything is pushed and again after", brief)
+        for name, text in {"SKILL.md": self.entry, **self.references}.items():
+            for surgery in ("--force-with-lease", "filter-repo", "git push", "git rebase", "cherry-pick",
+                            "gh stack"):
+                self.assertNotIn(surgery, text, (name, surgery))
+        ops = flat(self.references["merge.md"])
+        self.assertNotIn("brief it with", ops)
 
 
 if __name__ == "__main__":
