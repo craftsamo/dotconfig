@@ -185,6 +185,8 @@ skills.
   request is a third-party use Google's terms forbid, and a chain sends it
   unattended), and never put `ANTIGRAVITY_OAUTH_CLIENT_SECRET`'s value in the
   repo, whole or split ([decision](docs/decisions/antigravity-provider.md)).
+  That covers Hermes' own models; an OpenCode run the Assistant drives uses
+  OpenCode's specialist routes, Antigravity steps included, by decision.
 - **A new Claude model is not covered until checked.** Before adopting one,
   read its breaking changes against the mandatory-thinking and
   no-forced-`tool_choice` substring lists (unknown ids default to "disable
