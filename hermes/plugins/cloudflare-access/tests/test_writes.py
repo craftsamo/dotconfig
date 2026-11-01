@@ -88,6 +88,12 @@ class Bridge:
         return [r for r in self.requests if r["op"] == "call" and r["method"] != "GET"]
 
 
+@pytest.fixture(autouse=True)
+def stock_card_budgets(monkeypatch):
+    # cards.roomy() reads whichever gateway module an earlier test imported
+    monkeypatch.setattr(cfa.cards, "roomy", lambda: False)
+
+
 @pytest.fixture
 def fake(monkeypatch, tmp_path):
     monkeypatch.setattr(cfa, "STORE", tmp_path / "store")
