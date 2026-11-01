@@ -62,7 +62,7 @@ entry whose full instructions are already available.
 
 | Capability | File | Owns |
 | --- | --- | --- |
-| engineering | [plan-engineering](../../engineering/plan/SKILL.md) | The user's intent relayed to OpenCode, its proposals relayed back, the decision log, approval per unit, each unit an issue before its build |
+| engineering | [plan-engineering](../../engineering/plan/SKILL.md) | Commissioning OpenCode with what the user wants, its proposals brought back in plain language, the decision log, approval per unit, each unit an issue before its build |
 | creative | [plan-creative](../../creative/plan/SKILL.md) | Client outcome, optional reference research, grants and acceptance criteria; Creator proposes directions and the hands produce |
 | writing | [plan-writing](../../writing/plan/SKILL.md) | type decisions, unit decomposition (outline / piece), sources |
 | research | [plan-research](../../research/plan/SKILL.md) | purpose and constraints directly or through primary Client; Researcher proposal and agreement |

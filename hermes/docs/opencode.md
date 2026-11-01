@@ -16,11 +16,15 @@ current stage's goal, turns OpenCode's proposals and questions into plain
 language for the user, keeps the job's decision log (the user's exact words
 live there), obtains the user's explicit implementation approval, answers what
 the runs pause on and accepts the result. People read the briefs in OpenCode
-too, and a relay of quoted remarks and restated approvals reads as a
-subcontract and narrows the run, so a brief is written as `opencode:brief`
-says: the user's words inside its own sentences, no commands, steps or report
-templates, backticks as the only markup, repository paths relative to the
-root. It never edits target code itself, and it
+too, and a relay of quoted remarks, restated approvals and step-by-step orders
+reads as a subcontract and narrows the run, so a brief is written as
+`opencode:brief` says: in the Assistant's own voice as the client, never
+naming the user as a third party; a quote only where the wording itself
+matters (wording that is specification, or what someone else said that the
+work is about, with its source); no commands, steps or report templates;
+backticks as the only markup; repository paths relative to the root. The
+operating note introduces Hermes to the run the same way, as the client whose
+messages are its own requests. It never edits target code itself, and it
 sends every code question or change to OpenCode, however small. The Assistant's
 engineering entries (`{plan,execute,qa}-engineering`) carry those decisions;
 the plugin's own skills carry the tool mechanics: `opencode:brief` the message
@@ -406,8 +410,10 @@ Gemini Flash on Antigravity and moves a refused step to the next one
 same routes; that is accepted, unlike a Hermes model chain naming Antigravity
 ([decision](./decisions/antigravity-provider.md)). So a subagent's limit retry
 is not handed back at once: it waits like any other retry until its third
-attempt, and the note says to wait through it or name another subagent, since
-`model=` changes only the run's own model. A limit on the run's own model still
+attempt, and the note says to wait through it or, if it keeps failing, to tell
+the run as a fact that the route is unavailable and leave the way around it to
+the run, since `model=` changes only the run's own model and choosing a
+subagent is the run's own call. A limit on the run's own model still
 hands back at once.
 
 **Hand-back.** A live caller gets the current state at once. Only while that

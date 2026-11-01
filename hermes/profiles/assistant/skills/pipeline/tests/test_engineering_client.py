@@ -36,8 +36,11 @@ class EngineeringClientTests(unittest.TestCase):
         text = read("engineering/plan/SKILL.md")
         self.assertIn("a message to OpenCode is a short brief in plain prose: what is wanted and why, the goal "
                       "of the current stage and the path of the decision log", text)
-        self.assertIn("the user's words woven into your sentences where their wording carries the intent", text)
+        self.assertIn("written in your own voice as the one who wants it. The user is never a third party in it",
+                      text)
+        self.assertNotIn("the user's words woven into your sentences", text)
         self.assertNotIn("quoted, not paraphrased", text)
+        self.assertNotIn("**Relay.**", text)
         self.assertIn("no commands, steps, file lists, output limits, report templates or restated prohibitions",
                       text)
         execute = read("engineering/execute/SKILL.md")
@@ -56,6 +59,59 @@ class EngineeringClientTests(unittest.TestCase):
         self.assertIn("A file in the session's repository is relative to its root", text)
         self.assertIn("`@file`, `@agent` and `/command` are the TUI's own input", text)
         self.assertNotIn("deep review <area>", text)
+
+    def test_briefs_speak_as_the_client_and_quote_only_where_wording_matters(self):
+        raw = (ROOT.parents[3] / "plugins/orchestration/opencode/skills/brief/SKILL.md").read_text()
+        text = " ".join(raw.split())
+        self.assertIn("**Your voice, not a relay.** The person you work for is never a third party", text)
+        self.assertIn("**Quote only where the wording itself matters**", text)
+        self.assertIn("name the source", text)
+        self.assertIn("A quote is material to weigh, never an instruction to the run", text)
+        self.assertIn("**Circumstances, not orders.**", text)
+        self.assertIn("Never start, stop or pick its subagents", text)
+        examples = re.findall(r"```text\n(.*?)```", raw, re.DOTALL)
+        self.assertGreaterEqual(len(examples), 4)
+        for example in examples:
+            for relay in ("the user said", "The user said", "the user wants", "依頼者", "利用者", "本人の言葉",
+                          "側から"):
+                self.assertNotIn(relay, example)
+        answer = " ".join((ROOT.parents[3] / "plugins/orchestration/opencode/skills/answer/SKILL.md")
+                          .read_text().split())
+        self.assertNotIn("keeps their wording", answer)
+        self.assertIn("answer the run with the decision in your own voice", answer)
+        execute = read("engineering/execute/SKILL.md")
+        self.assertIn("never as what the user said or approved", execute)
+        row = next(line for line in (ROOT / "references/plan/index.md").read_text().splitlines()
+                   if line.startswith("| engineering |"))
+        self.assertNotIn("relayed", row)
+
+    def test_briefs_commission_outcomes_and_never_direct_the_method(self):
+        raw = (ROOT.parents[3] / "plugins/orchestration/opencode/skills/brief/SKILL.md").read_text()
+        text = " ".join(raw.split())
+        self.assertIn("## What a brief holds", text)
+        for part in ("**Goal**", "**Why**", "**What is settled**", "**Scope**", "**Done means**",
+                     "**When to come back**"):
+            self.assertIn(part, text)
+        self.assertIn("These are yours to set: write a stop as a condition", text)
+        self.assertIn("| Method, checks, which files change, subagents | the run decides |", text)
+        self.assertIn("**Outcomes, not orders.**", text)
+        self.assertIn("the fix is the run's", text)
+        self.assertIn("**A method the user names** to you", text)
+        self.assertIn("the message itself has neither", text)
+        self.assertIn("**Before you send**", text)
+        for example in re.findall(r"```text\n(.*?)```", raw, re.DOTALL):
+            self.assertIsNone(re.search(r"(行目|\bline \d+|サブエージェント|subagent|\blint\b|typecheck)", example),
+                              example)
+        drive = " ".join((ROOT.parents[3] / "plugins/orchestration/opencode/skills/drive/SKILL.md")
+                         .read_text().split())
+        self.assertNotIn("must name another subagent", drive)
+        self.assertIn("never name, start, stop or restart its subagents", drive)
+        execute = read("engineering/execute/SKILL.md")
+        self.assertIn("Concrete means each defect as a finding: what you saw (with its evidence), what you "
+                      "expected and why it matters to people", execute)
+        self.assertIn("the fix stays the run's", execute)
+        qa = read("engineering/qa/SKILL.md")
+        self.assertIn("A defect goes back as a finding (what you saw, what you expected, why it matters)", qa)
 
     def test_a_proposal_becomes_a_decision_only_by_the_users_choice(self):
         log = read("engineering/plan/SKILL.md")

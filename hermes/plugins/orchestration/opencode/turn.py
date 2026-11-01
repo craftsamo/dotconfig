@@ -330,7 +330,8 @@ def note(record):
                     f"(attempt {attempt}). The person's OpenCode moves a limited subagent to its route's next step "
                     "itself, so wait on (opencode_session wait with through_retry); model= changes only the run's own "
                     "model, never a subagent's. If it keeps failing, interrupt it and run again on the same session "
-                    "with a message that names another subagent.")
+                    "with a message that says, as a fact, that this route is unavailable and until when; how to work "
+                    "around it is the run's call, so never name, start or stop its subagents.")
         return (f"OpenCode keeps retrying {model} for the run after: {message} (attempt {attempt}). "
                 "Wait on (opencode_session wait with through_retry) if it should recover soon; otherwise interrupt "
                 "it and run again on the same session with model= another one from opencode_catalog models.")
