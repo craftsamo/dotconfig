@@ -40,14 +40,15 @@ Non-trivial work runs through this spine; do not jump straight to edits:
    its steps with `todowrite`, shaped `Phase{N}.{m} - <task> (executor)` —
    Phase and {m} as the global `<PlanHandoff>` defines them (each sub-goal a
    reviewable PR layer, one layer of a native stack when there are several,
-   in stack order, and {m} its commit-sized steps); executor one of Build | worker |
-   reviewer | verifier | debugger (default Build; worker only for mechanical
-   work). For a sub-goal that adds screens or stored data,
-   agree what people can do, the screens and the data with the user before its
-   steps; a mock or diagram beats prose there. Without `todowrite`, keep the
-   list in the conversation; never create local TODO/plan files. Ask the
-   user to switch to Build; do not switch automatically or execute until the
-   user switches.
+   in stack order, and {m} its commit-sized steps); executor one of Build |
+   worker | worker-deep | reviewer | verifier | debugger (worker for
+   implementation the plan has designed, worker-deep when its logic is hard;
+   Build for design, integration and commits). For a sub-goal that adds screens
+   or stored data, agree what people can do, the screens and the data with the
+   user before its steps; a mock or diagram beats prose there. Without
+   `todowrite`, keep the list in the conversation; never create local TODO/plan
+   files. Ask the user to switch to Build; do not switch automatically or
+   execute until the user switches.
    Build executes phases in order, delegates according to the tag, and updates
    the todo statuses as `<PlanHandoff>` says. The todo list is the session's
    execution queue; the board holds the durable plan.
