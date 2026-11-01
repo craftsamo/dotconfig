@@ -74,4 +74,17 @@ export class EmptyLanes {
   tried(provider: string, now: number): void {
     this.probed.set(provider, now)
   }
+
+  // The tries that still hold a lane back, to keep across a restart.
+  saved(now: number): Record<string, number> {
+    return Object.fromEntries(
+      [...this.probed].filter(
+        ([, at]) => at <= now && now - at < EMPTY_PROBE_MS,
+      ),
+    )
+  }
+  restore(saved: Record<string, number>, now: number): void {
+    for (const [provider, at] of Object.entries(saved))
+      if (at <= now && now - at < EMPTY_PROBE_MS) this.probed.set(provider, at)
+  }
 }

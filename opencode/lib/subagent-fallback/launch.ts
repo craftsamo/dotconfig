@@ -67,6 +67,8 @@ export function createLauncher(
     lanes: Cooldowns
     // Lanes the balance estimate knows are empty.
     empty: EmptyLanes
+    // Saves the lane cooldowns and daily tries for a restart.
+    keep: () => void
     // Window limits protected children hit.
     limited: Cooldowns
     logins: readonly string[]
@@ -74,8 +76,8 @@ export function createLauncher(
     loginOf: (suffix: string) => Promise<Subscription>
   },
 ): (original: Executor) => Executor {
-  const { deps, options, lanes, empty, limited, logins, suffixes, loginOf } =
-    state
+  const { deps, options, lanes, empty, keep } = state
+  const { limited, logins, suffixes, loginOf } = state
   const spent = new SpentWindows()
   return (original) => async (input, context) => {
     // Outcome is historical, not a busy flag. There is no atomic
@@ -168,7 +170,10 @@ export function createLauncher(
       const now = deps.now()
       const { skip, due } = empty.scan(deps.readLanes?.(), now)
       const lane = launchLane(model, passingOver(lanes, skip), catalog)
-      if (lane && due.has(lane.providerID)) empty.tried(lane.providerID, now)
+      if (lane && due.has(lane.providerID)) {
+        empty.tried(lane.providerID, now)
+        keep()
+      }
       return lane
     }
     // Credits first for a Claude role: a lane not known empty takes

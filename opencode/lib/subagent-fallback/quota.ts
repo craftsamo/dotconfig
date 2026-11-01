@@ -3,6 +3,7 @@ import { homedir } from "node:os"
 import { join } from "node:path"
 import { recordCheckpoint } from "../credit-lanes/collect"
 import { readLaneBook, type LaneBook } from "./empty-lanes"
+import { fileStore, type SavedStore } from "./saved"
 import { QUOTA_MAX_AGE_MS, type AccountProof, type QuotaProof } from "./policy"
 
 export type Dependencies = {
@@ -14,6 +15,9 @@ export type Dependencies = {
   // The balance estimate's lanes and state, to pass over lanes known empty.
   // Without it no lane is.
   readLanes?: () => LaneBook | undefined
+  // Lane cooldowns and daily tries kept across restarts. Without it they
+  // last as long as the process.
+  saved?: SavedStore
 }
 
 export const dependencies: Dependencies = {
@@ -21,6 +25,7 @@ export const dependencies: Dependencies = {
   now: Date.now,
   creditEmpty: (provider) => recordCheckpoint(provider, 0, "empty"),
   readLanes: readLaneBook,
+  saved: fileStore(),
 }
 
 export function exportPath(
