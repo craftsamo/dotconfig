@@ -357,8 +357,9 @@ do not cover, such as `gh stack sync` or `gh stack checkout`.
 PR descriptions and merge messages have different scopes, and a stack shows
 the gap: each layer's PR describes its own diff, while one stack merge lands
 every open layer up to the PR it names, by one method. This skill never
-merges. When the user asks how to land a stack, or the layer that completes
-its goal is published, it hands over a landing plan.
+merges. When the user asks how to land a stack or says it is ready to merge,
+or the layer that completes its goal is published, it hands over a landing
+plan.
 
 What a stack merge leaves on the trunk:
 
@@ -410,11 +411,13 @@ Landing plan for a stack whose layers serve one goal:
   and the method when handing it over.
 
 The plan names the layers it lands, the surface, the method, and the title
-and body. Re-read the stack right before handing it over: a layer added since
-changes the range. A later, separately authorized merge re-reads it again and
-takes the message from the range it actually lands, never from a stale
-summary or a copied top-layer title. PR creation settles none of this in
-advance.
+and body. Write the title and body out in full, ready to paste, in the
+language of the repository's merged PR titles: the title in one fenced block
+and the body in another, never only the rule they follow. Re-read the stack
+right before handing it over: a layer added since changes the range. A later,
+separately authorized merge re-reads it again and takes the message from the
+range it actually lands, never from a stale summary or a copied top-layer
+title. PR creation settles none of this in advance.
 
 This is a handoff rule, not merge execution. The surfaces above are named for
 whoever lands the stack; this skill runs none of them. Do not add merge

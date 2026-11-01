@@ -99,9 +99,12 @@ its checkpoint commits: Build commits each step once its check passes, without
 asking again, and never a step whose check failed or did not run. Publishing is outward-facing: Build pushes and opens PRs
 only when the plan's publish timing says so, and asks at the layer boundary
 when the plan does not say. A narrower restriction from the user or the
-session's instructions (local commit only, no push) wins. At phase boundaries
-and handoffs, restate unfinished items, blockers, and the next step in the
-reply, since only the TUI shows the list.
+session's instructions (local commit only, no push) wins. When the layers
+form a native stack, the report of the publication that completes its goal
+ends with the merge title and message for landing it in one merge, written
+out in full (git-pullrequest `<MergeMessageHandoff>`); Build never merges. At phase
+boundaries and handoffs, restate unfinished items, blockers, and the next step
+in the reply, since only the TUI shows the list.
 
 </PlanHandoff>
 
