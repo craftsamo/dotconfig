@@ -679,6 +679,10 @@ Limits:
   there gets neither the login plugin's rewrite nor the swap.
 - Moving a session between logins starts a new prompt cache ("Prompt cache"
   below).
+- Quota 6.0.0 drops every row of a login whose usage reply has no 5h window
+  (`five_hour: null`) and shows it as "Unexpected reply"
+  ([slkiser/opencode-quota#374](https://github.com/slkiser/opencode-quota/issues/374)).
+  The preflight then sees that login as unknown, not exhausted.
 
 ## Prompt cache
 
