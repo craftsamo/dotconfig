@@ -765,7 +765,8 @@ def test_a_subagent_limit_waits_for_its_route(fixture):
     assert late["status"] == "running" and not late.get("timed_out")
     retry = late["retrying"]
     assert retry["subagent"] is True and retry["kind"] == "limit"
-    assert "through_retry" in late["note"] and "names another subagent" in late["note"]
+    assert "through_retry" in late["note"] and "this route is unavailable and until when" in late["note"]
+    assert "names another subagent" not in late["note"], "a limit goes to the run as a fact, never as an order"
 
 
 def test_transient_retry_hands_back_only_after_some_attempts(fixture):

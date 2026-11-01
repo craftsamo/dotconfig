@@ -303,8 +303,11 @@ and run the same session again with `model=` another engine from
 what is there. A subagent's limit hands back only from its third attempt: the
 person's OpenCode moves a limited subagent to the next step of its route
 itself, so wait through it; `model=` never changes a subagent's model, so if
-it keeps failing, the message must name another subagent. An auth problem is
-OpenCode's own login: tell the user. Never loop on the same limited model.
+it keeps failing, `interrupt` and tell the run, as a fact, that the route is
+unavailable and until when ("Claude Haiku is rate-limited for about three
+hours"), and leave the way around it to the run: never name, start, stop or
+restart its subagents (`opencode:brief`). An auth problem is OpenCode's own
+login: tell the user. Never loop on the same limited model.
 
 ## Boundaries
 
