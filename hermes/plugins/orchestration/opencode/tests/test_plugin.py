@@ -753,6 +753,19 @@ def test_limit_retry_hands_back_and_through_retry_waits_on(fixture):
     assert "only accepted for wait" in session("status", first["session_id"], through_retry=True)["error"]
 
 
+def test_a_subagent_limit_waits_for_its_route(fixture):
+    _, directory, _, fake = fixture
+    scripted(fake, "retry-child:The usage limit has been reached:1", "hold")
+    early = run("plan", directory, timeout=1)
+    assert early["status"] == "running" and early.get("timed_out") is True and "retrying" not in early
+    scripted(fake, "retry-child:The usage limit has been reached:3", "hold")
+    late = run("plan", directory, timeout=1)
+    assert late["status"] == "running" and not late.get("timed_out")
+    retry = late["retrying"]
+    assert retry["subagent"] is True and retry["kind"] == "limit"
+    assert "through_retry" in late["note"] and "names another subagent" in late["note"]
+
+
 def test_transient_retry_hands_back_only_after_some_attempts(fixture):
     _, directory, _, fake = fixture
     scripted(fake, "retry:Bad Gateway:1", "hold")
@@ -1457,6 +1470,46 @@ def test_funding_board_reads_a_quota_6_export(fixture, tmp_path, monkeypatch):
     stops = {s["provider"]: s for s in catalog("funding")["funding"]["stops"]}
     assert set(stops["openai"]["accounts"][0]["windows"]) == {"5h"} and len(stops["openai"]["accounts"]) == 1
     assert {s for s in stops if s.startswith("anthropic-credit")} == {"anthropic-credit-team", "anthropic-credit-main"}
+
+
+def test_funding_board_reads_antigravity_quota_groups(fixture, tmp_path, monkeypatch):
+    data = json.loads(json.dumps(EXPORT_V3))
+    data["providers"]["quota-providers"]["entries"].extend([
+        _row("quota-providers.custom.google-antigravity.Gemini_Pro", "Antigravity",
+             percentRemaining=7, resetAt=1_200_000, resultType="quota", renderType="percent"),
+        _row("quota-providers.custom.google-antigravity.Gemini_Flash", "Antigravity",
+             percentRemaining=100, resetAt=1_200_000, resultType="quota", renderType="percent"),
+        _row("quota-providers.custom.google-antigravity.Claude", "Antigravity",
+             percentRemaining=0, resetAt=1_200_000, resultType="quota", renderType="percent"),
+    ])
+    path = tmp_path / "quota-export.json"
+    path.write_text(json.dumps(data))
+    monkeypatch.setattr(plugin.funding, "export_path", lambda: path)
+    monkeypatch.setattr(plugin.funding, "_now", lambda: 1_000_100)
+    out = catalog("funding")["funding"]
+    assert not any(s.get("kind") == "credit-lane" and s.get("provider") == "google-antigravity"
+                   for s in out["stops"])
+    [ag] = [s for s in out["stops"] if s.get("source") == "google-antigravity"]
+    assert ag["provider"] == "google" and ag["kind"] == "quota-groups" and ag["label"] == "Antigravity"
+    assert set(ag["groups"].keys()) == {"Gemini Pro", "Gemini Flash", "Claude"}
+    assert ag["groups"]["Gemini Pro"].get("spent") is True and "empty" not in ag["groups"]["Gemini Pro"]
+    assert "spent" not in ag["groups"]["Gemini Flash"] and "empty" not in ag["groups"]["Gemini Flash"]
+    assert ag["groups"]["Claude"].get("empty") is True and ag["groups"]["Claude"].get("spent") is True
+    # credit lanes still present and unchanged
+    team = next(s for s in out["stops"] if s["provider"] == "anthropic-credit-team")
+    assert team["kind"] == "credit-lane" and team["balance"]["remaining_percent"] == 0
+    main = next(s for s in out["stops"] if s["provider"] == "anthropic-credit-main")
+    assert main["kind"] == "credit-lane" and main["balance"]["remaining_percent"] == 35
+    # A stop where every group is spent reads fresh even when fetchedAt is old.
+    all_spent = json.loads(json.dumps(data))
+    for entry in all_spent["providers"]["quota-providers"]["entries"]:
+        if entry.get("id") == "quota-providers.custom.google-antigravity.Gemini_Flash":
+            entry["percentRemaining"] = 10
+    path.write_text(json.dumps(all_spent))
+    monkeypatch.setattr(plugin.funding, "_now", lambda: 1_100_000)
+    out_spent = catalog("funding")["funding"]
+    [ag_spent] = [s for s in out_spent["stops"] if s.get("source") == "google-antigravity"]
+    assert ag_spent["fresh"] is True and all(g.get("spent") for g in ag_spent["groups"].values())
 
 
 def test_funding_names_a_missing_or_malformed_export(fixture, tmp_path, monkeypatch):

@@ -40,6 +40,7 @@ toolsets:
 - cronjob
 - computer_use
 - specialist
+- opencode
 - media_inspect
 - audio_analyze
 - screen_listen
@@ -943,6 +944,7 @@ platform_toolsets:
   - todo
   - memory
   - session_search
+  - opencode
   - clarify
   - delegation
   - cronjob
@@ -967,6 +969,7 @@ platform_toolsets:
   - todo
   - memory
   - session_search
+  - opencode
   - clarify
   - delegation
   - cronjob
@@ -991,6 +994,7 @@ platform_toolsets:
   - todo
   - memory
   - session_search
+  - opencode
   - clarify
   - delegation
   - cronjob
@@ -1028,6 +1032,43 @@ specialist_call:
   - audio-creator
   - searcher
   wait_timeout: 900
+opencode:
+  enabled: true
+  wait_timeout: 3300
+  allowed_providers:
+  - anthropic
+  - openai
+  roles:
+    plan:
+      agent: plan
+      policy: read-only
+      alternate: openai/gpt-6.1-sol#high
+      caller_model: allow
+      emoji: 📝
+    review:
+      agent: review
+      policy: read-only
+      alternate: openai/gpt-6.1-sol#high
+      caller_model: allow
+      emoji: 👀
+    debug:
+      agent: debug
+      policy: read-only
+      alternate: openai/gpt-6.1-sol#high
+      caller_model: allow
+      emoji: 🐛
+    design:
+      agent: design
+      policy: read-only
+      alternate: openai/gpt-6.1-sol#high
+      caller_model: allow
+      emoji: 🎨
+    build:
+      agent: build
+      policy: write
+      alternate: openai/gpt-6.1-sol#medium
+      caller_model: allow
+      emoji: 🔨
 image_gen:
   provider: img-xai-codex-fal
 video_gen:
@@ -1061,6 +1102,7 @@ plugins:
   enabled:
   - workspace-registry
   - specialist-call
+  - opencode
   - irodori-tts
   - qwen3-tts
   - stt-fallback
