@@ -109,12 +109,12 @@
           ],
           "worker": [
             "google/antigravity-gemini-3.8-flash-medium",
-            "openai/gpt-6.1-sol#low",
-            "anthropic/claude-sonnet-5-5-sub#low",
-            "anthropic/claude-sonnet-5-5-main#low",
-            "anthropic-credit-team/claude-sonnet-5-5#low",
-            "anthropic-credit-main/claude-sonnet-5-5#low",
-            "anthropic-credit-sub/claude-sonnet-5-5#low"
+            "openai/gpt-6.1-sol#medium",
+            "anthropic/claude-sonnet-5-5-sub#medium",
+            "anthropic/claude-sonnet-5-5-main#medium",
+            "anthropic-credit-team/claude-sonnet-5-5#medium",
+            "anthropic-credit-main/claude-sonnet-5-5#medium",
+            "anthropic-credit-sub/claude-sonnet-5-5#medium"
           ],
           "worker-deep": [
             "anthropic/claude-sonnet-5-5-sub#high",
