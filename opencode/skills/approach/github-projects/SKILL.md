@@ -99,7 +99,7 @@ different places. Research never gets its own standalone issue.
 | --- | --- | --- | --- | --- |
 | Epic | Domain: market, competitors, primary sources, business constraints | What should we build? | Around epic creation | Epic **comments** hold the full reports (the originals); the epic body's `## Details` holds only the distilled constraints / principles / seams |
 | Purpose | System: existing code assets, port sources, library / provider comparison, integration seams | How do we realize this purpose here? | At the purpose's **kickoff** (the Draft→Fixed gate) | The purpose issue's `## Research` — transcribe the epic-research excerpts it depends on (self-contained even if source issues close) plus its own findings; conclusions resolve `## Open decisions` into `## Requirements` |
-| Stack layer | Implementation detail: file locations, conventions, API shapes, how to run tests | Where and how do we change it? | Inline during implementation | Not persisted as issue content — the PR body's Scope and the diff itself are the record |
+| Stack layer | Implementation detail: file locations, conventions, API shapes, how to run tests | Where and how do we change it? | Inline during implementation | Not persisted as issue content — the PR body's changes and the diff itself are the record |
 
 Flow is bidirectional:
 
