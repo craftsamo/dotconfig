@@ -101,7 +101,7 @@ different places. Research never gets an issue of its own.
 | --- | --- | --- | --- | --- |
 | Parent | Domain: market, competitors, primary sources, business constraints | What should we build? | Around creation | Parent **comments** hold the full reports; the body's `## Details` holds the distilled constraints, principles and open business decisions |
 | Sub-issue | System: existing code, port sources, library / provider comparison, seams | How do we realize this here? | At **kickoff** (the Draft → Fixed gate) | The sub-issue's `## Research`: the parent-research excerpts it depends on, transcribed, plus its own findings; conclusions resolve `## Open decisions` into `## Requirements` |
-| Layer | Implementation detail: files, conventions, API shapes, how to test | Where and how do we change it? | Inline | Not persisted as issue content; the PR body's Scope and the diff are the record |
+| Layer | Implementation detail: files, conventions, API shapes, how to test | Where and how do we change it? | Inline | Not persisted as issue content; the PR body's changes and the diff are the record |
 
 Down: parent research → each sub-issue transcribes what it relies on. Up: a
 discovery that exceeds the current scope is escalated to the sub-issue's
@@ -145,14 +145,15 @@ whose trunk is always the default branch.
 <StackLayerPR>
 
 A layer's PR body is the slice's spec (the old work sub-issue's content
-lives here); `git-pullrequest` renders it against the repository's own PR
-convention and template:
+lives here). Its sections are `git-pullrequest` `<BodyStructure>`, fitted to
+the repository's own template; the layer puts in them:
 
-- `## Purpose` — one line, with `Refs #<unit>` on an intermediate layer or
-  `Closes #<unit>` on the completing one (never both).
-- `## Scope` — what the layer includes; `## Out of scope` when a reader
-  would otherwise expect more.
-- `## Acceptance` — done checks, including the verification commands.
+- `Refs #<unit>` on an intermediate layer, `Closes #<unit>` on the
+  completing one (never both).
+- The slice's goal in the summary, what it includes in the changes, and
+  `## Out of scope` when a reader would otherwise expect more.
+- The done checks, including the verification commands, in the
+  verification task list.
 - No `## Dependencies` (the layer below is the dependency and the stack
   encodes it) and no `## Research` (findings stay in the PR discussion;
   out-of-scope ones escalate to the unit's `## Open decisions`).
