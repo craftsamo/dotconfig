@@ -1,5 +1,5 @@
 """Where a Claude (or other) request can be served from, and how much each stop holds:
-the service's providers, and the usage windows and credit lanes OpenCode Quota exports.
+the service's providers, and the usage windows, credit lanes and quota groups OpenCode Quota exports.
 
 Read-only. The export is Quota's own public file, rewritten while the Quota footer
 refreshes in an open TUI, so it can be old; a reading is reported with its age and
@@ -27,6 +27,12 @@ ENTRY_NAME = re.compile(r"\[(?P<label>[^\]]+)\]\s*(?P<active>\(active\))?\s*(?:\
 # pool is its credits row, named by its period.
 CHAT_KEYS = {"five_hour": "5h", "weekly": "Weekly"}
 LANE_PREFIX = "quota-providers.custom."
+# A custom definition whose rows are usage quotas, not credit, and the OpenCode
+# provider whose models it covers (an unknown definition keeps its own id).
+QUOTA_PROVIDERS = {"google-antigravity": "google"}
+# Antigravity's plugin refuses a group once its use passes soft_quota_threshold_percent
+# (90 by default), so a group with no more than this percent left is spent until its reset.
+QUOTA_RESERVE = 10
 
 
 def export_path():
@@ -153,7 +159,7 @@ def _lanes(provider, now, version=2):
     grants that still hold something), the nearest expiry, and the pace figures."""
     lanes = {}
     for entry in provider.get("entries") or []:
-        if not isinstance(entry, dict):
+        if not isinstance(entry, dict) or entry.get("resultType") == "quota":
             continue
         source = _lane_id(entry, version)
         if not source:
@@ -169,6 +175,30 @@ def _lanes(provider, now, version=2):
         elif entry.get("renderType") == "value" and isinstance(entry.get("value"), str):
             lane.setdefault("figures", {})[name.rsplit(" ", 1)[-1]] = entry["value"]
     return list(lanes.values())
+
+
+def _quota_groups(provider, now, version=3):
+    """The quota groups, one stop per custom definition: per-model-family windows."""
+    if version != 3:
+        return []
+    stops = {}
+    for entry in provider.get("entries") or []:
+        if not isinstance(entry, dict) or entry.get("resultType") != "quota":
+            continue
+        definition = _lane_id(entry, 3)
+        name = str(entry.get("id")).rpartition(".")[2].replace("_", " ")
+        if not definition or not name:
+            continue
+        account = entry.get("account")
+        stop = stops.setdefault(definition, {
+            "provider": QUOTA_PROVIDERS.get(definition, definition), "source": definition, "kind": "quota-groups",
+            "label": account if isinstance(account, str) and account else definition, "groups": {}})
+        window = _window(entry, now)
+        remaining = window.get("remaining_percent")
+        if remaining is not None and remaining <= QUOTA_RESERVE and not window.get("past_reset"):
+            window["spent"] = True
+        stop["groups"][name] = window
+    return list(stops.values())
 
 
 def _now():
@@ -194,6 +224,11 @@ def board(export, now=None):
             for lane in _lanes(provider, now, version):
                 lane.update(fetched=_when(fetched), fresh=_fresh(fetched, now, lane.get("empty")))
                 out["stops"].append(lane)
+            for quota_group in _quota_groups(provider, now, version):
+                groups = quota_group.get("groups") or {}
+                all_spent = bool(groups) and all(g.get("spent") for g in groups.values())
+                quota_group.update(fetched=_when(fetched), fresh=_fresh(fetched, now, all_spent))
+                out["stops"].append(quota_group)
             continue
         accounts = _accounts_v3(name, provider, now) if version == 3 else _accounts(provider, now)
         if not accounts:
@@ -204,7 +239,10 @@ def board(export, now=None):
                              "accounts": accounts})
     out["note"] = ("Quota's export, not a live reading: a window at 0% with its reset ahead holds at any age; "
                    "any other reading is fresh only within six minutes of its fetch, and one past its reset says "
-                   "nothing. OpenCode moves a session between stops of the same model itself when one refuses; "
+                   "nothing. Quota groups (kind: quota-groups) are a subscription's per-model-family windows "
+                   "(Antigravity: Gemini Pro, Gemini Flash, Claude); a group marked spent is refused by its plugin "
+                   "until its reset, and the person's OpenCode routes specialists past it. "
+                   "OpenCode moves a session between stops of the same model itself when one refuses; "
                    "pass model= only to choose a different model.")
     return out
 
