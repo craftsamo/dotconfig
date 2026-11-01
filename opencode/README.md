@@ -87,10 +87,7 @@ only with a reason and never delete. `gh_project_*`
 `view_ensure`, `item_add`, `item_set` (archive, never delete) and
 `item_promote` write to a board the viewer can update. The sub-issue, type
 and dependency flags need gh 2.94.0. The `gh-issues`, `gh-projects` and
-`approach-github-planning` skills carry the conventions; the older
-`github_project_*` tools and the `manage-github-projects` /
-`approach-github-projects` skills stay until the new ones have been used in
-anger.
+`approach-github-planning` skills carry the conventions.
 
 `plugins/worktrees.ts` registers the worktree strategy in
 `lib/worktrees/strategy.ts`, so the TUI, the API and `git_worktree` all place
