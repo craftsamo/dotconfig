@@ -1,7 +1,7 @@
 import { existsSync, statSync } from "fs"
 import { tool } from "../define"
 import { exec, runGit, tryGit, withTempFile } from "../exec"
-import { commitlint, lintMessage, type Violation } from "./lint"
+import { commitlint, lintMessage, subjectTarget, type Violation } from "./lint"
 import { checkRewrite, currentBranch, needsForcePush } from "./rewrite"
 import { dedupe, scanDiff, scanSecrets } from "./secrets"
 
@@ -76,12 +76,21 @@ export const commit = tool({
     if (!message.trim()) throw new Error("The message is empty.")
     return withTempFile("opencode-commit", ".txt", message, async (file) => {
       // A generated fixup subject is git's, not the author's; only the repository's commitlint judges it.
-      const violations: Violation[] = fixup ? [] : lintMessage(message.trimEnd(), args.allowTrailers ?? false, args.subjectMax ?? 72)
+      const subjTarget = !fixup ? await subjectTarget(cwd) : undefined
+      const violations: Violation[] = fixup
+        ? []
+        : lintMessage(message.trimEnd(), args.allowTrailers ?? false, args.subjectMax ?? 72, subjTarget?.target)
       const checked = await commitlint(file, cwd)
       violations.push(...checked.violations)
       const errors = violations.filter((v) => v.severity === "error")
       const warnings = violations.filter((v) => v.severity === "warning")
-      const lint = { commitlint: checked.status, hook: checked.hook, errors, warnings }
+      const lint = {
+        commitlint: checked.status,
+        hook: checked.hook,
+        ...(subjTarget ? { subjectTarget: subjTarget } : {}),
+        errors,
+        warnings,
+      }
       if (errors.length) return JSON.stringify({ committed: false, stoppedAt: "lint", ...lint }, null, 2)
 
       // Snapshot the index before scanning it, so content a hook stages later is told apart.
