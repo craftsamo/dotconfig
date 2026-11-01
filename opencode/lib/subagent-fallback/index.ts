@@ -18,6 +18,15 @@ import {
   readQuota,
   type Dependencies,
 } from "./quota"
+import { FAIL_PREFIX, fail } from "./errors"
+import {
+  aliasOf,
+  METADATA_KEY,
+  parseMarker,
+  selector,
+  withMarker,
+  type Marker,
+} from "./marker"
 import {
   classify,
   DEFAULT_COOLDOWN_MS,
@@ -144,35 +153,13 @@ export type RuntimeContext = LoginContext & {
   }
 }
 
-export const METADATA_KEY = "dotconfig.subagent-preflight"
+export { METADATA_KEY }
 // Releases whose hook and subagent-tool contracts were checked against the
 // upstream source. Add a release only after re-checking them.
 export const SUPPORTED_VERSIONS: readonly string[] = ["2.1.2"]
 const supported = (version: string) => SUPPORTED_VERSIONS.includes(version)
 // Conservative text-only ceiling. This is not a cross-provider tokenizer.
 export const MAX_CONTEXT_BYTES = 160_000
-type Marker = {
-  version: 1
-  childID: string
-  parentID: string
-  agent: string
-  model: ModelRef
-  connectionID: string
-  fallback: boolean
-  // The suffix of the saved Claude login the child runs on, through the
-  // alias of its model; absent on the active login.
-  login?: string
-  launchChecked?: boolean
-  wireChecked?: boolean
-}
-// A route model on a saved login: its alias.
-const aliasOf = (model: ModelRef, login: string | undefined): ModelRef =>
-  login === undefined ? model : { ...model, id: `${model.id}-${login}` }
-const selector = (m: ModelRef) =>
-  `${m.providerID}/${m.id}${m.variant ? `#${m.variant}` : ""}`
-const fail = (reason: string): never => {
-  throw new Error(`Subagent preflight: ${reason}`)
-}
 const record = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value)
 const signature = (auth: Subscription) =>
@@ -197,49 +184,6 @@ const withNotices = (
         ? `${text}\n${result.content}`
         : [{ type: "text", text }, ...(result.content ?? [])],
   }
-}
-
-function parseMarker(session: Session): Marker | undefined {
-  const raw = session.metadata?.[METADATA_KEY]
-  if (raw === undefined) return undefined
-  // Metadata is inherited by nested children; only this exact child is protected.
-  if (
-    record(raw) &&
-    typeof raw.childID === "string" &&
-    raw.childID.startsWith("ses_") &&
-    raw.childID !== session.id
-  )
-    return undefined
-  if (
-    !record(raw) ||
-    raw.version !== 1 ||
-    raw.parentID !== session.parentID ||
-    raw.agent !== session.agent ||
-    typeof raw.connectionID !== "string" ||
-    !raw.connectionID ||
-    typeof raw.fallback !== "boolean" ||
-    (raw.launchChecked !== undefined &&
-      typeof raw.launchChecked !== "boolean") ||
-    (raw.wireChecked !== undefined && typeof raw.wireChecked !== "boolean") ||
-    (raw.login !== undefined &&
-      (typeof raw.login !== "string" || !raw.login)) ||
-    !record(raw.model) ||
-    typeof raw.model.id !== "string" ||
-    typeof raw.model.providerID !== "string" ||
-    (raw.model.variant !== undefined && typeof raw.model.variant !== "string")
-  )
-    fail("invalid persisted child policy")
-  if (typeof raw.agent !== "string" || !Object.hasOwn(ROUTES, raw.agent))
-    fail("unapproved child role")
-  const marker = raw as unknown as Marker
-  const route = ROUTES[marker.agent]
-  const expected = marker.fallback ? route.alternate : route.primary
-  if (
-    (marker.login !== undefined && expected.providerID !== OAUTH_PROVIDER) ||
-    !modelsEqual(marker.model, aliasOf(expected, marker.login))
-  )
-    fail("invalid persisted model selection")
-  return marker
 }
 
 function textOnly(messages: unknown[]): boolean {
@@ -493,10 +437,10 @@ export async function setupPreflight(
       fail("alternate catalog lacks conservative context headroom")
     await ctx.session.update({
       sessionID: child.session.id,
-      metadata: {
-        ...child.session.metadata,
-        [METADATA_KEY]: { ...child.marker, launchChecked: true },
-      },
+      metadata: withMarker(child.session.metadata, {
+        ...child.marker,
+        launchChecked: true,
+      }),
     })
   }
   const guardWireSize = async (event: Scope, read: () => Promise<number>) => {
@@ -533,10 +477,10 @@ export async function setupPreflight(
     // actual serialized HTTP body / WS frame before its first transmission too.
     await ctx.session.update({
       sessionID: child.session.id,
-      metadata: {
-        ...child.session.metadata,
-        [METADATA_KEY]: { ...child.marker, wireChecked: true },
-      },
+      metadata: withMarker(child.session.metadata, {
+        ...child.marker,
+        wireChecked: true,
+      }),
     })
   }
   const cleanup = async () => {
@@ -614,7 +558,7 @@ export async function setupPreflight(
       await ctx.session.hook("retry", async (event) => {
         const child = await protectedChild(event.sessionID)
         if (!child) return
-        if (event.error.message.startsWith("Subagent preflight:")) {
+        if (event.error.message.startsWith(FAIL_PREFIX)) {
           event.decision = { retry: false }
           return
         }
@@ -982,7 +926,7 @@ export async function setupPreflight(
                   }
                   await ctx.session.update({
                     sessionID: child.id,
-                    metadata: { ...child.metadata, [METADATA_KEY]: marker },
+                    metadata: withMarker(child.metadata, marker),
                   })
                   childID = child.id
                 }
