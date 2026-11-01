@@ -32,7 +32,7 @@
     "custom": [
       {
         "id": "anthropic-credit-team",
-        "label": "Anthropic Team Credit",
+        "label": "Claude Team Credit",
         "mode": "remote-api",
         "format": "quota-v1",
         "apiKeyEnv": "ANTHROPIC_CREDIT_TEAM_ACCOUNT_KEY",
@@ -40,7 +40,7 @@
       },
       {
         "id": "anthropic-credit-main",
-        "label": "Anthropic Main Credit",
+        "label": "Claude Main Credit",
         "mode": "remote-api",
         "format": "quota-v1",
         "apiKeyEnv": "ANTHROPIC_CREDIT_MAIN_ACCOUNT_KEY",
@@ -48,7 +48,7 @@
       },
       {
         "id": "anthropic-credit-sub",
-        "label": "Anthropic Sub Credit",
+        "label": "Claude Sub Credit",
         "mode": "remote-api",
         "format": "quota-v1",
         "apiKeyEnv": "ANTHROPIC_CREDIT_SUB_ACCOUNT_KEY",
@@ -84,6 +84,7 @@
   "toast": { "show": false },
   // Share Quota's cached public JSON with the local launch selector and the
   // Hermes funding board. No extra provider fetch: Quota's background service
-  // rewrites it whenever its quota changes.
-  "system": { "exportFile": true },
+  // rewrites it whenever its quota changes. oldCommands off: no 4.x/5.x token
+  // commands beside /quota_usage in the command list.
+  "system": { "exportFile": true, "oldCommands": false },
 }
