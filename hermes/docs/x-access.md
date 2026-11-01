@@ -24,6 +24,7 @@ sends DMs. Read it when changing the plugin or its caps. Common rules:
 | The post and X Article draft exceptions in the browser                                                 | the `x-access:draft-post` and `x-access:draft-article` plugin skills (`plugins/social/x-access/skills/draft-*/`); registered for the Assistant only | Assistant                     |
 | When the Assistant uses it in Chat                                                                     | the Assistant's private Chat reference `x.md`                                                                                                       | Assistant                     |
 | How Marketer reads ranking, results and conversations                                                  | `profiles/marketer/skills/pipeline/references/x-ranking.md`                                                                                         | Marketer                      |
+| Ranking watch: wake gate comparing published ranking defaults to the baseline                          | `plugins/social/x-access/ranking_watch.py`, `profiles/assistant/scripts/x-ranking-watch.sh`                                                         | Assistant                     |
 
 [twscrape](https://github.com/vladkens/twscrape) calls the GraphQL endpoints
 the x.com web app uses, signed in with a browser session's `auth_token` and
@@ -101,6 +102,22 @@ nonzero on a real failure, so Hermes alerts on Telegram.
 (`at` = 6, 24 or 48 hours) and flags groups under five posts as inconclusive.
 The result restates that these are public counts, not the ranking score, and
 that differences are hypotheses.
+
+## Ranking watch
+
+A weekly Assistant job (kept in the private overlay, because its delivery names
+a chat) runs `profiles/assistant/scripts/x-ranking-watch.sh`, which runs
+`plugins/social/x-access/ranking_watch.py check` against `ranking_baseline.json`.
+It compares watched parameters (weights, cold-start, `Enable*` switches),
+`MAX_POST_AGE`, Notable Updates headings, and filter and source files; the daily
+sync commit alone is not a change. When values match, the script prints
+`{"wakeAgent": false}` and no model runs. When values differ, the report wakes
+the Assistant, which starts an OpenCode plan on this repository and opens a
+Telegram topic with its proposal, building nothing. A read failure exits 1 and
+reaches the Inbox as a failure notice. The baseline is refreshed
+(`ranking_watch.py refresh`) in the same change that updates `x-ranking.md`, and
+`tests/test_ranking_watch.py` holds the two together, so until that change lands
+every weekly run reports the same drift.
 
 ## Media
 
