@@ -1,24 +1,7 @@
-import { createHash } from "node:crypto"
-import { gunzipSync, zstdDecompressSync } from "node:zlib"
-import {
-  identify,
-  subscription,
-  type AccountsContext,
-  type Subscription,
-} from "./accounts"
-import {
-  AccountRouter,
-  loginSubscription,
-  type ClaudeAccountsContext,
-} from "./claude-accounts"
-import {
-  dependencies,
-  exportPath,
-  loadQuotaExport,
-  readQuota,
-  type Dependencies,
-} from "./quota"
+import { identify, subscription, type Subscription } from "./accounts"
+import { AccountRouter, loginSubscription } from "./claude-accounts"
 import { FAIL_PREFIX, fail } from "./errors"
+import { createGuards } from "./guards"
 import {
   aliasOf,
   METADATA_KEY,
@@ -27,6 +10,13 @@ import {
   withMarker,
   type Marker,
 } from "./marker"
+import {
+  dependencies,
+  exportPath,
+  loadQuotaExport,
+  readQuota,
+  type Dependencies,
+} from "./quota"
 import {
   classify,
   DEFAULT_COOLDOWN_MS,
@@ -45,133 +35,23 @@ import {
   catalogOk,
   decideLaunch,
   freshState,
-  inputCapacity,
   modelsEqual,
   routeForLaunch,
   ROUTES,
-  type CatalogModel,
   type ModelRef,
 } from "./policy"
-
-// V2 structural API (see SUPPORTED_VERSIONS), like plugins/custom-tools.ts:
-// no SDK dependency.
-type Registration = { dispose(): Promise<void> }
-type Session = {
-  id: string
-  parentID?: string
-  agent?: string
-  model?: ModelRef
-  metadata?: Record<string, unknown>
-  location: { directory: string }
-}
-type Kind = "primary" | "title" | "compaction" | "generate"
-type Scope = { sessionID: string; model: ModelRef; kind: Kind }
-type ContextEvent = {
-  sessionID: string
-  model: ModelRef
-  system: unknown[]
-  messages: unknown[]
-  tools?: unknown
-  options: unknown
-}
-type Hooks = {
-  context: ContextEvent
-  compaction: ContextEvent
-  generate: ContextEvent
-  "http.request": Scope & { request: Request }
-  "experimental.ws.handshake": Scope & {
-    url: string
-    headers: Record<string, string>
-  }
-  "experimental.ws.send": Scope & { frame: string }
-  retry: {
-    sessionID: string
-    agent?: string
-    model: ModelRef
-    attempt?: number
-    error: {
-      type: string
-      status?: number
-      message: string
-      response?: { body?: string }
-    }
-    decision: { retry: false } | { retry: true; delay: number }
-  }
-}
-type ToolContext = {
-  sessionID: string
-  id: string
-  signal: AbortSignal
-  progress(update: Record<string, unknown>): Promise<void>
-}
-type Result = {
-  output?: unknown
-  content?: string | readonly unknown[]
-  metadata?: Record<string, unknown>
-}
-type Executor = (
-  input: Record<string, unknown>,
-  context: ToolContext,
-) => Promise<Result>
-// The Claude login router reads less of a session than this plugin does;
-// its narrower `session.get` would win the intersection.
-type LoginContext = AccountsContext & Omit<ClaudeAccountsContext, "session">
-export type RuntimeContext = LoginContext & {
-  app: { version: string }
-  options: Record<string, unknown>
-  agent: {
-    get(input: {
-      agentID: string
-      location: { directory: string }
-    }): Promise<{ data: { model?: ModelRef } }>
-  }
-  model: {
-    list(input: {
-      location: { directory: string }
-    }): Promise<{ data: CatalogModel[] }>
-  }
-  session: {
-    get(input: { sessionID: string }): Promise<Session>
-    update(input: {
-      sessionID: string
-      metadata: Record<string, unknown>
-    }): Promise<unknown>
-    switchModel(input: { sessionID: string; model: ModelRef }): Promise<void>
-    hook<N extends keyof Hooks>(
-      name: N,
-      callback: (event: Hooks[N]) => Promise<void>,
-    ): Promise<Registration>
-  }
-  tool: {
-    transform(
-      callback: (editor: {
-        get(id: string): unknown
-        update(
-          id: string,
-          callback: (tool: { execute: Executor }) => void,
-        ): void
-      }) => void,
-    ): Promise<Registration>
-  }
-}
+import {
+  supported,
+  type Registration,
+  type Result,
+  type RuntimeContext,
+} from "./runtime"
 
 export { METADATA_KEY }
-// Releases whose hook and subagent-tool contracts were checked against the
-// upstream source. Add a release only after re-checking them.
-export const SUPPORTED_VERSIONS: readonly string[] = ["2.1.2"]
-const supported = (version: string) => SUPPORTED_VERSIONS.includes(version)
-// Conservative text-only ceiling. This is not a cross-provider tokenizer.
-export const MAX_CONTEXT_BYTES = 160_000
-const record = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null && !Array.isArray(value)
-const signature = (auth: Subscription) =>
-  createHash("sha256")
-    .update(
-      JSON.stringify([auth.proof.connectionID, auth.access, auth.accountID]),
-    )
-    .digest("hex")
-const exchangeKey = (e: Scope) =>
-  `${e.sessionID}/${e.kind}/${selector(e.model)}`
+export { MAX_CONTEXT_BYTES } from "./guards"
+export { SUPPORTED_VERSIONS } from "./runtime"
+export type { RuntimeContext }
+
 const withNotices = (
   result: Result,
   notices: string[],
@@ -188,95 +68,6 @@ const withNotices = (
   }
 }
 
-function textOnly(messages: unknown[]): boolean {
-  return messages.every(
-    (message) =>
-      record(message) &&
-      Array.isArray(message.content) &&
-      message.content.every(
-        (part) =>
-          record(part) && part.type === "text" && typeof part.text === "string",
-      ),
-  )
-}
-
-class WireTooLarge extends Error {}
-
-// The size of the JSON a request carries. Since 2.0.28 provider requests can
-// be zstd or gzip compressed (settings.encoding; zstd by default for ChatGPT
-// sign-in), so the body is decoded first, never past the text ceiling. Any
-// other encoding cannot be measured and stops the launch.
-async function wireBytes(request: Request): Promise<number> {
-  const body = new Uint8Array(await request.clone().arrayBuffer())
-  const encoding = (request.headers.get("content-encoding") ?? "")
-    .trim()
-    .toLowerCase()
-  if (encoding === "" || encoding === "identity") return body.byteLength
-  const options = { maxOutputLength: MAX_CONTEXT_BYTES + 1 }
-  try {
-    if (encoding === "zstd") return zstdDecompressSync(body, options).byteLength
-    if (encoding === "gzip") return gunzipSync(body, options).byteLength
-  } catch (error) {
-    if ((error as { code?: string }).code === "ERR_BUFFER_TOO_LARGE")
-      throw new WireTooLarge()
-    throw error
-  }
-  throw new Error(`unsupported content-encoding ${encoding}`)
-}
-
-function transportURL(
-  url: string,
-  providerID: string,
-  kind: Kind,
-  websocket: boolean,
-): void {
-  let target: URL
-  try {
-    target = new URL(url)
-  } catch {
-    return fail("invalid transport URL")
-  }
-  if (target.username || target.password || target.port || target.hash)
-    fail("unapproved transport URL")
-  if (providerID === "openai") {
-    const paths =
-      kind === "compaction"
-        ? [
-            "/backend-api/codex/responses",
-            "/backend-api/codex/responses/compact",
-          ]
-        : ["/backend-api/codex/responses"]
-    if (
-      target.hostname !== "chatgpt.com" ||
-      target.protocol !== (websocket ? "wss:" : "https:") ||
-      target.search ||
-      !paths.includes(target.pathname)
-    )
-      fail("not a ChatGPT subscription route")
-  } else if (providerID === "xai") {
-    // The built-in xAI provider defaults to the Responses WebSocket channel
-    // and falls back to HTTP on the same path.
-    if (
-      target.hostname !== "api.x.ai" ||
-      target.protocol !== (websocket ? "wss:" : "https:") ||
-      target.search ||
-      target.pathname !== "/v1/responses"
-    )
-      fail("not an approved xAI subscription route")
-  } else if (providerID === "anthropic") {
-    if (
-      websocket ||
-      target.hostname !== "api.anthropic.com" ||
-      target.protocol !== "https:" ||
-      !["/v1/messages", "/v1/messages/count_tokens"].includes(
-        target.pathname,
-      ) ||
-      (target.search !== "" && target.search !== "?beta=true")
-    )
-      fail("not an approved Anthropic OAuth route")
-  } else fail("no approved transport for this provider")
-}
-
 export async function setupPreflight(
   ctx: RuntimeContext,
   deps: Dependencies = dependencies,
@@ -286,7 +77,6 @@ export async function setupPreflight(
     typeof ctx.options.quotaExportPath === "string"
       ? ctx.options.quotaExportPath
       : exportPath()
-  const handshakes = new Map<string, string>()
   const enabled = ctx.options.enabled === true
   // Console credit lanes (see lanes.ts). An empty list turns the whole
   // feature off, in-flight moves included.
@@ -349,146 +139,11 @@ export async function setupPreflight(
     const marker = parseMarker(session)
     return marker ? { session, marker } : undefined
   }
-  const authorize = async (event: Scope) => {
-    const child = await protectedChild(event.sessionID)
-    if (!child) return undefined
-    if (!supported(ctx.app.version))
-      fail("unsupported OpenCode version; protected child stopped")
-    const { session, marker } = child
-    if (!session.model || !modelsEqual(session.model, marker.model))
-      fail("child model changed after launch")
-    if (event.kind === "primary" && !modelsEqual(event.model, marker.model))
-      fail("unexpected primary model")
-    if (
-      event.kind === "primary" &&
-      marker.fallback &&
-      marker.launchChecked !== true
-    )
-      fail("alternate launch context was not checked")
-    // A child on a saved login runs its route model's alias, and its Claude
-    // side requests leave on that login too (claude-accounts.ts).
-    const bound =
-      marker.login !== undefined && event.model.providerID === OAUTH_PROVIDER
-    const approvedModel = Object.values(ROUTES).some((r) =>
-      [r.primary, r.alternate].some((m) =>
-        [m, ...(bound ? [aliasOf(m, marker.login)] : [])].some(
-          (allowed) =>
-            allowed.id === event.model.id &&
-            allowed.providerID === event.model.providerID,
-        ),
-      ),
-    )
-    if (!approvedModel) fail("unapproved auxiliary model")
-    let auth: Subscription | undefined
-    try {
-      auth = bound
-        ? await loginOf(marker.login!)
-        : await subscription(ctx, event.model.providerID)
-    } catch {
-      return fail("subscription credentials unavailable")
-    }
-    if (
-      !auth ||
-      (event.model.providerID === marker.model.providerID &&
-        auth.proof.connectionID !== marker.connectionID)
-    )
-      fail("subscription account changed or unavailable")
-    // Launch preferences are not an in-flight billing gate. Keep identity and
-    // transport protection, without fetching/rechecking usage or credit balances.
-    return auth
-  }
-  const guardContext = async (event: ContextEvent) => {
-    const child = await protectedChild(event.sessionID)
-    if (!child?.marker.fallback || child.marker.launchChecked === true) return
-    // Check only the first request's full text context. Later native compaction
-    // is not a mechanism for making an oversized launch fit the alternate.
-    if (!textOnly(event.messages))
-      fail("alternate launch requires text-only context")
-    let bytes: number
-    try {
-      bytes = Buffer.byteLength(
-        JSON.stringify(
-          {
-            system: event.system,
-            messages: event.messages,
-            tools: event.tools,
-            options: event.options,
-          },
-          (_key, value) => {
-            if (["function", "symbol", "bigint"].includes(typeof value))
-              fail("alternate context contains unmeasurable values")
-            return value
-          },
-        ),
-      )
-    } catch {
-      return fail("alternate context cannot be measured")
-    }
-    if (bytes > MAX_CONTEXT_BYTES)
-      fail("alternate launch context exceeds the conservative text limit")
-    // Require catalog headroom as well as the byte ceiling. No history
-    // conversion or compaction is used to make this first request fit.
-    const catalog = (await ctx.model.list({ location: child.session.location }))
-      .data
-    const model = catalog.find(
-      (m) =>
-        m.id === child.marker.model.id &&
-        m.providerID === child.marker.model.providerID,
-    )
-    if (!model || bytes + 32_768 > inputCapacity(model.limit))
-      fail("alternate catalog lacks conservative context headroom")
-    await ctx.session.update({
-      sessionID: child.session.id,
-      metadata: withMarker(child.session.metadata, {
-        ...child.marker,
-        launchChecked: true,
-      }),
-    })
-  }
-  const guardWireSize = async (event: Scope, read: () => Promise<number>) => {
-    const child = await protectedChild(event.sessionID)
-    if (
-      !child?.marker.fallback ||
-      child.marker.wireChecked === true ||
-      event.kind !== "primary"
-    )
-      return
-    let bytes: number
-    try {
-      bytes = await read()
-    } catch (error) {
-      if (error instanceof WireTooLarge)
-        return fail("alternate wire context exceeds conservative headroom")
-      return fail("alternate wire context cannot be measured")
-    }
-    const catalog = (await ctx.model.list({ location: child.session.location }))
-      .data
-    const model = catalog.find(
-      (m) =>
-        m.id === child.marker.model.id &&
-        m.providerID === child.marker.model.providerID,
-    )
-    const capacity = model ? inputCapacity(model.limit) : NaN
-    if (
-      !Number.isFinite(capacity) ||
-      bytes > MAX_CONTEXT_BYTES ||
-      bytes + 32_768 > capacity
-    )
-      fail("alternate wire context exceeds conservative headroom")
-    // Later trusted context hooks can add global instructions. Measure the
-    // actual serialized HTTP body / WS frame before its first transmission too.
-    await ctx.session.update({
-      sessionID: child.session.id,
-      metadata: withMarker(child.session.metadata, {
-        ...child.marker,
-        wireChecked: true,
-      }),
-    })
-  }
+  const guards = createGuards(ctx, { protectedChild, loginOf })
   const cleanup = async () => {
     for (const registration of registrations.reverse())
       await registration.dispose()
-    handshakes.clear()
+    guards.clear()
   }
   try {
     // Before the transport guard, so the guard sees the token a request
@@ -499,60 +154,15 @@ export async function setupPreflight(
           await claudeAccounts.route(ctx, event, supported(ctx.app.version))
         }),
       )
-    registrations.push(await ctx.session.hook("context", guardContext))
+    registrations.push(await ctx.session.hook("context", guards.context))
     registrations.push(
-      await ctx.session.hook("http.request", async (event) => {
-        const auth = await authorize(event)
-        if (!auth) return
-        transportURL(
-          event.request.url,
-          event.model.providerID,
-          event.kind,
-          false,
-        )
-        if (event.request.method !== "POST") fail("unapproved HTTP method")
-        // Native OpenAI Requests default to follow; prohibit redirecting a
-        // validated OAuth request to an unvalidated endpoint.
-        if (event.request.redirect !== "error")
-          event.request = new Request(event.request, { redirect: "error" })
-        const headers = event.request.headers
-        if (
-          headers.get("authorization") !== `Bearer ${auth.access}` ||
-          headers.has("x-api-key")
-        )
-          fail("wire authentication is not the approved OAuth credential")
-        if (
-          event.model.providerID === "openai" &&
-          headers.get("chatgpt-account-id") !== auth.accountID
-        )
-          fail("wire subscription account mismatch")
-        await guardWireSize(event, () => wireBytes(event.request))
-      }),
+      await ctx.session.hook("http.request", guards.httpRequest),
     )
     registrations.push(
-      await ctx.session.hook("experimental.ws.handshake", async (event) => {
-        const auth = await authorize(event)
-        if (!auth) return
-        transportURL(event.url, event.model.providerID, event.kind, true)
-        const headers = new Headers(event.headers)
-        if (
-          headers.get("authorization") !== `Bearer ${auth.access}` ||
-          headers.has("x-api-key") ||
-          (event.model.providerID === "openai" &&
-            headers.get("chatgpt-account-id") !== auth.accountID)
-        )
-          fail("WebSocket subscription identity mismatch")
-        handshakes.set(exchangeKey(event), signature(auth))
-      }),
+      await ctx.session.hook("experimental.ws.handshake", guards.wsHandshake),
     )
     registrations.push(
-      await ctx.session.hook("experimental.ws.send", async (event) => {
-        const auth = await authorize(event)
-        if (!auth) return
-        if (handshakes.get(exchangeKey(event)) !== signature(auth))
-          fail("WebSocket exchange lacks a current approved handshake")
-        await guardWireSize(event, async () => Buffer.byteLength(event.frame))
-      }),
+      await ctx.session.hook("experimental.ws.send", guards.wsSend),
     )
     // Do not switch a running child. Override quota's long reset wait only for
     // children admitted by this plugin; root and ordinary sessions are untouched.
