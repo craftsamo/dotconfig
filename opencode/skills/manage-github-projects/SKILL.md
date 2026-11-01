@@ -273,24 +273,24 @@ Two issue tiers — epic and purpose — plus the stack-layer PR body:
   issues, superseded predecessors.
 
 **Stack-layer PR** (one reviewable slice of a purpose — a PR body, not an
-issue; this is where the retired work sub-issue's content now lives):
+issue; this is where the retired work sub-issue's content now lives). Its
+sections are `git-pullrequest` `<BodyStructure>`, fitted to the repo's own
+template; the layer puts in them:
 
-- `## Purpose` — one line, plus a back-reference to the purpose: `Refs
-  #<purpose>` on an intermediate layer, `Closes #<purpose>` on the layer that
-  completes it (the closing keyword references it too — never write both).
-  Keywords fire from any layer of a default-branch-rooted stack, so writing
-  `Closes` earlier would end the purpose mid-flight.
-- `## Scope` — what is included (bullets).
-- `## Out of scope` — explicit exclusions (optional).
-- `## Acceptance` — done checks, including verification commands.
+- A back-reference to the purpose: `Refs #<purpose>` on an intermediate
+  layer, `Closes #<purpose>` on the layer that completes it (the closing
+  keyword references it too — never write both). Keywords fire from any
+  layer of a default-branch-rooted stack, so writing `Closes` earlier would
+  end the purpose mid-flight.
+- The slice's goal in the summary, what is included in the changes, and
+  explicit exclusions in `## Out of scope` when there are any.
+- The done checks, including verification commands, in the verification
+  task list.
 - No `## Dependencies` — the layer below is the dependency, and the stack
   already encodes it.
 - No `## Research` here — implementation-detail findings stay in the PR
   discussion; out-of-scope discoveries escalate to the purpose's
   `## Open decisions` (or an epic comment), never absorbed silently.
-
-`git-pullrequest` owns how this body is rendered against the repo's own PR
-convention and template.
 
 On a shared repo that already provides Issue Forms, prefer that form for real
 issues rather than this guidance.

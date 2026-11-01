@@ -94,22 +94,24 @@ For each approved group:
 3. Regenerate the lockfile.
 4. Verify that every resolved path is patched, then run build + test. See the
    Verify section.
-5. Commit only this group's manifest + lockfile:
-
-   ```bash
-   git add <manifest> <lockfile>
-   git commit -m "fix(deps): bump <pkg> to <ver> (GHSA-xxxx / CVE-xxxx)" \
-     -m "Dependabot alert: <ALERT_URL_1>" \
-     -m "Dependabot alert: <ALERT_URL_2>"
-   ```
-
-   Add one commit-body entry per alert in the group and omit unused entries.
-   Use the canonical alert URLs collected during triage.
+5. Commit only this group's manifest + lockfile (`git add <manifest>
+   <lockfile>`). When the session has a commit skill, commit through it.
+   Either way the message follows the repository's commit convention:
+   - Subject: the bump, short, in the repository's style (under
+     Conventional Commits, `fix(deps): bump <pkg> to <ver>`). Advisory ids
+     do not go in the subject.
+   - Body: why the bump is needed: the GHSA/CVE ids it resolves and the
+     patched version, then one plain `Dependabot alert: <ALERT_URL>` line
+     per alert in the group, using the canonical URLs collected during
+     triage. Plain text: GitHub does not render Markdown in commit messages.
 
 Repeat until all approved groups are done. Keep groups in separate commits so
 review and revert stay clean. Never bundle unrelated bumps.
 
 ### 4. Push
+
+When the session has a pull-request skill, it pushes; skip to step 5.
+Otherwise:
 
 ```bash
 git push -u origin fix/dependabot-alerts
@@ -117,24 +119,39 @@ git push -u origin fix/dependabot-alerts
 
 ### 5. PR and dismissals
 
-```bash
-PR_URL=$(gh pr create --title "Fix Dependabot alerts" --body-file - <<'EOF'
-## Alerts
+When the session has a pull-request skill, open the PR through it.
+Otherwise write the body to a file and run
+`gh pr create --title "<title>" --body-file <file>`. Either way:
 
-- [Dependabot alert N](ALERT_URL): `<pkg>` `<old>` -> `<new>`; <severity>; <GHSA/CVE>
+- Title: in the style of the repository's merged PR titles, e.g. "Fix
+  Dependabot alerts for <pkg>", never a fixed string.
+- Body, following the repository's PR template when it has one:
 
-## Deferred
+  ```markdown
+  ## Summary
 
-- [Dependabot alert N](ALERT_URL): <reason>
-EOF
-)
-```
+  <Why: the alerts and their severity, in 2–4 sentences.>
 
-Add one linked entry for every fixed alert and every deferred alert, omitting
-the Deferred section when empty. Replace `ALERT_URL` with the canonical
-`.html_url` value; do not represent an alert as a hash-prefixed number. Keep
-`PR_URL` and report that full URL to the user after creation. If an existing
-Dependabot PR was used instead, report its full `url` from the triage step.
+  ## Changes
+
+  - **Fixed**: [Dependabot alert N](ALERT_URL): `<pkg>` `<old>` -> `<new>`; <severity>; <GHSA/CVE>
+
+  ## Verification
+
+  - [x] Every resolved path of `<pkg>` is at or above the patched version.
+  - [x] <build and test commands>: pass.
+
+  ## Out of scope
+
+  - **Deferred**: [Dependabot alert N](ALERT_URL): <reason>
+  ```
+
+Add one linked entry for every fixed alert and every deferred alert, and
+omit the Out of scope section when nothing is deferred. Replace `ALERT_URL`
+with the canonical `.html_url` value; do not represent an alert as a
+hash-prefixed number. Report the PR's full URL to the user after creation.
+If an existing Dependabot PR was used instead, report its full `url` from
+the triage step.
 
 Dismissals are never automatic. Only after explicit per-alert user approval:
 
