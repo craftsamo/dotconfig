@@ -32,7 +32,7 @@
     "custom": [
       {
         "id": "anthropic-credit-team",
-        "label": "Anthropic Team Credit",
+        "label": "Claude Team Credit",
         "mode": "remote-api",
         "format": "quota-v1",
         "apiKeyEnv": "ANTHROPIC_CREDIT_TEAM_ACCOUNT_KEY",
@@ -40,7 +40,7 @@
       },
       {
         "id": "anthropic-credit-main",
-        "label": "Anthropic Main Credit",
+        "label": "Claude Main Credit",
         "mode": "remote-api",
         "format": "quota-v1",
         "apiKeyEnv": "ANTHROPIC_CREDIT_MAIN_ACCOUNT_KEY",
@@ -48,7 +48,7 @@
       },
       {
         "id": "anthropic-credit-sub",
-        "label": "Anthropic Sub Credit",
+        "label": "Claude Sub Credit",
         "mode": "remote-api",
         "format": "quota-v1",
         "apiKeyEnv": "ANTHROPIC_CREDIT_SUB_ACCOUNT_KEY",
