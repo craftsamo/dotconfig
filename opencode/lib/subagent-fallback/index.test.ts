@@ -8,6 +8,7 @@ import {
   type RuntimeContext,
 } from "./index"
 import { OAUTH_PROVIDER } from "./lanes"
+import { recordNative } from "./native-retry"
 import { ROUTES, type CatalogModel, type ModelRef } from "./policy"
 
 const NOW = 1_710_000_000_000
@@ -422,6 +423,25 @@ async function fixture() {
 type Inst = Awaited<ReturnType<typeof fixture>>["inst"]
 const marker = (env: Awaited<ReturnType<typeof fixture>>["env"]) =>
   env.sessions.get("ses_child")?.metadata?.[METADATA_KEY] as any
+// What OpenCode Quota's retry hook does when an unrelated row of the
+// provider is used up: OpenCode's own decision is recorded first (the
+// recorder plugin), then Quota stretches the wait to that row's reset.
+const SHORT = { retry: true, delay: 2_000 } as const
+const HOURS = { retry: true, delay: 5 * 3_600_000 } as const
+const stretched = (
+  inst: Inst,
+  sessionID: string,
+  model: ModelRef,
+  error: Record<string, unknown>,
+  native: any = SHORT,
+  stretchedTo: any = HOURS,
+  attempt = 2,
+) => {
+  const event = { sessionID, model, attempt, error, decision: native }
+  recordNative(event)
+  event.decision = stretchedTo
+  return inst.fire("retry", event)
+}
 const scope = (model = SONNET, kind = "primary", sessionID = "ses_child") => ({
   model,
   kind,
@@ -1385,6 +1405,51 @@ describe("Console credit lanes", () => {
     await inst.run()
     expect(env.originals[1].model).toBe(sel(on(MAIN)))
   })
+  test("a short limit whose wait Quota stretched neither moves a session nor blocks its lane", async () => {
+    const { env, inst } = await laned()
+    specialist(env)
+    let e = await stretched(inst, "ses_lane", on(MAIN), LIMIT)
+    expect(e.decision).toEqual(SHORT)
+    e = await stretched(inst, "ses_parent", SONNET, LIMIT)
+    expect(e.decision).toEqual(SHORT)
+    expect(env.switches).toEqual([])
+    await inst.run()
+    expect(env.originals[0].model).toBe(sel(on(MAIN)))
+  })
+  test("a long wait of OpenCode's own is still a window limit", async () => {
+    const { env, inst } = await laned()
+    const e = await stretched(inst, "ses_parent", SONNET, LIMIT, LONG)
+    expect(e.decision).toEqual({ retry: true, delay: 0 })
+    expect(env.switches.map((s) => s.model.providerID)).toEqual([MAIN])
+  })
+  test("a limit OpenCode gives up on, or keeps hitting, is judged by the wait as it stands", async () => {
+    for (const [native, attempt] of [
+      [{ retry: false }, 2],
+      [SHORT, 4],
+    ] as const) {
+      const { env, inst } = await laned()
+      const e = await stretched(
+        inst,
+        "ses_parent",
+        SONNET,
+        LIMIT,
+        native,
+        HOURS,
+        attempt,
+      )
+      expect(e.decision).toEqual({ retry: true, delay: 0 })
+      expect(env.switches.map((s) => s.model.providerID)).toEqual([MAIN])
+    }
+  })
+  test("a stretched wait is left alone where nothing would move the session", async () => {
+    const { env, inst } = await laned({ primaryFallback: false })
+    specialist(env, "ses_dbg", "debugger")
+    for (const id of ["ses_parent", "ses_dbg"]) {
+      const e = await stretched(inst, id, SONNET, LIMIT)
+      expect(e.decision).toEqual(HOURS)
+    }
+    expect(env.switches).toEqual([])
+  })
   test("a primary already on a lane tries the other lane before the subscription", async () => {
     const { env, inst } = await laned()
     await retry(inst, "ses_parent", on(MAIN), CREDIT)
@@ -1813,6 +1878,38 @@ describe("Claude accounts", () => {
       env.fetchedAt = env.now
       await inst.run()
       expect(env.originals[2].model).toBe(sel(SONNET_SUB))
+    })
+    test("a short limit with a stretched wait is retried and leaves the login usable", async () => {
+      const { env, inst } = await aliased()
+      env.quota.anthropic = 0
+      env.secondQuota = 80
+      await inst.run()
+      const limit = { type: "provider.rate-limit", status: 429, message: "x" }
+      const e = await stretched(inst, "ses_child", SONNET_SUB, limit)
+      expect(e.decision).toEqual(SHORT)
+      await inst.run()
+      expect(env.originals[1].model).toBe(sel(SONNET_SUB))
+      // OpenCode's own long wait still stops the child and steers past it.
+      const f = await stretched(inst, "ses_child", SONNET_SUB, limit, {
+        retry: true,
+        delay: 30_000,
+      })
+      expect(f.decision).toEqual({ retry: false })
+      await inst.run()
+      expect(env.originals[2].model).toBe(sel(SOL))
+    })
+    test("a limit OpenCode gives up on with a stretched wait still steers the relaunch past the login", async () => {
+      const { env, inst } = await aliased()
+      env.quota.anthropic = 0
+      env.secondQuota = 80
+      await inst.run()
+      const limit = { type: "provider.rate-limit", status: 429, message: "x" }
+      const e = await stretched(inst, "ses_child", SONNET_SUB, limit, {
+        retry: false,
+      })
+      expect(e.decision).toEqual({ retry: false })
+      await inst.run()
+      expect(env.originals[1].model).toBe(sel(SOL))
     })
   })
   describe("a protected child on the second login", () => {
