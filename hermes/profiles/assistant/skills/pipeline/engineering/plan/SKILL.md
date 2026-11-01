@@ -1,6 +1,6 @@
 ---
 name: plan-engineering
-description: "Plan engineering: brief OpenCode on the user's intent and bring its proposals back, as execution units the user approves one at a time. New products agree capabilities, screens and data (HTML mocks) before a roadmap. Grounded in OpenCode plan, design, debug and review runs; no technical decomposition of your own; each unit is an issue on GitHub before its build unless the user excludes the job."
+description: "Plan engineering: commission OpenCode with what the user wants and bring its proposals back, as execution units the user approves one at a time. New products agree capabilities, screens and data (HTML mocks) before a roadmap. Grounded in OpenCode plan, design, debug and review runs; no technical decomposition of your own; each unit is an issue on GitHub before its build unless the user excludes the job."
 version: 2.0.0
 author: CraftSamo
 license: MIT
@@ -50,15 +50,18 @@ nor a second technical planner.
 | You | Briefing OpenCode on what the user wants and why, turning its proposals and questions into plain language for the user, the job's decision log, and acceptance |
 
 So a message to OpenCode is a short brief in plain prose: what is wanted and
-why, the goal of the current stage and the path of the decision log, with the
-user's words woven into your sentences where their wording carries the intent
-(the log keeps them verbatim). Nothing else: no commands, steps, file lists,
-output limits, report templates or restated prohibitions its tools already
-enforce. Detailed instructions narrow the model without adding information.
-`opencode:brief` shows the voice. A technical question
-OpenCode asks goes back as its own call. What OpenCode proposes reaches the user in plain language and unrounded
-where it touches them: every capability, screen and stored thing, not a
-summary of them.
+why, the goal of the current stage and the path of the decision log, written
+in your own voice as the one who wants it. The user is never a third party
+in it: a settled decision reads as settled, its reason in your words, and
+the user's exact words stay in the log. A quote goes in only where the
+wording itself matters (wording that is specification, or what someone else
+said that the work is about, with its source), as `opencode:brief` says.
+Nothing else: no commands, steps, file lists, output limits, report templates
+or restated prohibitions its tools already enforce. Detailed instructions
+narrow the model without adding information. A technical question OpenCode
+asks goes back as its own call. What OpenCode proposes reaches the user in
+plain language and unrounded where it touches them: every capability, screen
+and stored thing, not a summary of them.
 
 ## The decision log
 
@@ -118,7 +121,7 @@ leave install, gateway restarts and the cutover to the person.
    Name the kind of work (bug, refactor, performance, rebuild), not the method:
    OpenCode's own approach skills carry it. A diagnosis uses
    `opencode_run_debug`; a review of someone's change uses `opencode_run_review`.
-4. **Relay.** Put OpenCode's proposal to the user: what changes for people
+4. **Bring it to the user.** Put OpenCode's proposal to the user: what changes for people
    (capabilities, screens, stored data, cost, risks to them) in full, the
    technical rest in a sentence. Ask in one round what only the user can decide,
    using OpenCode's own "decide" list in plain words, each with its

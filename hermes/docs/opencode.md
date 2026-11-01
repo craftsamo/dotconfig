@@ -16,11 +16,15 @@ current stage's goal, turns OpenCode's proposals and questions into plain
 language for the user, keeps the job's decision log (the user's exact words
 live there), obtains the user's explicit implementation approval, answers what
 the runs pause on and accepts the result. People read the briefs in OpenCode
-too, and a relay of quoted remarks and restated approvals reads as a
-subcontract and narrows the run, so a brief is written as `opencode:brief`
-says: the user's words inside its own sentences, no commands, steps or report
-templates, backticks as the only markup, repository paths relative to the
-root. It never edits target code itself, and it
+too, and a relay of quoted remarks, restated approvals and step-by-step orders
+reads as a subcontract and narrows the run, so a brief is written as
+`opencode:brief` says: in the Assistant's own voice as the client, never
+naming the user as a third party; a quote only where the wording itself
+matters (wording that is specification, or what someone else said that the
+work is about, with its source); no commands, steps or report templates;
+backticks as the only markup; repository paths relative to the root. The
+operating note introduces Hermes to the run the same way, as the client whose
+messages are its own requests. It never edits target code itself, and it
 sends every code question or change to OpenCode, however small. The Assistant's
 engineering entries (`{plan,execute,qa}-engineering`) carry those decisions;
 the plugin's own skills carry the tool mechanics: `opencode:brief` the message
