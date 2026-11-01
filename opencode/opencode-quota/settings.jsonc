@@ -1,0 +1,89 @@
+{
+  "providers": {
+    // Only Claude, ChatGPT, xAI and the custom providers below: Quota has no
+    // allowlist, so every other built-in provider is switched off. google-agy
+    // must stay off: it reads another plugin's Google login.
+    "off": [
+      "copilot",
+      "openrouter",
+      "cursor",
+      "alibaba-coding-plan",
+      "alibaba-token-plan",
+      "google-gemini-cli",
+      "google-agy",
+      "zai",
+      "zhipu",
+      "minimax-coding-plan",
+      "minimax-china-coding-plan",
+      "kimi-code-plan-global",
+      "kimi-code-plan-cn",
+      "deepseek",
+      "xiaomi",
+      "opencode-go",
+      "opencode",
+      "ollama-cloud",
+    ],
+    // Console credit lanes. Anthropic has no balance API, so plugins/credit-lanes
+    // serves an estimate on loopback (lib/credit-lanes): a checkpoint less
+    // OpenCode's and Hermes' spend since.
+    // Quota sends the lane's key as the bearer token, and the endpoint only
+    // answers a request carrying it. Not Quota's own local-estimate mode: that
+    // re-reads the whole history database on every refresh.
+    "custom": [
+      {
+        "id": "anthropic-credit-team",
+        "label": "Anthropic Team Credit",
+        "mode": "remote-api",
+        "format": "quota-v1",
+        "apiKeyEnv": "ANTHROPIC_CREDIT_TEAM_ACCOUNT_KEY",
+        "url": "http://127.0.0.1:47631/anthropic-credit-team",
+      },
+      {
+        "id": "anthropic-credit-main",
+        "label": "Anthropic Main Credit",
+        "mode": "remote-api",
+        "format": "quota-v1",
+        "apiKeyEnv": "ANTHROPIC_CREDIT_MAIN_ACCOUNT_KEY",
+        "url": "http://127.0.0.1:47631/anthropic-credit-main",
+      },
+      {
+        "id": "anthropic-credit-sub",
+        "label": "Anthropic Sub Credit",
+        "mode": "remote-api",
+        "format": "quota-v1",
+        "apiKeyEnv": "ANTHROPIC_CREDIT_SUB_ACCOUNT_KEY",
+        "url": "http://127.0.0.1:47631/anthropic-credit-sub",
+      },
+      // Google Antigravity (`opencode-antigravity-auth` on provider `google`).
+      // Quota's built-in `google-agy` reads another plugin's login, so the same
+      // loopback server queries the active Antigravity OAuth connection's
+      // `fetchAvailableModels` and groups its quota into Gemini Pro, Gemini
+      // Flash and Claude. `plugins/credit-lanes.ts` sets `ANTIGRAVITY_QUOTA_TOKEN`
+      // in-process so `providers.google` needs no `apiKey` (which would shadow
+      // the OAuth connection).
+      {
+        "id": "google-antigravity",
+        "providerId": "google",
+        "label": "Antigravity",
+        "mode": "remote-api",
+        "format": "quota-v1",
+        "apiKeyEnv": "ANTIGRAVITY_QUOTA_TOKEN",
+        "url": "http://127.0.0.1:47631/google-antigravity",
+      },
+    ],
+    // Never fall back to Claude Code: its Keychain entry is a different login
+    // and would show another account's usage. With no `claude` found, Anthropic
+    // usage comes only from OpenCode's own login.
+    "anthropic": { "binaryPath": "/nonexistent/claude-disabled" },
+    // How long Quota reuses a provider's result: the sidebar refreshes every
+    // 60 s but shows a cached result for this long. The default is 5 minutes,
+    // which made the credit lanes look frozen. It applies to every provider,
+    // so it is not set lower than 2 minutes.
+    "checking": { "minIntervalMs": 120000 },
+  },
+  "toast": { "show": false },
+  // Share Quota's cached public JSON with the local launch selector and the
+  // Hermes funding board. No extra provider fetch: Quota's background service
+  // rewrites it whenever its quota changes.
+  "system": { "exportFile": true },
+}

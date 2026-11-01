@@ -25,7 +25,7 @@ link. Installed from the `anomalyco/tap/opencode-v2` formula (see the
 | `lib/`             | code imported by plugins (not scanned by OpenCode)      |
 | `skills/`          | opencode-only skills (`<name>/SKILL.md`)                |
 | `package.json`     | plugin dependencies, installed by `install.sh --deps`   |
-| `opencode-quota/`  | quota plugin settings (`quota-toast.jsonc`)             |
+| `opencode-quota/`  | quota plugin settings (`settings.jsonc`)                |
 | `antigravity.json` | Antigravity plugin settings (updater off, one account)  |
 
 A fresh clone needs `./install.sh --deps` once: OpenCode 2 does not install
@@ -354,35 +354,42 @@ approved native OAuth accounts (Claude Max, a ChatGPT login, or the xAI device
 login). The plugin never buys credits, enables auto-purchase, or changes
 account settings or logins.
 
-**Shared information.** Reads Quota 5's public v2 JSON export once before
-each eligible launch: `$XDG_CACHE_HOME/opencode/quota-export.json`, or
-`~/.cache/opencode/quota-export.json`. Quota's existing `export.enabled` setting
-is enabled in `opencode-quota/quota-toast.jsonc`. Its home footer writes the file
-on normal refresh; the selector does not fetch usage, run the Quota CLI, start
+**Shared information.** Reads Quota's public JSON export (v2 from Quota 5,
+v3 from Quota 6) once before each eligible launch:
+`$XDG_CACHE_HOME/opencode/quota-export.json`, or
+`~/.cache/opencode/quota-export.json`. Quota's `system.exportFile` setting is
+enabled in `opencode-quota/settings.jsonc`. Quota's background service rewrites
+the file after its own checks; the selector does not fetch usage, run the Quota CLI, start
 timers, read internal caches or patch Quota. A custom export path can be matched
 with the plugin option `quotaExportPath` (absolute path).
 
-Rows are matched to the OpenCode connection being weighed using `sourceId`:
-the active one, or a saved Claude login, whose rows Quota exports under the
-same provider. Only the
+Rows are matched to the OpenCode connection being weighed: the active one, or
+a saved Claude login, whose rows Quota exports under the same provider. In v2
+a row's `sourceId` is the connection ID. v3 has none: a row's `account` is the
+login's label (with the plan after it in parentheses for ChatGPT), so a login
+matches by a label no other login of the integration carries, and the
+integration's only login owns every row. Two rows for one window are logins
+Quota cannot tell apart and match nothing; a login without a usable label
+next to others stays unknown. Only the
 5h and Weekly rows decide, and at least one must be present: some ChatGPT plans
 have no 5h window, xAI exports only its weekly pool, and an exhausted ChatGPT
 account may export just one row. If
 either window is at 0% the provider counts as exhausted, since credits may
-already be spent behind the scenes. Model-specific rows (such as Claude Fable),
-Monthly usage credits and Code Review rows are ignored. Published 0% (or less)
+already be spent behind the scenes. Model-specific rows (such as Claude Fable,
+weekly too, which v3 tells apart by row id), Monthly usage credits and Code
+Review rows are ignored. Published 0% (or less)
 counts as empty, even if rounded.
 
-**Freshness.** The export is rewritten only while the Quota footer refreshes in
-the TUI, so it can be old. An empty window with a reset time still in the
+**Freshness.** The export is rewritten only when Quota checks its providers,
+so it can be old. An empty window with a reset time still in the
 future is trusted at any age, because a window cannot recover before its reset
 (the reset time is the expiry). Anything else, including "quota remaining",
 needs the provider's `fetchedAt` to be at most six minutes old (Quota's
 five-minute cache plus export-refresh grace) with no window past its reset;
 rewriting the export does not renew its data.
 
-Before the first export, without the home footer (including headless use), or
-after its data expires, an unknown primary keeps the configured default. A different
+Before the first export, while Quota checks nothing (including headless use),
+or after its data expires, an unknown primary keeps the configured default. A different
 account's rows cannot authorize a fallback. A partial multi-login export can
 still use complete matching-account rows. This is a best-effort launch
 preference, not an exact prediction of whether a task fits its remaining quota.
@@ -595,12 +602,14 @@ Three ways to read it:
 - `/credits`, or `bun opencode/lib/credit-lanes/status.ts` in a terminal.
 - OpenCode Quota. `plugins/credit-lanes.ts` serves each lane as a `quota-v1`
   envelope on `127.0.0.1:47631/<provider id>` (`CREDIT_LANES_PORT` changes the
-  port; a cached `opencode stats` run, 30 s), and `quotaProviders` in
-  `opencode-quota/quota-toast.jsonc` points a remote-api provider at each. Quota
+  port; a cached `opencode stats` run, 30 s), and `providers.custom` in
+  `opencode-quota/settings.jsonc` points a remote-api provider at each. Quota
   sends the lane's own key as the bearer token and the endpoint answers only
   that, so no new secret exists. The percentage (of the grants that still hold
   something), the countdown to the nearest of them expiring and the pace show
-  in `/quota`. Quota reuses a provider's result for `minIntervalMs`
+  in `/quota`; the dollar amounts the endpoint sends beside the percentage
+  (`right`) are checked but not shown. Quota reuses a provider's result for
+  `providers.checking.minIntervalMs`
   (5 minutes by default, 2 here) even though the sidebar refreshes every minute,
   so use shows up after that wait and the 30 s cache behind the endpoint.
 
@@ -656,8 +665,8 @@ new login the label the option names, from the TUI's account list or with
 `opencode api patch /api/credential/<credential id> --data
 '{"label":"Main OAuth"}'` (`opencode auth list --format json` shows the ID).
 The labels are opaque; which account each one is lives in the private overlay.
-Quota shows every saved login, as `[Claude Sub OAuth] (active)` and
-`[Claude Main OAuth]`; it has no setting to rename the `Claude` prefix.
+Quota lists every saved login under its label (`Sub OAuth`, `Main OAuth`),
+without marking the active one; `sidebar.names` in its settings renames rows.
 
 Limits:
 
@@ -761,7 +770,7 @@ A move to a credit lane (see above) therefore pays one full write.
   also serves `/google-antigravity` on the same `127.0.0.1:47631` loopback
   endpoint: it resolves the `google` Antigravity OAuth connection, queries
   `fetchAvailableModels`, and reports the `Gemini Pro`, `Gemini Flash` and
-  `Claude` pools to `quotaProviders` in `opencode-quota/quota-toast.jsonc`
+  `Claude` pools to `providers.custom` in `opencode-quota/settings.jsonc`
   (`ANTIGRAVITY_QUOTA_TOKEN` is set in-process by `plugins/credit-lanes.ts`;
   never set `providers.google.settings.apiKey`, which would switch the
   `google` integration off OAuth). When Google answers 403

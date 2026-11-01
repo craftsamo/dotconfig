@@ -21,6 +21,11 @@ export type AccountProof = {
   providerID: string
   methodID: string
   type: "oauth"
+  // How Quota 6 names this login's rows, its export having no connection ID:
+  // the login's label when no other login of the integration carries it, and
+  // whether it is the integration's only subscription login.
+  label?: string
+  sole?: boolean
 }
 
 export type CatalogModel = {

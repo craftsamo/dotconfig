@@ -337,6 +337,9 @@ describe("Quota public JSON", () => {
         await loadQuotaExport({ ...deps, readExport }, "/fixture/export.json"),
       ).toBeUndefined()
   })
+  test("an export version this reader does not know is unknown", () => {
+    expect(state({ ...snapshot(), version: 4 })).toBe("unknown")
+  })
   test("real file reader uses only an isolated synthetic export", async () => {
     const dir = await mkdtemp(join(tmpdir(), "quota-fixture-"))
     try {
@@ -347,5 +350,138 @@ describe("Quota public JSON", () => {
     } finally {
       await rm(dir, { recursive: true })
     }
+  })
+})
+
+// Quota 6's export (v3): rows carry a stable id and the login's account text
+// instead of a connection ID. Shapes follow its quota-export.ts.
+describe("Quota 6 public JSON", () => {
+  const work: AccountProof = { ...account, label: "Work" }
+  const v3row = (
+    id: string,
+    window: string | undefined,
+    percentRemaining = 90,
+    // null: a login without account text.
+    login: string | null = "Work",
+  ) => ({
+    id,
+    name: `Claude${login ? ` (${login})` : ""} ${window ?? id}`,
+    ...(login === null ? {} : { account: login }),
+    resultType: "quota",
+    acquisitionMethod: "remote_api",
+    ownership: "maintained",
+    authority: "provider_reported",
+    ...(window === undefined ? {} : { window }),
+    resetAt: (NOW + 3_600_000) / 1000,
+    renderType: "percent",
+    percentRemaining,
+  })
+  const claude = (login: string | null, fiveHour = 90, weekly = 90) => [
+    v3row("anthropic.five_hour", "5h", fiveHour, login),
+    v3row("anthropic.weekly", "Weekly", weekly, login),
+  ]
+  const v3 = (providers: Record<string, unknown>) => ({
+    version: 3,
+    exportedAt: NOW / 1000,
+    fromCache: true,
+    cacheAgeSeconds: 0,
+    providers,
+  })
+  const read = (entries: unknown[], a: AccountProof = work, id = "anthropic") =>
+    readQuota(v3({ [id]: provider(entries as any) }), a, NOW).state
+
+  test("a labelled login reads only the rows of its own account", () => {
+    const entries = [...claude("Work", 0), ...claude("Home")]
+    expect(read(entries)).toBe("exhausted")
+    expect(read(entries, { ...account, label: "Home" })).toBe("available")
+    expect(read(claude("Work", 90, 0))).toBe("exhausted")
+  })
+  test("model-specific, extra-usage and code-review rows never decide", () => {
+    const extra = [
+      v3row("anthropic.weekly_fable", "Weekly", 0),
+      v3row("anthropic.extra_usage", "Monthly", 0),
+      v3row("openai.code_review", "Code Review", 0),
+    ]
+    expect(read([...claude("Work"), ...extra])).toBe("available")
+    expect(read(extra)).toBe("unknown")
+  })
+  test("a login whose rows are missing proves nothing from another login's", () => {
+    expect(read(claude("Home", 0))).toBe("unknown")
+    expect(read(claude(null, 0))).toBe("unknown")
+  })
+  test("without a label only the integration's sole login owns the rows", () => {
+    expect(read(claude(null, 0), account)).toBe("unknown")
+    expect(read(claude(null, 0), { ...account, sole: true })).toBe("exhausted")
+    expect(read(claude("Work", 0), { ...account, sole: true })).toBe(
+      "exhausted",
+    )
+  })
+  test("two rows for one window are logins Quota cannot tell apart", () => {
+    const sole = { ...account, sole: true }
+    expect(read([...claude(null), ...claude(null, 0)], sole)).toBe("unknown")
+    // A label that is the prefix of another login's account text.
+    expect(read([...claude("Work"), ...claude("Work (old)", 0)])).toBe(
+      "unknown",
+    )
+  })
+  test("ChatGPT rows carry the plan after the label", () => {
+    const a = {
+      ...account,
+      providerID: "openai",
+      connectionID: "fixture-chatgpt",
+      methodID: "chatgpt-browser",
+    }
+    const rows = (login: string, fiveHour: number) => [
+      v3row("openai.five_hour", "5h", fiveHour, login),
+      v3row("openai.weekly", "Weekly", 90, login),
+    ]
+    expect(
+      read(rows("Work (Plus)", 0), { ...a, label: "Work" }, "openai"),
+    ).toBe("exhausted")
+    expect(
+      read(rows("Workshop (Plus)", 0), { ...a, label: "Work" }, "openai"),
+    ).toBe("unknown")
+    expect(read(rows("Plus", 0), { ...a, sole: true }, "openai")).toBe(
+      "exhausted",
+    )
+  })
+  test("xAI's weekly credits row decides its pool; a monthly one does not", () => {
+    const a = {
+      ...account,
+      providerID: "xai",
+      connectionID: "fixture-grok",
+      methodID: "device",
+      sole: true,
+    }
+    const credits = (window: string, percent: number) => [
+      v3row("xai.credits", window, percent, "SuperGrok"),
+    ]
+    expect(read(credits("Weekly", 79), a, "xai")).toBe("available")
+    expect(read(credits("Weekly", 0), a, "xai")).toBe("exhausted")
+    expect(read(credits("Monthly", 0), a, "xai")).toBe("unknown")
+  })
+  test("Quota 5 rows bound by connection ID do not count in a v3 export", () => {
+    expect(
+      read([row("5h", 0), row("Weekly")], { ...account, sole: true }),
+    ).toBe("unknown")
+  })
+  test("v3 keeps the freshness rules: an empty window holds until its reset", () => {
+    const stale = (percent: number) =>
+      readQuota(
+        v3({
+          anthropic: {
+            ...provider(claude("Work", percent) as any),
+            fetchedAt: (NOW - 10 * QUOTA_MAX_AGE_MS) / 1000,
+          },
+        }),
+        work,
+        NOW,
+      )
+    expect(stale(0)).toEqual({
+      state: "exhausted",
+      observedAt: NOW - 10 * QUOTA_MAX_AGE_MS,
+      resetAt: NOW + 3_600_000,
+    })
+    expect(stale(50).state).toBe("unknown")
   })
 })
