@@ -139,4 +139,6 @@ listing before deleting: `git fetch --prune origin`, then `git branch -r`
 and delete the rest with `git branch -D` (squash history leaves
 `--merged` empty; the remote holding only main is the evidence nothing is
 lost). Finish by showing the branches and worktrees left. Worktrees an
-OpenCode workspace made are removed through that workspace, not by hand.
+OpenCode `workspace` made are not part of that pass: `opencode_session
+cleanup` removes each one with its sessions and landed branches right after
+its merge (`opencode:drive`), so never remove one by hand.

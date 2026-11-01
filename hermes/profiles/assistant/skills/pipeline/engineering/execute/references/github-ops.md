@@ -117,7 +117,7 @@ approved and before the first unit's build:
 | A unit's approval | its issue's body becomes Fixed: the decisions folded in, its layers as a `- [ ]` checklist, open decisions gone; Status In Progress. The parent, if still Todo, In Progress with it |
 | A finished step (a progress notification) | nothing on GitHub: steps live in `progress.md` |
 | A layer's PR is up | its checklist line ticked with the PR's `#n`: by the build itself when it runs under the job's `mandate` (below), else by you (with a mandate at once, else with the unit's delivery) |
-| An accepted, merged unit | its issue closed (by the last PR's closing reference, else `issue_close` `completed`); Status Done |
+| An accepted, merged unit | its issue closed (by the last PR's closing reference, else `issue_close` `completed`); Status Done; then its worktree tidied with `opencode_session cleanup` on the unit's session (a refusal means something is not landed or not committed: report it, never force it) |
 | All units accepted | the parent's acceptance checked against the evidence, then closed; Status Done; the mandate revoked |
 
 **When the plan moves.**
