@@ -1,141 +1,127 @@
----
-name: web-design-catalog
-description: >-
-  Use when proposing or extending a visual direction for a web UI that has no
-  existing design system: type, palette, shape, depth, signature and
-  anti-patterns (デザインの方向性, 配色, タイポグラフィ, ビジュアル方針, 既存デザイン
-  システムなし, "design direction", "visual direction", "pick a mood", "look and
-  feel"). An existing design system or the project's current look always wins.
-  Design vocabulary only, never a scoring rubric.
-license: MIT
----
+# Mood directions
 
-# Design direction catalog (shared reference)
+Each mood provides a starting vocabulary for the Mood line of a design direction.
+The five direction lines and the actual product always decide the final execution;
+an existing design system or genuine brand guidelines outrank this catalog.
+A mood may move token values (radius, weights, chroma, accent count) within the
+bounds it states; that is not a tell. Anything listed in [signs.md](signs.md) still
+needs a Licensed entry. The catalog is vocabulary, never a scoring rubric. Mood
+names (Clean, Minimal, Luxury…) are not Character words.
 
-Optional design vocabulary for proposing a concrete visual direction; existing design
-systems and the user's brief outrank it.
+Compressed catalog. Each entry specifies: Type / Color / Shape / Depth /
+Signature (Signature lines list candidates; a direction picks one) / Licensed
+(treatments otherwise classified as tells in [signs.md](signs.md), permitted only
+in the named place) / Kills it (anti-patterns that break the mood) / Fits. When
+using Tailwind with shadcn/ui, map tokens to CSS variables (`--radius`,
+`--primary`, `--background`, font variables) for unified application.
 
-Compressed catalog. Each entry: mood / type / color / shape / depth /
-signature / kills-it (anti-patterns that break the mood) / fits. When the
-project uses Tailwind + shadcn/ui, express tokens via CSS variables
-(`--radius`, `--primary`, `--background`, font variables) so the direction
-lands in one edit.
-
-Dark Tech / Cyber — precise, glowing, dense, cold
+### Dark Tech / Cyber — precise, glowing, dense, cold
 
 - Type: geometric grotesk + monospace for data/labels; tabular numbers.
-- Color: near-black bg (#0B0D10-ish), ONE neon accent (cyan/indigo/green),
-  cool gray ramp. Accent = signal only.
-- Shape: radius 0–4px; 1px hairline borders; visible grid lines.
-- Depth: glow and layered translucency, not soft drop shadows.
-- Signature: terminal/coordinate motifs, live tabular numbers, scanline or
-  grid texture.
+- Color: near-black bg (#0B0D10-ish), ONE neon accent (electric cyan or signal
+  green), cool gray ramp. Accent = signal only.
+- Shape: radius 0–4px (token override); 1px hairline borders; visible grid lines.
+- Depth: surface steps and hairlines; glow and translucency only as licensed.
+- Signature: terminal/coordinate motifs, live tabular numbers, scanline or grid
+  texture.
+- Licensed: one neon accent and glow on live/signal data only; translucency on
+  overlays only; a visible hairline grid as structure (never a glowing grid); a
+  scanline texture drawn in code in one place.
 - Kills it: warm pastels, radius >= 8px, rounded friendly type, cream bg.
 - Fits: dashboards, dev tools, web3, monitoring.
 
-Clean SaaS / Trust — calm, competent, unsurprising
+### Clean SaaS / Trust — calm, competent, unsurprising
 
-- Type: one humanist sans (Inter-class); strong weight contrast for headings.
+- Type: one humanist sans (Inter-class); hierarchy by size steps; 500 for headings,
+  400 for body.
 - Color: white/near-white bg, one confident brand hue, warm-neutral grays.
 - Shape: radius 6–10px, consistent; subtle borders or bg shifts to separate.
 - Depth: one soft shadow step for cards, one for overlays. Nothing else.
 - Signature: generous whitespace + one accent-colored primary CTA per screen.
+- Licensed: none.
 - Kills it: more than two hues, dense borders everywhere, gradient buttons.
-- Fits: B2B SaaS, admin consoles, docs. NOTE: this is the default-look zone —
-  it MUST carry a deliberate brand hue and one signature choice, or it reads
-  as unstyled framework output.
+- Fits: B2B SaaS, admin consoles, docs.
 
-Playful Pop — round, bouncy, sweet, bright
+### Playful Pop — round, bouncy, sweet, bright
 
-- Type: rounded sans, chunky weights; oversized display numbers.
+- Type: rounded sans; 600 for display sizes only; oversized display numbers.
 - Color: 2-3 saturated pastels + cream bg; colored (not gray) secondary text.
 - Shape: radius 12–24px; pill buttons; organic blobs allowed.
 - Depth: flat colors + hard offset shadows or thick outlines; sticker feel.
 - Signature: mascot/emoji-grade icons, bounce on interaction, playful empty
   states.
+- Licensed: colored secondary text from the palette, pill buttons, thick 2px
+  outlines, hard offset shadows, one bounce on the primary action, saturated pastel
+  surfaces, organic shapes as background art in one place; emoji-grade icons only
+  as illustration, never as nav icons.
 - Kills it: pure black, hairline borders, sharp corners, corporate grays.
 - Fits: consumer apps, education, community, kids.
 
-Elegant Minimal — restrained, airy, precise, quiet
+### Elegant Minimal — restrained, airy, precise, quiet
 
-- Type: one refined sans, light-to-regular weights; larger sizes instead of
-  bold; wide letter-spacing on small caps labels.
-- Color: off-white bg, near-black text, ONE muted accent (sage/navy/plum);
+- Type: one refined sans; 300 allowed for display sizes ≥ 40px, 400 elsewhere;
+  wide letter-spacing on small caps labels.
+- Color: off-white bg, near-black text, ONE muted accent (sage/navy/deep olive);
   hierarchy carried almost entirely by grays and spacing.
 - Shape: radius 0–6px; separation by whitespace, almost no borders.
 - Depth: essentially flat; at most one whisper-level shadow.
 - Signature: extreme whitespace discipline; thin 1px rules used sparingly.
+- Licensed: wide-tracked small-caps labels for section names only.
 - Kills it: loud accent colors, heavy bold everywhere, tight packing.
 - Fits: portfolios, galleries, premium consumer, settings-heavy UIs.
 
-Editorial — curated, typographic, confident
+### Editorial — curated, typographic, confident
 
-- Type: serif display for headlines + neutral sans for UI; dramatic size
-  jumps (16 -> 40+); tight leading on display.
+- Type: serif display for headlines + neutral sans for UI; dramatic size jumps
+  (16 -> 40+); tight leading on display.
 - Color: paper-white or warm-cream bg, ink-black text, one editorial accent
   (red/cobalt) used like a highlighter.
-- Shape: sharp corners; strong grid with intentional asymmetry; big margins.
+- Shape: sharp corners (token override); strong grid with intentional asymmetry;
+  big margins.
 - Depth: flat; hierarchy from type scale, not elevation.
 - Signature: oversized headlines, pull-quotes, numbered sections, ALL-CAPS
   micro-labels.
+- Licensed: uppercase micro-labels for section numbers and kickers; italic only
+  for real titles of works.
 - Kills it: bubbly rounded cards, glassmorphism, centered-everything.
 - Fits: content sites, landing pages, blogs, media.
 
-Luxury — dark, slow, gold-accented, spacious
+### Luxury — dark, slow, gold-accented, spacious
 
 - Type: high-contrast serif (Didone-class) for display; restrained sans body.
-- Color: deep charcoal/ink bg OR ivory bg; metallic accent (gold/champagne)
-  in tiny doses; desaturated everything else.
+- Color: deep charcoal/ink bg OR ivory bg; metallic accent (gold/champagne) in
+  tiny doses; desaturated everything else.
 - Shape: sharp or barely-rounded; thin 1px gold rules as dividers.
 - Depth: flat with vignette-like large imagery; no cartoon shadows.
-- Signature: small centered serif wordmark, wide letter-spaced uppercase,
-  slow fades (300–500ms).
+- Signature: small centered serif wordmark, wide letter-spaced uppercase, slow
+  fades (300–500ms).
+- Licensed: wide-tracked uppercase wordmark and section labels; slow fades
+  300–500ms; serif wordmark.
 - Kills it: bright saturated colors, chunky buttons, busy layouts, emoji.
 - Fits: brand sites, e-commerce for premium goods, hospitality.
 
-Brutalist — raw, loud, honest, anti-polish
+### Brutalist — raw, loud, honest, anti-polish
 
 - Type: default-stack or mono pushed to extreme sizes; no subtlety.
-- Color: white/black base + 1-2 shocking accents (electric blue, acid
-  yellow); system-default link blue is allowed as a statement.
-- Shape: zero radius; thick 2–4px borders; visible structure, no decoration.
+- Color: white/black base + 1-2 shocking accents (electric blue, acid yellow);
+  system-default link blue is allowed as a statement; accent count: up to two
+  (token override).
+- Shape: zero radius / sharp corners (token override); thick 2–4px borders;
+  visible structure, no decoration.
 - Depth: none, or hard non-blurred offset shadows.
 - Signature: exposed grid, underlined links, marquee-grade oversized text.
+- Licensed: thick 2–4px borders, hard unblurred offset shadows, system-blue
+  underlined links, oversized type.
 - Kills it: soft shadows, gradients, pastel harmony, polish of any kind.
 - Fits: portfolios, event sites, dev culture, statements. Rarely right for
   products with forms.
 
-## Craft baseline (design principles, all directions)
+## Blending and the template trap
 
-Typography: one font family (two max), a fixed scale (e.g. 12/14/16/20/24/
-32/48px), body 16px at ~1.5 line-height, line length 45–75ch, weight/color
-over more sizes for secondary text.
+You may blend two complementary moods—for example, pairing typography from
+Editorial with color discipline from Clean SaaS—provided both moods are explicitly
+named in the direction line.
 
-Spacing: one scale (4/8/12/16/24/32/48/64px); proximity = grouping; start
-generous and remove; align to one grid — mixed alignment reads as broken.
-
-Color: one primary + a neutral gray ramp (5-9 steps) + semantic colors only;
-near-black on near-white, never pure/pure; grays carry hierarchy; body
-contrast >= 4.5:1 (WCAG AA), checked not eyeballed.
-
-Hierarchy: one dominant primary action per screen; de-emphasize the rest
-instead of bolding everything; size/weight/color before boxes/borders.
-
-States and depth: every interactive element needs hover/focus(keyboard!)/
-active/disabled; every data view needs empty/loading/error/overflow states;
-one shadow scale (small for cards, larger/softer for overlays).
-
-## Design checklist
-
-A miss is a finding, not a vibe:
-
-- [ ] Spacing values come from the scale; gaps group related things.
-- [ ] Type scale respected; clear heading/body distinction; line length sane.
-- [ ] Alignment consistent; nothing visually drifting or off-grid.
-- [ ] One clear primary action; hierarchy readable at squint distance.
-- [ ] Color count restrained; grays doing the hierarchy work; AA contrast.
-- [ ] No layout breakage at 1440px and 375px (overflow, wrapping, squash).
-- [ ] Interactive/empty/loading/error states present where relevant.
-- [ ] Mood consistent with the fixed direction; no off-direction elements.
-- [ ] Not generic: at least one deliberate signature choice.
-- [ ] No new runtime/console errors introduced.
+Avoid the Clean SaaS template trap: Clean SaaS occupies the default visual zone of
+modern frameworks. Unless it is anchored by a deliberate brand hue and a clear
+signature detail, it flattens into generic, unstyled framework output.
