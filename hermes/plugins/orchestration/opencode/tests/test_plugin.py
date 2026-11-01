@@ -1386,6 +1386,79 @@ def test_funding_board_shows_each_stop_without_its_connection_id(fixture, tmp_pa
     assert "empty" not in main and main["windows"]["5h"]["past_reset"] is True and main["fresh"] is False
 
 
+def _row(id, account=None, **fields):
+    """A Quota 6 (version 3) row: a stable id, the login's account text, no connection id."""
+    return {"id": id, **({"account": account} if account else {}), "resultType": "quota",
+            "acquisitionMethod": "remote_api", "ownership": "maintained", "authority": "provider_reported",
+            "renderType": "percent", **fields}
+
+
+EXPORT_V3 = {
+    "version": 3, "exportedAt": 1_000_000, "providers": {
+        "anthropic": {"status": "ok", "fetchedAt": 999_990, "entries": [
+            _row("anthropic.five_hour", "Work", name="Claude (Work) 5h", window="5h", resetAt=1_003_600,
+                 percentRemaining=77),
+            _row("anthropic.weekly", "Work", name="Claude (Work) Weekly", window="Weekly", resetAt=1_300_000,
+                 percentRemaining=82),
+            _row("anthropic.weekly_fable", "Work", name="Claude (Work) Fable", window="Weekly",
+                 resetAt=1_300_000, percentRemaining=73),
+            _row("anthropic.five_hour", "Personal", name="Claude (Personal) 5h", window="5h",
+                 resetAt=1_003_600, percentRemaining=0),
+            _row("anthropic.weekly", "Personal", name="Claude (Personal) Weekly", window="Weekly",
+                 resetAt=1_300_000, percentRemaining=40)]},
+        "openai": {"status": "ok", "fetchedAt": 999_000, "entries": [
+            _row("openai.five_hour", "Plus", name="OpenAI (Plus) 5h", window="5h", resetAt=900_000,
+                 percentRemaining=89)]},
+        "xai": {"status": "ok", "fetchedAt": 999_990, "entries": [
+            _row("xai.credits", name="xAI Weekly", window="Weekly", resetAt=1_300_000, percentRemaining=60)]},
+        "quota-providers": {"status": "ok", "fetchedAt": 999_990, "entries": [
+            _row("quota-providers.custom.anthropic-credit-team.credit", "Anthropic Team Credit",
+                 name="Custom (Anthropic Team Credit) Left", resultType="budget", resetAt=1_200_000,
+                 percentRemaining=0),
+            _row("quota-providers.custom.anthropic-credit-team.pace", "Anthropic Team Credit",
+                 name="Custom (Anthropic Team Credit) Pace", resultType="usage", renderType="value",
+                 value="$14/day"),
+            _row("quota-providers.custom.anthropic-credit-main.credit", "Anthropic Main Credit",
+                 name="Custom (Anthropic Main Credit) Left", resultType="budget", resetAt=1_400_000,
+                 percentRemaining=35)],
+            "sources": [{"id": "anthropic-credit-team", "providerId": "anthropic-credit-team", "status": "ok",
+                         "entryCount": 2}]}}}
+
+
+def test_funding_board_reads_a_quota_6_export(fixture, tmp_path, monkeypatch):
+    path = tmp_path / "quota-export.json"
+    path.write_text(json.dumps(EXPORT_V3))
+    monkeypatch.setattr(plugin.funding, "export_path", lambda: path)
+    monkeypatch.setattr(plugin.funding, "_now", lambda: 1_000_100)
+    out = catalog("funding")["funding"]
+    stops = {s["provider"]: s for s in out["stops"]}
+    assert set(stops) == {"anthropic", "anthropic-credit-team", "anthropic-credit-main", "openai", "xai"}
+    work, personal = stops["anthropic"]["accounts"]
+    assert work["label"] == "Work" and "active" not in work and "empty" not in work and work["fresh"] is True
+    assert work["windows"]["5h"] == {"remaining_percent": 77, "resets": "1970-01-12T14:46:40+00:00"}
+    assert work["other"]["weekly_fable"]["remaining_percent"] == 73, "a model's weekly window is not the pool"
+    assert set(work["windows"]) == {"5h", "Weekly"}
+    assert personal["label"] == "Personal" and personal["empty"] is True and personal["windows"]["5h"]["empty"]
+    plus = stops["openai"]["accounts"][0]
+    assert plus["label"] == "Plus" and plus["fresh"] is False and plus["windows"]["5h"]["past_reset"] is True
+    pool = stops["xai"]["accounts"][0]
+    assert pool["label"] == "xai" and pool["windows"]["Weekly"]["remaining_percent"] == 60
+    team = stops["anthropic-credit-team"]
+    assert team["kind"] == "credit-lane" and team["empty"] is True and team["fresh"] is True
+    assert team["balance"] == {"remaining_percent": 0, "empty": True, "expires": "1970-01-14T21:20:00+00:00"}
+    assert team["figures"] == {"Pace": "$14/day"}
+    assert stops["anthropic-credit-main"]["balance"]["remaining_percent"] == 35
+    # A row without an id, or one of another provider, is not this provider's; a lane row needs its definition.
+    stray = json.loads(json.dumps(EXPORT_V3))
+    stray["providers"]["openai"]["entries"] += [{"name": "[OpenAI] (Plus) Weekly", "window": "Weekly"},
+                                                _row("xai.credits", window="Weekly")]
+    stray["providers"]["quota-providers"]["entries"].append(_row("quota-providers.custom.", resultType="budget"))
+    path.write_text(json.dumps(stray))
+    stops = {s["provider"]: s for s in catalog("funding")["funding"]["stops"]}
+    assert set(stops["openai"]["accounts"][0]["windows"]) == {"5h"} and len(stops["openai"]["accounts"]) == 1
+    assert {s for s in stops if s.startswith("anthropic-credit")} == {"anthropic-credit-team", "anthropic-credit-main"}
+
+
 def test_funding_names_a_missing_or_malformed_export(fixture, tmp_path, monkeypatch):
     path = tmp_path / "quota-export.json"
     monkeypatch.setattr(plugin.funding, "export_path", lambda: path)

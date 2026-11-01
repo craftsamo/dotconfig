@@ -19,9 +19,14 @@ import re
 FRESH_SECONDS = 360
 EXPORT_LIMIT = 1 << 20
 WINDOWS = ("5h", "Weekly")
-# `[Claude Sub OAuth] (active) 5h`, `[OpenAI] (Plus) Weekly`: the label, whether this is
-# the active login, the plan, then the window.
+# Quota 5 (export version 2): `[Claude Sub OAuth] (active) 5h`, `[OpenAI] (Plus) Weekly`:
+# the label, whether this is the active login, the plan, then the window.
 ENTRY_NAME = re.compile(r"\[(?P<label>[^\]]+)\]\s*(?P<active>\(active\))?\s*(?:\((?P<plan>[^)]+)\))?\s*(?P<rest>.*)\Z")
+# Quota 6 (export version 3) names a row `<provider>.<key>` and its login by `account` (the
+# login's label, or its plan), with no active mark. These keys are the chat windows; xAI's
+# pool is its credits row, named by its period.
+CHAT_KEYS = {"five_hour": "5h", "weekly": "Weekly"}
+LANE_PREFIX = "quota-providers.custom."
 
 
 def export_path():
@@ -76,6 +81,32 @@ def _fresh(fetched, now, empty):
     return bool(empty or (fetched and now - fetched <= FRESH_SECONDS))
 
 
+def _accounts_v3(name, provider, now):
+    """Version 3: the entries of one provider grouped by `account` (one group per saved
+    login); a login without one is named after the provider."""
+    groups = {}
+    for entry in provider.get("entries") or []:
+        if not isinstance(entry, dict) or not isinstance(entry.get("id"), str):
+            continue
+        prefix, _, key = entry["id"].partition(".")
+        if prefix != name or not key:
+            continue
+        label = entry["account"] if isinstance(entry.get("account"), str) and entry["account"] else name
+        group = groups.setdefault(label, {"label": label, "windows": {}})
+        window = _window(entry, now)
+        slot = CHAT_KEYS.get(key) or (entry.get("window") if key == "credits" else None)
+        if slot in WINDOWS:
+            group["windows"][slot] = window
+        else:
+            group.setdefault("other", {})[key] = window
+    out = []
+    for group in groups.values():
+        if any(w.get("empty") for w in group["windows"].values()):
+            group["empty"] = True
+        out.append(group)
+    return out
+
+
 def _accounts(provider, now):
     """The entries of one provider grouped by account (the bracketed label); Claude
     exports one group per saved login, the active one marked."""
@@ -105,14 +136,29 @@ def _accounts(provider, now):
     return out
 
 
-def _lanes(provider, now):
+def _lane_id(entry, version):
+    """The lane a custom row belongs to: its source in version 2, the definition id in its
+    row id (`quota-providers.custom.<definition>.<key>`) in version 3."""
+    if version != 3:
+        return entry.get("sourceId") if isinstance(entry.get("sourceId"), str) else None
+    row = entry.get("id")
+    if not isinstance(row, str) or not row.startswith(LANE_PREFIX):
+        return None
+    lane = row[len(LANE_PREFIX):].rpartition(".")[0]
+    return lane or None
+
+
+def _lanes(provider, now, version=2):
     """The credit lanes, one per source: the balance estimate (as the percent of the
     grants that still hold something), the nearest expiry, and the pace figures."""
     lanes = {}
     for entry in provider.get("entries") or []:
-        if not isinstance(entry, dict) or not isinstance(entry.get("sourceId"), str):
+        if not isinstance(entry, dict):
             continue
-        lane = lanes.setdefault(entry["sourceId"], {"provider": entry["sourceId"], "kind": "credit-lane"})
+        source = _lane_id(entry, version)
+        if not source:
+            continue
+        lane = lanes.setdefault(source, {"provider": source, "kind": "credit-lane"})
         name = str(entry.get("name") or "")
         if entry.get("resultType") == "budget":
             lane["balance"] = _window(entry, now)
@@ -134,6 +180,7 @@ def board(export, now=None):
     with a reading, its accounts and windows, and the credit lanes; `fresh` says whether
     a non-empty reading is recent enough to act on."""
     now = int(now if now is not None else _now())
+    version = 3 if export.get("version") == 3 else 2
     exported = export.get("exportedAt") if type(export.get("exportedAt")) is int else None
     out = {"exported": _when(exported), "stops": []}
     if exported:
@@ -144,11 +191,11 @@ def board(export, now=None):
             continue
         fetched = provider.get("fetchedAt") if type(provider.get("fetchedAt")) is int else None
         if name == "quota-providers":
-            for lane in _lanes(provider, now):
+            for lane in _lanes(provider, now, version):
                 lane.update(fetched=_when(fetched), fresh=_fresh(fetched, now, lane.get("empty")))
                 out["stops"].append(lane)
             continue
-        accounts = _accounts(provider, now)
+        accounts = _accounts_v3(name, provider, now) if version == 3 else _accounts(provider, now)
         if not accounts:
             continue
         for account in accounts:
