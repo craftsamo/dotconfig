@@ -2,14 +2,9 @@ import { describe, expect, test } from "bun:test"
 import {
   ROUTES,
   QUOTA_MAX_AGE_MS,
-  REASON_CATALOG,
-  REASON_SOURCE_ACCOUNT,
-  REASON_TARGET_ACCOUNT,
-  decideLaunch,
   freshState,
   inputCapacity,
-  modelsEqual,
-  routeForLaunch,
+  weigh,
   type AccountProof,
   type CatalogModel,
   type ModelRef,
@@ -36,105 +31,45 @@ const entry = (m: ModelRef): CatalogModel => ({
   variants: m.variant ? [{ id: m.variant }] : [],
   limit: { context: 200_000, output: 32_000 },
 })
-const base = (route = ROUTES.worker) => ({
-  route,
-  source: {
-    account: account(route.primary.providerID) as AccountProof | undefined,
-    quota: quota("available"),
-  },
-  target: {
-    account: account(route.alternate.providerID) as AccountProof | undefined,
-    quota: quota("available"),
-  } as { account: AccountProof | undefined; quota: QuotaProof } | undefined,
-  catalog: [entry(route.primary), entry(route.alternate)],
+const base = (model: ModelRef = ROUTES.worker.primary) => ({
+  model,
+  account: account(model.providerID) as AccountProof | undefined,
+  quota: quota("available"),
+  catalog: [entry(model)],
   now: NOW,
 })
 
-describe("launch preference", () => {
-  test("all roles preserve primary and variant, selecting only their pinned alternate", () => {
+describe("weighing a place", () => {
+  test("every route model launches while its quota is not known spent", () => {
     expect(Object.keys(ROUTES)).toHaveLength(12)
-    for (const [agent, route] of Object.entries(ROUTES)) {
-      expect(routeForLaunch({ agent }, route.primary)).toBe(route)
-      const input = base(route)
-      expect(decideLaunch(input)).toEqual({
-        kind: "default",
-        model: route.primary,
-      })
-      input.source.quota = quota("exhausted")
-      expect(decideLaunch(input)).toEqual({
-        kind: "fallback",
-        model: route.alternate,
-      })
-    }
+    for (const route of Object.values(ROUTES))
+      for (const model of [route.primary, route.alternate]) {
+        const input = base(model)
+        expect(weigh(input)).toBe("launch")
+        input.quota = quota("unknown")
+        expect(weigh(input)).toBe("launch")
+        input.quota = quota("exhausted")
+        expect(weigh(input)).toBe("spent")
+      }
   })
-  test("unknown source leaves the default even if alternate has quota", () => {
+  test("stale data is no reason to pass a place over", () => {
     const input = base()
-    input.source.quota = quota("unknown")
-    expect(decideLaunch(input)).toEqual({
-      kind: "default",
-      model: input.route.primary,
-    })
-  })
-  test("exhausted source prefers an alternate whose data is unknown or stale", () => {
-    for (const quotaProof of [
-      quota("unknown"),
-      {
-        ...quota("available"),
-        observedAt: NOW - QUOTA_MAX_AGE_MS - 1,
-      },
-    ]) {
-      const input = base()
-      input.source.quota = quota("exhausted")
-      input.target = { account: account("openai"), quota: quotaProof }
-      expect(decideLaunch(input)).toEqual({
-        kind: "fallback",
-        model: input.route.alternate,
-      })
+    input.quota = {
+      ...quota("available"),
+      observedAt: NOW - QUOTA_MAX_AGE_MS - 1,
     }
-  })
-  test("exhausted source without a usable alternate account keeps the default", () => {
-    for (const target of [
-      undefined,
-      { account: undefined, quota: quota("unknown") },
-    ]) {
-      const input = base()
-      input.source.quota = quota("exhausted")
-      input.target = target
-      expect(decideLaunch(input)).toEqual({
-        kind: "default",
-        model: input.route.primary,
-      })
-    }
+    expect(weigh(input)).toBe("launch")
   })
   test("an exhausted window stays reliable until its reset, however old", () => {
     const old = NOW - 10 * QUOTA_MAX_AGE_MS
     const input = base()
-    input.source.quota = {
-      state: "exhausted",
-      observedAt: old,
-      resetAt: NOW + 1000,
-    }
-    expect(decideLaunch(input).kind).toBe("fallback")
-    input.target!.quota = {
-      state: "exhausted",
-      observedAt: old,
-      resetAt: NOW + 1000,
-    }
-    expect(decideLaunch(input).kind).toBe("credits")
+    input.quota = { state: "exhausted", observedAt: old, resetAt: NOW + 1000 }
+    expect(weigh(input)).toBe("spent")
     // Past its reset, or without a reset time, old data proves nothing.
     for (const resetAt of [NOW, undefined]) {
-      input.source.quota = { state: "exhausted", observedAt: old, resetAt }
-      expect(decideLaunch(input).kind).toBe("default")
+      input.quota = { state: "exhausted", observedAt: old, resetAt }
+      expect(weigh(input)).toBe("launch")
     }
-  })
-  test("both exhausted tries the usual provider, without any balance inference", () => {
-    const input = base()
-    input.source.quota = quota("exhausted")
-    input.target!.quota = quota("exhausted")
-    expect(decideLaunch(input)).toEqual({
-      kind: "credits",
-      model: input.route.primary,
-    })
   })
   test("unapproved native accounts cannot be selected", () => {
     for (const change of [
@@ -145,42 +80,24 @@ describe("launch preference", () => {
       { ...account("anthropic"), type: "api" },
     ]) {
       const input = base()
-      input.source.account = change as any
-      expect(decideLaunch(input)).toEqual({
-        kind: "stop",
-        reason: REASON_SOURCE_ACCOUNT,
-      })
+      input.account = change as any
+      expect(weigh(input)).toBe("unusable")
     }
-    const input = base()
-    input.source.quota = quota("exhausted")
-    input.target!.account = undefined
-    expect(decideLaunch(input)).toEqual({
-      kind: "stop",
-      reason: REASON_TARGET_ACCOUNT,
-    })
   })
   test("catalog status, tools, variants and limits remain required", () => {
-    for (const alternate of [false, true])
-      for (const change of [
-        { enabled: false },
-        { status: "deprecated" },
-        { capabilities: { tools: false } },
-        { variants: [] },
-        { limit: { context: 0, output: 1 } },
-        { limit: { context: 1, output: 2 } },
-        { limit: { context: 200_000, input: -1, output: 1 } },
-      ]) {
-        const input = base()
-        if (alternate) input.source.quota = quota("exhausted")
-        input.catalog[alternate ? 1 : 0] = {
-          ...input.catalog[alternate ? 1 : 0],
-          ...change,
-        }
-        expect(decideLaunch(input)).toEqual({
-          kind: "stop",
-          reason: REASON_CATALOG,
-        })
-      }
+    for (const change of [
+      { enabled: false },
+      { status: "deprecated" },
+      { capabilities: { tools: false } },
+      { variants: [] },
+      { limit: { context: 0, output: 1 } },
+      { limit: { context: 1, output: 2 } },
+      { limit: { context: 200_000, input: -1, output: 1 } },
+    ]) {
+      const input = base()
+      input.catalog[0] = { ...input.catalog[0], ...change }
+      expect(weigh(input)).toBe("unusable")
+    }
   })
   test("a shared input/output budget, as xAI publishes, is the whole context; a reserved output is subtracted", () => {
     const shared = { context: 500_000, output: 500_000 }
@@ -188,59 +105,15 @@ describe("launch preference", () => {
     expect(inputCapacity({ context: 200_000, output: 32_000 })).toBe(168_000)
     expect(inputCapacity({ ...shared, input: 100_000 })).toBe(100_000)
     expect(inputCapacity({ context: 1, output: 2 })).toBe(0)
-    const input = base(ROUTES.searcher)
+    const input = base(ROUTES.searcher.primary)
     input.catalog[0] = { ...input.catalog[0], limit: shared }
-    expect(decideLaunch(input)).toEqual({
-      kind: "default",
-      model: ROUTES.searcher.primary,
-    })
+    expect(weigh(input)).toBe("launch")
     // Only xAI publishes that shape; elsewhere it is a broken entry.
-    for (const route of [ROUTES.worker, ROUTES.verifier]) {
-      const other = base(route)
+    for (const model of [ROUTES.worker.primary, ROUTES.verifier.primary]) {
+      const other = base(model)
       other.catalog[0] = { ...other.catalog[0], limit: shared }
-      expect(decideLaunch(other)).toEqual({
-        kind: "stop",
-        reason: REASON_CATALOG,
-      })
+      expect(weigh(other)).toBe("unusable")
     }
-  })
-  test("explicit models, continuations, unknown roles and changed defaults bypass selection", () => {
-    for (const input of [
-      { agent: "worker", model: "explicit" },
-      { agent: "worker", sessionID: "ses_1" },
-      { agent: "unknown" },
-      { agent: "__proto__" },
-      {},
-    ])
-      expect(routeForLaunch(input, ROUTES.worker.primary)).toBeUndefined()
-    expect(
-      routeForLaunch(
-        { agent: "worker" },
-        { ...ROUTES.worker.primary, variant: "high" },
-      ),
-    ).toBeUndefined()
-    expect(routeForLaunch({ agent: "worker" }, undefined)).toBeUndefined()
-    expect(
-      modelsEqual(ROUTES.worker.primary, {
-        ...ROUTES.worker.primary,
-        variant: "high",
-      }),
-    ).toBe(false)
-  })
-  test("pin keeps a role's route whatever model is configured, but never an explicit model, continuation or unknown role", () => {
-    const changed = { providerID: "openai", id: "gpt-5.6-terra" }
-    for (const configured of [changed, undefined, ROUTES.reviewer.primary])
-      expect(routeForLaunch({ agent: "reviewer" }, configured, true)).toBe(
-        ROUTES.reviewer,
-      )
-    for (const input of [
-      { agent: "reviewer", model: "explicit" },
-      { agent: "reviewer", sessionID: "ses_1" },
-      { agent: "unknown" },
-      { agent: "__proto__" },
-      {},
-    ])
-      expect(routeForLaunch(input, changed, true)).toBeUndefined()
   })
   test("every routed role's global agent file names its route's primary", async () => {
     // ROUTES and the agent files name the same models; a drift between them
