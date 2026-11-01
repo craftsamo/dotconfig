@@ -6,7 +6,7 @@ import {
   DEFAULT_COOLDOWN_MS,
   Episodes,
   EPISODE_TTL_MS,
-  Lanes,
+  Cooldowns,
   loginStop,
   nextModel,
   OAUTH_PROVIDER,
@@ -34,7 +34,7 @@ export async function setupPreflight(
   const options = readOptions(ctx.options)
   // Console credit lanes (see lanes.ts). An empty list turns the whole
   // feature off, in-flight moves included.
-  const lanes = new Lanes(
+  const lanes = new Cooldowns(
     options.creditLanes,
     options.creditCooldownMs,
     deps.now,
@@ -58,7 +58,7 @@ export async function setupPreflight(
   // asked: the Quota export is rewritten on the TUI's own schedule, so the
   // parent's relaunch would otherwise bounce back to the same window. Each
   // Claude login is its own window.
-  const limited = new Lanes(
+  const limited = new Cooldowns(
     [
       OAUTH_PROVIDER,
       ...logins.map((login) => loginStop(login).key),

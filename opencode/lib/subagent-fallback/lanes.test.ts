@@ -3,7 +3,7 @@ import {
   classify,
   DEFAULT_COOLDOWN_MS,
   Episodes,
-  Lanes,
+  Cooldowns,
   launchLane,
   loginStop,
   longestSuffix,
@@ -75,10 +75,10 @@ describe("classify", () => {
   })
 })
 
-describe("Lanes and Episodes", () => {
+describe("Cooldowns and Episodes", () => {
   test("a marked lane is blocked until its cooldown ends, then probed again", () => {
     let now = 1000
-    const lanes = new Lanes([MAIN, SUB], 60_000, () => now)
+    const lanes = new Cooldowns([MAIN, SUB], 60_000, () => now)
     expect(lanes.blocked(MAIN)).toBe(false)
     lanes.mark(MAIN)
     expect(lanes.blocked(MAIN)).toBe(true)
@@ -88,7 +88,7 @@ describe("Lanes and Episodes", () => {
   })
   test("a mark can be shorter than the cooldown but never longer", () => {
     let now = 0
-    const lanes = new Lanes([MAIN, SUB], 60_000, () => now)
+    const lanes = new Cooldowns([MAIN, SUB], 60_000, () => now)
     lanes.mark(MAIN, 5_000)
     lanes.mark(SUB, 9_999_999)
     now += 5_001
@@ -100,7 +100,7 @@ describe("Lanes and Episodes", () => {
     expect(lanes.blocked(MAIN)).toBe(true)
   })
   test("only configured lanes can be marked", () => {
-    const lanes = new Lanes([MAIN], DEFAULT_COOLDOWN_MS, () => 0)
+    const lanes = new Cooldowns([MAIN], DEFAULT_COOLDOWN_MS, () => 0)
     lanes.mark(OAUTH_PROVIDER)
     expect(lanes.blocked(OAUTH_PROVIDER)).toBe(false)
   })
@@ -153,7 +153,7 @@ describe("choosing a model", () => {
     expect(retarget(SONNET, loginStop("sub"), catalog())).toBeUndefined()
   })
   test("other saved logins come after the lanes and the active login", () => {
-    const lanes = new Lanes([MAIN, SUB], DEFAULT_COOLDOWN_MS, () => 0)
+    const lanes = new Cooldowns([MAIN, SUB], DEFAULT_COOLDOWN_MS, () => 0)
     const withLogin = [...catalog(), entry(SONNET_SUB, ["low"])]
     const base = { lanes, catalog: withLogin, logins: ["sub"] }
     expect(
@@ -216,7 +216,7 @@ describe("choosing a model", () => {
     )
   })
   test("a move never lands on a model another login's suffix claims", () => {
-    const lanes = new Lanes([], DEFAULT_COOLDOWN_MS, () => 0)
+    const lanes = new Cooldowns([], DEFAULT_COOLDOWN_MS, () => 0)
     const FAST = { ...SONNET, id: `${SONNET.id}-fast` }
     const FAST_SUB = { ...SONNET, id: `${SONNET.id}-fast-sub` }
     const SUB_ONLY = { ...SONNET, id: `${SONNET.id}-sub` }
@@ -255,7 +255,7 @@ describe("choosing a model", () => {
     ).toEqual(SUB_ONLY)
   })
   test("subagents prefer lanes and primaries prefer the subscription", () => {
-    const lanes = new Lanes([MAIN, SUB], DEFAULT_COOLDOWN_MS, () => 0)
+    const lanes = new Cooldowns([MAIN, SUB], DEFAULT_COOLDOWN_MS, () => 0)
     const base = { current: SONNET, lanes, catalog: catalog() }
     expect(
       nextModel({ ...base, role: "subagent", tried: new Set() })?.providerID,
@@ -269,7 +269,7 @@ describe("choosing a model", () => {
     ).toBe(MAIN)
   })
   test("a session already on a lane keeps the subscription for last", () => {
-    const lanes = new Lanes([MAIN, SUB], DEFAULT_COOLDOWN_MS, () => 0)
+    const lanes = new Cooldowns([MAIN, SUB], DEFAULT_COOLDOWN_MS, () => 0)
     const base = {
       lanes,
       role: "primary" as const,
@@ -286,7 +286,7 @@ describe("choosing a model", () => {
     ).toBe(OAUTH_PROVIDER)
   })
   test("tried, blocked and uncatalogued providers are skipped; none left gives undefined", () => {
-    const lanes = new Lanes([MAIN, SUB], DEFAULT_COOLDOWN_MS, () => 0)
+    const lanes = new Cooldowns([MAIN, SUB], DEFAULT_COOLDOWN_MS, () => 0)
     lanes.mark(MAIN)
     const base = { current: SONNET, lanes, role: "subagent" as const }
     expect(
@@ -315,7 +315,7 @@ describe("choosing a model", () => {
     ).toBe(OAUTH_PROVIDER)
   })
   test("a launch needs the model's own variant on the lane", () => {
-    const lanes = new Lanes([MAIN, SUB], DEFAULT_COOLDOWN_MS, () => 0)
+    const lanes = new Cooldowns([MAIN, SUB], DEFAULT_COOLDOWN_MS, () => 0)
     expect(launchLane(ROUTES.worker.primary, lanes, catalog())).toEqual({
       ...SONNET,
       providerID: MAIN,
@@ -326,7 +326,7 @@ describe("choosing a model", () => {
     expect(launchLane(ROUTES.worker.primary, lanes, noLow)).toBeUndefined()
   })
   test("a model that is not on the subscription never launches on a lane, its Claude alternate can", () => {
-    const lanes = new Lanes([MAIN], DEFAULT_COOLDOWN_MS, () => 0)
+    const lanes = new Cooldowns([MAIN], DEFAULT_COOLDOWN_MS, () => 0)
     expect(launchLane(ROUTES.verifier.primary, lanes, catalog())).toBeUndefined()
     expect(launchLane(ROUTES.searcher.primary, lanes, catalog())).toBeUndefined()
     expect(launchLane(ROUTES.searcher.alternate, lanes, catalog())).toBeUndefined()
