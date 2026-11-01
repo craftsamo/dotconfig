@@ -113,7 +113,9 @@ type Executor = (
   input: Record<string, unknown>,
   context: ToolContext,
 ) => Promise<Result>
-type LoginContext = AccountsContext & ClaudeAccountsContext
+// The Claude login router reads less of a session than this plugin does;
+// its narrower `session.get` would win the intersection.
+type LoginContext = AccountsContext & Omit<ClaudeAccountsContext, "session">
 export type RuntimeContext = LoginContext & {
   app: { version: string }
   options: Record<string, unknown>
