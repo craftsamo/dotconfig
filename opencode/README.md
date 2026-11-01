@@ -334,6 +334,23 @@ step that can take it:
    positive credit balance or guarantee success. A route with no usable step
    at all stops the launch.
 
+A Google Antigravity step (`google/antigravity-*`, "Accounts" below) is a
+subscription step on the Antigravity login, weighed by its model's quota
+group (Gemini Pro, Gemini Flash or Claude) as Quota's custom provider
+reports it: a group with no more left than the plugin keeps back (100 less
+its `soft_quota_threshold_percent` in `antigravity.json`, 10% by default) is
+spent, since the plugin would refuse it. A spent group is never the last
+resort: a route left with spent groups alone stops, saying every included
+quota it can use is exhausted. A model in no group (`antigravity-gpt-oss-*`)
+is a step the plugin cannot read. The reserve is read from the user config
+the plugin reads (`OPENCODE_CONFIG_DIR`, else `~/.config/opencode`), not a
+project's own `.opencode/antigravity.json`. Its plugin sends the requests through a fetch of its own, so its
+launches carry no subscription marker, like a lane's. When the plugin
+refuses a group in flight ("Quota protection: …" or "All N account(s)
+rate-limited …", which end the session), the group is held for the wait it
+gives, an hour at most, so the parent's relaunch takes the route's next
+step. A session never moves onto or off Antigravity while it runs.
+
 A role the option does not list keeps built-in steps from `ROUTES` in
 `policy.ts`, the order used before routes existed: a Claude model on every
 lane, the active login, then the other saved logins, and the alternate after
@@ -378,10 +395,10 @@ usage; explore-max stays on standard Sol since its xhigh runs are long and rare.
 The searchers lead on Grok: retrieval is the work that fits the xAI
 subscription's weekly pool, which `x_search` draws on too, and it keeps the
 ChatGPT window for the explore tiers until the pool is spent. There is no
-free-tier, API-key or environment-variable escalation; both ends must be
-approved native OAuth accounts (Claude Max, a ChatGPT login, or the xAI device
-login). The plugin never buys credits, enables auto-purchase, or changes
-account settings or logins.
+free-tier, API-key or environment-variable escalation; a subscription step
+must run on an approved native OAuth account (Claude Max, a ChatGPT login,
+the xAI device login, or the Antigravity login). The plugin never buys
+credits, enables auto-purchase, or changes account settings or logins.
 
 **Shared information.** Reads Quota's public JSON export (v2 from Quota 5,
 v3 from Quota 6) once before each eligible launch:
@@ -836,8 +853,8 @@ A move to a credit lane (see above) therefore pays one full write.
   the account's plan serves (cached for an hour), but reads that list only
   when it starts with a saved account; until then the picker shows a short
   fixed list that may name models the plan does not offer, so run
-  `opencode reload` after the first login. They are picked by hand: no
-  specialist route or credit lane uses them, and the
+  `opencode reload` after the first login. They are picked by hand, or by a
+  specialist route that names them ("Subscription preflight"), and the
   plugin's `google_search` tool is denied for every agent, since it would
   spend the same login from any model. Google's Antigravity terms forbid
   third-party clients, and Google has banned accounts for it (Antigravity,

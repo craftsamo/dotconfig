@@ -46,6 +46,9 @@ export const QUOTA_MAX_AGE_MS = 6 * 60_000
 // No step of a role's route could launch at all, whatever Quota says.
 export const REASON_NO_STEP =
   "No step of the route has an approved subscription OAuth connection and a catalog model with the required status, tools, variant, and limits."
+// Every step that could launch is a group Antigravity's plugin would refuse.
+export const REASON_ALL_SPENT =
+  "Every included quota the route can use is exhausted, and its Antigravity groups are refused by their plugin until they reset; no last resort is left."
 
 const m = (providerID: string, id: string, variant?: string): ModelRef =>
   variant === undefined ? { id, providerID } : { id, providerID, variant }
@@ -103,12 +106,18 @@ export const aliasOf = (
   login === undefined ? model : { ...model, id: `${model.id}-${login}` }
 
 // The native subscription logins, by the OAuth method each provider's
-// built-in plugin registers. An API key never qualifies.
+// built-in plugin registers. An API key never qualifies. Google's is the
+// Antigravity plugin's login (ANTIGRAVITY_PROVIDER).
 export const METHODS: Readonly<Record<string, readonly string[]>> = {
   anthropic: ["claude-max"],
   openai: ["chatgpt-browser", "chatgpt-headless"],
   xai: ["device"],
+  google: ["antigravity"],
 }
+
+// Antigravity runs through its plugin's own fetch, not a transport this
+// plugin checks: its launches carry no subscription marker, as a lane's.
+export const ANTIGRAVITY_PROVIDER = "google"
 
 export function approved(
   account: AccountProof | undefined,

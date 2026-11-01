@@ -3,6 +3,7 @@ import { EmptyLanes } from "./empty-lanes"
 import { FAIL_PREFIX, fail } from "./errors"
 import { createGuards } from "./guards"
 import {
+  antigravityLimit,
   classify,
   DEFAULT_COOLDOWN_MS,
   Episodes,
@@ -23,9 +24,15 @@ import { judgedDecision } from "./native-retry"
 import { createLauncher } from "./launch"
 import { METADATA_KEY, parseMarker } from "./marker"
 import { readOptions } from "./options"
-import type { ModelRef } from "./policy"
+import { ANTIGRAVITY_PROVIDER, type ModelRef } from "./policy"
 import { readRoutes, stopOf } from "./routes"
-import { dependencies, type Dependencies } from "./quota"
+import {
+  ANTIGRAVITY_GROUPS,
+  antigravityKey,
+  dependencies,
+  groupKey,
+  type Dependencies,
+} from "./quota"
 import { supported, type Registration, type RuntimeContext } from "./runtime"
 
 export { METADATA_KEY }
@@ -116,13 +123,14 @@ export async function setupPreflight(
   // Subscription window limits protected children hit, kept for the wait
   // asked: the Quota export is rewritten only at Quota's next check, so the
   // parent's relaunch would otherwise bounce back to the same window. Each
-  // Claude login is its own window.
+  // Claude login is its own window, and each Antigravity group its own.
   const limited = new Cooldowns(
     [
       OAUTH_PROVIDER,
       ...logins.map((login) => loginStop(login).key),
       "openai",
       "xai",
+      ...ANTIGRAVITY_GROUPS.map(groupKey),
     ],
     DEFAULT_COOLDOWN_MS,
     deps.now,
@@ -216,6 +224,18 @@ export async function setupPreflight(
         }
         // A short limit with a stretched wait: retry as OpenCode would.
         if (rateLimit && long(event.decision)) event.decision = own
+      }),
+    )
+    // An Antigravity group its plugin refused: any session's word, kept for
+    // the wait it gave, so the next launch passes the group over before
+    // Quota's export shows it spent. The session itself ends, as natively.
+    registrations.push(
+      await ctx.session.hook("retry", async (event) => {
+        if (event.model?.providerID !== ANTIGRAVITY_PROVIDER) return
+        const wait = antigravityLimit(event.error)
+        if (wait === null) return
+        const key = antigravityKey(event.model)
+        if (key) limited.mark(key, wait)
       }),
     )
     // Console credit lanes and other Claude logins. An empty balance fails

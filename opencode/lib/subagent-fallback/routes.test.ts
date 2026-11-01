@@ -53,6 +53,12 @@ describe("route steps", () => {
     expect(parseStep("xai/grok-4.7#low", NAMES).step?.places).toEqual([
       { kind: "active" },
     ])
+    expect(
+      parseStep("google/antigravity-gemini-3.8-flash-low", NAMES).step,
+    ).toEqual({
+      model: { providerID: "google", id: "antigravity-gemini-3.8-flash-low" },
+      places: [{ kind: "active" }],
+    })
   })
   test("malformed steps and places it cannot use are ignored, each with its reason", () => {
     for (const [text, reason] of [
@@ -66,7 +72,8 @@ describe("route steps", () => {
         /no labelled Claude login "fast-sub"/,
       ],
       ["anthropic-credit-sub/claude-haiku-5-5", /neither a credit lane/],
-      ["google/gemini", /neither a credit lane/],
+      ["mistral/large", /neither a credit lane/],
+      ["google/antigravity-gpt-oss-120b-medium", /no Antigravity quota group/],
     ] as const) {
       const { step, problems } = parseStep(text, NAMES)
       expect(step).toBeUndefined()
