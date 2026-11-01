@@ -81,7 +81,7 @@
           ],
           "explore-high": [
             "google/antigravity-gemini-3.8-flash-high",
-            "openai/gpt-6.1-sol-fast#high",
+            "openai/gpt-6.1-sol#high",
             "anthropic/claude-sonnet-5-5-sub#high",
             "anthropic/claude-sonnet-5-5-main#high",
             "anthropic-credit-team/claude-sonnet-5-5#high",
@@ -90,7 +90,7 @@
           ],
           "explore-medium": [
             "google/antigravity-gemini-3.8-flash-medium",
-            "openai/gpt-6.1-sol-fast#medium",
+            "openai/gpt-6.1-sol#medium",
             "anthropic/claude-sonnet-5-5-sub#medium",
             "anthropic/claude-sonnet-5-5-main#medium",
             "anthropic-credit-team/claude-sonnet-5-5#medium",
@@ -520,7 +520,9 @@
         // own, so the window and the list price are repeated. It draws 2.5x
         // the included subscription usage of the standard model (2x on paid
         // credits); the cost below is the standard API list price, which is
-        // what OpenCode's estimate can show.
+        // what OpenCode's estimate can show. Of the subagent routes only
+        // explore-spark uses fast mode (Luna); Sol's entry serves a model
+        // picked by hand.
         "gpt-6.1-sol-fast": {
           "limit": {
             "context": 716235,

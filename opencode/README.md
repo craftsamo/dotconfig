@@ -376,8 +376,8 @@ unchanged; with `pinModels` (below) a project's own model for a role is not.
 | Role                    | Steps, in order                                                              |
 | ----------------------- | ---------------------------------------------------------------------------- |
 | explore-max             | gpt-6.1-sol xhigh → claude-opus-5-5 xhigh                                    |
-| explore-high            | flash high → gpt-6.1-sol-fast high → claude-sonnet-5-5 high                  |
-| explore-medium          | flash medium → gpt-6.1-sol-fast medium → claude-sonnet-5-5 medium            |
+| explore-high            | flash high → gpt-6.1-sol high → claude-sonnet-5-5 high                       |
+| explore-medium          | flash medium → gpt-6.1-sol medium → claude-sonnet-5-5 medium                 |
 | reviewer                | gpt-6.1-sol medium → claude-sonnet-5-5 medium                                |
 | worker                  | flash medium → gpt-6.1-sol low → claude-sonnet-5-5 low                       |
 | explore-spark           | flash low → gpt-6-luna-fast low → claude-haiku-5-5 low                       |
@@ -391,14 +391,14 @@ unchanged; with `pinModels` (below) a project's own model for a role is not.
 own (`antigravity-gemini-3.8-flash-low`, `-medium`, `-high`). Claude closes
 every route: the Sub and Main logins first, then the paid lanes (Team, Main,
 Sub) as the very last stops; the searchers have no lane. Native model IDs are
-explicit: `gpt-6.1-sol`, `gpt-6.1-sol-fast`, `gpt-6-luna`, `gpt-6-luna-fast`,
-`claude-opus-5-5`, `claude-sonnet-5-5`, `claude-haiku-5-5` and `grok-4.7`.
-Gemini Flash leads the explore tiers below max, the worker and the searcher:
-its Antigravity group resets daily and keeps the ChatGPT window and the
-Claude logins for the work behind it. explore-max stays on standard Sol since
-its xhigh runs are long and rare. The ChatGPT steps of medium, high and spark
-run in fast mode, which is priority processing of the same model at 2.5x the
-included usage. The deep searcher leads on Grok, the work that fits the xAI
+explicit: `gpt-6.1-sol`, `gpt-6-luna`, `gpt-6-luna-fast`, `claude-opus-5-5`,
+`claude-sonnet-5-5`, `claude-haiku-5-5` and `grok-4.7`. Gemini Flash leads
+the explore tiers below max, the worker and the searcher: its Antigravity
+group resets daily and keeps the ChatGPT window and the Claude logins for the
+work behind it. explore-max stays on Sol since its xhigh runs are long and
+rare. ChatGPT's fast mode (the `-fast` models, priority processing of the same
+model at 2.5x the included usage) is kept for explore-spark alone, a short
+lookup the parent waits for. The deep searcher leads on Grok, the work that fits the xAI
 subscription's weekly pool, which `x_search` draws on too. There is no
 free-tier, API-key or environment-variable escalation; a subscription step
 must run on an approved native OAuth account (Claude Max, a ChatGPT login,
