@@ -83,6 +83,8 @@ async function fixture() {
     // (no rows when undefined).
     secondLogin: "fixture-second-login",
     secondQuota: undefined as number | undefined,
+    // 2: Quota 5 rows bound by connection ID; 3: Quota 6 rows named by label.
+    exportVersion: 2 as 2 | 3,
     connection: {
       anthropic: { type: "credential", id: "fixture-claude", method: "oauth" },
       openai: { type: "credential", id: "fixture-chatgpt", method: "oauth" },
@@ -204,7 +206,9 @@ async function fixture() {
                       method: "oauth",
                     },
                   ]
-                : [],
+                : env.connection[integrationID]
+                  ? [env.connection[integrationID]]
+                  : [],
           },
         }),
         connection: {
@@ -272,6 +276,54 @@ async function fixture() {
         env.reads++
         env.path = path
         if (env.unavailable) throw new Error("fixture export unavailable")
+        if (env.exportVersion === 3) {
+          // Quota 6 names the Claude logins after their labels and gives the
+          // only ChatGPT and xAI logins their plan; no connection IDs.
+          const rows = (
+            id: string,
+            percent: number | undefined,
+            account: string,
+          ) =>
+            percent === undefined
+              ? []
+              : (id === "xai"
+                  ? [["xai.credits", "Weekly"]]
+                  : [
+                      [`${id}.five_hour`, "5h"],
+                      [`${id}.weekly`, "Weekly"],
+                    ]
+                ).map(([rowID, window]) => ({
+                  id: rowID,
+                  account,
+                  window,
+                  resultType: "quota",
+                  authority: "provider_reported",
+                  acquisitionMethod: "remote_api",
+                  renderType: "percent",
+                  percentRemaining:
+                    window === "5h" || id === "xai" ? percent : 90,
+                  resetAt: env.now / 1000 + 3600,
+                }))
+          const plan = { anthropic: "Main OAuth", openai: "Plus", xai: "Heavy" }
+          return JSON.stringify({
+            version: 3,
+            providers: Object.fromEntries(
+              Object.entries(env.quota).map(([id, percent]) => [
+                id,
+                {
+                  status: "ok",
+                  fetchedAt: (env.fetchedAt ?? env.now) / 1000,
+                  entries: [
+                    ...rows(id, percent, plan[id as keyof typeof plan]),
+                    ...(id === "anthropic"
+                      ? rows(id, env.secondQuota, "Sub OAuth")
+                      : []),
+                  ],
+                },
+              ]),
+            ),
+          })
+        }
         const snapshot = {
           version: 2,
           providers: Object.fromEntries(
@@ -456,6 +508,30 @@ describe("launch and persistence", () => {
     env.now += 60 * 60_000
     await inst.run()
     expect(env.originals[0].model).toBe(sel(SOL))
+  })
+  test("a Quota 6 export decides launches by the login's label or sole login", async () => {
+    const v3 = async (quota: Record<string, number | undefined>) => {
+      const f = await fixture()
+      f.env.exportVersion = 3
+      Object.assign(f.env.quota, quota)
+      return f
+    }
+    const room = await v3({})
+    await room.inst.run()
+    expect(room.env.originals[0].model).toBeUndefined()
+    expect(marker(room.env).fallback).toBe(false)
+    const spent = await v3({ anthropic: 0 })
+    await spent.inst.run()
+    expect(spent.env.originals[0].model).toBe(sel(SOL))
+    expect(marker(spent.env).fallback).toBe(true)
+    const both = await v3({ anthropic: 0, openai: 0 })
+    const result = await both.inst.run()
+    expect(both.env.originals[0].model).toBeUndefined()
+    expect(result.metadata.preflight.funding).toBe("provider")
+    const grok = await v3({ xai: 0 })
+    const input = { agent: "searcher", prompt: "fixture", background: true }
+    await grok.inst.run(input)
+    expect(grok.env.originals[0].model).toBe(sel(ROUTES.searcher.alternate))
   })
   test("a Grok role launches on the xAI weekly pool and, once that is spent, on its ChatGPT alternate", async () => {
     const { env, inst } = await fixture()
@@ -1611,6 +1687,21 @@ describe("Claude accounts", () => {
         expect(result.content).toContain("next saved login not empty")
         expect(env.reads).toBe(1)
       }
+    })
+    test("a Quota 6 export finds the next login by its label", async () => {
+      const { env, inst } = await aliased()
+      env.exportVersion = 3
+      env.quota.anthropic = 0
+      env.secondQuota = 80
+      await inst.run()
+      expect(env.originals[0].model).toBe(sel(SONNET_SUB))
+      expect(marker(env)).toMatchObject({
+        login: "sub",
+        connectionID: "fixture-second-login",
+      })
+      env.secondQuota = 0
+      await inst.run()
+      expect(env.originals[1].model).toBe(sel(SOL))
     })
     test("an active login with room, or unknown, keeps the launch there", async () => {
       for (const percent of [90, undefined]) {
