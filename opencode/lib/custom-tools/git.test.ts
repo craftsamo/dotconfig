@@ -7,6 +7,7 @@ import type { Fixture } from "./testing/repo"
 const describe = suite.skipIf(skip)
 const { default: plugin } = await load(() => import("../../plugins/custom-tools"))
 const git = await load(() => import("./git"))
+const { displayWidth } = await load(() => import("./git/lint"))
 const { fixture, runWithFakeGh } = await load(() => import("./testing/repo"))
 
 // Characterization tests: they pin the tools' current behavior so the
@@ -441,6 +442,23 @@ describe("git_commit_lint", () => {
       "warning:path-enumeration",
     ])
     expect(rules(await lint(f, `feat: ${"w".repeat(70)}`, { subjectMax: 60 }))).toEqual(["error:subject-hard-max"])
+  })
+
+  test("counts wide characters as two columns", async () => {
+    const f = repo()
+    expect(rules(await lint(f, `feat: ${"あ".repeat(22)}`))).toEqual([])
+    expect(rules(await lint(f, `feat: ${"あ".repeat(23)}`))).toEqual(["warning:subject-target"])
+    const long = await lint(f, `feat: ${"漢".repeat(34)}`)
+    expect(rules(long)).toEqual(["error:subject-hard-max"])
+    expect(long.errors[0].message).toContain("74 columns")
+    expect(rules(await lint(f, `feat: a\n\n${"字".repeat(37)}`))).toEqual(["warning:body-wrap"])
+    expect(rules(await lint(f, `feat: a\n\n${"字".repeat(36)}`))).toEqual([])
+  })
+
+  test("measures emoji as two columns and combining marks as none", () => {
+    expect(displayWidth("✅🚀")).toBe(4)
+    expect(displayWidth("e\u0301")).toBe(1)
+    expect(displayWidth("👍\u200D\uFE0F")).toBe(2)
   })
 
   test("runs the repository's commitlint binary and treats its failure as an error", async () => {
