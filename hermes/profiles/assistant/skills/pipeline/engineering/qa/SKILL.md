@@ -75,7 +75,9 @@ in ../index.md still applies.
    preview flagged it.
 6. **Verdict.** Accept, return evidence-anchored defects to the same build
    session, or reopen the agreed scope with the user. Do not turn a changed
-   preference into an undisclosed implementation bug.
+   preference into an undisclosed implementation bug. A defect goes back as
+   a finding (what you saw, what you expected, why it matters), never as an
+   edit list, line numbers or the checks to rerun.
 
 Use [inspection.md](references/inspection.md) for archetype evidence. No edits,
 commits, reverts, Issue mutations or browser production side effects during

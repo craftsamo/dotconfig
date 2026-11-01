@@ -112,6 +112,8 @@ def test_plan_run_creates_a_bound_session_and_completes(fixture):
     assert {"action": "edit", "resource": "*", "effect": "deny"} in created["permissions"]
     assert fake.entries[sid]["hermes.note"].startswith(plugin.DEFAULT_NOTE)
     assert "The technical calls are yours" in fake.entries[sid]["hermes.note"]
+    assert "Hermes is the client commissioning this work" in fake.entries[sid]["hermes.note"]
+    assert "reach you through Hermes" not in fake.entries[sid]["hermes.note"], "Hermes asks; it relays no one"
     assert fake.prompts == [(sid, MESSAGE)], "the message reaches OpenCode literally"
     assert not (home / "opencode-sessions").exists(), "no run record is kept"
 
@@ -763,7 +765,8 @@ def test_a_subagent_limit_waits_for_its_route(fixture):
     assert late["status"] == "running" and not late.get("timed_out")
     retry = late["retrying"]
     assert retry["subagent"] is True and retry["kind"] == "limit"
-    assert "through_retry" in late["note"] and "names another subagent" in late["note"]
+    assert "through_retry" in late["note"] and "this route is unavailable and until when" in late["note"]
+    assert "names another subagent" not in late["note"], "a limit goes to the run as a fact, never as an order"
 
 
 def test_transient_retry_hands_back_only_after_some_attempts(fixture):
