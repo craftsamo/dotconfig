@@ -18,10 +18,10 @@ license: MIT
 
 <Goal>
 
-Create the commits the user explicitly asked for: atomic, build-passing,
-secret-free, and worded to the repository's own convention. When a change
-belongs to earlier work, trace its origin (commit → PR → Issue) and link it
-precisely instead of guessing.
+Create the commits the user explicitly asked for, or that an aligned plan's
+steps end in: atomic, build-passing, secret-free, and worded to the
+repository's own convention. When a change belongs to earlier work, trace its
+origin (commit → PR → Issue) and link it precisely instead of guessing.
 
 </Goal>
 
@@ -29,6 +29,7 @@ precisely instead of guessing.
 <UseWhen>
 
 - The user asks to commit, stage, or split changes into commits.
+- A step of an aligned plan has verified and ends in its checkpoint commit.
 - The user asks which commit / PR / Issue introduced a change, or to link a
   fix or follow-up to its origin.
 
@@ -223,7 +224,10 @@ a deterministic reproduction; local/unpushed commits have no PR or Issue.
 
 <Steps>
 
-1. Confirm the user asked to commit. Get the overview with `git_state` (branch,
+1. Confirm the user asked to commit, or that this is a verified step of a
+   plan the user aligned on (its checkpoint commit is authorized by the plan,
+   per the global `<PlanHandoff>`). A narrower restriction from the user or
+   the session's instructions wins over the plan. Get the overview with `git_state` (branch,
    staged / unstaged / untracked / conflicted files, an operation in progress,
    the branch's commits since its base), then read the content with `git diff`
    (unstaged) and `git diff --cached` (staged); resolve the convention per
@@ -319,8 +323,10 @@ checks alone, for a draft you are not committing yet.
 
 <AntiPatterns>
 
-- Do not commit unless explicitly asked; do not work around a gated command by
-  reshuffling flags (e.g. sneaking `--amend` or `--no-verify` after `-m`).
+- Do not commit unless explicitly asked or a verified step of an aligned plan
+  calls for it; never commit a plan step whose check failed or did not run.
+  Do not work around a gated command by reshuffling flags (e.g. sneaking
+  `--amend` or `--no-verify` after `-m`).
 - Do not `git add -A` or `git add .` blindly; stage intentionally.
 - Do not stage or commit secret values or `.env` files.
 - Do not `--no-verify` to skip hooks; fix what the hook flags.
