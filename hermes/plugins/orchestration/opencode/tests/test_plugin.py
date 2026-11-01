@@ -2157,7 +2157,7 @@ def test_gh_aliases_come_from_gh(monkeypatch):
 def test_read_only_never_edits_and_never_hands_work_to_an_editor():
     rules = policy.rules("read-only", None, {"main"})
     assert policy.decide(rules, "edit", "src/a.py") == "deny"
-    for name in ("worker", "general"):
+    for name in ("worker", "worker-deep", "general"):
         assert policy.decide(rules, "subagent", name) == "deny"
     assert policy.decide(rules, "subagent", "explore-small") == "ask", "other subagents keep their own posture"
     assert policy.decide(rules, "shell", "git diff --output=x") == "deny"
