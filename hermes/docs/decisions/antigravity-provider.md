@@ -33,11 +33,23 @@ hand and named in no fallback chain.
   scanning, and splitting the string to slip past a scanner is not something
   to keep in this repo.
 
+## Scope
+
+The rule covers Hermes' own model selection. A run the Assistant drives in
+the person's OpenCode uses OpenCode's specialist routes, which lead the
+explore, worker and searcher subagents with Gemini Flash on Antigravity and
+pass a refused or spent step to the next one. That use is accepted: the
+person chose those routes for OpenCode as a whole, and a Hermes-driven run
+inherits them rather than adding a chain of its own.
+
 ## Do not
 
 - Put `antigravity` in a `fallback_providers` chain or a profile's `model:`
   without deciding again: every request is a third-party use that Google's
   terms forbid, and a chain would send it unattended.
+- Add `google` to the Assistant's `opencode.allowed_providers` without
+  deciding again: the caller's own-model check folds speed tiers and
+  snapshots, not Antigravity's spelling of a Claude model.
 - Copy the client secret into the repository, in one piece or several.
 - Replace the plugin with a runtime patch to recover the removed upstream
   provider: its code assumed a single stored login and core files that no
