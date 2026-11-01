@@ -70,6 +70,8 @@ export function createLauncher(
     empty: EmptyLanes
     // Saves the lane cooldowns and daily tries for a restart.
     keep: () => void
+    // Notes a child launched on a lane.
+    launchedOnLane: (sessionID: string) => void
     // Window limits protected children hit.
     limited: Cooldowns
     logins: readonly string[]
@@ -77,7 +79,7 @@ export function createLauncher(
     loginOf: (suffix: string) => Promise<Subscription>
   },
 ): (original: Executor) => Executor {
-  const { deps, options, lanes, empty, keep } = state
+  const { deps, options, lanes, empty, keep, launchedOnLane } = state
   const { limited, logins, suffixes, loginOf } = state
   const spent = new SpentWindows()
   const refresher = new QuotaRefresher()
@@ -141,12 +143,23 @@ export function createLauncher(
       : { notices: [], metadata: {} }
     const catalog = (await ctx.model.list({ location: parent.location })).data
     // A launch on a lane carries no subscription marker (its guards
-    // are for OAuth requests).
+    // are for OAuth requests). Its child is noted, so a limit on the
+    // subscription it may fall back to moves or stops it (index.ts).
     const onLane = async (lane: ModelRef, why: string) => {
       context.signal.throwIfAborted()
       const result = await original(
         { ...input, model: selector(lane) },
-        context,
+        {
+          ...context,
+          progress: async (update) => {
+            if (
+              typeof update.sessionID === "string" &&
+              update.sessionID.startsWith("ses_")
+            )
+              launchedOnLane(update.sessionID)
+            await context.progress(update)
+          },
+        },
       )
       return withNotices(
         result,

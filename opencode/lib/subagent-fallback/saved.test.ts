@@ -22,20 +22,27 @@ describe("saved preflight state", () => {
     try {
       const path = join(dir, "nested", "saved.json")
       const store = fileStore(path)
-      expect(store.load()).toEqual({ cooldowns: {}, probed: {} })
-      store.save({ cooldowns: { a: NOW }, probed: { b: NOW - 1 } })
+      const none = { cooldowns: {}, probed: {}, refused: {} }
+      expect(store.load()).toEqual(none)
+      store.save({
+        cooldowns: { a: NOW },
+        probed: { b: NOW - 1 },
+        refused: { c: NOW - 2 },
+      })
       expect(store.load()).toEqual({
         cooldowns: { a: NOW },
         probed: { b: NOW - 1 },
+        refused: { c: NOW - 2 },
       })
       expect(JSON.parse(await readFile(path, "utf8")).version).toBe(1)
+      // A file from before refusals were kept, and one with bad values.
       await writeFile(
         path,
         '{"cooldowns": {"a": "soon", "b": 3}, "probed": []}',
       )
-      expect(store.load()).toEqual({ cooldowns: { b: 3 }, probed: {} })
+      expect(store.load()).toEqual({ ...none, cooldowns: { b: 3 } })
       await writeFile(path, "not json")
-      expect(store.load()).toEqual({ cooldowns: {}, probed: {} })
+      expect(store.load()).toEqual(none)
     } finally {
       await rm(dir, { recursive: true, force: true })
     }
@@ -55,15 +62,33 @@ describe("saved preflight state", () => {
     expect(after.blocked("a")).toBe(false)
     expect(after.saved()).toEqual({})
   })
-  test("a lane's try comes back for a cycle, not from the future", () => {
+  test("a lane's tries and refusals come back for a cycle, not from the future", () => {
     const old = NOW - 36 * 86_400_000
     const before = new EmptyLanes()
     before.tried("a", old)
     before.tried("b", NOW - EMPTY_PROBE_MS)
-    expect(before.saved(NOW)).toEqual({ b: NOW - EMPTY_PROBE_MS })
+    before.refused("c", NOW - 1)
+    before.refused("d", old)
+    expect(before.saved(NOW)).toEqual({
+      probed: { b: NOW - EMPTY_PROBE_MS },
+      refused: { c: NOW - 1 },
+    })
     const after = new EmptyLanes()
-    after.restore({ b: NOW - 60_000, c: NOW + 1, d: old }, NOW)
-    expect(after.saved(NOW)).toEqual({ b: NOW - 60_000 })
+    after.restore(
+      {
+        probed: { b: NOW - 60_000, c: NOW + 1, d: old },
+        refused: { e: NOW - 5 },
+      },
+      NOW,
+    )
+    expect(after.saved(NOW)).toEqual({
+      probed: { b: NOW - 60_000 },
+      refused: { e: NOW - 5 },
+    })
+    // A file from before refusals were kept.
+    const older = new EmptyLanes()
+    older.restore({ probed: { b: NOW - 1 } }, NOW)
+    expect(older.saved(NOW)).toEqual({ probed: { b: NOW - 1 }, refused: {} })
   })
   test("a cooldown a restart should lift is not kept", () => {
     const lanes = new Cooldowns(["a", "b"], 3_600_000, () => NOW)
