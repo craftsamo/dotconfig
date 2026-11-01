@@ -1,10 +1,13 @@
 import { describe, expect, test } from "bun:test"
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import {
+  antigravityFamily,
+  antigravityReserve,
   exportPath,
   loadQuotaExport,
+  readAntigravity,
   readQuota,
   dependencies,
   SpentWindows,
@@ -520,5 +523,110 @@ describe("Quota 6 public JSON", () => {
       resetAt: NOW + 3_600_000,
     })
     expect(stale(50).state).toBe("unknown")
+  })
+})
+
+describe("Antigravity groups", () => {
+  const FLASH = { providerID: "google", id: "antigravity-gemini-3.8-flash-low" }
+  const ARGON = { providerID: "google", id: "antigravity-gemini-4-argon-high" }
+  const OPUS = { providerID: "google", id: "antigravity-claude-opus-5-5-high" }
+  const OSS = { providerID: "google", id: "antigravity-gpt-oss-120b-medium" }
+  const group = (name: string, percentRemaining: number, resetAt?: number) => ({
+    id: `quota-providers.custom.google-antigravity.${name}`,
+    resultType: "quota",
+    percentRemaining,
+    ...(resetAt === undefined ? {} : { resetAt }),
+  })
+  const snapshot = (entries: unknown[], fetchedAt = NOW / 1000) => ({
+    version: 3,
+    providers: {
+      "quota-providers": { status: "ok", fetchedAt, entries },
+    },
+  })
+  const later = NOW / 1000 + 3600
+  test("each model reads its own group, by family", () => {
+    const s = snapshot([
+      group("Gemini_Pro", 50, later),
+      group("Gemini_Flash", 99, later),
+      group("Claude", 0, later),
+    ])
+    expect(antigravityFamily(FLASH)).toBe("gemini-flash")
+    expect(antigravityFamily(ARGON)).toBe("gemini-pro")
+    expect(antigravityFamily(OPUS)).toBe("claude")
+    expect(antigravityFamily(OSS)).toBeUndefined()
+    expect(readAntigravity(s, FLASH, NOW, 10).state).toBe("available")
+    expect(readAntigravity(s, ARGON, NOW, 10).state).toBe("available")
+    expect(readAntigravity(s, OPUS, NOW, 10)).toEqual({
+      state: "exhausted",
+      observedAt: NOW,
+      resetAt: later * 1000,
+    })
+    expect(readAntigravity(s, OSS, NOW, 10).state).toBe("unknown")
+  })
+  test("the plugin's reserve counts as spent; with none only 0% does", () => {
+    const s = snapshot([group("Gemini_Pro", 7, later)])
+    expect(readAntigravity(s, ARGON, NOW, 10).state).toBe("exhausted")
+    expect(readAntigravity(s, ARGON, NOW, 0).state).toBe("available")
+  })
+  test("spent holds until its reset at any age; anything else needs fresh data", () => {
+    const old = (NOW - 10 * QUOTA_MAX_AGE_MS) / 1000
+    expect(
+      readAntigravity(snapshot([group("Claude", 0, later)], old), OPUS, NOW, 10)
+        .state,
+    ).toBe("exhausted")
+    expect(
+      readAntigravity(
+        snapshot([group("Claude", 80, later)], old),
+        OPUS,
+        NOW,
+        10,
+      ).state,
+    ).toBe("unknown")
+    // Past its reset, or a row Quota could not tell apart.
+    expect(
+      readAntigravity(
+        snapshot([group("Claude", 0, NOW / 1000 - 1)]),
+        OPUS,
+        NOW,
+        10,
+      ).state,
+    ).toBe("unknown")
+    expect(
+      readAntigravity(
+        snapshot([group("Claude", 80, later), group("Claude", 0, later)]),
+        OPUS,
+        NOW,
+        10,
+      ).state,
+    ).toBe("unknown")
+    expect(
+      readAntigravity({ version: 2, providers: {} }, OPUS, NOW, 10).state,
+    ).toBe("unknown")
+  })
+  test("the reserve comes from the plugin's own config", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "preflight-agy-"))
+    try {
+      const env = { XDG_CONFIG_HOME: dir }
+      expect(antigravityReserve(env)).toBe(10)
+      await mkdir(join(dir, "opencode"), { recursive: true })
+      const file = join(dir, "opencode", "antigravity.json")
+      await writeFile(file, '{"soft_quota_threshold_percent": 80}')
+      expect(antigravityReserve(env)).toBe(20)
+      await writeFile(file, '{"soft_quota_threshold_percent": 100}')
+      expect(antigravityReserve(env)).toBe(0)
+      // Values the plugin would reject leave its default.
+      for (const value of ['"high"', "0", "101"]) {
+        await writeFile(file, `{"soft_quota_threshold_percent": ${value}}`)
+        expect(antigravityReserve(env)).toBe(10)
+      }
+      // OPENCODE_CONFIG_DIR wins, as in the plugin.
+      await writeFile(
+        join(dir, "antigravity.json"),
+        '{"soft_quota_threshold_percent": 70}',
+      )
+      expect(antigravityReserve({ ...env, OPENCODE_CONFIG_DIR: dir })).toBe(30)
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
   })
 })

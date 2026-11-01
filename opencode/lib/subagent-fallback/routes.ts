@@ -5,8 +5,10 @@ import {
   providerStop,
   type Stop,
 } from "./lanes"
+import { antigravityFamily } from "./quota"
 import {
   aliasOf,
+  ANTIGRAVITY_PROVIDER,
   METHODS,
   modelsEqual,
   ROUTES,
@@ -113,6 +115,16 @@ export function parseStep(
       : undefined
   const place = placeOf(providerID, suffix, names)
   if (typeof place === "string") return { problems: [`"${text}": ${place}`] }
+  // Its quota group decides an Antigravity step, and holds a refusal.
+  if (
+    providerID === ANTIGRAVITY_PROVIDER &&
+    !antigravityFamily({ id: full, providerID })
+  )
+    return {
+      problems: [
+        `"${text}": in no Antigravity quota group (Gemini Pro, Gemini Flash, Claude)`,
+      ],
+    }
   const id = suffix === undefined ? full : full.slice(0, -(suffix.length + 1))
   const base = place.kind === "lane" ? OAUTH_PROVIDER : providerID
   const model: ModelRef =

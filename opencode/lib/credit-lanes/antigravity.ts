@@ -42,6 +42,9 @@ const FAMILY_META: Readonly<
   claude: { name: "Claude", label: "Claude:", rank: 2 },
 }
 
+// The name a quota group's row carries ("Gemini Pro").
+export const familyName = (family: Family): string => FAMILY_META[family].name
+
 export type Connection = { type: string; id?: string; method?: string }
 export type OAuthCredential = {
   type: string
