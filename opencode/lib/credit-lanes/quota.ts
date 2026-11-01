@@ -57,9 +57,15 @@ export function toQuotaV1(s: Summary, now: Date) {
       resetTimeIso: s.resetAt.toISOString(),
       observedAtIso,
     },
+  ]
+  // An empty lane (what /credits shows as $0.00) is the Left row alone: its
+  // pace and need say nothing until the next grant, and each lane would
+  // otherwise take three sidebar lines most of the month.
+  if (s.remaining < 0.005) return { version: "quota-v1" as const, entries }
+  entries.push(
     row("Pace", "Pace:", perDay(s.pacePerDay)),
     row("Need", "Need:", perDay(s.neededPerDay)),
-  ]
+  )
   // Said only when there is something to lose: it is the number to act on.
   if (s.unusedAtPace >= 0.5)
     entries.push(row("Unused", "Unused:", `~$${Math.round(s.unusedAtPace)}`))

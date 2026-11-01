@@ -97,6 +97,14 @@ describe("toQuotaV1", () => {
     // At a pace that would use it all, there is nothing to lose to report.
     expect(Object.keys(rows(190))).toEqual(["Pace:", "Need:"])
   })
+  test("an empty lane is its Left row alone", () => {
+    for (const cost of [200, 199.999, 250]) {
+      const entries = toQuotaV1(summary(cost), NOW).entries as any[]
+      expect(entries.map((e) => e.label)).toEqual(["Left:"])
+      expect(entries[0].percentRemaining).toBeLessThanOrEqual(0.01)
+    }
+    expect(toQuotaV1(summary(199.99), NOW).entries).toHaveLength(3)
+  })
   test("never exceeds 100%, and the reset follows the cycle after a renewal", () => {
     expect(
       (toQuotaV1(summary(-5), NOW).entries[0] as any).percentRemaining,
