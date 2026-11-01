@@ -126,10 +126,11 @@ checkouts and the cached `anomalyco/opencode` clone, and an edit deny on that
 clone (a refresh resets it). Editing the local checkouts keeps the global
 `edit` ask: they are live, since `~/.hermes` links into them. Paths are spelled
 from `~`, because a relative path resolves from the file and a task worktree
-would point elsewhere. Worker resets `external_directory` to ask, so it still
-asks to reach them; a Hermes write run's session ruleset does the same (its
-reference clones aside). Descriptions reach every agent's instructions, and
-this repository is public: keep them free of private details.
+would point elsewhere. Worker and worker-deep reset `external_directory` to
+ask, so they still ask to reach them; a Hermes write run's session ruleset
+does the same (its reference clones aside). Descriptions reach every agent's
+instructions, and this repository is public: keep them free of private
+details.
 
 ## Permissions and policies
 
@@ -163,7 +164,7 @@ outside reads in their own rules, and Plan allows the source checkouts
 (`~/ghq`, `~/Worktrees`), where it reads the repositories beside its own;
 credential stores elsewhere in the home directory keep asking. Build does not:
 the same action gates a shell's working directory, so its allowed commands
-would run in the live checkouts unasked. Worker and design reset
+would run in the live checkouts unasked. Worker, worker-deep and design reset
 `external_directory` to ask and so ask for those directories too.
 
 Keep the matching permission denies as well (a test checks every shell
@@ -195,21 +196,22 @@ format; V2 does not merge V1 and V2 fields inside one agent. The last
 matching rule wins, and an agent's rules come after the global ones.
 
 `hidden: true` hides an agent from both interactive discovery and the model's
-subagent catalog; no agent here uses it, so the twelve specialist subagents
+subagent catalog; no agent here uses it, so the thirteen specialist subagents
 are visible. Hermes drives the plan, build, review, debug and design primaries
 through the API like a person does. Visibility is not authorization:
 caller-specific permissions decide which specialists may run.
 
 - Plan allows read-only exploration, research, diagnosis, and review, but not
-  `general`, `worker`, or `verifier` (which can apply formatters).
+  `general`, `worker`, `worker-deep`, or `verifier` (which can apply
+  formatters).
 - Debug and Review exclude editing agents and ask `verifier` for checks only,
   never formatter application. Build may request scoped formatter application.
 - Build allows the project's own scripts and installed tools (`nps`,
   `pnpm run`, `pnpm exec`, `npm run`) and still asks for anything naming
   `deploy`, `publish`, `secret`, `--remote` or `--prod`: a best-effort list,
-  defense in depth rather than a sandbox. Worker, debugger and verifier reset
-  shell to ask and restate the plain reads (`cat`, `head`, `tail`, `wc`, `ls`,
-  `grep`, `rg`, `ps`) after it.
+  defense in depth rather than a sandbox. Worker, worker-deep, debugger and
+  verifier reset shell to ask and restate the plain reads (`cat`, `head`,
+  `tail`, `wc`, `ls`, `grep`, `rg`, `ps`) after it.
 - Design (`agents/design.md`) shows a person what a product will let them do
   before it is planned: static HTML mocks and diagrams, self-contained so they
   open offline from a chat. It reads the repository and writes only under a
@@ -379,7 +381,8 @@ unchanged; with `pinModels` (below) a project's own model for a role is not.
 | explore-high            | flash high → gpt-6.1-sol high → claude-sonnet-5-5 high                       |
 | explore-medium          | flash medium → gpt-6.1-sol medium → claude-sonnet-5-5 medium                 |
 | reviewer                | gpt-6.1-sol medium → claude-sonnet-5-5 medium                                |
-| worker                  | flash medium → gpt-6.1-sol low → claude-sonnet-5-5 low                       |
+| worker                  | flash medium → gpt-6.1-sol medium → claude-sonnet-5-5 medium                 |
+| worker-deep             | claude-sonnet-5-5 high → gpt-6.1-sol high → flash high                       |
 | explore-spark           | flash low → gpt-6-luna-fast low → claude-haiku-5-5 low                       |
 | explore-small           | flash low → gpt-6-luna low → claude-haiku-5-5 low                            |
 | verifier                | gpt-6-luna low → claude-haiku-5-5 low                                        |
@@ -395,10 +398,13 @@ explicit: `gpt-6.1-sol`, `gpt-6-luna`, `gpt-6-luna-fast`, `claude-opus-5-5`,
 `claude-sonnet-5-5`, `claude-haiku-5-5` and `grok-4.7`. Gemini Flash leads
 the explore tiers below max, the worker and the searcher: its Antigravity
 group resets daily and keeps the ChatGPT window and the Claude logins for the
-work behind it. explore-max stays on Sol since its xhigh runs are long and
-rare. ChatGPT's fast mode (the `-fast` models, priority processing of the same
-model at 2.5x the included usage) is kept for explore-spark alone, a short
-lookup the parent waits for. The deep searcher leads on Grok, the work that fits the xAI
+work behind it. worker-deep reverses that lead order: the hard implementation
+it gets is where Flash falls furthest behind the other two on agentic coding
+benchmarks, so its Sonnet logins come first, then Sol, then Flash, and the
+paid lanes still close it. explore-max stays on Sol since its xhigh runs are
+long and rare. ChatGPT's fast mode (the `-fast` models, priority processing
+of the same model at 2.5x the included usage) is kept for explore-spark alone,
+a short lookup the parent waits for. The deep searcher leads on Grok, the work that fits the xAI
 subscription's weekly pool, which `x_search` draws on too. There is no
 free-tier, API-key or environment-variable escalation; a subscription step
 must run on an approved native OAuth account (Claude Max, a ChatGPT login,

@@ -38,9 +38,10 @@ Non-trivial work runs through this spine; do not jump straight to edits:
    Phase and {m} as the global `<PlanHandoff>` defines them (a reviewable
    PR layer and its commit-sized steps when the work ends in PRs; a
    dependency wave and a reference id otherwise), executor one of Build |
-   worker | reviewer | verifier | debugger (default
-   Build; worker only for mechanical work). Without `todowrite`, keep the list
-   in the conversation; never create local TODO/plan files. Ask the user to
+   worker | worker-deep | reviewer | verifier | debugger (worker for
+   implementation the plan has designed, worker-deep when its logic is hard;
+   Build for design, integration and commits). Without `todowrite`, keep the
+   list in the conversation; never create local TODO/plan files. Ask the user to
    switch to Build; do not switch automatically or execute until the user
    switches.
    Build executes phases in order, delegates according to the tag, and updates
