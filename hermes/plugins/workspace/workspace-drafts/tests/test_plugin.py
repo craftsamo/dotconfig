@@ -30,6 +30,12 @@ def touch(path, data=b"x", day=TODAY):
     return path
 
 
+@pytest.fixture(autouse=True)
+def default_layout(tmp_path, monkeypatch):
+    # the default layout, never the one in the user's config directory
+    monkeypatch.setenv("WORKSPACES_LAYOUT", str(tmp_path / "no-layout.json"))
+
+
 @pytest.fixture
 def ws(tmp_path):
     root = tmp_path / "Workspaces"
