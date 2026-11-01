@@ -67,6 +67,8 @@ DECISIONS = ("once", "reject")
 RUN_ARGS = {"directory", "session_id", "message", "model", "variant", "fork", "timeout", "output_dir", "issue"}
 WRITE_ARGS = {"approval", "issue_approval", "untracked_reason", "mandate"}
 MANDATE_ID = re.compile(r"m[0-9a-f]{8}\Z")
+# Per-role model choices kept on one session's metadata.
+SELECTIONS_LIMIT = 32
 # The issue a run works on, `owner/repo#N`: the spec it reads and the one its completing
 # PR closes. It is bound to the session (a fork inherits it), so a build on a session
 # that planned an issue needs that issue or the caller's stated reason for none.
@@ -278,6 +280,13 @@ def _instructions(role, output=None, issues=False, issue=None, mandate=False):
     return text + (("\n\n" + role["note"]) if role.get("note") else "")
 
 
+def _is_selection(entry):
+    """A stored per-role choice: service metadata, so its shape is checked again."""
+    patterns = {"model": config.MODEL_NAME, "variant": config.VARIANT_NAME}
+    return isinstance(entry, dict) and bool(entry) and set(entry) <= set(patterns) and all(
+        isinstance(value, str) and patterns[key].fullmatch(value) for key, value in entry.items())
+
+
 def _mandates_in_force(home):
     """Ids of the GitHub mandates in force for this profile, read from github-access's store."""
     try:
@@ -375,7 +384,20 @@ def _prepare(home, owner, role_name, role, settings, args, kwargs):
             mandate_id = stored
         else:
             dropped = stored
-    return {"output": output, "writing": writing, "fork": fork, "chosen": chosen or meta.get("selection") or {},
+    # An explicit choice binds its role on the session and its forks, never another
+    # role: a plan on one model hands its session to a build on the build's own.
+    raw = meta.get("selections")
+    selections = dict(list({k: v for k, v in raw.items() if isinstance(k, str) and _is_selection(v)}.items())
+                      [:SELECTIONS_LIMIT]) if isinstance(raw, dict) else {}
+    bound = chosen
+    if chosen:
+        selections[role_name] = chosen
+    elif role_name in selections:
+        try:
+            bound = models.selection(selections[role_name], settings, role)
+        except ValueError:
+            selections.pop(role_name)
+    return {"output": output, "writing": writing, "fork": fork, "chosen": bound, "selections": selections,
             # A model named this turn moves the session; a variant alone does not.
             "explicit": "model" in chosen, "sid": sid, "directory": directory, "branch": branch, "repo": repo,
             "protected": protected, "approval": approval, "issue_approval": issue_approval,
@@ -412,7 +434,7 @@ def _setup(home, owner, role_name, role, plan, kwargs):
                           models.caller_models(home, kwargs.get("session_id")))
     hermes = {"v": 2, "profile": home.name, "owner": owner, "role": role_name, "branch": plan["branch"],
               "repo": plan["repo"],
-              **({"selection": plan["chosen"]} if plan["chosen"] else {}),
+              **({"selections": plan["selections"]} if plan.get("selections") else {}),
               **({"output_dir": plan["output"]} if plan["output"] else {}),
               **({"approval": plan["record"]} if plan.get("record") else {}),
               **({"issue": plan["issue"]} if plan.get("issue") else {}),

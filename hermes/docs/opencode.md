@@ -347,8 +347,12 @@ OpenCode agent's own pin. The plugin passes the model explicitly with every turn
 (it must use tools; a variant must be one the model offers), and reports it as
 `engine`. A caller may choose any catalog model of `opencode.allowed_providers`
 with `model` / `variant`. A name outside the providers or the catalog is
-refused, never substituted, and an explicit selection binds the rest of that
-session.
+refused, never substituted. An explicit selection binds its role on that
+session and its forks (`metadata.hermes.selections`, keyed by role): a later
+turn of the same role keeps it, and a turn of another role runs on that role's
+own model. OpenCode itself keeps a session's model until it is switched, and an
+agent switch leaves it as it is, so the model the plugin sends each turn is
+what moves a session from a plan on one model to a build on its own.
 
 The defaults are OpenCode's own: a role pins no `model` unless a maintainer has a
 reason (OpenCode uses its own subscription account, not the Hermes weekly pool).
