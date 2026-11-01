@@ -606,8 +606,9 @@ Three ways to read it:
   `opencode-quota/settings.jsonc` points a remote-api provider at each. Quota
   sends the lane's own key as the bearer token and the endpoint answers only
   that, so no new secret exists. The percentage (of the grants that still hold
-  something), the countdown to the nearest of them expiring and the pace show
-  in `/quota`; the dollar amounts the endpoint sends beside the percentage
+  something), the countdown to the nearest of them expiring and, while the
+  lane holds something, the pace show in `/quota` (an empty lane is its one
+  `Left` row); the dollar amounts the endpoint sends beside the percentage
   (`right`) are checked but not shown. Quota reuses a provider's result for
   `providers.checking.minIntervalMs`
   (5 minutes by default, 2 here) even though the sidebar refreshes every minute,
@@ -678,6 +679,10 @@ Limits:
   there gets neither the login plugin's rewrite nor the swap.
 - Moving a session between logins starts a new prompt cache ("Prompt cache"
   below).
+- Quota 6.0.0 drops every row of a login whose usage reply has no 5h window
+  (`five_hour: null`) and shows it as "Unexpected reply"
+  ([slkiser/opencode-quota#374](https://github.com/slkiser/opencode-quota/issues/374)).
+  The preflight then sees that login as unknown, not exhausted.
 
 ## Prompt cache
 
