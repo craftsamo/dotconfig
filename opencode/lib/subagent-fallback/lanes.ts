@@ -56,6 +56,34 @@ export function classify(
   return undefined
 }
 
+// Antigravity's plugin turns a spent group into a plain error of its own
+// (OpenCode sees provider.unknown, no status), after waiting out any limit
+// of up to five minutes: its quota protection ("Quota protection: All 1
+// account(s) are over 90% usage for gemini. Quota resets in 2h 30m.") or
+// every account rate-limited ("All 1 account(s) rate-limited for claude.
+// Quota resets in 12m 5s."). The wait it gives, in ms (undefined when it
+// gives none), or null when the error is not one of these.
+export function antigravityLimit(error: RetryError): number | undefined | null {
+  const text = error.message
+  if (
+    !/^Quota protection: All \d+ account\(s\) are over/.test(text) &&
+    !/^All \d+ account\(s\) rate-limited for /.test(text)
+  )
+    return null
+  const wait = /Quota resets in ((?:\d+(?:ms|h|m|s)\s*)+)\./.exec(text)?.[1]
+  if (!wait) return undefined
+  const unit: Record<string, number> = {
+    ms: 1,
+    s: 1000,
+    m: 60_000,
+    h: 3_600_000,
+  }
+  let ms = 0
+  for (const [, n, u] of wait.matchAll(/(\d+)(ms|h|m|s)/g))
+    ms += Number(n) * unit[u]
+  return ms > 0 ? ms : undefined
+}
+
 // Places to skip for a while: credit lanes that failed, and the subscription
 // windows a protected child hit. A lane has no balance API, so the first
 // request after the cooldown is the probe: an empty lane fails fast (before
