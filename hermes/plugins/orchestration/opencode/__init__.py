@@ -824,14 +824,17 @@ def opencode_session(args, **kwargs):
             turn.call("patch", "/api/session/{sid}", {"metadata": {**(info.get("metadata") or {}), "hermes": meta}},
                       sid=new)
             return json.dumps({"session_id": new, "forked_from": sid, "role": meta.get("role")})
-        if action == "workspace":
+        if action in ("workspace", "cleanup"):
             if turn_env.value("RESIDENT_TURN_KIND") == "reconcile":
                 raise ValueError("This resident turn is reconcile-only; inspect and stop, never change a session")
             with _starting(home, policy.worktree(turn.directory_of(info))):
+                if action == "cleanup":
+                    return json.dumps(workspace.cleanup(sid=sid, info=info, meta=meta, owner=owner,
+                                                        settings=config.load(home), policy=policy, turn=turn))
                 return json.dumps(workspace.create(sid=sid, info=info, meta=meta, args=args,
                                                    settings=config.load(home), policy=policy, turn=turn,
                                                    issue_ref=issue_ref))
-        raise ValueError("Use status/list/wait/steer/interrupt/messages/diff/fork/workspace")
+        raise ValueError("Use status/list/wait/steer/interrupt/messages/diff/fork/workspace/cleanup")
     except Exception as exc:
         return json.dumps({"error": str(exc)})
 
@@ -1196,7 +1199,7 @@ def register(ctx):
             _run_properties(role), ["message"], _run_description(name, role), config.emoji(role))
     add("opencode_session", opencode_session, {
         "action": {"type": "string", "enum": ["list", "status", "wait", "steer", "interrupt", "messages", "diff",
-                                              "fork", "workspace"]},
+                                              "fork", "workspace", "cleanup"]},
         "branch": {"type": "string", "description": "workspace only: the new task branch, e.g. task/short-name; "
                                                     "a session bound to an issue defaults to task/issue-N"},
         "base": {"type": "string", "enum": list(workspace.BASES),
@@ -1215,7 +1218,9 @@ def register(ctx):
         "running turn; interrupt stops it (never a rollback); diff lists the newest turn's changed files "
         "(patch=true adds patches); messages reads recent messages; fork copies an idle session; workspace moves "
         "an idle session into a new worktree on a new task branch of its own repository, so an approved plan "
-        "continues as a build on the same session.")
+        "continues as a build on the same session; cleanup, once its work has landed on the default branch, moves "
+        "your sessions in that worktree back to the main checkout and removes the worktree and its landed task "
+        "branches.")
     add("opencode_request", opencode_request, {
         "action": {"type": "string", "enum": ["list", "reply"]},
         "session_id": {"type": "string"},

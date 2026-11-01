@@ -411,7 +411,7 @@ Contract: [docs/opencode.md](docs/opencode.md). When editing
   a run's state is read from the service (the turn's `idle` message carries its
   outcome). A state file, watcher or stored PID would become a second source of
   truth that disagrees with the service. The per-worktree lock only serializes
-  starts. No deadline is enforced on purpose (a run outlives Hermes). A Phase's
+  starts, `workspace` and `cleanup`. No deadline is enforced on purpose (a run outlives Hermes). A Phase's
   `progress.md` in the output directory is the run's own file: the plugin only
   reads it, and a notifier holds its baseline in memory, never on disk.
 - **Roles are configuration, not code.** Names, agents, policies and models come
@@ -491,15 +491,19 @@ Contract: [docs/opencode.md](docs/opencode.md). When editing
 - **A session may only work in the repository it was bound to.** An agent can
   move any session with `session_move` (no permission asked), so
   `metadata.hermes.repo` and the per-turn check in `_prepare` detect a stray
-  session at its next turn; the only sanctioned move is
-  `opencode_session workspace`. Never ask an OpenCode run to move itself, keep
+  session at its next turn; the only sanctioned moves are
+  `opencode_session workspace` and its inverse `cleanup`. Never ask an OpenCode run to move itself, keep
   the service's own worktree route unused and `git_worktree` denied in the
   ruleset (`workspace` creates, binds and rolls back in one step), and keep
   `workspace.py`'s git calls hook-free with the minimal environment: a tracked
   `core.hooksPath` is repository-controlled code and this process holds the
   gateway's secrets. Its layout (`<root>/<origin repository name>/<branch>`)
-  matches OpenCode's worktree strategy in `opencode/lib/worktrees/`; change
-  both together.
+  and `cleanup`'s rule for a landed branch match OpenCode's worktree strategy
+  in `opencode/lib/worktrees/`; change both together. `cleanup` never forces
+  a removal or deletes a branch it has not proven landed: a squash-merged
+  branch is proven only by a merged PR whose head is its tip, read from the
+  repository's pull requests (search trails a fresh merge), and the branch is
+  deleted only if it still points at that tip.
 
 ## Candidates and cutover
 
