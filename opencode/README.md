@@ -606,8 +606,9 @@ Three ways to read it:
   `opencode-quota/settings.jsonc` points a remote-api provider at each. Quota
   sends the lane's own key as the bearer token and the endpoint answers only
   that, so no new secret exists. The percentage (of the grants that still hold
-  something), the countdown to the nearest of them expiring and the pace show
-  in `/quota`; the dollar amounts the endpoint sends beside the percentage
+  something), the countdown to the nearest of them expiring and, while the
+  lane holds something, the pace show in `/quota` (an empty lane is its one
+  `Left` row); the dollar amounts the endpoint sends beside the percentage
   (`right`) are checked but not shown. Quota reuses a provider's result for
   `providers.checking.minIntervalMs`
   (5 minutes by default, 2 here) even though the sidebar refreshes every minute,
