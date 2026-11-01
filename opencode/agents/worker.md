@@ -1,7 +1,7 @@
 ---
 description: "Implements well-specified, mechanical code changes: bulk edits, boilerplate, rote refactors, applying an already-decided design. Give it exact specs; it makes no design decisions. Prefer invoking through the built-in subagent tool."
 mode: subagent
-model: anthropic/claude-sonnet-5-5#low
+model: google/antigravity-gemini-3.8-flash-medium
 hidden: false
 permissions:
   - { action: "*", resource: "*", effect: deny }

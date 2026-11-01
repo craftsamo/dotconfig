@@ -65,89 +65,111 @@
         // catalog) too. A session already running moves, on an empty balance
         // or a window limit, through the steps that run the same model. The
         // first step's model is the one the agent file names.
+        //
+        // Gemini Flash on Antigravity leads the explore tiers below max, the
+        // worker and the searcher, and backs up the deep searcher; Claude
+        // closes every route: the saved logins first, then the paid credit
+        // lanes as the very last stops.
         "routes": {
           "explore-max": [
             "openai/gpt-6.1-sol#xhigh",
+            "anthropic/claude-opus-5-5-sub#xhigh",
+            "anthropic/claude-opus-5-5-main#xhigh",
             "anthropic-credit-team/claude-opus-5-5#xhigh",
             "anthropic-credit-main/claude-opus-5-5#xhigh",
-            "anthropic-credit-sub/claude-opus-5-5#xhigh",
-            "anthropic/claude-opus-5-5-sub#xhigh",
-            "anthropic/claude-opus-5-5-main#xhigh"
+            "anthropic-credit-sub/claude-opus-5-5#xhigh"
           ],
           "explore-high": [
+            "google/antigravity-gemini-3.8-flash-high",
             "openai/gpt-6.1-sol-fast#high",
+            "anthropic/claude-sonnet-5-5-sub#high",
+            "anthropic/claude-sonnet-5-5-main#high",
             "anthropic-credit-team/claude-sonnet-5-5#high",
             "anthropic-credit-main/claude-sonnet-5-5#high",
-            "anthropic-credit-sub/claude-sonnet-5-5#high",
-            "anthropic/claude-sonnet-5-5-sub#high",
-            "anthropic/claude-sonnet-5-5-main#high"
+            "anthropic-credit-sub/claude-sonnet-5-5#high"
           ],
           "explore-medium": [
+            "google/antigravity-gemini-3.8-flash-medium",
             "openai/gpt-6.1-sol-fast#medium",
-            "anthropic-credit-team/claude-sonnet-5-5#medium",
-            "anthropic-credit-main/claude-sonnet-5-5#medium",
-            "anthropic-credit-sub/claude-sonnet-5-5#medium",
-            "anthropic/claude-sonnet-5-5-sub#medium",
-            "anthropic/claude-sonnet-5-5-main#medium"
-          ],
-          "reviewer": [
-            "anthropic-credit-team/claude-sonnet-5-5#medium",
-            "anthropic-credit-main/claude-sonnet-5-5#medium",
-            "anthropic-credit-sub/claude-sonnet-5-5#medium",
             "anthropic/claude-sonnet-5-5-sub#medium",
             "anthropic/claude-sonnet-5-5-main#medium",
-            "openai/gpt-6.1-sol#medium"
+            "anthropic-credit-team/claude-sonnet-5-5#medium",
+            "anthropic-credit-main/claude-sonnet-5-5#medium",
+            "anthropic-credit-sub/claude-sonnet-5-5#medium"
+          ],
+          "reviewer": [
+            "openai/gpt-6.1-sol#medium",
+            "anthropic/claude-sonnet-5-5-sub#medium",
+            "anthropic/claude-sonnet-5-5-main#medium",
+            "anthropic-credit-team/claude-sonnet-5-5#medium",
+            "anthropic-credit-main/claude-sonnet-5-5#medium",
+            "anthropic-credit-sub/claude-sonnet-5-5#medium"
           ],
           "worker": [
-            "anthropic-credit-team/claude-sonnet-5-5#low",
-            "anthropic-credit-main/claude-sonnet-5-5#low",
-            "anthropic-credit-sub/claude-sonnet-5-5#low",
+            "google/antigravity-gemini-3.8-flash-medium",
+            "openai/gpt-6.1-sol#low",
             "anthropic/claude-sonnet-5-5-sub#low",
             "anthropic/claude-sonnet-5-5-main#low",
-            "openai/gpt-6.1-sol#low"
+            "anthropic-credit-team/claude-sonnet-5-5#low",
+            "anthropic-credit-main/claude-sonnet-5-5#low",
+            "anthropic-credit-sub/claude-sonnet-5-5#low"
           ],
           "explore-spark": [
+            "google/antigravity-gemini-3.8-flash-low",
             "openai/gpt-6-luna-fast#low",
+            "anthropic/claude-haiku-5-5-sub#low",
+            "anthropic/claude-haiku-5-5-main#low",
             "anthropic-credit-team/claude-haiku-5-5#low",
             "anthropic-credit-main/claude-haiku-5-5#low",
-            "anthropic-credit-sub/claude-haiku-5-5#low",
-            "anthropic/claude-haiku-5-5-sub#low",
-            "anthropic/claude-haiku-5-5-main#low"
+            "anthropic-credit-sub/claude-haiku-5-5#low"
           ],
           "explore-small": [
+            "google/antigravity-gemini-3.8-flash-low",
             "openai/gpt-6-luna#low",
+            "anthropic/claude-haiku-5-5-sub#low",
+            "anthropic/claude-haiku-5-5-main#low",
             "anthropic-credit-team/claude-haiku-5-5#low",
             "anthropic-credit-main/claude-haiku-5-5#low",
-            "anthropic-credit-sub/claude-haiku-5-5#low",
-            "anthropic/claude-haiku-5-5-sub#low",
-            "anthropic/claude-haiku-5-5-main#low"
+            "anthropic-credit-sub/claude-haiku-5-5#low"
           ],
           "verifier": [
             "openai/gpt-6-luna#low",
+            "anthropic/claude-haiku-5-5-sub#low",
+            "anthropic/claude-haiku-5-5-main#low",
             "anthropic-credit-team/claude-haiku-5-5#low",
             "anthropic-credit-main/claude-haiku-5-5#low",
-            "anthropic-credit-sub/claude-haiku-5-5#low",
-            "anthropic/claude-haiku-5-5-sub#low",
-            "anthropic/claude-haiku-5-5-main#low"
+            "anthropic-credit-sub/claude-haiku-5-5#low"
           ],
           "debugger": [
             "openai/gpt-6.1-sol#high",
+            "anthropic/claude-opus-5-5-sub#high",
+            "anthropic/claude-opus-5-5-main#high",
             "anthropic-credit-team/claude-opus-5-5#high",
             "anthropic-credit-main/claude-opus-5-5#high",
-            "anthropic-credit-sub/claude-opus-5-5#high",
-            "anthropic/claude-opus-5-5-sub#high",
-            "anthropic/claude-opus-5-5-main#high"
+            "anthropic-credit-sub/claude-opus-5-5#high"
           ],
           "reviewer-deep": [
             "openai/gpt-6.1-sol#high",
+            "anthropic/claude-opus-5-5-sub#high",
+            "anthropic/claude-opus-5-5-main#high",
             "anthropic-credit-team/claude-opus-5-5#high",
             "anthropic-credit-main/claude-opus-5-5#high",
-            "anthropic-credit-sub/claude-opus-5-5#high",
-            "anthropic/claude-opus-5-5-sub#high",
-            "anthropic/claude-opus-5-5-main#high"
+            "anthropic-credit-sub/claude-opus-5-5#high"
           ],
-          "searcher-deep": ["xai/grok-4.7#medium", "openai/gpt-6.1-sol#medium"],
-          "searcher": ["xai/grok-4.7#low", "openai/gpt-6.1-sol#low"]
+          "searcher-deep": [
+            "xai/grok-4.7#medium",
+            "openai/gpt-6.1-sol#medium",
+            "google/antigravity-gemini-3.8-flash-high",
+            "anthropic/claude-sonnet-5-5-sub#medium",
+            "anthropic/claude-sonnet-5-5-main#medium"
+          ],
+          "searcher": [
+            "google/antigravity-gemini-3.8-flash-low",
+            "xai/grok-4.7#low",
+            "openai/gpt-6.1-sol#low",
+            "anthropic/claude-haiku-5-5-sub#low",
+            "anthropic/claude-haiku-5-5-main#low"
+          ]
         },
         // Where the primary session moves, in order, when its login hits a
         // window limit or a lane runs dry: models left as "*". Only a Claude
