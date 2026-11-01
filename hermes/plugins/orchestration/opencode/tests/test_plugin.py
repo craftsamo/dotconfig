@@ -2442,7 +2442,6 @@ def test_session_ruleset_holds_no_broad_allow_but_worktree_edits():
                             "git -C x push origin main", "gh pr merge 3", "gh stack merge", "gh stack -R o/r merge",
                             "gh stack unstack", "gh api repos/x", "git reset --hard HEAD~1"):
                 assert policy.decide(rules, "shell", command) == "deny", (kind, command)
-            assert policy.decide(rules, "github_project_item_add", "*") == "deny"
             for tool in ("gh_issue_create", "gh_issue_update", "gh_issue_comment", "gh_issue_relate", "gh_issue_develop",
                          "gh_project_create", "gh_project_link", "gh_project_field_ensure", "gh_project_view_ensure",
                          "gh_project_item_add", "gh_project_item_set", "gh_project_item_promote"):
