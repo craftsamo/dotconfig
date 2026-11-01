@@ -85,6 +85,34 @@ class EngineeringClientTests(unittest.TestCase):
                    if line.startswith("| engineering |"))
         self.assertNotIn("relayed", row)
 
+    def test_briefs_commission_outcomes_and_never_direct_the_method(self):
+        raw = (ROOT.parents[3] / "plugins/orchestration/opencode/skills/brief/SKILL.md").read_text()
+        text = " ".join(raw.split())
+        self.assertIn("## What a brief holds", text)
+        for part in ("**Goal**", "**Why**", "**What is settled**", "**Scope**", "**Done means**",
+                     "**When to come back**"):
+            self.assertIn(part, text)
+        self.assertIn("These are yours to set: write a stop as a condition", text)
+        self.assertIn("| Method, checks, which files change, subagents | the run decides |", text)
+        self.assertIn("**Outcomes, not orders.**", text)
+        self.assertIn("the fix is the run's", text)
+        self.assertIn("**A method the user names** to you", text)
+        self.assertIn("the message itself has neither", text)
+        self.assertIn("**Before you send**", text)
+        for example in re.findall(r"```text\n(.*?)```", raw, re.DOTALL):
+            self.assertIsNone(re.search(r"(行目|\bline \d+|サブエージェント|subagent|\blint\b|typecheck)", example),
+                              example)
+        drive = " ".join((ROOT.parents[3] / "plugins/orchestration/opencode/skills/drive/SKILL.md")
+                         .read_text().split())
+        self.assertNotIn("must name another subagent", drive)
+        self.assertIn("never name, start, stop or restart its subagents", drive)
+        execute = read("engineering/execute/SKILL.md")
+        self.assertIn("Concrete means each defect as a finding: what you saw (with its evidence), what you "
+                      "expected and why it matters to people", execute)
+        self.assertIn("the fix stays the run's", execute)
+        qa = read("engineering/qa/SKILL.md")
+        self.assertIn("A defect goes back as a finding (what you saw, what you expected, why it matters)", qa)
+
     def test_a_proposal_becomes_a_decision_only_by_the_users_choice(self):
         log = read("engineering/plan/SKILL.md")
         self.assertIn("Only the user's explicit choice moves a row to decided", log)

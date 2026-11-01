@@ -1,7 +1,7 @@
 ---
 name: brief
 description: "Use before writing any message to an OpenCode run (plan, build, review, debug or design): commissioning it in your own voice, when to quote, what goes in and what stays out, paths, markup, and what to ask for. Driving the run is opencode:drive."
-version: 1.1.0
+version: 1.2.0
 author: CraftSamo
 license: MIT
 metadata:
@@ -31,6 +31,39 @@ a message is a few short paragraphs: no headings, no labelled blocks
 ("constraints:", "the person's words:", 「守ってほしいこと」), and a list
 only for things that are a list (claim numbers, repositories to compare).
 
+## What a brief holds
+
+A brief commissions; it does not direct. It holds these six, each in a
+sentence or two of plain prose, and only those this turn needs (the list and
+the table below are for you; the message itself has neither):
+
+1. **Goal**: what we want, and what changes for people once it is done.
+2. **Why**: the reason behind it. It is what lets the run make the good calls
+   you did not foresee.
+3. **What is settled**: the decisions already taken, stated as decided; the
+   detail is in the decision log and the issue.
+4. **Scope**: how far this turn goes, and what it leaves alone.
+5. **Done means**: how the result will be judged, the evidence you want back,
+   and where the stakes call for the closest care.
+6. **When to come back**: when it should stop and report before going on, and
+   what this turn hands back. These are yours to set: write a stop as a
+   condition ("if the rename added failures, show me before opening the
+   PR"), and keep every item you ask back an outcome, never a method
+   ("whether a transfer carries the Environment variables, and how sure you
+   are", not "check it in the official docs").
+
+Everything else has a place of its own, and a brief that carries it becomes a
+second specification:
+
+| What | Where |
+| --- | --- |
+| The specification and its acceptance | the issue; the brief points at it |
+| A constraint for the whole session | `opencode_instructions`, set once |
+| What the tools already forbid | the ruleset; never in the message |
+| Method, checks, which files change, subagents | the run decides |
+
+## How it reads
+
 - **Your voice, not a relay.** The person you work for is never a third
   party in the message: no "the user said", "the requester wants", "from the
   user's side", 依頼者は／利用者は／本人の言葉では／〜側からの指示／〜と話して
@@ -56,14 +89,31 @@ only for things that are a list (claim numbers, repositories to compare).
   - The user's own remark only when its wording is itself the spec (a name
     they chose, a sentence for the screen); otherwise say the decision as
     yours.
+- **Outcomes, not orders.** A sentence that says how (steps, commands,
+  which checks to run, files or lines to edit, which subagent to use) is
+  rewritten as what you want:
+  - A defect you found: what you saw, what you expected and why it matters
+    ("the docs still say the URL comes from `DOMAIN`; people deploy from
+    them, so nothing may contradict the new behavior"), never where or how
+    to edit. Reading logs and diffs yourself gives you the finding; the fix
+    is the run's.
+  - A question to settle: what you want to know and what follows from each
+    answer ("I want to know whether the rename added failures: if not, go
+    on to the PR; if it did, show me before opening one"), not the
+    experiment that answers it.
+  - Checks: "tell me which checks you actually ran, their results, and what
+    you could not run", not a list of checks to run.
 - **Circumstances, not orders.** A limit in the run's environment (a spent
-  model, an unavailable subagent, CI that cannot run) goes in as the fact and
-  what it means for this turn ("searcher-deep is unavailable this turn, so
-  mark what you could not confirm"); how to work around it is the run's call.
-  Never start, stop or pick its subagents, and never dictate edits line by
-  line: name the outcome ("the docs still say the URL comes from `DOMAIN`;
-  make them match the new behavior") and let it find the places.
-- **Markup.** OpenCode shows the message as typed, so Markdown appears as raw
+  model or account, a provider that is down, CI that cannot run) goes in as
+  the fact and what it means for this turn ("the xAI credits are spent, so
+  that route is unavailable today; mark what you could not confirm"); how to
+  work around it is the run's call. Never start, stop or pick its subagents.
+- **A method the user names** to you ("don't use the subagents") usually
+  stands for a circumstance: find it (a cost, an outage, something to leave
+  alone) and pass that on, as above. Only a method the user decided for a
+  reason of its own is a constraint, and it goes in like one (below).
+- **Markup** of the message (this skill's own layout is not a model for it).
+  OpenCode shows the message as typed, so Markdown appears as raw
   symbols. Use backticks, and nothing else, for paths, commands, identifiers,
   settings keys and branch names: they mark exactly what is literal. A fenced
   block (three backticks) only for several lines that must pass unchanged (an
@@ -81,11 +131,10 @@ only for things that are a list (claim numbers, repositories to compare).
   wrote), what its tools, ruleset and operating note already carry (prohibited
   commands, commit rules, push and merge limits, how to write commands, where
   the report goes, which issue the run works on and which PR closes it: the
-  `issue` argument puts that in the note), and how to do the work (commands,
-  steps, file lists, line numbers, which checks to run, retry counts, a report
-  template): spelling those out narrows the model and buys nothing. Name the
-  outcome you need ("make clear where checked fact ends and inference
-  begins"), not its layout. Never paste its global instructions or whole
+  `issue` argument puts that in the note), and how to do the work ("Outcomes,
+  not orders"; a report template too): spelling those out narrows the model
+  and buys nothing. Name the outcome you need ("make clear where checked fact
+  ends and inference begins"), not its layout. Never paste its global instructions or whole
   skill bodies into a prompt.
 - **The issue is the spec.** A fact the run needs (a date, a promise, a
   measurement, who holds a key) goes into the issue before the turn, with its
@@ -101,6 +150,12 @@ only for things that are a list (claim numbers, repositories to compare).
   decides and records the choice in its report or PR. Take to the user only
   what changes what people can do or see, what is stored, cost, or anything
   irreversible, and bring their answer back as your decision.
+
+**Before you send**, read the message once as the run would: a sentence that
+says how becomes the outcome you want, a fact the issue lacks goes into the
+issue, and a rule its tools already enforce is dropped.
+
+## Examples
 
 A build turn after the approved plan changed, written as the client, not as a
 relay ("The user approved. The user said "…", so … Additional instructions
@@ -152,6 +207,24 @@ A diagnosis that starts from a third party's report, quoted with its source:
 運営の担当者から、交換の申請が二重に記録されたという報告が届きました。報告には「交換ボタンを一度押しただけなのに、申請が二件になっていた」とあります。
 同じ申請が二重に記録されうる経路があるか、コードと試験から調べてください。
 直す前に原因を知りたいので、今回は原因の特定までです。再現できた条件と、確かめた事実と推測の境が分かる形で返してください。
+```
+
+A correction after reading the PR, as findings rather than edits (not "fix
+`docs/web.md` around line 208 to say …, then line 277 …"):
+
+```text
+PR の差分を読みました。コードとテストはこのままで構いません。
+気になったのは文書です。まだ「`DOMAIN` から `WEB_BASE_URL` が決まる」と読める記述が残っています。配備する人は文書を見て作業するので、新しい挙動と食い違う記述が残らないようにしてください。手順書全体の書き直しは別の PR で行う予定なので、今回は事実に合わせるところまでで十分です。
+この PR の範囲で直して、何を直したかを教えてください。
+```
+
+A turn where a route is unavailable and a result decides what comes next (not
+"don't use subagents; 1. count the failures 2. rerun the old commit in the
+same container 3. …"):
+
+```text
+xAI のクレジットが切れていて、今日はその経路が使えません。確かめきれなかったところは、そう分かる形で残してください。
+改名の PR を出してよいかを判断したいので、いま出ている E2E の失敗が改名で増えたものかを知りたいです。改名の前から同じ結果なら、PR に進めて構いません。改名の後にだけ出る失敗があれば、PR を出す前に結果を見せてください。どちらの場合も、そう判断した根拠が分かる形で返してください。
 ```
 
 ## What to ask for
