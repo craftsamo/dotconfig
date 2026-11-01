@@ -62,6 +62,8 @@ export function classify(
 // any generation) and is marked again.
 export class Cooldowns {
   private until = new Map<string, number>()
+  // Cooldowns a restart should drop (saved() leaves them out).
+  private volatile = new Set<string>()
   constructor(
     readonly ids: readonly string[],
     private cooldownMs: number,
@@ -71,14 +73,17 @@ export class Cooldowns {
     return this.ids.includes(id)
   }
   // forMs shortens the block (a window limit that says when it resets); it
-  // never exceeds the cooldown.
-  mark(id: string, forMs?: number): void {
+  // never exceeds the cooldown. kept: false for a block a restart can lift,
+  // such as a bad key, which only a restart lets OpenCode read again.
+  mark(id: string, forMs?: number, kept = true): void {
     if (!this.has(id)) return
     const ms =
       forMs !== undefined && Number.isFinite(forMs) && forMs > 0
         ? Math.min(forMs, this.cooldownMs)
         : this.cooldownMs
     this.until.set(id, this.now() + ms)
+    if (kept) this.volatile.delete(id)
+    else this.volatile.add(id)
   }
   blocked(id: string): boolean {
     const until = this.until.get(id)
@@ -93,7 +98,9 @@ export class Cooldowns {
   saved(): Record<string, number> {
     const now = this.now()
     return Object.fromEntries(
-      [...this.until].filter(([, until]) => until > now),
+      [...this.until].filter(
+        ([id, until]) => until > now && !this.volatile.has(id),
+      ),
     )
   }
   // Takes back saved cooldowns of these ids, none longer than one.

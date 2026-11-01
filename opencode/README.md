@@ -537,12 +537,19 @@ new lane launches.
   below (at most once a minute per lane).
 - **Known empty.** A lane whose checkpoint is $0, with no grant known since and
   its renewal still ahead, holds nothing (spend only lowers a balance), so new
-  launches and moves pass it over until then. One request a day still tries
-  it, for a grant that arrives off schedule: a day after its own empty
-  checkpoint, or at once when the $0 was carried forward by another lane's
-  checkpoint. A Console balance or a grant recorded since ends it at once
-  (`status.ts checkpoint` and `status.ts grant`, below). The lane cooldowns
-  and these daily tries survive a restart in
+  launches and moves pass it over until then. Neither time of day is known: a
+  grant listed by its date alone (`status.ts grant`, below) counts from that
+  whole day, and a checkpoint on a renewal day holds only to the day's end. A
+  Console balance above $0 (`status.ts checkpoint`) ends it too.
+- **Daily try.** One request a day still tries a lane known empty, for a grant
+  that arrives off schedule or an estimate that ran ahead: a day after its own
+  empty checkpoint, or at once when its $0 came from elsewhere (carried
+  forward by another lane's checkpoint, or a Console reading). A try that has
+  not failed ten minutes later (a failure records an empty checkpoint within
+  seconds) shows money, and the lane is used again until an empty balance or
+  a Console $0 is recorded. A failure whose checkpoint could not be recorded
+  leaves the lane to its one-hour cooldown, as without this. The lane cooldowns (but a bad key's, which a
+  restart is the fix for) and these tries survive a restart in
   `~/.local/state/opencode/subagent-preflight.json`; removing it costs only a
   rejected request per lane.
 - A session never revisits a stop within five minutes, so the chain cannot
