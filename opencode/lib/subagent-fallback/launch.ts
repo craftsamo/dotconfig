@@ -67,9 +67,9 @@ const withNotices = (
   }
 }
 
-const WHY_LANE = "a Console credit lane is tried before the subscription."
+const WHY_LANE = "the route's next step is a Console credit lane."
 const WHY_LANE_SPENT =
-  "Quota reports the default's included quota empty; a Console credit lane is tried before the subscription."
+  "Quota reports the default's included quota empty; the route's next step is a Console credit lane."
 const WHY_LOGIN =
   "Quota reports an earlier Claude login's included quota empty and the next saved login not empty. No running-session switch."
 const WHY_ALTERNATE =
