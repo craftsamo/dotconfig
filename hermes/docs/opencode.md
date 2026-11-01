@@ -385,10 +385,26 @@ too. The catalog marks such entries `stop_of`, and a lane is offered as
 providers` reads each provider's activation and `canonical`; `funding` reads
 Quota's export (`~/.cache/opencode/quota-export.json`, the same file the
 preflight plugin reads, with its freshness rule) as a board of every saved
-login's windows and every lane's balance estimate, with the reading's age and
-never its connection ids. The Assistant decides nothing from it before a run:
-the service moves a session itself, and the board tells the person where the
-limits stand.
+login's windows, every lane's balance estimate and each quota group's window,
+with the reading's age and never its connection ids. A quota group is a
+subscription's per-family window that Quota exports beside the lanes (Google
+Antigravity's Gemini Pro, Gemini Flash and Claude, reported under the `google`
+provider whose `google/antigravity-*` models spend them); a usage row is never
+read as a credit lane, and a group with no more than 10 % left is marked
+`spent`, since Antigravity's plugin refuses it until its reset. The Assistant
+decides nothing from it before a run: the service moves a session itself, and
+the board tells the person where the limits stand.
+
+**Specialists on Antigravity.** The person's OpenCode routes its specialist
+subagents (explore, worker, searcher) through a route table that leads with
+Gemini Flash on Antigravity and moves a refused step to the next one
+(`opencode/README.md` "Subscription preflight"). A Hermes-driven run uses the
+same routes; that is accepted, unlike a Hermes model chain naming Antigravity
+([decision](./decisions/antigravity-provider.md)). So a subagent's limit retry
+is not handed back at once: it waits like any other retry until its third
+attempt, and the note says to wait through it or name another subagent, since
+`model=` changes only the run's own model. A limit on the run's own model still
+hands back at once.
 
 **Hand-back.** A live caller gets the current state at once. Only while that
 state is `running` it also gets a notifier process, launched through the terminal

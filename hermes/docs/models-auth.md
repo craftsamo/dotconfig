@@ -93,10 +93,11 @@ Provider facts:
 - **Codex** — **images, plus one last-resort chat tier**: GPT-6.1 Sol sits ahead
   of the OpenRouter tail on every profile (`default` included), so a spent
   Claude weekly pool degrades to a capable model instead of a cheap one. The
-  ChatGPT subscription is sized for OpenCode (its searchers, `debugger`,
-  `reviewer-deep`, the explore tiers and cheap subagents, plus the `alternate`
-  of the Assistant's OpenCode roles) and shares one Plus allowance with
-  Hermes. The tier only runs once the Claude and Grok tiers above it have failed, but a
+  ChatGPT subscription is sized for OpenCode (`debugger`, `reviewer`,
+  `reviewer-deep`, `explore-max`, a backup step behind Gemini Flash or Grok
+  for the other explore tiers, the worker and the searchers, plus the
+  `alternate` of the Assistant's OpenCode roles) and shares one Plus allowance
+  with Hermes. The tier only runs once the Claude and Grok tiers above it have failed, but a
   `video-creator` job reads tens of millions of tokens, so a long spell on it
   drains the allowance: re-size OpenCode's usage before adding the tier to an
   aux task. `assistant` is the exception with GPT-6 Astra ahead of Sonnet
@@ -313,7 +314,10 @@ CLI or a runtime patch: [decision](./decisions/antigravity-provider.md)).
   in the examples or the private configs; select it per session
   (`hermes --provider antigravity -m <id>`, or `/model`). The provider is
   `hidden`, so pickers offer it only once a login exists.
-  `test_example_configs.py` refuses it in an example.
+  `test_example_configs.py` refuses it in an example. This is Hermes' own
+  selection: an OpenCode run the Assistant drives uses OpenCode's specialist
+  routes, Antigravity steps included ([opencode.md](./opencode.md)
+  "Specialists on Antigravity").
 - **A named profile keeps its own copy of the rows.** The runtime writes a
   refreshed row back to `default` only for single-use grants, and Google's
   refresh token is reusable, so the first refresh in a named profile saves

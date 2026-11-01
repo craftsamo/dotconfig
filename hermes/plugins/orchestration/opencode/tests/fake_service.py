@@ -143,6 +143,14 @@ class Fake:
         elif step.startswith("retry:"):
             _, message, attempt = step.split(":", 2)
             self.retry(sid, message, int(attempt))
+        elif step.startswith("retry-child:"):
+            _, message, attempt = step.split(":", 2)
+            child = f"{sid}child" if f"{sid}child" in self.sessions else self.child(sid)
+            self.sessions[child].setdefault("model", self.sessions[sid].get("model"))
+            self.active.add(child)
+            self.retry(child, message, int(attempt))
+            if self.messages[child] and not self.messages[child][-1].get("model"):
+                self.messages[child][-1]["model"] = self.sessions[sid].get("model")
         elif step == "ask-permission":
             self.ask(sid)
             script.insert(0, "wait-reply")
