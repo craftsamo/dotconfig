@@ -532,9 +532,16 @@ new lane launches.
   window limit, for the lanes and then the active login. Each login is a stop
   of its own.
 - **Probing.** There is no balance API: a lane is probed by use. After its
-  cooldown the next request fails fast if it is still empty, which costs one
-  rejected request an hour. Each empty-balance error also records a $0
-  checkpoint for the balance estimate below (at most once a minute per lane).
+  cooldown the next request fails fast if it is still empty. Each
+  empty-balance error also records a $0 checkpoint for the balance estimate
+  below (at most once a minute per lane).
+- **Known empty.** A lane whose checkpoint is $0, with no grant known since and
+  its renewal still ahead, holds nothing (spend only lowers a balance), so new
+  launches and moves pass it over until then. One request a day still tries
+  it, for a grant that arrives off schedule: a day after its own empty
+  checkpoint, or at once when the $0 was carried forward by another lane's
+  checkpoint. A Console balance or a grant recorded since ends it at once
+  (`status.ts checkpoint` and `status.ts grant`, below).
 - A session never revisits a stop within five minutes, so the chain cannot
   loop. Children launched under the subscription preflight keep their own
   guards and are never moved.

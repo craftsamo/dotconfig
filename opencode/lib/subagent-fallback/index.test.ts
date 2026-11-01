@@ -9,6 +9,7 @@ import {
 } from "./index"
 import { OAUTH_PROVIDER } from "./lanes"
 import { recordNative } from "./native-retry"
+import { EMPTY_PROBE_MS, type LaneBook } from "./empty-lanes"
 import { ROUTES, type CatalogModel, type ModelRef } from "./policy"
 
 const NOW = 1_710_000_000_000
@@ -73,6 +74,8 @@ async function fixture() {
     version: SUPPORTED_VERSIONS[0],
     reads: 0,
     emptied: [] as string[],
+    // The balance estimate's lanes and state (none: no lane is known empty).
+    laneBook: undefined as LaneBook | undefined,
     fetchedAt: undefined as number | undefined,
     path: "",
     unavailable: false,
@@ -378,6 +381,7 @@ async function fixture() {
       creditEmpty: async (provider) => {
         env.emptied.push(provider)
       },
+      readLanes: () => env.laneBook,
     })
     return {
       cleanup,
@@ -1428,6 +1432,75 @@ describe("Console credit lanes", () => {
     env.now += 31_000
     await inst.run()
     expect(env.originals[1].model).toBe(sel(on(MAIN)))
+  })
+  // The balance estimate: Main checkpointed at $0 an hour before NOW, which
+  // is days before its renewal on the 13th; Sub holds something.
+  const emptyMain = (
+    source = "empty",
+    grants: LaneBook["state"][string]["grants"] = [],
+  ): LaneBook => ({
+    lanes: [
+      { provider: MAIN, label: "Main", amount: 200, renewalDay: 13 },
+      { provider: SUB, label: "Sub", amount: 100, renewalDay: 29 },
+    ],
+    state: {
+      [MAIN]: {
+        grants,
+        checkpoint: {
+          at: new Date(NOW - 3_600_000).toISOString(),
+          balance: 0,
+          source: source as "empty",
+          opencodeFrom: "2024-03-09",
+          opencodeBase: 0,
+        },
+      },
+    },
+  })
+  test("a lane known empty is passed over, but for one try a day", async () => {
+    const { env, inst } = await laned()
+    env.laneBook = emptyMain()
+    await inst.run()
+    expect(env.originals[0].model).toBe(sel(on(SUB)))
+    // A day after its empty checkpoint, one launch tries it again.
+    env.now = NOW - 3_600_000 + EMPTY_PROBE_MS
+    await inst.run()
+    expect(env.originals[1].model).toBe(sel(on(MAIN)))
+    await inst.run()
+    expect(env.originals[2].model).toBe(sel(on(SUB)))
+  })
+  test("a $0 estimate carried forward is tried once, then waits a day", async () => {
+    const { env, inst } = await laned()
+    env.laneBook = emptyMain("rolled")
+    await inst.run()
+    expect(env.originals[0].model).toBe(sel(on(MAIN)))
+    await inst.run()
+    expect(env.originals[1].model).toBe(sel(on(SUB)))
+  })
+  test("a grant after the checkpoint, or the renewal, makes the lane usable again", async () => {
+    const granted = new Date(NOW - 60_000).toISOString()
+    for (const [book, now] of [
+      [
+        emptyMain("empty", [
+          { amount: 50, granted, expires: "2024-04-13", source: "console" },
+        ]),
+        NOW,
+      ],
+      [emptyMain(), new Date(2024, 2, 13, 1).getTime()],
+    ] as const) {
+      const { env, inst } = await laned()
+      env.laneBook = book
+      env.now = now
+      await inst.run()
+      expect(env.originals[0].model).toBe(sel(on(MAIN)))
+    }
+  })
+  test("a session leaving a lane passes over a lane known empty", async () => {
+    const { env, inst } = await laned()
+    env.laneBook = emptyMain()
+    specialist(env)
+    const e = await retry(inst, "ses_lane", on(SUB), CREDIT)
+    expect(e.decision).toEqual({ retry: true, delay: 0 })
+    expect(env.switches).toEqual([{ sessionID: "ses_lane", model: SONNET }])
   })
   test("a short limit whose wait Quota stretched neither moves a session nor blocks its lane", async () => {
     const { env, inst } = await laned()
