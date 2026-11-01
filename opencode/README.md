@@ -381,7 +381,7 @@ unchanged; with `pinModels` (below) a project's own model for a role is not.
 | explore-high            | flash high → gpt-6.1-sol high → claude-sonnet-5-5 high                       |
 | explore-medium          | flash medium → gpt-6.1-sol medium → claude-sonnet-5-5 medium                 |
 | reviewer                | gpt-6.1-sol medium → claude-sonnet-5-5 medium                                |
-| worker                  | flash medium → gpt-6.1-sol low → claude-sonnet-5-5 low                       |
+| worker                  | flash medium → gpt-6.1-sol medium → claude-sonnet-5-5 medium                 |
 | worker-deep             | claude-sonnet-5-5 high → gpt-6.1-sol high → flash high                       |
 | explore-spark           | flash low → gpt-6-luna-fast low → claude-haiku-5-5 low                       |
 | explore-small           | flash low → gpt-6-luna low → claude-haiku-5-5 low                            |
