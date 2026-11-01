@@ -26,6 +26,58 @@ export type Subscription = {
   access: string
   accountID?: string
 }
+export type IdentityContext = {
+  integration: {
+    get(input: { integrationID: string }): Promise<{
+      data: {
+        connections: readonly {
+          type: string
+          id?: string
+          label?: string
+          method?: string
+        }[]
+      }
+    }>
+  }
+}
+
+// Quota 6 exports no connection ID: it names a login's rows after the login's
+// label. Adds the label when it names this login alone, and whether this is
+// the integration's only subscription login. Never throws; without either,
+// the login's rows in a Quota 6 export stay unmatched.
+export async function identify(
+  ctx: IdentityContext,
+  proof: AccountProof,
+): Promise<AccountProof> {
+  let connections: unknown
+  try {
+    connections = (
+      await ctx.integration.get({ integrationID: proof.providerID })
+    ).data.connections
+  } catch {
+    return proof
+  }
+  if (!Array.isArray(connections)) return proof
+  const logins = connections.filter(
+    (c) =>
+      c?.type === "credential" &&
+      c.method === "oauth" &&
+      typeof c.id === "string" &&
+      c.id !== "",
+  )
+  const own = logins.find((c) => c.id === proof.connectionID)
+  if (!own) return proof
+  const labelOf = (c: { label?: unknown }) =>
+    typeof c.label === "string" ? c.label.trim() : ""
+  const label = labelOf(own)
+  const named =
+    label !== "" && logins.filter((c) => labelOf(c) === label).length === 1
+  return {
+    ...proof,
+    ...(named ? { label } : {}),
+    ...(logins.length === 1 ? { sole: true } : {}),
+  }
+}
 
 // Access tokens stay in memory. Never include them (or provider response bodies)
 // in errors, metadata, logs, snapshots, or test failure diagnostics.

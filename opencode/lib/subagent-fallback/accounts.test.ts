@@ -1,5 +1,11 @@
 import { describe, expect, test } from "bun:test"
-import { subscription, type AccountsContext } from "./accounts"
+import {
+  identify,
+  subscription,
+  type AccountsContext,
+  type IdentityContext,
+} from "./accounts"
+import type { AccountProof } from "./policy"
 
 function fixture(providerID = "anthropic") {
   const state = {
@@ -109,5 +115,72 @@ describe("native subscription identity", () => {
       state.credential.metadata = metadata
       expect(await subscription(ctx, "openai")).toBeUndefined()
     }
+  })
+})
+
+describe("login identity for Quota 6 rows", () => {
+  const proof: AccountProof = {
+    connectionID: "fixture-a",
+    providerID: "anthropic",
+    methodID: "claude-max",
+    type: "oauth",
+  }
+  const login = (id: string, label?: string, method = "oauth") => ({
+    type: "credential",
+    id,
+    method,
+    ...(label === undefined ? {} : { label }),
+  })
+  const ctx = (connections: unknown): IdentityContext => ({
+    integration: {
+      get: async ({ integrationID }) => {
+        expect(integrationID).toBe("anthropic")
+        return { data: { connections: connections as any } }
+      },
+    },
+  })
+
+  test("a label only this login carries names it", async () => {
+    expect(
+      await identify(
+        ctx([login("fixture-a", " Work "), login("fixture-b", "Home")]),
+        proof,
+      ),
+    ).toEqual({ ...proof, label: "Work" })
+  })
+  test("the only subscription login is sole, labelled or not", async () => {
+    expect(
+      await identify(
+        ctx([login("fixture-a"), login("fixture-key", "Key", "api")]),
+        proof,
+      ),
+    ).toEqual({ ...proof, sole: true })
+    expect(await identify(ctx([login("fixture-a", "Work")]), proof)).toEqual({
+      ...proof,
+      label: "Work",
+      sole: true,
+    })
+  })
+  test("a shared, blank or missing label names nothing", async () => {
+    for (const connections of [
+      [login("fixture-a", "Work"), login("fixture-b", "Work ")],
+      [login("fixture-a", "  "), login("fixture-b", "Home")],
+      [login("fixture-a"), login("fixture-b")],
+    ])
+      expect(await identify(ctx(connections), proof)).toEqual(proof)
+  })
+  test("an unlisted login or an unreadable integration adds nothing", async () => {
+    expect(await identify(ctx([login("fixture-b", "Work")]), proof)).toEqual(
+      proof,
+    )
+    expect(await identify(ctx(undefined), proof)).toEqual(proof)
+    const failing: IdentityContext = {
+      integration: {
+        get: async () => {
+          throw new Error("fixture")
+        },
+      },
+    }
+    expect(await identify(failing, proof)).toEqual(proof)
   })
 })
