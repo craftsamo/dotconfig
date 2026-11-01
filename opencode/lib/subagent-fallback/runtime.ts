@@ -68,6 +68,12 @@ type LoginContext = AccountsContext & Omit<ClaudeAccountsContext, "session">
 export type RuntimeContext = LoginContext & {
   app: { version: string }
   options: Record<string, unknown>
+  // Another plugin's RPC methods, by its definition (quota-refresh.ts).
+  rpc?: (definition: {
+    id: string
+    methods: Record<string, object>
+    events: Record<string, object>
+  }) => Record<string, ((input: unknown) => Promise<unknown>) | undefined>
   agent: {
     get(input: {
       agentID: string

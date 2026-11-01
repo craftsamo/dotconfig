@@ -25,7 +25,9 @@
     // Usage limits in the TUI and /quota. Reads the Anthropic login above;
     // opencode-quota/settings.jsonc keeps it off Claude Code's Keychain.
     // Pinned: lib/subagent-fallback and Hermes' funding board read its export
-    // file (schema version 3). Bump deliberately and re-check /quota_status.
+    // file (schema version 3), and the preflight calls its RPC to refresh a
+    // stale export (quota-refresh.ts). Bump deliberately and re-check both
+    // and /quota_status.
     "@slkiser/opencode-quota@6.0.0",
     // Outside auto-discovery's plugins/ directory. Keep this entry last, after
     // quota. enabled: false stops new selection but retains in-flight guards.

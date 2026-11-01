@@ -18,6 +18,8 @@ export type Dependencies = {
   // Lane cooldowns and daily tries kept across restarts. Without it they
   // last as long as the process.
   saved?: SavedStore
+  // Waits that long; a timer by default.
+  sleep?: (ms: number) => Promise<void>
 }
 
 export const dependencies: Dependencies = {

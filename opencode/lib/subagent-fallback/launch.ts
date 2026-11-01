@@ -32,6 +32,7 @@ import {
   SpentWindows,
   type Dependencies,
 } from "./quota"
+import { QuotaRefresher } from "./quota-refresh"
 import {
   supported,
   type Executor,
@@ -79,6 +80,7 @@ export function createLauncher(
   const { deps, options, lanes, empty, keep } = state
   const { limited, logins, suffixes, loginOf } = state
   const spent = new SpentWindows()
+  const refresher = new QuotaRefresher()
   return (original) => async (input, context) => {
     // Outcome is historical, not a busy flag. There is no atomic
     // idle-and-release API, so protection stays with this exact child.
@@ -186,7 +188,16 @@ export function createLauncher(
         "a Console credit lane is tried before the subscription.",
       )
     context.signal.throwIfAborted()
-    const snapshot = await loadQuotaExport(deps, options.quotaExportPath)
+    // Stale rows for either side of the route: Quota is asked to check them
+    // first (quota-refresh.ts), since no TUI may be asking it to.
+    const snapshot = await refresher.fresh(
+      ctx,
+      deps,
+      options.quotaExportPath,
+      await loadQuotaExport(deps, options.quotaExportPath),
+      [route.primary.providerID, route.alternate.providerID],
+      context.signal,
+    )
     context.signal.throwIfAborted()
     const probeOn = async (model: ModelRef, login?: string) => {
       let auth: Subscription | undefined
