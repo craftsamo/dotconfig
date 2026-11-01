@@ -65,7 +65,7 @@ Resolve the title and body format. Detect, do not assume.
 2. Template — `git_history_digest` reports whether a PR template exists; if so,
    fill its sections instead of inventing structure.
 3. Fallback — derive from the branch's commits (`git log <base>..HEAD`): a
-   capitalized summary title and a Summary / Changes / Notes body.
+   capitalized summary title and the body of <BodyStructure>.
 
 - Treat PR titles as durable descriptions, but do not promise they become the
   landed commit subject. Squash-message defaults depend on repository settings
@@ -73,8 +73,9 @@ Resolve the title and body format. Detect, do not assume.
   actual settings when explaining the expected result, never change them here.
 - Title and body language follow the repo's merged-PR habit — infer it, never
   assume English.
-- Habit sets style, structure and language, never content: what <Audience>
-  keeps out stays out even when merged PRs carry it.
+- Habit sets style, structure and language, never content or length: what
+  <Audience> keeps out stays out even when merged PRs carry it, and long
+  merged PRs do not license a long one (<BodyStructure>).
 
 </ConventionResolution>
 
@@ -381,7 +382,8 @@ Landing plan for a stack whose layers serve one goal:
   not change this.
 - **A merge commit with an explicit message.** Title: the goal in the
   repository's PR-title style, ending in ` (#<top PR>)`, written for the
-  <Audience> reader like any PR title (no plan labels). Body: one line per
+  <Audience> reader like any PR title (no plan labels) and within the same
+  65 columns before the number (<BodyStructure>). Body: one line per
   layer it lands, bottom-up, `- #<n> <PR title>`. Every layer's commits stay
   in the history under that merge, and the body names each PR the default
   message drops. Always write the message: repositories differ in their
@@ -543,25 +545,70 @@ and [squash-message settings](https://docs.github.com/en/repositories/configurin
 
 <BodyStructure>
 
-- Follow the template when present. Otherwise: `## Summary` (what changed and
-  why), a changes section with `**Label**:` bullets describing changes
-  conceptually (not a file-by-file dump), and `## Notes` for caveats,
-  follow-ups, or "requires restart".
-- Place the <RelatedScan> links in the body or a footer: `Closes #N` to close
-  issues; `Refs #N` / `Follow-up to #M` / `Supersedes #M` for relations.
-- References take the forms GitHub renders (`gh-issues` `<Notation>`):
-  `#N` / `owner/repo#N` rather than URLs, related issues as a list (GitHub
-  shows their titles and state), code as a commit-pinned line-range
-  permalink (alone on its line it shows the code inline, in the same
-  repository), and other sources as `[what it is](URL)`.
-- Keep out: secrets; emoji (unless the repo's PRs use them); pasted logs or
-  large code blocks; mechanical file listings; and everything <Audience>
-  names — plan labels, working records, tooling, the build machine, the
-  organisation's state, the caller's words.
-- A checks section states what passed and what did not run, in the reader's
-  terms ("unit tests: 239 pass; the emulator suite did not run on this
-  branch"), without the tool that ran it or the reason that lives off the
-  repository.
+The body is a review document, not the commit log. The commits carry the
+lasting what and why; the body adds what a reader needs to judge, ship and
+later trace the change. Never paste the commit bodies in.
+
+Its readers go beyond today's reviewer: a maintainer who reaches the PR from
+the history months later, whoever applies or operates the change, and the
+users it affects. Each optional section below answers one of them; write it
+whenever that reader would otherwise have to ask.
+
+Follow the template when present, fitting these sections into it. Otherwise,
+with section names in the repository's language:
+
+- `## Summary` (required) — why the change is made and what it achieves, in
+  2–4 sentences.
+- `## Changes` (required) — the changes as concepts, `**Label**:` bullets one
+  level deep, one or two sentences each; never a file-by-file dump. A stack
+  layer describes only its own diff (<StackedPRs>).
+- `## Verification` (required) — a task list in the reader's terms: `- [x]`
+  for what passed ("unit tests: 239 pass"), `- [ ]` with a short reason for
+  what did not run ("the emulator suite did not run on this branch"), and the
+  manual checks a reviewer should repeat. Never the tool that ran a check, or
+  a reason that lives off the repository.
+- `## Impact and migration` (when it applies) — breaking changes; changed
+  settings, environment variables or defaults; what applying it takes (a
+  restart, an install step, a data migration). Lead with one `> [!WARNING]`
+  when a user must act.
+- `## Review focus` (when it applies) — where to look hardest, the decisions
+  the code cannot show, and the alternatives rejected, each with why.
+- `## Risk and rollback` (when it applies) — what could break and how it would
+  show, and how to undo it when a revert alone does not (a migration, external
+  state, a published artifact).
+- `## Out of scope` (when it applies) — what this PR deliberately leaves, and
+  the follow-up as `#N` when an Issue tracks it.
+- Links — the <RelatedScan> links in a footer: `Closes #N` to close issues;
+  `Refs #N` / `Follow-up to #M` / `Supersedes #M` for relations.
+
+Omit a section that does not apply, heading and all; never fill one with
+"None" or "N/A".
+
+Length, in display columns (a wide character counts two): the title fits
+within 65, so the ` (#NNN)` GitHub appends on a squash merge still lands
+within 72. Summary 2–4 sentences, Changes one level deep. Neither merged PRs
+nor the branch's commit bodies set the length; anything long that is only
+supporting material goes into `<details>`.
+
+GitHub renders PR bodies, so use its forms. They follow `gh-issues`
+`<Notation>`; this is how they apply to a PR:
+
+| To show | Write |
+| --- | --- |
+| An issue, PR or commit | `#N`, `owner/repo#N`, a short SHA; several related ones as a list, one per line (GitHub shows each one's title and state) |
+| Code outside the diff (a caller, the constraint a change relies on) | a permalink pinned to a commit with its line range, alone on its line so GitHub shows the code inline (same repository); never a branch link or `file:line` |
+| A long log, output or measurement | `<details><summary>what it is</summary>` around a fenced block; supporting material only, never what a reviewer must read |
+| Before and after (numbers, behavior) | a table |
+| A setting a user must change by hand | a `diff` fence |
+| What must not be missed (a breaking change, a required step) | one `> [!WARNING]` (or `[!NOTE]`); used twice, neither stands out |
+| Checks | a task list |
+| Screens | attachments per <Media> |
+| Any other source | `[what it is](URL)`, never a bare URL |
+
+Keep out: secrets; emoji (unless the repo's PRs use them); logs or large code
+blocks outside `<details>`; mechanical file listings; and everything
+<Audience> names — plan labels, working records, tooling, the build machine,
+the organisation's state, the caller's words.
 
 </BodyStructure>
 
