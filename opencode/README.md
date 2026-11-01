@@ -354,23 +354,30 @@ approved native OAuth accounts (Claude Max, a ChatGPT login, or the xAI device
 login). The plugin never buys credits, enables auto-purchase, or changes
 account settings or logins.
 
-**Shared information.** Reads Quota 5's public v2 JSON export once before
-each eligible launch: `$XDG_CACHE_HOME/opencode/quota-export.json`, or
+**Shared information.** Reads Quota's public JSON export (v2 from Quota 5,
+v3 from Quota 6) once before each eligible launch:
+`$XDG_CACHE_HOME/opencode/quota-export.json`, or
 `~/.cache/opencode/quota-export.json`. Quota's existing `export.enabled` setting
 is enabled in `opencode-quota/quota-toast.jsonc`. Its home footer writes the file
 on normal refresh; the selector does not fetch usage, run the Quota CLI, start
 timers, read internal caches or patch Quota. A custom export path can be matched
 with the plugin option `quotaExportPath` (absolute path).
 
-Rows are matched to the OpenCode connection being weighed using `sourceId`:
-the active one, or a saved Claude login, whose rows Quota exports under the
-same provider. Only the
+Rows are matched to the OpenCode connection being weighed: the active one, or
+a saved Claude login, whose rows Quota exports under the same provider. In v2
+a row's `sourceId` is the connection ID. v3 has none: a row's `account` is the
+login's label (with the plan after it in parentheses for ChatGPT), so a login
+matches by a label no other login of the integration carries, and the
+integration's only login owns every row. Two rows for one window are logins
+Quota cannot tell apart and match nothing; a login without a usable label
+next to others stays unknown. Only the
 5h and Weekly rows decide, and at least one must be present: some ChatGPT plans
 have no 5h window, xAI exports only its weekly pool, and an exhausted ChatGPT
 account may export just one row. If
 either window is at 0% the provider counts as exhausted, since credits may
-already be spent behind the scenes. Model-specific rows (such as Claude Fable),
-Monthly usage credits and Code Review rows are ignored. Published 0% (or less)
+already be spent behind the scenes. Model-specific rows (such as Claude Fable,
+weekly too, which v3 tells apart by row id), Monthly usage credits and Code
+Review rows are ignored. Published 0% (or less)
 counts as empty, even if rounded.
 
 **Freshness.** The export is rewritten only while the Quota footer refreshes in
