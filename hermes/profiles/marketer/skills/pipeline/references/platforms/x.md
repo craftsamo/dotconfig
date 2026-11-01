@@ -34,5 +34,5 @@ clicks or revenue attribution.
 
 ## Sources and status
 
-Reviewed 2026-09-10 (automation rules) and 2026-10-05 (ranking, in
+Reviewed 2026-09-10 (automation rules) and 2026-11-01 (ranking, in
 [X ranking](../x-ranking.md)). Recheck before a recommendation depends on them.
