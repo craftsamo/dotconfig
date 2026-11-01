@@ -1,22 +1,18 @@
 ---
 name: git-pullrequest
 description: >-
-  Use when opening, pushing, or updating a GitHub pull request — rebasing the
-  branch onto the latest base, pushing it, creating a PR whose title and body
-  match the repository's own convention, marking it ready, preferring a native
-  GitHub stack of PRs whenever the work splits into reviewable layers, setting
-  labels, assignees, reviewers and milestones after judging what they trigger
-  (ラベル, アサイン, レビュアー, マイルストーン), attaching screenshots (スクショ添付,
-  attach screenshot), scanning the branch for related Issues and PRs to link,
-  and following the PR's CI checks and review feedback (PR, pull request,
+  Use when opening, pushing, or updating a GitHub pull request — rebasing onto
+  the latest base, pushing, writing a title and body in the repository's
+  convention for a reader who has only the repository, marking it ready,
+  stacking PRs when the work splits into reviewable layers, setting labels,
+  assignees, reviewers and milestones (ラベル, アサイン, レビュアー,
+  マイルストーン), attaching screenshots (スクショ添付), linking related Issues
+  and PRs, and following CI checks and review feedback (PR, pull request,
   プルリク, プルリクエスト, push, gh pr, open a PR, レビュー依頼, 関連Issue,
-  related issues, link PR, stacked PR, gh stack, スタック, rebase onto main,
-  最新の main を取り込む, CI, checks, CI の結果, チェックが落ちた, レビュー
-  コメント, review comments). Resolves the PR title/body convention from merged
-  PRs and a template, writes for a reader who has only the repository (no
-  plan labels, decision-log numbers, tool names or local state in the text)
-  and defaults to ready-for-review. Do NOT use to create commits (use
-  git-commit) or to merge — merging stays gated and explicit.
+  stacked PR, gh stack, スタック, rebase onto main, 最新の main を取り込む, CI,
+  checks, チェックが落ちた, レビューコメント, review comments). Do NOT use to
+  create commits (use git-commit) or to merge — merging stays gated and
+  explicit.
 author: CraftSamo
 license: MIT
 ---
