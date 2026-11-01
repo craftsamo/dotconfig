@@ -156,9 +156,12 @@ one refuses, and a continuing turn keeps the stop the session is on; the
 result's `engine` names it. Do not pass `model=` to move a session back: name
 a model only to choose a different one, and after a limit on every stop use
 the role's alternate. `opencode_catalog funding` shows where each login's
-windows and each lane's balance stand, for reporting, not for choosing a
-stop before a run; a login or lane with `fresh` false is a reading too old
-to rely on, so say so.
+windows, each lane's balance and each quota group (`kind: quota-groups`:
+Antigravity's Gemini Pro, Gemini Flash and Claude, used by the `google`
+models) stand, for reporting, not for choosing a stop before a run. A quota
+group is a subscription window, not credit; one marked `spent` is refused
+until its reset. A stop with `fresh` false is a reading too old to rely on,
+so say so.
 
 ## Session tools
 

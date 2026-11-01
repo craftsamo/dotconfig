@@ -1233,8 +1233,9 @@ def register(ctx):
         "agents includes subagents (mode subagent). service describes the running service: version, process, "
         "whether its environment came from the person's shell or from Hermes' minimal one, its paths and the "
         "opencode command. providers lists each provider's activation and which one it is a stop of. funding "
-        "shows where a request can be served from and what each stop holds: every saved login's usage windows "
-        "and every credit lane's balance, from OpenCode Quota's export, with its age. plugins, mcp (servers and "
+        "shows where a request can be served from and what each stop holds: every saved login's usage windows, "
+        "every credit lane's balance and each quota group's window (Antigravity's Gemini Pro, Gemini Flash and "
+        "Claude), from OpenCode Quota's export, with its age. plugins, mcp (servers and "
         "connection status), config (each loaded config file as its path, keys and the names it defines; never "
         "values) and locations (loaded directories) read the rest.")
     add("opencode_preflight", opencode_preflight, {
