@@ -55,13 +55,22 @@ describe("saved preflight state", () => {
     expect(after.blocked("a")).toBe(false)
     expect(after.saved()).toEqual({})
   })
-  test("a daily try comes back while it still holds the lane", () => {
+  test("a lane's try comes back for a cycle, not from the future", () => {
+    const old = NOW - 36 * 86_400_000
     const before = new EmptyLanes()
-    before.tried("a", NOW - EMPTY_PROBE_MS)
-    before.tried("b", NOW - 60_000)
-    expect(before.saved(NOW)).toEqual({ b: NOW - 60_000 })
+    before.tried("a", old)
+    before.tried("b", NOW - EMPTY_PROBE_MS)
+    expect(before.saved(NOW)).toEqual({ b: NOW - EMPTY_PROBE_MS })
     const after = new EmptyLanes()
-    after.restore({ b: NOW - 60_000, c: NOW + 1, d: NOW - EMPTY_PROBE_MS }, NOW)
+    after.restore({ b: NOW - 60_000, c: NOW + 1, d: old }, NOW)
     expect(after.saved(NOW)).toEqual({ b: NOW - 60_000 })
+  })
+  test("a cooldown a restart should lift is not kept", () => {
+    const lanes = new Cooldowns(["a", "b"], 3_600_000, () => NOW)
+    lanes.mark("a", undefined, false)
+    lanes.mark("b")
+    expect(Object.keys(lanes.saved())).toEqual(["b"])
+    lanes.mark("a")
+    expect(Object.keys(lanes.saved()).sort()).toEqual(["a", "b"])
   })
 })

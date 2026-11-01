@@ -9,7 +9,11 @@ import {
 } from "./index"
 import { OAUTH_PROVIDER } from "./lanes"
 import { recordNative } from "./native-retry"
-import { EMPTY_PROBE_MS, type LaneBook } from "./empty-lanes"
+import {
+  EMPTY_PROBE_MS,
+  TRY_SETTLED_MS,
+  type LaneBook,
+} from "./empty-lanes"
 import type { Saved } from "./saved"
 import { ROUTES, type CatalogModel, type ModelRef } from "./policy"
 
@@ -1448,6 +1452,7 @@ describe("Console credit lanes", () => {
   const emptyMain = (
     source = "empty",
     grants: LaneBook["state"][string]["grants"] = [],
+    at = NOW - 3_600_000,
   ): LaneBook => ({
     lanes: [
       { provider: MAIN, label: "Main", amount: 200, renewalDay: 13 },
@@ -1457,7 +1462,7 @@ describe("Console credit lanes", () => {
       [MAIN]: {
         grants,
         checkpoint: {
-          at: new Date(NOW - 3_600_000).toISOString(),
+          at: new Date(at).toISOString(),
           balance: 0,
           source: source as "empty",
           opencodeFrom: "2024-03-09",
@@ -1477,6 +1482,20 @@ describe("Console credit lanes", () => {
     expect(env.originals[1].model).toBe(sel(on(MAIN)))
     await inst.run()
     expect(env.originals[2].model).toBe(sel(on(SUB)))
+    // That try did not fail (no new empty checkpoint): Main has money.
+    env.now += TRY_SETTLED_MS
+    await inst.run()
+    expect(env.originals[3].model).toBe(sel(on(MAIN)))
+  })
+  test("a daily try a failed switch never made is still due", async () => {
+    const { env, inst } = await laned()
+    env.laneBook = emptyMain("rolled")
+    specialist(env)
+    env.failSwitch = true
+    await retry(inst, "ses_lane", on(SUB), CREDIT)
+    expect(env.switches).toEqual([])
+    await inst.run()
+    expect(env.originals[0].model).toBe(sel(on(MAIN)))
   })
   test("a $0 estimate carried forward is tried once, then waits a day", async () => {
     const { env, inst } = await laned()
@@ -1504,23 +1523,36 @@ describe("Console credit lanes", () => {
       expect(env.originals[0].model).toBe(sel(on(MAIN)))
     }
   })
-  test("a restart keeps a lane's cooldown and a known-empty lane's daily try", async () => {
+  test("a restart keeps a lane's cooldown and a known-empty lane's try", async () => {
     const f = await fixture()
     f.env.laneBook = emptyMain("rolled")
     let inst = await f.install(OPTIONS)
     specialist(f.env)
-    // The daily try of the carried $0 on Main, and a bad key on Sub.
+    // The daily try of the carried $0 on Main, still in flight, and a window
+    // limit on Sub.
     await inst.run()
     expect(f.env.originals[0].model).toBe(sel(on(MAIN)))
-    await retry(inst, "ses_lane", on(SUB), AUTH)
+    await retry(inst, "ses_lane", on(SUB), LIMIT, LONG)
     inst = await f.install(OPTIONS)
     await inst.run()
     expect(f.env.originals[1].model).toBeUndefined()
-    // Sub's cooldown ends after an hour, Main's try waits a day.
-    f.env.now += 61 * 60_000
+    // Main's try failed; Sub's limit ends with its wait.
+    f.env.laneBook = emptyMain("empty", [], f.env.now + 5_000)
+    f.env.now += LONG.delay + 1
     inst = await f.install(OPTIONS)
     await inst.run()
     expect(f.env.originals[2].model).toBe(sel(on(SUB)))
+  })
+  test("a restart lifts a bad key's cooldown", async () => {
+    const f = await fixture()
+    let inst = await f.install(OPTIONS)
+    specialist(f.env)
+    await retry(inst, "ses_lane", on(MAIN), AUTH)
+    await inst.run()
+    expect(f.env.originals[0].model).toBe(sel(on(SUB)))
+    inst = await f.install(OPTIONS)
+    await inst.run()
+    expect(f.env.originals[1].model).toBe(sel(on(MAIN)))
   })
   test("a session leaving a lane passes over a lane known empty", async () => {
     const { env, inst } = await laned()

@@ -228,12 +228,14 @@ export async function setupPreflight(
           }
           // A window limit lasts as long as its wait; an empty balance or a
           // bad key lasts until someone fixes it, so those take the cooldown.
+          // A bad key is fixed with a restart, which must not bring it back.
           if (onLane) {
             lanes.mark(
               provider,
               failure === "quota" && event.decision.retry
                 ? event.decision.delay
                 : undefined,
+              failure !== "auth",
             )
             keep()
           }
@@ -255,15 +257,16 @@ export async function setupPreflight(
             tried,
             catalog,
           })
-          if (target && due.has(target.providerID)) {
-            empty.tried(target.providerID, now)
-            keep()
-          }
           if (target) {
             await ctx.session.switchModel({
               sessionID: event.sessionID,
               model: target,
             })
+            // Noted once the session is on it: a failed switch tries nothing.
+            if (due.has(target.providerID)) {
+              empty.tried(target.providerID, now)
+              keep()
+            }
             event.decision = { retry: true, delay: 0 }
             return
           }
