@@ -32,6 +32,8 @@ board as drafts until they become issues.
 - Within-session steps → the session's todo list (`todowrite`), never the board.
 - Writing or changing the issue itself → `gh-issues`.
 - Deciding what the work is and how it splits → `approach-github-planning`.
+- A run Hermes commissions → its operating note, not this skill, decides
+  which board writes are yours (`AGENTS.md` `<SessionLocation>`).
 
 </WhenToUse>
 
