@@ -14,6 +14,9 @@ export type PreflightOptions = {
   pinModels: boolean
   // Parsed by AccountRouter.fromOption, which keeps a malformed one.
   claudeAccounts: unknown
+  // Parsed by readRoutes (routes.ts), which names what it ignores.
+  routes: unknown
+  primaryRoute: unknown
 }
 
 export function readOptions(
@@ -40,5 +43,7 @@ export function readOptions(
     primaryFallback: options.primaryFallback !== false,
     pinModels: options.pinModels === true,
     claudeAccounts: options.claudeAccounts,
+    routes: options.routes,
+    primaryRoute: options.primaryRoute,
   }
 }
