@@ -10,6 +10,7 @@ import {
 import { OAUTH_PROVIDER } from "./lanes"
 import { recordNative } from "./native-retry"
 import { EMPTY_PROBE_MS, type LaneBook } from "./empty-lanes"
+import type { Saved } from "./saved"
 import { ROUTES, type CatalogModel, type ModelRef } from "./policy"
 
 const NOW = 1_710_000_000_000
@@ -76,6 +77,8 @@ async function fixture() {
     emptied: [] as string[],
     // The balance estimate's lanes and state (none: no lane is known empty).
     laneBook: undefined as LaneBook | undefined,
+    // What the plugin keeps across restarts.
+    saved: { cooldowns: {}, probed: {} } as Saved,
     fetchedAt: undefined as number | undefined,
     path: "",
     unavailable: false,
@@ -382,6 +385,13 @@ async function fixture() {
         env.emptied.push(provider)
       },
       readLanes: () => env.laneBook,
+      // Kept in env, so a second install is a restart.
+      saved: {
+        load: () => structuredClone(env.saved),
+        save: (saved) => {
+          env.saved = structuredClone(saved)
+        },
+      },
     })
     return {
       cleanup,
@@ -1493,6 +1503,24 @@ describe("Console credit lanes", () => {
       await inst.run()
       expect(env.originals[0].model).toBe(sel(on(MAIN)))
     }
+  })
+  test("a restart keeps a lane's cooldown and a known-empty lane's daily try", async () => {
+    const f = await fixture()
+    f.env.laneBook = emptyMain("rolled")
+    let inst = await f.install(OPTIONS)
+    specialist(f.env)
+    // The daily try of the carried $0 on Main, and a bad key on Sub.
+    await inst.run()
+    expect(f.env.originals[0].model).toBe(sel(on(MAIN)))
+    await retry(inst, "ses_lane", on(SUB), AUTH)
+    inst = await f.install(OPTIONS)
+    await inst.run()
+    expect(f.env.originals[1].model).toBeUndefined()
+    // Sub's cooldown ends after an hour, Main's try waits a day.
+    f.env.now += 61 * 60_000
+    inst = await f.install(OPTIONS)
+    await inst.run()
+    expect(f.env.originals[2].model).toBe(sel(on(SUB)))
   })
   test("a session leaving a lane passes over a lane known empty", async () => {
     const { env, inst } = await laned()

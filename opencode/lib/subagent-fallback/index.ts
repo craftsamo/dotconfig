@@ -48,6 +48,21 @@ export async function setupPreflight(
   // Lanes the balance estimate knows are empty: passed over until money can
   // have arrived, but for one try a day (empty-lanes.ts).
   const empty = new EmptyLanes()
+  // Both survive a restart (saved.ts), so it costs no rejected request.
+  if (lanes.ids.length > 0) {
+    const saved = deps.saved?.load()
+    if (saved) {
+      lanes.restore(saved.cooldowns)
+      empty.restore(saved.probed, deps.now())
+    }
+  }
+  const keep = () => {
+    if (lanes.ids.length > 0)
+      deps.saved?.save({
+        cooldowns: lanes.saved(),
+        probed: empty.saved(deps.now()),
+      })
+  }
   // Other saved Claude logins, reached by alias model (claude-accounts.ts).
   // Independent of `enabled`: an alias must never fall back to the active
   // login. Every configured suffix decides which login a model runs on; only
@@ -97,6 +112,7 @@ export async function setupPreflight(
     options,
     lanes,
     empty,
+    keep,
     limited,
     logins,
     suffixes,
@@ -212,13 +228,15 @@ export async function setupPreflight(
           }
           // A window limit lasts as long as its wait; an empty balance or a
           // bad key lasts until someone fixes it, so those take the cooldown.
-          if (onLane)
+          if (onLane) {
             lanes.mark(
               provider,
               failure === "quota" && event.decision.retry
                 ? event.decision.delay
                 : undefined,
             )
+            keep()
+          }
           if (!moves) return
           const tried = episodes.record(
             event.sessionID,
@@ -237,8 +255,10 @@ export async function setupPreflight(
             tried,
             catalog,
           })
-          if (target && due.has(target.providerID))
+          if (target && due.has(target.providerID)) {
             empty.tried(target.providerID, now)
+            keep()
+          }
           if (target) {
             await ctx.session.switchModel({
               sessionID: event.sessionID,

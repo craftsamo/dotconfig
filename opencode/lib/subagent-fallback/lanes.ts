@@ -89,6 +89,20 @@ export class Cooldowns {
     }
     return true
   }
+  // The cooldowns still running, to keep across a restart (saved.ts).
+  saved(): Record<string, number> {
+    const now = this.now()
+    return Object.fromEntries(
+      [...this.until].filter(([, until]) => until > now),
+    )
+  }
+  // Takes back saved cooldowns of these ids, none longer than one.
+  restore(saved: Record<string, number>): void {
+    const now = this.now()
+    for (const [id, until] of Object.entries(saved))
+      if (this.has(id) && until > now && until <= now + this.cooldownMs)
+        this.until.set(id, until)
+  }
 }
 
 // The lanes in order and which to pass over now: the cooldowns, with the

@@ -541,7 +541,10 @@ new lane launches.
   it, for a grant that arrives off schedule: a day after its own empty
   checkpoint, or at once when the $0 was carried forward by another lane's
   checkpoint. A Console balance or a grant recorded since ends it at once
-  (`status.ts checkpoint` and `status.ts grant`, below).
+  (`status.ts checkpoint` and `status.ts grant`, below). The lane cooldowns
+  and these daily tries survive a restart in
+  `~/.local/state/opencode/subagent-preflight.json`; removing it costs only a
+  rejected request per lane.
 - A session never revisits a stop within five minutes, so the chain cannot
   loop. Children launched under the subscription preflight keep their own
   guards and are never moved.
