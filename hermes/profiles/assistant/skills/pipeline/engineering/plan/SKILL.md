@@ -176,12 +176,32 @@ job directory keeps; the words, headings and layout you show
 the user are yours (voice and format come from the persona). A light job
 (typo, one value) is three lines: outcome, what it touches, one check. The
 approval covers what the user saw, so what you show is the scope Build is held
-to. Models are OpenCode's own defaults; name one only when you depart from it
-(an alternate after a limit error).
+to.
 
 During a build, report as `opencode:drive`'s "Progress" says: each
 finished step in one line, at once when one is blocked or the run needs
 the user, and the unit's PR or stack with how to try it.
+
+## Models
+
+Models are OpenCode's own defaults; name one only when you depart from it.
+Decide per `plan` or `design` turn: when its answer would be wrong if a fact
+outside the code were wrong (how the people who use it work, a business or
+legal rule, how an outside service really behaves), run it on
+`model=anthropic/claude-fable-5-1` `variant=high` and say why in one line
+when you report it. A turn whose question is technical (architecture,
+libraries, how to split a unit's layers, refactors, performance, bugs) keeps
+the default, and `build`, `debug` and `review` always do.
+
+A choice stays with its role on the session and its forks: a build runs on
+its own default, but a later `plan` turn, a unit's fork included, stays on
+Fable. When such a turn no longer meets the rule, name the role's default
+explicitly. The default is the role's entry in `defaults` of
+`opencode_catalog models` (`provider/model#variant`): pass the part before
+`#` as `model=` and the rest as `variant=`. Do the same after a limit error
+on every stop of Fable, or when the catalog does not offer it (say so in a
+line); after a limit on the default, or for a role with no listed default,
+use its alternate.
 
 ## Tracking
 
