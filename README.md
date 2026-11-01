@@ -76,7 +76,7 @@ Installed outside the [Brewfile](./Brewfile):
   [`install.sh`](./install.sh) and installed after `brew bundle`. Currently
   `github/gh-stack` (native stacked PRs), which the OpenCode `git_stack` /
   `git_publish` tools and the `git-pullrequest` and
-  `approach-github-projects` skills require
+  `approach-github-planning` skills require
 
 ## install.sh
 
