@@ -70,6 +70,7 @@ def isolated(monkeypatch, tmp_path):
     venv_python = tmp_path / "python"
     venv_python.write_text("")
     monkeypatch.setattr(sa, "STORE", store)
+    monkeypatch.setattr(sa.cards, "roomy", lambda: False)  # stock budgets, whatever the runtime loaded
     monkeypatch.setattr(sa, "VENV_PYTHON", venv_python)
     monkeypatch.setattr(sa, "MIN_GAP", 0)
     monkeypatch.setattr(sa, "_config", lambda home: {})
