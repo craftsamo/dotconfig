@@ -7,8 +7,8 @@ prohibition list, and it never authorizes an action on X.
 ## Source and expiry
 
 Source: [xai-org/x-algorithm](https://github.com/xai-org/x-algorithm), commit
-`b412112` (2026-10-03); X syncs production defaults into
-`home-mixer/params/param.rs` by cron. Reviewed 2026-10-05. Production runs
+`9106e9f` (2026-10-31); X syncs production defaults into
+`home-mixer/params/param.rs` by cron. Reviewed 2026-11-01. Production runs
 experiments on parts of the traffic, so a default is not every viewer's value.
 Grox prompts and some anti-abuse rules are unpublished. Recheck the README
 "Notable Updates", `docs/` and `param.rs` when this note is older than three
@@ -21,13 +21,18 @@ The 2023 `twitter/the-algorithm` weights (reply 13.5, reply engaged by author
 
 1. Candidates: recent posts of followed accounts (Thunder), out-of-network
    posts found by embedding similarity to the viewer's history (Phoenix
-   retrieval, multimodal) and SimClusters.
+   retrieval, multimodal, also trained to surface posts people read all the
+   way through), SimClusters, and a shared list of popular recent posts
+   (initially from the most-followed active accounts).
 2. Filters before scoring include: posts older than 48 hours; reposts and
    replies from accounts the viewer does not follow; already seen posts;
    muted keywords; blocked or muted authors; for new accounts, out-of-network
-   posts below an engagement threshold.
-3. Phoenix predicts, per viewer, the probability of each action. Final score
-   = Σ weight × P(action).
+   posts below an engagement threshold. When more candidates arrive than the
+   ranker scores (2,800), each source is cut by the same share, so no one
+   source crowds out the others.
+3. Phoenix predicts, per viewer, the probability of each action and, for
+   time spent, a predicted duration (better estimated since October 2026).
+   Final score = Σ weight × prediction.
 4. Adjustments: author diversity (each further post of one author in the same
    feed request is multiplied by a decaying factor down to a floor); an
    out-of-network discount below 1, also applied to replies and reposts from
@@ -35,7 +40,8 @@ The 2023 `twitter/the-algorithm` weights (reply 13.5, reply engaged by author
    position 15 when its author has at most 50,000 followers, the post is at
    most 2 hours old and has fewer than 200 impressions.
 5. Visibility filtering decides separately whether a post may be shown at all,
-   from viewer actions and labels. The account owner can inspect labels on
+   or shown with a notice attached, from viewer actions and labels. The
+   account owner can inspect labels on
    [Under the Hood](https://x.com/i/jf/under_the_hood).
 
 ## Published weights
@@ -46,19 +52,23 @@ Defaults in `param.rs` at the commit above:
 | --- | ---: | --- | ---: |
 | share via copy link | 20 | report | −234 |
 | reply | 5 | mute author | −58.8 |
-| quote | 5 | not interested | −47.52 |
+| quote | 5 | not interested | −52.272 |
 | share via DM | 5 | block author | −31.2 |
 | follow author | 4 | not dwelled | −0.02 |
 | share | 2 | | |
 | repost | 1 | | |
-| like | 0.5 | | |
+| like | 0.66 | | |
 | continuous click dwell time | 0.4 | | |
 | post click | 0.3 | | |
 | open link | 0.2 | | |
-| video open / photo expand / dwell | 0.07 / 0.05 / 0.05 | | |
+| photo expand / dwell / video open | 0.05 / 0.05 / 0.02 | | |
+| continuous dwell time | 0.006 | | |
 
-Profile click and video quality view are 0. An original post from an account
-the viewer mutually follows gets +15 on the reply weight (5 → 20).
+Profile click and video quality view are 0. Video continuation seconds and
+profile visit seconds are predicted but carry no weight in the default yet.
+An original post from an account the viewer mutually follows gets +15 on the
+reply weight (5 → 20). The continuous rows multiply a predicted duration, not
+a probability, so their size is not comparable with the others.
 
 Read them correctly:
 
@@ -93,7 +103,10 @@ not fit the message's purpose is skipped, not forced.
 - Room to respond: is there an honest opening to reply or quote (a stance to
   add to, a real question), without engagement bait?
 - Attention: does the first line earn the stop, and does the rest reward the
-  reading time? Length is fine when it holds attention; padding is not.
+  reading time, all the way to the end? Ranking and retrieval both lean on
+  time spent and read-through. Length is fine when it holds attention;
+  padding is not. For video, holding the viewer is the question, not getting
+  the tap (a hypothesis: the open weight fell while time spent rose).
 - Reason to follow: does it show what this account is reliably for?
 - Negative feedback risk: what would make the intended reader choose "not
   interested" or mute: off-topic for this audience, bait, a misleading hook,
