@@ -1,10 +1,22 @@
+import { readFileSync } from "node:fs"
 import { readFile } from "node:fs/promises"
 import { homedir } from "node:os"
 import { join } from "node:path"
+import {
+  ANTIGRAVITY_QUOTA_ID,
+  classifyFamily,
+  familyName,
+  type Family,
+} from "../credit-lanes/antigravity"
 import { recordCheckpoint } from "../credit-lanes/collect"
 import { readLaneBook, type LaneBook } from "./empty-lanes"
 import { fileStore, type SavedStore } from "./saved"
-import { QUOTA_MAX_AGE_MS, type AccountProof, type QuotaProof } from "./policy"
+import {
+  QUOTA_MAX_AGE_MS,
+  type AccountProof,
+  type ModelRef,
+  type QuotaProof,
+} from "./policy"
 
 export type Dependencies = {
   readExport: (path: string) => Promise<string>
@@ -20,11 +32,14 @@ export type Dependencies = {
   saved?: SavedStore
   // Waits that long; a timer by default.
   sleep?: (ms: number) => Promise<void>
+  // The percent left at which an Antigravity group is spent (10 without).
+  antigravityReserve?: () => number
 }
 
 export const dependencies: Dependencies = {
   readExport: (path) => readFile(path, "utf8"),
   now: Date.now,
+  antigravityReserve: () => antigravityReserve(),
   creditEmpty: (provider) => recordCheckpoint(provider, 0, "empty"),
   readLanes: readLaneBook,
   saved: fileStore(),
@@ -164,6 +179,93 @@ export function readQuota(
     state: rows.some(empty) ? "exhausted" : "available",
     observedAt,
   }
+}
+
+// Antigravity's quota groups, as the credit-lanes endpoint reports them to
+// Quota's custom providers: one row per group (Gemini Pro, Gemini Flash,
+// Claude), the model's family deciding which. Its plugin refuses a group
+// once its use passes soft_quota_threshold_percent, so a group with no more
+// than `reserve` percent left is spent too.
+export function antigravityFamily(model: ModelRef): Family | undefined {
+  return classifyFamily(model.id.replace(/^antigravity-/, ""))
+}
+// The place a limit on one group marks (index.ts `limited`).
+export const ANTIGRAVITY_GROUPS: readonly Family[] = [
+  "gemini-pro",
+  "gemini-flash",
+  "claude",
+]
+export const groupKey = (family: Family) => `google#${family}`
+export function antigravityKey(model: ModelRef): string | undefined {
+  const family = antigravityFamily(model)
+  return family && groupKey(family)
+}
+export function readAntigravity(
+  snapshot: unknown,
+  model: ModelRef,
+  now: number,
+  reserve: number,
+): QuotaProof {
+  const unknown = (): QuotaProof => ({ state: "unknown", observedAt: now })
+  const family = antigravityFamily(model)
+  if (!family || !record(snapshot) || snapshot.version !== 3) return unknown()
+  const part = record(snapshot.providers)
+    ? snapshot.providers[CUSTOM_PROVIDERS]
+    : undefined
+  if (
+    !record(part) ||
+    !["ok", "partial"].includes(String(part.status)) ||
+    !finite(part.fetchedAt) ||
+    !Array.isArray(part.entries)
+  )
+    return unknown()
+  const id = `${CUSTOM_PROVIDERS}.custom.${ANTIGRAVITY_QUOTA_ID}.${familyName(family).replace(/\s+/g, "_")}`
+  const rows = part.entries.filter(
+    (row): row is Row => record(row) && row.id === id,
+  )
+  if (rows.length !== 1) return unknown()
+  const row = rows[0]
+  const observedAt = part.fetchedAt * 1000
+  if (
+    now < observedAt ||
+    !finite(row.percentRemaining) ||
+    row.percentRemaining > 100 ||
+    (row.resetAt !== undefined && !finite(row.resetAt))
+  )
+    return unknown()
+  const spent = row.percentRemaining <= reserve
+  const resetAt = finite(row.resetAt) ? row.resetAt * 1000 : undefined
+  const pending = resetAt !== undefined && resetAt > now
+  // As a window: spent until its reset at any age, anything else fresh.
+  if (spent && pending) return { state: "exhausted", observedAt, resetAt }
+  if (
+    now - observedAt > QUOTA_MAX_AGE_MS ||
+    (resetAt !== undefined && !pending)
+  )
+    return unknown()
+  return { state: spent ? "exhausted" : "available", observedAt }
+}
+
+// Where Quota's export keeps its custom providers' rows.
+export const CUSTOM_PROVIDERS = "quota-providers"
+
+// The share Antigravity's plugin keeps back, from its user config, found as
+// the plugin finds it: 100 less soft_quota_threshold_percent (1 to 100, 90
+// by default). A project's own .opencode/antigravity.json is not read.
+export function antigravityReserve(
+  env: Readonly<Record<string, string | undefined>> = process.env,
+  home = homedir(),
+): number {
+  const dir =
+    env.OPENCODE_CONFIG_DIR ||
+    join(env.XDG_CONFIG_HOME || join(home, ".config"), "opencode")
+  try {
+    const value = JSON.parse(
+      readFileSync(join(dir, "antigravity.json"), "utf8"),
+    )?.soft_quota_threshold_percent
+    if (finite(value) && value >= 1 && value <= 100) return 100 - value
+  } catch {}
+  return 10
 }
 
 // Logins Quota reported spent, until the reset it gave. The export keeps
