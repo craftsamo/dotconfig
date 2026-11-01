@@ -274,13 +274,14 @@ describe("agent rules over a project's catch-all", () => {
 })
 
 describe("subagents that reset shell to ask", () => {
-  // worker, debugger and verifier start their shell rules with `*: ask`, which
-  // takes back the top-level read allows; they restate the plain reads.
+  // worker, worker-deep, debugger and verifier start their shell rules with
+  // `*: ask`, which takes back the top-level read allows; they restate the
+  // plain reads.
   const front = async (name: string) => {
     const text = await Bun.file(join(import.meta.dir, `../../agents/${name}.md`)).text()
     return Bun.YAML.parse(text.split("---")[1]) as { permissions: Rule[] }
   }
-  for (const name of ["worker", "debugger", "verifier"]) {
+  for (const name of ["worker", "worker-deep", "debugger", "verifier"]) {
     test(`${name} reads through the shell without asking`, async () => {
       const own = (await front(name)).permissions
       const decide = (command: string) => {

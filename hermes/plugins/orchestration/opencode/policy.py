@@ -25,7 +25,7 @@ SAMPLE_READS = ("*.env.example", "*.env.sample")
 # person's global ones).
 GIT_DIR_EDITS = (".git/*", "*/.git/*")
 # A read-only run never hands work to an agent that can edit.
-READ_ONLY_DENY_SUBAGENTS = ("worker", "general")
+READ_ONLY_DENY_SUBAGENTS = ("worker", "worker-deep", "general")
 
 # OpenCode checks each simple command as written: an environment prefix, a
 # wrapper (`env`, `sh -c '…'`, `xargs`), options before the subcommand, tabs,

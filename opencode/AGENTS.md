@@ -59,13 +59,14 @@ and report it.
 
 When a plan is aligned in Plan mode, write it in the reply and register its
 steps with `todowrite`, one item per step shaped
-`Phase{N}.{m} - <task> (executor)`, executor = Build | worker | reviewer |
-verifier | debugger (default Build; worker only for mechanical work). When
-the work ends in pull requests, Phase N is one reviewable layer: one PR, or
-one layer of a native stack when there are several (git-pullrequest), in
-stack order; {m} are the steps inside it, each ending in a verified
-checkpoint commit. Work that ends in no PR keeps Phase = dependency wave,
-{m} = reference id within the phase (no ordering implied). Do not hide a
+`Phase{N}.{m} - <task> (executor)`, executor = Build | worker | worker-deep |
+reviewer | verifier | debugger (worker for implementation the plan has
+designed, worker-deep when its logic is hard; Build for design, integration
+and commits). When the work ends in pull requests, Phase N is one reviewable
+layer: one PR, or one layer of a native stack when there are several
+(git-pullrequest), in stack order; {m} are the steps inside it, each ending in
+a verified checkpoint commit. Work that ends in no PR keeps Phase = dependency
+wave, {m} = reference id within the phase (no ordering implied). Do not hide a
 layer's substance in one line: the reply says what each step delivers, while
 an item's `<task>` stays a few words in the user's language, so it fits the
 sidebar. `Phase{N}.{m}` is the conversation's name for the work: it never
@@ -263,14 +264,41 @@ queries.
 
 <ImplementationDelegation>
 
-When a change is well-specified and mechanical — bulk edits, boilerplate,
-rote refactors, applying an already-decided design — run it through the built-in
-`subagent` tool with `agent: worker` and an exact spec instead of
-doing it in the primary session. Keep design decisions, ambiguous work, and
-difficult code in the primary. When the work belongs in a git worktree outside
-the session directory, give `worker` the worktree root as an absolute path.
-Before commits of non-trivial changes, consider a read-only pass through
-`subagent` with `agent: reviewer`.
+The primary designs, integrates and commits; implementing a decided design is
+delegated by default. Once the approach, the files to touch and the shapes
+that matter (signatures, types, observable behavior) are settled, write the
+spec and run it through the built-in `subagent` tool instead of editing in
+the primary session:
+
+- `agent: worker` for routine implementation, bulk edits, boilerplate and
+  rote refactors.
+- `agent: worker-deep` when the shape is fixed but the logic inside is hard:
+  algorithms, state and concurrency, error paths, edge cases spread across
+  files. It runs on a stronger, costlier model; do not use it for routine
+  work.
+
+Edit directly only for a change of a few lines in one file, whose spec would
+take longer to write than the edit; when the work still needs a design
+decision or root-cause investigation; or for the glue that joins delegated
+parts. Size alone is no reason to keep work: a long change with a settled
+design is the one worth delegating most.
+
+A spec holds: the goal; the worktree root as an absolute path when the work
+is outside the session directory; each file to touch and what changes in it;
+the signatures, types and behavior to keep; an existing file to follow as the
+example; what not to do; and the commands that verify it. Send independent
+specs whose files do not overlap to several workers at once; serialize specs
+that share a file.
+
+Check what comes back from its diff (`git diff`), not by rereading whole
+files, then format and verify as `<VerificationDelegation>` says. When it
+needs a correction, or the worker stopped on a question, decide in the
+primary and continue the same child with its `sessionID` rather than starting
+a new one. A continuation keeps the child's model, so when `worker` got the
+logic wrong rather than missing a detail, start a new `worker-deep` child with
+the spec and what went wrong instead. Commits stay with the primary. Before
+commits of non-trivial changes, consider a read-only pass through `subagent`
+with `agent: reviewer`.
 
 </ImplementationDelegation>
 
@@ -300,9 +328,10 @@ format-check-only.
 Keep root-cause analysis and design decisions in the primary session when
 failures are non-obvious or require code changes.
 
-Plan does not invoke `verifier`, `worker`, or `general`: investigate with
-read-only specialists and leave execution for Build. Debug and Review request
-verification only from `verifier`, never formatter application or source changes.
+Plan does not invoke `verifier`, `worker`, `worker-deep`, or `general`:
+investigate with read-only specialists and leave execution for Build. Debug
+and Review request verification only from `verifier`, never formatter
+application or source changes.
 
 </VerificationDelegation>
 
