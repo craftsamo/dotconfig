@@ -112,6 +112,8 @@ def test_plan_run_creates_a_bound_session_and_completes(fixture):
     assert {"action": "edit", "resource": "*", "effect": "deny"} in created["permissions"]
     assert fake.entries[sid]["hermes.note"].startswith(plugin.DEFAULT_NOTE)
     assert "The technical calls are yours" in fake.entries[sid]["hermes.note"]
+    assert "Hermes is the client commissioning this work" in fake.entries[sid]["hermes.note"]
+    assert "reach you through Hermes" not in fake.entries[sid]["hermes.note"], "Hermes asks; it relays no one"
     assert fake.prompts == [(sid, MESSAGE)], "the message reaches OpenCode literally"
     assert not (home / "opencode-sessions").exists(), "no run record is kept"
 
