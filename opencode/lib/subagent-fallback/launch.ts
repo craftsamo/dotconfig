@@ -11,7 +11,9 @@ import {
 import { parseMarker, selector, withMarker, type Marker } from "./marker"
 import type { PreflightOptions } from "./options"
 import {
+  ANTIGRAVITY_PROVIDER,
   modelsEqual,
+  REASON_ALL_SPENT,
   REASON_NO_STEP,
   weigh,
   type AccountProof,
@@ -19,7 +21,10 @@ import {
   type QuotaProof,
 } from "./policy"
 import {
+  antigravityKey,
+  CUSTOM_PROVIDERS,
   loadQuotaExport,
+  readAntigravity,
   readQuota,
   SpentWindows,
   type Dependencies,
@@ -187,13 +192,21 @@ export function createLauncher(
         : {},
     }
     const catalog = (await ctx.model.list({ location: parent.location })).data
-    // A launch on a lane carries no subscription marker (its guards
-    // are for OAuth requests). Its child is noted, so a limit on the
-    // subscription it may fall back to moves or stops it (index.ts).
-    const onLane = async (lane: ModelRef, why: string) => {
+    // A launch on a lane or on Antigravity carries no subscription marker:
+    // its guards are for the requests of the OAuth transports this plugin
+    // checks. Its child is noted, so a limit on a subscription it may fall
+    // back to moves or stops it (index.ts). No reason: the route's first
+    // step, which needs no notice beyond the pin's.
+    const unmarked = async (
+      model: ModelRef,
+      why: string | undefined,
+      funding: "console-credit" | "included",
+    ) => {
       context.signal.throwIfAborted()
       const result = await original(
-        { ...input, model: selector(lane) },
+        pinned || !modelsEqual(model, first)
+          ? { ...input, model: selector(model) }
+          : input,
         {
           ...context,
           progress: async (update) => {
@@ -206,22 +219,22 @@ export function createLauncher(
           },
         },
       )
+      if (why === undefined)
+        return withNotices(result, pin.notices, pin.metadata)
       return withNotices(
         result,
         [
           ...pin.notices,
-          `[Subagent preflight: ${input.agent} ${selector(first)} → ${selector(lane)}; ${why}]`,
+          `[Subagent preflight: ${input.agent} ${selector(first)} → ${selector(model)}; ${why}]`,
         ],
         {
           ...pin.metadata,
-          preflight: {
-            funding: "console-credit",
-            from: selector(first),
-            to: selector(lane),
-          },
+          preflight: { funding, from: selector(first), to: selector(model) },
         },
       )
     }
+    const onLane = (lane: ModelRef, why: string) =>
+      unmarked(lane, why, "console-credit")
     // A step's first lane past the cooldowns and the lanes known empty. A
     // known-empty lane taken for its daily try is noted, so the next
     // launches pass it over again.
@@ -247,7 +260,11 @@ export function createLauncher(
       ...new Set(
         steps
           .filter((step) => !step.places.some(isLane))
-          .map((step) => step.model.providerID),
+          .map((step) =>
+            step.model.providerID === ANTIGRAVITY_PROVIDER
+              ? CUSTOM_PROVIDERS
+              : step.model.providerID,
+          ),
       ),
     ]
     let snapshot: Promise<unknown> | undefined
@@ -281,21 +298,39 @@ export function createLauncher(
       } catch {}
       const read = await exported()
       context.signal.throwIfAborted()
-      // A window limit a protected child hit is the provider's own
-      // word and outranks an export that has not caught up yet.
-      const quota = limited.blocked(
-        login === undefined ? model.providerID : loginStop(login).key,
-      )
+      // Antigravity's quota is per group of models, not per login.
+      const group =
+        model.providerID === ANTIGRAVITY_PROVIDER
+          ? antigravityKey(model)
+          : undefined
+      // A window limit a child hit is the provider's own word and
+      // outranks an export that has not caught up yet.
+      const key =
+        group ?? (login === undefined ? model.providerID : loginStop(login).key)
+      const now = deps.now()
+      const quota = limited.blocked(key)
         ? {
             state: "exhausted" as const,
-            observedAt: deps.now(),
-            reason: "window limit observed on a protected child",
+            observedAt: now,
+            reason: "window limit observed on a child",
           }
-        : spent.recall(
-            auth?.proof,
-            readQuota(read, auth?.proof, deps.now()),
-            deps.now(),
-          )
+        : model.providerID === ANTIGRAVITY_PROVIDER
+          ? spent.recall(
+              auth && group
+                ? {
+                    ...auth.proof,
+                    connectionID: `${auth.proof.connectionID}#${group}`,
+                  }
+                : undefined,
+              readAntigravity(
+                read,
+                model,
+                now,
+                deps.antigravityReserve?.() ?? 10,
+              ),
+              now,
+            )
+          : spent.recall(auth?.proof, readQuota(read, auth?.proof, now), now)
       return { step, model, login, account: auth?.proof, quota }
     }
 
@@ -336,13 +371,17 @@ export function createLauncher(
         }
         if (weight === "spent") {
           passed = "spent"
-          lastResort ??= candidate
+          // Antigravity's plugin refuses a spent group itself.
+          if (candidate.model.providerID !== ANTIGRAVITY_PROVIDER)
+            lastResort ??= candidate
         } else if (passed === "none") passed = "unusable"
       }
     }
     const resort = !chosen
     if (!chosen) {
-      if (!lastResort) fail(REASON_NO_STEP)
+      // Only spent Antigravity groups: their plugin would refuse them.
+      if (!lastResort)
+        fail(passed === "spent" ? REASON_ALL_SPENT : REASON_NO_STEP)
       if (!options.creditsLastResort)
         fail(
           "every included quota of the route is exhausted; last-resort credits are disabled",
@@ -351,6 +390,23 @@ export function createLauncher(
     }
     const { model, login, account } = chosen
     const alternate = !modelsEqual(chosen.step.model, first)
+    const why = resort
+      ? undefined
+      : passed === "spent"
+        ? alternate
+          ? WHY_ALTERNATE
+          : WHY_LOGIN
+        : passed === "unusable"
+          ? WHY_UNUSABLE
+          : lanesPassed
+            ? WHY_LANES
+            : WHY_FIRST
+    if (model.providerID === ANTIGRAVITY_PROVIDER)
+      return unmarked(
+        model,
+        modelsEqual(model, first) && passed === "none" ? undefined : why,
+        "included",
+      )
     const launch =
       pinned || !modelsEqual(model, first)
         ? { ...input, model: selector(model) }
@@ -415,17 +471,7 @@ export function createLauncher(
       return withNotices(result, pin.notices, pin.metadata)
     const notice = resort
       ? `[Subagent preflight: ${input.agent} ${selector(model)}; ${WHY_LAST_RESORT}]`
-      : `[Subagent preflight: ${input.agent} ${selector(first)} → ${selector(model)}; ${
-          passed === "spent"
-            ? alternate
-              ? WHY_ALTERNATE
-              : WHY_LOGIN
-            : passed === "unusable"
-              ? WHY_UNUSABLE
-              : lanesPassed
-                ? WHY_LANES
-                : WHY_FIRST
-        }]`
+      : `[Subagent preflight: ${input.agent} ${selector(first)} → ${selector(model)}; ${why}]`
     return withNotices(result, [...pin.notices, notice], {
       ...pin.metadata,
       preflight: {

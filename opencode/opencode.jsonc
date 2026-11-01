@@ -12,11 +12,13 @@
     "@ex-machina/opencode-anthropic-auth@2.0.0-next.6",
     // Gemini and Claude on a Google Antigravity plan through a Google OAuth
     // login (`opencode auth login google`, "Google OAuth (Antigravity)"); its
-    // models are google/antigravity-*, picked by hand only. Google's
-    // Antigravity terms forbid third-party clients and have banned accounts
-    // for it (a second strike is permanent): an accepted risk, so log in with
-    // an account you can lose. Pinned; antigravity.json turns off its own
-    // updater. Bump deliberately and re-test a login and a request.
+    // models are google/antigravity-*, picked by hand or named by a
+    // subagent-fallback route. Google's Antigravity terms forbid third-party
+    // clients and have banned accounts for it (a second strike is
+    // permanent): an accepted risk, so log in with an account you can lose.
+    // Pinned; antigravity.json turns off its own updater. Bump deliberately
+    // and re-test a login, a request, and the text of its quota-protection
+    // and rate-limit errors, which subagent-fallback reads (lanes.ts).
     "opencode-antigravity-auth@2.1.2",
     // Part of lib/subagent-fallback: records OpenCode's own retry decision
     // before quota's waitForQuotaReset can stretch it, so a short rate limit
@@ -2562,7 +2564,8 @@
     },
     // Google Search from opencode-antigravity-auth. Every session gets it,
     // whatever its model, and it spends the Antigravity login: Antigravity
-    // is used only where a google/antigravity-* model is picked by hand.
+    // is used only where a google/antigravity-* model is picked by hand or
+    // named by a route.
     {
       "action": "google_search",
       "resource": "*",

@@ -100,6 +100,8 @@ async function fixture() {
     secondQuota: undefined as number | undefined,
     // 2: Quota 5 rows bound by connection ID; 3: Quota 6 rows named by label.
     exportVersion: 2 as 2 | 3,
+    // Antigravity's groups in a Quota 6 export, by row name.
+    antigravity: {} as Record<string, number>,
     connection: {
       anthropic: { type: "credential", id: "fixture-claude", method: "oauth" },
       openai: { type: "credential", id: "fixture-chatgpt", method: "oauth" },
@@ -243,6 +245,12 @@ async function fixture() {
                 methodID: "claude-max",
                 access: "fixture-anthropic-sub",
               }
+            if (c.id === "fixture-antigravity")
+              return {
+                type: "oauth",
+                methodID: "antigravity",
+                access: "fixture-google",
+              }
             const id =
               c.id === "fixture-claude"
                 ? "anthropic"
@@ -328,23 +336,44 @@ async function fixture() {
                   resetAt: env.now / 1000 + 3600,
                 }))
           const plan = { anthropic: "Main OAuth", openai: "Plus", xai: "Heavy" }
+          const fetchedAt = (env.fetchedAt ?? env.now) / 1000
           return JSON.stringify({
             version: 3,
-            providers: Object.fromEntries(
-              Object.entries(env.quota).map(([id, percent]) => [
-                id,
-                {
-                  status: "ok",
-                  fetchedAt: (env.fetchedAt ?? env.now) / 1000,
-                  entries: [
-                    ...rows(id, percent, plan[id as keyof typeof plan]),
-                    ...(id === "anthropic"
-                      ? rows(id, env.secondQuota, "Sub OAuth")
-                      : []),
-                  ],
-                },
-              ]),
-            ),
+            providers: {
+              ...Object.fromEntries(
+                Object.entries(env.quota).map(([id, percent]) => [
+                  id,
+                  {
+                    status: "ok",
+                    fetchedAt,
+                    entries: [
+                      ...rows(id, percent, plan[id as keyof typeof plan]),
+                      ...(id === "anthropic"
+                        ? rows(id, env.secondQuota, "Sub OAuth")
+                        : []),
+                    ],
+                  },
+                ]),
+              ),
+              // Antigravity's groups, as the credit-lanes endpoint reports
+              // them to Quota's custom providers.
+              "quota-providers": {
+                status: "ok",
+                fetchedAt,
+                entries: Object.entries(env.antigravity).map(
+                  ([group, percent]) => ({
+                    id: `quota-providers.custom.google-antigravity.${group}`,
+                    account: "Antigravity",
+                    resultType: "quota",
+                    authority: "provider_reported",
+                    acquisitionMethod: "remote_api",
+                    renderType: "percent",
+                    percentRemaining: percent,
+                    resetAt: env.now / 1000 + 4 * 86_400,
+                  }),
+                ),
+              },
+            },
           })
         }
         const snapshot = {
@@ -437,8 +466,8 @@ async function fixture() {
               (options.pinModels === true ||
                 env.agents[input.agent] === ROUTES[input.agent]?.primary) &&
               options.enabled &&
-              // A launch that took a lane carries no marker by design.
-              ![MAIN, SUB].includes(
+              // A launch on a lane or Antigravity carries no marker by design.
+              ![MAIN, SUB, "google"].includes(
                 env.sessions.get(env.childID)?.model?.providerID ?? "",
               )
             )
@@ -2395,5 +2424,184 @@ describe("route tables", () => {
     const e = await retry(inst, "ses_parent", on(MAIN), CREDIT)
     expect(env.switches).toHaveLength(2)
     expect(e.decision).toEqual({ retry: false })
+  })
+})
+
+describe("Antigravity", () => {
+  const FLASH = { providerID: "google", id: "antigravity-gemini-3.8-flash-low" }
+  const OPUS_AG = {
+    providerID: "google",
+    id: "antigravity-claude-opus-5-5-high",
+  }
+  const ROUTE = ["google/antigravity-gemini-3.8-flash-low", sel(LUNA)]
+  const LIMIT = {
+    type: "provider.unknown",
+    message:
+      "Quota protection: All 1 account(s) are over 90% usage for gemini. Quota resets in 2h 30m. Add more accounts, wait for quota reset, or set soft_quota_threshold_percent: 100 to disable.",
+  }
+  const agy = async (extra: Record<string, unknown> = {}) => {
+    const { env, install } = await fixture()
+    env.exportVersion = 3
+    env.connection.google = {
+      type: "credential",
+      id: "fixture-antigravity",
+      method: "oauth",
+    }
+    for (const m of [FLASH, OPUS_AG])
+      env.catalog.push({
+        ...m,
+        enabled: true,
+        status: "active",
+        capabilities: { tools: true },
+        variants: [],
+        limit: { context: 1_000_000, output: 64_000 },
+      })
+    env.agents["explore-small"] = FLASH
+    env.antigravity = { Gemini_Pro: 50, Gemini_Flash: 99, Claude: 0 }
+    const inst = await install({
+      enabled: true,
+      creditsLastResort: true,
+      quotaExportPath: "/fixture/quota-export.json",
+      routes: { "explore-small": ROUTE },
+      ...extra,
+    })
+    return { env, inst }
+  }
+  const input = { agent: "explore-small", prompt: "fixture", background: true }
+  // A child running on Antigravity, launched before this.
+  const running = (env: Awaited<ReturnType<typeof fixture>>["env"]) =>
+    env.sessions.set("ses_running", {
+      id: "ses_running",
+      parentID: "ses_parent",
+      agent: "explore-small",
+      model: FLASH,
+      location: LOCATION,
+    })
+
+  test("a group with room takes the launch, unmarked like a lane", async () => {
+    const { env, inst } = await agy()
+    const result = await inst.run(input)
+    expect(env.originals[0]).toBe(input)
+    expect(marker(env)).toBeUndefined()
+    expect(result.content).toBe("done")
+  })
+  test("a group at the plugin's reserve or less is spent, and the next step launches", async () => {
+    const { env, inst } = await agy()
+    env.antigravity.Gemini_Flash = 10
+    const result = await inst.run(input)
+    expect(env.originals[0].model).toBe(sel(LUNA))
+    expect(marker(env).model).toEqual(LUNA)
+    expect(result.content).toContain(
+      "Quota reports the default's included quota empty and the alternate not empty",
+    )
+  })
+  test("a spent group is never the last resort", async () => {
+    const { env, inst } = await agy()
+    env.antigravity.Gemini_Flash = 0
+    env.quota.openai = 0
+    const result = await inst.run(input)
+    expect(env.originals[0].model).toBe(sel(LUNA))
+    expect(result.metadata.preflight.funding).toBe("provider")
+  })
+  test("a later Antigravity step launches unmarked with a notice", async () => {
+    const { env, inst } = await agy({
+      routes: {
+        "explore-small": [sel(LUNA), "google/antigravity-gemini-3.8-flash-low"],
+      },
+    })
+    env.agents["explore-small"] = LUNA
+    env.quota.openai = 0
+    const result = await inst.run(input)
+    expect(env.originals[0].model).toBe(sel(FLASH))
+    expect(marker(env)).toBeUndefined()
+    expect(result.metadata.preflight).toEqual({
+      funding: "included",
+      from: sel(LUNA),
+      to: sel(FLASH),
+    })
+  })
+  test("a limit its plugin reports holds the group for the wait, at most an hour", async () => {
+    const { env, inst } = await agy()
+    running(env)
+    await inst.fire("retry", {
+      sessionID: "ses_running",
+      model: FLASH,
+      attempt: 1,
+      error: LIMIT,
+      decision: { retry: false },
+    })
+    await inst.run(input)
+    expect(env.originals[0].model).toBe(sel(LUNA))
+    // Held an hour at most; then Quota's word counts again.
+    env.now += 60 * 60_000 + 1
+    await inst.run(input)
+    expect(env.originals[1]).toBe(input)
+  })
+  test("any other error leaves the group alone", async () => {
+    const { env, inst } = await agy()
+    running(env)
+    await inst.fire("retry", {
+      sessionID: "ses_running",
+      model: FLASH,
+      attempt: 1,
+      error: { type: "provider.unknown", message: "socket hang up" },
+      decision: { retry: false },
+    })
+    await inst.run(input)
+    expect(env.originals[0]).toBe(input)
+  })
+  test("a route left with spent groups alone stops, saying the quota is spent", async () => {
+    const { env, inst } = await agy({
+      routes: { "explore-small": ["google/antigravity-gemini-3.8-flash-low"] },
+    })
+    env.antigravity.Gemini_Flash = 3
+    await expect(inst.run(input)).rejects.toThrow(
+      /Every included quota the route can use is exhausted/,
+    )
+    expect(env.originals).toHaveLength(0)
+  })
+  test("stale Antigravity rows ask Quota to check its custom providers", async () => {
+    const { env, inst } = await agy()
+    env.fetchedAt = env.now - 10 * 60_000
+    env.quotaCheck = async () => {
+      env.fetchedAt = env.now
+      return { ok: true }
+    }
+    await inst.run(input)
+    expect(env.rpcCalls).toHaveLength(1)
+    expect((env.rpcCalls[0].input as any).providerIds).toEqual([
+      "openai",
+      "quota-providers",
+    ])
+  })
+  test("a pinned role whose first step is on Antigravity launches it explicitly", async () => {
+    const { env, inst } = await agy({ pinModels: true })
+    env.agents["explore-small"] = LUNA
+    const result = await inst.run(input)
+    expect(env.originals[0].model).toBe(sel(FLASH))
+    expect(marker(env)).toBeUndefined()
+    expect(result.content).toStartWith(`[Model pin: explore-small ${sel(LUNA)}`)
+    expect(result.metadata.pin.to).toBe(sel(FLASH))
+    expect(result.metadata.preflight).toBeUndefined()
+  })
+  test("the same text from another provider holds nothing", async () => {
+    const { env, inst } = await agy()
+    running(env)
+    await inst.fire("retry", {
+      sessionID: "ses_running",
+      model: LUNA,
+      attempt: 1,
+      error: LIMIT,
+      decision: { retry: false },
+    })
+    await inst.run(input)
+    expect(env.originals[0]).toBe(input)
+  })
+  test("without the Antigravity login its steps are passed over", async () => {
+    const { env, inst } = await agy()
+    env.connection.google = undefined
+    const result = await inst.run(input)
+    expect(env.originals[0].model).toBe(sel(LUNA))
+    expect(result.content).toContain("has no approved login")
   })
 })
