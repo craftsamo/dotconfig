@@ -221,6 +221,8 @@ export function nextModel(input: {
   suffixes?: readonly string[]
   tried: ReadonlySet<string>
   catalog: CatalogModel[]
+  // The stops in order a route sets (routes.ts); the built-in order without.
+  chain?: readonly Stop[]
 }): ModelRef | undefined {
   const { current, role, lanes, tried, catalog } = input
   const suffixes = input.suffixes ?? input.logins ?? []
@@ -233,9 +235,10 @@ export function nextModel(input: {
   // Only a primary still on it goes to the lanes after it. The other saved
   // logins come last either way.
   const chain =
-    role === "primary" && from.key === active.key
+    input.chain ??
+    (role === "primary" && from.key === active.key
       ? [active, ...credits, ...logins]
-      : [...credits, active, ...logins]
+      : [...credits, active, ...logins])
   for (const stop of chain) {
     if (tried.has(stop.key) || lanes.blocked(stop.key)) continue
     const target = retarget(current, stop, catalog, from)
