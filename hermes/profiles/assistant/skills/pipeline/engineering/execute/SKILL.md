@@ -92,8 +92,9 @@ not something to send to OpenCode.
    that was not the plan session or its fork starts with no memory: point it
    at the issue, the decision log and the plan files in the job directory.
    When a run stops on a usage limit, rerun on the role's alternate from
-   `opencode_catalog models` (read the diff first); other model choices stay
-   OpenCode's defaults.
+   `opencode_catalog models` (read the diff first); a build otherwise runs on
+   its own default, even on a session whose plan ran on another model (the
+   planning entry's "Models").
 4. **One unit's approval releases that unit through PR delivery**, every
    layer of it, including the task-branch pushes and the PRs (a stack's
    publication included): no release per layer or step. Let OpenCode sequence

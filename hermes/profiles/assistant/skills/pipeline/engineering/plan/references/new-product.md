@@ -13,6 +13,11 @@ mock, a spec, a schema) is recorded in the decision log and skipped.
 | 3. Roadmap | `opencode_run_plan`: stack, hosting and the units (each one PR or one stack that lands once) | Approves the order and content of the units; they are filed on GitHub |
 | 4. Each unit | a fork of the plan trunk plans that unit's layers, its issue is Fixed, then it builds | Approves the unit, then tries what it delivers |
 
+Each `design` or `plan` turn here picks its model by the entry's "Models"
+rule: Fable when its answer rests on facts outside the code, such as how the
+people of stage 1 work. When the trunk ran on Fable, a stage 4 turn that only
+plans a unit's technical layers names the default again.
+
 ## 1. Purpose and use
 
 Ask what the user wants to stop doing or start doing, who else touches it
