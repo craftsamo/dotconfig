@@ -1,7 +1,7 @@
 ---
 description: "Lightweight read-only review subagent for broad PR scans: project conventions, AGENTS.md violations, obvious bugs, missing tests, and low-cost regressions. Prefer invoking through the built-in subagent tool."
 mode: subagent
-model: anthropic/claude-sonnet-5-5#medium
+model: openai/gpt-6.1-sol#medium
 hidden: false
 permissions:
   - { action: "*", resource: "*", effect: deny }
