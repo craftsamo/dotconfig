@@ -60,19 +60,16 @@ const sol = (variant: string) => m("openai", "gpt-6.1-sol", variant)
 const luna = (variant: string) => m("openai", "gpt-6-luna", variant)
 // The xAI subscription's weekly pool; retrieval is the work that fits it.
 const grok = (variant: string) => m("xai", "grok-4.7", variant)
-// Fast mode: the same model with priority processing, 2.5x the included usage.
-const solFast = (variant: string) => m("openai", "gpt-6.1-sol-fast", variant)
+// Fast mode: the same model with priority processing, 2.5x the included
+// usage. Only for explore-spark, a short lookup the parent waits for.
 const lunaFast = (variant: string) => m("openai", "gpt-6-luna-fast", variant)
 
 export const ROUTES: Readonly<Record<string, Route>> = Object.freeze(
   Object.fromEntries(
     Object.entries({
       "explore-max": { primary: sol("xhigh"), alternate: opus("xhigh") },
-      "explore-high": { primary: solFast("high"), alternate: sonnet("high") },
-      "explore-medium": {
-        primary: solFast("medium"),
-        alternate: sonnet("medium"),
-      },
+      "explore-high": { primary: sol("high"), alternate: sonnet("high") },
+      "explore-medium": { primary: sol("medium"), alternate: sonnet("medium") },
       reviewer: { primary: sonnet("medium"), alternate: sol("medium") },
       worker: { primary: sonnet("low"), alternate: sol("low") },
       "explore-spark": { primary: lunaFast("low"), alternate: haiku("low") },

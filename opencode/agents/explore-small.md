@@ -1,9 +1,9 @@
 ---
 description: "Fast/cheap read-only codebase lookups: find files, simple keyword search."
 mode: subagent
-# A #variant, not options: OpenCode 2 keeps agent options but never sends them
-# (anomalyco/opencode#49550). This variant sets the same reasoningEffort.
-model: openai/gpt-6-luna#low
+# Antigravity serves each Gemini effort as a model of its own, so no
+# #variant. Keep in sync with the first step of its route in opencode.jsonc.
+model: google/antigravity-gemini-3.8-flash-low
 hidden: false
 permissions:
   - { action: "*", resource: "*", effect: deny }
