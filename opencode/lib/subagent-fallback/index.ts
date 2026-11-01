@@ -17,12 +17,14 @@ import {
   stopFor,
   type Decision,
   type Role,
+  type Stop,
 } from "./lanes"
 import { judgedDecision } from "./native-retry"
 import { createLauncher } from "./launch"
 import { METADATA_KEY, parseMarker } from "./marker"
 import { readOptions } from "./options"
-import { ROUTES } from "./policy"
+import type { ModelRef } from "./policy"
+import { readRoutes, stopOf } from "./routes"
 import { dependencies, type Dependencies } from "./quota"
 import { supported, type Registration, type RuntimeContext } from "./runtime"
 
@@ -87,6 +89,30 @@ export async function setupPreflight(
     if (!account) throw new Error("no such Claude login")
     return loginSubscription(ctx, account)
   }
+  // Each routed role's steps, and the primary's places (routes.ts).
+  const routes = readRoutes(options, {
+    lanes: options.creditLanes,
+    logins,
+    suffixes,
+  })
+  // The stops a specialist on `model` moves through, in its route's order:
+  // the places of the role's steps that run the same model. None (a model
+  // the route does not name) keeps the built-in order.
+  const chainFor = (agent: string, model: ModelRef): Stop[] | undefined => {
+    const from = stopFor(model, suffixes)
+    const id = from.suffix
+      ? model.id.slice(0, -(from.suffix.length + 1))
+      : model.id
+    const stops = (
+      Object.hasOwn(routes.table, agent) ? routes.table[agent] : []
+    )
+      .filter(
+        (step) =>
+          step.model.providerID === OAUTH_PROVIDER && step.model.id === id,
+      )
+      .flatMap((step) => step.places.map(stopOf))
+    return stops.length > 0 ? stops : undefined
+  }
   // Subscription window limits protected children hit, kept for the wait
   // asked: the Quota export is rewritten only at Quota's next check, so the
   // parent's relaunch would otherwise bounce back to the same window. Each
@@ -113,19 +139,23 @@ export async function setupPreflight(
   }
   const protectedChild = async (sessionID: string) => {
     const session = await ctx.session.get({ sessionID })
-    const marker = parseMarker(session)
+    const marker = parseMarker(session, routes.table)
     return marker ? { session, marker } : undefined
   }
-  const guards = createGuards(ctx, { protectedChild, loginOf })
+  const guards = createGuards(ctx, {
+    protectedChild,
+    loginOf,
+    table: routes.table,
+  })
   const launcher = createLauncher(ctx, {
     deps,
     options,
+    routes,
     lanes,
     empty,
     keep,
     launchedOnLane,
     limited,
-    logins,
     suffixes,
     loginOf,
   })
@@ -233,8 +263,8 @@ export async function setupPreflight(
           // role's primary, and carries no marker to stop it on a limit.
           const eligible =
             typeof agent === "string" &&
-            Object.hasOwn(ROUTES, agent) &&
-            (ROUTES[agent].primary.providerID === OAUTH_PROVIDER ||
+            Object.hasOwn(routes.table, agent) &&
+            (routes.table[agent][0].model.providerID === OAUTH_PROVIDER ||
               laneLaunched.has(event.sessionID))
           // The subscription's limit is moved off only for the roles that opt
           // in: Claude specialists (and any launched on a lane), and the
@@ -275,6 +305,10 @@ export async function setupPreflight(
             suffixes,
             tried,
             catalog,
+            chain:
+              role === "primary"
+                ? routes.primary?.map(stopOf)
+                : chainFor(agent as string, event.model),
           })
           if (target) {
             await ctx.session.switchModel({

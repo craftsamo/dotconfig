@@ -5,8 +5,8 @@ import {
   providerStop,
   type Stop,
 } from "./lanes"
-import { aliasOf } from "./marker"
 import {
+  aliasOf,
   METHODS,
   modelsEqual,
   ROUTES,

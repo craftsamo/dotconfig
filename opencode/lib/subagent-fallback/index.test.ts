@@ -861,14 +861,20 @@ describe("pinModels", () => {
     expect(result.content).toStartWith("[Model pin: reviewer ")
     expect(result.content).toContain("provider-managed credits")
   })
-  test("a pinned role whose route account is missing stops instead of running on the project's model", async () => {
+  test("a pinned role whose first step has no login goes on to the next step, never the project's model", async () => {
     const { env, inst } = await pinnedFixture()
     env.agents.verifier = TERRA
     env.connection.openai = undefined
+    const result = await inst.run({ agent: "verifier" })
+    expect(env.originals[0].model).toBe(sel(ROUTES.verifier.alternate))
+    expect(marker(env).fallback).toBe(true)
+    expect(result.content).toContain("has no approved login")
+    // With no step left that has a login, it stops.
+    env.connection.anthropic = undefined
     await expect(inst.run({ agent: "verifier" })).rejects.toThrow(
-      /source provider account is missing/,
+      /No step of the route has an approved/,
     )
-    expect(env.originals).toHaveLength(0)
+    expect(env.originals).toHaveLength(1)
   })
   test("a pinned child is guarded on its route model, not its definition's", async () => {
     const { inst } = await pinnedFixture()
@@ -2228,5 +2234,166 @@ describe("Claude accounts", () => {
         )
       }
     })
+  })
+})
+
+describe("route tables", () => {
+  const SONNET_SUB = { ...SONNET, id: `${SONNET.id}-sub` }
+  const on = (providerID: string, m: ModelRef = SONNET): ModelRef => ({
+    ...m,
+    providerID,
+  })
+  const CREDIT = {
+    type: "provider.invalid-request",
+    status: 400,
+    message: "Your credit balance is too low to access the Anthropic API.",
+    response: { body: "{}" },
+  }
+  const LIMIT = {
+    type: "provider.rate-limit",
+    status: 429,
+    message: "usage limit",
+  }
+  const LONG = { retry: true, delay: 900_000 } as const
+  const S = "anthropic/claude-sonnet-5-5#low"
+  const S_SUB = "anthropic/claude-sonnet-5-5-sub#low"
+  const S_ON = (lane: string) => `${lane}/claude-sonnet-5-5#low`
+  // Two lanes, the second login with its aliases, and a route.
+  const routed = async (extra: Record<string, unknown> = {}) => {
+    const { env, install } = await fixture()
+    for (const item of [...env.catalog])
+      if (item.providerID === OAUTH_PROVIDER)
+        env.catalog.push({
+          ...item,
+          id: `${item.id}-sub`,
+          variants: [...item.variants],
+        })
+    const inst = await install({
+      enabled: true,
+      creditsLastResort: true,
+      quotaExportPath: "/fixture/quota-export.json",
+      creditLanes: [MAIN, SUB],
+      claudeAccounts: { sub: "Sub OAuth" },
+      ...extra,
+    })
+    return { env, inst }
+  }
+  const retry = (
+    inst: Inst,
+    sessionID: string,
+    model: ModelRef,
+    error: Record<string, unknown>,
+    decision: any = { retry: false },
+  ) => inst.fire("retry", { sessionID, model, attempt: 2, error, decision })
+  // OpenCode puts the session on the model it is switched to.
+  const follow = (
+    env: Awaited<ReturnType<typeof fixture>>["env"],
+    id: string,
+  ) => {
+    env.sessions.get(id)!.model = env.switches.at(-1)!.model
+  }
+
+  test("a launch takes the route's steps in its own order", async () => {
+    const { env, inst } = await routed({
+      routes: { worker: [S_SUB, S_ON(SUB), S_ON(MAIN), S] },
+    })
+    const first = await inst.run()
+    expect(env.originals[0].model).toBe(sel(SONNET_SUB))
+    expect(marker(env)).toMatchObject({
+      model: SONNET_SUB,
+      login: "sub",
+      fallback: false,
+    })
+    expect(first.content).toContain("the route's first step runs there")
+    // The protected child's marker reads back against the same route.
+    await retry(inst, "ses_child", SONNET_SUB, { type: "other", message: "x" })
+    // That login spent: the lanes next, in the step's order.
+    env.secondQuota = 0
+    const second = await inst.run()
+    expect(env.originals[1].model).toBe(sel(on(SUB)))
+    expect(second.content).toContain(
+      "Quota reports the default's included quota empty; a Console credit lane",
+    )
+  })
+  test("a step the config cannot read is named at launch and passed over", async () => {
+    const { env, inst } = await routed({ routes: { worker: ["sonnet", S] } })
+    const result = await inst.run()
+    expect(env.originals[0].model).toBeUndefined()
+    expect(marker(env).model).toEqual(SONNET)
+    expect(result.content).toBe(
+      `[Subagent preflight: config ignored: routes.worker: "sonnet" is not a model ("provider/model#variant")]\ndone`,
+    )
+  })
+  test("a launch past every lane says why it is on a login", async () => {
+    const { env, inst } = await routed({
+      routes: { worker: [S_ON(MAIN), S_ON(SUB), S_SUB] },
+    })
+    env.catalog = env.catalog.filter((m) => ![MAIN, SUB].includes(m.providerID))
+    const result = await inst.run()
+    expect(env.originals[0].model).toBe(sel(SONNET_SUB))
+    expect(result.content).toContain(
+      "every credit lane of the route is known empty or cooling down",
+    )
+  })
+  test("a child launched before the routes changed keeps its guards", async () => {
+    const { env, install } = await fixture()
+    const before = await install()
+    await before.run()
+    expect(marker(env)).toMatchObject({ model: SONNET, fallback: false })
+    // Its route no longer runs Sonnet on the active login, or at all.
+    for (const worker of [[S_SUB], ["openai/gpt-6.1-sol#low"]]) {
+      const after = await install({
+        enabled: true,
+        quotaExportPath: "/fixture/quota-export.json",
+        claudeAccounts: { sub: "Sub OAuth" },
+        routes: { worker },
+      })
+      const event = await send(after, post(), SONNET)
+      expect(event.request.headers.get("authorization")).toBe(
+        "Bearer fixture-anthropic",
+      )
+    }
+  })
+  test("a role whose steps are all unreadable keeps its built-in route and names them", async () => {
+    const { env, inst } = await routed({ routes: { worker: ["sonnet"] } })
+    const result = await inst.run()
+    expect(env.originals[0].model).toBe(sel(on(MAIN)))
+    expect(result.content).toStartWith(
+      `[Subagent preflight: config ignored: routes.worker: "sonnet" is not a model`,
+    )
+  })
+  test("a specialist on a lane moves through its route's places for the same model", async () => {
+    const { env, inst } = await routed({
+      routes: {
+        worker: [S_ON(SUB), S_SUB, S_ON(MAIN), S],
+      },
+    })
+    await inst.run()
+    expect(env.originals[0].model).toBe(sel(on(SUB)))
+    env.sessions.get("ses_child")!.model = on(SUB)
+    await retry(inst, "ses_child", on(SUB), CREDIT)
+    expect(env.switches.at(-1)!.model).toEqual(SONNET_SUB)
+    follow(env, "ses_child")
+    await retry(inst, "ses_child", SONNET_SUB, LIMIT, LONG)
+    expect(env.switches.at(-1)!.model).toEqual(on(MAIN))
+    follow(env, "ses_child")
+    await retry(inst, "ses_child", on(MAIN), CREDIT)
+    expect(env.switches.at(-1)!.model).toEqual(SONNET)
+  })
+  test("primaryRoute sets the order the primary moves in", async () => {
+    const { env, inst } = await routed({
+      primaryRoute: ["anthropic/*-sub", `${MAIN}/*`, "anthropic/*"],
+    })
+    env.sessions.get("ses_parent")!.model = SONNET
+    await retry(inst, "ses_parent", SONNET, LIMIT, LONG)
+    expect(env.switches.at(-1)!.model).toEqual(SONNET_SUB)
+    follow(env, "ses_parent")
+    await retry(inst, "ses_parent", SONNET_SUB, LIMIT, LONG)
+    expect(env.switches.at(-1)!.model).toEqual(on(MAIN))
+    follow(env, "ses_parent")
+    // The active login was where it started: nowhere is left.
+    const e = await retry(inst, "ses_parent", on(MAIN), CREDIT)
+    expect(env.switches).toHaveLength(2)
+    expect(e.decision).toEqual({ retry: false })
   })
 })

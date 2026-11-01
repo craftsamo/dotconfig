@@ -5,6 +5,7 @@ import { fail } from "./errors"
 import { OAUTH_PROVIDER } from "./lanes"
 import { aliasOf, selector, withMarker, type Marker } from "./marker"
 import { inputCapacity, modelsEqual, ROUTES } from "./policy"
+import type { RouteTable } from "./routes"
 import {
   supported,
   type ContextEvent,
@@ -132,9 +133,11 @@ export function createGuards(
   deps: {
     protectedChild: (sessionID: string) => Promise<Child | undefined>
     loginOf: (suffix: string) => Promise<Subscription>
+    // The routes in effect: their models are the ones a child may send.
+    table: RouteTable
   },
 ) {
-  const { protectedChild, loginOf } = deps
+  const { protectedChild, loginOf, table } = deps
   const handshakes = new Map<string, string>()
 
   const authorize = async (event: Scope) => {
@@ -157,13 +160,16 @@ export function createGuards(
     // side requests leave on that login too (claude-accounts.ts).
     const bound =
       marker.login !== undefined && event.model.providerID === OAUTH_PROVIDER
-    const approvedModel = Object.values(ROUTES).some((r) =>
-      [r.primary, r.alternate].some((m) =>
-        [m, ...(bound ? [aliasOf(m, marker.login)] : [])].some(
-          (allowed) =>
-            allowed.id === event.model.id &&
-            allowed.providerID === event.model.providerID,
-        ),
+    // The routes' models and the built-in ones, which children launched
+    // before the routes changed may still run.
+    const approvedModel = [
+      ...Object.values(table).flatMap((steps) => steps.map((s) => s.model)),
+      ...Object.values(ROUTES).flatMap((r) => [r.primary, r.alternate]),
+    ].some((m) =>
+      [m, ...(bound ? [aliasOf(m, marker.login)] : [])].some(
+        (allowed) =>
+          allowed.id === event.model.id &&
+          allowed.providerID === event.model.providerID,
       ),
     )
     if (!approvedModel) fail("unapproved auxiliary model")

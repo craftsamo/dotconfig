@@ -38,21 +38,14 @@ export type CatalogModel = {
   limit: { context: number; input?: number; output: number }
 }
 
-export type LaunchDecision =
-  | { kind: "default" | "fallback" | "credits"; model: ModelRef }
-  | { kind: "stop"; reason: string }
-
 // Quota checks a provider when something asks (the TUI's sidebar, /quota, a
 // model turn, a limit), at most every providers.checking.minIntervalMs (two
 // minutes here, five by default). This allows the default and a missed check.
 export const QUOTA_MAX_AGE_MS = 6 * 60_000
 
-export const REASON_SOURCE_ACCOUNT =
-  "The source provider account is missing or is not an approved subscription OAuth connection."
-export const REASON_TARGET_ACCOUNT =
-  "The alternate provider account is missing or is not an approved subscription OAuth connection."
-export const REASON_CATALOG =
-  "The selected model is not available in the catalog with the required status, tools, variant, and limits."
+// No step of a role's route could launch at all, whatever Quota says.
+export const REASON_NO_STEP =
+  "No step of the route has an approved subscription OAuth connection and a catalog model with the required status, tools, variant, and limits."
 
 const m = (providerID: string, id: string, variant?: string): ModelRef =>
   variant === undefined ? { id, providerID } : { id, providerID, variant }
@@ -102,23 +95,12 @@ export function modelsEqual(a: ModelRef, b: ModelRef): boolean {
   )
 }
 
-// With pin, a role keeps its route even when the agent definition in effect
-// (a project's own agent file, say) names another model or none at all.
-export function routeForLaunch(
-  input: { agent?: unknown; model?: unknown; sessionID?: unknown },
-  configured: ModelRef | undefined,
-  pin = false,
-): Route | undefined {
-  if (input.model !== undefined) return undefined
-  if (input.sessionID !== undefined) return undefined
-  if (typeof input.agent !== "string") return undefined
-  if (!Object.hasOwn(ROUTES, input.agent)) return undefined
-  const route = ROUTES[input.agent]
-  if (pin) return route
-  if (!configured) return undefined
-  if (!modelsEqual(route.primary, configured)) return undefined
-  return route
-}
+// A route model on a saved Claude login: its alias.
+export const aliasOf = (
+  model: ModelRef,
+  login: string | undefined,
+): ModelRef =>
+  login === undefined ? model : { ...model, id: `${model.id}-${login}` }
 
 // The native subscription logins, by the OAuth method each provider's
 // built-in plugin registers. An API key never qualifies.
@@ -128,7 +110,7 @@ export const METHODS: Readonly<Record<string, readonly string[]>> = {
   xai: ["device"],
 }
 
-function approved(
+export function approved(
   account: AccountProof | undefined,
   providerID: string,
 ): boolean {
@@ -202,49 +184,19 @@ export function catalogOk(catalog: CatalogModel[], model: ModelRef): boolean {
   return limit.context > limit.output
 }
 
-export function decideLaunch(input: {
-  route: Route
-  source: {
-    account: AccountProof | undefined
-    quota: QuotaProof
-  }
-  target:
-    | {
-        account: AccountProof | undefined
-        quota: QuotaProof
-      }
-    | undefined
+// How a launch weighs one subscription place of a step: a launch, a launch
+// only as the last resort (Quota knows its window spent), or none (no
+// approved login, or no usable catalog entry). Missing or stale data is no
+// reason to pass a place over.
+export function weigh(input: {
+  model: ModelRef
+  account: AccountProof | undefined
+  quota: QuotaProof
   catalog: CatalogModel[]
   now: number
-}): LaunchDecision {
-  const { route, source, target, catalog, now } = input
-  const stop = (reason: string): LaunchDecision => ({ kind: "stop", reason })
-
-  if (!approved(source.account, route.primary.providerID))
-    return stop(REASON_SOURCE_ACCOUNT)
-  const sourceState = freshState(source.quota, now)
-  if (sourceState !== "exhausted") {
-    if (!catalogOk(catalog, route.primary)) return stop(REASON_CATALOG)
-    return { kind: "default", model: route.primary }
-  }
-
-  const targetAccountOk =
-    !!target && approved(target.account, route.alternate.providerID)
-  const targetState = target ? freshState(target.quota, now) : undefined
-  if (targetState === "exhausted") {
-    // No independent credit balance check. Native OAuth/provider behavior
-    // decides whether the usual model can proceed; this is an attempt, not
-    // billing proof.
-    if (!catalogOk(catalog, route.primary)) return stop(REASON_CATALOG)
-    return { kind: "credits", model: route.primary }
-  }
-  // The source is known empty; an alternate that isn't known empty is the
-  // better bet, even when its own data is missing or stale.
-  if (!targetAccountOk) {
-    if (targetState) return stop(REASON_TARGET_ACCOUNT)
-    if (!catalogOk(catalog, route.primary)) return stop(REASON_CATALOG)
-    return { kind: "default", model: route.primary }
-  }
-  if (!catalogOk(catalog, route.alternate)) return stop(REASON_CATALOG)
-  return { kind: "fallback", model: route.alternate }
+}): "launch" | "spent" | "unusable" {
+  const { model, account, quota, catalog, now } = input
+  if (!approved(account, model.providerID)) return "unusable"
+  if (!catalogOk(catalog, model)) return "unusable"
+  return freshState(quota, now) === "exhausted" ? "spent" : "launch"
 }
