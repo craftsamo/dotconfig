@@ -204,6 +204,27 @@ describe("route table", () => {
       )
     }
   })
+  test("the routes opencode.jsonc sets read whole, with no problem", async () => {
+    const config = Bun.JSONC.parse(
+      await Bun.file(new URL("../../opencode.jsonc", import.meta.url)).text(),
+    ) as {
+      plugins: (string | { package: string; options?: Record<string, any> })[]
+    }
+    const { options } = config.plugins.find(
+      (p) => typeof p !== "string" && p.package === "./lib/subagent-fallback",
+    ) as { options: Record<string, any> }
+    const logins = Object.keys(options.claudeAccounts)
+    const { table, problems } = readRoutes(options, {
+      lanes: options.creditLanes,
+      logins,
+      suffixes: logins,
+    })
+    expect(problems).toEqual({})
+    for (const [role, steps] of Object.entries(options.routes))
+      expect(`${role}: ${table[role].length}`).toBe(
+        `${role}: ${(steps as string[]).length}`,
+      )
+  })
   test("a new role with no readable step is not routed, and every launch says so", () => {
     const { table, problems } = readRoutes({ routes: { extra: ["x"] } }, NAMES)
     expect(Object.hasOwn(table, "extra")).toBe(false)

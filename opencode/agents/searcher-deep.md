@@ -1,5 +1,5 @@
 ---
-description: "Deep web research subagent on the OpenAI subscription tier: settles one topic to a confident, source-backed conclusion — resolving conflicting sources, tracing to primary sources, and verifying versions/dates. Falls back to a policy-gated real browser (agent-browser) for JS-rendered or fetch-blocked pages. Prefer invoking through the built-in subagent tool."
+description: "Deep web research subagent: settles one topic to a confident, source-backed conclusion — resolving conflicting sources, tracing to primary sources, and verifying versions/dates. Falls back to a policy-gated real browser (agent-browser) for JS-rendered or fetch-blocked pages. Prefer invoking through the built-in subagent tool."
 mode: subagent
 model: xai/grok-4.7#medium
 hidden: false

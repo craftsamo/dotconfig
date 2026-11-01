@@ -922,7 +922,7 @@ describe("pinModels", () => {
     expect(result.content).toBe(
       [
         `[Model pin: reviewer ${sel(TERRA)} → ${sel(REVIEWER)}; the agent definition in effect is replaced by the dotconfig route.]`,
-        `[Subagent preflight: reviewer ${sel(REVIEWER)} → ${lane}; a Console credit lane is tried before the subscription.]`,
+        `[Subagent preflight: reviewer ${sel(REVIEWER)} → ${lane}; the route's next step is a Console credit lane.]`,
         "done",
       ].join("\n"),
     )
@@ -1352,7 +1352,7 @@ describe("Console credit lanes", () => {
     expect(env.reads).toBe(0)
     expect(marker(env)).toBeUndefined()
     expect(result.content).toBe(
-      `[Subagent preflight: worker ${sel(SONNET)} → ${sel(on(MAIN))}; a Console credit lane is tried before the subscription.]\ndone`,
+      `[Subagent preflight: worker ${sel(SONNET)} → ${sel(on(MAIN))}; the route's next step is a Console credit lane.]\ndone`,
     )
     expect(result.metadata.preflight).toEqual({
       funding: "console-credit",
@@ -1745,7 +1745,7 @@ describe("Console credit lanes", () => {
     expect(env.originals[1].model).toBe(sel(on(MAIN, OPUS_HIGH)))
     expect(marker(env)).toBeUndefined()
     expect(result.content).toBe(
-      `[Subagent preflight: debugger ${sel(SOL_HIGH)} → ${sel(on(MAIN, OPUS_HIGH))}; Quota reports the default's included quota empty; a Console credit lane is tried before the subscription.]\ndone`,
+      `[Subagent preflight: debugger ${sel(SOL_HIGH)} → ${sel(on(MAIN, OPUS_HIGH))}; Quota reports the default's included quota empty; the route's next step is a Console credit lane.]\ndone`,
     )
     expect(result.metadata.preflight).toEqual({
       funding: "console-credit",
@@ -2341,7 +2341,7 @@ describe("route tables", () => {
     const second = await inst.run()
     expect(env.originals[1].model).toBe(sel(on(SUB)))
     expect(second.content).toContain(
-      "Quota reports the default's included quota empty; a Console credit lane",
+      "Quota reports the default's included quota empty; the route's next step is a Console credit lane",
     )
   })
   test("a step the config cannot read is named at launch and passed over", async () => {

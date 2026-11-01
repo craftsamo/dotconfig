@@ -1,7 +1,7 @@
 ---
 description: "Standard read-only codebase exploration: multi-file traces and how-does-X-work questions."
 mode: subagent
-model: openai/gpt-6.1-sol-fast#medium
+model: google/antigravity-gemini-3.8-flash-medium
 hidden: false
 permissions:
   - { action: "*", resource: "*", effect: deny }
