@@ -7,6 +7,7 @@ import type { Fixture } from "./testing/repo"
 const describe = suite.skipIf(skip)
 const { default: plugin } = await load(() => import("../../plugins/custom-tools"))
 const git = await load(() => import("./git"))
+const { displayWidth } = await load(() => import("./git/lint"))
 const { fixture, runWithFakeGh } = await load(() => import("./testing/repo"))
 
 // Characterization tests: they pin the tools' current behavior so the
@@ -399,6 +400,7 @@ describe("git_commit_lint", () => {
       commitlintRan: false,
       commitlint: "not-configured",
       hook: null,
+      subjectTarget: { target: 50, source: "default", sample: 0 },
       errors: [],
       warnings: [],
     })
@@ -443,6 +445,23 @@ describe("git_commit_lint", () => {
     expect(rules(await lint(f, `feat: ${"w".repeat(70)}`, { subjectMax: 60 }))).toEqual(["error:subject-hard-max"])
   })
 
+  test("counts wide characters as two columns", async () => {
+    const f = repo()
+    expect(rules(await lint(f, `feat: ${"あ".repeat(22)}`))).toEqual([])
+    expect(rules(await lint(f, `feat: ${"あ".repeat(23)}`))).toEqual(["warning:subject-target"])
+    const long = await lint(f, `feat: ${"漢".repeat(34)}`)
+    expect(rules(long)).toEqual(["error:subject-hard-max"])
+    expect(long.errors[0].message).toContain("74 columns")
+    expect(rules(await lint(f, `feat: a\n\n${"字".repeat(37)}`))).toEqual(["warning:body-wrap"])
+    expect(rules(await lint(f, `feat: a\n\n${"字".repeat(36)}`))).toEqual([])
+  })
+
+  test("measures emoji as two columns and combining marks as none", () => {
+    expect(displayWidth("✅🚀")).toBe(4)
+    expect(displayWidth("e\u0301")).toBe(1)
+    expect(displayWidth("👍\u200D\uFE0F")).toBe(2)
+  })
+
   test("runs the repository's commitlint binary and treats its failure as an error", async () => {
     const f = repo()
     const bin = join(f.dir, "node_modules", ".bin")
@@ -453,6 +472,85 @@ describe("git_commit_lint", () => {
     const bad = await lint(f, "feat: BAD")
     expect(bad).toMatchObject({ pass: false, commitlintRan: true })
     expect(bad.errors[0]).toMatchObject({ rule: "commitlint", message: "rejected by commitlint" })
+  })
+
+  test("derives default subject target when fewer than 20 commits exist", async () => {
+    const f = repo()
+    const out = await lint(f, `feat: ${"a".repeat(45)}`)
+    expect(out.subjectTarget).toMatchObject({ target: 50, source: "default" })
+    expect(rules(out)).toContain("warning:subject-target")
+    expect(out.warnings.find((w: any) => w.rule === "subject-target")?.message).toBe(
+      "Subject is 51 columns; aim for <= 50.",
+    )
+  })
+
+  test("derives subject target from history when 20 or more commits exist", async () => {
+    const f = repo()
+    const s58 = `feat: ${"x".repeat(52)}`
+    for (let i = 0; i < 25; i++) f.git("commit", "--allow-empty", "-m", s58)
+    const out58 = await lint(f, s58)
+    expect(out58.subjectTarget).toEqual({ target: 58, source: "history", sample: 25 })
+    expect(rules(out58)).not.toContain("warning:subject-target")
+
+    const s59 = `feat: ${"x".repeat(53)}`
+    const out59 = await lint(f, s59)
+    expect(rules(out59)).toContain("warning:subject-target")
+    expect(out59.warnings.find((w: any) => w.rule === "subject-target")?.message).toBe(
+      "Subject is 59 columns; aim for <= 58.",
+    )
+  })
+
+  test("clamps subject target between 50 and 60", async () => {
+    const f70 = repo()
+    const s70 = `feat: ${"x".repeat(64)}`
+    for (let i = 0; i < 25; i++) f70.git("commit", "--allow-empty", "-m", s70)
+    expect((await lint(f70, "feat: ok")).subjectTarget).toEqual({ target: 60, source: "history", sample: 25 })
+
+    const f40 = repo()
+    const s40 = `feat: ${"x".repeat(34)}`
+    for (let i = 0; i < 25; i++) f40.git("commit", "--allow-empty", "-m", s40)
+    expect((await lint(f40, "feat: ok")).subjectTarget).toEqual({ target: 50, source: "history", sample: 25 })
+  })
+
+  test("excludes PR squash titles, merges, reverts, fixups, bots, and trailers from history sample", async () => {
+    const f = repo()
+    for (let i = 0; i < 5; i++) f.git("commit", "--allow-empty", "-m", `feat: squash commit (#${i + 1})`)
+    f.git("commit", "--allow-empty", "-m", "Merge branch 'feature'")
+    f.git("commit", "--allow-empty", "-m", "Merge remote-tracking branch 'origin/main'")
+    f.git("commit", "--allow-empty", "-m", "Revert \"feat: something\"")
+    f.git("commit", "--allow-empty", "-m", "Revert \"fix: broken test\"")
+    for (let i = 0; i < 2; i++) f.git("commit", "--allow-empty", "-m", `fixup! feat: work ${i}`)
+    for (let i = 0; i < 2; i++) f.git("commit", "--allow-empty", "-m", `squash! feat: work ${i}`)
+    for (let i = 0; i < 2; i++) f.git("commit", "--allow-empty", "-m", `amend! feat: work ${i}`)
+    for (let i = 0; i < 5; i++)
+      f.git("commit", "--allow-empty", `--author=bot-${i}[bot] <bot@example.com>`, "-m", `chore: bump ${i}`)
+    f.git("commit", "--allow-empty", "-m", "feat: trailer 1", "-m", "Co-authored-by: Alice <a@example.com>")
+    f.git("commit", "--allow-empty", "-m", "feat: trailer 2", "-m", "Signed-off-by: Bob <b@example.com>")
+    f.git("commit", "--allow-empty", "-m", "feat: trailer 3", "-m", "Generated-by: Tool")
+    f.git("commit", "--allow-empty", "-m", "feat: trailer 4", "-m", "Generated by: Assistant")
+    f.git("commit", "--allow-empty", "-m", "feat: trailer 5", "-m", "Generated with Claude")
+    // 5 normal commits
+    for (let i = 0; i < 5; i++) f.git("commit", "--allow-empty", "-m", `feat: normal commit ${i}`)
+
+    const out = await lint(f, "feat: check")
+    expect(out.subjectTarget).toEqual({ target: 50, source: "default", sample: 5 })
+  })
+
+  test("warns when body exceeds 12 lines or 800 columns", async () => {
+    const f = repo()
+    const msg13 = `feat: ok\n\n${Array.from({ length: 13 }, (_, i) => `explain detail ${i + 1}`).join("\n")}`
+    const out13 = await lint(f, msg13)
+    expect(rules(out13)).toEqual(["warning:body-length"])
+    expect(out13.warnings[0].message).toContain("Body is 13 lines,")
+    expect(out13.warnings[0].message).toContain("aim for <= 12 lines and 800 columns")
+
+    const msg12 = `feat: ok\n\n${Array.from({ length: 12 }, (_, i) => `explain detail ${i + 1}`).join("\n")}`
+    expect(rules(await lint(f, msg12))).toEqual([])
+
+    const msg840 = `feat: ok\n\n${Array.from({ length: 12 }, () => "x".repeat(70)).join("\n")}`
+    const out840 = await lint(f, msg840)
+    expect(rules(out840)).toEqual(["warning:body-length"])
+    expect(out840.warnings[0].message).toContain("Body is 12 lines, 840 columns; aim for <= 12 lines and 800 columns")
   })
 })
 

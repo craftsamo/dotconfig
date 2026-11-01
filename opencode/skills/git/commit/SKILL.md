@@ -50,7 +50,8 @@ Resolve the message format in this priority order. Detect, do not assume.
 
 1. Existing habit — call `git_history_digest` for recent commit subjects with
    their type/scope frequencies; infer the type set, scope vocabulary, casing,
-   language, body norms, and trailer usage. Ignore squash-merge PR titles
+   language, body structure, and trailer usage. Habit never sets length:
+   <MessageHygiene> owns it. Ignore squash-merge PR titles
    (`... (#NN)`) as machine-generated noise.
 2. Convention files — `git_history_digest` also reports any commitlint,
    `.gitmessage`, commitizen, or `CONTRIBUTING` config present; honor them.
@@ -297,10 +298,29 @@ Draft the message; `git_commit` validates the rules below (and the repo's
 commitlint when present) before committing. `git_commit_lint` runs the same
 checks alone, for a draft you are not committing yet.
 
-- Subject: imperative, concise. Target ≤ 50 characters, hard ceiling 72. If
-  commitlint enforces a length, that wins.
-- Body: wrap near 72 columns. Explain what changed and why; do not mechanically
-  restate the diff.
+- Roles: the subject says what the commit does; the body says why. Describe
+  how it works only where the code cannot show it: a rejected alternative, a
+  constraint, a side effect, an ordering that matters. A rejected alternative
+  belongs to the why. Never walk through the diff step by step: the reader has
+  it one command away.
+- Subject: imperative, concise. Lengths are display columns (a wide character
+  counts two). The target is the repository's own 90th percentile of recent
+  subjects, clamped to 50–60, and 50 when fewer than 20 commits are usable;
+  squash-merge titles, merges, reverts, fixups, bots and trailer-carrying
+  commits do not count. `git_commit_lint` reports the target it used
+  (`subjectTarget`). The clamp is deliberate: a history of long subjects,
+  generated ones included, cannot loosen it. Hard ceiling 72. If commitlint
+  enforces a length, that wins.
+- Body: wrap near 72 columns. Aim for at most about 12 lines and 800 columns
+  (`body-length` warns past either). A longer body is acceptable when the why
+  genuinely needs it; past the limit, first cut what restates the diff. The
+  history's body lengths set no norm.
+- Breaking changes: state them in the form the convention uses — a
+  `BREAKING CHANGE:` footer (or `!` after the type) under Conventional
+  Commits — and say what a user must change.
+- Plain text only: GitHub does not render Markdown in commit messages, so no
+  headings, tables, `<details>`, alerts or fenced blocks for prose. Use the
+  forms that still auto-link: `#N`, `owner/repo#N`, a bare short SHA.
 - Paths and filenames: use sparingly. Never enumerate them; avoid multi-segment
   paths like `src/foo/bar.ts`. A bare filename or a symbol name is fine only
   when it sharpens the explanation.
@@ -317,7 +337,8 @@ checks alone, for a draft you are not committing yet.
   use `Closes #M` / `Refs: abc1234` footers when appropriate.
 - Lint warnings are advisory: the convention resolved in <ConventionResolution>
   outranks stylistic warnings (e.g. `conventional` in a repo that does not use
-  Conventional Commits). Errors must be fixed.
+  Conventional Commits). Length warnings are not stylistic: shorten unless the
+  why needs the room. Errors must be fixed.
 
 </MessageHygiene>
 
