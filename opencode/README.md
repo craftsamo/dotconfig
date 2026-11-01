@@ -520,7 +520,11 @@ new lane launches.
   first. Once Quota reports it empty, or a protected child of the role just
   hit its limit, the Claude alternate launches on the first lane not known
   empty, unmarked like any lane launch; with every lane empty it launches on
-  the subscription, marked and guarded as a fallback.
+  the subscription, marked and guarded as a fallback. One launched on a lane
+  runs a Claude model from then on: a window limit on the subscription it
+  falls back to moves it on, or stops it as for a Claude specialist, so the
+  parent relaunches it through the preflight. Only while the plugin runs: a
+  child launched before a restart is left to the native policy.
 - **In flight.** An empty balance (a plain 400 recognised by its "credit
   balance is too low" text), a bad key (401/403) or a window limit marks the
   lane out (for `creditCooldownMs`, one hour; a window limit only for the wait
@@ -552,14 +556,15 @@ new lane launches.
   whole day, and a checkpoint on a renewal day holds only to the day's end. A
   Console balance above $0 (`status.ts checkpoint`) ends it too.
 - **Daily try.** One request a day still tries a lane known empty, for a grant
-  that arrives off schedule or an estimate that ran ahead: a day after its own
-  empty checkpoint, or at once when its $0 came from elsewhere (carried
-  forward by another lane's checkpoint, or a Console reading). A try that has
-  not failed ten minutes later (a failure records an empty checkpoint within
-  seconds) shows money, and the lane is used again until an empty balance or
-  a Console $0 is recorded. A failure whose checkpoint could not be recorded
-  leaves the lane to its one-hour cooldown, as without this. The lane cooldowns (but a bad key's, which a
-  restart is the fix for) and these tries survive a restart in
+  that arrives off schedule or an estimate that ran ahead: a day after it last
+  refused a request for its balance (or after its own empty checkpoint), or
+  at once when nothing shows it refusing: a $0 carried forward by another
+  lane's checkpoint, or a Console reading. The refusal is kept by the plugin,
+  since the next lane's checkpoint carries this lane forward as an estimate.
+  A try that has been neither refused nor followed by a Console $0 ten
+  minutes later shows money, and the lane is used again. The lane cooldowns
+  (but a bad key's, which a restart is the fix for), the tries and the
+  refusals survive a restart in
   `~/.local/state/opencode/subagent-preflight.json`; removing it costs only a
   rejected request per lane.
 - A session never revisits a stop within five minutes, so the chain cannot

@@ -53,15 +53,25 @@ export async function setupPreflight(
     const saved = deps.saved?.load()
     if (saved) {
       lanes.restore(saved.cooldowns)
-      empty.restore(saved.probed, deps.now())
+      empty.restore(saved, deps.now())
     }
   }
   const keep = () => {
     if (lanes.ids.length > 0)
       deps.saved?.save({
         cooldowns: lanes.saved(),
-        probed: empty.saved(deps.now()),
+        ...empty.saved(deps.now()),
       })
+  }
+  // Specialists launched on a lane (launch.ts): unmarked, so a window limit
+  // on the subscription they fall back to moves or stops them like a Claude
+  // specialist, whatever their role's primary. Bounded, newest kept.
+  const laneLaunched = new Set<string>()
+  const launchedOnLane = (sessionID: string) => {
+    laneLaunched.delete(sessionID)
+    laneLaunched.add(sessionID)
+    while (laneLaunched.size > 256)
+      laneLaunched.delete(laneLaunched.values().next().value as string)
   }
   // Other saved Claude logins, reached by alias model (claude-accounts.ts).
   // Independent of `enabled`: an alias must never fall back to the active
@@ -113,6 +123,7 @@ export async function setupPreflight(
     lanes,
     empty,
     keep,
+    launchedOnLane,
     limited,
     logins,
     suffixes,
@@ -196,7 +207,11 @@ export async function setupPreflight(
         const stretched =
           !failure && classify(event.error, event.decision) === "quota"
         if (!failure && !stretched) return
-        if (onLane && failure === "credit") noteEmpty(provider)
+        if (onLane && failure === "credit") {
+          noteEmpty(provider)
+          empty.refused(provider, deps.now())
+          keep()
+        }
         // A subscription failure matters only as a window limit; a lane
         // failure is any of the three.
         if (!onLane && failure !== undefined && failure !== "quota") return
@@ -214,12 +229,16 @@ export async function setupPreflight(
               session.model.id !== event.model.id)
           )
             return
+          // A specialist launched on a lane runs a Claude model whatever its
+          // role's primary, and carries no marker to stop it on a limit.
           const eligible =
             typeof agent === "string" &&
             Object.hasOwn(ROUTES, agent) &&
-            ROUTES[agent].primary.providerID === OAUTH_PROVIDER
+            (ROUTES[agent].primary.providerID === OAUTH_PROVIDER ||
+              laneLaunched.has(event.sessionID))
           // The subscription's limit is moved off only for the roles that opt
-          // in: Claude specialists, and the primary when primaryFallback is on.
+          // in: Claude specialists (and any launched on a lane), and the
+          // primary when primaryFallback is on.
           const moves =
             onLane || (role === "primary" ? options.primaryFallback : eligible)
           if (stretched) {

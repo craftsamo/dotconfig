@@ -78,6 +78,10 @@ export function emptyUntil(
 // lane is not known empty then, whatever the estimate carries forward.
 export class EmptyLanes {
   private probed = new Map<string, number>()
+  // When a lane last refused a request for its balance. Kept here, since the
+  // lane's empty checkpoint does not last: the next lane's checkpoint carries
+  // every other lane forward, and that one reads as an estimate.
+  private refusals = new Map<string, number>()
 
   scan(
     book: LaneBook | undefined,
@@ -93,16 +97,19 @@ export class EmptyLanes {
         const checkpoint = ls!.checkpoint!
         const at = when(checkpoint.at).getTime()
         const probed = this.probed.get(lane.provider)
+        const refused = this.refusals.get(lane.provider) ?? -Infinity
         const reading =
           checkpoint.source === "empty" || checkpoint.source === "console"
         if (
           probed !== undefined &&
           now - probed >= TRY_SETTLED_MS &&
-          !(reading && at > probed)
+          !(reading && at > probed) &&
+          // A refusal in the same instant as the try is that try's.
+          !(refused >= probed)
         )
           continue
         const own = checkpoint.source === "empty" ? at : -Infinity
-        const last = Math.max(probed ?? -Infinity, own)
+        const last = Math.max(probed ?? -Infinity, own, refused)
         if (now - last < EMPTY_PROBE_MS) skip.add(lane.provider)
         else due.add(lane.provider)
       } catch {}
@@ -116,14 +123,37 @@ export class EmptyLanes {
     this.probed.set(provider, now)
   }
 
-  // The tries worth keeping across a restart.
-  saved(now: number): Record<string, number> {
-    return Object.fromEntries(
-      [...this.probed].filter(([, at]) => at <= now && now - at < KEEP_MS),
-    )
+  // A lane refused a request for its balance (a failed try, or any request).
+  refused(provider: string, now: number): void {
+    this.refusals.set(provider, now)
   }
-  restore(saved: Record<string, number>, now: number): void {
-    for (const [provider, at] of Object.entries(saved))
-      if (at <= now && now - at < KEEP_MS) this.probed.set(provider, at)
+
+  // The tries and refusals worth keeping across a restart.
+  saved(now: number): {
+    probed: Record<string, number>
+    refused: Record<string, number>
+  } {
+    const recent = (times: Map<string, number>) =>
+      Object.fromEntries(
+        [...times].filter(([, at]) => at <= now && now - at < KEEP_MS),
+      )
+    return { probed: recent(this.probed), refused: recent(this.refusals) }
+  }
+  restore(
+    saved: {
+      probed?: Record<string, number>
+      refused?: Record<string, number>
+    },
+    now: number,
+  ): void {
+    const take = (
+      from: Record<string, number> | undefined,
+      into: Map<string, number>,
+    ) => {
+      for (const [provider, at] of Object.entries(from ?? {}))
+        if (at <= now && now - at < KEEP_MS) into.set(provider, at)
+    }
+    take(saved.probed, this.probed)
+    take(saved.refused, this.refusals)
   }
 }
