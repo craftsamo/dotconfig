@@ -13,7 +13,7 @@ import {
 } from "../lib/credit-lanes/endpoint"
 
 // Local bearer sentinel shared in-process with OpenCode Quota's remote-api
-// resolver (`apiKeyEnv: "ANTIGRAVITY_QUOTA_TOKEN"` in quota-toast.jsonc), so
+// resolver (`apiKeyEnv: "ANTIGRAVITY_QUOTA_TOKEN"` in settings.jsonc), so
 // `providers.google` stays untouched and never shadows the Antigravity OAuth
 // connection.
 process.env[ANTIGRAVITY_QUOTA_TOKEN_ENV] ||= ANTIGRAVITY_QUOTA_TOKEN
