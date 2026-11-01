@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto"
 import { gunzipSync, zstdDecompressSync } from "node:zlib"
 import {
+  identify,
   subscription,
   type AccountsContext,
   type Subscription,
@@ -832,6 +833,8 @@ export async function setupPreflight(
                   login === undefined
                     ? await subscription(ctx, model.providerID)
                     : await loginOf(login)
+                if (auth)
+                  auth = { ...auth, proof: await identify(ctx, auth.proof) }
               } catch {}
               // A window limit a protected child hit is the provider's own
               // word and outranks an export that has not caught up yet.
