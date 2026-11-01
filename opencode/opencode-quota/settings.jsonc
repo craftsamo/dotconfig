@@ -84,6 +84,7 @@
   "toast": { "show": false },
   // Share Quota's cached public JSON with the local launch selector and the
   // Hermes funding board. No extra provider fetch: Quota's background service
-  // rewrites it whenever its quota changes.
-  "system": { "exportFile": true },
+  // rewrites it whenever its quota changes. oldCommands off: no 4.x/5.x token
+  // commands beside /quota_usage in the command list.
+  "system": { "exportFile": true, "oldCommands": false },
 }
