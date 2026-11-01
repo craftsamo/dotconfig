@@ -1,9 +1,11 @@
 import { identify, subscription, type Subscription } from "./accounts"
 import { fail } from "./errors"
+import type { EmptyLanes } from "./empty-lanes"
 import {
   launchLane,
   loginStop,
   OAUTH_PROVIDER,
+  passingOver,
   stopFor,
   type Cooldowns,
 } from "./lanes"
@@ -63,6 +65,8 @@ export function createLauncher(
     deps: Dependencies
     options: PreflightOptions
     lanes: Cooldowns
+    // Lanes the balance estimate knows are empty.
+    empty: EmptyLanes
     // Window limits protected children hit.
     limited: Cooldowns
     logins: readonly string[]
@@ -70,7 +74,8 @@ export function createLauncher(
     loginOf: (suffix: string) => Promise<Subscription>
   },
 ): (original: Executor) => Executor {
-  const { deps, options, lanes, limited, logins, suffixes, loginOf } = state
+  const { deps, options, lanes, empty, limited, logins, suffixes, loginOf } =
+    state
   const spent = new SpentWindows()
   return (original) => async (input, context) => {
     // Outcome is historical, not a busy flag. There is no atomic
@@ -155,17 +160,26 @@ export function createLauncher(
         },
       )
     }
+    // The first lane past the cooldowns and the lanes known empty. A
+    // known-empty lane taken for its daily try is noted, so the next
+    // launches pass it over again.
+    const pickLane = (model: ModelRef) => {
+      if (lanes.ids.length === 0) return undefined
+      const now = deps.now()
+      const { skip, due } = empty.scan(deps.readLanes?.(), now)
+      const lane = launchLane(model, passingOver(lanes, skip), catalog)
+      if (lane && due.has(lane.providerID)) empty.tried(lane.providerID, now)
+      return lane
+    }
     // Credits first for a Claude role: a lane not known empty takes
     // the launch. When every lane is empty, the usual preflight below
     // decides.
-    if (lanes.ids.length > 0) {
-      const lane = launchLane(route.primary, lanes, catalog)
-      if (lane)
-        return onLane(
-          lane,
-          "a Console credit lane is tried before the subscription.",
-        )
-    }
+    const lane = pickLane(route.primary)
+    if (lane)
+      return onLane(
+        lane,
+        "a Console credit lane is tried before the subscription.",
+      )
     context.signal.throwIfAborted()
     const snapshot = await loadQuotaExport(deps, options.quotaExportPath)
     context.signal.throwIfAborted()
@@ -236,7 +250,7 @@ export function createLauncher(
       route.primary.providerID !== OAUTH_PROVIDER &&
       freshState(source.quota, deps.now()) === "exhausted"
     ) {
-      const lane = launchLane(route.alternate, lanes, catalog)
+      const lane = pickLane(route.alternate)
       if (lane)
         return onLane(
           lane,

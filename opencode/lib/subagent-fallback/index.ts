@@ -1,4 +1,5 @@
 import { AccountRouter, loginSubscription } from "./claude-accounts"
+import { EmptyLanes } from "./empty-lanes"
 import { FAIL_PREFIX, fail } from "./errors"
 import { createGuards } from "./guards"
 import {
@@ -11,6 +12,7 @@ import {
   loginStop,
   nextModel,
   OAUTH_PROVIDER,
+  passingOver,
   SIDE_AGENTS,
   stopFor,
   type Decision,
@@ -43,6 +45,9 @@ export async function setupPreflight(
     deps.now,
   )
   const episodes = new Episodes(EPISODE_TTL_MS, deps.now)
+  // Lanes the balance estimate knows are empty: passed over until money can
+  // have arrived, but for one try a day (empty-lanes.ts).
+  const empty = new EmptyLanes()
   // Other saved Claude logins, reached by alias model (claude-accounts.ts).
   // Independent of `enabled`: an alias must never fall back to the active
   // login. Every configured suffix decides which login a model runs on; only
@@ -91,6 +96,7 @@ export async function setupPreflight(
     deps,
     options,
     lanes,
+    empty,
     limited,
     logins,
     suffixes,
@@ -220,15 +226,19 @@ export async function setupPreflight(
           )
           const catalog = (await ctx.model.list({ location: session.location }))
             .data
+          const now = deps.now()
+          const { skip, due } = empty.scan(deps.readLanes?.(), now)
           const target = nextModel({
             current: event.model,
             role,
-            lanes,
+            lanes: passingOver(lanes, skip),
             logins,
             suffixes,
             tried,
             catalog,
           })
+          if (target && due.has(target.providerID))
+            empty.tried(target.providerID, now)
           if (target) {
             await ctx.session.switchModel({
               sessionID: event.sessionID,

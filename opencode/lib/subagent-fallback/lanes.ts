@@ -91,6 +91,17 @@ export class Cooldowns {
   }
 }
 
+// The lanes in order and which to pass over now: the cooldowns, with the
+// lanes known empty (empty-lanes.ts) passed over too.
+export type LaneView = Pick<Cooldowns, "ids" | "blocked">
+export const passingOver = (
+  lanes: LaneView,
+  skip: ReadonlySet<string>,
+): LaneView => ({
+  ids: lanes.ids,
+  blocked: (id) => skip.has(id) || lanes.blocked(id),
+})
+
 // Providers one session has already failed on recently, so a chain that
 // cycles (subscription -> lane -> subscription) cannot loop.
 export class Episodes {
@@ -181,7 +192,7 @@ export function retarget(
 export function nextModel(input: {
   current: ModelRef
   role: Role
-  lanes: Cooldowns
+  lanes: LaneView
   // The other saved Claude logins a session may move to, in order.
   logins?: readonly string[]
   // Every configured login suffix, usable or not, to tell which login a
@@ -220,7 +231,7 @@ export function nextModel(input: {
 // never changes it silently.
 export function launchLane(
   model: ModelRef,
-  lanes: Cooldowns,
+  lanes: LaneView,
   catalog: CatalogModel[],
 ): ModelRef | undefined {
   if (model.providerID !== OAUTH_PROVIDER) return undefined
