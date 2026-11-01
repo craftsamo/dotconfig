@@ -393,8 +393,18 @@ provider only when something asks (the TUI's sidebar, `/quota`, a model turn,
 a limit), and the sidebar's asks at most every `minIntervalMs` (two minutes
 here, five by default); six minutes leaves room for that and a missed check.
 
-Before the first export, while Quota checks nothing (including headless use),
-or after its data expires, an unknown primary keeps the configured default. A different
+With no TUI open nothing asks, so a launch whose rows for either side of its
+route are missing or stale asks Quota itself to check those providers,
+through the RPC its TUI uses (`slkiser.opencode-quota`, method `refresh`,
+reason `poll`), and reads the export again once it is rewritten. It waits at
+most five seconds (a check takes about one), or until the launch is aborted;
+a check still running serves the next launch. Launches at the same time share
+one check, and the same providers are asked again no sooner than a minute
+later, so rows a check cannot freshen cost one wait, not one per launch. That RPC is Quota's own, not a published interface: re-check its
+id and input when bumping Quota (`lib/subagent-fallback/quota-refresh.ts`).
+
+When that fails too (no Quota, an RPC that changed, a slow check), or before
+the first export, an unknown primary keeps the configured default. A different
 account's rows cannot authorize a fallback. A partial multi-login export can
 still use complete matching-account rows. This is a best-effort launch
 preference, not an exact prediction of whether a task fits its remaining quota.

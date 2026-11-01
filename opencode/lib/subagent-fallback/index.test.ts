@@ -83,6 +83,10 @@ async function fixture() {
     laneBook: undefined as LaneBook | undefined,
     // What the plugin keeps across restarts.
     saved: { cooldowns: {}, probed: {} } as Saved,
+    // Calls of Quota's RPC, and what a check does (none: unavailable).
+    rpcCalls: [] as { id: string; input: unknown }[],
+    quotaCheck: undefined as (() => Promise<unknown>) | undefined,
+    checkTimesOut: false,
     fetchedAt: undefined as number | undefined,
     path: "",
     unavailable: false,
@@ -194,6 +198,14 @@ async function fixture() {
         },
       },
       options,
+      // OpenCode Quota's RPC, when env.quotaCheck says what a check does.
+      rpc: (definition) => ({
+        refresh: async (input) => {
+          env.rpcCalls.push({ id: definition.id, input })
+          if (!env.quotaCheck) throw new Error("rpc.unavailable")
+          return env.quotaCheck()
+        },
+      }),
       agent: {
         get: async ({ agentID }) => ({ data: { model: env.agents[agentID] } }),
       },
@@ -389,6 +401,11 @@ async function fixture() {
         env.emptied.push(provider)
       },
       readLanes: () => env.laneBook,
+      // Polls pass at once; the wait for a check ends only when told to.
+      sleep: (ms) =>
+        ms < 1_000 || env.checkTimesOut
+          ? Promise.resolve()
+          : new Promise<void>(() => {}),
       // Kept in env, so a second install is a restart.
       saved: {
         load: () => structuredClone(env.saved),
@@ -528,6 +545,42 @@ describe("launch and persistence", () => {
       await inst.run()
       expect(env.originals[0].model).toBeUndefined()
       expect(marker(env).fallback).toBe(false)
+    }
+  })
+  test("a stale export makes the launch ask Quota to check, then read it again", async () => {
+    const { env, inst } = await fixture()
+    // Checked twenty minutes ago, with the TUI closed since; spent since.
+    env.fetchedAt = env.now - 20 * 60_000
+    env.quotaCheck = async () => {
+      env.fetchedAt = env.now
+      env.quota.anthropic = 0
+      return { snapshot: {} }
+    }
+    await inst.run()
+    expect(env.rpcCalls).toEqual([
+      {
+        id: "slkiser.opencode-quota",
+        input: { reason: "poll", providerIds: ["anthropic", "openai"] },
+      },
+    ])
+    // The fresh rows decided: the empty default goes to its alternate.
+    expect(env.originals[0].model).toBe(sel(SOL))
+    expect(env.reads).toBe(2)
+  })
+  test("a fresh export asks nothing, and a failed or slow check keeps the launch on what it read", async () => {
+    const fresh = await fixture()
+    await fresh.inst.run()
+    expect(fresh.env.rpcCalls).toEqual([])
+    for (const slow of [false, true]) {
+      const { env, inst } = await fixture()
+      env.fetchedAt = env.now - 20 * 60_000
+      env.checkTimesOut = slow
+      env.quotaCheck = slow ? () => new Promise<unknown>(() => {}) : undefined
+      await inst.run()
+      expect(env.rpcCalls).toHaveLength(1)
+      // Stale data keeps the default.
+      expect(env.originals[0].model).toBeUndefined()
+      expect(env.reads).toBe(1)
     }
   })
   test("a login Quota reported spent stays spent until its reset when its rows go missing", async () => {
