@@ -300,8 +300,8 @@ machinery or changing the policy.
 ## Subscription preflight for new specialists
 
 The local plugin `lib/subagent-fallback` (listed last under `plugins` in
-`opencode.jsonc`) checks quota before a new specialist launch and chooses in
-this order:
+`opencode.jsonc`, with its retry recorder right before Quota) checks quota
+before a new specialist launch and chooses in this order:
 
 1. The route's primary model, unless Quota reports it exhausted. A Claude
    model whose active login is known exhausted first takes the other saved
@@ -323,7 +323,10 @@ Missing, stale or unreadable data about the primary keeps the configured
 default, not a quota error or an automatic model switch. One exception: a
 window limit a protected child just hit (the provider's own word) counts as
 exhausted for the wait it asked for, or an hour without one, so the relaunch
-goes elsewhere before the export catches up. No independent
+goes elsewhere before the export catches up. Likewise a login Quota reported
+spent stays spent until the reset it gave while later exports say nothing
+about it: Quota writes only a provider's last check, and a failed check
+leaves no rows. Any newer reading of the login replaces it. No independent
 balance/entitlement check is performed. Variants and permissions are
 unchanged; with `pinModels` (below) a project's own model for a role is not.
 
@@ -384,12 +387,24 @@ counts as empty, even if rounded.
 so it can be old. An empty window with a reset time still in the
 future is trusted at any age, because a window cannot recover before its reset
 (the reset time is the expiry). Anything else, including "quota remaining",
-needs the provider's `fetchedAt` to be at most six minutes old (Quota's
-five-minute cache plus export-refresh grace) with no window past its reset;
-rewriting the export does not renew its data.
+needs the provider's `fetchedAt` to be at most six minutes old with no window
+past its reset; rewriting the export does not renew its data. Quota checks a
+provider only when something asks (the TUI's sidebar, `/quota`, a model turn,
+a limit), and the sidebar's asks at most every `minIntervalMs` (two minutes
+here, five by default); six minutes leaves room for that and a missed check.
 
-Before the first export, while Quota checks nothing (including headless use),
-or after its data expires, an unknown primary keeps the configured default. A different
+With no TUI open nothing asks, so a launch whose rows for either side of its
+route are missing or stale asks Quota itself to check those providers,
+through the RPC its TUI uses (`slkiser.opencode-quota`, method `refresh`,
+reason `poll`), and reads the export again once it is rewritten. It waits at
+most five seconds (a check takes about one), or until the launch is aborted;
+a check still running serves the next launch. Launches at the same time share
+one check, and the same providers are asked again no sooner than a minute
+later, so rows a check cannot freshen cost one wait, not one per launch. That RPC is Quota's own, not a published interface: re-check its
+id and input when bumping Quota (`lib/subagent-fallback/quota-refresh.ts`).
+
+When that fails too (no Quota, an RPC that changed, a slow check), or before
+the first export, an unknown primary keeps the configured default. A different
 account's rows cannot authorize a fallback. A partial multi-login export can
 still use complete matching-account rows. This is a best-effort launch
 preference, not an exact prediction of whether a task fits its remaining quota.
@@ -417,7 +432,8 @@ such a child hits is remembered for that login only.
 selection. During a task,
 Quota errors or exhaustion do not stop a child. Native provider quota errors
 and long rate-limit reset waits still end the protected task; short native
-transient retries are allowed. There is no model switch, restart or automatic
+transient retries are allowed, also when Quota stretched their wait ("Whose
+wait counts" below). There is no model switch, restart or automatic
 resubmit for a protected child (Console credit lanes below are a separate path
 that never touches one). Native providers may move to credits mid-request;
 launch preference is not a no-paid gate. Older markers retain identity/context
@@ -526,12 +542,41 @@ new lane launches.
   window limit, for the lanes and then the active login. Each login is a stop
   of its own.
 - **Probing.** There is no balance API: a lane is probed by use. After its
-  cooldown the next request fails fast if it is still empty, which costs one
-  rejected request an hour. Each empty-balance error also records a $0
-  checkpoint for the balance estimate below (at most once a minute per lane).
+  cooldown the next request fails fast if it is still empty. Each
+  empty-balance error also records a $0 checkpoint for the balance estimate
+  below (at most once a minute per lane).
+- **Known empty.** A lane whose checkpoint is $0, with no grant known since and
+  its renewal still ahead, holds nothing (spend only lowers a balance), so new
+  launches and moves pass it over until then. Neither time of day is known: a
+  grant listed by its date alone (`status.ts grant`, below) counts from that
+  whole day, and a checkpoint on a renewal day holds only to the day's end. A
+  Console balance above $0 (`status.ts checkpoint`) ends it too.
+- **Daily try.** One request a day still tries a lane known empty, for a grant
+  that arrives off schedule or an estimate that ran ahead: a day after its own
+  empty checkpoint, or at once when its $0 came from elsewhere (carried
+  forward by another lane's checkpoint, or a Console reading). A try that has
+  not failed ten minutes later (a failure records an empty checkpoint within
+  seconds) shows money, and the lane is used again until an empty balance or
+  a Console $0 is recorded. A failure whose checkpoint could not be recorded
+  leaves the lane to its one-hour cooldown, as without this. The lane cooldowns (but a bad key's, which a
+  restart is the fix for) and these tries survive a restart in
+  `~/.local/state/opencode/subagent-preflight.json`; removing it costs only a
+  rejected request per lane.
 - A session never revisits a stop within five minutes, so the chain cannot
   loop. Children launched under the subscription preflight keep their own
   guards and are never moved.
+- **Whose wait counts.** OpenCode Quota's `waitForQuotaReset` (on by default)
+  sets a rate limit's wait to the reset of any used-up row of the model's
+  provider: another Claude login's window, the Fable weekly window, or a lane's
+  $0 estimate. A window limit is therefore judged by OpenCode's own decision,
+  which `lib/subagent-fallback/retry-recorder` (listed right before Quota
+  under `plugins`) records before Quota's hook runs. A short limit Quota
+  stretched neither moves a session nor marks its lane or login, and a
+  session this plugin would move retries after OpenCode's own wait; other
+  sessions keep Quota's. That holds for the first three retries of a request
+  only, and not when OpenCode itself gave up: then the wait as it stands
+  counts, so a real limit OpenCode retries quickly still moves the session.
+  Without the recorder the stretched wait counts, as before.
 
 **Balance.** Anthropic has no balance API, and an Admin API is not available to
 personal orgs, so the balance is estimated: a **checkpoint** (a balance known at

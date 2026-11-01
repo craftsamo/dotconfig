@@ -8,6 +8,13 @@ import {
   type RuntimeContext,
 } from "./index"
 import { OAUTH_PROVIDER } from "./lanes"
+import { recordNative } from "./native-retry"
+import {
+  EMPTY_PROBE_MS,
+  TRY_SETTLED_MS,
+  type LaneBook,
+} from "./empty-lanes"
+import type { Saved } from "./saved"
 import { ROUTES, type CatalogModel, type ModelRef } from "./policy"
 
 const NOW = 1_710_000_000_000
@@ -72,6 +79,14 @@ async function fixture() {
     version: SUPPORTED_VERSIONS[0],
     reads: 0,
     emptied: [] as string[],
+    // The balance estimate's lanes and state (none: no lane is known empty).
+    laneBook: undefined as LaneBook | undefined,
+    // What the plugin keeps across restarts.
+    saved: { cooldowns: {}, probed: {} } as Saved,
+    // Calls of Quota's RPC, and what a check does (none: unavailable).
+    rpcCalls: [] as { id: string; input: unknown }[],
+    quotaCheck: undefined as (() => Promise<unknown>) | undefined,
+    checkTimesOut: false,
     fetchedAt: undefined as number | undefined,
     path: "",
     unavailable: false,
@@ -183,6 +198,14 @@ async function fixture() {
         },
       },
       options,
+      // OpenCode Quota's RPC, when env.quotaCheck says what a check does.
+      rpc: (definition) => ({
+        refresh: async (input) => {
+          env.rpcCalls.push({ id: definition.id, input })
+          if (!env.quotaCheck) throw new Error("rpc.unavailable")
+          return env.quotaCheck()
+        },
+      }),
       agent: {
         get: async ({ agentID }) => ({ data: { model: env.agents[agentID] } }),
       },
@@ -377,6 +400,19 @@ async function fixture() {
       creditEmpty: async (provider) => {
         env.emptied.push(provider)
       },
+      readLanes: () => env.laneBook,
+      // Polls pass at once; the wait for a check ends only when told to.
+      sleep: (ms) =>
+        ms < 1_000 || env.checkTimesOut
+          ? Promise.resolve()
+          : new Promise<void>(() => {}),
+      // Kept in env, so a second install is a restart.
+      saved: {
+        load: () => structuredClone(env.saved),
+        save: (saved) => {
+          env.saved = structuredClone(saved)
+        },
+      },
     })
     return {
       cleanup,
@@ -422,6 +458,25 @@ async function fixture() {
 type Inst = Awaited<ReturnType<typeof fixture>>["inst"]
 const marker = (env: Awaited<ReturnType<typeof fixture>>["env"]) =>
   env.sessions.get("ses_child")?.metadata?.[METADATA_KEY] as any
+// What OpenCode Quota's retry hook does when an unrelated row of the
+// provider is used up: OpenCode's own decision is recorded first (the
+// recorder plugin), then Quota stretches the wait to that row's reset.
+const SHORT = { retry: true, delay: 2_000 } as const
+const HOURS = { retry: true, delay: 5 * 3_600_000 } as const
+const stretched = (
+  inst: Inst,
+  sessionID: string,
+  model: ModelRef,
+  error: Record<string, unknown>,
+  native: any = SHORT,
+  stretchedTo: any = HOURS,
+  attempt = 2,
+) => {
+  const event = { sessionID, model, attempt, error, decision: native }
+  recordNative(event)
+  event.decision = stretchedTo
+  return inst.fire("retry", event)
+}
 const scope = (model = SONNET, kind = "primary", sessionID = "ses_child") => ({
   model,
   kind,
@@ -491,6 +546,66 @@ describe("launch and persistence", () => {
       expect(env.originals[0].model).toBeUndefined()
       expect(marker(env).fallback).toBe(false)
     }
+  })
+  test("a stale export makes the launch ask Quota to check, then read it again", async () => {
+    const { env, inst } = await fixture()
+    // Checked twenty minutes ago, with the TUI closed since; spent since.
+    env.fetchedAt = env.now - 20 * 60_000
+    env.quotaCheck = async () => {
+      env.fetchedAt = env.now
+      env.quota.anthropic = 0
+      return { snapshot: {} }
+    }
+    await inst.run()
+    expect(env.rpcCalls).toEqual([
+      {
+        id: "slkiser.opencode-quota",
+        input: { reason: "poll", providerIds: ["anthropic", "openai"] },
+      },
+    ])
+    // The fresh rows decided: the empty default goes to its alternate.
+    expect(env.originals[0].model).toBe(sel(SOL))
+    expect(env.reads).toBe(2)
+  })
+  test("a fresh export asks nothing, and a failed or slow check keeps the launch on what it read", async () => {
+    const fresh = await fixture()
+    await fresh.inst.run()
+    expect(fresh.env.rpcCalls).toEqual([])
+    for (const slow of [false, true]) {
+      const { env, inst } = await fixture()
+      env.fetchedAt = env.now - 20 * 60_000
+      env.checkTimesOut = slow
+      env.quotaCheck = slow ? () => new Promise<unknown>(() => {}) : undefined
+      await inst.run()
+      expect(env.rpcCalls).toHaveLength(1)
+      // Stale data keeps the default.
+      expect(env.originals[0].model).toBeUndefined()
+      expect(env.reads).toBe(1)
+    }
+  })
+  test("a login Quota reported spent stays spent until its reset when its rows go missing", async () => {
+    const f = await fallback()
+    expect(f.env.originals[0].model).toBe(sel(SOL))
+    // A failed check leaves the provider without rows, or no file at all.
+    f.env.quota.anthropic = undefined
+    await f.inst.run()
+    expect(f.env.originals[1].model).toBe(sel(SOL))
+    f.env.unavailable = true
+    await f.inst.run()
+    expect(f.env.originals[2].model).toBe(sel(SOL))
+    // Past the reset it is unknown again, and the default stands.
+    f.env.now += 61 * 60_000
+    await f.inst.run()
+    expect(f.env.originals[3].model).toBeUndefined()
+  })
+  test("a newer reading replaces a kept spent login", async () => {
+    const f = await fallback()
+    f.env.quota.anthropic = 80
+    await f.inst.run()
+    expect(f.env.originals[1].model).toBeUndefined()
+    f.env.quota.anthropic = undefined
+    await f.inst.run()
+    expect(f.env.originals[2].model).toBeUndefined()
   })
   test("an empty default with unknown alternate data still prefers the alternate", async () => {
     const { env, inst } = await fixture()
@@ -1385,6 +1500,166 @@ describe("Console credit lanes", () => {
     await inst.run()
     expect(env.originals[1].model).toBe(sel(on(MAIN)))
   })
+  // The balance estimate: Main checkpointed at $0 an hour before NOW, which
+  // is days before its renewal on the 13th; Sub holds something.
+  const emptyMain = (
+    source = "empty",
+    grants: LaneBook["state"][string]["grants"] = [],
+    at = NOW - 3_600_000,
+  ): LaneBook => ({
+    lanes: [
+      { provider: MAIN, label: "Main", amount: 200, renewalDay: 13 },
+      { provider: SUB, label: "Sub", amount: 100, renewalDay: 29 },
+    ],
+    state: {
+      [MAIN]: {
+        grants,
+        checkpoint: {
+          at: new Date(at).toISOString(),
+          balance: 0,
+          source: source as "empty",
+          opencodeFrom: "2024-03-09",
+          opencodeBase: 0,
+        },
+      },
+    },
+  })
+  test("a lane known empty is passed over, but for one try a day", async () => {
+    const { env, inst } = await laned()
+    env.laneBook = emptyMain()
+    await inst.run()
+    expect(env.originals[0].model).toBe(sel(on(SUB)))
+    // A day after its empty checkpoint, one launch tries it again.
+    env.now = NOW - 3_600_000 + EMPTY_PROBE_MS
+    await inst.run()
+    expect(env.originals[1].model).toBe(sel(on(MAIN)))
+    await inst.run()
+    expect(env.originals[2].model).toBe(sel(on(SUB)))
+    // That try did not fail (no new empty checkpoint): Main has money.
+    env.now += TRY_SETTLED_MS
+    await inst.run()
+    expect(env.originals[3].model).toBe(sel(on(MAIN)))
+  })
+  test("a daily try a failed switch never made is still due", async () => {
+    const { env, inst } = await laned()
+    env.laneBook = emptyMain("rolled")
+    specialist(env)
+    env.failSwitch = true
+    await retry(inst, "ses_lane", on(SUB), CREDIT)
+    expect(env.switches).toEqual([])
+    await inst.run()
+    expect(env.originals[0].model).toBe(sel(on(MAIN)))
+  })
+  test("a $0 estimate carried forward is tried once, then waits a day", async () => {
+    const { env, inst } = await laned()
+    env.laneBook = emptyMain("rolled")
+    await inst.run()
+    expect(env.originals[0].model).toBe(sel(on(MAIN)))
+    await inst.run()
+    expect(env.originals[1].model).toBe(sel(on(SUB)))
+  })
+  test("a grant after the checkpoint, or the renewal, makes the lane usable again", async () => {
+    const granted = new Date(NOW - 60_000).toISOString()
+    for (const [book, now] of [
+      [
+        emptyMain("empty", [
+          { amount: 50, granted, expires: "2024-04-13", source: "console" },
+        ]),
+        NOW,
+      ],
+      [emptyMain(), new Date(2024, 2, 13, 1).getTime()],
+    ] as const) {
+      const { env, inst } = await laned()
+      env.laneBook = book
+      env.now = now
+      await inst.run()
+      expect(env.originals[0].model).toBe(sel(on(MAIN)))
+    }
+  })
+  test("a restart keeps a lane's cooldown and a known-empty lane's try", async () => {
+    const f = await fixture()
+    f.env.laneBook = emptyMain("rolled")
+    let inst = await f.install(OPTIONS)
+    specialist(f.env)
+    // The daily try of the carried $0 on Main, still in flight, and a window
+    // limit on Sub.
+    await inst.run()
+    expect(f.env.originals[0].model).toBe(sel(on(MAIN)))
+    await retry(inst, "ses_lane", on(SUB), LIMIT, LONG)
+    inst = await f.install(OPTIONS)
+    await inst.run()
+    expect(f.env.originals[1].model).toBeUndefined()
+    // Main's try failed; Sub's limit ends with its wait.
+    f.env.laneBook = emptyMain("empty", [], f.env.now + 5_000)
+    f.env.now += LONG.delay + 1
+    inst = await f.install(OPTIONS)
+    await inst.run()
+    expect(f.env.originals[2].model).toBe(sel(on(SUB)))
+  })
+  test("a restart lifts a bad key's cooldown", async () => {
+    const f = await fixture()
+    let inst = await f.install(OPTIONS)
+    specialist(f.env)
+    await retry(inst, "ses_lane", on(MAIN), AUTH)
+    await inst.run()
+    expect(f.env.originals[0].model).toBe(sel(on(SUB)))
+    inst = await f.install(OPTIONS)
+    await inst.run()
+    expect(f.env.originals[1].model).toBe(sel(on(MAIN)))
+  })
+  test("a session leaving a lane passes over a lane known empty", async () => {
+    const { env, inst } = await laned()
+    env.laneBook = emptyMain()
+    specialist(env)
+    const e = await retry(inst, "ses_lane", on(SUB), CREDIT)
+    expect(e.decision).toEqual({ retry: true, delay: 0 })
+    expect(env.switches).toEqual([{ sessionID: "ses_lane", model: SONNET }])
+  })
+  test("a short limit whose wait Quota stretched neither moves a session nor blocks its lane", async () => {
+    const { env, inst } = await laned()
+    specialist(env)
+    let e = await stretched(inst, "ses_lane", on(MAIN), LIMIT)
+    expect(e.decision).toEqual(SHORT)
+    e = await stretched(inst, "ses_parent", SONNET, LIMIT)
+    expect(e.decision).toEqual(SHORT)
+    expect(env.switches).toEqual([])
+    await inst.run()
+    expect(env.originals[0].model).toBe(sel(on(MAIN)))
+  })
+  test("a long wait of OpenCode's own is still a window limit", async () => {
+    const { env, inst } = await laned()
+    const e = await stretched(inst, "ses_parent", SONNET, LIMIT, LONG)
+    expect(e.decision).toEqual({ retry: true, delay: 0 })
+    expect(env.switches.map((s) => s.model.providerID)).toEqual([MAIN])
+  })
+  test("a limit OpenCode gives up on, or keeps hitting, is judged by the wait as it stands", async () => {
+    for (const [native, attempt] of [
+      [{ retry: false }, 2],
+      [SHORT, 4],
+    ] as const) {
+      const { env, inst } = await laned()
+      const e = await stretched(
+        inst,
+        "ses_parent",
+        SONNET,
+        LIMIT,
+        native,
+        HOURS,
+        attempt,
+      )
+      expect(e.decision).toEqual({ retry: true, delay: 0 })
+      expect(env.switches.map((s) => s.model.providerID)).toEqual([MAIN])
+    }
+  })
+  test("a stretched wait is left alone where nothing would move the session", async () => {
+    const { env, inst } = await laned({ primaryFallback: false })
+    specialist(env, "ses_dbg", "debugger")
+    for (const id of ["ses_parent", "ses_dbg"]) {
+      const e = await stretched(inst, id, SONNET, LIMIT)
+      expect(e.decision).toEqual(HOURS)
+    }
+    expect(env.switches).toEqual([])
+  })
   test("a primary already on a lane tries the other lane before the subscription", async () => {
     const { env, inst } = await laned()
     await retry(inst, "ses_parent", on(MAIN), CREDIT)
@@ -1813,6 +2088,38 @@ describe("Claude accounts", () => {
       env.fetchedAt = env.now
       await inst.run()
       expect(env.originals[2].model).toBe(sel(SONNET_SUB))
+    })
+    test("a short limit with a stretched wait is retried and leaves the login usable", async () => {
+      const { env, inst } = await aliased()
+      env.quota.anthropic = 0
+      env.secondQuota = 80
+      await inst.run()
+      const limit = { type: "provider.rate-limit", status: 429, message: "x" }
+      const e = await stretched(inst, "ses_child", SONNET_SUB, limit)
+      expect(e.decision).toEqual(SHORT)
+      await inst.run()
+      expect(env.originals[1].model).toBe(sel(SONNET_SUB))
+      // OpenCode's own long wait still stops the child and steers past it.
+      const f = await stretched(inst, "ses_child", SONNET_SUB, limit, {
+        retry: true,
+        delay: 30_000,
+      })
+      expect(f.decision).toEqual({ retry: false })
+      await inst.run()
+      expect(env.originals[2].model).toBe(sel(SOL))
+    })
+    test("a limit OpenCode gives up on with a stretched wait still steers the relaunch past the login", async () => {
+      const { env, inst } = await aliased()
+      env.quota.anthropic = 0
+      env.secondQuota = 80
+      await inst.run()
+      const limit = { type: "provider.rate-limit", status: 429, message: "x" }
+      const e = await stretched(inst, "ses_child", SONNET_SUB, limit, {
+        retry: false,
+      })
+      expect(e.decision).toEqual({ retry: false })
+      await inst.run()
+      expect(env.originals[1].model).toBe(sel(SOL))
     })
   })
   describe("a protected child on the second login", () => {

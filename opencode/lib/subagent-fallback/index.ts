@@ -1,368 +1,73 @@
-import { createHash } from "node:crypto"
-import { gunzipSync, zstdDecompressSync } from "node:zlib"
-import {
-  identify,
-  subscription,
-  type AccountsContext,
-  type Subscription,
-} from "./accounts"
-import {
-  AccountRouter,
-  loginSubscription,
-  type ClaudeAccountsContext,
-} from "./claude-accounts"
-import {
-  dependencies,
-  exportPath,
-  loadQuotaExport,
-  readQuota,
-  type Dependencies,
-} from "./quota"
+import { AccountRouter, loginSubscription } from "./claude-accounts"
+import { EmptyLanes } from "./empty-lanes"
+import { FAIL_PREFIX, fail } from "./errors"
+import { createGuards } from "./guards"
 import {
   classify,
   DEFAULT_COOLDOWN_MS,
   Episodes,
   EPISODE_TTL_MS,
-  Lanes,
-  launchLane,
+  Cooldowns,
+  LONG_WAIT_MS,
   loginStop,
   nextModel,
   OAUTH_PROVIDER,
+  passingOver,
   SIDE_AGENTS,
   stopFor,
+  type Decision,
   type Role,
 } from "./lanes"
-import {
-  catalogOk,
-  decideLaunch,
-  freshState,
-  inputCapacity,
-  modelsEqual,
-  routeForLaunch,
-  ROUTES,
-  type CatalogModel,
-  type ModelRef,
-} from "./policy"
+import { judgedDecision } from "./native-retry"
+import { createLauncher } from "./launch"
+import { METADATA_KEY, parseMarker } from "./marker"
+import { readOptions } from "./options"
+import { ROUTES } from "./policy"
+import { dependencies, type Dependencies } from "./quota"
+import { supported, type Registration, type RuntimeContext } from "./runtime"
 
-// V2 structural API (see SUPPORTED_VERSIONS), like plugins/custom-tools.ts:
-// no SDK dependency.
-type Registration = { dispose(): Promise<void> }
-type Session = {
-  id: string
-  parentID?: string
-  agent?: string
-  model?: ModelRef
-  metadata?: Record<string, unknown>
-  location: { directory: string }
-}
-type Kind = "primary" | "title" | "compaction" | "generate"
-type Scope = { sessionID: string; model: ModelRef; kind: Kind }
-type ContextEvent = {
-  sessionID: string
-  model: ModelRef
-  system: unknown[]
-  messages: unknown[]
-  tools?: unknown
-  options: unknown
-}
-type Hooks = {
-  context: ContextEvent
-  compaction: ContextEvent
-  generate: ContextEvent
-  "http.request": Scope & { request: Request }
-  "experimental.ws.handshake": Scope & {
-    url: string
-    headers: Record<string, string>
-  }
-  "experimental.ws.send": Scope & { frame: string }
-  retry: {
-    sessionID: string
-    agent?: string
-    model: ModelRef
-    attempt?: number
-    error: {
-      type: string
-      status?: number
-      message: string
-      response?: { body?: string }
-    }
-    decision: { retry: false } | { retry: true; delay: number }
-  }
-}
-type ToolContext = {
-  sessionID: string
-  id: string
-  signal: AbortSignal
-  progress(update: Record<string, unknown>): Promise<void>
-}
-type Result = {
-  output?: unknown
-  content?: string | readonly unknown[]
-  metadata?: Record<string, unknown>
-}
-type Executor = (
-  input: Record<string, unknown>,
-  context: ToolContext,
-) => Promise<Result>
-type LoginContext = AccountsContext & ClaudeAccountsContext
-export type RuntimeContext = LoginContext & {
-  app: { version: string }
-  options: Record<string, unknown>
-  agent: {
-    get(input: {
-      agentID: string
-      location: { directory: string }
-    }): Promise<{ data: { model?: ModelRef } }>
-  }
-  model: {
-    list(input: {
-      location: { directory: string }
-    }): Promise<{ data: CatalogModel[] }>
-  }
-  session: {
-    get(input: { sessionID: string }): Promise<Session>
-    update(input: {
-      sessionID: string
-      metadata: Record<string, unknown>
-    }): Promise<unknown>
-    switchModel(input: { sessionID: string; model: ModelRef }): Promise<void>
-    hook<N extends keyof Hooks>(
-      name: N,
-      callback: (event: Hooks[N]) => Promise<void>,
-    ): Promise<Registration>
-  }
-  tool: {
-    transform(
-      callback: (editor: {
-        get(id: string): unknown
-        update(
-          id: string,
-          callback: (tool: { execute: Executor }) => void,
-        ): void
-      }) => void,
-    ): Promise<Registration>
-  }
-}
-
-export const METADATA_KEY = "dotconfig.subagent-preflight"
-// Releases whose hook and subagent-tool contracts were checked against the
-// upstream source. Add a release only after re-checking them.
-export const SUPPORTED_VERSIONS: readonly string[] = ["2.1.2"]
-const supported = (version: string) => SUPPORTED_VERSIONS.includes(version)
-// Conservative text-only ceiling. This is not a cross-provider tokenizer.
-export const MAX_CONTEXT_BYTES = 160_000
-type Marker = {
-  version: 1
-  childID: string
-  parentID: string
-  agent: string
-  model: ModelRef
-  connectionID: string
-  fallback: boolean
-  // The suffix of the saved Claude login the child runs on, through the
-  // alias of its model; absent on the active login.
-  login?: string
-  launchChecked?: boolean
-  wireChecked?: boolean
-}
-// A route model on a saved login: its alias.
-const aliasOf = (model: ModelRef, login: string | undefined): ModelRef =>
-  login === undefined ? model : { ...model, id: `${model.id}-${login}` }
-const selector = (m: ModelRef) =>
-  `${m.providerID}/${m.id}${m.variant ? `#${m.variant}` : ""}`
-const fail = (reason: string): never => {
-  throw new Error(`Subagent preflight: ${reason}`)
-}
-const record = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null && !Array.isArray(value)
-const signature = (auth: Subscription) =>
-  createHash("sha256")
-    .update(
-      JSON.stringify([auth.proof.connectionID, auth.access, auth.accountID]),
-    )
-    .digest("hex")
-const exchangeKey = (e: Scope) =>
-  `${e.sessionID}/${e.kind}/${selector(e.model)}`
-const withNotices = (
-  result: Result,
-  notices: string[],
-  metadata: Record<string, unknown>,
-): Result => {
-  const text = notices.join("\n")
-  return {
-    ...result,
-    metadata: { ...result.metadata, ...metadata },
-    content:
-      typeof result.content === "string"
-        ? `${text}\n${result.content}`
-        : [{ type: "text", text }, ...(result.content ?? [])],
-  }
-}
-
-function parseMarker(session: Session): Marker | undefined {
-  const raw = session.metadata?.[METADATA_KEY]
-  if (raw === undefined) return undefined
-  // Metadata is inherited by nested children; only this exact child is protected.
-  if (
-    record(raw) &&
-    typeof raw.childID === "string" &&
-    raw.childID.startsWith("ses_") &&
-    raw.childID !== session.id
-  )
-    return undefined
-  if (
-    !record(raw) ||
-    raw.version !== 1 ||
-    raw.parentID !== session.parentID ||
-    raw.agent !== session.agent ||
-    typeof raw.connectionID !== "string" ||
-    !raw.connectionID ||
-    typeof raw.fallback !== "boolean" ||
-    (raw.launchChecked !== undefined &&
-      typeof raw.launchChecked !== "boolean") ||
-    (raw.wireChecked !== undefined && typeof raw.wireChecked !== "boolean") ||
-    (raw.login !== undefined &&
-      (typeof raw.login !== "string" || !raw.login)) ||
-    !record(raw.model) ||
-    typeof raw.model.id !== "string" ||
-    typeof raw.model.providerID !== "string" ||
-    (raw.model.variant !== undefined && typeof raw.model.variant !== "string")
-  )
-    fail("invalid persisted child policy")
-  if (typeof raw.agent !== "string" || !Object.hasOwn(ROUTES, raw.agent))
-    fail("unapproved child role")
-  const marker = raw as unknown as Marker
-  const route = ROUTES[marker.agent]
-  const expected = marker.fallback ? route.alternate : route.primary
-  if (
-    (marker.login !== undefined && expected.providerID !== OAUTH_PROVIDER) ||
-    !modelsEqual(marker.model, aliasOf(expected, marker.login))
-  )
-    fail("invalid persisted model selection")
-  return marker
-}
-
-function textOnly(messages: unknown[]): boolean {
-  return messages.every(
-    (message) =>
-      record(message) &&
-      Array.isArray(message.content) &&
-      message.content.every(
-        (part) =>
-          record(part) && part.type === "text" && typeof part.text === "string",
-      ),
-  )
-}
-
-class WireTooLarge extends Error {}
-
-// The size of the JSON a request carries. Since 2.0.28 provider requests can
-// be zstd or gzip compressed (settings.encoding; zstd by default for ChatGPT
-// sign-in), so the body is decoded first, never past the text ceiling. Any
-// other encoding cannot be measured and stops the launch.
-async function wireBytes(request: Request): Promise<number> {
-  const body = new Uint8Array(await request.clone().arrayBuffer())
-  const encoding = (request.headers.get("content-encoding") ?? "")
-    .trim()
-    .toLowerCase()
-  if (encoding === "" || encoding === "identity") return body.byteLength
-  const options = { maxOutputLength: MAX_CONTEXT_BYTES + 1 }
-  try {
-    if (encoding === "zstd") return zstdDecompressSync(body, options).byteLength
-    if (encoding === "gzip") return gunzipSync(body, options).byteLength
-  } catch (error) {
-    if ((error as { code?: string }).code === "ERR_BUFFER_TOO_LARGE")
-      throw new WireTooLarge()
-    throw error
-  }
-  throw new Error(`unsupported content-encoding ${encoding}`)
-}
-
-function transportURL(
-  url: string,
-  providerID: string,
-  kind: Kind,
-  websocket: boolean,
-): void {
-  let target: URL
-  try {
-    target = new URL(url)
-  } catch {
-    return fail("invalid transport URL")
-  }
-  if (target.username || target.password || target.port || target.hash)
-    fail("unapproved transport URL")
-  if (providerID === "openai") {
-    const paths =
-      kind === "compaction"
-        ? [
-            "/backend-api/codex/responses",
-            "/backend-api/codex/responses/compact",
-          ]
-        : ["/backend-api/codex/responses"]
-    if (
-      target.hostname !== "chatgpt.com" ||
-      target.protocol !== (websocket ? "wss:" : "https:") ||
-      target.search ||
-      !paths.includes(target.pathname)
-    )
-      fail("not a ChatGPT subscription route")
-  } else if (providerID === "xai") {
-    // The built-in xAI provider defaults to the Responses WebSocket channel
-    // and falls back to HTTP on the same path.
-    if (
-      target.hostname !== "api.x.ai" ||
-      target.protocol !== (websocket ? "wss:" : "https:") ||
-      target.search ||
-      target.pathname !== "/v1/responses"
-    )
-      fail("not an approved xAI subscription route")
-  } else if (providerID === "anthropic") {
-    if (
-      websocket ||
-      target.hostname !== "api.anthropic.com" ||
-      target.protocol !== "https:" ||
-      !["/v1/messages", "/v1/messages/count_tokens"].includes(
-        target.pathname,
-      ) ||
-      (target.search !== "" && target.search !== "?beta=true")
-    )
-      fail("not an approved Anthropic OAuth route")
-  } else fail("no approved transport for this provider")
-}
+export { METADATA_KEY }
+export { MAX_CONTEXT_BYTES } from "./guards"
+export { SUPPORTED_VERSIONS } from "./runtime"
+export type { RuntimeContext }
 
 export async function setupPreflight(
   ctx: RuntimeContext,
   deps: Dependencies = dependencies,
 ): Promise<() => Promise<void>> {
   const registrations: Registration[] = []
-  const quotaPath =
-    typeof ctx.options.quotaExportPath === "string"
-      ? ctx.options.quotaExportPath
-      : exportPath()
-  const handshakes = new Map<string, string>()
-  const enabled = ctx.options.enabled === true
+  const options = readOptions(ctx.options)
   // Console credit lanes (see lanes.ts). An empty list turns the whole
   // feature off, in-flight moves included.
-  const lanes = new Lanes(
-    Array.isArray(ctx.options.creditLanes)
-      ? ctx.options.creditLanes.filter(
-          (id): id is string =>
-            typeof id === "string" && id !== "" && id !== OAUTH_PROVIDER,
-        )
-      : [],
-    typeof ctx.options.creditCooldownMs === "number" &&
-    ctx.options.creditCooldownMs > 0
-      ? ctx.options.creditCooldownMs
-      : DEFAULT_COOLDOWN_MS,
+  const lanes = new Cooldowns(
+    options.creditLanes,
+    options.creditCooldownMs,
     deps.now,
   )
   const episodes = new Episodes(EPISODE_TTL_MS, deps.now)
+  // Lanes the balance estimate knows are empty: passed over until money can
+  // have arrived, but for one try a day (empty-lanes.ts).
+  const empty = new EmptyLanes()
+  // Both survive a restart (saved.ts), so it costs no rejected request.
+  if (lanes.ids.length > 0) {
+    const saved = deps.saved?.load()
+    if (saved) {
+      lanes.restore(saved.cooldowns)
+      empty.restore(saved.probed, deps.now())
+    }
+  }
+  const keep = () => {
+    if (lanes.ids.length > 0)
+      deps.saved?.save({
+        cooldowns: lanes.saved(),
+        probed: empty.saved(deps.now()),
+      })
+  }
   // Other saved Claude logins, reached by alias model (claude-accounts.ts).
   // Independent of `enabled`: an alias must never fall back to the active
   // login. Every configured suffix decides which login a model runs on; only
   // the labelled ones are places to move or launch.
-  const claudeAccounts = AccountRouter.fromOption(ctx.options.claudeAccounts)
+  const claudeAccounts = AccountRouter.fromOption(options.claudeAccounts)
   const suffixes = claudeAccounts.accounts.map((account) => account.suffix)
   const logins = claudeAccounts.accounts
     .filter((account) => account.label !== "")
@@ -373,10 +78,10 @@ export async function setupPreflight(
     return loginSubscription(ctx, account)
   }
   // Subscription window limits protected children hit, kept for the wait
-  // asked: the Quota export is rewritten on the TUI's own schedule, so the
+  // asked: the Quota export is rewritten only at Quota's next check, so the
   // parent's relaunch would otherwise bounce back to the same window. Each
   // Claude login is its own window.
-  const limited = new Lanes(
+  const limited = new Cooldowns(
     [
       OAUTH_PROVIDER,
       ...logins.map((login) => loginStop(login).key),
@@ -396,153 +101,27 @@ export async function setupPreflight(
     emptied.set(provider, at)
     void deps.creditEmpty?.(provider).catch(() => {})
   }
-  const primaryFallback = ctx.options.primaryFallback !== false
-  const pinModels = ctx.options.pinModels === true
   const protectedChild = async (sessionID: string) => {
     const session = await ctx.session.get({ sessionID })
     const marker = parseMarker(session)
     return marker ? { session, marker } : undefined
   }
-  const authorize = async (event: Scope) => {
-    const child = await protectedChild(event.sessionID)
-    if (!child) return undefined
-    if (!supported(ctx.app.version))
-      fail("unsupported OpenCode version; protected child stopped")
-    const { session, marker } = child
-    if (!session.model || !modelsEqual(session.model, marker.model))
-      fail("child model changed after launch")
-    if (event.kind === "primary" && !modelsEqual(event.model, marker.model))
-      fail("unexpected primary model")
-    if (
-      event.kind === "primary" &&
-      marker.fallback &&
-      marker.launchChecked !== true
-    )
-      fail("alternate launch context was not checked")
-    // A child on a saved login runs its route model's alias, and its Claude
-    // side requests leave on that login too (claude-accounts.ts).
-    const bound =
-      marker.login !== undefined && event.model.providerID === OAUTH_PROVIDER
-    const approvedModel = Object.values(ROUTES).some((r) =>
-      [r.primary, r.alternate].some((m) =>
-        [m, ...(bound ? [aliasOf(m, marker.login)] : [])].some(
-          (allowed) =>
-            allowed.id === event.model.id &&
-            allowed.providerID === event.model.providerID,
-        ),
-      ),
-    )
-    if (!approvedModel) fail("unapproved auxiliary model")
-    let auth: Subscription | undefined
-    try {
-      auth = bound
-        ? await loginOf(marker.login!)
-        : await subscription(ctx, event.model.providerID)
-    } catch {
-      return fail("subscription credentials unavailable")
-    }
-    if (
-      !auth ||
-      (event.model.providerID === marker.model.providerID &&
-        auth.proof.connectionID !== marker.connectionID)
-    )
-      fail("subscription account changed or unavailable")
-    // Launch preferences are not an in-flight billing gate. Keep identity and
-    // transport protection, without fetching/rechecking usage or credit balances.
-    return auth
-  }
-  const guardContext = async (event: ContextEvent) => {
-    const child = await protectedChild(event.sessionID)
-    if (!child?.marker.fallback || child.marker.launchChecked === true) return
-    // Check only the first request's full text context. Later native compaction
-    // is not a mechanism for making an oversized launch fit the alternate.
-    if (!textOnly(event.messages))
-      fail("alternate launch requires text-only context")
-    let bytes: number
-    try {
-      bytes = Buffer.byteLength(
-        JSON.stringify(
-          {
-            system: event.system,
-            messages: event.messages,
-            tools: event.tools,
-            options: event.options,
-          },
-          (_key, value) => {
-            if (["function", "symbol", "bigint"].includes(typeof value))
-              fail("alternate context contains unmeasurable values")
-            return value
-          },
-        ),
-      )
-    } catch {
-      return fail("alternate context cannot be measured")
-    }
-    if (bytes > MAX_CONTEXT_BYTES)
-      fail("alternate launch context exceeds the conservative text limit")
-    // Require catalog headroom as well as the byte ceiling. No history
-    // conversion or compaction is used to make this first request fit.
-    const catalog = (await ctx.model.list({ location: child.session.location }))
-      .data
-    const model = catalog.find(
-      (m) =>
-        m.id === child.marker.model.id &&
-        m.providerID === child.marker.model.providerID,
-    )
-    if (!model || bytes + 32_768 > inputCapacity(model.limit))
-      fail("alternate catalog lacks conservative context headroom")
-    await ctx.session.update({
-      sessionID: child.session.id,
-      metadata: {
-        ...child.session.metadata,
-        [METADATA_KEY]: { ...child.marker, launchChecked: true },
-      },
-    })
-  }
-  const guardWireSize = async (event: Scope, read: () => Promise<number>) => {
-    const child = await protectedChild(event.sessionID)
-    if (
-      !child?.marker.fallback ||
-      child.marker.wireChecked === true ||
-      event.kind !== "primary"
-    )
-      return
-    let bytes: number
-    try {
-      bytes = await read()
-    } catch (error) {
-      if (error instanceof WireTooLarge)
-        return fail("alternate wire context exceeds conservative headroom")
-      return fail("alternate wire context cannot be measured")
-    }
-    const catalog = (await ctx.model.list({ location: child.session.location }))
-      .data
-    const model = catalog.find(
-      (m) =>
-        m.id === child.marker.model.id &&
-        m.providerID === child.marker.model.providerID,
-    )
-    const capacity = model ? inputCapacity(model.limit) : NaN
-    if (
-      !Number.isFinite(capacity) ||
-      bytes > MAX_CONTEXT_BYTES ||
-      bytes + 32_768 > capacity
-    )
-      fail("alternate wire context exceeds conservative headroom")
-    // Later trusted context hooks can add global instructions. Measure the
-    // actual serialized HTTP body / WS frame before its first transmission too.
-    await ctx.session.update({
-      sessionID: child.session.id,
-      metadata: {
-        ...child.session.metadata,
-        [METADATA_KEY]: { ...child.marker, wireChecked: true },
-      },
-    })
-  }
+  const guards = createGuards(ctx, { protectedChild, loginOf })
+  const launcher = createLauncher(ctx, {
+    deps,
+    options,
+    lanes,
+    empty,
+    keep,
+    limited,
+    logins,
+    suffixes,
+    loginOf,
+  })
   const cleanup = async () => {
     for (const registration of registrations.reverse())
       await registration.dispose()
-    handshakes.clear()
+    guards.clear()
   }
   try {
     // Before the transport guard, so the guard sees the token a request
@@ -553,60 +132,15 @@ export async function setupPreflight(
           await claudeAccounts.route(ctx, event, supported(ctx.app.version))
         }),
       )
-    registrations.push(await ctx.session.hook("context", guardContext))
+    registrations.push(await ctx.session.hook("context", guards.context))
     registrations.push(
-      await ctx.session.hook("http.request", async (event) => {
-        const auth = await authorize(event)
-        if (!auth) return
-        transportURL(
-          event.request.url,
-          event.model.providerID,
-          event.kind,
-          false,
-        )
-        if (event.request.method !== "POST") fail("unapproved HTTP method")
-        // Native OpenAI Requests default to follow; prohibit redirecting a
-        // validated OAuth request to an unvalidated endpoint.
-        if (event.request.redirect !== "error")
-          event.request = new Request(event.request, { redirect: "error" })
-        const headers = event.request.headers
-        if (
-          headers.get("authorization") !== `Bearer ${auth.access}` ||
-          headers.has("x-api-key")
-        )
-          fail("wire authentication is not the approved OAuth credential")
-        if (
-          event.model.providerID === "openai" &&
-          headers.get("chatgpt-account-id") !== auth.accountID
-        )
-          fail("wire subscription account mismatch")
-        await guardWireSize(event, () => wireBytes(event.request))
-      }),
+      await ctx.session.hook("http.request", guards.httpRequest),
     )
     registrations.push(
-      await ctx.session.hook("experimental.ws.handshake", async (event) => {
-        const auth = await authorize(event)
-        if (!auth) return
-        transportURL(event.url, event.model.providerID, event.kind, true)
-        const headers = new Headers(event.headers)
-        if (
-          headers.get("authorization") !== `Bearer ${auth.access}` ||
-          headers.has("x-api-key") ||
-          (event.model.providerID === "openai" &&
-            headers.get("chatgpt-account-id") !== auth.accountID)
-        )
-          fail("WebSocket subscription identity mismatch")
-        handshakes.set(exchangeKey(event), signature(auth))
-      }),
+      await ctx.session.hook("experimental.ws.handshake", guards.wsHandshake),
     )
     registrations.push(
-      await ctx.session.hook("experimental.ws.send", async (event) => {
-        const auth = await authorize(event)
-        if (!auth) return
-        if (handshakes.get(exchangeKey(event)) !== signature(auth))
-          fail("WebSocket exchange lacks a current approved handshake")
-        await guardWireSize(event, async () => Buffer.byteLength(event.frame))
-      }),
+      await ctx.session.hook("experimental.ws.send", guards.wsSend),
     )
     // Do not switch a running child. Override quota's long reset wait only for
     // children admitted by this plugin; root and ordinary sessions are untouched.
@@ -614,17 +148,18 @@ export async function setupPreflight(
       await ctx.session.hook("retry", async (event) => {
         const child = await protectedChild(event.sessionID)
         if (!child) return
-        if (event.error.message.startsWith("Subagent preflight:")) {
+        if (event.error.message.startsWith(FAIL_PREFIX)) {
           event.decision = { retry: false }
           return
         }
-        if (
-          event.error.type === "provider.quota" ||
-          ((event.error.type === "provider.rate-limit" ||
-            event.error.status === 429) &&
-            event.decision.retry &&
-            event.decision.delay > 10_000)
-        ) {
+        // A window limit by OpenCode's own decision (native-retry.ts): a
+        // wait Quota stretched for an unrelated used-up row is not one.
+        const own = judgedDecision(event)
+        const rateLimit =
+          event.error.type === "provider.rate-limit" ||
+          event.error.status === 429
+        const long = (d: Decision) => d.retry && d.delay > LONG_WAIT_MS
+        if (event.error.type === "provider.quota" || (rateLimit && long(own))) {
           // A bound child's Claude requests all leave on its login, a side
           // request on a plain model too, so the limit is that login's.
           if (event.model)
@@ -636,7 +171,10 @@ export async function setupPreflight(
               event.decision.retry ? event.decision.delay : undefined,
             )
           event.decision = { retry: false }
+          return
         }
+        // A short limit with a stretched wait: retry as OpenCode would.
+        if (rateLimit && long(event.decision)) event.decision = own
       }),
     )
     // Console credit lanes and other Claude logins. An empty balance fails
@@ -650,12 +188,18 @@ export async function setupPreflight(
         const provider = event.model.providerID
         const onLane = lanes.has(provider)
         if (!onLane && provider !== OAUTH_PROVIDER) return
-        const failure = classify(event.error, event.decision)
-        if (!failure) return
+        // Classified by OpenCode's own decision (native-retry.ts). A short
+        // limit whose wait another plugin stretched is no failure: the
+        // session stays and retries as OpenCode would have.
+        const own = judgedDecision(event)
+        const failure = classify(event.error, own)
+        const stretched =
+          !failure && classify(event.error, event.decision) === "quota"
+        if (!failure && !stretched) return
         if (onLane && failure === "credit") noteEmpty(provider)
         // A subscription failure matters only as a window limit; a lane
         // failure is any of the three.
-        if (!onLane && failure !== "quota") return
+        if (!onLane && failure !== undefined && failure !== "quota") return
         try {
           if (await protectedChild(event.sessionID)) return
           const session = await ctx.session.get({ sessionID: event.sessionID })
@@ -674,29 +218,40 @@ export async function setupPreflight(
             typeof agent === "string" &&
             Object.hasOwn(ROUTES, agent) &&
             ROUTES[agent].primary.providerID === OAUTH_PROVIDER
+          // The subscription's limit is moved off only for the roles that opt
+          // in: Claude specialists, and the primary when primaryFallback is on.
+          const moves =
+            onLane || (role === "primary" ? options.primaryFallback : eligible)
+          if (stretched) {
+            if (moves) event.decision = own
+            return
+          }
           // A window limit lasts as long as its wait; an empty balance or a
           // bad key lasts until someone fixes it, so those take the cooldown.
-          if (onLane)
+          // A bad key is fixed with a restart, which must not bring it back.
+          if (onLane) {
             lanes.mark(
               provider,
               failure === "quota" && event.decision.retry
                 ? event.decision.delay
                 : undefined,
+              failure !== "auth",
             )
-          // The subscription's limit is moved off only for the roles that opt
-          // in: Claude specialists, and the primary when primaryFallback is on.
-          if (!onLane && (role === "primary" ? !primaryFallback : !eligible))
-            return
+            keep()
+          }
+          if (!moves) return
           const tried = episodes.record(
             event.sessionID,
             stopFor(event.model, suffixes).key,
           )
           const catalog = (await ctx.model.list({ location: session.location }))
             .data
+          const now = deps.now()
+          const { skip, due } = empty.scan(deps.readLanes?.(), now)
           const target = nextModel({
             current: event.model,
             role,
-            lanes,
+            lanes: passingOver(lanes, skip),
             logins,
             suffixes,
             tried,
@@ -707,6 +262,11 @@ export async function setupPreflight(
               sessionID: event.sessionID,
               model: target,
             })
+            // Noted once the session is on it: a failed switch tries nothing.
+            if (due.has(target.providerID)) {
+              empty.tried(target.providerID, now)
+              keep()
+            }
             event.decision = { retry: true, delay: 0 }
             return
           }
@@ -724,291 +284,7 @@ export async function setupPreflight(
         if (!editor.get("subagent"))
           fail("builtin subagent executor unavailable")
         editor.update("subagent", (tool) => {
-          const original = tool.execute
-          tool.execute = async (input, context) => {
-            // Outcome is historical, not a busy flag. There is no atomic
-            // idle-and-release API, so protection stays with this exact child.
-            if (typeof input.sessionID === "string") {
-              const existing = await ctx.session.get({
-                sessionID: input.sessionID,
-              })
-              const policy = parseMarker(existing)
-              if (
-                policy &&
-                existing.parentID === context.sessionID &&
-                (input.agent !== policy.agent ||
-                  (input.model !== undefined &&
-                    input.model !== selector(policy.model)))
-              )
-                fail(
-                  "protected continuations keep their role and model; use a new child for a different explicit selection",
-                )
-              return original(input, context)
-            }
-            if (
-              !enabled ||
-              input.model !== undefined ||
-              typeof input.agent !== "string" ||
-              !Object.hasOwn(ROUTES, input.agent)
-            )
-              return original(input, context)
-            if (!supported(ctx.app.version))
-              fail(
-                "unsupported OpenCode version; use an explicit model or disable new selection",
-              )
-            const parent = await ctx.session.get({
-              sessionID: context.sessionID,
-            })
-            const agent = (
-              await ctx.agent.get({
-                agentID: input.agent,
-                location: parent.location,
-              })
-            ).data
-            const route = routeForLaunch(input, agent.model, pinModels)
-            if (!route) return original(input, context)
-            // pinModels: a project's agent file can name another model for a
-            // role. Launch the role on its route anyway, the model made
-            // explicit, and say so; its prompt and permissions stay.
-            const pinned =
-              !agent.model || !modelsEqual(agent.model, route.primary)
-            const pin = pinned
-              ? {
-                  notices: [
-                    `[Model pin: ${input.agent} ${agent.model ? selector(agent.model) : "(no model)"} → ${selector(route.primary)}; the agent definition in effect is replaced by the dotconfig route.]`,
-                  ],
-                  metadata: {
-                    pin: {
-                      from: agent.model ? selector(agent.model) : null,
-                      to: selector(route.primary),
-                    },
-                  },
-                }
-              : { notices: [], metadata: {} }
-            const catalog = (
-              await ctx.model.list({ location: parent.location })
-            ).data
-            // A launch on a lane carries no subscription marker (its guards
-            // are for OAuth requests).
-            const onLane = async (lane: ModelRef, why: string) => {
-              context.signal.throwIfAborted()
-              const result = await original(
-                { ...input, model: selector(lane) },
-                context,
-              )
-              return withNotices(
-                result,
-                [
-                  ...pin.notices,
-                  `[Subagent preflight: ${input.agent} ${selector(route.primary)} → ${selector(lane)}; ${why}]`,
-                ],
-                {
-                  ...pin.metadata,
-                  preflight: {
-                    funding: "console-credit",
-                    from: selector(route.primary),
-                    to: selector(lane),
-                  },
-                },
-              )
-            }
-            // Credits first for a Claude role: a lane not known empty takes
-            // the launch. When every lane is empty, the usual preflight below
-            // decides.
-            if (lanes.ids.length > 0) {
-              const lane = launchLane(route.primary, lanes, catalog)
-              if (lane)
-                return onLane(
-                  lane,
-                  "a Console credit lane is tried before the subscription.",
-                )
-            }
-            context.signal.throwIfAborted()
-            const snapshot = await loadQuotaExport(deps, quotaPath)
-            context.signal.throwIfAborted()
-            const probeOn = async (model: ModelRef, login?: string) => {
-              let auth: Subscription | undefined
-              try {
-                auth =
-                  login === undefined
-                    ? await subscription(ctx, model.providerID)
-                    : await loginOf(login)
-                if (auth)
-                  auth = { ...auth, proof: await identify(ctx, auth.proof) }
-              } catch {}
-              // A window limit a protected child hit is the provider's own
-              // word and outranks an export that has not caught up yet.
-              const quota = limited.blocked(
-                login === undefined ? model.providerID : loginStop(login).key,
-              )
-                ? {
-                    state: "exhausted" as const,
-                    observedAt: deps.now(),
-                    reason: "window limit observed on a protected child",
-                  }
-                : readQuota(snapshot, auth?.proof, deps.now())
-              return {
-                account: auth?.proof,
-                quota,
-                model: aliasOf(model, login),
-                login,
-              }
-            }
-            // A Claude model takes the active login unless Quota knows it is
-            // spent; then the other saved logins in order, the first not
-            // known spent, as the retry chain reaches them last. With every
-            // login spent the active one is what the decision below weighs.
-            const probe = async (model: ModelRef) => {
-              const active = await probeOn(model)
-              if (
-                model.providerID !== OAUTH_PROVIDER ||
-                freshState(active.quota, deps.now()) !== "exhausted"
-              )
-                return active
-              for (const login of logins) {
-                const alias = aliasOf(model, login)
-                // The router picks a login by the longest suffix: an alias a
-                // longer configured suffix claims would run elsewhere.
-                if (
-                  !catalogOk(catalog, alias) ||
-                  stopFor(alias, suffixes).key !== loginStop(login).key
-                )
-                  continue
-                const next = await probeOn(model, login)
-                if (
-                  next.account &&
-                  freshState(next.quota, deps.now()) !== "exhausted"
-                )
-                  return next
-              }
-              return active
-            }
-            const source = await probe(route.primary)
-            // A ChatGPT role whose window is spent goes to its Claude
-            // alternate the way a Claude role starts: credits before the
-            // subscription. With every lane empty, the usual preflight
-            // launches the alternate on the subscription.
-            if (
-              lanes.ids.length > 0 &&
-              route.primary.providerID !== OAUTH_PROVIDER &&
-              freshState(source.quota, deps.now()) === "exhausted"
-            ) {
-              const lane = launchLane(route.alternate, lanes, catalog)
-              if (lane)
-                return onLane(
-                  lane,
-                  "Quota reports the default's included quota empty; a Console credit lane is tried before the subscription.",
-                )
-            }
-            const target =
-              source.quota.state === "exhausted"
-                ? await probe(route.alternate)
-                : undefined
-            // The decision weighs the models on the logins the probes chose.
-            const decision = decideLaunch({
-              route: {
-                primary: source.model,
-                alternate: target?.model ?? route.alternate,
-              },
-              source,
-              target,
-              catalog,
-              now: deps.now(),
-            })
-            if (decision.kind === "stop") fail(decision.reason)
-            if (
-              decision.kind === "credits" &&
-              ctx.options.creditsLastResort !== true
-            )
-              fail(
-                "both included quotas are exhausted; last-resort credits are disabled",
-              )
-            const alternate = decision.kind === "fallback"
-            const chosen = alternate ? target! : source
-            const account = chosen.account!
-            const login = chosen.login
-            const launch =
-              pinned || !modelsEqual(decision.model, route.primary)
-                ? { ...input, model: selector(decision.model) }
-                : input
-            context.signal.throwIfAborted()
-            let childID: string | undefined
-            const result = await original(launch, {
-              ...context,
-              progress: async (update) => {
-                if (
-                  !childID &&
-                  (typeof update.sessionID !== "string" ||
-                    !update.sessionID.startsWith("ses_"))
-                )
-                  fail("missing builtin pre-launch child identity")
-                if (
-                  childID &&
-                  update.sessionID !== undefined &&
-                  childID !== update.sessionID
-                )
-                  fail("builtin child identity changed")
-                if (!childID) {
-                  context.signal.throwIfAborted()
-                  const child = await ctx.session.get({
-                    sessionID: update.sessionID as string,
-                  })
-                  if (
-                    child.parentID !== context.sessionID ||
-                    child.agent !== input.agent ||
-                    !child.model ||
-                    !modelsEqual(child.model, decision.model)
-                  )
-                    fail("builtin child launch policy mismatch")
-                  const current = await (
-                    login === undefined
-                      ? subscription(ctx, decision.model.providerID)
-                      : loginOf(login)
-                  ).catch(() => undefined)
-                  if (
-                    !current ||
-                    current.proof.connectionID !== account.connectionID
-                  )
-                    fail("subscription account changed before launch")
-                  const marker: Marker = {
-                    version: 1,
-                    childID: child.id,
-                    parentID: context.sessionID,
-                    agent: input.agent as string,
-                    model: decision.model,
-                    connectionID: account.connectionID,
-                    fallback: alternate,
-                    ...(login === undefined ? {} : { login }),
-                  }
-                  await ctx.session.update({
-                    sessionID: child.id,
-                    metadata: { ...child.metadata, [METADATA_KEY]: marker },
-                  })
-                  childID = child.id
-                }
-                await context.progress(update)
-              },
-            })
-            if (!childID) fail("builtin did not await pre-launch registration")
-            if (decision.kind === "default" && login === undefined)
-              return pinned
-                ? withNotices(result, pin.notices, pin.metadata)
-                : result
-            const notice =
-              decision.kind === "credits"
-                ? `[Subagent preflight: ${input.agent} ${selector(decision.model)}; Quota reports both included quotas at 0%, trying the default with provider-managed credits as last resort. No credit purchase or running-session switch.]`
-                : decision.kind === "default"
-                  ? `[Subagent preflight: ${input.agent} ${selector(route.primary)} → ${selector(decision.model)}; Quota reports the active Claude login's included quota empty and the next saved login not empty. No running-session switch.]`
-                  : `[Subagent preflight: ${input.agent} ${selector(route.primary)} → ${selector(decision.model)}; Quota reports the default's included quota empty and the alternate not empty. No running-session switch.]`
-            return withNotices(result, [...pin.notices, notice], {
-              ...pin.metadata,
-              preflight: {
-                funding: decision.kind === "credits" ? "provider" : "included",
-                from: selector(route.primary),
-                to: selector(decision.model),
-              },
-            })
-          }
+          tool.execute = launcher(tool.execute)
         })
       }),
     )

@@ -18,10 +18,16 @@
     // an account you can lose. Pinned; antigravity.json turns off its own
     // updater. Bump deliberately and re-test a login and a request.
     "opencode-antigravity-auth@2.1.2",
+    // Part of lib/subagent-fallback: records OpenCode's own retry decision
+    // before quota's waitForQuotaReset can stretch it, so a short rate limit
+    // is not read as a window limit. Keep this entry right before quota.
+    { "package": "./lib/subagent-fallback/retry-recorder" },
     // Usage limits in the TUI and /quota. Reads the Anthropic login above;
     // opencode-quota/settings.jsonc keeps it off Claude Code's Keychain.
     // Pinned: lib/subagent-fallback and Hermes' funding board read its export
-    // file (schema version 3). Bump deliberately and re-check /quota_status.
+    // file (schema version 3), and the preflight calls its RPC to refresh a
+    // stale export (quota-refresh.ts). Bump deliberately and re-check both
+    // and /quota_status.
     "@slkiser/opencode-quota@6.0.0",
     // Outside auto-discovery's plugins/ directory. Keep this entry last, after
     // quota. enabled: false stops new selection but retains in-flight guards.
