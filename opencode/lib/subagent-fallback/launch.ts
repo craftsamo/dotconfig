@@ -5,7 +5,7 @@ import {
   loginStop,
   OAUTH_PROVIDER,
   stopFor,
-  type Lanes,
+  type Cooldowns,
 } from "./lanes"
 import {
   aliasOf,
@@ -57,9 +57,9 @@ export function createLauncher(
   state: {
     deps: Dependencies
     options: PreflightOptions
-    lanes: Lanes
+    lanes: Cooldowns
     // Window limits protected children hit.
-    limited: Lanes
+    limited: Cooldowns
     logins: readonly string[]
     suffixes: readonly string[]
     loginOf: (suffix: string) => Promise<Subscription>

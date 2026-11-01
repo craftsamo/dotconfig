@@ -56,10 +56,11 @@ export function classify(
   return undefined
 }
 
-// A lane that failed is skipped for a while. There is no balance API, so the
-// first request after the cooldown is the probe: an empty lane fails fast
-// (before any generation) and is marked again.
-export class Lanes {
+// Places to skip for a while: credit lanes that failed, and the subscription
+// windows a protected child hit. A lane has no balance API, so the first
+// request after the cooldown is the probe: an empty lane fails fast (before
+// any generation) and is marked again.
+export class Cooldowns {
   private until = new Map<string, number>()
   constructor(
     readonly ids: readonly string[],
@@ -180,7 +181,7 @@ export function retarget(
 export function nextModel(input: {
   current: ModelRef
   role: Role
-  lanes: Lanes
+  lanes: Cooldowns
   // The other saved Claude logins a session may move to, in order.
   logins?: readonly string[]
   // Every configured login suffix, usable or not, to tell which login a
@@ -219,7 +220,7 @@ export function nextModel(input: {
 // never changes it silently.
 export function launchLane(
   model: ModelRef,
-  lanes: Lanes,
+  lanes: Cooldowns,
   catalog: CatalogModel[],
 ): ModelRef | undefined {
   if (model.providerID !== OAUTH_PROVIDER) return undefined
