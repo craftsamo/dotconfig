@@ -1068,7 +1068,8 @@ def _run_properties(role):
         "session_id": {"type": "string", "description": "Continue this session (ses_…)"},
         "message": {"type": "string", "description": "A short brief in plain prose, sent as written: what is "
                                                      "wanted and why, what this turn hands back, and the "
-                                                     "decision log's path; no steps or restated rules"},
+                                                     "decision log's path; no steps, checks, edits or "
+                                                     "subagent choices, and no restated rules"},
         "model": {"type": "string", "description": "Optional provider/model from opencode_catalog models; "
                                                    "never your own model"},
         "variant": {"type": "string", "description": "Optional reasoning effort from that model's variants"},

@@ -120,7 +120,13 @@ not something to send to OpenCode.
 6. **Accept or correct.** Check the delivered work and PR against
    [Client QA](../qa/SKILL.md). Send concrete defects to
    the same build session as a further turn under the same approval; repeat
-   until accepted or a scope decision is needed.
+   until accepted or a scope decision is needed. Concrete means each defect
+   as a finding: what you saw (with its evidence), what you expected and why
+   it matters to people. Never where or how to fix it, which lines to change,
+   which steps or checks to run or which subagent to use: reading logs and
+   diffs gives you the finding, and the fix stays the run's
+   (`opencode:brief` "Outcomes, not orders"). A stall in the run (a limited
+   route, a spent account) goes back as the fact, never as a workaround.
 7. **Deliver** per the kernel: what people can do now and how to try it, what
    was requested vs done, actual verification, the PR URL, unmet or unverified
    criteria, risks, and resume handles (worktree, branch, session ids). With
