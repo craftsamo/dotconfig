@@ -251,7 +251,7 @@
   "agents": {
     "plan": {
       "color": "#f5f5f5",
-      "model": "anthropic/claude-fable-5-1#high",
+      "model": "anthropic/claude-opus-5-5#xhigh",
       // Global edit: ask overrides the built-in deny. Restore Plan's boundary
       // here, and allow only read-only specialists. Verifier can apply a
       // formatter and worker/general can edit, so none belongs in Plan.
@@ -367,7 +367,7 @@
     },
     "build": {
       "color": "#ff6f00",
-      "model": "anthropic/claude-opus-5-5#medium",
+      "model": "anthropic/claude-opus-5-5#high",
       // A project's top-level `skill *` / `shell *` catch-all comes after the
       // global top-level rules and would re-ask what is allowed there; an
       // agent's own rules come after every top-level rule. So the personal
