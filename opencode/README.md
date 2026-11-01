@@ -301,26 +301,51 @@ machinery or changing the policy.
 
 The local plugin `lib/subagent-fallback` (listed last under `plugins` in
 `opencode.jsonc`, with its retry recorder right before Quota) checks quota
-before a new specialist launch and chooses in this order:
+before a new specialist launch and follows the role's **route**: the models
+`options.routes` lists for it, in order, written as `/models` names them:
 
-1. The route's primary model, unless Quota reports it exhausted. A Claude
-   model whose active login is known exhausted first takes the other saved
-   Claude logins in order ("Claude accounts" below): the first one not known
-   exhausted, through its alias. A Claude alternate (step 2) walks the
-   logins the same way. Only with every login known exhausted does the
-   choice go on.
-2. The role's alternate, when the primary is known exhausted and the alternate
-   is not known exhausted. Missing or stale alternate data does not block
-   this, since an exhausted primary is the worse bet. A Claude alternate is
-   launched on a Console credit lane first when one is configured and not
-   known empty ("Console credit lanes" below), on the subscription otherwise.
-3. The usual primary with provider-managed credits as a last resort, when both
-   are known exhausted and `creditsLastResort` is `true`. This attempts a
-   normal provider request; it does not prove a positive credit balance or
-   guarantee success.
+```jsonc
+"explore-small": [
+  "openai/gpt-6-luna#low",
+  "anthropic-credit-team/claude-haiku-5-5#low",
+  "anthropic-credit-main/claude-haiku-5-5#low",
+  "anthropic-credit-sub/claude-haiku-5-5#low",
+  "anthropic/claude-haiku-5-5-sub#low",
+  "anthropic/claude-haiku-5-5-main#low"
+]
+```
 
-Missing, stale or unreadable data about the primary keeps the configured
-default, not a quota error or an automatic model switch. One exception: a
+The model says where a step runs: a provider listed in `creditLanes` is a
+credit lane ("Console credit lanes" below), an `anthropic` alias whose suffix
+`claudeAccounts` names is that saved login ("Claude accounts" below), and
+anything else runs on its provider's active login. A launch takes the first
+step that can take it:
+
+1. A lane step launches unless the lane is known empty or cooling down,
+   unmarked (the OAuth guards below do not apply to API-key requests),
+   without reading Quota.
+2. A subscription step launches unless Quota reports its login's window
+   exhausted. Missing or stale data is no reason to pass a login over. A
+   login that is not an approved subscription, or a model not in the catalog
+   (status, tools, variant, limits), is passed over too.
+3. With every login on the route known exhausted, the first of them as a
+   last resort, with provider-managed credits, when `creditsLastResort` is
+   `true`. This attempts a normal provider request; it does not prove a
+   positive credit balance or guarantee success. A route with no usable step
+   at all stops the launch.
+
+A role the option does not list keeps built-in steps from `ROUTES` in
+`policy.ts`, the order used before routes existed: a Claude model on every
+lane, the active login, then the other saved logins, and the alternate after
+the primary. A step the plugin cannot read (a malformed model, a provider
+that is neither a lane nor a subscription, an alias of a login without a
+label) is left out, and the role's launches say so in a `[Subagent
+preflight: config ignored: …]` line; a role none of whose steps it can read
+keeps its built-in steps, and `[]` takes a role off the preflight. The first
+step's model is the one the role's agent file names.
+
+Missing, stale or unreadable data keeps a step, not a quota error or an
+automatic model switch. One exception: a
 window limit a protected child just hit (the provider's own word) counts as
 exhausted for the wait it asked for, or an hour without one, so the relaunch
 goes elsewhere before the export catches up. Likewise a login Quota reported
@@ -330,20 +355,21 @@ leaves no rows. Any newer reading of the login replaces it. No independent
 balance/entitlement check is performed. Variants and permissions are
 unchanged; with `pinModels` (below) a project's own model for a role is not.
 
-| Role                    | Alternate model   | Variant |
-| ----------------------- | ----------------- | ------- |
-| explore-max             | claude-opus-5-5   | xhigh   |
-| explore-high            | claude-sonnet-5-5 | high    |
-| explore-medium          | claude-sonnet-5-5 | medium  |
-| reviewer                | gpt-6.1-sol       | medium  |
-| worker                  | gpt-6.1-sol       | low     |
-| explore-spark           | claude-haiku-5-5  | low     |
-| explore-small, verifier | claude-haiku-5-5  | low     |
-| debugger, reviewer-deep | claude-opus-5-5   | high    |
-| searcher-deep           | gpt-6.1-sol       | medium  |
-| searcher                | gpt-6.1-sol       | low     |
+| Role                    | First model              | Then                     |
+| ----------------------- | ------------------------ | ------------------------ |
+| explore-max             | gpt-6.1-sol xhigh        | claude-opus-5-5 xhigh    |
+| explore-high            | gpt-6.1-sol-fast high    | claude-sonnet-5-5 high   |
+| explore-medium          | gpt-6.1-sol-fast medium  | claude-sonnet-5-5 medium |
+| reviewer                | claude-sonnet-5-5 medium | gpt-6.1-sol medium       |
+| worker                  | claude-sonnet-5-5 low    | gpt-6.1-sol low          |
+| explore-spark           | gpt-6-luna-fast low      | claude-haiku-5-5 low     |
+| explore-small, verifier | gpt-6-luna low           | claude-haiku-5-5 low     |
+| debugger, reviewer-deep | gpt-6.1-sol high         | claude-opus-5-5 high     |
+| searcher-deep           | grok-4.7 medium          | gpt-6.1-sol medium       |
+| searcher                | grok-4.7 low             | gpt-6.1-sol low          |
 
-Native model IDs are explicit: `gpt-6.1-sol`, `gpt-6.1-sol-fast`, `gpt-6-luna`,
+A Claude model runs on the lanes (Team, Main, Sub) first, then on the Sub and
+Main logins. Native model IDs are explicit: `gpt-6.1-sol`, `gpt-6.1-sol-fast`, `gpt-6-luna`,
 `gpt-6-luna-fast`, `claude-opus-5-5`, `claude-sonnet-5-5`, `claude-haiku-5-5`
 and `grok-4.7`.
 The explore tiers lead on the ChatGPT window, medium, high and spark in fast
@@ -393,8 +419,9 @@ provider only when something asks (the TUI's sidebar, `/quota`, a model turn,
 a limit), and the sidebar's asks at most every `minIntervalMs` (two minutes
 here, five by default); six minutes leaves room for that and a missed check.
 
-With no TUI open nothing asks, so a launch whose rows for either side of its
-route are missing or stale asks Quota itself to check those providers,
+With no TUI open nothing asks, so a launch that reaches a subscription step
+while the rows of its route's providers are missing or stale asks Quota
+itself to check those providers,
 through the RPC its TUI uses (`slkiser.opencode-quota`, method `refresh`,
 reason `poll`), and reads the export again once it is rewritten. It waits at
 most five seconds (a check takes about one), or until the launch is aborted;
@@ -404,7 +431,7 @@ later, so rows a check cannot freshen cost one wait, not one per launch. That RP
 id and input when bumping Quota (`lib/subagent-fallback/quota-refresh.ts`).
 
 When that fails too (no Quota, an RPC that changed, a slow check), or before
-the first export, an unknown primary keeps the configured default. A different
+the first export, the first subscription step with a login launches. A different
 account's rows cannot authorize a fallback. A partial multi-login export can
 still use complete matching-account rows. This is a best-effort launch
 preference, not an exact prediction of whether a task fits its remaining quota.
@@ -446,10 +473,10 @@ selected role and model; start a new child for a different explicit selection.
 
 **Model pin.** A project can ship its own agent file for a routed role (say
 `.opencode/agents/reviewer.md` on another model), and project definitions
-outrank global ones. With `pinModels: true` a new launch of a role in the table
-above still takes its route, whatever definition is in effect, global or
-project: `ROUTES` in `policy.ts` owns these models, and a test keeps
-`agents/<role>.md` in step with it. The plugin passes the route's model
+outrank global ones. With `pinModels: true` a new launch of a routed role
+still takes its route, whatever definition is in effect, global or project:
+the route owns these models, and a test keeps `agents/<role>.md` in step with
+the built-in first models. The plugin passes the route's model
 explicitly, keeps the project's prompt and permissions, and prefixes `[Model pin: <role>
 <from> → <to>; …]` (metadata `pin: { from, to }`, `from` null when the
 definition has no model). Lanes and the preflight then apply as usual. An
@@ -471,9 +498,9 @@ identity and route checks, without a fresh quota requirement.
 
 **Reporting.** The UI report uses the built-in tool's content and metadata with
 `from` / `to`, including background launches. `funding: included` reports the
-fallback preference; `funding: provider` means both reported pools were empty
-and the provider decides whether the default can proceed. Neither proves the
-actual charge. Declared structured output is unchanged.
+fallback preference; `funding: provider` means every reported pool of the
+route was empty and the provider decides whether its first one can proceed.
+Neither proves the actual charge. Declared structured output is unchanged.
 
 **Setup.** Pinned to the OpenCode releases in `SUPPORTED_VERSIONS`
 (`index.ts`), currently 2.1.2 (list the old and new release together while
@@ -485,9 +512,10 @@ re-validate the mocked tests. Run them from the repo root with
 `bun test opencode/lib/subagent-fallback`; no test-runner script or new
 dependency is installed.
 
-When both reported pools are empty, the default-provider attempt requires
-`creditsLastResort: true`; otherwise the launch stops. Missing Quota data still
-uses the default, so this option is not a global prohibition on credit charges.
+When every reported pool of the route is empty, the last-resort attempt
+requires `creditsLastResort: true`; otherwise the launch stops. Missing Quota
+data still launches, so this option is not a global prohibition on credit
+charges.
 
 To disable new selection, set the plugin's `options.enabled` to `false`;
 guards for already-marked children remain. To keep those guards, do not remove
@@ -495,9 +523,9 @@ the plugin or config entries or change auth while it is active. Keep the entry
 last, after quota, and trust no other later request mutator.
 
 Options: `enabled: true`, `creditsLastResort: true`, `pinModels: true` (default
-off), and for the credit lanes
-below `creditLanes` (ordered provider IDs), `creditCooldownMs` (default one
-hour) and `primaryFallback` (default on); for a second Claude login,
+off), `routes` (above) and `primaryRoute` ("Console credit lanes" below), and
+for the credit lanes below `creditLanes` (ordered provider IDs), `creditCooldownMs` (default one
+hour) and `primaryFallback` (default on); for other Claude logins,
 `claudeAccounts` ("Claude accounts" below). The independent usage reader, billing parser and usage-diagnostic RPCs have been
 removed. Tests use synthetic public exports and mocked OpenCode transports;
 they do not probe providers or establish real billing/entitlement behavior.
@@ -505,46 +533,46 @@ they do not probe providers or establish real billing/entitlement behavior.
 ## Console credit lanes
 
 The same plugin spends the Max plans' monthly API credits (see "Accounts")
-through `options.creditLanes`, an ordered list of provider IDs. A missing or
-empty list turns all of this off, in-flight moves included, except moves to
-another Claude login ("Claude accounts" below); `enabled: false` stops only
-new lane launches.
+through `options.creditLanes`, a list of provider IDs. A missing or empty list
+turns all of this off, in-flight moves included, except moves between Claude
+logins ("Claude accounts" below); `enabled: false` stops only new lane
+launches.
 
-- **Specialists** (the two roles with a Claude primary). A new launch takes the
-  first lane not known empty, with no subscription marker: the OAuth guards
-  above do not apply to API-key requests. With every lane empty, the preflight
-  above decides as before. The report carries `funding: console-credit` with
+- **New launches** follow the route ("Subscription preflight" above): a step
+  on a lane provider launches there unless the lane is known empty, with no
+  subscription marker. The report carries `funding: console-credit` with
   `from` / `to`. Agent files keep the subscription model; with `pinModels` a
-  lane named there is replaced by the route like any other model.
-- **ChatGPT specialists** (the roles with a GPT primary) use their own window
-  first. Once Quota reports it empty, or a protected child of the role just
-  hit its limit, the Claude alternate launches on the first lane not known
-  empty, unmarked like any lane launch; with every lane empty it launches on
-  the subscription, marked and guarded as a fallback. One launched on a lane
-  runs a Claude model from then on: a window limit on the subscription it
-  falls back to moves it on, or stops it as for a Claude specialist, so the
-  parent relaunches it through the preflight. Only while the plugin runs: a
-  child launched before a restart is left to the native policy.
+  lane named there is replaced by the route like any other model. A
+  specialist launched on a lane runs a Claude model from then on, whatever its
+  first step: a window limit on a login it moves to moves it on, or stops it,
+  so the parent relaunches it through the preflight. Only while the plugin
+  runs: a child launched before a restart is left to the native policy.
 - **In flight.** An empty balance (a plain 400 recognised by its "credit
   balance is too low" text), a bad key (401/403) or a window limit marks the
   lane out (for `creditCooldownMs`, one hour; a window limit only for the wait
-  it asked for) and moves the session to the next provider with the same model
+  it asked for) and moves the session to the next place with the same model
   and variant, repeating the same step. Only requests on the session's own
-  model count: compaction and title requests never move it. These
-  fail before anything is generated, so nothing is billed twice. A specialist
-  goes lane, next lane, subscription, then another Claude login; after a long
-  limit there it stops, so the parent relaunches it and the preflight can pick
-  the other vendor (the limit is remembered, see "Subscription preflight").
-- **Primary sessions** (no parent). On the subscription's window limit
-  (`provider.quota`, or a rate limit that asks for more than ten seconds) they
-  move to the first lane, and on to the next lane when one is empty; on a
-  lane, the subscription is the last stop before another Claude login. Nothing
-  moves a primary back while its lane works: return with `/models`.
-  `primaryFallback: false` keeps the primary on the subscription.
-- **Another Claude login** ("Claude accounts" below) comes after all of these:
-  a session moves to its alias of the same model, and leaves it only on a
-  window limit, for the lanes and then the active login. Each login is a stop
-  of its own.
+  model count: compaction and title requests never move it. These fail
+  before anything is generated, so nothing is billed twice. A specialist goes
+  through its route's steps that run its model, in the route's order (a model
+  its route does not name: every lane, the active login, then the other
+  logins), the first it has not tried in the last five minutes.
+  With none left after a long limit it stops, so the parent relaunches it and
+  the preflight can pick the route's next model (the limit is remembered, see
+  "Subscription preflight"). Off a login's window limit only roles whose
+  first step runs a Claude model, and specialists launched on a lane, move;
+  the others keep the native policy.
+- **Primary sessions** (no parent). On a window limit (`provider.quota`, or a
+  rate limit that asks for more than ten seconds) or a lane running dry they
+  move through `primaryRoute`, places written as models left as `*`
+  (`"anthropic/*-main"` for a saved login, `"anthropic-credit-team/*"` for a
+  lane, `"anthropic/*"` for the active login), to the first one not tried in
+  the last five minutes, keeping their model and variant. Without it they move to the lanes from the active login, and from
+  anywhere else through the lanes, the active login, then the other logins.
+  Nothing moves a primary back while its place works: return with `/models`.
+  `primaryFallback: false` keeps the primary where it is.
+- **Claude logins** ("Claude accounts" below) are places of their own: a
+  session moves to its alias of the same model.
 - **Probing.** There is no balance API: a lane is probed by use. After its
   cooldown the next request fails fast if it is still empty. Each
   empty-balance error also records a $0 checkpoint for the balance estimate
@@ -567,7 +595,7 @@ new lane launches.
   refusals survive a restart in
   `~/.local/state/opencode/subagent-preflight.json`; removing it costs only a
   rejected request per lane.
-- A session never revisits a stop within five minutes, so the chain cannot
+- A session never revisits a place within five minutes, so the chain cannot
   loop. Children launched under the subscription preflight keep their own
   guards and are never moved.
 - **Whose wait counts.** OpenCode Quota's `waitForQuotaReset` (on by default)
@@ -677,14 +705,15 @@ Pro/Max login cannot be a provider of its own the way a credit lane is. The
 same plugin (`lib/subagent-fallback`) reaches it through alias models instead:
 
 - `providers.anthropic.models` in `opencode.jsonc` defines
-  `claude-<model>-main` for Fable, Opus, Sonnet and Haiku, each with `modelID`
-  set to the real model: it sends the real model ID and inherits its variants,
-  limits and prices. `/models` lists them as "Claude Opus 5.5 (Main OAuth)" and
-  so on.
+  `claude-<model>-main` and `claude-<model>-sub` for Fable, Opus, Sonnet and
+  Haiku, each with `modelID` set to the real model: it sends the real model ID
+  and inherits its variants, limits and prices. `/models` lists them as
+  "Claude Opus 5.5 (Main OAuth)" and so on.
 - The option `claudeAccounts` maps a model-ID suffix to the label of a saved
-  login (`{ "main": "Main OAuth" }`). A request on an alias model leaves with
-  that login's token in place of the active one's; the plain models keep the
-  active login. The side requests of a session on an alias model (compaction
+  login (`{ "sub": "Sub OAuth", "main": "Main OAuth" }`). A request on an
+  alias model leaves with that login's token in place of the active one's,
+  whichever login is active, so a route names each login the same way; the
+  plain models keep the active login. The side requests of a session on an alias model (compaction
   on the compaction agent's Haiku, a title on a Claude model) follow the
   session's model, so it never draws on the active login's window; warming
   sends the session's own model. A session with no stored model (on the
@@ -704,10 +733,10 @@ same plugin (`lib/subagent-fallback`) reaches it through alias models instead:
   subscription request until it is fixed: no alias can be told apart then.
   None of this depends on `enabled`.
 - A session reaches the login by picking the alias model in `/models`, by
-  moving there on a limit after the subscription and the credit lanes
-  ("Console credit lanes" above), or, for a new specialist, when Quota
-  reports the active login exhausted ("Subscription preflight" above). A
-  protected child launched there stays bound to that login.
+  moving there on a limit ("Console credit lanes" above), or, for a new
+  specialist, through a step of its route on that alias ("Subscription
+  preflight" above). A protected child launched there stays bound to that
+  login.
 
 To add a login, run `opencode auth login anthropic --method claude-max` from a
 browser signed into that account. A new login becomes the active one: switch
