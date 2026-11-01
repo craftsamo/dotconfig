@@ -69,7 +69,7 @@ the other way, and a tool writes beside a link, never through one.
 
 Only skills that any agent can actually follow. A skill that names opencode
 subagents (`explore-medium`, `reviewer`, ...) or opencode-only tools
-(`git_commit_lint`, `github_project_*`) stays in
+(`git_commit_lint`, `gh_issue_*`) stays in
 [`opencode/skills/`](../opencode/skills) — sharing it would tell other agents
 to call tools they do not have.
 

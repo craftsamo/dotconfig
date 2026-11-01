@@ -6,7 +6,6 @@ import * as gh from "../lib/custom-tools/gh"
 import * as ghIssue from "../lib/custom-tools/gh_issue"
 import * as ghProject from "../lib/custom-tools/gh_project"
 import * as git from "../lib/custom-tools/git"
-import * as githubProject from "../lib/custom-tools/github_project"
 import * as webUi from "../lib/custom-tools/web_ui"
 import * as x from "../lib/custom-tools/x"
 
@@ -15,7 +14,7 @@ import * as x from "../lib/custom-tools/x"
  * (`server()`, 1.18.29+ object entrypoint) and OpenCode V2 (`setup()`).
  *
  * Tool IDs keep the old `tools/<file>.ts` naming (`<file>_<export>`, e.g.
- * git_secret_scan, github_project_item_add, x_search), so the per-tool
+ * git_secret_scan, gh_issue_create, x_search), so the per-tool
  * permission keys in opencode.jsonc and the skills that call them are
  * unchanged. Do not reintroduce a `tools/` directory: V1 would register the
  * same IDs twice, and V2 no longer loads it.
@@ -30,7 +29,6 @@ const modules: Record<string, Record<string, unknown>> = {
   gh_issue: ghIssue,
   gh_project: ghProject,
   git,
-  github_project: githubProject,
   web_ui: webUi,
   x,
 }
