@@ -133,7 +133,8 @@ export function readQuota(
   // Either window at (rounded) 0% means the provider is exhausted; credits
   // may already be spent behind the scenes, so prefer the other provider.
   // A window cannot recover before its reset, so an empty row stays reliable
-  // however old the export is (Quota refreshes only while the TUI is open).
+  // however old the export is (Quota checks only when something asks, so
+  // with no TUI open it can stay unchanged for hours).
   const exhausted = rows.filter((row) => empty(row) && pending(row))
   if (exhausted.length)
     return {

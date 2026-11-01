@@ -387,9 +387,11 @@ counts as empty, even if rounded.
 so it can be old. An empty window with a reset time still in the
 future is trusted at any age, because a window cannot recover before its reset
 (the reset time is the expiry). Anything else, including "quota remaining",
-needs the provider's `fetchedAt` to be at most six minutes old (Quota's
-five-minute cache plus export-refresh grace) with no window past its reset;
-rewriting the export does not renew its data.
+needs the provider's `fetchedAt` to be at most six minutes old with no window
+past its reset; rewriting the export does not renew its data. Quota checks a
+provider only when something asks (the TUI's sidebar, `/quota`, a model turn,
+a limit), and the sidebar's asks at most every `minIntervalMs` (two minutes
+here, five by default); six minutes leaves room for that and a missed check.
 
 Before the first export, while Quota checks nothing (including headless use),
 or after its data expires, an unknown primary keeps the configured default. A different
