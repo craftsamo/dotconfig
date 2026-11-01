@@ -65,11 +65,12 @@ designed, worker-deep when its logic is hard; Build for design, integration
 and commits). When the work ends in pull requests, Phase N is one reviewable
 layer: one PR, or one layer of a native stack when there are several
 (git-pullrequest), in stack order; {m} are the steps inside it, each ending in
-a verified checkpoint commit. Work that ends in no PR keeps Phase = dependency
-wave, {m} = reference id within the phase (no ordering implied). Do not hide a
-layer's substance in one line: the reply says what each step delivers, while
-an item's `<task>` stays a few words in the user's language, so it fits the
-sidebar. Carry what the investigation found into the reply — the files each
+a verified checkpoint commit, and the plan says when the layers are published
+(each as it completes, or all at the end), agreed with the user. Work that
+ends in no PR keeps Phase = dependency wave, {m} = reference id within the
+phase (no ordering implied). Do not hide a layer's substance in one line: the
+reply says what each step delivers, while an item's `<task>` stays a few words
+in the user's language, so it fits the sidebar. Carry what the investigation found into the reply — the files each
 step touches, the existing file to follow, and the command that verifies it —
 so Build writes specs from the plan instead of investigating again.
 `Phase{N}.{m}` is the conversation's name for the work: it never enters a
@@ -92,9 +93,18 @@ note says, instead of in `todowrite`: Hermes reads that file, not the list.
 
 Ask the user to switch to Build; never switch automatically or start
 executing while still in Plan. Build executes phases in order, delegates per
-the executor tag, and keeps the list current as above. At phase boundaries
-and handoffs, restate unfinished items, blockers, and the next step in the
-reply, since only the TUI shows the list.
+the executor tag, and keeps the list current as above. An aligned plan — one
+the user agreed to in Plan mode and then switched to Build for — authorizes
+its checkpoint commits: Build commits each step once its check passes, without
+asking again, and never a step whose check failed or did not run. Publishing is outward-facing: Build pushes and opens PRs
+only when the plan's publish timing says so, and asks at the layer boundary
+when the plan does not say. A narrower restriction from the user or the
+session's instructions (local commit only, no push) wins. When the layers
+form a native stack, the report of the publication that completes its goal
+ends with the merge title and message for landing it in one merge, written
+out in full (git-pullrequest `<MergeMessageHandoff>`); Build never merges. At phase
+boundaries and handoffs, restate unfinished items, blockers, and the next step
+in the reply, since only the TUI shows the list.
 
 </PlanHandoff>
 
@@ -130,21 +140,22 @@ When asked to triage, resolve, or fix GitHub Dependabot security alerts
 
 <CommitSkill>
 
-When asked to create git commits — staging, splitting changes into atomic
-build-passing commits, writing commit messages, or tracing which
-commit/PR/Issue a change came from — load and follow the `git-commit` skill
-rather than committing ad hoc.
+When asked to create git commits, or when an aligned plan's step ends in its
+checkpoint commit — staging, splitting changes into atomic build-passing
+commits, writing commit messages, or tracing which commit/PR/Issue a change
+came from — load and follow the `git-commit` skill rather than committing ad
+hoc.
 
 </CommitSkill>
 
 <PullRequestSkill>
 
-When asked to open, push, or update a GitHub pull request — rebasing the
-branch onto its latest base, pushing it, creating a PR whose title and body
-match the repo, scanning the branch for related Issues/PRs to link, marking it
-ready, or following its CI checks and review comments — load and follow the
-`git-pullrequest` skill. It does not create commits (use `git-commit`) and does
-not merge.
+When asked to open, push, or update a GitHub pull request, or when an aligned
+plan's publish timing is reached — rebasing the branch onto its latest base,
+pushing it, creating a PR whose title and body match the repo, scanning the
+branch for related Issues/PRs to link, marking it ready, or following its CI
+checks and review comments — load and follow the `git-pullrequest` skill. It
+does not create commits (use `git-commit`) and does not merge.
 
 </PullRequestSkill>
 

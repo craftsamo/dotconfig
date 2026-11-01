@@ -34,6 +34,9 @@ actually touches, and follow its checks and reviews when asked. Never merge.
 <UseWhen>
 
 - The user asks to open, push, or update a pull request for the current branch.
+- The publish timing recorded in an aligned plan, agreed with the user, is
+  reached: a layer it publishes as it completes, or the last layer when it
+  publishes all at the end.
 - The user asks to mark a PR ready, or to refresh its title, body, links, or
   its labels, assignees, reviewers or milestone (<Metadata>).
 - The user asks to attach screenshots or recordings to a PR (<Media>).
@@ -354,8 +357,9 @@ do not cover, such as `gh stack sync` or `gh stack checkout`.
 PR descriptions and merge messages have different scopes, and a stack shows
 the gap: each layer's PR describes its own diff, while one stack merge lands
 every open layer up to the PR it names, by one method. This skill never
-merges. When the user asks how to land a stack, or the layer that completes
-its goal is published, it hands over a landing plan.
+merges. When the user asks how to land a stack or says it is ready to merge,
+or the layer that completes its goal is published, it hands over a landing
+plan.
 
 What a stack merge leaves on the trunk:
 
@@ -407,11 +411,13 @@ Landing plan for a stack whose layers serve one goal:
   and the method when handing it over.
 
 The plan names the layers it lands, the surface, the method, and the title
-and body. Re-read the stack right before handing it over: a layer added since
-changes the range. A later, separately authorized merge re-reads it again and
-takes the message from the range it actually lands, never from a stale
-summary or a copied top-layer title. PR creation settles none of this in
-advance.
+and body. Write the title and body out in full, ready to paste, in the
+language of the repository's merged PR titles: the title in one fenced block
+and the body in another, never only the rule they follow. Re-read the stack
+right before handing it over: a layer added since changes the range. A later,
+separately authorized merge re-reads it again and takes the message from the
+range it actually lands, never from a stale summary or a copied top-layer
+title. PR creation settles none of this in advance.
 
 This is a handoff rule, not merge execution. The surfaces above are named for
 whoever lands the stack; this skill runs none of them. Do not add merge
@@ -426,7 +432,10 @@ and [squash-message settings](https://docs.github.com/en/repositories/configurin
 
 <Steps>
 
-1. Confirm the user asked to open or update a PR. Inspect the branch with
+1. Confirm the user asked to open or update a PR, or that an aligned plan's
+   publish timing has been reached (global `<PlanHandoff>`); when the plan
+   does not say, ask at the layer boundary. A narrower restriction from the
+   user or the session's instructions (no push) wins. Inspect the branch with
    `git_state` (branch, upstream ahead/behind, uncommitted files, the
    branch's PR). Its `base` is the merge-base with the remote default branch,
    not the PR's base (Step 2 resolves that), and it reads local refs only:
@@ -558,7 +567,9 @@ and [squash-message settings](https://docs.github.com/en/repositories/configurin
 
 <AntiPatterns>
 
-- Do not open or update a PR unless explicitly asked.
+- Do not open or update a PR unless explicitly asked or an aligned plan's
+  publish timing calls for it; when the plan is silent, ask at the layer
+  boundary.
 - Do not create commits here — that is `git-commit`'s job.
 - Do not merge, and do not bypass the `git push` or `gh pr merge` gates.
 - Do not force-push unless explicitly asked, except the leased push of a
