@@ -1,6 +1,8 @@
 import { fail } from "./errors"
-import { OAUTH_PROVIDER } from "./lanes"
-import { modelsEqual, ROUTES, type ModelRef } from "./policy"
+import { aliasOf, modelsEqual, ROUTES, type ModelRef } from "./policy"
+import type { RouteTable } from "./routes"
+
+export { aliasOf }
 
 // The policy a launched child carries in its session metadata. Its guards
 // apply only to the exact child it names.
@@ -13,6 +15,7 @@ export type Marker = {
   agent: string
   model: ModelRef
   connectionID: string
+  // Launched on a later step's model than the first one.
   fallback: boolean
   // The suffix of the saved Claude login the child runs on, through the
   // alias of its model; absent on the active login.
@@ -28,13 +31,6 @@ export type MarkedSession = {
   metadata?: Record<string, unknown>
 }
 
-// A route model on a saved login: its alias.
-export const aliasOf = (
-  model: ModelRef,
-  login: string | undefined,
-): ModelRef =>
-  login === undefined ? model : { ...model, id: `${model.id}-${login}` }
-
 export const selector = (m: ModelRef) =>
   `${m.providerID}/${m.id}${m.variant ? `#${m.variant}` : ""}`
 
@@ -47,7 +43,10 @@ export const withMarker = (
   marker: Marker,
 ): Record<string, unknown> => ({ ...metadata, [METADATA_KEY]: marker })
 
-export function parseMarker(session: MarkedSession): Marker | undefined {
+export function parseMarker(
+  session: MarkedSession,
+  table: RouteTable,
+): Marker | undefined {
   const raw = session.metadata?.[METADATA_KEY]
   if (raw === undefined) return undefined
   // Metadata is inherited by nested children; only this exact child is protected.
@@ -77,15 +76,23 @@ export function parseMarker(session: MarkedSession): Marker | undefined {
     (raw.model.variant !== undefined && typeof raw.model.variant !== "string")
   )
     fail("invalid persisted child policy")
-  if (typeof raw.agent !== "string" || !Object.hasOwn(ROUTES, raw.agent))
-    fail("unapproved child role")
+  if (typeof raw.agent !== "string") fail("unapproved child role")
+  const agent = raw.agent as string
+  const routed = Object.hasOwn(table, agent)
+  const builtIn = Object.hasOwn(ROUTES, agent)
+  if (!routed && !builtIn) fail("unapproved child role")
   const marker = raw as unknown as Marker
-  const route = ROUTES[marker.agent]
-  const expected = marker.fallback ? route.alternate : route.primary
-  if (
-    (marker.login !== undefined && expected.providerID !== OAUTH_PROVIDER) ||
-    !modelsEqual(marker.model, aliasOf(expected, marker.login))
+  // A model of the role's route, or of its built-in route, through the
+  // login the marker names. The place is not checked: a child launched
+  // before the routes changed keeps its guards, and the login is checked
+  // on every request.
+  const models = [
+    ...(routed ? table[agent].map((step) => step.model) : []),
+    ...(builtIn ? [ROUTES[agent].primary, ROUTES[agent].alternate] : []),
+  ]
+  const listed = models.some((model) =>
+    modelsEqual(marker.model, aliasOf(model, marker.login)),
   )
-    fail("invalid persisted model selection")
+  if (!listed) fail("invalid persisted model selection")
   return marker
 }
