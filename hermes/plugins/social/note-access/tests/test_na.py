@@ -113,6 +113,12 @@ class FakeNote:
         raise AssertionError(op)
 
 
+@pytest.fixture(autouse=True)
+def stock_card_budgets(monkeypatch):
+    # cards.roomy() reads whichever gateway module an earlier test imported
+    monkeypatch.setattr(na.cards, "roomy", lambda: False)
+
+
 @pytest.fixture
 def note(tmp_path, monkeypatch):
     fake = FakeNote()

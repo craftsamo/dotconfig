@@ -71,6 +71,7 @@ def video_item(vid=VID, channel=CID, **status):
 def isolated(monkeypatch, tmp_path):
     store = tmp_path / "store"
     monkeypatch.setattr(ya, "STORE", store)
+    monkeypatch.setattr(ya.cards, "roomy", lambda: False)  # stock budgets, whatever the runtime loaded
     monkeypatch.setattr(ya, "MIN_GAP", 0)
     monkeypatch.setattr(ya, "DEFAULT_ATTACH_ROOT", tmp_path / "Workspaces")
     monkeypatch.setattr(ya, "VENV_PYTHON", tmp_path / "python")
