@@ -300,8 +300,8 @@ machinery or changing the policy.
 ## Subscription preflight for new specialists
 
 The local plugin `lib/subagent-fallback` (listed last under `plugins` in
-`opencode.jsonc`) checks quota before a new specialist launch and chooses in
-this order:
+`opencode.jsonc`, with its retry recorder right before Quota) checks quota
+before a new specialist launch and chooses in this order:
 
 1. The route's primary model, unless Quota reports it exhausted. A Claude
    model whose active login is known exhausted first takes the other saved
@@ -417,7 +417,8 @@ such a child hits is remembered for that login only.
 selection. During a task,
 Quota errors or exhaustion do not stop a child. Native provider quota errors
 and long rate-limit reset waits still end the protected task; short native
-transient retries are allowed. There is no model switch, restart or automatic
+transient retries are allowed, also when Quota stretched their wait ("Whose
+wait counts" below). There is no model switch, restart or automatic
 resubmit for a protected child (Console credit lanes below are a separate path
 that never touches one). Native providers may move to credits mid-request;
 launch preference is not a no-paid gate. Older markers retain identity/context
@@ -532,6 +533,18 @@ new lane launches.
 - A session never revisits a stop within five minutes, so the chain cannot
   loop. Children launched under the subscription preflight keep their own
   guards and are never moved.
+- **Whose wait counts.** OpenCode Quota's `waitForQuotaReset` (on by default)
+  sets a rate limit's wait to the reset of any used-up row of the model's
+  provider: another Claude login's window, the Fable weekly window, or a lane's
+  $0 estimate. A window limit is therefore judged by OpenCode's own decision,
+  which `lib/subagent-fallback/retry-recorder` (listed right before Quota
+  under `plugins`) records before Quota's hook runs. A short limit Quota
+  stretched neither moves a session nor marks its lane or login, and a
+  session this plugin would move retries after OpenCode's own wait; other
+  sessions keep Quota's. That holds for the first three retries of a request
+  only, and not when OpenCode itself gave up: then the wait as it stands
+  counts, so a real limit OpenCode retries quickly still moves the session.
+  Without the recorder the stretched wait counts, as before.
 
 **Balance.** Anthropic has no balance API, and an Admin API is not available to
 personal orgs, so the balance is estimated: a **checkpoint** (a balance known at

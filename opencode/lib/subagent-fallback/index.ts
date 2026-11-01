@@ -7,13 +7,16 @@ import {
   Episodes,
   EPISODE_TTL_MS,
   Cooldowns,
+  LONG_WAIT_MS,
   loginStop,
   nextModel,
   OAUTH_PROVIDER,
   SIDE_AGENTS,
   stopFor,
+  type Decision,
   type Role,
 } from "./lanes"
+import { judgedDecision } from "./native-retry"
 import { createLauncher } from "./launch"
 import { METADATA_KEY, parseMarker } from "./marker"
 import { readOptions } from "./options"
@@ -127,13 +130,14 @@ export async function setupPreflight(
           event.decision = { retry: false }
           return
         }
-        if (
-          event.error.type === "provider.quota" ||
-          ((event.error.type === "provider.rate-limit" ||
-            event.error.status === 429) &&
-            event.decision.retry &&
-            event.decision.delay > 10_000)
-        ) {
+        // A window limit by OpenCode's own decision (native-retry.ts): a
+        // wait Quota stretched for an unrelated used-up row is not one.
+        const own = judgedDecision(event)
+        const rateLimit =
+          event.error.type === "provider.rate-limit" ||
+          event.error.status === 429
+        const long = (d: Decision) => d.retry && d.delay > LONG_WAIT_MS
+        if (event.error.type === "provider.quota" || (rateLimit && long(own))) {
           // A bound child's Claude requests all leave on its login, a side
           // request on a plain model too, so the limit is that login's.
           if (event.model)
@@ -145,7 +149,10 @@ export async function setupPreflight(
               event.decision.retry ? event.decision.delay : undefined,
             )
           event.decision = { retry: false }
+          return
         }
+        // A short limit with a stretched wait: retry as OpenCode would.
+        if (rateLimit && long(event.decision)) event.decision = own
       }),
     )
     // Console credit lanes and other Claude logins. An empty balance fails
@@ -159,12 +166,18 @@ export async function setupPreflight(
         const provider = event.model.providerID
         const onLane = lanes.has(provider)
         if (!onLane && provider !== OAUTH_PROVIDER) return
-        const failure = classify(event.error, event.decision)
-        if (!failure) return
+        // Classified by OpenCode's own decision (native-retry.ts). A short
+        // limit whose wait another plugin stretched is no failure: the
+        // session stays and retries as OpenCode would have.
+        const own = judgedDecision(event)
+        const failure = classify(event.error, own)
+        const stretched =
+          !failure && classify(event.error, event.decision) === "quota"
+        if (!failure && !stretched) return
         if (onLane && failure === "credit") noteEmpty(provider)
         // A subscription failure matters only as a window limit; a lane
         // failure is any of the three.
-        if (!onLane && failure !== "quota") return
+        if (!onLane && failure !== undefined && failure !== "quota") return
         try {
           if (await protectedChild(event.sessionID)) return
           const session = await ctx.session.get({ sessionID: event.sessionID })
@@ -183,6 +196,14 @@ export async function setupPreflight(
             typeof agent === "string" &&
             Object.hasOwn(ROUTES, agent) &&
             ROUTES[agent].primary.providerID === OAUTH_PROVIDER
+          // The subscription's limit is moved off only for the roles that opt
+          // in: Claude specialists, and the primary when primaryFallback is on.
+          const moves =
+            onLane || (role === "primary" ? options.primaryFallback : eligible)
+          if (stretched) {
+            if (moves) event.decision = own
+            return
+          }
           // A window limit lasts as long as its wait; an empty balance or a
           // bad key lasts until someone fixes it, so those take the cooldown.
           if (onLane)
@@ -192,13 +213,7 @@ export async function setupPreflight(
                 ? event.decision.delay
                 : undefined,
             )
-          // The subscription's limit is moved off only for the roles that opt
-          // in: Claude specialists, and the primary when primaryFallback is on.
-          if (
-            !onLane &&
-            (role === "primary" ? !options.primaryFallback : !eligible)
-          )
-            return
+          if (!moves) return
           const tried = episodes.record(
             event.sessionID,
             stopFor(event.model, suffixes).key,
