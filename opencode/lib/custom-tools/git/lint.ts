@@ -5,6 +5,52 @@ import { COMMITLINT_CONFIGS, fileExists } from "./shared"
 
 export type Violation = { rule: string; severity: "error" | "warning"; message: string }
 
+export const SUBJECT_TARGET_MIN = 50
+export const SUBJECT_TARGET_MAX = 60
+export const BODY_MAX_LINES = 12
+export const BODY_MAX_COLUMNS = 800
+
+export const TRAILER_RE = /^(co-authored-by|signed-off-by|generated[ -]?by):/im
+export const GENERATED_WITH_RE = /generated with /i
+export function hasTrailer(text: string): boolean {
+  return TRAILER_RE.test(text) || GENERATED_WITH_RE.test(text)
+}
+
+export type SubjectTarget = { target: number; source: "history" | "default"; sample: number }
+
+export async function subjectTarget(cwd: string): Promise<SubjectTarget> {
+  const logRes = await tryGit(["log", "--no-merges", "-100", "--format=%an%x00%s%x00%b%x01"], cwd)
+  if (!logRes.ok) return { target: SUBJECT_TARGET_MIN, source: "default", sample: 0 }
+  const raw = logRes.stdout.trimEnd()
+  if (!raw) return { target: SUBJECT_TARGET_MIN, source: "default", sample: 0 }
+
+  const keptSubjects: string[] = []
+  for (const record of raw.split("\x01")) {
+    const clean = record.startsWith("\n") ? record.slice(1) : record
+    if (!clean) continue
+    const [author = "", subject = "", ...rest] = clean.split("\0")
+    const body = rest.join("\0")
+    if (/ \(#\d+\)$/.test(subject)) continue
+    if (/^(Merge|Revert)\b/.test(subject)) continue
+    if (/^(?:fixup|squash|amend)! /.test(subject)) continue
+    if (/\[bot\]/i.test(author)) continue
+    if (hasTrailer(body)) continue
+    keptSubjects.push(subject)
+  }
+
+  const sample = keptSubjects.length
+  if (sample < 20) return { target: SUBJECT_TARGET_MIN, source: "default", sample }
+
+  const widths = keptSubjects.map(displayWidth).sort((a, b) => a - b)
+  const n = widths.length
+  const p90 = widths[Math.ceil(n * 0.9) - 1]
+  return {
+    target: Math.min(SUBJECT_TARGET_MAX, Math.max(SUBJECT_TARGET_MIN, p90)),
+    source: "history",
+    sample,
+  }
+}
+
 const EMOJI_RE = /[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{1F1E6}-\u{1F1FF}\uFE0F]/u
 // East Asian Wide and Fullwidth ranges: a terminal and `git log` give each two columns.
 const WIDE_RE =
@@ -19,14 +65,20 @@ export function displayWidth(text: string): number {
   return width
 }
 
-export function lintMessage(message: string, allowTrailers: boolean, subjectMax: number): Violation[] {
+export function lintMessage(
+  message: string,
+  allowTrailers: boolean,
+  subjectMax: number,
+  subjectTarget: number = SUBJECT_TARGET_MIN,
+): Violation[] {
   const v: Violation[] = []
   const lines = message.replace(/\r\n/g, "\n").split("\n")
   const subject = lines[0] ?? ""
   const subjectWidth = displayWidth(subject)
   if (subjectWidth > subjectMax)
     v.push({ rule: "subject-hard-max", severity: "error", message: `Subject is ${subjectWidth} columns; hard limit ${subjectMax}.` })
-  else if (subjectWidth > 50) v.push({ rule: "subject-target", severity: "warning", message: `Subject is ${subjectWidth} columns; aim for <= 50.` })
+  else if (subjectWidth > subjectTarget)
+    v.push({ rule: "subject-target", severity: "warning", message: `Subject is ${subjectWidth} columns; aim for <= ${subjectTarget}.` })
   if (subject !== subject.trim()) v.push({ rule: "subject-whitespace", severity: "warning", message: "Subject has leading or trailing whitespace." })
   if (/\.$/.test(subject.trim())) v.push({ rule: "subject-period", severity: "warning", message: "Subject ends with a period." })
   if (!/^[a-z]+(\([^)]+\))?!?: .+/.test(subject) && !/^(Merge|Revert)\b/.test(subject))
@@ -44,8 +96,23 @@ export function lintMessage(message: string, allowTrailers: boolean, subjectMax:
     if (displayWidth(l) > 72 && !/^\s*(https?:\/\/|[-*]\s|\d+\.\s|\|)/.test(l))
       v.push({ rule: "body-wrap", severity: "warning", message: `Body line ${i + 1} is ${displayWidth(l)} columns; wrap near 72.` })
   }
+  let bodyLines = 0
+  let bodyColumns = 0
+  for (let i = 2; i < lines.length; i++) {
+    const l = lines[i]
+    if (l.trim() !== "") {
+      bodyLines++
+      bodyColumns += displayWidth(l)
+    }
+  }
+  if (bodyLines > BODY_MAX_LINES || bodyColumns > BODY_MAX_COLUMNS)
+    v.push({
+      rule: "body-length",
+      severity: "warning",
+      message: `Body is ${bodyLines} lines, ${bodyColumns} columns; aim for <= ${BODY_MAX_LINES} lines and ${BODY_MAX_COLUMNS} columns: keep the why, leave out what the diff shows.`,
+    })
   if (EMOJI_RE.test(message)) v.push({ rule: "emoji", severity: "warning", message: "Message contains emoji." })
-  if (!allowTrailers && (/^(co-authored-by|signed-off-by|generated[ -]?by):/im.test(message) || /generated with /i.test(message)))
+  if (!allowTrailers && hasTrailer(message))
     v.push({ rule: "trailer", severity: "warning", message: "Message contains an attribution or generated trailer." })
   const body = lines.slice(2).join("\n")
   const paths = body.match(/(?:^|\s)(?:[\w.-]+\/){2,}[\w.-]+\.\w+/g) ?? []
@@ -127,7 +194,7 @@ export async function commitlint(
 
 export const commit_lint = tool({
   description:
-    "Validate a candidate commit message before committing. Checks subject length in terminal columns, wide characters counting two (<=50 target, <=72 hard), conventional `type(scope): summary` structure, the blank line before the body, body wrap (~72), emoji, attribution/generated trailers, and file-path/line-number noise. If the repo has a local commitlint binary it is also run and its violations merged (authoritative); `commitlint` reports ran / not-installed / not-configured, and a commit-msg hook that runs a missing commitlint is an error. Lint the exact text that will be committed — rewrapping it afterwards defeats the check. Read-only. Returns { pass, commitlint, hook, errors, warnings }.",
+    "Validate a candidate commit message before committing. Checks subject length in terminal columns, wide characters counting two: a hard limit of 72, and a target that is the 90th percentile of the repository's recent subjects clamped to 50-60 (50 below 20 usable commits; squash-merge `(#N)` titles, merges, reverts, fixup/squash/amend, bots and trailer-carrying commits do not count). Also checks the conventional `type(scope): summary` structure, the blank line before the body, body wrap (~72), body length (> 12 lines or > 800 columns), emoji, attribution/generated trailers, and file-path/line-number noise. If the repo has a local commitlint binary it is also run and its violations merged (authoritative); `commitlint` reports ran / not-installed / not-configured, and a commit-msg hook that runs a missing commitlint is an error. Lint the exact text that will be committed — rewrapping it afterwards defeats the check. Read-only. Returns { pass, commitlint, hook, subjectTarget, errors, warnings }.",
   args: {
     message: tool.schema.string().describe("The full candidate commit message (subject, blank line, body)."),
     allowTrailers: tool.schema.boolean().optional().describe("Permit attribution/generated trailers (default false)."),
@@ -135,13 +202,22 @@ export const commit_lint = tool({
   },
   async execute(args, context) {
     const cwd = context.worktree
-    const violations = lintMessage(args.message, args.allowTrailers ?? false, args.subjectMax ?? 72)
+    const target = await subjectTarget(cwd)
+    const violations = lintMessage(args.message, args.allowTrailers ?? false, args.subjectMax ?? 72, target.target)
     const checked = await withTempFile("opencode-commitmsg", ".txt", args.message, (file) => commitlint(file, cwd))
     violations.push(...checked.violations)
     const errors = violations.filter((x) => x.severity === "error")
     const warnings = violations.filter((x) => x.severity === "warning")
     return JSON.stringify(
-      { pass: errors.length === 0, commitlintRan: checked.status === "ran", commitlint: checked.status, hook: checked.hook, errors, warnings },
+      {
+        pass: errors.length === 0,
+        commitlintRan: checked.status === "ran",
+        commitlint: checked.status,
+        hook: checked.hook,
+        subjectTarget: target,
+        errors,
+        warnings,
+      },
       null,
       2,
     )
