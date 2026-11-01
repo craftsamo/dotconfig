@@ -2,6 +2,8 @@ import { readFile } from "node:fs/promises"
 import { homedir } from "node:os"
 import { join } from "node:path"
 import { recordCheckpoint } from "../credit-lanes/collect"
+import { readLaneBook, type LaneBook } from "./empty-lanes"
+import { fileStore, type SavedStore } from "./saved"
 import { QUOTA_MAX_AGE_MS, type AccountProof, type QuotaProof } from "./policy"
 
 export type Dependencies = {
@@ -10,16 +12,26 @@ export type Dependencies = {
   // A lane reported an empty balance: a checkpoint for the balance estimate
   // (lib/credit-lanes).
   creditEmpty?: (provider: string) => Promise<void>
+  // The balance estimate's lanes and state, to pass over lanes known empty.
+  // Without it no lane is.
+  readLanes?: () => LaneBook | undefined
+  // Lane cooldowns and daily tries kept across restarts. Without it they
+  // last as long as the process.
+  saved?: SavedStore
+  // Waits that long; a timer by default.
+  sleep?: (ms: number) => Promise<void>
 }
 
 export const dependencies: Dependencies = {
   readExport: (path) => readFile(path, "utf8"),
   now: Date.now,
   creditEmpty: (provider) => recordCheckpoint(provider, 0, "empty"),
+  readLanes: readLaneBook,
+  saved: fileStore(),
 }
 
 export function exportPath(
-  env: Pick<NodeJS.ProcessEnv, "XDG_CACHE_HOME"> = process.env,
+  env: Readonly<Record<string, string | undefined>> = process.env,
   home = homedir(),
 ): string {
   return join(
@@ -133,7 +145,8 @@ export function readQuota(
   // Either window at (rounded) 0% means the provider is exhausted; credits
   // may already be spent behind the scenes, so prefer the other provider.
   // A window cannot recover before its reset, so an empty row stays reliable
-  // however old the export is (Quota refreshes only while the TUI is open).
+  // however old the export is (Quota checks only when something asks, so
+  // with no TUI open it can stay unchanged for hours).
   const exhausted = rows.filter((row) => empty(row) && pending(row))
   if (exhausted.length)
     return {
@@ -150,6 +163,33 @@ export function readQuota(
   return {
     state: rows.some(empty) ? "exhausted" : "available",
     observedAt,
+  }
+}
+
+// Logins Quota reported spent, until the reset it gave. The export keeps
+// only a provider's last check, and a failed check leaves no rows, so a
+// login known spent would read as unknown again. A window cannot recover
+// before its reset, so that reading stands until then when nothing newer is
+// known; any other reading replaces it.
+export class SpentWindows {
+  private spent = new Map<string, QuotaProof>()
+  recall(
+    account: AccountProof | undefined,
+    proof: QuotaProof,
+    now: number,
+  ): QuotaProof {
+    if (!account) return proof
+    const key = `${account.providerID}/${account.connectionID}`
+    if (proof.state === "unknown") {
+      const kept = this.spent.get(key)
+      if (kept?.resetAt !== undefined && kept.resetAt > now) return kept
+      this.spent.delete(key)
+      return proof
+    }
+    if (proof.state === "exhausted" && proof.resetAt !== undefined)
+      this.spent.set(key, proof)
+    else this.spent.delete(key)
+    return proof
   }
 }
 

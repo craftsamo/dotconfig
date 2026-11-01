@@ -2,7 +2,13 @@ import { describe, expect, test } from "bun:test"
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { exportPath, loadQuotaExport, readQuota, dependencies } from "./quota"
+import {
+  exportPath,
+  loadQuotaExport,
+  readQuota,
+  dependencies,
+  SpentWindows,
+} from "./quota"
 import { QUOTA_MAX_AGE_MS, type AccountProof } from "./policy"
 
 const NOW = 1_710_000_000_000
@@ -355,6 +361,37 @@ describe("Quota public JSON", () => {
 
 // Quota 6's export (v3): rows carry a stable id and the login's account text
 // instead of a connection ID. Shapes follow its quota-export.ts.
+describe("SpentWindows", () => {
+  const spent = {
+    state: "exhausted",
+    observedAt: NOW,
+    resetAt: NOW + 3_600_000,
+  } as const
+  const unknown = { state: "unknown", observedAt: NOW } as const
+  test("keeps a spent login through unknown readings until its reset", () => {
+    const w = new SpentWindows()
+    expect(w.recall(account, spent, NOW)).toBe(spent)
+    expect(w.recall(account, unknown, NOW + 60_000)).toBe(spent)
+    expect(w.recall(account, unknown, NOW + 3_600_000)).toBe(unknown)
+    // Gone once past its reset.
+    expect(w.recall(account, unknown, NOW + 60_000)).toBe(unknown)
+  })
+  test("any other reading replaces it, and logins are kept apart", () => {
+    const w = new SpentWindows()
+    const other = { ...account, connectionID: "fixture-other" }
+    w.recall(account, spent, NOW)
+    expect(w.recall(other, unknown, NOW)).toBe(unknown)
+    const available = { state: "available", observedAt: NOW } as const
+    expect(w.recall(account, available, NOW)).toBe(available)
+    expect(w.recall(account, unknown, NOW)).toBe(unknown)
+    // An empty row without a reset time is not kept.
+    const noReset = { state: "exhausted", observedAt: NOW } as const
+    w.recall(account, noReset, NOW)
+    expect(w.recall(account, unknown, NOW)).toBe(unknown)
+    expect(w.recall(undefined, unknown, NOW)).toBe(unknown)
+  })
+})
+
 describe("Quota 6 public JSON", () => {
   const work: AccountProof = { ...account, label: "Work" }
   const v3row = (

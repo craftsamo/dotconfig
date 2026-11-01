@@ -56,11 +56,14 @@ export function classify(
   return undefined
 }
 
-// A lane that failed is skipped for a while. There is no balance API, so the
-// first request after the cooldown is the probe: an empty lane fails fast
-// (before any generation) and is marked again.
-export class Lanes {
+// Places to skip for a while: credit lanes that failed, and the subscription
+// windows a protected child hit. A lane has no balance API, so the first
+// request after the cooldown is the probe: an empty lane fails fast (before
+// any generation) and is marked again.
+export class Cooldowns {
   private until = new Map<string, number>()
+  // Cooldowns a restart should drop (saved() leaves them out).
+  private volatile = new Set<string>()
   constructor(
     readonly ids: readonly string[],
     private cooldownMs: number,
@@ -70,14 +73,17 @@ export class Lanes {
     return this.ids.includes(id)
   }
   // forMs shortens the block (a window limit that says when it resets); it
-  // never exceeds the cooldown.
-  mark(id: string, forMs?: number): void {
+  // never exceeds the cooldown. kept: false for a block a restart can lift,
+  // such as a bad key, which only a restart lets OpenCode read again.
+  mark(id: string, forMs?: number, kept = true): void {
     if (!this.has(id)) return
     const ms =
       forMs !== undefined && Number.isFinite(forMs) && forMs > 0
         ? Math.min(forMs, this.cooldownMs)
         : this.cooldownMs
     this.until.set(id, this.now() + ms)
+    if (kept) this.volatile.delete(id)
+    else this.volatile.add(id)
   }
   blocked(id: string): boolean {
     const until = this.until.get(id)
@@ -88,7 +94,34 @@ export class Lanes {
     }
     return true
   }
+  // The cooldowns still running, to keep across a restart (saved.ts).
+  saved(): Record<string, number> {
+    const now = this.now()
+    return Object.fromEntries(
+      [...this.until].filter(
+        ([id, until]) => until > now && !this.volatile.has(id),
+      ),
+    )
+  }
+  // Takes back saved cooldowns of these ids, none longer than one.
+  restore(saved: Record<string, number>): void {
+    const now = this.now()
+    for (const [id, until] of Object.entries(saved))
+      if (this.has(id) && until > now && until <= now + this.cooldownMs)
+        this.until.set(id, until)
+  }
 }
+
+// The lanes in order and which to pass over now: the cooldowns, with the
+// lanes known empty (empty-lanes.ts) passed over too.
+export type LaneView = Pick<Cooldowns, "ids" | "blocked">
+export const passingOver = (
+  lanes: LaneView,
+  skip: ReadonlySet<string>,
+): LaneView => ({
+  ids: lanes.ids,
+  blocked: (id) => skip.has(id) || lanes.blocked(id),
+})
 
 // Providers one session has already failed on recently, so a chain that
 // cycles (subscription -> lane -> subscription) cannot loop.
@@ -180,7 +213,7 @@ export function retarget(
 export function nextModel(input: {
   current: ModelRef
   role: Role
-  lanes: Lanes
+  lanes: LaneView
   // The other saved Claude logins a session may move to, in order.
   logins?: readonly string[]
   // Every configured login suffix, usable or not, to tell which login a
@@ -219,7 +252,7 @@ export function nextModel(input: {
 // never changes it silently.
 export function launchLane(
   model: ModelRef,
-  lanes: Lanes,
+  lanes: LaneView,
   catalog: CatalogModel[],
 ): ModelRef | undefined {
   if (model.providerID !== OAUTH_PROVIDER) return undefined
