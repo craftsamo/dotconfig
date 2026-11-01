@@ -512,6 +512,30 @@ describe("launch and persistence", () => {
       expect(marker(env).fallback).toBe(false)
     }
   })
+  test("a login Quota reported spent stays spent until its reset when its rows go missing", async () => {
+    const f = await fallback()
+    expect(f.env.originals[0].model).toBe(sel(SOL))
+    // A failed check leaves the provider without rows, or no file at all.
+    f.env.quota.anthropic = undefined
+    await f.inst.run()
+    expect(f.env.originals[1].model).toBe(sel(SOL))
+    f.env.unavailable = true
+    await f.inst.run()
+    expect(f.env.originals[2].model).toBe(sel(SOL))
+    // Past the reset it is unknown again, and the default stands.
+    f.env.now += 61 * 60_000
+    await f.inst.run()
+    expect(f.env.originals[3].model).toBeUndefined()
+  })
+  test("a newer reading replaces a kept spent login", async () => {
+    const f = await fallback()
+    f.env.quota.anthropic = 80
+    await f.inst.run()
+    expect(f.env.originals[1].model).toBeUndefined()
+    f.env.quota.anthropic = undefined
+    await f.inst.run()
+    expect(f.env.originals[2].model).toBeUndefined()
+  })
   test("an empty default with unknown alternate data still prefers the alternate", async () => {
     const { env, inst } = await fixture()
     env.quota.anthropic = 0
