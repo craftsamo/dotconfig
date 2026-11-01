@@ -24,7 +24,12 @@ import {
   ROUTES,
   type ModelRef,
 } from "./policy"
-import { loadQuotaExport, readQuota, type Dependencies } from "./quota"
+import {
+  loadQuotaExport,
+  readQuota,
+  SpentWindows,
+  type Dependencies,
+} from "./quota"
 import {
   supported,
   type Executor,
@@ -66,6 +71,7 @@ export function createLauncher(
   },
 ): (original: Executor) => Executor {
   const { deps, options, lanes, limited, logins, suffixes, loginOf } = state
+  const spent = new SpentWindows()
   return (original) => async (input, context) => {
     // Outcome is historical, not a busy flag. There is no atomic
     // idle-and-release API, so protection stays with this exact child.
@@ -182,7 +188,11 @@ export function createLauncher(
             observedAt: deps.now(),
             reason: "window limit observed on a protected child",
           }
-        : readQuota(snapshot, auth?.proof, deps.now())
+        : spent.recall(
+            auth?.proof,
+            readQuota(snapshot, auth?.proof, deps.now()),
+            deps.now(),
+          )
       return {
         account: auth?.proof,
         quota,

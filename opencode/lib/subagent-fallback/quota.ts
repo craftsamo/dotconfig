@@ -153,6 +153,33 @@ export function readQuota(
   }
 }
 
+// Logins Quota reported spent, until the reset it gave. The export keeps
+// only a provider's last check, and a failed check leaves no rows, so a
+// login known spent would read as unknown again. A window cannot recover
+// before its reset, so that reading stands until then when nothing newer is
+// known; any other reading replaces it.
+export class SpentWindows {
+  private spent = new Map<string, QuotaProof>()
+  recall(
+    account: AccountProof | undefined,
+    proof: QuotaProof,
+    now: number,
+  ): QuotaProof {
+    if (!account) return proof
+    const key = `${account.providerID}/${account.connectionID}`
+    if (proof.state === "unknown") {
+      const kept = this.spent.get(key)
+      if (kept?.resetAt !== undefined && kept.resetAt > now) return kept
+      this.spent.delete(key)
+      return proof
+    }
+    if (proof.state === "exhausted" && proof.resetAt !== undefined)
+      this.spent.set(key, proof)
+    else this.spent.delete(key)
+    return proof
+  }
+}
+
 export async function loadQuotaExport(
   deps: Dependencies,
   path: string,

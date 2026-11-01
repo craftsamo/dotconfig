@@ -323,7 +323,10 @@ Missing, stale or unreadable data about the primary keeps the configured
 default, not a quota error or an automatic model switch. One exception: a
 window limit a protected child just hit (the provider's own word) counts as
 exhausted for the wait it asked for, or an hour without one, so the relaunch
-goes elsewhere before the export catches up. No independent
+goes elsewhere before the export catches up. Likewise a login Quota reported
+spent stays spent until the reset it gave while later exports say nothing
+about it: Quota writes only a provider's last check, and a failed check
+leaves no rows. Any newer reading of the login replaces it. No independent
 balance/entitlement check is performed. Variants and permissions are
 unchanged; with `pinModels` (below) a project's own model for a role is not.
 
