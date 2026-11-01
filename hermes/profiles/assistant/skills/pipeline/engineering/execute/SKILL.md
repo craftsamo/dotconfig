@@ -75,16 +75,16 @@ not something to send to OpenCode.
    one job.
 3. **Build the approved unit.** Call `opencode_run_build` on that session with
    `approval` quoting the user's approving words for this unit (never your own
-   paraphrase) and `output_dir` set to the unit's own directory
+   paraphrase; the argument is the record, so the message never reports it) and `output_dir` set to the unit's own directory
    (`<job>/issue-N`), where the run keeps its step list in `progress.md`. The
    session carries the unit's `issue` from its plan turn (the run reads it as
    the spec and its completing PR closes it); an excluded job passes
    `untracked_reason` quoting the user's words instead, and a build with
    neither is refused. Pass the job's `mandate` (its id from the decision
    log) so the build ticks its own issue's layers and moves its Status as it
-   goes. The message is a short brief in plain prose: the unit
-   to build, what changed since the plan and why (the user's words inside
-   your sentences where their wording matters), and the path of the decision
+   goes. The message is a short brief in plain prose, in your own voice: the
+   unit to build, what changed since the plan and why (stated as decided,
+   never as what the user said or approved), and the path of the decision
    log; the session already holds the plan, and its tools enforce the rules.
    Ask for outcomes (the checks' actual results, how the user can try it),
    not methods. Ask for a closer review of an area, in a sentence, only where

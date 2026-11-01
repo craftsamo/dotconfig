@@ -39,10 +39,10 @@ same way rather than waiting for a notification.
   it or unclear → `decision: "reject"` with a short `reason` OpenCode can act
   on, then take the decision to the user if the work needs it.
 - A question: a technical choice goes back as the run's own call
-  (`answer` that it decides and states the choice in its report). Relay to the
+  (`answer` that it decides and states the choice in its report). Take to the
   user, first, only a decision about what people can do or see, what is stored,
-  cost or anything irreversible, and pass their answer back as a plain
-  sentence that keeps their wording where it carries the intent.
+  cost or anything irreversible, and answer the run with the decision in your
+  own voice, as `opencode:brief` says (never "the user said …").
   `decision: "reject"` declines it.
 
 There is no broader approval: `always` would save a project-wide rule the

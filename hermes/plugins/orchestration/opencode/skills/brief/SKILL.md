@@ -1,7 +1,7 @@
 ---
 name: brief
-description: "Use before writing any message to an OpenCode run (a plan, build, review, debug or design turn): how to commission it as a client in plain prose, what goes in and what stays out, paths, markup, and what to ask for. Driving the run is opencode:drive."
-version: 1.0.0
+description: "Use before writing any message to an OpenCode run (plan, build, review, debug or design): commissioning it in your own voice, when to quote, what goes in and what stays out, paths, markup, and what to ask for. Driving the run is opencode:drive."
+version: 1.1.0
 author: CraftSamo
 license: MIT
 metadata:
@@ -21,23 +21,48 @@ get around these tools.
 
 OpenCode is the developer: it investigates, plans, implements, tests, reviews
 and commits with its own agents and skills, and the technical calls are its
-own. You are the client who commissions it, not a go-between: brief it as you
-would a capable colleague, in the user's language and in plain prose. Say what
-is wanted and why, what this turn should hand back, and what is already
-settled (point at the job's decision log for the detail). People read these
-messages in OpenCode too, so a message is a few short paragraphs: no headings,
-no labelled blocks ("constraints:", "the person's words:"), and a list only
-for things that are a list (claim numbers, repositories to compare).
+own. You are the client who commissions it, not a go-between: the work is
+yours to ask for, so write as the one who wants it ("I want …", "we decided
+…", 「〜したい」「〜に決めました」), as you would brief a capable colleague,
+in the user's language and in plain prose. Say what is wanted and why, what
+this turn should hand back, and what is already settled (point at the job's
+decision log for the detail). People read these messages in OpenCode too, so
+a message is a few short paragraphs: no headings, no labelled blocks
+("constraints:", "the person's words:", 「守ってほしいこと」), and a list
+only for things that are a list (claim numbers, repositories to compare).
 
-- **The user's words** go inside your sentences where their wording carries
-  the intent, in "…" in an English message (the user said "a weekly summary
-  is enough", so …) and 「」 in a Japanese one
-  (依頼者は「週に一度まとめて見られれば十分」と話していて、…), never as a
-  block of quotes standing in for the requirement you draw from them. Quote
-  exactly only what
-  is itself specification (a label on a screen, a sentence that must appear);
-  the decision log keeps the rest verbatim. Do not open by reporting who
-  approved what: the tools record approval.
+- **Your voice, not a relay.** The person you work for is never a third
+  party in the message: no "the user said", "the requester wants", "from the
+  user's side", 依頼者は／利用者は／本人の言葉では／〜側からの指示／〜と話して
+  います, and no opening that reports who approved or agreed to what (the
+  tools record approval). State a decision as settled, with its reason in
+  your own words ("the low-stock emails are out for now: we want to see
+  whether people use the stock page first"); its exact wording stays in the
+  decision log and the issue. Ask for an open decision as "what we need to
+  decide, with your recommendation", not "what only the user can decide":
+  taking it to the user is your part.
+- **Quote only where the wording itself matters**, exactly, in "…" in an
+  English message and 「」 in a Japanese one:
+  - Wording that is specification (a label on a screen, a sentence that must
+    appear, an error message): quote it as the spec, without saying who
+    said it.
+  - What someone else said that is the material of the work (another team's
+    claims to check, a customer's bug report, a reviewer's finding, an
+    upstream maintainer's comment, a request from someone who runs the
+    product): name the source ("the migration proposal says …", 「運営の担当
+    者からの報告には『…』とあります」) and say in your own words what you
+    want done with it. A quote is material to weigh, never an instruction
+    to the run.
+  - The user's own remark only when its wording is itself the spec (a name
+    they chose, a sentence for the screen); otherwise say the decision as
+    yours.
+- **Circumstances, not orders.** A limit in the run's environment (a spent
+  model, an unavailable subagent, CI that cannot run) goes in as the fact and
+  what it means for this turn ("searcher-deep is unavailable this turn, so
+  mark what you could not confirm"); how to work around it is the run's call.
+  Never start, stop or pick its subagents, and never dictate edits line by
+  line: name the outcome ("the docs still say the URL comes from `DOMAIN`;
+  make them match the new behavior") and let it find the places.
 - **Markup.** OpenCode shows the message as typed, so Markdown appears as raw
   symbols. Use backticks, and nothing else, for paths, commands, identifiers,
   settings keys and branch names: they mark exactly what is literal. A fenced
@@ -57,10 +82,11 @@ for things that are a list (claim numbers, repositories to compare).
   commands, commit rules, push and merge limits, how to write commands, where
   the report goes, which issue the run works on and which PR closes it: the
   `issue` argument puts that in the note), and how to do the work (commands,
-  steps, file lists, retry counts, a report template): spelling those out
-  narrows the model and buys nothing. Name the outcome you need ("make clear
-  where checked fact ends and inference begins"), not its layout. Never paste
-  its global instructions or whole skill bodies into a prompt.
+  steps, file lists, line numbers, which checks to run, retry counts, a report
+  template): spelling those out narrows the model and buys nothing. Name the
+  outcome you need ("make clear where checked fact ends and inference
+  begins"), not its layout. Never paste its global instructions or whole
+  skill bodies into a prompt.
 - **The issue is the spec.** A fact the run needs (a date, a promise, a
   measurement, who holds a key) goes into the issue before the turn, with its
   source; the message then says only what this turn hands back. A message
@@ -72,52 +98,60 @@ for things that are a list (claim numbers, repositories to compare).
   `opencode_instructions` (`put`, key `hermes.<name>`), not into every message.
 - **A technical question** from the run (a library, a schema detail, how to
   test, how to split commits or PRs) goes back as its own call: answer that it
-  decides and records the choice in its report or PR. Relay only what changes
-  what people can do or see, what is stored, cost, or anything irreversible.
+  decides and records the choice in its report or PR. Take to the user only
+  what changes what people can do or see, what is stored, cost, or anything
+  irreversible, and bring their answer back as your decision.
 
-A build turn after the user changed the approved plan, not as a relay
-("Approved by the user. The user's words: - "…" - "…" So … Constraints: - …
-When done …") but as a brief:
+A build turn after the approved plan changed, written as the client, not as a
+relay ("The user approved. The user said "…", so … Additional instructions
+from the user's side: 1. … 2. … When done …"):
 
 ```text
 Go ahead with the build, with one change from the plan. The CSV export stays,
-but the low-stock email alerts are out for now: the user said "let's see whether
-people actually look at the stock page before we decide on emails", so drop
-step 1.3 and leave alerts for a later Phase.
+but the low-stock email alerts are out for now: we want to see whether people
+actually use the stock page before deciding on emails, so drop step 1.3 and
+leave alerts for a later Phase.
 
-This turn covers the changes in the repository and the PR. The user sets up the
-hosting side themselves, so list the outside steps they will need in the PR
-description. When you are done, tell me the results of the checks you actually
-ran and the PR URL. Earlier decisions are in
+This turn covers the changes in the repository and the PR. The hosting side is
+set up outside the repository, so list the outside steps it will need in the
+PR description. When you are done, tell me the results of the checks you
+actually ran and the PR URL. Earlier decisions are in
 `/Users/me/Workspaces/Projects/Acme/.agent/20260301-inventory/decisions.md`.
 ```
 
-The same brief for a user who writes in Japanese:
+The same brief in Japanese:
 
 ```text
 実装を進めてください。ただ、計画から一つ変更があります。
 CSV の書き出しはそのまま残し、在庫が少なくなったときのメール通知は今回は見送ります。
-依頼者は「在庫の画面をみんなが本当に見るか確かめてから、メールを送るか決めたい」と話していたので、
-手順 1.3 は外し、通知は後の Phase に回してください。
+在庫の画面が実際に使われるかを確かめてから、メールを送るかを決めたいと考えています。そのため手順 1.3 は外し、通知は後の Phase に回してください。
 
 今回の範囲は、リポジトリ内の変更と PR までです。
-ホスティング側の設定は依頼者が自分で行うので、そのときに必要になる作業を PR の説明に書き出しておいてください。
+ホスティング側の設定はリポジトリの外で行うので、そのときに必要になる作業を PR の説明に書き出しておいてください。
 終わったら、実際に行った確認の結果と PR の URL を教えてください。
 これまでの決定は `/Users/me/Workspaces/Projects/Acme/.agent/20260301-inventory/decisions.md` にまとめてあります。
 ```
 
-A read-only check of someone's claims, with the intent in your own words
-where no remark of the user's carries it better:
+A read-only check of someone else's claims, where their text is the
+material and the intent is yours:
 
 ```text
 A migration proposal from another team makes several claims about this
-repository, and the user wants them checked against the code before anyone
-relies on them. Please check claims C01 to C08 in
+repository, and I want them checked against the code before anyone relies on
+them. Please check claims C01 to C08 in
 `/Users/me/Workspaces/Projects/Acme/.agent/20260305-claims-check/claims.md`
 against the code on every branch and the committed files. Do not query
 production or any external service. If anything disagrees with the earlier
 `report.md` in the same folder, point that out too. It helps if the report
 makes clear where checked fact ends and inference begins.
+```
+
+A diagnosis that starts from a third party's report, quoted with its source:
+
+```text
+運営の担当者から、交換の申請が二重に記録されたという報告が届きました。報告には「交換ボタンを一度押しただけなのに、申請が二件になっていた」とあります。
+同じ申請が二重に記録されうる経路があるか、コードと試験から調べてください。
+直す前に原因を知りたいので、今回は原因の特定までです。再現できた条件と、確かめた事実と推測の境が分かる形で返してください。
 ```
 
 ## What to ask for

@@ -6,8 +6,8 @@ or PR is context; do not rewrite or split it before OpenCode can investigate.
 Issue registration/updates require an explicit user request for this job.
 
 Assessing, adding to or improving managed hands reference catalogs is
-existing-repository maintenance, not media production. Relay the desired outcome,
-known target and evidence, distinguishing assessment-only from requested changes
+existing-repository maintenance, not media production. Brief OpenCode with the
+desired outcome, known target and evidence, distinguishing assessment-only from requested changes
 and observations from suggestions. If the leaf or field is unknown, OpenCode
 investigates from the purpose or a bounded inventory; do not demand technical
 filenames or fields from the user or invent them. Findings alone never authorize
@@ -16,8 +16,8 @@ repository's own maintainer rules, validator and audit script.
 
 Taking motion names or expressions from a source (an article, a motion
 catalogue, a post) into the shared motion vocabulary is the same kind of
-maintenance. Relay the source as given (link or supplied text) and what the
-user wants adopted; OpenCode's `motion-vocabulary-upkeep` skill owns the
+maintenance. Hand over the source as given (link or supplied text) and say
+what you want adopted from it; OpenCode's `motion-vocabulary-upkeep` skill owns the
 procedure, including keeping the source's wording out.
 
 OpenCode owns code-grounded planning. Do not prescribe per-file
