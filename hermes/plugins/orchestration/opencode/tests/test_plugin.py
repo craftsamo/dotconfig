@@ -753,6 +753,19 @@ def test_limit_retry_hands_back_and_through_retry_waits_on(fixture):
     assert "only accepted for wait" in session("status", first["session_id"], through_retry=True)["error"]
 
 
+def test_a_subagent_limit_waits_for_its_route(fixture):
+    _, directory, _, fake = fixture
+    scripted(fake, "retry-child:The usage limit has been reached:1", "hold")
+    early = run("plan", directory, timeout=1)
+    assert early["status"] == "running" and early.get("timed_out") is True and "retrying" not in early
+    scripted(fake, "retry-child:The usage limit has been reached:3", "hold")
+    late = run("plan", directory, timeout=1)
+    assert late["status"] == "running" and not late.get("timed_out")
+    retry = late["retrying"]
+    assert retry["subagent"] is True and retry["kind"] == "limit"
+    assert "through_retry" in late["note"] and "names another subagent" in late["note"]
+
+
 def test_transient_retry_hands_back_only_after_some_attempts(fixture):
     _, directory, _, fake = fixture
     scripted(fake, "retry:Bad Gateway:1", "hold")
