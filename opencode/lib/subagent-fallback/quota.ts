@@ -19,7 +19,7 @@ export const dependencies: Dependencies = {
 }
 
 export function exportPath(
-  env: Pick<NodeJS.ProcessEnv, "XDG_CACHE_HOME"> = process.env,
+  env: Readonly<Record<string, string | undefined>> = process.env,
   home = homedir(),
 ): string {
   return join(
