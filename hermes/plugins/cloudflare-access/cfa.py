@@ -44,6 +44,7 @@ def _load_shared(name):
 
 
 cards = _load_shared("card")
+approval_tier = _load_shared("approval_tier")
 shell_commands = _load_shared("shell_commands")
 project_place = _load_shared("project_place")
 
@@ -1239,11 +1240,12 @@ def status(can_write: bool) -> dict:
 # result is shaped. Planning reads what the card shows from Cloudflare; nothing is changed.
 
 APPROVAL_TTL = 900
+RULE_KEYS = ("op", "id", "to", "forward", "drop", "worker", "name", "enabled")   # what one email_rule takes
 COMMON_WRITE_ARGS = {"action", "account", "preview"}
 WRITE_ARGS = {"dns_change": {"zone", "changes"}, "cache_purge": {"zone", "urls", "hosts", "prefixes", "everything"},
               "worker_rollback": {"script", "version", "message"}, "pages_rollback": {"project", "deployment"},
-              "zone_setting": {"zone", "setting", "value"},
-              "email_rule": {"zone", "op", "id", "to", "forward", "drop", "worker", "name", "enabled"},
+              "zone_setting": {"zone", "setting", "value", "settings"},
+              "email_rule": {"zone", "rules", *RULE_KEYS},
               "tunnel_route": {"tunnel", "op", "hostname", "service", "path"},
               "storage_create": {"kind", "name"}, "storage_delete": {"kind", "bucket", "namespace", "database"}}
 STORAGE_KINDS = ("r2", "kv", "d1")
@@ -1285,6 +1287,10 @@ SETTING_EFFECTS = {
     "development_mode": "On, the cache is bypassed for three hours",
     "security_level": "How often visitors are challenged",
 }
+ENDS_ON_ITS_OWN = ("development_mode", "on")   # the one setting change Cloudflare undoes by itself, after three hours
+ONE_BY_ONE = "Applied one after another; if one fails, the rest are not sent."   # the last line of a list's card
+RULES_EFFECT = {cards.CAUTION: "Mail to the addresses goes where the rules say",
+                cards.DANGER: "A rule is deleted or the catch-all changes: mail may go elsewhere"}
 DEPLOYMENT = re.compile(r"^[A-Za-z0-9-]{1,64}$")
 ROLLBACK_MESSAGE = "Rolled back through Hermes"
 PURGE_MAX = 30
@@ -1298,6 +1304,23 @@ TXT_MAX = 2048
 TTL_LEAST, TTL_MOST = 60, 86400
 
 visible = cards.visible
+LEVELS = (cards.SAFE, cards.CAUTION, cards.DANGER)   # a card's levels, least to most serious
+
+
+def _highest(levels) -> str:
+    """The most serious of several cards' levels: one card for several changes carries the worst."""
+    return max(levels, key=LEVELS.index)
+
+
+@contextmanager
+def _numbered(label: str, n: int, many: bool):
+    """Name which of several changes a CloudflareError raised inside is about; one change reads as before."""
+    try:
+        yield
+    except CloudflareError as exc:
+        if not many:
+            raise
+        raise CloudflareError(f"{label} {n}: {exc}") from exc
 
 
 def _short(text, limit: int = 60) -> str:
@@ -1323,7 +1346,8 @@ def _check_args(action: str, args: dict) -> None:
 def _plan(action: str, reply: dict, title: str) -> dict:
     return {"action": action, "account": reply["account"], "account_id": reply.get("account_id"),
             "fingerprint": reply.get("fingerprint"), "title": title, "effect": None, "once": False, "facts": [],
-            "lines": [], "details": [], "steps": [], "bind": [], "shape": None}
+            "lines": [], "details": [], "steps": [], "bind": [], "shape": None, "zone_id": None, "each": False,
+            "pairs": []}
 
 
 def _same_token(plan: dict, reply: dict) -> None:
@@ -1594,6 +1618,7 @@ def _plan_cache_purge(args: dict) -> dict:
     zname = zone.get("name") or ""
     plan = _plan("cache_purge", reply, "Purge the cache")
     plan["facts"] = [("Zone", zname)]
+    plan["zone_id"] = zone["id"]
     if given == ["everything"]:
         body = {"purge_everything": True}
         plan["lines"] = [f"Everything cached for {zname} and its subdomains"]
@@ -1607,7 +1632,9 @@ def _plan_cache_purge(args: dict) -> dict:
         plan["lines"] = [f"{len(values)} {noun}{'s' if len(values) > 1 else ''}" + (
             ", every file under each" if key != "urls" else "")]
         plan["details"] = [f"- {_short(value, 70)}" for value in values]
-        plan["effect"] = (cards.CAUTION, "Visitors get fresh copies; the origin serves them again")
+        # a few named URLs only drop copies the next request fetches again; a host or prefix reaches more
+        plan["effect"] = (cards.SAFE if key == "urls" else cards.CAUTION,
+                          "Visitors get fresh copies; the origin serves them again")
     plan["steps"].append({"method": "POST", "path": f"/zones/{zone['id']}/purge_cache", "body": body,
                           "what": f"purging the cache of {zname}"})
     return plan
@@ -1731,39 +1758,100 @@ def _plan_pages_rollback(args: dict) -> dict:
     return plan
 
 
-def _plan_zone_setting(args: dict) -> dict:
-    setting = args.get("setting")
-    if setting not in SETTING_VALUES:
+def _setting_pair(setting, raw) -> tuple[str, str]:
+    """(setting, value) checked against SETTING_VALUES."""
+    if not isinstance(setting, str) or setting not in SETTING_VALUES:
         raise CloudflareError("setting must be one of " + ", ".join(SETTING_VALUES) + "; others are changed in "
                               "the Cloudflare dashboard")
-    raw = args.get("value")
     value = str(raw).strip().lower() if isinstance(raw, (str, int)) and not isinstance(raw, bool) else None
     if value not in SETTING_VALUES[setting]:
         raise CloudflareError(f"{setting} takes " + ", ".join(SETTING_VALUES[setting]))
-    zone, reply = zone_of(zone_ref(args), account_of(args))
+    return setting, value
+
+
+def _setting_pairs(args: dict) -> list[tuple[str, str]]:
+    """The changes of a zone_setting call, in order: its `settings`, or the one `setting` and `value`."""
+    listed = args.get("settings")
+    if listed is None:
+        return [_setting_pair(args.get("setting"), args.get("value"))]
+    if args.get("setting") is not None or args.get("value") is not None:
+        raise CloudflareError("zone_setting takes settings, or setting and value, not both")
+    if not isinstance(listed, list) or not 0 < len(listed) <= CHANGES_MAX:
+        raise CloudflareError(f"settings must be a list of 1 to {CHANGES_MAX} changes, each {{setting, value}}")
+    pairs = []
+    for n, item in enumerate(listed, 1):
+        with _numbered("setting", n, True):
+            if not isinstance(item, dict):
+                raise CloudflareError("needs setting and value")
+            extra = sorted(k for k, v in item.items() if v is not None and k not in ("setting", "value"))
+            if extra:
+                raise CloudflareError("does not take " + ", ".join(extra))
+            pairs.append(_setting_pair(item.get("setting"), item.get("value")))
+    if len({setting for setting, _ in pairs}) != len(pairs):
+        raise CloudflareError("a setting may be changed only once in one call")
+    return pairs
+
+
+def _setting_effect(setting: str, value: str, weaker: bool) -> tuple[str, str]:
+    """(level, words) the card shows for one setting change; the only place a setting change gets its level."""
+    words = SETTING_EFFECTS.get(setting, "Changes how the zone is served")
+    if weaker:
+        return cards.DANGER, f"Weaker protection for visitors. {words}"
+    if (setting, value) == ENDS_ON_ITS_OWN:
+        return cards.SAFE, f"{words}, then it turns off by itself"
+    return cards.CAUTION, words
+
+
+def _setting_step(plan: dict, zone: dict, setting: str, value: str, own_words: bool) -> bool:
+    """Read `setting` of the zone, add its card line (with the setting's own warning when `own_words`, as in a
+    list, where the effect line cannot carry one per setting) and request to `plan`; whether it weakens what
+    protects visitors."""
     zname = zone.get("name") or ""
-    data, read = get(f"/zones/{zone['id']}/settings/{setting}", [], account=reply["account"],
+    data, read = get(f"/zones/{zone['id']}/settings/{setting}", [], account=plan["account"],
                      what=f"{setting} of {zname}")
     current = data.get("result") if isinstance(data.get("result"), dict) else {}
-    plan = _plan("zone_setting", reply, "Change a zone setting")
     _same_token(plan, read)
     if current.get("editable") is False:
         raise CloudflareError(f"{setting} of {zname} cannot be changed on this zone's plan")
     now = str(current.get("value")).lower() if current.get("value") is not None else "?"
     if now == value:
         raise CloudflareError(f"{setting} of {zname} is already {value}")
-    plan["facts"] = [("Zone", zname)]
-    plan["lines"] = [f"{setting}: {now} → {value}"]
+    plan["lines"].append(f"{setting}: {now} → {value}" + (f" — {SETTING_EFFECTS[setting]}"
+                                                         if own_words and setting in SETTING_EFFECTS else ""))
     order = STRENGTH.get(setting)
     weaker = bool(order) and now in order and order.index(value) < order.index(now)
     if setting == "always_use_https" and value == "off":
         weaker = True
-    words = SETTING_EFFECTS.get(setting, "Changes how the zone is served")
-    plan["effect"] = (cards.DANGER, f"Weaker protection for visitors. {words}") if weaker else (cards.CAUTION, words)
-    plan["once"] = weaker
     body_value = int(value) if setting == "browser_cache_ttl" else value
     plan["steps"].append({"method": "PATCH", "path": f"/zones/{zone['id']}/settings/{setting}",
                           "body": {"value": body_value}, "what": f"setting {setting} of {zname} to {value}"})
+    return weaker
+
+
+def _plan_zone_setting(args: dict) -> dict:
+    pairs = _setting_pairs(args)
+    many = len(pairs) > 1
+    zone, reply = zone_of(zone_ref(args), account_of(args))
+    plan = _plan("zone_setting", reply, "Change zone settings" if many else "Change a zone setting")
+    plan["facts"] = [("Zone", zone.get("name") or "")]
+    plan["zone_id"] = zone["id"]
+    plan["pairs"] = pairs
+    effects, weakened = [], []
+    for n, (setting, value) in enumerate(pairs, 1):
+        with _numbered("setting", n, many):
+            weaker = _setting_step(plan, zone, setting, value, many)
+        effects.append(_setting_effect(setting, value, weaker))
+        if weaker:
+            weakened.append(setting)
+    if many:
+        level = _highest(level for level, _ in effects)
+        plan["effect"] = (level, "Weaker protection for visitors: " + ", ".join(weakened) if weakened
+                          else "Changes how the zone is served")
+        plan["lines"].append(ONE_BY_ONE)
+        plan["each"] = True
+    else:
+        plan["effect"] = effects[0]
+    plan["once"] = plan["effect"][0] == cards.DANGER
     plan["shape"] = "zone_setting"
     return plan
 
@@ -1806,34 +1894,70 @@ def _rule_address(rule: dict) -> str:
     return ", ".join(_short(m.get("value"), 60) for m in matchers if m.get("value")) or "?"
 
 
-def _plan_email_rule(args: dict) -> dict:
-    op = args.get("op")
+def _rule_items(args: dict) -> list[dict]:
+    """The rules of an email_rule call, in order: its `rules`, or the call itself as the one rule."""
+    listed = args.get("rules")
+    if listed is None:
+        return [args]
+    if any(args.get(key) is not None for key in RULE_KEYS):
+        raise CloudflareError("email_rule takes rules, or op and the rule's fields, not both")
+    if not isinstance(listed, list) or not 0 < len(listed) <= CHANGES_MAX:
+        raise CloudflareError(f"rules must be a list of 1 to {CHANGES_MAX} rules, each "
+                              "{op: add | update | delete | catch_all, …}")
+    for n, item in enumerate(listed, 1):
+        with _numbered("rule", n, True):
+            if not isinstance(item, dict):
+                raise CloudflareError("needs op: add, update, delete or catch_all")
+            extra = sorted(k for k, v in item.items() if v is not None and k not in RULE_KEYS)
+            if extra:
+                raise CloudflareError("does not take " + ", ".join(extra))
+    return listed
+
+
+def _check_rule(item: dict) -> tuple[str, str | None, bool | None, str | None]:
+    """(op, id, enabled, name) of one rule, its fields checked against its op."""
+    op = item.get("op")
     if op not in RULE_OPS:
         raise CloudflareError("op must be one of " + ", ".join(RULE_OPS))
-    rid = args.get("id")
+    rid = item.get("id")
     if op in ("update", "delete"):
         if not isinstance(rid, str) or not RULE_ID.fullmatch(rid):
             raise CloudflareError(f"{op} needs id, the rule's id (email_routing lists them)")
     elif rid is not None:
         raise CloudflareError(f"{op} takes no id")
-    if op in ("delete", "catch_all") and args.get("to") is not None:
+    if op in ("delete", "catch_all") and item.get("to") is not None:
         raise CloudflareError(f"{op} takes no to")
     if op == "delete":
-        extra = [k for k in ("forward", "drop", "worker", "name", "enabled") if args.get(k) is not None]
+        extra = [k for k in ("forward", "drop", "worker", "name", "enabled") if item.get(k) is not None]
         if extra:
             raise CloudflareError("delete takes only the rule's id, not " + ", ".join(extra))
-    enabled = _bool(args, "enabled")
-    name = _text(args, "name", 100)
+    return op, rid, _bool(item, "enabled"), _text(item, "name", 100)
+
+
+def _plan_email_rule(args: dict) -> dict:
+    items = _rule_items(args)
+    many = len(items) > 1
+    checked = []
+    for n, item in enumerate(items, 1):
+        with _numbered("rule", n, many):
+            checked.append(_check_rule(item))
+    targets = [rid if op != "catch_all" else op for op, rid, _, _ in checked if op != "add"]
+    if len(set(targets)) != len(targets):
+        raise CloudflareError("a rule may be changed only once in one call")
     zone, reply = zone_of(zone_ref(args), account_of(args))
     zname, base = zone.get("name") or "", f"/zones/{zone['id']}/email/routing/rules"
     reads = [("/accounts/{account}/email/routing/addresses", [["per_page", str(EMAIL_PAGE)]])]
-    if op in ("update", "delete"):
-        reads.append((f"{base}/{rid}", []))
-    elif op == "catch_all":
-        reads.append((f"{base}/catch_all", []))
+    slots = []   # where in `reads` each rule's own read is, None for an add
+    for op, rid, _, _ in checked:
+        slots.append(len(reads) if op != "add" else None)
+        if op in ("update", "delete"):
+            reads.append((f"{base}/{rid}", []))
+        elif op == "catch_all":
+            reads.append((f"{base}/catch_all", []))
     results, read = get_many(reads, account=reply["account"], what=f"Email Routing of {zname}")
-    plan = _plan("email_rule", reply, {"add": "Add an e-mail rule", "update": "Change an e-mail rule",
-                                       "delete": "Delete an e-mail rule", "catch_all": "Change the catch-all"}[op])
+    titles = {"add": "Add an e-mail rule", "update": "Change an e-mail rule", "delete": "Delete an e-mail rule",
+              "catch_all": "Change the catch-all"}
+    plan = _plan("email_rule", reply, "Change e-mail rules" if many else titles[checked[0][0]])
     _same_token(plan, read)
     for result in results:
         if not result.get("ok"):
@@ -1856,36 +1980,65 @@ def _plan_email_rule(args: dict) -> dict:
                              what="the destination addresses")
             _same_token(plan, more)
             known["data"] = data
-    current = (results[1].get("data") or {}).get("result") if len(results) > 1 else None
-    current = current if isinstance(current, dict) else {}
     plan["facts"] = [("Zone", zname)]
+    effects, taken = [], set()
+    for n, (check, item, slot) in enumerate(zip(checked, items, slots), 1):
+        current = (results[slot].get("data") or {}).get("result") if slot is not None else None
+        with _numbered("rule", n, many):
+            effect, address = _rule_change(plan, item, check,
+                                           current if isinstance(current, dict) else {}, zname, base, verified, many)
+            if address is not None:   # a second rule for an address would only be refused or shadowed by Cloudflare
+                if address in taken:
+                    raise CloudflareError(f"{address} already gets a rule in this call")
+                taken.add(address)
+        effects.append(effect)
+    if many:
+        level = _highest(level for level, _ in effects)
+        plan["effect"] = (level, RULES_EFFECT[level])
+        plan["lines"].append(ONE_BY_ONE)
+        plan["each"] = True
+    else:
+        plan["effect"] = effects[0]
+    plan["once"] = plan["effect"][0] == cards.DANGER
+    plan["shape"] = "email_rule"
+    return plan
+
+
+def _rule_change(plan: dict, item: dict, checked: tuple, current: dict, zname: str, base: str, verified,
+                 many: bool) -> tuple[tuple[str, str], str | None]:
+    """Add one rule's card lines, state to bind and request to `plan`, from the rule as it is now (in a list its
+    name goes on its own `+` line, where the card cannot cut it); its (level, words) and the address the rule
+    answers to afterwards, None for one that keeps it. The only place an e-mail rule change gets its level."""
+    op, rid, enabled, name = checked
+    address = None
     if op == "add":
-        to = args.get("to")
+        to = item.get("to")
         address = (to if "@" in to else f"{to}@{zname}").strip().lower() if isinstance(to, str) and to.strip() else ""
         if not EMAIL.fullmatch(address) or not address.endswith("@" + zname):
             raise CloudflareError(f"to must be an address at {zname}, such as sales or sales@{zname}")
-        actions = _rule_action(args, verified, True)
+        actions = _rule_action(item, verified, True)
         body = {"matchers": [{"type": "literal", "field": "to", "value": address}], "actions": actions,
                 "enabled": True if enabled is None else enabled, **({"name": name} if name else {})}
-        plan["lines"] = [f"+ {address} → {_rule_text(actions)}" + ("" if body["enabled"] else " (off)")]
-        plan["details"] = [f"name: {_short(name, 60)}"] if name else []
-        plan["effect"] = (cards.CAUTION, "Mail to the address goes where the rule says")
+        plan["lines"].append(f"+ {address} → {_rule_text(actions)}" + ("" if body["enabled"] else " (off)")
+                             + (f", name {_short(name, 40)}" if many and name else ""))
+        if name and not many:
+            plan["details"].append(f"name: {_short(name, 60)}")
+        effect = (cards.CAUTION, "Mail to the address goes where the rule says")
         plan["steps"].append({"method": "POST", "path": base, "body": body, "what": f"adding a rule for {address}"})
     elif op == "delete":
-        plan["lines"] = [f"- {_rule_address(current)} → {_rule_text(current.get('actions'))}"]
-        plan["details"] = ["Mail to it then goes to the catch-all"]
-        plan["effect"] = (cards.DANGER, "The rule is gone: mail it routed falls to the catch-all")
-        plan["once"] = True
-        plan["bind"] = [current]
+        plan["lines"].append(f"- {_rule_address(current)} → {_rule_text(current.get('actions'))}")
+        plan["details"].append("Mail to it then goes to the catch-all")
+        effect = (cards.DANGER, "The rule is gone: mail it routed falls to the catch-all")
+        plan["bind"].append(current)
         plan["steps"].append({"method": "DELETE", "path": f"{base}/{rid}", "body": None,
                               "what": f"deleting the rule for {_rule_address(current)}"})
     else:
-        actions = _rule_action(args, verified, op == "catch_all" and enabled is None)
+        actions = _rule_action(item, verified, op == "catch_all" and enabled is None)
         new_actions = actions or current.get("actions") or []
         new_enabled = bool(current.get("enabled")) if enabled is None else enabled
         matchers = current.get("matchers") or []
-        if op == "update" and args.get("to") is not None:
-            to = args["to"]
+        if op == "update" and item.get("to") is not None:
+            to = item["to"]
             address = (to if "@" in to else f"{to}@{zname}").strip().lower() if isinstance(to, str) else ""
             if not EMAIL.fullmatch(address) or not address.endswith("@" + zname):
                 raise CloudflareError(f"to must be an address at {zname}")
@@ -1910,17 +2063,13 @@ def _plan_email_rule(args: dict) -> dict:
                 # a PUT replaces the rule: what it already had and the change does not touch goes back with it
                 **({"priority": current["priority"]} if isinstance(current.get("priority"), int) else {})}
         who = "catch-all" if op == "catch_all" else _rule_address(current)
-        plan["lines"] = [f"~ {who}: " + "; ".join(changes)]
-        if op == "catch_all":
-            plan["effect"] = (cards.DANGER, "Changes where all mail no rule matches goes")
-            plan["once"] = True
-        else:
-            plan["effect"] = (cards.CAUTION, "Mail to the address goes where the rule says")
-        plan["bind"] = [current]
+        plan["lines"].append(f"~ {who}: " + "; ".join(changes))
+        effect = ((cards.DANGER, "Changes where all mail no rule matches goes") if op == "catch_all" else
+                  (cards.CAUTION, "Mail to the address goes where the rule says"))
+        plan["bind"].append(current)
         plan["steps"].append({"method": "PUT", "path": f"{base}/{'catch_all' if op == 'catch_all' else rid}",
                               "body": body, "what": f"changing the rule for {who}"})
-    plan["shape"] = "email_rule"
-    return plan
+    return effect, address
 
 
 def _zone_for(host: str, account: str, account_id: str | None) -> dict:
@@ -2199,9 +2348,16 @@ def digest(plan: dict) -> str:
 
 
 def rule_key(plan: dict, plan_digest: str) -> str:
-    """Hermes' allowlist key: the exact change, or a fresh one for a change an "always" must never cover."""
-    tail = secrets.token_hex(8) if plan["once"] else plan_digest[:16]
-    return f"cloudflare-access:{plan['action']}:{tail}"
+    """Hermes' allowlist key: a fresh one for a change an "always" must never cover; else, from the card's own
+    level, the key approval_tier gives it (one per account or zone for a standing rule, the exact change
+    otherwise)."""
+    if plan["once"]:
+        return f"cloudflare-access:{plan['action']}:{secrets.token_hex(8)}"
+    target = plan["account_id"] if plan["action"] == "storage_create" else plan.get("zone_id")
+    # the setting rule is named for development mode on: a setting that gains a ✅ later does not share its key
+    eligible = plan["action"] != "zone_setting" or plan.get("pairs") == [ENDS_ON_ITS_OWN]
+    return approval_tier.rule_key("cloudflare-access", plan["action"], plan["effect"][0], plan_digest[:16],
+                                  scope=(target,), eligible=eligible)
 
 
 # The gate's view of each write, per tool call, so execution sends exactly what the card showed:
@@ -2267,7 +2423,7 @@ def write(args: dict, call_id: str = "") -> dict:
 def run(plan: dict) -> dict:
     """Send the plan's steps in order under the approved token, never retrying. A step Cloudflare answered
     with a 4xx did not apply; any other failure after sending leaves the outcome unknown."""
-    done, last, notes = [], {}, []
+    done, last, answers, notes = [], {}, [], []
 
     def told(result: dict) -> dict:
         return {**result, "notes": notes} if notes else result
@@ -2287,6 +2443,7 @@ def run(plan: dict) -> dict:
             notes.append(f"the tool's state could not be updated ({exc}); a refusal or a pause was not remembered")
         if reply.get("ok"):
             last = reply.get("data") or {}
+            answers.append(last)
             done.append(step["what"])
             continue
         status = reply.get("status")
@@ -2299,7 +2456,10 @@ def run(plan: dict) -> dict:
         return told(_uncertain(plan, done, step, reply.get("error") or reply.get("kind") or "no readable answer"))
     result = {"ok": True, "action": plan["action"], "account": plan["account"], "done": done}
     shape = RESULTS.get(plan["shape"])
-    result["result"] = shape(last) if shape else last.get("result")
+
+    def shaped(data: dict):
+        return shape(data) if shape else data.get("result")
+    result["result"] = [shaped(data) for data in answers] if plan.get("each") else shaped(last)
     return told(result)
 
 

@@ -38,10 +38,11 @@ class Bridge:
         }
         self.write_reply = None
         self.fingerprint = "f" * 12
+        self.account_id = ACCOUNT
         self.answers = {}   # any other GET: path -> Cloudflare's JSON
 
     def head(self, fields):
-        return {"account": fields.get("account") or "work", "item": "CLOUDFLARE_WORK", "account_id": ACCOUNT,
+        return {"account": fields.get("account") or "work", "item": "CLOUDFLARE_WORK", "account_id": self.account_id,
                 "fingerprint": self.fingerprint, "token_kind": "user"}
 
     def record(self, path, params=None):
@@ -328,19 +329,21 @@ def test_urls_inside_the_zone_are_purged_after_their_card(fake):
     fake.write_reply = {"ok": True, "status": 200, "data": envelope({"id": ZONE})}
     args = purge(urls=["https://WWW.Example.com/index.html", "http://example.com"])
     card, key, result = approve_and_run(args)
-    assert card.startswith("Cloudflare · Purge the cache\n⚠️ Visitors get fresh copies")
+    assert card.startswith("Cloudflare · Purge the cache\n✅ Visitors get fresh copies")
     assert "2 URLs" in card and "- https://www.example.com/index.html" in card and "- http://example.com/" in card
     [sent] = fake.sends()
     assert sent["path"] == f"/zones/{ZONE}/purge_cache"
     assert sent["body"] == {"files": ["https://www.example.com/index.html", "http://example.com/"]}
-    assert result["ok"] is True and key.startswith("cloudflare-access:cache_purge:")
+    assert result["ok"] is True and key == f"cloudflare-access:purge-urls:{ZONE}"
 
 
 def test_hosts_and_prefixes_purge_everything_under_them(fake):
-    card, _ = cfa.approval_request(purge(hosts=["static.example.com"]), call_id="h", can_write=True)
-    assert "1 host name, every file under each" in card
-    card, _ = cfa.approval_request(purge(prefixes=["www.example.com/blog/"]), call_id="p", can_write=True)
-    assert "- www.example.com/blog/" in card
+    card, key = cfa.approval_request(purge(hosts=["static.example.com"]), call_id="h", can_write=True)
+    assert "⚠️" in card and "1 host name, every file under each" in card
+    assert key.startswith("cloudflare-access:cache_purge:")
+    card, key = cfa.approval_request(purge(prefixes=["www.example.com/blog/"]), call_id="p", can_write=True)
+    assert "⚠️" in card and "- www.example.com/blog/" in card
+    assert key.startswith("cloudflare-access:cache_purge:")
 
 
 def test_purging_everything_asks_every_time(fake):
@@ -902,3 +905,445 @@ def test_the_card_names_the_account_once_it_was_read(fake):
     cfa.remember_account("work", {"id": ACCOUNT, "name": "Work Co"})
     card, _ = cfa.approval_request(change({"op": "delete", "id": WWW}), can_write=True)
     assert "Account: work (Work Co)" in card
+
+
+# --- standing keys: one answer covers later calls to the same account or zone --------------------
+
+OTHER_ZONE = "8" * 32
+OTHER_ACCOUNT = "fedcba9876543210fedcba9876543210"
+KV_LIST = "/accounts/{account}/storage/kv/namespaces"
+
+
+def zone_now(fake, **now):
+    """Cloudflare's current value of each named setting of the zone."""
+    for name, value in now.items():
+        fake.answers[f"{SETTING}/{name}"] = envelope({"id": name, "value": value, "editable": True})
+
+
+def setting(name, value, **extra):
+    return {"action": "zone_setting", "zone": "example.com", "setting": name, "value": value, **extra}
+
+
+def settings(*pairs, **extra):
+    return {"action": "zone_setting", "zone": "example.com", "settings": [
+        {"setting": name, "value": value} for name, value in pairs], **extra}
+
+
+def other_zone(fake):
+    fake.answers[f"/zones/{OTHER_ZONE}"] = envelope({"id": OTHER_ZONE, "name": "example.org",
+                                                     "account": {"id": ACCOUNT, "name": "Work"}})
+    fake.answers[f"/zones/{OTHER_ZONE}/settings/development_mode"] = envelope(
+        {"id": "development_mode", "value": "off", "editable": True})
+
+
+def test_empty_storage_shares_one_answer_per_account(fake):
+    fake.answers[KV_LIST] = envelope([])
+    keys = {cfa.approval_request({"action": "storage_create", "kind": "kv", "name": name}, call_id=name,
+                                 can_write=True)[1] for name in ("SESSIONS", "CACHE")}
+    assert keys == {f"cloudflare-access:empty-storage:{ACCOUNT}"}
+    fake.account_id = OTHER_ACCOUNT
+    _, other = cfa.approval_request({"action": "storage_create", "kind": "kv", "name": "SESSIONS"}, call_id="o",
+                                    can_write=True)
+    assert other == f"cloudflare-access:empty-storage:{OTHER_ACCOUNT}"
+    fake.account_id = None   # no account to bind: the exact key
+    _, exact = cfa.approval_request({"action": "storage_create", "kind": "kv", "name": "SESSIONS"}, call_id="n",
+                                    can_write=True)
+    assert exact.startswith("cloudflare-access:storage_create:")
+
+
+def test_a_write_after_a_standing_approval_still_needs_its_own_unchanged_card(fake):
+    fake.answers[KV_LIST] = envelope([])
+    first = {"action": "storage_create", "kind": "kv", "name": "SESSIONS"}
+    second = {"action": "storage_create", "kind": "kv", "name": "CACHE"}
+    cfa.approval_request(first, call_id="a", can_write=True)
+    # the key is shared, the approval is not: another payload has no card of its own
+    assert "did not pass its approval card" in cfa.execute(second, call_id="b", can_write=True)["error"]
+    fake.fingerprint = "e" * 12
+    assert "changed before the write ran" in cfa.execute(first, call_id="a", can_write=True)["error"]
+    assert fake.sends() == []
+
+
+def test_purging_urls_shares_one_answer_per_zone_and_nothing_wider_does(fake):
+    other_zone(fake)
+    one = purge(urls=["https://www.example.com/a"])
+    card, key = cfa.approval_request(one, call_id="1", can_write=True)
+    assert "✅" in card and key == f"cloudflare-access:purge-urls:{ZONE}"
+    assert cfa.approval_request(purge(urls=["http://example.com/b", "https://example.com/c"]), call_id="2",
+                                can_write=True)[1] == key
+    _, elsewhere = cfa.approval_request({"action": "cache_purge", "zone": OTHER_ZONE,
+                                         "urls": ["https://example.org/a"]}, call_id="3", can_write=True)
+    assert elsewhere == f"cloudflare-access:purge-urls:{OTHER_ZONE}"
+    for wider in (purge(hosts=["www.example.com"]), purge(prefixes=["www.example.com/blog"])):
+        card, exact = cfa.approval_request(wider, call_id="w", can_write=True)
+        assert "⚠️" in card and exact.startswith("cloudflare-access:cache_purge:")
+        assert exact == cfa.approval_request(wider, call_id="w2", can_write=True)[1]   # exact: the same payload only
+    card, fresh = cfa.approval_request(purge(everything=True), call_id="e", can_write=True)
+    assert "⚠️" in card and fresh != cfa.approval_request(purge(everything=True), call_id="e2", can_write=True)[1]
+    with pytest.raises(cfa.CloudflareError, match="exactly one of"):
+        cfa.approval_request(purge(urls=["https://example.com/a"], hosts=["example.com"]), can_write=True)
+
+
+def test_development_mode_on_shares_one_answer_per_zone_and_nothing_else_does(fake):
+    other_zone(fake)
+    zone_now(fake, development_mode="off", ssl="full", http3="off")
+    card, key = cfa.approval_request(setting("development_mode", "on"), call_id="1", can_write=True)
+    assert card.startswith("Cloudflare · Change a zone setting\n✅ On, the cache is bypassed for three hours, then "
+                           "it turns off by itself")
+    assert key == f"cloudflare-access:dev-mode-on:{ZONE}"
+    assert cfa.approval_request(setting("development_mode", "ON"), call_id="2", can_write=True)[1] == key
+    _, elsewhere = cfa.approval_request({"action": "zone_setting", "zone": OTHER_ZONE, "setting": "development_mode",
+                                         "value": "on"}, call_id="3", can_write=True)
+    assert elsewhere == f"cloudflare-access:dev-mode-on:{OTHER_ZONE}"
+    # any other setting keeps its exact key, and switching it off is no standing case
+    card, ssl = cfa.approval_request(setting("ssl", "strict"), call_id="4", can_write=True)
+    assert "⚠️" in card and ssl.startswith("cloudflare-access:zone_setting:")
+    zone_now(fake, development_mode="on")
+    card, off = cfa.approval_request(setting("development_mode", "off"), call_id="5", can_write=True)
+    assert "⚠️ On, the cache is bypassed for three hours" in card and "turns off by itself" not in card
+    assert off.startswith("cloudflare-access:zone_setting:")
+    assert off == cfa.approval_request(setting("development_mode", "off"), call_id="6", can_write=True)[1]
+    zone_now(fake, ssl="strict")
+    card, weaker = cfa.approval_request(setting("ssl", "flexible"), call_id="7", can_write=True)
+    assert "🚨" in card and weaker != cfa.approval_request(setting("ssl", "flexible"), call_id="8",
+                                                           can_write=True)[1]
+
+
+def test_a_batch_with_development_mode_on_and_another_setting_gets_no_standing_key(fake):
+    zone_now(fake, development_mode="off", ssl="full", min_tls_version="1.2")
+    card, key = cfa.approval_request(settings(("development_mode", "on"), ("ssl", "strict")), call_id="1",
+                                     can_write=True)
+    assert card.startswith("Cloudflare · Change zone settings\n⚠️ ") and key.startswith("cloudflare-access:zone_setting:")
+    assert "dev-mode-on" not in key
+    card, nonce = cfa.approval_request(settings(("development_mode", "on"), ("min_tls_version", "1.0")), call_id="2",
+                                       can_write=True)
+    assert card.startswith("Cloudflare · Change zone settings\n🚨 ")
+    assert nonce != cfa.approval_request(settings(("development_mode", "on"), ("min_tls_version", "1.0")),
+                                         call_id="3", can_write=True)[1]
+    # a list of one is the single form: the same plan, so the same standing key
+    _, one = cfa.approval_request(settings(("development_mode", "on")), call_id="4", can_write=True)
+    assert one == f"cloudflare-access:dev-mode-on:{ZONE}"
+
+
+# --- zone_setting: several settings, one card ----------------------------------------------------
+
+def test_a_list_of_one_setting_is_the_single_form(fake):
+    zone_now(fake, ssl="full")
+    plain = cfa.write_plan(setting("ssl", "strict"))
+    listed = cfa.write_plan(settings(("ssl", "strict")))
+    assert cfa.card(plain) == cfa.card(listed) and cfa.digest(plain) == cfa.digest(listed)
+
+
+def test_a_single_setting_keeps_its_card_and_a_list_puts_the_note_and_the_warnings_in_lines(fake):
+    zone_now(fake, ssl="full", http3="off")
+    single = cfa.write_plan(setting("ssl", "strict"))
+    assert single["lines"] == ["ssl: full → strict"] and single["details"] == []
+    assert single["effect"] == (cfa.cards.CAUTION, cfa.SETTING_EFFECTS["ssl"])
+    plan = cfa.write_plan(settings(("ssl", "strict"), ("http3", "on")))
+    assert plan["lines"] == [f"ssl: full → strict — {cfa.SETTING_EFFECTS['ssl']}", "http3: off → on", cfa.ONE_BY_ONE]
+    assert plan["details"] == []
+
+
+def test_only_a_lone_development_mode_on_may_take_the_standing_key(fake, monkeypatch):
+    zone_now(fake, development_mode="off", http3="off")
+    original = cfa._setting_effect
+    # a setting that later turns ✅ would otherwise share the development-mode key
+    monkeypatch.setattr(cfa, "_setting_effect", lambda name, value, weaker: (
+        (cfa.cards.SAFE, "safe now") if name == "http3" else original(name, value, weaker)))
+    card, key = cfa.approval_request(setting("http3", "on"), call_id="h", can_write=True)
+    assert card.startswith("Cloudflare · Change a zone setting\n✅ safe now")
+    assert key.startswith("cloudflare-access:zone_setting:") and "dev-mode-on" not in key
+    assert key == cfa.approval_request(setting("http3", "on"), call_id="h2", can_write=True)[1]
+    assert (cfa.approval_request(setting("development_mode", "on"), call_id="d", can_write=True)[1] ==
+            f"cloudflare-access:dev-mode-on:{ZONE}")
+
+
+def test_three_settings_go_out_in_order_on_one_card_with_the_highest_level(fake):
+    zone_now(fake, ssl="full", development_mode="off", browser_cache_ttl=14400)
+    args = settings(("ssl", "strict"), ("development_mode", "on"), ("browser_cache_ttl", "3600"))
+    card, key, result = approve_and_run(args)
+    assert card.startswith("Cloudflare · Change zone settings\n⚠️ Changes how the zone is served\n")
+    # each setting keeps its own warning on its line, and the order note is a line, so no budget cuts it
+    assert ("ssl: full → strict — How Cloudflare reaches the origin; a wrong mode breaks the site\n"
+            "development_mode: off → on — On, the cache is bypassed for three hours\n"
+            "browser_cache_ttl: 14400 → 3600\n" + cfa.ONE_BY_ONE) in card
+    assert key.startswith("cloudflare-access:zone_setting:")
+    assert key == cfa.approval_request(args, call_id="again", can_write=True)[1]   # exact: this payload only
+    assert [(s["method"], s["path"], s["body"]) for s in fake.sends()] == [
+        ("PATCH", f"{SETTING}/ssl", {"value": "strict"}), ("PATCH", f"{SETTING}/development_mode", {"value": "on"}),
+        ("PATCH", f"{SETTING}/browser_cache_ttl", {"value": 3600})]
+    assert result["ok"] is True and len(result["done"]) == 3
+    assert [r["value"] for r in result["result"]] == ["strict", "on", 3600]
+
+
+def test_a_batch_with_one_weakening_asks_every_time(fake):
+    zone_now(fake, ssl="strict", http3="off")
+    args = settings(("http3", "on"), ("ssl", "flexible"))
+    card, key = cfa.approval_request(args, call_id="a", can_write=True)
+    assert card.startswith("Cloudflare · Change zone settings\n🚨 Weaker protection for visitors: ssl")
+    assert key != cfa.approval_request(args, call_id="b", can_write=True)[1]
+
+
+@pytest.mark.parametrize("args, message", [
+    (settings(), "settings must be a list of 1 to 20"),
+    ({**setting("ssl", "full"), "settings": [{"setting": "http3", "value": "on"}]}, "not both"),
+    ({"action": "zone_setting", "zone": "example.com", "settings": {"setting": "ssl", "value": "full"}},
+     "settings must be a list"),
+    (settings(("ssl", "strict"), ("ssl", "full")), "only once in one call"),
+    (settings(("ssl", "strict"), ("waf", "on")), "setting 2: setting must be one of"),
+    (settings(("ssl", "strict"), ("http3", "maybe")), "setting 2: http3 takes on, off"),
+    ({"action": "zone_setting", "zone": "example.com", "settings": [{"setting": "ssl", "value": "strict",
+                                                                    "zone": "x"}]}, "setting 1: does not take zone"),
+    ({"action": "zone_setting", "zone": "example.com", "settings": ["ssl"]}, "setting 1: needs setting and value"),
+])
+def test_a_settings_list_that_cannot_be_planned_is_refused_before_any_read(fake, args, message):
+    with pytest.raises(cfa.CloudflareError, match=message):
+        cfa.approval_request(args, can_write=True)
+    assert fake.requests == []
+
+
+def test_too_many_settings_are_refused(fake):
+    names = list(cfa.SETTING_VALUES)
+    pairs = [(names[n % len(names)], "on") for n in range(cfa.CHANGES_MAX + 1)]
+    with pytest.raises(cfa.CloudflareError, match="1 to 20 changes"):
+        cfa.approval_request(settings(*pairs), can_write=True)
+    assert fake.requests == []
+
+
+def test_one_setting_that_would_fail_refuses_the_whole_batch_before_its_card(fake):
+    zone_now(fake, ssl="full")
+    fake.answers[f"{SETTING}/http3"] = envelope({"id": "http3", "value": "off", "editable": False})
+    with pytest.raises(cfa.CloudflareError, match="setting 2: http3 of example.com cannot be changed"):
+        cfa.approval_request(settings(("ssl", "strict"), ("http3", "on")), can_write=True)
+    with pytest.raises(cfa.CloudflareError, match="setting 1: ssl of example.com is already full"):
+        cfa.approval_request(settings(("ssl", "full"), ("http3", "on")), can_write=True)
+    assert fake.sends() == [] and cfa._approved == {}
+
+
+def test_a_batch_of_settings_is_previewed_without_sending(fake):
+    zone_now(fake, ssl="full", http3="off")
+    args = settings(("ssl", "strict"), ("http3", "on"), preview=True)
+    assert cfa.approval_request(args, can_write=True) is None
+    result = cfa.execute(args, can_write=True)
+    assert result["preview"] is True and result["requests"] == 2 and fake.sends() == []
+    assert ("ssl: full → strict — How Cloudflare reaches the origin; a wrong mode breaks the site\nhttp3: off → on"
+            in result["card"])
+
+
+def failing(fake, monkeypatch, path_end, reply):
+    """The bridge, but the write whose path ends so gets `reply`."""
+    original = fake.__call__
+
+    def bridge(op, **fields):
+        if fields.get("method") in ("POST", "PUT", "PATCH", "DELETE") and fields.get("path", "").endswith(path_end):
+            fake.requests.append({"op": op, **fields})
+            return {**fake.head(fields), "requests": 1, **reply}
+        return original(op, **fields)
+    monkeypatch.setattr(cfa, "bridge", bridge)
+
+
+def test_a_setting_refused_part_way_stops_the_rest_and_reports_what_was_done(fake, monkeypatch):
+    zone_now(fake, ssl="full", http3="off", ipv6="off")
+    args = settings(("ssl", "strict"), ("http3", "on"), ("ipv6", "on"))
+    failing(fake, monkeypatch, "/settings/http3", {"ok": False, "kind": "invalid", "status": 400,
+                                                   "error": "1007: Invalid value"})
+    _, _, result = approve_and_run(args)
+    assert result["ok"] is False and result["error"].startswith("stopped part way: ")
+    assert result["done"] == ["setting ssl of example.com to strict"]
+    assert [s["path"] for s in fake.sends()] == [f"{SETTING}/ssl", f"{SETTING}/http3"]   # ipv6 never sent
+
+
+def test_the_first_setting_refused_changes_nothing_and_an_unknown_outcome_is_never_repeated(fake, monkeypatch):
+    zone_now(fake, ssl="full", http3="off")
+    args = settings(("ssl", "strict"), ("http3", "on"))
+    failing(fake, monkeypatch, "/settings/ssl", {"ok": False, "kind": "forbidden", "status": 403,
+                                                 "error": "10000: Authentication error"})
+    _, _, result = approve_and_run(args)
+    assert result["error"].startswith("not done: ") and "nothing was changed" in result["error"]
+    assert len(fake.sends()) == 1
+    fake.requests.clear()
+    failing(fake, monkeypatch, "/settings/http3", {"ok": False, "kind": "api", "status": 502, "error": "bad gateway"})
+    _, _, result = approve_and_run(args, call_id="call-2")
+    assert result["uncertain"] is True and result["done"] == ["setting ssl of example.com to strict"]
+    assert len(fake.sends()) == 2
+
+
+def test_a_setting_changed_after_the_batch_card_sends_nothing(fake):
+    zone_now(fake, ssl="full", http3="off")
+    args = settings(("ssl", "strict"), ("http3", "on"))
+    cfa.approval_request(args, call_id="call-1", can_write=True)
+    zone_now(fake, http3="on")
+    assert "not done" in cfa.execute(args, call_id="call-1", can_write=True)["error"]
+    zone_now(fake, http3="off")
+    cfa.approval_request(args, call_id="call-2", can_write=True)
+    fake.fingerprint = "e" * 12
+    assert "changed before the write ran" in cfa.execute(args, call_id="call-2", can_write=True)["error"]
+    assert fake.sends() == []
+
+
+def test_settings_that_cannot_all_be_shown_are_refused(fake, monkeypatch):
+    zone_now(fake, **{name: values[0] for name, values in cfa.SETTING_VALUES.items()})
+    pairs = [(name, values[-1]) for name, values in cfa.SETTING_VALUES.items()]
+    monkeypatch.setattr(cfa.cards, "platform", lambda: "discord")
+    with pytest.raises(cfa.CloudflareError, match="send fewer changes"):
+        cfa.approval_request(settings(*pairs), can_write=True)
+
+
+# --- email_rule: several rules, one card ---------------------------------------------------------
+
+def test_a_list_of_one_rule_is_the_single_form(mail):
+    plain = cfa.write_plan(rule(op="update", id="a" * 32, enabled=False))
+    listed = cfa.write_plan({"action": "email_rule", "zone": "example.com",
+                             "rules": [{"op": "update", "id": "a" * 32, "enabled": False}]})
+    assert cfa.card(plain) == cfa.card(listed) and cfa.digest(plain) == cfa.digest(listed)
+    assert listed["each"] is False and listed["effect"] == plain["effect"]
+
+
+def rules(*items, **extra):
+    return {"action": "email_rule", "zone": "example.com", "rules": list(items), **extra}
+
+
+def test_rules_go_out_in_order_on_one_card_and_a_standing_key_never_covers_them(mail):
+    second = "b" * 32
+    mail.answers[f"{RULES}/{second}"] = envelope({**RULE, "id": second, "name": "info", "matchers": [
+        {"type": "literal", "field": "to", "value": "info@example.com"}]})
+    args = rules({"op": "add", "to": "jobs", "forward": "owner@example.net"},
+                 {"op": "update", "id": second, "drop": True},
+                 {"op": "add", "to": "press", "drop": True, "name": "press desk"})
+    card, key, result = approve_and_run(args)
+    assert card.startswith("Cloudflare · Change e-mail rules\n⚠️ Mail to the addresses goes where the rules say\n")
+    assert ("+ jobs@example.com → forward owner@example.net\n~ info@example.com: forward owner@example.net → drop\n"
+            "+ press@example.com → drop") in card
+    assert "+ press@example.com → drop, name press desk\n" + cfa.ONE_BY_ONE in card and "name: press desk" not in card
+    assert key.startswith("cloudflare-access:email_rule:") and key == cfa.approval_request(
+        args, call_id="again", can_write=True)[1]
+    assert [(s["method"], s["path"]) for s in mail.sends()] == [("POST", RULES), ("PUT", f"{RULES}/{second}"),
+                                                                ("POST", RULES)]
+    assert result["ok"] is True and len(result["done"]) == 3 and len(result["result"]) == 3
+
+
+@pytest.mark.parametrize("last, marker", [
+    ({"op": "delete", "id": "a" * 32}, "- sales@example.com → forward owner@example.net"),
+    ({"op": "catch_all", "forward": "owner@example.net", "enabled": True}, "~ catch-all: drop → forward"),
+])
+def test_one_deleted_rule_or_changed_catch_all_in_a_batch_asks_every_time(mail, last, marker):
+    args = rules({"op": "add", "to": "jobs", "drop": True}, last)
+    card, key = cfa.approval_request(args, call_id="a", can_write=True)
+    assert card.startswith("Cloudflare · Change e-mail rules\n🚨 A rule is deleted or the catch-all changes")
+    assert marker in card
+    assert key != cfa.approval_request(args, call_id="b", can_write=True)[1]
+
+
+@pytest.mark.parametrize("args, message", [
+    (rules(), "rules must be a list of 1 to 20"),
+    ({**rules({"op": "delete", "id": "a" * 32}), "op": "add"}, "not both"),
+    ({"action": "email_rule", "zone": "example.com", "rules": {"op": "add"}}, "rules must be a list"),
+    (rules({"op": "update", "id": "a" * 32, "drop": True}, {"op": "delete", "id": "a" * 32}), "only once in one call"),
+    (rules({"op": "catch_all", "drop": True}, {"op": "catch_all", "enabled": False}), "only once in one call"),
+    (rules({"op": "add", "to": "jobs", "drop": True}, {"op": "rename"}), "rule 2: op must be one of"),
+    (rules({"op": "add", "to": "jobs", "drop": True, "zone": "x"}), "rule 1: does not take zone"),
+    (rules("add"), "rule 1: needs op"),
+    (rules({"op": "add", "to": "jobs", "drop": True}, {"op": "delete"}), "rule 2: delete needs id"),
+])
+def test_a_rules_list_that_cannot_be_planned_is_refused_before_any_read(mail, args, message):
+    with pytest.raises(cfa.CloudflareError, match=message):
+        cfa.approval_request(args, can_write=True)
+    assert mail.requests == []
+
+
+def test_too_many_rules_are_refused(mail):
+    many = [{"op": "add", "to": f"box{n}", "drop": True} for n in range(cfa.CHANGES_MAX + 1)]
+    with pytest.raises(cfa.CloudflareError, match="1 to 20 rules"):
+        cfa.approval_request(rules(*many), can_write=True)
+    assert mail.requests == []
+
+
+def test_a_rule_that_would_fail_refuses_the_whole_batch(mail):
+    with pytest.raises(cfa.CloudflareError, match="rule 2: .*not a verified destination"):
+        cfa.approval_request(rules({"op": "add", "to": "jobs", "drop": True},
+                                   {"op": "add", "to": "info", "forward": "new@example.net"}), can_write=True)
+    with pytest.raises(cfa.CloudflareError, match="rule 2: the change moves nothing"):
+        cfa.approval_request(rules({"op": "add", "to": "jobs", "drop": True},
+                                   {"op": "update", "id": "a" * 32, "enabled": True}), can_write=True)
+    assert mail.sends() == []
+
+
+@pytest.fixture
+def second_rule(mail):
+    mail.answers[f"{RULES}/{'b' * 32}"] = envelope({**RULE, "id": "b" * 32, "name": "info", "matchers": [
+        {"type": "literal", "field": "to", "value": "info@example.com"}]})
+    return mail
+
+
+@pytest.mark.parametrize("items", [
+    [{"op": "add", "to": "jobs", "drop": True}, {"op": "add", "to": "jobs", "forward": "owner@example.net"}],
+    [{"op": "add", "to": "jobs", "drop": True}, {"op": "add", "to": "JOBS@example.com", "drop": True}],
+    [{"op": "add", "to": "jobs", "drop": True}, {"op": "update", "id": "b" * 32, "to": "jobs", "drop": True}],
+    [{"op": "update", "id": "b" * 32, "to": "jobs", "drop": True}, {"op": "add", "to": "jobs", "drop": True}],
+    [{"op": "update", "id": "a" * 32, "to": "jobs", "enabled": False},
+     {"op": "update", "id": "b" * 32, "to": "jobs", "drop": True}],
+])
+def test_two_rules_for_one_address_in_a_list_are_refused_before_any_send(second_rule, items):
+    with pytest.raises(cfa.CloudflareError, match="rule 2: jobs@example.com already gets a rule in this call"):
+        cfa.approval_request(rules(*items), can_write=True)
+    assert second_rule.sends() == [] and cfa._approved == {}
+
+
+def test_deleting_a_rule_and_adding_one_for_its_address_is_a_replace_not_a_repeat(second_rule):
+    args = rules({"op": "delete", "id": "a" * 32}, {"op": "add", "to": "sales", "drop": True})
+    card, _ = cfa.approval_request(args, call_id="r", can_write=True)
+    assert "- sales@example.com → forward owner@example.net\n+ sales@example.com → drop" in card
+
+
+@pytest.mark.parametrize("items", [
+    [{"op": "delete", "id": "a" * 32}, {"op": "delete", "id": "b" * 32}],
+    [{"op": "update", "id": "a" * 32, "enabled": False}, {"op": "update", "id": "b" * 32, "enabled": False}],
+])
+def test_rules_that_name_no_new_address_are_not_repeats(second_rule, items):
+    card, _ = cfa.approval_request(rules(*items), call_id="r", can_write=True)
+    assert "sales@example.com" in card and "info@example.com" in card
+
+
+def test_the_order_note_is_a_line_of_a_list_and_a_single_rule_keeps_its_details(mail):
+    plan = cfa.write_plan(rules({"op": "add", "to": "jobs", "drop": True, "name": "jobs desk"},
+                                {"op": "add", "to": "press", "drop": True}))
+    assert plan["lines"][-1] == cfa.ONE_BY_ONE and cfa.ONE_BY_ONE not in plan["details"] and plan["details"] == []
+    assert plan["lines"][0] == "+ jobs@example.com → drop, name jobs desk"
+    single = cfa.write_plan(rule(op="add", to="jobs", drop=True, name="jobs desk"))
+    assert single["lines"] == ["+ jobs@example.com → drop"] and single["details"] == ["name: jobs desk"]
+
+
+def test_a_card_that_cannot_show_every_rule_is_refused(mail):
+    many = [{"op": "add", "to": f"mailbox-number-{n}", "drop": True} for n in range(12)]
+    with pytest.raises(cfa.CloudflareError, match="send fewer changes"):
+        cfa.approval_request(rules(*many), can_write=True)
+
+
+def test_rules_are_previewed_without_sending(mail):
+    args = rules({"op": "add", "to": "jobs", "drop": True}, {"op": "delete", "id": "a" * 32}, preview=True)
+    assert cfa.approval_request(args, can_write=True) is None
+    result = cfa.execute(args, can_write=True)
+    assert result["preview"] is True and result["requests"] == 2 and mail.sends() == []
+    assert "+ jobs@example.com → drop\n- sales@example.com" in result["card"]
+
+
+def test_a_rule_refused_part_way_stops_the_rest_and_reports_what_was_done(mail, monkeypatch):
+    args = rules({"op": "add", "to": "jobs", "drop": True}, {"op": "update", "id": "a" * 32, "enabled": False},
+                 {"op": "add", "to": "press", "drop": True})
+    failing(mail, monkeypatch, f"{RULES}/{'a' * 32}", {"ok": False, "kind": "invalid", "status": 400,
+                                                       "error": "2002: bad rule"})
+    _, _, result = approve_and_run(args)
+    assert result["ok"] is False and result["error"].startswith("stopped part way: ")
+    assert result["done"] == ["adding a rule for jobs@example.com"]
+    assert len(mail.sends()) == 2   # the third never went out
+    mail.requests.clear()
+    failing(mail, monkeypatch, RULES, {"ok": False, "kind": "network", "error": "the connection broke off"})
+    _, _, result = approve_and_run(args, call_id="call-2")
+    assert result["uncertain"] is True and result["done"] == [] and len(mail.sends()) == 1
+
+
+def test_a_rule_changed_after_the_batch_card_sends_nothing(mail):
+    args = rules({"op": "add", "to": "jobs", "drop": True}, {"op": "update", "id": "a" * 32, "enabled": False})
+    cfa.approval_request(args, call_id="call-1", can_write=True)
+    mail.answers[f"{RULES}/{'a' * 32}"] = envelope({**RULE, "name": "renamed meanwhile"})
+    assert "changed before the write ran" in cfa.execute(args, call_id="call-1", can_write=True)["error"]
+    assert mail.sends() == []
