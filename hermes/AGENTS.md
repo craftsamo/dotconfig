@@ -587,8 +587,8 @@ Commands: [README "Commands"](README.md#commands).
   one and is cut by the chat rather than fitted
   ([card shape](docs/access-common.md#card-shape)). The one exception is a
   write inside a mandate the user approved on a card of its own (Hyperliquid
-  orders, GitHub change lists, Telegram and Signal text sends): it runs with
-  no card, so the mandate's own bounds, re-checked and counted at the write,
+  orders, GitHub change lists, Telegram, Signal and WhatsApp text sends): it
+  runs with no card, so the mandate's own bounds, re-checked and counted at the write,
   are the control — never let anything but such a card widen them
   ([decision](docs/decisions/github-mandates.md),
   [sends](docs/decisions/send-mandates.md)).
