@@ -29,6 +29,13 @@ Do them inline with the tool.
 
 - A problem `status` reports is the user's to fix in a terminal: relay its
   `action_needed` line in one line.
+- A plain-text send that repeats to chats the user names (a daily report) can
+  run under a send mandate (`whatsapp_mandate`): offer it only after agreeing the
+  chats (people by number, groups; WhatsApp allows at most 5 sends an hour in
+  all for the account, across its mandates in force), how
+  long a text, how many days and the purpose in chat. It is made on a card the
+  user answers; files and replies are never covered, and a send outside it asks
+  as usual.
 - A file the user wants sent from outside `~/Workspaces` is copied into the
   workspace first — a draft under `.agent/<YYYYMMDD>-<job>/` — and only when
   the user asked for that file. A file saved by `media` is already in the
