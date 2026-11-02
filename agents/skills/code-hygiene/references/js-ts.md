@@ -70,6 +70,14 @@ configuration win over everything here.
   `middleware`, framework convention files (`layout`, `page`, `loader`,
   `+page`), `package.json` `main`/`exports`, files named in build or test
   configuration.
+- A new file is picked up by name, so check it before creating it: a name
+  ending in `.test.ts`, `.spec.ts` or placed under `__tests__/` usually
+  becomes a test (read the runner's include pattern); it must stay inside
+  `tsconfig` `include` and `package.json` `files`; a file with import-time
+  side effects must match `package.json` `sideEffects` when that field is a
+  list; reserved names (`page`, `layout`, `route`, `+page`) and auto-import
+  directories (Nuxt `composables/`, `utils/`) turn a helper into a route or a
+  global. Tailwind class strings follow `css.md`.
 
 ## Behavior traps
 
