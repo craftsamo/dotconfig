@@ -2,7 +2,8 @@
 
 The Assistant's access to the user's own WhatsApp accounts — reading chats
 and messages, and sending text and workspace files that the user approves
-first. It is not the WhatsApp messaging platform (`plugins/platforms/whatsapp`,
+first (plain text inside a [send mandate](#send-mandates) needs no card). It is
+not the WhatsApp messaging platform (`plugins/platforms/whatsapp`,
 which makes WhatsApp a channel _to_ Hermes); nothing here lets people talk to
 Hermes over WhatsApp. Read it when changing the plugin or its sync agent.
 Common rules: [access-common.md](access-common.md). Part of the Hermes design
@@ -101,7 +102,8 @@ carry the same text. `reply_to` quotes a message; in a group the quoted sender
 is looked up so the quote resolves.
 
 - **Every send asks first** ([approval gate](access-common.md#approval-gate)),
-  as google-access does.
+  as google-access does, unless it is plain text that fits a [send
+  mandate](#send-mandates).
 - **The card** has the [shared shape](access-common.md#card-shape):
   `WhatsApp · Send message`, then ⚠️ who sees it (the person, or everyone in
   the group). It names the account, the chat, the reply target and each file
@@ -171,18 +173,112 @@ is looked up so the quote resolves.
 ## Where a write may run
 
 A send is refused wherever no person can answer its card
-([approval gate](access-common.md#approval-gate)); the hook refuses before any
-file is copied, so no outbox is handed out. The refusal reads `not done`. A send
-is tried only through a chat where a card reaches the user.
+([approval gate](access-common.md#approval-gate)) — unless it fits a [send
+mandate](#send-mandates), which needs no card and so runs there too; the hook
+refuses before any file is copied, so no outbox is handed out. The refusal reads
+`not done`. A send is tried only through a chat where a card reaches the user,
+or inside a mandate.
+
+## Send mandates
+
+A send mandate is the user's standing approval for plain text sends to a few
+chats, made on a card of its own. A report that goes to the same chat every
+morning then needs no one to tap a card, also in a cron job, while the chats,
+the count, the length and the end stay the user's, read from the card. Why and
+what is never allowed: [decision](decisions/send-mandates.md). A mandate names:
+
+- **one account** (its wacli account name) and **one to five chats**, each by
+  JID with the name and identity the card showed: a person by phone JID
+  (`…@s.whatsapp.net`, identified by its number) or a group (`…@g.us`,
+  identified by its JID). Never a contact whose number is hidden (`…@lid`: the
+  card could not say who it is), a newsletter or a broadcast list. The plugin
+  cannot read the account's own JID, so a mandate may name the account's own
+  chat; wacli refuses a text to the linked account itself, so such a send is
+  counted and not sent;
+- **how many sends an hour** (1 to **5**, lower than Telegram's and Signal's 30:
+  more automated sends from an unofficial client raise the risk of the account
+  being limited) and **the longest text** (at most 1000 characters). The 5 is
+  the **account's total across its mandates in force**, not each mandate's: a
+  new mandate whose `per_hour` plus that of every mandate in force for the same
+  account would pass 5 is refused, naming what those already take, so two
+  mandates on one chat never add up to more. The hook looks before it draws the
+  card, and `create` checks again under the mandate store's lock, which is the
+  check that counts; revoking a mandate frees its share;
+- **a purpose** in one line and **an end** at most 30 days out.
+
+`whatsapp_mandate` (toolset `whatsapp_access`, the Assistant only) has three
+actions:
+
+- **`create`** (`chats` = JIDs as `whatsapp` takes them, `account` when there
+  are several, `per_hour`, `max_chars`, `days`, `purpose`) always asks, on a
+  card of the [shared shape](access-common.md#card-shape) titled
+  `WhatsApp · Send mandate`, marked 🚨, with every bound on it and what is never
+  covered. The hook refuses it for an inbound A2A request and wherever no person
+  can answer a card (cron, a single query, yolo mode, approvals off, an
+  unattended platform), checks the chats' number, kind and uniqueness before it
+  asks wacli anything, reads the account and the chats now through the lookup a
+  send uses (a JID, never a name or number; the name from the mirror), and
+  records the terms it showed under a fresh rule key, so no earlier answer ever
+  approves another mandate and a mandate never covers the making of another. The
+  handler runs only a call the hook decided, reads the account and the chats
+  again and refuses when they are no longer the ones on the card, then makes the
+  mandate with the end the card showed.
+- **`list`** shows the mandates in force and **`revoke`** (`mandate` = its id)
+  ends one at once; neither needs a card, because they only narrow what runs
+  without one.
+
+A send **fits** a mandate only when it is plain text to one of its chats from
+its account, within the length, with no file, no quoted message and no reply,
+and the hour's count is not used up. For a send that fits:
+
+1. **The hook** (`approval_request`) asks the mandate store which mandate in
+   force the send fits, stores the usual per-call record (the digest of account,
+   chat, text, reply and files) together with the mandate's id, returns no
+   `approve` directive and skips the no-person refusal. The handler peeks at
+   that record to skip it as well; a covered call the hook never decided is
+   refused as any send is.
+2. **The write** takes the record, checks the digest as it does for a card,
+   then — before anything reaches wacli — asks the store again, under its lock,
+   whether the mandate is still in force and the send still fits, and counts it.
+   The count stands whatever becomes of the request, even when it fails or is
+   uncertain, so the hourly bound holds. A send that no longer fits (revoked,
+   ended, the count used up, another chat or account) reads
+   `not sent: it no longer fits the send mandate (…)` with nothing sent. A
+   covered send is text only: it never reaches the files or outbox path.
+
+A send that fits no mandate behaves as before: a card, and a refusal where no
+card can be answered; the next send after the hourly bound is such a send.
+Files, quotes and replies, other chats and other accounts are never covered.
+
+**State.** In the profile home, `whatsapp-access/` holds `mandates/<id>.json`,
+`head.json` (the ids in force; only the head decides), `uses.jsonl` (one opening
+row per mandate, then one row per counted send) and `mandates.jsonl` (history,
+for the record only). Each is MAC'd, except the history, with a key in the
+Keychain item `WHATSAPP_MANDATE_KEY_<PROFILE>` (project `hermes`, scope
+`whatsapp-access`, a scope no profile receives), read afresh on every check:
+without a readable key nothing is in force and nothing is counted. The MACs stop
+an edited or forged mandate, head or row, and a mandate whose opening row is
+missing, or a ledger that is deleted, emptied, replaced or not a plain file of
+this user (it is opened without following links), counts as used up and says so
+(`its send count cannot be read …`). Neither an older head copied back nor use
+rows removed from an intact ledger is detected; the [guard](#ways-around-the-tool)
+that keeps file and terminal calls off the state and the 30-day ceiling bound
+that.
 
 ## Ways around the tool
 
 The same hook blocks terminal commands that run `wacli`, and terminal or
 file-tool calls whose command, working directory or path names the store, the
-sync launcher, agent or log, a `WACLI_` variable or the outbox. Patterns:
+sync launcher, agent or log, a `WACLI_` variable or the outbox. Terminal and
+file calls naming the send mandates' state in the profile home
+(`whatsapp-access/` with `mandates`, `head.json`, `uses.jsonl` or
+`mandates.jsonl`, also reached through a link or `..`) or their key
+(`WHATSAPP_MANDATE_KEY`) are blocked too; file tools can still read the plugin's
+source and these docs. Patterns:
 `CLIS` (read by command position, with `_CLI` for a line that cannot be read
-that way), `_PATHS` and `_ENGINE` in `plugins/messaging/whatsapp-access/wa.py`
-(they also keep matching the agent's earlier names). Shared rules:
+that way), `_PATHS`, `_MANDATE_STATE`, `_MANDATE_KEY` and `_ENGINE` in
+`plugins/messaging/whatsapp-access/wa.py` (they also keep matching the agent's
+earlier names). Shared rules:
 [bypass guard](access-common.md#bypass-guard-ways-around-the-tool).
 
 ## Setup
