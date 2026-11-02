@@ -214,6 +214,47 @@ def test_money_moving_cards_are_never_covered_by_always(isolated, monkeypatch):
                         "subscription_update", "subscription_cancel", "coupon_delete"}
 
 
+def test_stripe_approval_tier(isolated):
+    _, gate = handler_and_gate("assistant")
+
+    # (a) Eligible SAFE calls in test mode share standing key per account
+    plan1 = {"action": "customer_create", "mode": "test", "account": "work", "name": "Alice"}
+    plan2 = {"action": "customer_create", "mode": "test", "account": "work", "name": "Bob"}
+    key1 = sta.rule_key(plan1, "a" * 64)
+    key2 = sta.rule_key(plan2, "b" * 64)
+    assert key1 == "stripe-access:test-write:work"
+    assert key2 == key1
+
+    # via gate: test mode write gets the standing key
+    test_update = {**UPDATE, "mode": "test"}
+    directive = gate(tool_name="stripe", args=test_update, tool_call_id="call-1")
+    assert directive["action"] == "approve" and directive["rule_key"] == "stripe-access:test-write:work"
+
+    # (b) Different account target gives a different key
+    other_target = sta.rule_key({"action": "customer_create", "mode": "test", "account": "personal"}, "a" * 64)
+    assert other_target == "stripe-access:test-write:personal"
+    assert other_target != key1
+
+    # (c) Ineligible: live mode keeps exact key and differs when payload differs
+    live1 = sta.rule_key({"action": "customer_create", "mode": "live", "account": "work"}, "1" * 64)
+    live2 = sta.rule_key({"action": "customer_create", "mode": "live", "account": "work"}, "2" * 64)
+    assert live1 == f"stripe-access:customer_create:{'1' * 16}"
+    assert live2 == f"stripe-access:customer_create:{'2' * 16}"
+    assert live1 != live2
+
+    # Ineligible: without account, test mode falls back to exact key
+    no_acct = sta.rule_key({"action": "customer_create", "mode": "test"}, "3" * 64)
+    assert no_acct == f"stripe-access:customer_create:{'3' * 16}"
+
+    # Ineligible: ONCE actions in test mode keep fresh random key
+    refund1 = sta.rule_key({"action": "refund_create", "mode": "test", "account": "work"}, "4" * 64)
+    refund2 = sta.rule_key({"action": "refund_create", "mode": "test", "account": "work"}, "4" * 64)
+    assert refund1.startswith("stripe-access:refund_create:")
+    assert refund2.startswith("stripe-access:refund_create:")
+    assert refund1 != refund2
+    assert "test-write" not in refund1
+
+
 @pytest.mark.parametrize("reason", ["yolo mode is on", "this is a cron job", "nobody is present to answer"])
 def test_no_person_no_change_in_the_gate_and_the_handler(isolated, monkeypatch, reason):
     handler, gate = handler_and_gate("assistant")

@@ -12,12 +12,12 @@ Part of the Hermes design docs — index: [`PROFILES.md`](../PROFILES.md).
 
 ## Shape
 
-| Piece                                                                                                                                | Home                                                                                                            | Reader                          |
-| ------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------- | ------------------------------- |
-| Engine: validation, request building from a fixed table, key state, result shapes, amounts, write plans, approval card, bypass guard | `plugins/stripe-access/sta.py`                                                                                  | all                             |
-| The only process holding a key; the endpoints it may call (`ROUTES`), the pinned API version                                         | `plugins/stripe-access/bridge.py`                                                                               | all                             |
-| `stripe` tool and the `pre_tool_call` hook (toolset `stripe_access`), the actions each profile gets                                  | `plugins/stripe-access/__init__.py`                                                                             | Assistant, Researcher, Marketer |
-| How a profile reads Stripe: modes, accounts, amounts, search, recovery                                                               | the `stripe-access:read` plugin skill (`plugins/stripe-access/skills/read/`)                                | Assistant, Researcher, Marketer |
+| Piece                                                                                                                                | Home                                                                                              | Reader                          |
+| ------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------- | ------------------------------- |
+| Engine: validation, request building from a fixed table, key state, result shapes, amounts, write plans, approval card, bypass guard | `plugins/stripe-access/sta.py`                                                                    | all                             |
+| The only process holding a key; the endpoints it may call (`ROUTES`), the pinned API version                                         | `plugins/stripe-access/bridge.py`                                                                 | all                             |
+| `stripe` tool and the `pre_tool_call` hook (toolset `stripe_access`), the actions each profile gets                                  | `plugins/stripe-access/__init__.py`                                                               | Assistant, Researcher, Marketer |
+| How a profile reads Stripe: modes, accounts, amounts, search, recovery                                                               | the `stripe-access:read` plugin skill (`plugins/stripe-access/skills/read/`)                      | Assistant, Researcher, Marketer |
 | Changing Stripe: the card, invoices, refunds, subscriptions, the catalogue, outcomes                                                 | the `stripe-access:manage` plugin skill (`.../skills/manage/`); registered for the Assistant only | Assistant                       |
 
 Stripe's own REST API, so no terms are stretched: the risk is the user's money
@@ -205,11 +205,14 @@ chat shows, or the change is refused (sooner on Discord's shorter card);
 detail lines (invoice lines, one-time link items, metadata) are counted when
 they do not.
 
-The approval record is per tool call and allows one change. Its rule key
-hashes the exact plan, the route included, so "session" or "always" repeats
-only that identical change on that same account. A refund, finalizing, sending or voiding an invoice, changing or
-canceling a subscription and deleting a coupon get a fresh key every time
-(`ONCE`), so no stored answer ever covers one.
+The approval record is per tool call and allows one change. In test mode,
+non-ONCE write actions share one allowlist key per account (`test-write`), so
+"session" or "always" covers later test-mode writes to that account. In live
+mode, the rule key hashes the exact plan, the route included, so "session" or
+"always" repeats only that identical change on that same account. A refund,
+finalizing, sending or voiding an invoice, changing or canceling a subscription
+and deleting a coupon get a fresh key every time (`ONCE`), so no stored answer
+ever covers one.
 
 ## Where a write may run
 
