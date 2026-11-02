@@ -21,8 +21,8 @@ license: MIT
 Leave code in the shape a careful maintainer of this repository would have
 written it: one definition per type and value, named constants in a known
 home, declarations documented in the language's own doc-comment form, and
-files that each hold one responsibility. Behavior stays identical. The same
-standard applies when writing new code, so less needs tidying later.
+files whose parts change for the same reasons. Behavior stays identical. The
+same standard applies when writing new code, so less needs tidying later.
 
 </Goal>
 
@@ -77,8 +77,12 @@ whole codebase.
    functions, unreachable branches, wrappers that only forward. Anything
    exported or reachable through reflection, routing or configuration is not
    provably unused.
-7. **One responsibility per file.** Split a file that mixes concerns, within
-   the limits of <StructureTiers>.
+7. **Split by reason to change.** Split a file only where its parts change
+   for different reasons and share no private state; keep code that changes
+   together in one file. Size alone is no reason to split, and a cohesive file
+   of many small related functions stays whole. When the split would move an
+   export that an entry point or other tier C file imports, it is tier B
+   (<StructureTiers>).
 
 </Principles>
 
@@ -89,7 +93,7 @@ one into a tier before acting:
 
 | Tier | Change | Action |
 | --- | --- | --- |
-| A | Edits inside a file; extracting into a new sibling file in the same directory (types, constants, a hook, a helper, a split of an oversized file), named after the repository's existing pattern | Do it |
+| A | Edits inside a file; extracting into a new sibling file in the same directory (types, constants, a hook, a helper, a split along reasons to change per principle 7), named after the repository's existing pattern | Do it |
 | B | Moving or renaming a file, crossing directories, creating a new directory layout, adding or removing a barrel/`index` re-export, changing an exported name or signature | Propose it with the reason and the affected importers; do not do it |
 | C | Files whose path is behavior: framework routing directories, files referenced by path from configuration, scripts or other repositories, package entry points and `exports`, Python package `__init__.py` surfaces, shell entry scripts | Report it if it needs attention; never touch it |
 
