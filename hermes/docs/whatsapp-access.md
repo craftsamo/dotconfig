@@ -120,6 +120,17 @@ is looked up so the quote resolves.
   account, chat, text and reply (and, with files, each file's place and
   SHA-256), so "session" or "always" only ever repeats that identical message
   to that chat; any other send asks again.
+- **The write checks what the card showed.** The hook records, under the tool
+  call's id (under its arguments when there is none), a digest of the account,
+  chat, text, reply and the requested file paths. The handler takes that record
+  once (the id is the one Hermes binds for the handler's run), rebuilds the
+  send and compares the
+  digest before anything reaches wacli. A send with no record (the gate never
+  ran for that call, or the record is older than 15 minutes) reads "not sent:
+  this send did not pass its approval card", and one whose account, chat, text,
+  reply or files changed since reads "not sent: … changed after the approval
+  card was made". The allowlist key is never what the write is checked
+  against.
 - **Files** come only from `~/Workspaces`, judged by real path, so a link that
   leads out counts as outside. The refusal list is signal-access's, and `.zip`
   and tar archives are read entry by entry on the snapshot copy and sent only if
