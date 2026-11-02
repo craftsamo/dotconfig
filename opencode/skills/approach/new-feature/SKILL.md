@@ -41,8 +41,9 @@ Non-trivial work runs through this spine; do not jump straight to edits:
    Phase and {m} as the global `<PlanHandoff>` defines them (each sub-goal a
    reviewable PR layer, one layer of a native stack when there are several,
    in stack order, and {m} its commit-sized steps); executor one of Build |
-   worker | worker-deep | reviewer | verifier | debugger (worker for
-   implementation the plan has designed, worker-deep when its logic is hard;
+   worker | worker-deep | refactorer | reviewer | verifier | debugger (worker
+   for implementation the plan has designed, worker-deep when its logic is
+   hard, refactorer to tidy a layer's changed files before it is published;
    Build for design, integration and commits). For a sub-goal that adds screens
    or stored data, agree what people can do, the screens and the data with the
    user before its steps; a mock or diagram beats prose there. Without

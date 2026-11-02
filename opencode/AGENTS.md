@@ -65,8 +65,9 @@ and report it.
 When a plan is aligned in Plan mode, write it in the reply and register its
 steps with `todowrite`, one item per step shaped
 `Phase{N}.{m} - <task> (executor)`, executor = Build | worker | worker-deep |
-reviewer | verifier | debugger (worker for implementation the plan has
-designed, worker-deep when its logic is hard; Build for design, integration
+refactorer | reviewer | verifier | debugger (worker for implementation the
+plan has designed, worker-deep when its logic is hard, refactorer to tidy a
+layer's changed files before it is published; Build for design, integration
 and commits). When the work ends in pull requests, Phase N is one reviewable
 layer: one PR, or one layer of a native stack when there are several
 (git-pullrequest), in stack order; {m} are the steps inside it, each ending in
@@ -326,6 +327,21 @@ the spec and what went wrong instead. Commits stay with the primary. Before
 commits of non-trivial changes, consider a read-only pass through `subagent`
 with `agent: reviewer`.
 
+Tidy a layer before it is published: once its implementation steps have
+passed their checks, run `agent: refactorer` over the files the branch
+changed (`git diff --name-only <base>...HEAD`, code files only). It applies
+the `code-hygiene` standard without changing behavior, makes only changes
+inside a file or its directory, and reports moves, renames and public API
+changes as proposals; decide those in the primary, and hand an accepted one
+to `worker` as a spec. Verify its result like a worker's, then commit by
+where the tidied code came from (`git-commit`):
+
+- code this branch introduced and nobody has reviewed yet: fold each hunk
+  into the commit that introduced it (`fixup`, where `git_amend_check`
+  allows the rewrite), so the history reads as if it had been written tidy;
+- code already under review in an open PR, or older than the branch: a
+  separate `refactor` commit, or a separate PR when it is large.
+
 </ImplementationDelegation>
 
 <DebuggingDelegation>
@@ -354,7 +370,8 @@ format-check-only.
 Keep root-cause analysis and design decisions in the primary session when
 failures are non-obvious or require code changes.
 
-Plan does not invoke `verifier`, `worker`, `worker-deep`, or `general`:
+Plan does not invoke `verifier`, `worker`, `worker-deep`, `refactorer`, or
+`general`:
 investigate with read-only specialists and leave execution for Build. Debug
 and Review request verification only from `verifier`, never formatter
 application or source changes.
