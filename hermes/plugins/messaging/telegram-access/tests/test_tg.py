@@ -22,8 +22,10 @@ tg = fakes.load("tg")
 @pytest.fixture(autouse=True)
 def state(monkeypatch):
     base = fakes.short_dir()
+    keychain = fakes.short_dir()
     monkeypatch.setenv(store.STATE_ENV, str(base))  # never the real state directory
     monkeypatch.setattr(tg, "_agent_running", lambda: True)
+    monkeypatch.setattr(tg.send_mandate.mandate_store, "SECRET", fakes.fake_secret(keychain))  # never the Keychain
     workspace = base / "Workspaces"
     workspace.mkdir()
     monkeypatch.setattr(tg, "SEND_ROOT", workspace)
@@ -31,6 +33,7 @@ def state(monkeypatch):
     tg._approved.clear()
     yield base
     shutil.rmtree(base, ignore_errors=True)
+    shutil.rmtree(keychain, ignore_errors=True)
 
 
 @pytest.fixture()
@@ -657,9 +660,32 @@ def test_config_defaults(state):
     ("search_files", {"path": "~/.hermes/local/telegram-access/venv"}),
     ("search_files", {"path": "$HERMES_LOCAL/telegram-access/venv"}),
     ("search_files", {"path": "~/Library/Application Support/Telegram Desktop"}),
+    ("terminal", {"command": "secret get TELEGRAM_MANDATE_KEY_ASSISTANT -p hermes --scope telegram-access"}),
+    ("terminal", {"command": "security find-generic-password -s telegram_mandate_key_assistant"}),
+    ("read_file", {"path": "TELEGRAM_MANDATE_KEY_ASSISTANT"}),
+    ("search_files", {"pattern": "TELEGRAM_MANDATE_KEY", "path": "."}),
+    ("read_file", {"path": "~/.hermes/profiles/assistant/telegram-access/head.json"}),
+    ("read_file", {"path": "~/.hermes/profiles/assistant/telegram-access/mandates/m1a2b3c4d.json"}),
+    ("read_file", {"path": "~/.hermes/profiles/assistant/Telegram-Access/Mandates.jsonl"}),
+    ("search_files", {"path": "/Users/x/.hermes/profiles/assistant/telegram-access/uses.jsonl"}),
+    ("write_file", {"path": "~/.hermes/profiles/assistant/telegram-access/head.json", "content": "{}"}),
+    ("patch", {"path": "~/.hermes/profiles/assistant/telegram-access/mandates.jsonl", "old_string": "a"}),
+    ("read_file", {"path": "~/.hermes/profiles/assistant/telegram-access/sub/../head.json"}),
+    ("terminal", {"command": "cat head.json", "workdir": "~/.hermes/profiles/assistant/telegram-access/mandates"}),
 ])
 def test_bypass_is_blocked(tool, args):
     assert tg.bypass(tool, args) == tg.BYPASS_MESSAGE
+
+
+def test_a_link_into_the_mandate_state_is_blocked_by_the_path_it_resolves_to(state):
+    folder = state / "profile" / "telegram-access"
+    folder.mkdir(parents=True)
+    (folder / "head.json").write_text("{}")
+    link = state / "shortcut"
+    link.symlink_to(folder, target_is_directory=True)
+    assert tg.bypass("read_file", {"path": str(link / "head.json")}) == tg.BYPASS_MESSAGE
+    assert tg.bypass("search_files", {"path": str(link)}) is None  # the folder alone is not a piece
+    assert tg.bypass("read_file", {"path": str(state / "profile" / "other.json")}) is None
 
 
 @pytest.mark.parametrize("tool, args", [
@@ -669,6 +695,12 @@ def test_bypass_is_blocked(tool, args):
     ("read_file", {"path": "~/.config/hermes/launchd/telegram-access-launchctl.sh"}),
     ("read_file", {"path": "~/Workspaces/.inbox/telegram/2001-12/photo.jpg"}),
     ("web_search", {"query": "telethon"}),
+    ("read_file", {"path": "docs/telegram-access.md"}),
+    ("read_file", {"path": "~/.hermes/plugins/messaging/telegram-access/skills/account/SKILL.md"}),
+    ("search_files", {"pattern": "send mandate", "path": "docs"}),
+    ("read_file", {"path": "~/.hermes/profiles/assistant/telegram-access-notes/head.json"}),
+    ("read_file", {"path": "~/.hermes/profiles/assistant/telegram-access/config.json"}),
+    ("write_file", {"path": "~/Workspaces/notes.md", "content": "mandates and uses are in the docs"}),
 ])
 def test_ordinary_calls_pass(tool, args):
     assert tg.bypass(tool, args) is None

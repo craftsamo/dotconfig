@@ -52,7 +52,8 @@ narrows the chats or the period, follow it; the mechanics below still apply.
 | Older history of a mirrored chat into the mirror | `backfill` with `chat`, `pages` 1-5 of 100 | live |
 | A message's file | `media` with `chat` + `id` | live, or the kept copy |
 | The sync list | `sync_list`, `sync_add` / `sync_remove` with `chats` | local |
-| Send | `send` with `chat`, `text`, `files`, `reply_to` | live, after a card |
+| Send | `send` with `chat`, `text`, `files`, `reply_to` | live, after a card (none for a text inside a send mandate) |
+| A standing OK for text sends to a few chats | `telegram_mandate` (`create` / `list` / `revoke`) | local |
 
 Chat ids are marked: a person or bot `123…`, a basic group `-123…`, a
 supergroup or channel `-100…`. Limits are clamped (chats 200, messages 300,
@@ -138,8 +139,8 @@ loses its mirrored messages (it can still be read live).
 `send` is the only write: text, files or both, to a chat already in the chat
 list. A new chat is the user's to start in the app. Where no one can answer a
 card (yolo mode, approvals off, a single-query or scheduled run) the tool
-refuses with `not sent`; ask the user to request the send in a chat, and do
-not look for another route.
+refuses with `not sent`, unless the send fits a send mandate (below); ask the
+user to request the send in a chat, and do not look for another route.
 
 1. **Read first.** Resolve the chat id, and the message id for `reply_to`
    (a message of that chat), by reading.
@@ -174,8 +175,35 @@ not look for another route.
    after the card is `not sent`, and needs a new card.
 
 A send needs the user there to answer its card. In cron, a webhook, an API
-session or a single query the tool refuses it, so
-never schedule a job that is meant to send; schedule a reminder instead.
+session or a single query the tool refuses it, unless it fits a send mandate;
+without one, never schedule a job that is meant to send; schedule a reminder
+instead.
+
+### Send mandates
+
+A send mandate is the user's standing OK for plain text sends to a few chats:
+a send that fits it needs no card, also in a scheduled run.
+
+- **Making one.** Only when the user wants a recurring or unattended text
+  send (a daily report to the same chat), and only after you agreed the
+  chats, how many sends an hour, the longest text, the days and the purpose
+  with the user in chat. Then call `telegram_mandate` with `action=create`,
+  `chats` (ids from `chats`: a person, a group, a supergroup or Saved
+  Messages; never a bot or a channel), `per_hour` (1 to 30), `max_chars`
+  (up to 1000), `days` (1 to 30) and `purpose` (one line). The card is the
+  user's to answer, every time: it shows every bound, each chat by its name
+  and its own handle (@username, phone or id), and a denial means nothing was
+  made, so never retry it unchanged or ask again to get past it.
+  A mandate cannot be made from a scheduled run.
+- **Using it.** Send with `telegram_account` as usual (`send`, plain text,
+  one of the mandate's chats): a covered send needs nothing more and is
+  counted before it goes out, even if it then fails. After the hour's count
+  is used up (a mandate whose count record is gone reads as used up), or past
+  the length, the same send asks on a card (and is refused in a scheduled run). `telegram_mandate` `action=list` shows what is
+  in force; `action=revoke` with `mandate` ends one at once and needs no card,
+  so end one when the user says the job is over.
+- **Never offer one for** files, replies or quoted messages, a chat the
+  user did not name, or another account: they always ask on a card.
 
 ### Outcomes
 
