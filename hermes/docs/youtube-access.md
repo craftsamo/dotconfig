@@ -15,17 +15,17 @@ quota accounting or its write path. Common rules:
 
 ## Shape
 
-| Piece                                                                                                                     | Home                                                                                                                                         | Reader                        |
-| ------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------- |
-| Engine: validation, profile actions, tokens, quota, pacing, result shapes, approval card, bypass guard; the `yaccess` CLI | `plugins/social/youtube-access/ya.py`                                                                                                        | all                           |
-| One yt-dlp call per transcript or download in the engine venv                                                             | `plugins/social/youtube-access/bridge.py`                                                                                                    | all                           |
-| `youtube` tool and its `pre_tool_call` hook (toolset `youtube_access`)                                                    | `plugins/social/youtube-access/__init__.py`                                                                                                  | Assistant, Marketer           |
-| Channel authorization                                                                                                     | `bin/yaccess` (runs `ya.py` on `hermes-python`)                                                                                              | people                        |
-| Engine venv                                                                                                               | `scripts/youtube-access.sh`, `engines/yt-dlp/`                                                                                               | people                        |
-| How a profile reads YouTube: budget, read actions, recovery                                                               | the `youtube-access:read` plugin skill (`plugins/social/youtube-access/skills/read/`)                                                  | Assistant, Marketer, Searcher |
+| Piece                                                                                                                     | Home                                                                                                                         | Reader                        |
+| ------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- | ----------------------------- |
+| Engine: validation, profile actions, tokens, quota, pacing, result shapes, approval card, bypass guard; the `yaccess` CLI | `plugins/social/youtube-access/ya.py`                                                                                        | all                           |
+| One yt-dlp call per transcript or download in the engine venv                                                             | `plugins/social/youtube-access/bridge.py`                                                                                    | all                           |
+| `youtube` tool and its `pre_tool_call` hook (toolset `youtube_access`)                                                    | `plugins/social/youtube-access/__init__.py`                                                                                  | Assistant, Marketer           |
+| Channel authorization                                                                                                     | `bin/yaccess` (runs `ya.py` on `hermes-python`)                                                                              | people                        |
+| Engine venv                                                                                                               | `scripts/youtube-access.sh`, `engines/yt-dlp/`                                                                               | people                        |
+| How a profile reads YouTube: budget, read actions, recovery                                                               | the `youtube-access:read` plugin skill (`plugins/social/youtube-access/skills/read/`)                                        | Assistant, Marketer, Searcher |
 | How the Assistant changes it: write actions, approvals, recovery, Studio settings, starting a channel                     | the `youtube-access:manage` plugin skill (`plugins/social/youtube-access/skills/manage/`); registered for the Assistant only | Assistant                     |
-| When the Assistant uses it in Chat                                                                                        | the Assistant's private Chat reference `youtube.md`                                                                                          | Assistant                     |
-| When Marketer reads with it                                                                                               | Marketer's prompt and `analyze/references/measurement.md` under `marketer-pipeline`                                                                           | Marketer                      |
+| When the Assistant uses it in Chat                                                                                        | the Assistant's private Chat reference `youtube.md`                                                                          | Assistant                     |
+| When Marketer reads with it                                                                                               | Marketer's prompt and `analyze/references/measurement.md` under `marketer-pipeline`                                          | Marketer                      |
 
 Two back ends, one tool. The YouTube Data API v3 and the YouTube Analytics API
 v2 run in Hermes' own Python (the `google` extra) as one of the user's
@@ -135,18 +135,21 @@ changes sit in a `Changes` block one a line. Long values shrink until the card
 fits; a card that still does not fit is refused. Approval keys differ by how far
 a grant may reach:
 
-| Action                                                                      | Approval key                             |
-| --------------------------------------------------------------------------- | ---------------------------------------- |
-| `update` (details and settings), `thumbnail`                                | per channel and video                    |
-| `update` with `privacy` or `publish_at`                                     | exact call                               |
-| `reply`, `moderate`, playlist actions, `channel_update`, `watermark_remove` | exact call                               |
-| `upload`, `caption_upload`, `watermark`                                     | exact call plus the file's size and time |
+| Action                                                                                                             | Approval key                             |
+| ------------------------------------------------------------------------------------------------------------------ | ---------------------------------------- |
+| `update` (details and settings), `thumbnail`                                                                       | per channel and video                    |
+| `playlist_move`, `playlist_remove`, `watermark_remove`, `moderate` (when held for review)                          | per channel                              |
+| `update` with `privacy` or `publish_at`                                                                            | exact call                               |
+| `reply`, `moderate` (publish, reject, ban), `playlist_create`, `playlist_add`, `playlist_update`, `channel_update` | exact call                               |
+| `upload`, `caption_upload`, `watermark`                                                                            | exact call plus the file's size and time |
 
-"Session" or "always" on the first edit card of a video covers that video's
-later detail edits and thumbnails; the user chose this so iterating on a title
-does not ask every time. Going public, scheduling, replying, moderating,
-uploading, captions, playlist and channel changes ask every time: they are
-rarer, public at once, or reach every video. `update`, `playlist_update` and
+"Session" or "always" on detail edits to a video (`update` without `privacy`
+or `publish_at`, and `thumbnail`) covers that video's later detail edits and
+thumbnails. Moving or removing playlist entries, removing the channel
+watermark, and holding comments for review share one approval per channel.
+Going public, scheduling, replying, publishing or rejecting comments, uploading,
+captions, creating or updating playlists, channel settings and setting a
+watermark ask every time: they are rarer, public at once, or reach every video. `update`, `playlist_update` and
 `channel_update` read the resource first, refuse another channel's, and send
 each part they touch back whole with the changes merged in (the API clears
 fields a request leaves out, and refuses a changed channel title).
