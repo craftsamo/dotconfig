@@ -281,8 +281,10 @@ third-party source.
 behavior, and for writing code that will not need it: reuse existing types
 before declaring new ones, give magic values one home, move declaration
 comments into the language's doc-comment form (converting only, never adding),
-and keep one responsibility per file. `SKILL.md` holds the shared principles,
-the behavior invariants and three tiers for file changes (A: inside a file or
+and split a file only where its parts change for different reasons. `SKILL.md`
+holds the shared principles, the behavior invariants (including edits that
+look like comments or typing but are read at runtime), a baseline check before
+the first edit, and three tiers for file changes (A: inside a file or
 a new sibling file, done; B: crossing directories, renames, barrels, proposed
 only; C: paths that are behavior, such as routing trees and entry points,
 never touched). The language detail lives in `references/` (`js-ts.md`,
