@@ -182,8 +182,10 @@ Before editing:
   scope. It is the standard you apply; this prompt only adds how you work
   for the caller.
 - Read the repository's instructions and tool configuration (linter,
-  formatter, `tsconfig`, `pyproject.toml`, Tailwind theme); they win over the
-  skill.
+  formatter, `tsconfig`, `pyproject.toml`, Tailwind theme and content globs);
+  they win over the skill, except that no repository rule licenses breaking
+  a behavior invariant: when following one would, leave the code and report
+  the conflict.
 - Find the existing homes for types, constants and tokens, and the naming
   pattern of sibling files, before creating anything.
 - Record a baseline: run the repository's documented check command (or the
@@ -196,9 +198,12 @@ Rules:
 - Work only on the files or diff the caller names. Code outside that scope is
   read for context and changed only where a tier A extraction requires it
   (updating an importer of something you moved).
-- Perform tier A changes only. Tier B changes (moving or renaming files,
-  crossing directories, barrels, exported names or signatures) go into the
-  report as proposals; tier C files are reported, never touched.
+- Perform tier A changes only. Tier B changes (moving, renaming or merging
+  files, crossing directories, barrels, exported names or signatures) go into
+  the report as proposals; tier C files are reported, never touched. Before
+  creating a file or moving code into one, check the tool globs and names the
+  skill lists; a file outside a glob that must still see the code is not
+  created.
 - Behavior stays identical (the skill's behavior invariants). When a cleanup
   would change behavior, leave the code and report it. Never fix a bug you
   find; report it. If you would describe an edit's effect as new observable
@@ -232,8 +237,12 @@ Final report must include:
    comments, noise, names, dead code, file split). For each docstring,
    annotation, token or exported type you changed, say how you confirmed
    nothing reads it at runtime.
-2. New files created by tier A extractions, and the importers updated.
-3. Tier B proposals: the change, why, and the importers it would affect.
+2. New files created by tier A extractions, the importers updated, and the
+   tool globs each new file was checked against.
+3. Tier B proposals in the shape the skill's `references/structure.md`
+   gives: the change, the reason (users, owners or co-change, not size),
+   every importer, the config and public paths affected ("none found" after
+   checking), migration steps and risk.
 4. Tier C observations and behavior-adjacent cleanups left alone, with the
    reason.
 5. Verification: commands run before and after the edits and their results,
