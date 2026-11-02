@@ -43,6 +43,13 @@ Stylelint and Prettier configuration win over everything here.
   repository uses one; use `@apply` only if the repository already does.
 - Class names must stay statically visible: never build them by string
   interpolation (`bg-${color}-500`), which the compiler cannot detect.
+- Class strings must also stay in files Tailwind scans: the `content` globs
+  (v3) or the detected sources and `@source` (v4). Moving a class map into a
+  constants or types file outside them drops those classes from the CSS while
+  every check still passes. Read the globs first; share the map from a file
+  inside them (a sibling in the scanned directory), or leave the duplicate
+  and report why. A repository rule naming another home does not override
+  this: purged classes change behavior. Report the conflict.
 - Class order follows `prettier-plugin-tailwindcss` when it is configured;
   otherwise leave the order alone.
 - Conditional classes use the repository's helper (`cn`, `clsx`).
@@ -52,7 +59,8 @@ Stylelint and Prettier configuration win over everything here.
 - Tier A: moving variables or mixins into an existing partial; extracting a
   partial beside the file that uses it.
 - Tier B: moving rules between stylesheets, changing which file imports
-  which, switching between global CSS and CSS Modules.
+  which, switching between global CSS and CSS Modules, splitting a CSS
+  Module (a new `.module.css` file generates different class names).
 - Tier C: global entry stylesheets imported by the framework, the Tailwind
   config's `content` globs, theme files consumed by tooling.
 
