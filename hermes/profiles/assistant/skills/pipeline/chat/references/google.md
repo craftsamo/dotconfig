@@ -39,8 +39,9 @@ making it.
   card covers the rest of that spreadsheet's edits for the session. clear,
   create, data, protect, comment and settings calls, and layout calls that
   delete or move data, ask every time. Plan calls so few cards are needed.
-- Gmail `send`, Drive `upload` and every gcloud command that is not a read ask
-  each time.
+- Drive `upload` into My Drive shares one approval per profile. Uploads into a
+  folder, uploads from a sensitive area, Gmail `send` and every gcloud command
+  that is not a read ask each time.
 
 Writes need the user present: in cron (approvals are denied there), a single
 query or an inbound A2A request nothing is written. Do not schedule a job

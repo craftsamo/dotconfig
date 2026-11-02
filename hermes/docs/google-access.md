@@ -147,6 +147,11 @@ not fit (too many recipients) is refused too.
   deletes one (`OBJECT_DESTRUCTIVE`) or writes a pivot table at a cell, which
   overwrites what it fills — so a grant for formatting never covers dropping
   rows.
+- **Drive uploads into My Drive are approved per profile.** `upload` into My Drive
+  (with no parent folder) shares one allowlist key per profile, so "session" or
+  "always" on the first card covers later uploads into My Drive for that profile.
+  An upload into a folder (`parent`), an upload from a sensitive area (which goes
+  up age-encrypted), or a call without a profile keeps a key per exact call.
 - **Spreadsheet cards** keep a shape of their own, one fact per line: the
   spreadsheet title, the tab, then each cell as
   `K3257 > <column header>: <value>`. A whole tab whose name cannot be
