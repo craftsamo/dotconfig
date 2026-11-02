@@ -433,7 +433,9 @@ Keychain at every check, never cached: without a readable key, or with a
 replaced one, nothing is in force. As with Hyperliquid's mandates, the MACs stop an
 edited mandate or head, not an older head copied back; the guard on the
 state directory and the 30-day ceiling bound that
-([decision](decisions/github-mandates.md)).
+([decision](decisions/github-mandates.md)). The store itself
+(`plugins/_shared/mandate_store.py`) is shared with other mandates; the terms,
+the card and whether a list fits stay in `mandate.py`.
 
 ## Ways around the tools
 

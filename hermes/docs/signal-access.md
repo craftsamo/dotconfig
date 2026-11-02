@@ -1,8 +1,9 @@
 # Signal access
 
 The Assistant's access to the user's own Signal account: reading chats and
-messages, and sending text and workspace files that the user approves first.
-It is not the Signal messaging platform (`gateway/platforms/signal.py`, which
+messages, and sending text and workspace files that the user approves first
+(a plain text send to a chat named by a [send mandate](#send-mandates) skips
+its card). It is not the Signal messaging platform (`gateway/platforms/signal.py`, which
 makes Signal a channel _to_ Hermes); nothing here lets people talk to Hermes
 over Signal. This doc also owns the archive inspection that the four chat
 plugins share. Read it when changing the plugin, its sync agent or that
@@ -11,17 +12,18 @@ Hermes design docs — index: [`PROFILES.md`](../PROFILES.md).
 
 ## Shape
 
-| Piece                                                                        | Home                                                                                         | Reader             |
-| ---------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- | ------------------ |
-| Mirror schema, ingest rules, retention                                       | `plugins/messaging/signal-access/store.py`                                                   | sync agent, engine |
-| JSON-RPC client for the daemon's socket                                      | `plugins/messaging/signal-access/rpc.py`                                                     | sync agent, engine |
-| Sync agent: owns signal-cli, writes the mirror                               | `plugins/messaging/signal-access/sync.py`                                                    | launchd            |
-| Archive inspection for sends (shared with the WhatsApp and Telegram plugins) | `plugins/messaging/_shared/archive_check.py`                                                 | engine             |
-| Engine: reads, check, media, send, approval card, file checks, bypass guard  | `plugins/messaging/signal-access/sig.py`                                                     | Assistant          |
-| `signal` tool and the `pre_tool_call` hook (toolset `signal_access`)         | `plugins/messaging/signal-access/__init__.py`                                                | Assistant          |
-| Linking and the sync agent                                                   | `launchd/signal-access-launchctl.sh`, `launchd/local.hermes.signal-access.sync.plist.tmpl`   | people             |
-| How the tool is used: reads, files, sends, outcomes                          | the `signal-access:account` plugin skill (`plugins/messaging/signal-access/skills/account/`) | Assistant          |
-| When the Assistant uses it in Chat                                           | the Assistant's private Chat reference `signal.md`                                           | Assistant          |
+| Piece                                                                                      | Home                                                                                         | Reader             |
+| ------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------- | ------------------ |
+| Mirror schema, ingest rules, retention                                                     | `plugins/messaging/signal-access/store.py`                                                   | sync agent, engine |
+| JSON-RPC client for the daemon's socket                                                    | `plugins/messaging/signal-access/rpc.py`                                                     | sync agent, engine |
+| Sync agent: owns signal-cli, writes the mirror                                             | `plugins/messaging/signal-access/sync.py`                                                    | launchd            |
+| Archive inspection for sends (shared with the WhatsApp and Telegram plugins)               | `plugins/messaging/_shared/archive_check.py`                                                 | engine             |
+| Engine: reads, check, media, send, approval card, file checks, bypass guard                | `plugins/messaging/signal-access/sig.py`                                                     | Assistant          |
+| `signal` and `signal_mandate` tools and the `pre_tool_call` hook (toolset `signal_access`) | `plugins/messaging/signal-access/__init__.py`                                                | Assistant          |
+| Send mandates: terms, card, fit checks, hourly ledger (shared with Telegram)               | `plugins/messaging/_shared/send_mandate.py` over `plugins/_shared/mandate_store.py`          | engine, tool       |
+| Linking and the sync agent                                                                 | `launchd/signal-access-launchctl.sh`, `launchd/local.hermes.signal-access.sync.plist.tmpl`   | people             |
+| How the tool is used: reads, files, sends, outcomes                                        | the `signal-access:account` plugin skill (`plugins/messaging/signal-access/skills/account/`) | Assistant          |
+| When the Assistant uses it in Chat                                                         | the Assistant's private Chat reference `signal.md`                                           | Assistant          |
 
 [signal-cli](https://github.com/AsamK/signal-cli) (Homebrew `signal-cli`, a
 native build, no Java) joins the account as a linked device — the same standing
@@ -33,12 +35,13 @@ read.
 
 ## Account and state
 
-Exactly one account. Everything lives in one private state directory,
+Exactly one account. Everything of the account lives in one private state directory,
 `~/.local/state/hermes-signal/` (mode 700, excluded from Time Machine by the
 launcher): `signal-cli/` (keys and downloaded files), `signal-cli.sock`,
 `mirror.db` (SQLite, WAL) and `outbox/` (short-lived copies of files being
 sent). The phone number appears only there and on the approval card, never in
-tracked files.
+tracked files. The send mandates' state is not here but in the profile home
+([Send mandates](#send-mandates)).
 
 The `local.hermes.signal-access.sync` LaunchAgent runs `sync.py`, which starts
 `signal-cli daemon --receive-mode manual` as its child and subscribes on the
@@ -145,7 +148,8 @@ trimmed before the card is built, so the card and the message carry the same
 text.
 
 - **Sends ask first** ([approval gate](access-common.md#approval-gate)),
-  on a card of the [shared shape](access-common.md#card-shape) titled
+  unless the send fits a [send mandate](#send-mandates), on a card of the
+  [shared shape](access-common.md#card-shape) titled
   `Signal · Send message`, then who sees it (⚠️ the person or everyone in the
   group, ✅ only the user for Note to Self). The card names the account, the
   chat (a person shows their number or account id, a group its name and the
@@ -196,22 +200,92 @@ text.
   confirmed), so the Assistant asks the user to look on the phone before any
   resend.
 
+## Send mandates
+
+A send mandate is the user's standing approval for plain text sends to a few
+chats, made with `signal_mandate` `create` on a card of its own. It belongs to
+the one linked account (its number is on the card) and names:
+
+- one to five chats, each by its chat id with the name, kind and identity the
+  card showed (a person, a group, or Note to Self), read the way a send reads a
+  chat: ids only, never a name or a number, and a group the user has left is
+  refused. The identity is the handle a send card shows (the number, or the
+  account id when there is none; a group's id; the account's number for Note to
+  Self), because the name is the other person's choice and never tells two chats
+  apart;
+- how many sends an hour it allows (1 to 30) and the longest text (up to 1000
+  characters);
+- a purpose in one line, and 1 to 30 days. The end is fixed when the card is
+  drawn and printed on it.
+
+The card (🚨, since sends inside skip theirs) carries every one of these bounds
+and the rule every mandate shares ("Never covered"); when it is short of room
+the chat names and the purpose are shortened first (never the identities), and a
+mandate whose bounds still do not fit is refused. Its key is fresh every time, so no answer covers
+another mandate, and a mandate is never made by another: the hook refuses a
+`create` for an inbound A2A request and where nobody can answer a card (cron, a
+single query, YOLO), and the handler makes one only from the hook's record of
+that very call, after reading the chats again and finding the same terms as the
+card. `list` shows the mandates in force; `revoke` ends one at once. Neither
+asks.
+
+A send fits a mandate when it is plain text to one of its chats, from its
+account, within its length, with no file, no quoted message and no reply, and
+the hour's count is not used up. Anything else asks on its card as above and,
+where no card can be answered, is refused as before. For a send that fits, the
+hook builds no card: it records the mandate's id with the per-call record that
+every send keeps, returns no approval directive and skips the refusal for a run
+with nobody to answer. The handler peeks at that record for the same reason; a
+call without a record is refused like any send that skipped its gate. Inside a
+mandate a send also runs where nobody can answer a card, such as a cron job.
+
+At the write, after the plan is rebuilt and matches the record, `send_mandate.use`
+reads the mandate again and counts the send before the daemon is called, under
+the store's lock: a mandate revoked or ended since the hook, a chat or account
+that differs, a text over the bound or an hour's count used up reads `not sent:
+it no longer fits the send mandate (…)` with nothing sent. The count stands
+whatever becomes of the request, a failed or uncertain one included. A file, a
+quote or a reply carries more than the card showed, so those never fit.
+
+State lives in the profile home under `signal-access/`: one MAC'd JSON per
+mandate (`mandates/`), a MAC'd head naming those in force (only the head
+decides), a MAC'd opening row per mandate and then a MAC'd row per counted send
+(`uses.jsonl`) and a history file kept for the record. The MAC key is a random
+key in the Keychain (`SIGNAL_MANDATE_KEY_<PROFILE>`, project `hermes`, scope
+`signal-access`, a scope no profile receives), made with the first mandate and
+read from the Keychain at every check, never cached: without a readable key, or
+with a replaced one, nothing is in force and every send asks. The MACs stop an
+edited or forged mandate, head or row, and a mandate whose opening row is
+missing, or a ledger that is deleted, emptied, replaced or not a plain file of
+this user (it is opened without following links), counts as used up. Neither an
+older head copied back nor use rows removed from an intact ledger is detected;
+the guard on the state and the key (below) and the 30-day ceiling bound that
+([decision](decisions/send-mandates.md)). The store
+(`plugins/_shared/mandate_store.py`) and the terms, card, fit checks and ledger
+(`plugins/messaging/_shared/send_mandate.py`) are shared with other mandates and
+with Telegram; what a chat is and how a send is planned stay in `sig.py`.
+
 ## Where a write may run
 
 A send is refused wherever no person can answer its card
-([approval gate](access-common.md#approval-gate)); the hook refuses before the
-card is built. The send record is made when the card is built, so it is no
-proof of approval; only this check keeps a card-less run from sending.
+([approval gate](access-common.md#approval-gate)) unless it fits a
+[send mandate](#send-mandates); the hook refuses before the card is built. The
+send record is made when the card is built, so it is no proof of approval; only
+this check keeps a card-less run from sending, and only a send that fits a
+mandate in force is let through it.
 
 ## Ways around the tool
 
 The same hook blocks terminal commands that run `signal-cli`, and terminal or
 file-tool calls whose command, working directory or path names the state, the
 agent, its launcher or log, a `HERMES_SIGNAL_` variable or Signal Desktop's
-data. Patterns: `CLIS` (read by command position, with `_CLI` for a line that
-cannot be read that way), `_PATHS` and `_ENGINE` in
-`plugins/messaging/signal-access/sig.py` (they also keep matching the agent's
-earlier names). Shared rules:
+data. The same calls are blocked when they name the send mandates' state in the
+profile home (`signal-access/` with `mandates`, `head.json` or `uses.jsonl`,
+matched on the text and on the real path it resolves to) or the Keychain item
+`SIGNAL_MANDATE_KEY`. Patterns: `CLIS` (read by command position, with `_CLI`
+for a line that cannot be read that way), `_PATHS`, `_MANDATE_STATE` and
+`_ENGINE` in `plugins/messaging/signal-access/sig.py` (they also keep matching
+the agent's earlier names). Shared rules:
 [bypass guard](access-common.md#bypass-guard-ways-around-the-tool).
 
 ## Setup

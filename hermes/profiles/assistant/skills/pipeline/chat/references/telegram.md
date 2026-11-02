@@ -28,6 +28,11 @@ Do them inline with the tool.
   from `chats` and ask before any send.
 - `search` covers the mirror only: when nothing is found, say so rather than
   "it was never said".
+- A plain-text send that repeats to chats the user names (a daily report) can
+  run under a send mandate (`telegram_mandate`): offer it only after agreeing
+  the chats, how many an hour, how long a text, how many days and the purpose
+  in chat. It is made on a card the user answers; files and replies are never
+  covered, and a send outside it asks as usual.
 - Secret chats are not visible at all — say so when asked.
 - A saved file is delivered with a bare `MEDIA:/abs/path` line.
 - Report a send from the tool's result: the chat, and that Telegram accepted
