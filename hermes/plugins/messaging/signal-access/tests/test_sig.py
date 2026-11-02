@@ -576,6 +576,41 @@ def test_rule_key_binds_file_content(env):
     assert first != second
 
 
+def test_rule_key_tiers(env, monkeypatch):
+    card_self, key_self_1 = sig.approval_request({"action": "send", "chat": ME, "text": "hello"})
+    assert "✅ Only you see it" in card_self
+    assert key_self_1 == f"signal-access:send-self:{ME}"
+
+    _, key_self_2 = sig.approval_request({"action": "send", "chat": ME, "text": "different message"})
+    assert key_self_1 == key_self_2
+
+    other_uuid = "99999999-9999-4999-8999-999999999999"
+    linked_account = sig.store.linked_account
+    monkeypatch.setattr(sig.store, "linked_account", lambda: {"number": fakes.NUMBER, "uuid": other_uuid})
+    _, key_other = sig.approval_request({"action": "send", "chat": other_uuid, "text": "hello"})
+    assert key_other == f"signal-access:send-self:{other_uuid}"
+    assert key_other != key_self_1
+
+    monkeypatch.setattr(sig.store, "linked_account", linked_account)
+    card_alice, key_alice_1 = sig.approval_request({"action": "send", "chat": ALICE, "text": "hello"})
+    assert "⚠️ They see it at once" in card_alice
+    assert key_alice_1.startswith("signal-access:send:")
+    _, key_alice_2 = sig.approval_request({"action": "send", "chat": ALICE, "text": "different"})
+    assert key_alice_2.startswith("signal-access:send:")
+    assert key_alice_1 != key_alice_2
+
+
+def test_a_note_to_self_is_still_checked_against_the_card(env, daemon, monkeypatch):
+    """The allowlist key of a note to oneself ignores the text, but the send is checked against what the card showed."""
+    args = {"action": "send", "chat": ME, "text": "hello"}
+    _, key = sig.approval_request(args)
+    assert key == f"signal-access:send-self:{ME}"
+    real = sig.send_plan
+    monkeypatch.setattr(sig, "send_plan", lambda a: {**real(a), "text": "not what the card showed"})
+    out = sig.execute(args)
+    assert out["ok"] is False and "changed after the approval card" in out["error"] and daemon.requests == []
+
+
 def test_files_outside_the_workspace_are_refused(env):
     outside = env["base"] / "secret.png"
     outside.write_bytes(PNG)

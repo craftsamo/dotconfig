@@ -218,6 +218,31 @@ def test_rule_key_binds_the_exact_message(home):
     assert one != tg.approval_request({"action": "send", "chat": str(fakes.GROUP), "text": "hi"}, home=home)[1]
 
 
+def test_rule_key_tiers(home, monkeypatch):
+    card_self, key_self_1 = tg.approval_request({"action": "send", "chat": str(fakes.ME), "text": "hi"}, home=home)
+    assert "✅ Only you see it" in card_self
+    assert key_self_1 == f"telegram-access:send-self:{fakes.ME}"
+
+    _, key_self_2 = tg.approval_request({"action": "send", "chat": str(fakes.ME), "text": "different"}, home=home)
+    assert key_self_1 == key_self_2
+
+    # The mirror still holds the Saved Messages row of an account that was logged out: it is no
+    # one's note to oneself now, so the card is a plain send and keeps its exact key.
+    orig_meta = tg._meta()
+    monkeypatch.setattr(tg, "_meta", lambda: {**orig_meta, "me_id": 9999})
+    card_stale, key_stale = tg.approval_request({"action": "send", "chat": str(fakes.ME), "text": "hi"}, home=home)
+    assert "⚠️ They see it at once" in card_stale and "Saved Messages" not in card_stale
+    assert key_stale.startswith("telegram-access:send:") and key_stale != key_self_1
+
+    monkeypatch.setattr(tg, "_meta", lambda: orig_meta)
+    card_alice, key_alice_1 = tg.approval_request({"action": "send", "chat": str(fakes.ALICE), "text": "hi"}, home=home)
+    assert "⚠️ They see it at once" in card_alice
+    assert key_alice_1.startswith("telegram-access:send:")
+    _, key_alice_2 = tg.approval_request({"action": "send", "chat": str(fakes.ALICE), "text": "different"}, home=home)
+    assert key_alice_2.startswith("telegram-access:send:")
+    assert key_alice_1 != key_alice_2
+
+
 @pytest.mark.parametrize("args, match", [
     ({"chat": str(fakes.HERMES_BOT), "text": "hi"}, "not available"),
     ({"chat": str(fakes.CHANNEL), "text": "hi"}, "cannot post"),
@@ -304,6 +329,17 @@ def test_send_outcomes(home, agent):
 def test_send_without_the_agent_is_not_sent(home):
     _, out = approve_and_send({"action": "send", "chat": str(fakes.ALICE), "text": "hi"}, home)
     assert out["error"].startswith("not sent:") and "not running" in out["error"]
+
+
+def test_saved_messages_are_still_checked_against_the_card(state, home, agent, monkeypatch):
+    """The allowlist key of Saved Messages ignores the text, but the send is checked against what the card showed."""
+    args = {"action": "send", "chat": str(fakes.ME), "text": "hi"}
+    _, key = tg.approval_request(args, home=home, call_id="call-self")
+    assert key == f"telegram-access:send-self:{fakes.ME}"
+    real = tg.send_plan
+    monkeypatch.setattr(tg, "send_plan", lambda a, h=None: {**real(a, h), "text": "not what the card showed"})
+    out = tg.execute(args, home=home, call_id="call-self")
+    assert "changed after the approval card" in out["error"] and agent.requests == []
 
 
 def test_files_are_staged_and_must_match_the_card(state, home, agent):
