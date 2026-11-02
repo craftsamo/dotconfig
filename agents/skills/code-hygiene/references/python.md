@@ -15,7 +15,12 @@ settings) and its minimum Python version win over everything here.
   model changes equality, hashing, `repr` and serialization: that is tier B.
 - Closed sets of strings get `Literal[...]` in annotations; introducing an
   `Enum` changes runtime values and is tier B.
-- Adding or correcting annotations is safe; changing a runtime default to
+- Adding or correcting annotations is safe only where nothing reads them at
+  runtime. In a `@dataclass`, attrs or Pydantic class body an annotation turns
+  a plain class attribute into a field, changing `__init__`, `repr` and
+  equality; FastAPI, Typer, `functools.singledispatch` and
+  `typing.get_type_hints` callers read annotations too. There an added or
+  changed annotation is tier B: report it. Changing a runtime default to
   satisfy a type checker is not hygiene.
 
 ## Constants
@@ -34,6 +39,13 @@ settings) and its minimum Python version win over everything here.
   NumPy or reST; follow the nearest existing docstring).
 - Keep the content; add `Args:`/`Returns:`/`Raises:` sections only for what
   the comment already said.
+- A docstring is `__doc__`, which code may read. Before creating or changing
+  one, search for readers: `argparse.ArgumentParser(description=__doc__)`,
+  Click or Typer command help, doctest collection of `>>>` lines, FastAPI
+  route descriptions, plugin registries that list `__doc__`. Where it is read,
+  the conversion changes runtime output: leave the `#` comment and report it.
+- An edit-narration or name-restating comment is deleted, never turned into a
+  docstring.
 - Comments inside bodies stay `#`.
 
 ## Files and packages
@@ -59,3 +71,6 @@ settings) and its minimum Python version win over everything here.
   assumptions change results.
 - Renaming a function changes pickled references, logging names and
   `__name__`-based registries.
+- A private function registered by a decorator (`@register("paid")`,
+  `@app.route`, `@pytest.fixture`) or looked up by name is reachable even with
+  no direct caller; it is not dead code.
