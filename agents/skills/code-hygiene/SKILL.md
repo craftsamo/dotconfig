@@ -61,7 +61,9 @@ whole codebase.
    `""`, an initial accumulator) inline. Keep a named value in the narrowest
    home that covers its users: the top of the file for one file, a sibling
    constants module for a feature, the repository's shared module for several
-   features. Do not hoist a value further than its users need.
+   features. Do not hoist a value further than its users need, and count the
+   users again after an extraction: a value only the new file uses moves into
+   it.
 3. **Doc comments for declarations.** A comment that describes a function,
    class, type, exported constant or module moves into the language's doc
    comment form (TSDoc/JSDoc, docstring, SassDoc where used, a shell function
@@ -81,12 +83,23 @@ whole codebase.
    functions, unreachable branches, wrappers that only forward. Anything
    exported or reachable through reflection, routing or configuration is not
    provably unused.
-7. **Split by reason to change.** Split a file only where its parts change
-   for different reasons and share no private state; keep code that changes
-   together in one file. Size alone is no reason to split, and a cohesive file
-   of many small related functions stays whole. When the split would move an
-   export that an entry point or other tier C file imports, it is tier B
-   (<StructureTiers>).
+7. **Split by owner, keep shared knowledge together.** Split a file only where
+   its parts answer to different owners, the people or rules that ask for
+   their changes (tax law and a marketing campaign), not where they are
+   different technical steps (parse, validate, format). Name the owner from
+   the repository: a comment or doc saying who owns a part, different
+   CODEOWNERS entries, different importers, separate commit histories; when
+   you cannot, do not split. Keep together code that shares private state or
+   knowledge of one format, protocol or invariant, such as an encoder and its
+   decoder. Size alone is no reason to split; a cohesive file of many small
+   related functions stays whole. A helper, type or constant used by one file
+   stays in that file, unless the repository's naming pattern already gives
+   such files a per-file sibling (`foo.types.ts`). When the split would move
+   an export that an entry point or other tier C file imports, it is tier B
+   (<StructureTiers>). The reverse also holds: existing small files that
+   always change together are a merge to propose as tier B, with the commits
+   that show it; files created in this pass and per-file siblings the naming
+   pattern calls for are not.
 
 </Principles>
 
@@ -97,8 +110,8 @@ one into a tier before acting:
 
 | Tier | Change | Action |
 | --- | --- | --- |
-| A | Edits inside a file; extracting into a new sibling file in the same directory (types, constants, a hook, a helper, a split along reasons to change per principle 7), named after the repository's existing pattern | Do it |
-| B | Moving or renaming a file, crossing directories, creating a new directory layout, adding or removing a barrel/`index` re-export, changing an exported name or signature | Propose it with the reason and the affected importers; do not do it |
+| A | Edits inside a file; extracting into a new sibling file in the same directory (types, constants, a hook or helper that several files share, a per-file sibling the naming pattern calls for, a split per principle 7), named after the repository's existing pattern and checked against the tool globs below | Do it |
+| B | Moving, renaming or merging files, crossing directories, creating a new directory layout, adding or removing a barrel/`index` re-export, changing an exported name or signature | Propose it as `references/structure.md` describes; do not do it |
 | C | Files whose path is behavior: framework routing directories, files referenced by path from configuration, scripts or other repositories, package entry points and `exports`, Python package `__init__.py` surfaces, shell entry scripts | Report it if it needs attention; never touch it |
 
 Tier C wins over tier A: a new sibling file inside a routing directory or any
@@ -154,8 +167,10 @@ of an improvement it looks.
 3. Read the language reference for every language in scope:
    - JavaScript, JSX, TypeScript, TSX → `references/js-ts.md`
    - Python → `references/python.md`
-   - CSS, SCSS, Tailwind → `references/css.md`
+   - CSS, SCSS, Tailwind (including class strings in TS/JSX) →
+     `references/css.md`
    - zsh, bash, sh → `references/shell.md`
+   - any file split, merge, move or tier B proposal → `references/structure.md`
 4. Locate the existing homes before editing: shared type modules, constants
    modules, design tokens, shell libraries, and the naming pattern of sibling
    files.
@@ -169,7 +184,7 @@ of an improvement it looks.
    not patched forward.
 8. Report:
    - each file changed and the principle applied;
-   - tier B proposals with reasons and affected importers;
+   - tier B proposals in the shape `references/structure.md` gives;
    - tier C observations;
    - behavior-adjacent cleanups deliberately left alone, and why;
    - the checks run, before and after, and their results.
@@ -181,7 +196,7 @@ of an improvement it looks.
 When writing rather than tidying, apply the same principles at the moment of
 writing: search for the existing type or constant first, give new values a
 home, document a declaration in doc-comment form only where the surrounding
-code documents its declarations, and keep new files to one responsibility.
+code documents its declarations, and keep a new file to code with one owner.
 This does not license tidying code outside the task.
 
 </WritingNewCode>
