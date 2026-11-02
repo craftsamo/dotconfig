@@ -979,10 +979,62 @@ def test_unpin_card_has_no_notice_and_a_key_of_its_own(monkeypatch):
     card, key, call = approve({"action": "unpin", "channel": DM1, "id": str(M1)})
     assert card.startswith("Discord · Unpin message\n✅ It can be pinned again\n")
     assert f"Message: Taro: 明日の打ち合わせは10時で\nChannel id: {DM1}" in card and "Pins:" not in card
-    assert key.startswith("discord-access:unpin:")
+    assert key == f"discord-access:unpin-in:{DM1}"
     assert key != access.approval_request({"action": "pin", "channel": DM1, "id": str(M1)})[1]
     calls = _engine_says(monkeypatch, {"outcome": "done"})
     assert access.execute(call)["note"] == "unpinned" and calls[0][0] == "unpin"
+
+
+def test_write_approval_tiers(monkeypatch):
+    card_unpin1, key_unpin1, _ = approve({"action": "unpin", "channel": DM1, "id": str(M1)})
+    assert "✅ It can be pinned again" in card_unpin1
+    assert key_unpin1 == f"discord-access:unpin-in:{DM1}"
+
+    _, key_unpin2, _ = approve({"action": "unpin", "channel": DM1, "id": str(M2)})
+    assert key_unpin1 == key_unpin2
+
+    conn = store.connect(write=True)
+    m_grp = flake(5)
+    store.upsert_messages(conn, [store.message_row({"id": str(m_grp), "channel_id": GROUP, "type": 0, "content": "grp",
+                                                    "author": {"id": TARO, "username": "t", "global_name": "Taro"}}, ME)])
+    conn.commit()
+    conn.close()
+    _, key_unpin_grp, _ = approve({"action": "unpin", "channel": GROUP, "id": str(m_grp)})
+    assert key_unpin_grp == f"discord-access:unpin-in:{GROUP}"
+    assert key_unpin_grp != key_unpin1
+
+    _set("UPDATE messages SET reactions = ? WHERE id = ?",
+         json.dumps([{"emoji": "👍", "count": 1, "me": True}, {"emoji": "🎉", "count": 1, "me": True}]), M1)
+    _set("UPDATE messages SET reactions = ? WHERE id = ?",
+         json.dumps([{"emoji": "🎉", "count": 1, "me": True}]), M2)
+    card_unreact1, key_unreact1, _ = approve({"action": "unreact", "channel": DM1, "id": str(M1), "emoji": "👍"})
+    assert "✅ Takes back your reaction" in card_unreact1
+    assert key_unreact1 == f"discord-access:unreact-in:{DM1}"
+
+    _, key_unreact2, _ = approve({"action": "unreact", "channel": DM1, "id": str(M1), "emoji": "🎉"})
+    assert key_unreact1 == key_unreact2
+
+    _, key_unreact3, _ = approve({"action": "unreact", "channel": DM1, "id": str(M2), "emoji": "🎉"})
+    assert key_unreact1 == key_unreact3
+
+    seed_roles()
+    card_rc1, key_rc1, _ = approve({"action": "role_create", "guild": G, "name": "RoleA"})
+    assert "✅ No one holds it yet" in card_rc1
+    assert key_rc1.startswith("discord-access:role_create:")
+    _, key_rc2, _ = approve({"action": "role_create", "guild": G, "name": "RoleB"})
+    assert key_rc2.startswith("discord-access:role_create:")
+    assert key_rc1 != key_rc2
+
+    card_react1, key_react1, _ = approve({"action": "react", "channel": DM1, "id": str(M1), "emoji": "❤️"})
+    assert "⚠️ Everyone in the chat sees your reaction" in card_react1
+    assert key_react1.startswith("discord-access:react:")
+    _, key_react2, _ = approve({"action": "react", "channel": DM1, "id": str(M1), "emoji": "🔥"})
+    assert key_react2.startswith("discord-access:react:")
+    assert key_react1 != key_react2
+
+    card_del, key_del, _ = approve({"action": "delete", "channel": DM1, "id": str(M2)})
+    assert "🚨 Cannot be undone" in card_del
+    assert key_del.startswith("discord-access:delete:")
 
 
 def test_pin_is_for_read_plain_messages_only():
@@ -998,6 +1050,18 @@ def test_pin_is_for_read_plain_messages_only():
 def test_an_edited_message_voids_a_pin_card(monkeypatch):
     calls = _engine_says(monkeypatch, {"outcome": "done"})
     _, _, call = approve({"action": "pin", "channel": DM1, "id": str(M1)})
+    _set("UPDATE messages SET content = ? WHERE id = ?", "changed after the card", M1)
+    assert "not the one approved" in access.execute(call)["error"]
+    assert calls == []
+
+
+def test_a_channel_wide_undo_answer_still_checks_the_exact_message(monkeypatch):
+    """An unpin or unreact answer is stored per channel, but the write is still checked against the
+    exact request and the message state the card was drawn from."""
+    calls = _engine_says(monkeypatch, {"outcome": "done"})
+    _, rule_key, call = approve({"action": "unpin", "channel": DM1, "id": str(M1)})
+    assert rule_key == f"discord-access:unpin-in:{DM1}"
+    assert call["_approved"].startswith("discord-access:unpin:") and call["_approved"] != rule_key
     _set("UPDATE messages SET content = ? WHERE id = ?", "changed after the card", M1)
     assert "not the one approved" in access.execute(call)["error"]
     assert calls == []
