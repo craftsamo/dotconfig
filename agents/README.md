@@ -281,15 +281,18 @@ third-party source.
 behavior, and for writing code that will not need it: reuse existing types
 before declaring new ones, give magic values one home, move declaration
 comments into the language's doc-comment form (converting only, never adding),
-and split a file only where its parts change for different reasons. `SKILL.md`
+and split a file only where its parts answer to different owners. `SKILL.md`
 holds the shared principles, the behavior invariants (including edits that
-look like comments or typing but are read at runtime), a baseline check before
-the first edit, and three tiers for file changes (A: inside a file or
-a new sibling file, done; B: crossing directories, renames, barrels, proposed
-only; C: paths that are behavior, such as routing trees and entry points,
-never touched). The language detail lives in `references/` (`js-ts.md`,
-`python.md`, `css.md`, `shell.md`), read only for the languages in scope. A
-repository's own instructions and linter configuration always win.
+look like comments or typing but are read at runtime, and files that tools
+find by name or glob), a baseline check before the first edit, and three
+tiers for file changes (A: inside a file or a new sibling file, done; B:
+crossing directories, renames, merges, barrels, proposed only; C: paths that
+are behavior, such as routing trees and entry points, never touched). The
+language detail lives in `references/` (`js-ts.md`, `python.md`, `css.md`,
+`shell.md`), read only for the languages in scope; `structure.md` holds where
+code belongs and what a tier B proposal contains, read for any split, merge
+or move. A repository's own instructions and linter configuration always
+win.
 
 In OpenCode the `refactorer` subagent applies it to the files a caller
 scopes, and `worker` / `worker-deep` write new code to it.
