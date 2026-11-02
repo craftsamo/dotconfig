@@ -38,8 +38,11 @@ each returns to the list; `enter` prints the item's details and leaves,
 
 Project resolution: `-p NAME` > `git config secret.project` > the git
 repository name > `global`. Run `secret link NAME` once per clone of a
-multi-repo product so they all share one project (`secret link` alone
-shows how the current directory resolves, `--unset` removes the mapping).
+multi-repo product so they all share one project, and
+`secret link --scope NAME` / `--unset-scope` to set this repository's scope
+(`git config secret.scope`). `secret link` alone shows how the current
+directory resolves, scope and source included; `--unset` removes the
+project mapping.
 
 ## Data model
 
@@ -126,7 +129,8 @@ mapping; `-k default` targets the login keychain, which only ever holds the
 
 Linked repositories share the project's **shared layer**; values that must
 differ per repository (`DATABASE_URL`, `PORT`, ...) go into a **scope**,
-named after the repository:
+resolved from `git config secret.scope` when set, else the repository
+basename:
 
 ```sh
 cd ~/Workspaces/Projects/ExampleProject/github/learning-app   # linked to example-project
@@ -134,6 +138,17 @@ secret set GOOGLE_CLOUD_PROJECT_ID          # shared: visible to every repo
 secret set DATABASE_URL -S                  # scoped: learning-app only
 secret get DATABASE_URL                     # scoped first, falls back to shared
 eval "$(secret env)"                        # shared + this repo's scope (scoped wins)
+```
+
+A product kept in a single repository whose name is the project itself has no
+scope of its own. Running `-S` there writes to the shared layer and prints a
+note pointing to `secret link --scope NAME` to give it one. A scope may not be
+the project name, since `--scope <project>` already means the shared layer.
+
+```sh
+cd ~/Workspaces/Projects/shop               # repository name matches the project
+secret link --scope core                    # set git config secret.scope
+secret set DATABASE_URL -S                  # scoped: shop/core only
 ```
 
 The same `secret set DATABASE_URL -S` in `courses` lands in its own scope —

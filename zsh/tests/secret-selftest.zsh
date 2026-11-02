@@ -391,6 +391,51 @@ secret import "$TD/scoped.json" >/dev/null 2>&1
 ( cd "$TD" && print -r -- 'v' | secret set SC_ERR -p $PMAP -S --stdin >/dev/null 2>&1 ) \
   && bad "-S outside a repository fails" || ok "-S outside a repository fails"
 
+# --- scope declaration via git config secret.scope ---
+mkdir -p "$TD/cfg/$PREPO" && git -C "$TD/cfg/$PREPO" init -q .
+( cd "$TD/cfg/$PREPO" && print -r -- 'cfg-v0' | secret set CFG_VAR --stdin >/dev/null 2>&1 ) \
+  && ok "shared write in repo named after project" || bad "shared write in repo named after project"
+[[ "$(cd "$TD/cfg/$PREPO" && secret get CFG_VAR)" == 'cfg-v0' ]] \
+  && ok "shared read in repo named after project" || bad "shared read in repo named after project"
+cfg_s_err=$(cd "$TD/cfg/$PREPO" && print -r -- 'cfg-shared' | secret set CFG_VAR -S --stdin 2>&1 >/dev/null)
+[[ $cfg_s_err == *"secret link --scope NAME"* ]] \
+  && ok "-S without secret.scope warns with hint" || bad "-S without secret.scope warns with hint"
+[[ "$(cd "$TD/cfg/$PREPO" && secret get CFG_VAR --shared)" == 'cfg-shared' ]] \
+  && ok "-S without secret.scope writes to shared layer" || bad "-S without secret.scope writes to shared layer"
+
+git -C "$TD/cfg/$PREPO" config secret.scope core
+( cd "$TD/cfg/$PREPO" && print -r -- 'cfg-core' | secret set CFG_VAR -S --stdin >/dev/null 2>&1 ) \
+  && ok "set -S with secret.scope succeeds" || bad "set -S with secret.scope succeeds"
+[[ "$(secret get CFG_VAR -p $PREPO --scope core)" == 'cfg-core' ]] \
+  && ok "value retrievable with explicit scope" || bad "value retrievable with explicit scope"
+[[ "$(cd "$TD/cfg/$PREPO" && secret get CFG_VAR)" == 'cfg-core' ]] \
+  && ok "scoped value preferred over shared" || bad "scoped value preferred over shared"
+cfg_env=$(cd "$TD/cfg/$PREPO" && secret env)
+( eval "$cfg_env"; [[ "$CFG_VAR" == 'cfg-core' ]] ) \
+  && ok "env overlays secret.scope value" || bad "env overlays secret.scope value"
+
+git -C "$TD/cfg/$PREPO" config secret.scope "$PREPO"
+cfg_same_err=$(cd "$TD/cfg/$PREPO" && secret get CFG_VAR 2>&1 >/dev/null)
+[[ $cfg_same_err == *"project name"* ]] \
+  && ok "secret.scope equal to project reports on stderr" || bad "secret.scope equal to project reports on stderr"
+[[ "$(cd "$TD/cfg/$PREPO" && secret get CFG_VAR 2>/dev/null)" == 'cfg-shared' ]] \
+  && ok "secret.scope equal to project falls back to shared" || bad "secret.scope equal to project falls back to shared"
+( cd "$TD/cfg/$PREPO" && print -r -- 'refused-val' | secret set CFG_REFUSED_VAR -S --stdin >/dev/null 2>&1 ) \
+  && bad "set -S with refused secret.scope fails" || ok "set -S with refused secret.scope fails"
+( cd "$TD/cfg/$PREPO" && secret get CFG_REFUSED_VAR >/dev/null 2>&1 ) \
+  && bad "refused set -S writes nothing" || ok "refused set -S writes nothing"
+
+git -C "$TD/cfg/$PREPO" config secret.scope 'a/b'
+cfg_slash_err=$(cd "$TD/cfg/$PREPO" && secret get CFG_VAR 2>&1 >/dev/null)
+[[ $cfg_slash_err == *"invalid scope"* ]] \
+  && ok "secret.scope with slash reports invalid scope" || bad "secret.scope with slash reports invalid scope"
+[[ "$(cd "$TD/cfg/$PREPO" && secret get CFG_VAR 2>/dev/null)" == 'cfg-shared' ]] \
+  && ok "secret.scope with slash falls back to shared" || bad "secret.scope with slash falls back to shared"
+
+git -C "$TD/cfg/$PREPO" config --unset secret.scope
+[[ "$(cd "$TD/cfg/$PREPO" && secret get CFG_VAR)" == 'cfg-shared' ]] \
+  && ok "unset secret.scope restores shared fallback" || bad "unset secret.scope restores shared fallback"
+
 # --- link ---
 linkshow=$(cd "$TD/$PREPO" && secret link)
 [[ $linkshow == *"project:    $PREPO"* && $linkshow == *'repository name'* ]] \
@@ -407,6 +452,73 @@ git -C "$TD/$PREPO" config --get secret.project >/dev/null 2>&1 \
   && bad "unset removes git config" || ok "unset removes git config"
 ( cd "$TD" && secret link somewhere >/dev/null 2>&1 ) \
   && bad "link outside a repository fails" || ok "link outside a repository fails"
+( cd "$TD/$PREPO" && secret link --scope core >/dev/null 2>&1 ) \
+  && ok "link --scope writes secret.scope" || bad "link --scope writes secret.scope"
+[[ "$(git -C "$TD/$PREPO" config --get secret.scope)" == 'core' ]] \
+  && ok "link --scope writes git config" || bad "link --scope writes git config"
+git -C "$TD/$PREPO" config --get secret.project >/dev/null 2>&1 \
+  && bad "link --scope does not set secret.project" || ok "link --scope does not set secret.project"
+linkshow=$(cd "$TD/$PREPO" && secret link)
+[[ $linkshow == *"scope (-S): core  (via git config secret.scope)"* ]] \
+  && ok "link reports secret.scope source" || bad "link reports secret.scope source"
+( cd "$TD/$PREPO" && secret link --scope "$PREPO" >/dev/null 2>&1 ) \
+  && bad "link --scope equal to project is refused" || ok "link --scope equal to project is refused"
+[[ "$(git -C "$TD/$PREPO" config --get secret.scope)" == 'core' ]] \
+  && ok "refused scope writes nothing" || bad "refused scope writes nothing"
+( cd "$TD/$PREPO" && secret link --scope 'a/b' >/dev/null 2>&1 ) \
+  && bad "link --scope with slash is refused" || ok "link --scope with slash is refused"
+( cd "$TD/$PREPO" && secret link $PMAP --scope 'a/b' >/dev/null 2>&1 ) \
+  && bad "a refused scope fails the whole call" || ok "a refused scope fails the whole call"
+git -C "$TD/$PREPO" config --get secret.project >/dev/null 2>&1 \
+  && bad "a refused scope writes no project either" || ok "a refused scope writes no project either"
+( cd "$TD/$PREPO" && secret link $PMAP >/dev/null 2>&1 )
+( cd "$TD/$PREPO" && secret link --unset --scope "$PREPO" >/dev/null 2>&1 ) \
+  && bad "--unset --scope judges the scope against the repository name" \
+  || ok "--unset --scope judges the scope against the repository name"
+[[ "$(git -C "$TD/$PREPO" config --get secret.project)" == "$PMAP" ]] \
+  && ok "a refused scope keeps the project mapping" || bad "a refused scope keeps the project mapping"
+( cd "$TD/$PREPO" && secret link --unset >/dev/null 2>&1 )
+( cd "$TD/$PREPO" && secret link --scope core --unset-scope >/dev/null 2>&1 )
+(( $? == 2 )) \
+  && ok "link --scope with --unset-scope is a usage error" || bad "link --scope with --unset-scope is a usage error"
+( cd "$TD/$PREPO" && secret link --unset-scope >/dev/null 2>&1 ) \
+  && ok "link --unset-scope" || bad "link --unset-scope"
+git -C "$TD/$PREPO" config --get secret.scope >/dev/null 2>&1 \
+  && bad "unset-scope removes git config" || ok "unset-scope removes git config"
+[[ "$(cd "$TD/$PREPO" && secret link)" == *"scope (-S): (none"* ]] \
+  && ok "link reports (none) after unset-scope" || bad "link reports (none) after unset-scope"
+( cd "$TD/$PREPO" && secret link --unset-scope >/dev/null 2>&1 ) \
+  && bad "second unset-scope fails" || ok "second unset-scope fails"
+( cd "$TD" && secret link --scope x >/dev/null 2>&1 ) \
+  && bad "link --scope outside a repository fails" || ok "link --scope outside a repository fails"
+( cd "$TD/$PREPO" && secret link $PMAP --scope core >/dev/null 2>&1 ) \
+  && ok "link project and scope in one call" || bad "link project and scope in one call"
+[[ "$(git -C "$TD/$PREPO" config --get secret.project)" == "$PMAP" ]] \
+  && ok "combined link writes secret.project" || bad "combined link writes secret.project"
+[[ "$(git -C "$TD/$PREPO" config --get secret.scope)" == 'core' ]] \
+  && ok "combined link writes secret.scope" || bad "combined link writes secret.scope"
+git -C "$TD/$PREPO" config --unset secret.project
+git -C "$TD/$PREPO" config --unset secret.scope
+( cd "$TD/$PREPO" && secret link $PMAP --scope $PMAP >/dev/null 2>&1 ) \
+  && bad "link NAME --scope NAME is refused" || ok "link NAME --scope NAME is refused"
+git -C "$TD/$PREPO" config --get secret.project >/dev/null 2>&1 \
+  && bad "refused link NAME --scope NAME writes no project" || ok "refused link NAME --scope NAME writes no project"
+git -C "$TD/$PREPO" config --get secret.scope >/dev/null 2>&1 \
+  && bad "refused link NAME --scope NAME writes no scope" || ok "refused link NAME --scope NAME writes no scope"
+( cd "$TD/$PREPO" && secret link $PMAP >/dev/null 2>&1 )
+( cd "$TD/$PREPO" && secret link --unset --scope core >/dev/null 2>&1 ) \
+  && ok "link --unset with valid --scope succeeds" || bad "link --unset with valid --scope succeeds"
+git -C "$TD/$PREPO" config --get secret.project >/dev/null 2>&1 \
+  && bad "link --unset with --scope removes secret.project" || ok "link --unset with --scope removes secret.project"
+[[ "$(git -C "$TD/$PREPO" config --get secret.scope)" == 'core' ]] \
+  && ok "link --unset with --scope writes secret.scope" || bad "link --unset with --scope writes secret.scope"
+( cd "$TD/$PREPO" && secret link --unset --unset-scope >/dev/null 2>&1 ) \
+  && bad "link --unset --unset-scope fails when secret.project is missing" \
+  || ok "link --unset --unset-scope fails when secret.project is missing"
+[[ "$(git -C "$TD/$PREPO" config --get secret.scope)" == 'core' ]] \
+  && ok "failed double unset leaves existing secret.scope untouched" \
+  || bad "failed double unset leaves existing secret.scope untouched"
+git -C "$TD/$PREPO" config --unset secret.scope
 
 # --- unregistered existing keychain file: writes are refused ---
 security create-keychain -p testpass "$KCP2" 2>/dev/null
