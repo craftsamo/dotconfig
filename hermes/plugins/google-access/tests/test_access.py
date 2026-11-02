@@ -289,7 +289,8 @@ def test_edits_share_one_key_per_spreadsheet():
 
 
 def test_sheets_edits_match_approval_tier():
-    assert set(access.approval_tier.TIERS["google-access"]) == set(access.SHEETS_EDITS)
+    rules = access.approval_tier.TIERS["google-access"]
+    assert {action for action, rule in rules.items() if rule.name == "sheets-edit"} == set(access.SHEETS_EDITS)
 
 
 def test_clear_and_create_still_ask_per_call():

@@ -21,19 +21,58 @@ approval_tier = importlib.util.module_from_spec(spec)
 sys.modules["approval_tier"] = approval_tier
 spec.loader.exec_module(approval_tier)
 
+SAFE_ONLY = ("safe",)
+AT_CAUTION_TOO = ("caution", "safe")
+
+# plugin -> action -> (tier, the name its key carries, the card levels it applies at). The target
+# each key binds is the rule's ``scope`` (account, channel, ...), checked below.
 EXPECTED = {
     "google-access": {
-        "add_sheet": ("standing", "sheets-edit", ("caution", "safe")),
-        "append": ("standing", "sheets-edit", ("caution", "safe")),
-        "batch_update": ("standing", "sheets-edit", ("caution", "safe")),
-        "chart": ("standing", "sheets-edit", ("caution", "safe")),
-        "layout": ("standing", "sheets-edit", ("caution", "safe")),
-        "pivot": ("standing", "sheets-edit", ("caution", "safe")),
-        "update": ("standing", "sheets-edit", ("caution", "safe")),
+        "add_sheet": ("standing", "sheets-edit", AT_CAUTION_TOO),
+        "append": ("standing", "sheets-edit", AT_CAUTION_TOO),
+        "batch_update": ("standing", "sheets-edit", AT_CAUTION_TOO),
+        "chart": ("standing", "sheets-edit", AT_CAUTION_TOO),
+        "layout": ("standing", "sheets-edit", AT_CAUTION_TOO),
+        "pivot": ("standing", "sheets-edit", AT_CAUTION_TOO),
+        "update": ("standing", "sheets-edit", AT_CAUTION_TOO),
+        "upload": ("standing", "my-drive-upload", SAFE_ONLY),
     },
     "youtube-access": {
-        "thumbnail": ("standing", "edit", ("caution", "safe")),
-        "update": ("standing", "edit", ("caution", "safe")),
+        "thumbnail": ("standing", "edit", AT_CAUTION_TOO),
+        "update": ("standing", "edit", AT_CAUTION_TOO),
+        "playlist_move": ("standing", "playlist-order", SAFE_ONLY),
+        "playlist_remove": ("standing", "playlist-order", SAFE_ONLY),
+        "watermark_remove": ("standing", "watermark-off", SAFE_ONLY),
+        "moderate": ("standing", "moderate-hold", SAFE_ONLY),
+    },
+    "signal-access": {"send": ("standing", "send-self", SAFE_ONLY)},
+    "telegram-access": {"send": ("standing", "send-self", SAFE_ONLY)},
+    "discord-access": {
+        "unreact": ("standing", "unreact-in", SAFE_ONLY),
+        "unpin": ("standing", "unpin-in", SAFE_ONLY),
+    },
+    "note-access": {"create_draft": ("standing", "new-draft", SAFE_ONLY)},
+    "substack-access": {
+        "create_draft": ("standing", "private-draft", SAFE_ONLY),
+        "update_draft": ("standing", "private-draft", SAFE_ONLY),
+        "unschedule": ("standing", "private-draft", SAFE_ONLY),
+    },
+    "stripe-access": {
+        # Test mode only (the plugin marks every test-mode card safe and passes the mode as eligibility).
+        # The ONCE actions (refunds, finalizing or sending an invoice, cancelling) are not here: they ask each time.
+        "customer_create": ("standing", "test-write", SAFE_ONLY),
+        "customer_update": ("standing", "test-write", SAFE_ONLY),
+        "product_create": ("standing", "test-write", SAFE_ONLY),
+        "product_update": ("standing", "test-write", SAFE_ONLY),
+        "price_create": ("standing", "test-write", SAFE_ONLY),
+        "price_update": ("standing", "test-write", SAFE_ONLY),
+        "coupon_create": ("standing", "test-write", SAFE_ONLY),
+        "coupon_update": ("standing", "test-write", SAFE_ONLY),
+        "promotion_code_create": ("standing", "test-write", SAFE_ONLY),
+        "promotion_code_update": ("standing", "test-write", SAFE_ONLY),
+        "invoice_create": ("standing", "test-write", SAFE_ONLY),
+        "payment_link_create": ("standing", "test-write", SAFE_ONLY),
+        "payment_link_update": ("standing", "test-write", SAFE_ONLY),
     },
 }
 
@@ -77,6 +116,17 @@ def test_danger_never_in_levels_and_caution_only_for_grandfathered():
                 assert (plugin, action) in GRANDFATHERED_AT_CAUTION, (
                     f"{plugin}:{action} has CAUTION in levels but is not grandfathered"
                 )
+
+
+def test_a_standing_name_is_never_an_action_and_its_rules_agree():
+    """The key is name + target, an exact key is action + digest: a name that is also an action could be read as
+    one. Actions that share a name share one key, so they must bind the same target at the same levels."""
+    by_name = {}
+    for plugin, actions in approval_tier.TIERS.items():
+        for action, rule in actions.items():
+            assert rule.name and rule.name not in actions, f"{plugin}:{action} is named like an action"
+            by_name.setdefault((plugin, rule.name), set()).add((rule.scope, rule.levels))
+    assert all(len(shapes) == 1 for shapes in by_name.values()), by_name
 
 
 def test_no_free_or_mandate_rule_exists_yet():

@@ -100,6 +100,9 @@ def test_rule_validation_errors():
     with pytest.raises(ValueError, match="scope required"):
         approval_tier.Rule(tier=approval_tier.FREE, name="read", scope="")
 
+    with pytest.raises(ValueError, match="needs a name"):
+        approval_tier.Rule(tier=approval_tier.STANDING, scope="account")
+
     with pytest.raises(ValueError, match="DANGER"):
         approval_tier.Rule(levels=frozenset({approval_tier.DANGER}))
 
@@ -117,6 +120,7 @@ def test_needs_card_with_synthetic_free_rule(monkeypatch):
             ),
             "standing_act": approval_tier.Rule(
                 tier=approval_tier.STANDING,
+                name="act-on",
                 scope="target",
                 levels=frozenset({approval_tier.SAFE}),
             ),
