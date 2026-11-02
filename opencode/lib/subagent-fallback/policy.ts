@@ -72,6 +72,7 @@ export const ROUTES: Readonly<Record<string, Route>> = Object.freeze(
       "explore-medium": { primary: sol("medium"), alternate: sonnet("medium") },
       reviewer: { primary: sonnet("medium"), alternate: sol("medium") },
       worker: { primary: sonnet("low"), alternate: sol("low") },
+      refactorer: { primary: sonnet("low"), alternate: sol("low") },
       "worker-deep": { primary: sonnet("high"), alternate: sol("high") },
       "explore-spark": { primary: lunaFast("low"), alternate: haiku("low") },
       "explore-small": { primary: luna("low"), alternate: haiku("low") },

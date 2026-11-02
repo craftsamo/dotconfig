@@ -67,11 +67,12 @@
         // first step's model is the one the agent file names.
         //
         // Gemini Flash on Antigravity leads the explore tiers below max, the
-        // worker and the searcher, and backs up the deep searcher; Claude
-        // closes every route: the saved logins first, then the paid credit
-        // lanes as the very last stops. worker-deep reverses the lead order:
-        // its hard implementation is where Flash falls furthest behind, so
-        // the Sonnet logins come first, then Sol, then Flash, then the lanes.
+        // worker, the refactorer and the searcher, and backs up the deep
+        // searcher; Claude closes every route: the saved logins first, then
+        // the paid credit lanes as the very last stops. worker-deep reverses
+        // the lead order: its hard implementation is where Flash falls
+        // furthest behind, so the Sonnet logins come first, then Sol, then
+        // Flash, then the lanes.
         "routes": {
           "explore-max": [
             "openai/gpt-6.1-sol#xhigh",
@@ -108,6 +109,15 @@
             "anthropic-credit-sub/claude-sonnet-5-5#medium"
           ],
           "worker": [
+            "google/antigravity-gemini-3.8-flash-medium",
+            "openai/gpt-6.1-sol#medium",
+            "anthropic/claude-sonnet-5-5-sub#medium",
+            "anthropic/claude-sonnet-5-5-main#medium",
+            "anthropic-credit-team/claude-sonnet-5-5#medium",
+            "anthropic-credit-main/claude-sonnet-5-5#medium",
+            "anthropic-credit-sub/claude-sonnet-5-5#medium"
+          ],
+          "refactorer": [
             "google/antigravity-gemini-3.8-flash-medium",
             "openai/gpt-6.1-sol#medium",
             "anthropic/claude-sonnet-5-5-sub#medium",
@@ -265,8 +275,8 @@
       "model": "anthropic/claude-opus-5-5#xhigh",
       // Global edit: ask overrides the built-in deny. Restore Plan's boundary
       // here, and allow only read-only specialists. Verifier can apply a
-      // formatter and worker, worker-deep and general can edit, so none
-      // belongs in Plan.
+      // formatter and worker, worker-deep, refactorer and general can edit,
+      // so none belongs in Plan.
       "permissions": [
         {
           "action": "edit",
@@ -371,6 +381,7 @@
         { "action": "skill", "resource": "resolve-dependabot-alerts", "effect": "allow" },
         { "action": "skill", "resource": "commit", "effect": "allow" },
         { "action": "skill", "resource": "pullrequest", "effect": "allow" },
+        { "action": "skill", "resource": "code-hygiene", "effect": "allow" },
         { "action": "skill", "resource": "japanese-*", "effect": "allow" },
         { "action": "shell", "resource": "lsof *", "effect": "allow" },
       ],
@@ -396,6 +407,7 @@
         { "action": "skill", "resource": "resolve-dependabot-alerts", "effect": "allow" },
         { "action": "skill", "resource": "commit", "effect": "allow" },
         { "action": "skill", "resource": "pullrequest", "effect": "allow" },
+        { "action": "skill", "resource": "code-hygiene", "effect": "allow" },
         { "action": "skill", "resource": "japanese-*", "effect": "allow" },
         { "action": "shell", "resource": "lsof *", "effect": "allow" },
         // A build runs the project's own scripts and installed tools all day:
@@ -2280,6 +2292,11 @@
     {
       "action": "skill",
       "resource": "pullrequest",
+      "effect": "allow"
+    },
+    {
+      "action": "skill",
+      "resource": "code-hygiene",
       "effect": "allow"
     },
     {
