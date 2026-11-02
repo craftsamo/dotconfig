@@ -8,10 +8,13 @@ Contract: docs/x-access.md "Ranking watch".
 """
 
 import argparse
+from datetime import datetime, timezone
 import json
+import os
 from pathlib import Path
 import re
 import sys
+import tempfile
 import urllib.error
 import urllib.request
 
@@ -229,6 +232,51 @@ def report(base: dict, cur: dict, lines: list[str]) -> str:
     )
 
 
+def _default_state() -> Path:
+    """Return default path to the ranking watch state JSON file."""
+    root = Path(os.environ.get("HERMES_LOCAL") or Path.home() / ".hermes" / "local")
+    return root / "x-access" / "ranking_watch.json"
+
+
+def _read_reported_lines(state_path: Path) -> list[str] | None:
+    try:
+        if not state_path.is_file():
+            return None
+        with open(state_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        if not isinstance(data, dict):
+            return None
+        lines = data.get("lines")
+        if not isinstance(lines, list) or not all(isinstance(x, str) for x in lines):
+            return None
+        return lines
+    except Exception:
+        return None
+
+
+def _write_state(state_path: Path, commit: str, lines: list[str]) -> None:
+    temp_path: Path | None = None
+    try:
+        state_path.parent.mkdir(parents=True, exist_ok=True)
+        data = {
+            "commit": commit,
+            "lines": sorted(lines),
+            "reported_at": datetime.now(timezone.utc).isoformat(),
+        }
+        content = json.dumps(data, indent=2, ensure_ascii=False, sort_keys=True) + "\n"
+        with tempfile.NamedTemporaryFile("w", dir=state_path.parent, delete=False, encoding="utf-8") as f:
+            temp_path = Path(f.name)
+            f.write(content)
+        os.replace(temp_path, state_path)
+    except Exception as e:
+        if temp_path and temp_path.exists():
+            try:
+                temp_path.unlink()
+            except OSError:
+                pass
+        sys.stderr.write(f"ranking_watch: warning: failed to write state to {state_path}: {e}\n")
+
+
 def _run(argv: list[str]) -> None:
     if not argv or argv[0].startswith("-"):
         args_to_parse = ["check", *argv]
@@ -240,6 +288,7 @@ def _run(argv: list[str]) -> None:
 
     p_check = subparsers.add_parser("check", help="Compare current ranking defaults against baseline")
     p_check.add_argument("--baseline", type=Path, default=BASELINE, help="Path to ranking baseline JSON")
+    p_check.add_argument("--state", type=Path, default=_default_state(), help="Path to ranking watch state JSON")
 
     p_refresh = subparsers.add_parser("refresh", help="Update ranking baseline file")
     p_refresh.add_argument("--baseline", type=Path, default=BASELINE, help="Path to ranking baseline JSON")
@@ -247,6 +296,9 @@ def _run(argv: list[str]) -> None:
 
     p_show = subparsers.add_parser("show", help="Print snapshot JSON to stdout")
     p_show.add_argument("--commit", default=None, help="Pin to a specific commit SHA")
+
+    p_forget = subparsers.add_parser("forget", help="Delete ranking watch state file")
+    p_forget.add_argument("--state", type=Path, default=_default_state(), help="Path to ranking watch state JSON")
 
     opts = parser.parse_args(args_to_parse)
 
@@ -265,11 +317,21 @@ def _run(argv: list[str]) -> None:
         cur = snapshot()
         lines = compare(base.get("values", {}), cur.get("values", {}))
         if not lines:
+            try:
+                opts.state.unlink(missing_ok=True)
+            except OSError:
+                pass
             print(json.dumps({"wakeAgent": False}))
             sys.exit(0)
-        else:
-            print(report(base, cur, lines))
+
+        stored_lines = _read_reported_lines(opts.state)
+        if stored_lines is not None and sorted(lines) == stored_lines:
+            print(json.dumps({"wakeAgent": False}))
             sys.exit(0)
+
+        print(report(base, cur, lines))
+        _write_state(opts.state, cur.get("commit", ""), lines)
+        sys.exit(0)
 
     elif opts.command == "refresh":
         snap = snapshot(commit=opts.commit)
@@ -285,6 +347,17 @@ def _run(argv: list[str]) -> None:
     elif opts.command == "show":
         snap = snapshot(commit=opts.commit)
         print(json.dumps(snap, indent=2, ensure_ascii=False, sort_keys=True))
+        sys.exit(0)
+
+    elif opts.command == "forget":
+        if opts.state.is_file() or opts.state.is_symlink():
+            try:
+                opts.state.unlink()
+                print(f"forgot {opts.state}")
+            except OSError as e:
+                raise WatchError(f"failed to delete state file at {opts.state}: {e}") from e
+        else:
+            print("nothing to forget")
         sys.exit(0)
 
     else:
