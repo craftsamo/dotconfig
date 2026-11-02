@@ -209,7 +209,11 @@ caller-specific permissions decide which specialists may run.
   `deploy`, `publish`, `secret`, `--remote` or `--prod`: a best-effort list,
   defense in depth rather than a sandbox. Worker, worker-deep, refactorer,
   debugger and verifier reset shell to ask and restate the plain reads (`cat`,
-  `head`, `tail`, `wc`, `ls`, `grep`, `rg`, `ps`) after it.
+  `head`, `tail`, `wc`, `ls`, `grep`, `rg`, `ps`) after it. Refactorer and
+  debugger then ask again for a redirect or a write flag (`--fix`, `--write`,
+  `-u`, `--output`) on an allowed check, and refactorer allows a typecheck
+  only with `--noEmit`: a best-effort list against a check rewriting files or
+  snapshots unasked, not a sandbox.
 - Design (`agents/design.md`) shows a person what a product will let them do
   before it is planned: static HTML mocks and diagrams, self-contained so they
   open offline from a chat. It reads the repository and writes only under a

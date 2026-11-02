@@ -88,7 +88,12 @@ permissions:
   - { action: shell, resource: "make lint*", effect: allow }
   - { action: shell, resource: "make check*", effect: allow }
   - { action: shell, resource: "make build*", effect: allow }
-  - { action: shell, resource: "tsc*", effect: allow }
+  # A typecheck that writes no output; a bare `tsc` emits JavaScript.
+  - { action: shell, resource: "tsc --noEmit *", effect: allow }
+  - { action: shell, resource: "tsc -p * --noEmit", effect: allow }
+  - { action: shell, resource: "node_modules/.bin/tsc --noEmit *", effect: allow }
+  - { action: shell, resource: "pnpm exec tsc --noEmit *", effect: allow }
+  - { action: shell, resource: "npx --no-install tsc --noEmit *", effect: allow }
   - { action: shell, resource: "eslint*", effect: allow }
   - { action: shell, resource: "prettier --check*", effect: allow }
   - { action: shell, resource: "ruff check*", effect: allow }
@@ -98,6 +103,56 @@ permissions:
   - { action: shell, resource: "shellcheck *", effect: allow }
   - { action: shell, resource: "zsh -n *", effect: allow }
   - { action: shell, resource: "bash -n *", effect: allow }
+  # Test runners a repository's tests are often run with directly; a
+  # baseline before the first edit and a re-run after each step would
+  # otherwise ask every time.
+  - { action: shell, resource: "node --test*", effect: allow }
+  - { action: shell, resource: "python3 -m unittest*", effect: allow }
+  - { action: shell, resource: "python -m unittest*", effect: allow }
+  - { action: shell, resource: "python3 -m pytest*", effect: allow }
+  - { action: shell, resource: "python -m pytest*", effect: allow }
+  - { action: shell, resource: "uv run pytest*", effect: allow }
+  - { action: shell, resource: "uv run python -m pytest*", effect: allow }
+  # A redirect or a write flag on an allowlisted check (eslint --fix,
+  # vitest -u, git diff --output) would rewrite files or snapshots without
+  # asking, past the no-formatter rule. Best-effort: flags have too many
+  # spellings for a complete list. Placed before the denies so they still win.
+  - { action: shell, resource: "*>*", effect: ask }
+  - { action: shell, resource: "* --fix", effect: ask }
+  - { action: shell, resource: "* --fix *", effect: ask }
+  - { action: shell, resource: "* --fix=*", effect: ask }
+  - { action: shell, resource: "* --fix-only*", effect: ask }
+  - { action: shell, resource: "npm*:fix*", effect: ask }
+  - { action: shell, resource: "pnpm*:fix*", effect: ask }
+  - { action: shell, resource: "yarn*:fix*", effect: ask }
+  - { action: shell, resource: "bun*:fix*", effect: ask }
+  - { action: shell, resource: "make*fix*", effect: ask }
+  - { action: shell, resource: "*--write*", effect: ask }
+  - { action: shell, resource: "jest* -u*", effect: ask }
+  - { action: shell, resource: "jest*--update*", effect: ask }
+  - { action: shell, resource: "vitest* -u*", effect: ask }
+  - { action: shell, resource: "*test* -u", effect: ask }
+  - { action: shell, resource: "*test* -u *", effect: ask }
+  - { action: shell, resource: "*test*-update*", effect: ask }
+  - { action: shell, resource: "*test*:update*", effect: ask }
+  - { action: shell, resource: "*--inline-snapshot*", effect: ask }
+  - { action: shell, resource: "*--add-noqa*", effect: ask }
+  - { action: shell, resource: "*--output-file*", effect: ask }
+  - { action: shell, resource: "*--outputFile*", effect: ask }
+  - { action: shell, resource: "eslint* -o *", effect: ask }
+  - { action: shell, resource: "stylelint* -o *", effect: ask }
+  - { action: shell, resource: "eslint*--cache*", effect: ask }
+  - { action: shell, resource: "git diff*--output*", effect: ask }
+  - { action: shell, resource: "*--junitxml*", effect: ask }
+  - { action: shell, resource: "*--cov-report*", effect: ask }
+  - { action: shell, resource: "*--coverage*", effect: ask }
+  - { action: shell, resource: "*--html*", effect: ask }
+  - { action: shell, resource: "*-reporter-destination*", effect: ask }
+  - { action: shell, resource: "*--init*", effect: ask }
+  - { action: shell, resource: "tsc*--generate*", effect: ask }
+  - { action: shell, resource: "tsc*--noEmit false*", effect: ask }
+  - { action: shell, resource: "tsc*--incremental*", effect: ask }
+  - { action: shell, resource: "tsc*--tsBuildInfoFile*", effect: ask }
   - { action: shell, resource: "git commit*", effect: deny }
   - { action: shell, resource: "git push*", effect: deny }
   - { action: shell, resource: "git reset*", effect: deny }
@@ -131,6 +186,10 @@ Before editing:
   skill.
 - Find the existing homes for types, constants and tokens, and the naming
   pattern of sibling files, before creating anything.
+- Record a baseline: run the repository's documented check command (or the
+  cheapest checks that cover the scope) once and note what already fails.
+  Those failures are reported as existing, never fixed or blamed on your
+  edits.
 
 Rules:
 
@@ -142,13 +201,17 @@ Rules:
   report as proposals; tier C files are reported, never touched.
 - Behavior stays identical (the skill's behavior invariants). When a cleanup
   would change behavior, leave the code and report it. Never fix a bug you
-  find; report it.
+  find; report it. If you would describe an edit's effect as new observable
+  output (help text that now appears, a value that now resolves differently),
+  it is a behavior change, not an improvement: undo it and report it.
 - Do not write new documentation. Convert existing declaration comments to
   doc-comment form only.
 - Keep each edit a hygiene edit: no feature work, no formatting churn beyond
   the lines you change, so the caller can fold your hunks into the commits
-  that introduced the code. Never run a formatter that rewrites files; the
-  caller formats afterwards.
+  that introduced the code. Never run a formatter or a check with a write
+  flag (`--fix`, `--write`, `-u`, a `>` redirect); the caller formats
+  afterwards. Do not append `2>&1` either: the shell tool already captures
+  stderr, and any `>` makes the call wait for approval.
 - When the caller names a worktree root, work only inside it: edit files by
   absolute path under that root and run every bash command with `workdir`
   set to it. Never touch the main checkout or any other path.
@@ -157,9 +220,8 @@ Rules:
   checks and command output: one command per call, with `workdir` instead of
   `cd` or `git -C`.
 - Never create commits, never push, never modify git state.
-- Run the cheapest checks that cover the scope (typecheck, linter, targeted
-  tests, `shellcheck` or `zsh -n`). Revert a cleanup that turns a check red
-  instead of patching forward.
+- After editing, run the baseline checks again. Revert a cleanup that turns a
+  check red that was green in the baseline, instead of patching forward.
 - STOP and report when the scope is ambiguous, when the repository's rules
   contradict each other in a way the nearest-directory rule cannot settle, or
   when no check can confirm a change you were about to make.
@@ -167,9 +229,12 @@ Rules:
 Final report must include:
 
 1. Changed files, each with the principles applied (types, values, doc
-   comments, noise, names, dead code, file split).
+   comments, noise, names, dead code, file split). For each docstring,
+   annotation, token or exported type you changed, say how you confirmed
+   nothing reads it at runtime.
 2. New files created by tier A extractions, and the importers updated.
 3. Tier B proposals: the change, why, and the importers it would affect.
 4. Tier C observations and behavior-adjacent cleanups left alone, with the
    reason.
-5. Verification: commands run and their results (or why none were run).
+5. Verification: commands run before and after the edits and their results,
+   marking failures already present in the baseline (or why none were run).
