@@ -765,7 +765,7 @@ platforms:
       # work); keep max_commands equal to its length so no entry is cut.
       command_menu:
         priority_mode: replace
-        max_commands: 32
+        max_commands: 33
         priority:
         - help
         - new
@@ -776,6 +776,7 @@ platforms:
         - model
         - reasoning
         - restart
+        - reload_skills
         - commands
         - approve
         - deny
