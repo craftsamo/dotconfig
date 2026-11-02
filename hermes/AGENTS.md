@@ -342,7 +342,10 @@ skills.
   `scripts/tests/test_approval_tiers.py` on purpose. Never build a broad key by
   hand in a plugin, or bind one to an action with no target: the helper falls
   back to the exact key for any card level the rule does not list, and a
-  hand-made key skips that ([decision](docs/decisions/approval-tiers.md)).
+  hand-made key skips that. The level passed in is the card's own, from the one
+  function that builds the card's effect, and a write is verified against a
+  digest of what the card showed, never against the key, which for a standing
+  rule names only the target ([decision](docs/decisions/approval-tiers.md)).
 
 ## Hands, commissioning and Creator
 
