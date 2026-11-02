@@ -18,6 +18,12 @@ reference; these rules hold across them.
 - A tool with an approval card (`note`, `substack`) makes the card (or a
   standing approval on the account/publication) the final remote-save consent;
   still agree the full text first, since the card shows only its start.
+- The browser routes (X, Zenn) have no approval card. For Zenn, confirm once
+  more right before opening the editor with `clarify`. For X, the chat
+  agreement to the exact text, media, account and target is the approving
+  user message and final consent (an X draft stays unpublished on X and only
+  the user publishes it); skip `clarify` right before opening the editor
+  unless the text, account or target changed or is ambiguous.
 
 ## Boundaries
 
