@@ -275,6 +275,23 @@ cheat sheet posted on X; every description is independently written.
 references and tells, and with `--source` flags wording shared with a
 third-party source.
 
+## Code hygiene
+
+`code-hygiene` is the house standard for tidying code without changing its
+behavior, and for writing code that will not need it: reuse existing types
+before declaring new ones, give magic values one home, move declaration
+comments into the language's doc-comment form (converting only, never adding),
+and keep one responsibility per file. `SKILL.md` holds the shared principles,
+the behavior invariants and three tiers for file changes (A: inside a file or
+a new sibling file, done; B: crossing directories, renames, barrels, proposed
+only; C: paths that are behavior, such as routing trees and entry points,
+never touched). The language detail lives in `references/` (`js-ts.md`,
+`python.md`, `css.md`, `shell.md`), read only for the languages in scope. A
+repository's own instructions and linter configuration always win.
+
+In OpenCode the `refactorer` subagent applies it to the files a caller
+scopes, and `worker` / `worker-deep` write new code to it.
+
 ## Third-party skills
 
 Third-party skills are never committed; they are restored from their source.

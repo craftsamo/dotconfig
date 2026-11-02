@@ -14,6 +14,7 @@ permissions:
   - { action: read, resource: "*.env.example", effect: allow }
   - { action: read, resource: "*.env.sample", effect: allow }
   - { action: edit, resource: "*", effect: allow }
+  - { action: skill, resource: "code-hygiene", effect: allow }
   # Worktrees live outside the session directory. Known worktree homes are
   # free; any other outside path asks. Last match wins. Under Hermes, the
   # plugin's session ruleset (applied after these rules) turns every outside
@@ -21,6 +22,8 @@ permissions:
   - { action: external_directory, resource: "*", effect: ask }
   - { action: external_directory, resource: "~/.local/share/opencode/worktree/*", effect: allow }
   - { action: external_directory, resource: "*/.worktrees/*", effect: allow }
+  # The code-hygiene skill's references/ live in the shared skill root.
+  - { action: external_directory, resource: "~/.agents/skills/code-hygiene/*", effect: allow }
   - { action: subagent, resource: "*", effect: deny }
   - { action: shell, resource: "*", effect: ask }
   # Reading through the shell, which the top-level allows grant but the reset
@@ -118,6 +121,10 @@ Rules:
 
 - Follow the given spec precisely. Match the surrounding code style and the
   conventions of the repository, and the example files the caller names.
+- When the code you write is JavaScript/TypeScript, Python, CSS or shell,
+  load the `code-hygiene` skill and write to it: reuse existing types and
+  constants, give new values a home, keep new files to one responsibility.
+  It applies to the code you write, never to code outside the task.
 - Before editing, read the code the change touches and its callers, and work
   out the edge cases and error paths the spec implies: empty and boundary
   inputs, failure and retry paths, ordering and shared state.

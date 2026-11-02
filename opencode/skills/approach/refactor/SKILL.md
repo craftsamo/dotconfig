@@ -42,8 +42,9 @@ Non-trivial work runs through this spine; do not jump straight to edits:
    Phase and {m} as the global `<PlanHandoff>` defines them (a reviewable
    PR layer and its commit-sized steps when the work ends in PRs; a
    dependency wave and a reference id otherwise), executor one of Build |
-   worker | worker-deep | reviewer | verifier | debugger (worker for
-   implementation the plan has designed, worker-deep when its logic is hard;
+   worker | worker-deep | refactorer | reviewer | verifier | debugger (worker
+   for implementation the plan has designed, worker-deep when its logic is
+   hard, refactorer to tidy a layer's changed files before it is published;
    Build for design, integration and commits). Without `todowrite`, keep the
    list in the conversation; never create local TODO/plan files. Ask the user to
    switch to Build; do not switch automatically or execute until the user
@@ -90,6 +91,10 @@ Questions to the user must be answerable in ~30 seconds without opening code:
    first — the refactor must keep them green.
 2. Define the target structure: name the smell and the intended shape (extract,
    inline, rename, move, simplify). Keep the goal structural, not behavioral.
+   Hygiene within files and directories (duplicate types, scattered values,
+   comments that belong in doc comments, oversized files) follows the
+   `code-hygiene` skill and is delegated to `refactorer`; design here only
+   the moves that cross directories or change public API.
 3. Plan small, behavior-preserving moves: decompose into steps where each
    leaves the system working and the tests green.
 4. Execute one move at a time: make the change, run the safety net, commit

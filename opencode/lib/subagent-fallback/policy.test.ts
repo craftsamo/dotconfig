@@ -41,7 +41,7 @@ const base = (model: ModelRef = ROUTES.worker.primary) => ({
 
 describe("weighing a place", () => {
   test("every route model launches while its quota is not known spent", () => {
-    expect(Object.keys(ROUTES)).toHaveLength(13)
+    expect(Object.keys(ROUTES)).toHaveLength(14)
     for (const route of Object.values(ROUTES))
       for (const model of [route.primary, route.alternate]) {
         const input = base(model)
