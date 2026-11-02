@@ -129,8 +129,26 @@ not fit (too many recipients) is refused too.
   differently by each.
 - **A gcloud read** is a command path that resolves, in the installed SDK's own
   command tree (`data/cli/gcloud_completions.py`), to a command — not a group —
-  named by a read verb, and that hands out no credential
-  (`authorization-code`, `print-*-token`, `get-credentials` ask). A path that
+  whose last word is on a reviewed list of verb names (`GCLOUD_READ_VERBS`:
+  `list`, `describe`, `get`, `read`, `search`, `ls`, `cat`, `test-iam-permissions`
+  and each `get-*` / `describe-*` name checked against the SDK, such as
+  `get-iam-policy` or `describe-from-family`) or starts with `list-`. A new SDK
+  name that is not on the list asks until it is reviewed and added, so
+  `get-password` or `get-signed-url` never runs unasked. Known commands that hand
+  out a credential, key material, a signed URL or a MACsec configuration, write
+  local state (a kubeconfig, an SSH key) or start a Cloud Shell are kept out
+  even where a listed name covers them (`GCLOUD_SENSITIVE`:
+  `authorization-code`, `print-*-token`, `get-credentials`, `get-auth-string`,
+  `get-key-string`, `get-backup-index-download-url`, `get-mount-command`,
+  `get-screenshot`, `get-yaml`, `get-public-key`, `get-public-cert`,
+  `get-certificate-chain`, `get-ca-certs`, `macsec`), and `get-version` is not
+  listed (under `compute hosts` and `compute reservations …` it starts a
+  long-running operation). A read still prints what the resource holds, so the
+  list is no promise that its output is free of secrets. Any other word
+  (`access`, `tail`, `export`, `generate-*`, …) asks, and so does a read given a
+  flag that writes a local file (`GCLOUD_WRITE_FLAGS`: `--output-file`,
+  `--destination`, `--rbac-output-file`, `--ssh-key-file`,
+  `--force-key-file-overwrite`), whatever its word. A path that
   does not resolve is rejected, so a positional cannot pose as the command
   (`compute instances create list`); without the tree every command asks.
 - **Spreadsheet edits are approved per spreadsheet.** `update`, `batch_update`,
