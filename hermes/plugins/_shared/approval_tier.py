@@ -53,6 +53,8 @@ class Rule:
             raise ValueError(f"unknown tier: {self.tier}")
         if self.tier in (STANDING, FREE) and not self.scope:
             raise ValueError(f"scope required for tier: {self.tier}")
+        if self.tier == STANDING and not self.name:
+            raise ValueError("a standing rule needs a name of its own, apart from every action's")
         if not isinstance(self.levels, frozenset):
             object.__setattr__(self, "levels", frozenset(self.levels))
         if DANGER in self.levels:
@@ -63,14 +65,39 @@ class Rule:
 # history and the video's edit history undo them) and are the only standing rules allowed at CAUTION.
 GRANDFATHERED = frozenset({SAFE, CAUTION})
 
+# A standing rule's name never equals an action's, so its key (name + target) cannot be read as an
+# exact key (action + digest). The rest of the table applies at SAFE only: the card's own level is
+# read on each call, so a call that reaches others or cannot be undone keeps its exact key.
 TIERS: dict[str, dict[str, Rule]] = {
     "google-access": {
-        action: Rule(STANDING, "sheets-edit", "spreadsheet", GRANDFATHERED)
-        for action in ("add_sheet", "append", "batch_update", "chart", "layout", "pivot", "update")
+        **{action: Rule(STANDING, "sheets-edit", "spreadsheet", GRANDFATHERED)
+           for action in ("add_sheet", "append", "batch_update", "chart", "layout", "pivot", "update")},
+        "upload": Rule(STANDING, "my-drive-upload", "profile"),
     },
     "youtube-access": {
         "update": Rule(STANDING, "edit", "video", GRANDFATHERED),
         "thumbnail": Rule(STANDING, "edit", "video", GRANDFATHERED),
+        "playlist_move": Rule(STANDING, "playlist-order", "channel"),
+        "playlist_remove": Rule(STANDING, "playlist-order", "channel"),
+        "watermark_remove": Rule(STANDING, "watermark-off", "channel"),
+        "moderate": Rule(STANDING, "moderate-hold", "channel"),
+    },
+    "signal-access": {"send": Rule(STANDING, "send-self", "account")},
+    "telegram-access": {"send": Rule(STANDING, "send-self", "account")},
+    "discord-access": {
+        "unreact": Rule(STANDING, "unreact-in", "channel"),
+        "unpin": Rule(STANDING, "unpin-in", "channel"),
+    },
+    "note-access": {"create_draft": Rule(STANDING, "new-draft", "account")},
+    "substack-access": {
+        action: Rule(STANDING, "private-draft", "publication")
+        for action in ("create_draft", "update_draft", "unschedule")
+    },
+    "stripe-access": {
+        action: Rule(STANDING, "test-write", "account")
+        for action in ("customer_create", "customer_update", "product_create", "product_update", "price_create",
+                       "price_update", "coupon_create", "coupon_update", "promotion_code_create",
+                       "promotion_code_update", "invoice_create", "payment_link_create", "payment_link_update")
     },
 }
 
