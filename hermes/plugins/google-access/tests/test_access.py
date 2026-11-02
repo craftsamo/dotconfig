@@ -288,6 +288,11 @@ def test_edits_share_one_key_per_spreadsheet():
     assert other == f"google-access:sheets-edit:{OTHER}"
 
 
+def test_sheets_edits_match_approval_tier():
+    rules = access.approval_tier.TIERS["google-access"]
+    assert {action for action, rule in rules.items() if rule.name == "sheets-edit"} == set(access.SHEETS_EDITS)
+
+
 def test_clear_and_create_still_ask_per_call():
     clear = {"action": "clear", "spreadsheet_id": SID, "range": "A1:B9"}
     key = access.approval_request("google_sheets", clear)[1]
@@ -468,6 +473,37 @@ def test_drive_upload_asks_and_refuses_credentials(tmp_path):
         access.approval_request("google_drive", {"action": "upload", "path": str(state)})
 
 
+def test_drive_upload_approval_tier(tmp_path):
+    report1 = _file(tmp_path / "Projects" / "Acme" / "report1.pdf")
+    report2 = _file(tmp_path / "Projects" / "Acme" / "report2.pdf")
+    home1 = tmp_path / "assistant"
+    home2 = tmp_path / "creator"
+
+    # Eligible SAFE calls (upload to My Drive) share the standing key per profile
+    _, key1 = access.approval_request("google_drive", {"action": "upload", "path": str(report1)}, home=home1)
+    _, key2 = access.approval_request("google_drive", {"action": "upload", "path": str(report2)}, home=home1)
+    assert key1 == "google-access:my-drive-upload:assistant"
+    assert key2 == key1
+
+    # Different profile target gives a different key
+    _, other_target = access.approval_request("google_drive", {"action": "upload", "path": str(report1)}, home=home2)
+    assert other_target == "google-access:my-drive-upload:creator"
+    assert other_target != key1
+
+    # Ineligible: without home (no target), exact key
+    _, no_home = access.approval_request("google_drive", {"action": "upload", "path": str(report1)})
+    assert no_home.startswith("google-access:google_drive:")
+    assert "my-drive-upload" not in no_home
+
+    # CAUTION: upload with parent folder keeps exact key and differs with payload
+    _, shared1 = access.approval_request("google_drive", {"action": "upload", "path": str(report1), "parent": "fld"}, home=home1)
+    _, shared2 = access.approval_request("google_drive", {"action": "upload", "path": str(report2), "parent": "fld"}, home=home1)
+    assert shared1.startswith("google-access:google_drive:")
+    assert shared2.startswith("google-access:google_drive:")
+    assert shared1 != shared2
+    assert "my-drive-upload" not in shared1
+
+
 def _file(path, data=b"x"):
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(data)
@@ -537,8 +573,9 @@ def test_a_sensitive_file_goes_up_encrypted(tmp_path, keychain, encryption, monk
     access._add_recipient(access._recipient_of(backup), "kept elsewhere")
     secret = _file(tmp_path / "Personal" / "Budget" / "data" / "2026.csv", b"date,amount\n2026-10-01,42\n")
     args = {"action": "upload", "path": str(secret), "mime_type": "text/csv"}
-    reason, _ = access.approval_request("google_drive", args)
+    reason, key = access.approval_request("google_drive", args, home=tmp_path / "assistant")
     assert "As: 2026.csv.age" in reason and "Encrypted: with age to 2 keys (sensitive area)" in reason
+    assert key.startswith("google-access:google_drive:") and "my-drive-upload" not in key
     api, sent = _capture_upload(monkeypatch)
     result = access.drive(tmp_path, args)
     assert result["encrypted"] == {"with": "age", "recipients": 2}

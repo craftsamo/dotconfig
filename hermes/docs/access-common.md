@@ -96,9 +96,15 @@ was changed.
   people's words cannot forge card lines. Long text is cut on the card with the
   rest counted, never refused; its full wording is agreed with the user in chat
   first.
-- **The key binds the exact request.** The allowlist key hashes the request
-  (and each file's content), so "session" or "always" only repeats that
-  identical one.
+- **The key binds the exact request, unless the action has a standing rule.**
+  The allowlist key hashes the request (and each file's content), so "session"
+  or "always" only repeats that identical one. `plugins/_shared/approval_tier.py`
+  holds the exceptions: an action whose rule is `standing` gets a key bound to
+  its target (a spreadsheet, a video, an account) when the card's own level is
+  one the rule lists, ✅ unless it says otherwise, so one answer covers the
+  later calls to that target. A card at any other level keeps the exact key.
+  `scripts/tests/test_approval_tiers.py` pins the table
+  ([decision](decisions/approval-tiers.md)).
 - **Outcomes are never guessed, and a write is never retried.** A refusal
   known to happen before anything left reads `not sent` / `not done`; an
   ambiguous one reads `UNCERTAIN` and the Assistant checks with the user before

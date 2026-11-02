@@ -77,6 +77,7 @@ def _load_shared(name):
 
 
 cards = _load_shared("card")
+approval_tier = _load_shared("approval_tier")
 shell_commands = _load_shared("shell_commands")
 project_place = _load_shared("project_place")
 workspace_layout = _load_shared("workspace_layout")
@@ -4236,10 +4237,13 @@ def _preview(value, limit: int = 600) -> str:
     return text if len(text) <= limit else text[:limit] + f"… ({len(text)} chars)"
 
 
+def _args_digest(args: dict) -> str:
+    return hashlib.sha256(json.dumps(args, sort_keys=True, ensure_ascii=False, default=str)
+                          .encode("utf-8")).hexdigest()[:16]
+
+
 def _rule_key(tool: str, args: dict) -> str:
-    digest = hashlib.sha256(json.dumps(args, sort_keys=True, ensure_ascii=False, default=str)
-                            .encode("utf-8")).hexdigest()[:16]
-    return f"google-access:{tool}:{digest}"
+    return approval_tier.each_key("google-access", tool, _args_digest(args))
 
 
 # --- Sheets approval cards ------------------------------------------------------------------------
@@ -4511,10 +4515,11 @@ def approval_request(tool: str, args: dict, home=None) -> tuple[str, str] | None
     """(reason shown to the human, allowlist rule key) for a call that changes something, else None.
 
     Raises AccessError for a call the tool would reject anyway, so it is blocked without asking.
-    Spreadsheet edits share one key per spreadsheet, so "session" / "always" on the first card
-    covers the rest of that spreadsheet; every other rule key covers the exact arguments, so an
-    "always" answer never widens to other writes. ``home`` lets the card read the spreadsheet's
-    title and header row; without it the card shows ids and column letters.
+    Spreadsheet edits share one key per spreadsheet and My Drive uploads share one key per profile
+    (via approval_tier), so "session" / "always" on the first card covers the rest of that target;
+    every other rule key covers the exact arguments, so an "always" answer never widens to other
+    writes. ``home`` lets the card read the spreadsheet's title and header row and binds the profile
+    for My Drive uploads; without it the card shows ids and column letters and uploads ask each time.
     """
     args = args if isinstance(args, dict) else {}
     if tool == "google_sheets":
@@ -4522,9 +4527,11 @@ def approval_request(tool: str, args: dict, home=None) -> tuple[str, str] | None
         if action not in SHEETS_WRITES:
             return None
         reason = _sheets_card(home, action, args)
-        if action in SHEETS_EDITS and not (action in OP_ACTIONS and _ops_destructive(args, action)):
-            return reason, f"google-access:sheets-edit:{_sheet_id(args)}"
-        return reason, _rule_key(tool, args)
+        eligible = action in SHEETS_EDITS and not (action in OP_ACTIONS and _ops_destructive(args, action))
+        scope = (_sheet_id(args),) if eligible else ()
+        key = approval_tier.rule_key("google-access", action, cards.CAUTION, _args_digest(args),
+                                     scope=scope, eligible=eligible, exact=tool)
+        return reason, key
     if tool == "google_gmail":
         if _action(args, GMAIL_ACTIONS) not in GMAIL_WRITES:
             return None
@@ -4538,7 +4545,8 @@ def approval_request(tool: str, args: dict, home=None) -> tuple[str, str] | None
                           ("Subject", cards.line(args.get("subject") or "(Re: original)", 200))],
                          text=args.get("body") or None, text_label="Body")
     elif tool == "google_drive":
-        if _action(args, DRIVE_ACTIONS) not in DRIVE_WRITES:
+        drive_action = _action(args, DRIVE_ACTIONS)
+        if drive_action not in DRIVE_WRITES:
             return None
         path, sensitive = _upload_source(args)
         # Refused here, not after the card: a sensitive file with no key set up never goes up.
@@ -4551,6 +4559,10 @@ def approval_request(tool: str, args: dict, home=None) -> tuple[str, str] | None
                           ("Encrypted", f"with age to {len(keys)} key{'s' if len(keys) != 1 else ''} "
                                         "(sensitive area)" if sensitive else None),
                           ("Into", cards.line(args.get("parent") or "My Drive", 200))])
+        profile = Path(home).name if home else ""
+        key = approval_tier.rule_key("google-access", drive_action, effect[0], _args_digest(args),
+                                     scope=(profile,), eligible=not sensitive, exact=tool)
+        return reason, key
     elif tool == "gcloud":
         argv, read_only = gcloud_plan(args)
         if read_only:

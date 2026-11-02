@@ -81,6 +81,20 @@ def _load_card():
 
 
 cards = _load_card()
+
+
+def _load_approval_tier():
+    if "hermes_approval_tier" not in sys.modules:
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("hermes_approval_tier",
+                                                      HERE.parents[1] / "_shared" / "approval_tier.py")
+        module = importlib.util.module_from_spec(spec)
+        sys.modules["hermes_approval_tier"] = module
+        spec.loader.exec_module(module)
+    return sys.modules["hermes_approval_tier"]
+
+
+approval_tier = _load_approval_tier()
 BRIDGE = HERE / "bridge.py"
 # Engine runtime root: machine-local, outside the repository (HERMES_LOCAL overrides).
 RUNTIME_ROOT = Path(os.environ.get("HERMES_LOCAL") or Path.home() / ".hermes" / "local")
@@ -2036,15 +2050,73 @@ def _channel_lines(args: dict, scale: float = 1.0) -> list[str]:
     return lines
 
 
+_VISIBILITY = {"private": (cards.SAFE, "Private: only you see it"),
+               "unlisted": (cards.CAUTION, "Anyone with the link can watch"),
+               "public": (cards.CAUTION, "Public at once")}
+
+
+def _visibility(privacy: str | None, publish_at: str | None, default: tuple[str, str]) -> tuple[str, str]:
+    if publish_at:
+        return cards.CAUTION, f"Private until {publish_at}, then public"
+    return _VISIBILITY.get((privacy or "").lower(), default)
+
+
+def _effect(action: str, args: dict) -> tuple[str, str]:
+    """The (level, effect text) tuple shown on the approval card and used for the rule key."""
+    if action == "update":
+        _, status_ = _edits(args)
+        return _visibility(status_.get("privacyStatus"), status_.get("publishAt"),
+                           (cards.CAUTION, "Viewers see the changes at once"))
+    if action == "thumbnail":
+        return cards.CAUTION, "Viewers see it at once"
+    if action == "reply":
+        return cards.CAUTION, "Public at once"
+    if action == "upload":
+        _, status_ = _upload_edits(args)
+        return _visibility(status_.get("privacyStatus") or "private", status_.get("publishAt"), _VISIBILITY["private"])
+    if action == "playlist_create":
+        return _visibility(_choice(args, "privacy", PRIVACY, "private"), None, _VISIBILITY["private"])
+    if action == "playlist_add":
+        return cards.CAUTION, "The playlist shows it at once"
+    if action == "playlist_update":
+        _, privacy = _playlist_edits(args)
+        return _visibility(privacy, None, (cards.CAUTION, "Viewers see the changes at once"))
+    if action == "playlist_move":
+        return cards.SAFE, "It can be moved back"
+    if action == "playlist_remove":
+        return cards.SAFE, "The video itself is not deleted"
+    if action == "channel_update":
+        _, _, kids = _channel_edits(args)
+        return ((cards.DANGER, "Marks the whole channel made for kids") if kids
+                else (cards.CAUTION, "Visitors see the changes at once"))
+    if action == "watermark":
+        return cards.CAUTION, "Shown on every video at once"
+    if action == "watermark_remove":
+        return cards.SAFE, "It can be set again"
+    if action == "moderate":
+        moderation, ban = _moderation(args)
+        if ban:
+            hidden = "; hidden for good, replies too" if moderation == "reject" else ""
+            return cards.DANGER, f"BANS the author from the channel's comments{hidden}"
+        if moderation == "reject":
+            return cards.DANGER, "Hidden for good, replies too: it cannot be published again"
+        if moderation == "publish":
+            return cards.CAUTION, "Public at once"
+        return cards.SAFE, "Held until you review it"
+    if action == "caption_upload":
+        edits = _caption_edits(args)
+        return (cards.SAFE, "Draft: not shown to viewers") if edits["draft"] else (cards.CAUTION, "Viewers see them at once")
+    return cards.CAUTION, ""
+
+
 def approval_request(args: dict, home: Path | None = None, profile: str | None = None,
                      lookup: bool = True) -> tuple[str, str] | None:
     """(reason shown to the human, allowlist rule key) for a write, else None.
 
     Raises YouTubeError for a call the tool would refuse anyway, so it is blocked without asking.
-    An update without a privacy or schedule change and a thumbnail share one key per channel and
-    video, so "session" / "always" on the first card covers that video's later edits; every other
-    rule key covers the exact arguments (a file's also its size and time), so an "always" answer
-    never widens to other writes — channel settings, moderation and captions included."""
+    Video detail edits share one key per channel and video; playlist order changes, watermark
+    removal and comment review holds share one key per channel; every other rule key covers the
+    exact arguments (a file's also its size and time)."""
     args = args if isinstance(args, dict) else {}
     action = action_of(args, profile)
     if action not in WRITES:
@@ -2098,26 +2170,17 @@ def approval_request(args: dict, home: Path | None = None, profile: str | None =
         seen["ids"] = ids = _comment_ids(args)
         _moderation(args)
         seen["texts"] = _comment_texts(cid, ids[:3]) if lookup else None
-    key = f"youtube-access:{action}:{_digest(key_args)}"
-    if action == "thumbnail" or action == "update" and not {"privacyStatus", "publishAt"} & set(_edits(args)[1]):
-        key = f"youtube-access:edit:{cid}:{seen['vid']}"
+    eligible = not (action == "update" and {"privacyStatus", "publishAt"} & set(_edits(args)[1]))
+    level, _ = _effect(action, args)
+    scope = (cid, seen.get("vid")) if action in ("update", "thumbnail") else (cid,)
+    key = approval_tier.rule_key("youtube-access", action, level, _digest(key_args),
+                                 scope=scope, eligible=eligible)
     for scale in CARD_SCALES:
         try:
             return _card(action, args, meta.get("title") or cid, scale, seen), key
         except cards.CardError:
             continue
     raise YouTubeError("the approval card cannot show this change in full; change fewer things at once")
-
-
-_VISIBILITY = {"private": (cards.SAFE, "Private: only you see it"),
-               "unlisted": (cards.CAUTION, "Anyone with the link can watch"),
-               "public": (cards.CAUTION, "Public at once")}
-
-
-def _visibility(privacy: str | None, publish_at: str | None, default: tuple[str, str]) -> tuple[str, str]:
-    if publish_at:
-        return cards.CAUTION, f"Private until {publish_at}, then public"
-    return _VISIBILITY.get((privacy or "").lower(), default)
 
 
 def _card(action: str, args: dict, channel: str, scale: float, seen: dict) -> str:
@@ -2129,38 +2192,34 @@ def _card(action: str, args: dict, channel: str, scale: float, seen: dict) -> st
     target = f"{_line(title, 80, scale)} ({vid})" if title else vid
     path = seen.get("path")
     file = f"{path} ({_human(path.stat().st_size)})" if path else None
+    effect = _effect(action, args)
     if action == "update":
-        snippet, status_ = _edits(args)
+        snippet, _ = _edits(args)
         name = "Edit a video"
-        effect = _visibility(status_.get("privacyStatus"), status_.get("publishAt"),
-                             (cards.CAUTION, "Viewers see the changes at once"))
         facts.append(("Video", target))
         sections = [("Changes", _change_lines(args, scale))]
     elif action == "thumbnail":
-        name, effect = "Set a thumbnail", (cards.CAUTION, "Viewers see it at once")
+        name = "Set a thumbnail"
         facts += [("Video", target), ("Image", file)]
     elif action == "reply":
-        name, effect = "Reply to a comment", (cards.CAUTION, "Public at once")
+        name = "Reply to a comment"
         facts.append(("Comment", _str(args, "comment")))
         text, text_label = _str(args, "text", limit=REPLY_MAX), "Reply"
     elif action == "upload":
-        snippet, status_ = _upload_edits(args)
+        snippet, _ = _upload_edits(args)
         name = "Upload a video"
-        effect = _visibility(status_.get("privacyStatus") or "private", status_.get("publishAt"), _VISIBILITY["private"])
         facts += [("File", file), ("Title", _line(snippet["title"], scale=scale))]
         if "description" in snippet:
             text, text_label = snippet["description"], "Description"
     elif action == "playlist_create":
         name = "Create a playlist"
-        effect = _visibility(_choice(args, "privacy", PRIVACY, "private"), None, _VISIBILITY["private"])
         facts.append(("Title", _line(_str(args, "title", limit=150), scale=scale)))
     elif action == "playlist_add":
-        name, effect = "Add to a playlist", (cards.CAUTION, "The playlist shows it at once")
+        name = "Add to a playlist"
         facts += [("Playlist", playlist_id(args.get("playlist"))), ("Video", target)]
     elif action == "playlist_update":
         snippet, privacy = _playlist_edits(args)
         name = "Edit a playlist"
-        effect = _visibility(privacy, None, (cards.CAUTION, "Viewers see the changes at once"))
         facts.append(("Playlist", playlist_id(args.get("playlist"))))
         changes = [f"title → {_line(snippet['title'], scale=scale)}" if "title" in snippet else None,
                    (f"description → {_line(snippet['description'], 200, scale) or '(empty)'}"
@@ -2168,37 +2227,25 @@ def _card(action: str, args: dict, channel: str, scale: float, seen: dict) -> st
                    f"privacy → {privacy.upper()}" if privacy else None]
         sections = [("Changes", [c for c in changes if c])]
     elif action == "playlist_move":
-        name, effect = "Move a playlist entry", (cards.SAFE, "It can be moved back")
+        name = "Move a playlist entry"
         facts += [("Entry", _str(args, "item")), ("To position", f"{_position(args, required=True)} (0 = first)")]
     elif action == "playlist_remove":
-        name, effect = "Remove a playlist entry", (cards.SAFE, "The video itself is not deleted")
+        name = "Remove a playlist entry"
         facts.append(("Entry", _str(args, "item")))
     elif action == "channel_update":
-        _, _, kids = _channel_edits(args)
         name = "Edit channel settings"
-        effect = ((cards.DANGER, "Marks the whole channel made for kids") if kids
-                  else (cards.CAUTION, "Visitors see the changes at once"))
         sections = [("Changes", _channel_lines(args, scale))]
     elif action == "watermark":
-        name, effect = "Set the channel watermark", (cards.CAUTION, "Shown on every video at once")
+        name = "Set the channel watermark"
         facts += [("Image", file), ("Shown", _timing_text(_watermark_timing(args)))]
     elif action == "watermark_remove":
-        name, effect = "Remove the channel watermark", (cards.SAFE, "It can be set again")
+        name = "Remove the channel watermark"
     elif action == "moderate":
         ids = seen["ids"]
-        moderation, ban = _moderation(args)
+        moderation, _ = _moderation(args)
         count = f"{len(ids)} comment{'s' if len(ids) > 1 else ''}"
         name = {"publish": f"Publish {count}", "hold": f"Hold {count} for review",
                 "reject": f"Reject (hide) {count}"}[moderation]
-        if ban:
-            hidden = "; hidden for good, replies too" if moderation == "reject" else ""
-            effect = (cards.DANGER, f"BANS the author from the channel's comments{hidden}")
-        elif moderation == "reject":
-            effect = (cards.DANGER, "Hidden for good, replies too: it cannot be published again")
-        elif moderation == "publish":
-            effect = (cards.CAUTION, "Public at once")
-        else:
-            effect = (cards.SAFE, "Held until you review it")
         texts = seen.get("texts")
         shown = [_line(t, 100, scale) for t in texts or []] or [", ".join(ids[:3]) + (" …" if len(ids) > 3 else "")]
         sections = [(f"Comments ({len(ids)})", shown)]
@@ -2210,8 +2257,6 @@ def _card(action: str, args: dict, channel: str, scale: float, seen: dict) -> st
         else:
             name = "Add captions"
             facts.append(("Language", edits["language"] + (f", {edits['name']}" if edits["name"] else "")))
-        effect = (cards.SAFE, "Draft: not shown to viewers") if edits["draft"] else \
-            (cards.CAUTION, "Viewers see them at once")
         facts += [("Video", target), ("File", file)]
     return cards.compose("YouTube", name, effect, facts, sections=sections, text=text, text_label=text_label)
 

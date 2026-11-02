@@ -1,6 +1,6 @@
 ---
 name: manage
-description: "Use to change the user's own Substack: create or update a draft, publish, schedule or unschedule it, or post a Note, each on an approval card."
+description: "Use to change the user's own Substack: create or update a draft, publish, schedule or unschedule it, or post a Note, under an approval gate."
 version: 1.0.0
 author: CraftSamo
 license: MIT
@@ -15,11 +15,15 @@ Task skills (a campaign, a series of posts) own the text and the timing. This
 skill owns how it is written. Reading, status and the Contract of the tool are
 in `substack-access:read`; load it too.
 
-Write only what the user asked for, to the draft they meant. Every write shows
-a card on Telegram (or a CLI prompt) and runs only after the user approves it
-there. The tool cannot delete a draft, edit a published post, reply to or read
-Notes and comments, or change publication settings: say so and leave those to
-the user.
+Write only what the user asked for, to the draft they meant. Every write is
+gated by approval. Creating a draft and updating the metadata of a draft that is
+not scheduled (without replacing the body) share a standing approval per
+publication: after "session" or "always", later ones on that publication run
+without asking again. Cancelling a release has an approval of its own. Replacing
+a draft's body, changing a scheduled draft, posting a Note, scheduling and
+publishing ask every time. The tool cannot delete a draft, edit a published
+post, reply to or read Notes and comments, or change publication settings: say
+so and leave those to the user.
 
 ## Write
 
@@ -59,6 +63,6 @@ the user.
    never repeat the write without the user's say-so. A Note cannot be read
    here: ask the user to look.
 
-Writes need a person to approve each one: in cron, a single query or an
-inbound A2A request the tool refuses them. Do not schedule a job that is meant
+Writes need a person: in cron, a single query or an inbound A2A request the
+tool refuses them, even where a "session" or "always" answer is stored. Do not schedule a job that is meant
 to write to Substack; schedule a reminder for the user instead.

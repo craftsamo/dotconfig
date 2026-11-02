@@ -50,7 +50,8 @@ draft. This skill owns how it is saved. Reading the user's drafts is in
    user edits that draft in the browser.
 3. **Preview, then save.** `preview=true` runs every check of the save and
    returns its card without saving. Then the same call without `preview`; its
-   card is the user's remote-save consent.
+   card (or a standing approval on the account) is the user's remote-save
+   consent.
 4. **Read the result.**
    - A denial or timeout on the card means nothing was saved. Never retry a
      denied save unchanged.

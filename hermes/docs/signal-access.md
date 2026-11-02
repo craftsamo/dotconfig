@@ -11,17 +11,17 @@ Hermes design docs — index: [`PROFILES.md`](../PROFILES.md).
 
 ## Shape
 
-| Piece                                                                        | Home                                                                                       | Reader             |
-| ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ | ------------------ |
-| Mirror schema, ingest rules, retention                                       | `plugins/messaging/signal-access/store.py`                                                 | sync agent, engine |
-| JSON-RPC client for the daemon's socket                                      | `plugins/messaging/signal-access/rpc.py`                                                   | sync agent, engine |
-| Sync agent: owns signal-cli, writes the mirror                               | `plugins/messaging/signal-access/sync.py`                                                  | launchd            |
-| Archive inspection for sends (shared with the WhatsApp and Telegram plugins) | `plugins/messaging/_shared/archive_check.py`                                               | engine             |
-| Engine: reads, check, media, send, approval card, file checks, bypass guard  | `plugins/messaging/signal-access/sig.py`                                                   | Assistant          |
-| `signal` tool and the `pre_tool_call` hook (toolset `signal_access`)         | `plugins/messaging/signal-access/__init__.py`                                              | Assistant          |
-| Linking and the sync agent                                                   | `launchd/signal-access-launchctl.sh`, `launchd/local.hermes.signal-access.sync.plist.tmpl` | people             |
+| Piece                                                                        | Home                                                                                         | Reader             |
+| ---------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- | ------------------ |
+| Mirror schema, ingest rules, retention                                       | `plugins/messaging/signal-access/store.py`                                                   | sync agent, engine |
+| JSON-RPC client for the daemon's socket                                      | `plugins/messaging/signal-access/rpc.py`                                                     | sync agent, engine |
+| Sync agent: owns signal-cli, writes the mirror                               | `plugins/messaging/signal-access/sync.py`                                                    | launchd            |
+| Archive inspection for sends (shared with the WhatsApp and Telegram plugins) | `plugins/messaging/_shared/archive_check.py`                                                 | engine             |
+| Engine: reads, check, media, send, approval card, file checks, bypass guard  | `plugins/messaging/signal-access/sig.py`                                                     | Assistant          |
+| `signal` tool and the `pre_tool_call` hook (toolset `signal_access`)         | `plugins/messaging/signal-access/__init__.py`                                                | Assistant          |
+| Linking and the sync agent                                                   | `launchd/signal-access-launchctl.sh`, `launchd/local.hermes.signal-access.sync.plist.tmpl`   | people             |
 | How the tool is used: reads, files, sends, outcomes                          | the `signal-access:account` plugin skill (`plugins/messaging/signal-access/skills/account/`) | Assistant          |
-| When the Assistant uses it in Chat                                           | the Assistant's private Chat reference `signal.md`                                         | Assistant          |
+| When the Assistant uses it in Chat                                           | the Assistant's private Chat reference `signal.md`                                           | Assistant          |
 
 [signal-cli](https://github.com/AsamK/signal-cli) (Homebrew `signal-cli`, a
 native build, no Java) joins the account as a linked device — the same standing
@@ -144,7 +144,7 @@ check; `reply_to` quotes a message of that chat. Surrounding blank space is
 trimmed before the card is built, so the card and the message carry the same
 text.
 
-- **Every send asks first** ([approval gate](access-common.md#approval-gate)),
+- **Sends ask first** ([approval gate](access-common.md#approval-gate)),
   on a card of the [shared shape](access-common.md#card-shape) titled
   `Signal · Send message`, then who sees it (⚠️ the person or everyone in the
   group, ✅ only the user for Note to Self). The card names the account, the
@@ -176,13 +176,16 @@ text.
   `.gz`) and ZIP-based programs (`.jar`, `.apk`, `.ipa`) stay refused; Office
   files are not archives here. The plan hash is taken before and after the
   inspection, so a file that changes meanwhile is refused.
-- **The approval covers the exact message.** The allowlist key hashes the chat,
-  text, reply (the quoted author and text) and each file's path and SHA-256.
-  Execution also requires the gate's record of that very tool call: a send that
-  skipped the gate, or a concurrent identical call, never uses another call's
-  approval. The plan is rebuilt and must match the record; only outbox copies
-  whose hash still matches the card are sent. A file or quoted message changed
-  after the card reads `not sent`.
+- **Approval covers Note to Self per account, or the exact message.** A send to
+  Note to Self (✅) shares a standing key bound to the account
+  (`signal-access:send-self:<account>`), so a "session" or "always" approval
+  covers later sends to Note to Self. Every other send asks per exact request:
+  the allowlist key hashes the chat, text, reply (the quoted author and text)
+  and each file's path and SHA-256. Execution also requires the gate's record of
+  that very tool call: a send that skipped the gate, or a concurrent identical
+  call, never uses another call's approval. The plan is rebuilt and must match
+  the record; only outbox copies whose hash still matches the card are sent. A
+  file or quoted message changed after the card reads `not sent`.
 - **Outcomes are never guessed.** `ok: true` means Signal accepted the message
   (per member for groups; failures are listed), not that it was delivered.
   `not sent: …` only for failures known to happen before anything left: the

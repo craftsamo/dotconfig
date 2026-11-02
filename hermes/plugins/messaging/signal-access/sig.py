@@ -63,6 +63,7 @@ store = _load("store")
 rpc = _load("rpc")
 archives = _load_shared("archive_check")
 cards = _load_common("card")
+approval_tier = _load_common("approval_tier")
 shell_commands = _load_common("shell_commands")
 
 ACTIONS = ("status", "chats", "messages", "search", "context", "contacts", "check", "media", "send")
@@ -909,16 +910,23 @@ def card(plan: dict) -> str:
                           else str(exc)) from None
 
 
-def rule_key(plan: dict) -> str:
+def request_digest(plan: dict) -> str:
+    """What the card showed, as one digest: account, chat, text, reply, quote and file contents."""
     quote = plan.get("quote") or {}
-    digest = hashlib.sha256(json.dumps(
+    return hashlib.sha256(json.dumps(
         [plan["account"], plan["chat"], plan["text"], plan["reply_to"], quote.get("author"), quote.get("text"),
          [[f["path"], f["sha256"]] for f in plan["files"]]], ensure_ascii=False).encode("utf-8")).hexdigest()[:16]
-    return f"signal-access:send:{digest}"
+
+
+def rule_key(plan: dict) -> str:
+    level, _ = _effect(plan)
+    return approval_tier.rule_key("signal-access", "send", level, request_digest(plan),
+                                  scope=(plan.get("me") or "",))
 
 
 # The gate's view of each send, per tool call, so execution sends exactly what the card showed:
-# the same chat, text, quote and file contents (the rule key covers them all).
+# the same chat, text, quote and file contents (the request digest covers them all, which the
+# allowlist key does not for a note to oneself).
 _approved: dict[str, tuple[float, str, list]] = {}
 _approved_lock = threading.Lock()
 
@@ -931,7 +939,8 @@ def _call_key(args: dict, call_id: str) -> str:
 def approval_request(args: dict, call_id: str = "") -> tuple[str, str] | None:
     """(card, allowlist rule key) for a send, None for a read; raises for a call that would fail
     anyway, so it is blocked without asking. The key covers the exact chat, text, reply and file
-    contents, so "session" or "always" only ever repeats that identical message."""
+    contents, so "session" or "always" only ever repeats that identical message; a note to oneself
+    shares one key per account instead (approval_tier)."""
     args = args if isinstance(args, dict) else {}
     if action_of(args) not in WRITES:
         return None
@@ -942,7 +951,8 @@ def approval_request(args: dict, call_id: str = "") -> tuple[str, str] | None:
         now = time.monotonic()
         for old in [k for k, (at, _, _) in _approved.items() if now - at > APPROVAL_TTL]:
             _approved.pop(old, None)
-        _approved[_call_key(args, call_id)] = (now, key, [[f["path"], f["sha256"]] for f in plan["files"]])
+        _approved[_call_key(args, call_id)] = (now, request_digest(plan),
+                                               [[f["path"], f["sha256"]] for f in plan["files"]])
     return text, key
 
 
@@ -980,12 +990,12 @@ def send(args: dict, call_id: str = "") -> dict:
     record = _approved_send(args, call_id)
     if record is None:
         return {"ok": False, "error": "not sent: this send did not pass the approval card; call send again"}
-    approved_key, approved = record
+    approved_digest, approved = record
     try:
         plan = send_plan(args)
     except SignalError as exc:
         return {"ok": False, "error": f"not sent: {exc}"}
-    if rule_key(plan) != approved_key or [[f["path"], f["sha256"]] for f in plan["files"]] != approved:
+    if request_digest(plan) != approved_digest or [[f["path"], f["sha256"]] for f in plan["files"]] != approved:
         return {"ok": False, "error": "not sent: the files or the quoted message changed after the approval card "
                                      "was made; ask again"}
     outbox = None
