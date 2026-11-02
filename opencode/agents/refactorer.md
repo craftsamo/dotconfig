@@ -88,7 +88,12 @@ permissions:
   - { action: shell, resource: "make lint*", effect: allow }
   - { action: shell, resource: "make check*", effect: allow }
   - { action: shell, resource: "make build*", effect: allow }
-  - { action: shell, resource: "tsc*", effect: allow }
+  # A typecheck that writes no output; a bare `tsc` emits JavaScript.
+  - { action: shell, resource: "tsc --noEmit *", effect: allow }
+  - { action: shell, resource: "tsc -p * --noEmit", effect: allow }
+  - { action: shell, resource: "node_modules/.bin/tsc --noEmit *", effect: allow }
+  - { action: shell, resource: "pnpm exec tsc --noEmit *", effect: allow }
+  - { action: shell, resource: "npx --no-install tsc --noEmit *", effect: allow }
   - { action: shell, resource: "eslint*", effect: allow }
   - { action: shell, resource: "prettier --check*", effect: allow }
   - { action: shell, resource: "ruff check*", effect: allow }
@@ -98,6 +103,56 @@ permissions:
   - { action: shell, resource: "shellcheck *", effect: allow }
   - { action: shell, resource: "zsh -n *", effect: allow }
   - { action: shell, resource: "bash -n *", effect: allow }
+  # Test runners a repository's tests are often run with directly; a
+  # baseline before the first edit and a re-run after each step would
+  # otherwise ask every time.
+  - { action: shell, resource: "node --test*", effect: allow }
+  - { action: shell, resource: "python3 -m unittest*", effect: allow }
+  - { action: shell, resource: "python -m unittest*", effect: allow }
+  - { action: shell, resource: "python3 -m pytest*", effect: allow }
+  - { action: shell, resource: "python -m pytest*", effect: allow }
+  - { action: shell, resource: "uv run pytest*", effect: allow }
+  - { action: shell, resource: "uv run python -m pytest*", effect: allow }
+  # A redirect or a write flag on an allowlisted check (eslint --fix,
+  # vitest -u, git diff --output) would rewrite files or snapshots without
+  # asking, past the no-formatter rule. Best-effort: flags have too many
+  # spellings for a complete list. Placed before the denies so they still win.
+  - { action: shell, resource: "*>*", effect: ask }
+  - { action: shell, resource: "* --fix", effect: ask }
+  - { action: shell, resource: "* --fix *", effect: ask }
+  - { action: shell, resource: "* --fix=*", effect: ask }
+  - { action: shell, resource: "* --fix-only*", effect: ask }
+  - { action: shell, resource: "npm*:fix*", effect: ask }
+  - { action: shell, resource: "pnpm*:fix*", effect: ask }
+  - { action: shell, resource: "yarn*:fix*", effect: ask }
+  - { action: shell, resource: "bun*:fix*", effect: ask }
+  - { action: shell, resource: "make*fix*", effect: ask }
+  - { action: shell, resource: "*--write*", effect: ask }
+  - { action: shell, resource: "jest* -u*", effect: ask }
+  - { action: shell, resource: "jest*--update*", effect: ask }
+  - { action: shell, resource: "vitest* -u*", effect: ask }
+  - { action: shell, resource: "*test* -u", effect: ask }
+  - { action: shell, resource: "*test* -u *", effect: ask }
+  - { action: shell, resource: "*test*-update*", effect: ask }
+  - { action: shell, resource: "*test*:update*", effect: ask }
+  - { action: shell, resource: "*--inline-snapshot*", effect: ask }
+  - { action: shell, resource: "*--add-noqa*", effect: ask }
+  - { action: shell, resource: "*--output-file*", effect: ask }
+  - { action: shell, resource: "*--outputFile*", effect: ask }
+  - { action: shell, resource: "eslint* -o *", effect: ask }
+  - { action: shell, resource: "stylelint* -o *", effect: ask }
+  - { action: shell, resource: "eslint*--cache*", effect: ask }
+  - { action: shell, resource: "git diff*--output*", effect: ask }
+  - { action: shell, resource: "*--junitxml*", effect: ask }
+  - { action: shell, resource: "*--cov-report*", effect: ask }
+  - { action: shell, resource: "*--coverage*", effect: ask }
+  - { action: shell, resource: "*--html*", effect: ask }
+  - { action: shell, resource: "*-reporter-destination*", effect: ask }
+  - { action: shell, resource: "*--init*", effect: ask }
+  - { action: shell, resource: "tsc*--generate*", effect: ask }
+  - { action: shell, resource: "tsc*--noEmit false*", effect: ask }
+  - { action: shell, resource: "tsc*--incremental*", effect: ask }
+  - { action: shell, resource: "tsc*--tsBuildInfoFile*", effect: ask }
   - { action: shell, resource: "git commit*", effect: deny }
   - { action: shell, resource: "git push*", effect: deny }
   - { action: shell, resource: "git reset*", effect: deny }
