@@ -11,14 +11,14 @@ Hermes design docs — index: [`PROFILES.md`](../PROFILES.md).
 
 ## Shape
 
-| Piece                                                                                                                              | Home                                                     | Reader              |
-| ---------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- | ------------------- |
-| Engine: validation, profile actions, pacing, session state, result shapes, image outbox, approval card, write ledger, bypass guard | `plugins/social/substack-access/sa.py`                   | all                 |
-| One Substack call per request in the engine venv; reads the cookies                                                                | `plugins/social/substack-access/bridge.py`               | all                 |
-| `substack` tool and its `pre_tool_call` hooks (toolset `substack_access`)                                                          | `plugins/social/substack-access/__init__.py`             | Assistant, Marketer |
-| Engine venv                                                                                                                        | `scripts/substack-access.sh`, `engines/python-substack/` | people              |
-| When and how the Assistant uses it                                                                                                 | the Assistant's private Chat reference `substack.md`     | Assistant           |
-| When Marketer may read with it                                                                                                     | `profiles/marketer/skills/pipeline/references/platforms/substack.md`     | Marketer            |
+| Piece                                                                                                                              | Home                                                                 | Reader              |
+| ---------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- | ------------------- |
+| Engine: validation, profile actions, pacing, session state, result shapes, image outbox, approval card, write ledger, bypass guard | `plugins/social/substack-access/sa.py`                               | all                 |
+| One Substack call per request in the engine venv; reads the cookies                                                                | `plugins/social/substack-access/bridge.py`                           | all                 |
+| `substack` tool and its `pre_tool_call` hooks (toolset `substack_access`)                                                          | `plugins/social/substack-access/__init__.py`                         | Assistant, Marketer |
+| Engine venv                                                                                                                        | `scripts/substack-access.sh`, `engines/python-substack/`             | people              |
+| When and how the Assistant uses it                                                                                                 | the Assistant's private Chat reference `substack.md`                 | Assistant           |
+| When Marketer may read with it                                                                                                     | `profiles/marketer/skills/pipeline/references/platforms/substack.md` | Marketer            |
 
 Substack has no general API for this: its Developer API covers public profile
 data and its official MCP server reads analytics of Bestseller publications
@@ -114,9 +114,19 @@ Drafts cannot be deleted. Writes are capped per 24 hours.
   is emailed and the length. Names and titles shrink so every fact fits (the
   publication's address and the body's length go first), and a longer body is
   cut on the card with the rest counted; a card whose facts still do not fit is
-  refused, which on Discord's shorter card happens to large changes. The
-  approval key binds the exact text regardless.
-- **The approval covers the exact write.** The allowlist key hashes the
+  refused, which on Discord's shorter card happens to large changes. Except for
+  the draft actions below, the approval key binds the exact text.
+- **Approval scope.** Creating a draft (`create_draft`) and updating the
+  metadata of a draft that is not scheduled, without replacing the body
+  (`update_draft` with `markdown: null`), are SAFE draft actions: their allowlist
+  key is a standing key bound to the publication
+  (`substack-access:private-draft:<user_id>:<publication_id>`), so "session" or
+  "always" approval covers later ones on that publication. Cancelling a release
+  (`unschedule`, SAFE) has a standing key of its own
+  (`substack-access:unschedule-draft:<user_id>:<publication_id>`), so approving
+  drafts never cancels a release. Body-replacing draft updates (⚠️), a
+  metadata update of a scheduled draft (⚠️: it goes out with the release), Notes
+  (⚠️), scheduling (⚠️) and publishing (🚨) keep an exact key that hashes the
   request, the publication, the account, the draft digest and each image's
   SHA-256, so "session" or "always" only ever repeats that identical write to
   that draft as it then stood.

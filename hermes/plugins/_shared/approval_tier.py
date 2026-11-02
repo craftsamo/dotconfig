@@ -90,8 +90,9 @@ TIERS: dict[str, dict[str, Rule]] = {
     },
     "note-access": {"create_draft": Rule(STANDING, "new-draft", "account")},
     "substack-access": {
-        action: Rule(STANDING, "private-draft", "publication")
-        for action in ("create_draft", "update_draft", "unschedule")
+        "create_draft": Rule(STANDING, "private-draft", "publication"),
+        "update_draft": Rule(STANDING, "private-draft", "publication"),
+        "unschedule": Rule(STANDING, "unschedule-draft", "publication"),
     },
     "stripe-access": {
         action: Rule(STANDING, "test-write", "account")

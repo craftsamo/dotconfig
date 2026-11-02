@@ -55,7 +55,7 @@ EXPECTED = {
     "substack-access": {
         "create_draft": ("standing", "private-draft", SAFE_ONLY),
         "update_draft": ("standing", "private-draft", SAFE_ONLY),
-        "unschedule": ("standing", "private-draft", SAFE_ONLY),
+        "unschedule": ("standing", "unschedule-draft", SAFE_ONLY),
     },
     "stripe-access": {
         # Test mode only (the plugin marks every test-mode card safe and passes the mode as eligibility).

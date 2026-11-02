@@ -50,6 +50,19 @@ def _load_card():
 
 
 cards = _load_card()
+
+
+def _load_approval_tier():
+    if "hermes_approval_tier" not in sys.modules:
+        spec = importlib.util.spec_from_file_location("hermes_approval_tier",
+                                                      HERE.parents[1] / "_shared" / "approval_tier.py")
+        module = importlib.util.module_from_spec(spec)
+        sys.modules["hermes_approval_tier"] = module
+        spec.loader.exec_module(module)
+    return sys.modules["hermes_approval_tier"]
+
+
+approval_tier = _load_approval_tier()
 BRIDGE = HERE / "bridge.py"
 # Engine runtime root: machine-local, outside the repository (HERMES_LOCAL overrides).
 RUNTIME_ROOT = Path(os.environ.get("HERMES_LOCAL") or Path.home() / ".hermes" / "local")
@@ -1109,6 +1122,28 @@ def _email(plan: dict, prepared: dict) -> tuple[str, str]:
 CARD_CLIPS = (120, 60, 30, 15, 8)  # names and titles shrink until every fact fits on the card
 
 
+def _effect(plan: dict, prepared: dict) -> tuple[str, str]:
+    action = plan["action"]
+    if action == "note":
+        return cards.CAUTION, "Public at once"
+    if action == "create_draft":
+        return cards.SAFE, "Draft only; nothing is published or emailed"
+    if action == "update_draft":
+        if plan["markdown"] is not None:
+            return cards.CAUTION, "New body; nothing is published or emailed"
+        # A scheduled draft goes out with whatever it holds at release.
+        if (prepared.get("draft") or {}).get("scheduled"):
+            return cards.CAUTION, "Scheduled: the release goes out with this change"
+        return cards.SAFE, "Nothing is published or emailed"
+    if action == "publish":
+        _, says = _email(plan, prepared)
+        return cards.DANGER, f"Public at once · {says} · cannot be undone"
+    if action == "schedule":
+        _, says = _email(plan, prepared)
+        return cards.CAUTION, f"Public at release · {says} · can be cancelled before"
+    return cards.SAFE, "It stays an unpublished draft"
+
+
 def _card_at(plan: dict, prepared: dict, staged: list[dict], clip: int) -> str:
     """The card with names and titles clipped to ``clip``; CardError when it does not fit."""
     action = plan["action"]
@@ -1120,21 +1155,20 @@ def _card_at(plan: dict, prepared: dict, staged: list[dict], clip: int) -> str:
     context = [("Address", host)]
     images = [(f"Images ({len(staged)})", _image_lines(staged, clip))] if staged else []
     sections, body, body_label = [], None, "Body"
+    effect = _effect(plan, prepared)
     if action == "note":
         account = prepared.get("account") or {}
-        title, effect = "Post a Note", (cards.CAUTION, "Public at once")
+        title = "Post a Note"
         facts, context = [("Account", f"@{_line(account.get('handle'), clip)}")], []
         body, body_label = plan["text"], "Note"
     elif action == "create_draft":
-        title, effect = "Create a draft", (cards.SAFE, "Draft only; nothing is published or emailed")
+        title = "Create a draft"
         facts = [where, ("Title", _line(plan["title"], clip)),
                  ("Subtitle", _line(plan["subtitle"], clip) if plan["subtitle"] else None),
                  ("Audience", plan["audience"])]
         sections, body = images, plan["markdown"]
     elif action == "update_draft":
         title = f"Change draft {plan['draft']}"
-        effect = ((cards.CAUTION, "New body; nothing is published or emailed")
-                  if plan["markdown"] is not None else (cards.SAFE, "Nothing is published or emailed"))
         drops = prepared.get("unsupported") if plan["replace_unsupported"] else None
         facts = [where, ("Draft now", current),
                  ("New title", _line(plan["title"], clip) if plan["title"] is not None else None),
@@ -1147,19 +1181,17 @@ def _card_at(plan: dict, prepared: dict, staged: list[dict], clip: int) -> str:
             context.append(("Body", f"replaced ({len(plan['markdown'])} characters)"))
         sections, body = images, plan["markdown"]
     elif action == "publish":
-        email, says = _email(plan, prepared)
-        title, effect = f"Publish draft {plan['draft']}", (cards.DANGER, f"Public at once · {says} · cannot be undone")
+        email, _ = _email(plan, prepared)
+        title = f"Publish draft {plan['draft']}"
         facts = [where, ("Title", current), ("Audience", draft.get("audience")), ("Email", email),
                  ("Words", draft.get("words"))]
     elif action == "schedule":
-        email, says = _email(plan, prepared)
+        email, _ = _email(plan, prepared)
         title = f"Schedule draft {plan['draft']}"
-        effect = (cards.CAUTION, f"Public at release · {says} · can be cancelled before")
         facts = [where, ("Title", current), ("At", _local(plan["at"])), ("Audience", draft.get("audience")),
                  ("Email", f"{email} at release" if plan["send_email"] else email), ("Words", draft.get("words"))]
     else:  # unschedule
         title = f"Cancel the release of draft {plan['draft']}"
-        effect = (cards.SAFE, "It stays an unpublished draft")
         facts = [where, ("Title", current),
                  ("Scheduled for", ", ".join(_local(s) or s for s in draft.get("scheduled") or []))]
     room = BODY_ROOM if clip != CARD_CLIPS[-1] else cards.TEXT_MIN   # the shortest names leave the body less
@@ -1171,8 +1203,9 @@ def card(plan: dict, prepared: dict, staged: list[dict]) -> str:
     """The shared card shape (plugins/_shared/card.py), the body (if any) last: names and titles
     shrink first so the facts and the start of the body fit what the chat shows; a longer body is
     cut on the card and what is not shown is counted. Its full wording is agreed with the user in
-    chat beforehand (the Assistant's reference), and the approval key still binds the exact text.
-    A card whose facts do not fit even with the shortest names is refused."""
+    chat beforehand (the Assistant's reference); except for a private draft action (approval_tier)
+    the approval key still binds the exact text. A card whose facts do not fit even with the
+    shortest names is refused."""
     for clip in CARD_CLIPS:
         try:
             return _card_at(plan, prepared, staged, clip)
@@ -1195,14 +1228,17 @@ def rule_key(plan: dict, prepared: dict, staged: list[dict], request: str) -> st
     who = identity(prepared)
     digest = hashlib.sha256(json.dumps([request, prepared.get("digest"), who["user"], who["publication"], images])
                             .encode("utf-8")).hexdigest()[:16]
-    return f"substack-access:{plan['action']}:{digest}"
+    level, _ = _effect(plan, prepared)
+    return approval_tier.rule_key("substack-access", plan["action"], level, digest,
+                                  scope=(who["user"], who["publication"]))
 
 
 def approval_request(args: dict, home: Path | None = None, ids: dict | None = None,
                      profile: str | None = None) -> tuple[str, str] | None:
     """(card, allowlist rule key) for a write, None for a read; raises for a call that would fail
-    anyway. The snapshot is made here. The key binds the exact write, the draft as the card showed
-    it and the image contents, so "session" or "always" only ever repeats that identical write."""
+    anyway. The snapshot is made here. Creating a draft and updating the metadata of a draft that is
+    not scheduled (without a new body) share a standing key per publication, cancelling a release has
+    one of its own; other writes bind the exact call."""
     args = args if isinstance(args, dict) else {}
     if "_prepared" in args:
         raise SubstackError("_prepared is set by the plugin, never by a caller")
