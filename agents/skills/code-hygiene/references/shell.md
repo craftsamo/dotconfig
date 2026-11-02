@@ -8,7 +8,10 @@ in ways that silently change behavior.
 ## Constants and variables
 
 - Values used throughout a script (paths, URLs, retry counts, names) go to
-  the top as `readonly NAME=value` (zsh also accepts `typeset -r`).
+  the top. Use `readonly NAME=value` (zsh: `typeset -r`) only in a script
+  that is executed; in a file that is sourced, use a plain assignment, since
+  sourcing it again (a reloaded `.zshrc`, a test that sources a library
+  twice) fails on the read-only variable.
 - Variables inside functions are declared `local` only when no caller reads
   them afterwards; check every caller first.
 - Do not turn an environment override (`: "${FOO:=default}"`) into a constant.
@@ -25,10 +28,18 @@ in ways that silently change behavior.
 ## Quoting and syntax
 
 - bash and sh: quote expansions (`"$var"`, `"$@"`) unless the code depends on
-  word splitting or globbing; when it does, leave it and report it.
+  word splitting, globbing or an empty value disappearing: `cmd $opt` passes
+  no argument when `opt` is empty, `cmd "$opt"` passes an empty one, and a
+  variable holding several options (`cp $CP_FLAGS`) needs the split. When
+  any of these can apply, leave it and report it. Quoting the right side of
+  a plain assignment (`x=$1`) changes nothing and is churn; `local` and
+  `export` forms split differently across shells, so leave those as they are.
 - zsh does not split unquoted parameters by default and indexes arrays from
   1; do not apply bash quoting fixes or 0-based indexing to zsh code.
-- `$(...)` replaces backticks safely.
+- `$(...)` replaces backticks safely when the command inside holds no
+  backslash or nested backtick; inside backticks `\$`, `\\` and `` \` `` lose
+  one level of escaping, so such a command is rewritten only with that
+  escaping adjusted.
 - Keep `[ ]` in POSIX `sh` scripts; `[[ ]]` is for bash and zsh only.
 - Keep the option handling a zsh function already has (`emulate -L zsh`,
   `setopt local_options`); adding it changes which options apply inside.

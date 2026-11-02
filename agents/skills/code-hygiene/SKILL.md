@@ -21,8 +21,8 @@ license: MIT
 Leave code in the shape a careful maintainer of this repository would have
 written it: one definition per type and value, named constants in a known
 home, declarations documented in the language's own doc-comment form, and
-files that each hold one responsibility. Behavior stays identical. The same
-standard applies when writing new code, so less needs tidying later.
+files whose parts change for the same reasons. Behavior stays identical. The
+same standard applies when writing new code, so less needs tidying later.
 
 </Goal>
 
@@ -49,17 +49,23 @@ whole codebase.
 1. **Reuse before defining.** Before declaring a type, data shape, constant or
    helper, search the codebase for an existing one. Derive from what exists
    instead of restating it; merge duplicates that already drifted apart only
-   when they are provably the same thing.
+   when they are provably the same thing. A type from another feature that
+   happens to have the same fields is not the same thing.
 2. **One home per value.** Name a literal when its meaning is not obvious from
-   the line or when it repeats. Keep it in the narrowest home that covers its
-   users: the top of the file for one file, a sibling constants module for a
-   feature, the repository's shared module for several features. Do not hoist
-   a value further than its users need.
+   the line or when the same meaning repeats; two equal literals that mean
+   different things are two values. Leave self-evident literals (`0`, `1`,
+   `""`, an initial accumulator) inline. Keep a named value in the narrowest
+   home that covers its users: the top of the file for one file, a sibling
+   constants module for a feature, the repository's shared module for several
+   features. Do not hoist a value further than its users need.
 3. **Doc comments for declarations.** A comment that describes a function,
    class, type, exported constant or module moves into the language's doc
    comment form (TSDoc/JSDoc, docstring, SassDoc where used, a shell function
    header). Convert what exists; do not write new documentation where the code
-   had none. Comments inside a body that explain why stay as plain comments.
+   had none. A comment that only restates the declaration's name or signature
+   is noise (principle 4): delete it instead of converting it. Comments inside
+   a body that explain why stay as plain comments. Some doc-comment forms are
+   read at runtime; check <BehaviorInvariants> before converting.
 4. **Remove noise, not knowledge.** Delete commented-out code, comments that
    narrate an edit ("changed to X", "new:", "fixed"), and comments that restate
    the next line. Keep every comment that carries a reason, a constraint or a
@@ -71,8 +77,12 @@ whole codebase.
    functions, unreachable branches, wrappers that only forward. Anything
    exported or reachable through reflection, routing or configuration is not
    provably unused.
-7. **One responsibility per file.** Split a file that mixes concerns, within
-   the limits of <StructureTiers>.
+7. **Split by reason to change.** Split a file only where its parts change
+   for different reasons and share no private state; keep code that changes
+   together in one file. Size alone is no reason to split, and a cohesive file
+   of many small related functions stays whole. When the split would move an
+   export that an entry point or other tier C file imports, it is tier B
+   (<StructureTiers>).
 
 </Principles>
 
@@ -83,7 +93,7 @@ one into a tier before acting:
 
 | Tier | Change | Action |
 | --- | --- | --- |
-| A | Edits inside a file; extracting into a new sibling file in the same directory (types, constants, a hook, a helper, a split of an oversized file), named after the repository's existing pattern | Do it |
+| A | Edits inside a file; extracting into a new sibling file in the same directory (types, constants, a hook, a helper, a split along reasons to change per principle 7), named after the repository's existing pattern | Do it |
 | B | Moving or renaming a file, crossing directories, creating a new directory layout, adding or removing a barrel/`index` re-export, changing an exported name or signature | Propose it with the reason and the affected importers; do not do it |
 | C | Files whose path is behavior: framework routing directories, files referenced by path from configuration, scripts or other repositories, package entry points and `exports`, Python package `__init__.py` surfaces, shell entry scripts | Report it if it needs attention; never touch it |
 
@@ -107,8 +117,16 @@ The tidied code must keep all of these unchanged:
 - identity and timing semantics: object identity passed into memoization or
   dependency arrays, cascade order in CSS, word splitting in shell.
 
+Edits that look like comments or typing can be read at runtime (a docstring
+as `__doc__`, an annotation, a CSS custom property, an exported type); check
+each against this list before making it. The language references name the
+cases.
+
 When a cleanup would change any of these, it is not hygiene: leave the code,
-and report the change as a proposal.
+and report the change as a proposal. An edit whose effect you would describe
+as different observable output (help text that now appears, a value that now
+resolves differently, a check that now passes) changed behavior, however much
+of an improvement it looks.
 
 </BehaviorInvariants>
 
@@ -124,17 +142,20 @@ and report the change as a proposal.
 4. Locate the existing homes before editing: shared type modules, constants
    modules, design tokens, shell libraries, and the naming pattern of sibling
    files.
-5. Apply the <Principles> one concern at a time; sort every file change into a
+5. Record a baseline before the first edit: run the checks that cover the
+   scope (the repository's documented check command when it has one) and note
+   what already fails. A failure present before the cleanup is reported, not
+   fixed and not blamed on the cleanup.
+6. Apply the <Principles> one concern at a time; sort every file change into a
    tier first.
-6. Run the cheapest checks that cover the scope: typecheck, linter, tests, a
-   build, `shellcheck`. A cleanup that turns a check red is reverted, not
-   patched forward.
-7. Report:
+7. Run the same checks again. A cleanup that turns a check red is reverted,
+   not patched forward.
+8. Report:
    - each file changed and the principle applied;
    - tier B proposals with reasons and affected importers;
    - tier C observations;
    - behavior-adjacent cleanups deliberately left alone, and why;
-   - the checks run and their results.
+   - the checks run, before and after, and their results.
 
 </Procedure>
 
@@ -156,6 +177,9 @@ This does not license tidying code outside the task.
 - [ ] No new documentation was invented; only existing declaration comments
       were converted.
 - [ ] Every file change was tiered; only tier A was performed.
-- [ ] <BehaviorInvariants> hold, and the checks that cover the scope pass.
+- [ ] Every runtime-visible edit (doc comment read at runtime, annotation,
+      token, exported type) was checked against <BehaviorInvariants>.
+- [ ] <BehaviorInvariants> hold, and the checks that cover the scope pass, or
+      fail only as they did in the baseline.
 
 </Gates>
