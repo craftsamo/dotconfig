@@ -17,7 +17,17 @@ def _load(name, path):
 
 plugin = _load("google_access_plugin_test", ROOT / "__init__.py")
 LEAF = {"commands": {}, "flags": {}}
-TREE = {"commands": {"projects": {"commands": {"list": LEAF}}, "run": {"commands": {"deploy": LEAF}}}}
+TREE = {"commands": {
+    "projects": {"commands": {"list": LEAF, "delete": LEAF}},
+    "run": {"commands": {"deploy": LEAF}},
+    "compute": {"commands": {"images": {"commands": {"describe-from-family": LEAF}},
+                             "backend-services": {"commands": {"get-health": LEAF}},
+                             "reservations": {"commands": {"test-iam-permissions": LEAF}}}},
+    "container": {"commands": {"clusters": {"commands": {"get-credentials": LEAF}}}},
+}}
+UNATTENDED_READS = (["projects", "list"], ["compute", "images", "describe-from-family"],
+                    ["compute", "backend-services", "get-health"],
+                    ["compute", "reservations", "test-iam-permissions"])
 
 
 @pytest.fixture(autouse=True)
@@ -223,12 +233,22 @@ def test_reads_are_not_affected_by_the_missing_person(monkeypatch):
     for tool, args in (("google_sheets", {"action": "get", "spreadsheet_id": SID}),
                        ("google_gmail", {"action": "search"}),
                        ("google_drive", {"action": "search"}),
-                       ("gcloud", {"command": ["projects", "list"]})):
+                       *(("gcloud", {"command": command}) for command in UNATTENDED_READS)):
         assert plugin.gate(tool_name=tool, args=args) is None
     monkeypatch.setattr(plugin, "_inbound_peer", lambda: False)
     monkeypatch.setitem(plugin.ENGINES, "gcloud", lambda home, args: {"ok": True})
     monkeypatch.setattr(plugin, "_home", lambda: Path("."))
-    assert json.loads(plugin.gcloud({"command": ["projects", "list"]})) == {"ok": True}
+    for command in UNATTENDED_READS:
+        assert json.loads(plugin.gcloud({"command": command})) == {"ok": True}
+
+
+def test_a_credential_get_and_a_delete_are_refused_where_nobody_can_answer(monkeypatch):
+    monkeypatch.setattr(plugin.human_gate, "no_human", lambda: "this is a cron job")
+    monkeypatch.setattr(plugin, "_inbound_peer", lambda: False)
+    for command in (["container", "clusters", "get-credentials"], ["projects", "delete"]):
+        directive = plugin.gate(tool_name="gcloud", args={"command": command})
+        assert directive["action"] == "block" and "this is a cron job" in directive["message"]
+        assert json.loads(plugin.gcloud({"command": command}))["ok"] is False
 
 
 def test_with_a_person_present_a_write_still_gets_its_card(tmp_path):

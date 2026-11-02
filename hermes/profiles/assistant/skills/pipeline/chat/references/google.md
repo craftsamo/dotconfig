@@ -94,8 +94,12 @@ Reads are fine in cron.
   `args` the positionals and flags (prefer `--format=json`), `project` the
   project id — always given for project-scoped commands; there is no default.
   `projects list` maps a display name to its id.
-- Read commands (`list`, `describe`, `get-iam-policy`, `read`, …) run
-  directly; anything else asks, with the full command on the card.
+- Read commands (`list`, `describe`, `get-iam-policy`, `test-iam-permissions`,
+  `read`, and the `get-*` / `describe-*` names the plugin has reviewed) run
+  directly, except one known to return a credential or key or to write a local
+  file (`container clusters get-credentials`); anything else asks, with the full
+  command on the card, `secrets versions access` and a `get-*` name not yet
+  reviewed included. A read can still print what the resource holds.
 - Login, account and configuration changes, and anything that hands out a
   token (`auth print-access-token`), are refused. A missing login of this tool
   is the user's to fix with `gaccess` in a terminal — relay it, do not work
