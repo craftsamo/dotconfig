@@ -44,6 +44,7 @@ def _load_shared(name):
 
 
 cards = _load_shared("card")
+approval_tier = _load_shared("approval_tier")
 shell_commands = _load_shared("shell_commands")
 project_place = _load_shared("project_place")
 
@@ -1691,6 +1692,11 @@ EFFECTS = {
 TEST_EFFECT = (cards.SAFE, "Test mode: no real money or customers")
 
 
+def effect_of(plan: dict) -> tuple[str, str]:
+    """(cards.SAFE/CAUTION/DANGER, effect text) the approval card shows."""
+    return EFFECTS[plan["action"]] if plan.get("mode") == "live" else TEST_EFFECT
+
+
 def card(plan: dict) -> str:
     """The shared card shape (plugins/_shared/card.py): the account and mode, then what changes in one block.
     Its lines always fit or the change is refused; detail lines that do not fit are counted."""
@@ -1703,10 +1709,11 @@ def card(plan: dict) -> str:
     facts = [("Account", f"{plan['account']}{name}"), ("Via", via), ("Mode", "LIVE, real money" if live else "test")]
     lines = plan["lines"][1:] if plan["lines"][:1] == [title] else plan["lines"]
     details = plan["details"]
+    effect = effect_of(plan)
     for shown in range(len(details), -1, -1):
         rest = [f"(+{len(details) - shown} more lines)"] if shown < len(details) else []
         try:
-            return cards.compose("Stripe", title, EFFECTS[plan["action"]] if live else TEST_EFFECT, facts,
+            return cards.compose("Stripe", title, effect, facts,
                                  sections=[("Change", lines + details[:shown] + rest)])
         except cards.CardError:
             continue
@@ -1722,9 +1729,11 @@ def digest(plan: dict) -> str:
 
 
 def rule_key(plan: dict, plan_digest: str) -> str:
-    """Hermes' allowlist key: the exact change, or a fresh one for a change an "always" must never cover."""
+    """Hermes' allowlist key: standing test-mode key for non-ONCE writes, or the exact/fresh change."""
     tail = secrets.token_hex(8) if plan["action"] in ONCE else plan_digest[:16]
-    return f"stripe-access:{plan['action']}:{tail}"
+    effect = effect_of(plan)
+    return approval_tier.rule_key("stripe-access", plan["action"], effect[0], tail,
+                                  scope=(plan.get("account"),), eligible=(plan.get("mode") == "test"))
 
 
 # The gate's view of each write, per tool call, so execution sends exactly what the card showed:

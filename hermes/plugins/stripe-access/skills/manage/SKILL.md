@@ -16,10 +16,12 @@ change is prepared, approved and checked.
 
 ## Contract
 
-- **Every change is one card.** Each write action shows Hermes' approval card
+- **Changes wait for approval.** Each write action shows Hermes' approval card
   (account, `Via` the organization and account id when the account is reached
   through an organization key, LIVE or test, and what changes, read fresh
-  from Stripe) and runs only if the user approves it. Refunds, finalizing, sending and voiding an
+  from Stripe) and runs only if the user approves it. In test mode, catalogue
+  and draft writes share one approval per account; in live mode, each change
+  asks on its own card. Refunds, finalizing, sending and voiding an
   invoice, changing or canceling a subscription and deleting a coupon ask
   every time, even after "always".
 - **Agree first, then card.** Settle the customer, amounts, currency, dates

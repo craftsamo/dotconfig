@@ -111,7 +111,7 @@ def test_customer_create_card_and_request(stripe):
     assert card.splitlines()[:8] == ["Stripe · Create a customer", "✅ Test mode: no real money or customers",
                                      "Account: work", "Mode: test", "", "--- Change ---", "Name: Bob",
                                      "Email: bob@example.com"]
-    assert "Metadata: plan=pro, old removed" in card and key.startswith("stripe-access:customer_create:")
+    assert "Metadata: plan=pro, old removed" in card and key == "stripe-access:test-write:work"
     [sent] = stripe.sent()
     assert sent["method"] == "POST" and sent["path"] == "/v1/customers"
     assert sent["params"] == [["name", "Bob"], ["email", "bob@example.com"], ["metadata[plan]", "pro"],
