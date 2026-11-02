@@ -166,7 +166,8 @@ skills.
   the inherited creds, and for Anthropic forks a single-use refresh token so
   one copy dies at the next refresh.
 - **The Claude subscription is the `anthropic-oauth` pool's PKCE rows, never
-  the Keychain.** Keep the seeded `claude_code` row suppressed, or a
+  the Keychain.** Keep the seeded `claude_code` row suppressed in every home,
+  root and each profile (`scripts/claude-code-suppression.py`), or a
   `claude /login` silently changes which account Hermes bills. Mechanics:
   [docs/models-auth.md "Authentication inheritance"](docs/models-auth.md).
 - **Tracked configs say `provider: anthropic`; the real ones pick the lane.**
