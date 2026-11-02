@@ -47,6 +47,7 @@ perms = _load("hermes_discord_access_perms", HERE / "perms.py")
 archives = _load("hermes_archive_check", HERE.parent / "_shared" / "archive_check.py")
 human_gate = _load("hermes_human_gate", HERE.parents[1] / "_shared" / "human_gate.py")
 cards = _load("hermes_card", HERE.parents[1] / "_shared" / "card.py")
+approval_tier = _load("hermes_approval_tier", HERE.parents[1] / "_shared" / "approval_tier.py")
 
 ACTIONS = ("status", "guilds", "channels", "dms", "messages", "search", "context", "backfill", "media",
            "threads", "pins", "mentions", "pending", "stats", "export", "friends", "roles", "member",
@@ -2542,7 +2543,7 @@ def _message_card(conn, args: dict, action: str, cid: str, mid: str, m: dict, la
     # An edit, deletion or pin acts on the message as the card quoted it: a change meanwhile voids the card.
     bound = [m["content"], m["edited"], _attachment_identity(m)] if own or action in ("pin", "unpin") else None
     return {"action": action, "command": action, "engine": engine, "card": card, "done": done, "check": check,
-            "bound": bound}
+            "bound": bound, "level": effect[0]}
 
 
 def _attachment_identity(m: dict) -> list:
@@ -2755,7 +2756,7 @@ def _role_plan(conn, args: dict, action: str, fresh: bool) -> dict:
         raise DiscordError("this change does not fit on one approval card: split it (for example permissions "
                            "apart from the name and color, or a shorter reason)") from None
     return {"action": action, "command": action, "engine": engine, "card": card, "done": done,
-            "check": check, "bound": bound}
+            "check": check, "bound": bound, "level": effect[0]}
 
 
 def write_plan(conn, args: dict, *, fresh: bool = True) -> dict:
@@ -2765,7 +2766,13 @@ def write_plan(conn, args: dict, *, fresh: bool = True) -> dict:
     plan = _message_plan(conn, args, action) if action in MESSAGE_WRITES else _role_plan(conn, args, action, fresh)
     digest = hashlib.sha256(json.dumps([action, plan["engine"], plan["bound"]], ensure_ascii=False, sort_keys=True)
                             .encode("utf-8")).hexdigest()[:16]
-    plan["key"] = f"discord-access:{action}:{digest}"
+    channel = plan["engine"].get("channel") if isinstance(plan.get("engine"), dict) else None
+    # ``key`` binds the exact request and what it acts on: the handler is handed it and the write
+    # checks it again. ``rule_key`` is what the card's answer is stored under, which for an undo
+    # (approval_tier) is the channel alone, so it is never the check.
+    plan["key"] = approval_tier.each_key("discord-access", action, digest)
+    plan["rule_key"] = approval_tier.rule_key("discord-access", action, plan.get("level"), digest,
+                                              scope=(channel,))
     return plan
 
 
@@ -2877,7 +2884,7 @@ def approval_request(args: dict, home: Path | None = None, ids: dict | None = No
         else:
             with _mirror() as conn:      # a card alone: without a call id nothing can be bound or run
                 plan = write_plan(conn, args)
-        return plan["card"], plan["key"]
+        return plan["card"], plan["rule_key"]
     plan = send_plan(args, home=home)
     staged = None
     if plan["files"]:

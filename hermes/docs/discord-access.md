@@ -233,11 +233,14 @@ same approval gate.
   expires before its second hook fails that call rather than making a new plan.
   After approval the handler rebuilds the plan from the mirror and runs it only
   when the key still matches, so a change meanwhile (the message edited, the
-  role's permissions read differently) voids the card. The key hashes the engine
-  request plus what it acts on — the message's text, edit time and attachments
-  (not their URLs, which Discord re-signs), or the role's permissions. A
-  caller-supplied `_approved` is blocked, and a call without an id never gets
-  one, so it cannot run.
+  role's permissions read differently) voids the card. Unreact and unpin (✅) get
+  standing keys bound to the channel (`discord-access:unreact-in:<channel>` and
+  `discord-access:unpin-in:<channel>`), so "session" or "always" covers later
+  unreactions or unpins in that channel. Every other write asks per exact request:
+  the key hashes the engine request plus what it acts on — the message's text,
+  edit time and attachments (not their URLs, which Discord re-signs), or the
+  role's permissions. A caller-supplied `_approved` is blocked, and a call
+  without an id never gets one, so it cannot run.
 - **Each card names its write** in its title (`Discord · React`, `Delete my
 message`, `Add a role`, …) and its stakes on the effect line: 🚨 for a
   delete, a role deletion and strong permissions, ✅ for taking back a

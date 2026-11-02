@@ -160,8 +160,9 @@ card: it is local and reversible.
 
 ## Write
 
-Every write (`send`, `react`, `unreact`, `pin`, `unpin`, `edit`, `delete`, role changes)
-waits on an approval card the user answers. The card is the confirmation:
+Writes (`send`, `react`, `unreact`, `pin`, `unpin`, `edit`, `delete`, role changes)
+wait on an approval card the user answers (unreact and unpin can be approved for
+the session or always in that channel). The card is the confirmation:
 call the tool directly, without asking first in chat or with `clarify`,
 unless it is unclear which target or what change the user means. A write
 needs the user there to answer its card, so never schedule one in a cron
