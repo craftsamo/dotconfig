@@ -33,6 +33,9 @@
 #             (--meta url=... account=...); free text stays in the comment
 # Project resolution:
 #   -p flag > `git config secret.project` > git toplevel basename > "global"
+# Scope resolution:
+#   `git config secret.scope` > git toplevel basename; "" (no scope: -S means
+#   the shared layer) when the basename is the project itself or unusable.
 # Keychain model — strict 1:1, one project = one keychain:
 #   project P lives in ~/Library/Keychains/P.keychain-db, auto-created on
 #   first write (silently when a master password is set). Files that exist
@@ -2458,9 +2461,12 @@ PROJECTS
 SCOPES
   Inside one project, scoped items override shared ones per repository:
   store org-wide values in the shared layer and repo-specific values
-  (DATABASE_URL, PORT, ...) with -S. The scope name defaults to the
-  repository basename, so two linked repos never collide. `secret env`
-  emits shared + this repo's scope, scoped values winning.
+  (DATABASE_URL, PORT, ...) with -S. The scope name is `git config
+  secret.scope` when set (`secret link --scope NAME`), else the repository
+  basename. A repository whose name is the project itself has no scope
+  otherwise, and -S there uses the shared layer. A scope may not be the
+  project name, since --scope <project> already names the shared layer.
+  `secret env` emits shared + this repo's scope, scoped values winning.
 
 STAGES
   A stage is a per-environment layer on top of scopes: prod, test,
