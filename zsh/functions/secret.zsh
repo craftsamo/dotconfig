@@ -286,14 +286,29 @@ _secret_resolve_stage() {      # $1 --stage value ("" if absent)  $2 --no-stage 
   _secret_canon_stage "$s"
 }
 
-# The repository basename is only a scope when it is a valid scope name: a
-# directory called "api@prod" would otherwise read as scope api of stage
-# prod. Such a repository has no ambient scope (reads fall through to the
-# shared layer); -S on it is refused below.
-_secret_ambient_scope() {      # $1 project -> repo-derived scope ("" when none)
-  local top
+# This repository's scope: `git config secret.scope` when set, else the
+# repository basename. The explicit setting exists because a repository
+# whose basename IS the project name (one repository, one project) has no
+# scope of its own otherwise. A recorded value equal to the project name is
+# refused: `--scope <project>` already means the shared layer, so it would
+# name no layer. The basename is only a scope when it is a valid scope name:
+# a directory called "api@prod" would otherwise read as scope api of stage
+# prod. Either way "" means "no scope": reads fall through to the shared
+# layer, and -S is reported below.
+_secret_ambient_scope() {      # $1 project -> this repository's scope ("" when none)
+  local top conf
   top=$(command git rev-parse --show-toplevel 2>/dev/null)
   [[ -z $top ]] && return 0
+  conf=$(command git config --get secret.scope 2>/dev/null)
+  if [[ -n $conf ]]; then
+    if [[ $conf == "$1" ]]; then
+      _secret_err "git config secret.scope is the project name '$1' — ignored (a scope must differ from its project)"
+      return 0
+    fi
+    _secret_check_scope "$conf" || return 0
+    print -r -- "$conf"
+    return 0
+  fi
   local sc=${top:t}
   [[ $sc == "$1" ]] && return 0     # the repo IS the project: shared
   _secret_check_scope "$sc" 2>/dev/null || return 0
@@ -312,16 +327,25 @@ _secret_resolve_scope() {
     return 0
   fi
   (( scoped )) || return 0
-  local top
+  local top amb
   if ! top=$(command git rev-parse --show-toplevel 2>/dev/null) || [[ -z $top ]]; then
     _secret_err "-S/--scoped needs a git repository (or use --scope NAME)"
     return 1
   fi
-  if [[ ${top:t} != "$proj" ]] && ! _secret_check_scope "${top:t}"; then
-    _secret_err "-S/--scoped: the repository name is no scope name (use --scope NAME)"
-    return 1
+  amb=$(_secret_ambient_scope "$proj")
+  if [[ -n $amb ]]; then
+    print -r -- "$amb"
+    return 0
   fi
-  _secret_ambient_scope "$proj"
+  # No scope for this repository, so -S names the shared layer. Say so: a
+  # silent shared write is what sends people looking for a missing scope.
+  if [[ ${top:t} == "$proj" ]] && ! command git config --get secret.scope >/dev/null 2>&1; then
+    print -r -- "note: -S: this repository is the project '$proj' itself, so the shared layer is used" >&2
+    print -r -- "      give it a scope of its own with: secret link --scope NAME" >&2
+    return 0
+  fi
+  _secret_err "-S/--scoped: this repository has no scope name (use --scope NAME, or secret link --scope NAME)"
+  return 1
 }
 
 _secret_fmt_date() {           # 20250612053000Z -> 2025-06-12 05:30

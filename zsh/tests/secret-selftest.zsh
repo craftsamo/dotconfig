@@ -391,6 +391,51 @@ secret import "$TD/scoped.json" >/dev/null 2>&1
 ( cd "$TD" && print -r -- 'v' | secret set SC_ERR -p $PMAP -S --stdin >/dev/null 2>&1 ) \
   && bad "-S outside a repository fails" || ok "-S outside a repository fails"
 
+# --- scope declaration via git config secret.scope ---
+mkdir -p "$TD/cfg/$PREPO" && git -C "$TD/cfg/$PREPO" init -q .
+( cd "$TD/cfg/$PREPO" && print -r -- 'cfg-v0' | secret set CFG_VAR --stdin >/dev/null 2>&1 ) \
+  && ok "shared write in repo named after project" || bad "shared write in repo named after project"
+[[ "$(cd "$TD/cfg/$PREPO" && secret get CFG_VAR)" == 'cfg-v0' ]] \
+  && ok "shared read in repo named after project" || bad "shared read in repo named after project"
+cfg_s_err=$(cd "$TD/cfg/$PREPO" && print -r -- 'cfg-shared' | secret set CFG_VAR -S --stdin 2>&1 >/dev/null)
+[[ $cfg_s_err == *"secret link --scope NAME"* ]] \
+  && ok "-S without secret.scope warns with hint" || bad "-S without secret.scope warns with hint"
+[[ "$(cd "$TD/cfg/$PREPO" && secret get CFG_VAR --shared)" == 'cfg-shared' ]] \
+  && ok "-S without secret.scope writes to shared layer" || bad "-S without secret.scope writes to shared layer"
+
+git -C "$TD/cfg/$PREPO" config secret.scope core
+( cd "$TD/cfg/$PREPO" && print -r -- 'cfg-core' | secret set CFG_VAR -S --stdin >/dev/null 2>&1 ) \
+  && ok "set -S with secret.scope succeeds" || bad "set -S with secret.scope succeeds"
+[[ "$(secret get CFG_VAR -p $PREPO --scope core)" == 'cfg-core' ]] \
+  && ok "value retrievable with explicit scope" || bad "value retrievable with explicit scope"
+[[ "$(cd "$TD/cfg/$PREPO" && secret get CFG_VAR)" == 'cfg-core' ]] \
+  && ok "scoped value preferred over shared" || bad "scoped value preferred over shared"
+cfg_env=$(cd "$TD/cfg/$PREPO" && secret env)
+( eval "$cfg_env"; [[ "$CFG_VAR" == 'cfg-core' ]] ) \
+  && ok "env overlays secret.scope value" || bad "env overlays secret.scope value"
+
+git -C "$TD/cfg/$PREPO" config secret.scope "$PREPO"
+cfg_same_err=$(cd "$TD/cfg/$PREPO" && secret get CFG_VAR 2>&1 >/dev/null)
+[[ $cfg_same_err == *"project name"* ]] \
+  && ok "secret.scope equal to project reports on stderr" || bad "secret.scope equal to project reports on stderr"
+[[ "$(cd "$TD/cfg/$PREPO" && secret get CFG_VAR 2>/dev/null)" == 'cfg-shared' ]] \
+  && ok "secret.scope equal to project falls back to shared" || bad "secret.scope equal to project falls back to shared"
+( cd "$TD/cfg/$PREPO" && print -r -- 'refused-val' | secret set CFG_REFUSED_VAR -S --stdin >/dev/null 2>&1 ) \
+  && bad "set -S with refused secret.scope fails" || ok "set -S with refused secret.scope fails"
+( cd "$TD/cfg/$PREPO" && secret get CFG_REFUSED_VAR >/dev/null 2>&1 ) \
+  && bad "refused set -S writes nothing" || ok "refused set -S writes nothing"
+
+git -C "$TD/cfg/$PREPO" config secret.scope 'a/b'
+cfg_slash_err=$(cd "$TD/cfg/$PREPO" && secret get CFG_VAR 2>&1 >/dev/null)
+[[ $cfg_slash_err == *"invalid scope"* ]] \
+  && ok "secret.scope with slash reports invalid scope" || bad "secret.scope with slash reports invalid scope"
+[[ "$(cd "$TD/cfg/$PREPO" && secret get CFG_VAR 2>/dev/null)" == 'cfg-shared' ]] \
+  && ok "secret.scope with slash falls back to shared" || bad "secret.scope with slash falls back to shared"
+
+git -C "$TD/cfg/$PREPO" config --unset secret.scope
+[[ "$(cd "$TD/cfg/$PREPO" && secret get CFG_VAR)" == 'cfg-shared' ]] \
+  && ok "unset secret.scope restores shared fallback" || bad "unset secret.scope restores shared fallback"
+
 # --- link ---
 linkshow=$(cd "$TD/$PREPO" && secret link)
 [[ $linkshow == *"project:    $PREPO"* && $linkshow == *'repository name'* ]] \
