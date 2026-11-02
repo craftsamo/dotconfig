@@ -23,6 +23,8 @@ def isolated(monkeypatch):
     monkeypatch.setattr(plugin, "_inbound_peer", lambda: False)
     monkeypatch.setattr(plugin.sig, "_agent_running", lambda: True)
     monkeypatch.setattr(plugin.human_gate, "no_human", lambda: None)   # a person is there to answer cards
+    monkeypatch.setattr(plugin, "_home", lambda: base / "profile")      # never the real profile home
+    monkeypatch.setattr(plugin.send_mandate.mandate_store, "SECRET", base / "no-secret")   # nor the Keychain
     fakes.link_account(base)
     conn = store.connect(store.db_path(base), write=True)
     store.set_meta(conn, uuid=fakes.ME)
@@ -67,12 +69,19 @@ def test_only_the_assistant_gets_the_tool():
     assert ctx.tools == {} and ctx.hooks == []
     ctx = Ctx("assistant")
     plugin.register(ctx)
-    assert set(ctx.tools) == {"signal"}
+    assert set(ctx.tools) == {"signal", "signal_mandate"}
     tool = ctx.tools["signal"]
     assert tool["toolset"] == "signal_access" and tool["schema"]["name"] == "signal"
     params = tool["schema"]["parameters"]
     assert params["additionalProperties"] is False and params["required"] == ["action"]
     assert params["properties"]["action"]["enum"] == list(plugin.sig.ACTIONS)
+    mandate = ctx.tools["signal_mandate"]
+    assert mandate["toolset"] == "signal_access" and mandate["schema"]["name"] == "signal_mandate"
+    params = mandate["schema"]["parameters"]
+    assert params["additionalProperties"] is False and params["required"] == ["action"]
+    assert params["properties"]["action"]["enum"] == ["create", "list", "revoke"]
+    assert set(params["properties"]) == {"action", "chats", "per_hour", "max_chars", "days", "purpose", "mandate"}
+    assert tool["emoji"] and mandate["emoji"]
     assert ctx.hooks == [("pre_tool_call", plugin.gate)]
 
 

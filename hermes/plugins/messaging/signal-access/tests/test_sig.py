@@ -677,9 +677,34 @@ def test_too_many_files_for_one_card(env):
     ("read_file", {"path": "~/Library/LaunchAgents/local.hermes.signal-access.sync.plist"}),
     ("read_file", {"path": "~/Library/Logs/signal-access-sync.log"}),
     ("read_file", {"path": "~/Library/Logs/signal-sync.log"}),
+    # the send mandates' state in the profile home, and the Keychain item of their key
+    ("read_file", {"path": "~/.hermes/profiles/assistant/signal-access/head.json"}),
+    ("read_file", {"path": "~/.hermes/profiles/assistant/signal-access/mandates/m1a2b3c4d.json"}),
+    ("write_file", {"path": "/Users/x/.hermes/profiles/assistant/signal-access/head.json", "content": "{}"}),
+    ("patch", {"path": "~/.hermes/profiles/assistant/signal-access/uses.jsonl", "old_string": "a"}),
+    ("search_files", {"path": "~/.hermes/profiles/assistant/signal-access/mandates.jsonl", "pattern": "m"}),
+    ("read_file", {"path": "~/.hermes/profiles/assistant/signal-access//head.json"}),
+    ("read_file", {"path": "~/.hermes/profiles/assistant/Signal-Access/Head.json"}),
+    ("read_file", {"path": "~/.hermes/profiles/assistant/signal-access/../signal-access/head.json"}),
+    ("terminal", {"command": "cat ~/.hermes/profiles/assistant/signal-access/uses.jsonl"}),
+    ("terminal", {"command": "echo '{}' > $HERMES_HOME/signal-access/head.json"}),
+    ("terminal", {"command": "secret get SIGNAL_MANDATE_KEY_ASSISTANT -p hermes --scope signal-access"}),
+    ("terminal", {"command": "secret rm signal_mandate_key_assistant"}),
+    ("read_file", {"path": "SIGNAL_MANDATE_KEY_ASSISTANT"}),
+    ("search_files", {"path": ".", "pattern": "SIGNAL_MANDATE_KEY"}),
 ])
 def test_bypass_is_blocked(tool, args):
     assert sig.bypass(tool, args) == sig.BYPASS_MESSAGE
+
+
+def test_a_link_into_the_mandate_state_is_blocked(tmp_path):
+    state = tmp_path / "profile" / "signal-access"
+    state.mkdir(parents=True)
+    (tmp_path / "shortcut").symlink_to(state)
+    assert sig.bypass("read_file", {"path": str(tmp_path / "shortcut" / "head.json")}) == sig.BYPASS_MESSAGE
+    assert sig.bypass("write_file", {"path": str(tmp_path / "shortcut" / "mandates" / "m1.json")}) \
+        == sig.BYPASS_MESSAGE
+    assert sig.bypass("read_file", {"path": str(tmp_path / "shortcut" / "other.txt")}) is None
 
 
 @pytest.mark.parametrize("tool, args", [
@@ -687,6 +712,11 @@ def test_bypass_is_blocked(tool, args):
     ("terminal", {"command": "echo signal processing"}),
     ("terminal", {"command": "grep -n 'signal-cli send' docs/notes.md"}),
     ("read_file", {"path": "plugins/messaging/signal-access/sig.py"}),
+    ("read_file", {"path": "plugins/messaging/signal-access/tests/test_mandate.py"}),
+    ("read_file", {"path": "docs/signal-access.md"}),
+    ("search_files", {"path": "docs", "pattern": "send mandate"}),
+    ("read_file", {"path": "~/.hermes/profiles/assistant/signal-downloads/pic.png"}),
+    ("read_file", {"path": "plugins/messaging/_shared/send_mandate.py"}),
 ])
 def test_ordinary_calls_pass(tool, args):
     assert sig.bypass(tool, args) is None
