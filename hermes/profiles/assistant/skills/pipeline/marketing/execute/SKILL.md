@@ -59,9 +59,16 @@ no Writer, Creator or service work; its briefs are inputs you release.
    account/service and create/update target with acceptance evidence, and
    get the user's explicit approval. Autosave is already an upload; approval
    of an outline or a local file is not remote-save consent. The browser
-   routes (X, Zenn) have no approval card: right before opening the editor,
-   confirm once more with `clarify`, quoting the account, the target and the
-   content's first line. A tool's card (note, Substack) is that last gate.
+   routes (X, Zenn) have no approval card. For Zenn, confirm once more right
+   before opening the editor with `clarify`, quoting the account, the target
+   and the content's first line. For X, skip that second confirmation when,
+   in this conversation, the user already agreed in chat to the exact text
+   and media, the account, and whether it is a new draft or replaces a named
+   one, and nothing of that changed since (no edit to the text, no other
+   account or target) — an X draft stays unpublished on X and only the user
+   publishes it. Otherwise (anything not agreed, changed, or ambiguous),
+   confirm with `clarify` as well. A tool's card (note, Substack) is that
+   last gate.
 5. **Save** through the destination's route and the rules in
    [service drafts](references/publish-ops.md):
    - X post or thread: `skill_view(name="x-access:draft-post")`;
