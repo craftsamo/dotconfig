@@ -81,11 +81,22 @@ printf 'B_DOTENV=fromfile\nexport E_EXPORTED=fromfile\n' > "$TD/repo/.env"
 printf 'C_SUB=fromsub\n' > "$TD/repo/apps/web/.env"
 printf 'D_EXAMPLE=placeholder\n' > "$TD/repo/.env.example"
 
+# a repository that declares its scope instead of taking its own name
+git -C "$TD" init -q repocfg
+git -C "$TD/repocfg" config secret.project $PT
+git -C "$TD/repocfg" config secret.scope cfgscope
+
+# a repository whose declared scope is refused (equals the project name)
+git -C "$TD" init -q reporefused
+git -C "$TD/reporefused" config secret.project $PT
+git -C "$TD/reporefused" config secret.scope $PT
+
 # keychain content
 for kv in A_ONLY:kc-a B_DOTENV:kc-b C_SUB:kc-c D_EXAMPLE:kc-d E_EXPORTED:kc-e; do
   print -r -- "${kv#*:}" | secret set "${kv%%:*}" -p $PT --stdin >/dev/null 2>&1
 done
 print -r -- 'kc-scoped' | secret set SCOPED_V -p $PT --scope repo --stdin >/dev/null 2>&1
+print -r -- 'kc-cfg' | secret set CFG_V -p $PT --scope cfgscope --stdin >/dev/null 2>&1
 print -r -- 'base-1' | secret set TB_BASE -p $PB --stdin >/dev/null 2>&1
 print -r -- 'base-both' | secret set TB_BOTH -p $PB --stdin >/dev/null 2>&1
 print -r -- 'tool-1' | secret set TT_TOOL -p $PTOOL --stdin >/dev/null 2>&1
@@ -155,6 +166,10 @@ R=$TD/repo
   && ok "proj: 'export NAME=' dotenv lines parsed" || bad "proj: 'export NAME=' dotenv lines parsed"
 [[ "$(penv $R SCOPED_V)" == 'kc-scoped' ]] \
   && ok "proj: ambient scope overlay applies" || bad "proj: ambient scope overlay applies"
+[[ "$(penv $TD/repocfg CFG_V)" == 'kc-cfg' ]] \
+  && ok "proj: configured scope overlay applies" || bad "proj: configured scope overlay applies"
+[[ "$(penv $TD/reporefused A_ONLY)" == 'kc-a' ]] \
+  && ok "proj: unusable secret.scope still injects shared" || bad "proj: unusable secret.scope still injects shared"
 [[ "$(penv $R/apps/api C_SUB)" == 'kc-c' ]] \
   && ok "proj: sibling .env out of scope inside a package" || bad "proj: sibling .env out of scope inside a package"
 [[ -z "$(penv $R/apps/api B_DOTENV)" ]] \

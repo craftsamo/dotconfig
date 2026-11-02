@@ -9,7 +9,7 @@
 #   secret projects
 #   secret env [-p proj] [--scope X] [--stage S|--no-stage]
 #   secret rm NAME [-p proj] [LAYER] [-f|--force]
-#   secret link [NAME|--unset]
+#   secret link [NAME|--unset] [--scope X|--unset-scope]
 #   secret export [-p proj|--all] [-o FILE] [--format age|json|env]
 #   secret import FILE [-p proj] [-S|--scope X] [--stage S|--no-stage] [-y|--yes]
 #   secret migrate [-p proj|--all] [--dry-run]
@@ -33,6 +33,9 @@
 #             (--meta url=... account=...); free text stays in the comment
 # Project resolution:
 #   -p flag > `git config secret.project` > git toplevel basename > "global"
+# Scope resolution:
+#   `git config secret.scope` > git toplevel basename; "" (no scope: -S means
+#   the shared layer) when the basename is the project itself or unusable.
 # Keychain model — strict 1:1, one project = one keychain:
 #   project P lives in ~/Library/Keychains/P.keychain-db, auto-created on
 #   first write (silently when a master password is set). Files that exist
@@ -286,14 +289,29 @@ _secret_resolve_stage() {      # $1 --stage value ("" if absent)  $2 --no-stage 
   _secret_canon_stage "$s"
 }
 
-# The repository basename is only a scope when it is a valid scope name: a
-# directory called "api@prod" would otherwise read as scope api of stage
-# prod. Such a repository has no ambient scope (reads fall through to the
-# shared layer); -S on it is refused below.
-_secret_ambient_scope() {      # $1 project -> repo-derived scope ("" when none)
-  local top
+# This repository's scope: `git config secret.scope` when set, else the
+# repository basename. The explicit setting exists because a repository
+# whose basename IS the project name (one repository, one project) has no
+# scope of its own otherwise. A recorded value equal to the project name is
+# refused: `--scope <project>` already means the shared layer, so it would
+# name no layer. The basename is only a scope when it is a valid scope name:
+# a directory called "api@prod" would otherwise read as scope api of stage
+# prod. Either way "" means "no scope": reads fall through to the shared
+# layer, and -S is reported below.
+_secret_ambient_scope() {      # $1 project -> this repository's scope ("" when none)
+  local top conf
   top=$(command git rev-parse --show-toplevel 2>/dev/null)
   [[ -z $top ]] && return 0
+  conf=$(command git config --get secret.scope 2>/dev/null)
+  if [[ -n $conf ]]; then
+    if [[ $conf == "$1" ]]; then
+      _secret_err "git config secret.scope is the project name '$1' — ignored (a scope must differ from its project)"
+      return 0
+    fi
+    _secret_check_scope "$conf" || return 0
+    print -r -- "$conf"
+    return 0
+  fi
   local sc=${top:t}
   [[ $sc == "$1" ]] && return 0     # the repo IS the project: shared
   _secret_check_scope "$sc" 2>/dev/null || return 0
@@ -312,16 +330,25 @@ _secret_resolve_scope() {
     return 0
   fi
   (( scoped )) || return 0
-  local top
+  local top amb
   if ! top=$(command git rev-parse --show-toplevel 2>/dev/null) || [[ -z $top ]]; then
     _secret_err "-S/--scoped needs a git repository (or use --scope NAME)"
     return 1
   fi
-  if [[ ${top:t} != "$proj" ]] && ! _secret_check_scope "${top:t}"; then
-    _secret_err "-S/--scoped: the repository name is no scope name (use --scope NAME)"
-    return 1
+  amb=$(_secret_ambient_scope "$proj")
+  if [[ -n $amb ]]; then
+    print -r -- "$amb"
+    return 0
   fi
-  _secret_ambient_scope "$proj"
+  # No scope for this repository, so -S names the shared layer. Say so: a
+  # silent shared write is what sends people looking for a missing scope.
+  if [[ ${top:t} == "$proj" ]] && ! command git config --get secret.scope >/dev/null 2>&1; then
+    print -r -- "note: -S: this repository is the project '$proj' itself, so the shared layer is used" >&2
+    print -r -- "      give it a scope of its own with: secret link --scope NAME" >&2
+    return 0
+  fi
+  _secret_err "-S/--scoped: this repository has no scope name (use --scope NAME, or secret link --scope NAME)"
+  return 1
 }
 
 _secret_fmt_date() {           # 20250612053000Z -> 2025-06-12 05:30
@@ -2182,37 +2209,99 @@ _secret_cmd_keychain() {
 }
 
 _secret_cmd_link() {
-  local unset_flag=0 name=""
+  local unset_flag=0 unset_scope=0 scope_set=0 scope_opt="" name=""
   while (( $# )); do
     case $1 in
       --unset) unset_flag=1; shift ;;
+      --scope)
+        if (( $# < 2 )); then _secret_err "link: --scope requires a name"; return 2; fi
+        scope_opt=$2; scope_set=1; shift 2 ;;
+      --unset-scope) unset_scope=1; shift ;;
       -*) _secret_err "link: unknown option '$1'"; return 2 ;;
       *) name=$1; shift ;;
     esac
   done
+
+  if (( scope_set && unset_scope )); then
+    _secret_err "link: --scope and --unset-scope cannot be used together"
+    return 2
+  fi
+
   local top
   top=$(command git rev-parse --show-toplevel 2>/dev/null)
 
-  if (( unset_flag )); then
-    [[ -n $top ]] || { _secret_err "link --unset: not inside a git repository"; return 1 }
-    if command git config --unset secret.project 2>/dev/null; then
-      print -r -- "unlinked: project now resolves to '${top:t}' (repository name)"
-    else
+  # One call can write both settings, so everything is checked before
+  # anything is written: a refused scope must not leave a changed project
+  # mapping behind it.
+  if (( unset_flag || unset_scope || scope_set )) || [[ -n $name ]]; then
+    if [[ -z $top ]]; then
+      if (( unset_flag )); then
+        _secret_err "link --unset: not inside a git repository"
+      else
+        _secret_err "link: not inside a git repository"
+      fi
+      return 1
+    fi
+    # The unset only touches the local file, so that is the level the check
+    # must ask about.
+    if (( unset_flag )) && ! command git config --local --get secret.project >/dev/null 2>&1; then
       _secret_err "no secret.project mapping was set"
       return 1
     fi
-    return 0
+    if (( unset_scope )) && ! command git config --local --get secret.scope >/dev/null 2>&1; then
+      _secret_err "no secret.scope mapping was set"
+      return 1
+    fi
+    # --unset wins over a NAME, as it always has, so a name it discards is
+    # never judged.
+    if [[ -n $name ]] && (( ! unset_flag )); then
+      _secret_check_project "$name" || return 2
+    fi
+    if (( scope_set )); then
+      _secret_check_scope "$scope_opt" || return 2
+      local will_be
+      if (( unset_flag )); then will_be=${top:t}
+      elif [[ -n $name ]]; then will_be=$name
+      else will_be=$(_secret_resolve_project "")
+      fi
+      if [[ $scope_opt == "$will_be" ]]; then
+        _secret_err "link --scope: '$scope_opt' is the project name (a scope must differ from its project)"
+        return 2
+      fi
+    fi
   fi
 
-  if [[ -n $name ]]; then
-    [[ -n $top ]] || { _secret_err "link: not inside a git repository"; return 1 }
-    _secret_check_project "$name" || return 2
+  if (( unset_flag )); then
+    command git config --unset secret.project \
+      || { _secret_err "could not write git config"; return 1 }
+    print -r -- "unlinked: project now resolves to '${top:t}' (repository name)"
+  elif [[ -n $name ]]; then
     command git config secret.project "$name" \
       || { _secret_err "could not write git config"; return 1 }
     print -r -- "linked: $top -> project '$name'"
-    local amb
-    amb=$(_secret_ambient_scope "$name")
-    [[ -n $amb ]] && print -r -- "scope for -S in this repository: $amb"
+    if (( ! scope_set && ! unset_scope )); then
+      local amb
+      amb=$(_secret_ambient_scope "$name")
+      if [[ -n $amb ]]; then
+        print -r -- "scope for -S in this repository: $amb"
+      else
+        print -r -- "scope for -S in this repository: (none — set one with: secret link --scope NAME)"
+      fi
+    fi
+  fi
+
+  if (( unset_scope )); then
+    command git config --unset secret.scope \
+      || { _secret_err "could not write git config"; return 1 }
+    print -r -- "scope unset: -S now uses the shared layer"
+  elif (( scope_set )); then
+    command git config secret.scope "$scope_opt" \
+      || { _secret_err "could not write git config"; return 1 }
+    print -r -- "scope: $top -> '$scope_opt'"
+  fi
+
+  # Anything asked for above was done; only a bare `secret link` goes on.
+  if (( unset_flag || unset_scope || scope_set )) || [[ -n $name ]]; then
     return 0
   fi
 
@@ -2229,9 +2318,26 @@ _secret_cmd_link() {
     via="default (not in a git repository)"
   fi
   print -r -- "project:    $proj  (via $via)"
-  local amb
+  local amb conf_scope
   amb=$(_secret_ambient_scope "$proj")
-  print -r -- "scope (-S): ${amb:-(none — repository name equals the project)}"
+  if [[ -z $top ]]; then
+    print -r -- "scope (-S): (none — not in a git repository)"
+  else
+    conf_scope=$(command git config --get secret.scope 2>/dev/null)
+    if [[ -n $amb ]]; then
+      if [[ -n $conf_scope ]]; then
+        print -r -- "scope (-S): $amb  (via git config secret.scope)"
+      else
+        print -r -- "scope (-S): $amb  (via repository name)"
+      fi
+    else
+      if [[ -n $conf_scope ]]; then
+        print -r -- "scope (-S): (none — git config secret.scope '$conf_scope' is unusable)"
+      else
+        print -r -- "scope (-S): (none — set one with: secret link --scope NAME)"
+      fi
+    fi
+  fi
   print -r -- "stage:      ${SECRET_STAGE:-(none — set SECRET_STAGE or pass --stage)}"
   local kc
   kc=$(_secret_kc_for "$proj")
@@ -2291,9 +2397,11 @@ COMMANDS
           eval "$(secret env)"
           SECRET_STAGE=test npm test        # through the shim
   rm NAME [-p proj] [LAYER] [-f]   delete a secret
-  link [NAME|--unset]
+  link [NAME|--unset] [--scope X|--unset-scope]
         map this repository to project NAME (git config secret.project);
-        without arguments, show how this directory resolves
+        --scope X / --unset-scope configure secret.scope (this repository's
+        scope for -S, needed when the repository name is the project
+        itself); without arguments, show how this directory resolves
   export [-p proj|--all] [-o FILE] [--format age|json|env]
         write secrets to a file; age (encrypted JSON, default), json,
         or env (plaintext export lines; kind and comment are lost, ENV
@@ -2353,9 +2461,12 @@ PROJECTS
 SCOPES
   Inside one project, scoped items override shared ones per repository:
   store org-wide values in the shared layer and repo-specific values
-  (DATABASE_URL, PORT, ...) with -S. The scope name defaults to the
-  repository basename, so two linked repos never collide. `secret env`
-  emits shared + this repo's scope, scoped values winning.
+  (DATABASE_URL, PORT, ...) with -S. The scope name is `git config
+  secret.scope` when set (`secret link --scope NAME`), else the repository
+  basename. A repository whose name is the project itself has no scope
+  otherwise, and -S there uses the shared layer. A scope may not be the
+  project name, since --scope <project> already names the shared layer.
+  `secret env` emits shared + this repo's scope, scoped values winning.
 
 STAGES
   A stage is a per-environment layer on top of scopes: prod, test,
