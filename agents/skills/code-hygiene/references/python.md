@@ -60,6 +60,12 @@ settings) and its minimum Python version win over everything here.
   Celery, plugin registries), `conftest.py` placement.
 - An extraction must not create a circular import; when it would, keep the
   code where it is and report it.
+- A new module name must not be a standard library or installed module name
+  (`types`, `logging`, `email`, `json`, `test`) in a directory that lands on
+  `sys.path`: `python3 dir/x.py` puts `dir` first, and the working directory
+  or pytest's root can be there too, so `import json` anywhere then loads the
+  new file. It must not match test discovery
+  (`test_*.py`, `*_test.py`) unless it is a test.
 
 ## Behavior traps
 
