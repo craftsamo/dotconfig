@@ -91,20 +91,34 @@ def tree(spec):
 
 
 TREE = tree({
-    "projects": {"list": None, "get-iam-policy": None, "add-iam-policy-binding": None},
+    "projects": {"list": None, "get-iam-policy": None, "add-iam-policy-binding": None,
+                 "delete": None},
     "run": {"services": {"describe": None, "delete": None, "list": None}, "deploy": None,
             "jobs": {"list": None}},
-    "logging": {"read": None},
+    "logging": {"read": None, "tail": None},
     "storage": {"ls": None, "cp": None},
-    "compute": {"instances": {"list": None, "list-tags": None, "create": None, "delete": None},
+    "compute": {"instances": {"list": None, "list-tags": None, "create": None, "delete": None,
+                              "get-guest-attributes": None, "get-screenshot": None},
+                "images": {"describe-from-family": None},
+                "backend-services": {"get-health": None},
+                "reservations": {"test-iam-permissions": None, "slots": {"get-version": None}},
+                "interconnects": {"macsec": {"get-config": None}},
                 "ssh": None},
     "auth": {"list": None, "login": None, "print-access-token": None},
     "config": {"list": None, "set": None, "get": None, "configurations": {"activate": None}},
     "beta": {"run": {"jobs": {"list": None}}, "auth": {"login": None}},
+    "alpha": {"container": {"backup-restore": {"backups": {"get-backup-index-download-url": None}}}},
     "secrets": {"versions": {"access": None}},
-    "container": {"clusters": {"get-credentials": None}},
-    "services": {"enable": None},
+    "container": {"clusters": {"get-credentials": None},
+                  "azure": {"clients": {"get-public-cert": None}},
+                  "fleet": {"memberships": {"support-access": {"get-yaml": None}}}},
+    "cloud-shell": {"get-mount-command": None},
+    "kms": {"keys": {"versions": {"get-public-key": None, "get-certificate-chain": None}}},
+    "privateca": {"pools": {"get-ca-certs": None}},
+    "redis": {"instances": {"get-auth-string": None}},
+    "services": {"enable": None, "api-keys": {"get-key-string": None}},
     "domains": {"registrations": {"authorization-code": {"get": None}}},
+    "vault": {"get-signed-url": None, "describe-secret-value": None},
     "init": None,
     "components": {"install": None},
 })
@@ -122,7 +136,11 @@ def fake_tree(monkeypatch):
                                      ["storage", "ls"], ["compute", "instances", "list-tags"],
                                      ["auth", "list"], ["config", "list"], ["config", "get"],
                                      ["config", "get-value"],
-                                     ["beta", "run", "jobs", "list"]])
+                                     ["beta", "run", "jobs", "list"],
+                                     ["compute", "images", "describe-from-family"],
+                                     ["compute", "instances", "get-guest-attributes"],
+                                     ["compute", "backend-services", "get-health"],
+                                     ["compute", "reservations", "test-iam-permissions"]])
 def test_read_only_commands_need_no_approval(command):
     argv, read_only = access.gcloud_plan({"command": command, "args": ["--format=json"]})
     assert read_only
@@ -134,13 +152,52 @@ def test_read_only_commands_need_no_approval(command):
                                      ["compute", "ssh"], ["projects", "add-iam-policy-binding"],
                                      ["secrets", "versions", "access"], ["storage", "cp"],
                                      ["container", "clusters", "get-credentials"], ["services", "enable"],
-                                     ["domains", "registrations", "authorization-code", "get"]])
+                                     ["domains", "registrations", "authorization-code", "get"],
+                                     ["projects", "delete"], ["logging", "tail"],
+                                     ["vault", "get-signed-url"], ["vault", "describe-secret-value"],
+                                     ["compute", "reservations", "slots", "get-version"]])
 def test_other_commands_need_approval(command):
     _, read_only = access.gcloud_plan({"command": command})
     assert not read_only
     reason, key = access.approval_request("gcloud", {"command": command, "project": "my-proj"})
     assert "gcloud " + " ".join(command) in reason and "--project=my-proj" in reason
     assert key.startswith("google-access:gcloud:")
+
+
+@pytest.mark.parametrize("command", [
+    ["redis", "instances", "get-auth-string"], ["services", "api-keys", "get-key-string"],
+    ["alpha", "container", "backup-restore", "backups", "get-backup-index-download-url"],
+    ["cloud-shell", "get-mount-command"], ["compute", "instances", "get-screenshot"],
+    ["container", "fleet", "memberships", "support-access", "get-yaml"],
+    ["kms", "keys", "versions", "get-public-key"], ["kms", "keys", "versions", "get-certificate-chain"],
+    ["container", "azure", "clients", "get-public-cert"], ["privateca", "pools", "get-ca-certs"],
+    ["compute", "interconnects", "macsec", "get-config"]])
+def test_a_get_that_hands_out_a_secret_or_writes_a_file_still_asks(command):
+    """`get-*` reads unless it returns a credential, key material or a download URL, or takes a
+    flag that writes a local file."""
+    _, read_only = access.gcloud_plan({"command": command})
+    assert not read_only
+    assert access.approval_request("gcloud", {"command": command})[1].startswith("google-access:gcloud:")
+
+
+@pytest.mark.parametrize("args", [["--output-file=p.json"], ["--output-file", "p.json"], ["--destination=a.png"],
+                                  ["--rbac-output-file=r.yaml"], ["--ssh-key-file=k"]])
+def test_a_read_that_writes_a_local_file_asks(args):
+    command = ["run", "services", "describe"]
+    _, read_only = access.gcloud_plan({"command": command, "args": args})
+    assert not read_only
+    assert access.approval_request("gcloud", {"command": command, "args": args}) is not None
+
+
+def test_a_filter_named_like_a_file_flag_stays_a_read():
+    _, read_only = access.gcloud_plan({"command": ["compute", "instances", "list-tags"],
+                                       "args": ["--destination-range=10.0.0.0/8"]})
+    assert read_only
+
+
+def test_a_write_card_key_covers_the_exact_arguments():
+    key = lambda args: access.approval_request("gcloud", {"command": ["run", "deploy"], "args": args})[1]
+    assert key(["svc"]) == key(["svc"]) and key(["svc"]) != key(["other"])
 
 
 def test_a_read_verb_in_args_does_not_make_a_write_read_only():
@@ -179,6 +236,78 @@ def test_the_installed_sdk_tree_parses():
     real = access._load_tree(str(path), path.stat().st_mtime_ns)
     instances = real["commands"]["compute"]["commands"]["instances"]["commands"]
     assert instances["create"]["commands"] == {} and instances["list"]["commands"] == {}
+
+
+@pytest.fixture
+def real_tree(monkeypatch):
+    """The installed SDK's command tree, standing in for the stub one; skips without the SDK."""
+    binary = access.shutil.which("gcloud")
+    if not binary:
+        pytest.skip("gcloud not installed")
+    path = Path(binary).resolve().parent.parent / access.GCLOUD_TREE
+    if not path.is_file():
+        pytest.skip("no static command tree in this SDK")
+    real = access._load_tree(str(path), path.stat().st_mtime_ns)
+    monkeypatch.setattr(access, "_command_tree", lambda: real)
+    return real
+
+
+def _leaves(node, command=()):
+    for name, child in node["commands"].items():
+        if child["commands"]:
+            yield from _leaves(child, (*command, name))
+        else:
+            yield [*command, name]
+
+
+def _leaf(root, command):
+    for token in command:
+        root = root["commands"][token]
+    return root
+
+
+def _leaves_named(real, word):
+    return [c for c in _leaves(real) if c[-1] == word]
+
+
+def test_a_new_get_or_describe_name_in_the_installed_sdk_asks_until_it_is_listed(real_tree):
+    """Only reviewed `get-*` / `describe-*` names read: an SDK upgrade that adds one asks until it
+    is reviewed and added to GCLOUD_READ_VERBS."""
+    named = [c for c in _leaves(real_tree) if c[-1].startswith(("get-", "describe-"))]
+    assert named
+    assert [c for c in named if access._read_only(c) and c[-1] not in access.GCLOUD_READ_VERBS] == []
+
+
+@pytest.mark.parametrize("command", [
+    ["redis", "instances", "get-auth-string"], ["services", "api-keys", "get-key-string"],
+    ["compute", "interconnects", "macsec", "get-config"]])
+def test_the_installed_sdk_secret_returning_leaves_ask(real_tree, command):
+    assert _leaf(real_tree, command)["commands"] == {}
+    assert not access._read_only(command)
+
+
+@pytest.mark.parametrize("word", ["get-backup-index-download-url", "get-version"])
+def test_the_installed_sdk_download_url_and_operation_starting_leaves_ask(real_tree, word):
+    found = _leaves_named(real_tree, word)
+    assert found
+    assert [c for c in found if access._read_only(c)] == []
+
+
+def test_a_read_given_a_file_writing_flag_asks_whatever_its_verb(real_tree):
+    """Every read-only leaf of the installed SDK that declares a flag writing a local file (old
+    verbs such as `services policies get --output-file` included) asks once it is given it."""
+    checked = []
+    for command in _leaves(real_tree):
+        if not access._read_only(command):
+            continue
+        for flag in access.GCLOUD_WRITE_FLAGS:
+            if flag not in _leaf(real_tree, command)["flags"]:
+                continue
+            checked.append((command, flag))
+            for args in ([f"{flag}=x"], [flag, "x"]):
+                _, read_only = access.gcloud_plan({"command": command, "args": args})
+                assert not read_only, (command, args)
+    assert (["beta", "services", "policies", "get"], "--output-file") in checked
 
 
 @pytest.mark.parametrize("command", [["auth", "login"], ["auth", "print-access-token"], ["config", "set"],

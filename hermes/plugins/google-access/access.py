@@ -132,18 +132,48 @@ DRIVE_ACTIONS = ("search", "get", "download", "upload")
 DRIVE_WRITES = {"upload"}
 
 # A gcloud command is read-only only when its command path resolves, in the installed SDK's own
-# command tree, to a command (not a group) named by one of these verbs. Resolving the whole path
-# keeps a positional out of it (`compute instances create list` is not a list command); anything
-# else (deploy, delete, ssh, set-iam-policy, an unknown verb, no tree available) needs approval.
+# command tree, to a command (not a group) named by one of these verbs or prefixes. Resolving the
+# whole path keeps a positional out of it (`compute instances create list` is not a list command);
+# anything else (deploy, delete, ssh, set-iam-policy, an unknown verb, no tree available) needs
+# approval. Only `list-` is a prefix: every `describe-*` / `get-*` name is reviewed and listed
+# here, so a name a new SDK adds (`get-password`, `get-signed-url`) asks until it is reviewed and
+# added. `get-version` stays out: under `compute hosts` and `compute reservations …` it starts a
+# long-running operation.
 GCLOUD_READ_VERBS = {
-    "list", "describe", "get", "get-value", "get-iam-policy", "get-ancestors",
-    "get-ancestors-iam-policy", "get-server-config", "get-serial-port-output", "read", "search",
-    "search-all-resources", "search-all-iam-policies", "ls", "cat", "du", "info", "version",
+    "list", "describe", "get", "read", "search", "search-all-resources", "search-all-iam-policies",
+    "ls", "cat", "du", "info", "version", "test-iam-permissions",
+    # describe-*
+    "describe-custom-constraint", "describe-ddls", "describe-effective", "describe-entities",
+    "describe-explicit", "describe-from-family", "describe-instance", "describe-issues",
+    "describe-last", "describe-latest", "describe-ldaps-settings", "describe-mapping",
+    "describe-note", "describe-profile",
+    # get-*
+    "get-ancestors", "get-ancestors-iam-policy", "get-async-replication-status", "get-authorization",
+    "get-available-accelerator-topologies", "get-certificate-authority",
+    "get-cluster-certificate-authority", "get-config", "get-config-connector-identity",
+    "get-contents", "get-csr", "get-default-service-account", "get-diagnostics", "get-effective",
+    "get-effective-firewalls", "get-effective-iam-policy", "get-effective-security-policies",
+    "get-forwarding-config", "get-guest-attributes", "get-health", "get-history", "get-host-project",
+    "get-iam-policy", "get-latest-recovery-time", "get-locations", "get-membership-graph",
+    "get-named-ports", "get-named-set", "get-nat-ip-info", "get-nat-mapping-info", "get-operation",
+    "get-operational-status", "get-parent", "get-project", "get-protected-resources-summary",
+    "get-register-parameters", "get-route-policy", "get-serial-port-output", "get-server-config",
+    "get-shared-regional-certificate-authority", "get-shielded-identity", "get-split-status",
+    "get-status", "get-storage-shrink-config", "get-supported-languages", "get-upgrade-info",
+    "get-value", "get-vpc-service-controls",
 }
 GCLOUD_READ_PREFIXES = ("list-",)
-# Reads that hand out a credential still ask.
-GCLOUD_SENSITIVE = {"authorization-code", "print-access-token", "print-identity-token",
-                    "print-refresh-token", "get-credentials"}
+# Words that make a command ask even where a read verb or prefix names it: a command that hands
+# out a credential, a secret or key material (a token, a password or key string, a signed URL, a
+# MACsec configuration), or writes local state (a kubeconfig or an SSH key, an `--output-file`,
+# `--destination` or `--rbac-output-file` target), or starts a Cloud Shell. `macsec` is a path
+# token because `get-config` also names benign commands.
+GCLOUD_SENSITIVE = {
+    "authorization-code", "print-access-token", "print-identity-token", "print-refresh-token",
+    "get-credentials", "get-auth-string", "get-key-string", "get-backup-index-download-url",
+    "macsec", "get-mount-command", "get-screenshot", "get-yaml", "get-public-key",
+    "get-public-cert", "get-certificate-chain", "get-ca-certs",
+}
 GCLOUD_TREE = Path("data") / "cli" / "gcloud_completions.py"
 GCLOUD_TREE_NAME = "STATIC_COMPLETION_CLI_TREE = "
 # Identity and configuration stay with `gaccess`; the tool never switches them.
@@ -156,6 +186,9 @@ GCLOUD_RELEASE_TRACKS = {"alpha", "beta", "preview"}
 GCLOUD_FORBIDDEN_FLAGS = ("--account", "--configuration", "--project", "--flags-file",
                           "--access-token-file", "--credential-file-override",
                           "--impersonate-service-account", "--log-http")
+# Flags with which a read command writes a local file; a read given one of them asks.
+GCLOUD_WRITE_FLAGS = ("--output-file", "--destination", "--rbac-output-file", "--ssh-key-file",
+                      "--force-key-file-overwrite")
 GCLOUD_TOKEN = re.compile(r"^[a-z][a-z0-9-]*$")
 PROJECT_ID = re.compile(r"^[a-z0-9][a-z0-9.:-]{1,99}$")
 
@@ -4143,7 +4176,8 @@ def gcloud_plan(args: dict) -> tuple[list[str], bool]:
             raise AccessError(f"not a project id: {project!r}")
         argv.append(f"--project={project}")
     argv.extend(extra)
-    return argv, _read_only(command)
+    writes_file = any(arg == flag or arg.startswith(flag + "=") for arg in extra for flag in GCLOUD_WRITE_FLAGS)
+    return argv, _read_only(command) and not writes_file
 
 
 def _read_only(command: list[str]) -> bool:
