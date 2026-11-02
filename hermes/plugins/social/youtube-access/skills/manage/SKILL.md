@@ -25,10 +25,12 @@ load it too.
   the API cannot change (name, handle, picture, banner, links, contact email,
   home-tab layout, upload defaults), one setting per `clarify` yes. Procedure:
   `skill_view(name="youtube-access:configure-studio")`. Anything the tool can do goes through the tool.
-- **Writes wait for approval.** Every write shows a card naming the channel
-  and the change. A denial or a timeout means it did not happen; never repeat
-  a denied call unchanged. In cron, a single query or an inbound A2A request
-  the tool refuses writes: schedule a reminder for the user instead.
+- **Writes wait for approval.** Writes wait for approval on a card naming the channel
+  and the change (standing approvals cover later video detail edits on that video,
+  or playlist reordering, watermark removal and review holds on that channel). A denial
+  or a timeout means it did not happen; never repeat a denied call unchanged. In cron,
+  a single query or an inbound A2A request the tool refuses writes: schedule a reminder
+  for the user instead.
 - **Name the channel.** With several channels and no `channel` named, ask —
   never guess with a write.
 - **Cost.** Writes cost 50 units of the day's budget, a caption upload
@@ -107,9 +109,11 @@ leave deletion to the user in Studio.
 Detail edits to one video (`update` without `privacy` or `publish_at`, and
 `thumbnail`) share one approval per video: after "session" or "always" on
 its first card, later edits to that video run without a card — still make
-only the changes the user asked for. Going public, scheduling, uploads,
-captions, replies, moderation, playlist, channel and watermark changes ask
-every time.
+only the changes the user asked for. Moving or removing playlist entries,
+removing the channel watermark, and holding comments for review share one
+approval per channel. Going public, scheduling, uploads, captions, replies,
+publishing or rejecting comments, creating or updating playlists, channel edits,
+and setting watermarks ask every time.
 
 ## Starting a channel
 

@@ -104,7 +104,9 @@ registry or ledger upkeep, Hermes upkeep) stays here across turns.
   channels' videos, analytics and settings, downloading a video; editing a
   video, thumbnails, replying to or moderating comments, uploading, captions,
   playlists, channel settings and watermark) — through the `youtube` tool,
-  never the terminal or yt-dlp; every write waits for approval on its card.
+  never the terminal or yt-dlp; every write needs approval on its card (an
+  answer for the session or always covers a video's detail edits, playlist
+  reordering, watermark removal and held comments on that video or channel).
   YouTube Studio in the browser only for channel settings the tool cannot
   change (name, handle, picture, banner, links, upload defaults), each after
   a `clarify` yes. Any YouTube work loads `skill_view(name="youtube-access:read")` first

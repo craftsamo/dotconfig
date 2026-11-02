@@ -737,7 +737,7 @@ def test_other_writes_key_the_exact_call(tmp_path):
              {"action": "upload", "path": str(movie), "title": "Clip"},
              {"action": "playlist_create", "title": "List"},
              {"action": "playlist_add", "playlist": "PL1234567890abc", "video": VID},
-             {"action": "playlist_remove", "item": "UExabcdefghijklmn"}]
+             {"action": "playlist_update", "playlist": "PL1234567890abc", "title": "New"}]
     keys = set()
     for args in calls:
         reason, key = ya.approval_request(args, profile="assistant", lookup=False)
@@ -751,8 +751,6 @@ def test_other_writes_key_the_exact_call(tmp_path):
     assert first[1] != second[1] and second[0].split("\n")[1] == "✅ Private: only you see it"
     reply = ya.approval_request(calls[0], profile="assistant", lookup=False)[0]
     assert reply.split("\n")[1] == "⚠️ Public at once" and reply.endswith("\n--- Reply ---\nthanks!")
-    removed = ya.approval_request(calls[4], profile="assistant", lookup=False)[0]
-    assert removed.split("\n")[1] == "✅ The video itself is not deleted"
 
 
 def test_new_writes_key_the_exact_call(tmp_path, monkeypatch):
@@ -767,9 +765,7 @@ def test_new_writes_key_the_exact_call(tmp_path, monkeypatch):
                                 for lang in ("en", "fr", "de", "es", "it", "pt")},
               "made_for_kids": True},
              {"action": "playlist_update", "playlist": "PL1234567890abc", "privacy": "public"},
-             {"action": "playlist_move", "item": "UExabcdefghijklmn", "position": 2},
              {"action": "watermark", "path": str(image)},
-             {"action": "watermark_remove"},
              {"action": "moderate", "comment": one, "moderation": "reject", "ban_author": True},
              {"action": "caption_upload", "video": VID, "path": str(srt), "language": "ja"}]
     keys = set()
@@ -781,17 +777,74 @@ def test_new_writes_key_the_exact_call(tmp_path, monkeypatch):
     card = ya.approval_request(calls[0], profile="assistant", lookup=False)[0]
     assert card.startswith("YouTube · Edit channel settings\n🚨 Marks the whole channel made for kids\n")
     assert "made for kids → YES" in card and "…and 3 more" in card
-    ban = ya.approval_request(calls[5], profile="assistant", lookup=False)[0]
+    ban = ya.approval_request(calls[3], profile="assistant", lookup=False)[0]
     assert ban.startswith("YouTube · Reject (hide) 1 comment\n🚨 BANS the author from the channel's comments; "
                           "hidden for good, replies too\n")
-    hold = ya.approval_request({**calls[5], "moderation": "hold", "ban_author": False}, profile="assistant",
-                               lookup=False)[0]
-    assert hold.split("\n")[1] == "✅ Held until you review it"
-    first = ya.approval_request(calls[6], profile="assistant", lookup=False)[1]
+    first = ya.approval_request(calls[4], profile="assistant", lookup=False)[1]
     srt.write_text("1\n00:00:00,000 --> 00:00:01,000\nchanged\n")
-    assert ya.approval_request(calls[6], profile="assistant", lookup=False)[1] != first
+    assert ya.approval_request(calls[4], profile="assistant", lookup=False)[1] != first
     monkeypatch.setattr(ya, "_comment_texts", lambda cid, ids: ["Spammer: buy now"])
-    assert "Spammer: buy now" in ya.approval_request(calls[5], profile="assistant")[0]
+    assert "Spammer: buy now" in ya.approval_request(calls[3], profile="assistant")[0]
+
+
+def test_standing_rules_for_playlist_watermark_and_moderation():
+    other_cid = "UCbbbbbbbbbbbbbbbbbbbbbb"
+    authorize(CID, other_cid)
+
+    # playlist_move and playlist_remove share playlist-order standing key
+    m1 = ya.approval_request({"action": "playlist_move", "channel": CID,
+                             "item": "UExabcdefghijklmn", "position": 2},
+                             profile="assistant", lookup=False)
+    m2 = ya.approval_request({"action": "playlist_move", "channel": CID,
+                             "item": "UEx99999999999999", "position": 0},
+                             profile="assistant", lookup=False)
+    r1 = ya.approval_request({"action": "playlist_remove", "channel": CID,
+                             "item": "UExabcdefghijklmn"},
+                             profile="assistant", lookup=False)
+    assert m1[1] == m2[1] == r1[1] == f"youtube-access:playlist-order:{CID}"
+    assert m1[0].split("\n")[1] == "✅ It can be moved back"
+    assert r1[0].split("\n")[1] == "✅ The video itself is not deleted"
+
+    other_move = ya.approval_request({"action": "playlist_move", "channel": other_cid,
+                                      "item": "UExabcdefghijklmn", "position": 2},
+                                     profile="assistant", lookup=False)
+    assert other_move[1] == f"youtube-access:playlist-order:{other_cid}"
+    assert other_move[1] != m1[1]
+
+    # watermark_remove: standing watermark-off key
+    w1 = ya.approval_request({"action": "watermark_remove", "channel": CID},
+                             profile="assistant", lookup=False)
+    w_other = ya.approval_request({"action": "watermark_remove", "channel": other_cid},
+                                  profile="assistant", lookup=False)
+    assert w1[1] == f"youtube-access:watermark-off:{CID}"
+    assert w_other[1] == f"youtube-access:watermark-off:{other_cid}"
+    assert w1[0].split("\n")[1] == "✅ It can be set again"
+
+    # moderate hold: standing moderate-hold key
+    h1 = ya.approval_request({"action": "moderate", "channel": CID,
+                             "comment": "Ugx" + "1" * 20, "moderation": "hold"},
+                             profile="assistant", lookup=False)
+    h2 = ya.approval_request({"action": "moderate", "channel": CID,
+                             "comment": "Ugx" + "2" * 20, "moderation": "hold"},
+                             profile="assistant", lookup=False)
+    assert h1[1] == h2[1] == f"youtube-access:moderate-hold:{CID}"
+    assert h1[0].split("\n")[1] == "✅ Held until you review it"
+    h_other = ya.approval_request({"action": "moderate", "channel": other_cid,
+                                   "comment": "Ugx" + "1" * 20, "moderation": "hold"},
+                                  profile="assistant", lookup=False)
+    assert h_other[1] == f"youtube-access:moderate-hold:{other_cid}"
+
+    # moderate publish (CAUTION) and reject/ban (DANGER) keep exact keys
+    pub1 = ya.approval_request({"action": "moderate", "channel": CID,
+                               "comment": "Ugx" + "1" * 20, "moderation": "publish"},
+                               profile="assistant", lookup=False)
+    pub2 = ya.approval_request({"action": "moderate", "channel": CID,
+                               "comment": "Ugx" + "2" * 20, "moderation": "publish"},
+                               profile="assistant", lookup=False)
+    assert pub1[1].startswith("youtube-access:moderate:")
+    assert pub2[1].startswith("youtube-access:moderate:")
+    assert pub1[1] != pub2[1]
+    assert pub1[0].split("\n")[1] == "⚠️ Public at once"
 
 
 def test_video_settings_share_the_per_video_key():
