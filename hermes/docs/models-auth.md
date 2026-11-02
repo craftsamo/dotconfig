@@ -415,7 +415,14 @@ falls back **read-only** to the default profile's `~/.hermes/auth.json`.
   entry `claude_code`). Keep the Keychain row suppressed (`hermes auth remove
 anthropic-oauth claude_code`; `auth add` clears every suppression of the
   provider, so remove it again after each login) so a `claude /login` can never
-  change which account Hermes bills. Which label is which account, and which
+  change which account Hermes bills. **The suppression is per home:** a
+  profile reads `suppressed_sources` from its own `auth.json` only, so one that
+  borrows the root rows still seeds the Keychain row until its own file
+  suppresses it; a dead Keychain login then fails every refresh and catches
+  turns whose PKCE rows are cooling down.
+  `../bin/hermes-python scripts/claude-code-suppression.py` lists every home
+  missing it (exit 1) and `--fix` adds it through the runtime, touching no
+  pool; restart the gateway afterwards. Which label is which account, and which
   one leads, is this machine's layout and lives in the private overlay.
   A `manual:hermes_pkce` row keeps its secrets in `auth.json`; a row whose
   tokens are empty is skipped silently (`hermes auth refresh anthropic-oauth

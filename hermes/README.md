@@ -165,6 +165,10 @@ Run from `~/.config/hermes`.
   branch of the hermes-agent checkout must still be merged into `local`; exit 1
   names what is missing ([Runtime dependency: local patches](#runtime-dependency-local-patches)).
 - `hermes doctor` — validate providers and model tiers.
+- `../bin/hermes-python scripts/claude-code-suppression.py [--fix]` — every
+  home whose `auth.json` does not suppress the Claude Code Keychain row on
+  `anthropic-oauth`; `--fix` adds it, then restart the gateway
+  ([`docs/models-auth.md`](docs/models-auth.md) "Authentication inheritance").
 - `../bin/hermes-python scripts/cron-sync.py [--check]` — derive every
   profile's `cron/jobs.json` from its `cron.d/` links (`install.sh` runs it
   last); `--check` reports pending changes and writes nothing
