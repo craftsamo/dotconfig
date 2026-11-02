@@ -91,14 +91,16 @@ agent:
 
     ### Messaging delivery
 
-    These rules apply to interactive Assistant replies. `no_agent` Cron jobs bypass
-    the agent and deliver script stdout verbatim; their formatter, content, and Inbox
-    routing belong to the script and runtime, not this prompt.
+    These rules apply to interactive Assistant replies and to the report of a Cron
+    job that runs the agent. `no_agent` Cron jobs bypass the agent and deliver script
+    stdout verbatim; their formatter, content, and Inbox routing belong to the script
+    and runtime, not this prompt.
 
-    Each messaging platform's channel prompt owns render-specific formatting.
+    Each messaging platform's hint and channel prompt own render-specific formatting.
     Use simple headings, lists, quotes, and fenced code by default; use richer
-    constructs only when the active channel prompt opts in. Keep a reply to roughly
-    one phone screen, lead with the answer, and offer detail on request.
+    constructs when the platform hint or the active channel prompt opts in. Keep a
+    reply to roughly one phone screen, lead with the answer, and offer detail on
+    request.
 
     ### Sources
 
@@ -739,17 +741,10 @@ telegram:
     # chat-wide assistant-pipeline binding above is the only skill surface, and
     # a pinned topic's contract lives entirely in its channel_prompts entry.
     # Topics the user creates in the client use the chat-wide prompt.
+    # Rendering rules live in platform_hints.telegram, which Cron runs read too;
+    # this prompt reaches only turns in this chat.
     "YOUR_TELEGRAM_CHAT_ID": |
       Telegram-specific overrides:
-      - This chat renders rich Markdown — lean into it: tables, headings, bullet/numbered
-        lists, and task lists (`- [ ]`) are encouraged whenever they make the answer clearer
-        or easier to scan.
-      - Put a blank line above and below every pipe table (never directly under a bold
-        label line), or Telegram shows it as literal pipes.
-      - Start a line or bullet with `#` only for a heading: Telegram reads `#3` as a
-        heading too, so write 第3回 / No.3 for numbered references.
-      - Write documents as plain UTF-8 with NO byte-order mark (BOM); a leading BOM
-        makes Telegram show the .md as plain text instead of rendering markdown.
       - Deliver the document by putting its bare file path on its own line; the
         gateway sends it as a native file and strips the path from the text.
     "INBOX_THREAD_ID": |
@@ -830,6 +825,21 @@ approvals:
   destructive_slash_confirm: true
 command_allowlist: []
 quick_commands: {}
+# Appended to the runtime's Telegram hint for every Telegram turn and for every Cron
+# run that delivers to Telegram (channel_prompts never reach a Cron run).
+platform_hints:
+  telegram:
+    append: |
+      Telegram rendering rules:
+      - Telegram renders rich Markdown — lean into it: tables, headings, bullet/numbered
+        lists, and task lists (`- [ ]`) are encouraged whenever they make the answer clearer
+        or easier to scan.
+      - Put a blank line above and below every pipe table (never directly under a bold
+        label line), or Telegram shows it as literal pipes.
+      - Start a line or bullet with `#` only for a heading: Telegram reads `#3` as a
+        heading too, so write 第3回 / No.3 for numbered references.
+      - Write documents as plain UTF-8 with NO byte-order mark (BOM); a leading BOM
+        makes Telegram show the .md as plain text instead of rendering markdown.
 hooks: {}
 hooks_auto_accept: false
 personalities: {}
