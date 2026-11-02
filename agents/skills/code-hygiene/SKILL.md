@@ -38,6 +38,10 @@ Apply rules in this order; a higher source silences a lower one:
    constants live, file naming, `type` vs `interface`, docstring style.
 4. This skill.
 
+Repository rules choose among behavior-preserving options; they never license
+an edit that breaks <BehaviorInvariants>. When following one would, leave the
+code and report the conflict.
+
 When the repository is inconsistent, follow the pattern of the nearest
 directory and report the inconsistency instead of choosing a winner for the
 whole codebase.
@@ -102,6 +106,16 @@ other tier C location can itself become behavior (a route, an entry point),
 so it is not created there. A tier A extraction must not create an import
 cycle and must update every importer in the same change.
 
+Tools also find files by name and glob, so a file's path can be behavior
+without anything naming it. Before creating a file or moving code into one,
+read the globs and patterns that apply and keep the new file inside the same
+ones and outside new ones: a CSS scanner's sources (Tailwind `content`,
+`@source`), `package.json` `sideEffects`, `files` and `exports`, `tsconfig`
+`include`, test discovery (`*.test.ts`, `test_*.py`), framework reserved file
+names, and module names that shadow the standard library. When code can only
+move to a file outside a glob that must still see it, leave it where it is
+and report why. The language references list the patterns.
+
 </StructureTiers>
 
 <BehaviorInvariants>
@@ -115,7 +129,10 @@ The tidied code must keep all of these unchanged:
 - evaluation order and side effects, including import-time side effects;
 - error paths: which errors are raised, when, and with what messages;
 - identity and timing semantics: object identity passed into memoization or
-  dependency arrays, cascade order in CSS, word splitting in shell.
+  dependency arrays, cascade order in CSS, word splitting in shell;
+- what tools pick up by path: the CSS a class scanner generates, the modules
+  a bundler keeps, the tests a runner discovers, the module an import name
+  resolves to.
 
 Edits that look like comments or typing can be read at runtime (a docstring
 as `__doc__`, an annotation, a CSS custom property, an exported type); check
@@ -177,6 +194,8 @@ This does not license tidying code outside the task.
 - [ ] No new documentation was invented; only existing declaration comments
       were converted.
 - [ ] Every file change was tiered; only tier A was performed.
+- [ ] Every new or extended file was checked against the tool globs and
+      names that apply, and stays inside the same ones.
 - [ ] Every runtime-visible edit (doc comment read at runtime, annotation,
       token, exported type) was checked against <BehaviorInvariants>.
 - [ ] <BehaviorInvariants> hold, and the checks that cover the scope pass, or
