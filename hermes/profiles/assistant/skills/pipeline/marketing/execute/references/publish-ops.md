@@ -6,16 +6,18 @@ reference; these rules hold across them.
 
 ## Consent and record
 
-- Approval binds the exact text and assets, the named service and account,
-  and create versus update of a named draft. For an update it also binds the
+- Approval binds the exact text and assets (a draft action's standing approval
+  binds the account or publication instead, so agree the text first), the
+  named service and account, and create versus update of a named draft. For an
+  update it also binds the
   current remote content you read: if that changed since the user approved,
   read it again and ask anew. Never overwrite a human edit.
 - Record in the task record, before editor entry: the input version or hashes,
   the target, the approving user message (not your own summary of it) and the
   route. Record the draft's identity as soon as the service assigns one.
-- A tool with an approval card (`note`, `substack`) makes the card the final
-  remote-save consent; still agree the full text first, since the card shows
-  only its start.
+- A tool with an approval card (`note`, `substack`) makes the card (or a
+  standing approval on the account/publication) the final remote-save consent;
+  still agree the full text first, since the card shows only its start.
 
 ## Boundaries
 

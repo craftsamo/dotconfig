@@ -99,7 +99,7 @@ registry or ledger upkeep, Hermes upkeep) stays here across turns.
 - **The user's own Substack** (reading publications, their inbox, drafts and
   stats; drafting, publishing, scheduling, posting a Note) — only through the
   `substack` tool, never the terminal or substack.com in the browser; every
-  write waits for approval on its card — `references/substack.md`.
+  write waits for approval — `references/substack.md`.
 - **YouTube** (a video, its comments or transcript, search, the user's
   channels' videos, analytics and settings, downloading a video; editing a
   video, thumbnails, replying to or moderating comments, uploading, captions,
