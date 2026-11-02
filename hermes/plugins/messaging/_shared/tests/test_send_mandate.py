@@ -1,5 +1,5 @@
-"""send_mandate: the terms, the card, the fit checks and the hourly ledger of a Telegram or Signal send
-mandate, over a fake Keychain CLI; nothing outside the temporary folder is touched."""
+"""send_mandate: the terms, the card, the fit checks and the hourly ledger of a Telegram, Signal or WhatsApp
+send mandate, over a fake Keychain CLI; nothing outside the temporary folder is touched."""
 
 from __future__ import annotations
 
@@ -140,6 +140,40 @@ def test_the_bounds_themselves_are_allowed(value):
     assert terms(max_chars=1000)["max_chars"] == 1000
 
 
+@pytest.mark.parametrize("service,ceiling", [("telegram", 30), ("signal", 30), ("whatsapp", 5)])
+def test_the_hourly_ceiling_is_the_services_own(service, ceiling):
+    assert sm.SERVICES[service]["max_per_hour"] == ceiling <= sm.MAX_PER_HOUR
+    assert terms(service, per_hour=ceiling)["per_hour"] == ceiling
+    with pytest.raises(sm.MandateError, match=f"per_hour is a whole number from 1 to {ceiling}"):
+        terms(service, per_hour=ceiling + 1)
+
+
+def test_a_service_below_the_absolute_ceiling_names_its_own_in_the_refusal():
+    with pytest.raises(sm.MandateError, match=r"from 1 to 5 \(WhatsApp allows at most 5 sends an hour\)"):
+        terms("whatsapp", per_hour=6)
+    with pytest.raises(sm.MandateError, match="WhatsApp allows at most 5"):
+        terms("whatsapp", per_hour=30)
+    with pytest.raises(sm.MandateError, match="per_hour is a whole number from 1 to 5"):
+        terms("whatsapp", per_hour=0)
+    for service in ("telegram", "signal"):   # their refusal is the words it always was
+        with pytest.raises(sm.MandateError) as refused:
+            terms(service, per_hour=31)
+        assert str(refused.value) == "per_hour is a whole number from 1 to 30"
+
+
+def test_whatsapp_terms_are_read_like_the_others():
+    chats = [{"id": "819011111111@s.whatsapp.net", "name": "Alice", "kind": "user", "identity": "+819011111111"},
+             {"id": "120363001234567890@g.us", "name": "Team", "kind": "group",
+              "identity": "120363001234567890@g.us"}]
+    t = terms("whatsapp", chats=chats, per_hour=5, account="work", account_label="work", now=1_000_000)
+    assert t["service"] == "whatsapp" and t["chats"] == chats and t["per_hour"] == 5
+    lines = sm.card(t, SAY).splitlines()
+    assert lines[0] == "WhatsApp · Send mandate"
+    assert "Chat: Alice (user, +819011111111)" in lines
+    assert "Chat: Team (group, 120363001234567890@g.us)" in lines
+    assert "Up to: 5 an hour, 100 characters each" in lines
+
+
 def test_five_chats_are_allowed_and_six_are_not():
     five = [chat(n, f"Chat {n}", "group") for n in range(5)]
     assert len(terms(chats=five)["chats"]) == 5
@@ -158,6 +192,9 @@ def test_a_purpose_longer_than_the_limit_only_before_collapse_is_allowed():
     ("signal", "self", True), ("signal", "user", True), ("signal", "group", True),
     ("signal", "supergroup", False), ("signal", "bot", False), ("signal", "broadcast", False),
     ("telegram", "", False), ("telegram", None, False), ("telegram", "forum", False),
+    ("whatsapp", "user", True), ("whatsapp", "group", True), ("whatsapp", "self", False),
+    ("whatsapp", "supergroup", False), ("whatsapp", "bot", False), ("whatsapp", "channel", False),
+    ("whatsapp", "broadcast", False), ("whatsapp", "lid", False), ("whatsapp", "newsletter", False),
 ])
 def test_chat_kinds_are_held_per_service(service, kind, allowed):
     chats = [chat(1, "X", kind)]
@@ -310,10 +347,14 @@ def test_a_mandate_is_made_listed_and_revoked(keyfile, home):
 def test_a_mandate_lives_in_its_services_state(keyfile, home):
     make(home)
     make(home, "signal")
+    make(home, "whatsapp", per_hour=5)
     assert (home / "telegram-access" / "head.json").is_file() and (home / "signal-access" / "head.json").is_file()
+    assert (home / "whatsapp-access" / "head.json").is_file()
     assert sm.store("telegram").mac_kind == "telegram-send-mandate"
     assert sm.store("signal").key_prefix == "SIGNAL_MANDATE_KEY_"
     assert sm.store("signal").max_days == 30
+    assert (sm.store("whatsapp").mac_kind, sm.store("whatsapp").key_prefix, sm.store("whatsapp").scope) == (
+        "whatsapp-send-mandate", "WHATSAPP_MANDATE_KEY_", "whatsapp-access")
 
 
 def test_a_mandate_of_one_service_is_invisible_to_the_other(keyfile, home):
@@ -324,6 +365,57 @@ def test_a_mandate_of_one_service_is_invisible_to_the_other(keyfile, home):
     assert [m["id"] for m in sm.active(home, "telegram")] == [telegram]
     assert sm.covering(home, "signal", view(service="signal")) == (signal, [])
     assert sm.covering(home, "telegram", view(service="signal"))[0] is None
+
+
+def test_whatsapps_ceiling_is_the_accounts_total_across_its_mandates_in_force(keyfile, home):
+    first = make(home, "whatsapp", per_hour=3)
+    with pytest.raises(sm.MandateError) as refused:
+        make(home, "whatsapp", per_hour=3)
+    assert str(refused.value) == ("WhatsApp allows at most 5 sends an hour per account; mandates in force for "
+                                  "acct already take 3; nothing was made")
+    assert [m["id"] for m in sm.active(home, "whatsapp")] == [first]   # the refused one is not left in force
+    second = make(home, "whatsapp", per_hour=2)                         # 3 + 2 fits exactly
+    assert {m["id"] for m in sm.active(home, "whatsapp")} == {first, second}
+    with pytest.raises(sm.MandateError, match="already take 5"):
+        make(home, "whatsapp", per_hour=1)
+    sm.revoke(home, "whatsapp", first)                                  # the first one's share is free again
+    third = make(home, "whatsapp", per_hour=3)
+    assert {m["id"] for m in sm.active(home, "whatsapp")} == {second, third}
+
+
+def test_the_ceiling_counts_one_account_only(keyfile, home):
+    make(home, "whatsapp", per_hour=5)
+    other = make(home, "whatsapp", account="other", per_hour=5)
+    assert other in {m["id"] for m in sm.active(home, "whatsapp")}
+    with pytest.raises(sm.MandateError, match="mandates in force for other already take 5"):
+        make(home, "whatsapp", account="other", per_hour=1)
+
+
+def test_a_refused_mandate_is_never_anchored_and_ends_revoked(keyfile, home):
+    first = make(home, "whatsapp", per_hour=4)
+    with pytest.raises(sm.MandateError):
+        make(home, "whatsapp", per_hour=2)
+    rows = (home / "whatsapp-access" / "uses.jsonl").read_text().splitlines()
+    assert [json.loads(row)["mandate"] for row in rows] == [first]      # only the first was ever anchored
+    events = [json.loads(line) for line in (home / "whatsapp-access" / "mandates.jsonl").read_text().splitlines()]
+    assert [e["event"] for e in events] == ["made", "made", "revoked"] and events[1]["mandate"] == events[2]["mandate"]
+
+
+def test_check_account_ceiling_looks_before_the_card(keyfile, home):
+    sm.check_account_ceiling(home, terms("whatsapp", per_hour=5))      # nothing in force yet
+    make(home, "whatsapp", per_hour=3)
+    sm.check_account_ceiling(home, terms("whatsapp", per_hour=2))
+    with pytest.raises(sm.AccountCeilingError, match="already take 3"):
+        sm.check_account_ceiling(home, terms("whatsapp", per_hour=3))
+    assert sm.account_ceiling_refusal(terms("whatsapp", per_hour=3), []) is None
+
+
+@pytest.mark.parametrize("service", ["telegram", "signal"])
+def test_telegram_and_signal_keep_their_ceiling_per_mandate(keyfile, home, service):
+    ids = {make(home, service, per_hour=30) for _ in range(3)}
+    assert {m["id"] for m in sm.active(home, service)} == ids
+    sm.check_account_ceiling(home, terms(service, per_hour=30))
+    assert sm.account_ceiling_refusal(terms(service, per_hour=30), sm.active(home, service)) is None
 
 
 def test_a_mandate_ends_when_its_card_said(keyfile, home):
@@ -646,8 +738,7 @@ def test_a_mandate_is_anchored_by_one_authenticated_opening_row(keyfile, home):
 def test_a_deleted_ledger_blocks_every_mandate_it_anchored(keyfile, home):
     old = make(home)
     ledger(home).unlink()
-    assert sm.covering(home, "telegram", view()) == (None, [f"{old}: 30 sends in the last hour; "
-                                                            "the mandate allows 3 an hour"])
+    assert sm.covering(home, "telegram", view()) == (None, [f"{old}: {sm.LEDGER_USED_UP}"])
     assert sm.use(home, "telegram", old, view()) is not None
     assert not ledger(home).exists()
     new = make(home)   # a new mandate is anchored afresh
@@ -662,6 +753,46 @@ def test_an_emptied_ledger_blocks(keyfile, home):
     assert sm._used(home, "telegram", mandate_id, time.time()) == sm.MAX_PER_HOUR
     assert sm.use(home, "telegram", mandate_id, view()) is not None
     assert ledger(home).read_text() == ""
+
+
+def test_a_ledger_that_cannot_be_vouched_for_says_so_instead_of_naming_a_count(keyfile, home):
+    mandate_id = make(home, per_hour=3)
+    assert sm.use(home, "telegram", mandate_id, view()) is None
+    for damage, reason in ((lambda: ledger(home).write_text(""), sm.LEDGER_USED_UP),     # emptied
+                           (lambda: ledger(home).unlink(), sm.LEDGER_USED_UP),           # gone
+                           (lambda: keyfile.write_text("garbled"), sm.NO_KEY)):          # no key to vouch with
+        damage()
+        assert sm.use(home, "telegram", mandate_id, view()) == reason
+    assert "cannot be read" in sm.LEDGER_USED_UP and "counts as used up" in sm.LEDGER_USED_UP
+    assert "sends in the last hour" not in sm.LEDGER_USED_UP
+
+
+def test_a_missing_opening_row_says_so_for_every_service(keyfile, home):
+    for service in ("telegram", "signal", "whatsapp"):
+        mandate_id = make(home, service, per_hour=2)
+        (home / f"{service}-access" / "uses.jsonl").write_text("")
+        assert sm.use(home, service, mandate_id, view(service=service)) == sm.LEDGER_USED_UP
+        assert sm.covering(home, service, view(service=service)) == (None, [f"{mandate_id}: {sm.LEDGER_USED_UP}"])
+
+
+def test_a_real_count_that_reaches_the_absolute_ceiling_still_names_the_mandates_own_count(keyfile, home):
+    mandate_id = make(home, per_hour=sm.MAX_PER_HOUR)
+    now = time.time()
+    for n in range(sm.MAX_PER_HOUR):
+        assert sm.use(home, "telegram", mandate_id, view(), now=now + n) is None
+    refused = sm.use(home, "telegram", mandate_id, view(), now=now + 40)
+    assert refused == f"{sm.MAX_PER_HOUR} sends in the last hour; the mandate allows {sm.MAX_PER_HOUR} an hour"
+
+
+def test_a_whatsapp_hour_is_used_up_at_five(keyfile, home):
+    mandate_id = make(home, "whatsapp", per_hour=5)
+    now = time.time()
+    seen = view(service="whatsapp")
+    assert [sm.use(home, "whatsapp", mandate_id, seen, now=now + n) for n in range(5)] == [None] * 5
+    assert sm.use(home, "whatsapp", mandate_id, seen, now=now + 6) == (
+        "5 sends in the last hour; the mandate allows 5 an hour")
+    rows = (home / "whatsapp-access" / "uses.jsonl").read_text().splitlines()
+    assert len([row for row in rows if not json.loads(row).get("open")]) == 5
 
 
 def test_a_ledger_replaced_by_a_link_to_a_device_blocks_and_nothing_is_written_through_it(keyfile, home):
