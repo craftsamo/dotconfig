@@ -1,6 +1,7 @@
 import importlib.util
 import json
 import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -241,7 +242,7 @@ def test_a_mandate_may_cover_labels_but_never_a_repository_setting(gh, tmp_path,
     monkeypatch.setattr(mandate, "key", lambda home, create=False: bytes(range(32)))
     made = mandate.create(tmp_path, {"boards": [], "repos": [{"id": "R_app", "name": "me/app", "tier": "own"}],
                                      "parent": None, "classes": ["create", "routine"], "days": 3,
-                                     "expires": 4102444800, "purpose": "Tidy labels"})
+                                     "expires": int(time.time()) + 3 * 86400, "purpose": "Tidy labels"})
     label = changes.plan({"repo": "me/app", "changes": [{"op": "label_create", "name": "area:web"},
                                                         {"op": "milestone_edit", "milestone": "v1", "state": "closed"}]})
     assert mandate.covering(tmp_path, label)[0] == made["id"]

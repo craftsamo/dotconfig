@@ -326,7 +326,12 @@ skills.
   modules by path (`human_gate.py`, `card.py`; `archive_check.py`; web3's
   `access.py`, reader and signer, with paths that `scripts/web3.sh` names), so
   moving or renaming one breaks them at import, and a `plugin.yaml` there would
-  make Hermes load it as a plugin — never add one. web3's evm-access and
+  make Hermes load it as a plugin — never add one. `mandate_store.py` is the
+  one place mandates are stored and authenticated (the MAC'd files, the head
+  that alone decides what is in force, the Keychain key read on every check,
+  the 30-day ceiling); a consumer passes its own `Store` and never writes those
+  files itself, and the on-disk format stays as it is, or every mandate in force
+  stops verifying. web3's evm-access and
   solana-access are thin entry points over `access.py` and share its one
   in-memory record of approval decisions; hyperliquid-access reaches it
   through `hl_access.py`, which must load it under the same module name

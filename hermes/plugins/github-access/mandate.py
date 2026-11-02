@@ -20,18 +20,10 @@ key no mandate is in force and every change list asks on its card.
 
 from __future__ import annotations
 
-import contextlib
-import fcntl
-import hashlib
-import hmac
 import importlib.util
-import json
-import os
 import re
-import secrets
 import subprocess
 import sys
-import threading
 import time
 from pathlib import Path
 
@@ -47,6 +39,7 @@ def _load(name, path):
 
 access = _load("hermes_github_access_engine", Path(__file__).resolve().parent / "access.py")
 cards = _load("hermes_card", Path(__file__).resolve().parents[1] / "_shared" / "card.py")
+mandate_store = _load("hermes_mandate_store", Path(__file__).resolve().parents[1] / "_shared" / "mandate_store.py")
 AccessError = access.AccessError
 
 STATE = "github-access"
@@ -56,93 +49,55 @@ CLASSES = ("routine", "create")
 TIER_CAP = {"own": {"routine", "create"}, "shared": {"routine"}, "other": set()}
 ID = re.compile(r"^m[0-9a-f]{8}$")
 PURPOSE_LIMIT = 200
-SECRET = Path.home() / ".config" / "bin" / "secret"
-VAULT_PROJECT, VAULT_SCOPE = "hermes", "github-access"
-SECRET_TIMEOUT = 20
-_LOCK = threading.Lock()
+SECRET = mandate_store.SECRET
+VAULT_PROJECT, VAULT_SCOPE = mandate_store.VAULT_PROJECT, "github-access"
+SECRET_TIMEOUT = mandate_store.SECRET_TIMEOUT
+STORE = mandate_store.Store(state=STATE, key_prefix="GITHUB_MANDATE_KEY_", scope=VAULT_SCOPE,
+                            mac_kind="github-mandate", key_note="github-access mandate MAC key",
+                            error=AccessError, max_days=MAX_DAYS)
+
+# The persistence is mandate_store's; these keep the names the plugin and its tests use, and read
+# SECRET, SECRET_TIMEOUT and ``key`` here each time, so a patch of any of them holds.
 
 
 def state_dir(home) -> Path:
-    return Path(home) / STATE
+    return mandate_store.state_dir(STORE, home)
 
 
 def vault_name(home) -> str:
-    home = Path(os.path.expanduser(str(home)))
-    name = "default" if home == Path.home() / ".hermes" else home.name
-    return "GITHUB_MANDATE_KEY_" + (re.sub(r"[^A-Z0-9]+", "_", name.upper()).strip("_") or "DEFAULT")
+    return mandate_store.vault_name(STORE, home)
 
 
-@contextlib.contextmanager
 def _locked(home):
-    folder = state_dir(home)
-    folder.mkdir(mode=0o700, parents=True, exist_ok=True)
-    with _LOCK, open(folder / ".lock", "a") as handle:
-        fcntl.flock(handle, fcntl.LOCK_EX)
-        try:
-            yield folder
-        finally:
-            fcntl.flock(handle, fcntl.LOCK_UN)
+    return mandate_store.locked(STORE, home)
 
 
 # --- the key --------------------------------------------------------------------------------------
 
 def _secret(home, command: str, extra: tuple = (), value: str | None = None) -> subprocess.CompletedProcess:
-    if not os.access(SECRET, os.X_OK):
-        raise AccessError(f"the secret CLI is missing at {SECRET}")
-    argv = [str(SECRET), command, vault_name(home), "-p", VAULT_PROJECT, "--scope", VAULT_SCOPE, *extra]
-    feed = {"input": value + "\n"} if value is not None else {"stdin": subprocess.DEVNULL}
-    if value is not None:
-        argv.append("--stdin")
-    try:
-        return subprocess.run(argv, capture_output=True, text=True, timeout=SECRET_TIMEOUT,
-                              cwd=str(state_dir(home)) if state_dir(home).is_dir() else None, **feed)
-    except subprocess.TimeoutExpired as exc:
-        raise AccessError("the Keychain did not answer in time") from exc
+    return mandate_store.call_secret(STORE, home, command, extra, value, cli=SECRET, timeout=SECRET_TIMEOUT)
 
 
 def key(home, create: bool = False) -> bytes | None:
     """The MAC key, read from the Keychain every time (never cached: a removed or replaced key takes
     effect at once); None when there is none (and ``create`` is off) or it cannot be read."""
-    try:
-        proc = _secret(home, "get")
-    except AccessError:
-        return None
-    value = proc.stdout.strip()
-    if proc.returncode == 0 and re.fullmatch(r"[0-9a-f]{64}", value):
-        return bytes.fromhex(value)
-    if not create or _secret(home, "show").returncode == 0:
-        return None  # absent, or present but unreadable: never written over
-    made = secrets.token_hex(32)
-    proc = _secret(home, "set", ("-D", "key", "-j", "github-access mandate MAC key"), value=made)
-    if proc.returncode != 0:
-        raise AccessError(f"could not store {vault_name(home)} in the Keychain: {proc.stderr.strip()[:200]}")
-    return key(home)
+    return mandate_store.key(STORE, home, create, run=_secret)
 
 
 def _mac(secret: bytes, kind: str, body: dict) -> str:
-    text = json.dumps({"kind": kind, **{k: v for k, v in body.items() if k != "mac"}}, sort_keys=True,
-                      separators=(",", ":"), ensure_ascii=False)
-    return hmac.new(secret, text.encode("utf-8"), hashlib.sha256).hexdigest()
+    return mandate_store.mac(secret, kind, body)
 
 
 def _write(path: Path, body: dict) -> None:
-    path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
-    tmp = path.with_name(f".{path.name}.{os.getpid()}.tmp")
-    tmp.write_text(json.dumps(body, ensure_ascii=False, indent=1), encoding="utf-8")
-    os.chmod(tmp, 0o600)
-    os.replace(tmp, path)
+    mandate_store.write(path, body)
 
 
 def _read(path: Path) -> dict | None:
-    try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return None
+    return mandate_store.read(path)
 
 
 def _log(home, event: str, mandate_id: str) -> None:
-    with open(state_dir(home) / "mandates.jsonl", "a", encoding="utf-8") as handle:
-        handle.write(json.dumps({"event": event, "mandate": mandate_id, "time": int(time.time())}) + "\n")
+    mandate_store.log(STORE, home, event, mandate_id)
 
 
 # --- terms ----------------------------------------------------------------------------------------
@@ -235,73 +190,29 @@ def card(t: dict, say) -> str:
 # --- what is in force -----------------------------------------------------------------------------
 
 def _head(home, secret: bytes) -> list[str]:
-    head = _read(state_dir(home) / "head.json")
-    if not head or not isinstance(head.get("active"), list):
-        return []
-    if not hmac.compare_digest(str(head.get("mac", "")), _mac(secret, "github-mandate-head", head)):
-        return []
-    return [i for i in head["active"] if isinstance(i, str) and ID.match(i)]
+    return mandate_store.active_ids(STORE, home, secret)
 
 
 def _set_head(home, secret: bytes, ids: list[str]) -> None:
-    head = {"active": sorted(set(ids)), "time": int(time.time())}
-    head["mac"] = _mac(secret, "github-mandate-head", head)
-    _write(state_dir(home) / "head.json", head)
+    mandate_store.set_head(STORE, home, secret, ids)
 
 
 def _mandate(home, secret: bytes, mandate_id: str) -> dict | None:
-    body = _read(state_dir(home) / "mandates" / f"{mandate_id}.json")
-    if not body or body.get("id") != mandate_id:
-        return None
-    if not hmac.compare_digest(str(body.get("mac", "")), _mac(secret, "github-mandate", body)):
-        return None
-    return body
+    return mandate_store.load(STORE, home, secret, mandate_id)
 
 
 def active(home, now: float | None = None) -> list[dict]:
     """The mandates in force: in the authenticated head, authenticated themselves, not ended."""
-    secret = key(home)
-    if secret is None:
-        return []
-    now = time.time() if now is None else now
-    out = []
-    for mandate_id in _head(home, secret):
-        body = _mandate(home, secret, mandate_id)
-        if body and isinstance(body.get("expires"), (int, float)) and now < body["expires"]:
-            out.append(body)
-    return out
+    return mandate_store.active(STORE, home, now, key_of=key)
 
 
 def create(home, t: dict) -> dict:
-    with _locked(home):
-        secret = key(home, create=True)
-        if secret is None:
-            raise AccessError(f"{vault_name(home)} is in the Keychain but could not be read; nothing was made")
-        now = int(time.time())
-        if t["expires"] <= now:
-            raise AccessError("the mandate's end on its card has already passed; nothing was made")
-        body = {"id": "m" + secrets.token_hex(4), "created": now, "expires": t["expires"],
-                **{k: t[k] for k in ("boards", "repos", "parent", "classes", "purpose")}}
-        body["mac"] = _mac(secret, "github-mandate", body)
-        _write(state_dir(home) / "mandates" / f"{body['id']}.json", body)
-        _set_head(home, secret, _head(home, secret) + [body["id"]])
-        _log(home, "made", body["id"])
-    return summary(body)
+    fields = {k: t[k] for k in ("boards", "repos", "parent", "classes", "purpose")}
+    return summary(mandate_store.create(STORE, home, fields, t["expires"], key_of=key))
 
 
 def revoke(home, mandate_id: str) -> dict:
-    if not isinstance(mandate_id, str) or not ID.match(mandate_id):
-        raise AccessError("mandate is an id like m1a2b3c4d")
-    with _locked(home):
-        secret = key(home)
-        if secret is None:
-            return {"revoked": mandate_id, "note": "no mandate key: none was in force"}
-        ids = _head(home, secret)
-        if mandate_id not in ids:
-            return {"revoked": mandate_id, "note": "it was not in force"}
-        _set_head(home, secret, [i for i in ids if i != mandate_id])
-        _log(home, "revoked", mandate_id)
-    return {"revoked": mandate_id}
+    return mandate_store.revoke(STORE, home, mandate_id, key_of=key)
 
 
 def summary(body: dict) -> dict:
