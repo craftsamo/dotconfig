@@ -70,8 +70,9 @@ registry or ledger upkeep, Hermes upkeep) stays here across turns.
   `references/whatsapp.md`.
 - **The user's Signal** (reading chats, saving a file someone sent, checking
   a number, sending a message or a workspace file) — only through the
-  `signal` tool, never the terminal or Signal Desktop; every send waits for
-  approval on its card. Any Signal work loads `skill_view(name="signal-access:account")`
+  `signal` tool, never the terminal or Signal Desktop; sends wait for
+  approval on their card (Note to Self can be approved for the session or
+  always). Any Signal work loads `skill_view(name="signal-access:account")`
   first — `references/signal.md`.
 - **The user's own Discord account** (their DMs and servers, threads, pins,
   mentions, friends, syncing a server, sending, reacting, pinning, editing or

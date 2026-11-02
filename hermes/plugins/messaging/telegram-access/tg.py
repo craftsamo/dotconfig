@@ -58,6 +58,16 @@ def _load_card():
     return sys.modules["hermes_card"]
 
 
+def _load_approval_tier():
+    if "hermes_approval_tier" not in sys.modules:
+        spec = importlib.util.spec_from_file_location("hermes_approval_tier",
+                                                      HERE.parents[1] / "_shared" / "approval_tier.py")
+        module = importlib.util.module_from_spec(spec)
+        sys.modules["hermes_approval_tier"] = module
+        spec.loader.exec_module(module)
+    return sys.modules["hermes_approval_tier"]
+
+
 def _load_layout():
     """The shared Workspaces layout reader (plugins/_shared/workspace_layout.py)."""
     if "hermes_workspace_layout" not in sys.modules:
@@ -73,6 +83,7 @@ store = _load("store")
 rpc = _load("rpc")
 archives = _load_shared("archive_check")
 cards = _load_card()
+approval_tier = _load_approval_tier()
 
 ACTIONS = ("status", "chats", "messages", "search", "context", "backfill", "media", "sync_list", "sync_add",
            "sync_remove", "send")
@@ -1035,9 +1046,16 @@ def _account_label(me: dict) -> str:
     return f"{name} ({identity})" if name else identity
 
 
+def _is_saved_messages(plan: dict) -> bool:
+    """The signed-in account's own chat. The mirror keeps the 'self' row of an account that was
+    logged out, so the kind alone does not say whose chat it is."""
+    info = plan["chat_info"]
+    return info["kind"] == "self" and str(info["id"]) == str(plan["me"].get("id"))
+
+
 def _chat_label(plan: dict) -> str:
     info = plan["chat_info"]
-    if info["kind"] == "self":
+    if _is_saved_messages(plan):
         return "Saved Messages"
     name = _one_line(info["name"], NAME_CLIP)
     if info["kind"] in ("user", "bot"):
@@ -1063,6 +1081,13 @@ def _file_line(f: dict) -> str:
 EFFECTS = {"self": (cards.SAFE, "Only you see it"),
            "group": (cards.CAUTION, "Everyone in the group sees it at once"),
            "supergroup": (cards.CAUTION, "Everyone in the group sees it at once")}
+
+
+def _effect(plan: dict) -> tuple[str, str]:
+    kind = plan["chat_info"]["kind"]
+    if kind == "self" and not _is_saved_messages(plan):
+        kind = "user"
+    return EFFECTS.get(kind, (cards.CAUTION, "They see it at once"))
 
 
 def card(plan: dict) -> str:
@@ -1091,7 +1116,7 @@ def card(plan: dict) -> str:
     files = plan["files"]
     sections = [(f"Files ({len(files)}, {_human(sum(f['size'] for f in files))})",
                  [_file_line(f) for f in files])] if files else []
-    effect = EFFECTS.get(plan["chat_info"]["kind"], (cards.CAUTION, "They see it at once"))
+    effect = _effect(plan)
     try:
         return cards.compose("Telegram", "Send message", effect,
                              [("Account", _account_label(plan["me"])), ("Chat", _chat_label(plan)),
@@ -1102,15 +1127,22 @@ def card(plan: dict) -> str:
                             else str(exc)) from None
 
 
-def rule_key(plan: dict) -> str:
+def request_digest(plan: dict) -> str:
+    """What the card showed, as one digest: account, chat, text, reply, quote and file contents."""
     quote = plan.get("quote") or {}
-    digest = hashlib.sha256(json.dumps(
+    return hashlib.sha256(json.dumps(
         [plan["me"].get("id"), plan["chat"], plan["text"], plan["reply_to"], quote.get("sender"), quote.get("text"),
          [[f["path"], f["sha256"]] for f in plan["files"]]], ensure_ascii=False).encode("utf-8")).hexdigest()[:16]
-    return f"telegram-access:send:{digest}"
 
 
-# The gate's view of each send, per tool call, so execution sends exactly what the card showed.
+def rule_key(plan: dict) -> str:
+    level, _ = _effect(plan)
+    return approval_tier.rule_key("telegram-access", "send", level, request_digest(plan),
+                                  scope=(plan["me"].get("id"),))
+
+
+# The gate's view of each send, per tool call, so execution sends exactly what the card showed (the
+# request digest covers it all, which the allowlist key does not for a note to oneself).
 _approved: dict[str, tuple[float, str, list]] = {}
 _approved_lock = threading.Lock()
 
@@ -1123,7 +1155,8 @@ def _call_key(args: dict, call_id: str) -> str:
 def approval_request(args: dict, home: Path | None = None, call_id: str = "") -> tuple[str, str] | None:
     """(card, allowlist rule key) for a send, None for a read; raises for a call that would fail
     anyway, so it is blocked without asking. The key covers the exact chat, text, reply and file
-    contents, so "session" or "always" only ever repeats that identical message."""
+    contents, so "session" or "always" only ever repeats that identical message; a note to oneself
+    (Saved Messages) shares one key per account instead (approval_tier)."""
     args = args if isinstance(args, dict) else {}
     if action_of(args) not in WRITES:
         return None
@@ -1134,7 +1167,8 @@ def approval_request(args: dict, home: Path | None = None, call_id: str = "") ->
         now = time.monotonic()
         for old in [k for k, (at, _, _) in _approved.items() if now - at > APPROVAL_TTL]:
             _approved.pop(old, None)
-        _approved[_call_key(args, call_id)] = (now, key, [[f["path"], f["sha256"]] for f in plan["files"]])
+        _approved[_call_key(args, call_id)] = (now, request_digest(plan),
+                                               [[f["path"], f["sha256"]] for f in plan["files"]])
     return text, key
 
 
@@ -1175,12 +1209,12 @@ def send(args: dict, home: Path | None = None, call_id: str = "") -> dict:
     record = _approved_send(args, call_id)
     if record is None:
         return {"ok": False, "error": "not sent: this send did not pass the approval card; call send again"}
-    approved_key, approved = record
+    approved_digest, approved = record
     try:
         plan = send_plan(args, home)
     except TelegramError as exc:
         return {"ok": False, "error": f"not sent: {exc}"}
-    if rule_key(plan) != approved_key or [[f["path"], f["sha256"]] for f in plan["files"]] != approved:
+    if request_digest(plan) != approved_digest or [[f["path"], f["sha256"]] for f in plan["files"]] != approved:
         return {"ok": False, "error": "not sent: the files or the quoted message changed after the approval card "
                                      "was made; ask again"}
     outbox = None
