@@ -49,17 +49,23 @@ whole codebase.
 1. **Reuse before defining.** Before declaring a type, data shape, constant or
    helper, search the codebase for an existing one. Derive from what exists
    instead of restating it; merge duplicates that already drifted apart only
-   when they are provably the same thing.
+   when they are provably the same thing. A type from another feature that
+   happens to have the same fields is not the same thing.
 2. **One home per value.** Name a literal when its meaning is not obvious from
-   the line or when it repeats. Keep it in the narrowest home that covers its
-   users: the top of the file for one file, a sibling constants module for a
-   feature, the repository's shared module for several features. Do not hoist
-   a value further than its users need.
+   the line or when the same meaning repeats; two equal literals that mean
+   different things are two values. Leave self-evident literals (`0`, `1`,
+   `""`, an initial accumulator) inline. Keep a named value in the narrowest
+   home that covers its users: the top of the file for one file, a sibling
+   constants module for a feature, the repository's shared module for several
+   features. Do not hoist a value further than its users need.
 3. **Doc comments for declarations.** A comment that describes a function,
    class, type, exported constant or module moves into the language's doc
    comment form (TSDoc/JSDoc, docstring, SassDoc where used, a shell function
    header). Convert what exists; do not write new documentation where the code
-   had none. Comments inside a body that explain why stay as plain comments.
+   had none. A comment that only restates the declaration's name or signature
+   is noise (principle 4): delete it instead of converting it. Comments inside
+   a body that explain why stay as plain comments. Some doc-comment forms are
+   read at runtime; check <BehaviorInvariants> before converting.
 4. **Remove noise, not knowledge.** Delete commented-out code, comments that
    narrate an edit ("changed to X", "new:", "fixed"), and comments that restate
    the next line. Keep every comment that carries a reason, a constraint or a
@@ -107,8 +113,16 @@ The tidied code must keep all of these unchanged:
 - identity and timing semantics: object identity passed into memoization or
   dependency arrays, cascade order in CSS, word splitting in shell.
 
+Edits that look like comments or typing can be read at runtime (a docstring
+as `__doc__`, an annotation, a CSS custom property, an exported type); check
+each against this list before making it. The language references name the
+cases.
+
 When a cleanup would change any of these, it is not hygiene: leave the code,
-and report the change as a proposal.
+and report the change as a proposal. An edit whose effect you would describe
+as different observable output (help text that now appears, a value that now
+resolves differently, a check that now passes) changed behavior, however much
+of an improvement it looks.
 
 </BehaviorInvariants>
 

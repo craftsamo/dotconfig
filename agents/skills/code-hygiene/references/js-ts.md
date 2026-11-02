@@ -21,8 +21,11 @@ configuration win over everything here.
 - Follow the repository on `type` vs `interface` and on `enum` vs literal
   unions; do not introduce `enum` into a codebase that uses unions.
 - Replace `any` with the real type when it is known and the typecheck proves
-  it; otherwise leave it rather than inventing one. Type-only imports use
-  `import type`.
+  it; otherwise leave it rather than inventing one. On an exported
+  declaration this changes what consumers see: tier B. Replacing an inline
+  shape in an exported signature with the named type it restates (the
+  feature's own type for the same data, not a coincidental match) keeps the
+  structure and is tier A. Type-only imports use `import type`.
 
 ## Constants
 
@@ -73,6 +76,9 @@ configuration win over everything here.
 - `||` and `??` differ for `0`, `""` and `false`; optional chaining differs
   from an explicit check that throws.
 - `function` declarations hoist and bind `this`; arrow functions do neither.
+- A private method or property reached through a computed key
+  (`this["on_" + status]`) or a string-keyed registry has no direct caller
+  but is not dead code, and renaming it breaks the lookup.
 - Reordering imports can reorder module side effects (polyfills, CSS,
   registration calls).
 - `as const` and `satisfies` change inferred types; the typecheck must still
