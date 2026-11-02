@@ -289,6 +289,9 @@ never touched). The language detail lives in `references/` (`js-ts.md`,
 `python.md`, `css.md`, `shell.md`), read only for the languages in scope. A
 repository's own instructions and linter configuration always win.
 
+In OpenCode the `refactorer` subagent applies it to the files a caller
+scopes, and `worker` / `worker-deep` write new code to it.
+
 ## Third-party skills
 
 Third-party skills are never committed; they are restored from their source.
