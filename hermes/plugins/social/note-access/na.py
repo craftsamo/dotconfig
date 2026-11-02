@@ -7,10 +7,12 @@ process that alone reads the session cookie from the Keychain. Image bytes go fr
 to the storage URL note hands out, again without the cookie. Draft bodies are Markdown, converted
 by ``notefmt.py``. Nothing publishes, deletes, likes, follows or comments.
 
-A draft write is only ever executed after Hermes' approval card for that exact call (see
-``approval_request``): the card's rule key covers the draft, its last saved time, the title, the
-whole Markdown and every image's SHA-256, and execution re-derives all of it and refuses on any
-difference. Contract: docs/note-access.md.
+A draft write is only ever executed under Hermes' approval gate (see
+``approval_request``): ``create_draft`` shares a standing rule key bound to the
+account (``note-access:new-draft:<account>``), while ``update_draft`` keeps an exact
+key covering the draft, its last saved time, the title, the whole Markdown and every
+image's SHA-256. Execution re-derives all of it and refuses on any difference.
+Contract: docs/note-access.md.
 """
 
 from __future__ import annotations
@@ -52,6 +54,7 @@ def _load_sibling(name: str, filename: str):
 
 fmt = _load_sibling("hermes_note_access_format", "notefmt.py")
 cards = _load_sibling("hermes_card", HERE.parents[1] / "_shared" / "card.py")
+approval_tier = _load_sibling("hermes_approval_tier", HERE.parents[1] / "_shared" / "approval_tier.py")
 
 READS = ("status", "search", "articles", "article", "creator", "comments", "hashtag", "drafts", "draft", "stats")
 OFFLINE = ("check",)          # never contacts note
@@ -1076,14 +1079,27 @@ def requests_needed(plan: dict) -> int:
     return 2 * len(plan["files"]) + 3 + (1 if plan["cover"] else 0)
 
 
-def rule_key(plan: dict) -> str:
-    digest = hashlib.sha256(json.dumps(
+def _effect(plan: dict) -> tuple[str, str]:
+    if plan["action"] == "create_draft":
+        return cards.SAFE, "Draft only; nothing is published"
+    return cards.CAUTION, "Replaces the whole draft; nothing is published"
+
+
+def digest(plan: dict) -> str:
+    return hashlib.sha256(json.dumps(
         [plan["action"], plan.get("account"), plan["fingerprint"], plan["key"], plan["base"], plan["title"],
          plan["markdown"],
          [[f["path"], f["sha256"]] for f in plan["files"]],
          [plan["cover"]["path"], plan["cover"]["sha256"]] if plan["cover"] else None],
         ensure_ascii=False).encode("utf-8")).hexdigest()[:16]
-    return f"note-access:{plan['action']}:{digest}"
+
+
+def rule_key(plan: dict, plan_digest: str | None = None) -> str:
+    if plan_digest is None:
+        plan_digest = digest(plan)
+    level, _ = _effect(plan)
+    return approval_tier.rule_key("note-access", plan["action"], level, plan_digest,
+                                  scope=(plan.get("account"),))
 
 
 def _short(text, limit: int) -> str:
@@ -1128,8 +1144,7 @@ def _card_at(plan: dict, title_limit: int, now_limits: tuple[int, int], list_fil
         images = [f"- named in the body; combined sha256 {combined}"]
     else:
         images = []
-    effect = ((cards.SAFE, "Draft only; nothing is published") if plan["action"] == "create_draft"
-              else (cards.CAUTION, "Replaces the whole draft; nothing is published"))
+    effect = _effect(plan)
     return cards.compose("note", action, effect, facts, sections=[("New images", images)],
                          text=plan["markdown"].strip() or None, text_label="Body", text_min=CARD_TEXT_MIN)
 
@@ -1186,12 +1201,13 @@ def approval_request(args: dict, home: Path | None = None, call_id: str = "",
         raise NoteError(READ_ONLY)
     plan = write_plan(args, home)
     budget(requests_needed(plan))
-    text, key = card(plan), rule_key(plan)
+    plan_digest = digest(plan)
+    text, key = card(plan), rule_key(plan, plan_digest)
     with _approved_lock:
         now = time.monotonic()
         for old in [k for k, (at, _) in _approved.items() if now - at > APPROVAL_TTL]:
             _approved.pop(old, None)
-        _approved[_call_key(args, call_id)] = (now, key)
+        _approved[_call_key(args, call_id)] = (now, plan_digest)
     return text, key
 
 
@@ -1327,7 +1343,7 @@ def _write(args: dict, home: Path | None, approved: str) -> dict:
         plan = write_plan(args, home)
     except NoteError as exc:
         return {"ok": False, "error": f"not saved: {exc}"}
-    if rule_key(plan) != approved:
+    if digest(plan) != approved:
         return {"ok": False, "error": "not saved: the draft, the images, the text or the signed-in account changed "
                                      "after the approval card was made; read the draft again and ask again"}
     try:

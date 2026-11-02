@@ -477,6 +477,69 @@ def test_rule_keys_bind_the_draft_and_the_image_bytes():
     assert sa.rule_key(note, {"account": {"id": 1}}, [], "r") != sa.rule_key(note, {"account": {"id": 2}}, [], "r")
 
 
+def test_draft_rules_share_standing_key_per_publication():
+    prep = draft_prepared()
+    # create_draft (SAFE)
+    c1 = sa.write_plan({"title": "A", "markdown": "body 1"}, "create_draft")
+    c2 = sa.write_plan({"title": "B", "markdown": "body 2"}, "create_draft")
+    key_c1 = sa.rule_key(c1, prep, [], "r1")
+    key_c2 = sa.rule_key(c2, prep, [], "r2")
+    assert key_c1 == key_c2 == f"substack-access:private-draft:{PUB['user_id']}:{PUB['id']}"
+
+    # update_draft without markdown (SAFE)
+    u_meta1 = sa.write_plan({"draft": "5", "title": "New title"}, "update_draft")
+    u_meta2 = sa.write_plan({"draft": "5", "subtitle": "New sub"}, "update_draft")
+    key_u1 = sa.rule_key(u_meta1, prep, [], "r1")
+    key_u2 = sa.rule_key(u_meta2, prep, [], "r2")
+    assert key_u1 == key_u2 == f"substack-access:private-draft:{PUB['user_id']}:{PUB['id']}"
+
+    # unschedule (SAFE) is its own answer: cancelling a release is not covered by approving drafts
+    unsched = sa.write_plan({"draft": "5"}, "unschedule")
+    assert sa.rule_key(unsched, prep, [], "r") == f"substack-access:unschedule-draft:{PUB['user_id']}:{PUB['id']}"
+
+    # Different target gives different key
+    other_pub = draft_prepared(publication={**PUB, "id": 88})
+    assert sa.rule_key(c1, other_pub, [], "r1") == f"substack-access:private-draft:{PUB['user_id']}:88"
+    other_user = draft_prepared(publication={**PUB, "user_id": 99})
+    assert sa.rule_key(c1, other_user, [], "r1") == f"substack-access:private-draft:99:{PUB['id']}"
+
+    # Missing publication or user falls back to exact key
+    no_pub = draft_prepared(publication={"user_id": 1, "id": None})
+    assert sa.rule_key(c1, no_pub, [], "r1").startswith("substack-access:create_draft:")
+
+
+def test_a_metadata_update_of_a_scheduled_draft_asks_for_its_exact_change():
+    """A scheduled draft goes out with what it holds at release, so changing its title or audience
+    reaches readers: the card is a caution and the key covers the exact change."""
+    scheduled = draft_prepared(draft={"id": 5, "title": "Old title", "audience": "everyone", "words": 300,
+                                      "scheduled": ["2026-10-06T00:00:00Z"], "published": False})
+    one = sa.write_plan({"draft": "5", "audience": "only_paid"}, "update_draft")
+    two = sa.write_plan({"draft": "5", "audience": "everyone"}, "update_draft")
+    assert sa._effect(one, scheduled)[0] == "caution"
+    k1, k2 = sa.rule_key(one, scheduled, [], "r1"), sa.rule_key(two, scheduled, [], "r2")
+    assert k1.startswith("substack-access:update_draft:") and k2.startswith("substack-access:update_draft:")
+    assert k1 != k2
+    assert sa._effect(one, draft_prepared())[0] == "safe"
+
+
+def test_body_replacing_update_and_other_actions_keep_exact_keys():
+    prep = draft_prepared()
+    # update_draft with markdown (CAUTION) keeps exact key
+    u_body1 = sa.write_plan({"draft": "5", "markdown": "text 1"}, "update_draft")
+    u_body2 = sa.write_plan({"draft": "5", "markdown": "text 2"}, "update_draft")
+    k1 = sa.rule_key(u_body1, prep, [], "r1")
+    k2 = sa.rule_key(u_body2, prep, [], "r2")
+    assert k1.startswith("substack-access:update_draft:")
+    assert k2.startswith("substack-access:update_draft:")
+    assert k1 != k2
+
+    # schedule (CAUTION) keeps exact key
+    from datetime import datetime, timedelta, timezone
+    at = (datetime.now(timezone.utc) + timedelta(days=1)).isoformat()
+    s = sa.write_plan({"draft": "5", "at": at, "send_email": True}, "schedule")
+    assert sa.rule_key(s, prep, [], "r").startswith("substack-access:schedule:")
+
+
 # --- writes: cards ------------------------------------------------------------------------------
 
 def test_cards_say_what_happens():

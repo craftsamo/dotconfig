@@ -366,7 +366,7 @@ def test_create_with_images_and_cover(note, tmp_path):
                            "Title: New\nBody: ")
     assert "1 new image" in card and "Cover: cover.png 1280×670" in card
     assert "\n\n--- New images ---\n- a.png 1240×400" in card and "\n\n--- Body ---\nintro" in card
-    assert key.startswith("note-access:create_draft:")
+    assert key == "note-access:new-draft:writer"
     result = na.write(dict(args), call_id="call-1")
     assert result["ok"] is True and result["verified"] is True and result["images_uploaded"] == 1
     assert len(note.uploads) == 1 and note.uploads[0][1] == png(1240, 400)   # the same file uploaded once
@@ -491,13 +491,32 @@ def test_the_card_stays_within_telegrams_limit(note, tmp_path):
     assert "12 new images" in card and "combined sha256" in card and "more characters" in card
 
 
-def test_rule_key_covers_every_input(note, tmp_path):
+def test_create_draft_shares_standing_key_per_account(note, tmp_path, monkeypatch):
     ws(tmp_path, "a.png", png())
-    base = {"action": "create_draft", "title": "T", "body": "![x](a.png)\n"}
-    keys = {approve(base)[1], approve({**base, "title": "U"})[1], approve({**base, "body": "![y](a.png)\n"})[1]}
-    ws(tmp_path, "a.png", png(5, 5))
-    keys.add(approve(base)[1])
-    assert len(keys) == 4
+    one = approve({"action": "create_draft", "title": "T1", "body": "![x](a.png)\n"})
+    two = approve({"action": "create_draft", "title": "T2", "body": "different text\n"})
+    assert one[1] == two[1] == "note-access:new-draft:writer"
+    assert one[0].split("\n")[1] == "✅ Draft only; nothing is published"
+
+    monkeypatch.setattr(na, "signed_in", lambda op, with_fingerprint=False: ({"urlname": "other"}, "f2"))
+    other = approve({"action": "create_draft", "title": "T1", "body": "![x](a.png)\n"})
+    assert other[1] == "note-access:new-draft:other"
+    assert other[1] != one[1]
+
+    # Without an account, falls back to exact key
+    monkeypatch.setattr(na, "signed_in", lambda op, with_fingerprint=False: ({"urlname": None}, "f3"))
+    no_acc = approve({"action": "create_draft", "title": "T1", "body": "![x](a.png)\n"})
+    assert no_acc[1].startswith("note-access:create_draft:")
+
+
+def test_update_draft_rule_key_covers_every_input(note):
+    base = {"action": "update_draft", "draft": "n0000000000a1", "base": BASE, "body": "mine\n"}
+    card, key = approve(base)
+    assert card.split("\n")[1] == "⚠️ Replaces the whole draft; nothing is published"
+    assert key.startswith("note-access:update_draft:")
+    other = approve({**base, "body": "other\n"})[1]
+    assert other.startswith("note-access:update_draft:")
+    assert key != other
 
 
 def test_too_many_new_images_are_refused(note, tmp_path, monkeypatch):

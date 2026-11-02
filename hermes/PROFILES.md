@@ -78,4 +78,5 @@ look arbitrary:
 [Hyperliquid strategies](./docs/decisions/hyperliquid-strategies.md) ·
 [Hyperliquid breaker](./docs/decisions/hyperliquid-breaker.md) ·
 [Antigravity provider](./docs/decisions/antigravity-provider.md) ·
-[Drive upload encryption](./docs/decisions/drive-upload-encryption.md).
+[Drive upload encryption](./docs/decisions/drive-upload-encryption.md) ·
+[Approval tiers](./docs/decisions/approval-tiers.md).

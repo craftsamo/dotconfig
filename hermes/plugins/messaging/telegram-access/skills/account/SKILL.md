@@ -169,7 +169,8 @@ not look for another route.
    `.agent/<YYYYMMDD>-<job>/`, only when the user asked for that file. Every
    file must fit on the card; if it cannot, send fewer at once.
 5. **The card is the approval.** It shows Telegram / Chat / Reply to / Files
-   / the text. It covers that exact message: a file or quoted message changed
+   / the text (Saved Messages can be approved for the session or always).
+   For other chats it covers that exact message: a file or quoted message changed
    after the card is `not sent`, and needs a new card.
 
 A send needs the user there to answer its card. In cron, a webhook, an API

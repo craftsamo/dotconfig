@@ -336,6 +336,16 @@ skills.
   guard stops matching without a failure. Keep each sender's own file rules
   passed in rather than copied there ([docs/signal-access.md](docs/signal-access.md),
   [docs/web3.md](docs/web3.md)).
+- **A card's rule key comes from `plugins/_shared/approval_tier.py`.** An action
+  not in its table gets the exact key. To let one answer cover later calls to a
+  target, add a `standing` rule there and to the snapshot in
+  `scripts/tests/test_approval_tiers.py` on purpose. Never build a broad key by
+  hand in a plugin, or bind one to an action with no target: the helper falls
+  back to the exact key for any card level the rule does not list, and a
+  hand-made key skips that. The level passed in is the card's own, from the one
+  function that builds the card's effect, and a write is verified against a
+  digest of what the card showed, never against the key, which for a standing
+  rule names only the target ([decision](docs/decisions/approval-tiers.md)).
 
 ## Hands, commissioning and Creator
 

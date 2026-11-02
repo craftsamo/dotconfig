@@ -70,8 +70,9 @@ registry or ledger upkeep, Hermes upkeep) stays here across turns.
   `references/whatsapp.md`.
 - **The user's Signal** (reading chats, saving a file someone sent, checking
   a number, sending a message or a workspace file) — only through the
-  `signal` tool, never the terminal or Signal Desktop; every send waits for
-  approval on its card. Any Signal work loads `skill_view(name="signal-access:account")`
+  `signal` tool, never the terminal or Signal Desktop; sends wait for
+  approval on their card (Note to Self can be approved for the session or
+  always). Any Signal work loads `skill_view(name="signal-access:account")`
   first — `references/signal.md`.
 - **The user's own Discord account** (their DMs and servers, threads, pins,
   mentions, friends, syncing a server, sending, reacting, pinning, editing or
@@ -98,12 +99,14 @@ registry or ledger upkeep, Hermes upkeep) stays here across turns.
 - **The user's own Substack** (reading publications, their inbox, drafts and
   stats; drafting, publishing, scheduling, posting a Note) — only through the
   `substack` tool, never the terminal or substack.com in the browser; every
-  write waits for approval on its card — `references/substack.md`.
+  write waits for approval — `references/substack.md`.
 - **YouTube** (a video, its comments or transcript, search, the user's
   channels' videos, analytics and settings, downloading a video; editing a
   video, thumbnails, replying to or moderating comments, uploading, captions,
   playlists, channel settings and watermark) — through the `youtube` tool,
-  never the terminal or yt-dlp; every write waits for approval on its card.
+  never the terminal or yt-dlp; every write needs approval on its card (an
+  answer for the session or always covers a video's detail edits, playlist
+  reordering, watermark removal and held comments on that video or channel).
   YouTube Studio in the browser only for channel settings the tool cannot
   change (name, handle, picture, banner, links, upload defaults), each after
   a `clarify` yes. Any YouTube work loads `skill_view(name="youtube-access:read")` first

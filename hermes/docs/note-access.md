@@ -1,7 +1,7 @@
 # note access
 
 note.com for the Assistant and Marketer. Both read note; the Assistant alone
-saves the user's unpublished drafts, each save behind an approval card. The tool
+saves the user's unpublished drafts, each save behind an approval gate. The tool
 reads public articles, creators, comments and hashtags, plus the user's own
 drafts and stats. Drafts are written in Markdown, and images are uploaded from
 local files. An offline `check` tells whether a body would save; Writer gets
@@ -13,18 +13,18 @@ Part of the Hermes design docs — index: [`PROFILES.md`](../PROFILES.md).
 
 ## Shape
 
-| Piece                                                                                                                                       | Home                                                                                                              | Reader                        |
-| ------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- | ----------------------------- |
-| Engine: validation, pacing, session state, public reads, result shapes, image checks, write plan, approval card, image upload, bypass guard | `plugins/social/note-access/na.py`                                                                                | all                           |
-| Markdown ⇄ note editor HTML                                                                                                                 | `plugins/social/note-access/notefmt.py`                                                                           | all                           |
-| The only process holding the session; a fixed set of signed-in operations                                                                   | `plugins/social/note-access/bridge.py`                                                                            | all                           |
-| `note` tool and the `pre_tool_call` hook (toolset `note_access`), the actions each profile gets                                             | `plugins/social/note-access/__init__.py`                                                                          | Assistant, Marketer, Writer   |
-| How a profile reads note: actions, budget, results, recovery                                                                                | the `note-access:read` plugin skill (`plugins/social/note-access/skills/read/`)                           | Assistant, Marketer, Searcher |
-| Preparing a body with the offline `check`                                                                                                   | the `note-access:check-format` plugin skill (`.../skills/check-format/`)                                    | Assistant, Marketer, Writer   |
+| Piece                                                                                                                                       | Home                                                                                          | Reader                        |
+| ------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- | ----------------------------- |
+| Engine: validation, pacing, session state, public reads, result shapes, image checks, write plan, approval card, image upload, bypass guard | `plugins/social/note-access/na.py`                                                            | all                           |
+| Markdown ⇄ note editor HTML                                                                                                                 | `plugins/social/note-access/notefmt.py`                                                       | all                           |
+| The only process holding the session; a fixed set of signed-in operations                                                                   | `plugins/social/note-access/bridge.py`                                                        | all                           |
+| `note` tool and the `pre_tool_call` hook (toolset `note_access`), the actions each profile gets                                             | `plugins/social/note-access/__init__.py`                                                      | Assistant, Marketer, Writer   |
+| How a profile reads note: actions, budget, results, recovery                                                                                | the `note-access:read` plugin skill (`plugins/social/note-access/skills/read/`)               | Assistant, Marketer, Searcher |
+| Preparing a body with the offline `check`                                                                                                   | the `note-access:check-format` plugin skill (`.../skills/check-format/`)                      | Assistant, Marketer, Writer   |
 | Saving a draft: the card, the whole-body update, results                                                                                    | the `note-access:draft` plugin skill (`.../skills/draft/`); registered for the Assistant only | Assistant                     |
-| When Chat uses it                                                                                                                           | the Assistant's private Chat reference `note.md`                                                                  | Assistant                     |
-| How Marketer reads and measures on note                                                                                                     | `profiles/marketer/skills/pipeline/references/platforms/note.md`                                                                  | Marketer                      |
-| How Writer writes and checks a note source draft                                                                                            | `profiles/writer/skills/pipeline/<write\|edit\|analyze>/article/references/note.md`                                               | Writer                        |
+| When Chat uses it                                                                                                                           | the Assistant's private Chat reference `note.md`                                              | Assistant                     |
+| How Marketer reads and measures on note                                                                                                     | `profiles/marketer/skills/pipeline/references/platforms/note.md`                              | Marketer                      |
+| How Writer writes and checks a note source draft                                                                                            | `profiles/writer/skills/pipeline/<write\|edit\|analyze>/article/references/note.md`           | Writer                        |
 
 note has no public API. The tool calls the internal endpoints that note's own
 web app and editor use. They can change without notice. note's terms let it
@@ -129,8 +129,8 @@ save check.
 
 ## Writes
 
-`create_draft` and `update_draft` replace the whole title and body, only after
-Hermes' approval card for that exact call. `base` is required for an update: the
+`create_draft` and `update_draft` replace the whole title and body, under
+Hermes' approval gate ([approval gate](access-common.md#approval-gate)). `base` is required for an update: the
 `saved` time of the `draft` read the edit starts from. A draft saved since is
 refused, so an edit made after that read is never overwritten. `preview=true` on either action runs every check below
 and returns the card the save would show, without saving or asking; it works in
@@ -154,14 +154,17 @@ Long titles and the current text are shortened first, then the images are
 counted under one combined fingerprint. A save whose facts still cannot fit is
 refused, so a cover or an image is never cut off the card.
 
-The rule key covers the action, the account and the cookie's fingerprint, the
-draft and its last saved time, the title and the whole Markdown, and every image
-hash. "Session" or "always" therefore only repeats that identical save under
-that session. Approval records are per tool call and allow one save.
+The rule key depends on the action. `create_draft` is a SAFE action: its rule
+key is a standing key bound to the account (`note-access:new-draft:<account>`),
+so "session" or "always" covers subsequent new drafts on that account. `update_draft`
+is CAUTION: its exact rule key covers the action, the account and cookie
+fingerprint, the draft and its last saved time, the title and the whole Markdown,
+and every image hash, so "session" or "always" only repeats that identical save
+under that session. Approval records are per tool call and allow one save.
 
 At execution, plugin writes to one draft run one at a time (`drafts/<key>.lock`)
 from re-checking through saving. The handler re-derives the plan and refuses if
-the rule key differs (the user editing the draft after the card, an image
+the plan's digest differs (the user editing the draft after the card, an image
 changing, another account's cookie stored meanwhile). Every write request
 carries the approved fingerprint, and the bridge sends nothing under a
 different stored session. The handler copies every image into the outbox and
