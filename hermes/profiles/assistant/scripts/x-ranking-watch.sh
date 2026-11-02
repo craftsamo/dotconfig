@@ -1,8 +1,8 @@
 #!/bin/sh
 # x-ranking-watch — the wake gate of the Assistant's weekly X-ranking watch.
 #
-# A cron script for a job WITH an agent: prints {"wakeAgent": false} when X's published defaults match
-# the baseline, otherwise a report the Assistant turns into an OpenCode plan.
+# A cron script for a job WITH an agent: prints {"wakeAgent": false} when defaults match the baseline
+# or the diff equals the one last reported, otherwise a report the Assistant turns into an OpenCode plan.
 # The job is kept beside the private config since its delivery names a chat; its run.sh execs this
 # script where install.sh copied it. Contract: docs/x-access.md "Ranking watch".
 

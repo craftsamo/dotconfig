@@ -116,8 +116,11 @@ the Assistant, which starts an OpenCode plan on this repository and opens a
 Telegram topic with its proposal, building nothing. A read failure exits 1 and
 reaches the Inbox as a failure notice. The baseline is refreshed
 (`ranking_watch.py refresh`) in the same change that updates `x-ranking.md`, and
-`tests/test_ranking_watch.py` holds the two together, so until that change lands
-every weekly run reports the same drift.
+`tests/test_ranking_watch.py` holds the two together. The script remembers the
+last diff it reported under `HERMES_LOCAL` (`x-access/ranking_watch.json`), stays
+silent while the diff is unchanged, reports again when the diff changes, clears
+the record once values match the baseline, and `ranking_watch.py forget` makes
+the next run report again (e.g. after a failed plan).
 
 ## Media
 
