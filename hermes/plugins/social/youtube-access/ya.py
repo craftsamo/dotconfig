@@ -81,6 +81,20 @@ def _load_card():
 
 
 cards = _load_card()
+
+
+def _load_approval_tier():
+    if "hermes_approval_tier" not in sys.modules:
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("hermes_approval_tier",
+                                                      HERE.parents[1] / "_shared" / "approval_tier.py")
+        module = importlib.util.module_from_spec(spec)
+        sys.modules["hermes_approval_tier"] = module
+        spec.loader.exec_module(module)
+    return sys.modules["hermes_approval_tier"]
+
+
+approval_tier = _load_approval_tier()
 BRIDGE = HERE / "bridge.py"
 # Engine runtime root: machine-local, outside the repository (HERMES_LOCAL overrides).
 RUNTIME_ROOT = Path(os.environ.get("HERMES_LOCAL") or Path.home() / ".hermes" / "local")
@@ -2098,9 +2112,9 @@ def approval_request(args: dict, home: Path | None = None, profile: str | None =
         seen["ids"] = ids = _comment_ids(args)
         _moderation(args)
         seen["texts"] = _comment_texts(cid, ids[:3]) if lookup else None
-    key = f"youtube-access:{action}:{_digest(key_args)}"
-    if action == "thumbnail" or action == "update" and not {"privacyStatus", "publishAt"} & set(_edits(args)[1]):
-        key = f"youtube-access:edit:{cid}:{seen['vid']}"
+    eligible = not (action == "update" and {"privacyStatus", "publishAt"} & set(_edits(args)[1]))
+    key = approval_tier.rule_key("youtube-access", action, cards.CAUTION, _digest(key_args),
+                                 scope=(cid, seen.get("vid")), eligible=eligible)
     for scale in CARD_SCALES:
         try:
             return _card(action, args, meta.get("title") or cid, scale, seen), key
