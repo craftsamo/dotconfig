@@ -50,6 +50,13 @@ key.
   level the rule does not list.
 - Bind a standing key to an action alone: it needs a target, or one answer
   covers every chat or account.
+- Check an executed write against the card's allowlist key. A standing key names
+  only the target, so each plugin keeps a digest of what the card showed and
+  compares that at the write.
+- Compute a card's level twice, once for the card and once for the key: both read
+  one function, so they cannot disagree about how risky a call is. A call whose
+  effect depends on state outside the arguments (a draft that is already
+  scheduled, a Saved Messages row of another account) reads that state in it.
 - Let anything but a change to the table and its pinning test loosen a tier. No
   config setting widens it: a profile can edit its own config.
 - Add a free rule without deciding how it behaves where no person can answer.
