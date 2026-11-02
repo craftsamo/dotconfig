@@ -28,8 +28,10 @@ chat or a wording, follow it; the mechanics below still apply.
   to you.
 - **Sends wait for the user.** A send shows a card and runs only after
   the user approves it (Note to Self can be approved for the session or
-  always). In cron, a single query or an inbound A2A request nothing can be
-  approved, so nothing is sent: schedule a reminder for the user instead.
+  always), unless it is plain text to a chat in a send mandate (below). In
+  cron, a single query or an inbound A2A request nothing can be approved, so
+  nothing is sent unless it fits a send mandate: otherwise schedule a reminder
+  for the user instead.
 
 ## Read
 
@@ -130,8 +132,30 @@ Send only what the user asked to send, to the chat they meant.
    same send unchanged. A file or quoted message changed after the card →
    `not sent`; ask again.
 5. **Where no one can answer a card** (YOLO, `hermes -z`, cron, an unattended
-   run) the tool refuses with `not done` / `not sent`. Ask the user to request
-   the send in a chat; do not look for another route.
+   run) the tool refuses with `not done` / `not sent`, unless the send fits a
+   send mandate. Ask the user to request the send in a chat; do not look for
+   another route.
+
+### Send mandates
+
+A send mandate lets plain text sends to a few chats skip their card, also in
+cron, so a recurring report needs no one to tap. Make one with
+`signal_mandate`, only after you have agreed the details with the user in
+chat: which chats (one to five chat ids), how many sends an hour, the longest
+text, how many days (up to 30) and the purpose in one line. `create` shows the
+user a card of its own with every bound, each chat by its name and its own
+number or id; the answer on that card is theirs, and
+it never makes a second mandate on its own. A denied or timed-out card means
+no mandate; do not ask again unchanged. `list` shows the mandates in force and
+`revoke` (with the id) ends one at once, with no card.
+
+Inside a mandate, send as usual: nothing more is needed, and no card appears.
+A send that does not fit still asks on its card as before: another chat, a text
+over the length, more sends than the hour allows (a mandate whose count record
+is gone reads as used up), a mandate that was revoked or has ended. `not sent: it no longer fits the send mandate` means nothing went out
+and the next try will ask on a card. Never offer a mandate for a file or a
+reply: those always ask. Never propose one to get past a card the user denied,
+and never to send something the user has not asked for.
 
 ### Outcomes
 

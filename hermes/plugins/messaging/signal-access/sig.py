@@ -4,7 +4,9 @@ The sync agent (``sync.py`` under launchd) owns a ``signal-cli daemon`` linked a
 device and writes every received envelope into ``mirror.db``. Reads here only query that mirror;
 ``check`` and ``send`` go to the daemon's socket. ``send`` is the only write: text and files from
 the user's workspace, each held for the user's approval by the plugin's ``pre_tool_call`` hook
-(``approval_request``), which also binds the exact file contents that execution may send.
+(``approval_request``), which also binds the exact file contents that execution may send. A plain
+text send that fits a send mandate in force (``send_mandate``) runs without a card: the hook
+records the mandate's id and ``send`` counts the send against it before it goes out.
 Contract: docs/signal-access.md.
 """
 
@@ -24,6 +26,7 @@ import subprocess
 import sys
 import threading
 import time
+from typing import NamedTuple
 
 HERE = Path(__file__).resolve().parent
 
@@ -62,12 +65,14 @@ def _load_common(name: str):
 store = _load("store")
 rpc = _load("rpc")
 archives = _load_shared("archive_check")
+send_mandate = _load_shared("send_mandate")
 cards = _load_common("card")
 approval_tier = _load_common("approval_tier")
 shell_commands = _load_common("shell_commands")
 
 ACTIONS = ("status", "chats", "messages", "search", "context", "contacts", "check", "media", "send")
 WRITES = {"send"}
+SERVICE = "signal"          # the send mandates' name for this plugin (send_mandate.SERVICES)
 
 LIMITS = {"chats": (30, 200), "messages": (50, 300), "search": (30, 200), "contacts": (20, 100)}
 CONTEXT_MAX = 50
@@ -81,6 +86,7 @@ CHECK_MAX = 20
 CHECK_TIMEOUT = 45
 SEND_TIMEOUT = 120          # signal-cli uploads attachments inside the call
 APPROVAL_TTL = 900          # a gate record older than this does not cover a send
+MANDATE_PROBE = "."         # the text a chat is resolved with when a mandate, not a send, names it
 
 # Files: only from the user's workspace, real paths, a few at a time. SEND_ROOT pins the root
 # (tests); unset, it is the workspace layout's root, read at each send.
@@ -137,18 +143,23 @@ FAILURE_NOT_SENT = {"UNREGISTERED_FAILURE": "not on Signal any more",
 
 # Ways around the tool: the CLI where a command runs it (shell_commands; `_CLI`, the name as a word
 # anywhere, judges a line that cannot be read that way), the state directory, the agent and its env,
-# and Signal Desktop's own database.
+# and Signal Desktop's own database, and the send mandates' state in the profile home with the
+# Keychain item of their MAC key.
 CLIS = ("signal-cli",)
 _CLI = re.compile(r"(?:^|[\s;&|()`'\"=])(?:[^\s;&|()`'\"]*/)?signal-cli(?=$|[\s;&|()`'\"])")
 _PATHS = re.compile(r"hermes-signal|signal-cli\.sock|share/signal-cli|signal-sync|local\.signal\.sync"
                     r"|signal-access-sync|signal-access\.sync|signal-access-launchctl"
-                    r"|HERMES_SIGNAL_|Application(?:\\? |%20)Support/Signal", re.IGNORECASE)
+                    r"|HERMES_SIGNAL_|Application(?:\\? |%20)Support/Signal|SIGNAL_MANDATE_KEY", re.IGNORECASE)
+# <HERMES_HOME>/signal-access/{mandates/, head.json, uses.jsonl, mandates.jsonl}: matched on the text and on the
+# path it resolves to, so a link or a `..` does not hide it; the plugin's own source stays readable.
+_MANDATE_STATE = re.compile(r"signal-access/+(?:mandates|head\.json|uses\.jsonl)", re.IGNORECASE)
 _ENGINE = re.compile(r"signal-access|signal_access")
 FILE_TOOLS = {"read_file", "write_file", "patch", "search_files"}
+RESOLVE_MAX = 4096          # a longer argument is not a path worth resolving
 BYPASS_MESSAGE = (
     "Signal runs only through the signal tool, never through the terminal or file tools, and its "
-    "mirror and keys (~/.local/state/hermes-signal) and Signal Desktop's database are never read "
-    "directly. Use the signal tool; linking the account and its sync service are the user's job.")
+    "mirror and keys (~/.local/state/hermes-signal), its send mandates and Signal Desktop's database are never "
+    "read directly. Use the signal tool; linking the account and its sync service are the user's job.")
 
 
 class SignalError(Exception):
@@ -821,7 +832,58 @@ def send_plan(args: dict) -> dict:
     return plan
 
 
+def _chat_kind(chat: str, me: str) -> str:
+    """The kind a send mandate records: the account's own chat, a group, or a person."""
+    if chat == me:
+        return "self"
+    return "group" if store.is_group(chat) else "user"
+
+
+def mandate_chats(refs) -> tuple[str, str, list[dict]]:
+    """(the linked account's id, the account as the send card names it, the chats a send mandate would
+    name) for chat ids as the send takes them. Each goes through ``send_plan``, so a chat is read exactly
+    as a send reads it (a person's id or group:…, a group the user is still in) and the same call refuses
+    it; its name, kind and identity are taken from the mirror now, for the card."""
+    if not isinstance(refs, list):
+        raise SignalError("chats is a list of chat ids from chats, search, contacts or check")
+    plans = [send_plan({"chat": ref, "text": MANDATE_PROBE}) for ref in refs]
+    account = store.linked_account()
+    if not account:
+        raise SignalError(NOT_SET_UP)
+    me = account.get("uuid") or ""
+    try:
+        conn = store.connect()
+    except store.StoreError:
+        conn = None
+    try:
+        names = _names(conn) if conn else {}
+        chats = [{"id": p["chat"], "kind": _chat_kind(p["chat"], me),
+                  "name": (_chat_name(conn, p["chat"], names) if conn else None) or p["chat"],
+                  "identity": (account["number"] if p["chat"] == me
+                               else _chat_identity(p["chat"], conn and _chat_name_number(conn, p["chat"])[1]))}
+                 for p in plans]
+    finally:
+        if conn:
+            conn.close()
+    return me, account["number"], chats
+
+
 _one_line = cards.line
+
+
+def _chat_name_number(conn, chat: str) -> tuple[str | None, str | None]:
+    """(name, number) the mirror holds for a chat, the contact's own before the chat row's."""
+    row = conn.execute("SELECT name, number FROM chats WHERE id = ?", (chat,)).fetchone()
+    contact = conn.execute("SELECT * FROM contacts WHERE uuid = ?", (chat,)).fetchone()
+    name = (contact and (contact["name"] or contact["profile_name"] or contact["username"])) or (row and row["name"])
+    number = (contact and contact["number"]) or (row and row["number"])
+    return name, number
+
+
+def _chat_identity(chat: str, number: str | None) -> str:
+    """The stable handle a send card shows for a chat, the name being the other person's choice: a
+    group's id, a person's number (their account id when the mirror holds none)."""
+    return chat if store.is_group(chat) else number or f"account {chat}"
 
 
 def _chat_label(plan: dict) -> str:
@@ -835,16 +897,13 @@ def _chat_label(plan: dict) -> str:
     name = number = None
     if conn:
         try:
-            row = conn.execute("SELECT name, number FROM chats WHERE id = ?", (chat,)).fetchone()
-            contact = conn.execute("SELECT * FROM contacts WHERE uuid = ?", (chat,)).fetchone()
-            name = (contact and (contact["name"] or contact["profile_name"] or contact["username"])) or (row and row["name"])
-            number = (contact and contact["number"]) or (row and row["number"])
+            name, number = _chat_name_number(conn, chat)
         finally:
             conn.close()
     name = _one_line(name, NAME_CLIP)
     if store.is_group(chat):
         return f"{name} (group {chat[len(store.GROUP_PREFIX):][:12]}…)" if name else f"group {chat}"
-    identity = number or f"account {chat}"
+    identity = _chat_identity(chat, number)
     return f"{name} ({identity})" if name and name != identity else identity
 
 
@@ -926,42 +985,102 @@ def rule_key(plan: dict) -> str:
 
 # The gate's view of each send, per tool call, so execution sends exactly what the card showed:
 # the same chat, text, quote and file contents (the request digest covers them all, which the
-# allowlist key does not for a note to oneself).
-_approved: dict[str, tuple[float, str, list]] = {}
+# allowlist key does not for a note to oneself). A send the hook found inside a send mandate carries
+# that mandate's id as well (None for a send that asked on its card).
+_approved: dict[str, tuple[float, str, list, str | None]] = {}
 _approved_lock = threading.Lock()
 
 
-def _call_key(args: dict, call_id: str) -> str:
+class Covered(NamedTuple):
+    """A send that fits a send mandate in force: it runs with no card."""
+
+    mandate: str
+
+
+def call_key(args: dict, call_id: str) -> str:
     return hashlib.sha256(json.dumps([call_id or "", args], sort_keys=True, ensure_ascii=False,
                                      default=str).encode("utf-8")).hexdigest()
 
 
-def approval_request(args: dict, call_id: str = "") -> tuple[str, str] | None:
-    """(card, allowlist rule key) for a send, None for a read; raises for a call that would fail
-    anyway, so it is blocked without asking. The key covers the exact chat, text, reply and file
-    contents, so "session" or "always" only ever repeats that identical message; a note to oneself
-    shares one key per account instead (approval_tier)."""
+def mandate_view(plan: dict) -> dict:
+    """The send as a send mandate judges it (send_mandate.fits)."""
+    return {"service": SERVICE, "account": str(plan["me"]), "chat": str(plan["chat"]), "text": plan["text"],
+            "files": len(plan["files"]), "reply": bool(plan["reply_to"] or plan.get("quote"))}
+
+
+def _covering_mandate(home, plan: dict) -> str | None:
+    """The id of a mandate in force this send fits, else None. Any doubt (no home, no readable key,
+    a state that cannot be read) is "not covered": the send asks on its card."""
+    view = mandate_view(plan)
+    if home is None or view["files"] or view["reply"]:
+        return None
+    try:
+        return send_mandate.covering(home, SERVICE, view)[0]
+    except Exception:  # noqa: BLE001 - fail closed
+        return None
+
+
+def _remember(args: dict, call_id: str, plan: dict, mandate_id: str | None) -> None:
+    with _approved_lock:
+        now = time.monotonic()
+        for old in [k for k, (at, _, _, _) in _approved.items() if now - at > APPROVAL_TTL]:
+            _approved.pop(old, None)
+        _approved[call_key(args, call_id)] = (now, request_digest(plan),
+                                               [[f["path"], f["sha256"]] for f in plan["files"]], mandate_id)
+
+
+def approval_request(args: dict, call_id: str = "", home: Path | None = None) -> tuple[str, str] | Covered | None:
+    """(card, allowlist rule key) for a send, ``Covered`` for a send inside a send mandate in force
+    under ``home`` (no card; the record carries the mandate's id), None for a read; raises for a
+    call that would fail anyway, so it is blocked without asking. The key covers the exact chat,
+    text, reply and file contents, so "session" or "always" only ever repeats that identical
+    message; a note to oneself shares one key per account instead (approval_tier)."""
     args = args if isinstance(args, dict) else {}
     if action_of(args) not in WRITES:
         return None
     plan = send_plan(args)
-    text = card(plan)
-    key = rule_key(plan)
-    with _approved_lock:
-        now = time.monotonic()
-        for old in [k for k, (at, _, _) in _approved.items() if now - at > APPROVAL_TTL]:
-            _approved.pop(old, None)
-        _approved[_call_key(args, call_id)] = (now, request_digest(plan),
-                                               [[f["path"], f["sha256"]] for f in plan["files"]])
-    return text, key
+    mandate_id = _covering_mandate(home, plan)
+    if mandate_id:
+        _remember(args, call_id, plan, mandate_id)
+        return Covered(mandate_id)
+    request = (card(plan), rule_key(plan))
+    _remember(args, call_id, plan, None)
+    return request
 
 
-def _approved_send(args: dict, call_id: str) -> tuple[str, list] | None:
+def cardless_request(args: dict, call_id: str = "", home: Path | None = None) -> Covered | None:
+    """For where nobody can answer a card: ``Covered`` (recorded as ``approval_request`` does) when the
+    send fits a send mandate in force, else None with nothing recorded. Never raises for a bad send."""
+    args = args if isinstance(args, dict) else {}
+    if action_of(args) not in WRITES:
+        return None
+    try:
+        plan = send_plan(args)
+    except Exception:  # noqa: BLE001 - a send that cannot be planned is not covered; the caller refuses it
+        return None
+    mandate_id = _covering_mandate(home, plan)
+    if not mandate_id:
+        return None
+    _remember(args, call_id, plan, mandate_id)
+    return Covered(mandate_id)
+
+
+def covered(args: dict, call_id: str = "") -> str | None:
+    """The mandate id the hook recorded for this call, without taking the record; None when the call
+    was not found inside a send mandate (or no record is left)."""
     with _approved_lock:
-        entry = _approved.pop(_call_key(args, call_id), None)
+        entry = _approved.get(call_key(args if isinstance(args, dict) else {}, call_id))
     if not entry or time.monotonic() - entry[0] > APPROVAL_TTL:
         return None
-    return entry[1], entry[2]
+    return entry[3]
+
+
+def _approved_send(args: dict, call_id: str) -> tuple[str, list, str | None] | None:
+    with _approved_lock:
+        entry = _approved.pop(call_key(args, call_id), None)
+    if not entry or time.monotonic() - entry[0] > APPROVAL_TTL:
+        return None
+    return entry[1], entry[2], entry[3]
 
 
 # --- send ---------------------------------------------------------------------------------------
@@ -986,11 +1105,16 @@ def _stage(plan: dict, approved: list) -> tuple[Path, list[str]]:
     return outbox, paths
 
 
-def send(args: dict, call_id: str = "") -> dict:
+def _no_longer_fits(why: str) -> dict:
+    return {"ok": False, "error": f"not sent: it no longer fits the send mandate ({why}); nothing was sent. "
+                                  "Send it again: it will ask on a card."}
+
+
+def send(args: dict, call_id: str = "", home: Path | None = None) -> dict:
     record = _approved_send(args, call_id)
     if record is None:
         return {"ok": False, "error": "not sent: this send did not pass the approval card; call send again"}
-    approved_digest, approved = record
+    approved_digest, approved, mandate_id = record
     try:
         plan = send_plan(args)
     except SignalError as exc:
@@ -998,6 +1122,12 @@ def send(args: dict, call_id: str = "") -> dict:
     if request_digest(plan) != approved_digest or [[f["path"], f["sha256"]] for f in plan["files"]] != approved:
         return {"ok": False, "error": "not sent: the files or the quoted message changed after the approval card "
                                      "was made; ask again"}
+    if mandate_id:
+        # Counted before the daemon is called, and it stays counted whatever becomes of the request.
+        why = ("there is no profile home, so no mandate is in force" if home is None
+               else send_mandate.use(home, SERVICE, mandate_id, mandate_view(plan)))
+        if why:
+            return _no_longer_fits(why)
     outbox = None
     try:
         params: dict = {}
@@ -1090,7 +1220,7 @@ def _sent(plan: dict, result: dict) -> dict:
 def execute(args: dict, home: Path | None = None, call_id: str = "") -> dict:
     args = args if isinstance(args, dict) else {}
     if action_of(args) in WRITES:
-        return send(args, call_id)
+        return send(args, call_id, home)
     return read(args, home)
 
 
@@ -1107,6 +1237,23 @@ def _strings(value):
             yield from _strings(item)
 
 
+def _resolved(text: str) -> str:
+    """The real path a path-like argument names (``~``, ``..`` and links resolved), else ''."""
+    if not text or "\n" in text or len(text) > RESOLVE_MAX:
+        return ""
+    try:
+        return os.path.realpath(os.path.expanduser(text.strip()))
+    except (OSError, ValueError):
+        return ""
+
+
+def _names_mandate_state(text: str) -> bool:
+    if _MANDATE_STATE.search(text):
+        return True
+    real = _resolved(text)
+    return bool(real) and bool(_MANDATE_STATE.search(real))
+
+
 def bypass(tool: str, args) -> str | None:
     """A block message when a terminal or file call would go around the tool, else None.
     A pattern match on the call's text, not a sandbox."""
@@ -1119,5 +1266,8 @@ def bypass(tool: str, args) -> str | None:
             return BYPASS_MESSAGE
     elif tool in FILE_TOOLS:
         if any(_PATHS.search(text) for text in _strings(args)):
+            return BYPASS_MESSAGE
+    if tool == "terminal" or tool in FILE_TOOLS:
+        if any(_names_mandate_state(text) for text in _strings(args)):
             return BYPASS_MESSAGE
     return None
