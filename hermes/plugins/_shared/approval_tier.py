@@ -100,6 +100,11 @@ TIERS: dict[str, dict[str, Rule]] = {
                        "price_update", "coupon_create", "coupon_update", "promotion_code_create",
                        "promotion_code_update", "invoice_create", "payment_link_create", "payment_link_update")
     },
+    "cloudflare-access": {
+        "storage_create": Rule(STANDING, "empty-storage", "account"),
+        "cache_purge": Rule(STANDING, "purge-urls", "zone"),
+        "zone_setting": Rule(STANDING, "dev-mode-on", "zone"),
+    },
 }
 
 
