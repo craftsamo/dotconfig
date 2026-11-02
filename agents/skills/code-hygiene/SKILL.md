@@ -138,17 +138,20 @@ of an improvement it looks.
 4. Locate the existing homes before editing: shared type modules, constants
    modules, design tokens, shell libraries, and the naming pattern of sibling
    files.
-5. Apply the <Principles> one concern at a time; sort every file change into a
+5. Record a baseline before the first edit: run the checks that cover the
+   scope (the repository's documented check command when it has one) and note
+   what already fails. A failure present before the cleanup is reported, not
+   fixed and not blamed on the cleanup.
+6. Apply the <Principles> one concern at a time; sort every file change into a
    tier first.
-6. Run the cheapest checks that cover the scope: typecheck, linter, tests, a
-   build, `shellcheck`. A cleanup that turns a check red is reverted, not
-   patched forward.
-7. Report:
+7. Run the same checks again. A cleanup that turns a check red is reverted,
+   not patched forward.
+8. Report:
    - each file changed and the principle applied;
    - tier B proposals with reasons and affected importers;
    - tier C observations;
    - behavior-adjacent cleanups deliberately left alone, and why;
-   - the checks run and their results.
+   - the checks run, before and after, and their results.
 
 </Procedure>
 
@@ -170,6 +173,9 @@ This does not license tidying code outside the task.
 - [ ] No new documentation was invented; only existing declaration comments
       were converted.
 - [ ] Every file change was tiered; only tier A was performed.
-- [ ] <BehaviorInvariants> hold, and the checks that cover the scope pass.
+- [ ] Every runtime-visible edit (doc comment read at runtime, annotation,
+      token, exported type) was checked against <BehaviorInvariants>.
+- [ ] <BehaviorInvariants> hold, and the checks that cover the scope pass, or
+      fail only as they did in the baseline.
 
 </Gates>
